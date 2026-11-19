@@ -7,7 +7,10 @@ module Settings = {
     | HelpfulAssistant
     | Probes
     | LogControl
-    | Problems;
+    | Problems
+    | TaskReference
+    | DebugInfo
+    | Settings;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
@@ -148,16 +151,90 @@ module Settings = {
     | ToggleFlat
     | ToggleExpanded(Id.t);
 
+  /* Extra fields are tolerated so a settings blob written by an older build
+     (which stored the inverse, `debug_collapsed`) still loads instead of
+     failing t_of_sexp and resetting every other setting. Persistence goes
+     through sexp only — see Store.F. */
   [@deriving (show({with_path: false}), sexp, yojson)]
+  [@sexp.allow_extra_fields]
   type t = {
     show: bool,
     panel,
     problems: problems_settings,
+    debug_show_raw: bool,
+    /* Debug sidebar sections/fields the user has expanded, keyed by section
+       title or field label. Everything starts collapsed: the panel is deep, and
+       the instrumented sections only collect while expanded. Persists across
+       cursor moves, so expanding e.g. "ctx" keeps it open regardless of the term
+       under the cursor. */
+    [@sexp.default []] [@yojson.default []]
+    debug_expanded: list(string),
+    /* Encodings (WorkerServer.encoding) enabled in the Worker Messaging panel;
+       only these are benchmarked. Defaults to just the active encoding
+       (Marshal) — Direct and Sexp start off — and is defaulted on load so
+       existing persisted settings (which lack this field) still load. */
+    [@sexp.default [WorkerServer.Marshal]] [@yojson.default
+                                              [WorkerServer.Marshal]
+                                            ]
+    worker_encodings: list(WorkerServer.encoding),
+    /* Settings panel sections folded shut, by name; defaulted on load so
+       settings saved before the panel existed still load */
+    [@sexp.default ["Stepper", "Developer"]] [@yojson.default
+                                                ["Stepper", "Developer"]
+                                              ]
+    settings_folded: list(string),
   };
+
+  let is_debug_expanded = (key: string, settings: t) =>
+    List.mem(key, settings.debug_expanded);
+
+  let toggle_debug_expanded = (key: string, settings: t): t =>
+    if (is_debug_expanded(key, settings)) {
+      {
+        ...settings,
+        debug_expanded: List.filter(k => k != key, settings.debug_expanded),
+      };
+    } else {
+      {
+        ...settings,
+        debug_expanded: [key, ...settings.debug_expanded],
+      };
+    };
+
+  let is_settings_folded = (name: string, settings: t) =>
+    List.mem(name, settings.settings_folded);
+
+  let toggle_settings_folded = (name: string, settings: t): t => {
+    ...settings,
+    settings_folded:
+      is_settings_folded(name, settings)
+        ? List.filter(n => n != name, settings.settings_folded)
+        : [name, ...settings.settings_folded],
+  };
+
+  let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
+    List.mem(e, settings.worker_encodings);
+
+  let toggle_encoding = (e: WorkerServer.encoding, settings: t): t =>
+    if (is_encoding_enabled(e, settings)) {
+      {
+        ...settings,
+        worker_encodings: List.filter(x => x != e, settings.worker_encodings),
+      };
+    } else {
+      {
+        ...settings,
+        worker_encodings: [e, ...settings.worker_encodings],
+      };
+    };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
     | SwitchPanel(panel)
-    | Problems(problems_action);
+    | Problems(problems_action)
+    | ToggleDebugRaw
+    | ToggleDebugExpanded(string)
+    | ToggleWorkerEncoding(WorkerServer.encoding)
+    | ToggleSettingsFolded(string);
 };

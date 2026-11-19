@@ -16,6 +16,7 @@ let dot_typ: form = {
   {
     id: DotTyp,
     syntactic_form: [typ_module, dot_typ(), typ_label],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [dot_typ_example],

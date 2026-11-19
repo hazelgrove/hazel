@@ -22,7 +22,7 @@ This directory contains Hazel's implementation and evaluation of the B2T2 This i
 The implementation includes:
 - **Datasheet** (`Datasheet.md`): A comprehensive evaluation of how Hazel addresses each component of the B2T2 benchmark
 - **Implementation** (`Datasheet.re`): Code used to turn the markdown datasheet into a documentation slide in the editor
-- **Documentation Slides** (`slides/`): Interactive examples demonstrating B2T2 concepts in Hazel
+- **Documentation Slides** (`hazel-programs/docs/b2t2/*.hz`): Interactive examples demonstrating B2T2 concepts in Hazel, as committed program text
 - **Slides Module** (`Slides.re`): Aggregates all B2T2 slides for integration into Hazel's documentation system
 
 ## B2T2 Benchmark Components

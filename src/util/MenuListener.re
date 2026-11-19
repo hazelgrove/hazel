@@ -29,6 +29,9 @@ module type Config = {
    * (falling back to the menu container) after every sync where the menu
    * is open. */
   let scroll_into_view: bool;
+  /* Dismiss on `#main` scroll — for position:fixed menus (the probe drawer
+   * dropdown) that would otherwise lag the content they're anchored to. */
+  let close_on_scroll: bool;
 };
 
 let has_ancestor_with_class =
@@ -51,7 +54,9 @@ let has_ancestor_with_class =
 };
 
 module Make = (C: Config) => {
-  let close_effect: ref(option(Effect.t(unit))) = ref(None);
+  /* Thunk, not a prebuilt effect: `local(action)` runs the update eagerly, so
+   * defer it to when the menu actually closes, not every sync. */
+  let close_effect: ref(option(unit => Effect.t(unit))) = ref(None);
   let on_key: ref(option(string => option(Effect.t(unit)))) = ref(None);
   let is_active: ref(bool) = ref(false);
   /* Grace period after open so the same click that opened the menu
@@ -62,10 +67,10 @@ module Make = (C: Config) => {
   let execute_close = () =>
     switch (close_effect^) {
     | None => ()
-    | Some(effect) =>
+    | Some(on_close) =>
       let now = Js.Unsafe.global##.performance##now();
       if (now -. opened_at^ > 50.0) {
-        Effect.Expert.handle(effect);
+        Effect.Expert.handle(on_close());
       };
     };
 
@@ -171,13 +176,28 @@ module Make = (C: Config) => {
       let win = Js.Unsafe.coerce(Dom_html.window);
       let _ =
         win##addEventListener(Js.string("blur"), blur_handler, Js._false);
+
+      if (C.close_on_scroll) {
+        switch (JsUtil.get_elem_by_id_opt("main")) {
+        | None => ()
+        | Some(main) =>
+          let main_coerced = Js.Unsafe.coerce(main);
+          let scroll_handler =
+            Js.wrap_callback((_: Js.t(Dom_html.event)) => execute_close());
+          /* `wheel`, not `scroll`: wheel fires before the browser scrolls/
+           * repaints so the menu closes immediately; `scroll` fires after the
+           * paint — the lag we saw here. */
+          let _ = main_coerced##addEventListener("wheel", scroll_handler);
+          ();
+        };
+      };
       ();
     };
 
   let sync =
       (
         ~menu_open: bool,
-        ~on_close: Effect.t(unit),
+        ~on_close: unit => Effect.t(unit),
         ~handle_key: option(string => option(Effect.t(unit)))=?,
         (),
       )

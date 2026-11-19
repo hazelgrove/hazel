@@ -268,7 +268,10 @@ and uexp_to_info_map =
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
   let ancestors_inclusive = [Exp.rep_id(uexp)] @ ancestors;
-  let ancestors = (); // Deliberately shadowed so there's no risk of using it by mistake
+  // Deliberately shadowed so there's no risk of using it by mistake. Nothing
+  // reads it, which is the point, so it is exempt from the unused warning.
+  [@warning "-26"]
+  let ancestors = ();
   let go =
       (
         ~ctx=ctx,
@@ -385,26 +388,50 @@ and uexp_to_info_map =
         ~probe_targets=e.probe_targets,
         m,
       );
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
-      let (co_ctxs, tms_elab, m) =
-        multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+      /* Elaborate MultiHole as right-associative Seq through all Exp children;
+       * non-Exp children still get info-mapped but are dropped from elaboration. */
+      let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+        List.fold_left(
+          ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+            switch (any) {
+            | Exp(e) =>
+              let (e_info, e_elab, m) = go(~ana=syn, e, m);
+              (
+                co_ctxs @ [e_info.co_ctx],
+                probe_targets @ [e_info.probe_targets],
+                elabs @ [e_elab],
+                m,
+              );
+            | _ =>
+              let (co_ctx, _any_elab, m) =
+                any_to_info_map(~ctx, ~ancestors=ancestors_inclusive, any, m);
+              (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+            },
+          ([], [], [], m),
+          tms,
+        );
+      let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+        switch (exps) {
+        | [] => EmptyHole |> rewrap
+        | [e] => e
+        | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+        };
+      /* An unknown-infix multihole (operator token recorded as the
+         lexeme, two exp kids) is a stuck application, not transient
+         juxtaposition: elaborate it to a MultiHole, which the dynamics
+         treats as Indet, instead of evaluating to the last kid. */
+      let elab_term =
+        switch (uexp.annotation.lexeme, exp_elabs) {
+        | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+        | _ => nest_seqs(exp_elabs)
+        };
       add(
-        ~elab_term=MultiHole(tms_elab) |> rewrap,
+        ~elab_term,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union(co_ctxs),
+        ~co_ctx=CoCtx.union(exp_co_ctxs),
+        ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
         m,
       );
     | Asc(e, t2) =>
@@ -563,8 +590,15 @@ and uexp_to_info_map =
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
          the elab_term (which will ana-wrap hd via fresh_ascription below)
-         agrees with the recorded type. */
-      let inner_elab_syn_ty = hd.ty |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+         agrees with the recorded type. normalize_ctr_type, not full
+         normalize: a compact builtin alias (Var("HTML")) must stay compact
+         here — full normalization expanded the whole recursive sum PER CONS
+         CELL and embedded it in the ascriptions, making every list of
+         HTML/Attr elements quadratically expensive downstream (the
+         large-sum-types contract: consumers weak_head_normalize on
+         demand). */
+      let inner_elab_syn_ty =
+        hd.ty |> Typ.canonicalize(ctx) |> Typ.all_ids_temp;
       let elab_term =
         Cons(
           hd_elab
@@ -704,6 +738,21 @@ and uexp_to_info_map =
       );
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
+      /* Re-kind numeric negation by the analyzed class, else by the
+         operand's own class (peeked with a discarded pass) — mirrors
+         replace_literal, so `-1.5` and `let x: Float = -5` type as float
+         negation instead of locking the operand to Int. */
+      let op =
+        switch (Typ.is_ana_atom(ana)) {
+        | Some(_) as ana_cls => Operators.replace_un_op_cls(op, ana_cls, None)
+        | None =>
+          let (peek, _, _) = go(~ana=syn, e, m);
+          Operators.replace_un_op_cls(
+            op,
+            None,
+            Typ.is_ana_atom(peek.elab_syn_ty),
+          );
+        };
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
@@ -772,7 +821,7 @@ and uexp_to_info_map =
             ~probe_targets=probe_targets_poly,
             m,
           )
-        | Some(ty) when Typ.normalize(ctx, ty) |> Typ.has_fun =>
+        | Some(ty) when Typ.has_fun_up_to_aliases(ctx, ty) =>
           add(
             ~elab_term=elab_poly,
             ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
@@ -813,14 +862,14 @@ and uexp_to_info_map =
     | TupleExtension(e1, e2) =>
       let (t1, e1_elab, m) = go(e1, m);
       let m =
-        switch (Typ.normalize(ctx, t1.ty).term) {
+        switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
       let (t2, e2_elab, m) = go(e2, m);
       let m =
-        switch (Typ.normalize(ctx, t2.ty).term) {
+        switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
         | Prod(_)
         | Unknown(_) => m
         | _ => append_mark_exp(m, e2, [TupleExtensionRequiresTuples])
@@ -832,8 +881,8 @@ and uexp_to_info_map =
       let elab_term = TupleExtension(e1_elab, e2_elab) |> rewrap;
 
       switch (
-        Typ.normalize(ctx, t1.ty).term,
-        Typ.normalize(ctx, t2.ty).term,
+        Typ.weak_head_normalize(ctx, t1.ty).term,
+        Typ.weak_head_normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
         let extract_entry: Typ.t => (option(string), Typ.t) = (
@@ -1054,7 +1103,9 @@ and uexp_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.exp) =>
-              switch (e.user_term.term) {
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
+              switch (Exp.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false
               },
@@ -1069,7 +1120,7 @@ and uexp_to_info_map =
           ty_list,
         );
       let tuple_elab =
-        switch (Typ.weak_head_normalize(ctx, ana).term) {
+        switch (MatchedTyp.head(ctx, ana).term) {
         | Prod(ts) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -1231,8 +1282,24 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      /* Dot looks through one List level (column projection over a list
+         of labeled tuples), so the element head must be resolved too. */
+      let whnf_dot = ty => {
+        let ty = Typ.weak_head_normalize(ctx, ty);
+        switch (Typ.term_of(ty)) {
+        | List(inner) =>
+          let inner' = Typ.weak_head_normalize(ctx, inner);
+          inner' === inner
+            ? ty
+            : {
+              ...ty,
+              term: List(inner'),
+            };
+        | _ => ty
+        };
+      };
       let available_labels = {
-        let ty = Typ.normalize(ctx, info_e1.ty);
+        let ty = whnf_dot(info_e1.ty);
         switch (ty.term) {
         | Prod(ts) =>
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
@@ -1300,7 +1367,7 @@ and uexp_to_info_map =
             |> Typ.temp;
           let (_, _, m) = go(~ana=ty, e1, m);
           (ty, m);
-        | _ => (Typ.normalize(ctx, info_e1.ty), m)
+        | _ => (whnf_dot(info_e1.ty), m)
         };
       };
       switch (ty.term) {
@@ -1499,8 +1566,21 @@ and uexp_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_res, marks_res) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-      switch (marks_res) {
-      | [FreeConstructor(name)] =>
+      /* A capitalized name is parsed as a constructor, but it may be a
+         VARIABLE binding (a module: `module M = … in M.x`). Constructors
+         and variables used to be consulted in a fixed order — constructor
+         first, variable only if no constructor of that name existed — so a
+         module named like ANY constructor in scope lost to it regardless of
+         which was bound later. Resolve like every other name: the most
+         recent binding of that name wins, whichever kind it is. */
+      let shadowing_var =
+        switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+        | (None, Some(`Var(v))) => Some(v)
+        | _ => None
+        };
+      switch (marks_res, shadowing_var) {
+      | ([FreeConstructor(name)], _)
+      | (_, Some({name, _})) =>
         /* If not a known constructor, try looking up as a variable.
            This supports capitalized module names like M.x where M is
            parsed as Constructor but is actually a variable binding. */
@@ -1618,7 +1698,7 @@ and uexp_to_info_map =
       | _ =>
         /* If this is a builtin with custom statics */
         let custom_statics =
-          switch (fn.term) {
+          switch (Exp.strip_wrappers(fn).term) {
           | Var(v) =>
             Ctx.lookup_var(ctx, v)
             |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
@@ -1719,7 +1799,7 @@ and uexp_to_info_map =
     | DeferredAp(fn, args) =>
       /* If this is a builtin with custom statics */
       let custom_statics =
-        switch (fn.term) {
+        switch (Exp.strip_wrappers(fn).term) {
         | Var(v) =>
           Ctx.lookup_var(ctx, v)
           |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
@@ -1748,7 +1828,7 @@ and uexp_to_info_map =
         CustomStatics.custom_statics_deferred_ap(
           ~elab_term=DeferredAp(fn_elab, args) |> rewrap,
           ~ctx,
-          ~ancestors,
+          ~ancestors=ancestors_inclusive,
           ~fn_info=fn,
           kind,
           (module
@@ -1840,14 +1920,21 @@ and uexp_to_info_map =
       let (p, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
+      /* Irrefutable patterns exhaust any type: skip the coverage check
+         and, more importantly, the deep normalize it requires. */
+      let p_constraint = Info.pat_constraint(p);
       let marks_fun =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
-          ]
+        if (Coverage.Constraint.is_irrefutable(p_constraint)) {
+          [];
+        } else {
+          let Coverage.CheckMatrix.{exhaustiveness, _} =
+            Coverage.check([p_constraint], Typ.normalize(ctx, p.ty));
+          switch (exhaustiveness) {
+          | Exhaustive => []
+          | Inexhaustive(unseen_pattern) => [
+              Mark.InexhaustiveMatch(syn_ty_fun, [], unseen_pattern),
+            ]
+          };
         };
       let elab_term = Fun(p_elab, e_elab, Some(p.ty), n) |> rewrap;
       add(
@@ -1860,10 +1947,14 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let (p, p_elab, m) =
+      let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      /* Re-analyze the binder with the body's co_ctx so its unused warning
+         sees uses in the body. */
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, p, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -1943,11 +2034,12 @@ and uexp_to_info_map =
         switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
         | (Some(num_vars), Some(num_fns))
             when num_vars != 0 && num_vars == num_fns =>
-          let norm = Typ.normalize(ctx, syn);
+          let norm = MatchedTyp.head(ctx, syn);
+          let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
           switch (norm |> Typ.term_of) {
           | Prod(syns) when List.length(syns) == num_vars =>
-            syns |> List.for_all(Typ.is_arrow_like)
-          | _ when Typ.is_arrow_like(norm) => num_vars == 1
+            syns |> List.for_all(arrow_like)
+          | _ when arrow_like(norm) => num_vars == 1
           | _ => false
           };
         | _ => false
@@ -1955,12 +2047,12 @@ and uexp_to_info_map =
       };
       /* Save module items and RHS variable name before def is shadowed */
       let module_items =
-        switch (def.term) {
+        switch (Exp.strip_wrappers(def).term) {
         | Module(items) => Some(items)
         | _ => None
         };
       let def_rhs_var =
-        switch (def.term) {
+        switch (Exp.strip_wrappers(def).term) {
         | Var(v) => Some(v)
         | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
         | _ => None
@@ -1969,7 +2061,10 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def_term, def_rewrap) = Exp.unwrap(def);
       let def =
-        switch (def_term, Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+        switch (
+          def_term,
+          Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty)),
+        ) {
         | (Tuple(ds), Prod(tys)) =>
           Tuple(
             LabeledTuple.rearrange(
@@ -1982,7 +2077,7 @@ and uexp_to_info_map =
         };
       let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
       let rec_check_ty =
-        switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
         | Unknown(SynSwitch) => def_rec_probe.ty
         | _ => p_syn.ty
         };
@@ -2067,17 +2162,19 @@ and uexp_to_info_map =
       let (p_ana, p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       let syn_ty_let = body.elab_syn_ty;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check(
-          [Info.pat_constraint(p_ana)],
-          Typ.normalize(ctx, p_ana.ty),
-        );
+      let p_constraint = Info.pat_constraint(p_ana);
       let marks_let =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
-          ]
+        if (Coverage.Constraint.is_irrefutable(p_constraint)) {
+          [];
+        } else {
+          let Coverage.CheckMatrix.{exhaustiveness, _} =
+            Coverage.check([p_constraint], Typ.normalize(ctx, p_ana.ty));
+          switch (exhaustiveness) {
+          | Exhaustive => []
+          | Inexhaustive(unseen_pattern) => [
+              Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
+            ]
+          };
         };
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let requires_fixf =
@@ -2169,9 +2266,15 @@ and uexp_to_info_map =
           m,
         );
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=p'.ty,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2193,13 +2296,19 @@ and uexp_to_info_map =
       );
     | Theorem(p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (_, e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(
+          ~is_synswitch=false,
+          ~warn_unused=false,
+          ~co_ctx=e2.co_ctx,
+          ~ana=syn,
+          p,
+          m,
+        );
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2207,11 +2316,16 @@ and uexp_to_info_map =
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
+            e1'.co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
         ~probe_targets=
-          SubexpProbeTargets.union_all([p.probe_targets, e2.probe_targets]),
+          SubexpProbeTargets.union_all([
+            p.probe_targets,
+            e1'.probe_targets,
+            e2.probe_targets,
+          ]),
         m,
       );
     | ProofObject(e) =>
@@ -2254,7 +2368,9 @@ and uexp_to_info_map =
           branch_ids,
         );
       let result_ty =
-        fixed_typ(ctx, ana, syn_if) |> Typ.normalize(ctx) |> Typ.all_ids_temp;
+        fixed_typ(ctx, ana, syn_if)
+        |> Typ.canonicalize(ctx)
+        |> Typ.all_ids_temp;
       let elab =
         If(
           cond_elab,
@@ -2273,12 +2389,7 @@ and uexp_to_info_map =
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
-          | _ =>
-            !
-              Typ.fast_equal(
-                Typ.normalize(ctx, result_ty),
-                Typ.normalize(ctx, branch_info.ty),
-              )
+          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, branch_info.ty)
           };
         wrapped ? result_ty : branch_info.elab_syn_ty;
       };
@@ -2401,7 +2512,7 @@ and uexp_to_info_map =
       /* Build elaboration with ascriptions on branch bodies */
       let result_ty =
         fixed_typ(ctx, ana, syn_ty_match)
-        |> Typ.normalize(ctx)
+        |> Typ.canonicalize(ctx)
         |> Typ.all_ids_temp;
       let e_tys = List.map(Info.exp_ty, es);
       let es_elabs =
@@ -2419,12 +2530,7 @@ and uexp_to_info_map =
         let wrapped =
           switch (result_ty.term) {
           | Unknown(Internal) => false
-          | _ =>
-            !
-              Typ.fast_equal(
-                Typ.normalize(ctx, result_ty),
-                Typ.normalize(ctx, e.ty),
-              )
+          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, e.ty)
           };
         wrapped ? result_ty : e.elab_syn_ty;
       };
@@ -2443,57 +2549,43 @@ and uexp_to_info_map =
         m,
       );
     | TyAlias(typat, utyp, body) =>
-      let m =
-        utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
-        |> snd;
       /* Desugar Sig types so that type aliases like `type T = {let x : Int}`
          store Prod([TupLabel(...)]) rather than Sig([...]) in the context.
          This ensures meet/join can unify them with module expression types. */
       let utyp_desugared = Typ.desugar_sig(ctx, utyp);
-      switch (typat.term) {
-      | Var(name) when !Ctx.is_base_typ(name) =>
-        /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
-           for any type variable reference not in its ctx. So any free variables
-           in the definition would be obliterated. But we need to check for free
-           variables to decide whether to make a recursive type or not. So we
-           tentatively add an abtract type to the ctx, representing the
-           speculative rec parameter. */
-        let (ty_def, ctx_def, ctx_body) = {
-          switch (utyp_desugared.term) {
-          | _ when List.mem(name, Typ.free_vars(utyp_desugared)) =>
-            /* NOTE: When debugging type system issues it may be beneficial to
-               use a different name than the alias for the recursive parameter */
-            //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec =
-              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
-            (ty_rec, ctx_def, ctx_def);
-          | _ => (
-              utyp_desugared,
-              ctx,
-              Ctx.extend_alias(
-                ctx,
-                name,
-                TPat.rep_id(typat),
-                utyp_desugared,
-              ),
-            )
-          /* NOTE(yuchen): Below is an alternative implementation that attempts to
-             add a rec whenever type alias is present. It may cause trouble to the
-             runtime, so precede with caution. */
-          // Typ.lookup_surface(ty_pre)
-          //   ? {
-          //     let ty_rec = Typ.Rec({item: ty_pre, name});
-          //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-          //     (ty_rec, ctx_def, ctx_def);
-          //   }
-          //   : {
-          //     let ty = Term.Typ.to_typ(ctx, utyp);
-          //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
-          //   };
-          };
+      let alias =
+        switch (typat.term) {
+        | Var(name) when !Ctx.is_base_typ(name) =>
+          Some((name, Typ.recursive_def(name, utyp_desugared)))
+        | Var(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => None
         };
+      let warnings =
+        switch (alias) {
+        | Some((name, def)) => Warning.type_binding(name, def)
+        | None => []
+        };
+      let m =
+        utpat_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~warnings,
+          typat,
+          m,
+        )
+        |> snd;
+      switch (alias) {
+      | Some((name, def)) =>
+        let bind = ty => Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty);
+        let (ty_def, ctx_def, ctx_body) =
+          switch (def) {
+          | Plain => (utyp_desugared, ctx, bind(utyp_desugared))
+          | Recursive(ty_rec) =>
+            let ctx_def = bind(ty_rec);
+            (ty_rec, ctx_def, ctx_def);
+          };
         let ctx_body =
           switch (Typ.get_sum_constructors(ctx, ty_def)) {
           | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
@@ -2529,10 +2621,7 @@ and uexp_to_info_map =
           ~probe_targets,
           m,
         );
-      | Var(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
+      | None =>
         let (
           {co_ctx, probe_targets, elab_syn_ty: ty_body, _}: Info.exp,
           body_elab,
@@ -2623,7 +2712,11 @@ and uexp_to_info_map =
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
-        ModuleHelpers.module_actual_type(lowered.value_exports, m);
+        ModuleHelpers.module_actual_type(
+          ~local_names=List.map(fst, lowered.type_exports),
+          lowered.value_exports,
+          m,
+        );
       let module_elab =
         ModuleHelpers.module_elab(
           ~module_exp_id=Exp.rep_id(uexp),
@@ -2716,6 +2809,7 @@ and upat_to_info_map =
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
+      ~warn_unused: bool=true,
       upat: Pat.t,
       m: Map.t,
     )
@@ -2766,7 +2860,7 @@ and upat_to_info_map =
       warnings
       @ (
         switch (user_term.term) {
-        | Var(name) => Warning.to_list(Warning.var_is_unused(co_ctx, name))
+        | Var(name) when warn_unused => Warning.var_is_unused(co_ctx, name)
         | _ => []
         }
       );
@@ -2826,6 +2920,7 @@ and upat_to_info_map =
       ~ana,
       ~under_ascription,
       ~probe_ids,
+      ~warn_unused,
       upat,
       m: Map.t,
     );
@@ -2843,6 +2938,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
@@ -2855,6 +2951,7 @@ and upat_to_info_map =
             ~ancestors=ancestors_inclusive,
             ~ana,
             ~probe_ids,
+            ~warn_unused,
             pat,
             m,
           ),
@@ -3451,7 +3548,9 @@ and upat_to_info_map =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
           ~has_tup_label=
             (e: Info.pat) =>
-              switch (e.user_term.term) {
+              /* Asc is opaque here on purpose: an ascribed entry is not a
+                 bare labeled entry of this tuple. */
+              switch (Pat.strip_wrappers(e.user_term).term) {
               | TupLabel(_, _) => true
               | _ => false
               },
@@ -3602,7 +3701,7 @@ and upat_to_info_map =
         /* Unknown type could be a singleton labeled tuple. Only elaborate
            (destructure) if the pattern is a Var whose name matches the label.
            Otherwise, the pattern should have the full tuple type. */
-        switch (upat.term) {
+        switch (Pat.strip_wrappers(upat).term) {
         | Var(name) when name == l1 =>
           /* Pattern name matches label - this is destructuring */
           elaborate_singleton_tuple(upat, ana_ty, l1, m)
@@ -3760,7 +3859,7 @@ and utyp_to_info_map =
     | (TypeExpected, _) => ok(Message.Type(utyp))
     };
   };
-  let add = (~expects=expects, ~utyp=utyp, m) => {
+  let add = (~expects=expects, ~utyp=utyp, ~warnings=[], m) => {
     let st = status_for_node(~expects, utyp);
     let cls: Cls.t =
       switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -3779,7 +3878,7 @@ and utyp_to_info_map =
       marks: fst(st),
       message: Option.map(x => Message.TypOk(x), snd(st)),
       expects,
-      warnings: [],
+      warnings,
       user_term: utyp,
     };
     (info, add_info(ids, InfoTyp(info), m));
@@ -3832,7 +3931,7 @@ and utyp_to_info_map =
     add(m);
   | ProdProjection(t, label) =>
     let labels =
-      switch (Typ.normalize(ctx, t).term) {
+      switch (Typ.weak_head_normalize(ctx, t).term) {
       | Prod(ts) =>
         Some(
           List.filter_map(
@@ -3967,7 +4066,7 @@ and utyp_to_info_map =
       |> snd;
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
-    add(m); // TODO: check with andrew
+    add(~warnings=Warning.rec_type(utpat, utyp), m); // TODO: check with andrew
   | Rec(utpat, tbody) =>
     let m =
       utyp_to_info_map(
@@ -4001,7 +4100,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~warnings=[], utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -4023,7 +4123,7 @@ and utpat_to_info_map =
       ancestors,
       marks: fst(st),
       message: Option.map(x => Message.TPatOk(x), snd(st)),
-      warnings: [],
+      warnings,
       ctx,
       user_term: utpat,
     };

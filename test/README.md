@@ -67,6 +67,32 @@ Other useful QCheck env vars:
   (the seed is printed at the start of each run).
 - `QCHECK_VERBOSE=1` — print each generated case.
 
+### 4. The Weekly Extended Run
+
+`make ci-extended` is the whole suite in long mode: it sets `QCHECK_LONG=1` and
+leaves `QCHECK_LONG_FACTOR` to the caller, so
+
+```sh
+QCHECK_LONG_FACTOR=100 make ci-extended
+```
+
+runs every property a hundred times over. The `Extended Tests` workflow
+(`.github/workflows/extended-tests.yml`) does exactly that against `dev` every
+Sunday — long enough to turn a property that fails on one seed in a few hundred
+into one you can actually see.
+
+Be aware of what the factor does *not* touch when you size it. Only the QCheck
+properties scale; the other `Slow`-tagged tests and the three "stats only"
+harnesses in `Test_Statics_Properties` are a fixed floor. Runtime is linear in
+the factor on top of that constant, and so falls well short of N times the
+normal suite at factor N. To size a factor against a time budget, time the
+suite at two factors and divide the difference by the gap between them.
+
+It fixes the seed rather than letting QCheck pick one, and prints the whole
+`QCHECK_*` command to the run's job summary, so a failure there reproduces
+locally verbatim. It gates nothing; a red run is a bug report, not a broken
+build.
+
 ## Architecture
 
 - **`test/dune`** defines the test executable and two dune aliases (`@runtest` for all tests, `@test-quick` for quick tests). The `Makefile` targets invoke these aliases.
@@ -83,7 +109,37 @@ Other useful QCheck env vars:
 
 - To add a new test, create a new file named `Test_<Feature>.re` or add to an existing file.
 - Use the [Alcotest](https://github.com/mirage/alcotest) API for defining test cases.
+- Tag a test `` `Slow `` if it is heavy next to the rest of the quick set:
+  about half a second on CI, where the `` `Quick `` tests (CI's Fast checks)
+  should stay under a minute in all. Your own machine can be twice as fast or
+  slow, so compare with other tests rather than the clock. Full tests run
+  everything.
 - Utility functions for property-based testing are in `QCheck_Util.re`.
+
+## Performance Budgets
+
+`evaluator/Test_PerfBudgets.re` (quick suite) fails CI when the evaluator does
+more work than its budget. It counts the steps the evaluator's trampoline
+takes, not time, so a count is the same on every machine and run. It holds:
+
+- a cold run of a small benchmark program (recursion, list traversals, case
+  matches), and
+- a re-run after editing a literal nothing else reads, which must reuse the
+  earlier results: it has its own budget and must also stay under 5% of the
+  cold run.
+
+Each budget is a ratchet, and the failure message says which way it tripped:
+
+- **Over budget** means a performance regression. Find it, or, if the extra
+  steps are legitimate (e.g. a semantics change), raise the budget in
+  `Test_PerfBudgets.re` and give the reason in the commit message.
+- **More than a quarter under budget** also fails, as a stale budget. Lower it
+  in the same change (the message suggests a value), so the improvement is
+  recorded.
+
+The test log prints each count (`PERF …`). Step counts can't see a step that
+got slower, such as extra work inside one step, so time evaluator hot-path
+changes separately (e.g. `hazel bench-eval` before and after).
 
 ## Troubleshooting
 

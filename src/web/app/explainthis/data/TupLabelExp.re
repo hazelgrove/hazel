@@ -21,17 +21,19 @@ let labeled_exps_coloring_ids =
   (Piece.id(lab), label_id),
   (Piece.id(e), exp_id),
 ];
-let labeled_exp: form = {
-  let explanation = "Assigns a [*label*](%s) to an [*expression*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are autmatically converted into a singleton tuple.";
-  {
-    id: LabeledExp,
-    syntactic_form: [lab, labeled_exp(), e],
-    expandable_id: None,
-    explanation,
-    examples: [labeled_example_1, labeled_example_2],
-  };
-};
-let labeled_exps: group = {
+let labeled_exp_form = [lab, labeled_exp(), e];
+let labeled_exp = (~label_id: Id.t, ~exp_id: Id.t): form => {
   id: LabeledExp,
-  forms: [labeled_exp],
+  syntactic_form: labeled_exp_form,
+  colorings: labeled_exps_coloring_ids(~label_id, ~exp_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Assigns a [*label*](%s) to an [*expression*](%s) appearing as an element within a tuple. Labeled tuple items cannot exist outside of a tuple. Labeled tuple items that are not contained within a tuple are automatically converted into a singleton tuple.",
+      Id.to_string(label_id),
+      Id.to_string(exp_id),
+    ),
+  examples: [labeled_example_1, labeled_example_2],
 };
+let labeled_exps = (~label_id: Id.t, ~exp_id: Id.t): group =>
+  singleton(labeled_exp(~label_id, ~exp_id));

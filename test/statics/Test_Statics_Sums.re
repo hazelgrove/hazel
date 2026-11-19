@@ -3,9 +3,6 @@ open FTemp;
 open Typ;
 open Util;
 
-let testable_id =
-  Alcotest.(testable(Fmt.using(Id.show, Fmt.string), Id.equal));
-
 let tests = (
   "Statics.Sums",
   [
@@ -268,6 +265,14 @@ end
     |},
       Some(unknown(Internal)),
     ),
+    fully_consistent_typecheck(
+      "folded pattern constructor",
+      {|
+    type YoDawg = Yo(Int) + Dawg(Bool) in
+    case Yo(1) | ^^fold(Yo)(x) => x | _ => 0 end
+    |},
+      Some(int()),
+    ),
     inconsistent_typecheck(
       "pattern constructor tests: errors",
       // #err: incons with arrow#
@@ -434,6 +439,33 @@ end
           )
         );
       },
+    ),
+    /* Elaboration keeps Parens and Projector nodes, so a constructor
+       head wrapped in either must still be recognized as a constructor. */
+    fully_consistent_typecheck(
+      "parenthesized constructor head in analytic position",
+      {|let x : +Yo(Int) = (Yo)(1) in 0|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "folded constructor head in analytic position",
+      {|let x : +Yo(Int) = ^^fold(Yo)(1) in 0|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "parenthesized constructor head in deferred application",
+      {|let f : Int -> +Yo(Int, Int) = (Yo)(_, 2) in 0|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "constructor analyzed against an arrow alias",
+      {|type F = Int -> +Yo(Int) in let f : F = Yo in 0|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "signature nested in a sum type annotation",
+      {|let s : +A({let x : Int}) = A({let x = 42}) in 0|},
+      Some(int()),
     ),
     // ======================== KNOWN BUGS ==============================
     skip_known_bug(

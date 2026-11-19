@@ -10,11 +10,6 @@ let decompose_label_mode = (ctx: Ctx.t, ana: Typ.t): (Typ.t, Typ.t) =>
   | _ => (Unknown(SynSwitch) |> Typ.temp, Unknown(Internal) |> Typ.temp)
   };
 
-type label_child_result = {
-  lab_name: option(string),
-  label_invalid: bool,
-};
-
 /* Validate a label name against expected/duplicate label lists.
    Returns (elab_syn_ty, marks, is_invalid) for the label itself. */
 let validate_label_name =
@@ -127,7 +122,7 @@ let standalone_tup_label_self_type =
 
 /* Compute expected labels from an analysis type. */
 let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
-  switch (Typ.weak_head_normalize(ctx, ana).term) {
+  switch (MatchedTyp.head(ctx, ana).term) {
   | Prod(ts) =>
     Some(
       List.filter_map(t => Typ.match_tup_label(t) |> Option.map(fst), ts),

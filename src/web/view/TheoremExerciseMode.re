@@ -282,18 +282,15 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t): bool => {
-    switch (action) {
-    | Instructor(_) => false
-    | Prelude(action) => CellEditor.Update.can_undo(action)
-    | Lemmas(action) => CellEditor.Update.can_undo(action)
-    | Theorem(action) => CellEditor.Update.can_undo(action)
-    | RefreshStatics => false
-    };
-  };
-
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let statics_mode =
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
         schedule_action(RefreshStatics)
@@ -345,6 +342,7 @@ module Update = {
           model.cells.prelude
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("prelude")),
@@ -355,6 +353,7 @@ module Update = {
           model.cells.lemmas
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("lemmas")),
@@ -365,6 +364,7 @@ module Update = {
           model.cells.theorem
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("theorem")),
@@ -375,47 +375,23 @@ module Update = {
 
     // Send to worker
 
-    WorkerClient.request(
+    let dispatch = (key, action) =>
+      switch (key) {
+      | "lemmas" =>
+        schedule_action(Prelude(ResultAction(action)));
+        schedule_action(Lemmas(ResultAction(action)));
+      | "theorem" => schedule_action(Theorem(ResultAction(action)))
+      | _ => ()
+      };
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          switch (pos) {
-          | "lemmas" =>
-            schedule_action(Prelude(ResultAction(UpdateResult(result'))));
-            schedule_action(Lemmas(ResultAction(UpdateResult(result'))));
-          | "theorem" =>
-            schedule_action(Theorem(ResultAction(UpdateResult(result'))))
-          | _ => ()
-          };
-        }),
-      ~timeout=_ => {
-      List.iter(
-        fun
-        | "lemmas" => {
-            schedule_action(
-              Prelude(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-            schedule_action(
-              Lemmas(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            );
-          }
-        | "theorem" =>
-          schedule_action(
-            Theorem(ResultAction(UpdateResult(ResultFail(Timeout)))),
-          )
-        | _ => (),
-        List.map(((pos, _)) => pos, worker_request^),
-      )
-    });
+      ~pos_of_key=key => key,
+      ~dispatch,
+      ~on_timeout=
+        List.iter(((key, _)) =>
+          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        ),
+    );
 
     {
       ...model,

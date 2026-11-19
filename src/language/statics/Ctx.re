@@ -122,6 +122,25 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
+/* the NEWEST binding of a capitalized name, whichever kind: a module (or
+   any variable) bound after a constructor of the same name shadows it
+   lexically, as any later binding shadows an earlier one */
+let newest_var_or_ctr =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `Var(var_entry)
+          | `Ctr(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(`Var(v))
+    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+    | _ => None,
+    ctx.entries,
+  );
+
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
@@ -282,22 +301,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
-/* Keep in sync with Token.base_typs */
-let is_base_typ = (name: string): bool =>
-  name == "Bool"
-  || name == "Float"
-  || name == "Int"
-  || name == "Nat"
-  || name == "SInt"
-  || name == "String"
-  || name == "Void"
-  || name == "DrvJdmt"
-  || name == "DrvCtx"
-  || name == "DrvProp"
-  || name == "ALFAExp"
-  || name == "DrvPat"
-  || name == "ALFATyp"
-  || name == "DrvTPat";
+let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
@@ -320,11 +324,6 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
       name,
     }
   };
-
-let concat = (ctx1: t, ctx2: t): t => {
-  ...ctx1,
-  entries: ctx1.entries @ ctx2.entries,
-};
 
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(

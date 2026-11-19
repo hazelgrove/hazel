@@ -33,11 +33,10 @@ module M: Projector = {
   let init = _ => Some(default);
 
   let focusable = Focusable.non;
-  let dynamics = false;
   let elaborate_syntax = false;
 
   let placeholder = (m, _) =>
-    ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+    ProjectorCore.Shape.inline(Unicode.Width.columns_of_string(m.text));
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,

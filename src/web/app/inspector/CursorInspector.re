@@ -35,7 +35,7 @@ let cls_view = (ci: Info.t): Node.t => {
       | Typ(EmptyHole)
       | Exp(EmptyHole)
       | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
-      | cls => cls |> Cls.show
+      | _ => Info.cls_label(ci)
       }
     };
 
@@ -110,6 +110,8 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
+  hole_tiles: false,
   project_tables: false,
 };
 
@@ -285,16 +287,38 @@ let core_mark_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
+let common_warn_view = (~globals, warning: Warning.list_item): list(Node.t) =>
   switch (warning) {
-  | WarningPat(UnusedVar(name)) => [
+  | Pat(UnusedVar(name)) => [
       text("Warning: Variable"),
       code(name),
       text("is unused."),
     ]
-  | None => []
+  | TPat(NonContractive(name)) => [
+      text("Warning: Type"),
+      view_type(~globals, Var(name) |> Typ.fresh),
+      text("is defined as itself."),
+    ]
+  | Typ(NonContractive(name)) => [
+      text("Warning: Recursive type"),
+      code("rec " ++ name),
+      text("is defined as itself."),
+    ]
   };
-};
+
+/* [warnings] when there are any and warnings are displayed, else [ok]. */
+let warn_or_ok_view =
+    (
+      ~globals: Globals.t,
+      warnings: list(Warning.list_item),
+      ok: list(Node.t),
+    )
+    : Node.t =>
+  switch (warnings) {
+  | [_, ..._] when globals.settings.core.display_warnings =>
+    div_warn(List.concat_map(common_warn_view(~globals), warnings))
+  | _ => div_ok(ok)
+  };
 let common_ok_view =
     (
       ~globals,
@@ -962,30 +986,24 @@ let pat_view =
           cls,
           ok,
         );
-      switch (info.warnings) {
-      | [Pat(UnusedVar(name))] =>
-        if (globals.settings.core.display_warnings) {
-          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
-        } else {
-          div_ok(ok_view);
-        }
-      | _ => div_ok(ok_view)
-      };
+      warn_or_ok_view(~globals, info.warnings, ok_view);
     };
 };
 
 let typ_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t =>
   switch (marks) {
   | [] =>
     switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+    | Some(TypOk(o)) =>
+      warn_or_ok_view(~globals, warnings, typ_ok_view(~globals, cls, o))
     | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
       div_err([text("(internal) expected TypOk")])
     | None => div_err([text("(internal) missing type ok payload")])
@@ -998,7 +1016,13 @@ let typ_view =
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals: Globals.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1007,7 +1031,11 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+      warn_or_ok_view(
+        ~globals,
+        warnings,
+        [ContextInspector.alias_view(name)],
+      )
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1041,8 +1069,6 @@ let tpat_view =
   };
 };
 
-let secondary_view = (cls: Cls.t) => div_ok([text(cls |> Cls.show)]);
-
 let view_of_info = (~globals, ci): list(Node.t) => {
   let wrapper = status_view => [term_view(~globals, ci), status_view];
   switch (ci) {
@@ -1054,10 +1080,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    wrapper(typ_view(~globals, cls, ~marks, ~message, ~warnings))
+  | InfoTPat({cls, marks, message, warnings, _}) =>
+    wrapper(tpat_view(~globals, cls, ~marks, ~message, ~warnings))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
@@ -1090,6 +1116,15 @@ let projector_error_inspector =
     ],
   );
 
+let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
+  switch (
+    quiver && !cursor.editor_read_only
+      ? Lazy.force(cursor.implied_hole) : None
+  ) {
+  | Some(_) as info => info
+  | None => cursor.info
+  };
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
@@ -1109,7 +1144,7 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  switch (cursor.info) {
+  switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>

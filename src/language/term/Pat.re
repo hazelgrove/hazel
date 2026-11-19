@@ -41,6 +41,52 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
   | [_, ..._] => MultiHole(tms)
   };
 
+/* Parens and Projector are transparent: elaboration keeps both, so code
+   that inspects the head or shape of a pattern must look through them.
+   Asc is NOT stripped here; whether an ascription is transparent depends on
+   the call site. */
+let rec strip_wrappers = (p: t): t =>
+  switch (p.term) {
+  | Parens(p)
+  | Projector(_, p) => strip_wrappers(p)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_)
+  | Asc(_) => p
+  };
+
+let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
+  switch (p.term) {
+  | Constructor(name, _) => Some(name)
+  | Parens(p)
+  | Projector(_, p) => ctr_name(p)
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => None
+  };
+
 let cls_of_term: Grammar.pat_term('a) => cls =
   fun
   | Invalid(_) => Invalid
@@ -58,8 +104,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Tuple(_) => Tuple
   | Parens(_) => Parens
   | Projector(_) => Projector
-  | Ap({term: Constructor(_), _}, _) => ApCons
-  | Ap(_) => ApFunc
+  | Ap(f, _) => Option.is_some(ctr_name(f)) ? ApCons : ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -156,64 +201,6 @@ let rec get_var = (pat: t) => {
   };
 };
 
-let rec get_fun_var = (pat: t) => {
-  switch (pat.term) {
-  | Parens(pat)
-  | Projector(_, pat)
-  | TupLabel(_, pat) => get_fun_var(pat)
-  | Asc(pat, t1) =>
-    if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
-      get_var(pat) |> Option.map(var => var);
-    } else {
-      None;
-    }
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | Atom(_)
-  | ListLit(_)
-  | Cons(_, _)
-  | Var(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Tuple(_)
-  | Constructor(_)
-  | Ap(_) => None
-  };
-};
-
-let rec get_bindings = (pat: t) =>
-  switch (get_var(pat)) {
-  | Some(x) => Some([x])
-  | None =>
-    switch (pat.term) {
-    | Parens(pat)
-    | Projector(_, pat)
-    | Asc(pat, _)
-    | TupLabel(_, pat) => get_bindings(pat)
-    | Tuple(pats) =>
-      let vars = pats |> List.map(get_var);
-      if (List.exists(Option.is_none, vars)) {
-        None;
-      } else {
-        Some(List.map(Option.get, vars));
-      };
-    | Label(_)
-    | ExplicitNonlabel
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Constructor(_)
-    | Ap(_) => None
-    }
-  };
-
 let rec get_num_of_vars = (pat: t) =>
   switch (is_var(pat)) {
   | Some(_) => Some(1)
@@ -239,23 +226,30 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
-let ctr_name = (p: t): option(Constructor.t) =>
-  switch (p.term) {
-  | Constructor(name, _)
-  | Parens({term: Constructor(name, _), _}) => Some(name)
-  | _ => None
-  };
-
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =
   p =>
     switch (p.term) {
-    | Parens(p) => match_tup_label(p)
+    | Parens(p)
+    | Projector(_, p) => match_tup_label(p)
     | TupLabel(plab, p') =>
-      switch (plab.term) {
+      switch (strip_wrappers(plab).term) {
       | Label(name) => Some((name, p'))
       | _ => None
       }
-    | _ => None
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | Ap(_)
+    | Asc(_) => None
     };
 
 let get_label: t => option(LabeledTuple.label) =
@@ -289,22 +283,6 @@ let rec bindings = (dp: t): Binding.s =>
 
 let bound_vars = (dp: t): list(Var.t) =>
   dp |> bindings |> List.map((b: Binding.t) => b.name);
-
-let bound_var_ids = (ctx, pat): list(Binding.t) =>
-  bound_vars(pat)
-  |> List.map(name =>
-       switch (Ctx.lookup_var(ctx, name)) {
-       | Some({id, _}) =>
-         Binding.{
-           id,
-           name,
-         }
-       | None => {
-           id: Id.invalid,
-           name,
-         }
-       }
-     );
 
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);

@@ -40,6 +40,12 @@ let tests = (
       {|let x : poly a -> a = in let y : poly b -> b = x in 1|},
       Some(int()),
     ),
+    /* Test_Evaluator_TypAp pins the result this type has to agree with. */
+    fully_consistent_typecheck(
+      "typfun binder shadows a type alias, so the body's `y` is not Int (#1717)",
+      {|type y = Int in typfun y -> (? : y)|},
+      FTemp.Typ.(Some(poly(TPat.var("y"), var("y")))),
+    ),
     inconsistent_typecheck(
       "Polymorphic Equality type inconsistency 1",
       {| 1 == 1. |} |> parse_exp,

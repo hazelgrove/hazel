@@ -77,7 +77,7 @@ let gen_code_grading_report = (exercise): report => {
              );
         switch (evaluated) {
         | StepLimitExceeded => None
-        | Completed((_, evaluated)) =>
+        | LimitedCompleted((_, evaluated)) =>
           evaluated
           |> EvaluatorState.get_tests
           |> TestResults.mk_results

@@ -1,0 +1,116 @@
+/* Quiver deco: completion-visualization chips, poles, and rest markers */
+
+.quiver-decorations {
+  pointer-events: none;
+}
+
+.quiver-chip {
+  pointer-events: none;
+  --quiver-chip: var(--token-incomplete);
+}
+
+/* wedge at the canonical spot while its chip is elsewhere */
+.quiver-rest-marker {
+  position: absolute;
+  z-index: 14;
+  width: 0;
+  height: 0;
+  margin-left: -4px;
+  margin-top: -5px;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--token-incomplete);
+  pointer-events: none;
+}
+
+/* Bubble centered on the line boundary above its insertion site. */
+.quiver-chip-anchor {
+  position: absolute;
+  z-index: 15; /* above code text, below the caret */
+}
+
+.quiver-chip-body {
+  position: absolute;
+  transform: translateY(-50%);
+  /* pointer events only to test the modifier; unmodified clicks
+     bubble through to the editor */
+  pointer-events: auto;
+  padding: 0px 4px 1px 4px;
+  border-radius: 4px;
+  background: var(--quiver-chip);
+  color: var(--quiver-chip-text);
+  font-family: var(--code-font);
+  font-size: 0.72em;
+  line-height: 1.25;
+  font-weight: bold;
+  white-space: pre;
+}
+
+/* pointer cursor only while meta is held (the ref-underline state) */
+.code-container.meta-down .quiver-chip-body .chip-seg {
+  cursor: pointer;
+}
+
+/* A small speech-bubble tail replaces the resting chip's ghost caret.
+   Its vertical edge is flush with the bubble's left edge. Overlap the
+   bubble by a pixel to avoid a seam at fractional positions. */
+.quiver-chip:not(.chip-at-caret):not(.quiver-flagpole) .quiver-chip-body {
+  border-bottom-left-radius: 0;
+}
+
+.quiver-chip:not(.chip-at-caret):not(.quiver-flagpole) .quiver-chip-body::after {
+  content: "";
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 0;
+  width: 0.6em;
+  height: calc(0.4em + 1px);
+  background: inherit;
+  clip-path: polygon(0 0, 100% 0, 100% 1px, 0 100%);
+  pointer-events: none;
+}
+
+/* colorways: DEFAULT (other segment, loud) = solid gold/knockout;
+   LIVE (caret where this shard pairs) = pale backing, gold text */
+.quiver-chip.chip-live .quiver-chip-body {
+  background: var(--shard-selected);
+  color: var(--token-incomplete);
+}
+
+/* typed prefix stands out from the remainder in every scheme (white
+   was too low-contrast on the pale live backing — andrew 2026-09-01) */
+.quiver-chip .chip-frac-typed {
+  color: var(--text-strong);
+}
+
+.quiver-chip:not(.chip-live) .chip-frac-rest {
+  color: var(--shard-selected);
+}
+
+.quiver-chip .chip-seg-later {
+  color: var(--quiver-chip-text-faded);
+}
+
+.quiver-chip.chip-live .chip-seg-later {
+  color: var(--quiver-chip-text-faded-atcaret);
+}
+
+.quiver-chip .empty-hole {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* the hole's hairline stroke reads as blur at chip scale */
+.quiver-chip .empty-hole > path {
+  stroke: none;
+}
+
+/* Above the editor toolbar (31), as the original backpack was. Fixed
+   positioning is maintained by FloatingElement, escaping #main's clip. */
+.quiver-flagpole { z-index: 32; }
+.quiver-flagpole .quiver-chip-body { transform: none; }
+.quiver-flagpole-stem {
+  position: absolute;
+  background: var(--shard-selected);
+  pointer-events: none;
+}

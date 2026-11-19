@@ -157,6 +157,35 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
   };
 };
 
+/* Re-kind a numeric unary op the way replace_literal re-kinds literals:
+   the analyzed class wins (so `let x: Float = -5` is float negation and
+   the literal beneath retypes); with no atom analysis, an operand of
+   definite class decides (bare `-1.5`, `-x`; the Int arm matters under
+   a `use` mode, where `use Float in -(3 : Int)` is Int negation rather
+   than a float op stuck on an Int operand). Nat operands do NOT
+   re-kind — negation keeps the ambient op so today's nat-mode behavior
+   is unchanged; an explicit Nat analysis does re-kind, surfacing the
+   "cannot negate a natural number" operator error. */
+let replace_un_op_cls =
+    (op: op_un, ana: option(Atom.cls), operand: option(Atom.cls)): op_un =>
+  switch (op) {
+  | Bool(_) => op
+  | Int(o)
+  | Nat(o)
+  | Float(o)
+  | SInt(o) =>
+    switch (ana, operand) {
+    | (Some(Int), _) => Int(o)
+    | (Some(Nat), _) => Nat(o)
+    | (Some(Float), _) => Float(o)
+    | (Some(SInt), _) => SInt(o)
+    | (_, Some(Float)) => Float(o)
+    | (_, Some(SInt)) => SInt(o)
+    | (_, Some(Int)) => Int(o)
+    | _ => op
+    }
+  };
+
 let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   switch (op, use_mode) {
   | (op, None) => op
@@ -186,7 +215,7 @@ let show_op_un_num: op_un_num => string =
 let show_unop: op_un => string =
   fun
   | Bool(op) => show_op_un_bool(op)
-  | Float(op)
+  | Float(Minus) => "Float Negation"
   | Nat(op)
   | SInt(op)
   | Int(op) => show_op_un_num(op);
@@ -241,67 +270,7 @@ let show_binop: op_bin => string =
   | String(op) => show_op_bin_string(op)
   | Poly(op) => show_op_bin_poly(op);
 
-let bool_op_to_string = (op: op_bin_bool): string => {
-  switch (op) {
-  | And => "&&"
-  | Or => "||"
-  };
-};
-
-let int_op_to_string = (op: op_bin_num): string => {
-  switch (op) {
-  | Plus => "+"
-  | Minus => "-"
-  | Times => "*"
-  | Power => "**"
-  | Divide => "/"
-  | LessThan => "<"
-  | LessThanOrEqual => "<="
-  | GreaterThan => ">"
-  | GreaterThanOrEqual => ">="
-  };
-};
-
-let float_op_to_string = (op: op_bin_float): string => {
-  switch (op) {
-  | Plus => "+."
-  | Minus => "-."
-  | Times => "*."
-  | Power => "**."
-  | Divide => "/."
-  | LessThan => "<."
-  | LessThanOrEqual => "<=."
-  | GreaterThan => ">."
-  | GreaterThanOrEqual => ">=."
-  | Equals => "==."
-  | NotEquals => "!=."
-  };
-};
-
-let string_op_to_string = (op: op_bin_string): string => {
-  switch (op) {
-  | Concat => "++"
-  };
-};
-
-let poly_op_to_string = (op: op_bin_poly): string => {
-  switch (op) {
-  | Equals => "=="
-  | NotEquals => "!="
-  };
-};
-
-let bin_op_to_string = (op: op_bin): string => {
-  switch (op) {
-  | SInt(op)
-  | Int(op)
-  | Nat(op) => int_op_to_string(op)
-  | Float(op) => float_op_to_string(op)
-  | Bool(op) => bool_op_to_string(op)
-  | String(op) => string_op_to_string(op)
-  | Poly(op) => poly_op_to_string(op)
-  };
-};
+/* Surface token spellings: see FormId.bin_op_to_string. */
 
 /* ========== SEMANTICS ========== */
 

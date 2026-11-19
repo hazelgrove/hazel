@@ -1,2 +1,2 @@
 /* Web worker thread */
-WorkerServer.start();
+WorkerServer.install_message_handler();

@@ -13,6 +13,30 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
   | _ => ()
   };
 
+/* Would splicing [text] at the caret merge with a neighboring token
+   (e.g. pasting `+2` right after `x1`)? Shared by the segment-cache
+   paste and the FastParse paste gate. */
+let boundary_merges = (text: string, z: Zipper.t): bool => {
+  let chars = Token.to_list(text);
+  switch (chars) {
+  | [] => false
+  | _ =>
+    let first_char = List.hd(chars);
+    let last_char = Util.ListUtil.last(chars);
+    let left =
+      switch (Zipper.neighbor_token(Left, z)) {
+      | None => false
+      | Some(t) => Token.is_potential_token(Token.append(t, first_char))
+      };
+    let right =
+      switch (Zipper.neighbor_token(Right, z)) {
+      | None => false
+      | Some(t) => Token.is_potential_token(Token.append(last_char, t))
+      };
+    left || right;
+  };
+};
+
 /* Try pasting from segment cache. Returns Some if cache hits and
    guards pass (caret Outer, no token merging at boundaries).
    The segment gets fresh IDs to support multiple pastes. */
@@ -23,31 +47,11 @@ let try_segment_paste =
   | Some((cached, seg)) when trim(cached) == trim(clipboard) =>
     if (z.caret != Outer) {
       None;
+    } else if (trim(clipboard) != "" && !boundary_merges(trim(clipboard), z)) {
+      let seg = Segment.IDs.replace(seg);
+      Some(Zipper.insert_segment(z, seg, ~root));
     } else {
-      /* Check token merging at boundaries */
-      let chars = Token.to_list(trim(clipboard));
-      switch (chars) {
-      | [] => None
-      | _ =>
-        let first_char = List.hd(chars);
-        let last_char = Util.ListUtil.last(chars);
-        let no_left_merge =
-          switch (Zipper.neighbor_token(Left, z)) {
-          | None => true
-          | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
-          };
-        let no_right_merge =
-          switch (Zipper.neighbor_token(Right, z)) {
-          | None => true
-          | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
-          };
-        if (no_left_merge && no_right_merge) {
-          let seg = Segment.IDs.replace(seg);
-          Some(Zipper.insert_segment(z, seg, ~root));
-        } else {
-          None;
-        };
-      };
+      None;
     }
   | _ => None
   };
@@ -59,7 +63,8 @@ let to_zipper =
     (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
   let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without adding spaces */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
@@ -77,7 +82,7 @@ let is_split_point = (c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == [];
+  && Zipper.local_missing_shards(z) == [];
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -110,7 +115,9 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
   let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    /* Disable auto_indent so Parser faithfully reproduces input without
+     * adding spaces. Matches to_zipper's behavior. */
+    try(c == "\r" ? Some(z) : Insert.go(~auto_indent=false, c, z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
@@ -145,11 +152,10 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.
-   to_segment drops unmatched delimiters (they end up in the parsing
-   zipper's backpack which is lost during segment extraction), so fast
-   paste must not be used for unbalanced clipboard content.
-   Conservative: delimiters inside string literals cause false negatives,
-   falling back to the correct slow path. */
+   Under the Menhir path unbalanced text just fails to parse and falls
+   back, so this is a cheap pre-filter (skip the parse attempt), not a
+   correctness requirement. Conservative: delimiters inside string
+   literals cause false negatives, falling back to the slow path. */
 let has_balanced_delimiters = (s: string): bool => {
   let chars = Token.to_list(s);
   let stack = ref([]);
@@ -174,16 +180,86 @@ let has_balanced_delimiters = (s: string): bool => {
   ok^ && stack^ == [];
 };
 
-/* Check if we can use the fast segment-splice paste path instead of
-   char-by-char insertion. Requires: caret between tokens, top level,
-   no incomplete tiles, Exp sort, no token merging at boundaries,
-   and balanced delimiters in clipboard. */
-let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
+/* Gate for the FastParse paste attempt (segment splice at the caret).
+   Requires: caret between tokens, no incomplete tiles, Exp sort, no
+   token merging at boundaries, and balanced delimiters in the clipboard.
+   Unlike dev's can_fast_paste this does NOT require a top-level caret:
+   the splice + remold doesn't depend on ancestors beyond the sort check,
+   so nested pastes (inside parens, case arms) take the fast path too.
+   Returns the first failing condition (console telemetry), or None when
+   the splice is safe. */
+let fast_paste_blocker =
+    (clipboard: string, z: Zipper.t, ~root): option(string) =>
+  if (String.length(clipboard) == 0) {
+    Some("empty clipboard");
+  } else if (z.caret != Outer) {
+    Some("caret is inside a token");
+  } else if (Zipper.local_missing_shards(z) != []) {
+    Some("incomplete tiles (missing shards) at the caret");
+  } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
+    Some("caret sort is not Exp");
+  } else if (!has_balanced_delimiters(clipboard)) {
+    Some("clipboard delimiters unbalanced");
+  } else if (boundary_merges(clipboard, z)) {
+    Some("clipboard would merge with a token at the caret boundary");
+  } else {
+    None;
+  };
+
+/* Fast paste: linear Menhir zip of the clipboard spliced at the caret.
+   A failed attempt costs ~1ms, and a hit turns the worst paste case (a
+   whole external program) into milliseconds with formatting kept
+   verbatim. Error carries why the fast path lost — a gate refusal or the
+   parser's bail note — so the call site can report it; the failure POLICY
+   (falling back to the quadratic typing parser) lives there too. */
+let fast_paste =
+    (clipboard: string, z: Zipper.t, ~root): result(Zipper.t, string) =>
+  switch (fast_paste_blocker(clipboard, z, ~root)) {
+  | Some(why) => Error("gate refused — " ++ why)
+  | None =>
+    /* untrimmed: an edge linebreak is pasted text, and the gate's
+       boundary check was made on these edges */
+    switch (
+      FastParse.parsed_of_text(
+        ~materialize=Triggers.invoked_projector,
+        ~collect_refractors=true,
+        ~root,
+        clipboard,
+      )
+    ) {
+    | Error(why) => Error("parse bailed — " ++ why)
+    | Ok({segment, refractors}) =>
+      /* Like Zipper.insert_segment, but regrout with Left so the caret
+         lands BEFORE any grout a body-less fragment opens (matching the
+         typing path), not after it. */
+      Ok(
+        Zipper.rescan_reassemble(
+          ~with_parent=true,
+          Left,
+          z
+          |> Zipper.replace_selection(Right, segment)
+          |> Zipper.unselect
+          |> Zipper.remold_regrout(Left, ~root),
+          ~root,
+        )
+        |> Triggers.apply_refractors(refractors),
+      )
+    }
+  };
+
+/* Typing-parser splice paste: parse the clipboard in isolation with the
+   segmented typing parser, then splice the segment and regrout. Slower
+   than fast_paste's Menhir path but handles INCOMPLETE forms (flush
+   let chains, dangling defs) that Menhir rejects, while producing the
+   splice-shaped grout layout the partition-aware auto-indent reads as
+   evidence (Test_Indentation flush pins). Sits between fast_paste and
+   the char-by-char to_zipper fallback. */
+let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   let len = String.length(clipboard);
   len > 0
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_backpack(z) == []
+  && Zipper.local_missing_shards(z) == []
   && Relatives.sort(~root, z.relatives) == Sort.Exp
   && has_balanced_delimiters(clipboard)
   && {
@@ -204,9 +280,7 @@ let can_fast_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   };
 };
 
-/* Fast paste: parse clipboard in isolation using segmented parser,
-   then splice the resulting segment into the zipper and regrout. */
-let fast_paste = (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
+let splice_paste = (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
   let+ seg = to_segment(clipboard, ~root);
   let z = Zipper.insert_segment(z, seg, ~root);
   Zipper.rescan_reassemble(Left, z, ~root);

@@ -15,6 +15,7 @@ let empty_hole_template = (_sort, str, id): form => {
         shape: Convex,
       }),
     ],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],
@@ -26,6 +27,7 @@ let multi_hole_template = (sort, id): form => {
   {
     id,
     syntactic_form: [sort("INVALID")],
+    colorings: [],
     expandable_id: None,
     explanation,
     examples: [],

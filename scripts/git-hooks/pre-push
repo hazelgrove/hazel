@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Invalidate the cached open-PR lookup (see scripts/build-info.sh) so the
+# next build re-queries GitHub: the answer most often changes around pushes
+# (e.g. a PR opened right after the first push of a branch).
+GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
+[ -n "$GIT_DIR" ] && rm -f "$GIT_DIR/hazel-pr-cache"
+exit 0

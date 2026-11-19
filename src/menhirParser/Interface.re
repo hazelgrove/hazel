@@ -10,6 +10,7 @@ let string_of_pos = (pos: position) => {
 };
 
 let parse = (f, s) => {
+  Lexer.reset_delims();
   let lexbuf = Lexing.from_string(s);
   try(f(Lexer.token, lexbuf)) {
   | Parser.Error as e =>

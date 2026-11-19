@@ -9,8 +9,8 @@
     to bottom,
     transparent 0,
     transparent calc(var(--row-height-px) - 1px),
-    rgba(255, 0, 0, 0.2) calc(var(--row-height-px) - 1px),
-    rgba(255, 0, 0, 0.2) var(--row-height-px)
+    var(--border-error) calc(var(--row-height-px) - 1px),
+    var(--border-error) var(--row-height-px)
   );
 }
 
@@ -59,12 +59,12 @@
 }
 
 .code .code-text.line-numbers-text :not(.line-numbers-bold) {
-  color: var(--BR1);
+  color: var(--text-faint);
 }
 
 .code .code-text.line-numbers-text .line-numbers-bold {
   font-weight: bolder;
-  color: var(--BR2);
+  color: var(--text-muted);
 }
 
 /* This is a hack to compensating for default linebreak handling
@@ -75,6 +75,13 @@
 * syntax views, e.g. type views in the cursor inspector */
 .code-text:after {
   content: "​";
+}
+
+/* Bidi effects (RTL text, stray directional controls) stay confined to
+   their own token instead of visually reordering neighbors (UTS #55). */
+.code .token,
+.code .comment {
+  unicode-bidi: isolate;
 }
 
 /* TOKEN COLORS */
@@ -165,6 +172,18 @@
   white-space: pre;
 }
 
+/* Invisible characters render as a codepoint-labeled box */
+.code .invisible-cell {
+  font-size: 0.38em;
+  font-weight: bold;
+  letter-spacing: -0.03em;
+  color: var(--token-incomplete);
+  border: 1px dotted var(--token-incomplete);
+  border-radius: 2px;
+  box-sizing: border-box;
+  cursor: default;
+}
+
 .code-container.meta-down .token.ref {
   cursor: pointer;
 }
@@ -178,25 +197,25 @@
 
 @keyframes rainbow {
   0% {
-    color: #4477ff;
+    color: var(--llm-waiting-1);
   } /* Start with muted blue */
   17% {
-    color: #9944ff;
+    color: var(--llm-waiting-2);
   } /* Muted purple */
   33% {
-    color: #ff4488;
+    color: var(--llm-waiting-3);
   } /* Muted pink */
   50% {
-    color: #ff7744;
+    color: var(--llm-waiting-4);
   } /* Muted orange */
   67% {
-    color: #88aa44;
+    color: var(--llm-waiting-5);
   } /* Muted green */
   83% {
-    color: #44aaff;
+    color: var(--llm-waiting-6);
   } /* Muted cyan */
   100% {
-    color: #4477ff;
+    color: var(--llm-waiting-1);
   } /* Back to muted blue */
 }
 
@@ -358,13 +377,56 @@ svg.shard.selected-expanded > path {
   fill: var(--warning-hole-fill);
 }
 
+/* Simplified error/warning arms (Simple Indication mode): match the
+ * indication-arm stroke, only recolored. */
+.errors .errors-piece svg .child-line.simple,
+.warnings .warnings-piece svg .child-line.simple {
+  stroke-width: 1;
+  stroke-dasharray: none;
+  stroke-linecap: round;
+}
+.errors .errors-piece svg .child-line.simple {
+  stroke: var(--error-hole-stroke);
+}
+.warnings .warnings-piece svg .child-line.simple {
+  stroke: var(--warning-hole-stroke);
+}
+
+/* Strokeless term-shaped backing behind simplified error/warning arms —
+ * the red/orange analog of the probe refractor backing (fill at 0.4). */
+.errors .errors-piece svg.shard.simple-backing path,
+.warnings .warnings-piece svg.shard.simple-backing path {
+  stroke: none;
+  stroke-dasharray: none;
+  opacity: 0.4;
+}
+.errors .errors-piece svg.shard.simple-backing path {
+  fill: var(--simple-error-backing);
+}
+.warnings .warnings-piece svg.shard.simple-backing path {
+  fill: var(--simple-warning-backing);
+}
+
+/* Backing sits below all arms; the simplified error/warning arm sits above
+ * the indication arm (z 1, set on generic svg:has(.child-line)) so the two
+ * don't clash when the errored term is indicated. Same interleaving trick
+ * as the refractor arms (z 2 in proj-probe.css). */
+.errors .errors-piece svg.shard.simple-backing,
+.warnings .warnings-piece svg.shard.simple-backing {
+  z-index: 0;
+}
+.errors svg:has(.child-line.simple),
+.warnings svg:has(.child-line.simple) {
+  z-index: 2;
+}
+
 /* Code completion decoration */
 
 svg.shard.selected.buffer-unparsed {
   filter: none;
 }
 svg.shard.selected.buffer-unparsed > path {
-  fill: #0000;
+  fill: transparent;
   stroke-width: 0;
 }
 svg.shard.selected.buffer-parsed {
@@ -373,8 +435,8 @@ svg.shard.selected.buffer-parsed {
   );
 }
 svg.shard.selected.buffer-parsed > path {
-  fill: var(--T1);
-  stroke: var(--T1);
+  fill: var(--text-surface);
+  stroke: var(--border-surface);
 }
 
 /* VAR HIGHLIGHT DECO */
@@ -493,44 +555,6 @@ svg:has(.child-line) {
   stroke: var(--token-mpat);
 }
 
-/* BACKPACK DECO */
-
-.backpack {
-  z-index: var(--backpack-z);
-}
-
-.backpack.cant-put-down > * {
-  opacity: 40%;
-}
-
-.backpack-joiner {
-  z-index: var(--backpack-z);
-  width: 2px;
-  background-color: var(--backpack-joiner);
-}
-
-.backpack-selection {
-  white-space: nowrap;
-  border-radius: 0.2em 0.2em 0.2em 0em;
-  padding: 0 0.2em 0 0.2em;
-  line-height: var(--line-height);
-  width: fit-content;
-  background-color: var(--backpack-selection);
-  outline: 1px solid var(--backpack-selection-outline);
-  font-weight: bold;
-  color: var(--token-incomplete) !important;
-}
-
-.backpack-genie {
-  stroke-width: 0;
-  fill: var(--backpack-genie);
-  vector-effect: non-scaling-stroke;
-}
-
-.restructuring-genie {
-  z-index: var(--backpack-z);
-}
-
 /* Invisible backdrop to capture clicks outside context menu */
 .context-menu-backdrop {
   position: fixed;
@@ -628,26 +652,31 @@ svg:has(.child-line) {
   color: var(--menu-item-text);
   cursor: pointer;
   gap: 0.5em;
+  white-space: nowrap;
 }
 .context-menu .group .contents .named-menu-item {
   padding: 0.05em 0.5em 0.05em 0.7em;
 }
 .context-menu .group .contents .named-menu-item:hover,
 .context-menu .group .contents .named-menu-item.selected {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
   border-radius: 0.2em;
 }
 /* When hovering any item, suppress keyboard-selected highlight */
 .context-menu .group .contents:hover .named-menu-item.selected:not(:hover) {
   background-color: transparent;
 }
+.context-menu .named-menu-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.context-menu .group .contents .named-menu-item.disabled:hover {
+  background-color: transparent;
+}
 .context-menu .named-menu-item .menu-shortcut {
   margin-left: auto;
   padding-left: 1em;
   font-size: 0.85em;
-  opacity: 0.6;
-}
-.context-menu .named-menu-item .menu-colon {
   opacity: 0.6;
 }
 .context-menu .menu-divider {

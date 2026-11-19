@@ -1,66 +1,96 @@
 open Util;
 open CompositionActions;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action_wrapper =
   | Action(action)
+  | DocsRequest(string) /* read_docs: answered from DocPacks, no editor change */
   | Failure(string);
 
 module Local = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(API.Json.t);
 
-  let tools = [
-    ViewTools.expand,
-    ViewTools.collapse,
-    ProbeTools.place_probe,
-    ProbeTools.remove_probe,
-    ProbeTools.toggle_probe,
-    EditTools.initialize,
-    EditTools.update_definition,
-    EditTools.update_body,
-    EditTools.update_pattern,
-    EditTools.update_binding_clause,
-    EditTools.delete_binding_clause,
-    EditTools.delete_body,
-    EditTools.insert_after,
-    EditTools.insert_before,
-    WorkbenchTools.create_new_task,
-    WorkbenchTools.set_active_task,
-    WorkbenchTools.unset_active_task,
-    WorkbenchTools.set_active_subtask,
-    WorkbenchTools.unset_active_subtask,
-    WorkbenchTools.mark_active_task_complete,
-    WorkbenchTools.mark_active_task_incomplete,
-    WorkbenchTools.mark_active_subtask_complete,
-    WorkbenchTools.mark_active_subtask_incomplete,
-    WorkbenchTools.mark_active_subtask_failed,
-    WorkbenchTools.mark_active_task_failed,
-  ];
+  /* read_docs is offered only when the pack registry is non-empty */
+  let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+  let tools =
+    [ViewTools.expand, ViewTools.collapse]
+    @ docs_tools
+    @ [
+      ProbeTools.place_probe,
+      ProbeTools.remove_probe,
+      ProbeTools.toggle_probe,
+      StaticsTools.place_statics,
+      StaticsTools.remove_statics,
+      StaticsTools.toggle_statics,
+      SyntaxProjectorTools.place_syntax_projector,
+      SyntaxProjectorTools.remove_syntax_projector,
+      SyntaxProjectorTools.toggle_syntax_projector,
+      EditTools.update_definition,
+      EditTools.update_body,
+      EditTools.update_pattern,
+      EditTools.update_binding_clause,
+      EditTools.delete_binding_clause,
+      EditTools.delete_body,
+      EditTools.insert_after,
+      EditTools.insert_before,
+      WorkbenchTools.create_new_task,
+      WorkbenchTools.set_active_task,
+      WorkbenchTools.unset_active_task,
+      WorkbenchTools.set_active_subtask,
+      WorkbenchTools.unset_active_subtask,
+      WorkbenchTools.mark_active_task_complete,
+      WorkbenchTools.mark_active_task_incomplete,
+      WorkbenchTools.mark_active_subtask_complete,
+      WorkbenchTools.mark_active_subtask_incomplete,
+      WorkbenchTools.mark_active_subtask_failed,
+      WorkbenchTools.mark_active_task_failed,
+      WorkbenchTools.add_new_subtask_to_active_task,
+      WorkbenchTools.reorder_subtasks_in_active_task,
+      WorkbenchTools.update_active_task,
+      WorkbenchTools.update_active_subtask,
+      WorkbenchTools.delete_task,
+      WorkbenchTools.delete_subtask,
+    ];
 
-  let get_string_arg = (~arg: option(string), ~fail_with: string) => {
-    switch (arg) {
-    | Some(arg) => arg
-    | None => raise(Failure(fail_with))
+  /** Read an optional string field: None when absent or empty-string, Some otherwise.
+      Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
+      no-path branch of insert_before/insert_after. */
+  let get_optional_string = (args: API.Json.t, field: string): option(string) => {
+    switch (API.Json.dot(field, args)) {
+    | Some(`String("")) => None
+    | Some(`String(s)) => Some(s)
+    | _ => None
     };
   };
 
-  let get_path = (~path: option(string)) => {
-    switch (path) {
-    | Some(path) => path
-    | None => raise(Failure("A path must be provided for the action"))
+  let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
+    let k = ProjectorKind.of_name(String.trim(s));
+    if (ProjectorKind.is_refractor(k)) {
+      raise(
+        Failure(
+          "syntax projector kind cannot be probe or statics — use the probe or statics tools",
+        ),
+      );
     };
+    k;
   };
 
-  let get_paths = (~paths: option(list(string))) => {
-    switch (paths) {
-    | Some(paths) => paths
-    | None =>
-      raise(Failure("A list of paths must be provided for the action"))
-    };
-  };
+  let rec action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
+    /* read_docs is answered from DocPacks without touching the editor, so
+       it lives at the wrapper level rather than in the action type */
+    if (tool_name == "read_docs") {
+      switch (API.Json.dot("topic", args)) {
+      | Some(`String(topic)) => DocsRequest(topic)
+      | _ => Failure("read_docs requires a `topic` string argument")
+      };
+    } else {
+      action_of_editor(~tool_name, ~args);
+    }
 
-  let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
+  and action_of_editor =
+      (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     /* Possible arguments */
     /* Parsing here to avoid redundancy */
     /* Argument(s) may or may not be provided depending on the tool called */
@@ -81,7 +111,30 @@ module Local = {
               ProbeAction(RemoveProbe(get_string_list(args, "paths")))
             | "toggle_probe" =>
               ProbeAction(ToggleProbe(get_string_list(args, "paths")))
-            | "initialize" => Initialize(get_string(args, "code"))
+            | "place_statics" =>
+              StaticsAction(PlaceStatics(get_string_list(args, "paths")))
+            | "remove_statics" =>
+              StaticsAction(RemoveStatics(get_string_list(args, "paths")))
+            | "toggle_statics" =>
+              StaticsAction(ToggleStatics(get_string_list(args, "paths")))
+            | "place_syntax_projector" =>
+              SyntaxProjectorAction(
+                PlaceSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
+            | "remove_syntax_projector" =>
+              SyntaxProjectorAction(
+                RemoveSyntaxProjector(get_string_list(args, "paths")),
+              )
+            | "toggle_syntax_projector" =>
+              SyntaxProjectorAction(
+                ToggleSyntaxProjector(
+                  syntax_projector_kind_of_string(get_string(args, "kind")),
+                  get_string_list(args, "paths"),
+                ),
+              )
             | "update_definition" =>
               EditorAction(
                 Update(
@@ -115,21 +168,19 @@ module Local = {
                 ),
               )
             | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              /* Per-line leading-whitespace trim happens at the paste
+                 funnel, [[CompositionGo.PerformUtils.introduce]] */
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(After, path, code))
+              | None => InsertAtProgramBoundary(After, code)
+              };
             | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  get_string(args, "path"),
-                  get_string(args, "code"),
-                ),
-              )
+              let code = get_string(args, "code");
+              switch (get_optional_string(args, "path")) {
+              | Some(path) => EditorAction(Insert(Before, path, code))
+              | None => InsertAtProgramBoundary(Before, code)
+              };
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>
@@ -195,6 +246,24 @@ module Local = {
                   get_string_list(args, "subtasks_ordering"),
                 ),
               )
+            | "update_active_task" =>
+              WorkbenchAction(
+                UpdateActiveTask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "update_active_subtask" =>
+              WorkbenchAction(
+                UpdateActiveSubtask(
+                  get_optional_string(args, "new_title"),
+                  get_optional_string(args, "new_description"),
+                ),
+              )
+            | "delete_task" =>
+              WorkbenchAction(DeleteTask(get_string(args, "title")))
+            | "delete_subtask" =>
+              WorkbenchAction(DeleteSubtask(get_string(args, "title")))
             | _ => raise(Failure("The tool called does not exist."))
             };
           Action(action);
@@ -204,79 +273,11 @@ module Local = {
       };
     action;
   };
-
-  let string_of = (action: action) => {
-    switch (action) {
-    | AgentContextAction(Expand(paths)) =>
-      "expand(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | AgentContextAction(Collapse(paths)) =>
-      "collapse(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(PlaceProbe(paths)) =>
-      "place_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(RemoveProbe(paths)) =>
-      "remove_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | ProbeAction(ToggleProbe(paths)) =>
-      "toggle_probe(\"[" ++ String.concat(", ", paths) ++ "]\")"
-    | LanguageServerAction(ShowUseSites(path)) =>
-      "show_use_sites(\"" ++ path ++ "\")"
-    | LanguageServerAction(ShowReferences(path)) =>
-      "show_references(\"" ++ path ++ "\")"
-    | Initialize(code) => "initialize(\"" ++ code ++ "\")"
-    | EditorAction(Update(Definition, path, code)) =>
-      "update_definition(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(Body, path, code)) =>
-      "update_body(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(Pattern, path, code)) =>
-      "update_pattern(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Update(BindingClause, path, code)) =>
-      "update_binding_clause(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Delete(BindingClause, path)) =>
-      "delete_binding_clause(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Body, path)) => "delete_body(\"" ++ path ++ "\")"
-    | EditorAction(Delete(Definition | Pattern, path)) =>
-      "delete(\"" ++ path ++ "\")"
-    | EditorAction(Insert(After, path, code)) =>
-      "insert_after(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | EditorAction(Insert(Before, path, code)) =>
-      "insert_before(\"" ++ path ++ "\", \"" ++ code ++ "\")"
-    | WorkbenchAction(CreateNewTask(task)) =>
-      "create_new_task( "
-      ++ AgentWorkbench.Utils.TaskUtils.task_to_json_string(task)
-      ++ " )"
-    | WorkbenchAction(UnsetActiveTask) => "unset_active_task"
-    | WorkbenchAction(SetActiveTask(task_title)) =>
-      "set_active_task(\"" ++ task_title ++ "\")"
-    | WorkbenchAction(UnsetActiveSubtask) => "unset_active_subtask"
-    | WorkbenchAction(SetActiveSubtask(subtask_title)) =>
-      "set_active_subtask(\"" ++ subtask_title ++ "\")"
-    | WorkbenchAction(MarkActiveTaskComplete(summary)) =>
-      "mark_active_task_complete(\"" ++ summary ++ "\")"
-    | WorkbenchAction(MarkActiveTaskIncomplete) => "mark_active_task_incomplete"
-    | WorkbenchAction(MarkActiveSubtaskComplete(summary)) =>
-      "mark_active_subtask_complete(\"" ++ summary ++ "\")"
-    | WorkbenchAction(MarkActiveSubtaskIncomplete) => "mark_active_subtask_incomplete"
-    | WorkbenchAction(MarkActiveSubtaskFailed(reason)) =>
-      "mark_active_subtask_failed(\"" ++ reason ++ "\")"
-    | WorkbenchAction(MarkActiveTaskFailed(reason)) =>
-      "mark_active_task_failed(\"" ++ reason ++ "\")"
-    | WorkbenchAction(AddNewSubtaskToActiveTask(subtask)) =>
-      "add_new_subtask_to_active_task( "
-      ++ AgentWorkbench.Utils.SubtaskUtils.subtask_to_json_string(subtask)
-      ++ ")"
-    | WorkbenchAction(ReorderSubtasksInActiveTask(subtasks_ordering)) =>
-      "reorder_subtasks_in_active_task( \"["
-      ++ String.concat(", ", subtasks_ordering)
-      ++ "]\" )"
-    };
-  };
 };
 
 module Public = {
   let tools = Local.tools;
   let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper => {
     Local.action_of(~tool_name, ~args);
-  };
-  let string_of = (action: action) => {
-    Local.string_of(action);
   };
 };

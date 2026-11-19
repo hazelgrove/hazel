@@ -212,7 +212,11 @@ module Make =
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
-    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
+    Option.fold(
+      ~none=false,
+      ~some=(a: Ancestor.t) => Form.has_label_of(a.form, Parens),
+      parent,
+    )
     && sibs
     |> (((l, r)) => l @ r)
     |> List.length(_) == 1;
@@ -234,8 +238,7 @@ module Make =
     // This is to prevent replacing an pattern that is not an empty hole
     let* _ = I.is_hole(selected_term) ? Some() : None;
 
-    let+ (term, id, move_left) =
-      I.introduce(Typ.weak_head_normalize(ctx, ty));
+    let+ (term, id, move_left) = I.introduce(MatchedTyp.head(ctx, ty));
 
     let seg =
       I.to_segment(
@@ -251,6 +254,8 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
+          use_literal_lexemes: true,
+          hole_tiles: false,
         },
         term,
         already_parenthesized(z),
@@ -272,7 +277,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
       }),
     ) =>
     module IE = Make(IntroduceExp);
-    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    IE.introduce(z, ana, ctx);
 
   | Some(
       InfoPat({
@@ -283,7 +288,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
       }),
     ) =>
     module IP = Make(IntroducePat);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    IP.introduce(z, ana, ctx);
   | _ => None
   };
 };

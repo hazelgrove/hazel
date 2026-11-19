@@ -18,17 +18,15 @@ type error =
   | UnknownException(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type pending_phase =
+  | AwaitingWorkerAck
+  | Evaluating;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) =
   | ResultOk('a)
   | ResultFail(error)
-  | ResultPending;
+  | ResultPending(pending_phase);
 
-let get_dhexp = (r: inner) => r.result;
-let get_state = (r: inner) => r.state;
-
-let map = (f: 'a => 'b, r: t('a)) =>
-  switch (r) {
-  | ResultOk(a) => ResultOk(f(a))
-  | ResultFail(e) => ResultFail(e)
-  | ResultPending => ResultPending
-  };
+let awaiting_worker_ack = ResultPending(AwaitingWorkerAck);
+let evaluating = ResultPending(Evaluating);

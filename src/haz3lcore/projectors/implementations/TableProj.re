@@ -36,7 +36,21 @@ let table =
       ~view_seg: (Sort.t, Segment.t) => Node.t,
     ) =>
   table_view(
-    ~header_cells=List.map(h => Node.th([Node.text(h)]), headers),
+    /* Same shape as TableRenderer's headers, `.column-label` included: the
+       stylesheet hangs header typography off that class, so a bare <th> gets
+       whatever color it happens to inherit -- which in dark was the muted
+       code color, 22 points of lightness off the header's own fill. */
+    ~header_cells=
+      List.map(
+        h =>
+          Node.th([
+            Node.span(
+              ~attrs=[Attr.classes(["column-label"])],
+              [Node.text(h)],
+            ),
+          ]),
+        headers,
+      ),
     ~rows=List.map(row_cells(info.utility, view_seg), rows),
   );
 
@@ -57,7 +71,6 @@ module M: Projector = {
       pointer: None,
       keyboard: None,
     };
-  let dynamics = false;
   let elaborate_syntax = true;
   let placeholder = (_, info) =>
     switch (get(info)) {
@@ -65,17 +78,13 @@ module M: Projector = {
       let s = info.utility.seg_to_string(info.syntax);
       let lines = String.split_on_char('\n', s);
       let n_lines = List.length(lines);
-      let max_width =
-        List.fold_left(
-          (acc, line) => max(acc, String.length(line)),
-          0,
-          lines,
-        );
+      let max_width = Unicode.Width.max_columns(lines);
       /* +1 vertical line reserved for the inline error banner
        * rendered above the raw syntax in the error view. */
       ProjectorCore.Shape.{
         vertical: Block(n_lines),
-        horizontal: max(max_width, String.length(error_message)),
+        horizontal:
+          max(max_width, Unicode.Width.columns_of_string(error_message)),
       };
     | Some((header, rows)) =>
       /* Outer space reserved for the table frame itself (border + the
@@ -89,7 +98,9 @@ module M: Projector = {
       let scroll_threshold_rows = 10;
 
       let header_row_chars =
-        header |> List.map(String.length) |> List.fold_left((+), 0);
+        header
+        |> List.map(Unicode.Width.columns_of_string)
+        |> List.fold_left((+), 0);
       let widest_row_chars =
         rows
         |> List.map(row =>

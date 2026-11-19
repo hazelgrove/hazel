@@ -33,6 +33,12 @@ let score_view = ((earned: points, max: points)) => {
   );
 };
 
+/* Shown while evaluation is still streaming so partial test maps are not
+   presented as an authoritative grade. */
+let pending_score_view = () => {
+  div(~attrs=[Attr.classes(["test-percent", "pending"])], [text("…")]);
+};
+
 let percentage_view = (p: percentage) => {
   div(
     ~attrs=[

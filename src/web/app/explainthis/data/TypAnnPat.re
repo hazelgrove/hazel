@@ -8,18 +8,20 @@ let typann_pat_coloring_ids =
   (Piece.id(p), pat_id),
   (Piece.id(typ), typ_id),
 ];
-let typann_pat: form = {
-  let explanation = "Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.";
-  {
-    id: TypAnnPat,
-    syntactic_form: [p, space(), typeann(), space(), typ],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
+let typann_pat_form = [p, space(), typeann(), space(), typ];
+let typann_pat = (~pat_id: Id.t, ~typ_id: Id.t): form => {
+  id: TypAnnPat,
+  syntactic_form: typann_pat_form,
+  colorings: typann_pat_coloring_ids(~pat_id, ~typ_id),
+  expandable_id: None,
+  explanation:
+    Printf.sprintf(
+      "Only expressions that match the [type annotated pattern](%s) and have the [indicated type](%s) match this type annotation pattern.",
+      Id.to_string(pat_id),
+      Id.to_string(typ_id),
+    ),
+  examples: [],
 };
 
-let typann: group = {
-  id: TypAnnPat,
-  forms: [typann_pat],
-};
+let typann = (~pat_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(typann_pat(~pat_id, ~typ_id));

@@ -28,7 +28,6 @@ type t = {
   smart_rounded: bool,
 };
 
-/* NOTE: backpack no longer uses selection focus */
 let mk =
     (
       ~mode=Normal,
@@ -70,11 +69,6 @@ let buffer_cls: t => string =
 let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
-
-let map = (f, sel) => {
-  ...sel,
-  content: f(sel.content),
-};
 
 let toggle_focus = selection => {
   ...selection,

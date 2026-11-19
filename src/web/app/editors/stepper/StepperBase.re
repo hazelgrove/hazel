@@ -178,17 +178,6 @@ module rec StepKind: {
     );
   };
 
-  let can_undo = (a: action): bool => {
-    switch (a) {
-    | SingleStep(action) => SingleStep.can_undo(action)
-    | InductionStep(action) => InductionStep.can_undo(action)
-    | ForallStep(action) => ForallStep.can_undo(action)
-    | MissingStep(action) => MissingStep.Update.can_undo(action)
-    | AxiomStep(action) => AxiomStep.can_undo(action)
-    | AlgebriteStep(action) => AlgebriteStep.can_undo(action)
-    };
-  };
-
   let rec calculate =
           (
             ~settings: Calc.t(CoreSettings.t),
@@ -734,20 +723,6 @@ and Stepper: {
     );
   };
 
-  let rec can_undo = (a: step_action): bool => {
-    switch (a) {
-    | EditorAction(action) => CodeSelectable.Update.can_undo(action)
-    | NextStep(next) => can_undo(next)
-    | RemoveStep => true
-    | StepForward(_) => true
-    | AddInduction(_) => true
-    | AddForall => true
-    | AddAxiomStep(_) => true
-    | AddAlgebriteStep(_) => true
-    | StepKindAction(action) => StepKind.can_undo(action)
-    };
-  };
-
   let rec calculate =
           (
             ~settings: Calc.t(CoreSettings.t),
@@ -826,12 +801,20 @@ and Stepper: {
         };
       };
 
-    // TODO: Make editor calculation more incremental
+    /* re-analyze a step's editor only when it, or what it shows, changed:
+       every step re-analyzed on every pass made each click cost the whole
+       trace's statics, several times over */
+    let is_edited =
+      Calc.is_new(editor)
+      || Calc.is_new(expr)
+      || Calc.is_new(settings)
+      || Calc.is_new(ctx)
+      || Calc.is_new(ana);
     let editor =
       CodeSelectable.Update.calculate(
         ~is_dynamic_term=true,
         ~settings=Calc.get_value(settings),
-        ~is_edited=true,
+        ~is_edited,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
         ~dynamics=Dynamics.Map.empty,
         ~ana=Calc.get_value(ana),

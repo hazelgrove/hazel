@@ -13,7 +13,7 @@ let stitched_results =
       fun
       | Some(ProgramResult.ResultOk(r)) => Some(r.result)
       | Some(ResultFail(_))
-      | Some(ResultPending)
+      | Some(ResultPending(_))
       | None => None
     )
   );
@@ -151,12 +151,6 @@ module Model = {
     };
   };
 
-  /* Backwards-compatible: uses the last-edited cell (`model.pos`). Callers
-     that can provide the currently focused cell via selection should prefer
-     the `_at` version so Prelude/Setup focus isn't misread as a tree cell. */
-  let get_derivation_info = (model: t) =>
-    get_derivation_info_at(model.pos, model);
-
   /* Editors whose problems should appear in the Problems sidebar, each
      paired with a display label. Only cells that are actually rendered are
      listed: the Prelude is shown in exercise mode but not in scratch /
@@ -210,16 +204,6 @@ module Update = {
     | Instructor(instructor)
     | Refresh
     | ResetExercise;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Editor(_, action) => CellEditor.Update.can_undo(action)
-    | MapEditor(_) => true
-    | Instructor(_) => false
-    | Refresh => false
-    | ResetExercise => false
-    };
-  };
 
   let instructor_update =
       (action: instructor, model: Model.t): Updated.t(Model.t) => {
@@ -284,32 +268,6 @@ module Update = {
     } else {
       Updated.return_quiet(model);
     };
-
-  let update_editor_action =
-      (
-        action: CodeEditable.Update.t,
-        pos: DerivationExercise.pos,
-        model: Model.t,
-        settings,
-      ) => {
-    let editor =
-      DerivationExercise.main_editor_of_state(~selection=pos, model.editors);
-    let* new_editor =
-      // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
-      editor
-      |> CodeEditable.Model.mk
-      |> CodeEditable.Update.update(~settings, action);
-    {
-      ...model,
-      pos,
-      editors:
-        DerivationExercise.put_main_editor(
-          ~selection=pos,
-          model.editors,
-          new_editor.editor,
-        ),
-    };
-  };
 
   let update =
       (
@@ -393,7 +351,7 @@ module Update = {
       }
       |> Updated.return;
     | Instructor(action) => instructor_update(~settings, action, model)
-    | Refresh => Updated.return(model)
+    | Refresh => Updated.return(~historic=false, model)
     | ResetExercise =>
       let new_editors =
         DerivationExercise.mapi(model.spec, pos =>
@@ -408,7 +366,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let stitched_elabs = DerivationExercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -442,6 +407,7 @@ module Update = {
           )
           |> CellEditor.Update.calculate(
                ~settings,
+               ~autoprobe_mode,
                ~is_edited,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
@@ -451,38 +417,26 @@ module Update = {
         stitched_elabs,
       );
 
-    WorkerClient.request(
+    EvalRequest.request(
       worker_request^,
-      ~handler=
-        List.iter(((pos, result)) => {
-          let pos' = DerivationExercise.pos_of_key(pos);
-          let result': ProgramResult.t(ProgramResult.inner) =
-            switch (result) {
-            | Ok((r, s)) =>
-              ResultOk({
-                result: r,
-                state: s,
-              })
-            | Error(e) => ResultFail(e)
-            };
-          schedule_action(
-            Editor(pos', ResultAction(UpdateResult(result'))),
-          );
-        }),
-      ~timeout=_ => {
-        let _ =
-          DerivationExercise.map_stitched(
-            (pos, _) =>
-              schedule_action(
-                Editor(
-                  pos,
-                  ResultAction(UpdateResult(ResultFail(Timeout))),
+      ~pos_of_key=DerivationExercise.pos_of_key,
+      ~dispatch=
+        (pos, action) =>
+          schedule_action(Editor(pos, ResultAction(action))),
+      ~on_timeout=
+        _ =>
+          ignore(
+            DerivationExercise.map_stitched(
+              (pos, _) =>
+                schedule_action(
+                  Editor(
+                    pos,
+                    ResultAction(UpdateResult(ResultFail(Timeout))),
+                  ),
                 ),
-              ),
-            model.cells,
-          );
-        ();
-      },
+              model.cells,
+            ),
+          ),
     );
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
@@ -490,7 +444,7 @@ module Update = {
        statics to take */
     let editors: DerivationExercise.eds = {
       let calculate =
-        Editor.Update.calculate(~settings, ~autoprobe_mode=false, ~is_edited);
+        Editor.Update.calculate(~settings, ~autoprobe_mode, ~is_edited);
       {
         ...model.editors,
         prelude:
@@ -662,7 +616,9 @@ module NinjaKeys = {
     Js._true;
   };
 
-  let elem = JsUtil.get_elem_by_id("ninja-keys-rules");
+  /* Lazy: module init must not touch the DOM (the test binary links
+     this module under node). */
+  let elem = Lazy.from_fun(() => JsUtil.get_elem_by_id("ninja-keys-rules"));
   let shadow_root = Js.Unsafe.get(_, "shadowRoot");
 
   module Open =
@@ -761,7 +717,7 @@ module NinjaKeys = {
 
     let set_data = () => {
       Js.Unsafe.set(
-        elem,
+        Lazy.force(elem),
         "data",
         M.rule_set
         |> RuleImage.all_rules_of_rule_set
@@ -783,7 +739,7 @@ module NinjaKeys = {
     set_data();
     loop(bind_event_handler_all, 100.);
     bind_event_handler_search();
-    Js.Unsafe.meth_call(elem, "open", [||]);
+    Js.Unsafe.meth_call(Lazy.force(elem), "open", [||]);
   };
 };
 
