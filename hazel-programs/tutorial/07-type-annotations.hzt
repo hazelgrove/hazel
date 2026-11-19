@@ -47,5 +47,8 @@ Replace the string `"1"` with the integer `1`.
 @code
 ("1" : Int)
 
+@solution
+(1 : Int)
+
 @test
 test answer == 1 end

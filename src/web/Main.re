@@ -122,8 +122,13 @@ let apply =
       ),
     );
   };
-  if (updated.scroll_active) {
-    scroll_to_caret := true;
+  /* Runs before the re-render, so caret_in_view sees the layout the user is
+     looking at, not the one this action is about to make. */
+  switch (updated.scroll) {
+  | Updated.Always => scroll_to_caret := true
+  | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | IfCaretVisible
+  | Never => ()
   };
   /* When the tutorial slide changes, stash the outgoing slide's scroll
      position and queue a restore of the incoming slide's saved position
@@ -224,12 +229,18 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* Identify non-dev builds in the page title */
+    if (!BuildMeta.is_clean_dev) {
+      Dom_html.document##.title := Js.string("hazel · " ++ BuildMeta.label);
+    };
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_guards();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
@@ -347,6 +358,8 @@ let start = default_model => {
     );
   };
 };
+
+CoverageExport.install();
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()

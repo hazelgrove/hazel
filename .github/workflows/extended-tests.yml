@@ -101,7 +101,7 @@ jobs:
         env:
           QCHECK_LONG_FACTOR: ${{ steps.config.outputs.factor }}
           QCHECK_SEED: ${{ steps.config.outputs.seed }}
-        run: opam exec -- make ci-extended
+        run: make ci-extended
         # Under the job's 350 so the steps below still get to run and record
         # the seed if the suite runs long.
         timeout-minutes: 330

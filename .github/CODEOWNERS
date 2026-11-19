@@ -1,0 +1,5 @@
+# Every PR into dev needs an approving review from the Hazel core team
+# (https://github.com/orgs/hazelgrove/teams/hazel-core); the dev branch ruleset
+# requires a code-owner review. Change who can approve by editing that team's
+# membership, not this file.
+* @hazelgrove/hazel-core
