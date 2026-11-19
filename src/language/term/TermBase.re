@@ -389,20 +389,20 @@ and Exp: {
         | Var(_)
         | LivelitName(_)
         | Undefined => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
-        | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
+        | ListLit(ts) => ListLit(List.map(~f=exp_map_term, ts))
         | Fun(p, e, t, f) =>
           Fun(
             pat_map_term(p),
             exp_map_term(e),
-            Option.map(typ_map_term, t),
+            Option.map(~f=typ_map_term, t),
             f,
           )
         | TypAbs(tp, e, f) => TypAbs(tpat_map_term(tp), exp_map_term(e), f)
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
-        | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | Tuple(xs) => Tuple(List.map(~f=exp_map_term, xs))
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
@@ -419,7 +419,7 @@ and Exp: {
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
-          DeferredAp(exp_map_term(e), List.map(exp_map_term, es))
+          DeferredAp(exp_map_term(e), List.map(~f=exp_map_term, es))
         | If(e1, e2, e3) =>
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
@@ -440,7 +440,7 @@ and Exp: {
           Match(
             exp_map_term(e),
             List.map(
-              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
+              ~f=((p, e)) => (pat_map_term(p), exp_map_term(e)),
               rls,
             ),
           )
@@ -448,17 +448,18 @@ and Exp: {
         | Module(items) =>
           Module(
             List.map(
-              Mod.map_term(
-                ~f_exp,
-                ~f_pat,
-                ~f_typ,
-                ~f_tpat,
-                ~f_rul,
-                ~f_mod,
-                ~f_sig,
-                ~f_mpat,
-                ~f_any,
-              ),
+              ~f=
+                Mod.map_term(
+                  ~f_exp,
+                  ~f_pat,
+                  ~f_typ,
+                  ~f_tpat,
+                  ~f_rul,
+                  ~f_mod,
+                  ~f_sig,
+                  ~f_mpat,
+                  ~f_any,
+                ),
               items,
             ),
           )
@@ -560,11 +561,11 @@ and Pat: {
         | Label(_)
         | Var(_)
         | ExplicitNonlabel => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
+        | ListLit(ts) => ListLit(List.map(~f=pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
-        | Tuple(xs) => Tuple(List.map(pat_map_term, xs))
+        | Tuple(xs) => Tuple(List.map(~f=pat_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
@@ -685,8 +686,8 @@ and Typ: {
           TypParamAp(typ_map_term(t1), typ_map_term(t2))
         | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>
-          Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Prod(xs) => Prod(List.map(typ_map_term, xs))
+          Unknown(Hole(MultiHole(List.map(~f=any_map_term, things))))
+        | Prod(xs) => Prod(List.map(~f=typ_map_term, xs))
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
@@ -695,31 +696,32 @@ and Typ: {
         | Sum(variants) =>
           Sum(
             List.map(
-              fun
-              | ConstructorMap.Variant(c, ann, t) => {
-                  /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
-                   * in order to map over it. The main reason this was implemented is so that
-                   * id renaming passes work. */
-                  switch (
-                    typ_map_term({
-                      term: Var(c),
-                      annotation: IdTagged.IdTag.mk_internal(ann.ids),
-                    })
-                  ) {
-                  | {term: Var(c), annotation: {ids, _}} =>
-                    ConstructorMap.Variant(
-                      c,
-                      {
-                        ids,
-                        secondary: ann.secondary,
-                      },
-                      Option.map(typ_map_term, t),
-                    )
-                  | t => BadEntry(typ_map_term(t))
-                  };
-                }
-              | ConstructorMap.BadEntry(t) =>
-                ConstructorMap.BadEntry(typ_map_term(t)),
+              ~f=
+                fun
+                | ConstructorMap.Variant(c, ann, t) => {
+                    /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
+                     * in order to map over it. The main reason this was implemented is so that
+                     * id renaming passes work. */
+                    switch (
+                      typ_map_term({
+                        term: Var(c),
+                        annotation: IdTagged.IdTag.mk_internal(ann.ids),
+                      })
+                    ) {
+                    | {term: Var(c), annotation: {ids, _}} =>
+                      ConstructorMap.Variant(
+                        c,
+                        {
+                          ids,
+                          secondary: ann.secondary,
+                        },
+                        Option.map(~f=typ_map_term, t),
+                      )
+                    | t => BadEntry(typ_map_term(t))
+                    };
+                  }
+                | ConstructorMap.BadEntry(t) =>
+                  ConstructorMap.BadEntry(typ_map_term(t)),
               variants,
             ),
           )
@@ -733,17 +735,18 @@ and Typ: {
         | Sig(items) =>
           Sig(
             List.map(
-              Sig.map_term(
-                ~f_exp,
-                ~f_pat,
-                ~f_typ,
-                ~f_tpat,
-                ~f_rul,
-                ~f_mod,
-                ~f_sig,
-                ~f_mpat,
-                ~f_any,
-              ),
+              ~f=
+                Sig.map_term(
+                  ~f_exp,
+                  ~f_pat,
+                  ~f_typ,
+                  ~f_tpat,
+                  ~f_rul,
+                  ~f_mod,
+                  ~f_sig,
+                  ~f_mpat,
+                  ~f_any,
+                ),
               items,
             ),
           )
@@ -812,15 +815,15 @@ and TPat: {
         | EmptyHole
         | Invalid(_)
         | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | Param(head, params) =>
           let recurse =
             TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-          Param(recurse(head), List.map(recurse, params));
+          Param(recurse(head), List.map(~f=recurse, params));
         | Tuple(tps) =>
           let recurse =
             TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-          Tuple(List.map(recurse, tps));
+          Tuple(List.map(~f=recurse, tps));
         | Parens(tp) =>
           let recurse =
             TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
@@ -917,12 +920,12 @@ and Rul: {
       term:
         switch (term) {
         | Invalid(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | Rules(e, rls) =>
           Rules(
             exp_map_term(e),
             List.map(
-              ((p, e)) => (pat_map_term(p), exp_map_term(e)),
+              ~f=((p, e)) => (pat_map_term(p), exp_map_term(e)),
               rls,
             ),
           )
@@ -1048,7 +1051,7 @@ and Mod: {
         switch (term) {
         | EmptyHole
         | Invalid(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | ModLet(p, e) => ModLet(pat_map_term(p), exp_map_term(e))
         | ModType(tp, t) => ModType(tpat_map_term(tp), typ_map_term(t))
         | ModExp(e) => ModExp(exp_map_term(e))
@@ -1151,7 +1154,7 @@ and Sig: {
         switch (term) {
         | EmptyHole
         | Invalid(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | SigLet(p) => SigLet(pat_map_term(p))
         | SigType(tp, t) => SigType(tpat_map_term(tp), typ_map_term(t))
         },
@@ -1231,7 +1234,7 @@ and MPat: {
         | EmptyHole
         | Invalid(_)
         | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         | Asc(inner, ty) => Asc(f_mpat(rec_call, inner), typ_map_term(ty))
         },
     };

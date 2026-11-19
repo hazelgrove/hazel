@@ -146,8 +146,8 @@ let highest = (marks: list(t)): option(t) =>
   | [h, ...tl] =>
     Some(
       List.fold_left(
-        (best, cur) => compare(cur, best) < 0 ? cur : best,
-        h,
+        ~f=(best, cur) => compare(cur, best) < 0 ? cur : best,
+        ~init=h,
         tl,
       ),
     )
@@ -167,10 +167,11 @@ let is_syntax_error = (sort: Sort.t, marks: list(t)): bool =>
     }
   | Typ =>
     List.exists(
-      fun
-      | BadToken(_)
-      | TypParseFailure => true
-      | _ => false,
+      ~f=
+        fun
+        | BadToken(_)
+        | TypParseFailure => true
+        | _ => false,
       marks,
     )
   | _ => false

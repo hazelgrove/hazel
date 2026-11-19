@@ -187,7 +187,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | DynamicErrorHole(e, err) =>
           DynamicErrorHole(map_exp_annotation(f, e), err)
         | Deferral(pos) => Deferral(pos)
@@ -195,19 +195,23 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
-        | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
+        | ListLit(l) =>
+          ListLit(List.map(~f=x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
+          Constructor(
+            s,
+            Option.map(~f=Option.map(~f=map_typ_annotation(f)), t),
+          )
         | Fun(p, e, t, v) =>
           Fun(
             map_pat_annotation(f, p),
             map_exp_annotation(f, e),
-            Option.map(x => map_typ_annotation(f, x), t),
-            Option.map(x => x, v),
+            Option.map(~f=x => map_typ_annotation(f, x), t),
+            Option.map(~f=x => x, v),
           )
         | TypAbs(p, e, v) =>
           TypAbs(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
-        | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
+        | Tuple(l) => Tuple(List.map(~f=x => map_exp_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(l, e) =>
@@ -247,7 +251,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | DeferredAp(e, l) =>
           DeferredAp(
             map_exp_annotation(f, e),
-            List.map(x => map_exp_annotation(f, x), l),
+            List.map(~f=x => map_exp_annotation(f, x), l),
           )
         | If(e1, e2, e3) =>
           If(
@@ -284,8 +288,9 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           Match(
             map_exp_annotation(f, e),
             List.map(
-              ((p, e)) =>
-                (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+              ~f=
+                ((p, e)) =>
+                  (map_pat_annotation(f, p), map_exp_annotation(f, e)),
               l,
             ),
           )
@@ -296,7 +301,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
-        | Module(items) => Module(List.map(map_mod_annotation(f), items))
+        | Module(items) =>
+          Module(List.map(~f=map_mod_annotation(f), items))
         | ModuleExp(mp, def, body) =>
           ModuleExp(
             map_mpat_annotation(f, mp),
@@ -337,16 +343,20 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | Wild => Wild
         | Atom(c) => Atom(c)
-        | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
+        | ListLit(l) =>
+          ListLit(List.map(~f=x => map_pat_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
+          Constructor(
+            s,
+            Option.map(~f=Option.map(~f=map_typ_annotation(f)), t),
+          )
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
-        | Tuple(l) => Tuple(List.map(x => map_pat_annotation(f, x), l))
+        | Tuple(l) => Tuple(List.map(~f=x => map_pat_annotation(f, x), l))
         | ExplicitNonlabel => ExplicitNonlabel
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
@@ -388,7 +398,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
-        | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
+        | Prod(l) => Prod(List.map(~f=x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
         | ExplicitNonlabel => ExplicitNonlabel
         | TupLabel(t1, t2) =>
@@ -405,7 +415,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
           )
-        | Sig(items) => Sig(List.map(map_sig_annotation(f), items))
+        | Sig(items) => Sig(List.map(~f=map_sig_annotation(f), items))
         },
       annotation: new_annotation,
     };
@@ -420,7 +430,7 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | Var(s) => Var(s)
         | Param(head, params) =>
           Param(
@@ -442,13 +452,14 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
         switch (term) {
         | Invalid(s) => Invalid(s)
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | Rules(e, l) =>
           Rules(
             map_exp_annotation(f, e),
             List.map(
-              ((p, e)) =>
-                (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+              ~f=
+                ((p, e)) =>
+                  (map_pat_annotation(f, p), map_exp_annotation(f, e)),
               l,
             ),
           )
@@ -466,7 +477,7 @@ and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | ModLet(p, e) =>
           ModLet(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | ModType(tp, t) =>
@@ -488,7 +499,7 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
@@ -506,7 +517,7 @@ and map_mpat_annotation: 'a 'b. ('a => 'b, mpat_t('a)) => mpat_t('b) =
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
         | MultiHole(l) =>
-          MultiHole(List.map(x => map_any_annotation(f, x), l))
+          MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
         | Var(v) => Var(v)
         | Asc(mp, t) =>
           Asc(map_mpat_annotation(f, mp), map_typ_annotation(f, t))
@@ -548,7 +559,8 @@ and map_type_hole_annotation:
     switch (e) {
     | Invalid(s) => Invalid(s)
     | EmptyHole => EmptyHole
-    | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
+    | MultiHole(l) =>
+      MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
     };
   };
 

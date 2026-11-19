@@ -4,7 +4,7 @@ open Fresh.Typ;
 
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
-  |> List.map(((name, typ_opt)) =>
+  |> List.map(~f=((name, typ_opt)) =>
        ConstructorMap.Variant(
          name,
          ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
@@ -351,7 +351,10 @@ module Shortcut = {
         ap(
           Forward,
           ctr("Bound"),
-          tuple([list_lit(List.map(exp_of_key_mod, mods)), string(key)]),
+          tuple([
+            list_lit(List.map(~f=exp_of_key_mod, mods)),
+            string(key),
+          ]),
         )
       }
     );
@@ -359,11 +362,12 @@ module Shortcut = {
 
   let key_mod_of_exp = (v: Exp.t): option(key_mod) =>
     List.find_map(
-      m =>
-        switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
-        | Matches () => Some(m)
-        | _ => None
-        },
+      ~f=
+        m =>
+          switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
+          | Matches () => Some(m)
+          | _ => None
+          },
       all_key_mods,
     );
 
@@ -380,7 +384,7 @@ module Shortcut = {
             Unboxing.unbox(Atom(String), key),
           ) {
           | (Matches(ms), Matches(k)) =>
-            Some(Bound(List.filter_map(key_mod_of_exp, ms), k))
+            Some(Bound(List.filter_map(~f=key_mod_of_exp, ms), k))
           | _ => None
           }
         | _ => None
@@ -403,8 +407,14 @@ module Shortcut = {
      compares sorted key codes, so the order is display only. */
   let string_of_chord = (mods: list(key_mod), key: string): string => {
     let ordered =
-      List.filter(m => List.mem(m, mods), [Meta, Ctrl, Alt, Shift]);
-    String.concat("+", List.map(string_of_key_mod, ordered) @ [key]);
+      List.filter(
+        ~f=m => List.mem(mods, m, ~equal=equal_key_mod),
+        [Meta, Ctrl, Alt, Shift],
+      );
+    String.concat(
+      ~sep="+",
+      List.map(~f=string_of_key_mod, ordered) @ [key],
+    );
   };
 
   let string_of_binding = (b: binding): option(string) =>
@@ -565,12 +575,13 @@ module Color = {
     } else {
       let s = Printf.sprintf("%.5f", f);
       let last = ref(String.length(s));
-      while (last^ > 1 && s.[last^ - 1] == '0') {
+      while (last^ > 1 && Char.equal(s.[last^ - 1], '0')) {
         decr(last);
       };
-      let s = String.sub(s, 0, last^);
+      let s = String.sub(s, ~pos=0, ~len=last^);
       let n = String.length(s);
-      n > 0 && s.[n - 1] == '.' ? String.sub(s, 0, n - 1) : s;
+      n > 0 && Char.equal(s.[n - 1], '.')
+        ? String.sub(s, ~pos=0, ~len=n - 1) : s;
     };
 
   /* Alpha goes through color-mix so it composes with any inner color rather
@@ -601,15 +612,15 @@ module Color = {
      are the Ottosson matrices; `l` is 0..100 here, 0..1 in the maths. */
 
   let srgb_of_linear = (c: float): float =>
-    c <= 0.0031308 ? 12.92 *. c : 1.055 *. c ** (1.0 /. 2.4) -. 0.055;
+    Float.(c <= 0.0031308) ? 12.92 *. c : 1.055 *. c ** (1.0 /. 2.4) -. 0.055;
   let linear_of_srgb = (c: float): float =>
-    c <= 0.04045 ? c /. 12.92 : ((c +. 0.055) /. 1.055) ** 2.4;
+    Float.(c <= 0.04045) ? c /. 12.92 : ((c +. 0.055) /. 1.055) ** 2.4;
 
   /* Clamped to the sRGB cube: OKLCH describes colors no display can show,
      and every consumer here wants a drawable byte. */
   let rgb_of_oklch = ((l, c, h): (float, float, float)): (int, int, int) => {
     let hr = h *. Float.pi /. 180.;
-    let (a, b) = (c *. cos(hr), c *. sin(hr));
+    let (a, b) = (c *. Float.cos(hr), c *. Float.sin(hr));
     let l' = l /. 100.;
     let (l_, m_, s_) = (
       l' +. 0.3963377774 *. a +. 0.2158037573 *. b,
@@ -619,8 +630,9 @@ module Color = {
     let (lc, mc, sc) = (l_ *. l_ *. l_, m_ *. m_ *. m_, s_ *. s_ *. s_);
     let byte = v =>
       int_of_float(
-        Float.round(
-          Float.min(1., Float.max(0., srgb_of_linear(v))) *. 255.,
+        Stdlib.Float.round(
+          Stdlib.Float.min(1., Stdlib.Float.max(0., srgb_of_linear(v)))
+          *. 255.,
         ),
       );
     (
@@ -633,7 +645,7 @@ module Color = {
   let oklch_of_rgb = ((r, g, b): (int, int, int)): (float, float, float) => {
     let lin = v => linear_of_srgb(float_of_int(v) /. 255.);
     let (r, g, b) = (lin(r), lin(g), lin(b));
-    let cbrt = x => x < 0. ? -. (-. x ** (1. /. 3.)) : x ** (1. /. 3.);
+    let cbrt = x => Float.(x < 0.) ? -. (-. x ** (1. /. 3.)) : x ** (1. /. 3.);
     let (l_, m_, s_) = (
       cbrt(0.4122214708 *. r +. 0.5363325363 *. g +. 0.0514459929 *. b),
       cbrt(0.2119034982 *. r +. 0.6806995451 *. g +. 0.1073969566 *. b),
@@ -642,8 +654,8 @@ module Color = {
     let ll = 0.2104542553 *. l_ +. 0.7936177850 *. m_ -. 0.0040720468 *. s_;
     let a = 1.9779984951 *. l_ -. 2.4285922050 *. m_ +. 0.4505937099 *. s_;
     let bb = 0.0259040371 *. l_ +. 0.7827717662 *. m_ -. 0.8086757660 *. s_;
-    let h = atan2(bb, a) *. 180. /. Float.pi;
-    (ll *. 100., sqrt(a *. a +. bb *. bb), h < 0. ? h +. 360. : h);
+    let h = Float.atan2(bb, a) *. 180. /. Float.pi;
+    (ll *. 100., sqrt(a *. a +. bb *. bb), Float.(h < 0.) ? h +. 360. : h);
   };
 
   /* --- sRGB <-> HSV ---------------------------------------------------
@@ -657,12 +669,12 @@ module Color = {
      the whole difference from OKLCH, which has a region to clamp. */
 
   let rgb_of_hsv = ((h, s, v): (float, float, float)): (int, int, int) => {
-    let h = Float.rem(Float.rem(h, 360.) +. 360., 360.);
-    let s = Float.min(1., Float.max(0., s));
-    let v = Float.min(1., Float.max(0., v));
+    let h = Float.mod_float(Float.mod_float(h, 360.) +. 360., 360.);
+    let s = Stdlib.Float.min(1., Stdlib.Float.max(0., s));
+    let v = Stdlib.Float.min(1., Stdlib.Float.max(0., v));
     let sector = h /. 60.;
-    let i = int_of_float(Float.floor(sector));
-    let f = sector -. Float.floor(sector);
+    let i = int_of_float(Float.round_down(sector));
+    let f = sector -. Float.round_down(sector);
     let (p, q, t) = (
       v *. (1. -. s),
       v *. (1. -. s *. f),
@@ -677,7 +689,7 @@ module Color = {
       | 4 => (t, p, v)
       | _ => (v, p, q)
       };
-    let byte = x => int_of_float(Float.round(x *. 255.));
+    let byte = x => int_of_float(Stdlib.Float.round(x *. 255.));
     (byte(r), byte(g), byte(b));
   };
 
@@ -695,24 +707,24 @@ module Color = {
       float_of_int(g) /. 255.,
       float_of_int(b) /. 255.,
     );
-    let mx = Float.max(rf, Float.max(gf, bf));
-    let mn = Float.min(rf, Float.min(gf, bf));
+    let mx = Stdlib.Float.max(rf, Stdlib.Float.max(gf, bf));
+    let mn = Stdlib.Float.min(rf, Stdlib.Float.min(gf, bf));
     let d = mx -. mn;
     let h =
-      if (d == 0.) {
+      if (Float.equal(d, 0.)) {
         h0;
       } else {
         let h =
-          if (mx == rf) {
-            60. *. Float.rem((gf -. bf) /. d, 6.);
-          } else if (mx == gf) {
+          if (Float.equal(mx, rf)) {
+            60. *. Float.mod_float((gf -. bf) /. d, 6.);
+          } else if (Float.equal(mx, gf)) {
             60. *. ((bf -. rf) /. d +. 2.);
           } else {
             60. *. ((rf -. gf) /. d +. 4.);
           };
-        h < 0. ? h +. 360. : h;
+        Float.(h < 0.) ? h +. 360. : h;
       };
-    (h, mx == 0. ? s0 : d /. mx, mx);
+    (h, Float.equal(mx, 0.) ? s0 : d /. mx, mx);
   };
 
   let hex_of_oklch = (t: (float, float, float)): string => {
@@ -724,11 +736,11 @@ module Color = {
      the bytes as written, so pasting a hex into an `Rgb` literal lands exactly
      rather than detouring through OKLCH and returning a step off. */
   let rgb_of_css = (s: string): option((int, int, int)) => {
-    let s = String.trim(String.lowercase_ascii(s));
+    let s = String.strip(String.lowercase(s));
     let hex_digit = c =>
       switch (c) {
-      | '0' .. '9' => Some(Char.code(c) - 48)
-      | 'a' .. 'f' => Some(Char.code(c) - 87)
+      | '0' .. '9' => Some(Stdlib.Char.code(c) - 48)
+      | 'a' .. 'f' => Some(Stdlib.Char.code(c) - 87)
       | _ => None
       };
     /* The length check has to gate the indexing, not sit beside it in a
@@ -753,18 +765,18 @@ module Color = {
     };
     let strip = (p, s) => {
       let n = String.length(p);
-      String.length(s) > n && String.sub(s, 0, n) == p
-        ? Some(String.sub(s, n, String.length(s) - n)) : None;
+      String.length(s) > n && String.equal(String.sub(s, ~pos=0, ~len=n), p)
+        ? Some(String.sub(s, ~pos=n, ~len=String.length(s) - n)) : None;
     };
     switch (strip("#", s)) {
     | Some(h) => of_hex(h)
     | None =>
       switch (strip("rgb(", s)) {
       | Some(rest) when String.length(rest) > 0 =>
-        let rest = String.sub(rest, 0, String.length(rest) - 1);
+        let rest = String.sub(rest, ~pos=0, ~len=String.length(rest) - 1);
         switch (
-          String.split_on_char(',', rest)
-          |> List.map(x => int_of_string_opt(String.trim(x)))
+          String.split(rest, ~on=',')
+          |> List.map(~f=x => Int.of_string_opt(String.strip(x)))
         ) {
         | [Some(r), Some(g), Some(b)] => Some((r, g, b))
         | _ => None
@@ -811,7 +823,7 @@ let create_type_alias =
    (`Type` for n=0, `(Type) -> Type` for n=1, etc.). */
 let types: list(Ctx.entry) =
   List.map(
-    ((name, params, typ, _body)) => create_type_alias(~params, name, typ),
+    ~f=((name, params, typ, _body)) => create_type_alias(~params, name, typ),
     parameterized_aliases,
   );
 
@@ -822,25 +834,26 @@ let types: list(Ctx.entry) =
    collapses to the original `add_ctrs` behavior. */
 let constructors: Ctx.t = {
   List.fold_left(
-    (ctx, (name, params, _typ, body)) => {
-      let cons_map =
-        switch (Typ.term_of(body)) {
-        | Sum(cons_map) => cons_map
-        | Rec(_, tbody) =>
-          switch (Typ.term_of(tbody)) {
+    ~f=
+      (ctx, (name, params, _typ, body)) => {
+        let cons_map =
+          switch (Typ.term_of(body)) {
           | Sum(cons_map) => cons_map
+          | Rec(_, tbody) =>
+            switch (Typ.term_of(tbody)) {
+            | Sum(cons_map) => cons_map
+            | _ => failwith("Type alias body must be a sum type")
+            }
           | _ => failwith("Type alias body must be a sum type")
-          }
-        | _ => failwith("Type alias body must be a sum type")
-        };
-      Ctx.add_ctrs_with_params(
-        ctx,
-        name,
-        params == [] ? [] : [params],
-        cons_map,
-      );
-    },
-    Ctx.empty,
+          };
+        Ctx.add_ctrs_with_params(
+          ctx,
+          name,
+          List.is_empty(params) ? [] : [params],
+          cons_map,
+        );
+      },
+    ~init=Ctx.empty,
     parameterized_aliases,
   );
 };
@@ -892,4 +905,4 @@ let invert_ord: BuiltinsUtil.fn =
   };
 
 let ord_builtins: list(BuiltinsUtil.fn) =
-  [invert_ord] @ List.map(of_atom_compare, Atom.compare_builtins);
+  [invert_ord] @ List.map(~f=of_atom_compare, Atom.compare_builtins);

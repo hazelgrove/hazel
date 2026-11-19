@@ -100,9 +100,10 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
-    fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
-    | _ => None,
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
+      | _ => None,
     ctx.entries,
   );
 
@@ -116,17 +117,19 @@ let lookup_tvar_typ_kind = (ctx: t, name: string): option(TypKind.t) =>
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
-    fun
-    | TVarEntry(v) when v.name == name => Some(v.id)
-    | _ => None,
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.id)
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
-    fun
-    | LivelitEntry(v) when v.name == name => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | LivelitEntry(v) when String.equal(v.name, name) => Some(v)
+      | _ => None,
     ctx.entries,
   );
 
@@ -139,9 +142,10 @@ let get_id: entry => Id.t =
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) when String.equal(v.name, name) => Some(v)
+      | _ => None,
     ctx.entries,
   );
 
@@ -157,18 +161,20 @@ let newest_var_or_ctr =
         ],
       ) =>
   List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(`Var(v))
-    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
+      | ConstructorEntry(c) when String.equal(c.name, name) => Some(`Ctr(c))
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
-    | _ => None,
+    ~f=
+      fun
+      | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
+      | _ => None,
     ctx.entries,
   );
 
@@ -294,13 +300,14 @@ let result_type_for_params =
     | None => typ(Unknown(Internal))
     };
   List.fold_left(
-    (head, group) =>
-      switch (group) {
-      | [] => head
-      | [param] => typ(TypParamAp(head, arg(param)))
-      | _ => typ(TypParamAp(head, typ(TypTuple(List.map(arg, group)))))
-      },
-    typ(Var(name)),
+    ~f=
+      (head, group) =>
+        switch (group) {
+        | [] => head
+        | [param] => typ(TypParamAp(head, arg(param)))
+        | _ => typ(TypParamAp(head, typ(TypTuple(List.map(~f=arg, group)))))
+        },
+    ~init=typ(Var(name)),
     param_groups,
   );
 };
@@ -331,10 +338,10 @@ let add_ctrs_with_params =
     ...ctx,
     entries:
       List.filter_map(
-        fun
-        | ConstructorMap.Variant(ctr, ann, typ) => {
-            assert(ann.ids != []);
-            let ctr_id = List.hd(ann.ids);
+        ~f=
+          fun
+          | ConstructorMap.Variant(ctr, ann, typ) => {
+            let ctr_id = List.hd_exn(ann.ids);
             let typ =
               switch (typ) {
               | None => result_ty
@@ -401,7 +408,7 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   };
 };
 
-module VarSet = Set.Make(Var);
+module VarSet = Stdlib.Set.Make(Var);
 
 /* Removes shadowed variables from the context */
 let filter_shadowed = (ctx: t): t => {
@@ -409,24 +416,25 @@ let filter_shadowed = (ctx: t): t => {
   entries:
     ctx.entries
     |> List.fold_left(
-         ((ctx, term_set, typ_set), entry) => {
-           switch (entry) {
-           | VarEntry({name, _})
-           | ConstructorEntry({name, _}) =>
-             VarSet.mem(name, term_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           | TVarEntry({name, _}) =>
-             VarSet.mem(name, typ_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
-           | LivelitEntry({name, _}) =>
-             VarSet.mem(name, term_set)
-               ? (ctx, term_set, typ_set)
-               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
-           }
-         },
-         ([], VarSet.empty, VarSet.empty),
+         ~f=
+           ((ctx, term_set, typ_set), entry) => {
+             switch (entry) {
+             | VarEntry({name, _})
+             | ConstructorEntry({name, _}) =>
+               VarSet.mem(name, term_set)
+                 ? (ctx, term_set, typ_set)
+                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+             | TVarEntry({name, _}) =>
+               VarSet.mem(name, typ_set)
+                 ? (ctx, term_set, typ_set)
+                 : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+             | LivelitEntry({name, _}) =>
+               VarSet.mem(name, term_set)
+                 ? (ctx, term_set, typ_set)
+                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+             }
+           },
+         ~init=([], VarSet.empty, VarSet.empty),
        )
     |> (((ctx, _, _)) => List.rev(ctx)),
 };
@@ -436,25 +444,27 @@ let filter_stepper_filter_variables = (ctx: t): t => {
   entries:
     ctx.entries
     |> List.fold_left(
-         (ctx, entry) => {
-           switch (entry) {
-           | VarEntry({name, _})
-           | ConstructorEntry({name, _})
-           | LivelitEntry({name, _})
-           | TVarEntry({name, _}) =>
-             if (String.starts_with(~prefix="$", name)) {
-               ctx;
-             } else {
-               [entry, ...ctx];
+         ~f=
+           (ctx, entry) => {
+             switch (entry) {
+             | VarEntry({name, _})
+             | ConstructorEntry({name, _})
+             | LivelitEntry({name, _})
+             | TVarEntry({name, _}) =>
+               if (String.is_prefix(name, ~prefix="$")) {
+                 ctx;
+               } else {
+                 [entry, ...ctx];
+               }
              }
-           }
-         },
-         [],
+           },
+         ~init=[],
        )
     |> List.rev,
 };
 
-let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
+let is_base_typ = (name: string): bool =>
+  List.exists(~f=String.equal(name), Token.base_typs);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
@@ -480,8 +490,9 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
 
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(
-    fun
-    | VarEntry(v) => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) => Some(v)
+      | _ => None,
     ctx.entries,
   );

@@ -2,6 +2,7 @@ open Test_Statics_Prelude;
 open Alcotest;
 open Language;
 open TypExpectation;
+open Poly;
 
 /* Direct-API helper for exercising `utyp_to_info_map` against a given
    `TypExpectation.t`. Relocated from the old test/Test_Info.re; these tests
@@ -203,7 +204,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let ty = Var("Some") |> Typ.temp;
       check(
         typ_status_testable,
@@ -224,7 +225,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let ty = Var("Some") |> Typ.temp;
       check(
         typ_status_testable,
@@ -356,7 +357,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Label("a") |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, ConstructorExpected(Unique, sum_ty), ty);
       check(
@@ -373,7 +374,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Label("a") |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, VariantExpected(Unique, sum_ty), ty);
       check(
@@ -442,7 +443,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Atom(Int) |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, ConstructorExpected(Unique, sum_ty), ty);
       check(
@@ -591,7 +592,7 @@ let tests = (
         "statics",
         fun
         | Failure(msg) =>
-          String.starts_with(~prefix="weak_head_normalize exceeded", msg)
+          String.is_prefix(msg, ~prefix="weak_head_normalize exceeded")
         | _ => false,
         () =>
         ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
@@ -975,15 +976,16 @@ let tests = (
         // With type-level application syntax, it is now a kind error rather than a parse failure.
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
         let s = statics(exp);
-        let marks = errors(s) |> List.map(snd) |> List.flatten;
+        let marks = errors(s) |> List.map(~f=snd) |> List.concat;
 
         check(
           bool,
           "Has kind error",
           true,
           List.exists(
-            mark =>
-              equal_mark(mark, Mark.TypParamApplyNonArrowKind(TypKind.Type)),
+            ~f=
+              mark =>
+                equal_mark(mark, Mark.TypParamApplyNonArrowKind(TypKind.Type)),
             marks,
           ),
         );
