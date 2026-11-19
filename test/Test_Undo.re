@@ -306,5 +306,77 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "undo puts back a step deleted from the stepper, with the steps inside it",
+      `Quick,
+      () => {
+        let z =
+          Test_EditorTransform.parse_zipper(
+            "theorem t = forall (b : Bool) -> b || false == b proof induction b | true => from true || false do step end | false => from false || false do step end end; ? in t",
+          );
+        let induction =
+          switch (Test_EditorTransform.(find_theorem_proof(zipper_term(z)))) {
+          | Some({term: Seq(induction, _), _}) => induction
+          | _ => fail("no induction chained before a hole")
+          };
+        let m0 = mk_model();
+        let scratch =
+          switch (m0.current.editors) {
+          | Scratch(s) => s
+          | _ => fail("not in scratch mode")
+          };
+        let scratchpad = List.nth_exn(scratch.scratchpads, scratch.current);
+        let agent =
+          switch (scratchpad.kind) {
+          | Code({agent, _}) => agent
+          | Drv(_) => fail("not a code slide")
+          };
+        let scratchpad = {
+          ...scratchpad,
+          kind:
+            Code({
+              editor:
+                CellEditor.Model.mk(Haz3lcore.Editor.Model.mk(~root=Exp, z)),
+              agent,
+            }),
+        };
+        let m0 = {
+          ...m0,
+          current: {
+            ...m0.current,
+            editors:
+              Scratch({
+                ...scratch,
+                scratchpads:
+                  Util.ListUtil.put_nth(
+                    scratch.current,
+                    scratchpad,
+                    scratch.scratchpads,
+                  ),
+              }),
+          },
+        };
+        let t0 = text_of(m0);
+        let m1 =
+          apply(
+            m0,
+            Editors(
+              Scratch(
+                CellAction(
+                  PatchMainEditor(StepperPicker.Patches.remove(induction)),
+                ),
+              ),
+            ),
+          );
+        check(
+          string,
+          "the delete took the induction and its `;`",
+          "theorem t = forall (b : Bool) -> b || false == b proof ? in t",
+          text_of(m1),
+        );
+        let m2 = apply(m1, undo);
+        check(string, "undo restores the text", t0, text_of(m2));
+      },
+    ),
   ],
 );

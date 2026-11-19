@@ -99,5 +99,54 @@ let tests = (
         check(exp, "x -> 1 in let x = (x, 2) in x", expected, result);
       },
     ),
+    test_case(
+      "a theorem's name binds no variable",
+      `Quick,
+      () => {
+        let parse = Test_Evaluator_Prelude.parse_exp;
+        check(
+          exp,
+          "t -> 5 in theorem t = 1 == 1 proof step in t + 1",
+          parse("theorem t = 1 == 1 proof step in 5 + 1"),
+          Substitution.in_exp(
+            Environment.of_list([("t", Exp.int(5))]),
+            parse("theorem t = 1 == 1 proof step in t + 1"),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "env_for: an argument's free variable is not captured",
+      `Quick,
+      () => {
+        let into = Exp.fn(Pat.var("y"), Exp.var("x"), None, None);
+        check(
+          exp,
+          "x -> y in fun y -> x",
+          Exp.fn(Pat.var("y'"), Exp.var("y"), None, None),
+          Substitution.in_exp(
+            Substitution.env_for([("x", Exp.var("y"))], ~into),
+            into,
+          ),
+        );
+      },
+    ),
+    test_case(
+      "env_for: a closed argument substitutes into a body with free variables",
+      `Quick,
+      () => {
+        let parse = Test_Evaluator_Prelude.parse_exp;
+        let into = parse("case l | [] => 0 | x :: xs => x + sum(xs) end");
+        check(
+          exp,
+          "l -> [1, 2] in a function body",
+          parse("case [1, 2] | [] => 0 | x :: xs => x + sum(xs) end"),
+          Substitution.in_exp(
+            Substitution.env_for([("l", parse("[1, 2]"))], ~into),
+            into,
+          ),
+        );
+      },
+    ),
   ],
 );

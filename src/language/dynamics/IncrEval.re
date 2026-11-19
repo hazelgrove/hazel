@@ -44,9 +44,32 @@ type entry('state) = {
   state: 'state,
 };
 
+/* What a theorem's check depends on besides the values its proof reads:
+ * the theorem, with its body dropped, the theorems it can cite and their
+ * verdicts. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type proof_key = {
+  theorem: Exp.t,
+  namespace: ProofStatics.namespace,
+  verdicts: list((Id.t, SemanticCtx.verdict)),
+};
+
+/* A theorem's proof as checked, by the theorem's id. Unlike the theorem's
+ * own entry it doesn't depend on the theorem's body, which holds every
+ * later theorem. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type checked_proof = {
+  key: proof_key,
+  /* The provenance of the variables the theorem names, when evaluation
+   * last reached it rather than replaying it. */
+  prev_reuse_map: option(reuse_map),
+  proof_map: ProofMap.t,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('state) = {
   entries: Id.Map.t(entry('state)),
+  proofs: Id.Map.t(checked_proof),
   /* Steps of the evaluation that produced this cache. */
   steps: int,
 };
@@ -65,6 +88,7 @@ type outbox('state) = {
 
 let empty: t('state) = {
   entries: Id.Map.empty,
+  proofs: Id.Map.empty,
   steps: 0,
 };
 
@@ -78,7 +102,8 @@ let outbox_of_completed = (completed: t('state)): outbox('state) => {
   current: None,
 };
 
-let is_empty = (incr: t('state)): bool => Id.Map.is_empty(incr.entries);
+let is_empty = (incr: t('state)): bool =>
+  Id.Map.is_empty(incr.entries) && Id.Map.is_empty(incr.proofs);
 
 let outbox_is_empty = (outbox: outbox('state)): bool =>
   is_empty(outbox.completed) && Option.is_none(outbox.current);
@@ -114,6 +139,8 @@ let add_stream = (stream: t('state), incr: t('state)): t('state) => {
       incr.entries,
       stream.entries,
     ),
+  proofs:
+    Id.Map.union((_, _old, new_) => Some(new_), incr.proofs, stream.proofs),
 };
 
 let merge_outbox =
@@ -191,10 +218,10 @@ let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
 let is_runtime_dependency = (name: string): bool =>
   !String.equal(name, "$hole");
 
-let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
+let restrict_to_names = (reuse_map: reuse_map, names: list(Var.t)): reuse_map =>
   List.fold_left(
     ~f=
-      (projected, (name, _)) =>
+      (projected, name) =>
         if (!is_runtime_dependency(name)) {
           projected;
         } else {
@@ -204,8 +231,11 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
           };
         },
     ~init=empty_reuse_map,
-    VarMap.to_list(co_ctx),
+    names,
   );
+
+let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
+  restrict_to_names(reuse_map, List.map(~f=fst, VarMap.to_list(co_ctx)));
 
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
@@ -370,4 +400,124 @@ let reuse_check =
     );
 
   Some(entry);
+};
+
+/* Reusing a theorem's checked proof. It is reused while its key is the
+ * same, the theorem's ids included, since the proof map is keyed by them,
+ * and the values the theorem names are: where evaluation reached it, they
+ * have the same provenance. A theorem replayed from a reused node has
+ * none to compare, but the node was reused only because they are the
+ * same. */
+module CheckedProofs = {
+  /* What evaluation found where it reached a theorem: the provenance of
+   * the variables it names, or, inside a function call, nothing, since
+   * the theorem is checked afresh each time. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type input =
+    | Reached(reuse_map)
+    | InCall;
+
+  /* Every variable name in the theorem, bound or free, as names it might
+   * read from the env. */
+  let reached = (reuse_map: reuse_map, theorem: Exp.t): input => {
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (Exp.term_of(e)) {
+            | Var(x) => names := [x, ...names^]
+            | _ => ()
+            };
+            continue(e);
+          },
+        theorem,
+      );
+    Reached(restrict_to_names(reuse_map, names^));
+  };
+
+  let key = (~namespace, ~verdicts, theorem: Exp.t): proof_key => {
+    theorem:
+      switch (theorem.term) {
+      | Theorem(p, goal, proof, _) => {
+          ...theorem,
+          term: Theorem(p, goal, proof, Exp.temp(EmptyHole)),
+        }
+      | _ => theorem
+      },
+    namespace,
+    verdicts,
+  };
+
+  let same_key = (a: proof_key, b: proof_key): bool => {
+    let ids = (e: Exp.t): list(Id.t) => {
+      let acc = ref([]);
+      let f = (continue, t: IdTagged.t(_)) => {
+        acc := [IdTagged.rep_id(t), ...acc^];
+        continue(t);
+      };
+      let _: Exp.t =
+        Exp.map_term(
+          ~f_exp=f,
+          ~f_pat=f,
+          ~f_typ=f,
+          ~f_tpat=f,
+          ~f_rul=f,
+          ~f_proof=f,
+          e,
+        );
+      acc^;
+    };
+    Exp.fast_equal_with_lexemes(a.theorem, b.theorem)
+    && List.equal(Id.equal, ids(a.theorem), ids(b.theorem))
+    && TheoremNamespace.same(a.namespace, b.namespace)
+    && Poly.equal(a.verdicts, b.verdicts);
+  };
+
+  let find =
+      (~prev: t('state), ~input: option(input), id: Id.t, key: proof_key)
+      : option(ProofMap.t) =>
+    switch (Id.Map.find_opt(id, prev.proofs), input) {
+    | (Some(checked), None) when same_key(checked.key, key) =>
+      Some(checked.proof_map)
+    | (
+        Some({prev_reuse_map: Some(prev_reuse_map), _} as checked),
+        Some(Reached(reuse_map)),
+      )
+        when
+          same_key(checked.key, key)
+          && equal_reuse_map(prev_reuse_map, reuse_map) =>
+      Some(checked.proof_map)
+    | (Some(_), _)
+    | (None, _) => None
+    };
+
+  /* The entry to cache for a theorem checked as `proof_map`. */
+  let entry =
+      (
+        ~prev: t('state),
+        ~input: option(input),
+        id: Id.t,
+        key: proof_key,
+        proof_map: ProofMap.t,
+      )
+      : option(checked_proof) =>
+    switch (input) {
+    | Some(InCall) => None
+    | Some(Reached(reuse_map)) =>
+      Some({
+        key,
+        prev_reuse_map: Some(make_clean(reuse_map)),
+        proof_map,
+      })
+    | None =>
+      Some({
+        key,
+        prev_reuse_map:
+          Option.bind(Id.Map.find_opt(id, prev.proofs), ~f=checked =>
+            checked.prev_reuse_map
+          ),
+        proof_map,
+      })
+    };
 };

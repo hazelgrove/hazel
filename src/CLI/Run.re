@@ -11,8 +11,9 @@ let statics_and_elab = (exp: Exp.t): (Statics.Map.t, Exp.t) =>
 let elaborate = (exp: Exp.t): Exp.t => snd(statics_and_elab(exp));
 
 let evaluate = (exp: Exp.t): Exp.t => {
+  let (statics, elab) = statics_and_elab(exp);
   let (result, _) =
-    Evaluator.evaluate(~env=Builtins.env_init, elaborate(exp));
+    Evaluator.evaluate(~statics, ~env=Builtins.env_init, elab);
   result;
 };
 

@@ -707,7 +707,7 @@ let color =
   switch (TermData.segment(id, syntax.term_data)) {
   | Some(segment) =>
     of_segment(
-      ~measured=syntax.measured,
+      ~measured=CachedSyntax.measured(syntax),
       ~shape_map=syntax.shape_map,
       ~font_metrics,
       ~shape_init=Some(Convex),
@@ -756,7 +756,11 @@ let incr_eval =
     |> List.dedup_and_sort(~compare=Id.compare)
     |> List.filter_map(~f=id =>
          switch (
-           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+           TermData.extreme_measures(
+             id,
+             syntax.term_data,
+             CachedSyntax.measured(syntax),
+           )
          ) {
          | Some(range) => Some((id, range))
          | None => None
