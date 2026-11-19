@@ -36,12 +36,12 @@ let numeric_constants =
     {
       name: "max_sint",
       typ: Atom(SInt),
-      imp: sint(Int.max_int),
+      imp: sint(Atom.sint_max),
     },
     {
       name: "min_sint",
       typ: Atom(SInt),
-      imp: sint(Int.min_int),
+      imp: sint(Atom.sint_min),
     },
   ];
 
@@ -265,7 +265,7 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
         open Exp;
         let-unbox m = (Atom(SInt), d1);
         let-unbox n = (Atom(SInt), d2);
-        if (n == 0) {
+        if (Bigint.equal(n, Bigint.zero)) {
           Some(
             dynamic_error_hole(
               ap(Forward, builtin_fun("mod"), d1),
@@ -273,7 +273,10 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
             ),
           );
         } else {
-          Some(sint(m mod n));
+          /* the sign of m, as OCaml's mod gave before */
+          Some(
+            sint(Bigint.rem(m, n)),
+          );
         };
       }),
     custom_statics: None,
