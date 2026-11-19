@@ -37,6 +37,9 @@ let ctx_entries =
       BuiltinsColorScheme.type_aliases,
     );
 
+/* Every statics ctx ends in this list; index it once (see Ctx.tail_index). */
+let () = Ctx.index_tail(ctx_entries);
+
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
     use_mode,
