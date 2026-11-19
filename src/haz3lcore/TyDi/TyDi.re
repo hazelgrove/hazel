@@ -45,7 +45,9 @@ let has_unknown_expectation = (ci: Info.t): bool =>
   | _ => false
   };
 
-let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
+/* ~prefix: the caller keeps only suggestions starting with it, so the
+ * expensive ones that cannot are not computed. */
+let suggest = (~prefix=?, ci: Info.t, z: Zipper.t): list(t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
@@ -91,8 +93,8 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       @ TyDiForms.suggest_operand(ci)
       |> List.sort(TyDiSuggestion.compare);
     let ctx_suggestions =
-      TyDiCtx.suggest_variable(ci)
-      @ TyDiCtx.suggest_lookahead_variable(ci)
+      TyDiCtx.suggest_variable(~prefix?, ci)
+      @ TyDiCtx.suggest_lookahead_variable(~prefix?, ci)
       |> List.sort(TyDiSuggestion.compare);
     let operators =
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
@@ -166,7 +168,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
      states they serve (completion consumed the prefix token) */
   let suggestions =
     switch (ci) {
-    | Some(ci) => suggest(ci, z)
+    | Some(ci) => suggest(~prefix=tok_to_left, ci, z)
     | None => suggest_witnesses(z)
     };
   let suggestions =

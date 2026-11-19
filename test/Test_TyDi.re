@@ -659,6 +659,68 @@ let ci_sort_tests = (
   ],
 );
 
+/* TyDi.suggest(~prefix) skips qualified entries that cannot start with
+   the typed token. It must not change what set_buffer keeps: the
+   suggestions that start with the token, in order. */
+let prefix_pruning_is_exact = code => {
+  let actions = Test_Editing.mk(code);
+  let z = Test_Editing.perform(Zipper.init(), actions);
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let (info_map, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+  switch (Indicated.ci_for_completion(z, info_map), TyDi.token_to_left(z)) {
+  | (Some(ci), Some(tok)) =>
+    let kept = l =>
+      l
+      |> List.filter(({content, _}: TyDiSuggestion.t) =>
+           String.starts_with(~prefix=tok, content)
+         )
+      |> List.map(({content, _}: TyDiSuggestion.t) => content);
+    let all = kept(TyDi.suggest(ci, z));
+    check(list(string), code, all, kept(TyDi.suggest(~prefix=tok, ci, z)));
+    all;
+  | _ => fail("no completion point in " ++ code)
+  };
+};
+
+let math = "let math : (square=Int -> Int) = (square=fun n -> n * n) in let x : Int = ma¦";
+
+let prefix_pruning_tests = (
+  "TyDi.PrefixPruning",
+  [
+    test_case("same suggestions kept, with and without", `Quick, () => {
+      List.iter(
+        code => ignore(prefix_pruning_is_exact(code)),
+        [
+          "let mm : (empty=String) = (empty=\"\") in let x : String = mm¦",
+          "let mm : (double=Int -> Int) = (double=fun n -> n * 2) in let x : Int = mm¦",
+          math,
+          "let mm : (count=Int) = (count=0) in let b : Bool = mm¦",
+          "let m = { type T = Int; let value = 1 } in m.va¦",
+          "let x : String = St¦",
+          "let x : Int = Str¦",
+          "let x : Bool = Li¦",
+          "let x : [Int] = Li¦",
+          "let x : Int = 12¦",
+        ],
+      )
+    }),
+    /* The control: a qualified suggestion is still offered, so the
+       comparison above covers entries the pruning keeps. */
+    test_case("a module-typed variable still completes", `Quick, () =>
+      check(
+        bool,
+        "some math. suggestion",
+        true,
+        List.exists(
+          c => String.starts_with(~prefix="math.", c),
+          prefix_pruning_is_exact(math),
+        ),
+      )
+    ),
+  ],
+);
+
 let tests = [
   dot_label_tests,
   variable_tests,
@@ -675,6 +737,7 @@ let tests = [
   type_tests,
   suppression_tests,
   qualified_tests,
+  prefix_pruning_tests,
   base_typ_suppression_tests,
   ci_sort_tests,
 ];
