@@ -120,7 +120,12 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let refractor_rows =
     mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_rows);
+    Measured.of_segment(
+      ~hidden_hole=Zipper.hidden_hole(z),
+      segment,
+      projector_shapes,
+      refractor_rows,
+    );
   {
     old: false,
     segment,
@@ -168,7 +173,13 @@ let refresh_shapes =
   let refractor_rows =
     Id.Map.equal((==), refractor_rows, old.refractor_rows)
       ? old.refractor_rows : refractor_rows;
-  let measured = Measured.of_segment(old.segment, shape_map, refractor_rows);
+  let measured =
+    Measured.of_segment(
+      ~hidden_hole=Zipper.hidden_hole(z),
+      old.segment,
+      shape_map,
+      refractor_rows,
+    );
   {
     ...old,
     shape_map,

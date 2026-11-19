@@ -430,15 +430,16 @@ let tests = (
         ]),
       ),
     ),
+    /* The argument fills the unannotated binder's type (Inference). */
     fully_consistent_typecheck(
       "Singleton labeled argument function application with unknown type",
       {|(fun a=x->x)(a=1)|},
-      Some(unknown(Internal)),
+      Some(int()),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument function application with no labeled param",
       {|(fun a=x->x)(1)|},
-      Some(unknown(Internal)),
+      Some(int()),
     ),
     fully_consistent_typecheck(
       "Singleton labeled argument not labeled in pattern",

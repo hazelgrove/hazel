@@ -26,7 +26,7 @@ let bob : Person = (age=25, favorite_color="Red", "Bob") in
 let (bobs_name, age=bobs_age, favorite_color=bobs_favorite_color) = bob in
 
 # As Labeled Function Arguments #
-let make_person = fun name=n, age=a -> (n, a, favorite_color="red") in
+let make_person = fun name=n, age=a -> (n, age=a, favorite_color="red") in
 let consistent_variable_arg = (name="Valid", age=1) in
 let more_people : [Person] = [
   make_person("Bob", 25),                # Labels Elided #

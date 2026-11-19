@@ -3,13 +3,25 @@ open OptUtil.Syntax;
 
 let buffer_clear = (z: Zipper.t): Zipper.t =>
   switch (z.selection.mode) {
-  | Buffer(Unparsed) => Zipper.clear_unparsed_buffer(z)
+  | Buffer(Unparsed | Abbreviated(_)) => Zipper.clear_unparsed_buffer(z)
   | Buffer(Parsed) => z |> Zipper.destroy_selection |> Zipper.regrout(Left)
   | Normal => z
   };
 
 let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
   switch (TyDi.set_buffer(~ci, z)) {
+  | None => z
+  | Some(z) => z
+  };
+
+let set_inferred_buffer =
+    (
+      ~settings: Language.CoreSettings.t,
+      statics: CachedStatics.t,
+      z: Zipper.t,
+    )
+    : Zipper.t =>
+  switch (TyDiInferred.set_buffer(~settings, statics, z)) {
   | None => z
   | Some(z) => z
   };
@@ -30,7 +42,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
   | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
-  | Buffer(Unparsed) =>
+  | Buffer(Unparsed | Abbreviated(_)) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
     | Some(completion) =>

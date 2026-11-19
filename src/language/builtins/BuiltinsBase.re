@@ -537,8 +537,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
-    ret: Unknown(Internal),
+    arg: Prod([var("a"), var("b")]),
+    ret: Var("a"),
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {
@@ -550,8 +550,8 @@ let pair_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "snd",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
-    ret: Unknown(Internal),
+    arg: Prod([var("a"), var("b")]),
+    ret: Var("b"),
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {

@@ -49,7 +49,8 @@ type exp = {
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
-  dot_labels: list(string) /* Available labels when in dot-access position */
+  dot_labels: list(string), /* Available labels when in dot-access position */
+  instance: option(Message.instance) /* Implicitly applied to type arguments (Inference) */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

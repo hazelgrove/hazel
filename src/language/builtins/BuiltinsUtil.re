@@ -40,6 +40,32 @@ let fn_builtin = x => Fn(x);
 let const_builtin = x => Const(x);
 let hazel_fn_builtin = x => HazelFn(x);
 
+/* A builtin's lowercase type variables are its type parameters: its type is
+   `poly a -> …` over them (in order of appearance) and its implementation
+   is wrapped in matching hidden type functions. */
+let type_params = (ty: Typ.t): list(string) =>
+  Typ.free_vars(ty)
+  |> List.filter(x => x != "" && Char.lowercase_ascii(x.[0]) == x.[0])
+  |> List.fold_left((acc, x) => List.mem(x, acc) ? acc : acc @ [x], []);
+
+let generalize_typ = (ty: Typ.t): Typ.t =>
+  List.fold_right(
+    (a, body) => Typ.fresh(Poly(TPat.fresh(Var(a): TPat.term), body)),
+    type_params(ty),
+    ty,
+  );
+
+let generalize_imp = (~name, ty: Typ.t, imp: Exp.t): Exp.t =>
+  List.fold_right(
+    (a, body) =>
+      IdTagged.mk_internal(
+        [Id.derive_implicit(~salt="builtin-typfun-" ++ a, Id.mk_str(name))],
+        TypFun(TPat.fresh(Var(a): TPat.term), body, None): Exp.term,
+      ),
+    type_params(ty),
+    imp,
+  );
+
 let ctx_entry_of_builtin: builtin => Ctx.entry =
   fun
   | Const({name, typ, _}) =>
@@ -52,14 +78,14 @@ let ctx_entry_of_builtin: builtin => Ctx.entry =
   | Fn({name, arg, ret, custom_statics, _}) =>
     Ctx.VarEntry({
       name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      typ: generalize_typ(Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret))),
       id: Id.invalid,
       custom_statics,
     })
   | HazelFn({name, arg, ret, _}) =>
     Ctx.VarEntry({
       name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      typ: generalize_typ(Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret))),
       id: Id.invalid,
       custom_statics: None,
     });
@@ -74,8 +100,22 @@ let form_of_builtin:
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
-  | HazelFn({name, imp, _}) => (name, imp)
-  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | HazelFn({name, imp, arg, ret, _}) => (
+      name,
+      generalize_imp(
+        ~name,
+        Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+        imp,
+      ),
+    )
+  | Fn({name, arg, ret, _}) => (
+      name,
+      generalize_imp(
+        ~name,
+        Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+        Fresh.Exp.builtin_fun(name),
+      ),
+    );
 
 let name_of_builtin: builtin => string =
   fun

@@ -12,7 +12,7 @@ let dropna =
     fun (t1 : [R]) ->
       filter(
         t1,
-        fun row ->
+        fun (row : ?) ->
           ! any(to_lvs(row), fun e -> e.value == (None : Option))
       )
       : [R] in

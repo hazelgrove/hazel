@@ -1,9 +1,13 @@
 /* Shortens a term, typically a value, to fit a width budget for display,
    eliding what doesn't fit with an ellipsis. */
 
+/* The ellipsis shown where something is elided. */
+let flat_ellipses: string;
+
 /** The shortened term and the columns it takes. `~available` defaults to
     12 columns. */
 let abbreviate_exp: (~available: int=?, Exp.t) => (Exp.t, int);
+let abbreviate_typ: (~available: int=?, Typ.t) => Typ.t;
 let abbreviate_pat: (~available: int=?, Pat.t) => (Pat.t, int);
 
 /* Exported for Test_Abbreviate. */

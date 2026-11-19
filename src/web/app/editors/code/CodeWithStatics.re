@@ -285,6 +285,7 @@ module View = {
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
+        ~hidden_hole=Zipper.hidden_hole(z),
         ~shape_map,
         ~refractor_rows,
         ~refine_sort,

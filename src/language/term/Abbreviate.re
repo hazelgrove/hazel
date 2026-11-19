@@ -1812,6 +1812,11 @@ let abbreviate_exp = (~available as a=12, exp: Exp.t): (Exp.t, int) => {
   };
 };
 
+let abbreviate_typ = (~available as a=12, typ: Typ.t): Typ.t => {
+  available := a;
+  abbreviate_typ(typ);
+};
+
 let abbreviate_pat = (~available as a=12, pat: Pat.t): (Pat.t, int) => {
   available := a;
   let pat = abbreviate_pat(pat);
