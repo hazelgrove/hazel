@@ -15,4 +15,4 @@
   -strict-sequence
   -strict-formats
   -short-paths
-  -keep-locs -warn-error +A-58))))
+  -keep-locs -warn-error +A-3-58))))
