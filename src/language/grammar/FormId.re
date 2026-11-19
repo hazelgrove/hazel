@@ -105,10 +105,7 @@ type family =
   | Rec
   | Rule
   | Pipeline
-  | FilterHide
-  | FilterEval
-  | FilterPause
-  | FilterDebug
+  | Filter
   | Use
   | OfProp
   | OfCtx
@@ -222,10 +219,7 @@ let label_of_family: family => Label.t =
   | Rec => ["rec", "->"]
   | Rule => ["|", "=>"]
   | Pipeline => ["|>"]
-  | FilterHide => ["hide", "in"]
-  | FilterEval => ["eval", "in"]
-  | FilterPause => ["pause", "in"]
-  | FilterDebug => ["debug", "in"]
+  | Filter => ["debug", "in"]
   | Use => ["use", "in"]
   | OfProp => ["of_prop", "end"]
   | OfCtx => ["of_ctx", "end"]

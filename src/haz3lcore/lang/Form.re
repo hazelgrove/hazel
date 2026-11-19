@@ -247,10 +247,7 @@ let rows_of: family => list(row) =
       ),
     ]
   | Pipeline => [mk_infix(Exp, P.eqs)] // in OCaml, pipeline precedence is in same class as '=', '<', etc.
-  | FilterHide => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterEval => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterPause => [mk_pre_c(L, P.let_, Exp, [Exp])]
-  | FilterDebug => [mk_pre_c(L, P.let_, Exp, [Exp])]
+  | Filter => [mk_pre_c(L, P.let_, Exp, [Exp])]
   | Use => [mk_pre_c(L, P.let_, Exp, [Typ])]
   | OfProp => [mk_op_c(L, Exp, [Drv(Exp)])]
   | OfCtx => [mk_op_c(L, Exp, [Drv(Exp)])]

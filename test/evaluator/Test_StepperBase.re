@@ -223,6 +223,401 @@ let run_step_chain =
   };
 };
 
+let fac_stop_program = {|
+debug eval($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 1 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+
+let map_stop_program = {|
+debug eval($e) in
+let map : ([Int], Int -> Int) -> [Int] =
+  fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map((tl, f))
+    end
+in
+let square : Int -> Int = fun x -> x * x in
+debug stop(square($v)) in
+map(([1, 2], square))|};
+
+let stepper_ctx =
+  SemanticCtx.of_ctx_and_env(Builtins.ctx_init(None), Builtins.closure_env);
+
+let calculate_stepper_view = (~fresh, elab, model) =>
+  Web.StepperView.Update.calculate(
+    ~settings=Calc.OldValue(CoreSettings.on),
+    ~ctx=Calc.OldValue(stepper_ctx),
+    fresh ? Calc.NewValue(elab) : Calc.OldValue(elab),
+    model,
+  );
+
+let update_stepper_view = (action, model) =>
+  Web.StepperView.Update.update(
+    ~settings=Web.Settings.Model.init,
+    action,
+    model,
+  ).
+    model;
+
+let missing_available_steps = (m: Web.MissingStep.Model.t) =>
+  m.next_steps
+  |> Calc.get_saved_exc(~print="expected calculated missing step")
+  |> (
+    fun
+    | EvaluatorStep.AutoStep(_) => []
+    | EvaluatorStep.AvailableSteps(steps) => steps
+  );
+
+let action_at_deepest_available =
+    (model: StepperBase.step_model): option(StepperBase.step_action) => {
+  let action_at_current = (model: StepperBase.step_model) =>
+    switch (model.step_kind) {
+    | StepperBase.MissingStep(m) =>
+      switch (missing_available_steps(m)) {
+      | [_, ..._] => Some(StepperBase.StepForward(0))
+      | [] => None
+      }
+    | _ => None
+    };
+
+  let rec loop = (model: StepperBase.step_model) =>
+    switch (model.next_step) {
+    | Some(next) =>
+      switch (loop(next)) {
+      | Some(action) => Some(StepperBase.NextStep(action))
+      | None => action_at_current(model)
+      }
+    | None => action_at_current(model)
+    };
+
+  loop(model);
+};
+
+let apply_deepest_available_action = (model: Web.StepperView.Model.t) =>
+  switch (action_at_deepest_available(model.root)) {
+  | Some(action) => update_stepper_view(action, model)
+  | None => Alcotest.fail("expected an available step")
+  };
+
+let stepper_pure_exp = elab =>
+  elab |> Substitution.in_exp(Builtins.env_init) |> Exp.replace_all_ids;
+
+let step_status_with_stepper_env = exp =>
+  EvaluatorStep.get_status(
+    ~settings=CoreSettings.on,
+    exp,
+    Builtins.closure_env,
+  );
+
+let rec count_available_steps_with_env = (~limit, ~exp, ~count) =>
+  if (limit <= 0) {
+    Alcotest.fail("step count exceeded limit");
+  } else {
+    switch (step_status_with_stepper_env(exp)) {
+    | AutoStep(step) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | None => count
+      | Some(exp') =>
+        count_available_steps_with_env(~limit=limit - 1, ~exp=exp', ~count)
+      }
+    | AvailableSteps(steps) =>
+      switch (steps) {
+      | [] => count
+      | [step, ..._] =>
+        switch (EvaluatorStep.take_step(step)) {
+        | None => count
+        | Some(exp') =>
+          count_available_steps_with_env(
+            ~limit=limit - 1,
+            ~exp=exp',
+            ~count=count + 1,
+          )
+        }
+      }
+    };
+  };
+
+/* ============================================================
+   Locating a step again (hazelgrove/hazel#2331 and its Asc variant)
+
+   When the stepper records a step it stores the redex together with its
+   index among the expressions structurally equal to it
+   (`EvaluatorStep.persist` → `ProofHacks.exp_idx`), and later finds it
+   again by that index (`refresh_step` → `ProofHacks.nth_exp`). A wrapper
+   node sitting directly on the redex (a filter, or an ascription inserted
+   by evaluation) used to compare equal to the redex, so the search stopped
+   at the wrapper and raised `exp_idx: e1 not found in e2`.
+   ============================================================ */
+
+let rec last_step_model = (m: StepperBase.step_model) =>
+  switch (m.next_step) {
+  | Some(next) => last_step_model(next)
+  | None => m
+  };
+
+/* Like `action_at_deepest_available`, but takes the available step chosen
+   by `pick` (given the number of available steps), so that steps other
+   than the first, e.g. a second occurrence of a duplicated redex, are
+   exercised too. */
+let action_at_deepest_available_by =
+    (~pick, model: StepperBase.step_model): option(StepperBase.step_action) => {
+  let action_at_current = (model: StepperBase.step_model) =>
+    switch (model.step_kind) {
+    | StepperBase.MissingStep(m) =>
+      switch (missing_available_steps(m)) {
+      | [] => None
+      | steps => Some(StepperBase.StepForward(pick(List.length(steps))))
+      }
+    | _ => None
+    };
+  let rec loop = (model: StepperBase.step_model) =>
+    switch (model.next_step) {
+    | Some(next) =>
+      switch (loop(next)) {
+      | Some(action) => Some(StepperBase.NextStep(action))
+      | None => action_at_current(model)
+      }
+    | None => action_at_current(model)
+    };
+  loop(model);
+};
+
+let pick_first = _ => 0;
+let pick_last = n => n - 1;
+
+/* Drive the stepper view the way the UI does (take a visible step, then
+   recalculate, which persists and refreshes every recorded step) until no
+   visible step is left. Returns the final expression and the number of
+   visible steps taken. Any `exp_idx`/`nth_exp` failure surfaces as an
+   exception here. */
+let run_stepper_view = (~limit=300, ~pick=pick_first, source) => {
+  let elab = source |> parse_exp |> elaborate;
+  let rec go = (taken, model: Web.StepperView.Model.t) =>
+    switch (action_at_deepest_available_by(~pick, model.root)) {
+    | None => (model, taken)
+    | Some(_) when taken >= limit =>
+      Alcotest.fail("stepper view did not finish within the step limit")
+    | Some(action) =>
+      model
+      |> update_stepper_view(action)
+      |> calculate_stepper_view(~fresh=false, elab)
+      |> go(taken + 1)
+    };
+  let (model, taken) =
+    Web.StepperView.Model.init
+    |> calculate_stepper_view(~fresh=true, elab)
+    |> go(0);
+  let final =
+    last_step_model(model.root).expr
+    |> Calc.get_saved_exc(~print="expected a final expression");
+  (DHExp.strip_ascriptions(final), taken);
+};
+
+/* Steps the view to the end (taking the first and, separately, the last
+   available step each time) and checks the final value. */
+let stepper_view_test = (~visible=?, name, source, expected) =>
+  test_case(name, `Quick, () =>
+    List.iter(
+      ((which, pick)) => {
+        let (final, taken) = run_stepper_view(~pick, source);
+        check(
+          dhexp_typ,
+          "final result (" ++ which ++ " step each time)",
+          parse_exp(expected),
+          final,
+        );
+        switch (visible) {
+        | Some(n) => check(int, "visible steps (" ++ which ++ ")", n, taken)
+        | None => ()
+        };
+      },
+      [("first", pick_first), ("last", pick_last)],
+    )
+  );
+
+let steps_of_status: EvaluatorStep.status => list(EvaluatorStep.step) =
+  fun
+  | AutoStep(step) => [step]
+  | AvailableSteps(steps) => steps;
+
+/* The invariant `persist`/`refresh_step` rely on: for every step the
+   evaluator offers, at every point of the trace, `persist` succeeds, the
+   index `exp_idx` assigns to the redex leads `nth_exp` back to that same
+   redex (by id), and `refresh_step` gives back the same step. */
+let check_steps_relocatable = (~limit=500, source) => {
+  let rec go = (remaining, exp) =>
+    if (remaining <= 0) {
+      Alcotest.fail(source ++ ": trace did not finish within the step limit");
+    } else {
+      let status = step_status_with_stepper_env(exp);
+      let steps = steps_of_status(status);
+      List.iter(
+        (step: EvaluatorStep.step) => {
+          let id = EvaluatorStep.get_step_id(step);
+          /* `persist` searches the context-composed expression; it must
+             not raise. */
+          let p = EvaluatorStep.persist(step);
+          let redex =
+            switch (Exp.find_by_id(id, exp)) {
+            | Some(redex) => redex
+            | None => Alcotest.fail(source ++ ": step redex not in program")
+            };
+          let idx = ProofHacks.exp_idx(redex, exp);
+          switch (ProofHacks.nth_exp(redex, idx, exp)) {
+          | Some(found) =>
+            check(
+              bool,
+              source ++ ": nth_exp(exp_idx) finds the redex by id",
+              true,
+              Exp.rep_id(found) == id,
+            )
+          | None => Alcotest.fail(source ++ ": nth_exp found no redex")
+          };
+          switch (
+            EvaluatorStep.refresh_step(
+              ~settings=CoreSettings.on,
+              exp,
+              Builtins.closure_env,
+              p,
+            )
+          ) {
+          | Some((_, step')) =>
+            check(
+              bool,
+              source ++ ": refresh_step returns the same step",
+              true,
+              EvaluatorStep.get_step_id(step') == id,
+            )
+          | None => Alcotest.fail(source ++ ": refresh_step lost the step")
+          };
+        },
+        steps,
+      );
+      switch (steps) {
+      | [] => ()
+      | [step, ..._] =>
+        switch (EvaluatorStep.take_step(step)) {
+        | None => ()
+        | Some(exp') => go(remaining - 1, exp')
+        }
+      };
+    };
+  go(limit, source |> parse_exp |> elaborate |> stepper_pure_exp);
+};
+
+/* Issue #2331's program, completed so that it runs (the issue's `eval`
+   had no pattern), in the `debug act(pat) in` syntax. Note the base case
+   returns 2, so fac(3) = 3 * 2 * 2. */
+let issue_2331_program = {|
+debug eval($e) in
+let fac : Int -> Int =
+  fun n ->
+    if n < 2 then 2 else n * fac(n - 1)
+in
+debug stop(fac($v)) in
+fac(3)|};
+
+/* The annotated recursive function raised in review of #2332: evaluation
+   wraps each recursive call's result in an ascription, directly on the
+   redex. */
+let annotated_rec_program = "let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in f(2)";
+
+let relocation_corpus = [
+  fac_stop_program,
+  map_stop_program,
+  issue_2331_program,
+  annotated_rec_program,
+  "let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in debug stop(f($v)) in f(3)",
+  "debug eval($e) in let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in debug stop(f($v)) in f(3)",
+  "debug eval($e) in let sum = fun n -> if n < 1 then 0 else n + sum(n - 1) in debug stop(sum($v)) in sum(3)",
+  "let g : Int -> Int = fun n -> (n + 1 : Int) in g((g(1) : Int))",
+  "((1 + 2 : Int) : Int) + ((1 + 2 : Int) : Int)",
+  "(((1 + 2 : Int) : Int) : Int)",
+  "((fun x -> x + 1 : Int -> Int) : Int -> Int)(1 + 1)",
+  "(([1 + 1, 2] : [Int]) : [Int])",
+  "let h : Int -> Int = fun n -> ((n : Int) : Int) in (h(h(1)) : Int)",
+  "let x : Int = 1 + 2 in x + x",
+  "([1 + 1, 2] : [Int])",
+  "debug stop(1 + 2) in (1 + 2) * (1 + 2)",
+  "debug eval($e) in debug stop($e + $e) in (1 + 2) + (1 + 2)",
+  "debug step($e) in debug eval(1 + 2) in (1 + 2) + (1 + 2)",
+  "debug hide($e + 1) in (fun x -> x + 1)(2) + (fun x -> x + 1)(2)",
+  "(2 + 3) + (debug stop($e) in 2 + 3)",
+  "(2 + 3) + (debug hide($e) in 2 + 3)",
+  "(2 + 3) + (debug step($e) in 2 + 3)",
+  "(2 + 3) + (debug eval($e) in 2 + 3)",
+  "(2 + 3) + (debug eval($e) in debug stop($e) in 2 + 3)",
+  "debug eval($e) in debug step($e * $e) in debug stop($e + $e) in (1 + 2) * (3 + 4)",
+  "(1 + 2) + (debug stop($e) in (1 + 2) + (1 + 2))",
+  "debug 1 in (1 + 2) + (1 + 2)",
+];
+
+/* Unit-level form of the same invariant, on hand-built trees where a
+   wrapper sits directly on the target. `mk_target()` builds a fresh copy of
+   the target (same structure, new ids); `mk(target)` places one copy as the
+   target inside the whole expression, alongside further fresh copies. */
+let relocation_case = (name, ~expected_idx, ~mk_target, mk) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let target = mk_target();
+      let whole = mk(target);
+      let idx = ProofHacks.exp_idx(target, whole);
+      check(int, "exp_idx", expected_idx, idx);
+      switch (ProofHacks.nth_exp(target, idx, whole)) {
+      | Some(found) =>
+        check(
+          bool,
+          "nth_exp finds the target by id",
+          true,
+          Exp.rep_id(found) == Exp.rep_id(target),
+        )
+      | None => Alcotest.fail("nth_exp found nothing")
+      };
+      /* `nth_exp` is also used on a copy of the expression with new ids
+         (`refresh_step` after recalculation): the same index must find a
+         node with the same shape. */
+      switch (ProofHacks.nth_exp(target, idx, Exp.replace_all_ids(whole))) {
+      | Some(found) =>
+        check(
+          bool,
+          "nth_exp on a re-id'd copy finds a node identical to the target",
+          true,
+          Equality.syntactic.exp(found, target),
+        )
+      | None => Alcotest.fail("nth_exp found nothing in the re-id'd copy")
+      };
+    },
+  );
+
+/* `copy() + x + copy()`: one copy on each side, so the target's index is 1
+   whichever order the tree is walked in. */
+let between_copies = (copy, x) =>
+  Exp.fresh(
+    BinOp(Int(Plus), Exp.fresh(BinOp(Int(Plus), copy(), x)), copy()),
+  );
+let int_exp = n => Exp.fresh(Atom(Int(Bigint.of_int(n))));
+let plus_exp = (a, b) => Exp.fresh(BinOp(Int(Plus), a, b));
+let two_plus_three = () => plus_exp(int_exp(2), int_exp(3));
+let asc_int = e => Exp.fresh(Asc(e, IdTagged.FreshGrammar.Typ.int()));
+let user_filter = (act, e) =>
+  Exp.fresh(
+    Filter(
+      Filter({
+        act,
+        pat: Exp.fresh(FilterSelector(FilterSelector.Exp)),
+        ids: IdTagged.IdTag.fresh(),
+      }),
+      e,
+    ),
+  );
+
 let tests = (
   "StepperBase",
   [
@@ -244,6 +639,279 @@ let tests = (
           Calc.get_value(final_exp),
         );
       },
+    ),
+    test_case(
+      "nth_exp can find residue filter target",
+      `Quick,
+      () => {
+        let target =
+          Exp.fresh(
+            Filter(
+              Residue(1, (FilterAction.Eval, FilterAction.All)),
+              Exp.fresh(Atom(Int(Bigint.of_int(18)))),
+            ),
+          );
+        let exp =
+          Exp.fresh(
+            Filter(
+              Filter({
+                act: (FilterAction.Eval, FilterAction.All),
+                pat: Exp.fresh(FilterSelector(FilterSelector.Exp)),
+                ids: IdTagged.IdTag.fresh(),
+              }),
+              target,
+            ),
+          );
+        check(
+          int,
+          "residue target index",
+          0,
+          ProofHacks.exp_idx(target, exp),
+        );
+        switch (ProofHacks.nth_exp(target, 0, exp)) {
+        | Some(found) =>
+          check(
+            bool,
+            "found residue target by id",
+            true,
+            Exp.rep_id(found) == Exp.rep_id(target),
+          )
+        | None => Alcotest.fail("expected nth_exp to find residue target")
+        };
+      },
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: user filter on the target, between equal copies",
+      ~expected_idx=1,
+      ~mk_target=two_plus_three,
+      target =>
+      between_copies(
+        two_plus_three,
+        user_filter((FilterAction.Step, FilterAction.One), target),
+      )
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: nested user filters on the target",
+      ~expected_idx=1,
+      ~mk_target=two_plus_three,
+      target =>
+      between_copies(
+        two_plus_three,
+        user_filter(
+          (FilterAction.Eval, FilterAction.All),
+          user_filter((FilterAction.Step, FilterAction.One), target),
+        ),
+      )
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: ascription on the target, between ascribed copies",
+      ~expected_idx=1,
+      ~mk_target=two_plus_three,
+      target =>
+      between_copies(() => asc_int(two_plus_three()), asc_int(target))
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: ascription and filter on the target",
+      ~expected_idx=0,
+      ~mk_target=two_plus_three,
+      target =>
+      asc_int(
+        user_filter((FilterAction.Step, FilterAction.All), asc_int(target)),
+      )
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: target is an ascription under an ascription",
+      ~expected_idx=0,
+      ~mk_target=() => asc_int(two_plus_three()),
+      target => asc_int(target),
+    ),
+    relocation_case(
+      "exp_idx/nth_exp: target is an ascription between doubly ascribed copies",
+      ~expected_idx=1,
+      ~mk_target=() => asc_int(two_plus_three()),
+      target =>
+        between_copies(() => asc_int(asc_int(two_plus_three())), target),
+    ),
+    test_case(
+      "taking recursive stop step does not overflow",
+      `Quick,
+      () => {
+        /* Regression test for hazelgrove/hazel#2331: driving the stepper
+           view through the recursive stop steps used to crash inside
+           ProofHacks.exp_idx (the step target could not be located in the
+           Residue-wrapped expression). The three rounds below must
+           complete without raising; apply_deepest_available_action also
+           fails the test if an expected step is missing. */
+        let elab = fac_stop_program |> parse_exp |> elaborate;
+        let pure_count =
+          count_available_steps_with_env(
+            ~limit=1000,
+            ~exp=stepper_pure_exp(elab),
+            ~count=0,
+          );
+        check(int, "pure evaluator visible recursive stops", 3, pure_count);
+        let model =
+          Web.StepperView.Model.init
+          |> calculate_stepper_view(~fresh=true, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        /* After the three visible stops everything left is hidden by
+           `debug eval($e) in`, so the stepper must agree with the pure
+           evaluator that no further step is available. */
+        check(
+          bool,
+          "no visible step remains after the three stops",
+          true,
+          action_at_deepest_available(model.root) == None,
+        );
+      },
+    ),
+    test_case(
+      "recursive stop step under type ascription does not crash",
+      `Quick,
+      () => {
+        /* Regression test for the Asc variant of hazelgrove/hazel#2331:
+           the `let map : ... =` annotation makes evaluation distribute an
+           ascription over the recursive application, producing
+           Asc(Ap(...), _) nodes that are structurally equal (under
+           ignore_ascriptions) to the Ap redex they enclose.
+           ProofHacks.exp_idx used to anchor the occurrence at the Asc
+           wrapper and never reach the redex underneath, raising Failure
+           while the stepper view persisted its hidden steps. */
+        let elab = map_stop_program |> parse_exp |> elaborate;
+        let pure_count =
+          count_available_steps_with_env(
+            ~limit=2000,
+            ~exp=stepper_pure_exp(elab),
+            ~count=0,
+          );
+        check(int, "pure evaluator visible stops", 2, pure_count);
+        let model =
+          Web.StepperView.Model.init
+          |> calculate_stepper_view(~fresh=true, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        let model =
+          model
+          |> apply_deepest_available_action
+          |> calculate_stepper_view(~fresh=false, elab);
+        check(
+          bool,
+          "no visible step remains after the two stops",
+          true,
+          action_at_deepest_available(model.root) == None,
+        );
+      },
+    ),
+    // ============================================================
+    // Stepping to the end through the stepper view (#2331, #2332)
+    // ============================================================
+    stepper_view_test(
+      ~visible=3,
+      "recursive stop under eval steps to the end (#2332)",
+      fac_stop_program,
+      "6",
+    ),
+    stepper_view_test(
+      ~visible=3,
+      "issue #2331 program steps to the end",
+      issue_2331_program,
+      "12",
+    ),
+    stepper_view_test(
+      ~visible=2,
+      "annotated map with stop steps to the end",
+      map_stop_program,
+      "[1, 4]",
+    ),
+    stepper_view_test(
+      "annotated recursive function steps to the end (Asc on the redex)",
+      annotated_rec_program,
+      "0",
+    ),
+    stepper_view_test(
+      ~visible=4,
+      "stop filter on an annotated recursive function steps to the end",
+      "debug eval($e) in let f : Int -> Int = fun n -> if n < 1 then 0 else f(n - 1) in debug stop(f($v)) in f(3)",
+      "0",
+    ),
+    stepper_view_test(
+      "nested annotations around duplicated redexes",
+      "((1 + 2 : Int) : Int) + ((1 + 2 : Int) : Int)",
+      "6",
+    ),
+    stepper_view_test(
+      "annotated body and argument",
+      "let g : Int -> Int = fun n -> (n + 1 : Int) in g((g(1) : Int))",
+      "3",
+    ),
+    stepper_view_test(
+      ~visible=3,
+      "debug stop directly around a redex with an equal sibling",
+      "(2 + 3) + (debug stop($e) in 2 + 3)",
+      "10",
+    ),
+    stepper_view_test(
+      ~visible=2,
+      "debug hide directly around a redex with an equal sibling",
+      "(2 + 3) + (debug hide($e) in 2 + 3)",
+      "10",
+    ),
+    stepper_view_test(
+      ~visible=3,
+      "debug step directly around a redex with an equal sibling",
+      "(2 + 3) + (debug step($e) in 2 + 3)",
+      "10",
+    ),
+    stepper_view_test(
+      ~visible=2,
+      "debug eval directly around a redex with an equal sibling",
+      "(2 + 3) + (debug eval($e) in 2 + 3)",
+      "10",
+    ),
+    stepper_view_test(
+      "nested filters directly around a redex with an equal sibling",
+      "(2 + 3) + (debug eval($e) in debug stop($e) in 2 + 3)",
+      "10",
+    ),
+    stepper_view_test(
+      "nested filters of three actions",
+      "debug eval($e) in debug step($e * $e) in debug stop($e + $e) in (1 + 2) * (3 + 4)",
+      "21",
+    ),
+    stepper_view_test(
+      "same expression twice under a stop filter",
+      "debug stop(1 + 2) in (1 + 2) * (1 + 2)",
+      "9",
+    ),
+    stepper_view_test(
+      "same expression twice under a filter, with an equal copy outside",
+      "(1 + 2) + (debug stop($e) in (1 + 2) + (1 + 2))",
+      "9",
+    ),
+    stepper_view_test(
+      ~visible=1,
+      "an unresolved filter does not get in the way",
+      "debug 1 in 1 + 2",
+      "3",
+    ),
+    test_case(
+      "every offered step can be located again (filters and ascriptions)",
+      `Quick,
+      () =>
+      List.iter(check_steps_relocatable, relocation_corpus)
     ),
     // ============================================================
     // SingleStep tests

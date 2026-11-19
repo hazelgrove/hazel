@@ -173,6 +173,8 @@ let rec strip_wrappers = (e: t): t =>
   | Match(_)
   | TupleExtension(_)
   | Asc(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Module(_)
   | ModuleExp(_) => e
   };
@@ -231,7 +233,9 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | LivelitName(_) => LivelitName
   | Asc(_) => Asc
   | Module(_) => Module
-  | ModuleExp(_) => ModuleExp;
+  | ModuleExp(_) => ModuleExp
+  | FilterAction(_) => Filter
+  | FilterSelector(_) => Filter;
 
 let show_cls: cls => string =
   fun
@@ -341,6 +345,8 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     | BuiltinFun(_)
     | Match(_)
     | TupleExtension(_)
+    | FilterAction(_)
+    | FilterSelector(_)
     | Module(_)
     | ModuleExp(_) => None
     };
@@ -413,7 +419,9 @@ let rec is_fun = (e: t) => {
   | LivelitName(_)
   | Constructor(_)
   | Module(_)
-  | ModuleExp(_) => false
+  | ModuleExp(_)
+  | FilterAction(_)
+  | FilterSelector(_) => false
   };
 };
 
@@ -471,7 +479,9 @@ let rec is_tuple_of_functions = (e: t) =>
     | LivelitName(_)
     | Constructor(_)
     | Module(_)
-    | ModuleExp(_) => false
+    | ModuleExp(_)
+    | FilterAction(_)
+    | FilterSelector(_) => false
     }
   );
 
@@ -522,6 +532,8 @@ let rec ctr_name = (e: t): option(Constructor.t) =>
   | Match(_)
   | TupleExtension(_)
   | Asc(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Module(_)
   | ModuleExp(_) => None
   };
@@ -584,7 +596,9 @@ let rec get_num_of_functions = (e: t) =>
     | Constructor(_)
     | Module(_)
     | ModuleExp(_)
-    | DrvQuote(_) => None
+    | DrvQuote(_)
+    | FilterAction(_)
+    | FilterSelector(_) => None
     };
   };
 
@@ -671,6 +685,8 @@ let rec get_fn_name = (e: t) => {
   | BuiltinFun(_)
   | Match(_)
   | TupleExtension(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Module(_)
   | ModuleExp(_) => None
   };
@@ -727,6 +743,8 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   | BuiltinFun(_)
   | Match(_)
   | TupleExtension(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Module(_)
   | ModuleExp(_) => e
   };

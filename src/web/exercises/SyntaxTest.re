@@ -137,6 +137,8 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Constructor(_)
   | Undefined
   | BuiltinFun(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Var(_) => l
   };
 };
@@ -193,6 +195,8 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Invalid(_)
   | MultiHole(_)
   | Atom(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Label(_)
   | DrvQuote(_)
   | ExplicitNonlabel
@@ -283,6 +287,8 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Invalid(_)
   | MultiHole(_)
   | Atom(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Label(_)
   | DrvQuote(_)
   | ExplicitNonlabel
@@ -403,6 +409,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | MultiHole(_)
   | DynamicErrorHole(_)
   | Atom(_)
+  | FilterAction(_)
+  | FilterSelector(_)
   | Label(_)
   | DrvQuote(_)
   | Constructor(_)

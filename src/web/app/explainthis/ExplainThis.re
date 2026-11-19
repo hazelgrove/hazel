@@ -859,6 +859,9 @@ let decide =
         let def_id = IdTagged.rep_id(ty_def);
         get_message(TyAliasExp.tyalias_exps(~tpat_id, ~def_id));
       | Undefined => get_message(UndefinedExp.undefined_exps)
+      | FilterAction(act) => get_message(FilterExp.filter_action_exps(act))
+      | FilterSelector(sel) =>
+        get_message(FilterExp.filter_selector_exps(sel))
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
@@ -1256,10 +1259,12 @@ let decide =
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
         let basic = group => get_message(group);
-        switch (Exp.ctr_name(x), x.term) {
-        | (Some(v), _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
-        | (None, LivelitName(_)) => basic(AppExp.livelitaps(~x_id, ~arg_id))
-        | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))
+        switch (x.term, Exp.ctr_name(x)) {
+        | (FilterAction(act), _) =>
+          get_message(FilterExp.filter_action_exps(act))
+        | (_, Some(v)) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
+        | (LivelitName(_), None) => basic(AppExp.livelitaps(~x_id, ~arg_id))
+        | (_, None) => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
         let x_id = IdTagged.rep_id(x);
@@ -1307,31 +1312,19 @@ let decide =
         let exp1_id = IdTagged.rep_id(left);
         let exp2_id = IdTagged.rep_id(right);
         get_message(SeqExp.seqs(~exp1_id, ~exp2_id));
-      | Filter(Filter({act: (Step, One), pat}), body) =>
-        message_single(
-          FilterExp.filter_pause(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Step, All), pat}), body) =>
-        message_single(
-          FilterExp.filter_debug(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Eval, All), pat}), body) =>
-        message_single(
-          FilterExp.filter_eval(
-            ~p_id=Exp.rep_id(pat),
-            ~body_id=Exp.rep_id(body),
-          ),
-        )
-      | Filter(Filter({act: (Eval, One), pat}), body) =>
-        message_single(
-          FilterExp.filter_hide(
-            ~p_id=Exp.rep_id(pat),
+      | Filter(Filter({act: _, pat, ids: act_ids}), body)
+      | Filter(
+          Unresolved({
+            term:
+              Ap(Forward, {term: FilterAction(_), annotation: act_ids}, pat),
+            _,
+          }),
+          body,
+        ) =>
+        get_message(
+          FilterExp.filter_exp(
+            ~act_id=List.hd(act_ids.ids),
+            ~pat_id=Exp.rep_id(pat),
             ~body_id=Exp.rep_id(body),
           ),
         )

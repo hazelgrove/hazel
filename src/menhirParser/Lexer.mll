@@ -166,6 +166,9 @@ rule token =
     | "!=." { NOT_EQUAL_FLOAT }
     (* String Ops *)
     | "++" { STRING_CONCAT }
+    (* Filter Selectors *)
+    | "$e" { FILTER_SELECTOR_EXP }
+    | "$v" { FILTER_SELECTOR_VAL }
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
@@ -186,10 +189,7 @@ rule token =
     (* DHExp Annotations *)
     | "()" { UNIT }
     (* Filters *)
-    | "pause" {PAUSE}
     | "debug" {DEBUG}
-    | "hide" {HIDE}
-    | "eval" {EVAL}
     (* Other *)
     | ";" { semi_token () }
     | "test" {TEST}

@@ -68,17 +68,14 @@ let expands_in_typ = (word: string): bool => {
 let reserved = [
   "case",
   "debug",
-  "eval",
   "fix",
   "forall",
   "fun",
-  "hide",
   "hint",
   "if",
   "in",
   "let",
   "module",
-  "pause",
   "test",
   "theorem",
   "type",
@@ -120,8 +117,14 @@ let soft_reserved = [
 let typ_reserved = ["rec", "poly"];
 let typ_usable = ["val", "valid", "consistent"];
 
-/* Near-miss words that must stay usable, so the warning doesn't overreach. */
+/* Ordinary identifiers, including contextual filter action names and
+   near-miss words, must stay usable so the warning does not overreach. */
 let usable = [
+  "eval",
+  "hide",
+  "pause",
+  "stop",
+  "step",
   "of",
   "match",
   "switch",
@@ -278,7 +281,7 @@ let tests = [
     "PromptFactory",
     [
       test_case("reserved words are unusable", `Quick, check_reserved),
-      test_case("non-reserved near-misses are usable", `Quick, check_usable),
+      test_case("non-reserved identifiers are usable", `Quick, check_usable),
       test_case("type-position keywords", `Quick, check_typ_position),
       test_case(
         "fn-definition sugar is statics-clean",

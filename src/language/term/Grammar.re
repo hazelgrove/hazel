@@ -48,6 +48,8 @@ and exp_term('a) =
   | Dot(exp_t('a), exp_t('a))
   | LivelitName(string)
   | Var(Var.t)
+  | FilterAction(FilterAction.t)
+  | FilterSelector(FilterSelector.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
@@ -152,6 +154,7 @@ and mpat_term('a) =
   | Asc(mpat_t('a), typ_t('a))
 and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
 and stepper_filter_kind_t('a) =
+  | Unresolved(exp_t('a))
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
 and type_hole('a) =
@@ -165,6 +168,7 @@ and type_provenance('a) =
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
+  ids: 'a,
 };
 
 
@@ -206,6 +210,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Dot(e1, e2) =>
           Dot(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Var(v) => Var(v)
+        | FilterAction(act) => FilterAction(act)
+        | FilterSelector(sel) => FilterSelector(sel)
         | Let(p, e1, e2) =>
           Let(
             map_pat_annotation(f, p),
@@ -498,10 +504,12 @@ and map_stepper_filter_kind_annotation:
  =
   (f, e) => {
     switch (e) {
+    | Unresolved(exp) => Unresolved(map_exp_annotation(f, exp))
     | Filter(filter) =>
       Filter({
         pat: map_exp_annotation(f, filter.pat),
         act: filter.act,
+        ids: f(filter.ids),
       })
     | Residue(i, act) => Residue(i, act)
     };
@@ -656,6 +664,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Var(v),
       annotation: default_annotation(ann),
     };
+    let filter_action = (~ann=?, act): exp_t(DefaultAnnotation.t) => {
+      term: FilterAction(act),
+      annotation: default_annotation(ann),
+    };
+    let filter_selector = (~ann=?, sel): exp_t(DefaultAnnotation.t) => {
+      term: FilterSelector(sel),
+      annotation: default_annotation(ann),
+    };
     let livelit_name = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: LivelitName(s),
       annotation: default_annotation(ann),
@@ -720,8 +736,24 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: HintedTest(e, h),
       annotation: default_annotation(ann),
     };
-    let filter = (~ann=?, k, e): exp_t(DefaultAnnotation.t) => {
-      term: Filter(k, e),
+    let filter_unresolved = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Filter(Unresolved(p), e),
+      annotation: default_annotation(ann),
+    };
+    let filter = (~ann=?, ~act, ~pat, e): exp_t(DefaultAnnotation.t) => {
+      term:
+        Filter(
+          Filter({
+            act,
+            pat,
+            ids: default_annotation(None),
+          }),
+          e,
+        ),
+      annotation: default_annotation(ann),
+    };
+    let residue = (~ann=?, ~lvl, ~act, e): exp_t(DefaultAnnotation.t) => {
+      term: Filter(Residue(lvl, act), e),
       annotation: default_annotation(ann),
     };
     let closure = (~ann=?, env, e): exp_t(DefaultAnnotation.t) => {
@@ -1082,10 +1114,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module StepperFilter = {
-    let filter = (f): stepper_filter_kind_t(DefaultAnnotation.t) => {
+    let filter =
+        (pat: exp_t('a), act: FilterAction.t, ids: DefaultAnnotation.t)
+        : stepper_filter_kind_t(DefaultAnnotation.t) => {
       Filter({
-        pat: map_exp_annotation(x => x, f.pat),
-        act: f.act,
+        pat: map_exp_annotation(x => x, pat),
+        act,
+        ids,
       });
     };
     let residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {

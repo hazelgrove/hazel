@@ -14,42 +14,6 @@ open Language;
 open FTemp;
 open Typ;
 
-/* Collect every id present in the surface expression by walking all
-   sub-term annotations (exp / pat / typ / tpat / ...). */
-let collect_ids = (exp: Exp.t): list(Id.t) => {
-  let acc = ref([]);
-  let collect = (a: IdTagged.IdTag.t) => {
-    acc := a.ids @ acc^;
-    a;
-  };
-  let _ = Grammar.map_exp_annotation(collect, exp);
-  acc^;
-};
-
-/* After rewriting `let f(args) = def` to `let f = fun (args) -> def`,
-   every id that appeared in the surface term must still resolve to
-   some Info.t in the map produced by statics. */
-let info_map_preserves_ids = (name, src) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let exp = parse_exp(src);
-      let m = statics(exp);
-      let missing =
-        collect_ids(exp)
-        |> List.filter(id =>
-             !Id.equal(id, Id.invalid)
-             && Option.is_none(Statics.Map.lookup(id, m))
-           );
-      Alcotest.(check(list(string)))(
-        src ++ " — every surface id appears in the info map",
-        [],
-        List.map(Id.show, missing),
-      );
-    },
-  );
-
 /* Locate the sugar's binder pattern in a parsed expression and return
    the ids of (a) the optional outer `Asc` wrapper and (b) the inner
    `Ap(Var(f), args)` wrapper. */

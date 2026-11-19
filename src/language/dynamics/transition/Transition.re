@@ -882,6 +882,8 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | FilterAction(_)
+    | FilterSelector(_)
     | LivelitName(_)
     | Label(_)
     | ExplicitNonlabel
@@ -1322,6 +1324,15 @@ module Transition = (EV: EV_MODE) => {
     };
   };
 };
+
+let step_kind_is_unrenderable =
+    (~settings: CoreSettings.Evaluation.t, kind: step_kind) =>
+  switch (kind) {
+  | Ascription
+  | AscriptionAp
+  | AscriptionTypAp => !settings.show_ascriptions
+  | _ => false
+  };
 
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun

@@ -1877,8 +1877,12 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+           clippable_sort stands.
+           The four filter forms now share `debug ... in`, removing
+           three Exp-only labels. Exp coverage stays broad (64/85),
+           while Pat/Typ/TPat coverage stays narrow (9/15/4 of 85),
+           so the same clippable sorts remain justified. */
+        "Exp 64/85 | Pat 9/85 | Typ 15/85 | TPat 4/85 | Rul 1/85",
         table,
       )
     ),
