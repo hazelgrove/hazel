@@ -376,7 +376,7 @@ let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
   let rec build_levels =
           (current_level: list(Id.t), acc: list(list(Id.t)))
           : list(list(Id.t)) =>
-    if (List.length(current_level) == 0) {
+    if (List.is_empty(current_level)) {
       List.rev(acc);
     } else {
       // Get all children of nodes in the current level

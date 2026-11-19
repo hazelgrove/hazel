@@ -1964,7 +1964,7 @@ let rec complete_segment =
             )
        );
 
-  if (List.length(all_incomplete) == 0 && List.is_empty(wrap_records)) {
+  if (List.is_empty(all_incomplete) && List.is_empty(wrap_records)) {
     {
       /* No structural changes — but still regrout: edits can leave
          stray grout (glom ( onto an orphan )) and Segment.skel
