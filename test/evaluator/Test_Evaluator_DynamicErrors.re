@@ -85,7 +85,7 @@ let final_after_one_step = (msg, d, expected) =>
         option(dhexp_typ),
         msg ++ ": then final",
         None,
-        Option.bind(stepped, single_step),
+        Option.bind(stepped, ~f=single_step),
       );
     },
   );
