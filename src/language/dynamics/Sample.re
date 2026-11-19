@@ -664,12 +664,12 @@ module Selection = {
         switch (List.find_index(s => ref_matches(r, s), samples)) {
         | Some(_) as hit => hit
         | None =>
-          /* Stack ids can be worker-minted (builtin/HOF frames) and
-           * regenerate on re-execution, killing the exact match even
-           * when the run is semantically identical. The step timeline
-           * is identical for semantics-preserving edits, so fall back
-           * to the span's start step (unique per probe within a run).
-           * Semantic edits shift steps → this also misses → tiers. */
+          /* Stack ids can change between semantically identical runs
+           * (a call site rebuilt by an edit), killing the exact match.
+           * The step timeline is identical for semantics-preserving
+           * edits, so fall back to the span's start step (unique per
+           * probe within a run). Semantic edits shift steps → this also
+           * misses → tiers. */
           switch (r.opened) {
           | None => None
           | Some(o) =>

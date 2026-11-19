@@ -39,6 +39,9 @@ let read_clipboard: unit => Ui_effect.t(string);
 let find_ancestor_with_class:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), string) =>
   option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+let element_to_node:
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =>
+  Js_of_ocaml.Js.t(Js_of_ocaml.Dom.node);
 let adjust_scroll:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), float) => unit;
 let caret_in_view: unit => bool;
@@ -56,6 +59,8 @@ let hasPointerCapture:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => bool;
 let set_css_custom_property: (string, string) => unit;
 let update_main_scroll_width: unit => unit;
+/** Scrolls #main by `dy` px, carrying the sub-pixel remainder. */
+let scroll_main_by: float => unit;
 let sync_at_bottom_class:
   Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.event) => unit;
 /** `delay(ms, f)` runs `f` after `ms` milliseconds. */

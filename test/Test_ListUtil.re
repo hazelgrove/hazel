@@ -841,6 +841,30 @@ let tests = (
       },
     ),
     test_case(
+      "split_at_nones keeps leading and trailing empty lists",
+      `Quick,
+      () => {
+        check(
+          list(list(int)),
+          "Leading None",
+          [[], [1, 2]],
+          ListUtil.split_at_nones([None, Some(1), Some(2)]),
+        );
+        check(
+          list(list(int)),
+          "Trailing and repeated Nones",
+          [[1], [], [2], []],
+          ListUtil.split_at_nones([Some(1), None, None, Some(2), None]),
+        );
+        check(
+          list(list(int)),
+          "Empty",
+          [[]],
+          ListUtil.split_at_nones([]),
+        );
+      },
+    ),
+    test_case(
       "group_consecutive with custom predicate",
       `Quick,
       () => {

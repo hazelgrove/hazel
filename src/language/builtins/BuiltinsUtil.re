@@ -71,11 +71,47 @@ let form_of_builtin:
   | Fn({name, imp, _}) => Some((name, imp))
   | HazelFn(_) => None;
 
+/* Library terms are built once per process by Fresh, so their ids carry
+   Id.mk's per-process random bits: a call inside a library function (map
+   calling its callback, say) made a frame with a different id in every
+   evaluator worker, and a focus or pin through it stopped matching after a
+   worker restart. Re-id each term from its name and node order instead:
+   the same ids in every process, and v5 so disjoint from Id.mk's v4 ones. */
+let with_stable_ids = (name: string, imp: Exp.t): Exp.t => {
+  let count = ref(0);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, term) =>
+      {
+        ...term,
+        annotation: {
+          ...term.annotation,
+          ids:
+            List.map(
+              _ => {
+                incr(count);
+                Id.mk_str(
+                  "builtin " ++ name ++ " " ++ string_of_int(count^),
+                );
+              },
+              term.annotation.ids,
+            ),
+        },
+      }
+      |> continue;
+  Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, imp);
+};
+
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
-  | Const({name, imp, _}) => (name, imp)
-  | HazelFn({name, imp, _}) => (name, imp)
-  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | Const({name, imp, _}) => (name, with_stable_ids(name, imp))
+  | HazelFn({name, imp, _}) => (name, with_stable_ids(name, imp))
+  | Fn({name, _}) => (
+      name,
+      with_stable_ids(name, Fresh.Exp.builtin_fun(name)),
+    );
 
 let name_of_builtin: builtin => string =
   fun
