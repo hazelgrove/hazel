@@ -41,12 +41,14 @@ module Update = {
   let keep_environment = (~from: Model.state, state: Model.state): Model.state => {
     let (f, g) = (from.globals, state.globals);
     let visible_rows =
-      Editors.Model.editor_key(from.editors)
-      == Editors.Model.editor_key(state.editors)
+      String.equal(
+        Editors.Model.editor_key(from.editors),
+        Editors.Model.editor_key(state.editors),
+      )
         ? f.visible_rows : None;
-    f.font_metrics == g.font_metrics
-    && f.meta_down == g.meta_down
-    && visible_rows == g.visible_rows
+    FontMetrics.equal(f.font_metrics, g.font_metrics)
+    && Bool.equal(f.meta_down, g.meta_down)
+    && Option.equal(Globals.VisibleRows.equal, visible_rows, g.visible_rows)
       ? state
       : {
         ...state,

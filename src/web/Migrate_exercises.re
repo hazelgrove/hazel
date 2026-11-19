@@ -43,7 +43,7 @@
 open Haz3lcore;
 open Web;
 
-let reindent = Array.mem("--reindent", Sys.argv);
+let reindent = Array.mem(Sys.get_argv(), "--reindent", ~equal=String.equal);
 
 /* Reset non-persistable refractor state before serialization, mirroring
  * CodeExercise.editor_pp (keeps manuals, resets multis/sample_focus). */

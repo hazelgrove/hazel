@@ -673,7 +673,7 @@ module NinjaKeys = {
       switch (shadow_root(Lazy.force(elem))) {
       | Some(elem_root) =>
         let actions = elem_root##querySelectorAll(Js.string("ninja-action"));
-        actions |> Dom.list_of_nodeList |> List.iter(bind_event_handler);
+        actions |> Dom.list_of_nodeList |> List.iter(~f=bind_event_handler);
         actions##.length != 0;
       | None => false
       };
