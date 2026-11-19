@@ -453,7 +453,8 @@ module Update = {
     | (ColorScheme, Some(value), Some(painted)) when value === painted => ()
     | (ColorScheme, Some(value), _) => apply_color_theme(model, value)
     | (ColorScheme, None, _)
-    | (Shortcuts, _, _) => ()
+    | (Shortcuts, _, _)
+    | (Flags, _, _) => ()
     };
 
   let calculate =
