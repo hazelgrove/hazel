@@ -1,0 +1,30 @@
+{
+  "run_id": "2026-08-04T15-59-48-640Z",
+  "prefix_est_tokens": 6017,
+  "turns": 3,
+  "perModel": [
+    {
+      "id": "anthropic/claude-haiku-4.5",
+      "expected_usd": 0.009264650000000001,
+      "worst_case_usd": 0.018591
+    },
+    {
+      "id": "anthropic/claude-sonnet-4.6",
+      "expected_usd": 0.02779395,
+      "worst_case_usd": 0.055773
+    },
+    {
+      "id": "google/gemini-3-flash-preview",
+      "expected_usd": 0.0013971166666666664,
+      "worst_case_usd": 0.0093195
+    },
+    {
+      "id": "qwen/qwen3-coder",
+      "expected_usd": 0.0035977749999999997,
+      "worst_case_usd": 0.0055533
+    }
+  ],
+  "total": 0.042053491666666665,
+  "worst": 0.08923679999999999,
+  "llm_calls": 12
+}

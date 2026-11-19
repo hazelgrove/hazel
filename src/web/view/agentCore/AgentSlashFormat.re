@@ -21,19 +21,40 @@ let pricing_per_token =
     (parse(info.pricing.prompt), parse(info.pricing.completion));
   };
 
-/** Walk a chat and sum prompt/completion tokens across all Agent messages
-    that carry usage. Returns (in_tokens, out_tokens). */
-let chat_usage_totals = (chat: Chat.Model.t): (int, int) => {
+/** Walk a chat and sum usage across all Agent messages that carry it.
+
+    Input tokens are summed as [prompt_tokens - cache_write_tokens]: OpenRouter
+    over-reports [prompt_tokens] on cache-write turns by folding the cache read
+    and the cache write for the same content into it (see
+    [[OpenRouter.Reply.Model.usage]]), so summing it raw inflates the session
+    total. Also returns cached tokens and the sum of the per-request [cost]
+    OpenRouter actually billed — the latter is [None] until at least one
+    message carries a cost, which is the case for chats recorded before cost
+    capture existed. */
+let chat_usage_totals = (chat: Chat.Model.t): (int, int, int, option(float)) => {
   let messages = Chat.Utils.get(chat);
   List.fold_left(
     (acc, msg: Message.Model.t) =>
       switch (msg.role) {
       | Agent(Some(usage)) =>
-        let (i, o) = acc;
-        (i + usage.prompt_tokens, o + usage.completion_tokens);
+        let (i, o, cached, billed) = acc;
+        let write = Option.value(~default=0, usage.cache_write_tokens);
+        let read = Option.value(~default=0, usage.cache_read_input_tokens);
+        let billed' =
+          switch (billed, usage.cost) {
+          | (Some(b), Some(c)) => Some(b +. c)
+          | (None, Some(c)) => Some(c)
+          | (b, None) => b
+          };
+        (
+          i + max(0, usage.prompt_tokens - write),
+          o + usage.completion_tokens,
+          cached + read,
+          billed',
+        );
       | _ => acc
       },
-    (0, 0),
+    (0, 0, 0, None),
     messages,
   );
 };
@@ -45,18 +66,25 @@ let cost_payload =
       ~active_llm: option(OpenRouter.AvailableLLMs.Model.llm_info),
     )
     : Message.Model.cost_output => {
-  let (in_tok, out_tok) = chat_usage_totals(chat);
+  let (in_tok, out_tok, cached_tok, billed) = chat_usage_totals(chat);
   let (price_in, price_out) = pricing_per_token(active_llm);
+  let at_list_price =
+    float_of_int(in_tok) *. price_in +. float_of_int(out_tok) *. price_out;
   let estimated =
     switch (active_llm) {
-    | Some(_) =>
-      Some(
-        float_of_int(in_tok)
-        *. price_in
-        +. float_of_int(out_tok)
-        *. price_out,
-      )
+    | Some(_) => Some(at_list_price)
     | None => None
+    };
+  /* What caching actually saved: everything at list price, minus what we were
+     billed. Only reported when we have a real billed total and a real price to
+     compare it against, and only when it is positive — a negative number here
+     would mean list price under-predicts the charge, which is a signal worth
+     investigating rather than a "saving" to display. */
+  let saved =
+    switch (billed) {
+    | Some(b) when price_in > 0.0 && at_list_price > b =>
+      Some(at_list_price -. b)
+    | _ => None
     };
   let model =
     switch (active_llm) {
@@ -68,6 +96,9 @@ let cost_payload =
     cost_input_tokens: in_tok,
     cost_output_tokens: out_tok,
     cost_estimated_usd: estimated,
+    cost_billed_credits: billed,
+    cost_cached_tokens: cached_tok,
+    cost_saved_credits: saved,
   };
 };
 
