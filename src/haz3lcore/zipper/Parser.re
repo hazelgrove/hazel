@@ -26,12 +26,12 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
     let left =
       switch (Zipper.neighbor_token(Left, z)) {
       | None => false
-      | Some(t) => Token.is_potential_token(Token.append(t, first_char))
+      | Some(t) => Form.is_potential_token(Token.append(t, first_char))
       };
     let right =
       switch (Zipper.neighbor_token(Right, z)) {
       | None => false
-      | Some(t) => Token.is_potential_token(Token.append(last_char, t))
+      | Some(t) => Form.is_potential_token(Token.append(last_char, t))
       };
     left || right;
   };
@@ -269,12 +269,12 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
     let no_left_merge =
       switch (Zipper.neighbor_token(Left, z)) {
       | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(t, first_char))
+      | Some(t) => !Form.is_potential_token(Token.append(t, first_char))
       };
     let no_right_merge =
       switch (Zipper.neighbor_token(Right, z)) {
       | None => true
-      | Some(t) => !Token.is_potential_token(Token.append(last_char, t))
+      | Some(t) => !Form.is_potential_token(Token.append(last_char, t))
       };
     no_left_merge && no_right_merge;
   };

@@ -264,12 +264,12 @@ let sibling_appendability = (char: string, z: t): appendability =>
   switch (neighbor_tokens(z)) {
   | (Some(t), _)
       when
-        Token.is_potential_token(Token.append(t, char))
+        Form.is_potential_token(Token.append(t, char))
         && !parens_edge_case(char, z) =>
     Some((Left, Token.append(t, char)))
   | (_, Some(t))
       when
-        Token.is_potential_token(Token.append(char, t))
+        Form.is_potential_token(Token.append(char, t))
         && !parens_edge_case(char, z)
         && !has_complete_multishard_right_sibling(z) =>
     Some((Right, Token.append(char, t)))
@@ -328,6 +328,18 @@ let split =
     : option(t) => {
   let insert_shard = insert_shard(~root);
   let (l, r) = Token.split_nth(t, idx);
+  /* The typed character joins the left part, else the right part, when
+     that spells a token: `<` typed into `@>` gives `@<` `>`, and `!`
+     typed into `!=` gives `!` `!=`, rather than three tokens. */
+  let joins = t => Token.space != char && Form.is_potential_token(t);
+  let (l, char, r, caret_in_r) =
+    if (joins(Token.append(l, char))) {
+      (Token.append(l, char), "", r, false);
+    } else if (joins(Token.append(char, r))) {
+      (l, "", Token.append(char, r), true);
+    } else {
+      (l, char, r, false);
+    };
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
@@ -347,6 +359,8 @@ let split =
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
+    | None when caret_in_r => Caret.set(Inner(0), z)
+    | None when char == "" => z
     | None =>
       z
       |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
@@ -363,7 +377,7 @@ let will_merge = (z: t): option((Token.t, Token.t)) =>
   switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when
-        Token.is_potential_token(Token.append(l, r))
+        Form.is_potential_token(Token.append(l, r))
         && z.caret == Outer
         && !has_complete_multishard_right_sibling(z) =>
     Some((l, r))
@@ -653,7 +667,7 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
       let idx = idx + 1;
       let new_token = Token.insert_nth(idx, char, t);
       let z = Caret.set(Inner(idx), z);
-      Token.is_potential_token(new_token)
+      Form.is_potential_token(new_token)
         ? z
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(

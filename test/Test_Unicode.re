@@ -475,7 +475,8 @@ let operator_tests = [
     "potential tokens agree for a representative set",
     `Quick,
     () => {
-      let potential = s => check(bool, s, true, Token.is_potential_token(s));
+      let potential = s =>
+        check(bool, s, true, Haz3lcore.Form.is_potential_token(s));
       potential("\xc2\xa2"); /* ¢ */
       potential("\xc5\xbf"); /* ſ */
       potential("\xe2\x86\x92"); /* → */
