@@ -64,7 +64,9 @@ let peel_poly_for_consistency = (ty: Typ.t): Typ.t =>
   | Poly(binder, body) =>
     let binders = TPat.binders_of(binder);
     let args =
-      List.init(List.length(binders), _ => Unknown(Internal) |> Typ.fresh);
+      List.init(List.length(binders), ~f=_ =>
+        Unknown(Internal) |> Typ.fresh
+      );
     Typ.subst_many(args, binders, body);
   | _ => ty
   };

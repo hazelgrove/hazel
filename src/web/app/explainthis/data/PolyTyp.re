@@ -5,7 +5,7 @@ open ExplainThisForm;
 /* `poly a -> t`, `poly a, b -> t`: the type of polymorphic values. A
    proper type (kind `Type`), unlike the type function `typfun a -> t`. */
 let poly_typ = (~binders: list((string, Id.t)), ~tbody_id: Id.t): form => {
-  let tpat_ids = List.map(snd, binders);
+  let tpat_ids = List.map(~f=snd, binders);
   let n = List.length(tpat_ids);
   let (binder_seg, binder_pieces) = tpat_list("a", n);
   let typ_body = typ("ty");

@@ -393,12 +393,13 @@ let get_binding_site = (info: t): option(Id.t) => {
       (~ctx: Ctx.t, ~ana: Typ.t, name: string): option(Id.t) => {
     let* sum = Typ.get_sum_constructors(ctx, result_of_ana(ana));
     let* variant =
-      List.find_opt(
-        (v: ConstructorMap.variant(Typ.t)) =>
-          switch (v) {
-          | Variant(ctr, _, _) => ctr == name
-          | BadEntry(_) => false
-          },
+      List.find(
+        ~f=
+          (v: ConstructorMap.variant(Typ.t)) =>
+            switch (v) {
+            | Variant(ctr, _, _) => String.equal(ctr, name)
+            | BadEntry(_) => false
+            },
         sum,
       );
     switch (variant) {

@@ -1090,7 +1090,7 @@ let type_function_tests = {
   let parse = (src: string): Typ.t =>
     switch (
       Haz3lcore.Parser.to_segment(src, ~root=Typ)
-      |> Option.map(Haz3lcore.MakeTerm.for_projection)
+      |> Option.map(~f=Haz3lcore.MakeTerm.for_projection)
     ) {
     | Some(Some(Typ(t))) => t
     | _ => Alcotest.failf("could not parse the type `%s`", src)
@@ -1251,22 +1251,23 @@ let type_function_tests = {
           bool,
           "no unfolding",
           true,
-          Typ.unfold_family(
-            Typ.fresh(
-              TypParamAp(
-                Typ.fresh(
-                  Rec(
-                    TPat.fresh(Var("L")),
-                    Typ.fresh(
-                      TypFun(TPat.fresh(Var("a")), parse("L((a, a))")),
+          Option.is_none(
+            Typ.unfold_family(
+              Typ.fresh(
+                TypParamAp(
+                  Typ.fresh(
+                    Rec(
+                      TPat.fresh(Var("L")),
+                      Typ.fresh(
+                        TypFun(TPat.fresh(Var("a")), parse("L((a, a))")),
+                      ),
                     ),
                   ),
+                  parse("Int"),
                 ),
-                parse("Int"),
               ),
             ),
-          )
-          == None,
+          ),
         )
       ),
     ],

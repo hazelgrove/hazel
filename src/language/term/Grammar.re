@@ -390,7 +390,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | TypParamAp(t1, t2) =>
           TypParamAp(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | TypTuple(ts) =>
-          TypTuple(List.map(x => map_typ_annotation(f, x), ts))
+          TypTuple(List.map(~f=x => map_typ_annotation(f, x), ts))
         | Parens(t) => Parens(map_typ_annotation(f, t))
         | Projector(data, t) => Projector(data, map_typ_annotation(f, t))
         | Rec(tp, t) =>
@@ -435,9 +435,9 @@ and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
         | Param(head, params) =>
           Param(
             map_tpat_annotation(f, head),
-            List.map(x => map_tpat_annotation(f, x), params),
+            List.map(~f=x => map_tpat_annotation(f, x), params),
           )
-        | Tuple(l) => Tuple(List.map(x => map_tpat_annotation(f, x), l))
+        | Tuple(l) => Tuple(List.map(~f=x => map_tpat_annotation(f, x), l))
         | Parens(tp) => Parens(map_tpat_annotation(f, tp))
         },
       annotation: new_annotation,

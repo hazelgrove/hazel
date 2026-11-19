@@ -23,7 +23,7 @@ let poly_pair_ex = {
 /* `abs a -> e`, `abs a, b -> e`: a value-level type abstraction, the
    values of `poly` types. [tpat_ids] are the binders' terms. */
 let typ_abs = (~binders: list((string, Id.t)), ~body_id: Id.t): form => {
-  let tpat_ids = List.map(snd, binders);
+  let tpat_ids = List.map(~f=snd, binders);
   let n = List.length(tpat_ids);
   let (binder_seg, binder_pieces) = tpat_list("a", n);
   let e = exp("e");
@@ -45,8 +45,8 @@ let typ_abs = (~binders: list((string, Id.t)), ~body_id: Id.t): form => {
         n == 1
           ? "T"
           : String.concat(
-              ", ",
-              List.init(n, i => Printf.sprintf("T%d", i + 1)),
+              ~sep=", ",
+              List.init(n, ~f=i => Printf.sprintf("T%d", i + 1)),
             ),
         n == 1 ? "it" : "them",
         Id.to_string(body_id),

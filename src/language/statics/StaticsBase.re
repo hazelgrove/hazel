@@ -105,17 +105,18 @@ module Map = {
       };
     let* (_, label_term) =
       List.find_map(
-        (field: Typ.t) =>
-          switch (Typ.match_tup_label(field)) {
-          | Some((name, _) as match_) when name == label_name =>
-            /* Recover the actual `Label` term so we can read its id;
-               `match_tup_label` discards the label term. */
-            switch (field.term) {
-            | TupLabel(label_term, _) => Some((match_, label_term))
+        ~f=
+          (field: Typ.t) =>
+            switch (Typ.match_tup_label(field)) {
+            | Some((name, _) as match_) when String.equal(name, label_name) =>
+              /* Recover the actual `Label` term so we can read its id;
+                 `match_tup_label` discards the label term. */
+              switch (field.term) {
+              | TupLabel(label_term, _) => Some((match_, label_term))
+              | _ => None
+              }
             | _ => None
-            }
-          | _ => None
-          },
+            },
         fields,
       );
     switch (label_term.annotation.ids) {

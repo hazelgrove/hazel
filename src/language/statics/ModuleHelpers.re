@@ -241,7 +241,8 @@ let rec collect_type_exports =
                | Var(name) => Some((name, TPat.rep_id(tpat), [], typ))
                | Param(head, params) =>
                  switch (TPat.head_name_of(head)) {
-                 | Some(name) => Some((name, TPat.rep_id(head), params, typ))
+                 | Some(name) =>
+                   Some((name, TPat.rep_id(head), params, typ))
                  | None => None
                  }
                | Tuple(_)

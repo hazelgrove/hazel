@@ -533,7 +533,7 @@ let nth_rep_id = (elements, n) =>
 /* The variables a binder binds, as names and ids (`?` for a hole). */
 let binder_names = (tpat: TPat.t): list((string, Id.t)) =>
   TPat.binders_of(tpat)
-  |> List.map((b: TPat.t) =>
+  |> List.map(~f=(b: TPat.t) =>
        (
          Option.value(~default="?", TPat.tyvar_of_utpat(b)),
          IdTagged.rep_id(b),
@@ -889,7 +889,7 @@ let decide =
         get_message(
           TyAliasExp.param_tyalias_exps(
             ~head_id=IdTagged.rep_id(head),
-            ~param_ids=List.map(IdTagged.rep_id, params),
+            ~param_ids=List.map(~f=IdTagged.rep_id, params),
             ~def_id=IdTagged.rep_id(ty_def),
           ),
         )
@@ -1292,7 +1292,7 @@ let decide =
         get_message(
           TypAppExp.typabsaps(
             ~f_id=IdTagged.rep_id(f),
-            ~typ_ids=List.map(IdTagged.rep_id, type_args(typ)),
+            ~typ_ids=List.map(~f=IdTagged.rep_id, type_args(typ)),
           ),
         )
 
@@ -1598,12 +1598,12 @@ let decide =
       get_message(
         TypParamApTyp.typ_param_aps(
           ~callee_id=IdTagged.rep_id(callee),
-          ~arg_ids=List.map(IdTagged.rep_id, type_args(arg)),
+          ~arg_ids=List.map(~f=IdTagged.rep_id, type_args(arg)),
         ),
       )
     | TypTuple(args) =>
       get_message(
-        TypParamApTyp.typ_argss(~arg_ids=List.map(IdTagged.rep_id, args)),
+        TypParamApTyp.typ_argss(~arg_ids=List.map(~f=IdTagged.rep_id, args)),
       )
     | Rec(tpat, typ) =>
       let tpat_id = IdTagged.rep_id(tpat);
@@ -1716,12 +1716,12 @@ let decide =
       get_message(
         ParamTPat.param_tpats(
           ~head_id=IdTagged.rep_id(head),
-          ~param_ids=List.map(IdTagged.rep_id, params),
+          ~param_ids=List.map(~f=IdTagged.rep_id, params),
         ),
       )
     | Tuple(tps) =>
       get_message(
-        TupleTPat.tuple_tpats(~binder_ids=List.map(IdTagged.rep_id, tps)),
+        TupleTPat.tuple_tpats(~binder_ids=List.map(~f=IdTagged.rep_id, tps)),
       )
     | Parens(_) => NoDoc
     }

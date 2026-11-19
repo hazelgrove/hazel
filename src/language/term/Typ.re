@@ -183,7 +183,7 @@ let rec has_fun = (typ: t) =>
   | ExplicitNonlabel
   | Var(_) => false
   | TypParamAp(t1, t2) => has_fun(t1) || has_fun(t2)
-  | TypTuple(ts) => List.exists(has_fun, ts)
+  | TypTuple(ts) => List.exists(~f=has_fun, ts)
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -354,7 +354,7 @@ let rec count_unknowns = (ty: t): int =>
   | Var(_) => 0
   | TypParamAp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | TypTuple(ts) =>
-    List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, ts)
+    List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, ts)
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
     List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, tys)
@@ -416,11 +416,12 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Tuple(tps) =>
       let (tps', body') =
         List.fold_left(
-          ((acc, b), tp) => {
-            let (tp', b') = avoid_capture_one(tp, b);
-            (acc @ [tp'], b');
-          },
-          ([], body),
+          ~f=
+            ((acc, b), tp) => {
+              let (tp', b') = avoid_capture_one(tp, b);
+              (acc @ [tp'], b');
+            },
+          ~init=([], body),
           tps,
         );
       (
@@ -436,7 +437,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
      flattened tyvars list. */
   let binder_shadows_x = (tp2: TPat.t): bool =>
     switch (TPat.tyvar_of_utpat(x)) {
-    | Some(name) => List.mem(name, TPat.tyvars_of(tp2))
+    | Some(name) => List.mem(TPat.tyvars_of(tp2), name, ~equal=String.equal)
     | None => false
     };
   switch (TPat.tyvar_of_utpat(x)) {
@@ -489,40 +490,39 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
    form (`TPat.binders_of`) in one step. The lists must have equal length;
    callers check the arity first. */
 let subst_many = (args: list(t), binders: list(TPat.t), body: t): t => {
-  let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+  let names = List.filter_map(~f=TPat.tyvar_of_utpat, binders);
   let subst_all = (binders, body) =>
-    List.fold_left2(
-      (body, arg, binder) => subst(arg, binder, body),
-      body,
-      args,
-      binders,
+    List.fold2_exn(args, binders, ~init=body, ~f=(body, arg, binder) =>
+      subst(arg, binder, body)
     );
   /* Simultaneous: when an argument mentions one of the binders' names
      (`(abs a, b -> …)@<b, Int>`), rename the binders apart first so that
      argument is not substituted into again. */
   if (List.exists(
-        arg => List.exists(x => List.mem(x, names), free_vars(arg)),
+        ~f=
+          arg =>
+            List.exists(
+              ~f=x => List.mem(names, x, ~equal=String.equal),
+              free_vars(arg),
+            ),
         args,
       )) {
     let renamed =
       List.map(
-        (b: TPat.t) =>
-          switch (TPat.tyvar_of_utpat(b)) {
-          | Some(x) => TPat.fresh(Var(fresh_var(x)))
-          | None => b
-          },
+        ~f=
+          (b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(x) => TPat.fresh(Var(fresh_var(x)))
+            | None => b
+            },
         binders,
       );
     let body =
-      List.fold_left2(
-        (body, b, b') =>
-          switch (TPat.tyvar_of_utpat(b')) {
-          | Some(x') => subst(Var(x') |> temp, b, body)
-          | None => body
-          },
-        body,
-        binders,
-        renamed,
+      List.fold2_exn(binders, renamed, ~init=body, ~f=(body, b, b') =>
+        switch (TPat.tyvar_of_utpat(b')) {
+        | Some(x') => subst(Var(x') |> temp, b, body)
+        | None => body
+        }
       );
     subst_all(renamed, body);
   } else {
@@ -656,7 +656,7 @@ let unfold_family = (ty: t): option(t) =>
   switch (term_of(ty)) {
   | TypParamAp(fn, arg) =>
     switch (term_of(fn)) {
-    | Rec(tp, body) when non_contractive(fn) == None =>
+    | Rec(tp, body) when Option.is_none(non_contractive(fn)) =>
       beta(subst(fn, tp, body), arg)
     | _ => None
     }
@@ -885,7 +885,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     };
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
-  | TypTuple(ts) => TypTuple(List.map(normalize(ctx), ts)) |> rewrap
+  | TypTuple(ts) => TypTuple(List.map(~f=normalize(ctx), ts)) |> rewrap
   | Prod(ts) =>
     let ts = List.map(~f=normalize(ctx), ts);
     let duplicate_labels =
@@ -1006,7 +1006,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => ty
-  | TypTuple(ts) => TypTuple(List.map(desugar_sig(ctx), ts)) |> rewrap
+  | TypTuple(ts) => TypTuple(List.map(~f=desugar_sig(ctx), ts)) |> rewrap
   };
 };
 
@@ -1042,7 +1042,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
             go(~depth=depth + 1, ctx, fn) || go(~depth=depth + 1, ctx, arg)
           | _ => go(~depth=depth + 1, ctx, weak_head_normalize(ctx, ty))
           }
-        | TypTuple(tys) => List.exists(go(~depth=depth + 1, ctx), tys)
+        | TypTuple(tys) => List.exists(~f=go(~depth=depth + 1, ctx), tys)
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
@@ -1198,21 +1198,24 @@ let shared_binder =
 let shared_binders =
     (tp1: TPat.t, body1: t, tp2: TPat.t, body2: t): option((TPat.t, t, t)) => {
   let holes = (tp: TPat.t) =>
-    List.for_all(b => TPat.tyvar_of_utpat(b) == None, TPat.binders_of(tp));
+    List.for_all(
+      ~f=b => Option.is_none(TPat.tyvar_of_utpat(b)),
+      TPat.binders_of(tp),
+    );
   switch (TPat.binders_of(tp1), TPat.binders_of(tp2)) {
   | ([_], [_]) => Some(shared_binder(tp1, body1, tp2, body2))
   | _ when holes(tp1) => Some((tp2, body1, body2))
   | _ when holes(tp2) => Some((tp1, body1, body2))
   | (bs1, bs2) when List.length(bs1) == List.length(bs2) =>
     let (rev_bs, body1, body2) =
-      List.fold_left2(
-        ((rev_bs, body1, body2), b1, b2) => {
+      List.fold2_exn(
+        bs1,
+        bs2,
+        ~init=([], body1, body2),
+        ~f=((rev_bs, body1, body2), b1, b2) => {
           let (b, body1, body2) = shared_binder(b1, body1, b2, body2);
           ([b, ...rev_bs], body1, body2);
         },
-        ([], body1, body2),
-        bs1,
-        bs2,
       );
     Some((TPat.fresh(Tuple(List.rev(rev_bs))), body1, body2));
   | _ => None
@@ -1448,7 +1451,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
     |> rewrap1
   | (TypParamAp(_), _) => t1
   | (TypTuple(ts1), TypTuple(ts2)) when List.length(ts1) == List.length(ts2) =>
-    TypTuple(List.map2(match_synswitch, ts1, ts2)) |> rewrap1
+    TypTuple(List.map2_exn(ts1, ts2, ~f=match_synswitch)) |> rewrap1
   | (TypTuple(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
@@ -1511,7 +1514,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
       | Sum(sm) => Some(sm)
       | _ => None
       };
-    Option.bind(unfold_family(ty), sum_of);
+    Option.bind(unfold_family(ty), ~f=sum_of);
   | Rec(_) =>
     /* Unrolled so that the constructor types do not mention the rec
        parameter. */
@@ -1672,9 +1675,10 @@ let rec pretty_print_tvar = (tv: TPat.t): string =>
   | Param(head, params) =>
     pretty_print_tvar(head)
     ++ "("
-    ++ String.concat(", ", List.map(pretty_print_tvar, params))
+    ++ String.concat(~sep=", ", List.map(~f=pretty_print_tvar, params))
     ++ ")"
-  | Tuple(tps) => String.concat(", ", List.map(pretty_print_tvar, tps))
+  | Tuple(tps) =>
+    String.concat(~sep=", ", List.map(~f=pretty_print_tvar, tps))
   | Parens(inner) => "(" ++ pretty_print_tvar(inner) ++ ")"
   | Invalid(_)
   | EmptyHole
@@ -1705,7 +1709,7 @@ let rec pretty_print = (ty: t): string =>
       | _ => pretty_print(t2)
       };
     pretty_print(t1) ++ "(" ++ arg ++ ")";
-  | TypTuple(ts) => String.concat(", ", List.map(pretty_print, ts))
+  | TypTuple(ts) => String.concat(~sep=", ", List.map(~f=pretty_print, ts))
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>
@@ -1947,7 +1951,7 @@ let rec diff =
   | (TypParamAp(_), _) => get_ids()
   | (TypTuple(tys1), TypTuple(tys2))
       when List.length(tys1) == List.length(tys2) =>
-    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+    List.map2_exn(tys1, tys2, ~f=diff(~ctx?)) |> List.concat
   | (TypTuple(_), _) => get_ids()
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.syntactic.exp(e1, e2) ? [] : get_ids()

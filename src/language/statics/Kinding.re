@@ -66,12 +66,12 @@ let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
   | TypFun(param, body) =>
     let n = List.length(TPat.binders_of(param));
     let body_ctx = Ctx.extend_dummy_tvar(ctx, param);
-    TypKind.arrows(List.init(n, _ => type_), kind_of_typ(body_ctx, body));
+    TypKind.arrows(List.init(n, ~f=_ => type_), kind_of_typ(body_ctx, body));
   | TypParamAp(fn, arg) =>
     let fn_kind = kind_of_typ(ctx, fn);
     let arg_kinds =
       switch (arg.term) {
-      | TypTuple(ts) => List.map(kind_of_typ(ctx), ts)
+      | TypTuple(ts) => List.map(~f=kind_of_typ(ctx), ts)
       | Unknown(_)
       | Atom(_)
       | DrvQuoteTy(_)

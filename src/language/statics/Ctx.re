@@ -84,17 +84,18 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
      comma-separated list of binders; flatten and extend ctx with each
      name. Non-name binders (e.g. holes) are ignored. */
   List.fold_left(
-    (ctx, name) =>
-      extend_tvar(
-        ctx,
-        {
-          kind: Abstract,
-          typ_kind: TypKind.Type,
-          name,
-          id: Id.invalid,
-        },
-      ),
-    ctx,
+    ~f=
+      (ctx, name) =>
+        extend_tvar(
+          ctx,
+          {
+            kind: Abstract,
+            typ_kind: TypKind.Type,
+            name,
+            id: Id.invalid,
+          },
+        ),
+    ~init=ctx,
     TPat.tyvars_of(tvar),
   );
 
@@ -109,9 +110,10 @@ let lookup_tvar = (ctx: t, name: string): option(kind) =>
 
 let lookup_tvar_typ_kind = (ctx: t, name: string): option(TypKind.t) =>
   List.find_map(
-    fun
-    | TVarEntry(v) when v.name == name => Some(v.typ_kind)
-    | _ => None,
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.typ_kind)
+      | _ => None,
     ctx.entries,
   );
 
@@ -185,9 +187,10 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
    higher-level code can disambiguate (typically by analysis type). */
 let lookup_ctrs = (ctx: t, name: string): list(var_entry) =>
   List.filter_map(
-    fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
-    | _ => None,
+    ~f=
+      fun
+      | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
+      | _ => None,
     ctx.entries,
   );
 
@@ -237,7 +240,7 @@ let rec result_head_name_of = (ty: TermBase.Typ.t): option(string) =>
 let lookup_ctr_for_ana =
     (ctx: t, name: string, ana: option(TermBase.Typ.t)): option(var_entry) => {
   let candidates = lookup_ctrs(ctx, name);
-  let target = Option.bind(ana, result_head_name_of);
+  let target = Option.bind(ana, ~f=result_head_name_of);
   switch (target) {
   | None =>
     switch (candidates) {
@@ -246,8 +249,14 @@ let lookup_ctr_for_ana =
     }
   | Some(target) =>
     let matching =
-      List.find_opt(
-        (e: var_entry) => result_head_name_of(e.typ) == Some(target),
+      List.find(
+        ~f=
+          (e: var_entry) =>
+            Option.equal(
+              String.equal,
+              result_head_name_of(e.typ),
+              Some(target),
+            ),
         candidates,
       );
     switch (matching) {
@@ -305,7 +314,8 @@ let result_type_for_params =
         switch (group) {
         | [] => head
         | [param] => typ(TypParamAp(head, arg(param)))
-        | _ => typ(TypParamAp(head, typ(TypTuple(List.map(~f=arg, group)))))
+        | _ =>
+          typ(TypParamAp(head, typ(TypTuple(List.map(~f=arg, group)))))
         },
     ~init=typ(Var(name)),
     param_groups,
@@ -341,23 +351,23 @@ let add_ctrs_with_params =
         ~f=
           fun
           | ConstructorMap.Variant(ctr, ann, typ) => {
-            let ctr_id = List.hd_exn(ann.ids);
-            let typ =
-              switch (typ) {
-              | None => result_ty
-              | Some(typ) =>
-                (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
-              };
-            Some(
-              ConstructorEntry({
-                name: ctr,
-                id: ctr_id,
-                typ: quantify_params(List.concat(param_groups), typ),
-                custom_statics: None,
-              }),
-            );
-          }
-        | ConstructorMap.BadEntry(_) => None,
+              let ctr_id = List.hd_exn(ann.ids);
+              let typ =
+                switch (typ) {
+                | None => result_ty
+                | Some(typ) =>
+                  (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
+                };
+              Some(
+                ConstructorEntry({
+                  name: ctr,
+                  id: ctr_id,
+                  typ: quantify_params(List.concat(param_groups), typ),
+                  custom_statics: None,
+                }),
+              );
+            }
+          | ConstructorMap.BadEntry(_) => None,
         ctrs,
       )
       @ ctx.entries,

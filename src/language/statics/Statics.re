@@ -1652,7 +1652,7 @@ and uexp_to_info_map =
           | _ => None
           };
         let type_args =
-          ty == None
+          Option.is_none(ty)
             ? ConstructorStaticsHelpers.instantiation_args_for(ctx, ctr, ana)
             : [];
         let elab_term =
@@ -2078,7 +2078,7 @@ and uexp_to_info_map =
       let user_binders = TPat.binders_of(utpat);
       let user_names_safe =
         user_binders
-        |> List.filter(b =>
+        |> List.filter(~f=b =>
              switch (TPat.tyvar_of_utpat(b)) {
              | Some(name) => !Ctx.is_base_typ(name)
              | None => false
@@ -2091,37 +2091,38 @@ and uexp_to_info_map =
           if (List.length(expected_binders) != List.length(user_binders)) {
             item;
           } else {
-            List.fold_left2(
-              (body, exp_b, user_b) =>
-                switch (TPat.tyvar_of_utpat(user_b)) {
-                | Some(name) when !Ctx.is_base_typ(name) =>
-                  Typ.subst(Var(name) |> Typ.temp, exp_b, body)
-                | _ => body
-                },
-              item,
+            List.fold2_exn(
               expected_binders,
               user_binders,
+              ~init=item,
+              ~f=(body, exp_b, user_b) =>
+              switch (TPat.tyvar_of_utpat(user_b)) {
+              | Some(name) when !Ctx.is_base_typ(name) =>
+                Typ.subst(Var(name) |> Typ.temp, exp_b, body)
+              | _ => body
+              }
             );
           };
         | None => item
         };
       let ctx_body =
         List.fold_left(
-          (ctx, b: TPat.t) =>
-            switch (TPat.tyvar_of_utpat(b)) {
-            | Some(name) =>
-              Ctx.extend_tvar(
-                ctx,
-                {
-                  name,
-                  id: TPat.rep_id(b),
-                  kind: Abstract,
-                  typ_kind: TypKind.Type,
-                },
-              )
-            | None => ctx
-            },
-          ctx,
+          ~f=
+            (ctx, b: TPat.t) =>
+              switch (TPat.tyvar_of_utpat(b)) {
+              | Some(name) =>
+                Ctx.extend_tvar(
+                  ctx,
+                  {
+                    name,
+                    id: TPat.rep_id(b),
+                    kind: Abstract,
+                    typ_kind: TypKind.Type,
+                  },
+                )
+              | None => ctx
+              },
+          ~init=ctx,
           user_names_safe,
         );
       let m =
@@ -2722,29 +2723,31 @@ and uexp_to_info_map =
         let params = List.concat(param_groups);
         let extend_params = ctx =>
           List.fold_left(
-            (ctx, param) =>
-              switch (TPat.tyvar_of_utpat(param)) {
-              | Some(param_name) =>
-                Ctx.extend_tvar(
-                  ctx,
-                  {
-                    name: param_name,
-                    id: TPat.rep_id(param),
-                    kind: Abstract,
-                    typ_kind: TypKind.Type,
-                  },
-                )
-              | None => ctx
-              },
-            ctx,
+            ~f=
+              (ctx, param) =>
+                switch (TPat.tyvar_of_utpat(param)) {
+                | Some(param_name) =>
+                  Ctx.extend_tvar(
+                    ctx,
+                    {
+                      name: param_name,
+                      id: TPat.rep_id(param),
+                      kind: Abstract,
+                      typ_kind: TypKind.Type,
+                    },
+                  )
+                | None => ctx
+                },
+            ~init=ctx,
             params,
           );
         let kind =
           List.fold_right(
-            (group, kind) =>
-              TypKind.arrows(List.map(_ => TypKind.Type, group), kind),
+            ~f=
+              (group, kind) =>
+                TypKind.arrows(List.map(~f=_ => TypKind.Type, group), kind),
+            ~init=Kinding.kind_of_typ(extend_params(ctx), def_body),
             param_groups,
-            Kinding.kind_of_typ(extend_params(ctx), def_body),
           );
         /* What the alias stands for: its type function (built from the
            head's parameters for `type T(a, b) = …`), recursive when the
@@ -4165,7 +4168,7 @@ and utyp_to_info_map =
       let fn_kind = Kinding.kind_of_typ(ctx, fn);
       let arg_kinds =
         switch (arg.term) {
-        | TypTuple(ts) => List.map(Kinding.kind_of_typ(ctx), ts)
+        | TypTuple(ts) => List.map(~f=Kinding.kind_of_typ(ctx), ts)
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
@@ -4207,7 +4210,12 @@ and utyp_to_info_map =
               actual: n_actual,
             }),
           );
-        } else if (!List.for_all2(TypKind.consistent, expected, arg_kinds)) {
+        } else if (!
+                     List.for_all2_exn(
+                       expected,
+                       arg_kinds,
+                       ~f=TypKind.consistent,
+                     )) {
           err(
             Mark.TypKindMismatch({
               expected:
@@ -4222,7 +4230,7 @@ and utyp_to_info_map =
                 },
             }),
           );
-        } else if (expects == TypeExpected
+        } else if (TypExpectation.equal(expects, TypeExpected)
                    && !TypKind.consistent(result, TypKind.Type)) {
           err(
             Mark.TypKindMismatch({
@@ -4313,15 +4321,17 @@ and utyp_to_info_map =
       };
     let kept_marks =
       List.filter(
-        fun
-        | Mark.TypKindMismatch(_)
-        | Mark.TypParamApplyNonArrowKind(_)
-        | Mark.TypParamApplyArityMismatch(_) => false
-        | _ => true,
+        ~f=
+          fun
+          | Mark.TypKindMismatch(_)
+          | Mark.TypParamApplyNonArrowKind(_)
+          | Mark.TypParamApplyArityMismatch(_) => false
+          | _ => true,
         prior_marks,
       );
     let fn_message =
-      kept_marks == [] ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
+      List.is_empty(kept_marks)
+        ? Some(Message.TypOk(Message.Kind(fn_kind))) : None;
     let fn_info: Info.typ = {
       cls: Cls.Typ(Typ.cls_of_term(t1.term)),
       ctx,
@@ -4444,21 +4454,22 @@ and utyp_to_info_map =
        the body's type environment. */
     let body_ctx =
       List.fold_left(
-        (ctx, b: TPat.t) =>
-          switch (TPat.tyvar_of_utpat(b)) {
-          | Some(name) =>
-            Ctx.extend_tvar(
-              ctx,
-              {
-                name,
-                id: TPat.rep_id(b),
-                kind: Abstract,
-                typ_kind: TypKind.Type,
-              },
-            )
-          | None => ctx
-          },
-        ctx,
+        ~f=
+          (ctx, b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(b),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+        ~init=ctx,
         TPat.binders_of(utpat),
       );
     let m =
@@ -4476,21 +4487,22 @@ and utyp_to_info_map =
   | TypFun(utpat, tbody) =>
     let body_ctx =
       List.fold_left(
-        (ctx, b: TPat.t) =>
-          switch (TPat.tyvar_of_utpat(b)) {
-          | Some(name) =>
-            Ctx.extend_tvar(
-              ctx,
-              {
-                name,
-                id: TPat.rep_id(b),
-                kind: Abstract,
-                typ_kind: TypKind.Type,
-              },
-            )
-          | None => ctx
-          },
-        ctx,
+        ~f=
+          (ctx, b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(b),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+        ~init=ctx,
         TPat.binders_of(utpat),
       );
     let m =
@@ -4757,34 +4769,36 @@ and utpat_to_info_map =
       };
     let param_ctx =
       List.fold_left(
-        (ctx, param) =>
-          switch (TPat.tyvar_of_utpat(param)) {
-          | Some(name) =>
-            Ctx.extend_tvar(
-              ctx,
-              {
-                name,
-                id: TPat.rep_id(param),
-                kind: Abstract,
-                typ_kind: TypKind.Type,
-              },
-            )
-          | None => ctx
-          },
-        ctx,
+        ~f=
+          (ctx, param) =>
+            switch (TPat.tyvar_of_utpat(param)) {
+            | Some(name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(param),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+        ~init=ctx,
         params,
       );
     let m =
       List.fold_left(
-        (m, param) =>
-          utpat_to_info_map(
-            ~ctx=param_ctx,
-            ~ancestors=ancestors_inclusive,
-            param,
-            m,
-          )
-          |> snd,
-        m,
+        ~f=
+          (m, param) =>
+            utpat_to_info_map(
+              ~ctx=param_ctx,
+              ~ancestors=ancestors_inclusive,
+              param,
+              m,
+            )
+            |> snd,
+        ~init=m,
         params,
       );
     add(m);
@@ -4795,34 +4809,36 @@ and utpat_to_info_map =
        type parameters. */
     let elt_ctx =
       List.fold_left(
-        (ctx, tp) =>
-          switch (TPat.tyvar_of_utpat(tp)) {
-          | Some(name) =>
-            Ctx.extend_tvar(
-              ctx,
-              {
-                name,
-                id: TPat.rep_id(tp),
-                kind: Abstract,
-                typ_kind: TypKind.Type,
-              },
-            )
-          | None => ctx
-          },
-        ctx,
+        ~f=
+          (ctx, tp) =>
+            switch (TPat.tyvar_of_utpat(tp)) {
+            | Some(name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name,
+                  id: TPat.rep_id(tp),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+        ~init=ctx,
         tps,
       );
     let m =
       List.fold_left(
-        (m, tp) =>
-          utpat_to_info_map(
-            ~ctx=elt_ctx,
-            ~ancestors=ancestors_inclusive,
-            tp,
-            m,
-          )
-          |> snd,
-        m,
+        ~f=
+          (m, tp) =>
+            utpat_to_info_map(
+              ~ctx=elt_ctx,
+              ~ancestors=ancestors_inclusive,
+              tp,
+              m,
+            )
+            |> snd,
+        ~init=m,
         tps,
       );
     add(m);

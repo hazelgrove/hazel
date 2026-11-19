@@ -95,4 +95,4 @@ let rec binders_of = (tpat: t): list(t) =>
   };
 
 let tyvars_of = (tpat: t): list(string) =>
-  binders_of(tpat) |> List.filter_map(tyvar_of_utpat);
+  binders_of(tpat) |> List.filter_map(~f=tyvar_of_utpat);

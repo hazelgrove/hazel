@@ -9,7 +9,7 @@ let parse_menhir_exp = (src: string): TermBase.Exp.t =>
 
 let static_errors = src => {
   let exp = parse_menhir_exp(src);
-  statics(exp) |> errors |> List.map(snd) |> List.flatten;
+  statics(exp) |> errors |> List.map(~f=snd) |> List.concat;
 };
 
 /* Run the elaborator and walk the entire result. */
@@ -29,14 +29,14 @@ let walk_elaboration = (src, visit) => {
       walk(body);
     | TyAlias(_, _, body) => walk(body)
     | Use(_, body) => walk(body)
-    | Tuple(xs) => List.iter(walk, xs)
+    | Tuple(xs) => List.iter(~f=walk, xs)
     | Fun(_, b, _, _)
     | TypAbs(_, b, _) => walk(b)
     | Asc(inner, _)
     | Parens(inner) => walk(inner)
     | Match(scrut, rules) =>
       walk(scrut);
-      List.iter(((_, r)) => walk(r), rules);
+      List.iter(~f=((_, r)) => walk(r), rules);
     | _ => ()
     };
   };
@@ -66,7 +66,8 @@ let count_fallback_constructors = (src, name): int => {
     Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
   let rec walk = (~inside_typ_ap=false, e: TermBase.Exp.t): unit => {
     switch (e.term) {
-    | Constructor(c, Some(Some(_))) when c == name && !inside_typ_ap =>
+    | Constructor(c, Some(Some(_)))
+        when String.equal(c, name) && !inside_typ_ap =>
       incr(count)
     | _ => ()
     };
@@ -80,14 +81,14 @@ let count_fallback_constructors = (src, name): int => {
       walk(body);
     | TyAlias(_, _, body) => walk(body)
     | Use(_, body) => walk(body)
-    | Tuple(xs) => List.iter(walk, xs)
+    | Tuple(xs) => List.iter(~f=walk, xs)
     | Fun(_, b, _, _)
     | TypAbs(_, b, _) => walk(b)
     | Asc(inner, _)
     | Parens(inner) => walk(inner)
     | Match(scrut, rules) =>
       walk(scrut);
-      List.iter(((_, r)) => walk(r), rules);
+      List.iter(~f=((_, r)) => walk(r), rules);
     | _ => ()
     };
   };
@@ -97,12 +98,12 @@ let count_fallback_constructors = (src, name): int => {
 
 let is_typ_ap_of_constructor = (name, e: TermBase.Exp.t): bool =>
   switch (e.term) {
-  | TypAp({term: Constructor(c, _), _}, _) => c == name
+  | TypAp({term: Constructor(c, _), _}, _) => String.equal(c, name)
   | _ => false
   };
 
 let has_mark = (expected: Mark.t, marks: list(Mark.t)): bool =>
-  List.exists(mark => equal_mark(mark, expected), marks);
+  List.exists(~f=mark => equal_mark(mark, expected), marks);
 
 let tests = (
   "Statics.ParameterizedTypes",
@@ -123,7 +124,7 @@ let x : Option(Int) = ? in x
           list(testable_issue),
           "Static Errors",
           [],
-          List.map(ms => Marks([ms]), marks),
+          List.map(~f=ms => Marks([ms]), marks),
         );
       },
     ),
@@ -143,7 +144,7 @@ let x : Option(Int) = Some(3) in x
           list(testable_issue),
           "Static Errors",
           [],
-          List.map(ms => Marks([ms]), marks),
+          List.map(~f=ms => Marks([ms]), marks),
         );
       },
     ),
@@ -178,7 +179,7 @@ let xs : List(Int) = Cons((1, Nil)) in xs
           list(testable_issue),
           "Static Errors",
           [],
-          List.map(ms => Marks([ms]), marks),
+          List.map(~f=ms => Marks([ms]), marks),
         );
       },
     ),
@@ -223,9 +224,10 @@ type List(a) = + Nil + Cons(Int, List) in ?
         let kind_mismatch_count =
           List.length(
             List.filter(
-              fun
-              | Mark.TypKindMismatch(_) => true
-              | _ => false,
+              ~f=
+                fun
+                | Mark.TypKindMismatch(_) => true
+                | _ => false,
               marks,
             ),
           );
@@ -256,7 +258,7 @@ let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x
           list(testable_issue),
           "no static errors",
           [],
-          List.map(ms => Marks([ms]), static_errors(src)),
+          List.map(~f=ms => Marks([ms]), static_errors(src)),
         );
       },
     ),
@@ -439,7 +441,7 @@ type Either(a, b) = + A(a) + B(b) in
 let x : Either(Int, Bool) = A(3) in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     test_case(
@@ -458,10 +460,11 @@ let x : Either(Int) = A(3) in x
           "Either applied to 1 argument is rejected with arity mismatch",
           true,
           List.exists(
-            fun
-            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
-              true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
+                true
+              | _ => false,
             marks,
           ),
         );
@@ -487,10 +490,11 @@ let x : Either((Int, Bool)) = A(0) in x
           "single-tuple-arg application is an arity mismatch",
           true,
           List.exists(
-            fun
-            | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
-              true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypParamApplyArityMismatch({expected: 2, actual: 1, _}) =>
+                true
+              | _ => false,
             marks,
           ),
         );
@@ -501,9 +505,10 @@ let x : Either((Int, Bool)) = A(0) in x
           "no spurious kind mismatch from currying",
           false,
           List.exists(
-            fun
-            | Mark.TypKindMismatch(_) => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypKindMismatch(_) => true
+              | _ => false,
             marks,
           ),
         );
@@ -522,9 +527,10 @@ let x : List(Int, Bool) = ? in x
           );
         let arity_marks =
           List.filter(
-            fun
-            | Mark.TypParamApplyArityMismatch(_) => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypParamApplyArityMismatch(_) => true
+              | _ => false,
             marks,
           );
         check(
@@ -550,7 +556,7 @@ type List(a) = + Nil + Cons(a, List(a)) in
 let x : List((Int, Bool)) = Nil in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     test_case(
@@ -569,22 +575,23 @@ type List(a) = + Nil + Cons(a, A(B)(a)) in ?
 |});
         let unbound_names =
           List.filter_map(
-            fun
-            | Mark.TypFreeTypeVariable(n) => Some(n)
-            | _ => None,
+            ~f=
+              fun
+              | Mark.TypFreeTypeVariable(n) => Some(n)
+              | _ => None,
             marks,
           );
         check(
           bool,
           "A is reported as free",
           true,
-          List.mem("A", unbound_names),
+          List.mem(unbound_names, "A", ~equal=String.equal),
         );
         check(
           bool,
           "B is reported as free",
           true,
-          List.mem("B", unbound_names),
+          List.mem(unbound_names, "B", ~equal=String.equal),
         );
       },
     ),
@@ -609,9 +616,10 @@ type List(a) = + Nil + Cons(a, L(a)) in ?
           "L is reported as a free type variable",
           true,
           List.exists(
-            fun
-            | Mark.TypFreeTypeVariable("L") => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypFreeTypeVariable("L") => true
+              | _ => false,
             marks,
           ),
         );
@@ -620,10 +628,11 @@ type List(a) = + Nil + Cons(a, L(a)) in ?
           "no spurious cannot-apply mark on the surrounding TypParamAp",
           false,
           List.exists(
-            fun
-            | Mark.TypParamApplyNonArrowKind(_)
-            | Mark.TypParamApplyArityMismatch(_) => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TypParamApplyNonArrowKind(_)
+              | Mark.TypParamApplyArityMismatch(_) => true
+              | _ => false,
             marks,
           ),
         );
@@ -669,7 +678,8 @@ let x : Either(Int, Bool) = A(3) in x
 let pair : poly a, b -> a -> b -> (a, b) =
   abs a, b -> fun x : a -> fun y : b -> (x, y) in pair
 |};
-        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        let exp =
+          Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.value_exn;
         /* Walk the AST looking for the user's `poly a, b -> …` annotation
            and the `abs a, b -> …` value. Both should have a single
            `Poly`/`TypAbs` node whose binder is a `TPat.Tuple([_, _])`,
@@ -758,9 +768,10 @@ let f : poly A(a) -> Int = ? in f
           "poly A(a) -> reports TPatParamNotAtAliasHead on the binder",
           true,
           List.exists(
-            fun
-            | Mark.TPatParamNotAtAliasHead("A") => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TPatParamNotAtAliasHead("A") => true
+              | _ => false,
             marks,
           ),
         );
@@ -778,9 +789,10 @@ let f = abs A(a) -> ? in f
           "abs A(a) -> reports TPatParamNotAtAliasHead on the binder",
           true,
           List.exists(
-            fun
-            | Mark.TPatParamNotAtAliasHead("A") => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TPatParamNotAtAliasHead("A") => true
+              | _ => false,
             marks,
           ),
         );
@@ -803,9 +815,10 @@ type T(B(a)) = a in ?
           "inner B(a) reports TPatParamNotAtAliasHead",
           true,
           List.exists(
-            fun
-            | Mark.TPatParamNotAtAliasHead("B") => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TPatParamNotAtAliasHead("B") => true
+              | _ => false,
             marks,
           ),
         );
@@ -825,7 +838,7 @@ type T(B(a)) = a in ?
           static_errors({|
 let f : poly (a, b) -> a -> b -> Int = ? in f
 |})
-          |> List.map(ms => Marks([ms])),
+          |> List.map(~f=ms => Marks([ms])),
         );
         Alcotest.check(
           list(testable_issue),
@@ -834,7 +847,7 @@ let f : poly (a, b) -> a -> b -> Int = ? in f
           static_errors({|
 let g = abs (a, b) -> ? in g
 |})
-          |> List.map(ms => Marks([ms])),
+          |> List.map(~f=ms => Marks([ms])),
         );
         /* And the recursive map example with parenthesized binders
            round-trips correctly through the dynamics too: a single-
@@ -846,7 +859,7 @@ let g = abs (a, b) -> ? in g
           static_errors({|
 let h = abs (a) -> ? in h
 |})
-          |> List.map(ms => Marks([ms])),
+          |> List.map(~f=ms => Marks([ms])),
         );
       },
     ),
@@ -865,9 +878,10 @@ type T(a, b) = (a, b) in ?
           "no TPatParamNotAtAliasHead on the alias head",
           false,
           List.exists(
-            fun
-            | Mark.TPatParamNotAtAliasHead(_) => true
-            | _ => false,
+            ~f=
+              fun
+              | Mark.TPatParamNotAtAliasHead(_) => true
+              | _ => false,
             marks,
           ),
         );
@@ -898,7 +912,7 @@ let map : poly a, b -> ([a], a -> b) -> [b] =
 map@<Int, Int>([1, 2, 3], fun x -> x * 2)
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     /* Type-level type function as the body of a type alias.
@@ -921,7 +935,7 @@ type Option = typfun a -> + None + Some(a) in
 let x : Option(Int) = Some(3) in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     test_case(
@@ -938,7 +952,7 @@ type Either = typfun a, b -> + Left(a) + Right(b) in
 let x : Either(Int, Bool) = Right(true) in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     /* Curried `typfun a -> typfun b -> body` keeps each unary
@@ -968,7 +982,7 @@ type R = PResult(String)(Bool) in
 let x : R = Ok(true) in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     /* Companion to the curried-typfun test: the *partial*
@@ -988,7 +1002,7 @@ type StringResult = PResult(String) in
 let x : StringResult(Int) = Ok(7) in x
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
     /* Regression: applying a multi-binder type abstraction
@@ -1018,11 +1032,12 @@ B@<Int>(0)
           "exactly one TypAbsApplyArityMismatch on the program",
           true,
           List.exists(
-            (m: Mark.t) =>
-              switch (m) {
-              | TypAbsApplyArityMismatch({expected: 2, actual: 1}) => true
-              | _ => false
-              },
+            ~f=
+              (m: Mark.t) =>
+                switch (m) {
+                | TypAbsApplyArityMismatch({expected: 2, actual: 1}) => true
+                | _ => false
+                },
             marks,
           ),
         );
@@ -1031,11 +1046,12 @@ B@<Int>(0)
           "no ExpectationMismatch on the value argument",
           false,
           List.exists(
-            (m: Mark.t) =>
-              switch (m) {
-              | ExpectationMismatch(_) => true
-              | _ => false
-              },
+            ~f=
+              (m: Mark.t) =>
+                switch (m) {
+                | ExpectationMismatch(_) => true
+                | _ => false
+                },
             marks,
           ),
         );
@@ -1065,7 +1081,7 @@ A
         let ctr_schema = ref(None);
         Id.Map.iter(
           (_, info) =>
-            if (ctr_schema^ == None) {
+            if (Option.is_none(ctr_schema^)) {
               switch (info) {
               | Info.InfoExp({ctx, _}) =>
                 switch (Ctx.lookup_ctr(ctx, "A")) {
@@ -1145,7 +1161,7 @@ A
         let alias_ty = ref(None);
         Id.Map.iter(
           (_, info) =>
-            if (alias_ty^ == None) {
+            if (Option.is_none(alias_ty^)) {
               switch (info) {
               | Info.InfoExp({ctx, _}) =>
                 switch (Ctx.lookup_tvar(ctx, "MyEither")) {
@@ -1217,7 +1233,7 @@ type List = typfun a -> + Nil + Cons(a, List(a)) in
 let xs : List(Int) = Cons((1, Nil)) in xs
 |},
         )
-        |> List.map(ms => Marks([ms])),
+        |> List.map(~f=ms => Marks([ms])),
       )
     }),
   ],

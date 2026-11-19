@@ -448,12 +448,14 @@ let binder_of_tpat = (tpat: TPat.t): TPat.t => {
     | MultiHole(els) =>
       let extracted =
         List.filter_map(
-          fun
-          | Grammar.TPat(tp) => Some(tp)
-          | _ => None,
+          ~f=
+            fun
+            | Grammar.TPat(tp) => Some(tp)
+            | _ => None,
           els,
         );
-      if (List.length(extracted) == List.length(els) && extracted != []) {
+      if (List.length(extracted) == List.length(els)
+          && !List.is_empty(extracted)) {
         Some(extracted);
       } else {
         None;
@@ -1562,7 +1564,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
        `parse_sum_term` reads a constructor-headed application back as
        a variant with a payload. */
     | ([(id, (F(Compound(Parens | Ap)), [Typ(arg)]))], [])
-        when get_incomplete([id]) == [] && Any.is_typ(l) != None =>
+        when
+          List.is_empty(get_incomplete([id]))
+          && Option.is_some(Any.is_typ(l)) =>
       switch (l) {
       | Typ(t) => ret(apply_typ_param_args(t, arg))
       | _ => ret(hole(tm))
@@ -1733,7 +1737,7 @@ and tpat_term: unsorted => TPat.term = {
   let params_of_tpat = (tp: TPat.t): option(list(TPat.t)) =>
     switch (tp.term) {
     | MultiHole(things) =>
-      things |> List.map(Any.is_tpat) |> OptUtil.sequence
+      things |> List.map(~f=Any.is_tpat) |> OptUtil.sequence
     | _ => Some([tp])
     };
   fun
@@ -1771,7 +1775,7 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         MultiHole(
           [Grammar.TPat(t1)]
-          @ List.map((tpat: TPat.t) => Grammar.TPat(tpat), between_kids)
+          @ List.map(~f=(tpat: TPat.t) => Grammar.TPat(tpat), between_kids)
           @ [Grammar.TPat(t2)],
         ),
       )

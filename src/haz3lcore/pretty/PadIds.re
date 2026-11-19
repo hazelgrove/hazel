@@ -152,7 +152,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | TypFun(tp, t) => TypFun(tp, pad_variant_anns(t))
     | TypParamAp(t1, t2) =>
       TypParamAp(pad_variant_anns(t1), pad_variant_anns(t2))
-    | TypTuple(ts) => TypTuple(List.map(pad_variant_anns, ts))
+    | TypTuple(ts) => TypTuple(List.map(~f=pad_variant_anns, ts))
     | Projector(d, t) => Projector(d, pad_variant_anns(t))
     | ProdProjection(t1, t2) =>
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
@@ -203,7 +203,8 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
               ...tp.annotation,
               ids:
                 current_ids
-                @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
+                @ List.init(
+                    max(0, needed_ids - List.length(current_ids)), ~f=_ =>
                     Id.mk()
                   ),
             },

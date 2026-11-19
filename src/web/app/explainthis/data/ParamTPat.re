@@ -20,7 +20,7 @@ let param_tpat = (~head_id: Id.t, ~param_ids: list(Id.t)): form => {
         Id.to_string(head_id),
         n == 1 ? "parameter" : "parameters",
         links("parameter", param_ids),
-        String.concat(", ", List.init(n, _ => "X")),
+        String.concat(~sep=", ", List.init(n, ~f=_ => "X")),
       ),
     examples: [],
   };

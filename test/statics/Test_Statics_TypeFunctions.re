@@ -20,8 +20,8 @@ let check_marks = (name, expected: list(Mark.t), src) =>
   check(
     list(testable_issue),
     name,
-    List.map(m => Marks([m]), expected),
-    List.map(m => Marks([m]), static_errors(src)),
+    List.map(~f=m => Marks([m]), expected),
+    List.map(~f=m => Marks([m]), static_errors(src)),
   );
 
 let no_errors = (name, src) => check_marks(name, [], src);
@@ -104,7 +104,7 @@ let y : PResult(String)(Bool) = E("no") in
               switch (info) {
               | Info.InfoExp({ctx, _}) =>
                 switch (Ctx.lookup_ctr(ctx, "D")) {
-                | Some({typ, _}) when found^ == "not found" =>
+                | Some({typ, _}) when String.equal(found^, "not found") =>
                   found := Typ.pretty_print(typ)
                 | _ => ()
                 }

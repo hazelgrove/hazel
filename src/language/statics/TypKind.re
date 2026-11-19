@@ -21,7 +21,7 @@ let rec consistent = (k1: t, k2: t): bool =>
   | (Arrow(_, _), Type) => false
   | (Arrow(args1, r1), Arrow(args2, r2)) =>
     List.length(args1) == List.length(args2)
-    && List.for_all2(consistent, args1, args2)
+    && List.for_all2_exn(args1, args2, ~f=consistent)
     && consistent(r1, r2)
   };
 
@@ -35,7 +35,7 @@ let apply_all = (fn_kind: t, arg_kinds: list(t)): option(t) =>
   | Type => None
   | Arrow(expected, result) =>
     List.length(expected) == List.length(arg_kinds)
-    && List.for_all2(consistent, expected, arg_kinds)
+    && List.for_all2_exn(expected, arg_kinds, ~f=consistent)
       ? Some(result) : None
   };
 
@@ -46,7 +46,7 @@ let arrows = (args: list(t), result: t): t =>
   };
 
 let of_param_count = (count: int): t =>
-  arrows(List.init(count, _ => Type), Type);
+  arrows(List.init(count, ~f=_ => Type), Type);
 
 let rec to_string = (kind: t): string =>
   switch (kind) {
@@ -63,7 +63,7 @@ let rec to_string = (kind: t): string =>
     arg_str ++ " -> " ++ to_string(result);
   | Arrow(args, result) =>
     "("
-    ++ String.concat(", ", List.map(to_string, args))
+    ++ String.concat(~sep=", ", List.map(~f=to_string, args))
     ++ ") -> "
     ++ to_string(result)
   };

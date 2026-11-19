@@ -180,7 +180,7 @@ let instantiation_args_for =
       if (List.length(args) == arity) {
         args;
       } else {
-        List.init(arity, _ => Unknown(Internal) |> Typ.fresh);
+        List.init(arity, ~f=_ => Unknown(Internal) |> Typ.fresh);
       };
     }
   | _ => []

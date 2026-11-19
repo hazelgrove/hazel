@@ -9,7 +9,7 @@ open Test_Evaluator_Prelude;
    ascription (no stuck `TypAp` wrapping, no free-constructor errors
    when the result is re-analyzed). */
 let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => {
-  let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+  let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.value_exn;
   let (_info_map, elab) =
     Statics.mk(CoreSettings.on, Language.Builtins.ctx_init(Some(Int)), exp);
   let evaluated =
@@ -19,7 +19,7 @@ let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => 
   let found = ref(false);
   let rec walk = (e: Exp.t): unit => {
     switch (e.term) {
-    | Constructor(c, Some(Some(t))) when c == name =>
+    | Constructor(c, Some(Some(t))) when String.equal(c, name) =>
       switch (t.term) {
       | Poly(_) => ()
       | _ => found := true
@@ -31,7 +31,7 @@ let evaluated_is_self_typed_ctr = (src: string, name: string): (bool, Exp.t) => 
     | Ap(_, f, a) =>
       walk(f);
       walk(a);
-    | Tuple(xs) => List.iter(walk, xs)
+    | Tuple(xs) => List.iter(~f=walk, xs)
     | Parens(inner)
     | Asc(inner, _)
     | Closure(_, inner)
@@ -258,7 +258,8 @@ let xs : List(Int) = Cons(0, Cons(1, Cons(2, Nil))) in xs|},
   + Nil
   + Cons(a, List((Int, a))) in
 let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
-        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        let exp =
+          Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.value_exn;
         let (_info_map, elab) =
           Statics.mk(
             CoreSettings.on,
@@ -276,7 +277,7 @@ let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
           | Ap(_, f, a) =>
             walk(f);
             walk(a);
-          | Tuple(xs) => List.iter(walk, xs)
+          | Tuple(xs) => List.iter(~f=walk, xs)
           | Parens(inner)
           | Asc(inner, _)
           | Closure(_, inner)
@@ -321,7 +322,8 @@ let x : List(Int) = Cons(3, Cons((4, 4), Cons((5, (6, 7)), Nil))) in x|};
       () => {
         let src = {|type List(a) = + Nil + Cons(a, List(a)) in
 let x : List(Int) = Cons(0, Cons(10, Nil)) in x|};
-        let exp = Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.get;
+        let exp =
+          Haz3lcore.Parser.to_term(src, ~root=Exp) |> Option.value_exn;
         let (_info_map, elab) =
           Statics.mk(
             CoreSettings.on,

@@ -1644,7 +1644,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           indet_term_typ;
         } else {
           available := available^ - List.length(ts);
-          TypTuple(List.map(abbreviate_typ, ts));
+          TypTuple(List.map(~f=abbreviate_typ, ts));
         }
       | TupLabel(t1, t2) =>
         if (available^ < 3) {
@@ -1817,14 +1817,17 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t =>
           indet_term_tpat;
         } else {
           available := available^ - 2;
-          Param(abbreviate_tpat(head), List.map(abbreviate_tpat, params));
+          Param(
+            abbreviate_tpat(head),
+            List.map(~f=abbreviate_tpat, params),
+          );
         }
       | Tuple(tps) =>
         if (available^ <= 2) {
           indet_term_tpat;
         } else {
           available := available^ - 2;
-          Tuple(List.map(abbreviate_tpat, tps));
+          Tuple(List.map(~f=abbreviate_tpat, tps));
         }
       | Parens(tp) =>
         if (available^ <= 2) {

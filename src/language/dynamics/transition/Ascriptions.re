@@ -143,11 +143,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         if (List.length(user_binders) == List.length(outer_binders)) {
           let args =
             List.map(
-              (b: TPat.t): Typ.t =>
-                switch (TPat.tyvar_of_utpat(b)) {
-                | Some(tyvar) => Var(tyvar) |> Typ.temp
-                | None => Unknown(Internal) |> Typ.temp
-                },
+              ~f=
+                (b: TPat.t): Typ.t =>
+                  switch (TPat.tyvar_of_utpat(b)) {
+                  | Some(tyvar) => Var(tyvar) |> Typ.temp
+                  | None => Unknown(Internal) |> Typ.temp
+                  },
               user_binders,
             );
           Typ.subst_many(args, outer_binders, t');

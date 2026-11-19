@@ -772,7 +772,7 @@ let rec parenthesize =
         term: new_term,
       };
     };
-    Module(List.map(parenthesize_item, items)) |> rewrap;
+    Module(List.map(~f=parenthesize_item, items)) |> rewrap;
   | ModuleExp(mp, def, body) =>
     ModuleExp(mp, parenthesize(def), parenthesize(body)) |> rewrap
   };
@@ -1007,7 +1007,7 @@ and parenthesize_typ =
   | TypTuple(ts) =>
     TypTuple(
       List.map(
-        t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
+        ~f=t => parenthesize_typ(t) |> paren_typ_at(Precedence.comma),
         ts,
       ),
     )
@@ -3179,15 +3179,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     /* The bare argument list of `T(a, b)`: its parens are the enclosing
        application's. */
     let+ t = go(t)
-    and+ ts = ts |> List.map(go) |> all;
+    and+ ts = ts |> List.map(~f=go) |> all;
     wrap(
       typ,
       t
-      @ List.flatten(
-          List.map2(
-            (id, t) => [mk_form(Comma, id, [])] @ t,
+      @ List.concat(
+          List.map2_exn(
             IdTagged.ids(typ) |> PadIds.pad_ids(List.length(ts)),
             ts,
+            ~f=(id, t) =>
+            [mk_form(Comma, id, [])] @ t
           ),
         ),
     );
@@ -3357,15 +3358,14 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
     let mk_form = mk_form(~secondary=settings.secondary, ~sort=Sort.TPat);
     let+ head = tpat_to_pretty(~settings: Settings.t, head)
     and+ params =
-      params |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+      params |> List.map(~f=tpat_to_pretty(~settings: Settings.t)) |> all;
     let params =
       switch (params) {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (comma_id, param) => [mk_form(Comma, comma_id, [])] @ param,
+        @ List.concat(
+            List.map2_exn(
               /* the first id is the application's (`app_id`) */
               (
                 switch (IdTagged.ids(tpat)) {
@@ -3375,6 +3375,8 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
               )
               |> PadIds.pad_ids(List.length(rest)),
               rest,
+              ~f=(comma_id, param) =>
+              [mk_form(Comma, comma_id, [])] @ param
             ),
           )
       };
@@ -3382,17 +3384,19 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | Tuple(tps) =>
     /* a binder list `a, b, c` */
     let mk_form = mk_form(~secondary=settings.secondary, ~sort=Sort.TPat);
-    let+ tps = tps |> List.map(tpat_to_pretty(~settings: Settings.t)) |> all;
+    let+ tps =
+      tps |> List.map(~f=tpat_to_pretty(~settings: Settings.t)) |> all;
     let seg =
       switch (tps) {
       | [] => []
       | [first, ...rest] =>
         first
-        @ List.flatten(
-            List.map2(
-              (comma_id, tp) => [mk_form(Comma, comma_id, [])] @ tp,
+        @ List.concat(
+            List.map2_exn(
               IdTagged.ids(tpat) |> PadIds.pad_ids(List.length(rest)),
               rest,
+              ~f=(comma_id, tp) =>
+              [mk_form(Comma, comma_id, [])] @ tp
             ),
           )
       };

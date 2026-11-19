@@ -127,10 +127,10 @@ let comma_list =
   let pieces =
     n == 1
       ? [mk(name)]
-      : List.init(n, i => mk(Printf.sprintf("%s%d", name, i + 1)));
+      : List.init(n, ~f=i => mk(Printf.sprintf("%s%d", name, i + 1)));
   let seg =
     pieces
-    |> List.mapi((i, p) => i == 0 ? [p] : [sep(), space(), p])
+    |> List.mapi(~f=(i, p) => i == 0 ? [p] : [sep(), space(), p])
     |> List.concat;
   (seg, pieces);
 };
@@ -152,8 +152,10 @@ let rec zip_colorings =
 /* `[*label*](id)` links, comma separated */
 let links = (label: string, ids: list(Id.t)): string =>
   ids
-  |> List.map(id => Printf.sprintf("[*%s*](%s)", label, Id.to_string(id)))
-  |> String.concat(", ");
+  |> List.map(~f=id =>
+       Printf.sprintf("[*%s*](%s)", label, Id.to_string(id))
+     )
+  |> String.concat(~sep=", ");
 
 /* Links labelled with the names they stand for, `a` and `b` */
 let named_links = (named: list((string, Id.t))): string => {
@@ -163,6 +165,8 @@ let named_links = (named: list((string, Id.t))): string => {
   | [] => ""
   | [last] => link(last)
   | [last, ...rest] =>
-    String.concat(", ", List.rev_map(link, rest)) ++ " and " ++ link(last)
+    String.concat(~sep=", ", List.rev_map(~f=link, rest))
+    ++ " and "
+    ++ link(last)
   };
 };

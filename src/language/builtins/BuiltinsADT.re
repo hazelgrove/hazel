@@ -61,7 +61,7 @@ module Option = {
     sum_type([("None", None), ("Some", Some(var_typ("a")))]);
   /* The full parameterized alias type stored in the ctx:
      `TypFun(a, body)` (kind `(Type) -> Type`). */
-  let t: Typ.t = TypFun(List.hd(params), body) |> Typ.fresh;
+  let t: Typ.t = TypFun(List.hd_exn(params), body) |> Typ.fresh;
   /* `Option(?)` — gradually-typed instance. Used in builtin
      function signatures (so the cursor inspector displays
      `(Option(?), ? -> ?) -> Option(?)` rather than the noisy
@@ -823,7 +823,8 @@ let create_type_alias =
    (`Type` for n=0, `(Type) -> Type` for n=1, etc.). */
 let types: list(Ctx.entry) =
   List.map(
-    ~f=((name, params, typ, _body)) => create_type_alias(~params, name, typ),
+    ~f=
+      ((name, params, typ, _body)) => create_type_alias(~params, name, typ),
     parameterized_aliases,
   );
 

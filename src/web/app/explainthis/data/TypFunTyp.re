@@ -25,7 +25,7 @@ let curried_ex = {
    type arguments, `T(Int)`, never as the type of a value. */
 let typfun_typ =
     (~binders: list((string, Id.t)), ~tbody_id: Id.t, ~kind: string): form => {
-  let tpat_ids = List.map(snd, binders);
+  let tpat_ids = List.map(~f=snd, binders);
   let n = List.length(tpat_ids);
   let (binder_seg, binder_pieces) = tpat_list("a", n);
   let typ_body = typ("ty");
@@ -47,12 +47,13 @@ let typfun_typ =
         n == 1 ? "a type argument" : Printf.sprintf("%d type arguments", n),
         Id.to_string(tbody_id),
         named_links(binders),
-        n == 1 ? "Int" : String.concat(", ", List.init(n, _ => "Int")),
+        n == 1
+          ? "Int" : String.concat(~sep=", ", List.init(n, ~f=_ => "Int")),
         n == 1
           ? "a"
           : String.concat(
-              ", ",
-              List.init(n, i => Printf.sprintf("a%d", i + 1)),
+              ~sep=", ",
+              List.init(n, ~f=i => Printf.sprintf("a%d", i + 1)),
             ),
       ),
     examples: [option_ex, curried_ex],

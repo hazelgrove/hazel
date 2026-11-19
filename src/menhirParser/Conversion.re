@@ -493,7 +493,7 @@ and Typ: {
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
     | TypParamAp(t1, t2) =>
       typ_param_ap(of_menhir_ast(t1), of_menhir_ast(t2))
-    | TypTuple(ts) => typ_tuple(List.map(of_menhir_ast, ts))
+    | TypTuple(ts) => typ_tuple(List.map(~f=of_menhir_ast, ts))
     | ProdProjection(t1, t2) =>
       let t2 =
         switch (t2) {
@@ -562,7 +562,7 @@ and Typ: {
     /* `TypTuple` is the multi-argument bundle in a type-level
        application like `Either(a, b)`; round-trip it as the matching
        Menhir AST node. */
-    | TypTuple(ts) => TypTuple(List.map(of_core, ts))
+    | TypTuple(ts) => TypTuple(List.map(~f=of_core, ts))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | TypFun(tp, t) => TypFunType(TPat.of_core(tp), of_core(t))
@@ -608,8 +608,8 @@ and TPat: {
     | EmptyHoleTPat => empty_hole()
     | VarTPat(s) => var(s)
     | ParamTPat(name, params) =>
-      param(var(name), List.map(of_menhir_ast, params))
-    | TupleTPat(tps) => tuple(List.map(of_menhir_ast, tps))
+      param(var(name), List.map(~f=of_menhir_ast, params))
+    | TupleTPat(tps) => tuple(List.map(~f=of_menhir_ast, tps))
     };
   };
 
@@ -624,8 +624,8 @@ and TPat: {
         | Invalid(s) => s
         | _ => "?"
         };
-      ParamTPat(name, List.map(of_core, params));
-    | Tuple(tps) => TupleTPat(List.map(of_core, tps))
+      ParamTPat(name, List.map(~f=of_core, params));
+    | Tuple(tps) => TupleTPat(List.map(~f=of_core, tps))
     /* Parens are dropped on conversion to the Menhir AST (the
        round-trip tests compare syntactic shape without surface
        parens). */

@@ -104,7 +104,7 @@ let test_let_ref_to_binding =
       let ids = highlight_ids(info_map, ref_info);
       /* Should include the binding site */
       let binding = find_var_binding(info_map, "x");
-      check(bool, "found x binding", true, binding != None);
+      check(bool, "found x binding", true, Option.is_some(binding));
       let (binding_id, _) = Option.value_exn(binding);
       check(bool, "highlights binding", true, has_id(ids, binding_id));
     },
@@ -309,7 +309,7 @@ let test_tvar_ref_to_binding =
       let (_, ref_info) = List.hd_exn(tvar_refs);
       let ids = highlight_ids(info_map, ref_info);
       let binding = find_tvar_binding(info_map, "T");
-      check(bool, "found T binding", true, binding != None);
+      check(bool, "found T binding", true, Option.is_some(binding));
       let (binding_id, _) = Option.value_exn(binding);
       check(bool, "highlights binding", true, has_id(ids, binding_id));
     },
@@ -324,7 +324,7 @@ let test_tvar_binding_to_refs =
         parse_exp("type T = Int in let x : T = 1 in let y : T = 2 in x + y");
       let info_map = statics(exp);
       let binding = find_tvar_binding(info_map, "T");
-      check(bool, "found T binding", true, binding != None);
+      check(bool, "found T binding", true, Option.is_some(binding));
       let (_, binding_info) = Option.value_exn(binding);
       let ids = highlight_ids(info_map, binding_info);
       let tvar_refs = find_tvar_refs(info_map, "T");
@@ -402,7 +402,7 @@ let test_ctr_ref_to_def =
       let ids = highlight_ids(info_map, ref_info);
       /* Should highlight the constructor definition site */
       let def = find_ctr_def(info_map, "A");
-      check(bool, "found A definition", true, def != None);
+      check(bool, "found A definition", true, Option.is_some(def));
       let (def_id, _) = Option.value_exn(def);
       check(bool, "highlights definition", true, has_id(ids, def_id));
     },
@@ -426,8 +426,8 @@ let test_ctr_distinct_defs =
       let b_ids = highlight_ids(info_map, b_info);
       let a_def = find_ctr_def(info_map, "A");
       let b_def = find_ctr_def(info_map, "B");
-      check(bool, "found A def", true, a_def != None);
-      check(bool, "found B def", true, b_def != None);
+      check(bool, "found A def", true, Option.is_some(a_def));
+      check(bool, "found B def", true, Option.is_some(b_def));
       let (a_def_id, _) = Option.value_exn(a_def);
       let (b_def_id, _) = Option.value_exn(b_def);
       /* A highlights A's def, not B's */
@@ -458,7 +458,7 @@ let test_ctr_def_to_uses =
         parse_exp("type T = A + B in let x : T = A in let y : T = A in x");
       let info_map = statics(exp);
       let def = find_ctr_def(info_map, "A");
-      check(bool, "found A definition", true, def != None);
+      check(bool, "found A definition", true, Option.is_some(def));
       let (_, def_info) = Option.value_exn(def);
       let ids = highlight_ids(info_map, def_info);
       let refs = find_ctr_refs(info_map, "A");
@@ -514,7 +514,7 @@ let test_ctr_pat_in_case =
       let exp = parse_exp("type T = A + B in case A | A => A end");
       let info_map = statics(exp);
       let def = find_ctr_def(info_map, "A");
-      check(bool, "found A definition", true, def != None);
+      check(bool, "found A definition", true, Option.is_some(def));
       let (_, def_info) = Option.value_exn(def);
       let def_ids = highlight_ids(info_map, def_info);
       /* All constructor refs (expr + pat) should be highlighted from def */
@@ -588,9 +588,9 @@ let test_ctr_use_from_outside_module =
       /* From the outside use, the highlight set must be non-empty —
          it should at least include the constructor's binding site
          inside the module. */
-      let (use_id, use_info) = List.hd(cons_uses);
+      let (use_id, use_info) = List.hd_exn(cons_uses);
       let ids = highlight_ids(info_map, use_info);
-      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      let other_ids = List.filter(~f=id => !Id.equal(id, use_id), ids);
       check(
         bool,
         "outside use produces highlights",
@@ -633,10 +633,15 @@ let test_qualified_type_label_highlight_parameterized =
           info_map,
           None,
         );
-      check(bool, "found m.PList label use", true, label_use != None);
-      let (use_id, use_info) = Option.get(label_use);
+      check(
+        bool,
+        "found m.PList label use",
+        true,
+        Option.is_some(label_use),
+      );
+      let (use_id, use_info) = Option.value_exn(label_use);
       let ids = highlight_ids(info_map, use_info);
-      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      let other_ids = List.filter(~f=id => !Id.equal(id, use_id), ids);
       /* The binding-site id must point at the `PList` head tpat (an
          InfoTPat with term `Var("PList")`), not the parent `Param`'s
          postfix tile. */
@@ -648,12 +653,13 @@ let test_qualified_type_label_highlight_parameterized =
       );
       let head_targets =
         List.filter(
-          id =>
-            switch (Id.Map.find_opt(id, info_map)) {
-            | Some(InfoTPat({user_term: {term: Var("PList"), _}, _})) =>
-              true
-            | _ => false
-            },
+          ~f=
+            id =>
+              switch (Id.Map.find_opt(id, info_map)) {
+              | Some(InfoTPat({user_term: {term: Var("PList"), _}, _})) =>
+                true
+              | _ => false
+              },
           other_ids,
         );
       check(
@@ -700,10 +706,10 @@ let test_qualified_type_label_highlight =
           info_map,
           None,
         );
-      check(bool, "found m.T label use", true, label_use != None);
-      let (use_id, use_info) = Option.get(label_use);
+      check(bool, "found m.T label use", true, Option.is_some(label_use));
+      let (use_id, use_info) = Option.value_exn(label_use);
       let ids = highlight_ids(info_map, use_info);
-      let other_ids = List.filter(id => !Id.equal(id, use_id), ids);
+      let other_ids = List.filter(~f=id => !Id.equal(id, use_id), ids);
       check(
         bool,
         "label use highlights the alias declaration",
@@ -762,13 +768,13 @@ let test_ctr_type_directed_disambiguation =
       /* Find the use site `B(true)` — the InfoExp Constructor("B"). */
       let b_uses = find_ctr_refs(info_map, "B");
       check(bool, "found B use", true, List.length(b_uses) >= 1);
-      let (_, use_info) = List.hd(b_uses);
+      let (_, use_info) = List.hd_exn(b_uses);
       let use_ana =
         switch (use_info) {
         | InfoExp({ana, _}) => Some(ana)
         | _ => None
         };
-      check(bool, "B use has an ana", true, use_ana != None);
+      check(bool, "B use has an ana", true, Option.is_some(use_ana));
       /* Pick the def whose ancestors lead to a `OneOfThree`-headed
          alias. We approximate by checking the schema head of the
          entry returned by Ctx.lookup_ctr_for_ana on the use's ana. */
@@ -782,7 +788,7 @@ let test_ctr_type_directed_disambiguation =
         bool,
         "ctr_for_ana resolves to some entry",
         true,
-        resolved != None,
+        Option.is_some(resolved),
       );
       let resolved_id =
         switch (resolved) {
@@ -801,7 +807,7 @@ let test_ctr_type_directed_disambiguation =
       );
       /* Verify the OTHER B def is NOT in the highlight set. */
       let other_def_id =
-        List.find_opt(id => !Id.equal(id, resolved_id), b_defs);
+        List.find(~f=id => !Id.equal(id, resolved_id), b_defs);
       switch (other_def_id) {
       | Some(other_id) =>
         check(
@@ -834,13 +840,23 @@ let test_tvar_does_not_conflate_with_ctr =
       let info_map = statics(exp);
       /* `B` type-alias binding (the `type B =` head). */
       let alias_binding = find_tvar_binding(info_map, "B");
-      check(bool, "found B alias binding", true, alias_binding != None);
-      let (alias_binding_id, alias_info) = Option.get(alias_binding);
+      check(
+        bool,
+        "found B alias binding",
+        true,
+        Option.is_some(alias_binding),
+      );
+      let (alias_binding_id, alias_info) = Option.value_exn(alias_binding);
       let alias_ids = highlight_ids(info_map, alias_info);
       /* Find the constructor declaration `+ B(B)` in `S`. */
       let b_ctr_def = find_ctr_def(info_map, "B");
-      check(bool, "found B constructor def", true, b_ctr_def != None);
-      let (b_ctr_def_id, _) = Option.get(b_ctr_def);
+      check(
+        bool,
+        "found B constructor def",
+        true,
+        Option.is_some(b_ctr_def),
+      );
+      let (b_ctr_def_id, _) = Option.value_exn(b_ctr_def);
       /* Sanity: the two binding ids are NOT the same id (the bug
          would otherwise be impossible to observe). */
       check(
@@ -859,7 +875,7 @@ let test_tvar_does_not_conflate_with_ctr =
       );
       /* Conversely, the constructor's highlight set must not
          include the alias's binding. */
-      let (_, ctr_info) = Option.get(b_ctr_def);
+      let (_, ctr_info) = Option.value_exn(b_ctr_def);
       let ctr_ids = highlight_ids(info_map, ctr_info);
       check(
         bool,

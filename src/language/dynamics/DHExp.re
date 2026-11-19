@@ -141,37 +141,36 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
    length; the caller is expected to enforce that. */
 /* Simultaneous, as Typ.subst_many. */
 let ty_subst_many = (args: list(Typ.t), binders: list(TPat.t), exp: t): t => {
-  let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+  let names = List.filter_map(~f=TPat.tyvar_of_utpat, binders);
   let subst_all = (binders, exp) =>
-    List.fold_left2(
-      (exp, arg, binder) => ty_subst(arg, binder, exp),
-      exp,
-      args,
-      binders,
+    List.fold2_exn(args, binders, ~init=exp, ~f=(exp, arg, binder) =>
+      ty_subst(arg, binder, exp)
     );
   if (List.exists(
-        arg => List.exists(x => List.mem(x, names), Typ.free_vars(arg)),
+        ~f=
+          arg =>
+            List.exists(
+              ~f=x => List.mem(names, x, ~equal=String.equal),
+              Typ.free_vars(arg),
+            ),
         args,
       )) {
     let renamed =
       List.map(
-        (b: TPat.t) =>
-          switch (TPat.tyvar_of_utpat(b)) {
-          | Some(x) => TPat.fresh(Var(Typ.fresh_var(x)))
-          | None => b
-          },
+        ~f=
+          (b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(x) => TPat.fresh(Var(Typ.fresh_var(x)))
+            | None => b
+            },
         binders,
       );
     let exp =
-      List.fold_left2(
-        (exp, b, b') =>
-          switch (TPat.tyvar_of_utpat(b')) {
-          | Some(x') => ty_subst(Var(x') |> Typ.temp, b, exp)
-          | None => exp
-          },
-        exp,
-        binders,
-        renamed,
+      List.fold2_exn(binders, renamed, ~init=exp, ~f=(exp, b, b') =>
+        switch (TPat.tyvar_of_utpat(b')) {
+        | Some(x') => ty_subst(Var(x') |> Typ.temp, b, exp)
+        | None => exp
+        }
       );
     subst_all(renamed, exp);
   } else {
@@ -193,7 +192,7 @@ let type_args = (tpat: TPat.t, tau: Typ.t): (list(TPat.t), list(Typ.t)) => {
       binders,
       ts,
     )
-  | _ => (binders, List.map(_ => unknown(), binders))
+  | _ => (binders, List.map(~f=_ => unknown(), binders))
   };
 };
 

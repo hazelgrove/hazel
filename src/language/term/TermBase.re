@@ -684,7 +684,7 @@ and Typ: {
         | TypFun(tp, t) => TypFun(tpat_map_term(tp), typ_map_term(t))
         | TypParamAp(t1, t2) =>
           TypParamAp(typ_map_term(t1), typ_map_term(t2))
-        | TypTuple(ts) => TypTuple(List.map(typ_map_term, ts))
+        | TypTuple(ts) => TypTuple(List.map(~f=typ_map_term, ts))
         | Unknown(Hole(MultiHole(things))) =>
           Unknown(Hole(MultiHole(List.map(~f=any_map_term, things))))
         | Prod(xs) => Prod(List.map(~f=typ_map_term, xs))

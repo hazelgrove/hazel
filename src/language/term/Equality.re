@@ -823,9 +823,9 @@ let equality =
       | Some(alphas_head) =>
         ListUtil.fold_left_opt(
           (alphas, (p1, p2)) =>
-            tpat(p1, p2) |> Option.map(Alphas.combine(_, alphas)),
+            tpat(p1, p2) |> Option.map(~f=Alphas.combine(_, alphas)),
           alphas_head,
-          List.combine(ps1, ps2),
+          List.zip_exn(ps1, ps2),
         )
       | None => None
       }
@@ -834,9 +834,9 @@ let equality =
     | (Tuple(ts1), Tuple(ts2)) when List.length(ts1) == List.length(ts2) =>
       ListUtil.fold_left_opt(
         (alphas, (t1, t2)) =>
-          tpat(t1, t2) |> Option.map(Alphas.combine(_, alphas)),
+          tpat(t1, t2) |> Option.map(~f=Alphas.combine(_, alphas)),
         Alphas.empty,
-        List.combine(ts1, ts2),
+        List.zip_exn(ts1, ts2),
       )
     | (Tuple(_), _) => None
 

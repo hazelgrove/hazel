@@ -78,7 +78,7 @@ let param_tyalias_exp =
         Id.to_string(head_id),
         links("parameter", param_ids),
         Id.to_string(def_id),
-        String.concat(", ", List.init(n, _ => "X")),
+        String.concat(~sep=", ", List.init(n, ~f=_ => "X")),
       ),
     examples: [option_ex, list_ex],
   };
