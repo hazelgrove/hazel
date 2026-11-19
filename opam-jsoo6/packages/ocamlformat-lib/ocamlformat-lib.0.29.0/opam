@@ -1,0 +1,71 @@
+opam-version: "2.0"
+synopsis: "OCaml Code Formatter"
+description:
+  "OCamlFormat is a tool to automatically format OCaml code in a uniform style."
+maintainer: [
+  "Guillaume Petiot <guillaume@tarides.com>"
+  "Jules Aguillon <jules@j3s.fr>"
+  "Emile Trotignon <emile@tarides.com>"
+]
+authors: [
+  "Josh Berdine <jjb@fb.com>"
+  "Hugo Heuzard <hugo.heuzard@gmail.com>"
+  "Etienne Millon <etienne@tarides.com>"
+  "Guillaume Petiot <guillaume@tarides.com>"
+  "Jules Aguillon <jules@j3s.fr>"
+]
+homepage: "https://github.com/ocaml-ppx/ocamlformat"
+bug-reports: "https://github.com/ocaml-ppx/ocamlformat/issues"
+depends: [
+  "ocaml" {>= "4.14"}
+  "alcotest" {with-test & >= "1.3.0"}
+  "base" {>= "v0.12.0"}
+  "cmdliner" {>= "1.1.0"}
+  "dune" {>= "2.8"}
+  "dune" {< "3.22" & with-test}
+  "dune-build-info"
+  "either"
+  "fix"
+  "fpath" {>= "0.7.3"}
+  "menhir" {>= "20201216"}
+  "menhirLib" {>= "20201216"}
+  "menhirSdk" {>= "20201216"}
+  "ocaml-version" {>= "3.5.0"}
+  "ocamlformat-rpc-lib" {with-test & = version}
+  "ocp-indent" {with-test = "false" & >= "1.8.0" | with-test & >= "1.8.1"}
+  "stdio"
+  "uuseg" {>= "10.0.0"}
+  "uutf" {>= "1.0.1"}
+  "csexp" {>= "1.4.0"}
+  "astring"
+  "camlp-streams"
+  "odoc" {with-doc}
+]
+build: [
+  ["dune" "subst"] {dev}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
+]
+dev-repo: "git+https://github.com/ocaml-ppx/ocamlformat.git"
+# OCamlFormat is distributed under the MIT license. Parts of the OCaml library are vendored for OCamlFormat and distributed under their original LGPL 2.1 license
+license: ["MIT" "LGPL-2.1-only WITH OCaml-LGPL-linking-exception"]
+url {
+  src:
+    "https://github.com/ocaml-ppx/ocamlformat/releases/download/0.29.0/ocamlformat-0.29.0.tbz"
+  checksum: [
+    "sha256=dac77f0a957ae782bb4b869b07b9803a872a34f8c1eae8901b42d21b623c9db5"
+    "sha512=b4ae6fda3c28e91dc12411b577df7b216e9b1afe5887bcb9e89c158e1313dc92183c29ffb256f47f5c9384af3ac8c505ec76849b26ae950b82c9b4c21a460819"
+  ]
+}
+x-commit-hash: "195e470387ecdcfb0f9ce309b0d8d17807bde25d"
+patches: ["base-v0.18-comparator.patch"]
+extra-files: [["base-v0.18-comparator.patch" "sha256=6102fda99f146a6620a4365f806395bdb9b8b2f5158cad00ab3cab2129ba642f"]]

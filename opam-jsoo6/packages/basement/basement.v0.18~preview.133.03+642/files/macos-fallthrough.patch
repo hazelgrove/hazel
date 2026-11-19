@@ -1,0 +1,15 @@
+--- a/src/blocking_mutex.h
++++ b/src/blocking_mutex.h
+@@ -11,7 +11,12 @@
+ #include <pthread.h>
+ 
+ #ifdef __APPLE__
++/* OCaml's caml/misc.h (under CAML_INTERNALS) defines a [fallthrough] macro that
++   breaks the [__has_attribute(fallthrough)] checks in the macOS SDK headers. */
++#pragma push_macro("fallthrough")
++#undef fallthrough
+ #include <dispatch/dispatch.h>
++#pragma pop_macro("fallthrough")
+ #define platform_sem_t dispatch_semaphore_t
+ #else
+ #include <semaphore.h>

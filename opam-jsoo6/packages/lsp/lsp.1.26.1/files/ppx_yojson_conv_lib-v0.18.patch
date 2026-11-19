@@ -1,0 +1,11 @@
+--- a/lsp/src/extension.ml
++++ b/lsp/src/extension.ml
+@@ -26,7 +26,7 @@
+                    duplicates := field_name :: Ppx_yojson_conv_lib.( ! ) duplicates)
+               | _ ->
+                 if
+-                  Ppx_yojson_conv_lib.( ! )
++                  Basement.Dynamic.get
+                     Ppx_yojson_conv_lib.Yojson_conv.record_check_extra_fields
+                 then extra := field_name :: Ppx_yojson_conv_lib.( ! ) extra
+                 else ());
