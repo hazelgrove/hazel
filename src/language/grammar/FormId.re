@@ -17,6 +17,7 @@ type atomic_form =
   | DrvVar
   | ExplicitHole
   | ImplicitHoleMarker
+  | ConcaveHoleMarker
   | LLMHole
   | Wild
   | String
