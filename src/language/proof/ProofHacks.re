@@ -37,16 +37,26 @@ let structurally_equal: (Exp.t, Exp.t) => bool =
    `Residue`. So both walks step through transparent wrappers without
    counting them and anchor each occurrence at the innermost non-wrapper
    node — unless `e1` is itself such a wrapper (`RemoveParens` and
-   `Ascription` steps), in which case wrappers with the same head
-   constructor stay matchable so the anchor keeps `e1`'s shape. */
-let is_transparent_wrapper = (exp: Exp.t): bool =>
+   `Ascription` steps), in which case a wrapper with the same head
+   constructor stays matchable so the anchor keeps `e1`'s shape. It is still
+   stepped through when it has more wrappers of that head stacked on it than
+   `e1` has (counting through the other transparent wrappers): `Asc(Asc(d))`
+   compares equal to `Asc(d)`, so anchoring at the outer one would hide an
+   `Asc(d)` target directly underneath it.
+
+   Filters need no special case: `ignore_filters: false` above already
+   makes a filter differ from the expression it wraps (hazelgrove/hazel#2332). */
+let wrapped = (exp: Exp.t): option(Exp.t) =>
   switch (exp |> Exp.term_of) {
-  | Parens(_)
-  | Projector(_)
-  | Asc(_)
-  | TupLabel({term: ExplicitNonlabel, _}, _) => true
-  | _ => false
+  | Parens(e)
+  | Projector(_, e)
+  | Asc(e, _)
+  | TupLabel({term: ExplicitNonlabel, _}, e) => Some(e)
+  | _ => None
   };
+
+let is_transparent_wrapper = (exp: Exp.t): bool =>
+  Option.is_some(wrapped(exp));
 
 let same_head = (e1: Exp.t, e2: Exp.t): bool =>
   switch (e1 |> Exp.term_of, e2 |> Exp.term_of) {
@@ -57,8 +67,20 @@ let same_head = (e1: Exp.t, e2: Exp.t): bool =>
   | _ => false
   };
 
+// How many wrappers with `head`'s head constructor are stacked on top of
+// `exp`, looking through the other transparent wrappers.
+let rec head_depth = (head: Exp.t, exp: Exp.t): int =>
+  switch (wrapped(exp)) {
+  | Some(inner) => (same_head(head, exp) ? 1 : 0) + head_depth(head, inner)
+  | None => 0
+  };
+
 let skip_transparent = (target: Exp.t, exp: Exp.t): bool =>
-  is_transparent_wrapper(exp) && !same_head(exp, target);
+  is_transparent_wrapper(exp)
+  && (
+    !same_head(exp, target)
+    || head_depth(target, exp) > head_depth(target, target)
+  );
 
 // Given an expression e1 that appears in e2, count how many
 // times e1 appears with a different id before e1 in e2.
