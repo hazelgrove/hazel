@@ -54,9 +54,10 @@ let takes_arg =
   | _ => false;
 
 let marker_of = (name: string, arg: string): option(marker) =>
-  List.find_opt(
-    m => name != "" && name_of(m) == name && (arg == "" || takes_arg(m)),
-    all_of_marker,
+  List.find(all_of_marker, ~f=m =>
+    !String.is_empty(name)
+    && String.equal(name_of(m), name)
+    && (String.is_empty(arg) || takes_arg(m))
   );
 
 /* "oddly-recursive.hzt" -> "Ex_OddlyRecursive", the module name an
@@ -64,30 +65,24 @@ let marker_of = (name: string, arg: string): option(marker) =>
 let module_name_of = (rel: string): string =>
   "Ex_"
   ++ (
-    Filename.basename(rel)
-    |> Filename.remove_extension
-    |> String.split_on_char('-')
-    |> List.map(String.capitalize_ascii)
-    |> String.concat("")
+    fst(Filename.split_extension(Filename.basename(rel)))
+    |> String.split(~on='-')
+    |> List.map(~f=String.capitalize)
+    |> String.concat(~sep="")
   );
 
 /* The inverse, for exporting: "Ex_OddlyRecursive" -> "oddly-recursive.hzt". */
 let filename_of = (module_name: string): string => {
-  let base =
-    String.starts_with(~prefix="Ex_", module_name)
-      ? String.sub(module_name, 3, String.length(module_name) - 3)
-      : module_name;
+  let base = String.chop_prefix_if_exists(module_name, ~prefix="Ex_");
   let buf = Stdlib.Buffer.create(String.length(base) + 8);
   String.iteri(
-    (i, c) => {
-      if (i > 0
-          && Char.uppercase_ascii(c) == c
-          && Char.lowercase_ascii(c) != c) {
+    base,
+    ~f=(i, c) => {
+      if (i > 0 && Char.is_uppercase(c)) {
         Stdlib.Buffer.add_char(buf, '-');
       };
-      Stdlib.Buffer.add_char(buf, Char.lowercase_ascii(c));
+      Stdlib.Buffer.add_char(buf, Char.lowercase(c));
     },
-    base,
   );
   (Stdlib.Buffer.length(buf) == 0 ? "exercise" : Stdlib.Buffer.contents(buf))
   ++ ".hzt";
@@ -99,34 +94,36 @@ let of_text = (~rel: string, text: string): Exercise.t => {
   let fail = msg => failwith("ExerciseText: " ++ rel ++ ": " ++ msg);
   let sections = HztText.sections(~marker_of, ~default=Preamble, text);
   let all = m =>
-    List.filter(
-      (s: HztText.section(marker)) => equal_marker(s.marker, m),
-      sections,
+    List.filter(sections, ~f=(s: HztText.section(marker)) =>
+      equal_marker(s.marker, m)
     );
   let lines = m =>
-    all(m) |> List.concat_map((s: HztText.section(marker)) => s.lines);
-  let has = m => all(m) != [];
+    all(m) |> List.concat_map(~f=(s: HztText.section(marker)) => s.lines);
+  let has = m => !List.is_empty(all(m));
   let settings = (m, ~keys) =>
     HztText.tokens(lines(m))
-    |> List.map(tok =>
+    |> List.map(~f=tok =>
          switch (HztText.key_value(tok)) {
-         | Some((k, v)) when List.mem(k, keys) => (k, v)
+         | Some((k, v)) when List.mem(keys, k, ~equal=String.equal) => (
+             k,
+             v,
+           )
          | _ =>
            fail(
              "@"
              ++ name_of(m)
              ++ ": expected one of "
-             ++ String.concat(", ", List.map(k => k ++ "=", keys))
+             ++ String.concat(~sep=", ", List.map(keys, ~f=k => k ++ "="))
              ++ ", got "
              ++ tok,
            )
          }
        );
   let int_setting = (kvs, key, ~default) =>
-    switch (List.assoc_opt(key, kvs)) {
+    switch (List.Assoc.find(kvs, key, ~equal=String.equal)) {
     | None => default
     | Some(v) =>
-      switch (int_of_string_opt(v)) {
+      switch (Int.of_string_opt(v)) {
       | Some(n) => n
       | None => fail(key ++ "=" ++ v ++ " is not a number")
       }
@@ -134,9 +131,9 @@ let of_text = (~rel: string, text: string): Exercise.t => {
   let is_theorem = has(Lemmas) || has(Theorem);
   if (is_theorem) {
     switch (
-      List.find_opt(
-        has,
+      List.find(
         [Code, YourTests, Solution, Bug, Test, Hints, Syntax],
+        ~f=has,
       )
     ) {
     | Some(m) =>
@@ -161,7 +158,7 @@ let of_text = (~rel: string, text: string): Exercise.t => {
     );
   /* Saved progress is keyed on the id, so it is never derived. */
   let id =
-    switch (List.assoc_opt("id", flags)) {
+    switch (List.Assoc.find(flags, "id", ~equal=String.equal)) {
     | None => fail("@flags needs id=<uuid>")
     | Some(s) =>
       switch (Id.of_string(s)) {
@@ -170,7 +167,7 @@ let of_text = (~rel: string, text: string): Exercise.t => {
       }
     };
   let module_name =
-    List.assoc_opt("module", flags)
+    List.Assoc.find(flags, "module", ~equal=String.equal)
     |> Option.value(~default=module_name_of(rel));
   let title =
     switch (HztText.prose(lines(Title))) {
@@ -214,9 +211,9 @@ let of_text = (~rel: string, text: string): Exercise.t => {
       hidden_bugs:
         all(Bug)
         |> List.mapi(
-             (i, s: HztText.section(marker)): CodeExercise.wrong_impl(
-                                                  Zipper.t,
-                                                ) =>
+             ~f=(i, s: HztText.section(marker)): CodeExercise.wrong_impl(
+                                                     Zipper.t,
+                                                   ) =>
              {
                impl: editor(~label="@bug #" ++ string_of_int(i + 1), s.lines),
                hint: s.arg,
@@ -225,11 +222,13 @@ let of_text = (~rel: string, text: string): Exercise.t => {
       hidden_tests: {
         tests: editor_of(Test),
         hints:
-          lines(Hints) |> List.map(String.trim) |> List.filter(h => h != ""),
+          lines(Hints)
+          |> List.map(~f=String.strip)
+          |> List.filter(~f=h => !String.is_empty(h)),
       },
       syntax_tests:
         all(Syntax)
-        |> List.map((s: HztText.section(marker)) => {
+        |> List.map(~f=(s: HztText.section(marker)) => {
              let src = HztText.code(s.lines);
              switch (
                Sexplib.Sexp.of_string(src) |> SyntaxTest.predicate_of_sexp
@@ -252,14 +251,14 @@ let of_text = (~rel: string, text: string): Exercise.t => {
 
 /* A hint is one line of text after its marker. */
 let one_line = (s: string): string =>
-  String.split_on_char('\n', s)
-  |> List.map(String.trim)
-  |> String.concat(" ");
+  String.split(s, ~on='\n')
+  |> List.map(~f=String.strip)
+  |> String.concat(~sep=" ");
 
 let section = (~arg="", m: marker, body: string): string =>
   "@"
   ++ name_of(m)
-  ++ (arg == "" ? "" : " " ++ one_line(arg))
+  ++ (String.is_empty(arg) ? "" : " " ++ one_line(arg))
   ++ "\n"
   ++ body
   ++ "\n";
@@ -269,12 +268,12 @@ let program = (z: Zipper.t): string => MarkerParse.to_text(z);
 /* `module=` only when the filename would not give it back. */
 let flags = (~id, ~module_name, settings: list((string, string))): string => {
   let module_flag =
-    module_name_of(filename_of(module_name)) == module_name
+    String.equal(module_name_of(filename_of(module_name)), module_name)
       ? [] : [("module", module_name)];
   [("id", Id.to_string(id)), ...module_flag]
   @ settings
-  |> List.map(((k, v)) => k ++ "=" ++ v)
-  |> String.concat(" ");
+  |> List.map(~f=((k, v)) => k ++ "=" ++ v)
+  |> String.concat(~sep=" ");
 };
 
 let code_to_text = (s: CodeExercise.spec): string =>
@@ -300,48 +299,47 @@ let code_to_text = (s: CodeExercise.spec): string =>
         s.point_distribution.impl_grading,
       ),
     ),
-    section(Prompt, String.trim(s.prompt)),
+    section(Prompt, String.strip(s.prompt)),
     section(Prelude, program(s.prelude)),
     section(Code, program(s.your_impl)),
     section(YourTests, program(s.your_tests.tests)),
     section(Solution, program(s.correct_impl)),
   ]
   @ List.map(
-      ({impl, hint}: CodeExercise.wrong_impl(Zipper.t)) =>
-        section(~arg=hint, Bug, program(impl)),
-      s.hidden_bugs,
+      s.hidden_bugs, ~f=({impl, hint}: CodeExercise.wrong_impl(Zipper.t)) =>
+      section(~arg=hint, Bug, program(impl))
     )
   @ [section(Test, program(s.hidden_tests.tests))]
   @ (
     switch (
-      s.hidden_tests.hints |> List.map(one_line) |> List.filter(h => h != "")
+      s.hidden_tests.hints
+      |> List.map(~f=one_line)
+      |> List.filter(~f=h => !String.is_empty(h))
     ) {
     | [] => []
-    | hints => [section(Hints, String.concat("\n", hints))]
+    | hints => [section(Hints, String.concat(~sep="\n", hints))]
     }
   )
-  @ List.map(
-      ((hint, predicate)) =>
-        section(
-          ~arg=hint,
-          Syntax,
-          SyntaxTest.sexp_of_predicate(predicate) |> Sexplib.Sexp.to_string,
-        ),
-      s.syntax_tests,
+  @ List.map(s.syntax_tests, ~f=((hint, predicate)) =>
+      section(
+        ~arg=hint,
+        Syntax,
+        SyntaxTest.sexp_of_predicate(predicate) |> Sexplib.Sexp.to_string,
+      )
     )
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 let theorem_to_text = (s: TheoremExercise.spec): string =>
   [
     section(Title, s.title),
     section(Flags, flags(~id=s.id, ~module_name=s.module_name, [])),
     section(Points, "max=" ++ string_of_int(s.max_points)),
-    section(Prompt, String.trim(s.prompt)),
+    section(Prompt, String.strip(s.prompt)),
     section(Prelude, program(s.prelude)),
     section(Lemmas, program(s.lemmas)),
     section(Theorem, program(s.theorem)),
   ]
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 let to_file = (e: Exercise.t): option((string, string)) =>
   switch (e) {

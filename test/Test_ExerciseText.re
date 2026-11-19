@@ -37,16 +37,16 @@ let to_text = (e: Exercise.t): string =>
 
 let bundled =
   ExerciseSettings_base.sources
-  |> List.map(((rel, src)) => (rel, src, ExerciseText.of_text(~rel, src)));
+  |> List.map(~f=((rel, src)) =>
+       (rel, src, ExerciseText.of_text(~rel, src))
+     );
 
 let code_specs =
-  List.filter_map(
-    ((rel, _, e: Exercise.t)) =>
-      switch (e) {
-      | Code(s) => Some((rel, s))
-      | _ => None
-      },
-    bundled,
+  List.filter_map(bundled, ~f=((rel, _, e: Exercise.t)) =>
+    switch (e) {
+    | Code(s) => Some((rel, s))
+    | _ => None
+    }
   );
 
 /* ---------- grading ---------- */
@@ -103,16 +103,16 @@ let describe_grade = (s: CodeExercise.spec): string => {
     results(r.test_validation_report.test_results),
     CodeGrading.TestValidationReport.percentage(r.test_validation_report),
     r.mutation_testing_report.results
-    |> List.map(((st, h)) => show_status(st) ++ " " ++ h)
-    |> String.concat("; "),
+    |> List.map(~f=((st, h)) => show_status(st) ++ " " ++ h)
+    |> String.concat(~sep="; "),
     CodeGrading.MutationTestingReport.percentage(r.mutation_testing_report),
     r.syntax_report.hinted_results
-    |> List.map(((ok, h)) => string_of_bool(ok) ++ " " ++ h)
-    |> String.concat("; "),
+    |> List.map(~f=((ok, h)) => Bool.to_string(ok) ++ " " ++ h)
+    |> String.concat(~sep="; "),
     r.syntax_report.percentage,
     r.impl_grading_report.hinted_results
-    |> List.map(((st, h)) => show_status(st) ++ " " ++ h)
-    |> String.concat("; "),
+    |> List.map(~f=((st, h)) => show_status(st) ++ " " ++ h)
+    |> String.concat(~sep="; "),
     CodeGrading.ImplGradingReport.percentage(
       r.impl_grading_report,
       r.syntax_report,
@@ -135,12 +135,12 @@ let model_submission = (s: CodeExercise.spec): CodeExercise.spec => {
 /* The same student, submitting hidden bug `i` instead. */
 let buggy_submission = (s: CodeExercise.spec, i: int): CodeExercise.spec => {
   ...model_submission(s),
-  your_impl: List.nth(s.hidden_bugs, i).impl,
+  your_impl: List.nth_exn(s.hidden_bugs, i).impl,
 };
 
 let grading_tests =
   code_specs
-  |> List.concat_map(((rel, s: CodeExercise.spec)) =>
+  |> List.concat_map(~f=((rel, s: CodeExercise.spec)) =>
        [
          test_case(
            rel ++ ": the solution earns every point",
@@ -152,28 +152,26 @@ let grading_tests =
                bool,
                describe_grade(model_submission(s)),
                true,
-               max > 0. && Float.equal(earned, max),
+               Float.is_positive(max) && Float.equal(earned, max),
              );
            },
          ),
          test_case(
            rel ++ ": the hidden tests catch every hidden bug", `Quick, () =>
            List.iteri(
-             (i, b: CodeExercise.wrong_impl(Zipper.t)) =>
-               switch (
-                 grade(buggy_submission(s, i)).impl_grading_report.
-                   test_results
-               ) {
-               | None => fail(b.hint ++ ": no test results")
-               | Some(t) =>
-                 check(
-                   bool,
-                   b.hint ++ " fails a hidden test",
-                   true,
-                   t.failing > 0,
-                 )
-               },
-             s.hidden_bugs,
+             s.hidden_bugs, ~f=(i, b: CodeExercise.wrong_impl(Zipper.t)) =>
+             switch (
+               grade(buggy_submission(s, i)).impl_grading_report.test_results
+             ) {
+             | None => fail(b.hint ++ ": no test results")
+             | Some(t) =>
+               check(
+                 bool,
+                 b.hint ++ " fails a hidden test",
+                 true,
+                 t.failing > 0,
+               )
+             }
            )
          ),
        ]
@@ -183,7 +181,7 @@ let grading_tests =
 
 let loading_tests =
   bundled
-  |> List.concat_map(((rel, src, e)) =>
+  |> List.concat_map(~f=((rel, src, e)) =>
        [
          /* The file is what printing its exercise gives: every editor
             loads as the program written in it, indentation included, and a
@@ -302,9 +300,8 @@ let format_tests = [
         list(string),
         "hints",
         ["second", "first"],
-        List.map(
-          (b: CodeExercise.wrong_impl(Zipper.t)) => b.hint,
-          s.hidden_bugs,
+        List.map(s.hidden_bugs, ~f=(b: CodeExercise.wrong_impl(Zipper.t)) =>
+          b.hint
         ),
       )
     | _ => fail("expected a code exercise")

@@ -14,5 +14,5 @@ let sources: list((string, string)) = [
 /* Exercise order is this list's order. Derivation exercises have no text
    form yet and stay OCaml modules. */
 let exercises: list(Exercise.t) =
-  List.map(((rel, text)) => ExerciseText.of_text(~rel, text), sources)
+  List.map(sources, ~f=((rel, text)) => ExerciseText.of_text(~rel, text))
   @ [Ex_EvaluationDerivation.exercise];
