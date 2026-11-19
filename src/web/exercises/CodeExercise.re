@@ -67,9 +67,6 @@ type pos =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type spec = p(Zipper.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type transitionary_spec = p(string);
-
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
   {
     id: p.id,
@@ -218,17 +215,6 @@ let editor_positions = (eds: p('a)) =>
 
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_spec = p(PersistentZipper.t);
-
-let of_persistent: persistent_spec => spec =
-  p =>
-    map(
-      p,
-      PersistentZipper.unpersist(~root=Exp),
-      PersistentZipper.unpersist(~root=Exp),
-    );
 
 let eds_of_spec =
     (
@@ -620,37 +606,6 @@ let pos_of_key = (key: string): pos =>
   | _ when key == hidden_tests_key => HiddenTests
   | _ => failwith("invalid key")
   };
-
-// // Module Export
-
-let editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  /* Reset non-persistable refractor state before serialization.
-   * See Refractors.for_serialization - keeps manuals, resets multis/sample_focus. */
-  let zipper = Zipper.update_refractors(zipper, Refractors.for_serialization);
-  let serialization = Zipper.show(zipper);
-  Format.pp_print_string(fmt, serialization);
-};
-
-let export_module = ({eds, _}: state) => {
-  let prefix = "let exercise: Exercise.t = Code\n";
-  let record = show_p(editor_pp, eds);
-  let data = prefix ++ record ++ "\n";
-  data;
-};
-
-let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let code = PersistentZipper.to_string(zipper);
-  Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
-};
-
-let export_transitionary_module = (_module_name, {eds, _}: state) => {
-  let prefix = "let exercise: Exercise.t = Code (CodeExercise.transition(";
-  let record = show_p(transitionary_editor_pp, eds);
-  let data = prefix ++ record ++ "))\n";
-  data;
-};
 
 let blank_spec =
     (

@@ -310,11 +310,9 @@ module Update = {
             );
           (filename, contents);
         | Exercises(model) =>
-          let current = List.nth(model.exercises, model.current);
-          let filename =
-            ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
-          let contents = ExercisesMode.Model.export_exercise_module(current);
-          (filename, contents);
+          ExercisesMode.Model.export_exercise_file(
+            List.nth(model.exercises, model.current),
+          )
         };
       JsUtil.download_string_file(
         ~filename,

@@ -9,26 +9,18 @@ open Web;
 let text = (z: Zipper.t): string => MarkerParse.to_text(z);
 
 /* An exercise, editors as their text: two exercises with the same
-   description load the same cells with the same programs. `normalize`
-   is applied to the prompt and to each program's text. */
-let describe = (~normalize=Fun.id, e: Exercise.t): string => {
-  let text = z => normalize(text(z));
+   description load the same cells with the same programs. */
+let describe = (e: Exercise.t): string =>
   switch (e) {
   | Code(s) =>
-    CodeExercise.show_p(
-      (fmt, z) => Format.fprintf(fmt, "%S", text(z)),
-      {
-        ...s,
-        prompt: normalize(s.prompt),
-      },
-    )
+    CodeExercise.show_p((fmt, z) => Format.fprintf(fmt, "%S", text(z)), s)
   | Theorem(s) =>
     Printf.sprintf(
       "{id=%s; title=%S; module_name=%S; prompt=%S; max_points=%d; prelude=%S; lemmas=%S; theorem=%S}",
       Id.to_string(s.id),
       s.title,
       s.module_name,
-      normalize(s.prompt),
+      s.prompt,
       s.max_points,
       text(s.prelude),
       text(s.lemmas),
@@ -36,7 +28,6 @@ let describe = (~normalize=Fun.id, e: Exercise.t): string => {
     )
   | Derivation(s) => "derivation " ++ s.title
   };
-};
 
 let to_text = (e: Exercise.t): string =>
   switch (ExerciseText.to_file(e)) {
@@ -146,16 +137,6 @@ let buggy_submission = (s: CodeExercise.spec, i: int): CodeExercise.spec => {
   ...model_submission(s),
   your_impl: List.nth(s.hidden_bugs, i).impl,
 };
-
-/* The submissions grading is compared on: the untouched starter, the
-   solution, and each hidden bug. */
-let submissions = (s: CodeExercise.spec): list((string, CodeExercise.spec)) =>
-  [("starter", s), ("solution", model_submission(s))]
-  @ List.mapi(
-      (i, b: CodeExercise.wrong_impl(Zipper.t)) =>
-        ("bug " ++ b.hint, buggy_submission(s, i)),
-      s.hidden_bugs,
-    );
 
 let grading_tests =
   code_specs
@@ -354,55 +335,8 @@ let format_tests = [
   ),
 ];
 
-/* ---------- parity with the retired OCaml modules ---------- */
-
-/* The .hzt files fix some layouts (a starter's body hole on its own
-   line, cramped annotations), so programs and prompts are compared with
-   their whitespace removed. */
-let squash = (s: string): string =>
-  String.to_seq(s)
-  |> Seq.filter(c => !List.mem(c, [' ', '\n', '\t']))
-  |> String.of_seq;
-
-let old_modules: list(Exercise.t) = [
-  Ex_OddlyRecursive.exercise,
-  Ex_RecursiveFibonacci.exercise,
-  Ex_ReverseReverse.exercise,
-];
-
-let parity_tests =
-  List.combine(old_modules, bundled)
-  |> List.concat_map(((old, (rel, _, e))) =>
-       [
-         test_case(rel ++ ": same exercise as its .ml module", `Quick, () =>
-           check(
-             string,
-             rel,
-             describe(~normalize=squash, old),
-             describe(~normalize=squash, e),
-           )
-         ),
-       ]
-       @ (
-         switch (old, e) {
-         | (Code(o), Code(n)) =>
-           List.combine(submissions(o), submissions(n))
-           |> List.map((((name, o), (_, n))) =>
-                test_case(
-                  rel ++ ": grades the " ++ name ++ " submission the same",
-                  `Quick,
-                  () =>
-                  check(string, name, describe_grade(o), describe_grade(n))
-                )
-              )
-         | _ => []
-         }
-       )
-     );
-
 let tests = [
   ("ExerciseText.format", format_tests),
   ("ExerciseText.bundled", loading_tests),
   ("ExerciseText.grading", grading_tests),
-  ("ExerciseText.parity", parity_tests),
 ];
