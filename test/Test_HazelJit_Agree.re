@@ -100,18 +100,14 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
   | Parens(e) => agree(e, js)
   /* (^tickets(756, 757)) exactly: its digits, a JS number's or a BigInt's, against the interpreter's Bigint */
   | Atom(Int(n))
-  | Atom(Nat(n)) =>
+  | Atom(Nat(n))
+  | Atom(SInt(n)) =>
     want(
       (typeof(js) == "number" || typeof(js) == "bigint")
       && Js.to_string(
            Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|js|]),
          )
       == Bigint.to_string(n),
-      "an integer",
-    )
-  | Atom(SInt(n)) =>
-    want(
-      typeof(js) == "number" && num(js) == float_of_int(n),
       "an integer",
     )
   | Atom(Float(f)) =>
