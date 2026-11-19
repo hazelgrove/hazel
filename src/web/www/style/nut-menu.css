@@ -39,6 +39,11 @@
      invisible if you don't */
   color: oklch(from var(--ui-bkg) 82% c h);
 }
+/* In Exercises mode the score badge (test-panel.css) occupies the top bar's
+   right corner; keep the build info clear of it. */
+#page:has(#main > .test-percent) #top-bar #build-info {
+  padding-right: calc(var(--corner-score-width) + 2 * var(--corner-score-margin));
+}
 /* padding lives on the label (not the flex container) so the whole visual
    area is part of the selectable inline box */
 #top-bar #build-info .build-info-label {

@@ -1,11 +1,16 @@
 /* Used in Exercises and Tutorial mode */
 
+/* The exercise's overall score sits in the top bar's right corner. It has a
+   fixed minimum footprint so the top bar's build info (nut-menu.css) can
+   reserve exactly that much room and stay visible to its left. */
 #main > .test-percent {
   position: absolute;
   top: 0;
   right: 0;
-  margin: 0.5em;
+  margin: var(--corner-score-margin);
   z-index: 1000;
+  min-width: var(--corner-score-width);
+  justify-content: center;
 }
 
 .test-panel {
