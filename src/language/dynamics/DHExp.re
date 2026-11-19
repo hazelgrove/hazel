@@ -52,14 +52,13 @@ and strip_ascriptions_pat = (p: Pat.t): Pat.t => {
   );
 };
 
-let assign_name_if_none = (t, name) => {
-  let (term, rewrap) = unwrap(t);
-  switch (term) {
-  | Fun(arg, body, typ, None) => Fun(arg, body, typ, name) |> rewrap
-  | TypFun(utpat, body, None) => TypFun(utpat, body, name) |> rewrap
-  | _ => t
-  };
-};
+let assign_name_if_none = (t, name) =>
+  map_fn_name(
+    fun
+    | None => name
+    | Some(_) as n => n,
+    t,
+  );
 
 let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   switch (TPat.tyvar_of_utpat(tpat)) {
