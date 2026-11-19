@@ -82,10 +82,13 @@ let continues_delegation =
     (expr_id: Id.t, call_stack: CallStack.t, delegations: list(delegation))
     : bool =>
   List.exists(
-    ((id, stack): delegation) =>
-      Id.equal(id, expr_id)
-      /* the continuation runs on the very stack value that was declared */
-      && (stack === call_stack || CallStack.equal(stack, call_stack)),
+    ~f=
+      ((id, stack): delegation) =>
+        Id.equal(id, expr_id)
+        /* the continuation runs on the very stack value that was declared */
+        && (
+          phys_equal(stack, call_stack) || CallStack.equal(stack, call_stack)
+        ),
     delegations,
   );
 
@@ -127,9 +130,10 @@ let rec evaluate =
    * collector short-circuit. current_top_id = None ⇒ no outbox write,
    * so the last program-node publish stands until the next one. */
   let current_top_id =
-    if (call_stack == [] && EvalInfo.is_program_node(expr_id, eval_info)) {
+    if (List.is_empty(call_stack)
+        && EvalInfo.is_program_node(expr_id, eval_info)) {
       Some(expr_id);
-    } else if (call_stack == []) {
+    } else if (List.is_empty(call_stack)) {
       None;
     } else {
       current_top_id;
@@ -212,7 +216,7 @@ let rec evaluate =
      * entries while inside a call stack, and reuse_check also refuses reuse
      * there. Skip entirely when nothing downstream can consume the map. */
     let body_reuse_map =
-      if (!track_reuse || call_stack != []) {
+      if (!track_reuse || !List.is_empty(call_stack)) {
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
@@ -256,7 +260,7 @@ let rec evaluate =
        * inferred — so an undeclared same-id re-evaluation now surfaces
        * as a visible duplicate sample instead of a silent suppression. */
       let delegations =
-        switch (Option.map(provenance_of_kind, kind)) {
+        switch (Option.map(~f=provenance_of_kind, kind)) {
         | Some(Administrative({may_delegate: true}))
             when Id.Map.mem(DHExp.rep_id(exp), eval_info.targets) => [
             (DHExp.rep_id(exp), call_stack),
@@ -418,7 +422,7 @@ let rec evaluate =
 
       // Record incremental entry if required
       let info_snapshot =
-        if (call_stack != []) {
+        if (!List.is_empty(call_stack)) {
           None;
         } else {
           EvalInfo.find_opt(expr_id, eval_info);
@@ -456,7 +460,7 @@ let rec evaluate =
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   let eval_5_state_merge =
       (~call_stack: CallStack.t, ~delegations, ~state, ~expr_id, env, exp) =>
-    if (call_stack == []) {
+    if (List.is_empty(call_stack)) {
       let inner_state =
         ref(EvaluatorState.empty_at(parent_state^.step_count));
       let.trampoline final_value =
@@ -495,6 +499,14 @@ let rec evaluate =
 type limited_result =
   | LimitedCompleted((Exp.t, EvaluatorState.t))
   | StepLimitExceeded;
+
+let completed = (state: EvaluatorState.t): EvaluatorState.t => {
+  ...state,
+  incr_eval: {
+    ...state.incr_eval,
+    steps: state.step_count,
+  },
+};
 
 let finish = (~env, e: DHExp.t): Exp.t =>
   e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
@@ -584,7 +596,8 @@ let evaluate_and_limit =
       result |> Trampoline.Yielding.start,
     )
   ) {
-  | SliceDone(x, _) => LimitedCompleted((finish(~env, x), state^))
+  | SliceDone(x, _) =>
+    LimitedCompleted((finish(~env, x), completed(state^)))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
@@ -642,7 +655,10 @@ let run_yielding_slice =
     Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
   | SliceDone(x, _) =>
-    EvaluationCompleted((finish(~env=evaluation.env, x), evaluation.state^))
+    EvaluationCompleted((
+      finish(~env=evaluation.env, x),
+      completed(evaluation.state^),
+    ))
   | SliceYielded(continuation) =>
     EvaluationYielded({
       ...evaluation,
@@ -682,11 +698,11 @@ let evaluate_counting_work =
     );
   switch (
     Trampoline.Yielding.run_slice(
-      ~step_budget=max_int,
+      ~step_budget=Int.max_value,
       Trampoline.Yielding.start(result),
     )
   ) {
-  | SliceDone(x, steps) => ((finish(~env, x), state^), steps)
+  | SliceDone(x, steps) => ((finish(~env, x), completed(state^)), steps)
   /* an unbounded slice runs to the end */
   | SliceYielded(_) => failwith("evaluate_counting_work: slice yielded")
   };
@@ -712,5 +728,5 @@ let evaluate =
   /* Must be sequenced before reading `state`: running the trampoline is what
      populates it, and tuple components are evaluated right-to-left. */
   let value = finish(~env, Trampoline.run(result));
-  (value, state^);
+  (value, completed(state^));
 };

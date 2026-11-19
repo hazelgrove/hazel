@@ -6,14 +6,14 @@ open Alcotest;
 let doc_slide_terms: Lazy.t(list((string, Language.Exp.t))) =
   lazy(
     snd(Lazy.force(Web.Init.startup).documentation)
-    |> List.filter_map(((name, slide: Web.CellEditor.Model.persistent)) =>
+    |> List.filter_map(~f=((name, slide: Web.CellEditor.Model.persistent)) =>
          Haz3lcore.FastParse.of_text(
            ~materialize=Haz3lcore.Triggers.invoked_projector,
            ~collect_refractors=true,
            ~root=Exp,
-           String.trim(slide.editor.zipper.backup_text),
+           String.strip(slide.editor.zipper.backup_text),
          )
-         |> Option.map(seg => (name, Haz3lcore.MakeTerm.go(seg).term))
+         |> Option.map(~f=seg => (name, Haz3lcore.MakeTerm.go(seg).term))
        )
   );
 
@@ -21,15 +21,16 @@ open Language;
 
 let reflexive_on_doc_slides = (eq_name, eq: (Exp.t, Exp.t) => bool, ()) => {
   let terms = Lazy.force(doc_slide_terms);
-  check(bool, "corpus is non-empty", true, terms != []);
+  check(bool, "corpus is non-empty", true, !List.is_empty(terms));
   List.iter(
-    ((name, e)) =>
-      check(
-        bool,
-        eq_name ++ ".exp(e, e) for slide " ++ name,
-        true,
-        eq(e, e),
-      ),
+    ~f=
+      ((name, e)) =>
+        check(
+          bool,
+          eq_name ++ ".exp(e, e) for slide " ++ name,
+          true,
+          eq(e, e),
+        ),
     terms,
   );
 };

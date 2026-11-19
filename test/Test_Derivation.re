@@ -1,3 +1,4 @@
+open Poly;
 /* Tests for derivation mode logic: ALFA / propositional logic surface syntax,
    abbreviation parsing, and rule verification against the PropositionalLogic
    rule_set. */
@@ -270,7 +271,7 @@ let verify_rule =
   RuleVerify.verify(spec, (concl, prems));
 };
 
-let is_correct = (res: RuleVerify.res) => List.length(res) == 0;
+let is_correct = (res: RuleVerify.res) => List.is_empty(res);
 
 let check_correct = (~msg, rule, concl, prems) =>
   check(bool, msg, true, is_correct(verify_rule(rule, concl, prems)));
@@ -685,7 +686,7 @@ let test_add_abbr_shifts_references = () => {
   let grown = Web.DerivationExercise.add_abbr(with_ref, ~index=0);
   /* The original tree has shifted to position 1. Its single child should now
      be `Abbr(Some(1))`. */
-  let tree = List.nth(grown.trees, 1);
+  let tree = List.nth_exn(grown.trees, 1);
   switch (Tree.nth(tree, Children(0, Value))) {
   | Abbr(Some(1)) => ()
   | Abbr(other) =>
@@ -693,11 +694,32 @@ let test_add_abbr_shifts_references = () => {
       "expected Abbr(Some(1)) after shift, got Abbr(%s)",
       switch (other) {
       | None => "None"
-      | Some(n) => "Some(" ++ string_of_int(n) ++ ")"
+      | Some(n) => "Some(" ++ Stdlib.string_of_int(n) ++ ")"
       },
     )
   | Just(_) => Alcotest.fail("expected an Abbr node, got Just")
   };
+};
+
+/* A repeat call hits; 8 newer exercise states evict the entry. */
+let test_stitch_term_memo_bounded = () => {
+  let eds = eds_of_blank_spec();
+  let stitched = Web.DerivationExercise.stitch_term(eds);
+  check(
+    bool,
+    "repeat call returns the cached result",
+    true,
+    phys_equal(Web.DerivationExercise.stitch_term(eds), stitched),
+  );
+  for (_ in 1 to 8) {
+    ignore(Web.DerivationExercise.stitch_term(eds_of_blank_spec()));
+  };
+  check(
+    bool,
+    "evicted after 8 newer states",
+    false,
+    phys_equal(Web.DerivationExercise.stitch_term(eds), stitched),
+  );
 };
 
 /* ----------------------- test registration ----------------------- */
@@ -814,6 +836,11 @@ let tests = (
       "add_abbr shifts existing refs",
       `Quick,
       test_add_abbr_shifts_references,
+    ),
+    test_case(
+      "stitch_term memo is bounded",
+      `Quick,
+      test_stitch_term_memo_bounded,
     ),
   ],
 );

@@ -5,27 +5,6 @@ let tests = (
   "ListUtil",
   [
     test_case(
-      "rev_if with false",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(list(int), "Same list", xs, ListUtil.rev_if(false, xs));
-      },
-    ),
-    test_case(
-      "rev_if with true",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(
-          list(int),
-          "Reversed list",
-          [3, 2, 1],
-          ListUtil.rev_if(true, xs),
-        );
-      },
-    ),
-    test_case(
       "dedup",
       `Quick,
       () => {
@@ -200,36 +179,6 @@ let tests = (
           "Right longer",
           None,
           ListUtil.opt_zip(["a"], [1, 2]),
-        );
-      },
-    ),
-    test_case(
-      "intersection_f",
-      `Quick,
-      () => {
-        check(
-          list(int),
-          "Matching by identity",
-          [2, 3],
-          ListUtil.intersection_f(x => x, [1, 2, 3], [2, 3, 4]),
-        );
-        check(
-          list(int),
-          "Matching by mod 2",
-          [1, 3],
-          ListUtil.intersection_f(x => x mod 2, [1, 2, 3], [5, 7]),
-        );
-        check(
-          list(int),
-          "Empty first list",
-          [],
-          ListUtil.intersection_f(x => x, [], [1, 2]),
-        );
-        check(
-          list(int),
-          "No overlap",
-          [],
-          ListUtil.intersection_f(x => x, [1, 2], [3, 4]),
         );
       },
     ),
@@ -659,19 +608,19 @@ let tests = (
         ignore(ListUtil.interleave([1, 2], [3, 4]))
       })
     }),
-    test_case("truncate with empty list", `Quick, () => {
-      check(list(int), "Empty list", [], ListUtil.truncate(5, []))
+    test_case("take with empty list", `Quick, () => {
+      check(list(int), "Empty list", [], ListUtil.take(5, []))
     }),
     test_case(
-      "truncate with n=0",
+      "take with n=0",
       `Quick,
       () => {
         let xs = [1, 2, 3, 4, 5];
-        check(list(int), "Zero elements", [], ListUtil.truncate(0, xs));
+        check(list(int), "Zero elements", [], ListUtil.take(0, xs));
       },
     ),
     test_case(
-      "truncate less than list length",
+      "take less than list length",
       `Quick,
       () => {
         let xs = [1, 2, 3, 4, 5];
@@ -679,25 +628,20 @@ let tests = (
           list(int),
           "First 3 elements",
           [1, 2, 3],
-          ListUtil.truncate(3, xs),
+          ListUtil.take(3, xs),
         );
       },
     ),
     test_case(
-      "truncate equal to list length",
+      "take equal to list length",
       `Quick,
       () => {
         let xs = [1, 2, 3];
-        check(
-          list(int),
-          "All elements",
-          [1, 2, 3],
-          ListUtil.truncate(3, xs),
-        );
+        check(list(int), "All elements", [1, 2, 3], ListUtil.take(3, xs));
       },
     ),
     test_case(
-      "truncate greater than list length",
+      "take greater than list length",
       `Quick,
       () => {
         let xs = [1, 2, 3];
@@ -705,10 +649,13 @@ let tests = (
           list(int),
           "All elements when n > length",
           [1, 2, 3],
-          ListUtil.truncate(10, xs),
+          ListUtil.take(10, xs),
         );
       },
     ),
+    test_case("take with negative n", `Quick, () => {
+      check(list(int), "Nothing", [], ListUtil.take(-1, [1, 2, 3]))
+    }),
     test_case("remove_first_n with empty list", `Quick, () => {
       check(list(int), "Empty list", [], ListUtil.remove_first_n(3, []))
     }),
@@ -764,6 +711,14 @@ let tests = (
         );
       },
     ),
+    test_case("remove_first_n with negative n", `Quick, () => {
+      check(
+        list(int),
+        "Whole list",
+        [1, 2, 3],
+        ListUtil.remove_first_n(-1, [1, 2, 3]),
+      )
+    }),
     test_case("slice with empty list", `Quick, () => {
       check(list(int), "Empty list", [], ListUtil.slice(2, 3, []))
     }),
@@ -827,6 +782,17 @@ let tests = (
         );
       },
     ),
+    test_case("slice with negative i", `Quick, () => {
+      check(
+        list(int),
+        "Starts at index 0",
+        [1, 2],
+        ListUtil.slice(-1, 2, [1, 2, 3]),
+      )
+    }),
+    test_case("slice with negative k", `Quick, () => {
+      check(list(int), "Nothing", [], ListUtil.slice(1, -1, [1, 2, 3]))
+    }),
     test_case(
       "group_consecutive groups adjacent equal elements",
       `Quick,
