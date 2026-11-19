@@ -43,10 +43,15 @@
 
    Values, both ways: Int, Float and the other numbers <-> number; Bool <->
    boolean; String <-> string; a list <-> an array; () <-> null; a labeled
-   tuple <-> an object, its labels the keys; another tuple -> an array; a
+   tuple <-> an object, its labels the keys; another tuple <-> an array; a
    constructor <-> {tag: "Name"}, applied <-> {tag: "Name", value}; a
    function -> a JS function, whose arguments (one, or a tuple of several)
-   go back to Hazel. Anything else comes back as {hazel: <its printing>}. */
+   go back to Hazel. Anything else comes back as {hazel: <its printing>}.
+   A JS value going into a function is read by the type the function
+   declares for its parameter, where it has one: an array is a tuple where
+   a tuple is expected and a list where a list is, a constructor's value by
+   its own type in the sum, a number as the number type expected (of_js_at).
+   With no type to go by, an array is a list and a whole number an Int. */
 open Js_of_ocaml;
 open Util;
 open Haz3lcore;
@@ -94,6 +99,53 @@ let number_of_bigint = (b: Bigint.t): Js.Unsafe.any =>
     Js.number_of_float(float_of_string(Bigint.to_string(b))),
   );
 
+let js_is_array = (j: Js.Unsafe.any): bool =>
+  Js.to_bool(
+    Js.Unsafe.fun_call(Js.Unsafe.js_expr("Array.isArray"), [|j|]),
+  );
+
+let js_elements = (j: Js.Unsafe.any): list(Js.Unsafe.any) =>
+  Array.to_list(Js.to_array(Js.Unsafe.coerce(j)));
+
+let js_kind = (j: Js.Unsafe.any): string =>
+  Js.to_string(Js.typeof(Js.Unsafe.coerce(j)));
+
+/* (^ticket(736)) The type a function declares for its parameter, as its
+   value has it after elaboration (a type's name already its definition):
+   fun s : S -> ..., fun (m, t) : (Int, Bool) -> ..., or none. */
+let rec pat_type = (p: Pat.t): option(Typ.t) =>
+  switch (p.term) {
+  | Asc(_, t) => Some(t)
+  | Parens(p) => pat_type(p)
+  | _ => None
+  };
+
+let rec param_type = (f: Exp.t): option(Typ.t) =>
+  switch (f.term) {
+  | Fun(p, _, t, _) =>
+    switch (pat_type(p), t) {
+    | (Some(t), _) => Some(t)
+    | (None, Some(t)) => arrow_domain(t)
+    | (None, None) => None
+    }
+  | Closure(_, e)
+  | Parens(e) => param_type(e)
+  /* (let f : A -> B = fun x -> ...: the type is the binding's, not the
+     parameter's) */
+  | FixF(p, e, _) =>
+    switch (param_type(e)) {
+    | Some(t) => Some(t)
+    | None => Option.bind(pat_type(p), arrow_domain)
+    }
+  | _ => None
+  }
+and arrow_domain = (t: Typ.t): option(Typ.t) =>
+  switch (Typ.term_of(t)) {
+  | Parens(t) => arrow_domain(t)
+  | Arrow(a, _) => Some(a)
+  | _ => None
+  };
+
 /* A Hazel value as a JS value. */
 let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   switch (v.term) {
@@ -131,21 +183,41 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   }
 /* A Hazel function as a JS function: its arguments, one or a tuple of
    several, go to Hazel, and its result comes back as a JS value. */
-and function_of = (f: Exp.t): Js.Unsafe.any =>
+and function_of = (f: Exp.t): Js.Unsafe.any => {
+  /* (^ticket(736)) its arguments read by the type it declares, if any:
+     one argument by the whole type, several by the tuple's components */
+  let param = param_type(f);
   Js.Unsafe.inject(
     Js.Unsafe.callback_with_arguments(args => {
-      let args =
-        Array.to_list(Js.to_array(Js.Unsafe.coerce(args)))
-        |> List.map(of_js);
+      let args = Array.to_list(Js.to_array(Js.Unsafe.coerce(args)));
       let arg =
-        switch (args) {
-        | [] => Exp.fresh(Tuple([]))
-        | [a] => a
-        | many => Exp.fresh(Tuple(many))
+        switch (args, param) {
+        | ([], _) => Exp.fresh(Tuple([]))
+        | ([a], Some(t)) => of_js_at(~recs=[], t, a)
+        | ([a], None) => of_js(a)
+        | (many, Some(t)) =>
+          switch (prod_components(t)) {
+          | Some(ts) when List.length(ts) == List.length(many) =>
+            Exp.fresh(
+              Tuple(
+                List.map2((t, x) => of_js_at(~recs=[], t, x), ts, many),
+              ),
+            )
+          | _ => Exp.fresh(Tuple(List.map(of_js, many)))
+          }
+        | (many, None) => Exp.fresh(Tuple(List.map(of_js, many)))
         };
       to_js(evaluate(Exp.fresh(Ap(Operators.Forward, f, arg))));
     }),
-  )
+  );
+}
+/* a product type's components, under its parentheses */
+and prod_components = (t: Typ.t): option(list(Typ.t)) =>
+  switch (Typ.term_of(t)) {
+  | Parens(t) => prod_components(t)
+  | Prod(ts) => Some(ts)
+  | _ => None
+  }
 /* A JS value as a Hazel value. */
 and of_js = (j: Js.Unsafe.any): Exp.t => {
   let kind = Js.to_string(Js.typeof(Js.Unsafe.coerce(j)));
@@ -183,22 +255,10 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
          so a tag the sum does not have is not caught there: a case then
          finds no rule for it (or a wildcard's). */
       let name = Js.to_string(Js.Unsafe.coerce(tag));
-      let unknown = Typ.temp(Unknown(Internal));
       let value = Js.Unsafe.get(j, "value");
-      Js.to_string(Js.typeof(Js.Unsafe.coerce(value))) == "undefined"
-        ? Exp.fresh(Constructor(name, Some(Some(unknown))))
-        : Exp.fresh(
-            Ap(
-              Operators.Forward,
-              Exp.fresh(
-                Constructor(
-                  name,
-                  Some(Some(Typ.temp(Arrow(unknown, unknown)))),
-                ),
-              ),
-              of_js(value),
-            ),
-          );
+      js_kind(value) == "undefined"
+        ? constructor_of(name, None)
+        : constructor_of(name, Some(of_js(value)));
     } else {
       let keys =
         Array.to_list(Js.to_array(Js.object_keys(Js.Unsafe.coerce(j))))
@@ -215,6 +275,121 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
         ),
       );
     };
+  };
+}
+
+/* (^ticket(736)) A JS value as a Hazel value of type ty. A JS array cannot
+   say whether it is a tuple or a list ([3, 4] is either), and a list met
+   with a product type is stuck: {tag: "Two", value: [3, true]} never
+   matched Two(m, t). So the type decides, all the way down: an array is a
+   tuple for a product of its length, a list for a list type; an object a
+   labeled tuple in the type's order, by its labels; a constructor's value
+   by its own type in the sum; a number as the number type asks (a whole
+   number for a Float is a Float). Where the type gives nothing to go by
+   (?, a type variable, a recursive type's own name), of_js as before. */
+and of_js_at =
+    (~recs: list((string, Typ.t)), ty: Typ.t, j: Js.Unsafe.any): Exp.t => {
+  /* (a recursive type's own name, Cmd in Flip(Int, Cmd), is read as the
+     whole recursive type again: recs, the names bound around here) */
+  let at = (t: Typ.t, x: Js.Unsafe.any): Exp.t => of_js_at(~recs, t, x);
+  let kind = js_kind(j);
+  let number = () => Js.float_of_number(Js.Unsafe.coerce(j));
+  let whole = () => kind == "number" && Float.is_integer(number());
+  switch (Typ.term_of(ty)) {
+  | Parens(t) => at(t, j)
+  | Rec(tp, t) =>
+    switch (tp.term) {
+    | Var(name) => of_js_at(~recs=[(name, ty), ...recs], t, j)
+    | _ => at(t, j)
+    }
+  | Var(name) when List.mem_assoc(name, recs) =>
+    at(List.assoc(name, recs), j)
+  | Atom(Float) when kind == "number" => Exp.fresh(Atom(Float(number())))
+  | Atom(Int) when whole() =>
+    Exp.fresh(
+      Atom(Int(Bigint.of_string(Printf.sprintf("%.0f", number())))),
+    )
+  | Atom(Nat) when whole() && number() >= 0. =>
+    Exp.fresh(
+      Atom(Nat(Bigint.of_string(Printf.sprintf("%.0f", number())))),
+    )
+  | Atom(SInt) when whole() =>
+    Exp.fresh(Atom(SInt(int_of_float(number()))))
+  | List(t) when js_is_array(j) =>
+    Exp.fresh(ListLit(List.map(x => at(t, x), js_elements(j))))
+  | Prod(ts)
+      when js_is_array(j) && List.length(js_elements(j)) == List.length(ts) =>
+    Exp.fresh(Tuple(List.map2(at, ts, js_elements(j))))
+  | Prod(ts) when kind == "object" && !Js.Unsafe.equals(j, Js.null) =>
+    /* a labeled tuple, every field there: in the type's order */
+    let fields =
+      List.map(
+        (t: Typ.t) =>
+          switch (Typ.term_of(t)) {
+          | TupLabel(l, t) =>
+            switch (Typ.term_of(l)) {
+            | Label(name)
+                when js_kind(Js.Unsafe.get(j, name)) != "undefined" =>
+              Some(
+                Exp.fresh(
+                  TupLabel(
+                    Exp.fresh(Label(name)),
+                    at(t, Js.Unsafe.get(j, name)),
+                  ),
+                ),
+              )
+            | _ => None
+            }
+          | _ => None
+          },
+        ts,
+      );
+    List.for_all(Option.is_some, fields)
+      ? Exp.fresh(Tuple(List.filter_map(x => x, fields))) : of_js(j);
+  | Sum(variants)
+      when
+        kind == "object"
+        && !Js.Unsafe.equals(j, Js.null)
+        && js_kind(Js.Unsafe.get(j, "tag")) == "string" =>
+    let name = Js.to_string(Js.Unsafe.coerce(Js.Unsafe.get(j, "tag")));
+    let value = Js.Unsafe.get(j, "value");
+    let arg =
+      List.find_map(
+        v =>
+          switch (v) {
+          | ConstructorMap.Variant(c, _, Some(t)) when c == name => Some(t)
+          | _ => None
+          },
+        variants,
+      );
+    switch (arg) {
+    | Some(t) when js_kind(value) != "undefined" =>
+      constructor_of(name, Some(at(t, value)))
+    | _ => of_js(j)
+    };
+  | _ => of_js(j)
+  };
+}
+/* A constructor from JS, applied to its value or not. A constructor carries
+   its type once elaborated, and a JS one has none to give, so it gets the
+   unknown type: ?, or ? -> ? when applied (see of_js). */
+and constructor_of = (name: string, value: option(Exp.t)): Exp.t => {
+  let unknown = Typ.temp(Unknown(Internal));
+  switch (value) {
+  | None => Exp.fresh(Constructor(name, Some(Some(unknown))))
+  | Some(v) =>
+    Exp.fresh(
+      Ap(
+        Operators.Forward,
+        Exp.fresh(
+          Constructor(
+            name,
+            Some(Some(Typ.temp(Arrow(unknown, unknown)))),
+          ),
+        ),
+        v,
+      ),
+    )
   };
 };
 
