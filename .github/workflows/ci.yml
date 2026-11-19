@@ -23,8 +23,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Required-check names for branch protection are reported as
-  # "CI / checks / Fast checks" and "CI / checks / Full tests".
+  # Check names (for the dev ruleset's required checks) are reported as
+  # "checks / Static checks", "checks / Fast checks" and "checks / Full tests".
   checks:
     uses: ./.github/workflows/checks.yml
     secrets: inherit

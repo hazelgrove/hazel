@@ -85,7 +85,10 @@ module ServerMessage = {
     | Ack(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    /* The worker's coverage counters so far, after each Result; see
+     * CoverageHook. */
+    | Coverage(string);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -299,9 +302,12 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
+let incremental_min_prev_steps = 100_000;
+
 let wants_incremental = (req_value: Request.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
-  >= incremental_min_statics;
+  >= incremental_min_statics
+  || req_value.prev.steps >= incremental_min_prev_steps;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -397,6 +403,10 @@ let post_batch_result = (model, request_id, completed) =>
         eval_time: eval_total^,
       }),
     );
+    switch (Option.bind(CoverageHook.snapshot, snapshot => snapshot())) {
+    | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
+    | None => ()
+    };
   };
 
 let post_stream_update =

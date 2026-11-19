@@ -33,5 +33,8 @@ Fill the hole appropriately.
 @code
 2 * 125 * ¿ + 50
 
+@solution
+2 * 125 * 7 + 50
+
 @test
 test answer == 1800 end
