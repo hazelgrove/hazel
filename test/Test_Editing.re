@@ -1835,6 +1835,43 @@ else f|});
       |> printer,
     )
   ),
+  test_case(
+    "Home on a whitespace-only line stays at its end (indentation UX)",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "Home",
+      "x +\n    ¦\n  y",
+      perform(
+        ~settings={
+          ...default_settings,
+          indentation_ux: true,
+        },
+        parse_with_caret("x +\n  ¦  \n  y"),
+        [Action.Move(Line(Left))],
+      )
+      |> printer,
+    )
+  ),
+  test_from_parse(
+    ~name="End from the start of a whitespace-only line goes to its end",
+    ~init="x +\n¦    \n  y",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="x +\n    ¦\n  y",
+  ),
+  test_from_parse(
+    ~name="End on a whitespace-only first line goes to its end",
+    ~init="  ¦  \nx",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="    ¦\nx",
+  ),
+  test_from_parse(
+    ~name="End on a line of spaces then a comment goes past the comment",
+    ~init="x +\n  ¦  # c #\n  y",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="x +\n    # c #¦\n  y",
+  ),
   test(
     ~name="Extend selection left by token",
     ~acts=
