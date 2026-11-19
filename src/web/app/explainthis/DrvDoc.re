@@ -27,6 +27,9 @@ let settings =
     show_filters: false,
     show_ascriptions: false,
     show_unknown_as_hole: false,
+    use_literal_lexemes: false,
+    hole_tiles: false,
+    project_tables: false,
   };
 
 let f_jdmt: exp_t => Segment.t =

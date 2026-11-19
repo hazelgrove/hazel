@@ -37,13 +37,11 @@ type entry = {
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = Id.Map.t(entry);
-  let empty = Id.Map.empty;
 };
 
 module RefractorList = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = list((Id.t, entry));
-  let empty = [];
 };
 
 /* Groups multi-probe related state together.
@@ -67,10 +65,9 @@ type t = {
   manuals: RefractorList.t,
   multis: multi_state,
   sample_focus: Language.Sample.Focus.t,
-  /* For auto probe: the body ID of the top-level definition currently
-     being probed (if any). When the cursor moves to a different top-level
-     def, a multi probe is placed on its body. */
-  autoprobe_target: option(Id.t),
+  /* anchor ids of the top-level def being auto-probed; usually one (the body),
+     but `let f(args) = body` sugar also anchors the param pattern, so it's a list. */
+  autoprobe_target: list(Id.t),
   /* When a probe is added, this stores the target IDs (in lexical order)
      so that when evaluation results return, we can set the sample focus
      to the first sample of the first probe that has samples. */
@@ -81,7 +78,7 @@ let init = {
   manuals: [],
   multis: empty_multi_state,
   sample_focus: Language.Sample.Focus.init,
-  autoprobe_target: None,
+  autoprobe_target: [],
   pending_probe_cursor: None,
 };
 
@@ -99,12 +96,18 @@ let for_serialization = (refractors: t): t => {
 /* Refractors store a simplified `entry` type in Zipper.Refractor.Map
  * (just kind + model), avoiding redundant id/syntax in serialization.
  * When the full Base.projector is needed for rendering, use `to_projector`. */
-let mk_entry = (kind: ProjectorCore.Kind.t): entry => {
+let mk_entry = (~model=?, kind: ProjectorCore.Kind.t): entry => {
   let (module P) = ProjectorInit.to_module(kind);
   let model =
-    /* Create dummy syntax just to get the initial model string */
-    P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
-    |> OptUtil.get_or_fail("Refractor.mk_entry");
+    model
+    |> OptUtil.get(
+         () => {
+           /* Create dummy syntax just to get the initial model string */
+           P.init(Exp(Language.IdTagged.FreshGrammar.Exp.tuple([])))
+           |> OptUtil.get_or_fail("Refractor.mk_entry")
+         },
+         _,
+       );
   {
     kind,
     model,
@@ -112,15 +115,8 @@ let mk_entry = (kind: ProjectorCore.Kind.t): entry => {
 };
 
 /* Construct full Base.projector from entry and id, for rendering.
- * Creates dummy syntax with Id.invalid since refractors use skip_inline=true
- * and don't actually display the syntax. */
-let to_projector = (id: Id.t, entry: entry): Base.projector =>
-  ProjectorCore.mk(
-    ~id,
-    entry.kind,
-    Base.Secondary({
-      id: Id.invalid,
-      content: Whitespace(""),
-    }),
-    entry.model,
-  );
+ * Takes the actual syntax segment so projectors can access the
+ * underlying term (needed for syntax rewriting in rich probes). */
+let to_projector =
+    (syntax: Base.piece, id: Id.t, entry: entry): Base.projector =>
+  ProjectorCore.mk(~id, entry.kind, syntax, entry.model);

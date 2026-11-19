@@ -22,6 +22,7 @@ let get = (info: info): string =>
 let put = (info, s: string): Base.segment =>
   switch (
     info.utility.lift_syntax(
+      ~inline=true,
       fun
       | Exp(any) =>
         Exp({
@@ -44,7 +45,7 @@ let focus_parent_editor = (id): unit => {
    * <body> and the editor stops responding to keys. */
   switch (JsUtil.find_ancestor_with_class(el, "code-editor")) {
   | Some(editor_el) => editor_el##focus
-  | None => JsUtil.focus_clipboard_shim()
+  | None => JsUtil.focus_page()
   };
 };
 
@@ -125,16 +126,20 @@ module M: Projector = {
       pointer: Some(focus_pointer),
       keyboard: Some(focus_keyboard),
     };
-  let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (_, info) => {
     let str = info |> get;
+    /* Rows and widest line in display columns (StringUtil.max_line_width
+     * counts grapheme clusters, which undercounts wide glyphs). */
+    let (rows, cols) = Unicode.Width.bounding_box_for(str);
     ProjectorCore.Shape.{
-      vertical: Block(StringUtil.num_linebreaks(str)),
+      vertical: Block(rows),
       /* +2 for left and right padding */
-      horizontal: 2 + StringUtil.max_line_width(str),
+      horizontal: 2 + cols,
     };
   };
   let update = (model, _, _) => model;
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(

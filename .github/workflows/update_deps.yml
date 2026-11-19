@@ -33,7 +33,9 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2.0
-          dune-cache: true
+          # Keyed on the run id, so never an exact hit, yet it uploads hundreds
+          # of MB every run, crowding out the caches that do hit.
+          dune-cache: false
 
       - name: Install dune
         run: |
@@ -41,12 +43,14 @@ jobs:
           export OPAMYES=1
           opam install dune
   
+      # `make change-deps` does not configure this itself, so it has to happen
+      # here for the lock file to resolve against the archive.
       - name: Add opam repository archive
         run: |
           eval $(opam env)
           export OPAMYES=1
           opam repo add archive git+https://github.com/ocaml/opam-repository-archive
-          
+
       - name: Set up Git
         run: |
           git config user.name "github-actions[bot]"
@@ -57,6 +61,7 @@ jobs:
            eval $(opam env)
            export OPAMYES=1
            make change-deps
+           git diff --stat hazel.opam.locked
 
       - name: Create or update PR
         uses: peter-evans/create-pull-request@v7

@@ -16,9 +16,19 @@ let by_char_right = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
   | (Outer, None) => move(Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
-  | (Inner(char), Some(max_idx)) when char == max_idx =>
+  | (Inner(char), Some(max_idx)) when char >= max_idx =>
     z |> Caret.set(Outer) |> move(Right)
-  | (Inner(char), None | Some(_)) =>
+  | (Inner(_), None) =>
+    /* Inner references the right-side piece. If the right neighbor
+     * isn't a multi-char token (grout, projector, single-char token,
+     * or empty), `Inner(char)` has no valid internal position to step
+     * to — collapse to Outer and pop. Without this, `do_towards_point`
+     * loops when Inner was set by a prior char-level selection and
+     * the post-unselect right neighbor can't accept it: col advances
+     * by 1 per step but row never changes, so `(Under, _)` keeps
+     * recursing. */
+    z |> Caret.set(Outer) |> move(Right)
+  | (Inner(char), Some(_)) =>
     z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 
@@ -39,11 +49,43 @@ let by_token = (d: Direction.t, z: t): option(t) =>
     };
   };
 
+/* === Indentation-transparent caret movement ===
+   Arrow movement never RESTS inside leading whitespace: a position is
+   skippable iff everything left of it at its level, up to a linebreak
+   (or buffer start at top level), is spaces AND its right neighbor is
+   a space. Kept positions: first content (right = content), line ends
+   (right = linebreak / nothing), and a blank line's single position —
+   every line keeps at least one reachable position. Clicks (Point
+   moves) and selection resizing are exempt: click into indentation
+   and movement is normal until the caret exits the run. */
+let in_skippable_indent = (z: t): bool =>
+  z.caret == Outer
+  && z.selection.content == []
+  && (
+    switch (z.relatives.siblings) {
+    | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
+      let rec all_white = (ps: list(Piece.t)) =>
+        /* scanning right-to-left from the caret */
+        switch (ps) {
+        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [Piece.Secondary(s), ...rest] =>
+          Secondary.is_space(s)
+            ? all_white(rest) : Secondary.is_linebreak(s)
+        | _ => false
+        };
+      all_white(List.rev(l));
+    | _ => false
+    }
+  );
+
 let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
   switch (chunkiness) {
   | ByToken => by_token(d, z)
-  | ByChar => by_char(d, z)
+  /* BySmart is a selection-only granularity; for caret movement it
+   * degrades to ByChar. Never emitted for Move actions in practice. */
+  | ByChar
+  | BySmart => by_char(d, z)
   };
 };
 
@@ -67,7 +109,7 @@ let move_until_wrap = (p, d, z) =>
  * few cases including for example `true && !|flag`,
  * where the caret (|) is at the leftmost edge of
  * `flag`, but the not operator ("!") is indicated */
-let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
   let at_piece =
     fun
     | (_, Some(piece)) when d == Left => Piece.id(piece) == id
@@ -78,11 +120,190 @@ let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
+/* Where the walk above ends, found without walking. It goes to one end of
+ * the program and steps a token at a time back until the piece is beside
+ * the caret: a Zipper.move per token, so focusing a projector near the end
+ * of a long program pays for every token before it. `local` steps into
+ * tiles but not into a projector's syntax, so when the piece is reached
+ * through tiles alone the walk stops at the one boundary beside it, in its
+ * own segment: nothing earlier in the walk's order has it as a neighbour
+ * (a tile's own children come after its left side and before its right
+ * side). That zipper is built here directly. A piece inside a projector's
+ * syntax, or no such piece, is left to the walk. Test_Move checks the two
+ * agree. */
+let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      Piece.id(p) == id
+      || (
+        switch (p) {
+        | Tile(t) => List.exists(has_id_deep(id), t.children)
+        | Projector(pr) => has_id_deep(id, [pr.syntax])
+        | Grout(_)
+        | Secondary(_) => false
+        }
+      ),
+    seg,
+  );
+
+exception Not_through_tiles;
+
+/* The relatives with [id] beside the caret on side [d] of it, if [id] is
+ * reached through tiles alone. */
+let relatives_beside_id =
+    (d: Direction.t, id: Id.t, seg: Segment.t): option(Relatives.t) => {
+  let rec in_seg =
+          (seg: Segment.t, ancestors: Ancestors.t): option(Relatives.t) => {
+    let rec go = (pre_rev: Segment.t, suf: Segment.t) =>
+      switch (suf) {
+      | [] => None
+      | [p, ...rest] when Piece.id(p) == id =>
+        let pre = List.rev(pre_rev);
+        Some(
+          Relatives.{
+            siblings:
+              switch (d) {
+              | Left => (pre, suf)
+              | Right => (pre @ [p], rest)
+              },
+            ancestors,
+          },
+        );
+      | [Tile(t) as p, ...rest] =>
+        let sibs = (List.rev(pre_rev), rest);
+        let n = List.length(t.children);
+        let rec child = k =>
+          if (k >= n) {
+            None;
+          } else {
+            let (before, after) = ListUtil.split_n(k, t.children);
+            let (c, after) =
+              switch (after) {
+              | [c, ...after] => (c, after)
+              | [] => failwith("relatives_beside_id: child index")
+              };
+            let anc: Ancestor.t = {
+              id: t.id,
+              form: t.form,
+              sort: t.sort,
+              shards: ListUtil.split_n(k + 1, t.shards),
+              children: (before, after),
+            };
+            switch (in_seg(c, [(anc, sibs), ...ancestors])) {
+            | Some(_) as found => found
+            | None => child(k + 1)
+            };
+          };
+        switch (child(0)) {
+        | Some(_) as found => found
+        | None => go([p, ...pre_rev], rest)
+        };
+      | [Projector(_) as p, ..._] when has_id_deep(id, [p]) =>
+        raise(Not_through_tiles)
+      | [p, ...rest] => go([p, ...pre_rev], rest)
+      };
+    go([], seg);
+  };
+  switch (in_seg(seg, [])) {
+  | found => found
+  | exception Not_through_tiles => None
+  };
+};
+
+/* For tests: jumps made without walking. */
+let direct_jumps = ref(0);
+
+let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+  let z' = unselect(z);
+  switch (relatives_beside_id(d, id, Zipper.zip(z'))) {
+  | Some(relatives) =>
+    incr(direct_jumps);
+    Some({
+      ...z',
+      relatives,
+      caret: Outer,
+    });
+  | None => jump_to_side_of_id_by_walking(d, z, id)
+  };
+};
+
+/* Caret-position invariant for the char-level selection model:
+ *   `Inner(n)` is right-neighbor-relative — the right-generalized
+ *   neighbor must be a Piece P with `piece_max_idx(P) >= n`.
+ * `by_char` / `by_token` movements maintain this via `set + move`.
+ * Selection operations that lift content + reassemble can break it
+ * (reassemble may absorb the named piece into an ancestor or shuffle
+ * adjacent Secondaries across the caret). Such transitions must
+ * re-canonicalize the structural state before setting an Inner caret;
+ * the helpers below do that via `jump_to_shard`. */
+
+/* (tile_id, shard_idx) precisely identifies a single shard of a tile.
+ * Shards of a multi-shard tile share `tile_id` so id alone is
+ * ambiguous; `shard_idx` is the shard's index within the tile's label. */
+let shard_locator = (p: option(Piece.t)): option((Id.t, int)) =>
+  switch (p) {
+  | Some(Tile(t)) =>
+    switch (t.shards) {
+    | [idx] => Some((t.id, idx))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* Navigate so the right-generalized neighbor is the shard identified
+ * by (tile_id, shard_idx). by_token-based, so the resulting structural
+ * state is canonical. */
+let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
+  let at_target = ((_, r): Zipper.neighbors) =>
+    switch (r) {
+    | Some(Piece.Tile(t)) =>
+      Id.equal(t.id, tile_id)
+      && (
+        switch (t.shards) {
+        | [idx] => idx == shard_idx
+        | _ => false
+        }
+      )
+    | _ => false
+    };
+  let z = do_to_extreme(local(ByToken, Left), z);
+  at_target(Zipper.generalized_neighbors(z))
+    ? Some(z) : do_until(local(ByToken, Right), at_target, z);
+};
+
+/* Post-unselect canonicalization for collapsing a char-level selection
+ * to an Inner caret target. Pre-unselect, capture the boundary piece
+ * via `shard_locator`; pass `target_caret` and `locator` here after
+ * `Zipper.directional_unselect`. No-op for Outer targets or when the
+ * boundary piece isn't a single-shard tile. */
+let canonicalize_inner_unselect =
+    (~locator: option((Id.t, int)), ~target_caret: CaretBase.t, z: t): t =>
+  switch (locator, target_caret) {
+  | (Some((tile_id, shard_idx)), Inner(_)) =>
+    switch (jump_to_shard(z, tile_id, shard_idx)) {
+    | Some(z') => Zipper.Caret.set(target_caret, z')
+    | None => Zipper.Caret.set(target_caret, z)
+    }
+  | _ => z
+  };
+
 /* Moves to the left side of the token with the given id,
  * then checks if it's indicated. If not, move one token
  * to the right. I believe but have not proved this
  * always results in the token being indicated  */
-let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+/* first anchor that resolves wins; callers pass the preferred id
+   followed by fallbacks (e.g. its statics ancestors) so a vanished
+   id can never dump the caret at the document default */
+let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
+  switch (ids) {
+  | [] => None
+  | [id, ...rest] =>
+    switch (jump_to_id_indicated(z, id)) {
+    | Some(z') => Some(z')
+    | None => jump_to_first_indicated(z, rest)
+    }
+  }
+and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   let* z_l = jump_to_side_of_id(Left, z, id);
   let* indicated_id = Indicated.index(z_l);
   if (id == indicated_id) {
@@ -102,13 +323,49 @@ let to_next_grout: (Direction.t, t) => option(t) =
     }
   );
 
+/* Refractors reserve empty rows below the probed tile that hold no caret
+ * positions; vertical movement skips past a reserved range in dir. */
+let skip_refractor_dead_rows =
+    (
+      ~refractor_rows: Id.Map.t(int),
+      ~measured: Measured.t,
+      ~dir: int,
+      candidate: int,
+    )
+    : int =>
+  Id.Map.fold(
+    (id, height, acc) =>
+      switch (Measured.find_by_id(id, measured)) {
+      | Some({last, _})
+          when height > 0 && acc >= last.row + 1 && acc <= last.row + height =>
+        dir > 0 ? last.row + height + 1 : last.row
+      | _ => acc
+      },
+    refractor_rows,
+    candidate,
+  );
+
 let vertical =
-    (~col_target: int, ~measured: Measured.t, d: Action.vertical, z: t)
+    (
+      ~col_target: int,
+      ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
+      d: Action.vertical,
+      z: t,
+    )
     : option(t) => {
+  let dir = d == Down ? 1 : (-1);
+  let from_row = Zipper.Caret.point(measured, z).row;
   let goal =
     Point.{
       col: col_target,
-      row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
+      row:
+        skip_refractor_dead_rows(
+          ~refractor_rows,
+          ~measured,
+          ~dir,
+          from_row + dir,
+        ),
     };
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
@@ -123,8 +380,34 @@ let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
 
-let to_linebreak = (d: Direction.t, z: t): option(t) =>
+/* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
+let space_on = (d: Direction.t, z: t): bool =>
+  switch (d, Zipper.generalized_neighbors(z)) {
+  | (Right, (_, Some(Secondary(s)))) => Secondary.is_space(s)
+  | (Left, (Some(Secondary(s)), _)) => Secondary.is_space(s)
+  | _ => false
+  };
+
+let rec skip_spaces = (d: Direction.t, z: t): t =>
+  if (space_on(d, z)) {
+    switch (local(ByToken, d, z)) {
+    | Some(z') => skip_spaces(d, z')
+    | None => z
+    };
+  } else {
+    z;
+  };
+
+/* Move to the literal line boundary, without crossing it. */
+let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
+
+/* Move to the line boundary, then skip back past leading/trailing
+ * spaces to the first/last content on the line. */
+let to_linebreak = (d: Direction.t, z: t): option(t) => {
+  let+ z = to_linebreak_raw(d, z);
+  skip_spaces(Direction.toggle(d), z);
+};
 
 let to_next_problem =
     (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
@@ -181,6 +464,7 @@ let move_dispatch =
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
       d: Action.move,
       z: t,
     )
@@ -190,8 +474,8 @@ let move_dispatch =
   | Start => Some(to_start(z))
   | End => Some(to_end(z))
   | Line(d) => to_linebreak(d, z)
-  | Vertical(d) => vertical(~measured, ~col_target, d, z)
-  | Point(goal) => to_point(~measured, ~goal, z)
+  | Vertical(d, _) => vertical(~measured, ~refractor_rows, ~col_target, d, z)
+  | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
@@ -205,37 +489,74 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let d =
     switch (a) {
     | Local(d, _) => d
-    | Vertical(Up) => Left
-    | Vertical(Down) => Right
+    | Vertical(Up, _) => Left
+    | Vertical(Down, _) => Right
     | Start
     | End
     | Line(_)
     | Point(_)
     | Goal(_) => z.selection.focus
     };
-  Zipper.directional_unselect(d, z);
+  let landing_at_anchor = d != z.selection.focus;
+  let target_caret: CaretBase.t =
+    landing_at_anchor ? z.selection.anchor_caret : z.caret;
+  let locator =
+    shard_locator(
+      landing_at_anchor
+        ? Selection.anchor_piece(z.selection)
+        : Selection.focus_piece(z.selection),
+    );
+  let z = Zipper.directional_unselect(d, z);
+  canonicalize_inner_unselect(~locator, ~target_caret, z);
 };
+let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
+  if (fuel <= 0 || !in_skippable_indent(z)) {
+    z;
+  } else {
+    switch (local(ByChar, d, z)) {
+    | Some(z) => skip_indent(~fuel=fuel - 1, d, z)
+    | None => z
+    };
+  };
+
 let go =
     (
       ~statics: Language.Statics.Map.t,
       ~problem_ids: Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
+      ~refractor_rows: Id.Map.t(int),
       a: Action.move,
       z: t,
     )
     : option(t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z);
+    move_dispatch(
+      ~statics,
+      ~problem_ids,
+      ~col_target,
+      ~measured,
+      ~refractor_rows,
+      a,
+      z,
+    );
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
-    // By char just unselects
-    | Local(Left, ByChar)
-    | Local(Right, ByChar) => Some(z)
+    // By char or smart just unselects (movement within selection)
+    | Local(Left, ByChar | BySmart)
+    | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
       switch (
-        move_dispatch(~statics, ~problem_ids, ~col_target, ~measured, a, z)
+        move_dispatch(
+          ~statics,
+          ~problem_ids,
+          ~col_target,
+          ~measured,
+          ~refractor_rows,
+          a,
+          z,
+        )
       ) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,

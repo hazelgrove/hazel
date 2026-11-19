@@ -272,6 +272,28 @@ let tests =
             );
           },
         ),
+        test_case(
+          "Recursive type",
+          `Quick,
+          () => {
+            introduction_test(
+              "type S = (Int, S) in let x : S = ? in x",
+              "type S = (Int, S) in let x : S = (?, ?) in x",
+            );
+            introduction_test(
+              "type F = Int -> F in let x : F = ? in x",
+              "type F = Int -> F in let x : F = fun ? -> ? in x",
+            );
+            introduction_test(
+              "let x : rec t -> (Int, t) = ? in x",
+              "let x : rec t -> (Int, t) = (?, ?) in x",
+            );
+            introduction_test(
+              "type W = +Wrap(W) in let x : W = ? in x",
+              "type W = +Wrap(W) in let x : W = Wrap(?) in x",
+            );
+          },
+        ),
       ],
     ),
     (
@@ -309,6 +331,20 @@ let tests =
             introduction_test(
               "let ? : +A(Int) = A(1) in 1",
               "let A(?) : +A(Int) = A(1) in 1",
+            );
+          },
+        ),
+        test_case(
+          "Recursive type",
+          `Quick,
+          () => {
+            introduction_test(
+              "type S = (Int, S) in let x : S -> Int = fun ? -> 1 in x",
+              "type S = (Int, S) in let x : S -> Int = fun (?, ?) -> 1 in x",
+            );
+            introduction_test(
+              "type W = +Wrap(W) in let x : W -> Int = fun ? -> 1 in x",
+              "type W = +Wrap(W) in let x : W -> Int = fun Wrap(?) -> 1 in x",
             );
           },
         ),

@@ -58,9 +58,3 @@ let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
     },
   );
 };
-
-let view_of_main_title_bar = (title_text: string) =>
-  div(
-    ~attrs=[clss(["title-bar", "panel-title-bar"])],
-    [Node.text(title_text)],
-  );

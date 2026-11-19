@@ -17,7 +17,22 @@ module IDBStore = Ezjs_idb.Store(StringTr, StringTr);
 
 type db = Ezjs_min.t(Types.iDBDatabase);
 
-let db_name = "hazel";
+/* One database per git branch, so builds of different branches served from
+   the same origin (every preview on build.hazel.org) keep separate saved
+   state: a branch that changes a persisted type can't clobber, or be
+   clobbered by, another branch's data (#2204, and see #2454). `dev`, and
+   builds made outside a git checkout or from a detached HEAD, keep the
+   original name, so existing saved state there is untouched. The branch is
+   baked in at build time by scripts/build-info.sh. */
+let db_name_for_branch = (branch: string): string =>
+  switch (branch) {
+  | "dev"
+  | "unknown"
+  | "HEAD" => "hazel"
+  | branch => "hazel:" ++ branch
+  };
+
+let db_name = db_name_for_branch(BuildInfo.branch);
 let log_table = "log";
 let kv_table = "kv";
 
@@ -52,13 +67,6 @@ let kv_save = (key: string, value: string): unit => {
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
 
-let kv_delete = (key: string): unit => {
-  cache := Util.Maps.StringMap.remove(key, cache^);
-  with_db(db =>
-    IDBStore.delete(~error=_ => (), ~callback=_ => (), kv_store(db), K(key))
-  );
-};
-
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
   let error = _ => print_endline("ERROR: HazelDB.kv_clear");
@@ -91,11 +99,6 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
 
 let log_add = (key: string, value: string): unit =>
   with_db(db => IDBStore.add(~key, ~callback=_ => (), log_store(db), value));
-
-let log_get = (key: string, f: option(string) => unit): unit => {
-  let error = _ => print_endline("ERROR: HazelDB.log_get");
-  with_db(db => IDBStore.get(~error, log_store(db), f, K(key)));
-};
 
 let log_get_all = (f: list(string) => unit): unit => {
   let error = _ => print_endline("ERROR: HazelDB.log_get_all");

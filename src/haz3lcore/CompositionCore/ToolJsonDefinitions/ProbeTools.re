@@ -1,10 +1,12 @@
 open Util;
 
-let place_probe_description = {|
+let place_probe_description =
+  {|
 Places probes on the bindings at the given paths to observe their runtime values.
 When a probe is active, the agent view shows evaluated values inline (e.g., `expr ≡ value`).
 This is a powerful debugging and verification tool — use it to check whether code behaves as expected.
 If the probed definition is collapsed (⋱), it will be auto-expanded so results are visible.
+Values come from the evaluator; the next context refresh waits for evaluation to finish, so probe values are normally present immediately. A `∅` means the probed expression was never reached during evaluation (e.g. a branch not taken or a function never called) — that itself is useful evidence.
 
 Parameters:
 paths: list(string) — paths to the bindings to probe
@@ -12,7 +14,7 @@ paths: list(string) — paths to the bindings to probe
 Example:
 Given the program:
 ```
-let double = fun x -> x * 2 in
+let double(x) = x * 2 in
 let result = double(5) in
 result
 ```
@@ -23,7 +25,10 @@ let result = double(5) in     ≡ 10
 result
 ```
 The ≡ 10 shows that `result` evaluates to 10.
-|};
+
+|}
+  ++ "\n\n"
+  ++ ProjectorCatalog.probe_tools_crossref;
 
 let place_probe: API.Json.t =
   `Assoc([
@@ -62,7 +67,8 @@ let place_probe: API.Json.t =
     ),
   ]);
 
-let remove_probe_description = {|
+let remove_probe_description =
+  {|
 Removes probes from the bindings at the given paths.
 Use this to clean up probes after verifying code behavior.
 
@@ -72,7 +78,10 @@ paths: list(string) — paths to the bindings to remove probes from
 Example:
 Calling remove_probe(paths=["result"]) removes the probe from "result",
 and the view no longer shows evaluated values for that binding.
-|};
+
+|}
+  ++ "\n\n"
+  ++ ProjectorCatalog.probe_tools_crossref;
 
 let remove_probe: API.Json.t =
   `Assoc([
@@ -111,7 +120,8 @@ let remove_probe: API.Json.t =
     ),
   ]);
 
-let toggle_probe_description = {|
+let toggle_probe_description =
+  {|
 Toggles probes on or off for the bindings at the given paths.
 If a probe is already placed, it is removed. If no probe exists, one is placed.
 Collapsed definitions are auto-expanded when a probe is placed.
@@ -122,7 +132,10 @@ paths: list(string) — paths to the bindings to toggle probes on
 Example:
 If "result" has no probe, calling toggle_probe(paths=["result"]) places one.
 Calling toggle_probe(paths=["result"]) again removes it.
-|};
+
+|}
+  ++ "\n\n"
+  ++ ProjectorCatalog.probe_tools_crossref;
 
 let toggle_probe: API.Json.t =
   `Assoc([

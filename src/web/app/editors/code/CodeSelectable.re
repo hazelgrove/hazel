@@ -15,15 +15,6 @@ module Update = {
     | Unselect(option(Util.Direction.t))
     | Copy;
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Move(move) => Action.is_historic(Move(move))
-    | Select(select) => Action.is_historic(Select(select))
-    | Unselect(dir) => Action.is_historic(Unselect(dir))
-    | Copy => false
-    };
-  };
-
   let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
     let action': CodeEditable.Update.t =
       switch (action) {
@@ -50,8 +41,9 @@ module Update = {
         Project(_) |
         Structural(_) |
         Probe(_) |
-        PrettyPrint |
-        Dump |
+        Format(_) |
+        AdjustIndent(_, _) |
+        ApplyCompletion(_) |
         Introduce |
         ToggleLineComment,
       )

@@ -46,7 +46,10 @@ let add_caret =
 
 let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
   try(
-    StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent)
+    StringUtil.repeat(
+      Measured.Rows.find(i, measured.rows).content_start,
+      indent,
+    )
     ++ r
   ) {
   | Not_found =>
@@ -97,6 +100,12 @@ let of_segment =
   |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
+
+let selected_text =
+    (~holes=" ", ~indent="", ~refractors=[], z: Zipper.t): string => {
+  let full = of_segment(~holes, ~indent, ~refractors, z.selection.content);
+  Zipper.trim_selected_text(z, full);
+};
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =

@@ -145,6 +145,25 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
+/* the NEWEST binding of a capitalized name, whichever kind: a module (or
+   any variable) bound after a constructor of the same name shadows it
+   lexically, as any later binding shadows an earlier one */
+let newest_var_or_ctr =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `Var(var_entry)
+          | `Ctr(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    fun
+    | VarEntry(v) when v.name == name => Some(`Var(v))
+    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+    | _ => None,
+    ctx.entries,
+  );
+
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
@@ -250,59 +269,46 @@ let is_abstract = (ctx: t, name: string): bool =>
   | None => false
   };
 
-/* `None` for both "no such tvar" and "tvar is abstract (no aliased
-   definition)". Callers should use the `None` case to mean "this
-   name has no concrete RHS to substitute" — typically by leaving the
-   `Var` alone. */
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
-  | Some(Abstract)
-  | None => None
+  | Some(Abstract) => None
+  | None =>
+    Some(
+      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
+    )
   };
 
-/* Build the result type that a constructor of a parameterized
-   alias produces. For `type Either(a, b) = + A(a) + B(b)`, the
-   `A` constructor's result type is `Either(a, b)` — i.e. the
-   alias name applied to its parameters in *one* step, not a
-   curried `Either(a)(b)`.
-
-   Surface application of multiple type-args parses as a single
-   `TypParamAp(callee, TypTuple([…]))` (multi-arg) or
-   `TypParamAp(callee, arg)` (single-arg). Both reduction sites
-   (`Typ.weak_head_normalize`, `Typ.apply_args`) are now uncurried-
-   aware via `TPat.binders_of`, so this function also produces the
-   uncurried shape. */
-let result_type_for_params = (name: string, params: list(TermBase.TPat.t)) => {
-  let head: TermBase.Typ.t = (Var(name): TermBase.Typ.term) |> IdTagged.fresh;
-  let arg_vars =
-    List.filter_map(
-      (param: TermBase.TPat.t) =>
-        switch (TermBase.TPat.tyvar_of_utpat(param)) {
-        | Some(param_name) =>
-          Some((Var(param_name): TermBase.Typ.term) |> IdTagged.fresh)
-        | None => None
-        },
-      params,
-    );
-  switch (arg_vars) {
-  | [] => head
-  | [arg] => (TypParamAp(head, arg): TermBase.Typ.term) |> IdTagged.fresh
-  | _ =>
-    let tuple: TermBase.Typ.t =
-      (TypTuple(arg_vars): TermBase.Typ.term) |> IdTagged.fresh;
-    (TypParamAp(head, tuple): TermBase.Typ.term) |> IdTagged.fresh;
-  };
+/* The type a constructor of alias `name` produces: the alias applied
+   to its parameters, one application per parameter group, so
+   `type Either(a, b) = …` gives `Either(a, b)` and the curried
+   `type R = typfun e -> typfun o -> …` gives `R(e)(o)`. A parameter
+   that is not a name (a hole) is applied as an unknown type. */
+let result_type_for_params =
+    (name: string, param_groups: list(list(TermBase.TPat.t)))
+    : TermBase.Typ.t => {
+  let typ = (term: TermBase.Typ.term) => IdTagged.fresh(term);
+  let arg = (param: TermBase.TPat.t) =>
+    switch (TermBase.TPat.tyvar_of_utpat(param)) {
+    | Some(param_name) => typ(Var(param_name))
+    | None => typ(Unknown(Internal))
+    };
+  List.fold_left(
+    (head, group) =>
+      switch (group) {
+      | [] => head
+      | [param] => typ(TypParamAp(head, arg(param)))
+      | _ => typ(TypParamAp(head, typ(TypTuple(List.map(arg, group)))))
+      },
+    typ(Var(name)),
+    param_groups,
+  );
 };
 
+/* A constructor schema quantifies all of its alias's parameters at once
+   (`poly a, b -> …`), so one type application `C@<A, B>` instantiates it
+   whether the alias's parameters are one group or curried. */
 let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
-  /* A parameterized type's constructor schema gets a single `Poly`
-     wrapping. Single-parameter types use the bare param as the binder
-     (`Poly(a, ty)`); multi-parameter types wrap the params into a
-     `TPat.Tuple` so the schema mirrors the source-level multi-binder
-     form `poly a, b -> …` (`Poly(Tuple([a, b]), ty)`). This way both
-     the user's `pair@<Int, Bool>` and constructor specialization in
-     elaboration peel one binder layer in one step. */
   switch (params) {
   | [] => ty
   | [param] => (Poly(param, ty): TermBase.Typ.term) |> IdTagged.fresh
@@ -316,37 +322,39 @@ let add_ctrs_with_params =
     (
       ctx: t,
       name: string,
-      params: list(TermBase.TPat.t),
+      param_groups: list(list(TermBase.TPat.t)),
       ctrs: TermBase.Typ.sum_map,
     )
     : t => {
-  ...ctx,
-  entries:
-    List.filter_map(
-      fun
-      | ConstructorMap.Variant(ctr, ann, typ) => {
-          assert(ann.ids != []);
-          let ctr_id = List.hd(ann.ids);
-          let result_ty = result_type_for_params(name, params);
-          let typ =
-            switch (typ) {
-            | None => result_ty
-            | Some(typ) =>
-              (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
-            };
-          Some(
-            ConstructorEntry({
-              name: ctr,
-              id: ctr_id,
-              typ: quantify_params(params, typ),
-              custom_statics: None,
-            }),
-          );
-        }
-      | ConstructorMap.BadEntry(_) => None,
-      ctrs,
-    )
-    @ ctx.entries,
+  let result_ty = result_type_for_params(name, param_groups);
+  {
+    ...ctx,
+    entries:
+      List.filter_map(
+        fun
+        | ConstructorMap.Variant(ctr, ann, typ) => {
+            assert(ann.ids != []);
+            let ctr_id = List.hd(ann.ids);
+            let typ =
+              switch (typ) {
+              | None => result_ty
+              | Some(typ) =>
+                (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
+              };
+            Some(
+              ConstructorEntry({
+                name: ctr,
+                id: ctr_id,
+                typ: quantify_params(List.concat(param_groups), typ),
+                custom_statics: None,
+              }),
+            );
+          }
+        | ConstructorMap.BadEntry(_) => None,
+        ctrs,
+      )
+      @ ctx.entries,
+  };
 };
 
 let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
@@ -446,21 +454,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
-/* Keep in sync with Token.base_typs */
-let is_base_typ = (name: string): bool =>
-  name == "Bool"
-  || name == "Float"
-  || name == "Int"
-  || name == "Nat"
-  || name == "SInt"
-  || name == "String"
-  || name == "DrvJdmt"
-  || name == "DrvCtx"
-  || name == "DrvProp"
-  || name == "ALFAExp"
-  || name == "DrvPat"
-  || name == "ALFATyp"
-  || name == "DrvTPat";
+let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
@@ -483,11 +477,6 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
       name,
     }
   };
-
-let concat = (ctx1: t, ctx2: t): t => {
-  ...ctx1,
-  entries: ctx1.entries @ ctx2.entries,
-};
 
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(

@@ -4,9 +4,11 @@ let tests =
     Test_Statics_FunctionSugar.tests,
     Test_Statics_Tuples.tests,
     Test_Statics_Lists.tests,
+    Test_Statics_Let.tests,
     Test_Statics_Polymorphism.tests,
     Test_Statics_Sums.tests,
     Test_Statics_ParameterizedTypes.tests,
+    Test_Statics_Void.tests,
     Test_Statics_Types.tests,
     Test_Statics_Modules.tests,
   ]

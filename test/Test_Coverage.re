@@ -17,6 +17,8 @@ let equal_issue_for_coverage =
     (a: Test_Statics_Prelude.issue, b: Test_Statics_Prelude.issue): bool =>
   switch (a, b) {
   | (Marks(xs), Marks(ys)) => List.equal(equal_mark_for_coverage, xs, ys)
+  | (Warnings(_), _)
+  | (_, Warnings(_)) => equal_issue(a, b)
   };
 
 let equal_errors_map_coverage = Id.Map.equal(equal_issue_for_coverage);
@@ -1348,6 +1350,18 @@ let exhaustive_bools_with_wilds =
     |},
   );
 
+// Regression for #2074.
+let regression_2074_tuplabel_emptyhole_label =
+  test_case(
+    "TupLabel with EmptyHole label in let-binding doesn't crash", `Quick, () =>
+    switch (Haz3lcore.Parser.to_term("let (?=?) = 1 in 1", ~root=Exp)) {
+    | None => Alcotest.fail("parse failed")
+    | Some(term) =>
+      let _ = statics(term);
+      ();
+    }
+  );
+
 let tests = (
   "Pattern Coverage Checker",
   [
@@ -1397,6 +1411,7 @@ let tests = (
     rank_let_inexhaustive,
     rank_fun_inexhaustive,
     nested_constructors_inexhaustive,
+    nested_constructors_exhaustive,
     multiple_holes_irredundant,
     unknown_scrutinee_exhaustive,
     unknown_scrutinee_redundant_vars,
@@ -1408,6 +1423,7 @@ let tests = (
     labeled_tuple_redundancy,
     labeled_tuple_additional_error,
     function_scrutinee,
+    type_function_scrutinee,
     fun_labeled_tuple,
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
@@ -1416,5 +1432,6 @@ let tests = (
     parameterized_sum_inexhaustive,
     parameterized_recursive_list_exhaustive,
     parameterized_recursive_self_ref_exhaustive,
+    regression_2074_tuplabel_emptyhole_label,
   ],
 );

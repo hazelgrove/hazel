@@ -1,16 +1,9 @@
 /* PROJECTOR: INFO */
 
-:root {
-  --code-text: var(--token-exp);
-  --main-base: hsl(281, 80%, 95%);
-  --main-shadow: hsl(281, 40%, 25%);
-  --main-indicated: var(--TYP);
-}
-
 /* BACKING */
 
 .projector.statics > svg {
-  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow-strong));
 }
 
 .projector.statics.indicated > svg {
@@ -25,7 +18,7 @@
 /* INLINE VIEW */
 
 .projector.statics:hover {
-  color: var(--BLACK);
+  color: var(--text-black);
 }
 
 .projector.statics .main {
@@ -39,7 +32,7 @@
 }
 
 .projector.statics.indicated:not(.selected):not(.error) .main {
-  color: white;
+  color: var(--text-inverse);
 }
 
 .projector.statics .icon {
@@ -63,8 +56,13 @@
   cursor: pointer;
 }
 
+/* Pin the mode arrows to the bundled --code-font, which covers U+21D0-U+21D3
+   at the real 700 face; left to a fallback they differ per browser. It has no
+   bidirectional DOUBLE arrow, so TypeProj shows the types-agree mode as `↔`
+   rather than `⇔`. */
 .projector.statics .offside .mode {
-  font-weight: 800;
+  font-family: var(--code-font);
+  font-weight: 700;
   color: var(--main-base);
   filter: brightness(0.9);
 }
@@ -93,7 +91,15 @@
 }
 
 .projector.statics .offside .code .token.explicit-hole {
-  color: white;
+  color: var(--text-inverse);
+}
+
+/* The parts of the type that came from runtime values. Every token of the
+   marked tile, not just the ones classed Typ: a hole is classed explicit-hole
+   and a label string-lit (see Code.of_delim'). Must stay below the
+   explicit-hole rule above, which it ties with on specificity. */
+.projector.statics .offside .code .dynamic > .token {
+  color: var(--dynamic-token);
 }
 
 /* REFRACTOR MODE */

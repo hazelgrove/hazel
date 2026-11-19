@@ -319,5 +319,15 @@ let x : List(Int) = Cons(0, Cons(10, Nil)) in x|};
         );
       },
     ),
+    /* Test_Statics_Polymorphism pins the type this result has to agree with. */
+    test_case(
+      "abs binder shadows a type alias, so the body keeps `y` (#1717)",
+      `Quick,
+      () =>
+      parse_and_evaluate_test(
+        {|abs y -> (?:y)|},
+        {|type y = Int in abs y -> (? : y)|},
+      )
+    ),
   ],
 );

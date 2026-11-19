@@ -18,19 +18,25 @@ let ascription_example_3 = {
   term: mk_example({|"hello" : (Int -> Int)|}),
   message: "A string literal \"hello\" ascribed with the type (Int -> Int), indicating it is a function that takes an Int and returns an Int. This is marked with a type error because a string cannot have a function type.",
 };
-let exp = exp("e");
+let e = exp("e");
 let typ = typ("ty");
 
 let ascription_coloring_ids =
     (~exp_id: Id.t, ~typ_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(exp), exp_id),
+  (Piece.id(e), exp_id),
   (Piece.id(typ), typ_id),
 ];
-let ascription: form = {
-  let explanation = "Represents a syntactic type ascription where an [*expression*](%s) is explicitly ascribed with a [*type*](%s). This is used to clarify or enforce the type of an expression.";
+let ascription = (~exp_id: Id.t, ~typ_id: Id.t): form => {
+  let explanation =
+    Printf.sprintf(
+      "Represents a syntactic type ascription where an [*expression*](%s) is explicitly ascribed with a [*type*](%s). This is used to clarify or enforce the type of an expression.",
+      Id.to_string(exp_id),
+      Id.to_string(typ_id),
+    );
   {
     id: AscExp,
-    syntactic_form: [exp, space(), ascription_exp(), space(), typ],
+    syntactic_form: [e, space(), ascription_exp(), space(), typ],
+    colorings: ascription_coloring_ids(~exp_id, ~typ_id),
     expandable_id: None,
     explanation,
     examples: [
@@ -40,7 +46,5 @@ let ascription: form = {
     ],
   };
 };
-let ascriptions: group = {
-  id: AscExp,
-  forms: [ascription],
-};
+let ascriptions = (~exp_id: Id.t, ~typ_id: Id.t): group =>
+  singleton(ascription(~exp_id, ~typ_id));

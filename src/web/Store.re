@@ -22,6 +22,7 @@ type key =
   | Settings
   | ExplainThis
   | Mode
+  | Configuration
   | Tutorial(Haz3lcore.Id.t)
   | CurrentTutorial
   | CurrentExercise
@@ -34,6 +35,7 @@ let key_to_string =
   | Settings => "SETTINGS"
   | ExplainThis => "ExplainThisModel"
   | Mode => "MODE"
+  | Configuration => "SAVE_CONFIGURATION"
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"

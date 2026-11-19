@@ -1,5 +1,13 @@
 open Util;
 
+module CompletionDisplay = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Quiver
+    | Flag
+    | Hidden;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -11,16 +19,25 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     show_log_panel: bool,
+    show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
-    /* Auto probe: automatically place a multi probe on the body of
-       whichever top-level definition the cursor is currently inside */
-    autoprobe_mode: bool,
+    [@sexp.default false]
+    quiver_flagpole: bool,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
+    autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
+    show_incremental_deco: bool,
+    /* Shortcut overrides derived from the Shortcuts config slide: a
+       ContextualAction label to its resolved hotkey, or None for an action
+       the config leaves Unbound. Applied when the command palette is built
+       (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
+    shortcut_overrides: list((string, option(string))),
+    simple_indication: bool,
   };
 
   let init = {
@@ -32,9 +49,12 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
+      selection_chunkiness: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -48,6 +68,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        project_tables: false,
       },
     },
     async_evaluation: false,
@@ -55,54 +76,51 @@ module Model = {
     instructor_mode: false,
     benchmark: false,
     show_log_panel: false,
+    show_debug_panel: false,
     explainThis: {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
     },
     sidebar: {
-      panel: LanguageDocumentation,
+      panel: TaskReference,
       show: true,
       problems: {
         collapsed: [],
+        collapsed_editors: [],
         flat: false,
         expanded: [],
       },
+      debug_show_raw: false,
+      /* Nothing is expanded until the user opens it, so the panel starts
+         scannable and no benchmarking or per-frame instrumentation runs (each
+         collector is gated on its section being expanded). */
+      debug_expanded: [],
+      /* Only the active encoding (Marshal) is benchmarked by default; Direct
+         and Sexp start unchecked. */
+      worker_encodings: [WorkerServer.Marshal],
+      settings_folded: ["Stepper", "Developer"],
     },
-    autoprobe_mode: false,
+    quiver_flagpole: false,
+    quiver: true, /* On by default (andrew 2026-07-09) */
+    autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
     cap_undo_stack: false,
     show_row_lines: false,
+    show_incremental_deco: false,
+    shortcut_overrides: [],
+    simple_indication: false,
   };
 
-  let fix_instructor_mode = settings =>
-    if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {
-        ...settings,
-        instructor_mode: false,
-      };
-    } else {
-      settings;
-    };
+  /* Keep the persisted fields compatible with existing preferences, while
+     presenting one mutually exclusive display choice to the user. */
+  let completion_display = (settings: t): CompletionDisplay.t =>
+    !settings.quiver ? Hidden : settings.quiver_flagpole ? Flag : Quiver;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
-
-  /* Clear expanded problem IDs before persisting — tile IDs are ephemeral
-     and go stale across sessions. */
-  let persist = settings => {
-    ...settings,
-    sidebar: {
-      ...settings.sidebar,
-      problems: {
-        ...settings.sidebar.problems,
-        expanded: [],
-      },
-    },
-  };
-  let unpersist = fix_instructor_mode;
 };
 
 module Store =
@@ -128,7 +146,8 @@ module Update = {
     | ShowLookups
     | ShowFilters
     | ShowSettings
-    | ShowHiddenSteps;
+    | ShowHiddenSteps
+    | ProjectTables;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -137,30 +156,32 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
+    | SelectionChunkiness
     | Assist
     | Elaborate
     | Benchmark
     | ContextInspector
     | InstructorMode
     | ShowLogPanel
+    | ShowDebugPanel
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
+    | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
     | CapUndoStack
-    | ShowRowLines;
-
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Evaluation(ShowSettings) => false
-    | _ => true
-    };
-  };
+    | ShowRowLines
+    | ShowIncrementalDeco
+    | SetShortcutOverrides(list((string, option(string))))
+    | SimpleIndication;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -200,11 +221,25 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
-      | DeepReassociate => {
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
+          },
+        }
+      | SelectionChunkiness => {
+          ...settings,
+          core: {
+            ...settings.core,
+            selection_chunkiness: !settings.core.selection_chunkiness,
           },
         }
       | Assist => {
@@ -244,6 +279,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowCaseClauses => {
               ...evaluation,
@@ -311,13 +350,25 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
-      | Sidebar(Problems(ToggleCollapsed(cat))) => {
+      | Sidebar(Problems(ToggleCollapsed(label, cat))) => {
           ...settings,
           sidebar: {
             ...settings.sidebar,
             problems:
               SidebarModel.Settings.toggle_collapsed(
+                label,
                 cat,
+                settings.sidebar.problems,
+              ),
+          },
+        }
+      | Sidebar(Problems(ToggleEditorCollapsed(label))) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            problems:
+              SidebarModel.Settings.toggle_editor_collapsed(
+                label,
                 settings.sidebar.problems,
               ),
           },
@@ -342,6 +393,33 @@ module Update = {
                 settings.sidebar.problems,
               ),
           },
+        }
+      | Sidebar(ToggleDebugRaw) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            debug_show_raw: !settings.sidebar.debug_show_raw,
+          },
+        }
+      | Sidebar(ToggleDebugExpanded(key)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_debug_expanded(
+              key,
+              settings.sidebar,
+            ),
+        }
+      | Sidebar(ToggleWorkerEncoding(e)) => {
+          ...settings,
+          sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
+        }
+      | Sidebar(ToggleSettingsFolded(name)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_settings_folded(
+              name,
+              settings.sidebar,
+            ),
         }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
@@ -373,6 +451,10 @@ module Update = {
           show_log_panel:
             !settings.show_log_panel && ExerciseSettings.show_instructor,
         }
+      | ShowDebugPanel => {
+          ...settings,
+          show_debug_panel: !settings.show_debug_panel,
+        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,
@@ -393,10 +475,37 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
-      | AutoprobeMode => {
+      | CompletionDisplay(mode) => {
           ...settings,
-          autoprobe_mode: !settings.autoprobe_mode,
+          quiver: mode != CompletionDisplay.Hidden,
+          quiver_flagpole: mode == CompletionDisplay.Flag,
         }
+      | AutoprobeMode =>
+        /* User-facing controls cycle Off<->All; Caret remains an internal
+         * mode and is not exposed by the sidebar. */
+        {
+          ...settings,
+          autoprobe_mode:
+            Haz3lcore.AutoProbe.(
+              switch (settings.autoprobe_mode) {
+              | Off => All
+              | Caret
+              | All => Off
+              }
+            ),
+        }
+      | SetAutoprobe(mode) => {
+          ...settings,
+          autoprobe_mode: mode,
+        }
+      | SampleStickyInPlace =>
+        /* '/' toggles sticky */
+        Haz3lcore.ProbeProj.Settings.(
+          {
+            set_sticky(! sticky^);
+            settings;
+          }
+        )
       | ToggleLineNumbers => {
           ...settings,
           line_numbers: !settings.line_numbers,
@@ -413,9 +522,28 @@ module Update = {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
+      | ShowIncrementalDeco => {
+          ...settings,
+          show_incremental_deco: !settings.show_incremental_deco,
+        }
+      | SetShortcutOverrides(overrides) => {
+          ...settings,
+          shortcut_overrides: overrides,
+        }
+      | SimpleIndication => {
+          ...settings,
+          simple_indication: !settings.simple_indication,
+        }
       }
     )
-    |> Updated.return(~scroll_active=false);
+    |> Updated.return(
+         ~scroll=Never,
+         ~historic=
+           switch (action) {
+           | Evaluation(ShowSettings) => false
+           | _ => true
+           },
+       );
   };
 };
 

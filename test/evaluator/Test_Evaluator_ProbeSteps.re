@@ -36,19 +36,6 @@ type relationship =
   | Contains
   | Equal;
 
-let classify = (a: Sample.t, b: Sample.t): relationship =>
-  if (disjoint_before(a, b)) {
-    DisjointBefore;
-  } else if (disjoint_after(a, b)) {
-    DisjointAfter;
-  } else if (a.step_start == b.step_start && a.step_end == b.step_end) {
-    Equal;
-  } else if (contained_within(a, b)) {
-    ContainedWithin;
-  } else {
-    Contains;
-  };
-
 let show_relationship =
   fun
   | DisjointBefore => "DisjointBefore"
@@ -57,14 +44,15 @@ let show_relationship =
   | Contains => "Contains"
   | Equal => "Equal";
 
-let relationship_testable =
-  testable(Fmt.using(show_relationship, Fmt.string), (==));
-
 /* Helper to get all samples from evaluated code with probes */
 let get_all_samples = (code: string): list(Sample.t) => {
   let (_term, elaborated, _info_map, targets) = parse_with_probes(code);
   let (_, state) =
-    Evaluator.evaluate(~targets, ~env=Builtins.env_init, elaborated);
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
   let probes = EvaluatorState.get_probes(state);
   Id.Map.bindings(probes) |> List.concat_map(snd);
 };

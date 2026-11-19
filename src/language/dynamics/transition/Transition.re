@@ -132,6 +132,61 @@ type step_kind =
   | RemoveUse
   | RemoveParens;
 
+/* Whether a step interprets the user's program (Proper) or performs
+   implementation bookkeeping that the surface semantics treats as
+   invisible (Administrative). Administrative steps with `may_delegate`
+   can rebuild a redex under its own id (rewrap here; fast_copy in
+   Ascriptions), re-evaluating user syntax as a CONTINUATION of its
+   enclosing observation span rather than a fresh event (at most one
+   open span per (id, call-stack) key — see
+   Evaluator.eval_3_record_probe_sample).
+
+   Distinct from should_hide_step_kind below: that is a display
+   preference (e.g. Conditional is hideable but Proper); provenance is
+   semantics. Kind granularity: a kind can cover several rules, so
+   may_delegate marks kinds ANY of whose rules can produce same-id
+   re-evaluation. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type provenance =
+  | Proper
+  | Administrative({may_delegate: bool});
+
+let provenance_of_kind: step_kind => provenance =
+  fun
+  | InvalidStep
+  | VarLookup
+  | Seq
+  | LetBind(_)
+  | TheoremBind
+  | UpdateTest
+  | TypAbsAp
+  | FunAp
+  | DeferredAp
+  | BuiltinAp(_)
+  | UnOp(_)
+  | BinOp(_)
+  | Dot
+  | Conditional(_)
+  | Projection
+  | TupleExtension
+  | ListCons
+  | ListConcat
+  | CaseApply
+  | FixUnwrap
+  | RemoveTypeAlias
+  | RemoveUse => Proper
+  | WrapClosure
+  | FixClosure
+  | CompleteClosure
+  | CompleteFilter
+  | BuiltinWrap
+  | MarkIncomparable
+  | RecordTheorem
+  | RemoveParens => Administrative({may_delegate: false})
+  | Ascription
+  | AscriptionTypAp
+  | AscriptionAp => Administrative({may_delegate: true});
+
 type rule =
   | Step({
       expr: DHExp.t,
@@ -155,17 +210,17 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 module type EV_MODE = {
-  type state;
   type result;
+  type inner_result;
   type requirement('a);
   type requirements('a, 'b);
 
   let req_final:
-    (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
+    (DHExp.t => inner_result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
     requirement(DHExp.t);
   let req_all_final:
     (
-      DHExp.t => result,
+      DHExp.t => inner_result,
       (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
       list(DHExp.t)
     ) =>
@@ -208,25 +263,27 @@ module Transition = (EV: EV_MODE) => {
 
   /* Extract function name from a function expression (including closures).
      Used to record the name in the call stack for better debugging. */
-  let get_fn_name_from_expr = (d: DHExp.t): option(string) =>
+  let rec get_fn_name_from_expr = (d: DHExp.t): option(string) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_name(e)
+    | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
     | TypAbs(_, _, name) => name
+    | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
-    | _ => None
+    | _ => Exp.get_fn_name(d)
     };
 
   /* Extract the definition-site ID from a function expression (including closures).
      Used to enable jump-to-definition from the closure cursor bar even when the
      app_id comes from built-in internal code (not in user's info_map). */
-  let get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
+  let rec get_fn_def_id_from_expr = (d: DHExp.t): option(Id.t) =>
     switch (d.term) {
-    | Closure(_, e) => Exp.get_fn_def_id(e)
+    | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
     | TypAbs(_) => Some(DHExp.rep_id(d))
+    | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
-    | _ => None
+    | _ => Exp.get_fn_def_id(d)
     };
 
   /* Transition for derivation terms is much narrower than for Hazel
@@ -396,7 +453,8 @@ module Transition = (EV: EV_MODE) => {
   let transition =
       (
         req:
-          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) => 'a,
+          (~in_closure: unit => unit=?, Environment.t(Exp.t), DHExp.t) =>
+          EV.inner_result,
         ~mode: [
            | `Substitution
            | `Environment
@@ -414,6 +472,8 @@ module Transition = (EV: EV_MODE) => {
         term,
         ids: [rep_id(d)],
       });
+    let generated = term =>
+      Id.Map.is_empty(targets) ? Exp.temp(term) : Exp.fresh(term);
 
     let (let.wrap_closure) = ((env, d'), f: unit => rule) =>
       switch (mode) {
@@ -423,7 +483,7 @@ module Transition = (EV: EV_MODE) => {
 
     let subst_env = (env, d) =>
       switch (mode) {
-      | `Environment => Closure(env, d) |> fresh
+      | `Environment => generated(Closure(env, d))
       | `Substitution => d |> Substitution.in_exp(env)
       };
 
@@ -487,19 +547,32 @@ module Transition = (EV: EV_MODE) => {
         let env' = Environment.add_bindings(env, env');
         Step({
           expr: subst_env(env', d2),
-          side_effects: [RecordPatProbes(samples)],
+          side_effects: [
+            RecordPatMatch({
+              pat: dp,
+              rhs: d1,
+              samples,
+            }),
+          ],
           kind: LetBind(matches_str),
           is_value: false,
         });
       };
 
-    | Theorem({term: Var(n), _}, e, d1) =>
+    | Theorem({term: Var(n), _} as dp, e, d1) =>
       let. _ = otherwise(env, d);
       let e' = Substitution.in_exp(env, e);
-      let env' = Environment.extend(env, (n, ProofObject(e') |> Exp.fresh));
+      let env' = Environment.extend(env, (n, generated(ProofObject(e'))));
       Step({
         expr: subst_env(env', d1),
-        side_effects: [RecordTheorem(DHExp.rep_id(d), n, env, e')],
+        side_effects: [
+          RecordTheorem(DHExp.rep_id(d), n, env, e'),
+          RecordPatMatch({
+            pat: dp,
+            rhs: e,
+            samples: [],
+          }),
+        ],
         kind: TheoremBind,
         is_value: false,
       });
@@ -556,7 +629,13 @@ module Transition = (EV: EV_MODE) => {
       let env'' = Environment.add_bindings(env, env');
       Step({
         expr: subst_env(env'', d1),
-        side_effects: [],
+        side_effects: [
+          RecordPatMatch({
+            pat: dp,
+            rhs: d1,
+            samples: [],
+          }),
+        ],
         kind: FixUnwrap,
         is_value: false,
       });
@@ -596,7 +675,7 @@ module Transition = (EV: EV_MODE) => {
         | _ => "No hint available."
         };
       Step({
-        expr: Tuple([]) |> fresh,
+        expr: generated(Tuple([])),
         side_effects: [
           RecordTest({
             exp: d,
@@ -712,9 +791,15 @@ module Transition = (EV: EV_MODE) => {
       switch (d1'.term) {
       | Asc(d1'', {term: Arrow(t1, t2), _}) =>
         Step({
+          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
+             keeps identity through the cast — probes/step-into still resolve */
           expr:
-            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> fresh, t2)
-            |> fresh,
+            generated(
+              Asc(
+                Ap(Forward, d1'', generated(Asc(d2', t1))) |> rewrap,
+                t2,
+              ),
+            ),
           side_effects: [],
           kind: Ascription,
           is_value: false,
@@ -737,7 +822,13 @@ module Transition = (EV: EV_MODE) => {
               expr: subst_env(env'', d3),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                RecordPatProbes(matches.samples),
+                /* Use pre-req_final `d2` so dirty propagation walks the
+                 * source tree's stable ids (cache entries live at those). */
+                RecordPatMatch({
+                  pat: dp,
+                  rhs: d2,
+                  samples: matches.samples,
+                }),
               ],
               kind: FunAp,
               is_value: false,
@@ -757,7 +848,11 @@ module Transition = (EV: EV_MODE) => {
                 ),
               side_effects: [
                 RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                RecordPatProbes(matches.samples),
+                RecordPatMatch({
+                  pat: dp,
+                  rhs: d2,
+                  samples: matches.samples,
+                }),
               ],
               kind: FunAp,
               is_value: false,
@@ -839,7 +934,9 @@ module Transition = (EV: EV_MODE) => {
                 | _ => tuple(new_args)
                 },
               ),
-            side_effects: [],
+            /* record a call frame (carries fn_def_id) so a probe on a
+               partial-app call still gets args/step-into/jump-to-def */
+            side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
           });
@@ -894,7 +991,7 @@ module Transition = (EV: EV_MODE) => {
           switch (f(n)) {
           | Either.L(return_value) =>
             // operator was successful
-            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+            generated(Atom(Atom.repack(out_ty, return_value)))
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
@@ -955,14 +1052,14 @@ module Transition = (EV: EV_MODE) => {
           | None => Indet
           | Some(true) =>
             Step({
-              expr: Atom(Bool(poly_op == Equals)) |> fresh,
+              expr: generated(Atom(Bool(poly_op == Equals))),
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
             })
           | Some(false) =>
             Step({
-              expr: Atom(Bool(poly_op != Equals)) |> fresh,
+              expr: generated(Atom(Bool(poly_op != Equals))),
               side_effects: [],
               kind: BinOp(op),
               is_value: false,
@@ -976,7 +1073,7 @@ module Transition = (EV: EV_MODE) => {
           switch (f(n1, n2)) {
           | Either.L(return_value) =>
             // operator was successful
-            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+            generated(Atom(Atom.repack(out_ty, return_value)))
           | Either.R(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
@@ -1037,8 +1134,8 @@ module Transition = (EV: EV_MODE) => {
               : Indet
           | ListLit(ds) =>
             let mapped =
-              List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
-            let ls = ListLit(mapped) |> Exp.fresh;
+              List.map(d => generated(Dot(d, generated(lab))), ds);
+            let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
               side_effects: [],
@@ -1129,30 +1226,39 @@ module Transition = (EV: EV_MODE) => {
       Constructor;
     | Match(d1, rules) =>
       let. _ = otherwise(env, d1 => Match(d1, rules) |> rewrap)
-      and. d1 =
+      and. d1' =
         req_final(req(env), d1 => MatchScrut(d1, rules) |> wrap_ctx, d1);
       let rec next_rule = (
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(targets, dp, d1);
+            let matches = matches(targets, dp, d1');
             switch (matches.matches) {
-            | Matches(env') => Some((env', d2, matches.samples))
+            | Matches(env') => Some((dp, env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
             | IndetMatch => None
             };
           }
       );
       switch (next_rule(rules)) {
-      | Some((env', d2, samples)) =>
+      | Some((dp, env', d2, samples)) =>
         Step({
           expr: subst_env(Environment.add_bindings(env, env'), d2),
-          side_effects: [RecordPatProbes(samples)],
+          /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
+           * propagation walks its stable source ids, which carry cache
+           * entries. */
+          side_effects: [
+            RecordPatMatch({
+              pat: dp,
+              rhs: d1,
+              samples,
+            }),
+          ],
           kind: CaseApply,
           is_value: false,
         })
       | None =>
-        let.wrap_closure _ = (env, Match(d1, rules) |> rewrap);
+        let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
         Indet;
       };
     | Closure(env', d) =>

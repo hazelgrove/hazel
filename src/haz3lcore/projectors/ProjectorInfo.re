@@ -3,30 +3,60 @@ open Language;
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
-/* Gather utility functions/values to be sspaed to the projector.
+/* The settings every projector converts with, so two segments cannot end up
+   with ids that came from different configurations. */
+let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
+  ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
+  show_unknown_as_hole: false,
+  use_literal_lexemes: false,
+  hole_tiles: false,
+  fold_fn_bodies: `NoFold,
+  project_tables: false,
+};
+
+/* Gather utility functions/values to be passed to the projector.
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  let term_to_seg =
-    ExpToSegment.any_to_segment(
-      ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
-        show_unknown_as_hole: false,
-      },
+  let term_to_seg = (inline, any) =>
+    ExpToSegment.any_to_segment(~settings=seg_settings(~inline), any);
+  let typ_to_seg_with_diff_ids = (inline, ctx, against, typ) =>
+    TypToSegment.typ_to_segment_with_diff_ids(
+      ~settings=seg_settings(~inline),
+      ~ctx,
+      ~against,
+      typ,
     );
   let lift_syntax =
-      (fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) =>
+      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
     switch (seg |> seg_to_term) {
     | None => None
-    | Some(s) => Some(s |> fn |> term_to_seg)
+    | Some(s) =>
+      let result = s |> fn |> term_to_seg(inline);
+      /* When not inline (projector syntax rewrites like table operations),
+         append a trailing newline so the expression doesn't extend to
+         the edge of the screen, leaving room for probe values */
+      if (!inline) {
+        let newline: Base.piece =
+          Secondary({
+            content: Whitespace(Token.linebreak),
+            id: Id.mk(),
+          });
+        Some(result @ [newline]);
+      } else {
+        Some(result);
+      };
     };
+  };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
-    term_to_seg,
+    term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
+      typ_to_seg_with_diff_ids(inline, ctx, against, typ),
     seg_to_term,
-    lift_syntax,
+    lift_syntax: (~inline) => lift_syntax(inline),
     seg_to_string,
   };
 };
@@ -37,6 +67,7 @@ let mk_info =
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
+      ~elaborated: option(Exp.t),
     )
     : ProjectorBase.info => {
   id: p.id,
@@ -45,12 +76,37 @@ let mk_info =
   dynamics:
     switch (Dynamics.Map.lookup(p.id, dynamics)) {
     | Some(samples) =>
+      let pinned_interval =
+        switch (sample_focus.pinned_span) {
+        | None => None
+        | Some(r) =>
+          Dynamics.Map.lookup(r.probe_id, dynamics)
+          |> Option.value(~default=[])
+          |> List.find_opt(s => Sample.ref_matches(r, s))
+          |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+        };
       Some({
         samples,
         sample_focus,
-      })
+        pinned_interval,
+      });
     | None => None
     },
+  elaborated: {
+    let (module P) = ProjectorInit.to_module(p.kind);
+    if (P.elaborate_syntax) {
+      let seg = Piece.unparenthesize(p.syntax);
+      let inner_id =
+        try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+        | _ => None
+        };
+      Option.bind(inner_id, id =>
+        Option.bind(elaborated, Exp.find_by_id(id))
+      );
+    } else {
+      None;
+    };
+  },
   utility,
 };
 
@@ -60,11 +116,13 @@ module ShapeMapSemantics = {
         sample_focus: Language.Sample.Focus.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
         p: Base.projector,
       )
-      : ProjectorCore.Shape.t => {
+      : (ProjectorCore.Shape.t, option(ProjectorBase.error)) => {
     let (module P) = ProjectorInit.to_module(p.kind);
-    P.placeholder(p.model, mk_info(p, ~sample_focus, ~statics, ~dynamics));
+    let info = mk_info(p, ~sample_focus, ~statics, ~dynamics, ~elaborated);
+    (P.placeholder(p.model, info), P.error(p.model, info));
   };
 
   let mk =
@@ -73,10 +131,21 @@ module ShapeMapSemantics = {
         refractors: ZipperBase.Refractor.t,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
+        ~elaborated: option(Exp.t),
       )
-      : Id.Map.t(ProjectorCore.Shape.t) =>
-    Id.Map.map(
-      from_semantics(refractors.sample_focus, statics, dynamics),
-      proj_map,
-    );
+      : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
+    let both =
+      Id.Map.map(
+        from_semantics(
+          refractors.sample_focus,
+          statics,
+          dynamics,
+          ~elaborated,
+        ),
+        proj_map,
+      );
+    let shapes = Id.Map.map(((shape, _)) => shape, both);
+    let errors = Id.Map.filter_map((_, (_, err)) => err, both);
+    (shapes, errors);
+  };
 };

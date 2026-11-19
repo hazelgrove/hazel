@@ -23,8 +23,16 @@ module Constraint = {
   let nil = Ap("nil", None);
   let cons = (hd, tl) => Ap("cons", Some(Tuple([hd, tl])));
 
-  let true_ = Ap("true", None);
-  let false_ = Ap("false", None);
+  let true_ = Ap(Token.true_, None);
+  let false_ = Ap(Token.false_, None);
+
+  /* A constraint that matches any value of its type: coverage checking
+     (and the type normalization it requires) is skippable. */
+  let rec is_irrefutable =
+    fun
+    | Truth => true
+    | Tuple(cs) => List.for_all(is_irrefutable, cs)
+    | _ => false;
 };
 
 module Ctr = {
@@ -68,8 +76,8 @@ module Ctr = {
   let tuple_ctr = n => mk("tuple", n);
   let nil_ctr = mk("nil", 0);
   let cons_ctr = mk("cons", 1);
-  let true_ctr = mk("true", 0);
-  let false_ctr = mk("false", 0);
+  let true_ctr = mk(Token.true_, 0);
+  let false_ctr = mk(Token.false_, 0);
 
   // used when not all constructors have been seen to handle the unseen cases when a wildcard appears
   let default_ctr = mk("_", 0);
@@ -113,23 +121,18 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
-    | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
-    /* Higher-kinded recursion: a parameterized recursive type at the
-       use site has the canonical form `TypParamAp(Rec(name, TypFun(p,
-       body)), arg)` (e.g. normalize-d `PList(Int)`), with `Sum`
-       structure hidden one step of unfolding away. Unfold one level
-       and recurse so the constructor list is recovered. Same for
-       any `TypParamAp` whose callee is a `Rec` we can unfold —
-       `Typ.unfold_one` returns `ty` unchanged for non-recursive
-       callees so we fall through to the generic `Infinite` case. */
+    | Rec(_) =>
+      switch (Typ.unroll(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
+    /* A recursive family at an argument, `(rec L -> typfun a -> …)(T)`:
+       its constructors are one unfolding away. */
     | TypParamAp({term: Rec(_), _}, _) =>
-      let unfolded = Typ.unfold_one(ty);
-      if (Equality.syntactic.typ(unfolded, ty)) {
-        Infinite;
-      } else {
-        all_ctrs_of_typ(unfolded);
-      };
+      switch (Typ.unfold_family(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite
@@ -209,14 +212,6 @@ module Matrix = {
 
   let contains_row = (idx: int, m: t): bool =>
     List.exists((row: row) => row.idx == idx, m);
-
-  let has_multiple_columns = (m: t): bool =>
-    switch (m) {
-    | [] => false
-    | [{idx: _, cols: []}, ..._] => false
-    | [{idx: _, cols: [_]}, ..._] => false
-    | [{idx: _, cols: _}, ..._] => true
-    };
 
   let rev = (m: t): t => List.rev(m);
 };
@@ -353,9 +348,9 @@ module UnseenPatternList: UnseenPatternList = {
       let (first_n, tl) = partition_first_n(num_elts, pat_list, []);
 
       cons_pat_t(tuple(List.rev(first_n)), {pat: tl});
-    | TupLabel(body, _) =>
+    | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(body)) {
+      switch (IdTagged.term_of(label_pos)) {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
@@ -363,7 +358,8 @@ module UnseenPatternList: UnseenPatternList = {
         | [hd, ...tl] =>
           cons_pat_t(tup_label(label(pat_label), hd), {pat: tl})
         }
-      | _ => failwith("TupLabel without a label in unseen pattern list")
+      // No label (e.g. label_pos is EmptyHole) — skip this column.
+      | _ => unseen_pattern
       }
     | List(_) =>
       switch (ctr.ctr) {
@@ -389,8 +385,8 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Bool) =>
       let boolTyp =
         switch (ctr.ctr) {
-        | "true" => bool(true)
-        | "false" => bool(false)
+        | s when s == Token.true_ => bool(true)
+        | s when s == Token.false_ => bool(false)
         | _ => wild()
         };
       cons_pat_t(boolTyp, unseen_pattern);
@@ -1111,14 +1107,16 @@ module CheckMatrix: CheckMatrix = {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
-      if (Typ.is_void(first_col_ty)) {
+      switch (Ctr.all_ctrs_of_typ(first_col_ty)) {
+      | Finite(map) when Ctr.Map.is_empty(map) =>
+        /* No constructors (e.g. Void): no value of this type can exist, so
+           every row is unreachable and the match is vacuously exhaustive. */
         {
           is_exhaustive: true,
           unseen_pattern: UnseenPatternList.empty,
           redundant_rows: List.init(List.length(m), i => i),
-        };
-      } else {
-        let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
+        }
+      | all_ctrs =>
         let Submatrices.{
           ctrs,
           first_col_exhaustive,

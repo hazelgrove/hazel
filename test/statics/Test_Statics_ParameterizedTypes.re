@@ -1148,8 +1148,9 @@ A
             if (alias_ty^ == None) {
               switch (info) {
               | Info.InfoExp({ctx, _}) =>
-                switch (Ctx.lookup_alias(ctx, "MyEither")) {
-                | Some(t) => alias_ty := Some(t)
+                switch (Ctx.lookup_tvar(ctx, "MyEither")) {
+                | Some(Singleton(t)) => alias_ty := Some(t)
+                | Some(Abstract)
                 | None => ()
                 }
               | _ => ()

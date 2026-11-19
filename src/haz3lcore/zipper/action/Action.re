@@ -3,7 +3,11 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | ByToken;
+  | ByToken
+  /* Smart-rounded selection: char inside the starting token, whole
+   * pieces once the focus has left that token's span. Only meaningful
+   * for Select(Resize(Local | Vertical)) and Point-based selection. */
+  | BySmart;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
@@ -23,8 +27,13 @@ type move =
   | End
   | Line(Direction.t)
   | Local(Direction.t, chunkiness)
-  | Vertical(vertical)
-  | Point(Point.t)
+  | Vertical(vertical, chunkiness)
+  /* Point-based move/select. The optional chunkiness overrides the
+   * selection_chunkiness setting for Select(Resize(Point(...))) drag;
+   * `None` falls back to the settings-driven default. Ignored for
+   * Move(Point(...)), which always lands the caret at the closest
+   * grid position. */
+  | Point(Point.t, option(chunkiness))
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -46,7 +55,7 @@ type select =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type sample_focus =
   | Capture(Language.Sample.Capture.t, option(Id.t))
-  | TogglePin(Language.Sample.call_stack)
+  | TogglePin(Language.CallStack.t, option(Language.Sample.Capture.t))
   | SetIndex(int) /* Navigate to a specific depth in the call stack */
   | Reset;
 
@@ -64,7 +73,7 @@ type project =
   | SampleFocus(sample_focus)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(int, Base.segment) /* Set underlying syntax */
+  | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
@@ -121,9 +130,38 @@ type probe =
   | ToggleManual
   | ToggleAuto
   | ToggleStatics
-  | StepInto(Language.Sample.call_stack, Id.t)
-  | Pin(Language.Sample.call_stack, Id.t)
+  | StepInto(Language.CallStack.t, Language.CallStack.frame)
+  | Pin(Language.CallStack.t, Id.t)
   | RemoveAll;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type destruct =
+  | Local(Direction.t, chunkiness)
+  | Line(Direction.t);
+
+/* Shift+Backspace acts as dedent only at a line's leading-whitespace
+   boundary, falling through to plain backspace elsewhere (a held
+   shift during ordinary corrections must not dedent); Cmd+[/] are
+   position-independent. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type indent_gate =
+  | Always
+  | AtBoundary;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type format =
+  | Indent
+  /* re-indent + canonicalize within-line spacing */
+  | Spacing
+  | Pretty
+  /* the cmd+S binding: resolved by CoreSettings.format_shortcut */
+  | Preferred;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type apply_target =
+  | All
+  | One(Id.t)
+  | Next;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -136,13 +174,17 @@ type t =
   | Move(move)
   | Select(select)
   | Unselect(option(Direction.t))
-  | Destruct(Direction.t)
+  | Destruct(destruct)
   | Insert(string)
   | Put_down
+  /* Materialize canonical-completion insertions into the buffer:
+     one obligation (a tile's missing shards) or all of them */
+  | ApplyCompletion(apply_target)
   | Introduce
   | Probe(probe)
-  | PrettyPrint
-  | Dump
+  | Format(format)
+  /* indent/dedent the caret's line (or all selected lines) one level */
+  | AdjustIndent(Direction.t, indent_gate)
   | ToggleLineComment
   | Structural(Structural.t);
 
@@ -158,8 +200,6 @@ module Failure = {
     | CantPaste
     | CantReparse
     | CantAccept
-    | Cant_undo
-    | Cant_redo
     | CantIntroduce
     | Composition_action_failure(string)
     | Cant_derive_local_AST_information;
@@ -180,11 +220,12 @@ let is_edit: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Copy
   | Move(_)
@@ -192,10 +233,13 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
-    | SetModel(_) => false
     | SetSyntax(_)
     | SetIndicated(_)
     | RemoveIndicated => true
+    | SetModel(_)
+    /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
+     * changes via map reference equality, keeping the statics recompute
+     * out of continuous actions like slider drags. */
     | Focus(_)
     | SampleFocus(_)
     | Escape(_)
@@ -217,10 +261,11 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
@@ -234,38 +279,6 @@ let is_historic: t => bool =
     | EscapeToLineEnd(_) => false
     }
   | Probe(_) => true;
-
-let prevent_in_read_only_editor = (a: t) =>
-  switch (a) {
-  | Copy
-  | Move(_)
-  | Unselect(_)
-  | Select(_) => false
-  | Buffer(Set(_) | Accept | Clear)
-  | Cut
-  | Paste(_)
-  | Reparse
-  | Destruct(_)
-  | Insert(_)
-  | Put_down
-  | Introduce
-  | PrettyPrint
-  | Structural(_)
-  | Dump
-  | ToggleLineComment => true
-  | Project(p) =>
-    switch (p) {
-    | SetSyntax(_) => true
-    | SetModel(_)
-    | SetIndicated(_)
-    | RemoveIndicated
-    | Focus(_)
-    | SampleFocus(_)
-    | Escape(_)
-    | EscapeToLineEnd(_) => false
-    }
-  | Probe(_) => false
-  };
 
 let should_animate: t => bool =
   fun
@@ -288,13 +301,14 @@ let should_animate: t => bool =
   | Introduce
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Structural(_)
   | Probe(_)
-  | PrettyPrint
-  | Dump
+  | Format(_)
+  | AdjustIndent(_, _)
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {

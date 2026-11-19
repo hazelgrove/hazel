@@ -94,10 +94,15 @@ module TestValidationReport = {
         ~signal_update_test_val,
         ~signal_textbox_active,
         ~editing_test_val_rep,
+        ~eval_pending=false,
         report: t,
         max_points: int,
         max_tests: int,
       ) => {
+    let score_node =
+      eval_pending
+        ? pending_score_view()
+        : score_view(score_of_percent(percentage(report), max_points));
     CellCommon.report_footer_view([
       div(
         ~attrs=[Attr.classes(["test-summary"])],
@@ -186,11 +191,7 @@ module TestValidationReport = {
                   )
                 : div(
                     ~attrs=[Attr.class_("test-text")],
-                    [
-                      score_view(
-                        score_of_percent(percentage(report), max_points),
-                      ),
-                    ]
+                    [score_node]
                     @ textual_summary(report)
                     @ [
                       div(
@@ -205,20 +206,22 @@ module TestValidationReport = {
                   )
             : div(
                 ~attrs=[Attr.class_("test-text")],
-                [
-                  score_view(
-                    score_of_percent(percentage(report), max_points),
-                  ),
-                ]
-                @ textual_summary(report),
+                [score_node] @ textual_summary(report),
               ),
         ]
-        @ Option.to_list(
-            report.test_results
-            |> Option.map(test_results =>
-                 TestView.test_bar(~inject_jump=signal_jump, ~test_results)
-               ),
-          ),
+        @ (
+          eval_pending
+            ? []
+            : Option.to_list(
+                report.test_results
+                |> Option.map(test_results =>
+                     TestView.test_bar(
+                       ~inject_jump=signal_jump,
+                       ~test_results,
+                     )
+                   ),
+              )
+        ),
       ),
     ]);
   };
@@ -322,12 +325,14 @@ module MutationTestingReport = {
         ~select_textbox,
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
+        ~eval_pending,
         ~score,
         ~total,
         ~found,
         ~max_points,
       )
-      : Node.t =>
+      : Node.t => {
+    let score_node = eval_pending ? pending_score_view() : score_view(score);
     div(
       ~attrs=[Attr.class_("test-text")],
       globals.settings.instructor_mode
@@ -396,7 +401,7 @@ module MutationTestingReport = {
               ),
             ]
             : [
-              score_view(score),
+              score_node,
               text(summary_str(~total, ~found)),
               div(
                 ~attrs=[Attr.class_("edit-icon")],
@@ -407,8 +412,9 @@ module MutationTestingReport = {
                 ],
               ),
             ]
-        : [score_view(score), text(summary_str(~total, ~found))],
+        : [score_node, text(summary_str(~total, ~found))],
     );
+  };
 
   let bar = (~inject as _, instances) =>
     div(
@@ -433,6 +439,7 @@ module MutationTestingReport = {
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
         ~select_textbox,
+        ~eval_pending,
         ~report,
         ~max_points,
       ) => {
@@ -441,7 +448,8 @@ module MutationTestingReport = {
       List.length(
         List.filter(((x: TestStatus.t, _)) => x == Pass, report.results),
       );
-    let status_class = total == found ? "Pass" : "Fail";
+    let status_class =
+      eval_pending ? "Indet" : total == found ? "Pass" : "Fail";
     div(
       ~attrs=[
         Attr.classes([
@@ -458,13 +466,14 @@ module MutationTestingReport = {
           ~inject_editing_mut_test_rep,
           ~inject_update_mut_test_rep,
           ~select_textbox,
+          ~eval_pending,
           ~score=score_of_percent(percentage(report), max_points),
           ~total,
           ~found,
           ~max_points,
         ),
-        bar(~inject=(), report.results),
-      ],
+      ]
+      @ (eval_pending ? [] : [bar(~inject=(), report.results)]),
     );
   };
 
@@ -494,13 +503,11 @@ module MutationTestingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           label([text("Hint: ")]),
           input(
             ~attrs=[
-              //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
@@ -528,7 +535,6 @@ module MutationTestingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           div(
@@ -566,63 +572,6 @@ module MutationTestingReport = {
          ),
     );
 
-  // let passing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Pass,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let failing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Fail,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
-  //   let (reference_term, reference_map) = spliced_statics(editors);
-  //   let result_reference =
-  //     Interface.test_results(reference_map, reference_term);
-  //   switch (result_reference) {
-  //   | None => []
-  //   | Some(test_results) => test_results.test_map
-  //   };
-  // };
-  // let show_term = (editor: Editor.t, _) =>
-  //   editor.state.zipper
-  //   |> Zipper.zip
-  //   |> MakeTerm.go
-  //   |> fst
-  //   |> Exp.show
-  //   |> print_endline
-  //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
-
-  // let get_first_common =
-  //     (reference_passing, wrong): (TestStatus.t, option('a)) => {
-  //   let wrong_test_map = wrong |> get_test_map;
-  //   let wrong_failing = wrong_test_map |> failing_test_ids;
-  //   let common =
-  //     List.filter(x => List.mem(x, reference_passing), wrong_failing);
-  //   let instance: option(list('a)) =
-  //     switch (common) {
-  //     | [] => None
-  //     | [x, ..._] => List.assoc_opt(x, wrong_test_map)
-  //     };
-  //   switch (instance) {
-  //   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
-  //   | _ => (TestStatus.Fail, None)
-  //   };
-  // };
-
   let view =
       (
         ~globals: Globals.t,
@@ -630,6 +579,7 @@ module MutationTestingReport = {
         ~inject_editing_mut_test_rep,
         ~inject_update_mut_test_rep,
         ~select_textbox,
+        ~eval_pending=false,
         report: t,
         max_points: int,
       ) => {
@@ -659,6 +609,7 @@ module MutationTestingReport = {
               ~inject_editing_mut_test_rep,
               ~inject_update_mut_test_rep,
               ~select_textbox,
+              ~eval_pending,
               ~report,
               ~max_points,
             ),
@@ -997,13 +948,11 @@ module ImplGradingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           label([text("Hint: ")]),
           input(
             ~attrs=[
-              //Attr.type_("string"),
               Attr.classes(["test-hint", "test-instance"]),
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
@@ -1031,7 +980,6 @@ module ImplGradingReport = {
             /* NOTE: prints lexical index, not unique id */
             [text(string_of_int(i + 1))],
           ),
-          // TestView.test_instance_view(~font_metrics, instance),
         ]
         @ [
           div(
@@ -1091,10 +1039,17 @@ module ImplGradingReport = {
         ~inject_set_editing_impl_grd_rep,
         ~inject_update_impl_grd_rep,
         ~select_textbox,
+        ~eval_pending,
         ~report: t,
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
+    let score_node =
+      eval_pending
+        ? pending_score_view()
+        : score_view(
+            score_of_percent(percentage(report, syntax_report), max_points),
+          );
     let subcaption =
       globals.settings.instructor_mode
         ? ": Hidden Tests vs. Student's Implementation"
@@ -1193,14 +1148,7 @@ module ImplGradingReport = {
                         )
                       : div(
                           ~attrs=[Attr.class_("test-text")],
-                          [
-                            score_view(
-                              score_of_percent(
-                                percentage(report, syntax_report),
-                                max_points,
-                              ),
-                            ),
-                          ]
+                          [score_node]
                           @ textual_summary(report)
                           @ [
                             div(
@@ -1215,26 +1163,22 @@ module ImplGradingReport = {
                         )
                   : div(
                       ~attrs=[Attr.class_("test-text")],
-                      [
-                        score_view(
-                          score_of_percent(
-                            percentage(report, syntax_report),
-                            max_points,
-                          ),
-                        ),
-                      ]
-                      @ textual_summary(report),
+                      [score_node] @ textual_summary(report),
                     ),
               ]
-              @ Option.to_list(
-                  report.test_results
-                  |> Option.map(test_results =>
-                       TestView.test_bar(
-                         ~inject_jump=signal_jump,
-                         ~test_results,
-                       )
-                     ),
-                ),
+              @ (
+                eval_pending
+                  ? []
+                  : Option.to_list(
+                      report.test_results
+                      |> Option.map(test_results =>
+                           TestView.test_bar(
+                             ~inject_jump=signal_jump,
+                             ~test_results,
+                           )
+                         ),
+                    )
+              ),
             ),
           ]),
         ),

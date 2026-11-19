@@ -1,0 +1,41 @@
+# Evaluator benchmark: binder-heavy recursion, list traversal, case matches. #
+# Used by `hazel bench-eval` (parse+statics run once; evaluation is timed).  #
+let fib : Int -> Int =
+  fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2)
+in
+let range : Int -> [Int] =
+  fun n -> if n == 0 then [] else n::range(n - 1)
+in
+let map : ((Int -> Int), [Int]) -> [Int] =
+  fun (f, xs) ->
+    case xs
+    | [] => []
+    | hd::tl => f(hd)::map(f, tl)
+    end
+in
+let sum : [Int] -> Int =
+  fun xs ->
+    case xs
+    | [] => 0
+    | hd::tl => hd + sum(tl)
+    end
+in
+let zipsum : ([Int], [Int]) -> [Int] =
+  fun (xs, ys) ->
+    case (xs, ys)
+    | ([], _) => []
+    | (_, []) => []
+    | (x::xt, y::yt) => (x + y)::zipsum(xt, yt)
+    end
+in
+let step : Int -> Int =
+  fun acc ->
+    let ns = range(60) in
+    let doubled = map(fun x -> x * 2, ns) in
+    let paired = zipsum(ns, doubled) in
+    acc + sum(paired) + fib(13)
+in
+let go : (Int, Int) -> Int =
+  fun (i, acc) -> if i == 0 then acc else go(i - 1, step(acc))
+in
+go(20, 0)

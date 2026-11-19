@@ -1,0 +1,38 @@
+# Polymorphism #
+
+# A type abstraction takes a type as a parameter, #
+# which its body can use in annotations: #
+let id = abs a -> fun x : a -> x in
+
+# Type abstractions are applied to types like so: #
+test id@<Int>(1) == 1 end;
+
+# The type of a type abstraction is a poly type. #
+# A poly type can bind several type variables at once, #
+# and one type application then supplies all of them: #
+let const : poly a, b -> (a, b) -> a =
+  abs a, b -> fun (x, _y) -> x in
+test const@<Int, String>(2, "Hello World") == 2 end;
+
+# We can go beyond rank 1 polymorphism: #
+let apply_both : poly a, b -> (poly d -> d -> d, a, b) -> (a, b) =
+  abs a, b -> fun (f, x, y) -> (f@<a>(x), f@<b>(y)) in
+test apply_both@<Int, String>(id, 3, "Hello World") == (3, "Hello World") end;
+
+# A polymorphic map over lists: #
+let map : poly a, b -> ([a], a -> b) -> [b] =
+  abs a, b -> fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map@<a, b>(tl, f)
+    end in
+test map@<Int, String>([1, 2, 3], string_of_int) == ["1", "2", "3"] end;
+
+# A poly type is an ordinary type: values have it. #
+# A type FUNCTION (typfun) is different: it maps types to types, #
+# and no value has it until it is applied to a type argument. #
+# Parameterized types are type functions (see the ADTs docs): #
+type Pair(a) = (a, a) in
+let p : Pair(Int) = (1, 2) in
+let swap : poly a -> Pair(a) -> Pair(a) = abs a -> fun (x, y) -> (y, x) in
+swap@<Int>(p)

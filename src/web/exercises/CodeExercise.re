@@ -36,11 +36,6 @@ type point_distribution = {
   impl_grading: int,
 };
 
-let validate_point_distribution =
-    ({test_validation, mutation_testing, impl_grading}: point_distribution) =>
-  test_validation + mutation_testing + impl_grading == 100
-    ? () : failwith("Invalid point distribution in exercise.");
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
   id: Id.t,
@@ -58,14 +53,6 @@ type p('code) = {
 };
 
 type record = p(Zipper.t);
-
-let id_of = p => {
-  p.id;
-};
-
-let find_id_opt = (id, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
-};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -218,124 +205,30 @@ let editors = eds =>
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
+/* NOTE: YourTestsValidation is listed before YourTestsTesting because
+   they share the same underlying `your_tests.tests` editor, and
+   jump-to-tile uses this order to pick a winner for shared ids. Tile
+   clicks that target a token in the student's tests should land in the
+   "Test Validation" cell rather than the "Implementation Validation"
+   one. */
 let editor_positions = (eds: p('a)) =>
-  [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
+  [Prelude, CorrectImpl, YourTestsValidation, YourTestsTesting, YourImpl]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
-let idx_of_pos = (pos, p: p('code)) =>
-  switch (pos) {
-  | Prelude => 0
-  | CorrectImpl => 1
-  | YourTestsTesting => 2
-  | YourTestsValidation => 3
-  | YourImpl => 4
-  | HiddenBugs(i) =>
-    if (i < List.length(p.hidden_bugs)) {
-      5 + i;
-    } else {
-      failwith("invalid hidden bug index");
-    }
-  | HiddenTests => 5 + List.length(p.hidden_bugs)
-  };
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
 
-let pos_of_idx = (p: p('code), idx: int) =>
-  switch (idx) {
-  | 0 => Prelude
-  | 1 => CorrectImpl
-  | 2 => YourTestsTesting
-  | 3 => YourTestsValidation
-  | 4 => YourImpl
-  | _ =>
-    if (idx < 0) {
-      failwith("negative idx");
-    } else if (idx < 5 + List.length(p.hidden_bugs)) {
-      HiddenBugs(idx - 5);
-    } else if (idx == 5 + List.length(p.hidden_bugs)) {
-      HiddenTests;
-    } else {
-      failwith("element idx");
-    }
-  };
-
-let zipper_of_code = (code, ~root) => {
-  switch (Parser.to_zipper(code, ~root)) {
-  | None => failwith("Transition failed.")
-  | Some(zipper) => zipper
-  };
-};
-
-let zipper_of_code = zipper_of_code(~root=Exp);
-
-let transition: transitionary_spec => spec =
-  (
-    {
-      id,
-      title,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    },
-  ) => {
-    let prelude = zipper_of_code(prelude);
-    let correct_impl = zipper_of_code(correct_impl);
-    let your_tests = {
-      let tests = zipper_of_code(your_tests.tests);
-      {
-        tests,
-        required: your_tests.required,
-        provided: your_tests.provided,
-      };
-    };
-    let your_impl = zipper_of_code(your_impl);
-    let hidden_bugs =
-      List.fold_left(
-        (acc, {impl, hint}) => {
-          let impl = zipper_of_code(impl);
-          acc
-          @ [
-            {
-              impl,
-              hint,
-            },
-          ];
-        },
-        [],
-        hidden_bugs,
-      );
-    let hidden_tests = {
-      let {tests, hints} = hidden_tests;
-      let tests = zipper_of_code(tests);
-      {
-        tests,
-        hints,
-      };
-    };
-    {
-      id,
-      title,
-      module_name,
-      prompt,
-      point_distribution,
-      prelude,
-      correct_impl,
-      your_tests,
-      your_impl,
-      hidden_bugs,
-      hidden_tests,
-      syntax_tests,
-    };
-  };
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
 
 let eds_of_spec =
     (
@@ -400,7 +293,7 @@ let eds_of_spec =
   };
 };
 
-let visible_in = (pos, ~instructor_mode) => {
+let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
   | Prelude => instructor_mode
   | CorrectImpl => instructor_mode
@@ -411,6 +304,14 @@ let visible_in = (pos, ~instructor_mode) => {
   | HiddenTests => instructor_mode
   };
 };
+
+/* Whether a cell is *rendered* (vs. `is_editable`, which gates editing).
+   Drives the Problems sidebar and jump-to-tile. */
+let shown_in = (pos, ~instructor_mode) =>
+  switch (pos) {
+  | Prelude => true
+  | _ => is_editable(pos, ~instructor_mode)
+  };
 
 let update_exercise_title = ({eds, _}: state, new_title: string) => {
   eds: {
@@ -437,20 +338,6 @@ let delete_buggy_impl = (state: state, index: int) => {
     eds: {
       ...state.eds,
       hidden_bugs: List.filteri((i, _) => i != index, state.eds.hidden_bugs),
-    },
-  };
-};
-
-let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
-  let buggy_impl: wrong_impl(Editor.t) = {
-    impl,
-    hint: new_hint,
-  };
-  {
-    eds: {
-      ...state.eds,
-      hidden_bugs:
-        Util.ListUtil.put_nth(idx, buggy_impl, state.eds.hidden_bugs),
     },
   };
 };
@@ -542,16 +429,6 @@ let update_module_name = ({eds}: state, new_module_name: string) => {
   eds: {
     ...eds,
     module_name: new_module_name,
-  },
-};
-
-let update_prov_tests = ({eds}: state, new_prov_tests: int) => {
-  eds: {
-    ...eds,
-    your_tests: {
-      ...eds.your_tests,
-      provided: new_prov_tests,
-    },
   },
 };
 
@@ -665,103 +542,6 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=editor.root).term;
 
-let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
-  switch (e1.term) {
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_)
-  | DynamicErrorHole(_)
-  | Undefined
-  | Deferral(_)
-  | Atom(_)
-  | DrvQuote(_)
-  | ListLit(_)
-  | TupleExtension(_)
-  | Constructor(_)
-  | Closure(_)
-  | Fun(_)
-  | TypAbs(_)
-  | FixF(_)
-  | Forall(_)
-  | Tuple(_)
-  | TupLabel(_)
-  | Label(_)
-  | ExplicitNonlabel
-  | Dot(_)
-  | Var(_)
-  | Ap(_)
-  | TypAp(_)
-  | DeferredAp(_)
-  | If(_)
-  | Test(_)
-  | HintedTest(_)
-  | Parens(_)
-  | Projector(_)
-  | Cons(_)
-  | ListConcat(_)
-  | LivelitName(_)
-  | UnOp(_)
-  | BinOp(_)
-  | BuiltinFun(_)
-  | Module(_)
-  | Asc(_)
-  | ProofObject(_)
-  | Match(_) => {
-      term: Seq(e1, e2),
-      annotation: Language.IdTagged.IdTag.fresh(),
-    }
-  | Seq(e11, e12) =>
-    let e12' = append_exp(e12, e2);
-    {
-      term: Seq(e11, e12'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Filter(kind, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Filter(kind, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Let(p, edef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Let(p, edef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Theorem(p, thm, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Theorem(p, thm, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | TyAlias(tp, tdef, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: TyAlias(tp, tdef, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | Use(t, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: Use(t, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  | ModuleExp(mp, def, ebody) =>
-    let ebody' = append_exp(ebody, e2);
-    {
-      term: ModuleExp(mp, def, ebody'),
-      annotation:
-        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
-    };
-  };
-};
-
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   EditorUtil.append_exp(
     EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
@@ -872,19 +652,6 @@ let export_transitionary_module = (_module_name, {eds, _}: state) => {
   data;
 };
 
-let output_header_grading = _module_name =>
-  "module Exercise = GradePrelude.Exercise\n"
-  ++ "module CodeExercise = GradePrelude.CodeExercise\n"
-  ++ "let prompt = ()\n";
-
-let export_grading_module = (module_name, {eds, _}: state) => {
-  let header = output_header_grading(module_name);
-  let prefix = "let exercise: CodeExercise.spec = ";
-  let record = show_p(editor_pp, eds);
-  let data = header ++ prefix ++ record ++ "\n";
-  data;
-};
-
 let blank_spec =
     (
       ~title,
@@ -937,7 +704,7 @@ let blank_spec =
 let persist = (state: state, ~instructor_mode: bool) => {
   let zippers =
     positioned_editors(state.eds)
-    |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
+    |> List.filter(((pos, _)) => is_editable(pos, ~instructor_mode))
     |> List.map(((pos, editor: Editor.t)) => {
          (pos, PersistentZipper.persist(editor.state.zipper))
        });
@@ -980,7 +747,7 @@ let unpersist =
     )
     : state => {
   let lookup = (pos, default) =>
-    if (visible_in(pos, ~instructor_mode)) {
+    if (is_editable(pos, ~instructor_mode)) {
       switch (List.assoc_opt(pos, editors)) {
       | Some(persisted_zipper) =>
         let zipper = PersistentZipper.unpersist(persisted_zipper, ~root=Exp);

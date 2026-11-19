@@ -162,14 +162,6 @@ module F =
     );
   };
 
-  let can_undo = a =>
-    switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
-    | CaseUpdate(_, action) => InductionCase.can_undo(action)
-    | AddCase => true
-    | RemoveCase(_) => true
-    };
-
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
@@ -205,7 +197,7 @@ module F =
       );
     let elab_scrut_raw =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         CodeEditable.Model.get_statics(scrut).elaborated,
         elab_scrut_raw,
       );
@@ -269,7 +261,7 @@ module F =
       );
     let join_exp =
       Calc.set(
-        ~eq=Exp.fast_equal,
+        ~eq=Exp.fast_equal_with_lexemes,
         new_join_exp |> Option.value(~default=Exp.fresh(EmptyHole)),
         join_exp,
       );

@@ -7,7 +7,6 @@ module Map = {
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
-  let filter = Id.Map.filter;
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
 
@@ -75,7 +74,7 @@ module Map = {
      parent term is a `ProdProjection(carrier, label)`. We normalize
      the carrier through the cursor's ctx to recover the labeled-tuple
      exports type, find the matching field, and read its
-     `Label`'s id — which `ExpandModule.collect_type_exports`
+     `Label`'s id — which `ModuleHelpers.collect_type_exports`
      populates with the original type-alias declaration's tile id. */
   let label_binding_site = (m: t, info: Info.t): option(Id.t) => {
     let* (label_name, ctx) =
@@ -190,7 +189,30 @@ module Map = {
         switch (ci) {
         | InfoExp({user_term: {term: Let(pat, def, _), _}, _}) =>
           let binds = Pat.bindings(pat);
-          List.exists((b: Binding.t) => b.id == binding_id, binds)
+          /* function-def sugar: Pat.bindings drops the function name f, so
+             also match f's own binding here, else the enclosing let is never
+             found. Curried sugar `f(x)(y)` nests the Aps, so walk the spine to
+             the head. (Can't reuse FunctionSugar.detect: it depends on
+             StaticsBase.) */
+          let rec spine_head_binds = (fn: Pat.t) =>
+            switch (IdTagged.term_of(fn)) {
+            | Ap(fn, _) => spine_head_binds(fn)
+            | _ => Pat.bindings(fn)
+            };
+          let fn_name_binds =
+            switch (IdTagged.term_of(pat)) {
+            | Asc(inner, _) =>
+              switch (IdTagged.term_of(inner)) {
+              | Ap(fn, _) => spine_head_binds(fn)
+              | _ => []
+              }
+            | Ap(fn, _) => spine_head_binds(fn)
+            | _ => []
+            };
+          List.exists(
+            (b: Binding.t) => b.id == binding_id,
+            binds @ fn_name_binds,
+          )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
         | InfoExp(_) => None
         | _ => climb(rest)
@@ -198,31 +220,6 @@ module Map = {
       };
     climb(Info.ancestors_of(ci_binder));
   };
-
-  let let_definition_path = (~statics: t, ~id: Id.t): list(Pat.t) =>
-    switch (lookup(id, statics)) {
-    | Some(info) =>
-      let ancestors = Info.ancestors_of(info);
-      let (_, collected) =
-        List.fold_left(
-          ((seen, acc), current_id) => {
-            let acc' =
-              switch (lookup(current_id, statics)) {
-              | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _}))
-                  when Id.Set.mem(IdTagged.rep_id(def), seen) => [
-                  pat,
-                  ...acc,
-                ]
-              | _ => acc
-              };
-            (Id.Set.add(current_id, seen), acc');
-          },
-          (Id.Set.singleton(id), []),
-          ancestors,
-        );
-      List.rev(collected);
-    | _ => []
-    };
 
   let lookup_exp = (id: Id.t, m: t): option(Info.exp) =>
     switch (lookup(id, m)) {
@@ -253,12 +250,6 @@ module Map = {
     switch (lookup(id, m)) {
     | Some(info) => Some(Info.ctx_of(info))
     | None => None
-    };
-
-  let marks_of = (id: Id.t, m: t): list(Mark.t) =>
-    switch (lookup(id, m)) {
-    | Some(info) => Info.marks_of(info)
-    | None => []
     };
 
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
@@ -446,8 +437,7 @@ let prepend_pat_mark =
     warnings
     @ (
       switch (info.user_term.term) {
-      | Var(name) =>
-        Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | Var(name) => Warning.var_is_unused(info.co_ctx, name)
       | _ => []
       }
     );
@@ -470,9 +460,11 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
-    | Some(ty)
-        when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
-      asc(d, ty)
+    /* Settle the common case before resolving anything: equal types
+       need no ascription, and comparing normalized forms expands every
+       alias on both sides first. */
+    | Some(ty) when Typ.fast_equal(ty, t) => d
+    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
     | _ => d
     }
   );
@@ -536,6 +528,7 @@ module type ExpressionStatics = {
       ~ana: Typ.t=?,
       ~ancestors: Info.ancestors=?,
       ~co_ctx: CoCtx.t,
+      ~probe_targets: SubexpProbeTargets.t=?,
       ~message: Message.t=?,
       ~label_inference: option(Info.label_inference(Info.exp))=?, // TODO[Matt]: combine with message
       ~inferred_label: option(string)=?,

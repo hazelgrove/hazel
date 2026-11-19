@@ -3,9 +3,6 @@ open FTemp;
 open Typ;
 open Util;
 
-let testable_id =
-  Alcotest.(testable(Fmt.using(Id.show, Fmt.string), Id.equal));
-
 let tests = (
   "Statics.Sums",
   [
@@ -267,6 +264,14 @@ end
     case Yo :(+Yo) | Yo : +Yo => ? end;
     |},
       Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "folded pattern constructor",
+      {|
+    type YoDawg = Yo(Int) + Dawg(Bool) in
+    case Yo(1) | ^^fold(Yo)(x) => x | _ => 0 end
+    |},
+      Some(int()),
     ),
     inconsistent_typecheck(
       "pattern constructor tests: errors",

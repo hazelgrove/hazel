@@ -16,9 +16,9 @@ let tests = (
           );
 
         Alcotest.check(
-          step_limited(dhexp_typ),
+          step_limited,
           "1. +. 2. = 3.",
-          Completed(float(3.)),
+          LimitedCompleted((float(3.), EvaluatorState.empty)),
           result,
         );
       },
@@ -44,9 +44,9 @@ let tests = (
           );
 
         Alcotest.check(
-          step_limited(dhexp_typ),
+          step_limited,
           "(fun x -> x + 1)(5)",
-          Completed(int(6)),
+          LimitedCompleted((int(6), EvaluatorState.empty)),
           result,
         );
       },
@@ -63,30 +63,10 @@ let tests = (
         ),
       )
     }),
-    /* Regression: a module value that re-binds the same name and
-       references the previously-bound value:
-
-         { let y = 1; let y = y }
-
-       Both items use a `let` pattern, so `ExpandModule.expand`
-       produces the nested form
-
-         let y = 1 in let y = y in (y = y)
-
-       and the labeled-tuple body should evaluate to `(y = 1)`.
-
-       Surfaced by the `Evaluator.Properties` confluence
-       property test, which produced (after one shrink step):
-
-           Expected: (y=y')      -- small-step
-           Received: (y=1)       -- big-step
-
-       The small-step substitution failed to substitute the inner
-       `y` reference. The fact that this only manifests inside a
-       Module's nested-let expansion (not in a hand-written
-       `let y = 1 in let y = y in y`) suggests something specific
-       to how the module expansion's outer `Let` interacts with
-       the stepper's substitution. */
+    /* Regression: `{ let y = 1; let y = y }` lowers to
+       `let y = 1 in let y = y in …`; small-step substitution must not
+       capture the inner definition's `y` (found by the confluence
+       property test). */
     test_case(
       "Stepper: module item rebinds same name",
       `Quick,
@@ -96,13 +76,16 @@ let tests = (
         let bigstep =
           Evaluator.evaluate_and_limit(
             ~env=Builtins.env_init,
-            ~step_limit=100,
+            ~step_limit=1000,
             elaborated,
           );
         let smallstep =
-          full_small_step_reduction(~step_limit=100, elaborated);
+          full_small_step_reduction(~step_limit=1000, elaborated);
         switch (bigstep, smallstep) {
-        | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+        | (
+            LimitedCompleted((bigstep_exp, _)),
+            LimitedCompleted((smallstep_exp, _)),
+          ) =>
           check(
             dhexp_typ,
             "small-step result matches big-step result",
@@ -115,11 +98,7 @@ let tests = (
         };
       },
     ),
-    /* Sanity check: the same-shape program *without* the module
-       wrapper. If this passes while the wrapped version fails, the
-       bug is specific to how the stepper handles
-       `ExpandModule.expand`'s nested-let output. If both fail, the
-       stepper has a more general shadowing-substitution issue. */
+    /* The same program without the module wrapper. */
     test_case(
       "Stepper: nested let rebinds same name (no module)",
       `Quick,
@@ -129,13 +108,16 @@ let tests = (
         let bigstep =
           Evaluator.evaluate_and_limit(
             ~env=Builtins.env_init,
-            ~step_limit=100,
+            ~step_limit=1000,
             elaborated,
           );
         let smallstep =
-          full_small_step_reduction(~step_limit=100, elaborated);
+          full_small_step_reduction(~step_limit=1000, elaborated);
         switch (bigstep, smallstep) {
-        | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+        | (
+            LimitedCompleted((bigstep_exp, _)),
+            LimitedCompleted((smallstep_exp, _)),
+          ) =>
           check(
             dhexp_typ,
             "small-step result matches big-step result",

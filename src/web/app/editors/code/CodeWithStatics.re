@@ -1,4 +1,3 @@
-open Util;
 open Util.WebUtil;
 open Haz3lcore;
 
@@ -9,9 +8,11 @@ open Haz3lcore;
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
-  /* Context menu state: None = closed, Some(n) = open with item n selected */
+  /* Context menu state lives in Util.Menu — None = closed, Some({…})
+   * holds the selected item index and (unused for the editor menu) the
+   * submenu path. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type context_menu_state = option(int);
+  type context_menu_state = Util.Menu.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -22,7 +23,8 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let context_menu_is_open = (model: t): bool => model.context_menu != None;
+  let context_menu_is_open = (model: t): bool =>
+    Util.Menu.is_open(model.context_menu);
 
   let mk =
       (
@@ -54,21 +56,22 @@ module Model = {
 
   let get_statics = (model: t) => model.statics;
 
-  let get_dynamics = (model: t) => model.dynamics;
-
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
       |> Option.map(({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
-        () =>
-          Printer.of_segment(
+        () => {
+          let z = model.editor.state.zipper;
+          Printer.selected_text(
             ~indent=" ",
-            ~refractors=model.editor.state.zipper.refractors.manuals,
-            model.editor.state.zipper.selection.content,
-          ),
+            ~refractors=z.refractors.manuals,
+            z,
+          );
+        },
       ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
@@ -85,13 +88,7 @@ module Model = {
   let persist = (model: t) => model.editor |> Editor.Model.persist;
   let to_string = (model: t) => model.editor |> Editor.Model.to_string;
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
-  let sort = (model: t): Sort.t => model.editor.root;
 };
-
-type statics_mode =
-  | StaticsNormal
-  | StaticsDefer
-  | StaticsForce;
 
 /* Debounce statics computation during rapid typing. Only one mode is
    active at a time, so a single timer/flag is shared across all modes. */
@@ -100,12 +97,26 @@ module StaticsDebounce = {
   let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
   let force_on_next: ref(bool) = ref(false);
 
+  let pending = () => timer_id^ != None || force_on_next^;
+
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): statics_mode => {
+  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
     let force_now = force_on_next^;
     force_on_next := false;
-    if (is_edited && debounce_ms > 0.0) {
+    /* a projector commit is one discrete edit: run statics now rather
+       than after the typing debounce (livelit drag → result: -225ms) */
+    let projector_edit = Util.AgentPulse.projector_commit^;
+    Util.AgentPulse.projector_commit := false;
+    if (force_now || is_edited && projector_edit) {
+      switch (timer_id^) {
+      | Some(id) =>
+        Js_of_ocaml.Dom_html.window##clearTimeout(id);
+        timer_id := None;
+      | None => ()
+      };
+      Force;
+    } else if (is_edited && debounce_ms > 0.0) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -115,16 +126,16 @@ module StaticsDebounce = {
           Js_of_ocaml.Dom_html.window##setTimeout(
             Js_of_ocaml.Js.wrap_callback(() => {
               timer_id := None;
+              /* Keep sends waiting until the scheduled refresh is consumed. */
+              force_on_next := true;
               schedule_refresh();
             }),
             debounce_ms,
           ),
         );
-      StaticsDefer;
-    } else if (force_now) {
-      StaticsForce;
+      Defer;
     } else {
-      StaticsNormal;
+      Normal;
     };
   };
 };
@@ -137,9 +148,9 @@ module Update = {
   let calculate =
       (
         ~settings,
-        ~autoprobe_mode=false,
+        ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~is_edited,
-        ~statics_mode=StaticsNormal,
+        ~statics_mode: StaticsMode.t=Normal,
         ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -148,39 +159,34 @@ module Update = {
         {editor, statics, context_menu, _}: Model.t,
       )
       : Model.t => {
-    /* Capture ephemerals before editor calculation to detect auto probe changes */
-    let old_ephemerals = editor.state.zipper.refractors.multis.ephemerals;
-
-    let editor =
-      Editor.Update.calculate(
-        ~settings,
-        ~autoprobe_mode,
-        ~is_edited,
-        statics,
-        dynamics,
-        editor,
-      );
-
-    /* Ephemerals can change without an explicit edit in several cases:
-     * (1) cursor movement in autoprobe mode (cursor crosses into a new
-     *     top-level definition), and
-     * (2) on reload, when add_ids_from_multi_term rebuilds ephemerals
-     *     from persisted multis.ids once the info_map becomes available.
-     * In both cases we must recalculate statics so probe targets match
-     * the new ephemerals and the evaluator collects samples for them. */
-    let probes_changed =
+    /* Throttle gate for full statics recompute. Bypass the debounce when probe
+     * ids change, else stale info_map probe_targets let IncrEval.reuse_check
+     * reuse old probes and a new probe shows ∅ until the next refresh. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
       !
-        Id.Map.equal(
-          Refractors.equal_entry,
-          old_ephemerals,
-          editor.state.zipper.refractors.multis.ephemerals,
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          Language.Id.Map.map(_ => (), statics.targets),
         );
-
-    let statics =
-      statics_mode == StaticsForce
-      || (is_edited || probes_changed)
-      && statics_mode != StaticsDefer
-        ? CachedStatics.init(
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one. A recompute first takes the statics the agent
+     * tool path OFFERED for this very program (CachedStatics.offered_for),
+     * computed there for its error check — one statics pass per tool call
+     * instead of several. */
+    let do_init = (editor: Editor.t) =>
+      switch (
+        ctx == None
+        && ana == None
+        && !is_dynamic_term
+        && editor.root == Sort.Exp
+          ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
+      ) {
+      | Some(st) when stitch(st.term) === st.term => st
+      | Some(_)
+      | None =>
+        PerfMetrics.time_statics(() =>
+          CachedStatics.init(
             ~settings,
             ~stitch,
             ~ctx?,
@@ -189,7 +195,54 @@ module Update = {
             ~root=editor.root,
             editor.state.zipper,
           )
-        : statics;
+        )
+      };
+    let needs_refresh =
+      statics_mode == StaticsMode.Force
+      || probes_differ(editor.state.zipper, statics)
+      || is_edited
+      && statics_mode != StaticsMode.Defer;
+    /* A deferred edit can change external typing context even when this
+       editor's source is unchanged. Implied-hole info must wait for refresh. */
+    let statics =
+      needs_refresh
+        ? do_init(editor)
+        : is_edited
+            ? {
+              ...statics,
+              completion: None,
+            }
+            : statics;
+    PerfMetrics.record_statics_counts(
+      ~recompute=needs_refresh,
+      ~mode=statics_mode,
+      statics,
+    );
+
+    let editor =
+      PerfMetrics.time_syntax(() =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          statics,
+          dynamics,
+          editor,
+        )
+      );
+    PerfMetrics.record_syntax_counts(editor.syntax);
+
+    /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
+     * probe_targets match. Compared against the statics computed above, so
+     * this fires only when calculate itself changed the probe set. */
+    let statics =
+      probes_differ(editor.state.zipper, statics)
+        ? do_init(editor) : statics;
+
+    /* refresh only statics.targets against the new refractors (cheap; rest of
+     * statics stays valid) */
+    let statics =
+      CachedStatics.with_targets(~settings, editor.state.zipper, statics);
     {
       editor,
       statics,
@@ -203,11 +256,21 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  let view = (~globals, ~overlays: list(Node.t)=[], model: Model.t) => {
+  let view =
+      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
     let {
       editor:
         {
-          syntax: {measured, selection_ids, segment, shape_map, term_data, _},
+          syntax:
+            {
+              measured,
+              selection_ids,
+              segment,
+              shape_map,
+              refractor_rows,
+              term_data,
+              _,
+            },
           state: {zipper: z, _},
           _,
         },
@@ -223,15 +286,19 @@ module View = {
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~shape_map,
-        ~refractor_shape_map=Id.Map.empty, //Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_rows,
         ~refine_sort,
         segment,
       );
+    /* shared by the error and warning arms */
+    let completion = Arms.lazy_completion(z);
     let error_decos =
       Arms.Errors.of_ids(
         ~refine_sort,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
+        ~completion,
         model.statics.error_ids,
       );
     let warning_ids =
@@ -240,16 +307,25 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~is_warning=true,
+        ~simple_indication=globals.settings.simple_indication,
         ~font_metrics=globals.font_metrics,
         ~syntax=model.editor.syntax,
+        ~completion,
         warning_ids,
       );
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : []);
+      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
+      /* the cell the viewport-culling range is measured on
+         (JsUtil.code_viewport_geometry) */
+      @ (cull ? ["cull-scope"] : []);
     Node.div(
-      ~attrs=[Attr.classes(container_classes)],
+      ~attrs=[
+        Attr.classes(container_classes),
+        /* this editor's line ends, for the per-container offside stagger */
+        ProbeStagger.row_ends_attr(measured),
+      ],
       // errors after warnings to prioritize errors over warnings
       [code_text_view, warning_decos, error_decos] @ overlays,
     );

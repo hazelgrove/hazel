@@ -84,8 +84,6 @@ module F =
     | _ => .
     };
 
-  let can_undo = _ => false;
-
   let calculate =
       (
         ~settings as _: Calc.t(CoreSettings.t),

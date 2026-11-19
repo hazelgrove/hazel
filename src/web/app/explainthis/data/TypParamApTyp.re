@@ -2,218 +2,65 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-/* `T(X_1, …, X_n)` applies a parameterized type constructor at the
-   type level. Three forms by arity of the argument list. */
-
-let _callee = typ("T");
-
-let _general_list = typ("X_1, …, X_n");
-
-let _single_t = typ("X");
-
-let _pair_t1 = typ("X_1");
-let _pair_t2 = typ("X_2");
-
-let _triple_t1 = typ("X_1");
-let _triple_t2 = typ("X_2");
-let _triple_t3 = typ("X_3");
-
-let typ_param_ap_general_coloring_ids =
-    (~callee_id: Id.t, ~args_list_id: Id.t, ~extra_ids: list(Id.t))
-    : list((Id.t, Id.t)) =>
-  [
-    (Piece.id(_callee), callee_id),
-    (Piece.id(_general_list), args_list_id),
-  ]
-  @ List.map(tid => (Piece.id(_general_list), tid), extra_ids);
-
-let typ_param_ap_single_coloring_ids =
-    (~callee_id: Id.t, ~t_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_callee), callee_id),
-  (Piece.id(_single_t), t_id),
-];
-
-let typ_param_ap_pair_coloring_ids =
-    (~callee_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_callee), callee_id),
-  (Piece.id(_pair_t1), t1_id),
-  (Piece.id(_pair_t2), t2_id),
-];
-
-let typ_param_ap_triple_coloring_ids =
-    (~callee_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t, ~t3_id: Id.t)
-    : list((Id.t, Id.t)) => [
-  (Piece.id(_callee), callee_id),
-  (Piece.id(_triple_t1), t1_id),
-  (Piece.id(_triple_t2), t2_id),
-  (Piece.id(_triple_t3), t3_id),
-];
-
-let general_explanation =
-    (~callee_str: string, ~callee_id: Id.t, ~args_ids: list(Id.t)): string => {
-  let args_part =
-    args_ids
-    |> List.mapi((i, tid) =>
-         Printf.sprintf("[*X_%d*](%s)", i + 1, Id.to_string(tid))
-       )
-    |> String.concat(", ");
-  Printf.sprintf(
-    "Applies the parameterized type [*%s*](%s) to the type arguments %s. Each argument substitutes for the corresponding parameter of `%s`.",
-    callee_str,
-    Id.to_string(callee_id),
-    args_part,
-    callee_str,
-  );
+let option_ex = {
+  sub_id: TypParamAp1,
+  term: mk_example("let x : Option(Int) = Some(5) in x"),
+  message: "Option is a parameterized type; Option(Int) is the type + None + Some(Int).",
 };
 
-let single_explanation =
-    (~callee_str: string, ~callee_id: Id.t, ~t_id: Id.t): string =>
-  Printf.sprintf(
-    "Applies the parameterized type [*%s*](%s) to the type argument [*X*](%s). `X` substitutes for the single parameter of `%s`.",
-    callee_str,
-    Id.to_string(callee_id),
-    Id.to_string(t_id),
-    callee_str,
-  );
+let either_ex = {
+  sub_id: TypParamAp2,
+  term: mk_example("let x : Either(Int, Bool) = R(true) in x"),
+  message: "Either takes two type arguments at once; Either(Int, Bool) is the type + L(Int) + R(Bool).",
+};
 
-let pair_explanation =
-    (~callee_str: string, ~callee_id: Id.t, ~t1_id: Id.t, ~t2_id: Id.t)
-    : string =>
-  Printf.sprintf(
-    "Applies the parameterized type [*%s*](%s) to two type arguments [*X_1*](%s) and [*X_2*](%s). Both substitute for the corresponding parameters of `%s` in a single step.",
-    callee_str,
-    Id.to_string(callee_id),
-    Id.to_string(t1_id),
-    Id.to_string(t2_id),
-    callee_str,
-  );
-
-let triple_explanation =
-    (
-      ~callee_str: string,
-      ~callee_id: Id.t,
-      ~t1_id: Id.t,
-      ~t2_id: Id.t,
-      ~t3_id: Id.t,
-    )
-    : string =>
-  Printf.sprintf(
-    "Applies the parameterized type [*%s*](%s) to three type arguments [*X_1*](%s), [*X_2*](%s), and [*X_3*](%s). All three substitute for the corresponding parameters of `%s` in a single step.",
-    callee_str,
-    Id.to_string(callee_id),
-    Id.to_string(t1_id),
-    Id.to_string(t2_id),
-    Id.to_string(t3_id),
-    callee_str,
-  );
-
-/* The form uses `mk_ap_typ` (the postfix-application Typ tile, the
-   same form `T(X)` produces in user source) rather than
-   `mk_parens_typ` (a standalone parens operand). Using the right
-   tile shape is what lets the form view's term_data correctly index
-   the inner argument piece, which in turn is what makes the inner
-   `X` highlight when the description's `X` is hovered.
-
-   The dropdown option previews include the callee prefix `T` so the
-   user sees the full `T(…)` form when switching between arities,
-   rather than just the parenthesized argument list. */
-
-let _general_ap = mk_ap_typ([[_general_list]]);
-let typ_param_ap_general_form: form = {
-  let explanation = "Applies a parameterized type to arbitrarily many type arguments at once.";
-  let preview = [typ("T"), mk_ap_typ([[typ("X_1, …, X_n")]])];
+/* `T(X)`, `T(X1, X2)`: applying a type function (typically a
+   parameterized alias) to type arguments. */
+let typ_param_ap = (~callee_id: Id.t, ~arg_ids: list(Id.t)): form => {
+  let n = List.length(arg_ids);
+  let callee = typ("T");
+  let (args_seg, arg_pieces) = typ_list("X", n);
   {
-    id: TypParamApTyp(General),
-    syntactic_form: [_callee, _general_ap],
-    expandable_id: Some((Piece.id(_general_ap), preview)),
-    explanation,
-    examples: [],
+    id: TypParamApTyp,
+    syntactic_form: [callee, mk_ap_typ([args_seg])],
+    colorings:
+      [(Piece.id(callee), callee_id)] @ zip_colorings(arg_pieces, arg_ids),
+    expandable_id: None,
+    explanation:
+      Printf.sprintf(
+        "Applies the [*type function*](%s) to the type %s %s, giving the type its definition describes with %s for its parameter%s.",
+        Id.to_string(callee_id),
+        n == 1 ? "argument" : "arguments",
+        links("argument", arg_ids),
+        n == 1 ? "the argument substituted" : "the arguments substituted",
+        n == 1 ? "" : "s",
+      ),
+    examples: n == 1 ? [option_ex] : [either_ex],
   };
 };
 
-let _single_ap = mk_ap_typ([[_single_t]]);
-let typ_param_ap_single_form: form = {
-  let explanation = "Applies a parameterized type to a single type argument.";
-  let preview = [typ("T"), mk_ap_typ([[typ("X")]])];
+let typ_param_aps = (~callee_id: Id.t, ~arg_ids: list(Id.t)): group =>
+  singleton(typ_param_ap(~callee_id, ~arg_ids));
+
+/* The comma-separated argument list `X1, X2` of `T(X1, X2)`. */
+let typ_args = (~arg_ids: list(Id.t)): form => {
+  let n = List.length(arg_ids);
+  let (args_seg, arg_pieces) = typ_list("X", n);
   {
-    id: TypParamApTyp(Arity1),
-    syntactic_form: [_callee, _single_ap],
-    expandable_id: Some((Piece.id(_single_ap), preview)),
-    explanation,
-    examples: [],
+    id: TypArgsTyp,
+    syntactic_form: args_seg,
+    colorings: zip_colorings(arg_pieces, arg_ids),
+    expandable_id: None,
+    explanation:
+      Printf.sprintf(
+        "The %d type arguments %s of a type application, supplied together: the type function applied must take exactly %d.",
+        n,
+        links("argument", arg_ids),
+        n,
+      ),
+    examples: [either_ex],
   };
 };
 
-let _pair_ap =
-  mk_ap_typ([[_pair_t1, Example.comma_typ(), space(), _pair_t2]]);
-let typ_param_ap_pair_form: form = {
-  let explanation = "Applies the parameterized type [*%s*](%s) to two type arguments [*%s*](%s) and [*%s*](%s). Both substitute for the corresponding parameters of `%s` in a single step.";
-  let preview = [
-    typ("T"),
-    mk_ap_typ([[typ("X_1"), Example.comma_typ(), space(), typ("X_2")]]),
-  ];
-  {
-    id: TypParamApTyp(Arity2),
-    syntactic_form: [_callee, _pair_ap],
-    expandable_id: Some((Piece.id(_pair_ap), preview)),
-    explanation,
-    examples: [],
-  };
-};
-
-let _triple_ap =
-  mk_ap_typ([
-    [
-      _triple_t1,
-      Example.comma_typ(),
-      space(),
-      _triple_t2,
-      Example.comma_typ(),
-      space(),
-      _triple_t3,
-    ],
-  ]);
-let typ_param_ap_triple_form: form = {
-  let explanation = "Applies the parameterized type [*%s*](%s) to three type arguments [*%s*](%s), [*%s*](%s), and [*%s*](%s). All three substitute for the corresponding parameters of `%s` in a single step.";
-  let preview = [
-    typ("T"),
-    mk_ap_typ([
-      [
-        typ("X_1"),
-        Example.comma_typ(),
-        space(),
-        typ("X_2"),
-        Example.comma_typ(),
-        space(),
-        typ("X_3"),
-      ],
-    ]),
-  ];
-  {
-    id: TypParamApTyp(Arity3),
-    syntactic_form: [_callee, _triple_ap],
-    expandable_id: Some((Piece.id(_triple_ap), preview)),
-    explanation,
-    examples: [],
-  };
-};
-
-let typ_param_aps_general: group = {
-  id: TypParamApTyp(General),
-  forms: [typ_param_ap_general_form],
-};
-
-let typ_param_aps_single: group = {
-  id: TypParamApTyp(Arity1),
-  forms: [typ_param_ap_single_form, typ_param_ap_general_form],
-};
-
-let typ_param_aps_pair: group = {
-  id: TypParamApTyp(Arity2),
-  forms: [typ_param_ap_pair_form, typ_param_ap_general_form],
-};
-
-let typ_param_aps_triple: group = {
-  id: TypParamApTyp(Arity3),
-  forms: [typ_param_ap_triple_form, typ_param_ap_general_form],
-};
+let typ_argss = (~arg_ids: list(Id.t)): group =>
+  singleton(typ_args(~arg_ids));

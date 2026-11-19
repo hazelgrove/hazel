@@ -10,9 +10,16 @@ let read_input = path => {
   );
 };
 
+/* Fast-first parsing shared with persistence load
+   (PersistentZipper.parse_text); the difference is failure policy —
+   a CLI caller wants a reported error (None → failwith below), where
+   persistence loads an empty buffer rather than brick boot. */
+let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
+  Haz3lcore.(PersistentZipper.parse_text(~source="cli", ~root=Exp, s));
+
 let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s, ~root=Exp)) {
-  | Some(e) => e
+  switch (parse_to_zipper(s)) {
+  | Some(z) => Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term
   | None => failwith("Failed to parse expression: " ++ s)
   };
 
@@ -29,114 +36,32 @@ let strip_leading_whitespace = (s: string): string => {
   String.concat("\n", stripped);
 };
 
-let format_hazel = (width, path) => {
+let format_hazel = (implicit_hole: string, width, path) => {
   let program = read_input(path) |> strip_leading_whitespace;
-  /* Use segment-based path (like the editor's Cmd+S) to preserve comments.
-     The AST round-trip (parse_program + segmentize) loses comments because
-     MakeTerm drops Secondary pieces and ExpToSegment reconstructs from AST. */
-  switch (Haz3lcore.Parser.to_segment(program, ~root=Exp)) {
+  /* Parse to a zipper (not just a segment) so we recover manual refractors
+     produced by `^^probe(...)` / `^^statics(...)` triggers in the input.
+     The refractors are then passed to Printer.of_segment so they round-trip
+     back to their trigger syntax. Both convex and concave Grout are rendered
+     with `implicit_hole` so the marker survives a decode|format|encode pipe. */
+  switch (parse_to_zipper(program)) {
   | None => failwith("Failed to parse: " ++ path)
-  | Some(segment) =>
+  | Some(zipper) =>
+    let segment =
+      Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
     let pretty_seg = Haz3lcore.PrettySegment.prettify(~width, segment);
     let output =
-      Haz3lcore.Printer.of_segment(~holes="?", ~indent=" ", pretty_seg);
+      Haz3lcore.Printer.of_segment(
+        ~holes=implicit_hole,
+        ~concave_holes=implicit_hole,
+        ~refractors=zipper.refractors.manuals,
+        pretty_seg,
+      );
     print_endline(output);
   };
 };
 
-/* Parse program and return zipper (preserving projectors like probes) */
-let parse_to_zipper = (s: string): option(Haz3lcore.Zipper.t) =>
-  Haz3lcore.Parser.to_zipper(~root=Exp, s);
-
-/* Split string into lines */
-let lines_of_string = (s: string): array(string) => {
-  /* Handle both \n and \r\n line endings */
-  let s = Core.String.substr_replace_all(s, ~pattern="\r\n", ~with_="\n");
-  Array.of_list(String.split_on_char('\n', s));
-};
-
-/* Create a caret line pointing to error position */
-let make_caret_line = (col: int, len: int): string => {
-  let spaces = String.make(col, ' ');
-  let carets = String.make(max(1, len), '^');
-  spaces ++ carets;
-};
-
-/* Format error in Rust-style with source context */
-let format_error_with_location =
-    (
-      ~source: string,
-      ~path: string,
-      measured: Haz3lcore.Measured.t,
-      info: Language.Info.t,
-    )
-    : option(string) => {
-  Language.(
-    switch (Info.marks_of(info)) {
-    | [] => None
-    | marks =>
-      let id = Info.id_of(info);
-      let error_str = Haz3lcore.ErrorPrint.string_of_marks(info, marks);
-
-      switch (Haz3lcore.Measured.find_by_id(id, measured)) {
-      | Some({origin, last}) =>
-        let lines = lines_of_string(source);
-        let row = origin.row;
-        let col = origin.col;
-        /* Calculate length for single-line errors */
-        let len =
-          if (origin.row == last.row) {
-            last.col - origin.col;
-          } else {
-            1;
-          };
-
-        /* Line numbers are 1-indexed for display */
-        let line_num = row + 1;
-        let line_num_str = string_of_int(line_num);
-        let line_num_width = String.length(line_num_str);
-        let padding = String.make(line_num_width, ' ');
-
-        /* Get source line if available */
-        let source_line =
-          if (row >= 0 && row < Array.length(lines)) {
-            lines[row];
-          } else {
-            "<source unavailable>";
-          };
-
-        /* Build Rust-style error output */
-        let header = "error: " ++ error_str;
-        let location =
-          padding
-          ++ " --> "
-          ++ path
-          ++ ":"
-          ++ line_num_str
-          ++ ":"
-          ++ string_of_int(col + 1);
-        let separator = padding ++ " |";
-        let code_line = line_num_str ++ " | " ++ source_line;
-        let caret_line = padding ++ " | " ++ make_caret_line(col, len);
-
-        Some(
-          String.concat(
-            "\n",
-            [header, location, separator, code_line, caret_line],
-          ),
-        );
-
-      | None =>
-        /* Fallback if no position found */
-        let term_str = Haz3lcore.ErrorPrint.term_string_of(info);
-        Some("error: " ++ error_str ++ "\n  in term: " ++ term_str);
-      };
-    }
-  );
-};
-
 let analyze_hazel =
-    (path: string)
+    (show_warnings: bool, path: string)
     : [>
         | `Error(bool, string)
         | `Ok(unit)
@@ -165,14 +90,23 @@ let analyze_hazel =
 
     /* Run static analysis */
     let (static_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
       Id.Map.fold(
         (_id, info, acc) =>
           switch (
-            format_error_with_location(~source=program, ~path, measured, info)
+            Diagnostic.format_error_with_location(
+              ~source=program,
+              ~path,
+              measured,
+              info,
+            )
           ) {
           | None => acc
           | Some(err) => [err, ...acc]
@@ -182,28 +116,70 @@ let analyze_hazel =
       )
       |> List.sort_uniq(compare);
 
-    switch (formatted_errors) {
-    | [] =>
-      print_endline("No static errors found.");
+    let formatted_warnings =
+      if (show_warnings) {
+        Id.Map.fold(
+          (_id, info, acc) =>
+            switch (
+              Diagnostic.format_warning_with_location(
+                ~source=program,
+                ~path,
+                measured,
+                info,
+              )
+            ) {
+            | None => acc
+            | Some(w) => [w, ...acc]
+            },
+          static_map,
+          [],
+        )
+        |> List.sort_uniq(compare);
+      } else {
+        [];
+      };
+
+    let print_diagnostics = (label, items) =>
+      switch (items) {
+      | [] => ()
+      | _ =>
+        let count = List.length(items);
+        prerr_endline(
+          "Found "
+          ++ string_of_int(count)
+          ++ " "
+          ++ label
+          ++ (count > 1 ? "s" : "")
+          ++ ":",
+        );
+        prerr_endline("");
+        List.iter(
+          item => {
+            prerr_endline(item);
+            prerr_endline("");
+          },
+          items,
+        );
+      };
+
+    switch (formatted_errors, formatted_warnings) {
+    | ([], []) =>
+      let msg =
+        show_warnings
+          ? "No static errors or warnings found." : "No static errors found.";
+      print_endline(msg);
       `Ok();
-    | _ =>
-      let count = List.length(formatted_errors);
-      prerr_endline(
-        "Found "
-        ++ string_of_int(count)
-        ++ " static error"
-        ++ (count > 1 ? "s" : "")
-        ++ ":",
-      );
-      prerr_endline("");
-      List.iter(
-        error => {
-          prerr_endline(error);
-          prerr_endline("");
-        },
-        formatted_errors,
-      );
-      `Error((false, "Static errors found"));
+    | (errors, warnings) =>
+      print_diagnostics("static error", errors);
+      print_diagnostics("warning", warnings);
+      /* Warnings alone do not fail the run; only errors set a non-zero exit
+         code. This matches `cargo check` / `gcc -Wall` semantics and keeps
+         `analyze -W` usable in CI without forcing every warning to be fatal. */
+      if (errors == []) {
+        `Ok();
+      } else {
+        `Error((false, "Static errors found"));
+      };
     };
   };
 };
@@ -214,24 +190,17 @@ let extract_source_text =
     : option(string) => {
   switch (Haz3lcore.Measured.find_by_id(id, measured)) {
   | Some({origin, last}) =>
-    let lines = lines_of_string(source);
+    let lines = Diagnostic.lines_of_string(source);
     if (origin.row >= 0 && origin.row < Array.length(lines)) {
       if (origin.row == last.row) {
         /* Single line - extract substring */
-        let line = lines[origin.row];
-        let start_col = max(0, origin.col);
-        let end_col = min(String.length(line), last.col);
-        Some(String.sub(line, start_col, end_col - start_col));
+        Some(
+          Diagnostic.slice_columns(lines[origin.row], origin.col, last.col),
+        );
       } else {
         /* Multi-line - extract from origin to end of first line */
-        let first_line = lines[origin.row];
-        let start_col = max(0, origin.col);
         Some(
-          String.sub(
-            first_line,
-            start_col,
-            String.length(first_line) - start_col,
-          )
+          Diagnostic.suffix_from_column(lines[origin.row], origin.col)
           ++ "...",
         );
       };
@@ -370,19 +339,22 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       Haz3lcore.Zipper.unselect_and_zip(~erase_buffer=true, zipper);
 
     /* Get term for evaluation */
-    let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
+    let make_term_result =
+      Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp);
+    let term = make_term_result.term;
     open Language;
 
-    /* Run statics to get info_map */
-    let (info_map, _) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    /* Probe ids up front — statics needs them too, since instrumentation
+       (e.g. the livelit view fold-in) happens during elaboration */
+    let base_probe_ids = Haz3lcore.CachedStatics.probe_ids_of_zipper(zipper);
 
-    /* Get manual probe IDs */
-    let manual_ids =
-      List.fold_left(
-        (map, (id, _)) => Id.Map.add(id, (), map),
-        Id.Map.empty,
-        zipper.refractors.manuals,
+    /* Run statics to get info_map and the (instrumented) elaboration */
+    let (info_map, elaborated) =
+      Statics.mk(
+        ~probe_ids=base_probe_ids,
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
       );
 
     /* If --auto, compute auto-probe IDs */
@@ -422,8 +394,9 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         Id.Map.empty;
       };
 
-    /* Combine manual and auto probes */
-    let probe_ids = Id.Map.union((_, _, _) => Some(), manual_ids, auto_ids);
+    /* Combine base (manual + projector) and auto probes */
+    let probe_ids =
+      Id.Map.union((_, _, _) => Some(), base_probe_ids, auto_ids);
 
     /* Build probe_map - tells evaluator which expressions to record */
     let sample_map =
@@ -433,8 +406,17 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~probe_ids,
       );
 
-    /* Evaluate with probe_map to collect probe samples */
-    let (_, sample_map) = Run.evaluate_with_probe_map(~sample_map, term);
+    /* Evaluate the elaboration from the same statics run (it may carry
+       probe instrumentation) to collect probe samples */
+    let sample_map = {
+      let (_, state) =
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(sample_map),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
+      EvaluatorState.get_probes(state);
+    };
 
     /* Format output with probe values */
     let window: Sample.Window.mode =
@@ -459,7 +441,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
     let output =
       Haz3lcore.ProbeText.of_segment(
         ~window,
-        ~probe_map=sample_map,
+        ~probe_map=Sample.Map.finalize(sample_map),
         ~refractors,
         segment,
       );
@@ -467,109 +449,51 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
   };
 };
 
-/* Benchmark parsing performance */
-let bench_parse = (iterations: int, paths: list(string)): unit => {
+/* Benchmark evaluation performance: parse+statics once, evaluate N times.
+ * "Plain" is the non-incremental path (prev/eval_info empty, as used by the
+ * CLI `run` and MVU apps); "Incr" is a cache-seeding incremental run
+ * (eval_info populated, prev empty, as used by the web editor's first run). */
+let bench_eval = (iterations: int, paths: list(string)): unit => {
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
     |> Js_of_ocaml.Js.float_of_number;
-
-  /* Measure baseline (empty string parse) */
-  let baseline = {
-    let t0 = now();
-    for (_ in 1 to iterations) {
-      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, ""));
-    };
-    let t1 = now();
-    (t1 -. t0) /. float_of_int(iterations);
-  };
-
   Printf.printf(
-    "Baseline (empty parse): %.3fms per iteration (%d iterations)\n\n",
-    baseline,
-    iterations,
-  );
-  Printf.printf(
-    "%-50s %8s %8s %10s %10s %10s %10s %10s %10s\n",
+    "%-40s %8s %12s %12s\n",
     "File",
-    "Chars",
-    "Lines",
-    "Orig(ms)",
-    "Seg(ms)",
-    "Speedup",
-    "Paste(ms)",
-    "Fast(ms)",
-    "Speedup",
+    "Iters",
+    "Plain(ms)",
+    "Incr(ms)",
   );
-  Printf.printf("%s\n", String.make(140, '-'));
-
+  Printf.printf("%s\n", String.make(76, '-'));
   List.iter(
     path => {
       let program = read_input(path);
-      let chars = String.length(program);
-      let lines = List.length(String.split_on_char('\n', program));
-
-      /* Warmup both */
-      ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
-      ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
-
-      /* Time unsegmented (to_zipper) */
+      let parsed = parse_program(program);
+      let (elab, eval_info) = Run.elab_and_eval_info(parsed);
+      ignore(Run.evaluate_elab(elab));
       let t0 = now();
       for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_zipper(~root=Exp, program));
+        ignore(Run.evaluate_elab(elab));
       };
       let t1 = now();
-      let orig_avg = (t1 -. t0) /. float_of_int(iterations);
-
-      /* Time segmented (to_segment) */
+      let plain = (t1 -. t0) /. float_of_int(iterations);
+      ignore(Run.evaluate_elab_incr(~eval_info, elab));
       let t2 = now();
       for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.to_segment(program, ~root=Exp));
+        ignore(Run.evaluate_elab_incr(~eval_info, elab));
       };
       let t3 = now();
-      let seg_avg = (t3 -. t2) /. float_of_int(iterations);
-
-      /* Time paste: slow (char-by-char into empty zipper) */
-      let t4 = now();
-      for (_ in 1 to iterations) {
-        ignore(
-          Haz3lcore.Parser.to_zipper(
-            ~root=Exp,
-            ~zipper_init=Haz3lcore.Zipper.init(),
-            program,
-          ),
-        );
-      };
-      let t5 = now();
-      let paste_slow = (t5 -. t4) /. float_of_int(iterations);
-
-      /* Time paste: fast (segment splice) */
-      let z_init = Haz3lcore.Zipper.init();
-      let t6 = now();
-      for (_ in 1 to iterations) {
-        ignore(Haz3lcore.Parser.fast_paste(program, z_init, ~root=Exp));
-      };
-      let t7 = now();
-      let paste_fast = (t7 -. t6) /. float_of_int(iterations);
-
-      let speedup = orig_avg /. seg_avg;
-      let paste_speedup = paste_slow /. paste_fast;
+      let incr = (t3 -. t2) /. float_of_int(iterations);
       Printf.printf(
-        "%-50s %8d %8d %10.1f %10.1f %9.2fx %10.1f %10.1f %9.2fx\n",
+        "%-40s %8d %12.1f %12.1f\n",
         path,
-        chars,
-        lines,
-        orig_avg,
-        seg_avg,
-        speedup,
-        paste_slow,
-        paste_fast,
-        paste_speedup,
+        iterations,
+        plain,
+        incr,
       );
     },
     paths,
   );
-
-  Printf.printf("\n");
 };
 
 /* Common arg: path or "-" for stdin */
@@ -586,6 +510,19 @@ let run_cmd = {
   Cmd.v(info, Term.(const(run_hazel) $ input_arg));
 };
 
+let implicit_hole_arg = {
+  let doc =
+    "Character used to render implicit holes (Grout) in output. "
+    ++ "Default is `¿` (U+00BF), a single non-identifier, non-operator "
+    ++ "token that round-trips through `format` and is recognised by "
+    ++ "`slide-encode` so Grout positions are recovered on re-parse.";
+  Arg.(
+    value
+    & opt(string, Haz3lcore.MarkerParse.default_implicit_hole)
+    & info(["implicit-hole"], ~docv="CHAR", ~doc)
+  );
+};
+
 let format_cmd = {
   let doc = {|
     Pretty-prints Hazel code, inserting line breaks to fit within a target
@@ -593,17 +530,27 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
-  Cmd.v(info, Term.(const(format_hazel) $ width_arg $ input_arg));
+  Cmd.v(
+    info,
+    Term.(const(format_hazel) $ implicit_hole_arg $ width_arg $ input_arg),
+  );
 };
 
 let analyze_cmd = {
   let doc = "Perform static analysis on Hazel code.";
+  let warnings_arg = {
+    let doc = "Also report warnings (e.g. unused variables).";
+    Arg.(value & flag & info(["W", "warnings"], ~doc));
+  };
   let info = Cmd.info("analyze", ~doc);
-  Cmd.v(info, Term.ret(Term.(const(analyze_hazel) $ input_arg)));
+  Cmd.v(
+    info,
+    Term.ret(Term.(const(analyze_hazel) $ warnings_arg $ input_arg)),
+  );
 };
 
 let probe_cmd = {
@@ -628,6 +575,24 @@ let test_cmd = {
   };
   let info = Cmd.info("test", ~doc);
   Cmd.v(info, Term.ret(Term.(const(test_hazel) $ verbose_arg $ input_arg)));
+};
+
+let tutorial_verify_cmd = {
+  let doc = "Round-trip-check every Tutorial-mode slide: assert to_text is a fixed point of (of_text >> to_text) for each slide's impl and tests.";
+  let verbose_arg = {
+    let doc = "Print the before/after text for any mismatching slide.";
+    Arg.(value & flag & info(["verbose", "v"], ~doc));
+  };
+  let info = Cmd.info("tutorial-verify", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.verify) $ verbose_arg));
+};
+
+let tutorial_decode_cmd = {
+  let doc = "Decode Tutorial-mode slides to text. With no arg, writes all lessons to hazel-programs/tutorial-imported/. With a title substring, prints matching slides to stdout.";
+  let filter_arg =
+    Arg.(value & pos(0, some(string), None) & info([], ~docv="SUBSTR"));
+  let info = Cmd.info("tutorial-decode", ~doc);
+  Cmd.v(info, Term.(const(TutorialDecode.decode) $ filter_arg));
 };
 
 let output_arg = {
@@ -665,18 +630,18 @@ let grade_report_cmd = {
   );
 };
 
-let bench_parse_cmd = {
-  let doc = "Benchmark parsing performance on one or more .hz files.";
+let bench_eval_cmd = {
+  let doc = "Benchmark evaluation performance on one or more .hz files.";
   let iterations_arg = {
-    let doc = "Number of iterations per file (default: 5).";
-    Arg.(value & opt(int, 5) & info(["n", "iterations"], ~doc));
+    let doc = "Number of iterations per file (default: 10).";
+    Arg.(value & opt(int, 10) & info(["n", "iterations"], ~doc));
   };
   let files_arg = {
     let doc = "Hazel source files to benchmark.";
     Arg.(non_empty & pos_all(string, []) & info([], ~docv="FILES", ~doc));
   };
-  let info = Cmd.info("bench-parse", ~doc);
-  Cmd.v(info, Term.(const(bench_parse) $ iterations_arg $ files_arg));
+  let info = Cmd.info("bench-eval", ~doc);
+  Cmd.v(info, Term.(const(bench_eval) $ iterations_arg $ files_arg));
 };
 
 /* Default to help if no subcommand is given */
@@ -691,9 +656,11 @@ let default_cmd = {
       analyze_cmd,
       probe_cmd,
       test_cmd,
+      tutorial_verify_cmd,
+      tutorial_decode_cmd,
       grade_json_cmd,
       grade_report_cmd,
-      bench_parse_cmd,
+      bench_eval_cmd,
     ],
   );
 };

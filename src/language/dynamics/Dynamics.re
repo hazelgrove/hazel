@@ -11,19 +11,18 @@ module Info = {
   type t = {
     samples: list(Sample.t),
     sample_focus: Sample.Focus.t,
-  };
-
-  let init = {
-    samples: [],
-    sample_focus: Sample.Focus.init,
+    /* The pinned span's step interval, resolved once at info-assembly
+     * time (the pinned sample usually belongs to a DIFFERENT probe than
+     * the one viewing). Lets filter_by_pin use temporal containment
+     * — "during the pinned evaluation" — instead of stack-id suffixes,
+     * which is also the correct semantics for pinning non-call spans. */
+    pinned_interval: option((int, int)),
   };
 
   let is_in = (di: t): option(Sample.t) => {
-    let cursor_ids =
-      Sample.ids_of_stack(Sample.Focus.effective_stack(di.sample_focus));
+    let cursor_stack = Sample.Focus.effective_stack(di.sample_focus);
     List.find_opt(
-      (sample: Sample.t) =>
-        Sample.ids_of_stack(sample.call_stack) == cursor_ids,
+      (sample: Sample.t) => CallStack.equal(sample.call_stack, cursor_stack),
       di.samples,
     );
   };
@@ -40,12 +39,12 @@ module Info = {
 };
 
 module Map = {
-  /* Just a wrapping around the Probe map (for now) */
+  /* holds FINALIZED maps (eval order) so lookup is a plain find — see Sample.Map.finalize */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Sample.Map.t;
   let empty: t = Sample.Map.empty;
   let mk: t => t = Fun.id;
-  let lookup = Sample.Map.lookup;
+  let lookup = (id, map: t) => Id.Map.find_opt(id, map);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

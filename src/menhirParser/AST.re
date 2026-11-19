@@ -83,12 +83,14 @@ type tpat =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
+  | ParenTyp(typ)
   | IntType
   | SIntType
   | StringType
   | FloatType
   | BoolType
   | NatType
+  | VoidType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
@@ -115,6 +117,7 @@ and sumterm =
 and sumtype = list(sumterm)
 
 and pat =
+  | ParenPat(pat)
   | AscPat(pat, typ)
   | EmptyHolePat
   | WildPat
@@ -131,17 +134,11 @@ and pat =
   | IndicationPat(pat)
   | ExplicitNonlabel
 
-and if_consistency =
-  | Consistent
-  | Inconsistent
-
-and deferral_pos =
-  | InAp
-  | OutsideAp
-
 and exp =
+  | ParenExp(exp)
   | Atom(Language.Atom.t)
   | Var(string)
+  | LivelitName(string) /* lexeme with the leading caret */
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
@@ -158,6 +155,7 @@ and exp =
   | TupLabel(exp, exp)
   | Dot(exp, exp)
   | ApExp(exp, exp)
+  | PipelineExp(exp, exp) /* e1 |> e2 == Ap(Reverse, e2, e1) */
   | FixF(pat, exp)
   | Asc(exp, typ)
   | EmptyHole
@@ -192,6 +190,28 @@ and sig_item =
   | SigItemLet(pat)
   | SigItemType(tpat, typ);
 
+/* Mixed into the generators so the MakeTerm/Menhir equivalence tests
+ * exercise the name alphabet rather than only ASCII.
+ *
+ * Constructors keep an ASCII-uppercase LEAD: ocamllex cannot test the case
+ * of a multi-byte character, so `Ć…` lexes as an identifier there while the
+ * editor calls it a constructor — a known divergence, not worth generating. */
+let nonascii_name_chars = [
+  "\xc3\xa9", /* é */
+  "\xc3\x9f", /* ß */
+  "\xce\xbb", /* λ */
+  "\xe6\x97\xa5", /* 日 */
+  "\xc2\xa9", /* ©, a symbol rather than a letter -- still a name */
+  "\xf0\x9f\x98\x80", /* 😀 */
+  "\xf0\x9f\x91\xa8\xe2\x80\x8d\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x91\xa7" /* 👨‍👩‍👧 */
+];
+
+/* Usually empty, so most generated names stay ASCII and shrink well. */
+let nonascii_name_suffix: QCheck.Gen.t(string) =
+  QCheck.Gen.(
+    frequency([(4, pure("")), (1, oneofl(nonascii_name_chars))])
+  );
+
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
  *
@@ -207,9 +227,13 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         oneof([pure("A"), pure("B")]);
       } else {
         let* leading = char_range('A', 'Z');
-        let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
-        let ident = String.make(1, leading) ++ tail;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
+        let+ suffix = nonascii_name_suffix;
+        let ident = String.make(1, leading) ++ tail ++ suffix;
+        /* every capitalized token Lexer.mll reserves; a collision lexes
+           as a type keyword and fails the parse (seed-dependent flake) */
+        let reserved = Language.Token.base_typs @ ["Unknown", "Internal"];
+        if (List.mem(ident, reserved)) {
           "Keyword";
         } else {
           ident;
@@ -233,7 +257,12 @@ let gen_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
       if (minimal_idents) {
         oneof([pure("x"), pure("y")]);
       } else {
-        string_size(~gen=char_range('a', 'z'), int_range(1, 1));
+        /* Non-ASCII names are single graphemes, so like the single-character
+         * ASCII ones they cannot be a prefix of a keyword. */
+        frequency([
+          (4, string_size(~gen=char_range('a', 'z'), int_range(1, 1))),
+          (1, oneofl(nonascii_name_chars)),
+        ]);
       }
     );
 
@@ -356,7 +385,11 @@ let gen_tpat_alias: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
  */
 let gen_string_literal: QCheck.Gen.t(string) =
   // TODO This should be anything printable other than `"`
-  QCheck.Gen.(string_small_of(char_range('a', 'z')));
+  QCheck.Gen.(
+    let* ascii = string_small_of(char_range('a', 'z'));
+    let+ extra = nonascii_name_suffix;
+    ascii ++ extra
+  );
 
 let gen_label: QCheck.Gen.t(string) = gen_ident(~minimal_idents=false);
 
@@ -534,63 +567,39 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             TyAlias(tp, t, e);
           },
           {
-            /* `module M = def in body`. Same restriction as the inner
-               `ModItemLet` RHSes — the def is a leaf to avoid
-               right-extending forms whose bodies would gobble the
-               `in body` continuation. */
-            let* mname = gen_constructor_ident;
-            let* def = leaf;
-            let+ body = self(n - 1);
-            ModuleExp(VarPat(mname), def, body);
-          },
-          {
-            /* Bare `{ items }` module value at expression position.
+            /* Module literal bound by a let. Members are value and type
+               items. */
 
-               Surface restrictions vs the Menhir grammar's expression
-               language make full-fidelity round-tripping of arbitrary
-               module items hard:
-               - `ModItemLet`/`ModItemModule` patterns are plain `VarPat`;
-                 surface module syntax doesn't currently round-trip
-                 arbitrary destructuring patterns there.
-               - `ModItemLet`/`ModItemModule` RHSes use leaf expressions
-                 only. Larger right-extending forms (`fix p -> body`,
-                 `if c then e1 else e2`, `fun p -> body`, …) parse
-                 differently in Menhir module context (where their
-                 bodies extend across the `;` item separator) than in
-                 MakeTerm (which treats `;` as the item separator).
-                 We don't try to generate parens around these in the
-                 random gen, so we constrain to leaves and let the
-                 dedicated module unit tests cover the rich cases. */
-            let* sizes = gen_sized_array(n - 1);
-            let+ items =
+            let* name = gen_ident;
+            let* sizes = gen_sized_array((n - 1) / 2);
+            let* items =
               flatten_a(
                 Array.map(
-                  (_size: int) =>
+                  (size: int) =>
                     oneof([
                       {
-                        let* name = gen_ident;
-                        let+ e = leaf;
-                        ModItemLet(VarPat(name), e);
+                        let* p = gen_pat_sized(size / 2);
+                        let+ e = self(size / 2);
+                        ModItemLet(p, e);
                       },
                       {
                         let* tp = gen_tpat_alias;
-                        let+ t = gen_typ_sized(1);
+                        let+ t = gen_typ_sized(size / 2);
                         ModItemType(tp, t);
-                      },
-                      {
-                        let+ e = leaf;
-                        ModItemExp(e);
-                      },
-                      {
-                        let* mname = gen_constructor_ident;
-                        let+ e = leaf;
-                        ModItemModule(VarPat(mname), e);
                       },
                     ]),
                   sizes,
                 ),
               );
-            Module(Array.to_list(items));
+            let+ body = self((n - 1) / 2);
+            Let(VarPat(name), Module(Array.to_list(items)), body);
+          },
+          {
+            /* Builtin-livelit name in expression position: ^name —
+               combines with the existing Ap/Dot generators for uses. */
+
+            let+ name = gen_ident;
+            LivelitName("^" ++ name);
           },
         ])
       }
@@ -619,6 +628,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
           return(StringType),
           return(FloatType),
           return(BoolType),
+          return(VoidType),
           return(TupleType([])),
           return(UnknownType(EmptyHole)), // Only doing emptyhole because internal doesn't have a distinct representation in ExpToSegment
           map(x => SumTyp([Variant(x, None)]), gen_constructor_ident),
@@ -801,77 +811,46 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
 let shrink_non_empty_string: QCheck.Shrink.t(string) =
   x => QCheck.Shrink.(filter(x => String.length(x) != 0, string, x));
 
-/* Predicate: `s` is a valid lowercase identifier (`gen_ident` shape).
-   Used to filter shrinker output so we never produce identifier
-   tokens with non-identifier characters (e.g. `` ` ``) — those would
-   make the round-trip tests fail with lex errors that aren't actual
-   property-test failures. */
-let is_valid_ident = (s: string): bool =>
-  String.length(s) > 0
-  && String.for_all(c => c >= 'a' && c <= 'z' || c == '_', s);
-
-/* Predicate: `s` is a valid constructor identifier (`gen_constructor_ident`
-   shape — leading uppercase, then lowercase/digits/underscores). */
-let is_valid_constructor_ident = (s: string): bool =>
-  String.length(s) > 0
-  && {
-    let c0 = s.[0];
-    c0 >= 'A'
-    && c0 <= 'Z'
-    && {
-      let rest = String.sub(s, 1, String.length(s) - 1);
-      String.for_all(
-        c =>
-          c >= 'a'
-          && c <= 'z'
-          || c >= 'A'
-          && c <= 'Z'
-          || c >= '0'
-          && c <= '9'
-          || c == '_',
-        rest,
-      );
-    };
+let pat_typ_opt = (p: pat): option(typ) =>
+  switch (p) {
+  | AscPat(_, t) => Some(t)
+  | _ => None
   };
-
-/* Identifier-preserving shrinker. Filters out shrunk strings that
-   are no longer valid identifiers, so we don't trigger spurious
-   lex errors during round-trip property tests. */
-let shrink_ident: QCheck.Shrink.t(string) =
-  x => QCheck.Shrink.(filter(is_valid_ident, string, x));
-
-let shrink_constructor_ident: QCheck.Shrink.t(string) =
-  x => QCheck.Shrink.(filter(is_valid_constructor_ident, string, x));
 
 let rec shrink_exp: QCheck.Shrink.t(exp) =
   QCheck.(
     (exp: exp) =>
       Iter.(
         switch (exp) {
+        | ParenExp(e) => return(e)
         | Atom(a) =>
-          switch (a) {
-          | Int(i) =>
-            switch (Bigint.to_int(i)) {
-            | Some(i) =>
-              Shrink.int(i) >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
-            | None => Iter.empty
+          return(TupleExp([]))
+          <+> (
+            switch (a) {
+            | Int(i) =>
+              switch (Bigint.to_int(i)) {
+              | Some(i) =>
+                Shrink.int(i)
+                >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
+              | None => Iter.empty
+              }
+            | String(s) =>
+              Shrink.string(s) >|= ((s: string) => Atom(String(s)))
+            | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
+            | Nat(n) =>
+              if (Bigint.(<)(n, Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+              }
+            | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
+            | _ => Iter.empty
             }
-          | String(s) =>
-            Shrink.string(s) >|= ((s: string) => Atom(String(s)))
-          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
-          | Nat(n) =>
-            if (Bigint.(<)(n, Bigint.of_int(2))) {
-              Iter.empty;
-            } else {
-              return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
-            }
-          | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
-          | _ => Iter.empty
-          }
-        | Var(x) => shrink_ident(x) >|= ((x: string) => Var(x))
-        | Constructor(name, payload) =>
-          shrink_constructor_ident(name)
-          >|= ((name: string) => Constructor(name, payload))
+          )
+        | Var(x) =>
+          return(TupleExp([]))
+          <+> (shrink_non_empty_string(x) >|= ((x: string) => Var(x))) // TODO This isn't great for vars
+        | Constructor(_, _) => return(TupleExp([])) // Constructor ident format is preserved; only allow collapse to unit
         | ListExp(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
           switch (shrunk) {
@@ -911,6 +890,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Let(p, e1, e2) =>
           of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Let(p, shrunk, e2));
@@ -924,7 +909,13 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(Let(shrunk, e1, e2));
           }
         | Theorem(p, e1, e2) =>
-          return(e1)
+          of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e1);
             return(Theorem(p, shrunk, e2));
@@ -941,7 +932,14 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           let* shrunk = shrink_exp(t);
           return(ProofObject(shrunk));
         | ForallExp(pat, e) =>
-          {
+          return(e)
+          <+> (
+            switch (pat_typ_opt(pat)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
+          <+> {
             let* shrunk = shrink_exp(e);
             return(ForallExp(pat, shrunk));
           }
@@ -951,6 +949,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | Fun(p, e, name) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(Fun(p, shrunk, name): exp);
@@ -987,7 +991,8 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = Shrink.list(cases, ~shrink=shrink_case);
             return(CaseExp(e, shrunk));
           }
-        | Label(l) => shrink_ident(l) >|= ((l: string) => Label(l))
+        | Label(l) =>
+          shrink_non_empty_string(l) >|= ((l: string) => Label(l))
         | ExplicitNonlabel => return(ExplicitNonlabel: exp)
         | TupLabel(e1, e2) =>
           {
@@ -1029,6 +1034,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e2);
             return(ApExp(e1, shrunk));
           }
+        | PipelineExp(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(PipelineExp(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(PipelineExp(e1, shrunk));
+          }
         | TypAp(e, t) =>
           {
             return(e);
@@ -1043,6 +1060,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           }
         | FixF(p, e) =>
           return(e)
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => return(Asc(e, t))
+            | None => Iter.empty
+            }
+          )
           <+> {
             let* shrunk = shrink_exp(e);
             return(FixF(p, shrunk));
@@ -1207,6 +1230,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
         | BuiltinFun(_)
         | Undefined
         | InvalidExp(_)
+        | LivelitName(_)
         | Module(_) => Iter.empty
         }
       )
@@ -1216,31 +1240,35 @@ and shrink_pat: QCheck.Shrink.t(pat) =
     (pat: pat) =>
       Iter.(
         switch (pat) {
+        | ParenPat(p) => return(p)
         | AtomPat(a) =>
-          switch (a) {
-          | Int(i) =>
-            switch (Bigint.to_int(i)) {
-            | Some(i) =>
-              Shrink.int(i)
-              >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
-            | None => Iter.empty
+          return(WildPat)
+          <+> (
+            switch (a) {
+            | Int(i) =>
+              switch (Bigint.to_int(i)) {
+              | Some(i) =>
+                Shrink.int(i)
+                >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
+              | None => Iter.empty
+              }
+            | String(s) =>
+              Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
+            | Bool(b) => Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
+            | Nat(n) =>
+              if (Bigint.(<)(n, Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+              }
+            | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
+            | _ => Iter.empty
             }
-          | String(s) =>
-            Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
-          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
-          | Nat(n) =>
-            if (Bigint.(<)(n, Bigint.of_int(2))) {
-              Iter.empty;
-            } else {
-              return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
-            }
-          | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
-          | _ => Iter.empty
-          }
-        | VarPat(x) => shrink_ident(x) >|= ((x: string) => VarPat(x))
-        | ConstructorPat(name, payload) =>
-          shrink_constructor_ident(name)
-          >|= ((name: string) => ConstructorPat(name, payload))
+          )
+        | VarPat(x) =>
+          return(WildPat)
+          <+> (shrink_non_empty_string(x) >|= ((x: string) => VarPat(x)))
+        | ConstructorPat(_) => return(WildPat) // Constructor ident format is preserved; only allow collapse to wild
         | ListPat(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
           switch (shrunk) {
@@ -1302,7 +1330,8 @@ and shrink_pat: QCheck.Shrink.t(pat) =
             let* shrunk = shrink_pat(p2);
             return(TupLabelPat(p1, shrunk));
           }
-        | LabelPat(l) => shrink_ident(l) >|= ((l: string) => LabelPat(l))
+        | LabelPat(l) =>
+          shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
         | ExplicitNonlabel => return(ExplicitNonlabel: pat)
         | InvalidPat(_)
         | IndicationPat(_)
@@ -1316,7 +1345,16 @@ and shrink_typ: QCheck.Shrink.t(typ) =
     (typ: typ) =>
       Iter.(
         switch (typ) {
+        | ParenTyp(t) => return(t)
         | SumTyp(l) =>
+          let payloads =
+            List.filter_map(
+              fun
+              | Variant(_, Some(t)) => Some(t)
+              | BadEntry(t) => Some(t)
+              | Variant(_, None) => None,
+              l,
+            );
           let shrink_sumterm: QCheck.Shrink.t(sumterm) =
             QCheck.(
               (
@@ -1331,10 +1369,13 @@ and shrink_typ: QCheck.Shrink.t(typ) =
                   )
               )
             );
-          let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
-          switch (shrunk) {
-          | [] => Iter.empty
-          | _ => return(SumTyp(shrunk))
+          of_list(payloads)
+          <+> {
+            let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
+            switch (shrunk) {
+            | [] => Iter.empty
+            | _ => return(SumTyp(shrunk))
+            };
           };
         | TupleType(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
@@ -1374,21 +1415,31 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           | [x] => Iter.return(x)
           | _ => return(TypTuple(shrunk))
           };
-        | TypVar(x) => shrink_ident(x) >|= ((x: string) => TypVar(x))
+        | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(PolyType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(PolyType(tpat, shrunk));
+          }
         | TypFunType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(TypFunType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(TypFunType(tpat, shrunk));
+          }
         | RecType(tpat, t) =>
-          let* shrunk = shrink_typ(t);
-          return(RecType(tpat, shrunk));
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(RecType(tpat, shrunk));
+          }
         | ExplicitNonlabel => return(ExplicitNonlabel: typ)
         | ProofOfType(e) =>
           let* shrunk = shrink_exp(e);
           return(ProofOfType(shrunk));
-        | LabelType(x) => shrink_ident(x) >|= ((x: string) => LabelType(x))
+        | LabelType(x) =>
+          shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>
           return(t2)
           <+> {
@@ -1419,13 +1470,14 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ProdExtension(t1, shrunk2));
           }
-        | IndicationTyp(_)
         | IntType
         | SIntType
         | StringType
         | FloatType
         | BoolType
-        | NatType
+        | NatType => return(TupleType([]))
+        | VoidType
+        | IndicationTyp(_)
         | UnknownType(_)
         | InvalidTyp(_)
         | Sig(_) => Iter.empty

@@ -5,12 +5,23 @@ The Hazel CLI is a command-line interface for working with Hazel programs. It pr
 ## Features
 
 - **Run Hazel Programs**: Execute Hazel programs and print their evaluated results.
-- **Format Hazel Code**: Reconstruct Hazel code from its abstract syntax tree (AST), using tylr to ensure syntactic correctness while removing original whitespace and comments.
-- **Static Analysis**: Perform static analysis on Hazel code to identify and report errors. This currently does not report location information for errors.
+- **Format Hazel Code**: Reconstruct Hazel code from its abstract syntax tree (AST), using tylr to ensure syntactic correctness. Comments and refractor trigger syntax are preserved; original whitespace is replaced with structured formatting.
+- **Static Analysis**: Perform static analysis on Hazel code to identify and report errors (with Rust-style source locations). Optionally also report warnings such as unused variables.
 - **Grade Submissions**: Grade an exported submission JSON and emit either the raw grading data as JSON (`grade-json`) or a human-readable text report (`grade-report`).
+- **Slide tooling**: List, decode, and encode the documentation slides linked into the binary, so they can be edited as plaintext and re-emitted as `.ml` modules.
 
 ## Usage
 The Hazel CLI can be invoked from the command line using the `hazel` script located in the root of the repository. The script accepts various commands and options to perform different tasks.
+
+### A note on memory
+
+The CLI is compiled with `js_of_ocaml` and runs under Node, which defaults to a fairly small old-space heap. On bigger inputs (e.g. the larger documentation slides) commands like `analyze` can blow the default heap with no helpful error. If you see a sudden silent failure, bump the heap:
+
+```sh
+$ NODE_OPTIONS="--max-old-space-size=4096" ./hazel analyze path/to/program.hz
+```
+
+`4096` (= 4 GB) is plenty for anything in this repo.
 
 ### Running a Hazel Program
 To run a Hazel program, use the `run` command followed by the path to the Hazel file. For example:
@@ -34,14 +45,14 @@ To format a Hazel program, use the `format` command followed by the path to the 
 ```sh
 $ ./hazel format path/to/hazel_file.hz
 ```
-This command will reconstruct the Hazel code from its AST and print the formatted code to the console. Note that this will not preserve original whitespace or comments. Additionally, the formatter performs explicit hole insertion using `?` instead of grout.
+This command will reformat the Hazel code, inserting line breaks to fit within a target width (`-w`/`--width`, default 60). Comments are preserved, but original whitespace is replaced with structured formatting. Manual refractors written with `^^probe(...)` / `^^statics(...)` trigger syntax round-trip through the formatter. Implicit holes (Grout) are rendered using the marker character set by `--implicit-hole` (default `¿`); see [Slides — round-trip](#round-tripping-a-slide-through-the-formatter) for why a marker is needed.
 
 You can also use `-` instead of a file path to read from standard input. For example:
 
 ```sh
 $ echo "let  = 5 in  + 3" | ./hazel format -
-let ? = 5 in                            
-? + 3
+let ¿ = 5 in
+¿ + 3
 ```
 ### Static Analysis
 To perform static analysis on a Hazel program, use the `analyze` command followed by the path to the Hazel file. For example:
@@ -49,7 +60,18 @@ To perform static analysis on a Hazel program, use the `analyze` command followe
 ```sh
 $ ./hazel analyze path/to/hazel_file.hz
 ```
-This command will analyze the Hazel program and report any errors found. Note that this does not provide location information for errors.
+This command will analyze the Hazel program and report any errors found, with Rust-style source locations and a caret pointing at the offending span. Pass `-W` / `--warnings` to also report warnings (e.g. unused variables):
+
+```sh
+$ echo "let unused = 5 in 42" | ./hazel analyze -W -
+Found 1 warning:
+
+warning: unused variable: unused
+  --> -:1:5
+  |
+1 | let unused = 5 in 42
+  |     ^^^^^^
+```
 
 You can also use `-` instead of a file path to read from standard input. For example:
 
@@ -57,27 +79,3 @@ You can also use `-` instead of a file path to read from standard input. For exa
 $ echo "let x = 5 in x + 3" | ./hazel analyze -
 No static errors found.
 ```
-
-### Grading Submissions
-
-The CLI can grade Hazel exercise submissions. The input is a submission JSON file (the JSON export produced by Hazel's export feature in exercise mode), which includes persisted state for every exercise the student worked on. The grader dispatches on each exercise kind (Code, Derivation, Theorem) and produces a per-exercise score and summary.
-
-#### Raw JSON output
-
-Use `grade-json` to produce the raw grader output as JSON:
-
-```sh
-$ ./hazel grade-json path/to/submission.json --output report.json
-```
-
-The output is an array of `{ name, report: { summary, overall: [earned, max] } }` objects. Omit `--output` to write to stdout.
-
-#### Human-readable text report
-
-Use `grade-report` to produce a human-readable text summary:
-
-```sh
-$ ./hazel grade-report path/to/submission.json --output report.txt
-```
-
-The text output lists each exercise with its score and breakdown, followed by a `Total:` line aggregating across all exercises. Omit `--output` to write to stdout.

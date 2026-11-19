@@ -74,6 +74,7 @@ module M: Projector = {
 
     switch (
       info.utility.lift_syntax(
+        ~inline=true,
         fun
         | Exp(any) =>
           Exp({
@@ -94,11 +95,13 @@ module M: Projector = {
   };
 
   let focusable = Focusable.non;
-  let dynamics = false;
+  let elaborate_syntax = false;
   let placeholder = (m, _) =>
     switch (m) {
     | FileLoaded({filename, _}) =>
-      ProjectorCore.Shape.inline(String.length(filename) + 6) // Account for reset button and toggle
+      ProjectorCore.Shape.inline(
+        Unicode.Width.columns_of_string(filename) + 6,
+      ) // Account for reset button and toggle
     | NoFile => ProjectorCore.Shape.inline(13)
     };
   let update = (m: model, _, action: action) => {
@@ -154,6 +157,7 @@ module M: Projector = {
       )
     );
   };
+  let error = (_, _): option(ProjectorBase.error) => None;
 
   let view = ({model, info, local, parent, _}: View.args(model, action)) =>
     View.mk(

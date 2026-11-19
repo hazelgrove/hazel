@@ -6,10 +6,8 @@ open Node;
    Provides pencil/confirm/cancel UI for editing a title, module name, and
    prompt (with markdown rendering for the prompt via ExplainThis). */
 
-/* The DOM ids below are also recognized by Page.View.is_input_field so that
-   keyboard shortcuts are bypassed while these inputs have focus. Only one
-   exercise is visible at a time, so reusing these ids across exercise kinds
-   is safe. */
+/* Only one exercise is visible at a time, so reusing these ids across
+   exercise kinds is safe. */
 let title_input_id = "title-input-box";
 let module_name_input_id = "module-name-input";
 let prompt_input_id = "prompt-input-box";

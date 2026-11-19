@@ -56,10 +56,43 @@ let fast_equal =
     equality({
       ...syntactic_settings,
       ignore_parens: true,
+      ignore_projectors: true,
     })
   ).
     exp;
 let equal = fast_equal;
+
+/* In-order trace of annotation lexemes. Paired with fast_equal (which
+   guarantees aligned structure), comparing traces detects lexeme-only
+   differences — e.g. editing an unknown operator @@ -> @@@ changes
+   display and stuck-application semantics but not term structure. */
+let lexeme_trace = (e: t): list(option(string)) => {
+  let acc = ref([]);
+  let f = (continue, t: IdTagged.t(_)) => {
+    acc := [t.annotation.lexeme, ...acc^];
+    continue(t);
+  };
+  let _ =
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+      e,
+    );
+  acc^;
+};
+
+/* fast_equal plus lexeme comparison. fast_equal ignores annotations, but
+   lexemes carry display and semantics (hole flavor, stuck unknown-op
+   applications), so recompute/caching gates must use this variant or
+   lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
+let fast_equal_with_lexemes = (a: t, b: t): bool =>
+  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
 
 let temp: term => t =
   term => {
@@ -77,6 +110,17 @@ let hole = (tms: list(TermBase.Any.t)): term =>
 let rep_id: t => Id.t = IdTagged.rep_id;
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
+
+let strip_projectors =
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        switch (term_of(exp)) {
+        | Projector(_, e) => continue(e)
+        | _ => continue(exp)
+        },
+    _,
+  );
 
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
@@ -423,7 +467,14 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
+        },
       }
       |> continue;
   (
@@ -467,6 +518,27 @@ let rec get_fn_def_id = (e: t) =>
   };
 
 let to_tuple = (es: list(t)): t => TempGrammar.Exp.(tuple(es));
+
+let find_by_id = (id: Id.t, exp: t): option(t) => {
+  module M = {
+    exception Found(t);
+  };
+  switch (
+    map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (rep_id(exp) == id) {
+            raise(M.Found(exp));
+          } else {
+            cont(exp);
+          },
+      exp,
+    )
+  ) {
+  | exception (M.Found(x)) => Some(x)
+  | _ => None
+  };
+};
 
 /* Inject a function name into a Fun or TypAbs expression. */
 let add_name = (name: option(string), exp: t): t => {

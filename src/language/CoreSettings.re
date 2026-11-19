@@ -16,6 +16,7 @@ module Evaluation = {
     show_settings: bool,
     show_hidden_steps: bool,
     enable_proof: bool,
+    project_tables: bool,
   };
 
   let init = {
@@ -31,7 +32,19 @@ module Evaluation = {
     show_settings: false,
     show_hidden_steps: false,
     enable_proof: false,
+    project_tables: true,
   };
+};
+
+module FormatShortcut = {
+  /* What cmd/ctrl+S does. Cumulative ladder: each level includes the
+   * previous. Cmd+Shift+S is always Breaks regardless. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Nothing /* no formatting */
+    | Indent /* re-indent only */
+    | Spaces /* re-indent + canonicalize within-line spacing */
+    | Breaks; /* full pretty print (may change linebreaks) */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -41,9 +54,22 @@ type t = {
   assist: bool,
   dynamics: bool,
   probe_all: bool,
-  deep_reassociate: bool,
+  /* Completion-triggered local re-indentation (experimental) */
+  auto_reindent: bool,
+  format_shortcut: FormatShortcut.t,
+  /* Indentation-transparent editing: arrow movement skips leading
+     whitespace and backspace at first-content joins lines (deletes
+     indentation + linebreak). Off keeps char-exact caret behavior
+     (test harnesses position carets by counted moves). */
+  indentation_ux: bool,
   flip_animations: bool,
   display_warnings: bool,
+  /* "Character-level mouse". When false (default), a mouse drag does
+   * smart-rounded selection (char inside the starting token, whole-token
+   * beyond) and the modifier (Alt/Ctrl) does pure char; when true, that
+   * pairing is swapped. Only affects the mouse — keyboard Shift+Arrow is
+   * always char-level (modifier → smart). */
+  selection_chunkiness: bool,
   evaluation: Evaluation.t,
 };
 
@@ -53,9 +79,12 @@ let off: t = {
   assist: false,
   dynamics: false,
   probe_all: false,
-  deep_reassociate: false,
+  auto_reindent: false,
+  format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: false,
   flip_animations: false,
   display_warnings: false,
+  selection_chunkiness: false,
   evaluation: Evaluation.init,
 };
 
@@ -65,9 +94,12 @@ let on: t = {
   assist: true,
   dynamics: true,
   probe_all: false, /* Off by default even in "on" config - opt-in feature */
-  deep_reassociate: false,
+  auto_reindent: true,
+  format_shortcut: FormatShortcut.Spaces,
+  indentation_ux: true,
   flip_animations: true,
   display_warnings: true,
+  selection_chunkiness: false,
   evaluation: Evaluation.init,
 };
 

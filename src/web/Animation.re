@@ -210,8 +210,6 @@ module Keyframes = {
 };
 
 let easeOutExpo = "cubic-bezier(0.16, 1, 0.3, 1)";
-let easeInOutBack = "cubic-bezier(0.68, -0.6, 0.32, 1.6)";
-let easeInOutExpo = "cubic-bezier(0.87, 0, 0.13, 1)";
 
 module Actions = {
   let move = id => {

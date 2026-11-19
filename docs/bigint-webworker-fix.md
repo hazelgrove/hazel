@@ -43,7 +43,7 @@ The `Makefile` has a `setup-zarith` target that performs this copy:
 
 ```makefile
 setup-zarith:
-    cp vendor/zarith_native_bigint_runtime.js "$$(opam var lib)/zarith_stubs_js/runtime.js"
+    cp vendor/zarith_native_bigint_runtime.js "$${OPAM_SWITCH_PREFIX:-$$(opam var prefix)}/lib/zarith_stubs_js/runtime.js"
 ```
 
 This target is automatically run before builds (`make dev`, `make release`, etc.)
@@ -83,4 +83,4 @@ and in CI.
 - `src/web/util/WorkerClient.re` - Client-side worker communication
 - `src/web/util/WorkerServer.re` - Worker-side message handling
 - `Makefile` - `setup-zarith` target
-- `.github/workflows/deploy_branches.yml` - CI setup-zarith step
+- `.github/actions/setup-hazel-toolchain/action.yml` - CI setup-zarith step

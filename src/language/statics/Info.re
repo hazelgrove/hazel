@@ -41,6 +41,7 @@ type exp = {
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
@@ -58,6 +59,7 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
+  probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
   elab_syn_ty: Typ.t,
   marks: list(Mark.t),
@@ -194,20 +196,25 @@ let cls_of: t => Cls.t =
   | InfoMPat({cls, _})
   | Secondary({cls, _}) => cls;
 
-/* User-facing class name, context-aware where the static `Cls.show`
-   loses information. Currently specializes tpat `Var` based on the
-   statics' classification: a bound type variable with kind
-   `Abstract` is a parameter, anything else is an alias. Other sorts
-   fall back to the plain `Cls.show(cls_of(info))`. */
-let cls_text_of: t => string =
-  fun
-  | InfoTPat({cls: TPat(Var), message, _}) =>
+/* Display label for a term's cls. The parser always builds numeric
+   negation as the Int op; statics may re-kind it (replace_un_op_cls),
+   so UnOp labels come from the elaborated op. A type variable pattern
+   is a parameter or an alias according to its statics. */
+let cls_label = (info: t): string =>
+  switch (cls_of(info), info) {
+  | (Exp(UnOp(_)) as cls, InfoExp({elab_term, _})) =>
+    switch (Exp.term_of(elab_term)) {
+    | UnOp(op, _) => Operators.show_unop(op)
+    | _ => Cls.show(cls)
+    }
+  | (TPat(Var) as cls, InfoTPat({message, _})) =>
     switch (message) {
     | Some(TPatOk(TypeParameter(_))) => "Type parameter"
     | Some(TPatOk(TypeAlias(_))) => "Type alias"
-    | _ => Cls.show(TPat(Var))
+    | _ => Cls.show(cls)
     }
-  | info => Cls.show(cls_of(info));
+  | (cls, _) => Cls.show(cls)
+  };
 
 let any_of: t => option(Any.t) =
   fun
@@ -317,9 +324,12 @@ let is_typable_term: option(t) => bool =
   | None => false;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
+let exp_probe_targets: exp => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
+let pat_probe_targets: pat => SubexpProbeTargets.t =
+  ({probe_targets, _}) => probe_targets;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
-let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 

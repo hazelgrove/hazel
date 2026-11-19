@@ -21,9 +21,15 @@ let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => 
   root_piece: p,
 };
 
+/* Root piece of a term by id — works for tiles, grouts, secondaries, and
+   projectors. Useful for editor-membership checks where any piece type is
+   acceptable (e.g. jumping to a hole by its grout id). */
+let root_piece = (id: Id.t, data: t): option(Piece.t) =>
+  Option.map(d => d.root_piece, Id.Map.find_opt(id, data));
+
 let root_tile = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find_opt(id, data)) {
-  | Some({root_piece: Tile(t), _}) => Some(t)
+  switch (root_piece(id, data)) {
+  | Some(Tile(t)) => Some(t)
   | _ => None
   };
 
@@ -51,13 +57,6 @@ let extremes_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
   switch (extremes_opt(id, data)) {
   | Some((l, r)) => Some((Piece.l_shard_of(l), Piece.r_shard_of(r)))
   | None => None
-  };
-
-let root_shards = (id: Id.t, data: t): option((Piece.t, Piece.t)) =>
-  switch (Id.Map.find_opt(id, data)) {
-  | Some({root_piece, _}) =>
-    Some((Piece.l_shard_of(root_piece), Piece.r_shard_of(root_piece)))
-  | _ => None
   };
 
 let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>

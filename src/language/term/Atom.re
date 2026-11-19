@@ -223,19 +223,58 @@ type builtin =
     )
     : builtin;
 
-let converter_builtins =
-  ListUtil.cross(all_of_cls, all_of_cls)
-  |> List.filter_map(((cls1, cls2)) =>
-       if (cls1 == cls2) {
+/* Comparator data per class: kind (carries type info) plus the underlying
+ * OCaml compare function. BuiltinsADT.of_atom_compare consumes this to
+ * derive the Ord builtin. Bool has no builtin compare. */
+type compare_entry =
+  | Cmp(kind('a), ('a, 'a) => int): compare_entry;
+
+/* Single source of truth for compare builtins. Exhaustive on cls so adding
+ * a new class forces a decision here (compile error). */
+let compare_of_cls: cls => option(compare_entry) =
+  fun
+  | Int => Some(Cmp(Int, Bigint.compare))
+  | SInt => Some(Cmp(SInt, Int.compare))
+  | Nat => Some(Cmp(Nat, Bigint.compare))
+  | Float => Some(Cmp(Float, Float.compare))
+  | String => Some(Cmp(String, String.compare))
+  | Bool => None;
+
+let compare_builtin = (cls: cls): option(string) =>
+  compare_of_cls(cls) |> Option.map(_ => cls_string_lower(cls) ++ "_compare");
+
+let compare_builtins: list((string, compare_entry)) =
+  all_of_cls
+  |> List.filter_map(cls =>
+       compare_of_cls(cls)
+       |> Option.map(entry => (cls_string_lower(cls) ++ "_compare", entry))
+     );
+
+let conversions_from = (from_: cls): list((string, cls)) =>
+  all_of_cls
+  |> List.filter_map(to_ =>
+       if (from_ == to_) {
          None;
        } else {
          Some((
-           cls_string_lower(cls2) ++ "_of_" ++ cls_string_lower(cls1),
-           {
-             let.cls W(cls1) = cls1;
-             let.cls W(cls2) = cls2;
-             OneFun(cls1, cls2, convert(cls1, cls2));
-           },
+           cls_string_lower(to_) ++ "_of_" ++ cls_string_lower(from_),
+           to_,
          ));
        }
+     );
+
+let converter_builtins =
+  all_of_cls
+  |> List.concat_map(cls1 =>
+       conversions_from(cls1)
+       |> List.map(((name, cls2)) =>
+            (
+              name,
+              {
+                let.cls W(cls1) = cls1;
+                let.cls W(cls2) = cls2;
+                OneFun(cls1, cls2, convert(cls1, cls2));
+              },
+            )
+          )
      );

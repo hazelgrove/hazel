@@ -17,8 +17,6 @@ let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
 let selection_char = "§"; /* Note this is two bytes */
-let caret_regexp = StringUtil.regexp(caret_char);
-
 let printer = (z: Zipper.t): string => {
   Printer.of_zipper(
     ~holes=convex_char,
@@ -34,16 +32,51 @@ let default_settings = {
   statics: true,
 };
 
+/* An action reads its pre-state's statics. The semantic term, and so its
+ * statics, depend only on the caret-free source, so a state with the same
+ * source as the last one derived (after a move or a selection) reuses its
+ * statics, as the editor does. The last state outlives a perform call
+ * because tests often chain states one action per call. */
+type derived = {
+  source: Segment.t,
+  statics: Lazy.t(CachedStatics.t),
+};
+
+let last_derived: ref(option((Language.CoreSettings.t, Zipper.t, derived))) =
+  ref(None);
+
+let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
+  let source = lazy(MakeTerm.semantic_source(z));
+  let derived =
+    switch (last_derived^) {
+    | Some((s, last_z, last))
+        when
+          s == settings && (last_z === z || last.source == Lazy.force(source)) => last
+    | _ =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      {
+        source: Lazy.force(source),
+        statics:
+          lazy(
+            CachedStatics.init_from_term(
+              ~settings,
+              ~is_dynamic_term=true,
+              term,
+            )
+          ),
+      };
+    };
+  last_derived := Some((settings, z, derived));
+  derived;
+};
+
 let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
     : Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) => {
-    let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-    let statics =
-      CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  let perform = (a: Action.t, z: Zipper.t) =>
     Perform.go(
       ~settings,
-      ~statics,
+      ~statics=Lazy.force(derive(~settings, z).statics),
       ~syntax=CachedSyntax.init(z),
       a,
       {
@@ -51,11 +84,26 @@ let perform =
         col_target: None,
       },
     );
-  };
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) => z
+      | Ok(z) =>
+        /* Term construction must be total on every reachable editor state
+         * (statics/display consume it after every action). Checking here
+         * (rather than only on the pre-state of the NEXT action) means the
+         * final state of every test is covered too. derive builds the term
+         * unless the source is unchanged from the last state derived. */
+        switch (derive(~settings, z)) {
+        | _ => z
+        | exception e =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail(
+            "Malformed state after action "
+            ++ Action.show(a)
+            ++ ": "
+            ++ Printexc.to_string(e),
+          );
+        }
       | Error(err) =>
         print_endline("Zipper: " ++ Zipper.show(z));
         Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
@@ -80,29 +128,57 @@ let mv_l_token = (n: int): list(Action.t) =>
 let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right, ByToken)));
 
+/* ByChar movement for use in mk — moves through Inner positions */
+let mv_l_char = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Left, ByChar)));
+
+/* Compact constructors for Point-based actions. Tests routinely
+ * span 10+ lines on the nested `Action.Select(Resize(Point({row,
+ * col}, chunk)))` shape; these helpers compress that to a single
+ * call. `chunk=None` defers to the settings-driven default at
+ * action execution time (the typical case for tests that don't
+ * exercise modifier overrides). */
+let resize_point =
+    (~row: int=0, ~col: int, ~chunk: option(Action.chunkiness)=None, ())
+    : Action.t =>
+  Action.Select(
+    Resize(
+      Point(
+        {
+          row,
+          col,
+        },
+        chunk,
+      ),
+    ),
+  );
+
+let move_point = (~row: int=0, ~col: int, ()): Action.t =>
+  Action.Move(
+    Point(
+      {
+        row,
+        col,
+      },
+      None,
+    ),
+  );
+
+/* Split on the one caret: the text, and how many chars follow the caret */
+let split_one_caret = (init: string): (string, int) =>
+  switch (StringUtil.plain_split(init, caret_char)) {
+  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
+  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+  };
+
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
    * Does not support § — use mk_zipper for selections. */
-  let chars = Token.to_list(init);
-  if (List.exists(c => c == selection_char, chars)) {
+  if (List.exists(c => c == selection_char, Token.to_list(init))) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
-  let rec split =
-          (before: list(string), rest: list(string))
-          : (list(string), list(string)) =>
-    switch (rest) {
-    | [] => Alcotest.fail("Failed to find caret in: " ++ init)
-    | [hd, ...tl] =>
-      if (hd == caret_char) {
-        (List.rev(before), tl);
-      } else {
-        split([hd, ...before], tl);
-      }
-    };
-  let (before, after) = split([], chars);
-  let clean = Token.of_list(before @ after);
-  let chars_after_caret = List.length(after);
-  string_to_ltr_actions(clean) @ mv_l(chars_after_caret);
+  let (clean, chars_after_caret) = split_one_caret(init);
+  string_to_ltr_actions(clean) @ mv_l_char(chars_after_caret);
 };
 
 /* mk_zipper: builds a zipper with optional selection from a string.
@@ -112,7 +188,8 @@ let mk = (init: string): list(Action.t) => {
  * 1. Create two single-caret versions of the input string
  *    - version_a: caret at the § position (anchor)
  *    - version_b: caret at the ¦ position (focus)
- * 2. Build zippers from both via mk + perform
+ * 2. Build zippers for both: type their shared text once, then move
+ *    the caret left to each version's caret
  * 3. Get Point.t coordinates from each via Measured
  * 4. Apply Select(PointToPoint) to create the selection */
 let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
@@ -140,8 +217,12 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
     /* Build zippers */
-    let z_a = mk(version_a) |> perform(~settings, Zipper.init());
-    let z_b = mk(version_b) |> perform(~settings, Zipper.init());
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let typed =
+      string_to_ltr_actions(text) |> perform(~settings, Zipper.init());
+    let z_a = mv_l_char(after_anchor) |> perform(~settings, typed);
+    let z_b = mv_l_char(after_focus) |> perform(~settings, typed);
     /* Get caret Points from each */
     let measured_a = CachedSyntax.init(z_a).measured;
     let measured_b = CachedSyntax.init(z_b).measured;
@@ -176,6 +257,93 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
+/* Parse a string with caret position using Parser.to_zipper (no auto-indent).
+ * This is useful for tests that need to start from a specific state
+ * without the double-indentation issue from mk(). */
+let parse_text = (text: string): Zipper.t =>
+  switch (Parser.to_zipper(~root=Exp, text)) {
+  | None => Alcotest.fail("Failed to parse: " ++ text)
+  | Some(z) => z
+  };
+
+let parse_with_caret = (init: string): Zipper.t => {
+  let (text, chars_after) = split_one_caret(init);
+  /* Use mv_l to generate move actions, then perform them */
+  mv_l(chars_after) |> perform(parse_text(text));
+};
+
+/* Like mk_zipper but builds the buffer via Parser (no auto-indent), so it
+ * matches the literal exactly — including explicit indentation. Use for
+ * user-managed-indentation scenarios: mk()/mk_zipper() place carets by
+ * counting the literal's characters, which lands them mid-indentation
+ * once auto-indent has inserted spaces the literal doesn't contain. */
+let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
+  let chars = Token.to_list(init);
+  let has_anchor = List.exists(c => c == selection_char, chars);
+  if (!has_anchor) {
+    parse_with_caret(init);
+  } else {
+    /* version_a: replace § with ¦, remove original ¦ */
+    let version_a =
+      chars
+      |> List.map(c =>
+           if (c == selection_char) {
+             caret_char;
+           } else if (c == caret_char) {
+             "";
+           } else {
+             c;
+           }
+         )
+      |> List.filter(c => c != "")
+      |> Token.of_list;
+    /* version_b: remove §, keep ¦ */
+    let version_b =
+      chars |> List.filter(c => c != selection_char) |> Token.of_list;
+    /* the same text with the caret in two places: parsed once */
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let parsed = parse_text(text);
+    let z_a = mv_l(after_anchor) |> perform(parsed);
+    let z_b = mv_l(after_focus) |> perform(parsed);
+    let measured_a = CachedSyntax.init(z_a).measured;
+    let measured_b = CachedSyntax.init(z_b).measured;
+    let anchor_pt = Zipper.Caret.point(measured_a, z_a);
+    let focus_pt = Zipper.Caret.point(measured_b, z_b);
+    [Action.Select(PointToPoint((anchor_pt, focus_pt)))]
+    |> perform(~settings, z_b);
+  };
+};
+
+/* Test variant that parses initial state (no auto-indent) then applies actions */
+let test_from_parse = (~name, ~init, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = parse_with_caret(init);
+      check(
+        testable(Fmt.string, String.equal),
+        goal,
+        goal,
+        acts |> perform(z) |> printer,
+      );
+    },
+  );
+
+/* Test that the selected text (what would be copied to clipboard)
+ * matches the expected string. Prints the selection content and
+ * trims for char-level boundaries, mirroring the copy path. */
+let test_copy = (~name, ~z: Zipper.t, ~expected: string): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let actual = Printer.selected_text(~holes=convex_char, ~indent="", z);
+      check(testable(Fmt.string, String.equal), name, expected, actual);
+    },
+  );
+
 let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
     check(
@@ -202,6 +370,104 @@ let basic_tests = [
     ~acts=mk("1¦1") @ [Paste({|"foo"|})],
     ~goal={|1~"foo"¦~1|},
   ),
+  /* `(¦)` is a caret INSIDE the `()` duo-token, so these two take the
+     slow token-splitting path (the fast gate requires an Outer caret);
+     the Outer-caret-at-depth cases below take the fast path. */
+  test(
+    ~name="Paste complete term inside empty parens (token split)",
+    ~acts=mk("(¦)") @ [Paste("1 + 2")],
+    ~goal="(1 + 2¦)",
+  ),
+  test(
+    ~name="Paste binding chain inside let-def parens",
+    ~acts=mk("let x = (¦) in x") @ [Paste("let y = 2 in y")],
+    ~goal="let x = (let y = 2 in y¦) in x",
+  ),
+  test(
+    ~name="Paste complete term at Outer caret at depth (nested fast path)",
+    ~acts=mk("let x = ¦ in x") @ [Paste("1 + 2")],
+    ~goal="let x = 1 + 2¦ in x",
+  ),
+  /* Body-less fragments (the common copy: definitions ending in `in`)
+     take the fast path via its append-a-hole completion rung; goals are
+     the typed-out (slow-path) states, trailing convex grout included. */
+  test(
+    ~name="Paste body-less binding at Outer caret at depth",
+    ~acts=mk("let x = ¦ in x") @ [Paste("let y = 2 in")],
+    ~goal="let x = let y = 2 in¦? in x",
+  ),
+  test(
+    ~name="Paste body-less binding chain at top level",
+    ~acts=mk("¦") @ [Paste("let a = 1 in let b = 2 in")],
+    ~goal="let a = 1 in let b = 2 in¦?",
+  ),
+  test(
+    ~name="Paste body-less binding inside empty parens (token split)",
+    ~acts=mk("(¦)") @ [Paste("let y = 2 in")],
+    ~goal="(let y = 2 in¦?)",
+  ),
+  test(
+    ~name="Paste trailing-operator fragment",
+    ~acts=mk("¦") @ [Paste("1 +")],
+    ~goal="1 +¦?",
+  ),
+  test(
+    ~name="Paste multiline body-less chain keeps layout",
+    ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
+    ~goal="let a = 1 in\nlet b = 2 in¦?",
+  ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
+  ),
+  test(
+    ~name="Paste plaintext into token at Inner caret",
+    ~acts=mk("hel¦lo") @ [Paste("abc")],
+    ~goal="helabc¦lo",
+  ),
+  test(
+    ~name="Paste into string literal at Inner caret",
+    ~acts=mk({|"hel¦lo"|}) @ [Paste("abc")],
+    ~goal={|"helabc¦lo"|},
+  ),
+  test(
+    ~name="Paste into token inside parens at Inner caret",
+    ~acts=mk("(hel¦lo)") @ [Paste("abc")],
+    ~goal="(helabc¦lo)",
+  ),
+  test(
+    ~name="Paste splitting text into token at Inner caret",
+    ~acts=mk("hel¦lo") @ [Paste("a b")],
+    /* Caret lands after the pasted text (at the end of "b"), not before it */
+    ~goal="hela~b¦lo",
+  ),
+  test(
+    ~name="Paste into token inside let expression",
+    ~acts=mk("let a = sdf¦ssdf in a") @ [Paste("abc")],
+    ~goal="let a = sdfabc¦ssdf in a",
+  ),
+  test(
+    ~name="Paste into token inside let expression (beginning)",
+    ~acts=mk("let a = s¦dfssdf in a") @ [Paste("abc")],
+    ~goal="let a = sabc¦dfssdf in a",
+  ),
+  test(
+    ~name="Insert char into comment at Inner caret",
+    ~acts=mk("#hel¦lo#") @ [Insert("X")],
+    ~goal="#helX¦lo#?",
+  ),
+  test(
+    ~name="Paste into comment at Inner caret",
+    ~acts=mk("#hel¦lo#") @ [Paste("abc")],
+    ~goal="#helabc¦lo#?",
+  ),
   test(
     ~name="Paste string splitting consecutive delimiters",
     ~acts=mk("if¦then") @ [Paste({|"foo"|})],
@@ -220,7 +486,7 @@ let basic_tests = [
   ),
   test(
     ~name="Delete leading constructor in sum type with prefix plus",
-    ~acts=mk("1:(+A¦ +A)") @ [Destruct(Left)],
+    ~acts=mk("1:(+A¦ +A)") @ [Destruct(Local(Left, ByChar))],
     // suceeds but crashes later with split_kids
     ~goal={|1:(+¦ +A)|},
   ),
@@ -237,13 +503,13 @@ let basic_tests = [
   //wrong caret placement (and its in weird escapee mode...)
   test(
     ~name="Merge 2 prefix ops ! into infix op !!",
-    ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Left)],
+    ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Local(Left, ByChar))],
     ~goal={|?!¦! X|},
   ),
   // wrong caret placement (and its in weird escapee mode...)
   test(
     ~name="Merge + + ops in type sort context",
-    ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Left)],
+    ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1:(?+¦+A)|},
   ),
 ];
@@ -279,6 +545,16 @@ let insertion_tests = [
     ~name="Insert char at start of token",
     ~acts=mk({|¦oo|}) @ [Insert("f")],
     ~goal={|f¦oo|},
+  ),
+  test(
+    ~name="Insert char at start of token inside function application",
+    ~acts=mk({|length(¦oo)|}) @ [Insert("f")],
+    ~goal={|length(f¦oo)|},
+  ),
+  test(
+    ~name="Insert char at start of token in let body",
+    ~acts=mk({|let x = 1 in ¦oo|}) @ [Insert("f")],
+    ~goal={|let x = 1 in f¦oo|},
   ),
   test(
     ~name="Insert char inside token",
@@ -390,7 +666,7 @@ let insertion_tests = [
     ~acts=
       mk({|¦if 1 then 2 else 3|})
       @ [Insert("i"), Insert("f"), Insert(" "), Put_down, Put_down],
-    ~goal={|if? then?else¦if 1 then 2 else 3|},
+    ~goal={|if? then?else¦ if 1 then 2 else 3|},
   ),
   test(
     ~name="Inserting let before existing let doesn't steal delimiters",
@@ -404,7 +680,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦let x = 2 in 3|},
+    ~goal={|let? =?in¦ let x = 2 in 3|},
   ),
   test(
     ~name="Inserting let before existing type doesn't steal delimiters",
@@ -418,7 +694,7 @@ let insertion_tests = [
         Put_down,
         Put_down,
       ],
-    ~goal={|let? =?in¦type x = 2 in 3|},
+    ~goal={|let? =?in¦ type x = 2 in 3|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -490,7 +766,7 @@ let insertion_tests = [
     ~name="Insert between non-leading delims when leading in backpack",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left), Destruct(Left)]
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))]
       @ mv_r(8)
       @ [Insert(" ")],
     ~goal={| 1 then  ¦2 else 3|},
@@ -574,12 +850,14 @@ let insertion_tests = [
   /* MERGING */
   test(
     ~name="Prelude for: Merge across concave grout on insert",
-    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 ¦~lse~ 3|},
   ),
   test(
     ~name="Merge across concave grout on insert",
-    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left), Insert("e")],
+    ~acts=
+      mk({|if 1 then 2 e¦lse 3|})
+      @ [Destruct(Local(Left, ByChar)), Insert("e")],
     ~goal={|if 1 then 2 e¦lse 3|},
   ),
   test(
@@ -615,7 +893,12 @@ let insertion_tests = [
     ~name="Split paren rematch (Regression guard for #1948)",
     ~acts=
       mk({|let(a=1)¦= 1 in 1|})
-      @ [Destruct(Left), Destruct(Left), Insert("1"), Put_down],
+      @ [
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
+        Insert("1"),
+        Put_down,
+      ],
     ~goal={|let(a=1)¦= 1 in 1|},
   ),
   /* DELIMITER REASSOCIATION */
@@ -650,116 +933,124 @@ let insertion_tests = [
     ~acts=mk({|string_capitalize¦1)|}) @ [Insert("(")],
     ~goal={|string_capitalize(¦1)|},
   ),
+  /* Regression for #2074. */
+  test(
+    ~name="Tuple label keyword-expanding to `let` doesn't crash",
+    ~acts=string_to_ltr_actions("(le=)") @ mv_l(3) @ [Insert("t")],
+    ~goal={|(let¦?=?)|},
+  ),
 ];
 
 let destruct_tests = [
   /* DESTRUCTION: BASIC */
   test(
     ~name="Delete comment",
-    ~acts=mk({|##¦|}) @ [Destruct(Left)],
+    ~acts=mk({|##¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Delete string",
-    ~acts=mk({|""¦|}) @ [Destruct(Left)],
+    ~acts=mk({|""¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting comment delimiter deletes comment",
-    ~acts=mk({|#¦#|}) @ [Destruct(Left)],
+    ~acts=mk({|#¦#|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting string delimiter deletes string",
-    ~acts=mk({|"¦"|}) @ [Destruct(Left)],
+    ~acts=mk({|"¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Delete char from token by backspacing",
-    ~acts=mk({|f¦oo|}) @ [Destruct(Left)],
+    ~acts=mk({|f¦oo|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦oo|},
   ),
   test(
     ~name="Merge to empty list by backspacing",
-    ~acts=mk({|[1¦]|}) @ [Destruct(Left)],
+    ~acts=mk({|[1¦]|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|[¦]|},
   ),
   test(
     ~name="Merge to empty tuple by deleting",
-    ~acts=mk({|(¦1)|}) @ [Destruct(Right)],
+    ~acts=mk({|(¦1)|}) @ [Destruct(Local(Right, ByChar))],
     ~goal={|(¦)|},
   ),
   test(
     ~name="Merge number literals across bin op by backspacing",
-    ~acts=mk({|1+¦1|}) @ [Destruct(Left)],
+    ~acts=mk({|1+¦1|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|1¦1|},
   ),
   /* DESTRUCTION: MATCHING */
   test(
     ~name="Destruct leading delim in convex 2-form",
-    ~acts=mk({|(¦1)|}) @ [Destruct(Left)],
+    ~acts=mk({|(¦1)|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦1)|},
   ),
   test(
     ~name="Destruct leading delim in prefix 3-form",
-    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left), Destruct(Left)],
+    ~acts=
+      mk({|if¦ 1 then 2 else 3|})
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
     ~goal={|¦ 1 then 2 else 3|},
   ),
   /* DESTRUCTION: AMPHIBIOUS PREFIX/INFIX OP */
   test(
     ~name="Amphibious Plus Destruct 1",
-    ~acts=mk({|type T = A +¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = A +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 2",
-    ~acts=mk({|type T = A + B +¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = A + B +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A + B ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 3",
-    ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = A + B + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 4",
-    ~acts=mk({|type T = + A¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 5",
-    ~acts=mk({|type T = + A +¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 6",
-    ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + ¦?|},
   ),
   test(
     ~name="Amphibious Plus Destruct 7",
-    ~acts=mk({|type T = + A + B +¦|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A + B +¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + B ¦|},
   ),
   test(
     ~name="Amphibious Plus Destruct 8",
-    ~acts=mk({|type T = +¦ A + B + C|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = +¦ A + B + C|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = ¦ A + B + C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 8",
-    ~acts=mk({|type T = + A¦ + B + C|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A¦ + B + C|}) @ [Destruct(Local(Left, ByChar))],
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + ¦ + B + C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 9",
-    ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|type T = + A + B ¦~ C|},
   ),
   test(
     ~name="Amphibious Plus Destruct 10",
-    ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Left)],
+    ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Local(Left, ByChar))],
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + A + ¦ + C|},
   ),
@@ -771,7 +1062,7 @@ let destruct_tests = [
   ),
   test(
     ~name="Regrouting edge case 2",
-    ~acts=mk({|if thena¦ else|}) @ [Destruct(Left)],
+    ~acts=mk({|if thena¦ else|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if? then¦? else?|},
   ),
   /* If the below fails, it's likely zipper.caret isn't being
@@ -779,7 +1070,12 @@ let destruct_tests = [
   test(
     ~name="Inner Caret position maintenance",
     ~acts=
-      mk({|if 1 the¦n|}) @ [Insert(" "), Destruct(Left), Destruct(Left)],
+      mk({|if 1 the¦n|})
+      @ [
+        Insert(" "),
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
+      ],
     ~goal={|if 1 ~th¦n|},
   ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
@@ -787,48 +1083,380 @@ let destruct_tests = [
    * it's okay if they change */
   test(
     ~name="Within leading delimiter: if",
-    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦f~ 1 then 2 else 3|},
   ),
   test(
     ~name="Within middle delimiter: if",
-    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 ~t¦en~ 2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
-    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 ¦~lse~ 3|},
   ),
   test(
     ~name="At end of leading delimiter: if",
-    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|i¦~ 1 then 2 else 3|},
   ),
   test(
     ~name="At end of middle delimiter: if",
-    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 the¦ 2 else 3|} /* No grout bc delim prefix special case */
   ),
   test(
     ~name="At end of trailing delimiter: if",
-    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|if 1 then 2 els¦ 3|},
   ),
   test(
     ~name="Delete emoji inside string",
-    ~acts=mk({|"😄¦😊"|}) @ [Destruct(Left)],
+    ~acts=mk({|"😄¦😊"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"¦😊"|},
   ),
   test(
     ~name="Delete emoji at start of string",
-    ~acts=mk({|"😄¦a"|}) @ [Destruct(Left)],
+    ~acts=mk({|"😄¦a"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"¦a"|},
   ),
   test(
     ~name="Delete emoji at end of string",
-    ~acts=mk({|"a😄¦"|}) @ [Destruct(Left)],
+    ~acts=mk({|"a😄¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|"a¦"|},
+  ),
+  /* INDENT-LEVEL BACKSPACE — capped at the line's AUTO-INDENT level
+     (andrew 2026-07-22, ported from artifact-grout 1c2bc75efb): this
+     body line's level is 0, so typed spaces are real material, one
+     per press; the 2-space unit dedent applies only within the
+     auto-indent width */
+  test(
+    ~name="Backspace beyond auto-indent deletes 1 space",
+    ~acts=mk({|let x = 1 in
+    ¦x|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 1 in
+   ¦x|},
+  ),
+  test(
+    ~name="Backspace beyond auto-indent deletes 1 of 4 spaces twice",
+    ~acts=
+      mk({|let x = 1 in
+    ¦x|})
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 1 in
+  ¦x|},
+  ),
+  test(
+    ~name="Indent-level backspace deletes 1 space when only 1 exists",
+    ~acts=mk({|let x = 1 in
+ ¦x|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 1 in
+¦x|},
+  ),
+  test(
+    ~name="Backspace beyond auto-indent deletes 1 of 3 spaces",
+    ~acts=mk({|let x = 1 in
+   ¦x|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 1 in
+  ¦x|},
+  ),
+  test(
+    ~name="Normal backspace when content before cursor",
+    ~acts=mk({|let x = 1 in
+  x¦|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 1 in
+  ¦?|} /* Hole appears because body is now empty */
+  ),
+  /* Regression: indent-level backspace should NOT trigger inside parens on same line */
+  test(
+    ~name="No indent-level backspace inside parens (deletes 1 space not 2)",
+    ~acts=mk({|(  ¦1)|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|( ¦1)|},
+  ),
+  /* Regression: backspace with selection should delete the selection */
+  test(
+    ~name="Backspace with selection deletes selection",
+    ~acts=
+      mk({|let x = 10 in ¦x|})
+      @ [
+        Select(Resize(Local(Right, ByChar))),
+        Destruct(Local(Left, ByChar)),
+      ],
+    ~goal={|let x = 10 in ¦?|},
+  ),
+  /* TOKEN/HUNGRY DELETE */
+  test(
+    ~name="Token delete removes entire token",
+    ~acts=mk({|let foo¦ = 1 in foo|}) @ [Destruct(Local(Left, ByToken))],
+    ~goal={|let ¦? = 1 in foo|} /* Hole appears for binding site */
+  ),
+  test(
+    ~name="Hungry delete removes spaces and linebreak",
+    ~acts=mk({|let x = 1 in
+  ¦x|}) @ [Destruct(Local(Left, ByToken))],
+    ~goal={|let x = 1~ in¦x|} /* Grout appears for shape consistency */
+  ),
+  test(
+    ~name="Hungry delete stops after one linebreak",
+    ~acts=mk({|let x = 1 in
+
+  ¦x|}) @ [Destruct(Local(Left, ByToken))],
+    ~goal={|let x = 1 in
+¦x|},
+  ),
+  test(
+    ~name="Token delete on single space",
+    ~acts=mk({|let ¦x = 1 in x|}) @ [Destruct(Local(Left, ByToken))],
+    ~goal={|let¦x = 1 in x|},
+  ),
+];
+
+let format_tests = [
+  /* TRAILING WHITESPACE CLEANUP */
+  /* Note: Format adjusts cursor position, so we test without relying on exact cursor pos */
+  test(
+    ~name="Format removes trailing space at end of line",
+    ~acts=
+      mk({|let x = 1¦
+  in x|})
+      @ [Insert(" "), Move(Local(Right, ByChar)), Format(Indent)],
+    ~goal={|let x = 1
+¦  in x|} /* Trailing space removed, cursor moves */
+  ),
+  test(
+    ~name="Format fixes indentation",
+    ~acts=mk({|let x = 1
+¦in x|}) @ [Format(Indent)],
+    ~goal={|let x = 1
+¦in x|} /* `in` at column 0 is the body, no indentation needed */
+  ),
+];
+
+let comma_indent_tests = [
+  /* Test auto-indent behavior when pressing Enter in tuples.
+   * Unlike case rules, tuple elements are CHILDREN of the parens,
+   * so they should be at base+2 (not base). This is correct! */
+  test(
+    ~name="Tuple indent: Enter after element before comma",
+    ~acts=mk({|(1¦, 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(1
+  ¦, 2)|} /* 2-space indent is correct - tuple element level */
+  ),
+  test(
+    ~name="Tuple indent: Enter after comma",
+    ~acts=mk({|(1,¦ 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(1,
+  ¦ 2)|} /* 2-space indent is correct */
+  ),
+];
+
+let case_indent_tests = [
+  /* Test auto-indent behavior when pressing Enter in complete case expressions.
+   * The cursor should NOT be indented when adding new rules - rules are siblings,
+   * not nested children. */
+  test(
+    ~name="Case indent: Enter after scrutinee in complete case",
+    ~acts=mk({|case 1¦
+| _ => 1
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+¦
+| _ => 1
+end|} /* Expecting no indent - cursor at column 0 */
+  ),
+  test(
+    ~name="Case indent: Enter after rule in complete case",
+    ~acts=mk({|case 1
+| _ => 1¦
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+| _ => 1
+¦
+end|} /* Expecting no indent - cursor at column 0 */
+  ),
+];
+
+/* Tests for nested case expressions - exploring indentation behavior.
+ * These use test_from_parse to avoid double-indentation from mk(). */
+let nested_case_tests = [
+  /* Basic nested case - just format, no editing */
+  test_from_parse(
+    ~name="Nested case: format only",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+    ~acts=[Action.Format(Indent)],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+  ),
+  /* Parse and print round-trip (no edit) */
+  test_from_parse(
+    ~name="Nested case: parse and print (no edit)",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+    ~acts=[],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  end
+end¦|},
+  ),
+  /* Single line nested case */
+  test_from_parse(
+    ~name="Nested case: single line parse",
+    ~init={|case 1 | A => case 2 | X => 1 end end¦|},
+    ~acts=[],
+    ~goal={|case 1 | A => case 2 | X => 1 end end¦|},
+  ),
+  /* Move in nested case (no insert) */
+  test_from_parse(
+    ~name="Nested case: move right (no insert)",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1¦
+  end
+end|},
+    ~acts=[Action.Move(Local(Right, ByChar))],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+¦  end
+end|} /* Cursor lands at start of line, before spaces */
+  ),
+  /* Nested case: Enter after inner rule */
+  test_from_parse(
+    ~name="Nested case: Enter after inner rule body",
+    ~init={|case 1
+| A =>
+  case 2
+  | X => 1¦
+  end
+end|},
+    ~acts=[Action.Insert("\n")],
+    ~goal={|case 1
+| A =>
+  case 2
+  | X => 1
+  ¦
+  end
+end|} /* New line should be at inner case level (2 spaces) */
+  ),
+];
+
+/* Tests for inserting newlines in the middle of existing code.
+ * These test "going back and editing" rather than left-to-right typing.
+ *
+ * Key insight: Existing spaces after cursor are PRESERVED.
+ * If you have `in¦ x` and press Enter, the space stays: `in\n<indent>¦ x`
+ */
+let insert_in_middle_tests = [
+  /* Scenario: Split a let body by inserting newline after `in`
+   * The body after `in` is at base level (0 for top-level) */
+  test(
+    ~name="Split let body: Enter after in",
+    ~acts=mk({|let x = 1 in¦ x + 2|}) @ [Action.Insert("\n")],
+    ~goal={|let x = 1 in
+¦ x + 2|} /* Body at base level (0), space preserved */
+  ),
+  /* Scenario: Insert newline between case rules */
+  test(
+    ~name="Insert between case rules",
+    ~acts=mk({|case 1
+| A => 1¦
+| B => 2
+end|}) @ [Action.Insert("\n")],
+    ~goal={|case 1
+| A => 1
+¦
+| B => 2
+end|} /* Should be at case level, not indented */
+  ),
+  /* Scenario: Split function body - body is indented inside fun */
+  test(
+    ~name="Split fun body: Enter after arrow",
+    ~acts=mk({|fun x ->¦ x + 1|}) @ [Action.Insert("\n")],
+    ~goal={|fun x ->
+  ¦ x + 1|} /* Body indented (2 spaces), space preserved */
+  ),
+  /* Scenario: Insert newline after = in let binding - RHS is indented */
+  test(
+    ~name="Split let definition: Enter after =",
+    ~acts=mk({|let x =¦ 1 in x|}) @ [Action.Insert("\n")],
+    ~goal={|let x =
+  ¦ 1 in x|} /* Definition indented (2 spaces), space preserved */
+  ),
+  /* Scenario: Split if expression before else - else at same level as if */
+  test(
+    ~name="Split if expression: Enter before else",
+    ~acts=mk({|if true then 1¦ else 2|}) @ [Action.Insert("\n")],
+    ~goal={|if true then 1
+¦ else 2|} /* else at base level (0), space preserved */
+  ),
+  /* Scenario: Insert in list between elements */
+  test(
+    ~name="Insert in list: Enter after comma",
+    ~acts=mk({|[1,¦ 2, 3]|}) @ [Action.Insert("\n")],
+    ~goal={|[1,
+  ¦ 2, 3]|} /* Element indented inside list, space preserved */
+  ),
+  /* Scenario: Enter immediately after opening paren */
+  test(
+    ~name="Enter after opening paren",
+    ~acts=mk({|(¦1, 2)|}) @ [Action.Insert("\n")],
+    ~goal={|(
+  ¦1, 2)|} /* Content indented inside parens */
+  ),
+  /* Scenario: Enter immediately after opening bracket */
+  test(
+    ~name="Enter after opening bracket",
+    ~acts=mk({|[¦1, 2]|}) @ [Action.Insert("\n")],
+    ~goal={|[
+  ¦1, 2]|} /* Content indented inside list */
+  ),
+  /* Scenario: Enter in empty parens - creates a hole. The hole
+     anchors indentation like a literal atom (enter after `(1` also
+     gives column 0), so the closer lands unindented. */
+  test(
+    ~name="Enter in empty parens",
+    ~acts=mk({|(¦)|}) @ [Action.Insert("\n")],
+    ~goal={|(?
+¦)|},
+  ),
+  /* Scenario: Two consecutive Enters after case rule */
+  test(
+    ~name="Two Enters after case rule",
+    ~acts=
+      mk({|case 1
+| A => 1¦
+end|})
+      @ [Action.Insert("\n"), Action.Insert("\n")],
+    ~goal={|case 1
+| A => 1
+
+¦
+end|} /* Both new lines at case level */
+  ),
+  /* Document current behavior: operator continuation doesn't auto-indent (TODO) */
+  test(
+    ~name="Operator continuation: Enter after +",
+    ~acts=mk({|1 +¦ 2|}) @ [Action.Insert("\n")],
+    ~goal={|1 +
+¦ 2|} /* Currently no indent - ideally would be indented as continuation */
   ),
 ];
 
@@ -991,14 +1619,18 @@ let move_tests = [
     ~name="Caret movement takes into account which shards are down - Right",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left), Destruct(Left), ...mv_r(4)],
+      @ [
+        Destruct(Local(Left, ByChar)),
+        Destruct(Local(Left, ByChar)),
+        ...mv_r(4),
+      ],
     ~goal={| 1 t¦hen 2 else 3|},
   ),
   test(
     ~name="Caret movement takes into account which shards are down - Left",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left), Destruct(Left)]
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))]
       @ mv_r(7)
       @ mv_l(1),
     ~goal={| 1 the¦n 2 else 3|},
@@ -1159,10 +1791,10 @@ else f|});
     ~name="Move extreme left with multiline selection",
     ~acts=
       mk({|(12345,
-  23456789,
-  ¦345678,
-  45678,
-  56789)|})
+23456789,
+¦345678,
+45678,
+56789)|})
       @ [Action.Select(All)]
       @ [Action.Move(Line(Left))],
     ~goal={|(12345,
@@ -2004,7 +2636,11 @@ let rescan_tests = [
     ~name="Effective label: fix reuses orphaned fun arrow",
     ~acts=
       mk({|¦fun a -> x|})
-      @ [Destruct(Right), Destruct(Right), Destruct(Right)]
+      @ [
+        Destruct(Local(Right, ByChar)),
+        Destruct(Local(Right, ByChar)),
+        Destruct(Local(Right, ByChar)),
+      ]
       @ string_to_ltr_actions("fix"),
     ~goal={|fix¦ a -> x|},
   ),
@@ -2014,7 +2650,11 @@ let rescan_tests = [
     ~name="Effective label: type reuses orphaned let = and in",
     ~acts=
       mk({|¦let y = 1 in x|})
-      @ [Destruct(Right), Destruct(Right), Destruct(Right)]
+      @ [
+        Destruct(Local(Right, ByChar)),
+        Destruct(Local(Right, ByChar)),
+        Destruct(Local(Right, ByChar)),
+      ]
       @ string_to_ltr_actions("type"),
     ~goal={|type¦ y = 1 in x|},
   ),
@@ -2028,8 +2668,27 @@ let rescan_tests = [
       @ mv_l(6)  /* fun (a, b¦ -> ) */
       @ string_to_ltr_actions(")")  /* fun (a, b)¦ -> ) */
       @ mv_r(6)  /* fun (a, b) -> )¦ */
-      @ [Destruct(Left)], /* delete old ) */
+      @ [Destruct(Local(Left, ByChar))], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
+  ),
+  /* #2446: completing `use _ in` remolds the following `-` from infix
+   * back to prefix; the convex grout inserted for the infix reading must
+   * not survive (it left a malformed grout-prefix junction whose tiles
+   * MakeTerm dropped from the terms map, crashing the view). */
+  test_complete(
+    ~name="Regrout: use-in typed before -5 leaves no stale grout",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦-5|},
+  ),
+  test_complete(
+    ~name="Regrout: use-in typed before prefix-only op",
+    ~acts=mk({|¦!true|}) @ string_to_ltr_actions("use Float in "),
+    ~goal={|use Float in ¦!true|},
+  ),
+  test_complete(
+    ~name="Regrout: let-in typed before -5",
+    ~acts=mk({|¦-5|}) @ string_to_ltr_actions("let x = 1 in "),
+    ~goal={|let x = 1 in ¦-5|},
   ),
 ];
 
@@ -2257,13 +2916,6 @@ let module_tests = [
    The test_complete helper checks both printer output AND that no
    incomplete tiles remain, which catches the structural breakage. */
 
-/* Helper: check that a zipper has a non-empty backpack (i.e. there are
- * missing shards from incomplete tiles visible at the caret position).
- * A non-empty backpack after entering what should be a complete program
- * indicates structural breakage. */
-let zip_backpack_empty = (z: Zipper.t): bool =>
-  Zipper.local_backpack(z) == [];
-
 let shard_theft_tests = [
   /* Baseline: typing `let y = 2 in let x = 1 in x` left-to-right
    * should produce a complete program with no incomplete tiles. */
@@ -2338,21 +2990,21 @@ let shard_theft_tests = [
           (z, c) => {
             let z' = perform(z, [Action.Insert(c)]);
             let text = printer(z');
-            let bp = Zipper.local_backpack(z');
+            let bp = Zipper.local_missing_shards(z');
             let bp_labels =
               bp
-              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> List.map((t: Tile.t) => String.concat(",", Tile.label(t)))
               |> String.concat("; ");
             let global_seg = Relatives.zip(z'.relatives);
             let global_bp =
               Segment.global_missing_shards(global_seg)
-              |> List.map((t: Tile.t) => String.concat(",", t.label))
+              |> List.map((t: Tile.t) => String.concat(",", Tile.label(t)))
               |> String.concat("; ");
             let anc_info =
               switch (z'.relatives.ancestors) {
               | [] => "no ancestor"
               | [(a, _), ..._] =>
-                let label = String.concat(",", a.label);
+                let label = String.concat(",", Ancestor.label(a));
                 let (sl, sr) = a.shards;
                 let shards =
                   sl @ sr |> List.map(string_of_int) |> String.concat(",");
@@ -2432,7 +3084,7 @@ let shard_theft_tests = [
     ~acts=
       mk({|let x = 1 in x¦|})
       @ mv_l(14)
-      @ [Destruct(Right)]
+      @ [Destruct(Local(Right, ByChar))]
       @ [Insert("l")],
     ~goal={|l¦et x = 1 in x|},
   ),
@@ -2547,7 +3199,7 @@ let rec find_tiles_by_label =
   List.concat_map(
     fun
     | Piece.Tile(t) => {
-        let matches = t.label == label ? [t] : [];
+        let matches = Tile.has_label(t, label) ? [t] : [];
         let child_matches =
           List.concat_map(find_tiles_by_label(label), t.children);
         matches @ child_matches;
@@ -2573,11 +3225,11 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (t.mold.out != Sort.Typ) {
+            if (Tile.mold(t).out != Sort.Typ) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(t.mold.out),
+                  Sort.show(Tile.mold(t).out),
                 ),
               );
             },
@@ -2599,11 +3251,11 @@ let remold_sort_tests = [
       | _ =>
         List.iter(
           (t: Tile.t) =>
-            if (t.mold.out != Sort.Typ) {
+            if (Tile.mold(t).out != Sort.Typ) {
               Alcotest.fail(
                 Printf.sprintf(
                   "Paren tile has mold.out=%s, expected Typ",
-                  Sort.show(t.mold.out),
+                  Sort.show(Tile.mold(t).out),
                 ),
               );
             },
@@ -2738,14 +3390,14 @@ let wrap_selection_tests = [
     ~goal={|(§(1 + 2)¦)|},
   ),
   test(
-    ~name="Wrap multi-token selection in parens via char select",
+    ~name="Wrap multi-token selection in parens via token select",
     ~acts=
       mk({|¦x + y|})
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
-      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
+      @ [Action.Select(Resize(Local(Right, ByToken)))]
       @ [Action.Insert("(")],
     ~goal={|(§x + y¦)|},
   ),
@@ -2806,67 +3458,73 @@ let unwrap_quote_tests = [
   /* --- String unwrapping --- */
   test(
     ~name="Backspace string from right unwraps content",
-    ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|"hello"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|hello¦|},
   ),
   test(
     ~name="Delete string from left unwraps content",
-    ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Right)],
+    ~acts=mk({|¦"hello"|}) @ [Action.Destruct(Local(Right, ByChar))],
     ~goal={|hello¦|},
   ),
   test(
     ~name="Backspace empty string just deletes",
-    ~acts=mk({|""¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|""¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Single char string unwraps",
-    ~acts=mk({|"a"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|"a"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|a¦|},
   ),
   /* --- Backtick label unwrapping --- */
   test(
     ~name="Backspace backtick label unwraps",
-    ~acts=mk({|`abc`¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|`abc`¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|abc¦|},
   ),
   /* --- Comment unwrapping --- */
   test(
     ~name="Delete comment from left unwraps",
-    ~acts=mk({|¦#stuff#|}) @ [Action.Destruct(Right)],
+    ~acts=mk({|¦#stuff#|}) @ [Action.Destruct(Local(Right, ByChar))],
     ~goal={|stuff¦|},
   ),
   /* --- Context preservation --- */
   test(
     ~name="Unwrap string in expression context",
-    ~acts=mk({|x + "hello"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|x + "hello"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|x + hello¦|},
   ),
   test(
     ~name="Unwrap string in let binding",
-    ~acts=mk({|let x = "hello"¦ in x|}) @ [Action.Destruct(Left)],
+    ~acts=
+      mk({|let x = "hello"¦ in x|})
+      @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|let x = hello¦ in x|},
   ),
   /* --- Content re-parses as code --- */
   test(
     ~name="Unwrap string with spaces produces separate tokens",
-    ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|"hello world"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|hello ~world¦|},
   ),
   test(
     ~name="Unwrap string with operators re-parses as expression",
-    ~acts=mk({|"1 + 2"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|"1 + 2"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|1 + 2¦|},
   ),
   /* --- Inner boundary deletion --- */
   test(
     ~name="Backspace at opening delimiter boundary unwraps",
-    ~acts=mk({|¦"hello"|}) @ mv_r(1) @ [Action.Destruct(Left)],
+    ~acts=
+      mk({|¦"hello"|}) @ mv_r(1) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|hello¦|},
   ),
   test(
     ~name="Delete at closing delimiter boundary unwraps",
-    ~acts=mk({|"hello"¦|}) @ mv_l(1) @ [Action.Destruct(Right)],
+    ~acts=
+      mk({|"hello"¦|})
+      @ mv_l(1)
+      @ [Action.Destruct(Local(Right, ByChar))],
     ~goal={|hello¦|},
   ),
   /* --- Roundtrip with wrapping --- */
@@ -2876,7 +3534,7 @@ let unwrap_quote_tests = [
       mk({|¦abc|})
       @ [Action.Select(Term(Current))]
       @ [Action.Insert({|"|})]
-      @ [Action.Destruct(Left)],
+      @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|abc¦|},
   ),
 ];
@@ -3004,7 +3662,8 @@ let rec tile_sorts_of_seg = (seg: Segment.t): list((string, Sort.t)) =>
 and tile_sorts_of_piece = (p: Piece.t): list((string, Sort.t)) =>
   switch (p) {
   | Tile(t) =>
-    let label_sorts = List.map(tok => (tok, t.mold.out), t.label);
+    let label_sorts =
+      List.map(tok => (tok, Tile.mold(t).out), Tile.label(t));
     let child_sorts = List.concat_map(tile_sorts_of_seg, t.children);
     label_sorts @ child_sorts;
   | Projector({syntax, _}) => tile_sorts_of_piece(syntax)
@@ -3096,7 +3755,7 @@ let comment_toggle_extra_tests = [
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment],
     ~goal="if true\n#then 1#¦\nelse 2",
   ),
@@ -3108,7 +3767,7 @@ else 2¦|})
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment]
       @ [Action.ToggleLineComment],
     ~goal="if true\nthen 1¦\nelse 2",
@@ -3132,7 +3791,8 @@ let ancestor_sort_tests = [
   remold_test(
     ~name="Molds: delete = from let preserves Pat",
     ~fresh_acts=mk({|let a ¦1 in a|}),
-    ~roundtrip_acts=mk({|let a =¦ 1 in a|}) @ [Action.Destruct(Left)],
+    ~roundtrip_acts=
+      mk({|let a =¦ 1 in a|}) @ [Action.Destruct(Local(Left, ByChar))],
   ),
   /* type...=...in roundtrip preserves TPat mold */
   remold_test(
@@ -3159,9 +3819,51 @@ else 2¦|}),
 then 1
 else 2¦|})
       @ [Action.Move(Start)]
-      @ [Action.Move(Vertical(Down))]
+      @ [Action.Move(Vertical(Down, ByChar))]
       @ [Action.ToggleLineComment]
       @ [Action.ToggleLineComment],
+  ),
+];
+
+let sel_r_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
+
+let cross_boundary_paste_tests = [
+  /* Select `comparison = (0` from `let comparison = (0 == 0) in comparison`,
+   * cutting the `=` shard out of the let form and the `(` out of parens.
+   * After paste, both should be structurally restored. */
+  test_case(
+    "Cut-paste spanning = delimiter in let: structural integrity",
+    `Quick,
+    () => {
+      let z =
+        mk({|let ¦comparison = (0 == 0) in comparison|})
+        |> perform(Zipper.init());
+      let z = perform(z, sel_r_token(6));
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles (labels: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               inc,
+             ),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
   ),
 ];
 
@@ -3177,8 +3879,8 @@ let wrap_calculate_test = [
       let acts =
         mk({|(1)¦|})
         @ [
-          Action.Select(Resize(Local(Left, ByChar))),
-          Action.Select(Resize(Local(Left, ByChar))),
+          Action.Select(Resize(Local(Left, ByToken))),
+          Action.Select(Resize(Local(Left, ByToken))),
           Action.Insert("("),
         ];
       let z = perform(Zipper.init(), acts);
@@ -3194,45 +3896,883 @@ let wrap_calculate_test = [
   ),
 ];
 
-/* Cut-paste across delimiter boundaries: when a selection spans a
- * delimiter (e.g. `=` in `let...=...in`), cutting removes the shard
- * from its parent tile. Re-pasting inserts a fresh-ID token that must
- * be reconnected to the ancestor tile via rescan_parent_shards. */
-let sel_r_token = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Select(Resize(Local(Right, ByToken))));
+/* Test helpers for char-level selection */
+let sel_r = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, ByChar))));
 
-let cross_boundary_paste_tests = [
-  /* Select `comparison = (0` from `let comparison = (0 == 0) in comparison`,
-   * cutting the `=` shard out of the let form and the `(` out of parens.
-   * After paste, both should be structurally restored. */
+let sel_l = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, ByChar))));
+
+let char_selection_tests = [
+  /* A. Intra-token selections */
+  test(
+    ~name="Select 1 char right from start of identifier",
+    ~acts=mk({|¦hello|}) @ sel_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="Select 2 chars right from start of identifier",
+    ~acts=mk({|¦hello|}) @ sel_r(2),
+    ~goal={|§he¦llo|},
+  ),
+  test(
+    ~name="Select entire single-char token",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(1),
+    ~goal={|§1¦ + 2|},
+  ),
+  test(
+    ~name="Select single-char token then space",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(2),
+    ~goal={|§1 ¦+ 2|},
+  ),
+  test(
+    ~name="Select across multiple single-char tokens",
+    ~acts=mk({|¦1 + 2|}) @ sel_r(5),
+    ~goal={|§1 + 2¦|},
+  ),
+  /* B. Starting from Inner caret */
+  test(
+    ~name="Select 1 char right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_r(1),
+    ~goal={|he§l¦lo|},
+  ),
+  test(
+    ~name="Select 2 chars right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_r(2),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Select 1 char left from inner caret",
+    ~acts=mk({|hel¦lo|}) @ sel_l(1),
+    ~goal={|he¦l§lo|},
+  ),
+  /* C. Grow then shrink (round-trip) */
+  test(
+    ~name="Grow right 2 then shrink left 2 returns to start",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ sel_l(2),
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Grow right 1 then shrink left 1 returns to start",
+    ~acts=mk({|¦hello|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|¦hello|},
+  ),
+  /* D. Cross-token selections */
+  test(
+    ~name="Select across token boundary right (single char tokens)",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3),
+    ~goal={|1§ + ¦2|},
+  ),
+  test(
+    ~name="Select 1 char right from middle of 'hello' (check anchor pos)",
+    ~acts=mk({|hel¦lo|}) @ sel_r(1),
+    ~goal={|hel§l¦o|},
+  ),
+  test(
+    ~name="Select across token boundary right (multi-char tokens)",
+    ~acts=mk({|le¦t x = 1 in x|}) @ sel_r(3),
+    ~goal={|le§t x¦ = 1 in x|},
+  ),
+  test(
+    ~name="Select left across token boundary",
+    ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(4),
+    ~goal={|let x ¦= 12§34 in x|},
+  ),
+  /* E. Grow then shrink (round-trip) */
+  test(
+    ~name="Grow right 3 then shrink left 1",
+    ~acts=mk({|he¦llo|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Grow right across token boundary then shrink",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|1§ +¦ 2|},
+  ),
+  test(
+    ~name="Grow left then shrink right to empty",
+    ~acts=mk({|hel¦lo|}) @ sel_l(2) @ sel_r(2),
+    ~goal={|hel¦lo|},
+  ),
+  test(
+    ~name="Grow right then shrink right completely",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ sel_l(2),
+    ~goal={|he¦llo|},
+  ),
+  /* F. Edge cases */
+  test(
+    ~name="Select over grout (single char, no inner)",
+    ~acts=mk({|1 + ¦? + 2|}) @ sel_r(1),
+    ~goal={|1 + §?¦ + 2|},
+  ),
+  test(
+    ~name="Select at end of program going left",
+    ~acts=mk({|hello¦|}) @ sel_l(1),
+    ~goal={|hell¦o§|},
+  ),
+  test(
+    ~name="Select at start of program going right",
+    ~acts=mk({|¦hello|}) @ sel_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="Select entire token char by char right",
+    ~acts=mk({|¦hello|}) @ sel_r(5),
+    ~goal={|§hello¦|},
+  ),
+  test(
+    ~name="Select entire token char by char left",
+    ~acts=mk({|hello¦|}) @ sel_l(5),
+    ~goal={|¦hello§|},
+  ),
+  test(
+    ~name="Select single-char token (parens open)",
+    ~acts=mk({|¦(1, 2)|}) @ sel_r(1),
+    ~goal={|§(¦1, 2)|},
+  ),
+  /* G. Toggle focus and unselect with char selections */
+  test(
+    ~name="Toggle focus on intra-token selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Select(ToggleFocus)],
+    ~goal={|he¦ll§o|},
+  ),
+  test(
+    ~name="Toggle focus twice returns to original",
+    ~acts=
+      mk({|he¦llo|})
+      @ sel_r(2)
+      @ [Select(ToggleFocus), Select(ToggleFocus)],
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Move left from char selection (to anchor)",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Move(Local(Left, ByChar))],
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Move right from char selection (to focus)",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Move(Local(Right, ByChar))],
+    ~goal={|hell¦o|},
+  ),
+  test(
+    ~name="Unselect left from char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Unselect(Some(Left))],
+    ~goal={|he¦llo|},
+  ),
+  test(
+    ~name="Unselect right from char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Unselect(Some(Right))],
+    ~goal={|hell¦o|},
+  ),
+  /* H. Destruct over char selections */
+  test(
+    ~name="Delete intra-token char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|he¦o|},
+  ),
+  test(
+    ~name="Backspace intra-token char selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Destruct(Local(Right, ByChar))],
+    ~goal={|he¦o|},
+  ),
+  test(
+    ~name="Delete entire token via char selection",
+    ~acts=mk({|¦hello|}) @ sel_r(5) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Delete first char of token",
+    ~acts=mk({|¦hello|}) @ sel_r(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|¦ello|},
+  ),
+  test(
+    ~name="Delete last char of token",
+    ~acts=mk({|hell¦o|}) @ sel_r(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|hell¦|},
+  ),
+  test(
+    ~name="Delete intra-token left selection",
+    ~acts=mk({|hel¦lo|}) @ sel_l(2) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|h¦lo|},
+  ),
+  /* I. Insert over char selections */
+  test(
+    ~name="Insert char over intra-token selection",
+    ~acts=mk({|he¦llo|}) @ sel_r(2) @ [Insert("X")],
+    ~goal={|heX¦o|},
+  ),
+  test(
+    ~name="Insert char over entire token selection",
+    ~acts=mk({|¦hello|}) @ sel_r(5) @ [Insert("X")],
+    ~goal={|X¦|},
+  ),
+  /* J. Cross-token destruct and insert (piece-level, not char-level) */
+  test(
+    ~name="Delete cross-token piece-level selection (1+2)",
+    ~acts=mk({|1¦ + 2|}) @ sel_r(3) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1¦2|},
+  ),
+  /* K. String literal edge cases */
+  test(
+    ~name="Select within string literal",
+    ~acts=mk({|"he¦llo"|}) @ sel_r(2),
+    ~goal={|"he§ll¦o"|},
+  ),
+  test(
+    ~name="Select entire string content char by char",
+    ~acts=mk({|"¦hello"|}) @ sel_r(5),
+    ~goal={|"§hello¦"|},
+  ),
+  test(
+    ~name="Select string including opening quote",
+    ~acts=mk({|¦"hello"|}) @ sel_r(1),
+    ~goal={|§"¦hello"|},
+  ),
+  test(
+    ~name="Delete within string literal",
+    ~acts=mk({|"he¦llo"|}) @ sel_r(2) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|"he¦o"|},
+  ),
+  /* L. Multi-delimiter tile selections */
+  test(
+    ~name="Select part of let keyword",
+    ~acts=mk({|¦let x = 1 in x|}) @ sel_r(2),
+    ~goal={|§le¦t x = 1 in x|},
+  ),
+  test(
+    ~name="Select entire let keyword char by char",
+    ~acts=mk({|¦let x = 1 in x|}) @ sel_r(3),
+    ~goal={|§let¦ x = 1 in x|},
+  ),
+  test(
+    ~name="Select part of in keyword",
+    ~acts=mk({|let x = 1 i¦n x|}) @ sel_r(1),
+    ~goal={|let x = 1 i§n¦ x|},
+  ),
+  /* M. Nested structures */
+  test(
+    ~name="Select within nested let keyword",
+    ~acts=mk({|let x = (le¦t y = 1 in y) in x|}) @ sel_r(1),
+    ~goal={|let x = (le§t¦ y = 1 in y) in x|},
+  ),
+  test(
+    ~name="Select within number literal",
+    ~acts=mk({|let x = 12¦345 in x|}) @ sel_r(2),
+    ~goal={|let x = 12§34¦5 in x|},
+  ),
+  test(
+    ~name="Delete within number literal",
+    ~acts=
+      mk({|let x = 12¦345 in x|})
+      @ sel_r(2)
+      @ [Destruct(Local(Left, ByChar))],
+    ~goal={|let x = 12¦5 in x|},
+  ),
+  test(
+    ~name="Insert over partial number literal",
+    ~acts=mk({|let x = 12¦345 in x|}) @ sel_r(2) @ [Insert("9")],
+    ~goal={|let x = 129¦5 in x|},
+  ),
+  /* N. Grow past token boundary then shrink back within token */
+  test(
+    ~name="Grow right 3, shrink left 1 (stays in token)",
+    ~acts=mk({|he¦llo|}) @ sel_r(3) @ sel_l(1),
+    ~goal={|he§ll¦o|},
+  ),
+  test(
+    ~name="Grow left 3, shrink right 1 (stays in token)",
+    ~acts=mk({|hel¦lo|}) @ sel_l(3) @ sel_r(1),
+    ~goal={|h¦el§lo|},
+  ),
+  /* O. Copy text (selected_text_segment) */
+  test_copy(
+    ~name="Copy middle of token: ppl from apple",
+    ~z=mk_zipper({|a§ppl¦e|}),
+    ~expected="ppl",
+  ),
+  test_copy(
+    ~name="Copy suffix of token: ple from apple",
+    ~z=mk_zipper({|ap§ple¦|}),
+    ~expected="ple",
+  ),
+  test_copy(
+    ~name="Copy prefix of token: ap from apple",
+    ~z=mk_zipper({|§ap¦ple|}),
+    ~expected="ap",
+  ),
+  test_copy(
+    ~name="Copy entire token: apple",
+    ~z=mk_zipper({|§apple¦|}),
+    ~expected="apple",
+  ),
+  test_copy(
+    ~name="Copy single char from token: p from apple",
+    ~z=mk_zipper({|a§p¦ple|}),
+    ~expected="p",
+  ),
+  test_copy(
+    ~name="Copy cross-token: partial let + space + x",
+    ~z=mk_zipper({|l§et x¦ = 1 in x|}),
+    ~expected="et x",
+  ),
+  test_copy(
+    ~name="Copy whole token selection (anchor=Outer, caret=Outer)",
+    ~z=mk_zipper({|§apple¦|}),
+    ~expected="apple",
+  ),
+  test_copy(
+    ~name="Copy middle of string literal: ll from \"hello\"",
+    ~z=mk_zipper({|"he§ll¦o"|}),
+    ~expected="ll",
+  ),
+  test_copy(
+    ~name="Copy inside int literal: 45 from 123456",
+    ~z=mk_zipper({|123§45¦6|}),
+    ~expected="45",
+  ),
+  test_copy(
+    ~name="Copy cross-token, both ends inside: t x = tr",
+    ~z=mk_zipper({|le§t x = tr¦ue|}),
+    ~expected="t x = tr",
+  ),
+  test_copy(
+    ~name="Copy cross-token ending inside string: x ++ \"wo",
+    ~z=mk_zipper({|§x ++ "wo¦rld"|}),
+    ~expected={|x ++ "wo|},
+  ),
+  test_copy(
+    ~name="Copy emoji inside string literal (multi-codepoint char)",
+    ~z=mk_zipper({|"§😀¦"|}),
+    ~expected={|😀|},
+  ),
+  test_copy(
+    ~name="Copy ascii char before emoji in string",
+    ~z=mk_zipper({|"§a¦😀"|}),
+    ~expected="a",
+  ),
+  /* P. Cut and paste with char-level selections */
   test_case(
-    "Cut-paste spanning = delimiter in let: structural integrity",
+    "Cut and paste partial keyword (via Cut)",
     `Quick,
     () => {
-      /* Build zipper with caret after `let ` */
-      let z =
-        mk({|let ¦comparison = (0 == 0) in comparison|})
-        |> perform(Zipper.init());
-      /* Select right by token: comparison, ws, =, ws, (, 0 */
-      let z = perform(z, sel_r_token(6));
-      /* Get clipboard text */
-      let clipboard =
+      let z = mk_zipper({|§fu¦n x -> x|});
+      let z = perform(z, [Cut, Paste("fu")]);
+      let actual = printer(z);
+      let expected = {|fu¦n x -> x|};
+      /* Verify text round-trips AND internal state is clean */
+      let bp = Zipper.local_missing_shards(z);
+      let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
+      check(testable(Fmt.string, String.equal), "text", expected, actual);
+      check(Alcotest.int, "backpack empty", 0, List.length(bp));
+      check(Alcotest.int, "no incomplete tiles", 0, List.length(inc));
+    },
+  ),
+  test_case(
+    "Cut and paste partial keyword (via Destruct)",
+    `Quick,
+    () => {
+      let z = mk_zipper({|§fu¦n x -> x|});
+      let z = perform(z, [Destruct(Local(Right, ByChar)), Paste("fu")]);
+      let actual = printer(z);
+      let expected = {|fu¦n x -> x|};
+      let bp = Zipper.local_missing_shards(z);
+      let inc = Segment.incomplete_tiles(snd(z.relatives.siblings));
+      check(testable(Fmt.string, String.equal), "text", expected, actual);
+      check(Alcotest.int, "backpack empty", 0, List.length(bp));
+      check(Alcotest.int, "no incomplete tiles", 0, List.length(inc));
+    },
+  ),
+];
+
+/* Regression tests for Inner-caret/multi-shard interactions: shift-
+ * arrow extension and plain-arrow break-out from positions inside the
+ * shards of multi-delimiter tiles (let-in, case-end, if-then-else). */
+let multi_delim_selection_bug_tests = [
+  /* Bug A: shift+right from Inner(n) of a multi-shard tile's shard
+   * over-selects because pre-fix max_idx was read from the whole tile
+   * (token_of=None → 0) rather than the shard. */
+  test(
+    ~name="Bug A1: shift+right from Inner(0) of 'let' selects 1 char (e)",
+    ~acts=mk({|l¦et x = 1 in x|}) @ sel_r(1),
+    ~goal={|l§e¦t x = 1 in x|},
+  ),
+  test(
+    ~name="Bug A2: shift+right from Inner(0) of 'case' selects 1 char (a)",
+    ~acts=mk({|c¦ase 1 | _ => 1 end|}) @ sel_r(1),
+    ~goal={|c§a¦se 1 | _ => 1 end|},
+  ),
+  test(
+    ~name="Bug A3: shift+right from Inner(1) of 'case' selects 1 char (s)",
+    ~acts=mk({|ca¦se 1 | _ => 1 end|}) @ sel_r(1),
+    ~goal={|ca§s¦e 1 | _ => 1 end|},
+  ),
+  test(
+    ~name="Bug A4: shift+right from Inner(0) of 'end' selects 1 char (n)",
+    ~acts=mk({|case 1 | _ => 1 e¦nd|}) @ sel_r(1),
+    ~goal={|case 1 | _ => 1 e§n¦d|},
+  ),
+  /* Control: shift+left from the same positions is unaffected by the bug. */
+  test(
+    ~name="Control: shift+left from Inner(0) of 'let' selects 1 char (l)",
+    ~acts=mk({|l¦et x = 1 in x|}) @ sel_l(1),
+    ~goal={|¦l§et x = 1 in x|},
+  ),
+  test(
+    ~name="Control: shift+left from Inner(1) of 'case' selects 1 char (a)",
+    ~acts=mk({|ca¦se 1 | _ => 1 end|}) @ sel_l(1),
+    ~goal={|c¦a§se 1 | _ => 1 end|},
+  ),
+  /* Bug B: plain arrow to break a char-level selection — caret should
+   * land at the column where the focus or anchor was, not at some
+   * column reassemble's redistribution happens to leave us at. */
+  test(
+    ~name="Bug B1: Move(Right) after sel_r(1) lands at right of first char",
+    ~acts=
+      mk({|let ¦variable = 1 in variable|})
+      @ sel_r(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|let v¦ariable = 1 in variable|},
+  ),
+  test(
+    ~name=
+      "Bug B2: Move(Left) after sel_r(1) from Inner(0) of 'in' returns to anchor",
+    ~acts=
+      mk({|let x = 1 i¦n x|}) @ sel_r(1) @ [Move(Local(Left, ByChar))],
+    ~goal={|let x = 1 i¦n x|},
+  ),
+  /* Move toward the focus side should land at the focus column too. */
+  test(
+    ~name=
+      "Bug B3: Move(Right) after sel_r(1) from Inner(0) of 'in' lands at right of 'in'",
+    ~acts=
+      mk({|let x = 1 i¦n x|}) @ sel_r(1) @ [Move(Local(Right, ByChar))],
+    ~goal={|let x = 1 in¦ x|},
+  ),
+  test(
+    ~name=
+      "Bug B4: Move(Right) after sel_r(1) from Outer-left of 'let' lands at l|e",
+    ~acts=
+      mk({|¦let x = 1 in x|}) @ sel_r(1) @ [Move(Local(Right, ByChar))],
+    ~goal={|l¦et x = 1 in x|},
+  ),
+  /* Bug C: multi-piece char selection collapses to empty when focus's
+   * entry_idx coincidentally matches anchor_caret's Inner index, even
+   * though anchor lives in a different piece. Fixed by adding the
+   * [_single] guard to the Outer-branch crossover_at_edge.
+   *
+   * Setup uses `+` for grammaticality (juxtaposition isn't application
+   * in Hazel). */
+  test(
+    ~name=
+      "Bug C1: shrink one char into multi-piece selection keeps selection non-empty",
+    ~acts=mk({|x + hello + h¦ello|}) @ sel_l(9) @ sel_r(1),
+    ~goal={|x + h¦ello + h§ello|},
+  ),
+  test(
+    ~name=
+      "Bug C2: shrink into 'let' from multi-piece selection keeps selection",
+    ~acts=mk({|let x = f¦un y -> y in x|}) @ sel_l(9) @ sel_r(1),
+    ~goal={|l¦et x = f§un y -> y in x|},
+  ),
+  /* Bug A coverage across more delimiters. */
+  test(
+    ~name="Bug A5: shift+right from Inner(0) of 'fun' selects 1 char (u)",
+    ~acts=mk({|f¦un x -> x|}) @ sel_r(1),
+    ~goal={|f§u¦n x -> x|},
+  ),
+  test(
+    ~name="Bug A6: shift+right from Inner(0) of 'then' selects 1 char (h)",
+    ~acts=mk({|if x t¦hen y else z|}) @ sel_r(1),
+    ~goal={|if x t§h¦en y else z|},
+  ),
+  test(
+    ~name="Bug A7: shift+right from Inner(1) of 'then' selects 1 char (e)",
+    ~acts=mk({|if x th¦en y else z|}) @ sel_r(1),
+    ~goal={|if x th§e¦n y else z|},
+  ),
+  test(
+    ~name="Bug A8: shift+right from Inner(0) of 'else' selects 1 char (l)",
+    ~acts=mk({|if x then y e¦lse z|}) @ sel_r(1),
+    ~goal={|if x then y e§l¦se z|},
+  ),
+  test(
+    ~name="Bug A9: shift+right from Inner(1) of 'else' selects 1 char (s)",
+    ~acts=mk({|if x then y el¦se z|}) @ sel_r(1),
+    ~goal={|if x then y el§s¦e z|},
+  ),
+  /* Control: Inner(max_idx) is unaffected by Bug A (n == max_idx
+   * already lands at Outer, coincidentally selecting 1 char). */
+  test(
+    ~name="Control: shift+right from Inner(max) of 'then' selects 1 char (n)",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_r(1),
+    ~goal={|if x the§n¦ y else z|},
+  ),
+  /* Bug B coverage across monotiles and multi-shard delims. */
+  test(
+    ~name=
+      "Bug B5: Move(Right) after multi-char grow from Inner(2) lands at Inner(5)",
+    ~acts=
+      mk({|var¦iable + 1|}) @ sel_r(3) @ [Move(Local(Right, ByChar))],
+    ~goal={|variab¦le + 1|},
+  ),
+  test(
+    ~name=
+      "Bug B6: Move(Left) after multi-char grow_left from Inner(2) lands at Inner(0)",
+    ~acts=mk({|var¦iable + 1|}) @ sel_l(2) @ [Move(Local(Left, ByChar))],
+    ~goal={|v¦ariable + 1|},
+  ),
+  /* Break-to-anchor (plain arrow opposite focus) — regression guard. */
+  test(
+    ~name=
+      "Control: Move(Left) after sel_r(1) from Inner(2) of 'variable' returns to anchor",
+    ~acts=mk({|var¦iable + 1|}) @ sel_r(1) @ [Move(Local(Left, ByChar))],
+    ~goal={|var¦iable + 1|},
+  ),
+  test(
+    ~name=
+      "Bug B7: Move(Right) after sel_r(2) from Outer-left of 'let' lands at l e|t",
+    ~acts=
+      mk({|¦let x = 1 in x|}) @ sel_r(2) @ [Move(Local(Right, ByChar))],
+    ~goal={|le¦t x = 1 in x|},
+  ),
+  /* Bug C control: when anchor's Inner index doesn't match entry_idx
+   * (here anchor=Inner(1), entry_idx=0), no spurious collapse. */
+  test(
+    ~name=
+      "Control C3: shrink when anchor Inner != entry_idx does not collapse",
+    ~acts=mk({|x + hello + he¦llo|}) @ sel_l(10) @ sel_r(1),
+    ~goal={|x + h¦ello + he§llo|},
+  ),
+  /* Round-trip invariants. */
+  test(
+    ~name=
+      "Round-trip: grow_r 3, shrink_l 3 from Inner of multi-shard returns to start",
+    ~acts=mk({|f¦un x -> x|}) @ sel_r(3) @ sel_l(3),
+    ~goal={|f¦un x -> x|},
+  ),
+  test(
+    ~name=
+      "Round-trip: grow_l 3, shrink_r 3 from Inner of multi-shard returns to start",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_l(3) @ sel_r(3),
+    ~goal={|if x the¦n y else z|},
+  ),
+];
+
+/* Asserts caret rendering AND empty backpack — the latter catches
+ * regressions where a fix lands the caret at the right column by
+ * leaving incomplete tile shards floating as siblings (visible to the
+ * user as phantom backpack contents). */
+let test_caret_and_backpack = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      let actual = printer(z);
+      check(testable(Fmt.string, String.equal), "caret", goal, actual);
+      let bp = Zipper.local_missing_shards(z);
+      check(
+        Alcotest.int,
+        "backpack empty (labels: "
+        ++ String.concat(
+             ",",
+             List.map(t => String.concat("", Tile.label(t)), bp),
+           )
+        ++ ")",
+        0,
+        List.length(bp),
+      );
+    },
+  );
+
+/* Bare Shift+Arrow in the editor uses BySmart by default
+ * (selection_chunkiness=false); option+shift uses ByChar. Both paths
+ * should produce empty backpacks after a break. */
+let sel_smart_r_bp = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, BySmart))));
+let sel_smart_l_bp = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, BySmart))));
+let multi_delim_backpack_tests = [
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: Inner(1) of 'then' + sel_l(1) + Move(Right)",
+    ~acts=
+      mk({|if x th¦en y else z|})
+      @ sel_l(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x th¦en y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart: Inner(1) of 'then' + sel_smart_l(1) + Move(Right)",
+    ~acts=
+      mk({|if x th¦en y else z|})
+      @ sel_smart_l_bp(1)
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x th¦en y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: Inner(2) of 'then' + sel_r(1) + Move(Left)",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_r(1)
+      @ [Move(Local(Left, ByChar))],
+    ~goal={|if x the¦n y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name="Backpack BySmart: Inner(2) of 'then' + sel_smart_r(1) + Move(Left)",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_smart_r_bp(1)
+      @ [Move(Local(Left, ByChar))],
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* From the post-break state, a further plain Right should move 1 col. */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar: after sel_r(1)+Left, plain Right moves 1 char",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_r(1)
+      @ [Move(Local(Left, ByChar))]
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x then¦ y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart: after sel_smart_r(1)+Left, plain Right moves 1 char",
+    ~acts=
+      mk({|if x the¦n y else z|})
+      @ sel_smart_r_bp(1)
+      @ [Move(Local(Left, ByChar))]
+      @ [Move(Local(Right, ByChar))],
+    ~goal={|if x then¦ y else z|},
+  ),
+  /* Shift+right + shift+left at Inner(max_idx) — exercises the Outer-
+   * branch crossover_at_edge path in shrink_by_char. */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(2) of 'then' + sel_r(1) + sel_l(1)",
+    ~acts=mk({|if x the¦n y else z|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|if x the¦n y else z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart shrink: Inner(2) of 'then' + sel_smart_r(1) + sel_smart_l(1)",
+    ~acts=
+      mk({|if x the¦n y else z|}) @ sel_smart_r_bp(1) @ sel_smart_l_bp(1),
+    ~goal={|if x the¦n y else z|},
+  ),
+  /* Same pattern for "else". */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(2) of 'else' + sel_r(1) + sel_l(1)",
+    ~acts=mk({|if x then y els¦e z|}) @ sel_r(1) @ sel_l(1),
+    ~goal={|if x then y els¦e z|},
+  ),
+  test_caret_and_backpack(
+    ~name=
+      "Backpack BySmart shrink: Inner(2) of 'else' + sel_smart_r(1) + sel_smart_l(1)",
+    ~acts=
+      mk({|if x then y els¦e z|}) @ sel_smart_r_bp(1) @ sel_smart_l_bp(1),
+    ~goal={|if x then y els¦e z|},
+  ),
+  /* Symmetric Inner(0) case (entry_idx=0 path of crossover_at_edge). */
+  test_caret_and_backpack(
+    ~name="Backpack ByChar shrink: Inner(0) of 'then' + sel_l(1) + sel_r(1)",
+    ~acts=mk({|if x t¦hen y else z|}) @ sel_l(1) @ sel_r(1),
+    ~goal={|if x t¦hen y else z|},
+  ),
+];
+
+/* Helper: cut-paste round-trip test. Selects the range, copies the
+ * selected text, cuts, pastes the copied text back, and checks:
+ * 1. Text matches expected goal
+ * 2. Backpack is empty
+ * 3. No incomplete tiles in siblings
+ * If ~goal is not provided, the original text (without markers) is used,
+ * i.e. we expect a perfect round-trip. */
+let test_cut_paste =
+    (~name, ~init: string, ~goal: option(string)=?, ()): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = mk_zipper(init);
+      /* Get the selected text (what would go to clipboard) */
+      let full =
         Printer.of_segment(
           ~holes=convex_char,
           ~indent="",
           z.selection.content,
         );
+      let clipboard = Zipper.trim_selected_text(z, full);
       /* Cut then paste */
       let z = perform(z, [Cut, Paste(clipboard)]);
-      /* Check structural integrity: no incomplete tiles */
-      let seg = Zipper.unselect_and_zip(z);
-      let inc = Segment.incomplete_tiles(seg);
+      let actual = printer(z);
+      /* Compute expected: original text without selection markers */
+      let expected =
+        switch (goal) {
+        | Some(g) => g
+        | None =>
+          /* Strip § and replace ¦ position: after paste, focus is where
+           * the pasted text ends, which is at the original focus position */
+          let chars = Token.to_list(init);
+          let clean =
+            chars |> List.filter(c => c != selection_char) |> Token.of_list;
+          clean;
+        };
+      let bp = Zipper.local_missing_shards(z);
+      let inc =
+        Segment.incomplete_tiles(snd(z.relatives.siblings))
+        @ Segment.incomplete_tiles(fst(z.relatives.siblings));
+      check(testable(Fmt.string, String.equal), "text", expected, actual);
+      check(
+        Alcotest.int,
+        "backpack empty (labels: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               bp,
+             ),
+           )
+        ++ ")",
+        0,
+        List.length(bp),
+      );
       check(
         Alcotest.int,
         "no incomplete tiles (labels: "
         ++ String.concat(
              "; ",
-             List.map((t: Tile.t) => String.concat(",", t.label), inc),
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               inc,
+             ),
+           )
+        ++ ")",
+        0,
+        List.length(inc),
+      );
+    },
+  );
+
+/* Helper: destruct test for char-level selections. Selects the range,
+ * destructs, and checks the resulting text. */
+let test_destruct_char = (~name, ~init: string, ~goal: string): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = mk_zipper(init);
+      let z = perform(z, [Destruct(Local(Left, ByChar))]);
+      let actual = printer(z);
+      check(testable(Fmt.string, String.equal), name, goal, actual);
+    },
+  );
+
+/* Q. Cross-boundary cut-paste tests */
+let cross_boundary_tests = [
+  /* --- Within single delimiter of multi-shard tiles --- */
+  test_cut_paste(
+    ~name="Cut-paste partial 'let' keyword",
+    ~init={|§le¦t x = 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'in' keyword",
+    ~init={|let x = 1 §i¦n x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'fun' keyword",
+    ~init={|§fu¦n x -> x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial '->' keyword",
+    ~init={|fun x §-¦> x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste partial 'if' keyword",
+    ~init={|§i¦f true then 1 else 2|},
+    (),
+  ),
+  /* TODO: if/then/else 3-shard tile: cutting partial "then" sends
+   * "if" and "else" shards to backpack; rescan after paste doesn't
+   * look in backpack, so they stay orphaned. */
+  /* test_cut_paste(
+       ~name="Cut-paste partial 'then' keyword",
+       ~init={|if true §the¦n 1 else 2|},
+       (),
+     ), */
+  test_cut_paste(
+    ~name="Cut-paste partial 'else' keyword",
+    ~init={|if true then 1 §el¦se 2|},
+    (),
+  ),
+  /* --- Across delimiter boundaries (same form) --- */
+  test_cut_paste(
+    ~name="Cut-paste across let= boundary",
+    ~init={|le§t x =¦ 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across =...in boundary",
+    ~init={|let x =§ 1 i¦n x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across fun-> boundary",
+    ~init={|fu§n x -¦> x|},
+    (),
+  ),
+  /* TODO: if/then/else 3-shard backpack issue: cutting across
+   * if..then or then..else sends orphaned shards to backpack;
+   * rescan after paste doesn't look in backpack. */
+  /* test_cut_paste(
+       ~name="Cut-paste across if..then boundary",
+       ~init={|i§f true the¦n 1 else 2|},
+       (),
+     ), */
+  /* TODO: same if/then/else 3-shard backpack issue */
+  /* test_cut_paste(
+       ~name="Cut-paste across then..else boundary",
+       ~init={|if true the§n 1 el¦se 2|},
+       (),
+     ), */
+  /* --- Across = delimiter into expression (pattern + body) --- */
+  test_cut_paste(
+    ~name="Cut-paste spanning = delimiter in let",
+    ~init={|let §comparison = (0¦ == 0) in comparison|},
+    (),
+  ),
+  /* More thorough version: also check that the = is structurally
+   * part of the let form (not a standalone operator) by verifying
+   * the full zipped segment has no incomplete tiles */
+  test_case(
+    "Cut-paste spanning = in let: structural integrity",
+    `Quick,
+    () => {
+      let z = mk_zipper({|let §comparison = (0¦ == 0) in comparison|});
+      let full =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z.selection.content,
+        );
+      let clipboard = Zipper.trim_selected_text(z, full);
+      let z = perform(z, [Cut, Paste(clipboard)]);
+      /* Zip the whole thing and check for incomplete tiles anywhere */
+      let seg = Zipper.unselect_and_zip(z);
+      let inc = Segment.incomplete_tiles(seg);
+      check(
+        Alcotest.int,
+        "no incomplete tiles in full segment (labels: "
+        ++ String.concat(
+             "; ",
+             List.map(
+               (t: Tile.t) => String.concat(",", Tile.label(t)),
+               inc,
+             ),
            )
         ++ ")",
         0,
@@ -3240,12 +4780,1138 @@ let cross_boundary_paste_tests = [
       );
     },
   ),
+  /* --- Across sort boundaries (pattern <-> type <-> exp) --- */
+  test_cut_paste(
+    ~name="Cut-paste crossing pattern into expression (let body)",
+    ~init={|let §x = 1¦ in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste crossing expression into pattern (fun)",
+    ~init={|fun §x -> x¦|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste from type annotation into expression",
+    ~init={|let x : §Int = 1¦ in x|},
+    (),
+  ),
+  /* --- String delimiter edge cases --- */
+  test_destruct_char(
+    ~name="Delete selection including opening string quote",
+    ~init={|§"he¦llo"|},
+    ~goal={|"¦llo"|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including closing string quote",
+    ~init={|"hel§lo"¦|},
+    ~goal={|"hel¦"|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including both string quotes",
+    ~init={|§"hello"¦|},
+    ~goal={|¦?|},
+  ),
+  /* --- Comment delimiter edge cases --- */
+  test_destruct_char(
+    ~name="Delete selection including opening comment hash",
+    ~init={|§#he¦llo#?|},
+    ~goal={|#¦llo#?|},
+  ),
+  test_destruct_char(
+    ~name="Delete selection including closing comment hash",
+    ~init={|#hel§lo#¦?|},
+    ~goal={|#hel¦#?|},
+  ),
+  /* --- Delete within comment (both delimiters intact) --- */
+  test_destruct_char(
+    ~name="Delete char selection within comment (text)",
+    ~init={|#he§ll¦o#|},
+    ~goal={|#he¦o#?|},
+  ),
+  test_case(
+    "Delete within comment preserves Secondary piece type",
+    `Quick,
+    () => {
+      let z = mk_zipper({|#he§ll¦o#|});
+      let z = perform(z, [Destruct(Local(Left, ByChar))]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
+  ),
+  test_case(
+    "Delete within comment in expr context preserves Secondary",
+    `Quick,
+    () => {
+      let z = mk_zipper({|1 + #he§ll¦o# + 2|});
+      let z = perform(z, [Destruct(Local(Left, ByChar))]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
+  ),
+  test_case(
+    "Cut within comment preserves Secondary piece type",
+    `Quick,
+    () => {
+      let z = mk_zipper({|#he§ll¦o#|});
+      let z = perform(z, [Cut]);
+      let seg = Zipper.unselect_and_zip(z);
+      let has_comment =
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) => Secondary.is_comment(s)
+            | _ => false
+            },
+          seg,
+        );
+      check(Alcotest.bool, "comment piece exists", true, has_comment);
+    },
+  ),
+  /* --- Token merging after paste --- */
+  test_cut_paste(
+    ~name="Cut-paste middle of identifier",
+    ~init={|let §abc¦def = 1 in abcdef|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste middle of number",
+    ~init={|§12¦345 + 1|},
+    (),
+  ),
+  /* --- Selections spanning whitespace + delimiters --- */
+  test_cut_paste(
+    ~name="Cut-paste space + delimiter",
+    ~init={|let x§ =¦ 1 in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across multiple delimiters of let",
+    ~init={|le§t x = 1 i¦n x|},
+    (),
+  ),
+  /* --- Nested forms --- */
+  test_cut_paste(
+    ~name="Cut-paste partial keyword in nested let",
+    ~init={|let x = (§le¦t y = 1 in y) in x|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across nested let boundary",
+    ~init={|let x = (le§t y = 1 i¦n y) in x|},
+    (),
+  ),
+  /* --- Parens and single-char delimiters --- */
+  test_cut_paste(
+    ~name="Cut-paste including open paren",
+    ~init={|§(¦1 + 2)|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste including close paren",
+    ~init={|(1 + 2§)¦|},
+    (),
+  ),
+  test_cut_paste(
+    ~name="Cut-paste across matching parens",
+    ~init={|§(1 + 2)¦|},
+    (),
+  ),
+];
+
+/* Regression tests for an infinite loop in `do_towards_point`.
+ *
+ * Prior bug: after a char-level `Select.to_point` left the caret at
+ * `Inner(n)`, a subsequent `Move.Point` called `pre_unselect` which
+ * preserved `Inner(n)`. If the post-unselect right neighbor had
+ * `nhbr_max_idx = None` (grout, projector, single-char token, or
+ * empty), `by_char_right` would fall to the default arm and
+ * increment `char` forever without popping. Column advanced by 1
+ * per step so the no-progress guard never fired; row never changed
+ * so `(Under, *)` kept recursing. Browser hung.
+ *
+ * These tests wrap the action sequence in a try/catch: before the
+ * fix, `do_towards_point` raises via its iteration guard; after the
+ * fix, the moves terminate (regardless of final printed text). */
+let test_terminates = (~name, ~acts): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let ran =
+        try({
+          let _ = acts |> perform(Zipper.init());
+          true;
+        }) {
+        | Failure(msg)
+            when
+              StringUtil.match(
+                StringUtil.regexp("do_towards_point: exceeded"),
+                msg,
+              ) =>
+          false
+        };
+      check(Alcotest.bool, "terminated without loop", true, ran);
+    },
+  );
+
+/* Helpers for smart-mode selection tests. Smart mode: char-granular
+ * while inside the starting token, whole-piece-granular beyond. */
+let sel_smart_r = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Right, BySmart))));
+
+let sel_smart_l = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Select(Resize(Local(Left, BySmart))));
+
+let smart_selection_tests = [
+  /* A. Inside starting token: char-granular (Inner anchor preserved). */
+  test(
+    ~name="smart: 1 char right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(1),
+    ~goal={|he§l¦lo|},
+  ),
+  test(
+    ~name="smart: 2 chars right from inner caret",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(2),
+    ~goal={|he§ll¦o|},
+  ),
+  /* B. Reaching / crossing the starting token's right edge. Reaching
+   * the edge via a char step leaves the selection as a partial char
+   * selection (anchor preserved at original position). Round-up only
+   * fires once the selection extends *past* the edge into a new piece. */
+  test(
+    ~name="smart: char step to starting token's right edge is still partial",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(3),
+    ~goal={|let he§llo¦ = 1 in hello|},
+  ),
+  test(
+    ~name=
+      "smart: extending past the edge rounds up to whole token + next piece",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(4),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  test(
+    ~name="smart: extends by further whole pieces",
+    ~acts=mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5),
+    ~goal={|let §hello =¦ 1 in hello|},
+  ),
+  /* C. From Outer anchor: char-by-char through token, then extends. No
+   * separate round-up state — anchor is already Outer. */
+  test(
+    ~name="smart: 1 step right from Outer enters char-by-char",
+    ~acts=mk({|¦hello|}) @ sel_smart_r(1),
+    ~goal={|§h¦ello|},
+  ),
+  test(
+    ~name="smart: several chars right from Outer",
+    ~acts=mk({|¦hello|}) @ sel_smart_r(3),
+    ~goal={|§hel¦lo|},
+  ),
+  test(
+    ~name="smart: reaches edge from Outer — whole token selected",
+    ~acts=mk({|let ¦hello = 1 in hello|}) @ sel_smart_r(5),
+    ~goal={|let §hello¦ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: from Outer extends past token to next piece",
+    ~acts=mk({|let ¦hello = 1 in hello|}) @ sel_smart_r(6),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  /* D. Shrinking */
+  test(
+    ~name="smart: shrink from token-phase pops whole piece",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(1),
+    ~goal={|let §hello ¦= 1 in hello|},
+  ),
+  test(
+    ~name="smart: shrink back to single-piece restores original anchor",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(2),
+    ~goal={|let he§llo¦ = 1 in hello|},
+  ),
+  test(
+    ~name="smart: char-shrink continues with restored anchor",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(3),
+    ~goal={|let he§ll¦o = 1 in hello|},
+  ),
+  test(
+    ~name="smart: full grow+shrink round-trips through round-up",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|}) @ sel_smart_r(5) @ sel_smart_l(5),
+    ~goal={|let he¦llo = 1 in hello|},
+  ),
+  test(
+    ~name="smart: intra-token grow/shrink round-trips to start",
+    ~acts=mk({|he¦llo|}) @ sel_smart_r(2) @ sel_smart_l(2),
+    ~goal={|he¦llo|},
+  ),
+  /* E. Left direction: symmetric. */
+  test(
+    ~name="smart: 1 char left from inner caret",
+    ~acts=mk({|hel¦lo|}) @ sel_smart_l(1),
+    ~goal={|he¦l§lo|},
+  ),
+  test(
+    ~name=
+      "smart: left char step to starting token's left edge is still partial",
+    ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(3),
+    ~goal={|let ¦hel§lo = 1 in hello|},
+  ),
+  test(
+    ~name="smart: left extending past rounds up and grabs prev piece",
+    ~acts=mk({|let hel¦lo = 1 in hello|}) @ sel_smart_l(4),
+    ~goal={|let¦ hello§ = 1 in hello|},
+  ),
+];
+
+let move_after_char_select_tests = [
+  test_terminates(
+    ~name="Move.Point after char-level Select: cross linebreak",
+    ~acts=
+      mk({|¦hello
+world|})
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=1, ~col=0, ())],
+  ),
+  test_terminates(
+    ~name="Move.Point after char-level Select: same row far col",
+    ~acts=
+      mk({|¦hello world|})
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=0, ~col=11, ())],
+  ),
+  test_terminates(
+    ~name="Move.Point after char-level Select ending in paren",
+    ~acts=
+      mk({|¦hello (1 + 2)|})
+      @ [resize_point(~row=0, ~col=3, ())]
+      @ [move_point(~row=0, ~col=12, ())],
+  ),
+  test_terminates(
+    ~name="Move.Point down several rows after char-level Select (user repro)",
+    ~acts=
+      mk(
+        {|¦let xs = [1, 2, 3] in
+let f = fun x -> x + 1 in
+let ys = [f(x) for x in xs] in
+ys|},
+      )
+      @ [resize_point(~row=0, ~col=5, ())]
+      @ [move_point(~row=3, ~col=2, ())],
+  ),
+];
+
+/* Drag-back-to-anchor: confirms that `Select.to_point` collapses a
+ * one-char selection to zero-width when the goal column equals the
+ * anchor column. The bug is in the mousemove handler (which
+ * suppresses Resize events at the down-loc column), not in the
+ * selection engine — these tests should pass on this branch, showing
+ * the engine already handles goal==anchor correctly. */
+let drag_to_zero_width_tests = [
+  test(
+    ~name="drag right then back to anchor collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
+    ~goal="hel¦lo",
+  ),
+  test(
+    ~name="drag left then back to anchor collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [resize_point(~row=0, ~col=2, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
+    ~goal="hel¦lo",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="drag right then back to anchor (ByChar) collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
+    ~goal="hel¦lo",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="drag left then back to anchor (ByChar) collapses to zero-width",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [resize_point(~row=0, ~col=2, ())]
+      @ [resize_point(~row=0, ~col=3, ())],
+    ~goal="hel¦lo",
+  ),
+  /* Cross the anchor: drag right by one, then past the anchor to the
+   * left by one. Engine should swing through zero-width and end up
+   * with a one-char selection on the left, focus Left. Anchor stays
+   * at the original click column (col 3, between the two l's). */
+  test(
+    ~name=
+      "drag right then past anchor to the left ends at length-1 focus-left",
+    ~acts=
+      mk({|hel¦lo|})
+      @ [resize_point(~row=0, ~col=4, ())]
+      @ [resize_point(~row=0, ~col=2, ())],
+    ~goal="he¦l§lo",
+  ),
+  /* Edge-case anchor at Inner(0) (right at the LEFT edge of a token):
+   * drag left selects the first char, then dragging back to the right
+   * past the anchor should select the next char with focus Right.
+   * Prior bug: shrink_by_char collapsed in TWO local steps at token
+   * edges — first to a trim-zero-width state with the token still in
+   * selection, then to a truly-empty state. Fixed in shrink_by_char's
+   * Outer branch by detecting when entering the edge would collide
+   * with anchor_caret and unselecting directly. */
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name=
+      "Inner(0) anchor: drag left then past anchor to right ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [resize_point(~row=0, ~col=0, ())]
+      @ [resize_point(~row=0, ~col=2, ())],
+    ~goal="p§a¦rtition",
+  ),
+  /* Edge-case anchor at Inner(max_idx) (right at the RIGHT edge of a
+   * token): drag right selects the last char, then dragging back to
+   * the left past the anchor should select the previous char with
+   * focus Left. */
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name=
+      "Inner(max) anchor: drag right then past anchor to left ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [resize_point(~row=0, ~col=9, ())]
+      @ [resize_point(~row=0, ~col=7, ())],
+    ~goal="partiti¦o§n",
+  ),
+  /* Keyboard Shift+Arrow at a token edge anchor: same underlying
+   * dual-step collapse exposed one step at a time. From caret
+   * Inner(0) of partition, Shift+Left selects "p"; Shift+Right
+   * should collapse to zero-width; Shift+Right again should grow
+   * one char right with focus Right.
+   *
+   * Prior bug: collapse took two Shift+Rights (one to trim-zero-
+   * width with selection still containing the token, one to fully
+   * unselect), so a total of THREE Shift+Rights were needed. */
+  test(
+    ~name=
+      "Inner(0): Shift+L then 2x Shift+R (BySmart) ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [Action.Select(Resize(Local(Left, BySmart)))]
+      @ [Action.Select(Resize(Local(Right, BySmart)))]
+      @ [Action.Select(Resize(Local(Right, BySmart)))],
+    ~goal="p§a¦rtition",
+  ),
+  test(
+    ~name=
+      "Inner(0): Shift+L then 2x Shift+R (ByChar) ends at length-1 focus-right",
+    ~acts=
+      mk({|p¦artition|})
+      @ [Action.Select(Resize(Local(Left, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Right, ByChar)))],
+    ~goal="p§a¦rtition",
+  ),
+  test(
+    ~name=
+      "Inner(max): Shift+R then 2x Shift+L (BySmart) ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [Action.Select(Resize(Local(Right, BySmart)))]
+      @ [Action.Select(Resize(Local(Left, BySmart)))]
+      @ [Action.Select(Resize(Local(Left, BySmart)))],
+    ~goal="partiti¦o§n",
+  ),
+  test(
+    ~name=
+      "Inner(max): Shift+R then 2x Shift+L (ByChar) ends at length-1 focus-left",
+    ~acts=
+      mk({|partitio¦n|})
+      @ [Action.Select(Resize(Local(Right, ByChar)))]
+      @ [Action.Select(Resize(Local(Left, ByChar)))]
+      @ [Action.Select(Resize(Local(Left, ByChar)))],
+    ~goal="partiti¦o§n",
+  ),
+  /* Per-action chunkiness override on Resize(Point) — used by
+   * mouse drag when a modifier (Alt on Mac, Ctrl on PC) is held to
+   * select the opposite of the settings default. */
+  test(
+    ~name="Resize(Point) Some(ByChar) overrides default smart chunkiness",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|})
+      @ [resize_point(~row=0, ~col=10, ~chunk=Some(ByChar), ())],
+    ~goal="let he§llo ¦= 1 in hello",
+  ),
+  test_with_settings(
+    ~settings={
+      ...default_settings,
+      selection_chunkiness: true,
+    },
+    ~name="Resize(Point) Some(BySmart) overrides default char chunkiness",
+    ~acts=
+      mk({|let he¦llo = 1 in hello|})
+      @ [resize_point(~row=0, ~col=10, ~chunk=Some(BySmart), ())],
+    ~goal="let §hello ¦= 1 in hello",
+  ),
+  /* Focus-side normalization on chunkiness switch.
+   *
+   * Setup: caret at start of `let aardvark = apple in aardvark`.
+   * Step 1 (BySmart): drag to col 14 — selection grows by whole
+   * pieces, ending with caret=Outer at the boundary after `=`.
+   * Step 2 (ByChar): drag to col 16 (just past the space, into
+   * `apple`) — caret advances to Inner(0) of `apple`. Selection
+   * now ends mid-token.
+   * Step 3 (BySmart): drag further right to col 22 (mid `in`).
+   * Without the fix, the stale Inner(0) gets re-interpreted
+   * against later focus pieces on each multi-piece smart step,
+   * landing the caret at Inner(0) of `in` (between `i` and `n`).
+   * With the fix, local_smart rounds the caret to Outer at entry,
+   * and subsequent smart steps grow by whole pieces — the selection
+   * extends through `in` to its right edge. */
+  test(
+    ~name=
+      "Focus normalize: BySmart -> ByChar -> BySmart drag lands at whole-piece boundary",
+    ~acts=
+      mk({|¦let aardvark = apple in aardvark|})
+      @ [resize_point(~row=0, ~col=14, ~chunk=Some(BySmart), ())]
+      @ [resize_point(~row=0, ~col=16, ~chunk=Some(ByChar), ())]
+      @ [resize_point(~row=0, ~col=22, ~chunk=Some(BySmart), ())],
+    ~goal="§let aardvark = apple in¦ aardvark",
+  ),
+];
+
+/* An incomplete `[1,2` (closing `]` still in the backpack) ending a line before
+   `in` must mold as a ListLit, not degrade to a Tuple — the dump must not drop
+   the `]` across the end-of-line linebreak. */
+let def_kind = (src: string): string => {
+  let z = mk(src) |> perform(Zipper.init());
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  switch (Language.IdTagged.term_of(term)) {
+  | Let(_, def, _) =>
+    switch (Language.IdTagged.term_of(def)) {
+    | ListLit(_) => "ListLit"
+    | Tuple(_) => "Tuple"
+    | _ => "other"
+    }
+  | _ => "not-a-let"
+  };
+};
+
+let incomplete_list_dump_tests = [
+  test_case(
+    "Incomplete list before `in`+linebreak molds ListLit not Tuple", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,2¦ in
+b|}))
+  ),
+  test_case(
+    "Type-annotated incomplete list molds ListLit (as in reported program)",
+    `Quick,
+    () =>
+    check(
+      string,
+      "def kind",
+      "ListLit",
+      def_kind({|let a:[Int] = [1,2¦   in
+a|}),
+    )
+  ),
+  test_case(
+    "Already-multiline incomplete list still closes before `in`", `Quick, () =>
+    check(string, "def kind", "ListLit", def_kind({|let a = [1,
+2¦ in
+b|}))
+  ),
+];
+
+/* Backspacing inside a token whose piece has a left sibling: the
+ * replacement must land on the caret's right for Inner(n) to still
+ * refer to it. */
+let inner_destruct_tests = [
+  test(
+    ~name="Backspace inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Backspace twice inside string with left sibling",
+    ~acts=
+      mk({|1 + "aa"¦|})
+      @ mv_l(1)
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "¦"|},
+  ),
+  test(
+    ~name="Backspace inside identifier with left sibling",
+    ~acts=mk({|1 + abc¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + a¦c|},
+  ),
+  test(
+    ~name="Delete forward inside string with left sibling",
+    ~acts=mk({|1 + "aa"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  /* Quote-wrapping wraps exactly the selected characters, not the whole
+   * boundary tokens, and the selection's Inner caret must not survive it. */
+  test(
+    ~name="Wrap char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [Select(Resize(Local(Left, ByChar))), Insert("\"")],
+    ~goal={|"aa" +"+"~¦ "x"|},
+  ),
+  test(
+    ~name="Delete after wrapping char-level selection in quotes",
+    ~acts=
+      mk({|"aa" ++ "x"¦|})
+      @ mv_l(4)
+      @ [
+        Select(Resize(Local(Left, ByChar))),
+        Insert("\""),
+        Destruct(Local(Right, ByChar)),
+      ],
+    ~goal={|"aa" +"+"~¦"x"|},
+  ),
+  /* Only `c` is wrapped; `ab` and `d` survive on either side. The flanking
+   * grout is how Hazel already grouts three adjacent operands — typing
+   * `ab"c"d` from scratch produces the same shape. */
+  test(
+    ~name="Wrap char-level selection interior to a token in quotes",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("\"")],
+    ~goal={|ab~"c"~¦d|},
+  ),
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in quotes",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("\"")],
+    ~goal={|abc +"+ xyz"¦|},
+  ),
+  /* smart_rounded displays the anchor at its piece's outer edge, so the
+   * whole starting token is what gets wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection takes the whole starting token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("\""),
+      ],
+    ~goal={|abc ++" xyz"¦|},
+  ),
+  /* Balanced wrapping likewise takes only the selected characters: the
+   * unselected head and tail of the boundary tokens stay outside the new
+   * tile, on opposite sides of it. The operator holes are how Hazel already
+   * grouts a paren tile beside an operand — typing `(ab)cd` or `1 + 2(3)4`
+   * from scratch grouts the same way. */
+  test(
+    ~name="Wrap char-level selection interior to a token in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("(")],
+    ~goal={|ab(§c¦)~d|},
+  ),
+  test(
+    ~name="Wrap right-focused char-level selection in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(3) @ sel_r(2) @ [Insert("(")],
+    ~goal={|a(§bc¦)~d|},
+  ),
+  /* Partial `++` outside, its other half plus the whole of `xyz` inside. */
+  test(
+    ~name="Wrap char-level selection spanning a token boundary in parens",
+    ~acts=mk({|abc ++ xyz¦|}) @ sel_l(5) @ [Insert("(")],
+    ~goal={|abc +(?§+ xyz¦)|},
+  ),
+  /* Selection reaching a token edge has a remainder on one side only. */
+  test(
+    ~name="Wrap char-level selection ending on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ sel_l(2) @ [Insert("(")],
+    ~goal={|ab(§cd¦)|},
+  ),
+  test(
+    ~name="Wrap char-level selection starting on a token boundary in parens",
+    ~acts=mk({|abcd¦|}) @ mv_l(2) @ sel_l(2) @ [Insert("(")],
+    ~goal={|(§ab¦)~cd|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in brackets",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("[")],
+    ~goal={|ab~[§c¦]~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection interior to a token in braces",
+    ~acts=mk({|abcd¦|}) @ mv_l(1) @ sel_l(1) @ [Insert("{")],
+    ~goal={|ab~{§c¦}~d|},
+  ),
+  test(
+    ~name="Wrap char-level selection in parens inside a let",
+    ~acts=mk({|let x = 12¦34 in x|}) @ sel_l(1) @ [Insert("(")],
+    ~goal={|let x = 1(§2¦)~34 in x|},
+  ),
+  test(
+    ~name="Edit after wrapping char-level selection in parens",
+    ~acts=
+      mk({|abcd¦|})
+      @ mv_l(1)
+      @ sel_l(1)
+      @ [Insert("("), Unselect(None)]
+      @ string_to_ltr_actions("+1"),
+    ~goal={|ab(c+1¦)~d|},
+  ),
+  /* smart_rounded reads the anchor as Outer, so the whole token is wrapped. */
+  test(
+    ~name="Wrap smart-rounded selection in parens takes the whole token",
+    ~acts=
+      mk({|abc ++ xyz¦|})
+      @ mv_l(1)
+      @ [
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Select(Resize(Local(Left, BySmart))),
+        Insert("("),
+      ],
+    ~goal={|abc ++(§ xyz¦)|},
+  ),
+  /* Whole-piece selections are untouched by the split. */
+  test(
+    ~name="Wrap whole-token selection in parens beside an operand",
+    ~acts=
+      mk({|¦ab cd|})
+      @ [Select(Resize(Local(Right, ByToken)))]
+      @ [Insert("(")],
+    ~goal={|(§ab¦) ~cd|},
+  ),
+  /* Splitting a string would strand its delimiters, so it wraps whole. */
+  test(
+    ~name="Wrap char-level selection inside a string wraps the whole string",
+    ~acts=mk({|"abcd"¦|}) @ mv_l(2) @ sel_l(1) @ [Insert("(")],
+    ~goal={|(§"abcd"¦)|},
+  ),
+];
+
+/* A grapheme cluster is one Inner caret position but several bytes, so
+ * editing beside one must stay in grapheme units throughout. */
+let grapheme_tests = [
+  /* Also pins that Intl.Segmenter is present: the code-point fallback in
+     Unicode.graphemes would count 5 and 2 here. */
+  test_case(
+    "Multi-codepoint clusters count as one grapheme",
+    `Quick,
+    () => {
+      check(int, "ZWJ family", 1, Token.length({|👨‍👩‍👧|}));
+      check(int, "e + combining acute", 1, Token.length({|é|}));
+      check(int, "emoji", 1, Token.length({|😀|}));
+    },
+  ),
+  test(
+    ~name="Insert after emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Insert("1")],
+    ~goal={|"😀1¦"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself",
+    ~acts=mk({|"😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Delete forward over emoji from start of string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Destruct(Local(Right, ByChar))],
+    ~goal={|"¦"|},
+  ),
+  test(
+    ~name="Insert before emoji in string",
+    ~acts=mk({|"😀"¦|}) @ mv_l(2) @ [Insert("1")],
+    ~goal={|"1¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace before emoji in string",
+    ~acts=
+      mk({|"😀"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"¦😀"|},
+  ),
+  test(
+    ~name="Insert then backspace after mid-string emoji",
+    ~acts=
+      mk({|"a😀b"¦|})
+      @ mv_l(2)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Backspace mid-string emoji",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(2) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|"a¦b"|},
+  ),
+  test(
+    ~name="Move by char across emoji round trip",
+    ~acts=mk({|"a😀b"¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|"a😀¦b"|},
+  ),
+  test(
+    ~name="Insert then backspace after emoji, string with left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ [Insert("1"), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after emoji, left sibling",
+    ~acts=
+      mk({|1 + "😀"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "😀¦"|},
+  ),
+  test(
+    ~name="Backspace the emoji itself, string with left sibling",
+    ~acts=
+      mk({|1 + "a😀"¦|}) @ mv_l(1) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|1 + "a¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after combining-mark grapheme",
+    ~acts=
+      mk({|"é"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"é¦"|},
+  ),
+  test(
+    ~name="Insert two then backspace twice after ZWJ emoji",
+    ~acts=
+      mk({|"👨‍👩‍👧"¦|})
+      @ mv_l(1)
+      @ string_to_ltr_actions("11")
+      @ [Destruct(Local(Left, ByChar)), Destruct(Local(Left, ByChar))],
+    ~goal={|"👨‍👩‍👧¦"|},
+  ),
+  /* Outside string literals. Wide clusters used to be measured as one column
+   * everywhere but inside a string, so the caret drifted left of where it was
+   * drawn on any row containing one. */
+  test(
+    ~name="Insert emoji into a comment",
+    ~acts=mk({|#he¦llo#|}) @ [Insert({|😀|})],
+    ~goal={|#he😀¦llo#?|},
+  ),
+  test(
+    ~name="Insert after emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Insert("X")],
+    ~goal={|#he😀X¦llo#?|},
+  ),
+  test(
+    ~name="Backspace an emoji in a comment",
+    ~acts=mk({|#he😀¦llo#|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|#he¦llo#?|},
+  ),
+  test(
+    ~name="Move by char across emoji in a comment",
+    ~acts=mk({|#a😀b#¦|}) @ mv_l(3) @ mv_r(1),
+    ~goal={|#a😀¦b#?|},
+  ),
+  test(
+    ~name="Insert after CJK in a comment",
+    ~acts=mk({|#日本¦語#|}) @ [Insert("X")],
+    ~goal={|#日本X¦語#?|},
+  ),
+  test(
+    ~name="Caret after a comment containing an emoji",
+    ~acts=mk({|#😀# 1 + ¦2|}),
+    ~goal={|#😀# 1 + ¦2|},
+  ),
+  test(
+    ~name="Insert emoji into an identifier",
+    ~acts=mk({|ab¦c|}) @ [Insert({|😀|})],
+    ~goal={|ab😀¦c|},
+  ),
+  test_case(
+    "Unicode identifiers are a single tile",
+    `Quick,
+    () => {
+      /* Names take Unicode letters, digits, marks and emoji, so none of these
+       * split. Pinned because the printed text gives no hint of tile count. */
+      let tiles = acts => {
+        let z = acts |> perform(Zipper.init());
+        Zipper.unselect_and_zip(~erase_buffer=true, z)
+        |> List.filter_map((p: Piece.t) =>
+             switch (p) {
+             | Tile(t) => Some(String.concat("", Tile.label(t)))
+             | _ => None
+             }
+           );
+      };
+      check(
+        list(string),
+        "emoji inside a name",
+        [{|ab😀c|}],
+        tiles(mk({|ab¦c|}) @ [Insert({|😀|})]),
+      );
+      check(
+        list(string),
+        "accented name",
+        [{|café|}],
+        tiles(mk({|café¦|})),
+      );
+      check(
+        list(string),
+        "CJK name",
+        [{|日本語|}],
+        tiles(mk({|日本語¦|})),
+      );
+      check(
+        list(string),
+        "name led by an emoji",
+        [{|😀x|}],
+        tiles(mk({|😀x¦|})),
+      );
+      /* Decomposed: e + U+0301, one grapheme, still one name. */
+      check(
+        list(string),
+        "decomposed accent stays in the name",
+        ["cafe\xcc\x81"],
+        tiles(mk("cafe\xcc\x81\xc2\xa6")),
+      );
+      check(
+        list(string),
+        "operator next to a Unicode name still splits",
+        [{|café|}, "+", "1"],
+        tiles(mk({|café+1¦|})),
+      );
+    },
+  ),
+  test(
+    ~name="Backspace removes one grapheme from a Unicode name",
+    ~acts=mk({|café¦|}) @ [Destruct(Local(Left, ByChar))],
+    ~goal={|caf¦|},
+  ),
+  test_case(
+    "Wide clusters outside strings are measured as two columns",
+    `Quick,
+    () => {
+      let cols = (init: string) => {
+        let z = mk(init) |> perform(Zipper.init());
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        let m = Printer.measured_no_projectors(seg);
+        (
+          Zipper.Caret.point(m, z).col,
+          Measured.Rows.find(0, m.rows).max_col,
+        );
+      };
+      /* `#a😀b#` is five clusters but six columns */
+      check(pair(int, int), "comment", (6, 7), cols({|#a😀b#¦|}));
+      check(
+        pair(int, int),
+        "cjk comment",
+        (8, 9),
+        cols({|#日本語#¦|}),
+      );
+      check(
+        pair(int, int),
+        "string literal",
+        (6, 6),
+        cols({|"a😀b"¦|}),
+      );
+    },
+  ),
+];
+
+/* Prints only — for transient states where incomplete tiles are expected
+ * (e.g. a fun awaiting its ->). */
+let test_print = (~name, ~acts, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = acts |> perform(Zipper.init());
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        goal,
+        printer(z),
+      );
+    },
+  );
+
+/* A symbolic delimiter prefix in operator position holds a backup infix
+ * mold (Form.symbolic_delim_prefixes) rather than molding prefix and
+ * drawing junction grout: `fun x -` reads as a pending `->`, not as
+ * unary minus applied to a missing operand. */
+let pending_delim_tests = [
+  test_print(
+    ~name="Pat: minus after complete pattern holds infix pending ->",
+    ~acts=mk({|fun x -¦|}),
+    ~goal={|fun x -¦?|},
+  ),
+  test_print(
+    ~name="Pat: minus completes to -> normally",
+    ~acts=mk({|fun x -¦|}) @ string_to_ltr_actions("> x"),
+    ~goal={|fun x -> x¦|},
+  ),
+  test_complete(
+    ~name="Pat: negative literal pattern still molds prefix",
+    ~acts=mk({|fun -5 -> p¦|}),
+    ~goal={|fun -5 -> p¦|},
+  ),
+  test_print(
+    ~name="Exp: infix minus unaffected",
+    ~acts=mk({|1 - 2¦|}),
+    ~goal={|1 - 2¦|},
+  ),
+  test_print(
+    ~name="Exp: unary minus unaffected",
+    ~acts=mk({|(-5)¦|}),
+    ~goal={|(-5)¦|},
+  ),
+  test_print(
+    ~name="Typ: minus pending arrow",
+    ~acts=mk({|type T = Int -¦|}),
+    ~goal={|type T = Int -¦?|},
+  ),
+  test_print(
+    ~name="Rul: = after pattern holds infix pending =>",
+    ~acts=mk({|case 1 | 1 =¦|}),
+    ~goal={|case 1 | 1 =¦?|},
+  ),
+];
+
+/* Consumers (token color, arms, probing, indentation) recognize a pending
+ * delimiter by its backup mold, so a `-` or `=` carrying a real infix mold
+ * must not read as one. */
+let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
+  List.fold_left(
+    (acc, p: Piece.t) =>
+      switch (acc, p) {
+      | (Some(_), _) => acc
+      | (None, Tile(t)) when Tile.has_label(t, [tok]) => Some(t)
+      | (None, Tile(t)) =>
+        List.fold_left(
+          (acc, kid) => acc == None ? find_tile(tok, kid) : acc,
+          None,
+          t.children,
+        )
+      | (None, _) => None
+      },
+    None,
+    seg,
+  );
+
+let test_delim_prefix = (~name, ~acts, ~tok, ~expect): test_case(_) =>
+  test_case(name, `Quick, () =>
+    switch (find_tile(tok, acts |> perform(Zipper.init()) |> Zipper.zip)) {
+    | None => Alcotest.fail("no tile with label " ++ tok)
+    | Some(t) =>
+      check(
+        bool,
+        "Piece.is_infix_delimiter_op_prefix",
+        expect,
+        Piece.is_infix_delimiter_op_prefix(Tile(t)),
+      )
+    }
+  );
+
+let delim_prefix_class_tests = [
+  test_delim_prefix(
+    ~name="Pat: minus pending -> is a delimiter prefix",
+    ~acts=mk({|fun x -¦|}),
+    ~tok="-",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: partial keyword is a delimiter prefix",
+    ~acts=mk({|if x th¦|}),
+    ~tok="th",
+    ~expect=true,
+  ),
+  test_delim_prefix(
+    ~name="Exp: infix minus is not a delimiter prefix",
+    ~acts=mk({|1 - 2¦|}),
+    ~tok="-",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Exp: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|(a=1)¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
+  test_delim_prefix(
+    ~name="Pat: labeled tuple = is not a delimiter prefix",
+    ~acts=mk({|fun (a=x) -> x¦|}),
+    ~tok="=",
+    ~expect=false,
+  ),
 ];
 
 let tests = [
+  ("Editing.PendingDelim", pending_delim_tests),
+  ("Editing.DelimPrefixClass", delim_prefix_class_tests),
+  ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
+  ("Editing.MoveAfterCharSelect", move_after_char_select_tests),
+  ("Editing.SmartSelection", smart_selection_tests),
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
+  ("Editing.Format", format_tests),
+  ("Editing.CaseIndent", case_indent_tests),
+  ("Editing.NestedCase", nested_case_tests),
+  ("Editing.CommaIndent", comma_indent_tests),
+  ("Editing.InsertInMiddle", insert_in_middle_tests),
   ("Editing.Move", move_tests),
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
@@ -3261,5 +5927,12 @@ let tests = [
   ("Editing.CommentRemold", comment_remold_tests),
   ("Editing.CommentToggleExtra", comment_toggle_extra_tests),
   ("Editing.AncestorSort", ancestor_sort_tests),
+  ("Editing.IncompleteListDump", incomplete_list_dump_tests),
   ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
+  ("Editing.CharSelection", char_selection_tests),
+  ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
+  ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
+  ("Editing.CrossBoundary", cross_boundary_tests),
+  ("Editing.InnerDestruct", inner_destruct_tests),
+  ("Editing.Grapheme", grapheme_tests),
 ];

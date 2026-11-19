@@ -20,6 +20,8 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
+    core_settings: Language.CoreSettings.t,
     settings_version: int,
     status: View.status,
     model: string,
@@ -28,7 +30,16 @@ module ViewCache = {
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
 
   let lookup =
-      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model)
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+      )
       : option(View.t) =>
     switch (Hashtbl.find_opt(cache, id)) {
     | Some(e)
@@ -36,6 +47,8 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
+          && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
           && e.status == status
           && e.model == model =>
@@ -44,7 +57,17 @@ module ViewCache = {
     };
 
   let store =
-      (id, ~statics_map, ~dynamics_map, ~sample_focus, ~status, ~model, ~view) =>
+      (
+        id,
+        ~statics_map,
+        ~dynamics_map,
+        ~sample_focus,
+        ~elaborated,
+        ~core_settings,
+        ~status,
+        ~model,
+        ~view,
+      ) =>
     Hashtbl.replace(
       cache,
       id,
@@ -52,6 +75,8 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        elaborated,
+        core_settings,
         settings_version: ProbeProj.Settings.version^,
         status,
         model,
@@ -101,10 +126,14 @@ module Model = {
     measurement: Measured.measurement,
     offside_base: int,
     status,
-    /* Map refs for view cache identity comparison */
+    /* Map refs for view cache identity comparison. `elaborated` is the whole-
+     * editor elaborated Exp.t that P.view() may consume via info.elaborated;
+     * it must participate in the cache key since info.elaborated is derived
+     * from it. Refractors pass None. */
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    elaborated: option(Language.Exp.t),
   };
 
   type t = list(projector_data);
@@ -117,13 +146,21 @@ module Model = {
     | _ => None
     };
 
-  /* Find the end of row offset position in grid units */
+  /* Find the end of row offset position in grid units. Starts after
+     any quiver offside boxes on the row (RowOffsets registry; quiver
+     renders first) — the extra gap leaves room for probe controls
+     drawn left of the sample chips. */
+  let stack_gap = 2;
   let offside_base =
       (~offset: int, measurement: Measured.measurement, measured: Measured.t)
-      : int =>
-    Measured.start_row_width(measurement, measured)
-    + offset
-    - measurement.origin.col;
+      : int => {
+    let standard = Measured.start_row_width(measurement, measured) + offset;
+    let after_quiver = {
+      let c = RowOffsets.claimed(~row=measurement.origin.row);
+      c == 0 ? 0 : c + stack_gap;
+    };
+    max(standard, after_quiver) - measurement.origin.col;
+  };
 
   let mk_status =
       (
@@ -156,6 +193,7 @@ module Model = {
         ~dynamics: Language.Dynamics.Map.t,
         ~sample_focus: Language.Sample.Focus.t,
         ~editor_active: bool,
+        ~elaborated: option(Language.Exp.t),
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
@@ -163,7 +201,13 @@ module Model = {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
-          ProjectorInfo.mk_info(p, ~sample_focus, ~statics, ~dynamics);
+          ProjectorInfo.mk_info(
+            p,
+            ~sample_focus,
+            ~statics,
+            ~dynamics,
+            ~elaborated,
+          );
         {
           p,
           info,
@@ -183,6 +227,7 @@ module Model = {
           statics_map: statics,
           dynamics_map: dynamics,
           sample_focus,
+          elaborated,
         };
       },
       Id.Map.bindings(projectors),
@@ -204,10 +249,13 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error, warning}: Model.status) =>
+    (
+      ~view_error: bool=false,
+      {kind, sort, indication, selected, error, warning}: Model.status,
+    ) =>
   ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
   @ (selected ? ["selected"] : [])
-  @ (error ? ["error"] : [])
+  @ (error || view_error ? ["error"] : [])
   @ (warning ? ["warning"] : [])
   @ (
     switch (indication) {
@@ -216,9 +264,9 @@ let projector_clss =
     }
   );
 
-/* Wraps the view function for a projector, absolutely positioning
- * relative to the syntax, adding a default backing decoration, and
- * adding fallthrough handlers where appropriate*/
+/* Keyed by projector id: under culling a scroll step adds/removes probes at
+ * the edges; unkeyed, the vdom differ matches positionally and repatches onto
+ * a different probe, jumping keyboard focus off the user's probe. */
 let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
@@ -226,13 +274,16 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
+      ~view_error: bool=false,
       ~idx: int,
       ~kind: ProjectorCore.Kind.t,
+      ~id: Id.t,
       views: list(Node.t),
     ) =>
   div(
+    ~key="proj-" ++ Id.to_string(id),
     ~attrs=[
-      Attr.classes(projector_clss(status)),
+      Attr.classes(projector_clss(~view_error, status)),
       /* Stopping propagation here stops the base editor's
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
@@ -254,21 +305,33 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (idx, action: external_action): Action.t =>
+let handle = (idx, kind, action: external_action): Action.t =>
   switch (action) {
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
-  | SetSyntax(f) => Project(SetSyntax(idx, f))
+  | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
 
 let offside_wrapper =
-    (font_metrics: FontMetrics.t, offside_base: int, v: Node.t) =>
+    (
+      font_metrics: FontMetrics.t,
+      offside_base: int,
+      ~row: int,
+      ~origin_col: int,
+      v: Node.t,
+    ) =>
   div(
     ~attrs=[
+      /* class + row/col identity for the after-display stagger pass
+         (ProbeStagger): displays spanning several rows get pushed past
+         longer lines below and past displays from rows above */
+      Attr.classes(["offside-wrapper"]),
+      Attr.create("data-row", string_of_int(row)),
+      Attr.create("data-ocol", string_of_int(origin_col)),
       Attr.create(
         "style",
         Printf.sprintf(
@@ -280,19 +343,49 @@ let offside_wrapper =
     [v],
   );
 
+/* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
+let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["below-wrapper"]),
+      /* Gates the scroll-affordance fade (proj-probe.css .at-bottom). */
+      Attr.on_scroll(evt => {
+        JsUtil.sync_at_bottom_class(evt);
+        Effect.Ignore;
+      }),
+      Attr.create(
+        "style",
+        Printf.sprintf(
+          "position: absolute; top: %fpx; left: %fpx;",
+          font_metrics.row_height,
+          -. (font_metrics.col_width *. float_of_int(origin_col)),
+        ),
+      ),
+    ],
+    [v],
+  );
+
 let simple_code =
-    (~background=false, ~is_single_line=false, font_metrics, _sort, segment)
+    (
+      ~background=false,
+      ~classes=?,
+      ~is_single_line=false,
+      font_metrics,
+      _sort,
+      segment,
+    )
     : Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let refractor_shape_map = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
+  let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
     Measured.of_segment(~is_single_line, segment, shape_map, Id.Map.empty);
   let code =
     Code.view(
+      ~classes?,
       ~measured,
       ~settings=Settings.Model.init,
       ~shape_map,
-      ~refractor_shape_map,
+      ~refractor_rows,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -353,25 +446,38 @@ let flex_code =
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
+      ~classes=?,
       sort,
       segment,
-    ) =>
+    ) => {
   text_only
     ? text_code(segment)
     : simple_code(
         ~background?,
+        ~classes?,
         ~is_single_line=single_line,
         font_metrics,
         sort,
         segment,
       );
+};
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
-      {p, info, status, statics_map, dynamics_map, sample_focus, _}: Model.projector_data,
+      ~core_settings: Language.CoreSettings.t,
+      {
+        p,
+        info,
+        status,
+        statics_map,
+        dynamics_map,
+        sample_focus,
+        elaborated,
+        _,
+      }: Model.projector_data,
       projector_list: list(Id.t),
     )
     : View.t =>
@@ -381,6 +487,8 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~elaborated,
+      ~core_settings,
       ~status,
       ~model=p.model,
     )
@@ -409,25 +517,36 @@ let mk_view =
               inject(Project(Focus(target_idx, Probe, None)))
             | None => Effect.Ignore
             };
-          | a => inject(handle(idx, a))
+          | a => inject(handle(idx, p.kind, a))
           },
         view_seg:
-          (~single_line=?, ~background=?, ~text_only=?, sort, segment) =>
+          (
+            ~single_line=?,
+            ~background=?,
+            ~classes=?,
+            ~text_only=?,
+            sort,
+            segment,
+          ) =>
           flex_code(
             ~font_metrics,
             ~single_line?,
             ~background?,
+            ~classes?,
             ~text_only?,
             sort,
             segment,
           ),
         status,
+        core_settings,
       });
     ViewCache.store(
       p.id,
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~elaborated,
+      ~core_settings,
       ~status,
       ~model=p.model,
       ~view,
@@ -442,12 +561,21 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
   let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let views =
+    mk_view(
+      inject,
+      font_metrics,
+      ~core_settings,
+      projector_data,
+      projector_list,
+    );
   let wrapper =
     view_wrapper(
       ~inject,
@@ -455,19 +583,32 @@ let split_views =
       ~font_metrics,
       ~measurement,
       ~status,
+      ~view_error=views.error,
       ~idx,
       ~kind=p.kind,
+      ~id=p.id,
     );
-  let views = mk_view(inject, font_metrics, projector_data, projector_list);
   let line_view = {
     let offside_view =
       views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.map(
+           offside_wrapper(
+             font_metrics,
+             offside_base,
+             ~row=measurement.origin.row,
+             ~origin_col=measurement.origin.col,
+           ),
+         )
+      |> Option.to_list;
+    let below_view =
+      views.below
+      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
       |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
-      @ offside_view,
+      @ offside_view
+      @ below_view,
     );
   };
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
@@ -484,6 +625,7 @@ let all =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
       projector_list: list(Id.t),
@@ -505,6 +647,7 @@ let all =
     |> List.map(
          split_views(
            ~skip_inline=false,
+           ~core_settings,
            inject,
            make_active,
            font_metrics,

@@ -5,8 +5,6 @@ type t = piece;
 
 let secondary = w => Secondary(w);
 let grout = g => Grout(g);
-let tile = t => Tile(t);
-
 let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   switch (p) {
   | Secondary(w) => f_w(w)
@@ -22,7 +20,10 @@ let sort =
   get(
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
-    t => (t.mold.out, t.mold.in_),
+    t => {
+      let mold = Tile.mold(t);
+      (mold.out, mold.in_);
+    },
     _ => (Sort.Any, []),
   );
 
@@ -73,8 +74,6 @@ let nib_sorts =
     _ => (Sort.Any, Sort.Any),
   );
 
-let sorted_children = get(_ => [], _ => [], Tile.sorted_children, _ => []);
-
 let pop_l = (p: t): (t, segment) =>
   switch (p) {
   | Tile(t) => Tile.pop_l(t)
@@ -112,6 +111,18 @@ let is_convex = (p: t): bool =>
   | _ => false
   };
 
+let is_space: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false;
+
+let is_linebreak: t => bool =
+  fun
+  | Secondary(s) => Secondary.is_linebreak(s)
+  | _ => false;
+
+let is_whitespace = (p: t): bool => is_space(p) || is_linebreak(p);
+
 let is_grout: t => bool =
   fun
   | Grout(_) => true
@@ -127,44 +138,30 @@ let is_tile: t => option(Tile.t) =
   | Tile(t) => Some(t)
   | _ => None;
 
-let is_projector: t => option(projector) =
-  fun
-  | Projector(p) => Some(p)
-  | _ => None;
-
-let label: t => option(Label.t) =
-  fun
-  | Tile({label, _}) => Some(label)
-  | _ => None;
-
 let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
 
-let replace_id = (id: Id.t, p: t): t =>
-  switch (p) {
-  | Tile(t) =>
-    Tile({
-      ...t,
-      id,
-    })
-  | Grout(g) =>
-    Grout({
-      ...g,
-      id,
-    })
-  | Secondary(w) =>
-    Secondary({
-      ...w,
-      id,
-    })
-  | Projector(p) =>
-    Projector({
-      ...p,
-      id,
-    })
-  };
+let is_comma: t => bool =
+  fun
+  | Tile(t) => Tile.is_comma(t)
+  | _ => false;
+
+let is_semi: t => bool =
+  fun
+  | Tile(t) => Tile.is_semi(t)
+  | _ => false;
+
+let is_dot: t => bool =
+  fun
+  | Tile(t) => Tile.is_dot(t)
+  | _ => false;
+
+let is_case_rule: t => bool =
+  fun
+  | Tile(t) => Tile.is_case_rule(t)
+  | _ => false;
 
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 
@@ -174,25 +171,29 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
     shape,
   });
 
-let mk_tile: (Form.t, list(list(t))) => t =
-  (form, children) =>
+let mk_tile: ((Form.t, Sort.t), list(list(t))) => t =
+  ((form, sort), children) =>
     Tile({
       id: Id.mk(),
-      label: form.label,
-      mold: form.mold,
-      shards: List.mapi((i, _) => i, form.label),
+      form,
+      sort,
+      shards: List.mapi((i, _) => i, Form.label_of(form)),
       children,
     });
 
 let is_term = (p: t) =>
   switch (p) {
   | Grout(_)
-  | Projector(_)
-  | Tile({
-      label: [_],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      _,
-    }) =>
+  | Projector(_) => true
+  | Tile(t)
+      when
+        Tile.arity(t) == 1
+        && (
+          switch (Tile.mold(t).nibs) {
+          | ({shape: Convex, _}, {shape: Convex, _}) => true
+          | _ => false
+          }
+        ) =>
     true
   | Secondary(_) => false // debatable
   | _ => false
@@ -200,8 +201,9 @@ let is_term = (p: t) =>
 
 let is_infix_delimiter_op_prefix = (p: t) =>
   switch (p) {
-  | Tile({label: [t], mold, _}) =>
-    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | Tile(t) when Tile.arity(t) == 1 =>
+    Form.is_infix_delimiter_op_prefix(Tile.token(t, 0))
+    && Form.is_infix_delimiter_prefix_mold(Tile.mold(t))
   | _ => false
   };
 

@@ -82,6 +82,42 @@ module Update = {
     | Documentation(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
+    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
+    };
+  };
+
+  /* Editors feeding the Problems sidebar, paired with display labels.
+     `None` labels indicate no section header. */
+  let get_problem_editors =
+      (model: Model.t): list((option(string), list(CodeEditable.Model.t))) => {
+    let scratchpad_editors =
+        (m: ScratchMode.Model.t)
+        : list((option(string), list(CodeEditable.Model.t))) => {
+      let sp = List.nth(m.scratchpads, m.current);
+      switch (sp.kind) {
+      | Code({editor, _}) => [(None, [editor.editor])]
+      | Drv(dm) =>
+        /* Scratch/documentation Drv slides don't render the Prelude. */
+        DerivationExerciseMode.Model.get_problem_editors(
+          ~scratch_mode=true,
+          dm,
+        )
+      };
+    };
+    switch (model.editors) {
+    | Scratch(m) => scratchpad_editors(m)
+    | Documentation(m) => scratchpad_editors(m)
+    | Tutorial(m) => [
+        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+      ]
+    | Exercises(m) =>
+      ExercisesMode.Model.get_problem_editors(
+        ~instructor_mode=model.globals.settings.instructor_mode,
+        m,
+      )
+    | Config(m) => [
+        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+      ]
     };
   };
 
@@ -112,6 +148,12 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -120,7 +162,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
@@ -147,7 +189,7 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(~scroll=Never);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -162,9 +204,15 @@ module Update = {
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
+        /* The jump moves the model selection to the target cell but not DOM
+           focus (which stays on the clicked sidebar row). Schedule a focus
+           of the now-active cell after render so the editor receives
+           keystrokes and the caret (gated on :focus) shows there. */
+        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
@@ -187,6 +235,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -208,26 +265,40 @@ module Update = {
     | ExportForInit =>
       let (filename, contents) =
         switch (model.editors) {
+        | Config(model) =>
+          let (config_type, cell) = List.nth(model.configs, model.current);
+          let name = ConfigurationMode.Model.config_name_of_type(config_type);
+          /* Config slides are text-backed like the doc slides: export the
+             committed-.hz form, matching the scratch export below. */
+          let persisted =
+            Haz3lcore.PersistentZipper.persist(
+              cell.editor.editor.state.zipper,
+            );
+          (
+            (name |> StringUtil.sanitize_filename) ++ ".hz",
+            persisted.backup_text,
+          );
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
-          let filename =
-            (current.name |> StringUtil.sanitize_filename) ++ ".ml";
-          let contents =
+          let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
-              let serialized =
-                Haz3lcore.(
-                  [%derive.show: (string, PersistentSegment.t)]((
-                    current.name,
-                    editor.editor.editor.state.zipper
-                    |> PersistentSegment.persist,
-                  ))
-                );
-              "let out : string * Haz3lcore.PersistentSegment.t = "
-              ++ serialized;
-            | Drv(m) => DerivationExercise.export_doc_slide_module(m.editors)
+              /* Slides are text-backed: export the committed-.hz form
+                 (marker-printed content + one final newline). */
+              (
+                ".hz",
+                Haz3lcore.PersistentZipper.persist(
+                  editor.editor.editor.state.zipper,
+                ).
+                  backup_text,
+              )
+            | Drv(m) => (
+                ".ml",
+                DerivationExercise.export_doc_slide_module(m.editors),
+              )
             };
+          let filename = (current.name |> StringUtil.sanitize_filename) ++ ext;
           (filename, contents);
         | Tutorial(model) =>
           let current = TutorialsMode.Model.get_current(model);
@@ -265,6 +336,7 @@ module Update = {
           Editors.Update.update(
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
             action,
             model.editors,
           );
@@ -285,7 +357,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_model =
       (
         ~import_log,
         ~get_log_and,
@@ -306,19 +378,21 @@ module Update = {
         Editors.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
+          ~schedule_global=a => schedule_action(Globals(a)),
           action,
           model.editors,
         );
-      /* Reset visible_rows when switching to modes without viewport culling,
-       * otherwise stale culling bounds hide projectors incorrectly */
+      /* A different editor (mode/slide/exercise switch) invalidates the
+       * culling range: stale bounds would hide its projectors until the next
+       * scroll. Main.seed_visible_rows re-seeds where culling applies. */
       let globals =
-        switch (action) {
-        | SwitchMode(Tutorial | Exercises) => {
+        Editors.Model.editor_key(editors)
+        != Editors.Model.editor_key(model.editors)
+          ? {
             ...model.globals,
             visible_rows: None,
           }
-        | _ => model.globals
-        };
+          : model.globals;
       {
         ...model,
         editors,
@@ -336,7 +410,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -346,7 +420,7 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
-    | Start => model |> return // Triggers recalculation at the start
+    | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
       Store.save(model);
@@ -354,80 +428,119 @@ module Update = {
     };
   };
 
-  let can_undo = (action: t) => {
-    switch (action) {
-    | Globals(action) => Globals.Update.can_undo(action)
-    | Editors(action) => Editors.Update.can_undo(action)
-    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | MakeActive(_)
-    | Benchmark(_) => false
-    | Refresh => false
-    | Start => false
-    | Save => false
-    };
+  let update = (~import_log, ~get_log_and, ~schedule_action, action, model) => {
+    let* model =
+      update_model(
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action,
+        action,
+        model,
+      );
+    /* Synchronize after every update, including startup and mode changes.
+       Only Probes lessons apply overrides; leaving restores user settings. */
+    let lesson =
+      switch (model.editors) {
+      | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
+      | _ => None
+      };
+    TutorialSlideInit.maybe_apply_on_change(
+      ~autoprobe=model.globals.settings.autoprobe_mode,
+      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      lesson,
+    );
+    model;
   };
 
   let calculate =
       (~schedule_action, ~is_edited, ~dynamics: bool, model: Model.t) => {
-    let editors =
-      Editors.Update.calculate(
-        ~settings=
-          dynamics
-            ? model.globals.settings.core
-            : {
-              ...model.globals.settings.core,
-              dynamics: false,
-            },
-        ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-        ~schedule_action=a => schedule_action(Editors(a)),
-        ~is_edited,
-        model.editors,
-      );
-    /* Compute cursor info against the POST-calculate editors: some modes
-       (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
-       stitched `cells` during calculate, not during update. Reading cursor
-       info from `model.editors` (pre-calculate) would see stale cell state
-       and yield the wrong ExplainThis highlights for a click/move-only
-       action, which doesn't trigger a full statics rebuild. */
-    let cursor_info =
-      Editors.Selection.get_cursor_info(
-        ~inject=_ => Ui_effect.Ignore,
-        ~selection=model.selection,
+    /* Sync debug-panel gating here (settings aren't reachable at the
+       WorkerClient.request call sites nor the per-frame instrumentation sites);
+       each collector only runs while its panel is open. */
+    let sidebar = model.globals.settings.sidebar;
+    let debug_panel_open = title =>
+      model.globals.settings.show_debug_panel
+      && SidebarModel.Settings.is_debug_expanded(title, sidebar);
+    WorkerMetrics.sync(
+      ~enabled=debug_panel_open(WorkerMessagingSection.title),
+    );
+    WorkerMetrics.set_encodings(sidebar.worker_encodings);
+    EvalMetrics.sync(~enabled=debug_panel_open(EvaluationSection.title));
+    PerfMetrics.sync(
+      ~enabled=
+        debug_panel_open(StaticsSection.title)
+        || debug_panel_open(EditorSection.title)
+        || debug_panel_open(FrameSection.title),
+    );
+    /* Everything below is one frame for the telemetry panels. */
+    PerfMetrics.time_frame(() => {
+      let editors =
+        Editors.Update.calculate(
+          ~settings=
+            dynamics
+              ? model.globals.settings.core
+              : {
+                ...model.globals.settings.core,
+                dynamics: false,
+              },
+          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~schedule_action=a => schedule_action(Editors(a)),
+          ~is_edited,
+          model.editors,
+        );
+      /* Compute cursor info against the POST-calculate editors: some modes
+         (e.g. CodeExerciseMode, DerivationExerciseMode) only resync their
+         stitched `cells` during calculate, not during update. Reading cursor
+         info from `model.editors` (pre-calculate) would see stale cell state
+         and yield the wrong ExplainThis highlights for a click/move-only
+         action, which doesn't trigger a full statics rebuild. */
+      let cursor_info =
+        PerfMetrics.time_cursor(() =>
+          Editors.Selection.get_cursor_info(
+            ~inject=_ => Ui_effect.Ignore,
+            ~selection=model.selection,
+            editors,
+          )
+        );
+      /* When the user's cursor is inside a derivation tree cell, the
+         deduction-specific highlight map takes precedence over the generic
+         ExplainThis one. We consult the live selection here (rather than
+         Editors.Model.get_derivation_info, which reads the stale `model.pos`
+         inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
+         get misclassified as focus on the derivation.
+
+         Only the winning map is computed. Each of these runs the whole of
+         ExplainThis.decide, so computing the generic one unconditionally and then
+         discarding it cost a full pass on every frame with a derivation focused. */
+      let derivation_info =
+        Editors.Selection.get_derivation_info(
+          ~selection=model.selection,
+          editors,
+        );
+      let color_highlights =
+        PerfMetrics.time_colors(() =>
+          switch (derivation_info) {
+          | Some(_) =>
+            ExplainThis.get_color_map_deduction(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              derivation_info,
+            )
+          | None =>
+            ExplainThis.get_color_map(
+              ~globals=model.globals,
+              ~explainThisModel=model.explain_this,
+              cursor_info.info,
+            )
+          }
+        );
+      let globals = Globals.Update.calculate(color_highlights, model.globals);
+      {
+        ...model,
+        globals,
         editors,
-      );
-    let color_highlights =
-      ExplainThis.get_color_map(
-        ~globals=model.globals,
-        ~explainThisModel=model.explain_this,
-        cursor_info.info,
-      );
-    /* When the user's cursor is inside a derivation tree cell, the
-       deduction-specific highlight map takes precedence over the generic
-       ExplainThis one. We consult the live selection here (rather than
-       Editors.Model.get_derivation_info, which reads the stale `model.pos`
-       inside DerivationExerciseMode) so that focus on Prelude/Setup doesn't
-       get misclassified as focus on the derivation. */
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
-        editors,
-      );
-    let color_highlights =
-      switch (derivation_info) {
-      | Some(_) =>
-        ExplainThis.get_color_map_deduction(
-          ~globals=model.globals,
-          ~explainThisModel=model.explain_this,
-          derivation_info,
-        )
-      | None => color_highlights
       };
-    let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {
-      ...model,
-      globals,
-      editors,
-    };
+    });
   };
 };
 
@@ -438,8 +551,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection: t, model: Model.t)
       : cursor(Editors.Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     Editors.Selection.get_cursor_info(
       ~inject=a => inject(Editors(a)),
       ~selection,
@@ -447,183 +559,99 @@ module Selection = {
     )
     |> Cursor.with_actions([
          /* Undo / Redo */
-         mk(
-           ~mdIcon="undo",
-           ~hotkey=meta ++ "+z",
-           ~action=inject(Globals(Undo)),
-           "Undo",
-         ),
-         mk(
-           ~mdIcon="redo",
-           ~hotkey=meta ++ "+shift+z",
-           ~action=inject(Globals(Redo)),
-           "Redo",
-         ),
+         of_shortcut(~action=inject(Globals(Undo)), Undo),
+         of_shortcut(~action=inject(Globals(Redo)), Redo),
          /* Settings */
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
-           ~action=inject(Globals(Set(Statics))),
-           "Toggle Statics",
-         ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(~action=inject(Globals(Set(Statics))), ToggleStatics),
+         of_shortcut(
            ~action=inject(Globals(Set(Assist))),
-           "Toggle Completion",
+           ToggleCompletion,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
-           "Toggle Show Whitespace",
+           ToggleShowWhitespace,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
+           ~action=inject(Globals(Set(SelectionChunkiness))),
+           ToggleCharacterLevelMouse,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(Benchmark))),
-           "Toggle Print Benchmarks",
+           TogglePrintBenchmarks,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
+           ~action=inject(Globals(Set(ShowDebugPanel))),
+           ToggleDebugSidebar,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(Dynamics))),
-           "Toggle Dynamics",
+           ToggleDynamics,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Elaborate))),
-           "Toggle Show Elaboration",
+           ToggleShowElaboration,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFnBodies)))),
-           "Toggle Show Function Bodies",
+           ToggleShowFunctionBodies,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowCaseClauses)))),
-           "Toggle Show Case Clauses",
+           ToggleShowCaseClauses,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFixpoints)))),
-           "Toggle Show fixpoints",
+           ToggleShowFixpoints,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowAscriptionSteps)))),
-           "Toggle Show Ascription Steps",
+           ToggleShowAscriptionSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowLookups)))),
-           "Toggle Show Lookup Steps",
+           ToggleShowLookupSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowFilters)))),
-           "Toggle Show Stepper Filters",
+           ToggleShowStepperFilters,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Evaluation(ShowHiddenSteps)))),
-           "Toggle Show Hidden Steps",
+           ToggleShowHiddenSteps,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(Sidebar(ToggleShow)))),
-           "Toggle Show Sidebar",
+           ToggleShowSidebar,
          ),
-         mk(
-           ~section="Settings",
-           ~mdIcon="tune",
+         of_shortcut(
            ~action=inject(Globals(Set(ExplainThis(ToggleShowFeedback)))),
-           "Toggle Show Docs Feedback",
+           ToggleShowDocsFeedback,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Quiver)))),
+           CompletionDisplayQuiver,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Flag)))),
+           CompletionDisplayFlag,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(CompletionDisplay(Hidden)))),
+           CompletionDisplayNone,
          ),
          /* Export / Diagnostics */
-         mk(
-           ~mdIcon="download",
-           ~section="Export",
-           ~action=inject(Globals(ExportForInit)),
-           "Export For Init",
-         ),
-         mk(
-           ~mdIcon="timer",
-           ~section="Diagnostics",
-           ~hotkey="F7",
-           ~action=inject(Benchmark(Start)),
-           "Run Benchmark",
-         ),
+         of_shortcut(~action=inject(Globals(ExportForInit)), ExportForInit),
+         of_shortcut(~action=inject(Benchmark(Start)), RunBenchmark),
        ]);
   };
 };
 
 module View = {
-  let is_input_field = (elId: option(string)) => {
-    switch (elId) {
-    | Some("title-input-box")
-    | Some("module-name-input")
-    | Some("prompt-input-box")
-    | Some("test-required-input")
-    | Some("point-max-input")
-    | Some("agent-api-key-input") => true
-    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
-    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
-      true
-    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
-    | _ => false
-    };
-  };
-
-  let selection_has_refractors =
-      (
-        refractors: Haz3lcore.Zipper.Refractor.t,
-        selection: Haz3lcore.Segment.t,
-      )
-      : bool =>
-    if (List.is_empty(refractors.manuals)) {
-      false;
-    } else {
-      let ids = Haz3lcore.Segment.ids(selection);
-      List.exists(
-        id =>
-          List.exists(((id2, _)) => Id.equal(id, id2), refractors.manuals),
-        ids,
-      );
-    };
-
-  let copy = (cursor: Cursor.cursor(Editors.Update.t)): unit => {
-    let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-    let should_set =
-      switch (cursor.editor, cursor.selection) {
-      | (Some(editor), Some(selection)) =>
-        /* If the selection contains refractors, we forgo the segment cache
-         * for the sake of preserving refractors in the copy via expanding
-         * their text invocation form, i.e. ^^refractor_name(<syntax>) */
-        !selection_has_refractors(editor.state.zipper.refractors, selection)
-      | _ => true
-      };
-    should_set
-      ? Haz3lcore.Parser.set_segment_cache(cursor.selection, str) : ();
-    JsUtil.copy(str);
-  };
-
-  let handlers =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
-        model: Model.t,
-      ) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
@@ -682,6 +710,29 @@ module View = {
             _,
           } =>
           Some(Update.Globals(Undo))
+        /* Cmd+P (Mac) / Ctrl+P (PC) toggles auto-probe mode.
+           Lost in the keyboard-handling refactor; re-added at the page
+           level since the toggle dispatches Globals(Set(AutoprobeMode)),
+           matching the deferral comment in ProbeProj.re. */
+        | {
+            key: D("P" | "p"),
+            sys: Mac,
+            shift: Up,
+            meta: Down,
+            ctrl: Up,
+            alt: Up,
+            _,
+          }
+        | {
+            key: D("P" | "p"),
+            sys: PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Down,
+            alt: Up,
+            _,
+          } =>
+          Some(Update.Globals(Set(AutoprobeMode)))
         | _ => None
         };
       Effect.(
@@ -697,76 +748,13 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started. */
+      Attr.on_blur(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
-      }),
-      Attr.on_copy(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            ();
-          } else {
-            let el = Js.Unsafe.coerce(el);
-            if (JsUtil.has_ancestor_class(el, "system-message")
-                || JsUtil.has_ancestor_class(el, "agent-message")) {
-              ();
-            } else {
-              copy(cursor);
-            };
-          };
-        | None => ()
-        };
-        Effect.Ignore;
-      }),
-      Attr.on_cut(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            copy(cursor);
-            switch (cursor.editor_action(Destruct(Right))) {
-            | Some(action) => inject(Editors(action))
-            | None => Effect.Ignore
-            };
-          };
-        | None => Effect.Ignore
-        };
-      }),
-    ]
-    @ [
-      Attr.on_paste(evt => {
-        let target = Js.Opt.to_option(evt##.target);
-        switch (target) {
-        | Some(el) =>
-          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
-          if (is_input_field(elId)) {
-            Effect.Ignore;
-          } else {
-            let text =
-              Js.to_string(evt##.clipboardData##getData(Js.string("text")));
-            let action =
-              Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text));
-            Dom.preventDefault(evt);
-            switch (cursor.editor_action(action)) {
-            | None => Effect.Ignore
-            | Some(action) => inject(Editors(action))
-            };
-          };
-        | None => Effect.Ignore
-        };
-      }),
+          : Effect.Ignore
+      ),
     ];
   };
 
@@ -781,10 +769,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              NutMenu.settings_menu(~globals),
             ),
             submenu(
               ~tooltip="File",
@@ -811,15 +800,68 @@ module View = {
     );
   };
 
-  let autoprobe_indicator = (~globals: Globals.t, ~inject) => [
-    Widgets.toggle(
-      ~tooltip="Auto-probe mode active (Cmd/Ctrl+P to toggle)",
-      "🔬",
-      globals.settings.autoprobe_mode,
-      _ =>
-      inject(Update.Globals(Set(AutoprobeMode)))
-    ),
-  ];
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
+        ),
+      ],
+    );
+  };
 
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
@@ -844,6 +886,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
@@ -865,6 +908,14 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
+    let tutorial_reference =
+      switch (editors) {
+      | Tutorial(t) =>
+        TutorialReferencePanel.of_lesson(
+          TutorialsMode.Model.get_current(t).editors,
+        )
+      | _ => None
+      };
     let sidebar =
       Sidebar.view(
         ~globals,
@@ -875,16 +926,27 @@ module View = {
         ~editors,
         ~selection=model.selection,
         ~editor=Update.get_editor(model),
+        ~problem_editors=Update.get_problem_editors(model),
         ~signal=
           fun
           | MakeActive(s: Selection.t) => inject(MakeActive(s)),
         ~log_model,
         ~log_count,
         ~cursor,
+        ~tutorial_reference,
       );
+    /* culling bounds apply only where the mode supports them (one
+       cull-scope cell); elsewhere every cell renders unculled */
+    let editors_globals =
+      Editors.Model.supports_viewport_culling(model.editors)
+        ? globals
+        : {
+          ...globals,
+          visible_rows: None,
+        };
     let editors_view =
       Editors.View.view(
-        ~globals,
+        ~globals=editors_globals,
         ~signal=
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
@@ -906,30 +968,23 @@ module View = {
         ~indicated_id,
       );
 
-    /* Scroll handler for viewport culling. Only enabled for Scratch and
-     * Documentation modes where there's a single editor filling the
-     * scrollable area. Tutorial and Exercises have multiple editors. */
-    let on_scroll = (evt: Js.t(Dom_html.event)) => {
+    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+     * single-code-editor modes. Measured against the editor's own container so
+     * it's correct whether the editor fills #main or sits below prompt cells. */
+    let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
-        switch (editors) {
-        | Scratch(_)
-        | Documentation(_)
-        | Tutorial(_)
-        | Exercises(_) => false
-        };
+        Editors.Model.supports_viewport_culling(editors)
+        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
-        let container =
-          Js.Opt.to_option(evt##.currentTarget)
-          |> Option.map(Js.Unsafe.coerce);
-        switch (container) {
+        switch (JsUtil.code_viewport_geometry()) {
         | None => Effect.Ignore
-        | Some(c) =>
+        | Some((scroll_top, client_height)) =>
           let new_visible =
             Globals.VisibleRows.compute(
-              ~scroll_top=float_of_int(c##.scrollTop),
-              ~client_height=float_of_int(c##.clientHeight),
+              ~scroll_top,
+              ~client_height,
               ~row_height=globals.font_metrics.row_height,
               (),
             );
@@ -968,12 +1023,19 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
       ) => {
+    /* projector views can only dispatch external_actions, so toggles that
+     * update global Settings call out through these refs */
+    Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
+      (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
       Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(cursor.contextual_actions);
+    NinjaKeys.initialize(
+      ~overrides=model.globals.settings.shortcut_overrides,
+      cursor.contextual_actions,
+    );
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

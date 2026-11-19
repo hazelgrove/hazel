@@ -1,0 +1,161 @@
+# Algebraic Datatypes (ADTs) a.k.a. (Recursive) Sum Types #
+
+# The type Response can be constructed using one of three constructors #
+type Response =
+  + Approved
+  + Declined(String)
+  + Pending in
+
+# The constructors are introduced alongside type definitions as values #
+let r1 = Approved in # r1 : Response #
+
+# If the constructor has an argument, it has a function type #
+let r2 = Declined("no permission") in
+
+# The expected type can be used to disambiguate shadowed constructors #
+type Response' =
+  + Approved
+  + Declined in
+let r3 = Declined("does not work") in
+let r3 : Response = Declined("works") in
+
+# Pattern matching with case follows the same basic logic #
+# Patterns are considered in top-down order #
+let not_finally_declined(r : Response) =
+  case r
+  | Approved => true
+  | Declined(reason) =>
+    if reason == "resubmit" then true
+    else false
+  | Pending => true
+  end in
+
+# The coverage checker warns about exhaustiveness and redundancy issues #
+# (holes in patterns are handled as described in Yuan et al, OOPSLA 2023) #
+let declined(r: Response) =
+  case r
+  | Approved => false
+  | Declined(_) => true
+  | Approved => false
+  end in
+
+# Type equivalence is structural in Hazel #
+# constructor order does not matter #
+type Response2 =
+  + Approved
+  + Pending
+  + Declined(String) in
+let x : Response = Pending in
+let y : Response2 = x in # no error, Response == Response2 #
+
+# Recursive Sum Types #
+# As an example, let's define the lambda calculus #
+
+# An Expression is a variable, function, or application #
+# Notice that the function and application cases are recursive. #
+type Exp =
+  + Var(String)
+  + Lam(String, Exp)
+  + Ap(Exp, Exp) in
+
+# Recursive types can be written explicitly if you want #
+type Exp2 = rec Exp ->
+  + Var(String)
+  + Lam(String, Exp)
+  + Ap(Exp, Exp) in
+
+let e1 : Exp = Var("abc") in
+let e2 : Exp2 = e1 in # no error, Exp == Exp2 #
+
+# Substitute Exp v for variable x in Exp e #
+let subst(v: Exp, x: String, e: Exp): Exp =
+  case e
+  | Var(y) =>
+    if x == y then v else e
+  | Lam(y, body) =>
+    if x == y then e
+    else Lam(y, subst(v, x, body))
+  | Ap(f, arg) =>
+    Ap(subst(v, x, f), subst(v, x, arg))
+  end in
+
+# Evaluation can result in either an Exp or an Error #
+type Result =
+  + Error(String)
+  + Ok(Exp)
+in
+
+# A sum type with no constructors is the built-in Void type. #
+# Since Void has no inhabitants, an eliminator on a Void value can #
+# return any type -- here, any Result -- without ever producing one. #
+let absurd: Void -> Result =
+  fun v -> case v end
+in
+
+# Since Void has no inhabitants, any complete expression of type Void #
+# must fail to terminate -- there is no Void value to produce. #
+let diverge: () -> Void =
+  fun () -> diverge()
+in
+
+# Evaluation by substitution #
+let evaluate(e : Exp): Result =
+  case e
+  | Var(x) => Error("Free Variable: " ++ x)
+  | Lam(x, body) => Ok(Lam(x, body))
+  | Ap(e1, e2) =>
+    case evaluate(e1)
+    | Ok(Lam(x, body)) =>
+      case evaluate(e2)
+      | Error(err) => Error(err)
+      | Ok(arg) => evaluate(subst(arg, x, body))
+      end
+    | _ => Error("Not a Function")
+    end
+  end in
+
+let res1 = evaluate(Var("yo")) in
+let res2 = evaluate(Ap(Var("no"), Lam("bro", Var("bro")))) in
+let res3 = evaluate(Lam("yo", Var("yo"))) in
+let res4 = evaluate(Ap(Lam("yo", Var("yo")), Lam("bro", Var("bro")))) in
+
+test res1 == Error("Free Variable: yo") end;
+test res2 == Error("Not a Function") end;
+test res3 == Ok(Lam("yo", Var("yo"))) end;
+test res4 == Ok(Lam("bro", Var("bro"))) end;
+
+# Parameterized Types #
+# A type with parameters is a type function: applied to types, #
+# it gives a type. Its constructors work at any parameter types. #
+type ResultP(err, ok) =
+  + Error(err)
+  + Ok(ok)
+in
+type Result2 = ResultP(String, Exp) in
+let res1' : Result2 = res1 in # no error, Result == Result2 #
+
+# The same type function, written with typfun #
+type ResultP' = typfun err, ok ->
+  + Error(err)
+  + Ok(ok) in
+type Result3 = ResultP'(String, Exp) in
+let res1'' : Result3 = res1 in # no error, Result == Result3 #
+
+# Nested typfuns take their arguments one at a time #
+type ResultP_curried = typfun err -> typfun ok ->
+  + Error(err)
+  + Ok(ok) in
+type Result4 = ResultP_curried(String)(Exp) in
+let res1''' : Result4 = res1 in
+
+# A type function is not the type of any value; apply it first. #
+# Compare poly types (see the polymorphism docs), which are. #
+
+# Parameterized types can recurse non-uniformly #
+type NUList(a) =
+  + Nil
+  + Cons(a, NUList((Int, a))) in
+let nu : NUList(String) =
+  Cons("a", Cons((1, "b"), Cons((1, (2, "c")), Nil))) in
+
+¿

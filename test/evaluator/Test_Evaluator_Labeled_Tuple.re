@@ -46,6 +46,12 @@ in fn("hello")|},
     test_case("Dot operation for missing label", `Quick, () =>
       parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
     ),
+    test_case(
+      "Unlabeled pattern binds a labeled element's value, not its label (#2070)",
+      `Quick,
+      () =>
+      parse_and_evaluate_test("3", {|let (a,b,c) = (?=1, 2, b=3) in c|})
+    ),
     test_case("Desructuring labeled tuple", `Quick, () =>
       parse_and_evaluate_test(
         "(1, 2, 3.0)",

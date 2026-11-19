@@ -1,0 +1,10 @@
+# (benchmark) getRow #
+let requires = [
+  (enforced=("no"), "n is in range(nrows(t))")
+] in
+let ensures = [] in
+# Tables are just lists so nth is just list nth #
+let get_row = nth_opt in
+test
+  get_row([(name="Bob", age=12)], 0)
+  == Some((name= "Bob", age= 12)) end
