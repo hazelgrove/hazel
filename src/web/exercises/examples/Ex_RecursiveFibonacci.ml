@@ -21,7 +21,7 @@ let exercise : Exercise.t =
                 2af57678-102b-4438-ac42-17e459994d2e)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "";
            };
@@ -121,7 +121,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id acbb5393-7a49-429b-8ad3-0d5172b56c63)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
                "let fib: Int -> Int = \n\
@@ -141,7 +141,7 @@ let exercise : Exercise.t =
                     4b1de491-bcca-45eb-ac42-363ef5e29e4d)(shape \
                     Convex))))))(ancestors())))(caret \
                     Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                    -1)(pinned_stack())(indicated_call())(time())(seq \
+                    -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                     0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                  backup_text = "";
                };
@@ -193,7 +193,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id 6612b274-1a79-4800-bca5-3d33604bcf33)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "let fib : Int -> Int = \nfun n -> \nin ";
            };
@@ -336,7 +336,7 @@ let exercise : Exercise.t =
                       df31a9f5-448f-4464-98aa-d575516b0216)(shape \
                       Convex))))))(ancestors())))(caret \
                       Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                      -1)(pinned_stack())(indicated_call())(time())(seq \
+                      -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text =
                      "let fib: Int -> Int = \n\
@@ -460,7 +460,7 @@ let exercise : Exercise.t =
                       4a85c9d5-d254-400f-bf23-0d2c85cdc9ee)(shape \
                       Convex))))))(ancestors())))(caret \
                       Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                      -1)(pinned_stack())(indicated_call())(time())(seq \
+                      -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text =
                      "let fib: Int -> Int = \n\
@@ -690,7 +690,7 @@ let exercise : Exercise.t =
                     54990759-6182-441d-8acf-d41a18993b8e)(shape \
                     Convex))))))(ancestors())))(caret \
                     Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                    -1)(pinned_stack())(indicated_call())(time())(seq \
+                    -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                     0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                  backup_text =
                    "test fib(0) == 1 end;\n\
