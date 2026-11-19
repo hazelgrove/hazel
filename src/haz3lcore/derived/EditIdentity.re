@@ -3,29 +3,31 @@
    A changed construct gets the parser's id, while unchanged descendants,
    prefixes and suffixes retain their existing ids and objects. */
 let rec same_content = (a: Segment.t, b: Segment.t): bool =>
-  a === b
+  phys_equal(a, b)
   || List.length(a) == List.length(b)
-  && List.for_all2(same_piece, a, b)
+  && List.for_all2_exn(a, b, ~f=same_piece)
 and same_piece = (a: Piece.t, b: Piece.t): bool =>
-  a === b
+  phys_equal(a, b)
   || (
     switch (a, b) {
     | (Tile(a), Tile(b)) =>
-      a.form == b.form
-      && a.sort == b.sort
-      && a.shards == b.shards
-      && same_content_children(a.children, b.children)
-    | (Secondary(a), Secondary(b)) => a.content == b.content
-    | (Grout(a), Grout(b)) => a.shape == b.shape
+      same_shape(a, b) && same_content_children(a.children, b.children)
+    | (Secondary(a), Secondary(b)) => Poly.equal(a.content, b.content)
+    | (Grout(a), Grout(b)) => Grout.equal_shape(a.shape, b.shape)
     /* Projectors own state beyond their printed syntax. Do not transplant
        a new instance onto an old one merely because they print alike. */
     | (Projector(_), Projector(_)) =>
-      Piece.id(a) == Piece.id(b) && Piece.equal(a, b)
+      Id.equal(Piece.id(a), Piece.id(b)) && Piece.equal(a, b)
     | _ => false
     }
   )
 and same_content_children = (a, b) =>
-  List.length(a) == List.length(b) && List.for_all2(same_content, a, b);
+  List.length(a) == List.length(b)
+  && List.for_all2_exn(a, b, ~f=same_content)
+and same_shape = (a: Tile.t, b: Tile.t): bool =>
+  Poly.equal(a.form, b.form)
+  && Sort.equal(a.sort, b.sort)
+  && List.equal(Int.equal, a.shards, b.shards);
 
 let rec reuse = (old: Segment.t, fresh: Segment.t): Segment.t =>
   if (same_content(old, fresh)) {
@@ -42,7 +44,7 @@ let rec reuse = (old: Segment.t, fresh: Segment.t): Segment.t =>
     let (old, fresh) = (List.rev(old), List.rev(fresh));
     let middle =
       List.length(old) == List.length(fresh)
-        ? List.map2(reuse_piece, old, fresh) : fresh;
+        ? List.map2_exn(old, fresh, ~f=reuse_piece) : fresh;
     pre @ middle @ List.rev(suf);
   }
 and reuse_piece = (old: Piece.t, fresh: Piece.t): Piece.t =>
@@ -52,13 +54,11 @@ and reuse_piece = (old: Piece.t, fresh: Piece.t): Piece.t =>
     switch (old, fresh) {
     | (Tile(a), Tile(b))
         when
-          a.form == b.form
-          && a.sort == b.sort
-          && a.shards == b.shards
+          same_shape(a, b)
           && List.length(a.children) == List.length(b.children) =>
       Tile({
         ...b,
-        children: List.map2(reuse, a.children, b.children),
+        children: List.map2_exn(a.children, b.children, ~f=reuse),
       })
     | _ => fresh
     };
@@ -68,16 +68,16 @@ and reuse_piece = (old: Piece.t, fresh: Piece.t): Piece.t =>
    records. Strict comparison includes ids (unlike derived Piece.equal). */
 let index = (seg: Segment.t): Id.Map.t(Piece.t) => {
   let rec add = (acc, ps) =>
-    List.fold_left(
-      (acc, p: Piece.t) => {
+    List.fold(
+      ps,
+      ~init=acc,
+      ~f=(acc, p: Piece.t) => {
         let acc = Id.Map.add(Piece.id(p), p, acc);
         switch (p) {
-        | Tile(t) => List.fold_left(add, acc, t.children)
+        | Tile(t) => List.fold(t.children, ~init=acc, ~f=add)
         | _ => acc
         };
       },
-      acc,
-      ps,
     );
   add(Id.Map.empty, seg);
 };
@@ -85,17 +85,17 @@ let index = (seg: Segment.t): Id.Map.t(Piece.t) => {
 let restore = (before: Segment.t, after: Segment.t): Segment.t => {
   let originals = index(before);
   let rec seg = ps => {
-    let next = List.map(piece, ps);
+    let next = List.map(ps, ~f=piece);
     Segment.ptr_eq(ps, next) ? ps : next;
   }
   and piece = p =>
     switch (Id.Map.find_opt(Piece.id(p), originals)) {
-    | Some(old) when old === p || compare(old, p) == 0 => old
+    | Some(old) when phys_equal(old, p) || Poly.compare(old, p) == 0 => old
     | _ =>
       switch (p) {
       | Tile(t) =>
-        let children = List.map(seg, t.children);
-        List.for_all2((a, b) => a === b, children, t.children)
+        let children = List.map(t.children, ~f=seg);
+        List.for_all2_exn(children, t.children, ~f=phys_equal)
           ? p
           : Tile({
               ...t,
