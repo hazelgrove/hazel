@@ -14,7 +14,7 @@ module Constraint = {
     | Truth
     | Hole(option(t))
     | BigInt(Bigint.t)
-    | SInt(int)
+    | SInt(Bigint.t)
     | Float(float)
     | String(string)
     | Ap(Constructor.t, option(t))
@@ -70,7 +70,7 @@ module Ctr = {
   // Ctrs for primitive types
   // Names here should not be anotherwise valid sum type constructor names.
   let of_int = n => mk(Bigint.to_string(n), 0);
-  let of_sint = n => mk(string_of_int(n), 0);
+  let of_sint = n => mk(Bigint.to_string(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
   let tuple_ctr = n => mk("tuple", n);
@@ -389,7 +389,7 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Atom(SInt) =>
       cons_pat_t(
-        try(sint(int_of_string(ctr.ctr))) {
+        try(sint(Bigint.of_string(ctr.ctr))) {
         | _ => wild()
         },
         unseen_pattern,
@@ -541,8 +541,9 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_bigint(0), col_type, unseen_pattern);
     | Atom(SInt) =>
       let rec first_unused_sint = n => {
-        SIntSet.mem(n, seen_in_col.seen_sints)
-          ? first_unused_sint(n + 1) : Ctr.of_sint(n);
+        let sint = Bigint.of_int(n);
+        SIntSet.mem(sint, seen_in_col.seen_sints)
+          ? first_unused_sint(n + 1) : Ctr.of_sint(sint);
       };
 
       cons_ctr(first_unused_sint(0), col_type, unseen_pattern);

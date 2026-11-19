@@ -6,7 +6,7 @@ type t =
   | NegativeExponent
   | NegativeNat
   | IntegerTooBig
-  /* an SInt result outside 32 bits (Atom.sint_fits) */
+  /* an SInt result outside 64 bits (Atom.sint_fits) */
   | IntegerOverflow
   | Incomparable;
 
@@ -18,6 +18,6 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
-  | IntegerOverflow => "Error: Integer overflow (an SInt has 32 bits)"
+  | IntegerOverflow => "Error: Integer overflow (an SInt has 64 bits)"
   | Incomparable => "Error: Incomparable Types"
   };

@@ -552,7 +552,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       | Atom(Int(n) | Nat(n)) =>
         //TODO: smarter number summarization?
         wrap_or(Atom(Int(n)), Bigint.to_string(n))
-      | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+      | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), Bigint.to_string(n))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
 
@@ -1335,7 +1335,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         }
       | Atom(Int(n)) => wrap_or(Atom(Int(n)), Bigint.to_string(n))
       | Atom(Nat(n)) => wrap_or(Atom(Nat(n)), Bigint.to_string(n))
-      | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), string_of_int(n))
+      | Atom(SInt(n)) => wrap_or(Atom(SInt(n)), Bigint.to_string(n))
       | Atom(Float(f)) =>
         Invalid(abbreviate_str(available^, string_of_float(f)))
       | Atom(String(s)) =>
