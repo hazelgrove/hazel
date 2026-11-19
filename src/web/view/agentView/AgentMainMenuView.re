@@ -388,10 +388,18 @@ let view =
                               Effect.Stop_propagation,
                             ])
                           ),
-                          Attr.on_input_js_of_ocaml((_, v) => set_model_filter(v)),
-                          Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
-                          Attr.on_paste_js_of_ocaml(_ => Effect.Stop_propagation),
-                          Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
+                          Attr.on_input_js_of_ocaml((_, v) =>
+                            set_model_filter(v)
+                          ),
+                          Attr.on_copy_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
+                          Attr.on_paste_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
+                          Attr.on_cut_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
                         ],
                         (),
                       ),

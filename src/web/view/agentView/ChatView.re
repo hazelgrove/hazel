@@ -137,7 +137,9 @@ let view =
                               ["chat-view-button"]
                               @ (is_chat_view_active ? ["active"] : []),
                             ),
-                            Attr.on_click_js_of_ocaml(switch_to_chat_messages),
+                            Attr.on_click_js_of_ocaml(
+                              switch_to_chat_messages,
+                            ),
                           ],
                           [text("Chat")],
                         ),

@@ -3,9 +3,14 @@
 (executable
  (name cli)
  (libraries ppx_yojson_conv.expander haz3lcore web cmdliner unix)
- (modes js)
+ (modes js wasm)
  (preprocess
-  (pps ppx_fuse_fun js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))
+  (pps
+   ppx_fuse_fun
+   js_of_ocaml-ppx
+   ppx_deriving.show
+   ppx_yojson_conv
+   ppx_sexp_conv)))
 
 (env
  (dev

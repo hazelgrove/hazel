@@ -78,7 +78,9 @@ let mk: unit => t = {
   let hi = ref(0);
   () => {
     incr(lo);
-    if (lo^ >= 1073741824) {
+    /* 2^30 - 1, not 2^30: wasm_of_ocaml ints are 31 bits, where 2^30
+       wraps negative and this would reset on every call */
+    if (lo^ >= 0x3fffffff) {
       lo := 0;
       incr(hi);
     };

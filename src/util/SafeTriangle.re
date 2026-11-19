@@ -518,7 +518,7 @@ module Handlers = {
               state.on_hide();
             }
           ),
-          Js.float(2000.0 /* 2 second timeout as fallback */)
+          Js.float(2000.0 /* 2 second timeout as fallback */),
         ),
       );
   };

@@ -493,9 +493,9 @@ let main_viewport_rect = () =>
   | Some(main) => main##getBoundingClientRect
   | None =>
     Js.Unsafe.obj([|
-      ("top", Js.Unsafe.inject(0.0)),
+      ("top", Js.Unsafe.inject(Js.float(0.0))),
       ("bottom", Js.Unsafe.inject(Js.Unsafe.global##.innerHeight)),
-      ("left", Js.Unsafe.inject(0.0)),
+      ("left", Js.Unsafe.inject(Js.float(0.0))),
       ("right", Js.Unsafe.inject(Js.Unsafe.global##.innerWidth)),
     |])
   };

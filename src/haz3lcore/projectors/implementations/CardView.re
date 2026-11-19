@@ -39,7 +39,8 @@ module Card = {
       );
 
   let view =
-    Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly,(sort: Sort.t, card: card) =>
+    Core.Memo.general(
+      ~hashable=Core.Hashtbl.Hashable.poly, (sort: Sort.t, card: card) =>
       Node.div(
         ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
         [

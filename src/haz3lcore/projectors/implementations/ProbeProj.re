@@ -407,8 +407,12 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   switch (text_box) {
   | None => None
   | Some(text_box) =>
-    let x_rel = of_int(int_of_float(Js.to_float(e##.clientX))) -. Js.to_float(text_box##getBoundingClientRect##.left);
-    let y_rel = of_int(int_of_float(Js.to_float(e##.clientY))) -. Js.to_float(text_box##getBoundingClientRect##.top);
+    let x_rel =
+      of_int(int_of_float(Js.to_float(e##.clientX)))
+      -. Js.to_float(text_box##getBoundingClientRect##.left);
+    let y_rel =
+      of_int(int_of_float(Js.to_float(e##.clientY)))
+      -. Js.to_float(text_box##getBoundingClientRect##.top);
     let row = to_int(y_rel /. row_height);
     let col = to_int(round(x_rel /. col_width));
     Some({
@@ -2047,7 +2051,9 @@ let live_offside_view =
         is_cursor_aligned ? "true" : "false",
       ),
       Attr.tabindex(0),
-      Attr.on_keydown_js_of_ocaml(key_handler(ctx, ~id, ~drawer_mode_active, local)),
+      Attr.on_keydown_js_of_ocaml(
+        key_handler(ctx, ~id, ~drawer_mode_active, local),
+      ),
       Attr.classes(
         base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
       ),
@@ -2419,7 +2425,9 @@ module M: Projector = {
                       ~attrs=[
                         Attr.classes(["modal-close-btn"]),
                         Attr.title("Close"),
-                        Attr.on_click_js_of_ocaml(_ => local(ToggleModal(None))),
+                        Attr.on_click_js_of_ocaml(_ =>
+                          local(ToggleModal(None))
+                        ),
                       ],
                       [text("×")],
                     ),

@@ -644,7 +644,9 @@ module NinjaKeys = {
         Dom_html.document##.body##appendChild(origin##cloneNode(Js._true));
       let* copied = opt_get_copied();
       let left = int_of_float(Js.to_float(ev##.clientX));
-      let bottom = Dom_html.window##.innerHeight - int_of_float(Js.to_float(ev##.clientY));
+      let bottom =
+        Dom_html.window##.innerHeight
+        - int_of_float(Js.to_float(ev##.clientY));
       copied##.style##.left := Js.string(Printf.sprintf("%dpx", left));
       copied##.style##.bottom := Js.string(Printf.sprintf("%dpx", bottom));
       Js._true;
@@ -700,7 +702,8 @@ module NinjaKeys = {
          val section = Js.Optdef.option(Some(show_kind(of_kind(rule))));
          val handler =
            () =>
-             Ui_effect.Expert.handle(~on_exn=raise, 
+             Ui_effect.Expert.handle(
+               ~on_exn=raise,
                M.schedule_action(
                  MapEditor(
                    DerivationExercise.switch_rule(

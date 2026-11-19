@@ -7,7 +7,11 @@ open Util.JsUtil;
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
   div(
-    ~attrs=[clss(classes), Attr.on_mousedown_js_of_ocaml(action), Attr.title(tooltip)],
+    ~attrs=[
+      clss(classes),
+      Attr.on_mousedown_js_of_ocaml(action),
+      Attr.title(tooltip),
+    ],
     [icon],
   );
 };
@@ -305,7 +309,10 @@ let resize_handle = (): Node.t => {
   };
 
   div(
-    ~attrs=[clss(["resize-handle"]), Attr.on_mousedown_js_of_ocaml(handle_mousedown)],
+    ~attrs=[
+      clss(["resize-handle"]),
+      Attr.on_mousedown_js_of_ocaml(handle_mousedown),
+    ],
     [],
   );
 };

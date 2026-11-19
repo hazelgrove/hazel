@@ -111,7 +111,8 @@ let highlight =
 };
 
 let memo_parse =
-  Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, ~cache_size_bound=1000, code =>
+  Core.Memo.general(
+    ~hashable=Core.Hashtbl.Hashable.poly, ~cache_size_bound=1000, code =>
     Parser.to_zipper(~root=Exp, String.trim(code))
   );
 
@@ -379,7 +380,10 @@ let expander_deco =
             let update_group_selection = _ =>
               inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
             Node.div(
-              ~attrs=[clss(classes), Attr.on_click_js_of_ocaml(update_group_selection)],
+              ~attrs=[
+                clss(classes),
+                Attr.on_click_js_of_ocaml(update_group_selection),
+              ],
               [code_view],
             );
           },

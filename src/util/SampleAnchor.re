@@ -84,7 +84,8 @@ let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
       let width = Js.to_float(vp_right) -. Js.to_float(vp_left);
       let pad = 16.;
       let lookahead = width *. 0.10;
-      let el_width = Js.to_float(el_rect##.right) -. Js.to_float(el_rect##.left);
+      let el_width =
+        Js.to_float(el_rect##.right) -. Js.to_float(el_rect##.left);
       let m = Float.max(pad, Float.min(lookahead, width -. el_width -. pad));
       let delta =
         if (el_width > width -. 2. *. pad) {

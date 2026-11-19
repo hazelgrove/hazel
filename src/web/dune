@@ -29,7 +29,8 @@
  (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_fuse_fun
+  (pps
+   ppx_fuse_fun
    js_of_ocaml-ppx
    ppx_yojson_conv
    ppx_sexp_conv
@@ -64,7 +65,8 @@
   omd)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_fuse_fun
+  (pps
+   ppx_fuse_fun
    js_of_ocaml-ppx
    ppx_let
    ppx_sexp_conv
@@ -85,7 +87,8 @@
  (libraries ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
-  (pps ppx_fuse_fun
+  (pps
+   ppx_fuse_fun
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let
@@ -99,7 +102,8 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries workerServer)
- (modes js)
+ ; wasm: opt-in, built only for the wasm-worker alias in www/ (#1131)
+ (modes js wasm)
  (preprocess
   (pps ppx_fuse_fun js_of_ocaml-ppx)))
 
@@ -113,7 +117,8 @@
  (libraries ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
-  (pps ppx_fuse_fun
+  (pps
+   ppx_fuse_fun
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let

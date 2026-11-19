@@ -528,9 +528,13 @@ let get_direction =
   | Some(container) =>
     let rect = container##getBoundingClientRect;
     let caret_left =
-      Js_of_ocaml.Js.to_float(rect##.left) +. Float.of_int(point.col) *. font_metrics.col_width;
+      Js_of_ocaml.Js.to_float(rect##.left)
+      +. Float.of_int(point.col)
+      *. font_metrics.col_width;
     let caret_top =
-      Js_of_ocaml.Js.to_float(rect##.top) +. Float.of_int(point.row + 1) *. font_metrics.row_height;
+      Js_of_ocaml.Js.to_float(rect##.top)
+      +. Float.of_int(point.row + 1)
+      *. font_metrics.row_height;
     let space =
       Menu.space_from(
         ~anchor_top=caret_top,

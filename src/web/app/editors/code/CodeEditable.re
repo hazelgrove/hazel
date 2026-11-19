@@ -939,7 +939,8 @@ module View = {
                   container,
                   pixel_loc,
                 );
-              Bonsai.Effect.Expert.handle(~on_exn=raise, 
+              Bonsai.Effect.Expert.handle(
+                ~on_exn=raise,
                 inject(
                   Perform(Select(Resize(Point(goal, chunk_override)))),
                 ),

@@ -171,7 +171,8 @@ module DirectEncoding: ENCODING = {
 
 /* jsoo Marshal (iterative → depth-safe) to a flat string clone copies without
  * recursing. The active encoding and the #2368 fix. */
-module MarshalEncoding: ENCODING = {
+module MarshalEncoding:
+  ENCODING with type request = string and type response = string = {
   type request = string;
   type response = string;
   let encode_request = (req: ClientMessage.t): request =>
@@ -391,8 +392,13 @@ let is_latest = (model, request_id) =>
 /* All worker→client messages cross postMessage in the Active encoding
  * (see ENCODING above): posting the live value graph overflows Chrome's
  * structured clone on deep results (#2368). */
+/* Messages cross postMessage as JS strings, not OCaml strings: under
+   js_of_ocaml those coincide, but a wasm_of_ocaml worker's OCaml strings
+   are Wasm GC arrays, which postMessage cannot clone. */
 let post_message = (msg: ServerMessage.t): unit =>
-  Js_of_ocaml.Worker.post_message(Active.encode_response(msg));
+  Js_of_ocaml.Worker.post_message(
+    Js_of_ocaml.Js.bytestring(Active.encode_response(msg)),
+  );
 
 let post_batch_result = (model, request_id, completed) =>
   if (is_latest(model, request_id)) {
@@ -451,7 +457,9 @@ let post_reuse_plan = (model, request: Request.t) =>
 /* Dom_html.window is unavailable in a worker, so go through the global
  * object for setTimeout. */
 let schedule_async = callback =>
-  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), Js.float(0.)));
+  ignore(
+    Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), Js.float(0.)),
+  );
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -603,5 +611,8 @@ let install_message_handler = () => {
     });
   };
 
-  Js_of_ocaml.Worker.set_onmessage(on_request);
+  Js_of_ocaml.Worker.set_onmessage(
+    (data: Js_of_ocaml.Js.t(Js_of_ocaml.Js.js_string)) =>
+    on_request(Js_of_ocaml.Js.to_bytestring(data))
+  );
 };

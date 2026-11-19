@@ -45,7 +45,9 @@ let cls_view = (ci: Info.t): Node.t => {
 let ctx_toggle = (~globals: Globals.t): Node.t =>
   div(
     ~attrs=[
-      Attr.on_click_js_of_ocaml(_ => globals.inject_global(Set(ContextInspector))),
+      Attr.on_click_js_of_ocaml(_ =>
+        globals.inject_global(Set(ContextInspector))
+      ),
       clss(
         ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
       ),

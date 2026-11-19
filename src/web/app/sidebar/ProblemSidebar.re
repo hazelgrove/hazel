@@ -198,7 +198,10 @@ let section_view =
     ~attrs=[clss(["problem-section", cls])],
     [
       div(
-        ~attrs=[clss(["problem-section-header"]), Attr.on_click_js_of_ocaml(on_toggle)],
+        ~attrs=[
+          clss(["problem-section-header"]),
+          Attr.on_click_js_of_ocaml(on_toggle),
+        ],
         [
           text(collapsed ? "▸ " : "▾ "),
           text(title ++ " (" ++ string_of_int(List.length(items)) ++ ")"),

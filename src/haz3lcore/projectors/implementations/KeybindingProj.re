@@ -401,7 +401,9 @@ module M: Projector = {
               Effect.Stop_propagation,
             ])
           ),
-          Attr.on_keydown_js_of_ocaml(key_handler(model, info, ~local, ~parent)),
+          Attr.on_keydown_js_of_ocaml(
+            key_handler(model, info, ~local, ~parent),
+          ),
         ],
         (),
       );

@@ -9,7 +9,10 @@ module TestResults = Language.TestResults;
 let test_bar_segment = (~inject_jump, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;
   div(
-    ~attrs=[clss(["segment", status]), Attr.on_click_js_of_ocaml(_ => inject_jump(id))],
+    ~attrs=[
+      clss(["segment", status]),
+      Attr.on_click_js_of_ocaml(_ => inject_jump(id)),
+    ],
     [],
   );
 };

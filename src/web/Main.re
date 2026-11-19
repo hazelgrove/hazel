@@ -272,7 +272,9 @@ let start = default_model => {
         Bonsai.Effect.Many([
           // Initialize state
           Bonsai.Effect.of_sync_fun(
-            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle(~on_exn=raise)),
+            on_startup(x =>
+              x |> app_inject |> Bonsai.Effect.Expert.handle(~on_exn=raise)
+            ),
             (),
           ),
           // Initialize evaluation on a worker

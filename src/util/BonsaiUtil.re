@@ -21,13 +21,14 @@ module Alarm = {
       ~sexp_of_action=Action.sexp_of_t,
       ~equal=Time_ns.equal,
       ~default_model=Time_ns.max_value_representable,
-      ~apply_action=(_ctx, model, action) => {
-        switch (action) {
-        | SetAlarm(time) => time
-        | SnoozeAlarm(time) => Time_ns.max(time, model)
-        | UnsetAlarm => Time_ns.max_value_representable
-        }
-      },
+      ~apply_action=
+        (_ctx, model, action) => {
+          switch (action) {
+          | SetAlarm(time) => time
+          | SnoozeAlarm(time) => Time_ns.max(time, model)
+          | UnsetAlarm => Time_ns.max_value_representable
+          }
+        },
       (),
     );
 
@@ -93,8 +94,10 @@ module SizeObserver = {
                   let el = node();
                   let rect = el##getBoundingClientRect;
                   Size.{
-                    width: Js.to_float(rect##.right) -. Js.to_float(rect##.left),
-                    height: Js.to_float(rect##.bottom) -. Js.to_float(rect##.top),
+                    width:
+                      Js.to_float(rect##.right) -. Js.to_float(rect##.left),
+                    height:
+                      Js.to_float(rect##.bottom) -. Js.to_float(rect##.top),
                   }
                   |> update
                   |> Effect.Expert.handle(~on_exn=raise);

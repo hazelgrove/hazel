@@ -180,7 +180,8 @@ module M: Projector = {
                       CsvUtil.WithHeaders(
                         CsvUtil.parse_csv_with_headers(content),
                       );
-                    Bonsai.Effect.Expert.handle(~on_exn=raise, 
+                    Bonsai.Effect.Expert.handle(
+                      ~on_exn=raise,
                       Effect.Many([
                         local(
                           SetFile({
