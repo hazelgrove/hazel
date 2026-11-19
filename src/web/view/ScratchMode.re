@@ -518,41 +518,39 @@ module Persist = {
     };
 };
 
+/* A shared scratchpad (a link's ?name=&share=, read by DeepLink), added
+   after the others and opened. */
 let integrate_share =
-    (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
-  let share_name =
-    switch (JsUtil.QueryParams.get_param("name")) {
-    | None => "Unknown Share"
-    | Some(name) => name
-    };
-  switch (JsUtil.QueryParams.get_param("share")) {
-  | None => model
-  | Some(data) =>
-    let shared_text = data |> StringUtil.decompress;
-    /* zipper: "" = the intentional text path (share links carry only
-       text); a non-empty sentinel would take the sexp arm and print the
-       stale-serialization warning on every share-link load */
-    let shared: PersistentZipper.t = {
-      zipper: "",
-      backup_text: shared_text,
-    };
-    let shared: CellEditor.Model.persistent = {
-      editor: {
-        root: Exp,
-        zipper: shared,
-      },
-      result: EvalResult.Model.init |> EvalResult.Model.persist,
-    };
-    let new_sp =
-      Scratchpad.mk_code(
-        ~name=share_name,
-        ~editor=CellEditor.Model.unpersist(~settings, shared),
-        (),
-      );
-    Model.{
-      current: List.length(model.scratchpads),
-      scratchpads: model.scratchpads @ [new_sp],
-    };
+    (
+      ~settings: Language.CoreSettings.t,
+      ~name: string,
+      ~text: string,
+      model: Model.t,
+    )
+    : Model.t => {
+  /* zipper: "" = the intentional text path (share links carry only
+     text); a non-empty sentinel would take the sexp arm and print the
+     stale-serialization warning on every share-link load */
+  let shared: PersistentZipper.t = {
+    zipper: "",
+    backup_text: text,
+  };
+  let shared: CellEditor.Model.persistent = {
+    editor: {
+      root: Exp,
+      zipper: shared,
+    },
+    result: EvalResult.Model.init |> EvalResult.Model.persist,
+  };
+  let new_sp =
+    Scratchpad.mk_code(
+      ~name,
+      ~editor=CellEditor.Model.unpersist(~settings, shared),
+      (),
+    );
+  Model.{
+    current: List.length(model.scratchpads),
+    scratchpads: model.scratchpads @ [new_sp],
   };
 };
 
@@ -595,13 +593,26 @@ module Update = {
     };
   };
 
+  /* The address bar, as a link to a copy of this scratchpad. */
   let encode_scratch_slide = (model: Model.t): unit => {
     let scratchpad = List.nth(model.scratchpads, model.current);
-    JsUtil.QueryParams.set_param("name", scratchpad.name);
     switch (scratchpad.kind) {
     | Code({editor, _}) =>
-      let c = editor |> CellEditor.Model.to_string;
-      JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
+      DeepLink.to_params({
+        place:
+          Some({
+            target:
+              Scratchpad({
+                name: scratchpad.name,
+                text: CellEditor.Model.to_string(editor),
+              }),
+            position: None,
+          }),
+        panel: None,
+      })
+      |> List.iter(((name, value)) =>
+           JsUtil.QueryParams.set_param(name, value)
+         )
     | Drv(_) => ()
     };
   };

@@ -68,6 +68,14 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | SetSettingsFilter(string)
+    /* At load: the link's panel, and its caret or selection */
+    | FollowDeepLink(DeepLink.request)
+    /* Copy a link to here: this caret or selection, in an editor with this
+       text (the text is what the link carries where there is no slide) */
+    | CopyDeepLink({
+        position: DeepLink.position,
+        text: string,
+      })
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
