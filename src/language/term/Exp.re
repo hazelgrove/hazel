@@ -807,7 +807,21 @@ let rec of_pat = (pat: Pat.t): t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  | Standard(p, _) => of_pat(p)
   };
+};
+
+/* `!!e`, the fact a binder `p !! h` names, with `e` the binder read as an
+ * expression without its ascriptions, as goals mention it. */
+let standard_fact = (p: Pat.t): t => {
+  let bare =
+    map_term(~f_exp=(continue, e) =>
+      switch (term_of(e)) {
+      | Asc(inner, _) => continue(inner)
+      | _ => continue(e)
+      }
+    );
+  fresh(Standard(bare(of_pat(p))));
 };
 
 /* Does any name in `vs` occur free in `e`, given `bound` already in scope?

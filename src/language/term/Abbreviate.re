@@ -1395,6 +1395,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      | Standard(p, h) => Standard(abbreviate_pat(p), h)
       | Asc(p, t1) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;

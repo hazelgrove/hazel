@@ -2952,6 +2952,8 @@ and upat_to_info_map =
       ~under_ascription: bool=false,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
       ~warn_unused: bool=true,
+      /* A proof's `forall` step, where `p !! h` may name a fact. */
+      ~in_forall_step: bool=false,
       upat: Pat.t,
       m: Map.t,
     )
@@ -3050,6 +3052,7 @@ and upat_to_info_map =
         ~duplicate_bindings=[],
         ~ana=ana,
         ~under_ascription=false,
+        ~in_forall_step=false,
         upat: Pat.t,
         m: Map.t,
       ) => {
@@ -3063,6 +3066,7 @@ and upat_to_info_map =
       ~under_ascription,
       ~probe_ids,
       ~warn_unused,
+      ~in_forall_step,
       upat,
       m: Map.t,
     );
@@ -3738,7 +3742,8 @@ and upat_to_info_map =
         m,
       )
     | Parens(p) =>
-      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      let (p, p_elab, m) =
+        go(~ctx, ~ana, ~in_forall_step, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
         ~elab_syn_ty=p.elab_syn_ty,
@@ -3823,6 +3828,29 @@ and upat_to_info_map =
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
+        ~ctx=p.ctx,
+        ~probe_targets=p.probe_targets,
+        ~constraint_=p.constraint_,
+        m,
+      );
+    | Standard(p, h) =>
+      let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
+      /* `h` names a fact, not a variable: it is walked for its info, and
+         its ctx is discarded. */
+      let (_, h_elab, m) =
+        upat_to_info_map(
+          ~is_synswitch,
+          ~ctx,
+          ~co_ctx=CoCtx.of_bindings(Pat.bindings(h)),
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+          h,
+          m,
+        );
+      add(
+        ~elab_term=Standard(p_elab, h_elab) |> rewrap,
+        ~elab_syn_ty=p.elab_syn_ty,
+        ~marks=in_forall_step ? [] : [Mark.StandardFactOutsideForall],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
         ~constraint_=p.constraint_,
@@ -4570,12 +4598,14 @@ and proof_to_info_map =
       e,
       m,
     );
-  let go_pat = (~co_ctx=CoCtx.empty, ~ana=?, p: Pat.t, m: Map.t) =>
+  let go_pat =
+      (~co_ctx=CoCtx.empty, ~ana=?, ~in_forall_step=?, p: Pat.t, m: Map.t) =>
     upat_to_info_map(
       ~is_synswitch=false,
       ~ctx,
       ~co_ctx,
       ~ana?,
+      ~in_forall_step?,
       ~ancestors=ancestors_inclusive,
       p,
       m,
@@ -4585,8 +4615,14 @@ and proof_to_info_map =
      as often as by name, so they count as used. Fact names
      (`assume h = P`, `alias`) bind in the theorem namespace, not the variable one, so no
      unused-variable warning applies to them either. */
-  let go_binder = (~ana=?, p: Pat.t, m: Map.t) =>
-    go_pat(~co_ctx=CoCtx.of_bindings(Pat.bindings(p)), ~ana?, p, m);
+  let go_binder = (~ana=?, ~in_forall_step=?, p: Pat.t, m: Map.t) =>
+    go_pat(
+      ~co_ctx=CoCtx.of_bindings(Pat.bindings(p)),
+      ~ana?,
+      ~in_forall_step?,
+      p,
+      m,
+    );
   let go_prop = (e: Exp.t, m: Map.t): (Exp.t, Map.t) => {
     let (_, e, m) = go_exp(~ana=Atom(Bool) |> Typ.temp, e, m);
     (e, m);
@@ -4971,7 +5007,8 @@ and proof_to_info_map =
        the statement was walked. Without it the binder is `Unknown`, and
        so are the case patterns of an `induction` on it, which then has
        no inductive hypotheses (`Induction.hypotheses` reads their types
-       from here). */
+       from here). `p !! h` names the fact `!!p` for the body, as the
+       checker does. */
     let rec peel = (g: Exp.t) =>
       switch (Exp.term_of(g)) {
       | Parens(inner) => peel(inner)
@@ -4984,9 +5021,24 @@ and proof_to_info_map =
         Map.lookup_pat(IdTagged.rep_id(gp), m)
         |> Option.map(~f=(info: Info.pat) => info.ty)
       );
-    let (pat_info, pat, m) = go_binder(~ana?, pat, m);
+    let (pat_info, pat, m) = go_binder(~ana?, ~in_forall_step=true, pat, m);
+    let body_ctx =
+      switch (Pat.standard_fact(pat)) {
+      | Some((p, h)) =>
+        switch (fact_name(h)) {
+        | Some(h) =>
+          with_fact(
+            ~ctx=pat_info.ctx,
+            h,
+            ~id=IdTagged.rep_id(pat),
+            Exp.standard_fact(p),
+          )
+        | None => pat_info.ctx
+        }
+      | None => pat_info.ctx
+      };
     let (body, m) =
-      go(~ctx=pat_info.ctx, ~goal=?Option.map(~f=snd, peeled), body, m);
+      go(~ctx=body_ctx, ~goal=?Option.map(~f=snd, peeled), body, m);
     add(Forall(pat, body), m);
   | Funext(pat, body) =>
     /* The binder names the argument of the pointwise goal `f(x) == g(x)`

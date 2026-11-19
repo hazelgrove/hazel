@@ -225,7 +225,8 @@ module Namer = {
     | Constructor(name, _)
     | Label(name) => name
     | Parens(pat)
-    | Asc(pat, _) => mk_name_from_pat(pat)
+    | Asc(pat, _)
+    | Standard(pat, _) => mk_name_from_pat(pat)
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)
     | Tuple(pats) =>
