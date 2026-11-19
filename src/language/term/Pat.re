@@ -181,11 +181,25 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
-let ctr_name = (p: t): option(Constructor.t) =>
+let rec ctr_name = (p: t): option(Constructor.t) =>
   switch (p.term) {
-  | Constructor(name, _)
-  | Parens({term: Constructor(name, _), _}) => Some(name)
-  | _ => None
+  | Constructor(name, _) => Some(name)
+  | Parens(p)
+  | Projector(_, p) => ctr_name(p)
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => None
   };
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =

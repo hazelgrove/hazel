@@ -496,6 +496,14 @@ type limited_result =
   | LimitedCompleted((Exp.t, EvaluatorState.t))
   | StepLimitExceeded;
 
+let completed = (state: EvaluatorState.t): EvaluatorState.t => {
+  ...state,
+  incr_eval: {
+    ...state.incr_eval,
+    steps: state.step_count,
+  },
+};
+
 let finish = (~env, e: DHExp.t): Exp.t =>
   e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
@@ -584,7 +592,8 @@ let evaluate_and_limit =
       result |> Trampoline.Yielding.start,
     )
   ) {
-  | SliceDone(x, _) => LimitedCompleted((finish(~env, x), state^))
+  | SliceDone(x, _) =>
+    LimitedCompleted((finish(~env, x), completed(state^)))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
@@ -642,7 +651,10 @@ let run_yielding_slice =
     Trampoline.Yielding.run_slice(~step_budget, evaluation.continuation)
   ) {
   | SliceDone(x, _) =>
-    EvaluationCompleted((finish(~env=evaluation.env, x), evaluation.state^))
+    EvaluationCompleted((
+      finish(~env=evaluation.env, x),
+      completed(evaluation.state^),
+    ))
   | SliceYielded(continuation) =>
     EvaluationYielded({
       ...evaluation,
@@ -686,7 +698,7 @@ let evaluate_counting_work =
       Trampoline.Yielding.start(result),
     )
   ) {
-  | SliceDone(x, steps) => ((finish(~env, x), state^), steps)
+  | SliceDone(x, steps) => ((finish(~env, x), completed(state^)), steps)
   /* an unbounded slice runs to the end */
   | SliceYielded(_) => failwith("evaluate_counting_work: slice yielded")
   };
@@ -712,5 +724,5 @@ let evaluate =
   /* Must be sequenced before reading `state`: running the trampoline is what
      populates it, and tuple components are evaluated right-to-left. */
   let value = finish(~env, Trampoline.run(result));
-  (value, state^);
+  (value, completed(state^));
 };

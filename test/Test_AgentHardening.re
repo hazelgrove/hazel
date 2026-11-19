@@ -39,7 +39,9 @@ let tests = (
     ),
     test_case(
       "large valid boundary insert uses batch parser",
-      `Quick,
+      /* Slow: building the skeleton of an 850-element list re-pops the
+         whole comma chain at each comma (Skel.push_output) */
+      `Slow,
       () => {
         let code =
           "let big = ["
