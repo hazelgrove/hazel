@@ -109,6 +109,127 @@ let slides_agree = (~limit=?, dir, ()) => {
   );
 };
 
+/* Single-token tiles are shards of their own, in document order. */
+let rec single_shards = (seg: Segment.t): list((Id.t, int)) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        (
+          switch (t.shards) {
+          | [idx] => [(t.id, idx)]
+          | _ => []
+          }
+        )
+        @ List.concat_map(single_shards, t.children)
+      | Projector(pr) => single_shards([pr.syntax])
+      | Grout(_)
+      | Secondary(_) => []
+      },
+    seg,
+  );
+
+/* Move.jump_to_shard (collapsing a char-level selection) places the caret
+   the same way; it must match Move.jump_to_shard_by_walking. */
+let shards_agree = (name, text) =>
+  switch (PersistentZipper.parse_text(~source=name, ~root=Exp, text)) {
+  | None => fail(name ++ ": failed to parse")
+  | Some(z0) =>
+    let all = single_shards(Zipper.zip(z0));
+    let n = List.length(all);
+    let step = max(1, n / 15);
+    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let starts = [z0, nth_right(n / 3, z0)];
+    List.iter(
+      z =>
+        List.iter(
+          ((id, idx)) =>
+            if (Move.jump_to_shard(z, id, idx)
+                != Move.jump_to_shard_by_walking(z, id, idx)) {
+              fail(
+                Printf.sprintf(
+                  "%s: shard %d of %s differs",
+                  name,
+                  idx,
+                  Id.to_string(id),
+                ),
+              );
+            },
+          targets,
+        ),
+      starts,
+    );
+    List.length(targets);
+  };
+
+let slides_shards_agree = (dir, ()) => {
+  let before = Move.direct_jumps^;
+  let checked =
+    slides(dir)
+    |> List.fold_left(
+         (acc, (name, text)) => acc + shards_agree(name, text),
+         0,
+       );
+  check(bool, "some targets", true, checked > 0);
+  check(
+    bool,
+    "direct path taken",
+    true,
+    Move.direct_jumps^ - before > checked,
+  );
+};
+
+/* Select.shard_range selects a term's sibling run directly. From the end
+   of the program the walk reaches every term's left extreme, so there the
+   two must agree. */
+let ranges_agree = (name, text) =>
+  switch (PersistentZipper.parse_text(~source=name, ~root=Exp, text)) {
+  | None => fail(name ++ ": failed to parse")
+  | Some(z0) =>
+    let term_data = MakeTerm.from_zip_for_sem(z0, ~root=Exp).term_data;
+    let all =
+      Id.Map.bindings(term_data)
+      |> List.filter_map(((id, _)) =>
+           TermData.extremes_shards(id, term_data)
+         );
+    let step = max(1, List.length(all) / 15);
+    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let z = Zipper.caret_to_end(z0);
+    List.iter(
+      ((l, r)) => {
+        let walked = Select.shard_range_by_walking(l, r, z);
+        if (Select.shard_range(l, r, z) != walked) {
+          fail(
+            Printf.sprintf(
+              "%s: range from %s differs",
+              name,
+              Id.to_string(Piece.id(l)),
+            ),
+          );
+        };
+      },
+      targets,
+    );
+    List.length(targets);
+  };
+
+let slides_ranges_agree = (dir, ()) => {
+  let before = Select.direct_ranges^;
+  let checked =
+    slides(dir)
+    |> List.fold_left(
+         (acc, (name, text)) => acc + ranges_agree(name, text),
+         0,
+       );
+  check(bool, "some targets", true, checked > 0);
+  check(
+    bool,
+    "direct path taken",
+    true,
+    (Select.direct_ranges^ - before) * 2 > checked,
+  );
+};
+
 let tests = (
   "Move.JumpToId",
   [
@@ -121,6 +242,16 @@ let tests = (
       "B2T2 slides (first five): direct jump is the walk",
       `Slow,
       slides_agree(~limit=5, "hazel-programs/docs/b2t2"),
+    ),
+    test_case(
+      "reference slides: direct shard jump is the walk",
+      `Slow,
+      slides_shards_agree("hazel-programs/docs/reference"),
+    ),
+    test_case(
+      "reference slides: direct term range is the walk",
+      `Slow,
+      slides_ranges_agree("hazel-programs/docs/reference"),
     ),
   ],
 );
