@@ -121,7 +121,7 @@ let nibs = (~index, mold: t): Nibs.t => {
       : Nib.{
           shape: Shape.concave(),
           sort:
-            try(List.nth(in_, index - 1)) {
+            try(List.nth_exn(in_, index - 1)) {
             | Failure(_) => Sort.Any
             },
         };
@@ -131,7 +131,7 @@ let nibs = (~index, mold: t): Nibs.t => {
       : Nib.{
           shape: Shape.concave(),
           sort:
-            try(List.nth(in_, index)) {
+            try(List.nth_exn(in_, index)) {
             | Failure(_) => Sort.Any
             },
         };
