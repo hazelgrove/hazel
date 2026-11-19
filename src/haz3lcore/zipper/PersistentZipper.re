@@ -57,7 +57,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       text,
     )
   ) {
-  | Ok({segment, refractors}) =>
+  | Ok({segment, refractors, _}) =>
     /* Caret starts at the TOP: unzip's default direction (Right) leaves
        the caret after the whole program, and the editor scrolls the caret
        into view on display — a freshly loaded slide would open at the

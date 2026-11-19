@@ -5967,7 +5967,134 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* Refractor triggers, typed or pasted (#2442). Printed without the caret:
+   its column is measured on the buffer, which does not hold the `^^probe`
+   invocation text. The term is checked strictly on parens against the
+   program `term` spells. */
+let test_refractor =
+    (~name, ~from=?, ~acts, ~printed, ~term, ()): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let from =
+        switch (from) {
+        | Some(init) => mk_zipper(init)
+        | None => Zipper.init()
+        };
+      let z = acts |> perform(from);
+      check(
+        testable(Fmt.string, String.equal),
+        "printed",
+        printed,
+        Printer.of_zipper(~holes=convex_char, z),
+      );
+      check(
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Language.Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_projectors: true,
+            }).
+              exp
+          ),
+        ),
+        "term",
+        MakeTerm.from_zip_for_sem(parse_text(term), ~root=Exp).term,
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+      );
+    },
+  );
+
+let refractor_tests = [
+  /* Typing expands the trigger when its `)` is typed, before anything to
+     its right exists: what follows regroups with the bare target, as it
+     would with any typed `1 + 2`. The probe stays on the `+`, now the
+     root of the whole sum. */
+  test_refractor(
+    ~name="Typed probe on a sum, then * typed after it",
+    ~acts=mk("^^probe(1 + 2) * 3¦"),
+    ~printed="^^probe(1 + 2 * 3)",
+    ~term="1 + 2 * 3",
+    (),
+  ),
+  /* What a load or paste of `^^probe(1 + 2) * 3` prints keeps its
+     grouping when typed back (comment toggling, Reparse, the typed-paste
+     fallback): the parens are written outside the trigger. */
+  test_refractor(
+    ~name="Typed probe on a parenthesized sum, then * typed after it",
+    ~acts=mk("(^^probe(1 + 2)) * 3¦"),
+    ~printed="(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    (),
+  ),
+  /* Pasted text is read whole: the trigger's parens group its target,
+     and parens land only where the bare target would regroup. */
+  test_refractor(
+    ~name="Paste probe on a sum after a tighter operator",
+    ~acts=mk("2 * ¦") @ [Paste("^^probe(1 + 2)")],
+    ~printed="2 * (^^probe(1 + 2))",
+    ~term="2 * (1 + 2)",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a sum over an operand before a tighter operator",
+    ~from="§(x)¦ * 3",
+    ~acts=[Paste("^^probe(1 + 2)")],
+    ~printed="(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a sum over an operand between tighter operators",
+    ~from="2 * §(x)¦ * 3",
+    ~acts=[Paste("^^probe(1 + 2)")],
+    ~printed="2 * (^^probe(1 + 2)) * 3",
+    ~term="2 * (1 + 2) * 3",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a sum over an operand after a tighter operator",
+    ~from="2 * §(x)¦",
+    ~acts=[Paste("^^probe(1 + 2)")],
+    ~printed="2 * (^^probe(1 + 2))",
+    ~term="2 * (1 + 2)",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a sum after a looser operator",
+    ~acts=mk("2 + ¦") @ [Paste("^^probe(1 * 2)")],
+    ~printed="2 + ^^probe(1 * 2)",
+    ~term="2 + 1 * 2",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a sum under *",
+    ~acts=mk("¦") @ [Paste("^^probe(1 + 2) * 3")],
+    ~printed="(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste nested probes on a sum under *",
+    ~acts=mk("¦") @ [Paste("^^statics(^^probe(1 + 2)) * 3")],
+    /* one refractor per term: the inner trigger's stays */
+    ~printed="(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    (),
+  ),
+  test_refractor(
+    ~name="Paste probe on a let definition",
+    ~acts=mk("¦") @ [Paste("let chips = ^^probe(10 + 10) in chips")],
+    ~printed="let chips = ^^probe(10 + 10) in chips",
+    ~term="let chips = 10 + 10 in chips",
+    (),
+  ),
+];
+
 let tests = [
+  ("Editing.RefractorTriggers", refractor_tests),
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),

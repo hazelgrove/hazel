@@ -183,3 +183,19 @@ let rec range = (skel: t): (int, int) =>
   | Post(skel, root) => (fst(range(skel)), Aba.last_a(root))
   | Bin(l, _, r) => (fst(range(l)), snd(range(r)))
   };
+
+/* Does some subtree of the skel span exactly the pieces first..last?
+   Chained roots (commas, case rules) carry subtrees between their
+   tokens, so those count too. */
+let rec has_range = ((first, last): (int, int), skel: t): bool =>
+  range(skel) == (first, last)
+  || List.exists(has_range((first, last)), Aba.get_bs(root(skel)))
+  || (
+    switch (skel) {
+    | Op(_) => false
+    | Pre(_, s)
+    | Post(s, _) => has_range((first, last), s)
+    | Bin(l, _, r) =>
+      has_range((first, last), l) || has_range((first, last), r)
+    }
+  );

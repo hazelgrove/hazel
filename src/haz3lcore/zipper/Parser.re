@@ -206,6 +206,29 @@ let fast_paste_blocker =
     None;
   };
 
+/* FastParse kept the grouping each refractor trigger spells within the
+   clipboard; a target at its edge must also keep it against the syntax
+   around the caret: `^^probe(1 + 2)` pasted after `2 * ` is
+   `2 * (1 + 2)`, not `2 * 1 + 2` with the probe on the whole sum. The
+   caret stays where it was relative to the pieces around it; if it would
+   land inside new parens, the siblings are left as they were. */
+let group_pasted_targets =
+    (targets: list(Segment.extent), z: Zipper.t): Zipper.t =>
+  Zipper.update_siblings(
+    ((l, r)) => {
+      let (seg, _) = Segment.group_refractor_targets(targets, l @ r);
+      switch (r) {
+      | [] => (seg, [])
+      | [first_r, ..._] =>
+        switch (Segment.index_of_piece(Piece.id(first_r), seg)) {
+        | Some(i) => Util.ListUtil.split_n(i, seg)
+        | None => (l, r)
+        }
+      };
+    },
+    z,
+  );
+
 /* Fast paste: linear Menhir zip of the clipboard spliced at the caret.
    A failed attempt costs ~1ms, and a hit turns the worst paste case (a
    whole external program) into milliseconds with formatting kept
@@ -228,7 +251,7 @@ let fast_paste =
       )
     ) {
     | Error(why) => Error("parse bailed — " ++ why)
-    | Ok({segment, refractors}) =>
+    | Ok({segment, refractors, targets}) =>
       /* Like Zipper.insert_segment, but regrout with Left so the caret
          lands BEFORE any grout a body-less fragment opens (matching the
          typing path), not after it. */
@@ -239,7 +262,8 @@ let fast_paste =
           z
           |> Zipper.replace_selection(Right, segment)
           |> Zipper.unselect
-          |> Zipper.remold_regrout(Left, ~root),
+          |> Zipper.remold_regrout(Left, ~root)
+          |> group_pasted_targets(targets),
           ~root,
         )
         |> Triggers.apply_refractors(refractors),

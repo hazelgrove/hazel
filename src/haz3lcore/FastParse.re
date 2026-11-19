@@ -127,11 +127,14 @@ let weave =
       tokens: list(tok),
       seg: Segment.t,
     )
-    : (Segment.t, list((Id.t, string))) => {
+    : (Segment.t, list((Id.t, string, Segment.extent))) => {
   let toks = Array.of_list(tokens);
   let idx = ref(0);
   /* Refractor triggers (^^probe/^^statics, optionally ^^kind_opt) consumed
-     from the source: (target term id, verbatim trigger token). Accumulated
+     from the source: (target term id, verbatim trigger token, the target's
+     pieces). The extent lets attempt keep the grouping the trigger spells
+     once the target's context is known, and re-find the target's root
+     after any parens it adds (Segment.group_refractor_targets). Accumulated
      alongside idx because both are written deep in weave_seg's recursion,
      and returned so callers never read parser state after the fact — the
      token is parsed back into a kind by Triggers.refractor_of_invoke_token,
@@ -331,11 +334,16 @@ let weave =
     | [_, ..._]
         when collect_refractors && trigger_is_refractor(toks[idx^].text) =>
       /* refractor decoration: consume the trigger, splice the wrapped
-         pieces bare, and record the target for the caller to re-pin */
+         pieces bare, and record the target for the caller to re-pin
+         (root_id raises on an empty target, so inner has a first piece) */
       let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
       refractors :=
         [
-          (Segment.root_id(Segment.skel(inner), inner), trigger),
+          (
+            Segment.root_id(Segment.skel(inner), inner),
+            trigger,
+            (Piece.id(List.hd(inner)), Piece.id(ListUtil.last(inner))),
+          ),
           ...refractors^,
         ];
       Some((gap_pieces(trig_gap) @ inner, rest));
@@ -465,6 +473,10 @@ let weave =
 type parsed = {
   segment: Segment.t,
   refractors: list((Id.t, string)),
+  /* The refractor targets' pieces. The segment already keeps the grouping
+     their triggers spell within the text; a caller splicing it into more
+     syntax (paste) regroups them against that context too. */
+  targets: list(Segment.extent),
 };
 
 let attempt =
@@ -497,11 +509,32 @@ let attempt =
       | seg =>
         switch (weave(~materialize, ~collect_refractors, tokens, seg)) {
         | exception _ => None
-        | (woven, refractors) =>
+        | (woven, found) =>
+          let (woven, targets) =
+            Segment.group_refractor_targets(
+              List.map(((_, _, target)) => target, found),
+              woven,
+            );
+          /* re-find each root: a target that encloses one that gained
+             parens has a new root (`^^probe(^^probe(1 + 2) * 3)`) */
+          let refractors =
+            List.map2(
+              ((root, trigger, _), target) =>
+                (
+                  Option.value(
+                    Segment.target_root(target, woven),
+                    ~default=root,
+                  ),
+                  trigger,
+                ),
+              found,
+              targets,
+            );
           Some({
             segment: woven @ gap_pieces(trailing_gap),
             refractors,
-          })
+            targets,
+          });
         }
       };
     }
@@ -541,11 +574,16 @@ let parsed_of_text =
        spliced separators (leading/trailing ;) fail the wrap parse and
        fall back — they are small. */
     switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+    | Some({
+        segment: [Tile({children: [inner], _} as bt)],
+        refractors,
+        targets,
+      })
         when Tile.has_label(bt, ["{", "}"]) =>
       Ok({
         segment: inner,
         refractors,
+        targets,
       })
     | _ =>
       /* keep the attempt's own note when it bailed; the generic wrap
