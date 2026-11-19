@@ -60,6 +60,7 @@ let collect_stream_state =
   {
     ...state,
     incr_eval: {
+      ...state.incr_eval,
       entries:
         Id.Map.union(
           (_, existing, _streamed) => Some(existing),

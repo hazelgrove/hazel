@@ -456,31 +456,35 @@ let toggle_probe =
  * - Main.re: after_display calls FocusEffect.execute()
  */
 
-/* For function-sugar (`let f(args) = body`), params live in the surface binder
-   outside the body's rows, so return their pattern id to anchor separately.
-   Climb to the enclosing Let (not parent_term_of: desugaring inserts a Fun parent). */
-let function_sugar_param_anchor =
-    (info_map: Statics.Map.t, def_id: Id.t): option(Id.t) => {
-  let* ci = Statics.Map.lookup(def_id, info_map);
-  let rec climb = (ancs: list(Id.t)): option(Id.t) =>
-    switch (ancs) {
-    | [] => None
-    | [anc_id, ...rest] =>
-      switch (Statics.Map.lookup(anc_id, info_map)) {
-      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
-        /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
-        if (Id.equal(def_id, IdTagged.rep_id(def))) {
-          switch (FunctionSugar.detect(pat)) {
-          | Some((_, args, _)) => Some(Pat.rep_id(args))
-          | None => None
-          };
-        } else {
-          None;
+/* For function-sugar (`let f(args) = body`, or curried `let f(x)(y) = body`),
+   params live in the surface binder outside the body's rows, so return their
+   pattern ids (one per argument group) to anchor separately.
+   Climb to the enclosing Let (not parent_term_of: desugaring inserts Fun parents). */
+let function_sugar_param_anchors =
+    (info_map: Statics.Map.t, def_id: Id.t): list(Id.t) => {
+  let anchors = {
+    let* ci = Statics.Map.lookup(def_id, info_map);
+    let rec climb = (ancs: list(Id.t)): option(list(Id.t)) =>
+      switch (ancs) {
+      | [] => None
+      | [anc_id, ...rest] =>
+        switch (Statics.Map.lookup(anc_id, info_map)) {
+        | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+          /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
+          if (Id.equal(def_id, IdTagged.rep_id(def))) {
+            switch (FunctionSugar.detect(pat)) {
+            | Some((_, args, _)) => Some(List.map(Pat.rep_id, args))
+            | None => None
+            };
+          } else {
+            None;
+          }
+        | _ => climb(rest)
         }
-      | _ => climb(rest)
-      }
-    };
-  climb(Info.ancestors_of(ci));
+      };
+    climb(Info.ancestors_of(ci));
+  };
+  Option.value(anchors, ~default=[]);
 };
 
 /* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
@@ -541,37 +545,35 @@ let step_into_call_stack =
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
     };
 
-  /* Function-sugar params live in the surface binder, not under body_id; anchor the param pattern too. */
-  let param_anchor = function_sugar_param_anchor(info_map, body_id);
+  /* Function-sugar params live in the surface binder, not under body_id; anchor the param patterns too. */
+  let param_anchors = function_sugar_param_anchors(info_map, body_id);
   let z =
-    switch (param_anchor) {
-    | None => z
-    | Some(args_id) =>
-      switch (probe_status(args_id, info_map, z.refractors)) {
-      | Multi
-      | Manual(_)
-      | Statics(_)
-      | Ephemeral(_) => z
-      | Suppressed(_)
-      | Non => add_multi(args_id, ~syntax, ~info_map, z)
-      }
-    };
+    List.fold_left(
+      (z: Zipper.t, args_id) =>
+        switch (probe_status(args_id, info_map, z.refractors)) {
+        | Multi
+        | Manual(_)
+        | Statics(_)
+        | Ephemeral(_) => z
+        | Suppressed(_)
+        | Non => add_multi(args_id, ~syntax, ~info_map, z)
+        },
+      z,
+      param_anchors,
+    );
 
   /* Use the real captured frame (name + dynamic fn_def_id), not a synthesized id-only one, so the pin/focus is precise. */
   let new_stack: CallStack.t = [frame, ...call_stack];
 
   /* jump_target = params (cursor for UX); samples live under body_id. */
   let (jump_target, _sample_probe_id) =
-    switch (param_anchor, ci_body) {
-    | (Some(args_id), _) => (args_id, body_id)
-    | (
-        None,
-        InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _}),
-      ) =>
+    switch (param_anchors, ci_body) {
+    | ([args_id, ..._], _) => (args_id, body_id)
+    | ([], InfoExp({user_term: {term: Fun(pat, inner_body, _, _), _}, _})) =>
       let pat_id = IdTagged.rep_id(pat);
       let inner_body_id = IdTagged.rep_id(inner_body);
       (pat_id, inner_body_id);
-    | (None, _) => (body_id, body_id)
+    | ([], _) => (body_id, body_id)
     };
 
   let z =
