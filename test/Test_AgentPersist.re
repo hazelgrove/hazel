@@ -49,11 +49,12 @@ let legacy_tool_result = () => {
       | List(xs) =>
         List(
           List.filter_map(
-            x =>
-              switch (x) {
-              | List([Atom("content_is_payload"), _]) => None
-              | _ => Some(old(x))
-              },
+            ~f=
+              x =>
+                switch (x) {
+                | List([Atom("content_is_payload"), _]) => None
+                | _ => Some(old(x))
+                },
             xs,
           ),
         )
@@ -83,14 +84,14 @@ let tests = (
             agent.chat_system,
           )
           |> Chat.Utils.linearize
-          |> List.filter_map((m: Message.Model.t) =>
+          |> List.filter_map(~f=(m: Message.Model.t) =>
                switch (m.role) {
                | ToolResult(tr) => Some(tr)
                | _ => None
                }
              );
         check(int, "tool history preserved", 1, List.length(results));
-        let tr = List.hd(results);
+        let tr = List.hd_exn(results);
         check(
           bool,
           "missing payload flag defaults false",
@@ -102,15 +103,16 @@ let tests = (
           |> Zipper.unzip
           |> Test_AgentTools.render_zipper;
         List.iter(
-          t =>
-            Test_AgentTools.check_rendered(
-              "snapshot",
-              "let a = 1 in a",
-              render(Option.get(t)),
-            ),
+          ~f=
+            t =>
+              Test_AgentTools.check_rendered(
+                "snapshot",
+                "let a = 1 in a",
+                render(Option.value_exn(t)),
+              ),
           [tr.before_text, tr.after_text],
         );
-        let diff = Option.get(tr.diff);
+        let diff = Option.value_exn(tr.diff);
         Test_AgentTools.check_rendered(
           "diff",
           "let a = 1 in a",
@@ -158,11 +160,12 @@ let tests = (
           |> Indentation.shallow_complete_segment
           |> CompositionView.Public.print_segment;
         List.iter(
-          ((root, text)) => {
-            let old = Option.get(FastParse.of_text(~root, text));
-            let restored = AgentToolResult.segment_of_diff_text(text);
-            check(string, "diff preview", render(old), render(restored));
-          },
+          ~f=
+            ((root, text)) => {
+              let old = Option.value_exn(FastParse.of_text(~root, text));
+              let restored = AgentToolResult.segment_of_diff_text(text);
+              check(string, "diff preview", render(old), render(restored));
+            },
           [
             (Sort.Exp, "let x = 1 in"),
             (Sort.Exp, "let x = 1 in\n"),
@@ -194,18 +197,22 @@ let tests = (
           Agent.Persistent.unpersist(
             Agent.Persistent.persist(Agent.Utils.init()),
           );
-        let cur = Haz3lcore.CompositionPrompt.self |> String.concat("\n");
+        let cur =
+          Haz3lcore.CompositionPrompt.self |> String.concat(~sep="\n");
         check(
           bool,
           "system_prompt restored",
           true,
-          round.prompting.system_prompt == cur,
+          String.equal(round.prompting.system_prompt, cur),
         );
         check(
           bool,
           "tool registry restored",
           true,
-          round.prompting.tools == Haz3lcore.CompositionUtils.Public.tools,
+          Poly.equal(
+            round.prompting.tools,
+            Haz3lcore.CompositionUtils.Public.tools,
+          ),
         );
         /* every chat's root prompt message restored with its api copy */
         let prompts_ok =
@@ -215,7 +222,8 @@ let tests = (
                 (_, msg: Message.Model.t) =>
                   switch (msg.role) {
                   | System(Prompt) =>
-                    msg.content == String.trim(cur) && msg.api_message != None
+                    String.equal(msg.content, String.strip(cur))
+                    && Option.is_some(msg.api_message)
                   | _ => true
                   },
                 chat.message_map,

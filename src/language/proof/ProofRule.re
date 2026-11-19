@@ -17,7 +17,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
   | Forall(p, e) =>
     let bindings' =
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
-      |> Option.map((x: Ctx.t) => x.entries)
+      |> Option.map(~f=(x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
     let {bindings, conclusion} = exp_to_rule(e);
     {
@@ -103,9 +103,9 @@ let can_eq =
     let bindings = get_empty_bindings(rule.bindings);
     (
       MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, b, exp)
-      |> Option.map(MatchExp.substitute_exp(_, a)),
+      |> Option.map(~f=MatchExp.substitute_exp(_, a)),
       MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, a, exp)
-      |> Option.map(MatchExp.substitute_exp(_, b)),
+      |> Option.map(~f=MatchExp.substitute_exp(_, b)),
     );
   | Other(_) => (None, None)
   };
@@ -119,7 +119,7 @@ let is_active = (~info_map, ~env, rule: t, exp: Exp.t): bool =>
   };
 
 let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
-  let full_ctx = List.fold_left(Ctx.extend, ctx, rule.bindings);
+  let full_ctx = List.fold_left(~f=Ctx.extend, ~init=ctx, rule.bindings);
   let c_exp = conclusion_exp(rule);
   /* TODO[Matt]: using full statics here feels a little overblown
      especially given we need to fake some settings to it, perhaps
