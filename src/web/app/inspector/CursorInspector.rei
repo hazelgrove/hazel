@@ -27,7 +27,8 @@ let typ_view:
     ~globals: Globals.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
-    ~message: option(Language.Message.t)
+    ~message: option(Language.Message.t),
+    ~warnings: list(Language.Warning.list_item)
   ) =>
   Virtual_dom.Vdom.Node.t;
 
@@ -36,7 +37,8 @@ let tpat_view:
     ~globals: Globals.t,
     Language.Cls.t,
     ~marks: list(Language.Mark.t),
-    ~message: option(Language.Message.t)
+    ~message: option(Language.Message.t),
+    ~warnings: list(Language.Warning.list_item)
   ) =>
   Virtual_dom.Vdom.Node.t;
 

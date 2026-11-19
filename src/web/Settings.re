@@ -1,7 +1,7 @@
 open Util;
 
 module CompletionDisplay = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Quiver
     | Flag
@@ -270,9 +270,8 @@ module Update = {
 
   let return_for = (action: t, settings: Model.t): Updated.t(Model.t) =>
     switch (kind_of(action)) {
-    | Undoable => Updated.return(~scroll_active=false, settings)
-    | NotUndoable =>
-      Updated.return(~scroll_active=false, ~historic=false, settings)
+    | Undoable => Updated.return(~scroll=Never, settings)
+    | NotUndoable => Updated.return(~scroll=Never, ~historic=false, settings)
     | Transient => Updated.return_quiet(settings)
     };
 
@@ -439,7 +438,8 @@ module Update = {
             show:
               !settings.sidebar.show
                 ? true
-                : settings.sidebar.panel == windowToSwitchTo ? false : true,
+                : Poly.equal(settings.sidebar.panel, windowToSwitchTo)
+                    ? false : true,
             panel: windowToSwitchTo,
           },
         }
@@ -570,8 +570,8 @@ module Update = {
         }
       | CompletionDisplay(mode) => {
           ...settings,
-          quiver: mode != CompletionDisplay.Hidden,
-          quiver_flagpole: mode == CompletionDisplay.Flag,
+          quiver: !CompletionDisplay.equal(mode, Hidden),
+          quiver_flagpole: CompletionDisplay.equal(mode, Flag),
         }
       | AutoprobeMode =>
         /* User-facing controls cycle Off<->All; Caret remains an internal

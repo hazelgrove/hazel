@@ -621,6 +621,64 @@ let test_type_alias_shadowing_nested_module =
     Some(string()),
   );
 
+/* Module definitions wrapped in Parens or a projector */
+let test_qualified_type_parenthesized_module =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized module definition",
+    {|module M = ({ type T = Int }) in let y : M.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_folded_module =
+  fully_consistent_typecheck(
+    "Qualified type access: folded module definition",
+    {|module M = ^^fold({ type T = Int }) in let y : M.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized module alias",
+    {|module M = { type T = Int } in module N = (M) in let y : N.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_nested_module =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized nested module definition",
+    {|module M = { module Inner = ({ type T = Int }) } in let y : M.Inner.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_nested_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized nested module alias",
+    {|module G = { type P = Int } in module S = { module H = (G) } in let y : S.H.P = 2 in y + 0|},
+    Some(int()),
+  );
+
+/* Signature items whose bound variable is wrapped in Parens or a projector */
+let test_sig_parenthesized_var =
+  fully_consistent_typecheck(
+    "Sig item with parenthesized variable",
+    {|let s1 : { let (x) : Int } = { let x = 42 } in s1.x|},
+    Some(int()),
+  );
+
+let test_sig_folded_var =
+  fully_consistent_typecheck(
+    "Sig item with folded variable",
+    {|let s1 : { let ^^fold(x) : Int } = { let x = 42 } in s1.x|},
+    Some(int()),
+  );
+
+let test_sig_parenthesized_ascription =
+  fully_consistent_typecheck(
+    "Sig item with parenthesized ascription",
+    {|let s1 : { let (x : Int) } = { let x = 42 } in s1.x|},
+    Some(int()),
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -707,5 +765,14 @@ let tests = (
     test_type_alias_shadowing_in_nested_module,
     test_type_alias_shadowing_sequential,
     test_type_alias_shadowing_nested_module,
+    /* Parenthesized / folded module definitions */
+    test_qualified_type_parenthesized_module,
+    test_qualified_type_folded_module,
+    test_qualified_type_parenthesized_alias,
+    test_qualified_type_parenthesized_nested_module,
+    test_qualified_type_parenthesized_nested_alias,
+    test_sig_parenthesized_var,
+    test_sig_folded_var,
+    test_sig_parenthesized_ascription,
   ],
 );
