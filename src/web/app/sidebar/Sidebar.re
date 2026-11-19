@@ -78,6 +78,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let settings_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Settings,
+    ~cls=["settings-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Settings",
+    ~globals,
+  );
+
 let debug_info_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=DebugInfo,
@@ -85,6 +94,30 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
     ~icon=Icons.info,
     ~tooltip="Switch to Debug Info Panel",
     ~globals,
+  );
+
+/* Not a panel: a click saves the session's coverage. Only coverage builds
+   have one. */
+let coverage_tab: option(Node.t) =
+  Option.map(
+    download =>
+      div(
+        ~attrs=[clss(["coverage-button"])],
+        [
+          tab(
+            Icons.export,
+            ~tooltip="Download coverage (.coverage files)",
+            _ =>
+              Effect.Many([
+                Effect.of_sync_fun(download, ()),
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+              ]),
+            false,
+          ),
+        ],
+      ),
+    CoverageExport.download,
   );
 
 let problems_tab_icon =
@@ -158,66 +191,11 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let split_task_reference_sections = TaskReferenceSplit.split;
-
-let task_reference_view = (~globals: Globals.t, body: string) => {
-  let render_md = blocks => {
-    let (nodes, _) =
-      ExplainThis.mk_translation_doc(~globals, ~inject=_ => (), blocks);
-    nodes;
-  };
-  let sections = split_task_reference_sections(Omd.of_string(body));
-  let section_nodes =
-    List.map(
-      ((heading, content)) =>
-        switch (heading) {
-        | Option.None =>
-          div(
-            ~attrs=[clss(["task-reference-preamble"])],
-            render_md(content),
-          )
-        | Option.Some(h) =>
-          Node.details(
-            ~attrs=[
-              clss(["task-reference-section"]),
-              Attr.create("open", ""),
-            ],
-            [
-              Node.summary(
-                ~attrs=[clss(["task-reference-section-title"])],
-                [text(h)],
-              ),
-              div(
-                ~attrs=[clss(["task-reference-section-body"])],
-                render_md(content),
-              ),
-            ],
-          )
-        },
-      sections,
-    );
-  div(
-    ~attrs=[clss(["task-reference-panel"])],
-    [
-      div(
-        ~attrs=[clss(["task-reference-header"])],
-        [
-          div(
-            ~attrs=[clss(["task-reference-title"])],
-            [text("Task Reference")],
-          ),
-        ],
-      ),
-      div(~attrs=[clss(["task-reference-body"])], section_nodes),
-    ],
-  );
-};
-
 let persistent_view =
     (
       ~globals: Globals.t,
       ~counts: list((SidebarModel.Settings.problem_category, int)),
-      ~task_reference: option(string),
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
@@ -225,7 +203,7 @@ let persistent_view =
       div(
         ~attrs=[clss(["tabs"])],
         (
-          Option.is_some(task_reference)
+          Option.is_some(tutorial_reference)
             ? [task_reference_tab(~globals)] : []
         )
         @ [
@@ -233,13 +211,15 @@ let persistent_view =
           assistant_tab(~globals),
           probes_tab(~globals),
           problems_tab(~globals, ~counts),
+          settings_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
         )
         @ (
           globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
-        ),
+        )
+        @ Option.to_list(coverage_tab),
       ),
     ],
   );
@@ -345,7 +325,7 @@ let view =
       ~problem_editors:
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
-      ~task_reference: option(string),
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -376,7 +356,7 @@ let view =
      active, fall back to LanguageDocumentation so they don't stare at
      an empty panel for a tab that no longer exists. */
   let active_panel: SidebarModel.Settings.panel =
-    switch (globals.settings.sidebar.panel, task_reference) {
+    switch (globals.settings.sidebar.panel, tutorial_reference) {
     | (TaskReference, None) => LanguageDocumentation
     | (p, _) => p
     };
@@ -419,11 +399,18 @@ let view =
                 ~collection=problem_collection,
               )
             | TaskReference =>
-              switch (task_reference) {
-              | Some(text) => task_reference_view(~globals, text)
+              switch (tutorial_reference) {
+              | Some(context) =>
+                TutorialReferencePanel.view(
+                  ~globals,
+                  ~explain_this_inject,
+                  ~editor,
+                  context,
+                )
               | None => div([text("No task reference available.")])
               }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
+            | Settings => SettingsPanel.view(~globals, ~editors_inject)
             },
           ],
         )
@@ -433,6 +420,6 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~counts, ~task_reference)],
+    [sub, persistent_view(~globals, ~counts, ~tutorial_reference)],
   );
 };

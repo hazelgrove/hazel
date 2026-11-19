@@ -38,5 +38,8 @@ Type `let x = 1 in x + 1` using Tab to drop backpack obligations.
 @code
 let x = ¿
 
+@solution
+let x = 1 in x + 1
+
 @test
 test answer == 2 end

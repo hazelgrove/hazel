@@ -97,9 +97,18 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
+/* Funlet members (`let f(x) = e`) bind only the head var; Pat.bound_vars
+   descends an Ap pattern's ARGUMENT (right for constructor patterns,
+   wrong here — it would export the parameters instead of the function). */
+let modlet_bound_vars = (pat: Pat.t): list(Var.t) =>
+  switch (FunctionSugar.detect(pat)) {
+  | Some((f_name, _, _)) => Pat.bound_vars(f_name)
+  | None => Pat.bound_vars(pat)
+  };
+
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
-  | ModLet(pat, _) => Pat.bound_vars(pat)
+  | ModLet(pat, _) => modlet_bound_vars(pat)
   | ModuleMod(mp, _) => mpat_names(mp)
   | ModType(_, _)
   | ModExp(_)
@@ -121,14 +130,19 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
-          Pat.bound_vars(pat)
+          /* Funlet: the whole binder carries the function's type (see
+             FunctionSugar.add_binder_infos). Searching it by name could
+             land on a parameter that shadows the function, e.g.
+             `let g(x)(g) = …`. */
+          let is_funlet = Option.is_some(FunctionSugar.detect(pat));
+          modlet_bound_vars(pat)
           |> List.filter(keep)
           |> List.map(name =>
                {
                  name,
-                 pat: pat_for_bound_name(name, pat),
+                 pat: is_funlet ? pat : pat_for_bound_name(name, pat),
                }
-             )
+             );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
           mpat_names(mp)
@@ -161,22 +175,9 @@ let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
   Exp.fresh(Tuple(fields));
 };
 
-let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
-  switch (ty.term) {
-  | Parens(inner) => strip_typ_parens(inner)
-  | _ => ty
-  };
-
 let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
-  switch (strip_typ_parens(ana).term) {
-  | Prod(fields) =>
-    fields
-    |> List.filter_map((field: Typ.t) =>
-         switch (field.term) {
-         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
-         | _ => None
-         }
-       )
+  switch (Typ.strip_wrappers(ana).term) {
+  | Prod(fields) => fields |> List.filter_map(Typ.match_tup_label)
   | _ => []
   };
 
@@ -219,10 +220,9 @@ let rec collect_type_exports =
            switch (tpat.term) {
            | Var(name) =>
              let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
+               switch (Typ.recursive_def(name, typ)) {
+               | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+               | Typ.Plain =>
                  let locals = List.map(fst, acc);
                  (
                    Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
@@ -236,7 +236,7 @@ let rec collect_type_exports =
            }
          | ModuleMod(mp, def) =>
            let rhs_exports_ty =
-             switch (def.term) {
+             switch (Exp.strip_wrappers(def).term) {
              | Module(inner_items) =>
                collect_type_exports(ctx, inner_items)
                |> type_exports_alias_type
@@ -262,14 +262,31 @@ let rec collect_type_exports =
   |> snd
   |> List.rev;
 
+/* Funlet patterns are deliberately left unascribed: Asc(f(args), member_ty)
+   would be read by FunctionSugar.detect as a RETURN-type annotation. */
 let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
-  switch (pat.term) {
+  switch (Pat.strip_wrappers(pat).term) {
   | Var(name) =>
     switch (List.assoc_opt(name, ana_labels)) {
     | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
     | None => pat
     }
-  | _ => pat
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_)
+  | Asc(_) => pat
   };
 
 let wrap_item =

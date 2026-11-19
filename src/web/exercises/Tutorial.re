@@ -49,6 +49,9 @@ type p('code) = {
   task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
+  /* A known-good replacement for your_impl that passes every hidden test;
+     never shown to the student, only checked by Test_Tutorial. */
+  solution: option('code),
   wrapper: bool,
   show_report: bool,
 };
@@ -62,6 +65,15 @@ let id_of = p => {
    lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
    folder segment, and never let one title be a proper prefix of another. */
 let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
+
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -88,6 +100,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
       tests: f_hidden(p.hidden_tests.tests),
       hints: p.hidden_tests.hints,
     },
+    solution: Option.map(f, p.solution),
     wrapper: p.wrapper,
     show_report: p.show_report,
   };
@@ -323,5 +336,6 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,
     },
+    solution: spec.solution,
   };
 };

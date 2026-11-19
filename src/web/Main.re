@@ -82,6 +82,23 @@ let apply =
       action,
       model,
     );
+  /* which actions count as edits (each one costs a statics/eval recompute):
+     the perf journal names them */
+  if (updated.is_edit) {
+    /* the action's constructor path, two levels deep, off its sexp */
+    let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
+      switch (sx) {
+      | Sexplib.Sexp.Atom(a) => a
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
+        a ++ "/" ++ head(depth - 1, inner)
+      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
+      | _ => "?"
+      };
+    Util.PerfTimer.record(
+      "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
+      0.,
+    );
+  };
   // ---------- CALCULATE PHASE ----------
   let model' =
     CrashHandling.Update.calculate(
@@ -105,8 +122,13 @@ let apply =
       ),
     );
   };
-  if (updated.scroll_active) {
-    scroll_to_caret := true;
+  /* Runs before the re-render, so caret_in_view sees the layout the user is
+     looking at, not the one this action is about to make. */
+  switch (updated.scroll) {
+  | Updated.Always => scroll_to_caret := true
+  | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | IfCaretVisible
+  | Never => ()
   };
   /* When the tutorial slide changes, stash the outgoing slide's scroll
      position and queue a restore of the incoming slide's saved position
@@ -207,12 +229,18 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* Identify non-dev builds in the page title */
+    if (!BuildMeta.is_clean_dev) {
+      Dom_html.document##.title := Js.string("hazel · " ++ BuildMeta.label);
+    };
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_guards();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
@@ -331,6 +359,8 @@ let start = default_model => {
   };
 };
 
+CoverageExport.install();
+
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>
@@ -338,6 +368,10 @@ switch (JsUtil.Fragment.get_current()) {
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
   HazelDB.kv_load_all(_pairs => {
+    /* The user's theme, before the first frame and whatever mode they are
+       in. The inline script in index.html has already themed the loading
+       screen from the same cache; this validates it and fills a miss. */
+    ConfigurationMode.apply_theme_at_startup();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(

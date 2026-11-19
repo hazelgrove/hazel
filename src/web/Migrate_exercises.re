@@ -17,27 +17,38 @@
  *   ===END===
  *
  * A file is only emitted if every editor passes (a) the parse-fixpoint
- * check (text |> Parser.to_zipper |> print == text; guards the backup_text
- * fallback) and (b) the persistent-decode equivalence check (the emitted
- * zipper sexp decodes and is segment-structurally equal to the reparse of
- * backup_text); failures are reported in the summary (and on stderr) and
- * the original file should be left in place.
+ * check (text |> PersistentZipper.parse_text |> print == text; guards the
+ * backup_text fallback, which parses the same way) and (b) the
+ * persistent-decode equivalence check (the emitted zipper sexp decodes and
+ * is segment-structurally equal to the reparse of backup_text); failures
+ * are reported in the summary (and on stderr) and the original file should
+ * be left in place.
+ *
+ * `--reindent` also re-indents every editor (the Format(Indent) action)
+ * before writing it. Indentation is the text's own spaces, owned by the
+ * author, so a plain refresh leaves it alone; the flag is for modules
+ * authored when the editor computed indentation at layout time, which
+ * were stored flat (every line at column 0).
  *
  * Build & run:
  *   dune build src/web/migrate_exercises.bc.js --profile dev
  *   node --stack-size=8192 --require ./test/idb_stub.js \
- *     _build/default/src/web/migrate_exercises.bc.js > /tmp/migrate_out.txt
- * then split the dump into files, e.g.:
+ *     _build/default/src/web/migrate_exercises.bc.js [--reindent] \
+ *     > /tmp/migrate_out.txt
+ * then split the dump into files and format them, e.g.:
  *   awk '/^===FILE: /{f=substr($0,10,length($0)-12); next}
  *        /^===END===$/{f=""; next} f{print > f}' /tmp/migrate_out.txt
+ *   dune fmt
  */
 open Haz3lcore;
 open Web;
 
+let reindent = Array.mem("--reindent", Sys.argv);
+
 /* Reset non-persistable refractor state before serialization, mirroring
  * CodeExercise.editor_pp (keeps manuals, resets multis/sample_focus). */
 let persist_zipper = (z: Zipper.t): PersistentZipper.t =>
-  z
+  (reindent ? Perform.reindent_zipper(z) : z)
   |> Zipper.update_refractors(_, Refractors.for_serialization)
   |> PersistentZipper.persist;
 
@@ -166,7 +177,7 @@ let emit_file = (f: file): string =>
  * FAILWITHS on parse failure, so before converting we verify for every
  * editor:
  *  (a) parse fixpoint:
- *      text |> Parser.to_zipper(~root) |> PersistentZipper.to_string == text
+ *      text |> PersistentZipper.parse_text(~root) |> persist == text
  *  (b) persistent-decode equivalence: the zipper sexp we emit decodes, and
  *      its segment structurally equals (ids ignored) the segment obtained
  *      by re-parsing backup_text. */
@@ -265,10 +276,10 @@ let seg_of_zipper = (z: Zipper.t): Base.segment =>
 let check_field = ({label, root, zipper}: field): option(string) => {
   let persisted = persist_zipper(zipper);
   let code = persisted.backup_text;
-  switch (Parser.to_zipper(~root, code)) {
-  | None => Some(label ++ ": reparse FAILED (Parser.to_zipper => None)")
+  switch (PersistentZipper.parse_text(~source=label, ~root, code)) {
+  | None => Some(label ++ ": reparse FAILED (PersistentZipper.parse_text)")
   | Some(z2) =>
-    let code2 = PersistentZipper.to_string(z2);
+    let code2 = PersistentZipper.persist(z2).backup_text;
     if (code2 != code) {
       Some(
         label

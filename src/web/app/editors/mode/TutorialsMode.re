@@ -407,20 +407,11 @@ module View = {
         ~tooltip="Reparse Editor",
       );
     let file_group_exercises = () =>
-      NutMenu.item_group(
-        ~inject,
-        "File",
-        [export_submission, import_submission],
-      );
+      NutMenu.item_group("File", [export_submission, import_submission]);
     let reset_group_exercises = () =>
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
     let dev_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "Developer Export",
         [instructor_export, instructor_transitionary_export],
       );

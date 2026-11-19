@@ -50,12 +50,6 @@ let rec flatten = (Node(v, c)) =>
 
 /* Two Tree */
 
-// @return `false` if the two trees have different structures
-let rec equal = (eq, Node(v1, c1), Node(v2, c2)) =>
-  eq(v1, v2) && List.equal(equal(eq), c1, c2);
-
-let equal_struct = (n1, n2) => equal((_, _) => true, n1, n2);
-
 // @raise `Invalid_argument` if the two trees have different structures
 let rec combine = (Node(v1, c1), Node(v2, c2)) =>
   Node((v1, v2), List.map2(combine, c1, c2));

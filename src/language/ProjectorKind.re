@@ -17,7 +17,9 @@ type t =
   | Livelit
   | TextArea
   | Table
-  | Csv;
+  | Csv
+  | Keybinding
+  | Color;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -29,6 +31,8 @@ let livelit_projectors: list(t) = [
   Table,
   Card,
   Livelit,
+  Keybinding,
+  Color,
 ];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
@@ -51,6 +55,8 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | Keybinding => "keybinding"
+  | Color => "color"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

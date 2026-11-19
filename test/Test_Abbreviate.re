@@ -24,15 +24,21 @@ let render_exp = (exp: Exp.t): string => {
   exp |> exp_to_seg |> seg_to_str;
 };
 
-/* Parse source string, abbreviate at given budget, render to string */
-let abbreviate_and_render = (~available: int, src: string): string => {
+let parse = (src: string): Exp.t =>
   switch (Parser.to_term(src, ~root=Exp)) {
-  | Some(term) =>
-    let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
-    render_exp(abbreviated);
+  | Some(term) => term
   | None => failwith("Failed to parse: " ++ src)
   };
+
+/* Abbreviate at given budget, render to string */
+let abbreviate_term_and_render = (~available: int, term: Exp.t): string => {
+  let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
+  render_exp(abbreviated);
 };
+
+/* Parse source string, abbreviate at given budget, render to string */
+let abbreviate_and_render = (~available: int, src: string): string =>
+  abbreviate_term_and_render(~available, parse(src));
 
 /* Measure rendered string length (display chars, matching ProbeProj.len_seg) */
 let rendered_length = (~available: int, src: string): int => {
@@ -40,27 +46,20 @@ let rendered_length = (~available: int, src: string): int => {
 };
 
 /* Full-length render (no abbreviation) */
-let full_render = (src: string): string => {
-  switch (Parser.to_term(src, ~root=Exp)) {
-  | Some(term) => render_exp(term)
-  | None => failwith("Failed to parse: " ++ src)
-  };
-};
-
-let full_length = (src: string): int => {
-  Util.Unicode.length(full_render(src));
-};
+let full_render = (src: string): string => render_exp(parse(src));
 
 /* Check monotonicity: sweeping budget from 0 to full_len,
    rendered length should be non-decreasing */
 let check_monotonicity = (name: string, src: string): unit => {
-  let max_budget = full_length(src) + 5;
+  /* Parsed once: the sweep varies only the budget */
+  let term = parse(src);
+  let max_budget = Util.Unicode.length(render_exp(term)) + 5;
   let violation = ref(None);
   let rec sweep = (budget: int, prev_len: int): unit =>
     if (budget > max_budget) {
       ();
     } else {
-      let rendered = abbreviate_and_render(~available=budget, src);
+      let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
       if (len < prev_len && violation^ == None) {
         violation :=
@@ -293,13 +292,15 @@ let budget_tests = [
 /* ===== Hard cap tests: rendered width must never exceed budget ===== */
 
 let check_hard_cap = (name: string, src: string): unit => {
-  let max_budget = full_length(src) + 5;
+  /* Parsed once: the sweep varies only the budget */
+  let term = parse(src);
+  let max_budget = Util.Unicode.length(render_exp(term)) + 5;
   let violation = ref(None);
   let rec sweep = (budget: int): unit =>
     if (budget > max_budget) {
       ();
     } else {
-      let rendered = abbreviate_and_render(~available=budget, src);
+      let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
       if (len > budget && violation^ == None) {
         violation :=
