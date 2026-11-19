@@ -480,6 +480,67 @@ let tests = (
         ),
       ),
     ),
+    /* A later alias of the same name must not capture references made by
+       earlier aliases: `Skel` means the first `T` (as in OCaml, cf.
+       haz3lcore's Skel.Stacks), so resolving the second `T` terminates. */
+    fully_consistent_typecheck(
+      "shadowing alias does not capture an earlier alias's reference",
+      {|type T = + A + B(T) in
+type Skel = T in
+type T = (output=[Skel]) in
+let x : T = (output=[B(A)]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "the same shadowing inside a module (haz3lcore's Skel.Stacks)",
+      {|type T = + A + B(T) in
+module Stacks = {
+  type Skel = T;
+  type T = (output=[Skel]);
+  let x : T = (output=[B(A)])
+} in
+let y : Stacks.T = (output=[A]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "shadowed alias resolves to the binding in scope at its definition",
+      {|type S = Int in
+type T = (a=S) in
+type S = Bool in
+let x : T = (a=1) in
+x.a + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias cycle through shadowing terminates",
+      {|type A = Int in
+type B = A in
+type A = B in
+let x : A = 1 in
+let y : B = x in
+y + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias shadowing a type parameter terminates",
+      {|typfun T -> fun (t : T) ->
+  type B = T in
+  type T = B in
+  let u : T = t in
+  u|},
+      Some(FTemp.(Typ.(poly(TPat.var("T"), arrow(var("T"), var("T")))))),
+    ),
+    synthesizes(
+      "alias captured by a later binding of a name it used while unbound",
+      {|type B = A in
+type A = B in
+let x : A = 1 in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
     test_case(
       "A self-referential alias is warned and does not loop (#1621)",
       `Quick,
@@ -580,21 +641,12 @@ let tests = (
         );
       },
     ),
-    // https://github.com/hazelgrove/hazel/issues/2570: goes red once type
-    // aliases resolve lexically (#2686).
+    // https://github.com/hazelgrove/hazel/issues/2570
     test_case(
-      "Known Bug: an alias that reaches itself through another alias loops",
+      "an alias that reaches itself through another alias terminates",
       `Quick,
       () =>
-      Alcotest.match_raises(
-        "statics",
-        fun
-        | Failure(msg) =>
-          String.starts_with(~prefix="weak_head_normalize exceeded", msg)
-        | _ => false,
-        () =>
-        ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
-      )
+      ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
