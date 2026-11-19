@@ -26,7 +26,7 @@ let syntactic_form: Exp.t = Dot(tup, lab) |> Exp.fresh;
 let dot_exp_segment =
   ExpToSegment.(
     exp_to_segment(
-      ~settings=Settings.of_core(~inline=true, CoreSettings.on),
+      ~settings=Settings.of_core(~inline=Inline, CoreSettings.on),
       syntactic_form,
     )
   );

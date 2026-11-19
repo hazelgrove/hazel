@@ -41,6 +41,7 @@ let (suite, exit_with_test_status) =
       Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
+      Test_HazelProtocol_JsonCodec.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
     ]

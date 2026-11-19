@@ -262,10 +262,10 @@ module M: Projector = {
       };
     switch (
       info.utility.lift_syntax(
-        ~inline=true,
         fun
         | Exp(e) => Exp(rewrite(e))
         | other => other,
+        Inline.Block,
         info.syntax,
       )
     ) {

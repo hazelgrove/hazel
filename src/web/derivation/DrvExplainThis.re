@@ -11,7 +11,7 @@ let exp_show =
       |> ExpToSegment.drv_exp_to_pretty(
            ~settings=
              ExpToSegment.Settings.of_core(
-               ~inline=true,
+               ~inline=Inline,
                globals.settings.core,
              ),
            ~sort=Jdmt,

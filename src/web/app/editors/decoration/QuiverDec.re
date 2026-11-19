@@ -125,19 +125,17 @@ let rest_position =
    as source text. Literal spaces are retained by the chip's white-space CSS. */
 let padding_nodes =
     (~font_metrics: FontMetrics.t, ~shape=Grout.Convex, text: string)
-    : list(Node.t) =>
+    : list(Node.t) => {
+  let chip_metrics: FontMetrics.t = {
+    col_width: font_metrics.col_width *. chip_font_scale,
+    row_height: font_metrics.row_height *. chip_font_scale,
+  };
   Token.to_list(text)
   |> List.map(c =>
        c == Token.implicit_hole_marker
-         ? EmptyHoleDec.view(
-             FontMetrics.{
-               col_width: font_metrics.col_width *. chip_font_scale,
-               row_height: font_metrics.row_height *. chip_font_scale,
-             },
-             shape,
-           )
-         : Node.text(c)
+         ? EmptyHoleDec.view(chip_metrics, shape) : Node.text(c)
      );
+};
 
 /* Chip segments: the remainder is the payload (full contrast); the
    typed prefix and later coalesced segments fade. */

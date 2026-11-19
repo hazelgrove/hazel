@@ -97,7 +97,7 @@ let print_any = (any: Any.t): string =>
   switch (
     any
     |> ExpToSegment.any_to_segment(
-         ~settings=ExpToSegment.Settings.editable(~inline=true),
+         ~settings=ExpToSegment.Settings.editable(~inline=Inline),
        )
     |> Printer.of_segment(~holes="?", _)
   ) {

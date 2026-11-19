@@ -23,7 +23,7 @@ let expected_type = info =>
     Printer.of_segment(
       ~holes="?",
       TypToSegment.typ_to_segment(
-        ~settings=ExpToSegment.Settings.of_core(~inline=true, settings),
+        ~settings=ExpToSegment.Settings.of_core(~inline=Inline, settings),
         ana,
       ),
     )

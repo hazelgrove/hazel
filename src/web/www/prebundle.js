@@ -1,9 +1,12 @@
-
 // This file is bundled into bundle.js as part of the build process.
-import {NinjaKeys} from 'ninja-keys';
-import hotkeys from 'hotkeys-js'
-import Algebrite from 'algebrite';
+import { NinjaKeys } from "ninja-keys";
+import Worker from 'web-worker';
+import hotkeys from "hotkeys-js";
+import Algebrite from "algebrite";
+import * as Plot from "@observablehq/plot";
+
 window.Algebrite = Algebrite;
+window.Plot = Plot;
 
 // ninja-keys leaves focus nowhere when it closes: hand it back to whatever
 // had it when the palette opened, unless the chosen action moved it.
@@ -42,16 +45,28 @@ hotkeys.filter = event => {
   }
 
   let flag = true;
-  const isInput = tagName === 'INPUT' && !['checkbox', 'radio', 'range', 'button', 'file', 'reset', 'submit', 'color'].includes(target.type);
+  const isInput =
+    tagName === "INPUT" &&
+    ![
+      "checkbox",
+      "radio",
+      "range",
+      "button",
+      "file",
+      "reset",
+      "submit",
+      "color",
+    ].includes(target.type);
   // ignore: isContentEditable === 'true', <input> and <textarea> when readOnly state is false, <select>
   if (
-    target.isContentEditable
-    || ((isInput || tagName === 'TEXTAREA' || tagName === 'SELECT') && !target.readOnly)
+    target.isContentEditable ||
+    ((isInput || tagName === "TEXTAREA" || tagName === "SELECT") &&
+      !target.readOnly)
   ) {
     flag = false;
   }
   return flag;
-  };
+};
 
 // ninja-keys binds a hotkeys-js handler for every hotkeyed action each time
 // `data` is set and never releases it, so a palette refreshed on every render
