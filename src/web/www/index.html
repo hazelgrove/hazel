@@ -60,35 +60,40 @@
 
   <script src="hazel.js"></script>
 
-  <!-- A frame-rate HUD, on with ?hud in the address (?hud=off, or none, leaves it off): the frames the browser drew
-       in the last second, the longest of them, and the last two seconds of frame times against a 60 fps frame
-       (16.7 ms, the green line). Timed with requestAnimationFrame, so a page busy for 300 ms shows as one 300 ms
-       frame, however the work was split. It reads nothing of Hazel's and sends nothing anywhere; a click on it
-       hides it. -->
+  <!-- A frame-rate HUD, off by default: the frames the browser drew in the last second, the longest of them, and the
+       last two seconds of frame times against a 60 fps frame (16.7 ms, the green line). The Flags configuration slide's
+       `hud` switch turns it on and off through window.hazelHud; ?hud in the address turns it on for that page, and
+       ?hud=off off, whatever the switch says. Timed with requestAnimationFrame, so a page busy for 300 ms shows as one
+       300 ms frame, however the work was split. It reads nothing of Hazel's and sends nothing anywhere; a click on it
+       hides it, and while it is off nothing runs. -->
   <script>
     (function () {
       var q = new URLSearchParams(location.search).get("hud");
-      if (q === null || /^(off|0|false|no)$/i.test(q)) return;
+      var forced = q === null ? null : !/^(off|0|false|no)$/i.test(q);
       var FRAME = 1000 / 60, SPAN = 2000, W = 180, H = 36;
-      var box = document.createElement("div");
-      box.id = "fps-hud";
-      box.title = "frames drawn in the last second; the longest; the last two seconds of frames (green: 16.7 ms, 60 fps). Click to hide.";
-      box.setAttribute("style", "position:fixed;top:8px;right:8px;z-index:2147483647;background:rgba(17,24,39,0.88);" +
-        "color:#f9fafb;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:6px 8px 5px;" +
-        "border-radius:6px;cursor:pointer;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,0.3)");
-      var big = document.createElement("div"), small = document.createElement("div"), cv = document.createElement("canvas");
-      big.setAttribute("style", "font-size:16px;font-weight:700");
-      small.setAttribute("style", "color:#d1d5db");
-      var dpr = window.devicePixelRatio || 1;
-      cv.width = W * dpr; cv.height = H * dpr;
-      cv.setAttribute("style", "display:block;margin-top:4px;width:" + W + "px;height:" + H + "px");
-      box.appendChild(big); box.appendChild(small); box.appendChild(cv);
-      box.addEventListener("click", function () { box.style.display = "none"; });
-      var add = function () { document.body.appendChild(box); };
-      if (document.body) add(); else document.addEventListener("DOMContentLoaded", add);
-      var g = cv.getContext("2d"), frames = [], last = 0, shown = 0;
+      var box = null, big, small, cv, g, dpr = 1, frames = [], last = 0, shown = 0, running = false;
       var colour = function (fps) { return fps >= 58 ? "#4ade80" : fps >= 30 ? "#fbbf24" : "#f87171"; };
+      function build() {
+        box = document.createElement("div");
+        box.id = "fps-hud";
+        box.title = "frames drawn in the last second; the longest; the last two seconds of frames (green: 16.7 ms, 60 fps). Click to hide.";
+        box.setAttribute("style", "position:fixed;top:8px;right:8px;z-index:2147483647;background:rgba(17,24,39,0.88);" +
+          "color:#f9fafb;font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:6px 8px 5px;" +
+          "border-radius:6px;cursor:pointer;user-select:none;box-shadow:0 1px 4px rgba(0,0,0,0.3)");
+        big = document.createElement("div"); small = document.createElement("div"); cv = document.createElement("canvas");
+        big.setAttribute("style", "font-size:16px;font-weight:700");
+        small.setAttribute("style", "color:#d1d5db");
+        dpr = window.devicePixelRatio || 1;
+        cv.width = W * dpr; cv.height = H * dpr;
+        cv.setAttribute("style", "display:block;margin-top:4px;width:" + W + "px;height:" + H + "px");
+        box.appendChild(big); box.appendChild(small); box.appendChild(cv);
+        box.addEventListener("click", function () { box.style.display = "none"; });
+        var add = function () { document.body.appendChild(box); };
+        if (document.body) add(); else document.addEventListener("DOMContentLoaded", add);
+        g = cv.getContext("2d");
+      }
       function tick(t) {
+        if (!running) return;
         if (last) frames.push([t, t - last]);
         last = t;
         while (frames.length && t - frames[0][0] > SPAN) frames.shift();
@@ -116,7 +121,19 @@
         g.fillRect(0, H - FRAME / top * H, W, 1);
         requestAnimationFrame(tick);
       }
-      requestAnimationFrame(tick);
+      function set(on) {
+        if (forced !== null) on = forced;
+        if (on) {
+          if (!box) build();
+          box.style.display = "";
+          if (!running) { running = true; frames = []; last = 0; requestAnimationFrame(tick); }
+        } else {
+          running = false;
+          if (box) box.style.display = "none";
+        }
+      }
+      window.hazelHud = set;
+      if (forced) set(true);
     })();
   </script>
 </html>
