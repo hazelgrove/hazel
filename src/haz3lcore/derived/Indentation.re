@@ -235,6 +235,8 @@ let rec go =
   /* stack-safe zip (List.combine is not tail-recursive) */
   let context =
     List.rev(List.rev_map2((ctx, lb) => (ctx, lb), context, prev_is_lb));
+  /* a case's rules: a fresh last line goes to rule level, for the next `|` */
+  let has_case_rule = List.exists(Piece.is_case_rule, complete_trimmed_seg);
   let (_, map) =
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx) => {
@@ -267,6 +269,17 @@ let rec go =
                   == Some(true) => base
             | (_, Some(next)) when Piece.is_case_rule(next) => base
             | (_, None) => base
+            /* A blank line at the end of a child, above the line its
+               closer starts (Enter on the child's last line): it is
+               inside the child, so it gets child level, not the
+               closer's. */
+            | (_, Some(Piece.Secondary(w)))
+                when
+                  not_top
+                  && !has_case_rule
+                  && Secondary.is_linebreak(w)
+                  && effective_next == None =>
+              max(level, base + 2)
             /* If next is linebreak but eff_next is None, effectively at end */
             | _ when effective_next == None => base
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
