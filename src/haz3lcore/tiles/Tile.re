@@ -114,8 +114,9 @@ let has_end = (d: Direction.t, t) =>
   };
 
 let nibs = (t: t) => {
-  let (l, _) = Mold.nibs(~index=l_shard(t), mold(t));
-  let (_, r) = Mold.nibs(~index=r_shard(t), mold(t));
+  let m = mold(t);
+  let (l, _) = Mold.nibs(~index=l_shard(t), m);
+  let (_, r) = Mold.nibs(~index=r_shard(t), m);
   (l, r);
 };
 

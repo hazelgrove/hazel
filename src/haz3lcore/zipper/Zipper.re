@@ -65,6 +65,11 @@ let remold = (z: t, ~root): t => {
 let remold_regrout = (d: Direction.t, z: t, ~root): t =>
   z |> remold(~root) |> regrout(d);
 
+/* ~regrout=false skips the regrout: Parser.to_zipper ~by_run regrouts
+   once at the end instead of after every insertion. */
+let remold_maybe_regrout = (~regrout: bool, d: Direction.t, z: t, ~root): t =>
+  regrout ? remold_regrout(d, z, ~root) : remold(z, ~root);
+
 /* Rescan ancestor-level siblings: converts standalone monotiles that
  * match a parent ancestor's missing shards, giving them the parent's
  * ID, then absorbs them into the parent via reassemble_parent-style
@@ -218,7 +223,10 @@ let rescan_parent_shards = (z: t): t => {
 let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => {
   let siblings = Siblings.rescan(z.relatives.siblings);
   let z =
-    if (siblings == z.relatives.siblings) {
+    /* Siblings.rescan hands back its argument exactly when nothing changed,
+       so identity is the whole test: a structural == would walk every
+       sibling and could never be the one to say "unchanged". */
+    if (siblings === z.relatives.siblings) {
       z;
     } else {
       let relatives =
@@ -941,10 +949,11 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let put_down_target = (d: Direction.t, target: Tile.t, z: t, ~root): t =>
+let put_down_target =
+    (~regrout=true, d: Direction.t, target: Tile.t, z: t, ~root): t =>
   z
   |> put_down_core([Tile(target)])
-  |> remold_regrout(Left, ~root)
+  |> remold_maybe_regrout(~regrout, Left, ~root)
   |> adj_pos(d);
 
 let put_down = (z: t, ~root): option(t) =>
