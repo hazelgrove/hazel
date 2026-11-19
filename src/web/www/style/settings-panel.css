@@ -149,10 +149,6 @@
   height: 0.7em;
 }
 
-#settings-panel .settings-toggle .toggle-switch.active {
-  background-color: var(--primary-accent);
-}
-
 #settings-panel .settings-toggle .toggle-switch.active .toggle-knob {
   margin-left: 0.75em;
   margin-right: 1px;

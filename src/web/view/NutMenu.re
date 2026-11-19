@@ -194,6 +194,12 @@ let stepper = (~globals: Globals.t): section => {
         Evaluation(EnableProof),
         "Enable proof-based stepping mode (experimental)",
       ),
+      toggle(
+        "Write out steps",
+        s.write_out_steps,
+        Evaluation(WriteOutSteps),
+        "Type every step: the stepper offers none",
+      ),
     ],
   };
 };

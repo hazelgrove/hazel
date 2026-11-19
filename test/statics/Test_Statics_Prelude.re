@@ -46,7 +46,6 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       j1 == j2 && List.equal(source_equal, s1, s2)
     | (DuplicateLabel(l1, t1), DuplicateLabel(l2, t2)) =>
       String.equal(l1, l2) && Typ.fast_equal(t1, t2)
-    | (CompareFun(t1), CompareFun(t2)) => Typ.fast_equal(t1, t2)
     | (DuplicateVar(n1, t1), DuplicateVar(n2, t2)) =>
       String.equal(n1, n2) && Typ.fast_equal(t1, t2)
     | (BadToken(s1), BadToken(s2)) => String.equal(s1, s2)
@@ -74,6 +73,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       && i1 == i2
       && Typ.fast_equal(t1, t2)
     | (IsMulti, IsMulti) => true
+    | (CompareFun(t1), CompareFun(t2)) => Typ.fast_equal(t1, t2)
     | (FreeConstructor(c1), FreeConstructor(c2)) => Constructor.equal(c1, c2)
     | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (

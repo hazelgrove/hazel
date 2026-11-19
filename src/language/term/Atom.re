@@ -159,11 +159,20 @@ let convert =
   | (Nat, String) => Ok(Bigint.to_string(v))
 
   | (Float, Float) => Ok(v)
-  | (Float, SInt) => Ok(int_of_float(v))
-  | (Float, Int) => Ok(Bigint.of_float(v))
+  | (Float, SInt) =>
+    Float.is_finite(v)
+      ? Ok(int_of_float(v)) : Error(InvalidOperationError.NonFiniteFloat)
+  | (Float, Int) =>
+    Float.is_finite(v)
+      ? Ok(Bigint.of_float(v)) : Error(InvalidOperationError.NonFiniteFloat)
   | (Float, Nat) =>
-    Float.(v < 0.0)
-      ? Error(InvalidOperationError.NegativeNat) : Ok(Bigint.of_float(v))
+    if (!Float.is_finite(v)) {
+      Error(InvalidOperationError.NonFiniteFloat);
+    } else if (Float.(v < 0.0)) {
+      Error(InvalidOperationError.NegativeNat);
+    } else {
+      Ok(Bigint.of_float(v));
+    }
   | (Float, Bool) => Ok(!Float.equal(v, 0.0))
   | (Float, String) => Ok(string_of_float(v))
 

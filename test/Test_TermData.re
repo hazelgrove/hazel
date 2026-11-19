@@ -13,7 +13,8 @@ let syntax_from_string = (s: string): Haz3lcore.CachedSyntax.t =>
 
 let root_piece_finds_grout = () => {
   let syntax = syntax_from_string("1 +");
-  let holes = Haz3lcore.Segment.holes(syntax.segment);
+  let holes =
+    Haz3lcore.Segment.holes(Haz3lcore.CachedSyntax.segment(syntax));
   check(bool, "parse produced at least one hole/grout", true, holes != []);
   List.iter(
     ~f=
@@ -45,7 +46,7 @@ let root_piece_finds_tile = () => {
           | Tile(t) => Some(t.id)
           | _ => None
           },
-      syntax.segment,
+      Haz3lcore.CachedSyntax.segment(syntax),
     );
   check(bool, "found tiles", true, tile_ids != []);
   List.iter(

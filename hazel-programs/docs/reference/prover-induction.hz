@@ -1,0 +1,23 @@
+# CASES AND INDUCTION #
+
+# A goal stuck on a variable can be split into cases, one per #
+# pattern the variable can match. #
+#   cases e      each case knows e == pattern, as the fact case_eq #
+#   induction e  each case instead knows the statement for the #
+#                smaller values inside it: ih_t for a tail t #
+# Use induction on a recursive type such as a list, and cases for #
+# anything else, such as a Bool test. Facts about e leave scope in #
+# an induction on e; revert a fact first to keep it. #
+
+theorem app_nil = forall xs: [Int] -> xs @ [] == xs proof
+  induction xs
+  | [] =>
+    from [] @ [] do step end;
+    rewrite refl end
+  | x :: t =>
+    from (x :: t) @ [] do step end;
+    from t @ [] do rewrite ih_t end end;
+    rewrite refl end
+  end
+in
+¿

@@ -71,7 +71,11 @@ module Ctr = {
   // Names here should not be anotherwise valid sum type constructor names.
   let of_int = n => mk(Bigint.to_string(n), 0);
   let of_sint = n => mk(string_of_int(n), 0);
-  let of_float = x => mk(string_of_float(x), 0);
+  /* Distinct exactly for the floats `==` tells apart (`Equality.atom`):
+     17 significant digits keep every float, `-0.0` prints as `-0`, and all
+     NaNs share one key. */
+  let of_float = x =>
+    mk(Float.is_nan(x) ? "nan" : Printf.sprintf("%.17g", x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
   let tuple_ctr = n => mk("tuple", n);
   let nil_ctr = mk("nil", 0);
@@ -131,7 +135,6 @@ module Ctr = {
       }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
-    | ProofOf(_) => Infinite
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
@@ -213,7 +216,7 @@ module Seen = {
   type t = {
     seen_ints: IntSet.t,
     seen_sints: SIntSet.t,
-    seen_floats: FloatSet.t,
+    seen_floats: Ctr.Set.t,
     seen_strings: StringSet.t,
     seen_ctrs: Ctr.Set.t,
     seen_all_ctrs: bool,
@@ -225,7 +228,7 @@ module Seen = {
   let init: t = {
     seen_ints: IntSet.empty,
     seen_sints: SIntSet.empty,
-    seen_floats: FloatSet.empty,
+    seen_floats: Ctr.Set.empty,
     seen_strings: StringSet.empty,
     seen_ctrs: Ctr.Set.empty,
     seen_all_ctrs: false,
@@ -425,7 +428,6 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
     | Parens(_)
@@ -550,7 +552,7 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_sint(0), col_type, unseen_pattern);
     | Atom(Float) =>
       let rec first_unused_float = n => {
-        FloatSet.mem(n, seen_in_col.seen_floats)
+        Ctr.Set.mem(Ctr.of_float(n), seen_in_col.seen_floats)
           ? first_unused_float(n +. 1.) : Ctr.of_float(n);
       };
 
@@ -564,7 +566,6 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
@@ -629,7 +630,6 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
-    | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
     | Parens(_)
@@ -711,16 +711,18 @@ module Submatrices = {
               seen.first_col_redundant_rows,
             ),
         }
-      | [Float(x), ..._] => {
+      | [Float(x), ..._] =>
+        let ctr = Ctr.of_float(x);
+        {
           ...seen,
-          seen_floats: seen.seen_floats |> FloatSet.add(x),
+          seen_floats: Ctr.Set.add(ctr, seen.seen_floats),
           first_col_redundant_rows:
             add_redundant_row_if(
-              FloatSet.mem(x, seen.seen_floats) || seen.seen_truth,
+              Ctr.Set.mem(ctr, seen.seen_floats) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
-        }
+        };
       | [String(s), ..._] => {
           ...seen,
           seen_strings: seen.seen_strings |> StringSet.add(s),
@@ -835,7 +837,8 @@ module Submatrices = {
     Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
   };
 
-  let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
+  let of_matrix =
+      (~strict_unknown: bool, m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
     let seen_data = seen(m, all_ctrs);
     let {
       seen_ints,
@@ -938,12 +941,7 @@ module Submatrices = {
                    SIntSet.to_list(seen_sints),
                  ),
                )
-            |> update_ctrs_with_truth(
-                 ctr_set_of_list(
-                   elt => {Ctr.of_float(elt)},
-                   FloatSet.to_list(seen_floats),
-                 ),
-               )
+            |> update_ctrs_with_truth(seen_floats)
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_string(elt)},
@@ -969,7 +967,12 @@ module Submatrices = {
 
     let first_col_exhaustive =
       switch (all_ctrs) {
-      | Unknown => true
+      /* A column of unknown type. At edit time it counts as covered, so
+       * an in-progress program doesn't flag a match whose scrutinee type
+       * isn't known yet. With `strict_unknown` (the prover) it is treated
+       * like `Infinite`: with no known constructor set, only a catch-all
+       * (a wildcard, a variable or a hole) covers it. */
+      | Unknown => strict_unknown ? seen_truth || seen_hole : true
       | Infinite => seen_truth || seen_hole
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
@@ -1001,7 +1004,7 @@ module type CheckMatrix = {
     redundant_rows,
   };
 
-  let check: (list(Constraint.t), Typ.t) => t;
+  let check: (~strict_unknown: bool=?, list(Constraint.t), Typ.t) => t;
 };
 
 module CheckMatrix: CheckMatrix = {
@@ -1084,7 +1087,8 @@ module CheckMatrix: CheckMatrix = {
     };
 
   // We assume col_tys is already normalized.
-  let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
+  let rec check_matrix =
+          (~strict_unknown: bool, m: Matrix.t, col_tys: list(Typ.t)): result => {
     switch (col_tys) {
     | [] => failwith("Empty column types.")
     | [first_col_ty, ...rem_col_tys] =>
@@ -1104,7 +1108,7 @@ module CheckMatrix: CheckMatrix = {
           first_col_redundant_rows,
           seen_data,
         } =
-          Submatrices.of_matrix(m, all_ctrs);
+          Submatrices.of_matrix(~strict_unknown, m, all_ctrs);
 
         let (is_exhaustive, unseen_pattern, redundant_rows) =
           Ctr.Map.fold(
@@ -1129,7 +1133,7 @@ module CheckMatrix: CheckMatrix = {
                   unseen_pattern: submatrix_unseen_pattern,
                   redundant_rows: submatrix_redundant_rows,
                 } =
-                  check_matrix(submatrix, col_tys);
+                  check_matrix(~strict_unknown, submatrix, col_tys);
 
                 let is_still_exhaustive =
                   is_exhaustive && is_submatrix_exhaustive;
@@ -1179,10 +1183,13 @@ module CheckMatrix: CheckMatrix = {
     };
   };
 
-  // IMPORTANT: ty should already be fully normalized.
-  let check = (xis: list(Constraint.t), ty: Typ.t): t => {
+  /* `ty` must already be fully normalized.
+   *
+   * With `strict_unknown`, a column of unknown type is not covered
+   * vacuously. The prover passes it; edit-time statics doesn't. */
+  let check = (~strict_unknown=false, xis: list(Constraint.t), ty: Typ.t): t => {
     let {is_exhaustive, unseen_pattern, redundant_rows} =
-      check_matrix(Matrix.of_constraints(xis), [ty]);
+      check_matrix(~strict_unknown, Matrix.of_constraints(xis), [ty]);
     {
       exhaustiveness:
         is_exhaustive

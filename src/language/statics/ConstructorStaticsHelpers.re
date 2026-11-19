@@ -48,7 +48,6 @@ let ctr_ana_typ =
     | Projector(_)
     | Rec(_)
     | Poly(_)
-    | ProofOf(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Sig(_) =>
