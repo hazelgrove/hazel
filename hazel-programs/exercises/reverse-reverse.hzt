@@ -30,5 +30,5 @@ in ¿
 
 @theorem
 theorem rev_rev =
-  forall xs:[Int] -> rev(rev(xs)) == xs
+  forall xs : [Int] -> rev(rev(xs)) == xs
 in ¿

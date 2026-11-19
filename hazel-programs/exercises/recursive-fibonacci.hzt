@@ -8,15 +8,17 @@ id=12f5e34d-d211-4332-91e2-815e9e183885 required_tests=5 provided_tests=0
 test_validation=1 mutation_testing=1 impl_grading=2
 
 @prompt
-Write test cases for, and then implement, a function that recursively determines the nth Fibonacci number. 
+Write test cases for, and then implement, a function that recursively determines the nth Fibonacci number.
+
 `fib(n)` is equivalent to the `n`th Fibonacci number, assuming `n >= 0`.
 
 @prelude
 ¿
 
 @code
-let fib : Int -> Int =
-  fun n ->¿
+let fib: Int -> Int =
+  fun n ->
+    ¿
 in ¿
 
 @your-tests

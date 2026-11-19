@@ -9,18 +9,26 @@ open Web;
 let text = (z: Zipper.t): string => MarkerParse.to_text(z);
 
 /* An exercise, editors as their text: two exercises with the same
-   description load the same cells with the same programs. */
-let describe = (e: Exercise.t): string =>
+   description load the same cells with the same programs. `normalize`
+   is applied to the prompt and to each program's text. */
+let describe = (~normalize=Fun.id, e: Exercise.t): string => {
+  let text = z => normalize(text(z));
   switch (e) {
   | Code(s) =>
-    CodeExercise.show_p((fmt, z) => Format.fprintf(fmt, "%S", text(z)), s)
+    CodeExercise.show_p(
+      (fmt, z) => Format.fprintf(fmt, "%S", text(z)),
+      {
+        ...s,
+        prompt: normalize(s.prompt),
+      },
+    )
   | Theorem(s) =>
     Printf.sprintf(
       "{id=%s; title=%S; module_name=%S; prompt=%S; max_points=%d; prelude=%S; lemmas=%S; theorem=%S}",
       Id.to_string(s.id),
       s.title,
       s.module_name,
-      s.prompt,
+      normalize(s.prompt),
       s.max_points,
       text(s.prelude),
       text(s.lemmas),
@@ -28,6 +36,7 @@ let describe = (e: Exercise.t): string =>
     )
   | Derivation(s) => "derivation " ++ s.title
   };
+};
 
 let to_text = (e: Exercise.t): string =>
   switch (ExerciseText.to_file(e)) {
@@ -347,6 +356,14 @@ let format_tests = [
 
 /* ---------- parity with the retired OCaml modules ---------- */
 
+/* The .hzt files fix some layouts (a starter's body hole on its own
+   line, cramped annotations), so programs and prompts are compared with
+   their whitespace removed. */
+let squash = (s: string): string =>
+  String.to_seq(s)
+  |> Seq.filter(c => !List.mem(c, [' ', '\n', '\t']))
+  |> String.of_seq;
+
 let old_modules: list(Exercise.t) = [
   Ex_OddlyRecursive.exercise,
   Ex_RecursiveFibonacci.exercise,
@@ -358,7 +375,12 @@ let parity_tests =
   |> List.concat_map(((old, (rel, _, e))) =>
        [
          test_case(rel ++ ": same exercise as its .ml module", `Quick, () =>
-           check(string, rel, describe(old), describe(e))
+           check(
+             string,
+             rel,
+             describe(~normalize=squash, old),
+             describe(~normalize=squash, e),
+           )
          ),
        ]
        @ (

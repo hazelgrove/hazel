@@ -8,7 +8,7 @@ id=3335e34d-d211-4332-91e2-815e9e183885 required_tests=6 provided_tests=2
 test_validation=1 mutation_testing=1 impl_grading=2
 
 @prompt
-Write a recursive function that determines whether the given integer is odd. 
+Write a recursive function that determines whether the given integer is odd.
 
 `odd(n)` is equivalent to `true` iff `n` is odd.
 
@@ -20,7 +20,8 @@ in ¿
 
 @code
 let odd: Int -> Bool =
-  fun n ->¿
+  fun n ->
+    ¿
 in ¿
 
 @your-tests
@@ -29,12 +30,11 @@ test not(not(true)) end;
 ¿
 
 @solution
-let odd:Int->Bool =
+let odd: Int -> Bool =
   fun x ->
-    if x < 0
-    then odd(-x)
+    if x < 0 then odd(-x)
     else if x == 0 then false
-    else not(odd(x-1))
+    else not(odd(x - 1))
 in ¿
 
 @bug always returns false
@@ -49,11 +49,12 @@ in ¿
 
 @bug incorrect base case
 let odd: Int -> Bool =
-  fun x -> if x < 0 then odd(-x)
-  else if x == 0 then true
-  else if x == 1 then true
-  else odd(x - 1) in
-¿
+  fun x ->
+    if x < 0 then odd(-x)
+    else if x == 0 then true
+    else if x == 1 then true
+    else odd(x - 1)
+in ¿
 
 @test
 test not(odd(0)) end;
