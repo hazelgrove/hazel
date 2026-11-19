@@ -547,3 +547,70 @@ ninja-keys {
   --ninja-modal-shadow: 0px 10px 20px var(--menu-shadow);
   --ninja-overflow-background: none;
 }
+
+/* PHONE (kept last: it overrides the page rules above). One column. The sidebar's panel opens as a sheet under the
+   code (both stay visible) and its tabs become a bar along the bottom,
+   with undo/redo at its left. */
+@media (max-width: 600px) {
+  #page {
+    grid-template: 2em auto minmax(0, 1fr) auto 2em auto / minmax(0, 1fr);
+    touch-action: manipulation; /* no double-tap zoom; pinch still works */
+    height: 100dvh; /* iOS Safari's 100vh runs under its bottom toolbar */
+  }
+  #top-bar,
+  #sample-focus-bar,
+  #main {
+    grid-column: 1;
+  }
+  #sidebars {
+    display: contents;
+  }
+  #sidebars > :empty {
+    display: none;
+  }
+  #side-bar {
+    grid-row: 4;
+    grid-column: 1;
+    width: auto !important; /* over a desktop resize's inline width */
+    min-width: 0;
+    height: 45vh;
+    z-index: var(--bottom-bar-z); /* over the code's overscan line */
+    border-left: none;
+    border-top: 0.6px solid var(--border-default);
+  }
+  #side-bar .resize-handle {
+    display: none;
+  }
+  #bottom-bar {
+    grid-row: 5;
+    grid-column: 1;
+  }
+  #persistent {
+    grid-row: 6;
+    grid-column: 1;
+    flex-direction: row;
+    width: auto;
+    gap: 0;
+    overflow: hidden;
+    border-left: none;
+    border-top: 0.6px solid var(--border-default);
+  }
+  #persistent .tabs {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+  #persistent .tab {
+    width: 2.75em;
+    height: 2.75em;
+  }
+  #persistent .tab.active {
+    border-right: none;
+    border-top: 0.2em solid var(--border-strong);
+    padding-left: 0;
+  }
+  #persistent .touch-history,
+  #side-bar .sheet-grabber {
+    display: flex;
+    flex-direction: row;
+  }
+}

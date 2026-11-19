@@ -7,6 +7,9 @@
 let get_elem_by_id: string => Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element);
 let get_elem_by_id_opt:
   string => option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+/** The ids of the elements whose id starts with the prefix; [] without a
+    DOM. */
+let ids_with_prefix: string => list(string);
 let get_elem_by_selector:
   string => Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element);
 let get_child_with_class:

@@ -200,6 +200,39 @@ let persistent_view =
   div(
     ~attrs=[Attr.id("persistent")],
     [
+      /* touch screens only (CSS): there is no Cmd+Z to put a drag back */
+      div(
+        ~attrs=[clss(["touch-history"])],
+        [
+          tab(
+            ~tooltip="Undo",
+            Icons.undo,
+            _ =>
+              Effect.Many([
+                globals.inject_global(Undo),
+                Effect.Stop_propagation,
+                Effect.Prevent_default,
+              ]),
+            false,
+          ),
+          div(
+            ~attrs=[clss(["redo"])],
+            [
+              tab(
+                ~tooltip="Redo",
+                Icons.undo,
+                _ =>
+                  Effect.Many([
+                    globals.inject_global(Redo),
+                    Effect.Stop_propagation,
+                    Effect.Prevent_default,
+                  ]),
+                false,
+              ),
+            ],
+          ),
+        ],
+      ),
       div(
         ~attrs=[clss(["tabs"])],
         (
@@ -365,6 +398,19 @@ let view =
       ? div(
           ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
           [
+            /* phones only (CSS): tap or swipe down to close the panel
+               (touch captures the pointer, so a swipe's release lands
+               here too) */
+            div(
+              ~attrs=[
+                clss(["sheet-grabber"]),
+                Attr.title("Close"),
+                Attr.on_pointerup(_ =>
+                  globals.inject_global(Set(Sidebar(ToggleShow)))
+                ),
+              ],
+              [div(~attrs=[clss(["sheet-grabber-pill"])], [])],
+            ),
             resize_handle(),
             switch (active_panel) {
             | LanguageDocumentation =>

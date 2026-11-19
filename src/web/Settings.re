@@ -53,6 +53,12 @@ module Model = {
       format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
       indentation_ux: true,
       flip_animations: true,
+      animate_all_edits: true,
+      drag_chain: Language.CoreSettings.DragChain.SameKind,
+      drag_push: true,
+      drag_composites: true,
+      drag_labels: true,
+      drag_tracks: true,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -128,7 +134,35 @@ module Store =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Settings;
-    let default = () => Model.init;
+    /* a phone (a touch screen whose short side is phone-sized, in
+       either orientation) starts with the sidebar closed: open, it
+       takes half the screen. Only a first visit; after that the saved
+       choice holds. */
+    let default = () => {
+      let global = Js_of_ocaml.Js.Unsafe.global;
+      let phone =
+        switch (
+          Js_of_ocaml.Js.Optdef.to_option(global##.screen),
+          Js_of_ocaml.Js.Optdef.to_option(global##.matchMedia),
+        ) {
+        | (Some(screen), Some(_)) =>
+          let w: float = screen##.width
+          and h: float = screen##.height;
+          let coarse: bool =
+            Js_of_ocaml.Js.to_bool(
+              global##matchMedia(Js_of_ocaml.Js.string("(pointer: coarse)"))##.matches,
+            );
+          coarse && min(w, h) <= 600.;
+        | _ => false
+        };
+      {
+        ...Model.init,
+        sidebar: {
+          ...Model.init.sidebar,
+          show: !phone,
+        },
+      };
+    };
   });
 
 module Update = {
@@ -171,6 +205,12 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | AnimateAllEdits
+    | DragChain
+    | DragPush
+    | DragComposites
+    | DragLabels
+    | DragTracks
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
@@ -255,6 +295,55 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | AnimateAllEdits => {
+          ...settings,
+          core: {
+            ...settings.core,
+            animate_all_edits: !settings.core.animate_all_edits,
+          },
+        }
+      | DragChain => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_chain:
+              Language.CoreSettings.DragChain.(
+                switch (settings.core.drag_chain) {
+                | Off => SameKind
+                | SameKind
+                | Everything => Off
+                }
+              ),
+          },
+        }
+      | DragPush => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_push: !settings.core.drag_push,
+          },
+        }
+      | DragComposites => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_composites: !settings.core.drag_composites,
+          },
+        }
+      | DragLabels => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_labels: !settings.core.drag_labels,
+          },
+        }
+      | DragTracks => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_tracks: !settings.core.drag_tracks,
           },
         }
       | DisplayWarnings => {

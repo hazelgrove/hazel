@@ -246,6 +246,43 @@ let code_display = (~globals: Globals.t): section => {
           "Enable flip animations for code changes",
         ),
         toggle(
+          "Animate all edits",
+          globals.settings.core.animate_all_edits,
+          AnimateAllEdits,
+          "Experimental: ghost-animate code movement on every edit",
+        ),
+        toggle(
+          "Drag ladders",
+          globals.settings.core.drag_chain
+          != Language.CoreSettings.DragChain.Off,
+          DragChain,
+          "A drag runs through its refactoring repeated, landing on the nearest step at release",
+        ),
+        toggle(
+          "Drag pushes through",
+          globals.settings.core.drag_push,
+          DragPush,
+          "A blocked drag carries its dependencies along or lifts to a helper",
+        ),
+        toggle(
+          "Drag composites",
+          globals.settings.core.drag_composites,
+          DragComposites,
+          "A drag runs on through extract, hoist, sink, merge and feed; a grabbed value moves its own line",
+        ),
+        toggle(
+          "Drag labels",
+          globals.settings.core.drag_labels,
+          DragLabels,
+          "Name each drag track's refactoring",
+        ),
+        toggle(
+          "Drag tracks",
+          globals.settings.core.drag_tracks,
+          DragTracks,
+          "Draw drag tracks and their target dots",
+        ),
+        toggle(
           "Line numbers",
           globals.settings.line_numbers,
           ToggleLineNumbers,

@@ -3684,6 +3684,9 @@ let exp_to_segment =
   |> uniquify_repeated_tiles;
 };
 
+let pat_to_segment = (~settings: Settings.t, pat: Pat.t): Segment.t =>
+  pat_to_pretty(~settings, pat) |> PrettySegment.select;
+
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
   let any =

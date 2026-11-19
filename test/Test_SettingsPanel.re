@@ -38,7 +38,41 @@ let old_blob = () => {
   );
 };
 
+/* settings saved while drag refactoring was a toggle still load, keeping
+   the rest of what was saved */
+let removed_drag_toggle = () => {
+  let saved = {
+    ...Settings.Model.init,
+    core: {
+      ...Settings.Model.init.core,
+      flip_animations: false,
+    },
+  };
+  let rec add = (s: Sexplib.Sexp.t): Sexplib.Sexp.t =>
+    switch (s) {
+    | List([Atom("core"), List(fields)]) =>
+      List([
+        Atom("core"),
+        List([List([Atom("drag_refactor"), Atom("true")]), ...fields]),
+      ])
+    | List(items) => List(List.map(add, items))
+    | atom => atom
+    };
+  let loaded =
+    Settings.Model.persistent_of_sexp(
+      add(Settings.Model.sexp_of_persistent(saved)),
+    );
+  check(bool, "flip_animations kept", false, loaded.core.flip_animations);
+};
+
 let tests = (
   "SettingsPanel",
-  [test_case("settings saved before the panel load", `Quick, old_blob)],
+  [
+    test_case("settings saved before the panel load", `Quick, old_blob),
+    test_case(
+      "settings saved with the drag toggle load",
+      `Quick,
+      removed_drag_toggle,
+    ),
+  ],
 );
