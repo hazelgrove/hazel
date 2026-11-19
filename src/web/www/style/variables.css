@@ -17,7 +17,11 @@
   --line-height: 1.45;
   --base-font-size: 13pt;
   --code-font: "Source Code Pro", monospace;
-  --ui-font: "Helvetica Neue";
+  /* The interface's font, from the reader's own machine: Hazel ships no copy
+     (Helvetica Neue is a commercial typeface, and its files' notice forbids
+     redistribution). A Mac has Helvetica Neue; elsewhere, Helvetica's usual
+     stand-ins. */
+  --ui-font: "Helvetica Neue", Helvetica, Arial, sans-serif;
   --eval-recalc-visual-delay: 180ms;
 
 

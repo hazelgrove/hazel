@@ -1,18 +1,4 @@
 @font-face {
-  font-family: "Helvetica Neue";
-  font-style: normal;
-  font-weight: normal;
-  src: url("fonts/HelveticaNeue-Regular.woff2") format("woff2");
-}
-
-@font-face {
-  font-family: "Helvetica Neue";
-  font-style: normal;
-  font-weight: bold;
-  src: url("fonts/HelveticaNeue-Bold.woff2") format("woff2");
-}
-
-@font-face {
   font-family: "Source Code Pro";
   font-weight: normal;
   font-style: normal;
