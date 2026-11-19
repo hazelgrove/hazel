@@ -50,8 +50,10 @@ module Yielding = {
   type continuation('a) =
     | Continuation(t('b), callstack('b, 'a), int): continuation('a);
 
+  /* A finished slice carries the run's total step count, across all its
+     slices: the work done, which Evaluator.evaluate_counting_work reports. */
   type slice('a) =
-    | SliceDone('a)
+    | SliceDone('a, int)
     | SliceYielded(continuation('a));
 
   let start = t => Continuation(t, Finished, 0);
@@ -95,7 +97,7 @@ module Yielding = {
           )
         | Done(x) =>
           switch (callstack) {
-          | Finished => SliceDone(x)
+          | Finished => SliceDone(x, step_counter)
           | Continue(f, callstack) =>
             run_slice(
               ~step_budget,
