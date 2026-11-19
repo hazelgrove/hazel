@@ -89,7 +89,9 @@ module Update = {
       (~settings: Language.CoreSettings.t, ~a: Action.t, state: Model.state) => {
     /* We clear the TyDi (unparsed) buffer on every action except Accept.
      * For the LLM (parsed) buffer, we accept resize actions to permit
-     * incremental acceptance token-by-token or line-by-line. */
+     * incremental acceptance token-by-token or line-by-line.
+     * No buffer, nothing to clear: the syntax cache survives (e.g. a
+     * plain caret move). */
     let is_local_resize = (a: Action.t) =>
       switch (a) {
       | Select(Resize(Local(_))) => true
@@ -97,6 +99,7 @@ module Update = {
       };
     settings.assist
     && settings.statics
+    && Selection.is_buffer(state.zipper.selection)
     && a != Buffer(Accept)
     && !(
          Selection.non_empty_parsed_buffer(state.zipper.selection)
@@ -172,6 +175,17 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+
+    /* 4. SetModel isn't an edit, but a syntax projector's model lives in
+     * the segment. (Refractor models don't; CachedSyntax.calculate
+     * detects those.) */
+    let syntax =
+      switch (a) {
+      | Project(SetModel(_, kind, _))
+          when !ProjectorCore.Kind.is_refractor(kind) =>
+        CachedSyntax.mark_old(syntax)
+      | _ => syntax
+      };
 
     Model.{
       root,
