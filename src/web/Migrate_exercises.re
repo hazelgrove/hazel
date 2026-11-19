@@ -359,6 +359,26 @@ let registry_warnings = (): list(string) => {
 
 /* ---------- main ---------- */
 
+/* `--hzt`: instead, print every registered code and theorem exercise as
+   .hzt text (ExerciseText.to_file), one ===FILE=== block per exercise
+   under hazel-programs/exercises/. */
+let () =
+  if (Array.mem("--hzt", Sys.argv)) {
+    ExerciseSettings_base.exercises
+    |> List.iter(e =>
+         switch (ExerciseText.to_file(e)) {
+         | Some((name, text)) =>
+           print_string(
+             "===FILE: hazel-programs/exercises/" ++ name ++ "===\n",
+           );
+           print_string(text);
+           print_string("===END===\n");
+         | None => ()
+         }
+       );
+    exit(0);
+  };
+
 let () = {
   let summary = ref([]);
   files

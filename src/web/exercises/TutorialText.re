@@ -79,10 +79,11 @@ let parse_flags = (s: sections, body: string): sections => {
   );
 };
 
-/* The section a marker line opens. Text before any marker is `Code`.
-   Adding a section here is a type error in `marker_of_line` until its marker
-   text is given, and a section is read back out under the same constructor
-   it was filed under, so there is no second spelling to keep in step. */
+/* The section a marker line opens (the line syntax is HztText's). Text
+   before any marker is `Code`. Adding a section here is a type error in
+   `marker_of_name` until its marker text is given, and a section is read
+   back out under the same constructor it was filed under, so there is no
+   second spelling to keep in step. */
 [@deriving eq]
 type marker =
   | Title
@@ -95,33 +96,31 @@ type marker =
   | Hints
   | Flags;
 
-let marker_of_line = (line: string): option(marker) =>
-  switch (String.trim(line)) {
-  | "@title" => Some(Title)
-  | "@prompt" => Some(Prompt)
-  | "@code" => Some(Code)
-  | "@test" => Some(Test)
-  | "@solution" => Some(Solution)
-  | "@hint" => Some(Hint)
-  | "@reference" => Some(Reference)
-  | "@hints" => Some(Hints)
-  | "@flags" => Some(Flags)
+let marker_of_name = (name: string): option(marker) =>
+  switch (name) {
+  | "title" => Some(Title)
+  | "prompt" => Some(Prompt)
+  | "code" => Some(Code)
+  | "test" => Some(Test)
+  | "solution" => Some(Solution)
+  | "hint" => Some(Hint)
+  | "reference" => Some(Reference)
+  | "hints" => Some(Hints)
+  | "flags" => Some(Flags)
   | _ => None
   };
 
-/* Every content line tagged with the section it fell in, in file order. */
+/* Every content line tagged with the section it fell in, in file order.
+   Lesson markers take no argument: `@title foo` is a line of text. */
 let tag_lines = (content: string): list((marker, string)) =>
-  String.split_on_char('\n', content)
-  |> List.fold_left(
-       ((tagged, cur), line) =>
-         switch (marker_of_line(line)) {
-         | Some(m) => (tagged, m)
-         | None => ([(cur, line), ...tagged], cur)
-         },
-       ([], Code),
-     )
-  |> fst
-  |> List.rev;
+  HztText.sections(
+    ~marker_of=(name, arg) => arg == "" ? marker_of_name(name) : None,
+    ~default=Code,
+    content,
+  )
+  |> List.concat_map(({marker, lines, _}: HztText.section(marker)) =>
+       List.map(line => (marker, line), lines)
+     );
 
 /* One section's lines, newline-terminated, in file order; "" if it has none. */
 let body = (tagged: list((marker, string)), m: marker): string =>
@@ -223,22 +222,8 @@ let title_of = (rel: string): string => {
 let id_string = (i: int): string =>
   Printf.sprintf("%08x-7507-4000-8000-000000000000", 0x70000000 + i);
 
-/* Fast-first text->zipper (FastParse, then the recovering parser); a
-   total parse failure loads an empty buffer rather than failing boot. */
-let zipper_of =
-    (~label: string, ~rel: string, text: string): Haz3lcore.Zipper.t =>
-  switch (
-    Haz3lcore.PersistentZipper.parse_text(
-      ~source=label ++ " of " ++ rel,
-      ~root=Exp,
-      text,
-    )
-  ) {
-  | Some(z) => z
-  | None =>
-    print_endline("PARSE FAILED (" ++ label ++ " of " ++ rel ++ ")");
-    Haz3lcore.Zipper.init();
-  };
+let zipper_of = (~label: string, ~rel: string, text: string) =>
+  HztText.zipper_of(~source=label ++ " of " ++ rel, text);
 
 let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
   let s = parse_sections(raw);
