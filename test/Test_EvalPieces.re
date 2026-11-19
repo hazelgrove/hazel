@@ -139,6 +139,7 @@ let post =
   | Evaluate(posted) => posted
   | EvaluateShared(_) => fail("decoded an EvaluateShared")
   | ResetResponses => fail("decoded a ResetResponses")
+  | Record(_) => fail("decoded a Record")
   };
 };
 

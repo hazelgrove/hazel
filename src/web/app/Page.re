@@ -58,8 +58,13 @@ module Store = {
       ~instructor_mode=m.globals.settings.instructor_mode,
       m.editors,
     );
-    Globals.Model.save(m.globals);
-    ExplainThisModel.Store.save(m.explain_this);
+    /* (^report(51)) timed for the check, with ScratchPersist's parts */
+    Util.BenchMarks.time("save: the settings", () =>
+      Globals.Model.save(m.globals)
+    );
+    Util.BenchMarks.time("save: explain this", () =>
+      ExplainThisModel.Store.save(m.explain_this)
+    );
   };
 };
 
@@ -184,6 +189,8 @@ module Update = {
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
+    /* (^ticket(722)) a livelit's transient event: draw again, nothing else (AppBridge.livelit_repaint) */
+    | LivelitRepaint
     | Start
     | Save;
 
@@ -626,6 +633,14 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    /* a new record, so the page's view runs again (Bonsai compares the model by ===); every editor in it the same,
+       so their memos hold; Main.apply skips the calculate phase for it */
+    | LivelitRepaint =>
+      {
+        ...model,
+        selection: model.selection,
+      }
+      |> Updated.return_quiet
     | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
@@ -915,6 +930,72 @@ module MetaListener = {
   };
 };
 
+/* (^report(51); Matthew, 2026-11-09: "it runs in its own thread,
+   independent of anything else, and doesn't hold up anything. It's not
+   incremental, it's just asynchronous", and "no memoization, but
+   isolation, instead") The sidebar's outline is not built in the page's
+   view. Each view leaves the outline it would build ([make]); it is built
+   in a task of its own after the browser has painted, from the latest
+   one, and the view draws the last outline built. When that is a new
+   outline, the page is asked to draw again. A browser gives a page one
+   thread for its DOM, so this is a task of that thread, not another
+   thread: an input that comes while it runs waits for it, but no view
+   and no paint does. (After a click on the Witch, build 12, the outline
+   was built three times inside the page's views, 44 to 51 ms each.)
+   [stale] says an action other than this redraw has come since the last
+   build was asked for (Main.apply sets it); without it each build's
+   redraw would ask for the next build, forever. An action that comes
+   while a build waits asks for one more. A livelit's own redraw does not set it
+   either: it changes nothing the outline reads. */
+/* (Node has a None of its own, an empty node: hence Stdlib.Option.None) */
+module OutlineAsync = {
+  let shown: ref(option(Node.t)) = ref(Stdlib.Option.None);
+  let latest: ref(option(unit => Node.t)) = ref(Stdlib.Option.None);
+  let stale = ref(true);
+  let scheduled = ref(false);
+  let build = () => {
+    scheduled := false;
+    switch (latest^) {
+    | None => ()
+    | Some(make) =>
+      latest := Stdlib.Option.None;
+      let built = Util.BenchMarks.time("outline, on its own", make);
+      /* (^report(51)) the outline's memo gives back the very node when
+         nothing it shows has changed: then no redraw of the page */
+      let changed =
+        switch (shown^) {
+        | Some(old) => old !== built
+        | Stdlib.Option.None => true
+        };
+      shown := Some(built);
+      if (changed) {
+        switch (Haz3lcore.AppBridge.livelit_repaint^) {
+        | Some(f) => Effect.Expert.handle_non_dom_event_exn(f())
+        | None => ()
+        };
+      };
+    };
+  };
+  /* the last outline built; [make] builds the next, after the paint, if
+     an action has come since */
+  let get = (make: unit => Node.t): Node.t => {
+    latest := Some(make);
+    if (stale^ && ! scheduled^) {
+      stale := false;
+      scheduled := true;
+      ignore(
+        Dom_html.window##requestAnimationFrame(
+          Js.wrap_callback(_ => ignore(Dom_html.setTimeout(build, 0.))),
+        ),
+      );
+    };
+    switch (shown^) {
+    | Some(n) => n
+    | None => div([])
+    };
+  };
+};
+
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
     MetaListener.sync(down =>
@@ -1177,6 +1258,7 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
+    Haz3lcore.AppBridge.livelit_repaint := Some(() => inject(LivelitRepaint));
     /* the slide program's dynamics, at the inspector's right end */
     let dynamics =
       switch (editors) {
@@ -1200,7 +1282,10 @@ module View = {
            })
       | _ => None
       };
-    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
+    let bottom_bar =
+      Util.BenchMarks.time("view: bottom bar", () =>
+        CursorInspector.view(~globals, ~dynamics?, cursor)
+      );
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
@@ -1210,23 +1295,26 @@ module View = {
       | _ => None
       };
     let sidebar =
-      Sidebar.view(
-        ~globals,
-        ~explain_this_inject=
-          (action: ExplainThisUpdate.update) => inject(ExplainThis(action)),
-        ~explainThisModel,
-        ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
-        ~editors,
-        ~selection=model.selection,
-        ~editor=Update.get_editor(model),
-        ~problem_editors=Update.get_problem_editors(model),
-        ~signal=
-          fun
-          | MakeActive(s: Selection.t) => inject(MakeActive(s)),
-        ~log_model,
-        ~log_count,
-        ~cursor,
-        ~tutorial_reference,
+      Util.BenchMarks.time("view: sidebar", () =>
+        Sidebar.view(
+          ~globals,
+          ~explain_this_inject=
+            (action: ExplainThisUpdate.update) =>
+              inject(ExplainThis(action)),
+          ~explainThisModel,
+          ~editors_inject=(a: Editors.Update.t) => inject(Editors(a)),
+          ~editors,
+          ~selection=model.selection,
+          ~editor=Update.get_editor(model),
+          ~problem_editors=Update.get_problem_editors(model),
+          ~signal=
+            fun
+            | MakeActive(s: Selection.t) => inject(MakeActive(s)),
+          ~log_model,
+          ~log_count,
+          ~cursor,
+          ~tutorial_reference,
+        )
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
@@ -1238,15 +1326,17 @@ module View = {
           visible_rows: None,
         };
     let editors_view =
-      Editors.View.view(
-        ~globals=editors_globals,
-        ~signal=
-          fun
-          | MakeActive(selection) => inject(MakeActive(selection)),
-        ~inject=a => inject(Editors(a)),
-        ~inject_explainthis=a => inject(ExplainThis(a)),
-        ~selection=Some(selection),
-        model.editors,
+      Util.BenchMarks.time("view: editors", () =>
+        Editors.View.view(
+          ~globals=editors_globals,
+          ~signal=
+            fun
+            | MakeActive(selection) => inject(MakeActive(selection)),
+          ~inject=a => inject(Editors(a)),
+          ~inject_explainthis=a => inject(ExplainThis(a)),
+          ~selection=Some(selection),
+          model.editors,
+        )
       );
 
     /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
@@ -1257,8 +1347,13 @@ module View = {
       | Documentation(m) => Some(("doc", m))
       | _ => None
       };
+    /* (^report(51)) timed: after an edit on the Witch the main view spent
+       7 to 10 ms between the editors and the sample focus bar with no mark
+       (run 42818821410) */
     let outline_mark =
-      OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper);
+      Util.BenchMarks.time("view: outline mark", () =>
+        OutlineControl.mark(~deck, ~zipper=current_editor.editor.state.zipper)
+      );
     OutlineFollow.mark := outline_mark;
     let outline_marks =
       create(
@@ -1269,25 +1364,32 @@ module View = {
         },
       );
     let outline =
-      OutlineControl.view(
-        ~arrows=globals.settings.outline_arrows,
-        ~deck,
-        ~statics=current_editor.statics,
-        ~segment=Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
-        ~inject=a => inject(Editors(Scratch(Outline(a)))),
-        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
-        ~jump=id => globals.inject_global(JumpToTile(id)),
-        ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
-        ~statics_on=globals.settings.core.statics,
+      Util.BenchMarks.time("view: outline asked for", () =>
+        OutlineAsync.get(() =>
+          OutlineControl.view(
+            ~arrows=globals.settings.outline_arrows,
+            ~deck,
+            ~statics=current_editor.statics,
+            ~segment=
+              Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
+            ~inject=a => inject(Editors(Scratch(Outline(a)))),
+            ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+            ~jump=id => globals.inject_global(JumpToTile(id)),
+            ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+            ~statics_on=globals.settings.core.statics,
+          )
+        )
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
     let closure_cursor_bar =
-      SampleFocusBar.view(
-        ~globals,
-        ~refractors=current_editor.editor.state.zipper.refractors,
-        ~info_map=current_editor.statics.info_map,
-        ~indicated_id,
+      Util.BenchMarks.time("view: sample focus bar", () =>
+        SampleFocusBar.view(
+          ~globals,
+          ~refractors=current_editor.editor.state.zipper.refractors,
+          ~info_map=current_editor.statics.info_map,
+          ~indicated_id,
+        )
       );
 
     /* Track the range only while something culls by it and only for
@@ -1335,8 +1437,12 @@ module View = {
       outline,
       outline_marks,
       bottom_bar,
-      CursorInspector.expanded_view(~globals, cursor),
-      ContextInspector.view(~globals, cursor.info),
+      Util.BenchMarks.time("view: expanded inspector", () =>
+        CursorInspector.expanded_view(~globals, cursor)
+      ),
+      Util.BenchMarks.time("view: context inspector", () =>
+        ContextInspector.view(~globals, cursor.info)
+      ),
       HoverRuleSpec.view(~globals),
     ];
   };
@@ -1353,15 +1459,21 @@ module View = {
     Haz3lcore.ProbeProj.Settings.on_sticky_toggle :=
       (() => inject(Globals(Set(SampleStickyInPlace))));
     let cursor =
-      Selection.get_cursor_info(~inject, ~selection=model.selection, model);
-    NinjaKeys.initialize(
-      ~overrides=model.globals.settings.shortcut_overrides,
-      cursor.contextual_actions,
+      Util.BenchMarks.time("view: cursor info", () =>
+        Selection.get_cursor_info(~inject, ~selection=model.selection, model)
+      );
+    Util.BenchMarks.time("view: ninja keys", () =>
+      NinjaKeys.initialize(
+        ~overrides=model.globals.settings.shortcut_overrides,
+        cursor.contextual_actions,
+      )
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view]
-      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
+      @ Util.BenchMarks.time("view: main view", () =>
+          main_view(~log_model, ~get_log_and, ~cursor, ~inject, model)
+        ),
     );
   };
 };

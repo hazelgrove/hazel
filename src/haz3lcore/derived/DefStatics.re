@@ -1151,6 +1151,16 @@ let surrogate =
 /* compute one item's statics in isolation: body swapped for a hole. a
    nested item computed from its previous version also returns the keys
    its map changed at */
+/* (^ticket(721)) an item made without analysis: given the item as it was and
+   its new node, the item patched and the keys of its map that changed, or
+   None to analyze it as usual. ModelPatch sets it around one calc, for a
+   livelit's commit that changed only literals of its model; calc_chain asks
+   it of an item that is not clean, in its place, in the same context */
+let item_patch: ref(option((item, Exp.t) => option((item, list(Id.t))))) =
+  ref(None);
+/* how many items the last calc patched, for the check's mark */
+let items_patched = ref(0);
+
 let rec calc_item =
         (
           ~settings,
@@ -1826,7 +1836,7 @@ and calc_chain =
           changes,
         );
       | _ =>
-        let (it, touched) =
+        let analyzed = () =>
           calc_item(
             ~settings,
             ~probe_ids,
@@ -1840,6 +1850,18 @@ and calc_chain =
             ~ctx_in=ctx,
             n,
           );
+        let (it, touched) =
+          switch (item_patch^, prev_it) {
+          | (Some(patch), Some(q))
+              when !moved_in && ctx === q.d_ctx_in && !probe_dirty(q) =>
+            switch (patch(q, n)) {
+            | Some((it, keys)) =>
+              incr(items_patched);
+              (it, Some(keys));
+            | None => analyzed()
+            }
+          | _ => analyzed()
+          };
         let (p_exports, p_map) =
           switch (prev_it) {
           | Some(q) => (q.d_exports, q.d_map)

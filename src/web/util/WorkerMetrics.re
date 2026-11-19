@@ -125,7 +125,8 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
       switch (msg) {
       | WorkerServer.ClientMessage.Evaluate({batch, _})
       | WorkerServer.ClientMessage.EvaluateShared(_, {batch, _}) => batch
-      | WorkerServer.ClientMessage.ResetResponses => []
+      | WorkerServer.ClientMessage.ResetResponses
+      | WorkerServer.ClientMessage.Record(_) => []
       };
     push({
       id,

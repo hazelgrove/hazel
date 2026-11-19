@@ -64,6 +64,11 @@ let ctx_init: option(Operators.mode) => Ctx.t = {
 
 let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
+/* (^ticket(766)) builtins made at run time: mixed mode's compiled functions (HazelJitMixed), each a name and what it
+   does with its argument, looked up when forms_init has no such name. Empty unless mixed mode rewrote the program. */
+let made_at_run_time: Hashtbl.t(string, DHExp.t => option(DHExp.t)) =
+  Hashtbl.create(16);
+
 let env_init: Environment.t(Exp.t) =
   builtins
   |> List.map(imp_of_builtin)

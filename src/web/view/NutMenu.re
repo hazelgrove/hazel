@@ -373,6 +373,12 @@ let developer = (~globals: Globals.t): section => {
         "Highlight code pending re-evaluation after edits",
       ),
       toggle(
+        "Compiled views",
+        globals.settings.jit_views,
+        JitViews,
+        "Run livelits' views as JavaScript compiled from their Hazel (hazel-jit); off, the interpreter runs them",
+      ),
+      toggle(
         "Debug sidebar",
         globals.settings.show_debug_panel,
         ShowDebugPanel,

@@ -1,0 +1,12 @@
+# How a line is cast: three coins, or the yarrow stalks #
+type Method = + Coins + Yarrow in
+# A line, by its value: 6 old yin, 7 young yang, 8 young yin, 9 old yang. Old lines are changing lines. #
+type Line = + OldYin + YoungYang + YoungYin + OldYang in
+# One line cast: the line, its value, and how it came: the three coins (3 heads, 2 tails), or the stalks set aside at each of the three divisions #
+type Cast = (line = Line, value = Int, counts = [Int]) in
+# A trigram, three lines: its number (0 to 7), name and image #
+type Trigram = (number = Int, name = String, image = String) in
+# A hexagram: its number in the King Wen order (1 to 64), and its name #
+type Hexagram = (number = Int, name = String) in
+# The reading so far, from the lines cast, bottom first #
+type Reading = (cast = Int, lower = Trigram, upper = Trigram, primary = Hexagram, changing = [Int], relating = Hexagram) in

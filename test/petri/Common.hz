@@ -1,0 +1,42 @@
+# the i-th of a list of Ints, 0 past its end #
+let nth = fun (xs, i) : ([Int], Int) ->
+  case xs
+  | [] => 0
+  | x :: rest => if i == 0 then x else nth(rest, i - 1)
+  end;
+let len = fun xs : [Int] ->
+  case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+# the i-th transition, if there is one #
+let pick = fun (ts, i) : ([Transition], Int) ->
+  case ts
+  | [] => None
+  | t :: rest => if i == 0 then Some(t) else pick(rest, i - 1)
+  end;
+# every input place holds at least its arc's weight #
+let has = fun (m, arcs) : ([Int], [Arc]) ->
+  case arcs
+  | [] => true
+  | a :: rest => nth(m, a.place) >= a.weight && has(m, rest)
+  end;
+let enabled = fun (m, t) : ([Int], Transition) -> has(m, t.inputs);
+# the indices of the transitions that can fire #
+let ready = fun (m, ts, i) : ([Int], [Transition], Int) ->
+  case ts
+  | [] => []
+  | t :: rest =>
+    if enabled(m, t) then i :: ready(m, rest, i + 1)
+    else ready(m, rest, i + 1)
+  end;
+# firing: take each input's tokens, then put each output's #
+let takes = fun (arcs, k) : ([Arc], Cmd) ->
+  case arcs
+  | [] => k
+  | a :: rest => Take(a.place, a.weight, takes(rest, k))
+  end;
+let puts = fun (arcs, k) : ([Arc], Cmd) ->
+  case arcs
+  | [] => k
+  | a :: rest => Put(a.place, a.weight, puts(rest, k))
+  end;
+let fire = fun t : Transition ->
+  Say(t.name, takes(t.inputs, puts(t.outputs, Done)))

@@ -338,24 +338,26 @@ let view =
       ~tutorial_reference: option(TutorialReferencePanel.context),
     ) => {
   let problem_collection =
-    Haz3lcore.ProblemCollection.make(
-      ~display_warnings=globals.settings.core.display_warnings,
-      List.map(
-        ((label, editors: list(CodeWithStatics.Model.t))) =>
-          Haz3lcore.ProblemCollection.{
-            label,
-            sources:
-              List.map(
-                (e: CodeWithStatics.Model.t) =>
-                  Haz3lcore.ProblemCollection.{
-                    statics: e.statics,
-                    syntax: e.editor.syntax,
-                  },
-                editors,
-              ),
-          },
-        problem_editors,
-      ),
+    Util.BenchMarks.time("view: sidebar's problems", () =>
+      Haz3lcore.ProblemCollection.make(
+        ~display_warnings=globals.settings.core.display_warnings,
+        List.map(
+          ((label, editors: list(CodeWithStatics.Model.t))) =>
+            Haz3lcore.ProblemCollection.{
+              label,
+              sources:
+                List.map(
+                  (e: CodeWithStatics.Model.t) =>
+                    Haz3lcore.ProblemCollection.{
+                      statics: e.statics,
+                      syntax: e.editor.syntax,
+                    },
+                  editors,
+                ),
+            },
+          problem_editors,
+        ),
+      )
     );
   let counts = problem_collection.counts;
   /* See Page.calculate: use the live selection so Prelude/Setup focus

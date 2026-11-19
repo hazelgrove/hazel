@@ -245,16 +245,19 @@ let with_derived_ids = (base: Id.t, f: unit => 'a): 'a => {
   };
 };
 
+/* the annotation FreshGrammar gives a term made without one */
+let fresh_annotation = (): IdTag.t =>
+  switch (derived^) {
+  | Some((base, k)) =>
+    incr(k);
+    IdTag.mk_internal([
+      Id.derive(~salt="made-" ++ string_of_int(k^), base),
+    ]);
+  | None => IdTag.fresh()
+  };
+
 module FreshGrammar =
   Grammar.Factory({
     type t = IdTag.t;
-    let default_value = (): IdTag.t =>
-      switch (derived^) {
-      | Some((base, k)) =>
-        incr(k);
-        IdTag.mk_internal([
-          Id.derive(~salt="made-" ++ string_of_int(k^), base),
-        ]);
-      | None => IdTag.fresh()
-      };
+    let default_value = fresh_annotation;
   });

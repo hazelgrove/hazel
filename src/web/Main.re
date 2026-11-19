@@ -60,7 +60,7 @@ let seed_visible_rows =
   };
 };
 
-let apply =
+let apply_action =
     (
       model: CrashHandling.Model.t,
       action: CrashHandling.Update.t,
@@ -68,12 +68,23 @@ let apply =
       ~schedule_autosave,
     )
     : CrashHandling.Model.t => {
-  restart_caret_animation();
+  /* (^ticket(722)) a livelit's transient event only asks for a redraw: no caret reflow, no calculate phase */
+  let repaint_only =
+    switch (action) {
+    | Page.Update.LivelitRepaint => true
+    | _ => false
+    };
+  if (!repaint_only) {
+    restart_caret_animation();
+    /* (^report(51)) the outline is built again, on its own, after the paint */
+    Page.OutlineAsync.stale := true;
+  };
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
+  let t_update = Util.BenchMarks.on() ? Util.BenchMarks.now() : 0.;
   let updated: Updated.t(CrashHandling.Model.t) =
     CrashHandling.Update.update(
       ~import_log=Log.import,
@@ -82,32 +93,70 @@ let apply =
       action,
       model,
     );
+  /* the action's constructor path, two levels deep, off its sexp: asked
+     for only for an edit (its sexp may carry a worker's whole result) */
+  let edit_label =
+    lazy({
+      let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
+        switch (sx) {
+        | Sexplib.Sexp.Atom(a) => a
+        | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._])
+            when depth > 0 =>
+          a ++ "/" ++ head(depth - 1, inner)
+        | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
+        | _ => "?"
+        };
+      head(2, CrashHandling.Update.sexp_of_t(action));
+    });
   /* which actions count as edits (each one costs a statics/eval recompute):
      the perf journal names them */
   if (updated.is_edit) {
-    /* the action's constructor path, two levels deep, off its sexp */
-    let rec head = (depth: int, sx: Sexplib.Sexp.t): string =>
-      switch (sx) {
-      | Sexplib.Sexp.Atom(a) => a
-      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), inner, ..._]) when depth > 0 =>
-        a ++ "/" ++ head(depth - 1, inner)
-      | Sexplib.Sexp.List([Sexplib.Sexp.Atom(a), ..._]) => a
-      | _ => "?"
+    Util.PerfTimer.record("edit-action/" ++ Lazy.force(edit_label), 0.);
+  };
+  /* (^report(51)) any action's constructor path, as the tags of its
+     blocks (the first field at each level), for actions that are not edits:
+     cheap, unlike its sexp, which may carry a worker's whole result */
+  let rec tag_path = (depth: int, o: Obj.t): string =>
+    if (Obj.is_int(o)) {
+      "c" ++ string_of_int(Obj.obj(o): int);
+    } else if (depth == 0) {
+      "";
+    } else {
+      let t = Obj.tag(o);
+      if (t >= Obj.no_scan_tag || Obj.size(o) == 0) {
+        "";
+      } else {
+        string_of_int(t) ++ "/" ++ tag_path(depth - 1, Obj.field(o, 0));
       };
-    Util.PerfTimer.record(
-      "edit-action/" ++ head(2, CrashHandling.Update.sexp_of_t(action)),
-      0.,
+    };
+  /* (^report(46)) the update on the benchmark timeline, an edit by name */
+  if (Util.BenchMarks.on()) {
+    Util.BenchMarks.mark(
+      ~at=t_update,
+      ~extra=[
+        ("ms", Util.BenchMarks.num(Util.BenchMarks.now() -. t_update)),
+        (
+          "edit",
+          Util.BenchMarks.str(updated.is_edit ? Lazy.force(edit_label) : ""),
+        ),
+        ("tags", Util.BenchMarks.str(tag_path(7, Obj.repr(action)))),
+      ],
+      "update",
     );
   };
   // ---------- CALCULATE PHASE ----------
   let model' =
-    CrashHandling.Update.calculate(
-      ~schedule_action,
-      ~is_edited=updated.is_edit,
-      ~dynamics=true,
-      model,
-      updated.model,
-    );
+    repaint_only
+      ? updated.model
+      : Util.BenchMarks.time("calculate", () =>
+          CrashHandling.Update.calculate(
+            ~schedule_action,
+            ~is_edited=updated.is_edit,
+            ~dynamics=true,
+            model,
+            updated.model,
+          )
+        );
 
   if (updated.save) {
     schedule_autosave(
@@ -150,6 +199,32 @@ let apply =
   };
   model';
 };
+
+/* (^report(51)) The autosave writes the page's model to storage and
+   changes nothing in it, so it does not go through the update: the very
+   same model comes back, and the page draws nothing again. Through the
+   update, the wrappers made a new model record, so each autosave (a
+   second after each step on the Witch) cost a calculate (11 ms), a whole
+   view (25 ms), the outline built again (20 to 30 ms) and the caret's
+   blink restarted, on top of its own 37 to 46 ms. */
+let apply =
+    (
+      model: CrashHandling.Model.t,
+      action: CrashHandling.Update.t,
+      ~schedule_action,
+      ~schedule_autosave,
+    )
+    : CrashHandling.Model.t =>
+  switch (action) {
+  | Page.Update.Save =>
+    Util.BenchMarks.time("autosave", () =>
+      try(Page.Store.save(model.model.current.current)) {
+      | exn => print_endline("autosave failed: " ++ Printexc.to_string(exn))
+      }
+    );
+    model;
+  | _ => apply_action(model, action, ~schedule_action, ~schedule_autosave)
+  };
 
 let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
@@ -298,87 +373,88 @@ let start = default_model => {
     let%map model = app_model
     and app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
-      () => {
-        if (scroll_to_caret.contents) {
-          scroll_to_caret := false;
-          CaretReveal.reveal();
-        } else {
-          ();
-        };
-        /* restore the incoming tutorial slide's remembered scroll position */
-        switch (pending_scroll_restore^) {
-        | Some(target) =>
-          pending_scroll_restore := None;
-          JsUtil.set_main_scroll_top(target);
-        | None => ()
-        };
-        /* Handle scheduled probe focus from step-into (see FocusEffect) */
-        let _ = Haz3lcore.FocusEffect.execute();
-        /* restore probe focus dropped by vdom reorder moves */
-        Haz3lcore.FocusEffect.keep_focus();
-        /* and splice focus dropped when an edit rebuilds the code view */
-        Haz3lcore.FocusEffect.keep_splice_focus();
-        /* Scroll-compensate when focus bar appears/disappears */
-        JsUtil.setup_focus_bar_scroll_compensation();
-        /* Update floating elements (probe menus) to viewport coordinates */
-        FloatingElement.setup_scroll_listener();
-        FloatingElement.update_all();
-        let editor =
-          Page.Update.get_editor(model.model.current.current).editor;
-        let zipper = editor.state.zipper;
-        let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
-        let font_metrics = model.model.current.current.globals.font_metrics;
-        RefractorShift.update(
-          ~editor_key=
-            Editors.Model.editor_key(model.model.current.current.editors),
-          ~font_metrics,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~measured,
-          zipper,
-        );
-        /* stagger multi-row offside displays clear of code and of each
-           other (top-down priority, first-fit), per code container */
-        ProbeStagger.update(~font_metrics);
-        /* it only writes now: its measuring waits for AfterLayout, so
-           where it sits among these updates does not matter */
-        ScrollWidth.update(
-          ~measured,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~font_metrics,
-          ~visible_rows=model.model.current.current.globals.visible_rows,
-        );
-        OutlineFollow.update();
-        SampleAnchor.consume();
-        seed_visible_rows(model, ~dispatch=a =>
-          app_inject(a) |> Bonsai.Effect.Expert.handle
-        );
-        DrawerRows.update(
-          ~row_height=font_metrics.row_height,
-          ~relayout=
-            () =>
-              app_inject(Page.Update.Globals(RelayoutDrawers))
-              |> Bonsai.Effect.Expert.handle,
-          /* a step taken: once the drawer has its rows, show the new step */
-          ~reveal=
-            ProbeSteps.reveal^
-              ? Some(
-                  () => {
-                    ProbeSteps.reveal := false;
-                    JsUtil.reveal_last(".probe-stepper .step-border");
-                  },
-                )
-              : None,
-        );
-        JsUtil.observe_drawer_width(~report=cols =>
-          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
-            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
-            |> Bonsai.Effect.Expert.handle;
-          }
-        );
-        model.model.current.current.globals.settings.core.statics
-          ? Animation.go() : ();
-      },
+      () =>
+        Util.BenchMarks.time("after display", () => {
+          if (scroll_to_caret.contents) {
+            scroll_to_caret := false;
+            CaretReveal.reveal();
+          } else {
+            ();
+          };
+          /* restore the incoming tutorial slide's remembered scroll position */
+          switch (pending_scroll_restore^) {
+          | Some(target) =>
+            pending_scroll_restore := None;
+            JsUtil.set_main_scroll_top(target);
+          | None => ()
+          };
+          /* Handle scheduled probe focus from step-into (see FocusEffect) */
+          let _ = Haz3lcore.FocusEffect.execute();
+          /* restore probe focus dropped by vdom reorder moves */
+          Haz3lcore.FocusEffect.keep_focus();
+          /* and splice focus dropped when an edit rebuilds the code view */
+          Haz3lcore.FocusEffect.keep_splice_focus();
+          /* Scroll-compensate when focus bar appears/disappears */
+          JsUtil.setup_focus_bar_scroll_compensation();
+          /* Update floating elements (probe menus) to viewport coordinates */
+          FloatingElement.setup_scroll_listener();
+          FloatingElement.update_all();
+          let editor =
+            Page.Update.get_editor(model.model.current.current).editor;
+          let zipper = editor.state.zipper;
+          let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
+          let font_metrics = model.model.current.current.globals.font_metrics;
+          RefractorShift.update(
+            ~editor_key=
+              Editors.Model.editor_key(model.model.current.current.editors),
+            ~font_metrics,
+            ~refractor_rows=editor.syntax.refractor_rows,
+            ~measured,
+            zipper,
+          );
+          /* stagger multi-row offside displays clear of code and of each
+             other (top-down priority, first-fit), per code container */
+          ProbeStagger.update(~font_metrics);
+          /* it only writes now: its measuring waits for AfterLayout, so
+             where it sits among these updates does not matter */
+          ScrollWidth.update(
+            ~measured,
+            ~refractor_rows=editor.syntax.refractor_rows,
+            ~sample_focus=zipper.refractors.sample_focus,
+            ~font_metrics,
+            ~visible_rows=model.model.current.current.globals.visible_rows,
+          );
+          OutlineFollow.update();
+          SampleAnchor.consume();
+          seed_visible_rows(model, ~dispatch=a =>
+            app_inject(a) |> Bonsai.Effect.Expert.handle
+          );
+          DrawerRows.update(
+            ~row_height=font_metrics.row_height,
+            ~relayout=
+              () =>
+                app_inject(Page.Update.Globals(RelayoutDrawers))
+                |> Bonsai.Effect.Expert.handle,
+            /* a step taken: once the drawer has its rows, show the new step */
+            ~reveal=
+              ProbeSteps.reveal^
+                ? Some(
+                    () => {
+                      ProbeSteps.reveal := false;
+                      JsUtil.reveal_last(".probe-stepper .step-border");
+                    },
+                  )
+                : None,
+          );
+          JsUtil.observe_drawer_width(~report=cols =>
+            if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+              app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+              |> Bonsai.Effect.Expert.handle;
+            }
+          );
+          model.model.current.current.globals.settings.core.statics
+            ? Animation.go() : ();
+        }),
       (),
     );
   };
@@ -388,10 +464,14 @@ let start = default_model => {
   let%arr app_model = app_model
   and app_inject = app_inject;
   try(
-    CrashHandling.View.view(
-      ~get_log_and=Log.get_and,
-      ~inject=app_inject,
-      app_model,
+    /* (^report(46)) the page's view, on the benchmark timeline: its virtual
+       DOM made, not yet diffed against the last or patched in */
+    Util.BenchMarks.time("view", () =>
+      CrashHandling.View.view(
+        ~get_log_and=Log.get_and,
+        ~inject=app_inject,
+        app_model,
+      )
     )
   ) {
   | exc =>

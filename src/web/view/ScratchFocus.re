@@ -634,9 +634,60 @@ type refusal =
 /* of the items [want] picks, those the entry makers above refuse for one
    of these, from one walk over [seg] rather than a search per item. Under
    a projector only a headless span cut outside it opens */
+/* (^report(51), step 1) the last walk's pieces and calls to [want], for
+   the check */
+let refusals_walked = ref((0, 0));
+/* (^report(51)) each top-level tile's part of the walk, kept by the very
+   tile while the rows wanted are the same: after an edit nearly every
+   top-level tile is the same object, and the walk over all 43,171 of the
+   Witch's pieces took 10 to 11 ms after each edit (run 42811452787). Not
+   kept for a tile in which a projector's path was needed, as a path
+   depends on where the tile is. How many were reused, for the check */
+type refusal_part = {
+  rp_tile: Tile.t,
+  rp_adds: list((Id.t, refusal)),
+};
+let refusal_parts: Hashtbl.t(Id.t, refusal_part) = Hashtbl.create(256);
+let refusal_rows: ref(Id.Map.t(unit)) = ref(Id.Map.empty);
+let refusals_reused = ref(0);
 let refusals =
-    (~root: Sort.t, ~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
+    (
+      ~root: Sort.t,
+      ~want: Id.t => bool,
+      /* the rows [want] picks, given when it is exactly membership in
+         them, so each top-level tile's part can be kept while they are
+         the same */
+      ~rows: option(Id.Map.t(unit))=?,
+      seg: Segment.t,
+    )
+    : Id.Map.t(refusal) => {
   let out = ref(Id.Map.empty);
+  let walked = ref(0);
+  let asked = ref(0);
+  let want = id => {
+    incr(asked);
+    want(id);
+  };
+  let keep =
+    switch (rows) {
+    | Some(r) =>
+      if (!(r === refusal_rows^ || Id.Map.equal((==), r, refusal_rows^))
+          || Hashtbl.length(refusal_parts) > 8192) {
+        Hashtbl.reset(refusal_parts);
+        refusal_rows := r;
+      };
+      true;
+    | None => false
+    };
+  refusals_reused := 0;
+  /* each refusal found, newest first, so a tile's own can be kept */
+  let adds = ref([]);
+  let add = (id, r) => {
+    out := Id.Map.add(id, r, out^);
+    adds := [(id, r), ...adds^];
+  };
+  /* whether a projector's path was needed */
+  let forced = ref(false);
   /* the steps from the piece at [path]'s end down to [id], inside it */
   let below = (path: list(step), id: Id.t): list(step) => {
     let (above, st) = ListUtil.split_last(path);
@@ -648,33 +699,51 @@ let refusals =
         Option.value(way(id, st.lv.pieces[st.i]), ~default=[]),
       );
   };
-  /* [under]: the steps down to the projector the walk is in */
-  let rec walk = (~under: option(list(step)), level: Segment.t) =>
+  /* [under]: the steps down to the projector the walk is in, made only
+     when a wanted row is found inside it. (^report(51), step 1: made for
+     every projector, each a search from the program's root, they were 30
+     to 38 ms of the outline's 41 to 52 after each edit on the Witch, whose
+     53 livelits hold no row; run 42757570753.) The same answers: each is
+     forced just where it was read */
+  let top: Lazy.t(option(list(step))) = Lazy.from_val(None);
+  let rec walk = (~under: Lazy.t(option(list(step))), level: Segment.t) =>
     List.iter(
       (p: Piece.t) => {
         let id = Piece.id(p);
-        switch (under) {
-        | Some(path)
-            when
-              want(id) && Option.is_none(locate_along(id, below(path, id))) =>
-          out := Id.Map.add(id, Projected, out^)
-        | _ => ()
+        incr(walked);
+        if (under !== top
+            && want(id)
+            && (
+              switch (Lazy.force(under)) {
+              | Some(path) =>
+                Option.is_none(locate_along(id, below(path, id)))
+              | None => false
+              }
+            )) {
+          add(id, Projected);
         };
         switch (p) {
         | Tile(t) =>
-          if (Option.is_none(under) && want(id) && !Tile.is_complete(t)) {
-            out := Id.Map.add(id, Unfinished, out^);
+          if (!Tile.is_complete(t)
+              && want(id)
+              && Option.is_none(Lazy.force(under))) {
+            add(id, Unfinished);
           };
-          if (want(id) && is_use(t)) {
-            out := Id.Map.add(id, Directive, out^);
+          if (is_use(t) && want(id)) {
+            add(id, Directive);
           };
           List.iter(walk(~under), t.children);
         | Projector(pr) =>
           let path =
-            switch (under) {
-            | Some(path) => Some(below(path, id))
-            | None => find_path(~root, id, seg)
-            };
+            lazy(
+              {
+                forced := true;
+                switch (Lazy.force(under)) {
+                | Some(path) => Some(below(path, id))
+                | None => find_path(~root, id, seg)
+                };
+              }
+            );
           walk(~under=path, pr.syntax);
         | Splice(_)
         | Grout(_)
@@ -683,7 +752,46 @@ let refusals =
       },
       level,
     );
-  walk(~under=None, seg);
+  /* the refusals added since [tail], newest first */
+  let rec since = (l, tail) =>
+    l === tail
+      ? []
+      : (
+        switch (l) {
+        | [] => []
+        | [x, ...xs] => [x, ...since(xs, tail)]
+        }
+      );
+  List.iter(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when keep =>
+        switch (Hashtbl.find_opt(refusal_parts, t.id)) {
+        | Some(e) when e.rp_tile === t =>
+          incr(refusals_reused);
+          List.iter(((id, r)) => add(id, r), List.rev(e.rp_adds));
+        | _ =>
+          let adds0 = adds^;
+          let forced0 = forced^;
+          forced := false;
+          walk(~under=top, [p]);
+          if (! forced^) {
+            Hashtbl.replace(
+              refusal_parts,
+              t.id,
+              {
+                rp_tile: t,
+                rp_adds: since(adds^, adds0),
+              },
+            );
+          };
+          forced := forced^ || forced0;
+        }
+      | _ => walk(~under=top, [p])
+      },
+    seg,
+  );
+  refusals_walked := (walked^, asked^);
   out^;
 };
 

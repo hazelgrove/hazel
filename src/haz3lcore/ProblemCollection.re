@@ -358,8 +358,19 @@ let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
 
 let same_inputs =
     (a: list(editor_group_input), b: list(editor_group_input)): bool => {
+  /* (^report(51)) by the parts of the syntax make_problem_context
+     reads, not the whole record: a worker's answer makes the syntax anew
+     for its dynamics, with these parts the same objects when the
+     projectors' shapes are */
+  let same_syntax = (a: CachedSyntax.t, b: CachedSyntax.t) =>
+    a === b
+    || a.main_splice.measured === b.main_splice.measured
+    && a.main_splice.segment === b.main_splice.segment
+    && a.term_data === b.term_data
+    && a.projectors === b.projectors
+    && a.projector_errors === b.projector_errors;
   let same_source = (x: editor_source, y: editor_source) =>
-    x.statics === y.statics && x.syntax === y.syntax;
+    x.statics === y.statics && same_syntax(x.syntax, y.syntax);
   let same_group = (x: editor_group_input, y: editor_group_input) =>
     x.label == y.label && List.equal(same_source, x.sources, y.sources);
   List.equal(same_group, a, b);

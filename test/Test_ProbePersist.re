@@ -168,6 +168,90 @@ let one_transaction = () => {
   check(int, "a rename", 1, Web.HazelDB.write_transactions^ - before);
 };
 
+/* (^report(51), step 8) the autosave's text, the unchanged top-level
+   pieces' texts kept from the last print, is the whole print's: probes
+   inside items, a projector, one item edited as a step edits it (the rest
+   shared), the probes changed, and a probe on a top-level piece, which is
+   printed whole */
+let program_text_kept = () => {
+  let zip = (probes, seg) =>
+    ZipperBase.update_refractors(Zipper.unzip(seg), r =>
+      Refractors.{
+        ...r,
+        manuals: probes,
+      }
+    );
+  let same = (what, z) =>
+    check(
+      string,
+      what,
+      PersistentZipper.to_string(z),
+      Persist.program_text(z),
+    );
+  let seg =
+    CorpusUtil.seg_of(
+      "let a = ^^fold(1 + 2) in\nlet b = 3 * 4 in\nlet c = a + b in\nc",
+    );
+  let probes = [(CorpusUtil.tile("*", seg), probe)];
+  same("the first print", zip(probes, seg));
+  same("again, every piece kept", zip(probes, seg));
+  let (seg2, edited) = CorpusUtil.edit_token(~needle="4", ~repl="5", seg);
+  check(bool, "the step edited", true, edited);
+  same("one item edited", zip(probes, seg2));
+  check(
+    bool,
+    "and its new text printed",
+    true,
+    CorpusUtil.contains("3 * 5", Persist.program_text(zip(probes, seg2))),
+  );
+  same("the probes gone", zip([], seg2));
+  let top =
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => Some(t.id)
+        | _ => None
+        },
+      seg2,
+    )
+    |> Option.get;
+  same(
+    "a probe on a top-level piece",
+    zip([(top, probe), ...probes], seg2),
+  );
+  same(
+    "another program",
+    zip([], CorpusUtil.seg_of("let x = 1 in\nx + 2")),
+  );
+};
+
+/* (^report(51)) removing no probe keeps the very same list of probes,
+   which the syntax cache keys on by identity */
+let rm_none_keeps_list = () => {
+  let seg = CorpusUtil.seg_of("let b = 3 * 4 in\nb + 1");
+  let times = CorpusUtil.tile("*", seg);
+  let z =
+    ZipperBase.update_refractors(Zipper.unzip(seg), r =>
+      Refractors.{
+        ...r,
+        manuals: [(times, probe)],
+      }
+    );
+  let kept = (what, z': Zipper.t) =>
+    check(bool, what, true, z'.refractors.manuals === z.refractors.manuals);
+  kept("nothing to remove", ProbePerform.rm_manual([], z));
+  kept(
+    "an id with no probe",
+    ProbePerform.rm_manual([CorpusUtil.tile("+", seg)], z),
+  );
+  check(
+    int,
+    "a probed id removed",
+    0,
+    List.length(ProbePerform.rm_manual([times], z).refractors.manuals),
+  );
+};
+
 let tests = (
   "ProbePersist",
   [
@@ -184,5 +268,15 @@ let tests = (
       idle_save_writes_nothing,
     ),
     test_case("a save is one transaction", `Quick, one_transaction),
+    test_case(
+      "the autosave's text, unchanged pieces kept, is the whole print",
+      `Quick,
+      program_text_kept,
+    ),
+    test_case(
+      "removing no probe keeps the probes' list",
+      `Quick,
+      rm_none_keeps_list,
+    ),
   ],
 );
