@@ -48,9 +48,7 @@ let utility: ProjectorBase.utility = {
       };
     };
   };
-  /* NOTE: Setting indent to anything other than "" has serious
-   * perf implications when there are lots of probes on the screen */
-  let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
+  let seg_to_string = Printer.of_segment(~holes="?");
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
     typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>

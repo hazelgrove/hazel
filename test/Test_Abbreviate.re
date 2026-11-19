@@ -17,7 +17,7 @@ let abbrev_settings: ExpToSegment.Settings.t = {
 };
 
 let exp_to_seg = ExpToSegment.exp_to_segment(~settings=abbrev_settings);
-let seg_to_str = Printer.of_segment(~holes="?", ~indent="");
+let seg_to_str = Printer.of_segment(~holes="?");
 
 /* Render an expression to string using the same pipeline as ProbeProj */
 let render_exp = (exp: Exp.t): string => {
