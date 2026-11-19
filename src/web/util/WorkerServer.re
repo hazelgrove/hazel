@@ -5,17 +5,13 @@ module Js = Js_of_ocaml.Js;
 type key = string;
 
 module Request = {
-  /* One program to evaluate. It carries no incremental cache: the worker
-     keeps its own (see Held). */
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    /* Which document the request is for: a slide, a tutorial or an
-       exercise. Held keeps a cache per document and key, since keys are
-       positions within a document (Scratch mode's is always ""), and one
-       document's cache would otherwise be replaced by the next one's.
-       Empty for a caller that has only one document. */
+    /* The document (slide, tutorial or exercise) the request is for. Keys
+       are positions within a document, so Held keeps a cache per document
+       and key. Empty for a caller with only one document. */
     [@sexp.default ""] [@yojson.default ""]
     doc: string,
   };
@@ -257,13 +253,8 @@ let evaluate_sync =
   };
 };
 
-/* The incremental cache stays in the worker, and never crosses to the
-   client: it is almost all of a result (330 KB of 332 KB on one large
-   program), and the client only ever sent it back. The worker keeps each
-   document and key's last finished cache, evaluates that key's next
-   request against it, and answers with the state's cache emptied. A
-   restarted worker keeps nothing, so its first run is a full one, which
-   is correct. */
+/* The incremental cache from each document and key's last finished run.
+   The key's next request evaluates against it; responses leave it out. */
 module Held = {
   let max_keys = 32;
   let table: Hashtbl.t((string, key), Language.EvaluatorState.incr_eval) =
@@ -271,13 +262,11 @@ module Held = {
 
   let clear = () => Hashtbl.reset(table);
 
-  /* The cache kept from this document and key's last finished run. */
   let find = (~doc: string="", key: key): Language.EvaluatorState.incr_eval =>
     Hashtbl.find_opt(table, (doc, key))
     |> Option.value(~default=Language.IncrEval.empty);
 
-  /* Keep a finished run's cache and answer without it; a failed run keeps
-     nothing, so the next run is a full one. */
+  /* Keeps a finished run's cache and returns the response without it. */
   let keep =
       (~doc: string="", key: key, response: Response.value): Response.value =>
     switch (response) {
@@ -307,7 +296,6 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
-  /* The item's document, for Held.keep when it finishes. */
   doc: string,
   remaining: Request.batch,
   completed: Response.t,

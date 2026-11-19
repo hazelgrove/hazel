@@ -302,9 +302,7 @@ module Update = {
           queue_worker({
             expr: elab,
             eval_info_map,
-            /* No cache: the worker evaluates against the one it kept from
-               this document and key's last run. The mode's queue_worker
-               says which document. */
+            /* the mode's queue_worker sets doc */
             doc: "",
           });
           ProgramResult.awaiting_worker_ack;

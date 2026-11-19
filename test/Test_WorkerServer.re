@@ -149,9 +149,6 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
-/* The incremental cache stays in the worker (WorkerServer.Held): a finished
-   run's cache is kept by document and key, the answer leaves it out, and
-   the key's next run evaluates against what is kept. */
 let request_of = text => {
   switch (Haz3lcore.PersistentZipper.parse_text(~source="t", ~root=Exp, text)) {
   | None => fail("did not parse")
@@ -178,7 +175,7 @@ let program = n =>
   ++ string_of_int(n)
   ++ "), xs)";
 
-/* One run as the worker does it: find the held cache, evaluate, keep. */
+/* One run as the worker does it. */
 let run = (key, v: WorkerServer.Request.value) =>
   WorkerServer.Held.keep(
     ~doc=v.doc,
@@ -233,9 +230,6 @@ let test_held_by_key = () =>
     },
   );
 
-/* Keys are positions within a document -- Scratch mode's is always "" --
-   so the cache is held per document too: moving from one slide to another
-   and back must find the first slide's cache still there. */
 let test_held_by_document = () =>
   test_case(
     "each document keeps its own cache under the same key",
