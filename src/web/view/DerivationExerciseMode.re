@@ -443,22 +443,19 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: DerivationExercise.eds = {
-      let calculate =
-        Editor.Update.calculate(~settings, ~autoprobe_mode, ~is_edited);
+      let calculate = (cell: CellEditor.Model.t) =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          ~dynamics_complete=EvalResult.Model.dynamics_complete(cell.result),
+          cell.editor.statics,
+          cell.editor.dynamics,
+        );
       {
         ...model.editors,
-        prelude:
-          calculate(
-            cells.prelude.editor.statics,
-            cells.prelude.editor.dynamics,
-            model.editors.prelude,
-          ),
-        setup:
-          calculate(
-            cells.setup.editor.statics,
-            cells.setup.editor.dynamics,
-            model.editors.setup,
-          ),
+        prelude: calculate(cells.prelude, model.editors.prelude),
+        setup: calculate(cells.setup, model.editors.setup),
         trees: {
           List.map2(Util.Tree.combine, cells.trees, model.editors.trees)
           |> List.map(
@@ -472,12 +469,7 @@ module Update = {
                    ) => {
                      DerivationExercise.Abbr.Just(
                        DerivationExercise.{
-                         jdmt:
-                           calculate(
-                             di.editor.statics,
-                             di.editor.dynamics,
-                             jdmt,
-                           ),
+                         jdmt: calculate(di, jdmt),
                          rule,
                        },
                      );
