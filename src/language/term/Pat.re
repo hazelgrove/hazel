@@ -44,8 +44,8 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
 /* Parens and Projector are transparent: elaboration keeps both, so code
    that inspects the head or shape of a pattern must look through them.
    Asc is NOT stripped here; whether an ascription is transparent depends on
-   the call site. Polymorphic in the annotation so cls_of_term can use it. */
-let rec strip_wrappers = (p: Grammar.pat_t('a)): Grammar.pat_t('a) =>
+   the call site. */
+let rec strip_wrappers = (p: t): t =>
   switch (p.term) {
   | Parens(p)
   | Projector(_, p) => strip_wrappers(p)

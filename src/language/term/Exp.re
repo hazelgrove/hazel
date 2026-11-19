@@ -677,8 +677,8 @@ let rec get_fn_name = (e: t) => {
 };
 
 /* Rewrite the name of the Fun or TypFun that `e` denotes, looking through
-   Parens, Projector and Asc, so that `let f = (fun x -> x) in ...` names
-   its function too. */
+   FixF, Parens, Projector and Asc (as get_fn_name does), so that
+   `let f = (fun x -> x) in ...` names its function too. */
 let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   let (term, rewrap) = unwrap(e);
   switch (term) {
@@ -687,6 +687,7 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   | Parens(e) => Parens(map_fn_name(f, e)) |> rewrap
   | Projector(pr, e) => Projector(pr, map_fn_name(f, e)) |> rewrap
   | Asc(e, ty) => Asc(map_fn_name(f, e), ty) |> rewrap
+  | FixF(p, e, env) => FixF(p, map_fn_name(f, e), env) |> rewrap
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -708,7 +709,6 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   | Theorem(_)
   | ProofObject(_)
   | Forall(_)
-  | FixF(_)
   | TyAlias(_)
   | Use(_)
   | Ap(_)

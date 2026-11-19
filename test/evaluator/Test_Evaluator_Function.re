@@ -219,7 +219,12 @@ Ok(Lam("yo", Var("yo"))))|},
       {|let f = (fun x -> x : Int -> Int) in f|},
       "f",
     ),
-    test_case("Type application names a parenthesized body", `Quick, () =>
+    names_function_test(
+      "Fixpoint let-bound function keeps its name",
+      {|let g = fix f -> fun x -> x in g|},
+      "g",
+    ),
+    test_case("assign_name_if_none names through Parens", `Quick, () =>
       check(
         Alcotest.(list(option(string))),
         "assign_name_if_none through Parens",
