@@ -44,7 +44,7 @@ jobs:
       # No --auto-promote: a misformatted commit should fail, not be rewritten
       # into a checkout that is then thrown away.
       - name: Check formatting
-        run: opam exec -- dune build @src/fmt @test/fmt --profile dev
+        run: dune build @src/fmt @test/fmt --profile dev
 
       # Strict warnings over src and test/. dune's release profile promotes them
       # to errors; @check type-checks both trees without linking, so this costs
@@ -52,7 +52,7 @@ jobs:
       - name: Check warnings
         run: |
           export DUNE_CACHE=enabled
-          opam exec -- make ci-check
+          make ci-check
 
   Fast:
     name: Fast checks
@@ -72,7 +72,7 @@ jobs:
       # than only in `Full tests`, affordable. Slow is a speed tag and not a
       # synonym for QCheck -- most Slow-tagged cases are ordinary tests.
       - name: Run quick tests
-        run: opam exec -- make ci-quick
+        run: make ci-quick
         timeout-minutes: 20
 
       # Results UI, not the gate: the steps above already fail the job.
@@ -122,7 +122,7 @@ jobs:
       - uses: ./.github/actions/setup-hazel-toolchain
 
       - name: Run tests
-        run: opam exec -- make ci
+        run: make ci
         timeout-minutes: 60
 
       # Results UI, not the gate: the step above already fails on a red suite.
@@ -141,6 +141,6 @@ jobs:
 
       - name: Send coverage report to Codecov
         if: ${{ inputs.upload-coverage }}
-        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
+        run: bisect-ppx-report send-to Codecov --verbose
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

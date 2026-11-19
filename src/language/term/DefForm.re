@@ -82,4 +82,4 @@ let is_def_form = (e: Exp.t): bool => Option.is_some(parts(e));
 
 /* The body of a definition form (None for any other term). */
 let body = (e: Exp.t): option(Exp.t) =>
-  Option.map(({body, _}) => body, parts(e));
+  Option.map(~f=({body, _}) => body, parts(e));

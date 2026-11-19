@@ -8,17 +8,18 @@ module Map = {
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
-    ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
+    ids |> List.fold_left(~f=(m, id) => Id.Map.add(id, info, m), ~init=m);
 
   let add_missing_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids
     |> List.fold_left(
-         (m, id) =>
-           switch (Id.Map.find_opt(id, m)) {
-           | Some(_) => m
-           | None => Id.Map.add(id, info, m)
-           },
-         m,
+         ~f=
+           (m, id) =>
+             switch (Id.Map.find_opt(id, m)) {
+             | Some(_) => m
+             | None => Id.Map.add(id, info, m)
+             },
+         ~init=m,
        );
 
   let error_ids = (info_map: t): list(Id.t) =>
@@ -26,7 +27,8 @@ module Map = {
       (id, info, acc) =>
         /* Second clause is to eliminate non-representative ids,
          * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+        Info.is_error(info) && Id.equal(id, Info.id_of(info))
+          ? [id, ...acc] : acc,
       info_map,
       [],
     );
@@ -35,8 +37,8 @@ module Map = {
       (id, info, acc) =>
         acc
         |> (
-          Info.is_warning(info) && id == Info.id_of(info)
-            ? List.cons(id) : Fun.id
+          Info.is_warning(info) && Id.equal(id, Info.id_of(info))
+            ? List.cons(id) : Fn.id
         ),
       info_map,
       [],
@@ -48,7 +50,7 @@ module Map = {
     | Some(InfoExp({co_ctx, ctx, _})) =>
       co_ctx
       |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+      |> List.map(~f=((n, _)) => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -127,19 +129,26 @@ module Map = {
           let binds = Pat.bindings(pat);
           /* function-def sugar: Pat.bindings drops the function name f, so
              also match f's own binding here, else the enclosing let is never
-             found. (Can't reuse FunctionSugar.detect: it depends on StaticsBase.) */
+             found. Curried sugar `f(x)(y)` nests the Aps, so walk the spine to
+             the head. (Can't reuse FunctionSugar.detect: it depends on
+             StaticsBase.) */
+          let rec spine_head_binds = (fn: Pat.t) =>
+            switch (IdTagged.term_of(fn)) {
+            | Ap(fn, _) => spine_head_binds(fn)
+            | _ => Pat.bindings(fn)
+            };
           let fn_name_binds =
             switch (IdTagged.term_of(pat)) {
             | Asc(inner, _) =>
               switch (IdTagged.term_of(inner)) {
-              | Ap(fn, _) => Pat.bindings(fn)
+              | Ap(fn, _) => spine_head_binds(fn)
               | _ => []
               }
-            | Ap(fn, _) => Pat.bindings(fn)
+            | Ap(fn, _) => spine_head_binds(fn)
             | _ => []
             };
           List.exists(
-            (b: Binding.t) => b.id == binding_id,
+            ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
             binds @ fn_name_binds,
           )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
@@ -247,15 +256,15 @@ let set_dot_labels_exp =
 
 let map_m = (f, xs, m: Map.t) =>
   List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
+    ~f=((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
+    ~init=([], m),
     xs,
   );
 
 let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold_left2(
-    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ([], m),
+  List.fold2_exn(
+    ~f=((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
+    ~init=([], m),
     xs,
     ys,
   );
@@ -366,8 +375,7 @@ let prepend_pat_mark =
     warnings
     @ (
       switch (info.user_term.term) {
-      | Var(name) =>
-        Warning.to_list(Warning.var_is_unused(info.co_ctx, name))
+      | Var(name) => Warning.var_is_unused(info.co_ctx, name)
       | _ => []
       }
     );
@@ -418,20 +426,21 @@ let fold_patterns_with_modes =
       modes,
       m,
     ) =>
-  List.fold_left2(
-    ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-      analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-      |> (
-        ((info, elab, m)) => (
-          info.ctx,
-          tys @ [info.ty],
-          cons @ [info.constraint_],
-          m,
-          infos @ [info],
-          elabs @ [elab],
-        )
-      ),
-    (ctx, [], [], m, [], []),
+  List.fold2_exn(
+    ~f=
+      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+        |> (
+          ((info, elab, m)) => (
+            info.ctx,
+            tys @ [info.ty],
+            cons @ [info.constraint_],
+            m,
+            infos @ [info],
+            elabs @ [elab],
+          )
+        ),
+    ~init=(ctx, [], [], m, [], []),
     ps,
     modes,
   );

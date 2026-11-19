@@ -33,7 +33,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       Some(IdTagged.rep_id(e1))
     | Some(InfoExp({user_term, _})) =>
       switch (DefForm.parts(user_term)) {
-      | Some({value, _}) => Option.map(IdTagged.rep_id, value)
+      | Some({value, _}) => Option.map(~f=IdTagged.rep_id, value)
       | None => Some(IdTagged.rep_id(user_term))
       }
     | _ => None
@@ -45,12 +45,12 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       if (idx < 0) {
         None;
       } else {
-        let anc_id = List.nth(ancestors, idx);
+        let anc_id = List.nth_exn(ancestors, idx);
         let child_id =
           if (idx == 0) {
             starting_id;
           } else {
-            List.nth(ancestors, idx - 1);
+            List.nth_exn(ancestors, idx - 1);
           };
         switch (Statics.Map.lookup(anc_id, statics)) {
         | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
@@ -65,7 +65,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
           switch (DefForm.parts(user_term)) {
           | Some({body, _}) when Id.equal(child_id, IdTagged.rep_id(body)) =>
             walk(idx - 1)
-          | Some({value, _}) => Option.map(IdTagged.rep_id, value)
+          | Some({value, _}) => Option.map(~f=IdTagged.rep_id, value)
           | None => Some(anc_id)
           }
         | _ => Some(anc_id)
@@ -95,7 +95,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       | Some(_) as result => result
       | None => probe_for_piece(id)
       };
-    Option.map(unwrap_test, target);
+    Option.map(~f=unwrap_test, target);
   | None => None
   };
 };
@@ -109,16 +109,17 @@ let clear_autoprobe =
      * more frame; resetting now would flash them a reset color. editor_effects
      * resets once they're gone from the syntax cache. */
     List.fold_left(
-      (z, old_id) =>
-        ProbePerform.rm_multi(
-          ~drill=false,
-          ~reset=false,
-          ~syntax,
-          ~info_map,
-          old_id,
-          z,
-        ),
-      z,
+      ~f=
+        (z, old_id) =>
+          ProbePerform.rm_multi(
+            ~drill=false,
+            ~reset=false,
+            ~syntax,
+            ~info_map,
+            old_id,
+            z,
+          ),
+      ~init=z,
       old_ids,
     )
     |> Zipper.update_refractors(_, r =>
@@ -168,7 +169,10 @@ let current_toplevel_def =
     };
 
   [from_indicated, from_right, from_left, from_ancestor]
-  |> List.fold_left((acc, f) => acc == None ? f() : acc, None);
+  |> List.fold_left(
+       ~f=(acc, f) => Option.is_none(acc) ? f() : acc,
+       ~init=None,
+     );
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
@@ -180,7 +184,7 @@ let root_id_result: ref(option(Id.t)) = ref(None);
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
     switch (root_id_segment^) {
-    | Some(seg) => seg === syntax.segment
+    | Some(seg) => phys_equal(seg, syntax.segment)
     | None => false
     };
   if (stable) {
@@ -236,15 +240,14 @@ let update_autoprobe =
       }
     | Caret =>
       let current_def = current_toplevel_def(info_map, z);
-      /* Function-sugar: also anchor the param pattern so params are probed on the header line(s). */
-      let current_param =
+      /* Function-sugar: also anchor the param patterns so params are probed on the header line(s). */
+      let current_params =
         switch (current_def) {
         | Some(def_id) =>
-          ProbePerform.function_sugar_param_anchor(info_map, def_id)
-        | None => None
+          ProbePerform.function_sugar_param_anchors(info_map, def_id)
+        | None => []
         };
-      let anchors =
-        Option.to_list(current_def) @ Option.to_list(current_param);
+      let anchors = Option.to_list(current_def) @ current_params;
       /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
       let add = z =>
         switch (current_def) {
@@ -259,8 +262,7 @@ let update_autoprobe =
               ~info_map,
               z,
             );
-          switch (current_param) {
-          | Some(param_id) =>
+          List.fold_left(current_params, ~init=z, ~f=(z, param_id) =>
             ProbePerform.add_multi(
               param_id,
               ~drill=false,
@@ -269,8 +271,7 @@ let update_autoprobe =
               ~info_map,
               z,
             )
-          | None => z
-          };
+          );
         };
       (anchors, add);
     };
@@ -280,7 +281,7 @@ let update_autoprobe =
      the same-anchors short-circuit would be a permanent no-op. Self-heal. */
   let anchors_intact =
     List.for_all(
-      id => Id.Map.mem(id, z.refractors.multis.ids),
+      ~f=id => Id.Map.mem(id, z.refractors.multis.ids),
       current_anchors,
     );
   if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {
@@ -289,9 +290,16 @@ let update_autoprobe =
     /* drill=false to match how they were added. */
     let z =
       List.fold_left(
-        (z, old_id) =>
-          ProbePerform.rm_multi(~drill=false, ~syntax, ~info_map, old_id, z),
-        z,
+        ~f=
+          (z, old_id) =>
+            ProbePerform.rm_multi(
+              ~drill=false,
+              ~syntax,
+              ~info_map,
+              old_id,
+              z,
+            ),
+        ~init=z,
         prev_anchors,
       );
 

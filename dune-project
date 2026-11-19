@@ -53,9 +53,16 @@
   ocaml-index
   qcheck
   qcheck-alcotest
+  ; alcotest 1.10 calls Unix.rename, which js_of_ocaml < 6 does not implement, so
+  ; the tests crash under node (caml_unix_rename is not a function). We are held
+  ; below js_of_ocaml 6 by virtual_dom/bonsai v0.16; lift this cap with that move
+  ; (see #1131).
+  (alcotest
+   (< 1.10.0))
   ppx_deriving_qcheck
   bignum
-  csv))
+  csv
+  core))
 
 ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
 

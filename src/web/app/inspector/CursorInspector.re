@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Language;
+open Poly;
 
 let errc = "error";
 let warnc = "warning";
@@ -166,7 +167,10 @@ let core_mark_err_view =
         | [a] => [text("after automatically added label "), code(a)]
         | _ => [
             text("after automatically added labels "),
-            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+            ...ListUtil.join(
+                 text(","),
+                 List.map(~f=code, introduced_labels),
+               ),
           ]
         }
       )
@@ -176,7 +180,7 @@ let core_mark_err_view =
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
-      | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
+      | Other => [text(sprintf("\"%s\" isn't a valid token", token))]
       }
     | BadLabel(label) => [text("Malformed Label: "), view_any(label)]
     | FreeConstructor(name) => [code(name), text("not found")]
@@ -192,7 +196,7 @@ let core_mark_err_view =
           text("Invalid label: "),
           label_view(name),
           text(" is not part of the expected labels: "),
-          ...List.map(code, expected_labels),
+          ...List.map(~f=code, expected_labels),
         ]
       }
     | UnexpectedLabelSort(name) => [
@@ -208,7 +212,7 @@ let core_mark_err_view =
           ? []
           : [
             text("Malformed labels: "),
-            ...List.map(view_any, malformed_labels),
+            ...List.map(~f=view_any, malformed_labels),
           ]
       )
       @ (
@@ -216,13 +220,13 @@ let core_mark_err_view =
           ? []
           : [
             text("Duplicate labels: "),
-            ...List.map(code, duplicate_labels),
+            ...List.map(~f=code, duplicate_labels),
           ]
       )
       @ (
         List.is_empty(invalid_labels)
           ? []
-          : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
+          : [text("Invalid labels: "), ...List.map(~f=code, invalid_labels)]
       )
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
@@ -236,7 +240,7 @@ let core_mark_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(
              text(","),
-             List.map(view_type, Typ.of_source(tys)),
+             List.map(~f=view_type, Typ.of_source(tys)),
            ),
       ]
     | NoMeet(wrap, _) =>
@@ -287,16 +291,38 @@ let core_mark_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
+let common_warn_view = (~globals, warning: Warning.list_item): list(Node.t) =>
   switch (warning) {
-  | WarningPat(UnusedVar(name)) => [
+  | Pat(UnusedVar(name)) => [
       text("Warning: Variable"),
       code(name),
       text("is unused."),
     ]
-  | None => []
+  | TPat(NonContractive(name)) => [
+      text("Warning: Type"),
+      view_type(~globals, Var(name) |> Typ.fresh),
+      text("is defined as itself."),
+    ]
+  | Typ(NonContractive(name)) => [
+      text("Warning: Recursive type"),
+      code("rec " ++ name),
+      text("is defined as itself."),
+    ]
   };
-};
+
+/* [warnings] when there are any and warnings are displayed, else [ok]. */
+let warn_or_ok_view =
+    (
+      ~globals: Globals.t,
+      warnings: list(Warning.list_item),
+      ok: list(Node.t),
+    )
+    : Node.t =>
+  switch (warnings) {
+  | [_, ..._] when globals.settings.core.display_warnings =>
+    div_warn(List.concat_map(warnings, ~f=common_warn_view(~globals)))
+  | _ => div_ok(ok)
+  };
 let common_ok_view =
     (
       ~globals,
@@ -365,7 +391,7 @@ let common_ok_view =
               text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
-                   List.map(label_view, introduced_labels),
+                   List.map(~f=label_view, introduced_labels),
                  ),
             ]
           }
@@ -401,7 +427,7 @@ let common_ok_view =
             text("by automatically adding labels "),
             ...ListUtil.join(
                  text(","),
-                 List.map(label_view, introduced_labels),
+                 List.map(~f=label_view, introduced_labels),
                ),
           ]
         }
@@ -415,7 +441,7 @@ let common_ok_view =
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
-        ...ListUtil.join(text(","), List.map(view_type, tys)),
+        ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
       ]
       @ [text("but consistent with expected"), view_type(ana)]
     }
@@ -434,13 +460,13 @@ let underdetermined_typ_view =
   switch (underdetermined) {
   | ProdExtensionUnderdetermined(tys) => [
       text("Cannot determine type of product extension with argument types:"),
-      ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
     ]
   | ProdProjectionMissingLabel(label, labels) => [
       text("Cannot project label "),
       label_view(label),
       text(". Valid labels are: "),
-      ...List.map(code, labels),
+      ...List.map(~f=code, labels),
     ]
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
@@ -466,7 +492,7 @@ let underdetermined_typ_view =
     @ (
       ListUtil.join(
         [text(" and ")],
-        [product_error, label_error] |> List.filter(x => x != []),
+        [product_error, label_error] |> List.filter(~f=x => x != []),
       )
       |> List.concat
     );
@@ -530,12 +556,12 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
         text("Member "),
         label_view(name),
         text(" not found. Available: "),
-        text(String.concat(", ", expected_labels)),
+        text(String.concat(~sep=", ", expected_labels)),
       ]
     }
   | TypDuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
-      ...List.map(label_view, labels),
+      ...List.map(~f=label_view, labels),
     ]
   | DuplicateLabel(name, _) => [
       text("Duplicate Label: "),
@@ -556,7 +582,7 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
 
 let rec automatic_inserted_labels_exp =
         (info: option(Info.exp)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
+  switch (Option.bind(info, ~f=i => i.label_inference)) {
   | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
   | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_exp(Some(pre_labeled_info))
@@ -565,7 +591,7 @@ let rec automatic_inserted_labels_exp =
 
 let rec automatic_inserted_labels_pat =
         (info: option(Info.pat)): list(string) =>
-  switch (Option.bind(info, i => i.label_inference)) {
+  switch (Option.bind(info, ~f=i => i.label_inference)) {
   | Some(MultiLabelInference({introduced_labels, _})) => introduced_labels
   | Some(SingletonLabelInference({label, pre_labeled_info})) =>
     [label] @ automatic_inserted_labels_pat(Some(pre_labeled_info))
@@ -628,11 +654,11 @@ let exp_mark_err_view =
         view_any(example),
       ])
     | Some(tys) =>
-      let cls_str = String.uncapitalize_ascii(cls_str);
+      let cls_str = String.uncapitalize(cls_str);
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
-          ...ListUtil.join(text(","), List.map(view_type, tys)),
+          ...ListUtil.join(text(","), List.map(~f=view_type, tys)),
         ])
         |> code_box_container,
         text(
@@ -668,7 +694,7 @@ let exp_mark_err_view =
     | MissingLabels(labels) =>
       div_err([
         text("Labels not present in tuple: "),
-        ...List.map(label_view, labels),
+        ...List.map(~f=label_view, labels),
       ])
     | ToLvsMissingLabelsOnTuple(_) =>
       div_err([
@@ -679,7 +705,7 @@ let exp_mark_err_view =
     | ProjectLabelsMissingLabels(labels) =>
       div_err([
         text("Projected tuple does not have the following labels: "),
-        ...List.map(label_view, labels),
+        ...List.map(~f=label_view, labels),
       ])
     | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
     | AtLeast2Arguments =>
@@ -728,7 +754,7 @@ let exp_mark_err_view =
       text("Label "),
       label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
+      ...List.map(~f=label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
@@ -964,30 +990,24 @@ let pat_view =
           cls,
           ok,
         );
-      switch (info.warnings) {
-      | [Pat(UnusedVar(name))] =>
-        if (globals.settings.core.display_warnings) {
-          div_warn(common_warn_view(WarningPat(UnusedVar(name))));
-        } else {
-          div_ok(ok_view);
-        }
-      | _ => div_ok(ok_view)
-      };
+      warn_or_ok_view(~globals, info.warnings, ok_view);
     };
 };
 
 let typ_view =
     (
-      ~globals,
+      ~globals: Globals.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
     )
     : Node.t =>
   switch (marks) {
   | [] =>
     switch (message) {
-    | Some(TypOk(o)) => div_ok(typ_ok_view(~globals, cls, o))
+    | Some(TypOk(o)) =>
+      warn_or_ok_view(~globals, warnings, typ_ok_view(~globals, cls, o))
     | Some(Pat(_) | Exp(_) | TPatOk(_)) =>
       div_err([text("(internal) expected TypOk")])
     | None => div_err([text("(internal) missing type ok payload")])
@@ -1000,7 +1020,13 @@ let typ_view =
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals: Globals.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+      ~warnings: list(Warning.list_item),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1009,7 +1035,11 @@ let tpat_view =
     | Some(TPatOk(Message.Empty)) =>
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
-      div_ok([ContextInspector.alias_view(name)])
+      warn_or_ok_view(
+        ~globals,
+        warnings,
+        [ContextInspector.alias_view(name)],
+      )
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1054,10 +1084,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, warnings, _}) =>
+    wrapper(typ_view(~globals, cls, ~marks, ~message, ~warnings))
+  | InfoTPat({cls, marks, message, warnings, _}) =>
+    wrapper(tpat_view(~globals, cls, ~marks, ~message, ~warnings))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };

@@ -107,6 +107,12 @@ let tests = (
         (None, 2),
       ],
     ),
+    test_rearrange(
+      "Repeated label keeps every entry",
+      [Some("a"), Some("b")],
+      [(Some("a"), 1), (Some("a"), 2)],
+      [(Some("a"), 1), (Some("b"), 2)],
+    ),
     test_case(
       "LabeledTuple get_duplicate_and_unique_labels",
       `Quick,

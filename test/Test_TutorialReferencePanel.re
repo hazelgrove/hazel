@@ -2,9 +2,8 @@ open Alcotest;
 open Web;
 
 let lesson = title =>
-  List.find(
-    (s: Tutorial.spec) => s.title == title,
-    TutorialSettings.lessons,
+  List.find_exn(TutorialSettings.lessons, ~f=(s: Tutorial.spec) =>
+    String.equal(s.title, title)
   );
 
 let panel = title =>
@@ -37,7 +36,7 @@ let tests = (
     ),
     test_case("prose-only lessons need no probe controls", `Quick, () => {
       ["Basics / Holes", "Probes / Intro"]
-      |> List.iter(title => {
+      |> List.iter(~f=title => {
            let context = panel(title);
            check(
              bool,
