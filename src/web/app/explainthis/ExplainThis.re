@@ -1222,17 +1222,17 @@ let decide =
           let x_id = IdTagged.rep_id(x);
           let arg_id = IdTagged.rep_id(arg);
           let lets_ap =
-            switch (x.term, curried_spine(pat)) {
-            | (Constructor(_, _), _) =>
+            switch (Pat.ctr_name(x), curried_spine(pat)) {
+            | (Some(_), _) =>
               LetExp.lets_conap(~def_id, ~x_id, ~arg_id, ~pat_id)
-            | (_, Some((head, args))) =>
+            | (None, Some((head, args))) =>
               LetExp.lets_curried_funap(
                 ~def_id,
                 ~x_id=IdTagged.rep_id(head),
                 ~arg_ids=List.map(IdTagged.rep_id, args),
                 ~pat_id,
               )
-            | (_, None) =>
+            | (None, None) =>
               LetExp.lets_funap(~def_id, ~x_id, ~arg_id, ~pat_id)
             };
           leveled(~fallback=basic, lets_ap);
@@ -1287,10 +1287,10 @@ let decide =
         let x_id = IdTagged.rep_id(x);
         let arg_id = IdTagged.rep_id(arg);
         let basic = group => get_message(group);
-        switch (x.term) {
-        | Constructor(v, _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
-        | LivelitName(_) => basic(AppExp.livelitaps(~x_id, ~arg_id))
-        | _ => basic(AppExp.funaps(~x_id, ~arg_id))
+        switch (Exp.ctr_name(x), x.term) {
+        | (Some(v), _) => basic(AppExp.conaps(~name=v, ~x_id, ~arg_id))
+        | (None, LivelitName(_)) => basic(AppExp.livelitaps(~x_id, ~arg_id))
+        | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
         let x_id = IdTagged.rep_id(x);
@@ -1527,17 +1527,16 @@ let decide =
     | Ap(x, arg) =>
       let x_id = IdTagged.rep_id(x);
       let arg_id = IdTagged.rep_id(arg);
-      switch (x.term, curried_spine(bypass_parens_pat(term))) {
-      | (Constructor(_, _), _) =>
-        get_message(AppPat.conaps(~x_id, ~arg_id))
-      | (_, Some((head, args))) =>
+      switch (Pat.ctr_name(x), curried_spine(bypass_parens_pat(term))) {
+      | (Some(_), _) => get_message(AppPat.conaps(~x_id, ~arg_id))
+      | (None, Some((head, args))) =>
         get_message(
           AppPat.curried_funaps(
             ~x_id=IdTagged.rep_id(head),
             ~arg_ids=List.map(IdTagged.rep_id, args),
           ),
         )
-      | (_, None) => get_message(AppPat.funaps(~x_id, ~arg_id))
+      | (None, None) => get_message(AppPat.funaps(~x_id, ~arg_id))
       };
     | Constructor(con, _) => get_message(TerminalPat.ctr(con))
     | Asc(pat, typ) =>
