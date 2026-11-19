@@ -148,6 +148,12 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -156,7 +162,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
@@ -183,7 +189,7 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(~scroll=Never);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -229,6 +235,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -342,7 +357,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_model =
       (
         ~import_log,
         ~get_log_and,
@@ -395,7 +410,7 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -411,6 +426,30 @@ module Update = {
       Store.save(model);
       model |> return_quiet;
     };
+  };
+
+  let update = (~import_log, ~get_log_and, ~schedule_action, action, model) => {
+    let* model =
+      update_model(
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action,
+        action,
+        model,
+      );
+    /* Synchronize after every update, including startup and mode changes.
+       Only Probes lessons apply overrides; leaving restores user settings. */
+    let lesson =
+      switch (model.editors) {
+      | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
+      | _ => None
+      };
+    TutorialSlideInit.maybe_apply_on_change(
+      ~autoprobe=model.globals.settings.autoprobe_mode,
+      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      lesson,
+    );
+    model;
   };
 
   let calculate =
@@ -527,6 +566,10 @@ module Selection = {
          of_shortcut(
            ~action=inject(Globals(Set(Assist))),
            ToggleCompletion,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
          ),
          of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
@@ -705,27 +748,13 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        /* Leave focus alone when it is moving INTO a projector. An
-           interactive projector (the keybinding recorder) needs to hold
-           focus; without this guard it receives focus and has it taken back
-           in the same frame, so it can never capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started. */
+      Attr.on_blur(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        /* Focus events bubble here, so without this guard focusing a
-           projector is undone immediately: an interactive projector (the
-           keybinding recorder) could never hold focus or capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        Effect.Ignore;
-      }),
+          : Effect.Ignore
+      ),
     ];
   };
 
@@ -740,13 +769,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              [
-                Editors.View.config_links(~inject),
-                ...NutMenu.settings_menu(~globals),
-              ],
             ),
             submenu(
               ~tooltip="File",
@@ -773,6 +800,69 @@ module View = {
     );
   };
 
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
+        ),
+      ],
+    );
+  };
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -796,6 +886,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
@@ -817,10 +908,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
-    let task_reference: option(string) =
+    let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
-        TutorialsMode.Model.get_current(t).editors.task_reference
+        TutorialReferencePanel.of_lesson(
+          TutorialsMode.Model.get_current(t).editors,
+        )
       | _ => None
       };
     let sidebar =
@@ -840,7 +933,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
-        ~task_reference,
+        ~tutorial_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
@@ -942,7 +1035,7 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

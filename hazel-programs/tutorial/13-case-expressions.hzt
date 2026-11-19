@@ -109,6 +109,16 @@ let process_string_pair : (String, String) -> String = fun p ->
 in
 process_string_pair("pre", "hazel")
 
+@solution
+let process_string_pair : (String, String) -> String = fun p ->
+  case p
+  | ("pre", b) => string_sub(b, 0, 3)
+  | ("post", b) => string_sub(b, 3, string_length(b) - 3)
+  | (_, b) => b
+  end
+in
+process_string_pair("pre", "hazel")
+
 @test
 test process_string_pair("pre", "hazel") == "haz" end;
 test process_string_pair("post", "hazel") == "el" end;

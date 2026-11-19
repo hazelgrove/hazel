@@ -32,5 +32,9 @@ first_four should be [1, 2, 3, 4]
 let first_four : [Int] = [¿] in
 first_four
 
+@solution
+let first_four : [Int] = [1, 2, 3, 4] in
+first_four
+
 @test
 test first_four == [1, 2, 3, 4] end

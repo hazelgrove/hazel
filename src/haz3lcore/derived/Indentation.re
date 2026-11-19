@@ -176,6 +176,17 @@ let is_complete_case_rule_with_body = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* Module members: `;`-separated ModLets have no `in` to exempt them from
+   the incrementor rule, so without a reset each member's body indent
+   compounds diagonally. A linebreak after a module semicolon returns to
+   member level (one step inside the braces). The Exp `;` (Seq) shares the
+   label but not the sort, and keeps its level as before. */
+let is_module_semi = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) when Tile.is_semi(t) => Tile.mold(t).out == Sort.Mod
+  | _ => false
+  };
+
 /* Check if piece is convex grout (hole for missing expression/pattern) */
 let is_convex_grout = (p: Piece.t): bool =>
   switch (p) {
@@ -234,6 +245,9 @@ let rec go =
             switch (prev, next) {
             | (_, Some(next)) when Piece.is_comma(next) => base + 2
             | (Some(prev), _) when Piece.is_comma(prev) => base + 2
+            /* module members: reset to member level, one step inside
+               the braces (their `;` has no `in` to exempt it) */
+            | (Some(prev), _) when is_module_semi(prev) => base + 2
             /* Incomplete case rules (just `|`) shouldn't increment.
              * An incomplete `|` is Concave on right, so would match
              * is_incrementor without this check. */

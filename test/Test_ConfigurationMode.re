@@ -246,12 +246,15 @@ let tests = [
         `Quick,
         default_key_round_trips,
       ),
-      test_case("edited slide round-trips", `Quick, edited_key_round_trips),
-      test_case("edited slide keys differently", `Quick, edited_key_differs),
+      /* Slow: each loads the edited Colors slide through the store */
+      test_case("edited slide round-trips", `Slow, edited_key_round_trips),
+      test_case("edited slide keys differently", `Slow, edited_key_differs),
       test_case("cache format round-trips", `Quick, theme_cache_round_trips),
+      /* Slow: it analyzes the whole Colors slide (see
+         Test_ColorConfiguration) */
       test_case(
         "startup theme is complete",
-        `Quick,
+        `Slow,
         startup_theme_is_complete,
       ),
     ],

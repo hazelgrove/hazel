@@ -38,13 +38,10 @@ let settings = {
   indentation_ux: false,
 };
 
-let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  let statics =
-    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) =>
   Perform.go(
     ~settings,
-    ~statics,
+    ~statics=Lazy.force(Test_Editing.derive(~settings, z).statics),
     ~syntax=CachedSyntax.init(z),
     a,
     {
@@ -53,7 +50,6 @@ let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
     },
     ~root=Exp,
   );
-};
 
 /* fuzzing explores the action space: failed actions are skipped */
 let apply = (z: Zipper.t, a: Action.t): Zipper.t =>
