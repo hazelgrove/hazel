@@ -59,4 +59,4 @@ url {
 }
 x-commit-hash: "ae4742574471fb638b65272f231c5e5e7da2a61c"
 patches: ["ppx_yojson_conv_lib-v0.18.patch"]
-extra-files: [["ppx_yojson_conv_lib-v0.18.patch" "sha256=0dc03171dfd990c0c08dc244b3dad8fee31b082933d9ceed3851b8d2b54cdb39"]]
+extra-files: [["ppx_yojson_conv_lib-v0.18.patch" "sha256=2bf325ad86d058ad080202aa29d74663361505b1567d11f8d62b1db3a56a42a8"]]
