@@ -329,7 +329,8 @@ module M: Projector = {
       |> view_seg(~background=false, Exp);
 
     let syntax_seed: HazelDOM.t = {
-      inject: inject_msg,
+      /* HTML-commit rewrites are cheap; treat every event alike. */
+      inject: (_gesture, msg) => inject_msg(msg),
       view_term,
       commit: HazelDOM.Syntax,
     };
@@ -350,7 +351,8 @@ module M: Projector = {
       | None => message("starting app…")
       | Some(html) =>
         let seed: HazelDOM.t = {
-          inject: msg => {
+          /* Apps own their state in the store; transiency is moot. */
+          inject: (_gesture, msg) => {
             schedule_checkpoint(
               ~id=info.id, ~current=model.checkpoint, ~save=c =>
               local_quiet(SetCheckpoint(c))

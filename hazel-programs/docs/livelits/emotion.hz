@@ -1,0 +1,73 @@
+# An Emotion Livelit #
+
+# A draggable face whose EXPANSION is a String naming a mood: the #
+# face itself is the control -- drag it up or down to change it. #
+
+let ^mood = {
+  # (value, anchor): anchor is -1 except mid-drag. It stores #
+  # 200 + value - 2 * grab-y (the bias keeps it positive). #
+  type Model = (Int, Int);
+  type Action = + Down(Int) + MoveTo(Int) + Up;
+
+  let init : Model = (50, -1);
+
+  let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
+
+  # dragging DOWN pulls the mouth into a smile (2 mood per px); #
+  # moves only count while held #
+  let update = fun ((v, anchor), a) : (Model, Action) ->
+    case a
+    | Down(y) => (v, 200 + v - 2 * y)
+    | MoveTo(y) => if anchor == -1 then (v, anchor)
+                   else (clamp(anchor - 200 + 2 * y), anchor)
+    | Up => (v, -1)
+    end;
+
+  let word = fun (v, anchor) : Model ->
+    if v < 40 then "sad" else if v > 70 then "happy" else "neutral";
+
+  # the mouth is a curve whose bend follows the value #
+  let mouth = fun v ->
+    "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
+
+  let view = fun (v, anchor) : Model ->
+    Div(
+      [Create("data-hint", "drag up/down"),
+       Style([("cursor", "ns-resize")])],
+      [
+        Node("svg",
+          [Create("viewBox", "0 0 200 200"),
+           Width("92"), Height("92"),
+           OnMouseDownAt(fun (x, y) -> Down(y)),
+           OnMouseMoveAt(fun (x, y) -> MoveTo(y)),
+           OnMouseUpAt(fun p -> Up)],
+          [
+            Node("circle",
+              [Create("cx", "100"), Create("cy", "100"), Create("r", "90"),
+               Create("fill", "gold"), Create("stroke", "black")], []),
+            Node("circle",
+              [Create("cx", "65"), Create("cy", "80"), Create("r", "10")], []),
+            Node("circle",
+              [Create("cx", "135"), Create("cy", "80"), Create("r", "10")], []),
+            Node("path",
+              [Create("d", mouth(v)), Create("stroke", "black"),
+               Create("fill", "transparent"), Create("stroke-width", "5")], [])
+          ])
+      ]
+    );
+
+  let expand = fun m : Model -> word(m);
+
+  let shape = Tab(10, 4)
+} in
+
+# A use means its EXPANSION: the mood word, not the number behind it. #
+
+let greeting = fun mood : String ->
+  case mood
+  | "happy" => "What a day!"
+  | "sad" => "Hang in there."
+  | _ => "Steady on."
+  end in
+
+greeting(^^livelit(^mood(85, -1)))

@@ -167,7 +167,7 @@ module Update = {
         Language.Id.Map.equal(
           (==),
           CachedStatics.probe_ids_of_zipper(z),
-          Language.Id.Map.map(_ => (), statics.targets),
+          statics.pins,
         );
     /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
      * not a stale captured one. A recompute first takes the statics the agent

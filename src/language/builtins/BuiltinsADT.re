@@ -470,6 +470,19 @@ module JSON = {
     );
 };
 
+// Text footprint of a livelit's GUI: the livelit `shape` member.
+// Inline(w) is one line wide w columns; Block(w, h) and Tab(w, h) are
+// h lines tall — code flows below a Block but continues on the TOP
+// line beside a Tab.
+module LivelitShape = {
+  let t: Typ.t =
+    sum_type([
+      ("Inline", Some(int())),
+      ("Block", Some(prod([int(), int()]))),
+      ("Tab", Some(prod([int(), int()]))),
+    ]);
+};
+
 /* Keyboard shortcuts, used as the analyzed type of the Shortcuts config
  * slide (see ShortcutConfiguration / ConfigurationMode).
  *
@@ -1001,6 +1014,7 @@ let type_aliases: list((string, Typ.t)) = [
   ("Shortcut", Shortcut.typ),
   ("ColorValue", Color.typ),
   ("$Meta", meta_type),
+  ("LivelitShape", LivelitShape.t),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
