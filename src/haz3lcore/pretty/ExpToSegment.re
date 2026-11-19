@@ -736,8 +736,58 @@ let rec parenthesize =
       ),
     )
     |> rewrap
-  | Module(_) => exp /* Phase 1.2: proper module parenthesization */
-  | ModuleExp(_) => exp
+  | Module(items) =>
+    /* A member's definition is the trailing operand of `let x =` /
+       `module M =`, so it is parenthesized like a let body, and the
+       rewrites parenthesize performs (float negation as `0. -. e`,
+       filters, closures) must reach into it: printing a module whose
+       member negated a float used to raise (#2554). */
+    let paren_def = e => parenthesize(e) |> paren_at(Precedence.let_);
+    Module(
+      items
+      |> List.map((item: Mod.t) => {
+           let term: Mod.term =
+             switch (item.term) {
+             | ModLet(p, e) =>
+               ModLet(
+                 parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+                 paren_def(e),
+               )
+             | ModType(tp, t) =>
+               ModType(
+                 tp,
+                 parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+               )
+             | ModExp(e) =>
+               ModExp(parenthesize(e) |> paren_at(Precedence.mod_seq))
+             | ModuleMod(mp, e) => ModuleMod(mp, paren_def(e))
+             | MultiHole(xs) =>
+               MultiHole(
+                 List.map(
+                   parenthesize_any(
+                     ~parenthesization,
+                     ~show_ascriptions,
+                     ~show_filters,
+                   ),
+                   xs,
+                 ),
+               )
+             | (EmptyHole | Invalid(_)) as term => term
+             };
+           {
+             ...item,
+             term,
+           };
+         }),
+    )
+    |> rewrap;
+  | ModuleExp(mp, def, body) =>
+    ModuleExp(
+      mp,
+      parenthesize(def) |> paren_at(Precedence.min),
+      parenthesize(body) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
   };
 }
 and parenthesize_pat =
