@@ -53,5 +53,16 @@ let apply(base: Int, action: Care): Int =
 in
 apply(250, ¿)
 
+@solution
+type Care = Water(Int) + Trim + Skip in
+let apply(base: Int, action: Care): Int =
+  case action
+  | Water(amount) => base + amount
+  | Trim => base - 10
+  | Skip => base
+  end
+in
+apply(250, Water(50))
+
 @test
 test answer == 300 end

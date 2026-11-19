@@ -80,6 +80,7 @@ let (suite, exit_with_test_status) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
+    @ [Test_ProofHacks.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
@@ -100,9 +101,11 @@ let (suite, exit_with_test_status) =
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
+    @ Test_HazelDB.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]

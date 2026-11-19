@@ -22,6 +22,53 @@
   height: 100%;
 }
 
+#top-bar #build-info {
+  /* absorb all remaining top-bar space (content right-aligned) so a text
+     selection can be started from the empty area and dragged across the
+     label */
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-family: var(--code-font);
+  font-size: 0.7em;
+  white-space: nowrap;
+  /* only slightly darker than the top bar background: legible if you look,
+     invisible if you don't */
+  color: oklch(from var(--ui-bkg) 82% c h);
+}
+/* padding lives on the label (not the flex container) so the whole visual
+   area is part of the selectable inline box */
+#top-bar #build-info .build-info-label {
+  padding: 0.5em 0.7em;
+}
+/* The page container disables selection globally; re-enable it here (and on
+   all descendants, as some engines don't propagate the override) so the
+   build info can be copied. */
+#top-bar #build-info,
+#top-bar #build-info * {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+#top-bar #build-info:has(.build-info-label:hover) {
+  color: oklch(from var(--ui-bkg) 45% c h);
+}
+#top-bar #build-info:focus {
+  outline: none;
+}
+#top-bar #build-info a {
+  color: inherit;
+  text-decoration: none;
+  -webkit-user-drag: none;
+}
+#top-bar #build-info a:hover {
+  text-decoration: underline;
+}
+
 #top-bar .nut-menu {
   display: flex;
   transform-origin: top;
