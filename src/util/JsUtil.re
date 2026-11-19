@@ -471,7 +471,16 @@ module Fragment = {
       | Https({hu_fragment: str, _})
       | File({fu_fragment: str, _}) => str
       };
-    Url.Current.get() |> Option.map(fragment_of_url);
+    switch (Url.Current.get()) {
+    | Some(url) => Some(fragment_of_url(url))
+    | None =>
+      /* An address Url cannot parse, such as a blob: page: hazeljs's
+         packaged editor is one (hazelgrove/hazeljs#2), made by its page so
+         that it has the page's origin. The fragment, read directly. */
+      let hash = Js.to_string(Dom_html.window##.location##.hash);
+      String.length(hash) > 1
+        ? Some(String.sub(hash, 1, String.length(hash) - 1)) : None;
+    };
   };
 };
 
