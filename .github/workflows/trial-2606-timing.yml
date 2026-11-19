@@ -1,0 +1,37 @@
+# A trial, not for merging: times hazelgrove/hazel#2606's messages on GitHub's machines. test/Test_HeldCacheTiming.re
+# times encoding and decoding the request and the answer with the incremental cache in them (dev) and without (#2606),
+# three runs; trial/postmessage-copy.mjs times copying messages of the same sizes to a worker thread.
+name: Trial 2606 timing
+on:
+  push:
+    branches: [trial/2606-timing]
+jobs:
+  time:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-hazel-toolchain
+      - name: Build the test bundle
+        run: |
+          make setup-zarith
+          dune build test/haz3ltest.bc.js --profile dev
+      - name: Time the messages, three runs
+        env:
+          IDB_STUB: ${{ github.workspace }}/test/idb_stub.js
+          TEST_JS: ${{ github.workspace }}/_build/default/test/haz3ltest.bc.js
+        run: |
+          for i in 1 2 3; do bash test/run_node.sh test HeldCacheTiming; echo "HELDTIMING run $i done" >> heldtiming.out; done
+          cat heldtiming.out
+      - name: Time the copy across postMessage
+        run: node trial/postmessage-copy.mjs heldtiming.out | tee copy.out
+      - name: Summary
+        run: |
+          { echo '## #2606: encode, decode and copy, with the cache (dev) and without (#2606)'; echo '```'; cat heldtiming.out copy.out; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: timing
+          path: |
+            heldtiming.out
+            copy.out
