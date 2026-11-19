@@ -16,6 +16,23 @@ let pop_delim () =
 let semi_token () =
   match !delim_stack with '{' :: _ -> MOD_SEMI | _ -> SEMI_COLON
 
+(* The prover's keywords. Matching them as separate rules overflows
+   ocamllex's transition table, so `identifier` looks them up instead.
+   The parser's `name` rule accepts most of them as names too; a word added
+   here needs an arm there. `step` is not a keyword: the parser reads it as
+   a proof step from an IDENT. *)
+let prover_keywords : (string, token) Stdlib.Hashtbl.t =
+  let t = Stdlib.Hashtbl.create 32 in
+  List.iter ~f:(fun (k, v) -> Stdlib.Hashtbl.replace t k v)
+    [ ("theorem", THEOREM); ("proof", PROOF); ("forall", FORALL);
+      ("funext", FUNEXT); ("assume", ASSUME);
+      ("generalize", GENERALIZE); ("have", HAVE); ("revert", REVERT);
+      ("cases", CASES); ("induction", INDUCTION);
+      ("alias", ALIAS); ("rewrite", REWRITE); ("rewriteleft", REWRITELEFT);
+      ("algebra", ALGEBRA); ("with", WITH);
+      ("from", FROM); ("at", AT); ("do", DO) ];
+  t
+
 let advance_line lexbuf =
   let pos = lexbuf.lex_curr_p in
   let pos' = { pos with
@@ -94,6 +111,9 @@ let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
 (* `'` continues a variable but not a constructor, as in the editor. *)
 let var_rest = name_rest | '\''
 let identifier = name_start var_rest*
+(* `$e`, `$x`: the metavariables of focus selectors, which the editor reads
+   as ordinary variables. Either case may follow the `$`. *)
+let metavariable = '$' (name_start | ['A'-'Z']) var_rest*
 let constructor_ident = ['A'-'Z'] name_rest*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
@@ -140,6 +160,7 @@ rule token =
     | "..." { TUPLE_EXTENSION }
     | "." { DOT }
     (* Poly ops*)
+    | "==>" { IMPLIES }
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }
     (* Int ops*)
@@ -214,7 +235,11 @@ rule token =
     | "named_fun" {NAMED_FUN}
     | "poly" {POLY}
     | "rec" {REC}
-    | identifier as i { IDENT(i) }
+    | metavariable as i { IDENT(i) }
+    | identifier as i
+      { match Stdlib.Hashtbl.find_opt prover_keywords i with
+        | Some t -> t
+        | None -> IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

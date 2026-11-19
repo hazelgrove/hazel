@@ -101,7 +101,6 @@ type example_id =
   | TupleExtension3
   | Let(let_examples)
   | Theorem
-  | ProofOf
   | Forall
   | Yes
   | UseExp1
@@ -131,6 +130,8 @@ type example_id =
   | AndTrue
   | OrFalse
   | OrTrue
+  | ImpliesFalse
+  | ImpliesTrue
   | CaseWildSimple
   | CaseWildTuple
   | CaseInt
@@ -154,7 +155,28 @@ type example_id =
   | SigLet1
   | SigType1
   | ModuleKeyword1
-  | ModuleKeywordDecl1;
+  | ModuleKeywordDecl1
+  /* Prover forms */
+  | ProofSeq1
+  | ProofAxiom1
+  | ProofAxiomWith1
+  | ProofAxiomRev1
+  | ProofAxiomRevWith1
+  | ProofRewrite1
+  | ProofEval1
+  | ProofFocus1
+  | ProofCases1
+  | ProofInduction1
+  | ProofForall1
+  | ProofFunext1
+  | ProofAssume1
+  | ProofGeneralize1
+  | ProofRevert1
+  | ProofRevertWith1
+  | ProofHave1
+  | ProofHaveNamed1
+  | ProofAssumeNamed1
+  | ProofAlias1;
 
 /* No deriving: nothing serializes an `example`, `form` or `group`. Only the id
    enums need serializers, because `ExplainThisModel.t` is what `Store`
@@ -222,7 +244,6 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | TheoremExp
-  | ProofObjectExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -283,7 +304,6 @@ type form_id =
   | DotTyp
   | Label
   | ForallExp
-  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -305,7 +325,29 @@ type form_id =
   | SigLetDecl
   | SigTypeDecl
   | ModuleKeywordExp
-  | ModuleKeywordDecl;
+  | ModuleKeywordDecl
+  /* Prover forms: the Proof sort's own steps. */
+  | ProofEmptyHole
+  | ProofMultiHole
+  | ProofInvalid
+  | ProofSeqStep
+  | ProofAxiomStep
+  | ProofAxiomRevStep
+  | ProofRewriteStep
+  | ProofEvalStep
+  | ProofFocusStep
+  | ProofCasesStep
+  | ProofInductionStep
+  | ProofForallStep
+  | ProofFunextStep
+  | ProofAssumeStep
+  | ProofGeneralizeStep
+  | ProofRevertStep
+  | ProofHaveStep
+  /* Hypothesis naming: the named forms and `alias`. */
+  | ProofHaveNamedStep
+  | ProofAssumeNamedStep
+  | ProofAliasStep;
 
 type form = {
   id: form_id,

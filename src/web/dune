@@ -24,7 +24,7 @@
  (name workerServer)
  (flags
   (:standard -open Core))
- (modules WorkerServer CoverageHook)
+ (modules WorkerServer CoverageHook CasJs)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
@@ -50,6 +50,7 @@
   Worker
   WorkerServer
   CoverageHook
+  CasJs
   Migrate_exercises)
  (libraries
   core

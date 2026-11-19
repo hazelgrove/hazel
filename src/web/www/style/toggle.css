@@ -41,13 +41,16 @@
   justify-content: center;
 }
 
+/* On is the accent. The off track is a mid tone of the bar's hue, so
+   another shade of that hue reads as on or off depending on the scheme. */
 .toggle-switch.active {
-  background-color: var(--surface-shard-strong);
+  background-color: var(--primary-accent);
   border: solid 1px transparent;
 }
 .toggle-switch.active .toggle-knob {
   margin-left: 0.9em;
   margin-right: 1px;
+  color: var(--primary-accent);
 }
 
 .submenu .toggle-switch {

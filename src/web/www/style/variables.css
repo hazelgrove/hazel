@@ -59,4 +59,42 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
+
+  /* ── Prover colors ────────────────────────────────────────────────── */
+
+  /* TODO: give these roles in the Colors slide (colors.hz, then
+     BuiltinsColorScheme.role_groups and ColorConfiguration.aliases) and
+     delete them here. Until then they are the light scheme's values in
+     every scheme. */
+
+  /* Runtime problems in the problems sidebar */
+  --RT0: oklch(90% 0.06 350); /* row fill */
+  --RT1: oklch(60% 0.25 350); /* stroke */
+  --RT2: oklch(40% 0.25 350); /* active stroke */
+
+  /* Stepper per-row status indicator lines (right edge of a step row) */
+  --step-indicator-broken: var(--border-error);
+  --step-indicator-incomplete: oklch(75% 0.09 80); /* tan */
+  --step-indicator-blocked: oklch(75% 0.16 30); /* lighter red, dotted */
+
+  /* A step's block: dark sections for the goals a step creates, mid-tone
+     ones for its side conditions. */
+  --stepper-arm: var(--ci-icon-bkg);
+  --stepper-arm-text: var(--light-page-color);
+  --stepper-condition: oklch(78% 0.045 90);
+  --stepper-condition-text: oklch(33% 0.04 90);
+  /* Every step's lozenge: the shape a step with an error already has
+     (`.has-popup`), in the arm colour. */
+  --stepper-lozenge-border: color-mix(in srgb, var(--ci-icon-bkg) 70%, var(--cell-result));
+  --stepper-lozenge-bkg: color-mix(in srgb, var(--ci-icon-bkg) 12%, var(--cell-result));
+
+  /* Proof sort */
+  --token-proof: oklch(55% 0.17 150);
+  --token-prul: var(--token-proof);
+  --shard-caret-proof: oklch(from var(--token-proof) 95% calc(c/4) h);
+  --shard-proof: var(--shard-caret-proof);
+  --shard-lines-proof: oklch(from var(--token-proof) 80% calc(c/2) h);
+  --shard-prul: var(--shard-proof);
+  --shard-caret-prul: var(--shard-caret-proof);
+  --shard-lines-prul: var(--shard-lines-proof);
 }

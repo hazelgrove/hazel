@@ -16,6 +16,11 @@ type status =
 let get_status:
   (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t)) => status;
 
+/* Every step the expression can take, including those `get_status` would
+   take automatically. */
+let all_steps:
+  (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t)) => list(step);
+
 let refresh_step:
   (~settings: CoreSettings.t, Exp.t, Environment.t(Exp.t), persistent) =>
   option((FilterAction.action, step));
@@ -26,5 +31,9 @@ let persist: step => persistent;
 let take_step: step => option(Exp.t);
 
 let get_step_id: step => Id.t;
+
+/* Whether the step reduces the whole expression it was found in, up to
+   parentheses, ascriptions and closures. */
+let is_at_root: step => bool;
 
 let get_step_kind: step => Transition.step_kind;

@@ -117,6 +117,27 @@ open AST
 
 %token SEMI_COLON
 
+(* Prover forms *)
+%token IMPLIES
+%token FORALL
+%token FUNEXT
+%token THEOREM
+%token PROOF
+%token ASSUME
+%token GENERALIZE
+%token HAVE
+%token REVERT
+%token INDUCTION
+%token CASES
+%token ALIAS
+%token REWRITE
+%token REWRITELEFT
+%token ALGEBRA
+%token WITH
+%token FROM
+%token DO
+%token AT
+
 
 
 (* Precedences *)
@@ -129,6 +150,12 @@ open AST
 %right DASH_ARROW
 %nonassoc IF_EXP
 
+/* Proof prefix forms (`forall p =>`, `assume e =>`, `revert e =>`,
+   `generalize e =>`) bind at Precedence.fun_, which is looser than the
+   proof-sequence `;` (Precedence.semi) — so `assume e => a; b` puts the
+   whole sequence in the body, matching the segment parser. */
+%nonassoc PROOF_PRE
+
 /* Flat sequences - tighter than structural forms */
 %right SEMI_COLON
 
@@ -136,6 +163,11 @@ open AST
    module bodies, the parser reduces exp to modItemExp rather than shifting
    ';' for Seq. This only affects the modItemExp production. */
 %nonassoc MOD_ITEM_EXP
+
+/* Material implication: right-associative, one level looser than `||`
+   (Precedence.impl = 34 vs Precedence.or_ = 33), so `a == b ==> c == d`
+   is `(a == b) ==> (c == d)` and `a ==> b ==> c` is `a ==> (b ==> c)`. */
+%right IMPLIES
 
 %right L_OR
 %right L_AND
@@ -207,6 +239,7 @@ program:
 %inline boolOp:
     | L_AND { BoolOp(And) }
     | L_OR { BoolOp(Or) }
+    | IMPLIES { BoolOp(Implies) }
 
 %inline stringOp:
     | STRING_CONCAT { StringOp(Concat) }
@@ -221,8 +254,32 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
+(* Proof keywords are tokens so that proof syntax can see them, but anywhere
+   a name goes they are ordinary names, as in the editor. Each needs an arm
+   here and an entry in the lexer's prover_keywords. `theorem` and `forall`
+   stay reserved: they open expression forms, so as names they would clash
+   with those forms on `(`, and the editor reserves them too. *)
+name:
+    | i = IDENT { i }
+    | PROOF { "proof" }
+    | FUNEXT { "funext" }
+    | ASSUME { "assume" }
+    | GENERALIZE { "generalize" }
+    | HAVE { "have" }
+    | REVERT { "revert" }
+    | CASES { "cases" }
+    | INDUCTION { "induction" }
+    | ALIAS { "alias" }
+    | REWRITE { "rewrite" }
+    | REWRITELEFT { "rewriteleft" }
+    | ALGEBRA { "algebra" }
+    | WITH { "with" }
+    | FROM { "from" }
+    | AT { "at" }
+    | DO { "do" }
+
 label:
-    | l = IDENT { l }
+    | l = name { l }
     | l = QUOTED_LABEL { l }
     (* Ill-sorted labels appear in error-demo slides: (1="hello") *)
     | i = INT { Bigint.to_string(i) }
@@ -250,7 +307,7 @@ sumTyp:
     
 typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
-    | c = IDENT { TypVar(c) }
+    | c = name { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
     | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
@@ -312,7 +369,7 @@ nonAscriptingPat:
     | FLOAT_TYPE { ConstructorPat("Float", None) }
     | BOOL_TYPE { ConstructorPat("Bool", None) }
     | STRING_TYPE { ConstructorPat("String", None) }
-    | p = IDENT { VarPat(p) }
+    | p = name { VarPat(p) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
     | s = STRING { AtomPat (String s)}
@@ -394,7 +451,7 @@ ascTyp:
     | POLY; a = tpat; DASH_ARROW; t = ascTyp { PolyType(a, t) }
     | REC; c = tpat; DASH_ARROW; t = ascTyp { RecType(c, t) }
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
-    | c = IDENT { TypVar(c) }
+    | c = name { TypVar(c) }
     | INT_TYPE { IntType }
     | SINT_TYPE { SIntType }
     | NAT_TYPE { NatType }
@@ -413,7 +470,39 @@ ascTyp:
    production consumes. *)
 funExp: 
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
-    | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }
+    | NAMED_FUN; n = name; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(n)) }
+
+forallExp:
+    | FORALL; p = funPat; DASH_ARROW; e = exp; { ForallExp (p, e) }
+
+(* Proof case: `| <pat> => <proof>`, the PRul analogue of `rul`. *)
+prul:
+    | TURNSTILE; p = pat; EQUAL_ARROW; pf = proof; { (p, pf) }
+
+proof:
+    | QUESTION { EmptyHoleProof }
+    | pf1 = proof; SEMI_COLON; pf2 = proof { ProofSeq(pf1, pf2) }
+    | OPEN_PAREN; pf = proof; CLOSE_PAREN { ParenProof(pf) }
+    | FORALL; p = pat; EQUAL_ARROW; pf = proof { ProofForall(p, pf) } %prec PROOF_PRE
+    | FUNEXT; p = pat; EQUAL_ARROW; pf = proof { ProofFunext(p, pf) } %prec PROOF_PRE
+    | ASSUME; e = exp; EQUAL_ARROW; pf = proof { ProofAssume(e, pf) } %prec PROOF_PRE
+    | ASSUME; x = name; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAssumeNamed(VarPat(x), e, pf) } %prec PROOF_PRE
+    | ALIAS; x = pat; SINGLE_EQUAL; e = exp; EQUAL_ARROW; pf = proof { ProofAlias(x, e, pf) } %prec PROOF_PRE
+    | GENERALIZE; e = exp; EQUAL_ARROW; pf = proof { ProofGeneralize(e, pf) } %prec PROOF_PRE
+    | HAVE; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHave(e, sub, pf) } %prec PROOF_PRE
+    | HAVE; x = name; SINGLE_EQUAL; e = exp; PROOF; sub = proof; EQUAL_ARROW; pf = proof { ProofHaveNamed(VarPat(x), e, sub, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; EQUAL_ARROW; pf = proof { ProofRevert(e, pf) } %prec PROOF_PRE
+    | REVERT; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; EQUAL_ARROW; pf = proof { ProofRevertWith(e, v, i, pf) } %prec PROOF_PRE
+    | REWRITE; eq = exp; END { ProofAxiom(eq) }
+    | REWRITELEFT; eq = exp; END { ProofAxiomRev(eq) }
+    | REWRITE; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomWith(eq, v, i) }
+    | REWRITELEFT; eq = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofAxiomRevWith(eq, v, i) }
+    | ALGEBRA; e = exp; END { ProofAlgebrite(e) }
+    | x = IDENT { if String.equal x "step" then ProofEval else failwith ("Parse error: not a proof step: " ^ x) }
+    | FROM; sel = exp; DO; pf = proof; END { ProofFocus(None, sel, pf) }
+    | FROM; sel = exp; AT; n = INT; DO; pf = proof; END { ProofFocus(Some(Bigint.to_int_exn n), sel, pf) }
+    | CASES; e = exp; cases = list(prul); END { ProofCases(e, cases) }
+    | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
 
 
 %inline ifExp:
@@ -429,7 +518,7 @@ tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
-    | v = IDENT {VarTPat v}
+    | v = name {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
 
 unExp:
@@ -445,7 +534,7 @@ exp:
     | b = binExp { b }
     | i = INT { Atom (Int i) }
     | f = FLOAT { Atom (Float f) }
-    | v = IDENT { Var v }
+    | v = name { Var v }
     | l = LIVELIT_IDENT { LivelitName l }
     (* Base-type keywords are ordinary constructors in exp position
        (HTML's Int/Float/Bool/String nodes) — MakeTerm parity. *)
@@ -481,13 +570,15 @@ exp:
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (i, TupleExp(e1 :: es), e2) } %prec LET_EXP
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (TuplePat(p1 :: ps), TupleExp(e1 :: es), e2) } %prec LET_EXP
-    | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
+    | MODULE; i = name; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
-    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
+    | MODULE; i = name; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
     | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
+    | f = forallExp {f}
+    | THEOREM; p = pat; SINGLE_EQUAL; e1 = exp; PROOF; pf = proof; IN; e2 = exp { Theorem (p, e1, pf, e2) } %prec LET_EXP
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
     | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
@@ -518,9 +609,9 @@ modItemExp:
 
 modItem:
     | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
-    | MODULE; i = IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
+    | MODULE; i = name; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
-    | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
+    | MODULE; i = name; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
     | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
     | e = modItemExp { ModItemExp(e) }

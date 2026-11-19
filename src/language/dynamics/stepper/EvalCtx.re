@@ -8,7 +8,7 @@ type term =
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
-  | Theorem(Pat.t, DHExp.t, t)
+  | Theorem(Pat.t, DHExp.t, Proof.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
   | FixF(Pat.t, t, option(Environment.t(Exp.t)))
   | TypAp(t, Typ.t)
@@ -152,9 +152,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d) |> wrap;
-    | Theorem(dp, d1, ctx) =>
+    | Theorem(dp, d1, pf, ctx) =>
       let d = compose(ctx, d);
-      Theorem(dp, d1, d) |> wrap;
+      Theorem(dp, d1, pf, d) |> wrap;
     | Fun(dp, ctx, typ, v) =>
       let d = compose(ctx, d);
       Fun(dp, d, typ, v) |> wrap;

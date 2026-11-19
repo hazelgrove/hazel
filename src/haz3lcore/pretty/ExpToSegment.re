@@ -267,7 +267,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
-  | ProofObject(_)
   | Match(_) => Precedence.max
 
   | Asc(_) => Precedence.asc
@@ -351,7 +350,6 @@ let external_precedence_typ = (tp: Typ.t) =>
   // Same goes for forms which are already surrounded
   | Parens(_)
   | Projector(_)
-  | ProofOf(_)
   | List(_) => Precedence.max
 
   // Other forms
@@ -373,9 +371,55 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sig(_) => Precedence.min
   };
 
+/* Only the wrapping forms, whose body extends to the end of the enclosing
+   proof, and `;` can be broken by a following tile. Every other proof is a
+   leaf or closed by `end`. */
+let external_precedence_proof = (p: Proof.t) =>
+  switch (Annotated.term_of(p)) {
+  | EmptyHole
+  | Invalid(_)
+  | Parens(_)
+  | AxiomStep(_)
+  | AlgebriteStep(_)
+  | EvalStep
+  | Focus(_)
+  | Cases(_, _)
+  | Induction(_, _) => Precedence.max
+  | Seq(_, _) => Precedence.semi
+  | Forall(_, _)
+  | Funext(_, _)
+  | Assume(_, _, _)
+  | Alias(_, _, _)
+  | Generalize(_, _)
+  | Revert(_, _, _)
+  | Have(_, _, _, _) => Precedence.fun_
+  /* Prints as a single `?` (see proof_to_pretty) */
+  | MultiHole(_) => Precedence.max
+  };
+
 /* Conditional parenthesization helpers.
    With Defensive: add parens based on precedence comparison (original behavior).
-   With Structural: never add parens here; only explicit Parens nodes in the term are emitted. */
+   With Structural: never add parens here; only explicit Parens nodes in the term are emitted.
+   A term that is already Parens is never wrapped again, even at
+   Precedence.max, or every parse/print round trip would add a layer. */
+let is_parens = (exp: Exp.t): bool =>
+  switch (Exp.term_of(exp)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
+let is_parens_pat = (pat: Pat.t): bool =>
+  switch (Pat.term_of(pat)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
+let is_parens_typ = (typ: Typ.t): bool =>
+  switch (Typ.term_of(typ)) {
+  | Parens(_) => true
+  | _ => false
+  };
+
 let paren_at =
     (
       ~parenthesization: Settings.parenthesization,
@@ -386,7 +430,7 @@ let paren_at =
   switch (parenthesization) {
   | Structural => exp
   | Defensive =>
-    external_precedence(exp) >= internal_precedence
+    !is_parens(exp) && external_precedence(exp) >= internal_precedence
       ? Exp.fresh(Parens(exp)) : exp
   };
 
@@ -400,7 +444,7 @@ let paren_assoc_at =
   switch (parenthesization) {
   | Structural => exp
   | Defensive =>
-    external_precedence(exp) > internal_precedence
+    !is_parens(exp) && external_precedence(exp) > internal_precedence
       ? Exp.fresh(Parens(exp)) : exp
   };
 
@@ -414,7 +458,8 @@ let paren_pat_at =
   switch (parenthesization) {
   | Structural => pat
   | Defensive =>
-    external_precedence_pat(pat) >= internal_precedence
+    !is_parens_pat(pat)
+    && external_precedence_pat(pat) >= internal_precedence
       ? Pat.fresh(Parens(pat)) : pat
   };
 
@@ -428,7 +473,7 @@ let paren_pat_assoc_at =
   switch (parenthesization) {
   | Structural => pat
   | Defensive =>
-    external_precedence_pat(pat) > internal_precedence
+    !is_parens_pat(pat) && external_precedence_pat(pat) > internal_precedence
       ? Pat.fresh(Parens(pat)) : pat
   };
 
@@ -442,7 +487,8 @@ let paren_typ_at =
   switch (parenthesization) {
   | Structural => typ
   | Defensive =>
-    external_precedence_typ(typ) >= internal_precedence
+    !is_parens_typ(typ)
+    && external_precedence_typ(typ) >= internal_precedence
       ? Typ.fresh(Parens(typ)) : typ
   };
 
@@ -456,7 +502,7 @@ let paren_typ_assoc_at =
   switch (parenthesization) {
   | Structural => typ
   | Defensive =>
-    external_precedence_typ(typ) > internal_precedence
+    !is_parens_typ(typ) && external_precedence_typ(typ) > internal_precedence
       ? Typ.fresh(Parens(typ)) : typ
   };
 
@@ -596,15 +642,21 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
-  | Theorem(p, thm, e) =>
+  | Theorem(p, thm, pf, e) =>
     Theorem(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
       parenthesize(thm) |> paren_at(Precedence.min),
+      /* Steps the stepper inserts are built, not parsed, so their
+         expressions have no Parens nodes and need defensive ones too. */
+      parenthesize_proof(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        pf,
+      ),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
-  | ProofObject(t) =>
-    ProofObject(parenthesize(t) |> paren_at(Precedence.min)) |> rewrap
   | FixF(p, e, c) =>
     FixF(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -612,16 +664,19 @@ let rec parenthesize =
       c // TODO: Parenthesize through closure
     )
     |> rewrap
+  /* A type alone in a delimited slot is bare, whatever its precedence:
+     nothing there can capture it, and `type t = (+A + B) in` doesn't
+     define its constructors. */
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
-      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(t),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
   | Use(t, e) =>
     Use(
-      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(t),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
@@ -642,7 +697,7 @@ let rec parenthesize =
   | TypAp(e, tp) =>
     TypAp(
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
-      parenthesize_typ(tp) |> paren_typ_at(Precedence.min),
+      parenthesize_typ(tp),
     )
     |> rewrap
   | DeferredAp(e, es) =>
@@ -863,7 +918,6 @@ and parenthesize_typ =
     parenthesize_typ(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_typ_at = paren_typ_at(~parenthesization);
   let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
-  let paren_at = paren_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
@@ -877,17 +931,9 @@ and parenthesize_typ =
   | DrvQuoteTy(_) => typ
 
   // Other forms
-  | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
-  | Projector(data, t) =>
-    Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
-    |> rewrap
-  | List(t) =>
-    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
+  | Parens(t) => Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
+  | Projector(data, t) => Projector(data, parenthesize_typ(t)) |> rewrap
+  | List(t) => List(parenthesize_typ(t)) |> rewrap
   | Prod([]) => typ
   | Prod([t])
       when
@@ -945,12 +991,6 @@ and parenthesize_typ =
     Poly(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
-    )
-    |> rewrap
-  | ProofOf(e) =>
-    ProofOf(
-      parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
-      |> paren_at(Precedence.min),
     )
     |> rewrap
   | Arrow(t1, t2) =>
@@ -1077,6 +1117,98 @@ and parenthesize_rul =
   };
 }
 
+/* Proof forms are keyword-delimited, but the expressions in their slots
+ * still need defending. Each slot is a bracketed tile child, so `min` is
+ * the right level, except a split's scrutinee, which shares its slot
+ * with the `| p => body` chain and defends at `rule_sep`. */
+and parenthesize_proof =
+    (
+      ~parenthesization: Settings.parenthesization,
+      ~show_ascriptions: bool,
+      ~show_filters: bool,
+      proof: Proof.t,
+    )
+    : Proof.t => {
+  let go_exp = (~level=Precedence.min, e: Exp.t): Exp.t =>
+    parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e)
+    |> paren_at(~parenthesization, level);
+  let go_pat = (p: Pat.t): Pat.t =>
+    parenthesize_pat(~parenthesization, ~show_ascriptions, ~show_filters, p);
+  let go =
+    parenthesize_proof(~parenthesization, ~show_ascriptions, ~show_filters);
+  let (term, rewrap: Proof.term => Proof.t) = IdTagged.unwrap(proof);
+  switch (term) {
+  | EmptyHole
+  | Invalid(_)
+  | MultiHole(_) => proof
+  | Parens(p) => Parens(go(p)) |> rewrap
+  /* `;` is right-associative and a wrapping form's body takes in every
+     step after it, so the left child needs parens when its last step is
+     a wrapping form: bare, `(a; assume e => b); c` would read as
+     `a; assume e => (b; c)`. Any other left-nested chain prints flat. */
+  | Seq(p1, p2) =>
+    let rec last_step = (p: Proof.t): Proof.t =>
+      switch (Annotated.term_of(p)) {
+      | Seq(_, q) => last_step(q)
+      | _ => p
+      };
+    let p1 = go(p1);
+    let p1 =
+      switch (parenthesization) {
+      | Defensive
+          when external_precedence_proof(last_step(p1)) >= Precedence.fun_ =>
+        Proof.fresh(Parens(p1))
+      | _ => p1
+      };
+    Seq(p1, go(p2)) |> rewrap;
+  | Forall(x, body) => Forall(go_pat(x), go(body)) |> rewrap
+  | Funext(x, body) => Funext(go_pat(x), go(body)) |> rewrap
+  | Assume(e, name, body) =>
+    Assume(go_exp(e), Option.map(~f=go_pat, name), go(body)) |> rewrap
+  | Alias(x, e, body) => Alias(go_pat(x), go_exp(e), go(body)) |> rewrap
+  | Generalize(e, body) => Generalize(go_exp(e), go(body)) |> rewrap
+  | Revert(e, inst, body) =>
+    Revert(
+      go_exp(e),
+      Option.map(~f=((v, i)) => (go_exp(v), go_exp(i)), inst),
+      go(body),
+    )
+    |> rewrap
+  | Have(e, name, sub, body) =>
+    Have(go_exp(e), Option.map(~f=go_pat, name), go(sub), go(body))
+    |> rewrap
+  | AxiomStep({direction, equality, instantiation}) =>
+    AxiomStep({
+      direction,
+      equality: go_exp(equality),
+      instantiation:
+        Option.map(~f=((v, i)) => (go_exp(v), go_exp(i)), instantiation),
+    })
+    |> rewrap
+  | AlgebriteStep(e) => AlgebriteStep(go_exp(e)) |> rewrap
+  | EvalStep => proof
+  | Focus({ordinal, selector, body}) =>
+    Focus({
+      ordinal,
+      selector: go_exp(selector),
+      body: go(body),
+    })
+    |> rewrap
+  | Cases(scrut, cases) =>
+    Cases(
+      go_exp(~level=Precedence.rule_sep, scrut),
+      List.map(~f=((pat, body)) => (go_pat(pat), go(body)), cases),
+    )
+    |> rewrap
+  | Induction(scrut, cases) =>
+    Induction(
+      go_exp(~level=Precedence.rule_sep, scrut),
+      List.map(~f=((pat, body)) => (go_pat(pat), go(body)), cases),
+    )
+    |> rewrap
+  };
+}
+
 and parenthesize_any =
     (
       ~parenthesization: Settings.parenthesization,
@@ -1135,13 +1267,24 @@ and parenthesize_any =
         r,
       ),
     )
-  /* Parenthesization for Drv, Mod, Sig, MPat, and Any is not yet defined.
-     Pretty-printing produces the term as-is; this is sound (never adds
-     invalid parens) but may omit disambiguating parens in nested contexts. */
+  | Proof(p) =>
+    Proof(
+      parenthesize_proof(
+        ~parenthesization,
+        ~show_ascriptions,
+        ~show_filters,
+        p,
+      ),
+    )
+  /* Parenthesization for Drv, Mod, Sig, MPat, PRul, and Any is not yet
+     defined. Pretty-printing produces the term as-is; this is sound (never
+     adds invalid parens) but may omit disambiguating parens in nested
+     contexts. */
   | Drv(_) => any
   | Mod(_) => any
   | Sig(_) => any
   | MPat(_) => any
+  | PRul(_) => any
   | Any(_) => any
   };
 
@@ -2270,18 +2413,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     and+ e2 = go(e2);
     let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
-  | Theorem(p, thm, e) =>
+  | Theorem(p, thm, pf, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ thm = go(thm)
+    and+ pf = proof_to_pretty(~settings: Settings.t, pf)
     and+ e = go(e);
     let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
-    wrap(exp, [mk_form(Theorem, id, [p, thm])] @ e);
-  | ProofObject(t) =>
-    let id = exp |> Exp.rep_id;
-    let+ t = exp_to_pretty(~settings: Settings.t, t);
-    wrap(exp, [mk_form(ProofObject, id, [t])]);
+    wrap(exp, [mk_form(Theorem, id, [p, thm, pf])] @ e);
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -3095,10 +3235,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     wrap(typ, [mk_form(Poly, id, [tp])] @ t);
-  | ProofOf(e) =>
-    let id = typ |> Typ.rep_id;
-    let+ e = exp_to_pretty(~settings, e);
-    wrap(typ, [mk_form(ProofOf, id, [e])]);
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)
@@ -3350,6 +3486,167 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
 and mpat_to_pretty = (~settings: Settings.t, mp: MPat.t): pretty => {
   p_just(mpat_to_seg(~settings, mp));
 }
+and proof_to_pretty = (~settings: Settings.t, p: Proof.t): pretty => {
+  let go = proof_to_pretty(~settings);
+  let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
+  let mk_form = (~sort=Sort.Proof, fam, id, children) =>
+    mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
+  let id = p |> Proof.rep_id;
+  /* The PRul child is `<scrut> | p => body | ...`. */
+  let split = (~family: Form.family, scrut, cases) => {
+    let+ s = exp_to_pretty(~settings, scrut)
+    and+ rendered_cases: list((Segment.t, Segment.t)) =
+      cases
+      |> List.map(~f=((pat, body)) =>
+           (pat_to_pretty(~settings, pat), go(body))
+         )
+      |> all;
+    /* ids = [split tile, rule tiles...]: MakeTerm absorbs the rule tiles'
+       ids into the split's term, as with Match. */
+    let rule_ids =
+      (
+        switch (IdTagged.ids(p)) {
+        | [_, ...rest] => rest
+        | [] => []
+        }
+      )
+      |> PadIds.pad_ids(
+           ~forbidden=[id],
+           ~base=id,
+           List.length(rendered_cases),
+         );
+    let cases_seg: Segment.t =
+      List.map2_exn(
+        rule_ids, rendered_cases, ~f=(rule_id, (pat_seg, body_seg)) =>
+        [mk_form(~sort=Sort.PRul, Rule, rule_id, [pat_seg])] @ body_seg
+      )
+      |> List.concat;
+    wrap(p, [mk_form(family, id, [s @ cases_seg])]);
+  };
+  switch (p.term) {
+  | EmptyHole =>
+    switch (hole_lexeme(p.annotation)) {
+    | Some(tok) => wrap(p, text_to_pretty(id, Sort.Proof, tok))
+    | None =>
+      wrap(
+        p,
+        [
+          Grout({
+            id,
+            shape: Convex,
+          }),
+        ],
+      )
+    }
+  | Invalid(s) => wrap(p, invalid_to_pretty(id, Sort.Proof, s))
+  | MultiHole(_) => wrap(p, text_to_pretty(id, Sort.Proof, "?"))
+  | Parens(inner) =>
+    let+ inner = go(inner);
+    wrap(p, [mk_form(Parens, id, [inner])]);
+  | Seq(p1, p2) =>
+    let+ s1 = go(p1)
+    and+ s2 = go(p2);
+    wrap(p, s1 @ [mk_form(CellJoin, id, [])] @ s2);
+  | Forall(x, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofForall, id, [x])] @ b);
+  | Funext(x, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofFunext, id, [x])] @ b);
+  | Assume(e, None, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofAssume, id, [e])] @ b);
+  | Assume(e, Some(x), body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ x = pat_to_pretty(~settings, x)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofAssumeNamed, id, [x, e])] @ b);
+  | Alias(x, e, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ e = exp_to_pretty(~settings, e)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofAlias, id, [x, e])] @ b);
+  | Generalize(e, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofGeneralize, id, [e])] @ b);
+  | Revert(e, None, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofRevert, id, [e])] @ b);
+  | Revert(e, Some((v, inst)), body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ v = exp_to_pretty(~settings, v)
+    and+ inst = exp_to_pretty(~settings, inst)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofRevertWith, id, [e, v, inst])] @ b);
+  | Have(e, None, sub, body) =>
+    let+ e = exp_to_pretty(~settings, e)
+    and+ sub = go(sub)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofHave, id, [e, sub])] @ b);
+  | Have(e, Some(x), sub, body) =>
+    let+ x = pat_to_pretty(~settings, x)
+    and+ e = exp_to_pretty(~settings, e)
+    and+ sub = go(sub)
+    and+ b = go(body);
+    wrap(p, [mk_form(ProofHaveNamed, id, [x, e, sub])] @ b);
+  | AxiomStep({direction, equality, instantiation}) =>
+    let+ eq = exp_to_pretty(~settings, equality);
+    let inst: list(Segment.t) =
+      switch (instantiation) {
+      | None => []
+      | Some((v, e)) => [
+          exp_to_pretty(~settings, v),
+          exp_to_pretty(~settings, e),
+        ]
+      };
+    let fam: Form.family =
+      switch (direction, instantiation) {
+      | (Right, None) => ProofAxiom
+      | (Right, Some(_)) => ProofAxiomWith
+      | (Left, None) => ProofAxiomRev
+      | (Left, Some(_)) => ProofAxiomRevWith
+      };
+    wrap(p, [mk_form(fam, id, [eq, ...inst])]);
+  | AlgebriteStep(e) =>
+    let+ e = exp_to_pretty(~settings, e);
+    wrap(p, [mk_form(ProofAlgebrite, id, [e])]);
+  | EvalStep => p_just(wrap(p, [mk_form(ProofEval, id, [])]))
+  | Focus({ordinal, selector, body}) =>
+    let+ sel = exp_to_pretty(~settings, selector)
+    and+ at =
+      switch (ordinal) {
+      | Some({term: n, annotation}) when n > 1 =>
+        let at: Exp.t = {
+          term: Atom(Int(Bigint.of_int(n))),
+          annotation,
+        };
+        Some(exp_to_pretty(~settings, at));
+      | Some(_)
+      | None => None
+      }
+    and+ b = go(body);
+    /* `from` isn't a keyword to the spacing heuristics, which would glue
+       it to a following `(`, so the slot opens with a space unless its
+       stored whitespace already does. */
+    let sel =
+      switch (sel) {
+      | [Secondary(_), ..._] => sel
+      | _ => [Secondary(mk_space(Id.mk())), ...sel]
+      };
+    switch (at) {
+    | None => wrap(p, [mk_form(ProofFocus, id, [sel, b])])
+    | Some(at) => wrap(p, [mk_form(ProofFocusAt, id, [sel, at, b])])
+    };
+  | Cases(scrut, cases) => split(~family=ProofCases, scrut, cases)
+  | Induction(scrut, cases) => split(~family=ProofInduction, scrut, cases)
+  };
+}
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   switch (any) {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
@@ -3361,6 +3658,8 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Sig(s) => sig_to_pretty(~settings, s)
   | MPat(mp) => mpat_to_pretty(~settings, mp)
   | Rul(r) => rul_to_pretty(~settings, r)
+  | Proof(p) => proof_to_pretty(~settings, p)
+  | PRul(_)
   | Any(_) =>
     let id = any |> Any.rep_id;
     p_just([
