@@ -77,12 +77,28 @@ let to_zipper =
 /* Check if the zipper is at a "safe split point": top level with
    no incomplete tiles (empty backpack), caret between tokens,
    and we just inserted a whitespace char (ensuring we're at a real
-   token boundary, not mid-identifier like 't' before 'type'). */
-let is_split_point = (c: string, z: Zipper.t): bool =>
+   token boundary, not mid-identifier like 't' before 'type'). At a Mod
+   root a member's definition follows its `let … =` at the top level, so
+   only a member's `;` ends one there. */
+let is_split_point = (~root: Sort.t, c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == [];
+  && Zipper.local_missing_shards(z) == []
+  && (
+    root != Sort.Mod
+    || (
+      switch (
+        Siblings.neighbor(
+          Left,
+          Siblings.trim_secondary(z.relatives.siblings),
+        )
+      ) {
+      | Some(Tile(t)) => Tile.is_semi(t)
+      | _ => false
+      }
+    )
+  );
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -131,7 +147,8 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
       switch (current_z^) {
       | None => ()
       | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+        if (chars_since_split^ >= min_segment_size
+            && is_split_point(~root, c, z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
