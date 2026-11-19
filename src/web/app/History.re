@@ -31,6 +31,34 @@ module Model = {
 module Update = {
   open Updated;
 
+  /* Undo/redo keep the live environment (font metrics, held modifiers,
+     viewport) rather than the snapshot's: a snapshot from before the first
+     font measurement, or before a zoom, holds stale metrics. The culling
+     range belongs to the live editor, so it is kept only when the restored
+     state shows the same editor; otherwise it is reset to None for
+     Main.seed_visible_rows to re-measure, as Page.update_model does on a
+     slide or mode switch. */
+  let keep_environment = (~from: Model.state, state: Model.state): Model.state => {
+    let (f, g) = (from.globals, state.globals);
+    let visible_rows =
+      Editors.Model.editor_key(from.editors)
+      == Editors.Model.editor_key(state.editors)
+        ? f.visible_rows : None;
+    f.font_metrics == g.font_metrics
+    && f.meta_down == g.meta_down
+    && visible_rows == g.visible_rows
+      ? state
+      : {
+        ...state,
+        globals: {
+          ...g,
+          font_metrics: f.font_metrics,
+          meta_down: f.meta_down,
+          visible_rows,
+        },
+      };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
@@ -53,7 +81,7 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: keep_environment(~from=model.current, x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -73,7 +101,7 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: keep_environment(~from=model.current, x.model),
             undo_stack: [
               {
                 ...x,

@@ -179,5 +179,118 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "undo keeps the current font metrics",
+      `Quick,
+      () => {
+        /* On load a slide's default is applied (historic) before the font
+           is first measured, so the undo entry holds placeholder metrics */
+        let m0 = mk_model();
+        let m1 = apply(m0, insert("1"));
+        let fm: FontMetrics.t = {
+          row_height: 25.,
+          col_width: 10.4,
+        };
+        let m2 = apply(m1, Globals(SetFontMetrics(fm)));
+        let m3 = apply(m2, undo);
+        check(
+          bool,
+          "undo kept the measured font",
+          true,
+          m3.current.globals.font_metrics == fm,
+        );
+        /* Re-measure (e.g. zoom) while undone: redo keeps the new metrics,
+           not the ones the redo entry was taken with */
+        let fm2: FontMetrics.t = {
+          row_height: 30.,
+          col_width: 12.,
+        };
+        let m4 = apply(m3, Globals(SetFontMetrics(fm2)));
+        let m5 = apply(m4, redo);
+        check(
+          bool,
+          "redo kept the re-measured font",
+          true,
+          m5.current.globals.font_metrics == fm2,
+        );
+      },
+    ),
+    test_case(
+      "undo and redo keep the held modifier keys",
+      `Quick,
+      () => {
+        /* Cmd+Z runs with Cmd held; the snapshot was taken with it up */
+        let m0 = mk_model();
+        let m1 = apply(m0, insert("1"));
+        let m2 = apply(m1, Globals(SetMetaDown(true)));
+        let m3 = apply(m2, undo);
+        check(bool, "undo kept Cmd held", true, m3.current.globals.meta_down);
+        /* Redo from the command palette, with Cmd released; the redo entry
+           was taken with it held */
+        let m4 = apply(m3, Globals(SetMetaDown(false)));
+        let m5 = apply(m4, redo);
+        check(
+          bool,
+          "redo kept Cmd released",
+          false,
+          m5.current.globals.meta_down,
+        );
+      },
+    ),
+    test_case(
+      "undo keeps the visible rows within the same editor",
+      `Quick,
+      () => {
+        let rows = (first, last): Globals.VisibleRows.t => {
+          first,
+          last,
+        };
+        let m0 =
+          apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
+        let m1 = apply(m0, insert("1"));
+        /* Scroll down: the snapshot still holds the old range */
+        let m2 = apply(m1, Globals(UpdateVisibleRows(rows(30, 70))));
+        let m3 = apply(m2, undo);
+        check(
+          bool,
+          "undo kept the scrolled range",
+          true,
+          m3.current.globals.visible_rows == Some(rows(30, 70)),
+        );
+      },
+    ),
+    test_case(
+      "undo into another editor resets the visible rows",
+      `Quick,
+      () => {
+        /* The live range belongs to the current slide; a restored state
+           showing a different slide has it re-measured */
+        let rows = (first, last): Globals.VisibleRows.t => {
+          first,
+          last,
+        };
+        let key = (m: History.Model.t) =>
+          Editors.Model.editor_key(m.current.editors);
+        let m0 =
+          apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
+        /* Adding a slide is undoable and switches to the new slide */
+        let m1 = apply(m0, Editors(Scratch(AddSlide)));
+        check(bool, "switched to another slide", true, key(m1) != key(m0));
+        let m2 = apply(m1, Globals(UpdateVisibleRows(rows(30, 70))));
+        let m3 = apply(m2, undo);
+        check(
+          string,
+          "undo went back to the first slide",
+          key(m0),
+          key(m3),
+        );
+        check(
+          bool,
+          "undo reset the range",
+          true,
+          m3.current.globals.visible_rows == None,
+        );
+      },
+    ),
   ],
 );
