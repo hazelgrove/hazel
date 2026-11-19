@@ -163,7 +163,7 @@ module F =
               [
                 div_c("substitutions-label", [Node.text("substituted")]),
                 ...List.map(
-                     x => div_c("substituted-var", [Node.text(x)]),
+                     ~f=x => div_c("substituted-var", [Node.text(x)]),
                      vars,
                    ),
               ],

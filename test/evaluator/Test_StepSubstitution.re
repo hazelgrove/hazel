@@ -7,7 +7,7 @@ open Test_Evaluator_Prelude;
    show them next to the step. */
 
 let step_kind =
-  testable(Fmt.using(Transition.show_step_kind, Fmt.string), (==));
+  testable(Fmt.using(Transition.show_step_kind, Fmt.string), Poly.equal);
 
 /* The kinds of the steps the stepper takes on `s`, in order, always taking
    the first available step. */
@@ -38,7 +38,7 @@ let step_kinds = (s: string): list(Transition.step_kind) => {
 };
 
 let first_kind = (p: Transition.step_kind => bool, s: string) =>
-  switch (List.find_opt(p, step_kinds(s))) {
+  switch (List.find(~f=p, step_kinds(s))) {
   | Some(k) => k
   | None => Alcotest.fail("No matching step in: " ++ s)
   };
