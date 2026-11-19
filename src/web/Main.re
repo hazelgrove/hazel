@@ -365,14 +365,14 @@ switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>
   /* Start the eval worker now, while the page is idle waiting on
-     IndexedDB, not on first use. Firefox loads a worker's script through
-     the main thread, so a worker first created mid-calculation -- whose
-     statics held the main thread for 20+ s on the Livelit Playground's
-     largest slides -- could not even load until the calculation ended:
-     it never acknowledged, the page reported "Evaluation timed out", and
-     the slide never drew. Created here, it is loaded and listening before
-     the first request. (Chromium fetches worker scripts off the main
-     thread, which is why it never showed there.) */
+     IndexedDB, not on first use. First use comes in the middle of a
+     calculation, and a worker created while the main thread is busy does
+     not start running until that task ends, in Chrome as in Firefox
+     (Firefox even loads the worker's script through the main thread). On
+     the Livelit Playground's largest slides, statics held Firefox's main
+     thread for 20+ s, so the worker never acknowledged, the page reported
+     "Evaluation timed out", and the slide never drew. Created here, it is
+     loaded and listening before the first request. */
   ignore(WorkerClient.get_worker());
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
