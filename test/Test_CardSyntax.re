@@ -7,7 +7,7 @@ open Haz3lcore;
 
 let state =
   testable(CardTypes.pp_state, (a, b) =>
-    CardTypes.show_state(a) == CardTypes.show_state(b)
+    String.equal(CardTypes.show_state(a), CardTypes.show_state(b))
   );
 
 let parse = (s: string): Language.Exp.t =>

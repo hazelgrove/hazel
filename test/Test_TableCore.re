@@ -60,7 +60,7 @@ let assert_table_headers =
     (msg: string, expected_headers: list(string), exp: Language.Exp.t) =>
   switch (TableCore.parse_table(exp)) {
   | Some((headers, _rows)) =>
-    let header_strs = List.filter_map(Fun.id, headers);
+    let header_strs = List.filter_map(~f=Fn.id, headers);
     Alcotest.(check(list(string), msg, expected_headers, header_strs));
   | None => Alcotest.fail(msg ++ ": parse_table returned None")
   };
@@ -114,7 +114,8 @@ let fold_row = (n: int, exp: Language.Exp.t): Language.Exp.t => {
           folded := true;
           cont({
             ...e,
-            term: ListLit(List.mapi((i, r) => i == n ? fold(r) : r, rows)),
+            term:
+              ListLit(List.mapi(~f=(i, r) => i == n ? fold(r) : r, rows)),
           });
         | _ => cont(e)
         },

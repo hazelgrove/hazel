@@ -53,7 +53,7 @@ let fold_var = (name: string, e: Language.Exp.t): Language.Exp.t => {
     ~f_exp=
       (continue, e) =>
         switch (e.term) {
-        | Var(x) when x == name =>
+        | Var(x) when String.equal(x, name) =>
           let model =
             switch (F.init(Exp(e))) {
             | Some(m) => m
