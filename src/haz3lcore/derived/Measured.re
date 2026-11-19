@@ -477,8 +477,6 @@ let of_segment_inner =
   go(~top_level=true, initial_acc, seg).map;
 };
 
-let of_segment_memo = Core.Memo.general(of_segment_inner);
-
 let of_segment =
     (
       ~indent_level as _: Id.Map.t(int)=Id.Map.empty,
@@ -492,7 +490,7 @@ let of_segment =
    * compatibility with dev callers (ProjectorView, etc.) but are
    * ignored here — canonical-completion manages indentation via
    * real whitespace in the segment, not via an indent_level map. */
-  of_segment_memo(seg, shape_map, refractor_rows);
+  of_segment_inner(seg, shape_map, refractor_rows);
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>

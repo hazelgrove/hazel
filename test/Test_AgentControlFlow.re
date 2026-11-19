@@ -705,8 +705,13 @@ let test_stream_delta_accumulates_on_seq_mismatch = () => {
 /* --- Eval-settled dispatch gate ---------------------------------------- */
 
 let with_pending_dispatch = (agent: Agent.Model.t): Agent.Model.t => {
-  ...agent,
-  pending_dispatch_send: Some(agent.chat_system.current),
+  /* an earlier undo/redo (History.restore) leaves a forced statics
+     refresh pending, which would hold the dispatch */
+  CodeWithStatics.StaticsDebounce.force_on_next := false;
+  {
+    ...agent,
+    pending_dispatch_send: Some(agent.chat_system.current),
+  };
 };
 
 /* A dispatch arriving while evaluation is pending re-defers and keeps the

@@ -1915,8 +1915,10 @@ let go_impl =
   };
 };
 
+/* Small bounds on memos keyed by whole-program values: jsoo has no weak
+   refs, so each entry keeps a superseded program version alive. */
 let go =
-  Core.Memo.general(~cache_size_bound=1000, go_impl(~masks=Id.Map.empty));
+  Core.Memo.general(~cache_size_bound=8, go_impl(~masks=Id.Map.empty));
 
 let for_projection =
   /* Returns Nul() unless segment represents a well-structured term in isolation.
@@ -1925,7 +1927,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=32, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -2011,9 +2013,6 @@ let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
     },
   );
 };
-
-let from_zip_for_sem_with_completion =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem_with_completion);
 
 let from_zip_for_sem = (z, ~root) =>
   fst(from_zip_for_sem_with_completion(z, ~root));
