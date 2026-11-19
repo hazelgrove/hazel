@@ -28,7 +28,9 @@ let rec find_hz = (path: string): list(string) =>
     |> List.sort(compare)
     |> List.concat_map(entry => find_hz(Filename.concat(path, entry)))
   | false => Filename.check_suffix(path, ".hz") ? [path] : []
-  | exception _ => []
+  /* e.g. a dangling symlink inside the corpus; a missing root is caught
+     in main */
+  | exception (Sys_error(_)) => []
   };
 
 let read_file = (path: string): string => {
@@ -134,14 +136,26 @@ let () = {
       parse_args((step_limit, out, [path, ...paths]), rest);
   let (step_limit, out, roots) =
     parse_args((20_000_000, None, []), List.tl(Array.to_list(Sys.argv)));
+  /* A root that is not there is a mistake in the caller, not an empty
+     corpus: fail rather than report on fewer programs. */
+  List.iter(
+    root =>
+      if (!Sys.file_exists(root)) {
+        Printf.eprintf("perf_work: %s does not exist\n%!", root);
+        exit(2);
+      },
+    roots,
+  );
   let programs = List.concat_map(find_hz, roots);
   let results =
     List.map(
       path => {
+        /* the path first, so that if this program hangs or crashes the
+           harness, the last line on stderr names it */
+        Printf.eprintf("%s: %!", path);
         let outcome = work(~step_limit, path);
         Printf.eprintf(
-          "%s: %s\n%!",
-          path,
+          "%s\n%!",
           switch (outcome) {
           | Steps(n) => string_of_int(n) ++ " steps"
           | OverLimit => "over the step limit"

@@ -10,7 +10,10 @@
 
      cold  - a copy of the program with fresh ids, so no memo table has
              seen it: loading a program
-     warm  - the same zipper again, every memo table primed: a redraw
+     warm  - the same zipper again, every memo table primed: a pass
+             over a program that has not changed. Not the editor's
+             real update path (Editor.Update.calculate with the previous
+             state, #2771), and not much cheaper than cold.
      move  - one cursor move after priming: the commonest action
      edit  - one literal edited after priming: the commonest change
 
@@ -21,7 +24,9 @@
    Each benchmark runs --reps times after one untimed run, and the median
    of the reps is reported, in milliseconds, as JSON on stdout. One
    invocation is one round; bench/perf_report.py alternates rounds of two
-   builds and compares them.
+   builds and compares them. A benchmark that raises (say, a program the
+   build cannot parse) is left out of "results" and listed with its
+   exception under "skipped"; the others still run.
 
    Run under node with --expose-gc (a collection before each timed run,
    so one run's garbage is not charged to the next) and a large stack:
@@ -194,7 +199,7 @@ let read_file = (path: string): string => {
 
 /* What `hazel bench-eval` does (src/CLI/Cli.re): parse and statics once,
    then time evaluation alone. */
-let eval_benches = (path: string): list(bench) => {
+let eval_benchmark = (path: string): bench => {
   let text = read_file(path) |> Util.StringUtil.strip_final_newline;
   let exp =
     switch (FastParse.of_text(~root=Exp, text)) {
@@ -219,16 +224,14 @@ let eval_benches = (path: string): list(bench) => {
     ignore(f());
     [(label, now() -. t0)];
   };
-  [
-    {
-      name: "eval-bench",
-      run: () =>
-        timed("plain", () => Evaluator.evaluate(~env=Builtins.env_init, elab))
-        @ timed("incr", () =>
-            Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab)
-          ),
-    },
-  ];
+  {
+    name: "eval-bench",
+    run: () =>
+      timed("plain", () => Evaluator.evaluate(~env=Builtins.env_init, elab))
+      @ timed("incr", () =>
+          Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab)
+        ),
+  };
 };
 
 /* Runs a benchmark reps times after an untimed run; the median of each
@@ -268,14 +271,34 @@ let () = {
     | [arg, ..._] => failwith("hazel_bench: unknown argument " ++ arg);
   let (reps, filter, eval_bench, out) =
     parse_args((5, None, None, None), List.tl(Array.to_list(Sys.argv)));
+  /* Benchmarks that raised, setting one up or running it: (name,
+     exception). Recorded and left out, so one bad benchmark does not cost
+     the round the others. */
+  let skipped = ref([]);
+  /* unannotated, so it generalizes: used at two types below */
+  let guard = (name, f, ~default) =>
+    try(f()) {
+    | e =>
+      let msg = Printexc.to_string(e);
+      Printf.eprintf("%s: skipped: %s\n%!", name, msg);
+      skipped := [(name, msg), ...skipped^];
+      default;
+    };
+  /* Setting a benchmark up (parsing its program) can fail too. */
   let benches =
     List.concat_map(
-      ((label, n)) => program_benches(label, zipper_of(let_chain(n))),
+      ((label, n)) =>
+        guard(
+          label,
+          () => program_benches(label, zipper_of(let_chain(n))),
+          ~default=[],
+        ),
       [("let100", 100), ("let500", 500)],
     )
     @ (
       switch (eval_bench) {
-      | Some(path) => eval_benches(path)
+      | Some(path) =>
+        guard("eval-bench", () => [eval_benchmark(path)], ~default=[])
       | None => []
       }
     );
@@ -288,7 +311,7 @@ let () = {
     List.concat_map(
       b => {
         Printf.eprintf("%s\n%!", b.name);
-        run_bench(~reps, b);
+        guard(b.name, () => run_bench(~reps, b), ~default=[]);
       },
       benches,
     );
@@ -299,6 +322,12 @@ let () = {
         (
           "results",
           `Assoc(List.map(((name, ms)) => (name, `Float(ms)), results)),
+        ),
+        (
+          "skipped",
+          `Assoc(
+            List.rev_map(((name, msg)) => (name, `String(msg)), skipped^),
+          ),
         ),
       ]),
     );
