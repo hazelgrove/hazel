@@ -46,9 +46,9 @@ let extremes_opt = (id: Id.t, data: t) =>
   switch (Id.Map.find_opt(id, data)) {
   | Some({skel, base_seg, _}) =>
     let (l, r) = Skel.range(skel);
-    switch (List.nth_exn(base_seg, l), List.nth_exn(base_seg, r)) {
-    | exception _ => None
-    | (l, r) => Some((l, r))
+    switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
+    | (Some(l), Some(r)) => Some((l, r))
+    | _ => None
     };
   | None => None
   };
@@ -69,11 +69,11 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   switch (extremes_opt(id, data)) {
   | Some((l, r)) =>
     switch (
-      Measured.find_p(l, measured).origin,
-      Measured.find_p(r, measured).last,
+      Measured.find_p_opt(l, measured),
+      Measured.find_p_opt(r, measured),
     ) {
-    | exception _ => None
-    | (l, r) => Some((l, r))
+    | (Some(l), Some(r)) => Some((l.origin, r.last))
+    | _ => None
     }
   | None => None
   };

@@ -275,13 +275,6 @@
   border: solid 1px var(--border-soft);
 }
 
-#top-bar .nut-menu .toggle-switch.active {
-  background-color: var(--primary-accent);
-  border: solid 1px transparent;
-}
-#top-bar .nut-menu .toggle-switch.active .toggle-knob {
-  color: var(--primary-accent);
-}
 
 #top-bar #editor-mode {
   height: 100%;

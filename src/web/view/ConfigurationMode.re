@@ -397,7 +397,9 @@ module Update = {
     switch (action) {
     | CellAction(a) =>
       switch (a) {
-      | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _}))) =>
+      | CellEditor.Update.ResultAction(
+          UpdateResult(_, ResultOk({result, _})),
+        ) =>
         let (config_type, _) = Model.get_current_config(model);
         perform_side_effect(~schedule_global, model, config_type, result);
       // Continue with normal cell update
@@ -498,8 +500,8 @@ module Update = {
       ~pos_of_key=key => key,
       ~dispatch,
       ~on_timeout=
-        List.iter(~f=((key, _)) =>
-          dispatch(key, UpdateResult(ResultFail(Timeout)))
+        List.iter(~f=((key, v: WorkerServer.Request.value)) =>
+          dispatch(key, UpdateResult(v.generation, ResultFail(Timeout)))
         ),
     );
     let model = {

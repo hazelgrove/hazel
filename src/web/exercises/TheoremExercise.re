@@ -10,6 +10,9 @@ type spec = {
   prelude: Haz3lcore.Zipper.t,
   lemmas: Haz3lcore.Zipper.t,
   theorem: Haz3lcore.Zipper.t,
+  /* Turns the stepper's write-out mode on for this exercise. */
+  [@sexp.default false] [@yojson.default false]
+  write_out_steps: bool,
 };
 
 /* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
@@ -25,6 +28,8 @@ type persistent_spec = {
   prelude: Haz3lcore.PersistentZipper.t,
   lemmas: Haz3lcore.PersistentZipper.t,
   theorem: Haz3lcore.PersistentZipper.t,
+  [@sexp.default false] [@yojson.default false]
+  write_out_steps: bool,
 };
 
 let of_persistent = (t: persistent_spec): spec => {
@@ -39,6 +44,7 @@ let of_persistent = (t: persistent_spec): spec => {
     prelude: unpersist(t.prelude),
     lemmas: unpersist(t.lemmas),
     theorem: unpersist(t.theorem),
+    write_out_steps: t.write_out_steps,
   };
 };
 
@@ -51,4 +57,5 @@ let blank_spec = (~title, ~module_name): spec => {
   prelude: Haz3lcore.Zipper.init(),
   lemmas: Haz3lcore.Zipper.init(),
   theorem: Haz3lcore.Zipper.init(),
+  write_out_steps: false,
 };

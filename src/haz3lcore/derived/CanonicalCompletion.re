@@ -2479,7 +2479,7 @@ let derive_insertions =
     List.iter(
       ~f=
         (p: Piece.t) => {
-          Hashtbl.replace(orig_ids, Piece.id(p), ());
+          Stdlib.Hashtbl.replace(orig_ids, Piece.id(p), ());
           switch (p) {
           | Tile(t) => List.iter(~f=collect, t.children)
           | _ => ()
@@ -2491,7 +2491,7 @@ let derive_insertions =
   let rec_of = (tid: Id.t) =>
     List.find(~f=(r: shard_record) => Id.equal(r.tile_id, tid), records);
   let originals_of = (t: Tile.t): list(int) =>
-    Hashtbl.mem(orig_ids, t.id)
+    Stdlib.Hashtbl.mem(orig_ids, t.id)
       ? switch (rec_of(t.id)) {
         | Some(r) => r.original_shards
         | None => t.shards
@@ -2528,7 +2528,7 @@ let derive_insertions =
                 @ weave(rest, chrest);
               };
             weave(t.shards, t.children);
-          | p => [(LPiece(p), Hashtbl.mem(orig_ids, Piece.id(p)))]
+          | p => [(LPiece(p), Stdlib.Hashtbl.mem(orig_ids, Piece.id(p)))]
           },
       sg,
     );
@@ -2688,6 +2688,65 @@ let derive_insertions =
          };
        };
      });
+};
+
+/* `completed` with each hole that completing `input` added inside a tile
+   given an id derived from that tile, the child it is in and its place
+   there. The final regrout mints a hole's id afresh on every run, so
+   without this an edit elsewhere in the tile, such as to a theorem's
+   statement, gives the hole a new id, and whatever is keyed by it, such
+   as the stepper rows of the theorem's unwritten proof, loses track of
+   it. */
+let stable_hole_ids = (~input: Segment.t, completed: Segment.t): Segment.t => {
+  let input_ids = Stdlib.Hashtbl.create(256);
+  List.iter(
+    ~f=id => Stdlib.Hashtbl.replace(input_ids, id, ()),
+    Segment.ids(input),
+  );
+  let rec in_tile = (t: Tile.t): Tile.t => {
+    ...t,
+    children:
+      List.mapi(
+        ~f=
+          (k, child) => {
+            let added = ref(0);
+            List.map(
+              ~f=
+                (p: Piece.t) =>
+                  switch (p) {
+                  | Grout(g) when !Stdlib.Hashtbl.mem(input_ids, g.id) =>
+                    let id =
+                      Id.derive(
+                        ~salt=sprintf("hole %d %d", k, added^),
+                        t.id,
+                      );
+                    added := added^ + 1;
+                    Piece.Grout({
+                      ...g,
+                      id,
+                    });
+                  | Tile(t) => Piece.Tile(in_tile(t))
+                  | Grout(_)
+                  | Secondary(_)
+                  | Projector(_) => p
+                  },
+              child,
+            );
+          },
+        t.children,
+      ),
+  };
+  List.map(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => Piece.Tile(in_tile(t))
+        | Grout(_)
+        | Secondary(_)
+        | Projector(_) => p
+        },
+    completed,
+  );
 };
 
 /* === Integration Points === */

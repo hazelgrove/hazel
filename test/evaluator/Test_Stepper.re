@@ -63,5 +63,21 @@ let tests = (
         ),
       )
     }),
+    test_case(
+      "a theorem doesn't hide a variable of its name",
+      `Quick,
+      () => {
+        let program = "let t = 5 in theorem t = 1 == 1 proof step in t + 1";
+        check(
+          step_limited,
+          program,
+          LimitedCompleted((
+            IdTagged.FreshGrammar.Exp.int(6),
+            EvaluatorState.empty,
+          )),
+          full_small_step_reduction(elaborate(parse_exp(program))),
+        );
+      },
+    ),
   ],
 );

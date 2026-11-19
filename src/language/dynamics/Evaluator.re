@@ -92,6 +92,181 @@ let continues_delegation =
     delegations,
   );
 
+/* Checking theorems' proofs. Their `step` steps reduce with the stepper
+ * (`EvaluatorStep`), not with this module's trampoline. */
+module Proofs = {
+  /* The steps a `step` proof step passes through silently. One proof
+   * step is one meaningful reduction, so besides the stepper's auto-hidden
+   * steps it also passes through `VarLookup`s. */
+  let advance_hidden = (~max_steps=?, ~env, e) => {
+    let hidden_step = e =>
+      switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+      | AutoStep(s) => Some(s)
+      | AvailableSteps([s, ..._])
+          when Poly.equal(EvaluatorStep.get_step_kind(s), VarLookup) =>
+        Some(s)
+      | AvailableSteps(_) => None
+      };
+    let rec advance = (~taken, e) =>
+      switch (hidden_step(e), max_steps) {
+      | (None, _) => Some(([], e))
+      | (Some(_), Some(max)) when taken >= max => None
+      | (Some(s), _) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let justification =
+            s |> EvaluatorStep.get_step_kind |> stepper_justification;
+          advance(~taken=taken + 1, next)
+          |> Option.map(~f=((rest, outgoing)) =>
+               ([(e, justification, next), ...rest], outgoing)
+             );
+        | None => Some(([], e))
+        }
+      };
+    advance(~taken=0, e);
+  };
+
+  /* One `step` proof step: the silent steps, the visible step, and the
+   * silent steps after it. */
+  let step: ProofCheck.step_fn =
+    (~env, ~at, e) => {
+      /* Unbounded, so never None. */
+      let advance_hidden = e =>
+        advance_hidden(~env, e) |> Option.value(~default=([], e));
+      let (leading_auto_steps, e) = advance_hidden(e);
+      let visible_step =
+        switch (EvaluatorStep.get_status(~settings=CoreSettings.on, e, env)) {
+        | AvailableSteps(steps) =>
+          switch (at) {
+          | Anywhere => Util.ListUtil.hd_opt(steps)
+          | Root => List.find(~f=EvaluatorStep.is_at_root, steps)
+          }
+        | AutoStep(_) => None
+        };
+      switch (visible_step) {
+      | Some(s) =>
+        switch (EvaluatorStep.take_step(s)) {
+        | Some(next) =>
+          let (trailing_auto_steps, outgoing) = advance_hidden(next);
+          Some(
+            ProofCheck.{
+              auto_incoming:
+                List.map(
+                  ~f=
+                    ((_, justification, output)) => (justification, output),
+                  leading_auto_steps,
+                ),
+              auto_outgoing:
+                List.map(
+                  ~f=((input, justification, _)) => (input, justification),
+                  trailing_auto_steps,
+                ),
+              outgoing,
+            },
+          );
+        | None => None
+        }
+      | None => None
+      };
+    };
+
+  let check_proof =
+      (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, proof)
+      : ProofMap.t =>
+    ProofCheck.check(~step, ~statics, ~ctx, Some(goal), proof) |> snd;
+
+  /* A theorem's proof checked in `scope`: the statement's outer `forall`s
+   * are introduced first, so their variables enter the proof's context,
+   * and the proof is checked against the rest, including any `==>`
+   * antecedents (which the proof introduces with `assume`). The
+   * per-theorem stepper (`Theorems.re`) seeds its goal the same way, so
+   * the two agree. */
+  let check_theorem =
+      (~statics: ProofStatics.t, ~scope: SemanticCtx.t, ~statement, proof)
+      : ProofMap.t => {
+    let (ctx, goal) = ProofCheck.peel_stmt_binders(scope, statement);
+    check_proof(~statics, ~ctx, ~goal, proof);
+  };
+
+  /* The proofs of the theorems evaluation reached, checked in the order it
+   * reached them, each knowing the verdicts of the theorems before it, so
+   * a proof that cites one can tell whether it rests on a refuted or
+   * unfinished statement. Returns the proof map and the checks to cache.
+   *
+   * A check in `prev` is reused while the theorem, its scope and the
+   * verdicts in it, and the values it names are the same. `inputs` has
+   * the provenance of the values each theorem names where evaluation
+   * reached it. A theorem it lacks was replayed from a reused node, and
+   * a node is reused only when the values its theorems name are the same
+   * (their proofs' variables are in its co-context). */
+  let check_theorems =
+      (
+        ~statics: ProofStatics.t,
+        ~prev: IncrEval.t('state),
+        ~inputs: Id.Map.t(IncrEval.CheckedProofs.input),
+        ~elaborated: Exp.t,
+        theorems,
+      )
+      : (ProofMap.t, Id.Map.t(IncrEval.checked_proof)) => {
+    let check = ((proof_map, verdicts, checks), (id, _, env, _)) =>
+      switch (Exp.find_by_id(id, elaborated)) {
+      | Some({term: Theorem(p, statement, proof, _), _} as theorem) =>
+        let namespace =
+          statics.namespace(id)
+          |> Option.value(~default=ProofStatics.empty_namespace);
+        let verdicts_in_scope =
+          List.filter_map(
+            ~f=
+              (entry: Ctx.theorem_entry) =>
+                List.Assoc.find(verdicts, entry.id, ~equal=Id.equal)
+                |> Option.map(~f=v => (entry.id, v)),
+            namespace.theorems,
+          );
+        let input = Id.Map.find_opt(id, inputs);
+        let key =
+          IncrEval.CheckedProofs.key(
+            ~namespace,
+            ~verdicts=verdicts_in_scope,
+            theorem,
+          );
+        let checked =
+          switch (IncrEval.CheckedProofs.find(~prev, ~input, id, key)) {
+          | Some(proof_map) => proof_map
+          | None =>
+            let scope = TheoremNamespace.scope(~env, ~verdicts, namespace);
+            check_theorem(~statics, ~scope, ~statement, proof);
+          };
+        let checks =
+          switch (
+            IncrEval.CheckedProofs.entry(~prev, ~input, id, key, checked)
+          ) {
+          | Some(entry) => Id.Map.add(id, entry, checks)
+          | None => checks
+          };
+        let verdict: SemanticCtx.verdict =
+          switch (ProofMap.full_status_of_proof(checked, proof)) {
+          | Proven => Proven
+          | Refuted => Refuted
+          | ProvenModulo(_)
+          | Incomplete => Unfinished
+          };
+        (
+          ProofMap.union(proof_map, checked),
+          [(Pat.rep_id(p), verdict), ...verdicts],
+          checks,
+        );
+      | _ => (proof_map, verdicts, checks)
+      };
+    let (proof_map, _, checks) =
+      List.fold_left(
+        ~f=check,
+        ~init=(ProofMap.empty, [], Id.Map.empty),
+        List.rev(theorems),
+      );
+    (proof_map, checks);
+  };
+};
+
 let rec evaluate =
         // Constants
         (
@@ -110,6 +285,9 @@ let rec evaluate =
           // Outputs
           ~parent_state: ref(EvaluatorState.t),
           ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
+          /* What evaluation found where it reached each theorem, for
+           * reusing the theorem's check (`Proofs.check_theorems`). */
+          ~theorem_inputs: ref(Id.Map.t(IncrEval.CheckedProofs.input)),
           ~current_top_id: option(Id.t),
         )
         : Trampoline.t(DHExp.t) => {
@@ -118,8 +296,28 @@ let rec evaluate =
    * running. */
 
   let evaluate =
-    evaluate(~prev, ~track_reuse, ~reused_ids, ~eval_info, ~outbox);
+    evaluate(
+      ~prev,
+      ~track_reuse,
+      ~reused_ids,
+      ~eval_info,
+      ~outbox,
+      ~theorem_inputs,
+    );
   let expr_id = DHExp.rep_id(exp);
+  /* What a theorem's check depends on in the env, for reusing it once
+   * evaluation is done (`Proofs.check_theorems`). */
+  switch (exp.term) {
+  | Theorem(_) =>
+    theorem_inputs :=
+      Id.Map.add(
+        expr_id,
+        List.is_empty(call_stack)
+          ? IncrEval.CheckedProofs.reached(reuse_map, exp) : InCall,
+        theorem_inputs^,
+      )
+  | _ => ()
+  };
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
    * Administrative/stepped intermediates never publish: doing so either
@@ -508,6 +706,47 @@ let completed = (state: EvaluatorState.t): EvaluatorState.t => {
   },
 };
 
+/* The statics to check proofs with: the full map when given, or else what
+ * `eval_info` carries. None when neither has any, and proofs aren't
+ * checked. */
+let proof_statics =
+    (~statics: Statics.Map.t, eval_info: EvalInfo.t): option(ProofStatics.t) =>
+  Id.Map.is_empty(statics)
+    ? EvalInfo.proof_statics(eval_info)
+    : Some(ProofStatics.of_info_map(statics));
+
+/* `completed`, with the proofs of the theorems evaluation reached checked,
+ * in the order it reached them, and their checks cached. */
+let completed_with_proofs =
+    (
+      ~proofs: option(ProofStatics.t),
+      ~prev: EvaluatorState.incr_eval,
+      ~inputs: Id.Map.t(IncrEval.CheckedProofs.input),
+      elaborated: DHExp.t,
+      state: EvaluatorState.t,
+    )
+    : EvaluatorState.t =>
+  switch (proofs) {
+  | None => completed(state)
+  | Some(statics) =>
+    let (proof_map, checks) =
+      Proofs.check_theorems(
+        ~statics,
+        ~prev,
+        ~inputs,
+        ~elaborated,
+        EvaluatorState.get_theorems(state),
+      );
+    let state = completed(EvaluatorState.merge_proof_map(state, proof_map));
+    {
+      ...state,
+      incr_eval: {
+        ...state.incr_eval,
+        proofs: checks,
+      },
+    };
+  };
+
 let finish = (~env, e: DHExp.t): Exp.t =>
   e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
@@ -526,7 +765,11 @@ let prepare_evaluation =
       ~outbox,
       d: DHExp.t,
     )
-    : (ref(EvaluatorState.t), Trampoline.t(DHExp.t)) => {
+    : (
+        ref(EvaluatorState.t),
+        ref(Id.Map.t(IncrEval.CheckedProofs.input)),
+        Trampoline.t(DHExp.t),
+      ) => {
   /* The reuse map is only ever consumed by reuse_check or by incr-entry
    * snapshots, both of which need statics in eval_info (reuse_check also
    * needs a non-empty prev). When neither can fire — e.g. `hazel run`,
@@ -542,6 +785,7 @@ let prepare_evaluation =
         ? IncrEval.clean_reuse_map_of_env(env) : IncrEval.empty_reuse_map
     };
   let state = ref(EvaluatorState.empty);
+  let theorem_inputs = ref(Id.Map.empty);
   /* The pre-pass only yields entries via reuse_check, which needs both a
    * non-empty prev and statics; otherwise it is a full walk of the program
    * for a guaranteed-empty result. */
@@ -570,11 +814,12 @@ let prepare_evaluation =
       ~reused_ids,
       ~parent_state=state,
       ~outbox,
+      ~theorem_inputs,
       ~current_top_id=None,
       env,
       d,
     );
-  (state, result);
+  (state, theorem_inputs, result);
 };
 
 let evaluate_and_limit =
@@ -582,13 +827,14 @@ let evaluate_and_limit =
       ~step_limit: int,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map)=?,
       ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t)))=?,
       d: DHExp.t,
     )
     : limited_result => {
-  let (state, result) =
+  let (state, theorem_inputs, result) =
     prepare_evaluation(~prev, ~eval_info, ~env, ~reuse_map, ~outbox, d);
   switch (
     Trampoline.Yielding.run_slice(
@@ -597,14 +843,27 @@ let evaluate_and_limit =
     )
   ) {
   | SliceDone(x, _) =>
-    LimitedCompleted((finish(~env, x), completed(state^)))
+    LimitedCompleted((
+      finish(~env, x),
+      completed_with_proofs(
+        ~proofs=proof_statics(~statics, eval_info),
+        ~prev,
+        ~inputs=theorem_inputs^,
+        d,
+        state^,
+      ),
+    ))
   | SliceYielded(_) => StepLimitExceeded
   };
 };
 
 type yielding_evaluation = {
   env: Environment.t(Exp.t),
+  prev: EvaluatorState.incr_eval,
+  eval_info: EvalInfo.t,
+  elaborated: DHExp.t,
   state: ref(EvaluatorState.t),
+  theorem_inputs: ref(Id.Map.t(IncrEval.CheckedProofs.input)),
   outbox: ref(IncrEval.outbox(EvaluatorState.t)),
   continuation: Trampoline.Yielding.continuation(DHExp.t),
 };
@@ -624,7 +883,7 @@ let start_yielding_evaluation =
     )
     : yielding_evaluation => {
   let outbox = ref(IncrEval.empty_outbox);
-  let (state, result) =
+  let (state, theorem_inputs, result) =
     prepare_evaluation(
       ~prev,
       ~eval_info,
@@ -636,7 +895,11 @@ let start_yielding_evaluation =
     );
   {
     env,
+    prev,
+    eval_info,
+    elaborated: d,
     state,
+    theorem_inputs,
     outbox,
     continuation: Trampoline.Yielding.start(result),
   };
@@ -657,7 +920,13 @@ let run_yielding_slice =
   | SliceDone(x, _) =>
     EvaluationCompleted((
       finish(~env=evaluation.env, x),
-      completed(evaluation.state^),
+      completed_with_proofs(
+        ~proofs=proof_statics(~statics=Id.Map.empty, evaluation.eval_info),
+        ~prev=evaluation.prev,
+        ~inputs=evaluation.theorem_inputs^,
+        evaluation.elaborated,
+        evaluation.state^,
+      ),
     ))
   | SliceYielded(continuation) =>
     EvaluationYielded({
@@ -687,7 +956,7 @@ let evaluate_counting_work =
       d: DHExp.t,
     )
     : ((Exp.t, EvaluatorState.t), int) => {
-  let (state, result) =
+  let (state, _, result) =
     prepare_evaluation(
       ~prev,
       ~eval_info,
@@ -712,11 +981,12 @@ let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
+      ~statics: Statics.Map.t=Id.Map.empty,
       ~env,
       d: DHExp.t,
     )
     : (Exp.t, EvaluatorState.t) => {
-  let (state, result) =
+  let (state, theorem_inputs, result) =
     prepare_evaluation(
       ~prev,
       ~eval_info,
@@ -728,5 +998,14 @@ let evaluate =
   /* Must be sequenced before reading `state`: running the trampoline is what
      populates it, and tuple components are evaluated right-to-left. */
   let value = finish(~env, Trampoline.run(result));
-  (value, completed(state^));
+  (
+    value,
+    completed_with_proofs(
+      ~proofs=proof_statics(~statics, eval_info),
+      ~prev,
+      ~inputs=theorem_inputs^,
+      d,
+      state^,
+    ),
+  );
 };

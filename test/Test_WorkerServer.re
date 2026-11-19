@@ -164,6 +164,7 @@ let request =
       eval_info_map:
         Test_Evaluator_Incremental.eval_info_of_statics(info_map),
       prev,
+      generation: 0,
     },
   );
 };
