@@ -1,6 +1,9 @@
 (library
  (name util)
+ (flags
+  (:standard -open Core))
  (libraries
+  core
   ptmap
   bonsai_web
   bonsai_web.proc

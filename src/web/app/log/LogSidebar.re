@@ -21,7 +21,8 @@ let button = (~attrs=[], ~tooltip="", ~onclick, ~disabled=false, children) => {
     disabled ? Attr.disabled : Attr.empty,
   ];
   let all_attrs =
-    tooltip != "" ? [Attr.title(tooltip), ...base_attrs] : base_attrs;
+    !String.equal(tooltip, "")
+      ? [Attr.title(tooltip), ...base_attrs] : base_attrs;
   div(~attrs=all_attrs @ attrs, children);
 };
 
@@ -50,7 +51,7 @@ let progress_bar = (~current, ~total) => {
           Attr.style(
             Css_gen.create(
               ~field="width",
-              ~value=Printf.sprintf("%d%%", percentage),
+              ~value=sprintf("%d%%", percentage),
             ),
           ),
         ],
@@ -58,7 +59,7 @@ let progress_bar = (~current, ~total) => {
       ),
       div(
         ~attrs=[Attr.class_("log-progress-text")],
-        [text(Printf.sprintf("%d / %d", current, total))],
+        [text(sprintf("%d / %d", current, total))],
       ),
     ],
   );
@@ -66,10 +67,7 @@ let progress_bar = (~current, ~total) => {
 
 let message_item = (message: string) => {
   let timestamp =
-    Printf.sprintf(
-      "%.0f",
-      Js_of_ocaml.Js.to_float(Js_of_ocaml.Js.date##now),
-    );
+    sprintf("%.0f", Js_of_ocaml.Js.to_float(Js_of_ocaml.Js.date##now));
   div(
     ~attrs=[Attr.class_("log-message")],
     [
@@ -177,14 +175,14 @@ let messages_section = (~model: Model.t) => {
           Attr.style(Css_gen.create(~field="max-height", ~value="20em")),
           Attr.style(Css_gen.create(~field="overflow", ~value="auto")),
         ],
-        model.messages == []
+        List.is_empty(model.messages)
           ? [
             div(
               ~attrs=[Attr.class_("log-empty")],
               [text("No log messages")],
             ),
           ]
-          : List.map(message_item, model.messages),
+          : List.map(~f=message_item, model.messages),
       ),
     ],
   );
@@ -203,11 +201,7 @@ let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
         [
           div(
             ~attrs=[Attr.class_("log-debug-info")],
-            [
-              text(
-                Printf.sprintf("Current log entries: %d", log_entries_count),
-              ),
-            ],
+            [text(sprintf("Current log entries: %d", log_entries_count))],
           ),
           div(
             ~attrs=[
@@ -242,7 +236,7 @@ let log_message = (message: string): unit => {
   // This would be called from History.re to add messages to the sidebar
   // For now, we'll use a simple print as a fallback, but in a full implementation
   // this would update the log sidebar model
-  Printf.printf(
+  printf(
     "[LOG SIDEBAR] %s\n",
     message,
   );

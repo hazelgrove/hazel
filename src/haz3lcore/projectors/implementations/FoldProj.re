@@ -91,7 +91,8 @@ module M: Projector = {
         div(
           ~attrs=[
             Attr.on_double_click_js_of_ocaml(_ =>
-              status.indication != None ? local(Toggle) : Ui_effect.Ignore
+              Option.is_some(status.indication)
+                ? local(Toggle) : Ui_effect.Ignore
             ),
           ],
           [text(model.text)]

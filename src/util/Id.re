@@ -4,7 +4,9 @@ open Ppx_yojson_conv_lib.Yojson_conv;
 
    WHATS AN ID?
 
-   IDs are random-generated 128bit UUIDs; use Id.mk() to generate one.
+   IDs are 128-bit UUIDs (v4 layout); use Id.mk() to generate one. Id.mk
+   makes them from a counter plus a random tail fixed per session (see
+   below), so they are unique but not individually random.
 
    WHAT ARE IDS USED FOR?
 
@@ -62,20 +64,29 @@ type t = Uuidm.t;
  * from the OCaml 5 LXM generator costs ~1.5us under js_of_ocaml. Instead:
  * a monotonic counter in the leading bytes (leading so that str8/cls
  * abbreviations stay distinct) plus 62 session-random bits in the tail
- * to keep ids unique across sessions/runtimes, packaged by Uuidm.v4
- * (which copies the scratch buffer and stamps version/variant bits). */
+ * to keep ids unique across sessions/runtimes, with v4's version and
+ * variant bits. An id is Uuidm's 16-byte string, built here by
+ * concatenating one-byte strings: under js_of_ocaml a string is a JS
+ * string and `++` is JS `+`, where Uuidm.v4's byte buffer was copied and
+ * converted on every call (~10% of evaluating a livelit's view). */
 let mk: unit => t = {
-  let scratch = Bytes.make(16, '\000');
+  let byte = Array.init(256, ~f=i => String.make(1, Char.of_int_exn(i)));
   let seed = Random.State.make_self_init();
-  for (i in 8 to 15) {
-    Bytes.unsafe_set(
-      scratch,
-      i,
-      Char.unsafe_chr(Random.State.int(seed, 256)),
-    );
+  let rnd = () => Random.State.int(seed, 256);
+  /* byte 8: the variant bits 10, then 6 random bits; bytes 9-15 random */
+  let tail = {
+    let b8 = byte[0x80 lor rnd() land 0x3f];
+    let rest = String.concat(List.init(7, ~f=_ => byte[rnd()]));
+    b8 ++ rest;
   };
   let lo = ref(0);
   let hi = ref(0);
+  /* Bytes 1 to 15 are the same for 256 ids in a row, so they are made
+   * once for each run of 256 (when the counter's bytes above its lowest
+   * change), and each id is one concatenation, not eight. The same ids as
+   * before. */
+  let suffix = ref("");
+  let suffix_of = ref(-1);
   () => {
     incr(lo);
     /* 2^30 - 1, not 2^30: wasm_of_ocaml ints are 31 bits, where 2^30
@@ -83,19 +94,24 @@ let mk: unit => t = {
     if (lo^ >= 0x3fffffff) {
       lo := 0;
       incr(hi);
+      suffix_of := (-1);
     };
     let l = lo^;
     let h = hi^;
-    Bytes.unsafe_set(scratch, 0, Char.unsafe_chr(l land 0xff));
-    Bytes.unsafe_set(scratch, 1, Char.unsafe_chr(l lsr 8 land 0xff));
-    Bytes.unsafe_set(scratch, 2, Char.unsafe_chr(l lsr 16 land 0xff));
-    Bytes.unsafe_set(scratch, 3, Char.unsafe_chr(l lsr 24 land 0x3f));
-    Bytes.unsafe_set(scratch, 4, Char.unsafe_chr(h land 0xff));
-    Bytes.unsafe_set(scratch, 5, Char.unsafe_chr(h lsr 8 land 0xff));
-    /* byte 6 high nibble and byte 8 top two bits are overwritten by v4 */
-    Bytes.unsafe_set(scratch, 6, Char.unsafe_chr(h lsr 16 land 0x0f));
-    Bytes.unsafe_set(scratch, 7, Char.unsafe_chr(h lsr 20 land 0xff));
-    Uuidm.v4(scratch);
+    if (l lsr 8 != suffix_of^) {
+      suffix_of := l lsr 8;
+      suffix :=
+        byte[l lsr 8 land 0xff]
+        ++ byte[l lsr 16 land 0xff]
+        ++ byte[l lsr 24 land 0x3f]
+        ++ byte[h land 0xff]
+        ++ byte[h lsr 8 land 0xff]
+        /* byte 6: the version, 4, then 4 bits of the counter */
+        ++ byte[0x40 lor h lsr 16 land 0x0f]
+        ++ byte[h lsr 20 land 0xff]
+        ++ tail;
+    };
+    Uuidm.unsafe_of_bytes(byte[l land 0xff] ++ suffix^);
   };
 };
 let namespace_uuid =
@@ -111,12 +127,21 @@ let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 let derive = (~salt: string, x: t): t =>
   Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
 
-let compare: (t, t) => int = Uuidm.compare;
+/* An id is a 16-byte string (Uuidm.unsafe_to_bytes is the identity), so
+   compare it as one, in the same order as Uuidm.compare. (Uuidm.compare
+   already compiles to a string compare, so this is for clarity, not
+   speed.) */
+let compare: (t, t) => int =
+  (a, b) =>
+    String.compare(Uuidm.unsafe_to_bytes(a), Uuidm.unsafe_to_bytes(b));
+let equal: (t, t) => bool =
+  (a, b) =>
+    String.equal(Uuidm.unsafe_to_bytes(a), Uuidm.unsafe_to_bytes(b));
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;
 
-let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
-let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let str3 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, ~pos=0, ~len=8);
 let cls = (id: t) => "id" ++ str8(id);
 
 /* OCaml-literal id constructor: pp/show render ids as
@@ -128,33 +153,32 @@ let v: string => t =
     |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
 let pp: (Format.formatter, t) => unit =
   (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
-let show = id => Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id => sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
-module Set = Set.Make(Uuidm);
+module Ord = {
+  type nonrec t = t;
+  let compare = compare;
+};
+
+module Set = Stdlib.Set.Make(Ord);
 
 module Map = {
-  include Map.Make(Uuidm);
+  include Stdlib.Map.Make(Ord);
 
   let sexp_of_t = (sexp_of_v, map) =>
     map |> bindings |> Sexplib.Std.sexp_of_list(sexp_of_binding(sexp_of_v));
 
   let t_of_sexp = (v_of_sexp, sexp) =>
-    sexp
-    |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp))
-    |> List.to_seq
-    |> of_seq;
+    sexp |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp)) |> of_list;
 
   let yojson_of_t = (yojson_of_v, map) =>
     map |> bindings |> yojson_of_list(yojson_of_binding(yojson_of_v));
 
   let t_of_yojson = (v_of_yojson, json) =>
-    json
-    |> list_of_yojson(binding_of_yojson(v_of_yojson))
-    |> List.to_seq
-    |> of_seq;
+    json |> list_of_yojson(binding_of_yojson(v_of_yojson)) |> of_list;
 
   /* Outputs valid OCaml code for empty maps only.
    * Non-empty maps will fail - this is intentional. Currently only empty maps
@@ -172,15 +196,15 @@ module Map = {
     };
 };
 let invalid: t =
-  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "00000000-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 /* Special id used to denote a trivial (empty) function application */
 let nullary_ap_flag: t =
-  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.get;
+  "DEADBEEF-0000-0000-0000-000000000000" |> Uuidm.of_string |> Option.value_exn;
 
 let is_nullary_ap_flag = (ids: list(t)) =>
   switch (ids) {
-  | [id] when id == nullary_ap_flag => true
+  | [id] when Uuidm.equal(id, nullary_ap_flag) => true
   | _ => false
   };
 
@@ -212,7 +236,7 @@ module Uf: {
     };
   let get = (id, s) => M.get(s.store, M.find(s.store, rref(id, s)));
   let get_opt = (id, s) =>
-    Map.find_opt(id, s.refs^) |> Option.map(_ => get(id, s));
+    Map.find_opt(id, s.refs^) |> Option.map(~f=_ => get(id, s));
   let set = (id, a, s) => M.set(s.store, M.find(s.store, rref(id, s)), a);
 
   let merge = (f, id, id', s) =>
