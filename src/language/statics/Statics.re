@@ -4311,12 +4311,6 @@ and utyp_to_info_map =
           ok(Message.Type(utyp));
         };
       };
-    | (TypeExpected | AnyKindExpected, TypFun(_, _)) =>
-      /* `TypFun` has an `Arrow` kind. Accept it as kind-OK at this
-         node; descendants are visited via the `TypFun` arm of the
-         outer `switch` with `AnyKindExpected` so a curried tail
-         doesn't repeat this check. */
-      ok(Message.Type(utyp))
     | (TypeExpected | AnyKindExpected, _) =>
       switch (kind_marks_for_expected_type(~expects, utyp)) {
       | [] => ok(Message.Type(utyp))
@@ -4707,10 +4701,20 @@ and utpat_to_info_map =
             }),
           ),
         )
-      | (_, None) => (
+      /* not yet in scope: the alias being defined, or a binder */
+      | (_, None) when at_alias_head => (
           [],
           Some(
             Message.TypeAlias({
+              name,
+              kind: TypKind.Type,
+            }),
+          ),
+        )
+      | (_, None) => (
+          [],
+          Some(
+            Message.TypeParameter({
               name,
               kind: TypKind.Type,
             }),

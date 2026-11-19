@@ -544,15 +544,23 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
+  | TypKindMismatch({expected: Type, actual: Arrow(_) as actual}) => [
+      text("Expected a type, found a type function of kind "),
+      code(TypKind.to_string(actual)),
+      text("; apply it to type arguments, e.g. "),
+      code("T(Int)"),
+    ]
   | TypKindMismatch({expected, actual}) => [
       text("Expected kind "),
       code(TypKind.to_string(expected)),
       text(", found "),
       code(TypKind.to_string(actual)),
     ]
-  | TypParamApplyNonArrowKind(kind) => [
-      text("Cannot apply a type of kind "),
-      code(TypKind.to_string(kind)),
+  | TypParamApplyNonArrowKind(_) => [
+      text("Only type functions take type arguments; to instantiate a "),
+      code("poly"),
+      text(" value, write "),
+      code("e@<T>"),
     ]
   | TypParamApplyArityMismatch({callee, expected, actual, _}) => [
       code(Typ.pretty_print(callee)),

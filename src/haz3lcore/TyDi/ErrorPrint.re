@@ -137,11 +137,17 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     | None => "Livelit unbound and not found"
     | Some(_) => "(internal)"
     }
+  | TypAbsApplyArityMismatch({expected, actual}) =>
+    prn(
+      "The polymorphic value takes %d type argument%s, got %d",
+      expected,
+      expected == 1 ? "" : "s",
+      actual,
+    )
   | TypFreeTypeVariable(_)
   | TypKindMismatch(_)
   | TypParamApplyNonArrowKind(_)
   | TypParamApplyArityMismatch(_)
-  | TypAbsApplyArityMismatch(_)
   | TypDuplicateConstructor(_)
   | TypDuplicateLabels(_, _)
   | TypWantTypeFoundAp
@@ -214,12 +220,36 @@ let typ_mark_string: Mark.t => string =
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
     prn("Expected a tuple type, found type %s", Print.typ(ty))
+  | TypKindMismatch({expected: Type, actual: Arrow(_) as actual}) =>
+    prn(
+      "Expected a type, but found a type function of kind %s; apply it to type arguments, e.g. T(Int)",
+      TypKind.to_string(actual),
+    )
+  | TypKindMismatch({expected, actual}) =>
+    prn(
+      "Expected kind %s, found kind %s",
+      TypKind.to_string(expected),
+      TypKind.to_string(actual),
+    )
+  | TypParamApplyNonArrowKind(_) => "Only type functions take type arguments; to instantiate a poly value, write e@<T>"
+  | TypParamApplyArityMismatch({expected, actual, _}) =>
+    prn(
+      "The type function expects %d type argument%s, got %d",
+      expected,
+      expected == 1 ? "" : "s",
+      actual,
+    )
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
+  | TPatParamNotAtAliasHead(name) =>
+    prn(
+      "%s(...) declares a parameterized type, which is only allowed as the name in a type alias",
+      name,
+    )
   | _ => "(static error)";
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
