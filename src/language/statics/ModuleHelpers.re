@@ -287,14 +287,12 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | EmptyHole
   | MultiHole(_)
   | Wild
-  | ExplicitNonlabel
   | Atom(_)
   | ListLit(_)
   | Constructor(_)
   | Cons(_)
   | Tuple(_)
   | Label(_)
-  | TupLabel(_)
   | Parens(_)
   | Projector(_)
   | Ap(_)

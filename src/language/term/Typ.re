@@ -641,14 +641,12 @@ let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | ExplicitNonlabel
     | Atom(_)
     | ListLit(_)
     | Constructor(_)
     | Cons(_)
     | Tuple(_)
     | Label(_)
-    | TupLabel(_)
     | Parens(_)
     | Projector(_)
     | Ap(_)
@@ -661,14 +659,12 @@ let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
   | EmptyHole
   | MultiHole(_)
   | Wild
-  | ExplicitNonlabel
   | Atom(_)
   | ListLit(_)
   | Constructor(_)
   | Cons(_)
   | Tuple(_)
   | Label(_)
-  | TupLabel(_)
   | Parens(_)
   | Projector(_)
   | Ap(_) => None
