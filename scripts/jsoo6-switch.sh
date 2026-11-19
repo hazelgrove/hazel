@@ -5,6 +5,7 @@
 #
 #   scripts/jsoo6-switch.sh            # switch name defaults to hazel-jsoo6
 #   SWITCH=foo scripts/jsoo6-switch.sh
+#   WASM=1 scripts/jsoo6-switch.sh     # also wasm_of_ocaml (see the end)
 #
 # Then build with: opam exec --switch=hazel-jsoo6 -- dune build ...
 set -eu
@@ -34,3 +35,14 @@ opam pin add --switch="$SWITCH" -n -y bisect_ppx \
 
 # LC_ALL=C: incremental's build seds over non-UTF-8 sources (opam-jsoo6/README.md)
 LC_ALL=C opam install --switch="$SWITCH" -y "$ROOT/hazel.opam" --deps-only --with-test
+
+# Optional: wasm_of_ocaml, for `dune build @src/web/www/wasm-worker` and
+# bench/speed. binaryen-bin builds Binaryen 119 into the switch and needs
+# cmake and ninja on PATH (e.g. `pip install cmake ninja` in a venv, or
+# Homebrew); --assume-depexts stops opam asking brew for a system binaryen.
+# Install binaryen-bin first: conf-binaryen checks for wasm-opt and fails
+# if both are built in the same opam run.
+if [ "${WASM:-0}" = 1 ]; then
+  opam install --switch="$SWITCH" -y --assume-depexts binaryen-bin
+  opam install --switch="$SWITCH" -y --assume-depexts wasm_of_ocaml-compiler
+fi
