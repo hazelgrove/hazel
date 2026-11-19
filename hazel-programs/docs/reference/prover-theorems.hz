@@ -1,0 +1,30 @@
+# THEOREMS #
+
+# A theorem states a Bool and proves it: #
+#   theorem name = statement proof steps in body #
+# Proofs are checked as the program runs. Below the program, a #
+# stepper shows each theorem's proof, with its status in the header: #
+#   proven      the goal reached true #
+#   refuted     the goal reached false, so the statement is wrong #
+#   incomplete  the proof stops before either #
+
+# from 2 * 3 do step end evaluates the 2 * 3 inside the goal. The #
+# last step evaluates 6 == 6 to true. #
+theorem six = 2 * 3 == 6 proof
+  from 2 * 3 do step end;
+  step
+in
+
+# The same steps show that this statement is false. #
+theorem seven = 2 * 3 == 7 proof
+  from 2 * 3 do step end;
+  step
+in
+
+# An empty proof, drawn as a small circle, is one still to write. The #
+# next slide fills one in. #
+theorem eight = 2 * 4 == 8 proof ¿ in
+
+# Proofs in a theorem's body can use it by name, as the slide on #
+# lemmas shows. #
+¿

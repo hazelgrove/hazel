@@ -1,7 +1,7 @@
 /* Publishes #main's effective scrollWidth as the `--main-scroll-width` CSS var
- * (see JsUtil.update_main_scroll_width) so the cell background stretches under
- * absolutely-positioned probe overlays/drawers, which CSS intrinsic sizing
- * can't see. The measure forces two whole-document layouts (cost scales with
+ * (see JsUtil.update_main_scroll_width) so a probe drawer's stripe spans the
+ * pane, which the stripe, absolutely positioned inside the code, can't size
+ * itself to. The measure forces two whole-document layouts (cost scales with
  * probe count), so we gate on `key` and re-measure only when an input changes. */
 
 open Js_of_ocaml;

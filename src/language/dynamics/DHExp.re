@@ -90,7 +90,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Seq(_)
           | Let(_)
           | Theorem(_)
-          | ProofObject(_)
           | Forall(_)
           | Ap(_)
           | BuiltinFun(_)
@@ -143,7 +142,6 @@ let rec ty_comparable = (d1, d2) => {
   | (Var(_), _)
   | (Let(_), _)
   | (Theorem(_), _)
-  | (ProofObject(_), _)
   | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
@@ -248,7 +246,6 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Var(_), _)
   | (Let(_), _)
   | (Theorem(_), _)
-  | (ProofObject(_), _)
   | (Forall(_), _)
   | (FixF(_), _)
   | (TyAlias(_), _)
@@ -281,27 +278,15 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (_, Asc(d2, _)) => poly_equal(d1, d2)
 
   // Comparable forms
-  | (Atom(t1), Atom(t2)) =>
-    (
-      switch (t1, t2) {
-      | (Int(n1), Int(n2)) => Bigint.equal(n1, n2)
-      | (Int(_), _) => false
-      | (SInt(n1), SInt(n2)) => n1 == n2
-      | (SInt(_), _) => false
-      | (Nat(n1), Nat(n2)) => Bigint.equal(n1, n2)
-      | (Nat(_), _) => false
-      | (Bool(b1), Bool(b2)) => Bool.equal(b1, b2)
-      | (Bool(_), _) => false
-      | (String(s1), String(s2)) => String.equal(s1, s2)
-      | (String(_), _) => false
-      | (Float(f1), Float(f2)) => Float.equal(f1, f2)
-      | (Float(_), _) => false
-      }
-    )
-    |> Option.some
+  | (Atom(t1), Atom(t2)) => Some(Equality.atom(t1, t2))
   | (Atom(_), _) => None
   | (DrvQuote(d1, _), DrvQuote(d2, _)) =>
-    Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
+    /* Proofs trust any boolean verdict evaluation renders, so an
+       incomplete derivation must not get one: with ~skip_hole=false, eq
+       treats holes as ordinary structure, so a hole-containing derivation
+       would compare Some(false) against a complete one. */
+    Drv.Any.contains_hole(d1) || Drv.Any.contains_hole(d2)
+      ? None : Drv.Any.eq(d1, d2, ~skip_hole=false) |> Option.some
   | (DrvQuote(_, _), _) => None
   | (Label(l1), Label(l2)) => String.equal(l1, l2) ? Some(true) : None
   | (Label(_), _) => None

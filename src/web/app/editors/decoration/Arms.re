@@ -308,18 +308,25 @@ let tiles_data =
   Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(~f=of_tile);
 };
 
-let term =
+/* Where a term's indication goes, read off the layout, so that a caller
+ * can keep it and draw it again with `of_geometry`. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type geometry = {
+  tiles: list((Id.t, Mold.t, Shards.t)),
+  /* The term's extent, or None for a module's `;`, which is drawn as its
+   * shards alone. */
+  range: option((Point.t, Point.t)),
+};
+
+let geometry =
     (
-      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~term_data: TermData.t,
       ~terms: TermMap.t,
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
-      ~attr: option(list(Attr.t))=?,
       ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
-    : list(Node.t) => {
+    : option(geometry) => {
   let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
   let any_term = Id.Map.find(id, terms);
 
@@ -342,33 +349,66 @@ let term =
     let msg = "Arms.term";
     switch (TermData.root_tile(tile.id, term_data)) {
     | Some(t) =>
-      shards(
-        ~refine_sort,
-        ~attr?,
-        ~font_metrics,
-        ~base_clss=None,
-        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
-      )
-    | None => []
+      Some({
+        tiles: [
+          (tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured)),
+        ],
+        range: None,
+      })
+    | None => None
     };
   } else {
     switch (TermData.extreme_measures(id, term_data, measured)) {
     | Some((l, r)) =>
-      let r = apply_clip(clip_right, r);
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
-      term(
-        ~refine_sort,
-        ~font_metrics,
-        ~rows=measured.rows,
-        ~tiles,
-        (l, r),
-        ~attr?,
-      );
-    | _ => []
+      Some({
+        tiles: is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles,
+        range: Some((l, apply_clip(clip_right, r))),
+      });
+    | None => None
     };
   };
 };
+
+let of_geometry =
+    (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+      ~attr: option(list(Attr.t))=?,
+      ~font_metrics: FontMetrics.t,
+      ~rows: Rows.t,
+      {tiles, range}: geometry,
+    )
+    : list(Node.t) =>
+  switch (range) {
+  | Some(range) =>
+    term(~refine_sort, ~font_metrics, ~rows, ~tiles, range, ~attr?)
+  | None =>
+    shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss=None, tiles)
+  };
+
+let term =
+    (
+      ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+      ~term_data: TermData.t,
+      ~terms: TermMap.t,
+      ~measured: Measured.t,
+      ~font_metrics: FontMetrics.t,
+      ~attr: option(list(Attr.t))=?,
+      ~clip_right: option(Point.t)=None,
+      tile: Tile.t,
+    )
+    : list(Node.t) =>
+  switch (geometry(~term_data, ~terms, ~measured, ~clip_right, tile)) {
+  | Some(geometry) =>
+    of_geometry(
+      ~refine_sort,
+      ~attr?,
+      ~font_metrics,
+      ~rows=measured.rows,
+      geometry,
+    )
+  | None => []
+  };
 
 let term =
     (
@@ -381,7 +421,7 @@ let term =
     ~refine_sort,
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
-    ~measured=syntax.measured,
+    ~measured=CachedSyntax.measured(syntax),
     ~font_metrics,
     ~clip_right,
   );
@@ -434,7 +474,12 @@ let completion_clip =
         switch (List.find(~f=has_shard, result.insertions)) {
         | None => None
         | Some(ins) =>
-          switch (CanonicalCompletion.anchor_point(syntax.measured, ins)) {
+          switch (
+            CanonicalCompletion.anchor_point(
+              CachedSyntax.measured(syntax),
+              ins,
+            )
+          ) {
           | None => None
           | Some(p) =>
             /* the viz anchor walks left past same-tile pieces, so it
@@ -444,7 +489,7 @@ let completion_clip =
               Measured.find_shards(
                 ~msg="Arms.completion_clip",
                 t,
-                syntax.measured,
+                CachedSyntax.measured(syntax),
               )
               |> List.map(~f=((_, sm): Shards.shard) => sm.last)
               |> List.fold_left(
@@ -467,7 +512,11 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Projector(_)
   | Tile(_) =>
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    TermData.extreme_measures(
+      id,
+      syntax.term_data,
+      CachedSyntax.measured(syntax),
+    );
   };
 };
 
@@ -511,7 +560,9 @@ module Errors = {
       switch (Id.Map.find_opt(id, syntax.projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (
+          Id.Map.find_opt(id, CachedSyntax.measured(syntax).projectors)
+        ) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -539,7 +590,7 @@ module Errors = {
             switch (TermData.segment(id, syntax.term_data)) {
             | Some(seg) =>
               Highlight.of_segment(
-                ~measured=syntax.measured,
+                ~measured=CachedSyntax.measured(syntax),
                 ~shape_map=syntax.shape_map,
                 ~font_metrics,
                 ~shape_init=Some(Convex),
@@ -553,7 +604,7 @@ module Errors = {
             | Some(range) =>
               simple_arm(
                 ~font_metrics,
-                ~rows=syntax.measured.rows,
+                ~rows=CachedSyntax.measured(syntax).rows,
                 ~path_cls=[
                   "child-line",
                   "simple",
@@ -613,7 +664,7 @@ module Indicated = {
     | Grout(_)
     | Secondary(_) => []
     | Projector(p) =>
-      switch (Measured.find_pr_opt(p, syntax.measured)) {
+      switch (Measured.find_pr_opt(p, CachedSyntax.measured(syntax))) {
       | Some(measurement) => [
           ShardDec.simple(
             {
@@ -681,7 +732,7 @@ module Indicated = {
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=CachedSyntax.measured(syntax).rows,
           ~path_cls=["child-line", Sort.class_of(sort)],
           range,
         );
@@ -750,7 +801,7 @@ module Refractors = {
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
           ~font_metrics,
-          ~rows=syntax.measured.rows,
+          ~rows=CachedSyntax.measured(syntax).rows,
           ~path_cls=[
             "child-line",
             cls ++ " " ++ kind_cls,
@@ -802,7 +853,7 @@ module Refractors = {
              Haz3lcore.Indicated.index(z) == Some(id)
                ? [
                  Highlight.indicated_refractor(
-                   ~measured=syntax.measured,
+                   ~measured=CachedSyntax.measured(syntax),
                    ~shape_map=syntax.shape_map,
                    ~font_metrics,
                    ~kind=entry.kind,

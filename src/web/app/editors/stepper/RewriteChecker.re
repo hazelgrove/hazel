@@ -27,7 +27,7 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   | Atom(Float(value)) => string_of_float(value)
   | Atom(Bool(value)) => string_of_bool(value)
   // We have to manually map ** (power) to ^ in Algebrite.
-  | BinOp(Int(Power), exp_left, exp_right) =>
+  | BinOp(Int(Power) | Nat(Power), exp_left, exp_right) =>
     "("
     ++ print_exp_for_algebrite(~name_other, exp_left)
     ++ " ^ "
@@ -51,13 +51,19 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
   | _ => name_other(exp)
   };
 
+/* The page loads Algebrite. Where it isn't loaded, nothing is equal by
+ * algebra. */
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = sprintf("simplify((%s)-(%s))", expr1, expr2);
-  let algebrite_result = algebrite##run(Js.string(diffExpr));
-  switch (Js.to_string(algebrite_result)) {
-  | "0" => true
-  | _ => false
+  if (String.equal(Js.to_string(Js.typeof(algebrite)), "undefined")) {
+    false;
+  } else {
+    let diffExpr = sprintf("simplify((%s)-(%s))", expr1, expr2);
+    let algebrite_result = algebrite##run(Js.string(diffExpr));
+    switch (Js.to_string(algebrite_result)) {
+    | "0" => true
+    | _ => false
+    };
   };
 };
 
@@ -74,11 +80,6 @@ let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
   let to_ = DHExp.strip_ascriptions(to_);
   let left_str = print_exp_for_algebrite(~name_other, from_);
   let right_str = print_exp_for_algebrite(~name_other, to_);
-  print_endline("Checking rewrite:");
-  print_endline("From: " ++ left_str);
-  print_endline("To:   " ++ right_str);
-  print_endline("e1: " ++ Exp.show(from_));
-  print_endline("e2: " ++ Exp.show(to_));
   if (String.equal(left_str, "Unknown") || String.equal(right_str, "Unknown")) {
     false;
   } else {

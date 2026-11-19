@@ -10,11 +10,21 @@ type warning_typ =
   /* A type defined as itself: no value has it. */
   | NonContractive(string);
 
+/* Expression forms that have no evaluation semantics. These are legal
+   propositions, so they are warnings rather than marks: they only mean
+   "this will not run" when written outside a theorem statement or
+   proof. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type warning_exp =
+  /* `forall` / `forall ... where ...` used as ordinary code. */
+  | ForallOutsideTheorem;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type list_item =
   | Pat(warning_pat)
   | TPat(warning_typ)
-  | Typ(warning_typ);
+  | Typ(warning_typ)
+  | Exp(warning_exp);
 
 /* The warnings for binding type alias [name] to [def]. */
 let type_binding = (name, def: Typ.alias_def): list(list_item) =>

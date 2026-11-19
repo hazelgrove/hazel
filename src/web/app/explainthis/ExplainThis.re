@@ -344,7 +344,7 @@ let expander_deco =
         TermData.extreme_measures(
           id,
           editor.syntax.term_data,
-          editor.syntax.measured,
+          Haz3lcore.CachedSyntax.measured(editor.syntax),
         )
       ) {
       | Some((origin, _)) => origin
@@ -838,6 +838,8 @@ let decide =
     | _ => Prose("Signature item")
     }
   | Some(InfoMPat(_)) => Prose("Module name")
+  | Some(InfoProof({user_term, _})) =>
+    message_single(ProofDoc.single(user_term))
   | Some(InfoExp({cls: Mod(ModLet), _})) =>
     message_single(ModLetDecl.single)
   | Some(InfoExp({cls: Mod(ModType), _})) =>
@@ -1234,14 +1236,12 @@ let decide =
         | Projector(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
-      | Theorem(pat, thm, body) =>
+      | Theorem(pat, thm, pf, body) =>
         let pat_id = IdTagged.rep_id(pat);
         let thm_id = IdTagged.rep_id(thm);
+        let proof_id = IdTagged.rep_id(pf);
         let body_id = IdTagged.rep_id(body);
-        get_message(TheoremExp.tests(~pat_id, ~thm_id, ~body_id));
-      | ProofObject(exp) =>
-        let typ_id = IdTagged.rep_id(exp);
-        get_message(ProofObjectExp.proof_of_exps(~typ_id));
+        get_message(TheoremExp.tests(~pat_id, ~thm_id, ~proof_id, ~body_id));
       | Forall(pat, typ) =>
         let pat_id = IdTagged.rep_id(pat);
         let body_id = IdTagged.rep_id(typ);
@@ -1425,6 +1425,7 @@ let decide =
           | Float(NotEquals) => float_not_equal
           | Bool(And) => bool_and
           | Bool(Or) => bool_or
+          | Bool(Implies) => bool_implies
           | String(Concat) => string_concat
           | Poly(Equals) => poly_equal
           | Poly(NotEquals) => poly_not_equal
@@ -1556,9 +1557,6 @@ let decide =
       let tpat_id = IdTagged.rep_id(tpat);
       let tbody_id = IdTagged.rep_id(typ);
       get_message(RecTyp.rec_(~tpat_id, ~tbody_id));
-    | ProofOf(exp) =>
-      let body_id = IdTagged.rep_id(exp);
-      get_message(ProofOfTyp.proof_of(~body_id));
     | Arrow(arg, result) =>
       let arg_id = IdTagged.rep_id(arg);
       let result_id = IdTagged.rep_id(result);
