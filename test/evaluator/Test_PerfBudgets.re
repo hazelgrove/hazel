@@ -106,8 +106,10 @@ total + k|},
 let cold_test = () => {
   let (result, _, steps) = work(parse_exp(program(~rounds=3, ~fib=10)));
   check(dhexp_typ, "the program's value", parse_exp("6085"), result);
-  /* 206,834 steps on 2026-10-12 */
-  within_budget("cold run", ~budget=227_000, steps);
+  /* 206,834 steps on 2026-10-12; 96,438 on 2026-11-03, once a value
+     already done no longer bounces through the trampoline and a bind
+     that only passes a value through is skipped */
+  within_budget("cold run", ~budget=106_000, steps);
 };
 
 /* An edit after all the work, to a literal nothing else reads: the
@@ -121,8 +123,9 @@ let edit_test = () => {
   let edited = replace_int_lit(~from=1000, ~to_=2000, exp);
   let (result, _, steps) = work(~prev, edited);
   check(dhexp_typ, "the edited program's value", parse_exp("7085"), result);
-  /* 378 steps on 2026-10-12: `total` reused */
-  within_budget("re-run after an edit", ~budget=420, steps);
+  /* 378 steps on 2026-10-12: `total` reused; 270 on 2026-11-03, with
+     fewer trampoline bounces */
+  within_budget("re-run after an edit", ~budget=300, steps);
   /* whatever the budgets, an edit like this costs a small part of a run */
   check(
     bool,

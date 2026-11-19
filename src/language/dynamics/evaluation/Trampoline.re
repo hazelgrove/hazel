@@ -19,7 +19,18 @@ type callstack('a, 'b) =
 
 let return = x => Done(x);
 
-let bind = (t, f) => Bind(t, f);
+/* Binding a value that is already done calls the continuation now: no
+   Bind node, no frame on the machine's callstack, no trip through run
+   (about 3% of what evaluating the Scenes slide's woods allocated). It is
+   stack-safe for the evaluator because recursion in the program reaches
+   its next call through a Next (Evaluator's eval_2), which run executes
+   iteratively; only a chain of values already done is shortened.
+   Evaluator.Performance's deep-recursion tests guard it. */
+let bind = (t, f) =>
+  switch (t) {
+  | Done(x) => f(x)
+  | _ => Bind(t, f)
+  };
 
 module Syntax = {
   let (let.trampoline) = (x, f) => bind(x, f);
