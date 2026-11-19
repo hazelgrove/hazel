@@ -50,3 +50,8 @@ cat hazel-programs/docs/reference/basic-reference.hz | ./hazel run -
 ### `docs/`
 The committed text of the shipped slides: `reference/` is embedded by
 `src/docslides`, `b2t2/` by `src/b2t2`. Editing a file here changes the slide.
+
+### `exercises/`
+The Exercises-mode code and theorem exercises, one `.hzt` per exercise,
+embedded by `src/web` (listed in `ExerciseSettings_base.re`). The format is
+in `exercises/README.md`.
