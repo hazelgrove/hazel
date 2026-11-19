@@ -20,8 +20,15 @@ whatever it measures, and goes red only if the tooling itself breaks.
 Click into the check (its job summary) for the tables. A **PR comment** appears
 only when something changed significantly. It is one comment, edited on later
 pushes: updated while the change persists, and marked resolved, with the old
-report collapsed, once a push no longer shows it. No comment means no
-significant change. Forks get the check but not the comment.
+report collapsed, once a push no longer shows it. If a later push makes a
+change significant again, the resolved comment is replaced by a new one, so
+that it notifies. A run for a commit that is no longer the PR's head (a re-run
+of an old run) leaves the comment alone.
+
+Once the check has finished green, no comment means no significant change: a
+head whose harness crashes or hangs where the base's ran counts as
+significant. A red check means the tooling broke, and then nothing is
+commented. Forks get the check but not the comment.
 
 ### What it measures
 
@@ -34,27 +41,44 @@ from run to run, any difference is a real one.
 
 *Significant:* a program's count moves by at least 1% and at least 20 steps,
 or a program that finished on the base no longer does (over the limit, or an
-exception).
+exception), or the head's work counter as a whole crashes or runs for more
+than 15 minutes where the base's finished. Its last line of output, in the
+report, names the program it was on.
 
 **Timings** (noisy). Wall time of:
 
 - the editor's derived-data pipeline, a whole `CachedStatics` pass followed by
   a whole `CachedSyntax` pass, on generated chains of 100 and 500 `let`s, in
   four scenarios: `cold` (a copy with fresh ids, which no memo table has seen,
-  as when a program is loaded), `warm` (the same zipper again, as on a
-  redraw), `move` (after one cursor move) and `edit` (after editing one
+  as when a program is loaded), `warm` (the same zipper again, with every memo
+  table primed), `move` (after one cursor move) and `edit` (after editing one
   literal); and
 - evaluating `bench/eval-bench.hz` the way `hazel bench-eval` times it: plain
   and incremental (seeding the incremental cache).
 
+Every scenario is a whole pass, not what the editor does per action: the
+editor updates through `Editor.Update.calculate` with the previous state, and
+these do not go through it. So `warm` is not what a redraw costs (its statics
+pass takes roughly three quarters as long as `cold`'s), and `move` and `edit`
+show what a whole pass costs after an action, not what the action costs.
+Timing the editor's real update path is part of the follow-up plan in
+[#2771](https://github.com/hazelgrove/hazel/issues/2771).
+
 Each round runs every benchmark 5 times after an untimed run and keeps the
 median. The job runs 5 rounds per side, alternating base and head (base, head,
-head, base, ...) on the same runner, so drift lands on both.
+head, base, ...) on the same runner, so drift lands on both. A benchmark that
+raises (say, `bench/eval-bench.hz` does not parse on one side) is left out of
+that side with the exception noted; the others still run.
 
 *Significant:* the median of a benchmark's round medians changes by more than
-10% **and** the base's and head's ranges of round medians (min to max) do not
-overlap. Both conditions, because wall time on GitHub's shared runners varies
-by 10-40% between runs, and an advisory report that cries wolf gets ignored.
+10% and by at least 1 ms, **and** the base's and head's ranges of round
+medians (min to max) do not overlap. All three, because wall time on GitHub's
+shared runners varies by 10-40% between runs, the smallest benchmarks take
+only a few milliseconds, and an advisory report that cries wolf gets ignored.
+A scenario's `total` is shown but never flagged on its own, as it only sums
+its `statics` and `syntax`. Also significant: a benchmark the base ran that
+the head had to leave out, or the head's timing harness crashing or running
+for more than 15 minutes where the base's finished.
 
 The timings run as js_of_ocaml under node, release profile: what ships. A native
 build is not an option, as the core libraries call JavaScript (for instance
@@ -62,16 +86,25 @@ build is not an option, as the core libraries call JavaScript (for instance
 
 ### How the comparison is built
 
-The measurement code is always the PR's. `bench/perf-compare.sh` copies the
-head's `bench/dune`, `bench/perf_work.re` and `bench/hazel_bench.re` into the
-base checkout and builds each executable there and in the head; both sides run
-on the head's programs. If the head's harness does not compile against the base
-(say, a base older than an API it calls), that measurement is reported as
-unavailable for this base, and the rest of the report still runs.
+The measurement code is the PR's whenever it can be. `bench/perf-compare.sh`
+copies the head's `bench/dune`, `bench/perf_work.re` and `bench/hazel_bench.re`
+into the base checkout and builds each executable there and in the head; both
+sides run on the head's programs.
+
+If the head's harness does not compile against the base, typically because
+the PR changes an API the harness calls and updates the harness to match, the
+base is built with its own harness instead, and the report says so (the two
+harnesses may then differ in what they measure). If that does not build
+either, or the base has no harness (it predates this report, or `bench/`), that
+measurement is reported as unavailable for this base, and the rest of the
+report still runs. Not being able to measure the base never turns the check
+red.
 
 Because the harness is compiled by `make ci-check` (`dune build @check
 --profile release` covers `bench/`), a change that breaks it fails `Static
-checks` and has to fix it in the same PR.
+checks` and has to fix it in the same PR. The two bundles themselves are not
+part of `dune build`'s default target (nor of `make watch-test`), so nothing
+but the report, or asking for them by name, links them.
 
 ### Running it locally
 
@@ -84,8 +117,10 @@ bench/perf-compare.sh origin/dev
 
 It checks the base out as a worktree under `_perf/base` (git-ignored), prints
 the report and leaves it in `_perf/report/`. `--rounds` and `--reps` trade time
-for precision; `--out DIR` puts the report elsewhere. An existing checkout can
-stand in for the ref.
+for precision; `--out DIR` puts the report elsewhere; `--timeout SECONDS`
+(default 900) is how long one harness run may take before it counts as hung.
+An existing checkout can stand in for the ref: its own `bench/` files are put
+back as they were afterwards, though its `_build` keeps the release bundles.
 
 Or run one harness on your checkout alone:
 
