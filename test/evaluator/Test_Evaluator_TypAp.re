@@ -162,6 +162,17 @@ let y : PResult(String)(Bool) = E("no") in
 (x, y)|},
       )
     ),
+    /* `pair@<b, Int>` under a binder named `b`: the type arguments are
+       substituted simultaneously. */
+    test_case("multi-binder type application is simultaneous", `Quick, () =>
+      parse_and_evaluate_test(
+        {|(true, 1)|},
+        {|let pair : poly a, b -> a -> b -> (a, b) =
+  abs a, b -> fun x -> fun y -> (x, y) in
+let g : poly b -> b -> (b, Int) = abs b -> fun x -> pair@<b, Int>(x)(1) in
+g@<Bool>(true)|},
+      )
+    ),
     /* A polymorphic constructor in synthetic position runs at unknown
        type arguments. */
     test_case("synthetic-position constructors evaluate", `Quick, () =>

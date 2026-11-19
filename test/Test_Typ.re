@@ -1172,6 +1172,18 @@ let type_function_tests = {
           },
         )
       ),
+      test_case("multi-binder substitution is simultaneous", `Quick, () =>
+        check(
+          typ,
+          "(b, Int), not (Int, Int)",
+          parse("(b, Int)"),
+          Typ.subst_many(
+            [parse("b"), parse("Int")],
+            [TPat.fresh(Var("a")), TPat.fresh(Var("b"))],
+            parse("(a, b)"),
+          ),
+        )
+      ),
       test_case("canonicalize keeps an applied alias compact", `Quick, () =>
         check(
           string,

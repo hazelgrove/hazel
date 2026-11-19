@@ -689,69 +689,25 @@ module Transition = (EV: EV_MODE) => {
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
-      /* Substitute a type argument into a body against a (possibly
-         multi-binder) `TPat`. Multi-binder against a `TypTuple` of
-         matching arity substitutes element-wise in one step;
-         everything else falls back to a single substitution and
-         lets statics surface any arity mismatch. */
-      let zip_subst = (tpat: TPat.t, tau: Typ.t, body: DHExp.t): DHExp.t => {
-        let binders = TPat.binders_of(tpat);
-        switch (binders, Typ.term_of(tau)) {
-        | (_, TypTuple(ts))
-            when
-              List.length(binders) > 1
-              && List.length(binders) == List.length(ts) =>
-          DHExp.ty_subst_many(ts, binders, body)
-        | _ => DHExp.ty_subst(tau, tpat, body)
-        };
+      let instantiate = (tpat, body) => {
+        let (binders, args) = DHExp.type_args(tpat, tau);
+        DHExp.ty_subst_many(args, binders, body);
       };
       switch (DHExp.term_of(d')) {
-      | Constructor(name, Some(Some({term: Poly(_), _} as schema))) =>
-        /* Specialize a polymorphic constructor's schema with the
-           applied type argument(s). */
-        let specialized =
-          switch (Typ.term_of(schema)) {
-          | Poly(tpat, body) =>
-            let binders = TPat.binders_of(tpat);
-            switch (binders, Typ.term_of(tau)) {
-            | (_, TypTuple(ts))
-                when
-                  List.length(binders) > 1
-                  && List.length(binders) == List.length(ts) =>
-              Typ.subst_many(ts, binders, body)
-            | _ when List.length(binders) > 1 => schema
-            | _ => Typ.subst(tau, tpat, body)
-            };
-          | _ => schema
-          };
-        if (Equality.syntactic.typ(specialized, schema)) {
-          /* Schema didn't reduce (e.g. monomorphic constructor with
-             explicit TypAp). Fall through to generic TypAbs handling. */
-          let-unbox typfun = (TypAbs, d');
-          switch (typfun) {
-          | TypAbs(utpat, tfbody, name) =>
-            Step({
-              expr:
-                DHExp.assign_name_if_none(
-                  zip_subst(utpat, tau, tfbody),
-                  Option.map(
-                    x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                    name,
-                  ),
-                ),
-              side_effects: [],
-              kind: TypAbsAp,
-              is_value: false,
-            })
-          };
-        } else {
-          Step({
-            expr: Constructor(name, Some(Some(specialized))) |> DHExp.fresh,
-            side_effects: [],
-            kind: TypAbsAp,
-            is_value: true,
-          });
-        };
+      | Constructor(name, Some(Some({term: Poly(tpat, body), _}))) =>
+        /* A polymorphic constructor is specialized in place. */
+        let (binders, args) = DHExp.type_args(tpat, tau);
+        Step({
+          expr:
+            Constructor(
+              name,
+              Some(Some(Typ.subst_many(args, binders, body))),
+            )
+            |> DHExp.fresh,
+          side_effects: [],
+          kind: TypAbsAp,
+          is_value: true,
+        });
       | _ =>
         let-unbox typfun = (TypAbs, d');
         switch (typfun) {
@@ -760,7 +716,7 @@ module Transition = (EV: EV_MODE) => {
           Step({
             expr:
               DHExp.assign_name_if_none(
-                zip_subst(utpat, tau, tfbody),
+                instantiate(utpat, tfbody),
                 Option.map(
                   x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
                   name,

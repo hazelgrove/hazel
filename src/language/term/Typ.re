@@ -435,13 +435,47 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
 /* Substitute `args` for the corresponding `binders` of a multi-binder
    form (`TPat.binders_of`) in one step. The lists must have equal length;
    callers check the arity first. */
-let subst_many = (args: list(t), binders: list(TPat.t), body: t): t =>
-  List.fold_left2(
-    (body, arg, binder) => subst(arg, binder, body),
-    body,
-    args,
-    binders,
-  );
+let subst_many = (args: list(t), binders: list(TPat.t), body: t): t => {
+  let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+  let subst_all = (binders, body) =>
+    List.fold_left2(
+      (body, arg, binder) => subst(arg, binder, body),
+      body,
+      args,
+      binders,
+    );
+  /* Simultaneous: when an argument mentions one of the binders' names
+     (`(abs a, b -> …)@<b, Int>`), rename the binders apart first so that
+     argument is not substituted into again. */
+  if (List.exists(
+        arg => List.exists(x => List.mem(x, names), free_vars(arg)),
+        args,
+      )) {
+    let renamed =
+      List.map(
+        (b: TPat.t) =>
+          switch (TPat.tyvar_of_utpat(b)) {
+          | Some(x) => TPat.fresh(Var(fresh_var(x)))
+          | None => b
+          },
+        binders,
+      );
+    let body =
+      List.fold_left2(
+        (body, b, b') =>
+          switch (TPat.tyvar_of_utpat(b')) {
+          | Some(x') => subst(Var(x') |> temp, b, body)
+          | None => body
+          },
+        body,
+        binders,
+        renamed,
+      );
+    subst_all(renamed, body);
+  } else {
+    subst_all(binders, body);
+  };
+};
 
 /* A recursive type whose body, under any binders, parentheses, projectors
    and non-labels, is one of its own bound variables: `rec x -> x`,

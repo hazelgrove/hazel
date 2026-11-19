@@ -140,13 +140,63 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
    body, _), TypTuple([t1, t2, …]))` and the analogous `Poly` schema
    specialization in a single step. The lists must have the same
    length; the caller is expected to enforce that. */
-let ty_subst_many = (args: list(Typ.t), binders: list(TPat.t), exp: t): t =>
-  List.fold_left2(
-    (exp, arg, binder) => ty_subst(arg, binder, exp),
-    exp,
-    args,
-    binders,
-  );
+/* Simultaneous, as Typ.subst_many. */
+let ty_subst_many = (args: list(Typ.t), binders: list(TPat.t), exp: t): t => {
+  let names = List.filter_map(TPat.tyvar_of_utpat, binders);
+  let subst_all = (binders, exp) =>
+    List.fold_left2(
+      (exp, arg, binder) => ty_subst(arg, binder, exp),
+      exp,
+      args,
+      binders,
+    );
+  if (List.exists(
+        arg => List.exists(x => List.mem(x, names), Typ.free_vars(arg)),
+        args,
+      )) {
+    let renamed =
+      List.map(
+        (b: TPat.t) =>
+          switch (TPat.tyvar_of_utpat(b)) {
+          | Some(x) => TPat.fresh(Var(Typ.fresh_var(x)))
+          | None => b
+          },
+        binders,
+      );
+    let exp =
+      List.fold_left2(
+        (exp, b, b') =>
+          switch (TPat.tyvar_of_utpat(b')) {
+          | Some(x') => ty_subst(Var(x') |> Typ.temp, b, exp)
+          | None => exp
+          },
+        exp,
+        binders,
+        renamed,
+      );
+    subst_all(renamed, exp);
+  } else {
+    subst_all(binders, exp);
+  };
+};
+
+/* The type arguments of `e@<tau>` for the binders of [tpat]: one each
+   from a `TypTuple` of matching length, or `tau` itself for a single
+   binder. Any other arity is a type error (statics marks it); the
+   binders are then taken as unknown so evaluation can go on. */
+let type_args = (tpat: TPat.t, tau: Typ.t): (list(TPat.t), list(Typ.t)) => {
+  let binders = TPat.binders_of(tpat);
+  let unknown = () => Typ.temp(Unknown(Internal));
+  switch (binders, Typ.term_of(tau)) {
+  | ([_], TypTuple(_)) => (binders, [unknown()])
+  | ([_], _) => (binders, [tau])
+  | (_, TypTuple(ts)) when List.length(ts) == List.length(binders) => (
+      binders,
+      ts,
+    )
+  | _ => (binders, List.map(_ => unknown(), binders))
+  };
+};
 
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
