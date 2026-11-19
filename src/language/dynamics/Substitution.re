@@ -201,6 +201,10 @@ and in_pat =
     let t' = in_typ(env_outer, t);
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Asc(p1', t') |> Pat.fresh);
+  /* `h` names a fact, not a variable, so nothing is renamed in it. */
+  | Standard(p1, h) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    (env', Standard(p1', h) |> Pat.fresh);
   };
 }
 

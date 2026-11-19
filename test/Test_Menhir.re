@@ -1236,6 +1236,10 @@ let ex5 = list_of_mylist(x) in
         "Proof generalize",
         "theorem t = forall n : Int -> n == n proof forall n => generalize n => ? in t",
       ),
+      menhir_maketerm_equivalent_test(
+        "Proof forall naming the binder's standardness fact",
+        "theorem t = forall x : Bool -> !!x proof generalize x => forall (x : Bool !! h) => rewrite h end in t",
+      ),
       /* `assume h = e => a; b` puts the whole sequence in the body: the prefix
          forms sit at fun_ (37), looser than the proof `;` at semi (35). */
       menhir_maketerm_equivalent_test(

@@ -173,6 +173,8 @@ let rows_of: family => list(row) =
   | TupleExtension => [mk_infix(Exp, P.plus), mk_infix(Typ, P.ap)]
   | Not => [mk_prefix(Exp, P.not_), mk_pre_c(L, P.neg, Drv(Exp), [])]
   | Standard => [mk_prefix(Exp, P.not_)]
+  /* Looser than `:` and `::`, so `x : T !! h` names `x : T`'s fact. */
+  | StandardFact => [mk_infix(Pat, P.eqs)]
   | SumSingle => [mk_prefix(Typ, P.or_)]
   | UnaryMinus => [
       mk_prefix(Exp, P.neg),

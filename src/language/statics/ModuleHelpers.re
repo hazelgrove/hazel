@@ -294,7 +294,8 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   | Parens(_)
   | Projector(_)
   | Ap(_)
-  | Asc(_) => pat
+  | Asc(_)
+  | Standard(_) => pat
   };
 
 let wrap_item =
