@@ -161,12 +161,15 @@ let go =
         };
       replace_selection_and_unselect(piece, focus, z);
     | seg =>
-      /* Add projector: migrate refractor from term to projector */
+      /* Add projector: migrate refractor from term to projector. A
+         projector stands for a whole term, so a selection that isn't one,
+         like a `let ... in` header without its body, doesn't project:
+         the code around it would expect the missing part. */
+      let* term_id = seg_root_id(seg);
       let+ piece = init(kind, seg, ~elaborated);
       let z =
-        switch (seg_root_id(seg), piece) {
-        | (Some(term_id), Projector(new_pr)) =>
-          migrate_refractor(term_id, new_pr.id, z)
+        switch (piece) {
+        | Projector(new_pr) => migrate_refractor(term_id, new_pr.id, z)
         | _ => z
         };
       replace_selection_and_unselect(piece, focus, z);

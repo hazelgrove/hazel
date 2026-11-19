@@ -67,6 +67,15 @@ let is_index_error = (d: option(DHExp.t)): bool =>
   | None => false
   };
 
+/* The argument of the call an error hole names. */
+let error_call_arg = (d: option(DHExp.t)): DHExp.t =>
+  switch (Option.map(~f=DHExp.term_of, d)) {
+  | Some(DynamicErrorHole({term: Ap(_, _, arg), _}, _)) => arg
+  | _ => failwith("expected an error hole around a call")
+  };
+
+let exp = testable(Fmt.using(DHExp.show, Fmt.string), Equality.semantic.exp);
+
 let grin = "\xF0\x9F\x98\x80"; /* U+1F600 */
 let family = "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7\xE2\x80\x8D\xF0\x9F\x91\xA6"; /* ZWJ family */
 let e_combining = "e\xCC\x81"; /* e + U+0301 */
@@ -180,6 +189,36 @@ let search_tests = {
           "start index is in graphemes too",
           3,
           as_int(search("a", grin ++ "a" ++ grin ++ "a", 2)),
+        );
+      },
+    ),
+    test_case(
+      "string_search's index error names the whole call",
+      `Quick,
+      () => {
+        let args = [
+          Exp.string("h"),
+          Exp.string("hazel"),
+          Exp.big_int(Bigint.of_string("99999999999999999999")),
+        ];
+        check(
+          exp,
+          "the call's argument",
+          Exp.tuple(args),
+          error_call_arg(call("string_search", args)),
+        );
+      },
+    ),
+    test_case(
+      "string_sub's index error names the whole call",
+      `Quick,
+      () => {
+        let args = [Exp.string("abc"), Exp.int(4), Exp.int(1)];
+        check(
+          exp,
+          "the call's argument",
+          Exp.tuple(args),
+          error_call_arg(call("string_sub", args)),
         );
       },
     ),

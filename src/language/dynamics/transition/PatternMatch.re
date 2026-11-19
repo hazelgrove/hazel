@@ -34,10 +34,12 @@ let match_pattern =
         "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
       ),
     )
+  /* As `==` compares: the pattern `0.0` doesn't match `-0.0`, and a NaN
+     pattern matches every NaN. */
   | Atom(c) =>
-    let V(value, kind) = Atom.unpack(c);
+    let V(_, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
-    Poly.equal(value, d') ? Matches([]) : DoesNotMatch;
+    Equality.atom(c, Atom.repack(kind, d')) ? Matches([]) : DoesNotMatch;
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
     List.map2_exn(xs, s', ~f=recur)

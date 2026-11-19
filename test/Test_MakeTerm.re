@@ -406,5 +406,17 @@ let tests =
           ();
         },
       ),
+      /* Malformed proof text makes a hole term, never an exception. */
+      test_case(
+        "Malformed proof: have with two proof clauses in an induction case",
+        `Quick,
+        () => {
+          let _ =
+            parse_exp(
+              "theorem fill = true proof induction x | h => have p proof y proof induction a | [] => ? in 0",
+            );
+          ();
+        },
+      ),
     ],
   );

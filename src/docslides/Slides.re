@@ -16,6 +16,12 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
+    ("Prover / Theorems", [%blob "prover-theorems.hz"]),
+    ("Prover / The Stepper", [%blob "prover-stepper.hz"]),
+    ("Prover / Variables and Lemmas", [%blob "prover-lemmas.hz"]),
+    ("Prover / Cases and Induction", [%blob "prover-induction.hz"]),
+    ("Prover / Side Conditions", [%blob "prover-side-conditions.hz"]),
+    ("Prover / Every Step", [%blob "prover-reference.hz"]),
   ]
   |> List.map(~f=((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

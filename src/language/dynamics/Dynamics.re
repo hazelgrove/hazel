@@ -54,4 +54,5 @@ type t = {
   probe_map: Sample.Map.t,
   test_results: TestResults.t,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
+  proof_map: ProofMap.t,
 };

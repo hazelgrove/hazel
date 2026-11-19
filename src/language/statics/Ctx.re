@@ -33,12 +33,28 @@ type node_or_list =
   | Node(Virtual_dom.Vdom.Node.t)
   | List(list(Virtual_dom.Vdom.Node.t));
 
+/* The theorem namespace. A theorem entry names a judgment, not a value:
+   theorems, axioms, and the hypotheses that `assume`/`case_eq`/
+   `ih_<var>`/`have` install. Like the type namespace (`TVarEntry`), it is
+   separate from variables: a theorem and a variable of the same name
+   don't shadow each other. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type theorem_entry = {
+  name: Var.t,
+  id: Id.t,
+  /* The proposition this entry asserts. `None` for the built-in axioms,
+     whose statements are rules in `Axioms.re` (see
+     `Statics.initial_theorems`). */
+  prop: option(TermBase.exp_t),
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
   | TVarEntry(tvar_entry)
-  | LivelitEntry(LivelitCtx.raw_livelit);
+  | LivelitEntry(LivelitCtx.raw_livelit)
+  | TheoremEntry(theorem_entry);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -58,6 +74,27 @@ let extend = (ctx: t, entry): t => {
 
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
+
+let extend_theorem = (ctx: t, thm_entry: theorem_entry): t =>
+  extend(ctx, TheoremEntry(thm_entry));
+
+/* `ctx` without the facts `about` holds of. The built-in axioms state no
+   proposition here, so they stay. */
+let forget_facts = (about: TermBase.exp_t => bool, ctx: t): t => {
+  ...ctx,
+  entries:
+    List.filter(
+      ~f=
+        fun
+        | TheoremEntry({prop: Some(fact), _}) => !about(fact)
+        | TheoremEntry({prop: None, _})
+        | VarEntry(_)
+        | ConstructorEntry(_)
+        | TVarEntry(_)
+        | LivelitEntry(_) => true,
+      ctx.entries,
+    ),
+};
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
@@ -110,11 +147,30 @@ let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
     ctx.entries,
   );
 
+let lookup_theorem = (ctx: t, name: Var.t): option(theorem_entry) =>
+  List.find_map(
+    ~f=
+      fun
+      | TheoremEntry(h) when String.equal(h.name, name) => Some(h)
+      | _ => None,
+    ctx.entries,
+  );
+
+let get_theorem_entries = (ctx: t): list(theorem_entry) =>
+  List.filter_map(
+    ~f=
+      fun
+      | TheoremEntry(h) => Some(h)
+      | _ => None,
+    ctx.entries,
+  );
+
 let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
   | TVarEntry({id, _}) => id
+  | TheoremEntry({id, _}) => id
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
@@ -263,26 +319,51 @@ let filter_shadowed = (ctx: t): t => {
     ctx.entries
     |> List.fold_left(
          ~f=
-           ((ctx, term_set, typ_set), entry) => {
+           ((ctx, term_set, typ_set, thm_set), entry) => {
              switch (entry) {
              | VarEntry({name, _})
              | ConstructorEntry({name, _}) =>
                VarSet.mem(name, term_set)
-                 ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+                 ? (ctx, term_set, typ_set, thm_set)
+                 : (
+                   [entry, ...ctx],
+                   VarSet.add(name, term_set),
+                   typ_set,
+                   thm_set,
+                 )
              | TVarEntry({name, _}) =>
                VarSet.mem(name, typ_set)
-                 ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+                 ? (ctx, term_set, typ_set, thm_set)
+                 : (
+                   [entry, ...ctx],
+                   term_set,
+                   VarSet.add(name, typ_set),
+                   thm_set,
+                 )
              | LivelitEntry({name, _}) =>
                VarSet.mem(name, term_set)
-                 ? (ctx, term_set, typ_set)
-                 : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
+                 ? (ctx, term_set, typ_set, thm_set)
+                 : (
+                   [entry, ...ctx],
+                   VarSet.add(name, term_set),
+                   typ_set,
+                   thm_set,
+                 )
+             | TheoremEntry({name, _}) =>
+               /* Theorems shadow only other theorems. */
+               VarSet.mem(name, thm_set)
+                 ? (ctx, term_set, typ_set, thm_set)
+                 : (
+                   [entry, ...ctx],
+                   term_set,
+                   typ_set,
+                   VarSet.add(name, thm_set),
+                 )
              }
            },
-         ~init=([], VarSet.empty, VarSet.empty),
+         ~init=([], VarSet.empty, VarSet.empty, VarSet.empty),
        )
-    |> (((ctx, _, _)) => List.rev(ctx)),
+    |> (((ctx, _, _, _)) => List.rev(ctx)),
 };
 
 let filter_stepper_filter_variables = (ctx: t): t => {
@@ -296,6 +377,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
              | VarEntry({name, _})
              | ConstructorEntry({name, _})
              | LivelitEntry({name, _})
+             | TheoremEntry({name, _})
              | TVarEntry({name, _}) =>
                if (String.is_prefix(name, ~prefix="$")) {
                  ctx;

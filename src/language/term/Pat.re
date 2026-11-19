@@ -295,3 +295,27 @@ let get_duplicate_bindings = (pat: t) => {
     bindings,
   );
 };
+
+/* Does the pattern contain a wildcard anywhere? A wildcard has no
+ * expression counterpart, so a proof split can't put such a pattern in
+ * its scrutinee's place. */
+let rec has_wild = (p: t): bool =>
+  switch (p.term) {
+  | Wild => true
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | ExplicitNonlabel
+  | Atom(_)
+  | Constructor(_)
+  | Var(_)
+  | Label(_) => false
+  | ListLit(ps)
+  | Tuple(ps) => List.exists(~f=has_wild, ps)
+  | Cons(a, b)
+  | TupLabel(a, b)
+  | Ap(a, b) => has_wild(a) || has_wild(b)
+  | Parens(q)
+  | Projector(_, q)
+  | Asc(q, _) => has_wild(q)
+  };
