@@ -27,5 +27,28 @@ let tests = (
         ();
       },
     ),
+    /* Elaboration keeps Parens and Projector nodes, so head checks must
+       look through them. */
+    test_case(
+      "Parenthesized or folded constructor head is a constructor application",
+      `Quick,
+      () =>
+      List.iter(
+        src => {
+          let pat =
+            switch (parse_exp("fun " ++ src ++ " -> ?").term) {
+            | Fun(p, _, _, _) => p
+            | _ => fail("expected a lambda for: " ++ src)
+            };
+          check(
+            string,
+            src,
+            "Constructor application",
+            Language.Pat.show_cls(Language.Pat.cls_of_term(pat.term)),
+          );
+        },
+        ["Some(x)", "(Some)(x)", "^^fold(Some)(x)"],
+      )
+    ),
   ],
 );
