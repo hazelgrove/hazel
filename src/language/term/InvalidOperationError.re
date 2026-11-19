@@ -6,6 +6,7 @@ type t =
   | NegativeExponent
   | NegativeNat
   | IntegerTooBig
+  | NonFiniteFloat
   | Incomparable;
 
 let err_msg = (err: t): string =>
@@ -16,5 +17,6 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
+  | NonFiniteFloat => "Error: Cannot convert non-finite float (nan or infinity)"
   | Incomparable => "Error: Incomparable Types"
   };

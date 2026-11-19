@@ -94,8 +94,6 @@ type family =
   | ApExpTyp
   | Case
   | Test
-  | ProofOf
-  | ProofObject
   | HintedTest
   | Fun
   | Fix
@@ -140,7 +138,30 @@ type family =
   | ModType
   | ModuleExp
   | ModuleMod
-  | SigLet;
+  | SigLet
+  /* Proof steps. Typing a leading delimiter expands to the first family
+     whose label starts with it, so each plain step comes before the
+     variants that share its leading token (`assume` before
+     `assume ... as`, `revert` before `revert ... with`). */
+  | ProofForall
+  | ProofFunext
+  | ProofAssume
+  | ProofGeneralize
+  | ProofRevert
+  | ProofAxiom
+  | ProofRevertWith
+  | ProofAxiomWith
+  | RewriteBack
+  | ProofAlgebrite
+  | ProofEval
+  | ProofCases
+  | ProofInduction
+  | ProofHave
+  | ProofHaveNamed
+  | ProofAssumeNamed
+  | ProofAlias
+  | ProofFocus
+  | ProofFocusAt;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -211,8 +232,6 @@ let label_of_family: family => Label.t =
   | ApExpTyp => ["@<", ">"]
   | Case => ["case", "end"]
   | Test => ["test", "end"]
-  | ProofOf => ["proof_of", "end"]
-  | ProofObject => ["proof_object", "end"]
   | HintedTest => ["hint", "test", "end"]
   | Fun => ["fun", "->"]
   | Fix => ["fix", "->"]
@@ -250,14 +269,33 @@ let label_of_family: family => Label.t =
   | Impl => ["==>"]
   | If => ["if", "then", "else"]
   | Let => ["let", "=", "in"]
-  | Theorem => ["theorem", "=", "in"]
+  | Theorem => ["theorem", "=", "proof", "in"]
   | TypeAlias => ["type", "=", "in"]
   | ModBody => Token.mod_lbl
   | ModLet => ["let", "="]
   | ModType => ["type", "="]
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
-  | SigLet => ["let"];
+  | SigLet => ["let"]
+  | ProofForall => ["forall", "=>"]
+  | ProofFunext => ["funext", "=>"]
+  | ProofAssume => ["assume", "=>"]
+  | ProofGeneralize => ["generalize", "=>"]
+  | ProofRevert => ["revert", "=>"]
+  | ProofAxiom => ["rewrite", "end"]
+  | ProofRevertWith => ["revert", "with", "=", "=>"]
+  | ProofAxiomWith => ["rewrite", "with", "=", "end"]
+  | RewriteBack => ["<-"]
+  | ProofAlgebrite => ["algebra", "end"]
+  | ProofEval => ["step"]
+  | ProofCases => ["cases", "end"]
+  | ProofInduction => ["induction", "end"]
+  | ProofHave => ["have", "proof", "=>"]
+  | ProofHaveNamed => ["have", "=", "proof", "=>"]
+  | ProofAssumeNamed => ["assume", "=", "=>"]
+  | ProofAlias => ["alias", "=", "=>"]
+  | ProofFocus => ["from", "do", "end"]
+  | ProofFocusAt => ["from", "at", "do", "end"];
 
 let label_of: t => Label.t =
   fun
@@ -311,7 +349,8 @@ let float_op_family: Operators.op_bin_float => family =
 let bool_op_family: Operators.op_bin_bool => family =
   fun
   | And => LogicalAnd
-  | Or => LogicalOr;
+  | Or => LogicalOr
+  | Implies => Impl;
 
 let string_op_family: Operators.op_bin_string => family =
   fun

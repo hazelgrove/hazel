@@ -48,10 +48,14 @@ let rec any_to_info_map =
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
+  | PRul(r) => prul_to_info_map(~ctx, ~ancestors, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
   | MPat(mp_term) =>
     mpat_to_info_map(~ctx, ~ancestors, ~probe_ids, mp_term, m)
+  | Proof(p_term) =>
+    let (p, m) = proof_to_info_map(~ctx, ~ancestors, p_term, m);
+    (CoCtx.empty, Proof(p), m);
   | Any () => (CoCtx.empty, Any(), m)
   }
 and multi =
@@ -196,6 +200,9 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
+      /* True inside a theorem's proposition or proof, where forms with no
+         evaluation semantics (`forall`, function `==`) are legal. */
+      ~in_theorem=false,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
       uexp: Exp.t,
@@ -280,6 +287,7 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=syn,
         ~is_in_filter=is_in_filter,
+        ~in_theorem=in_theorem,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
         m: Map.t,
@@ -289,12 +297,18 @@ and uexp_to_info_map =
       ~ctx,
       ~ana,
       ~is_in_filter,
+      ~in_theorem,
       ~ancestors,
       ~probe_ids,
       uexp,
       m,
     );
   };
+  /* `forall` is a proposition, not a value: it has no evaluation
+     semantics, so outside a theorem it is flagged (as a warning, since it
+     still types as Bool). A `let`-bound `forall` is flagged too. */
+  let forall_warnings =
+    in_theorem ? [] : [Warning.Exp(ForallOutsideTheorem)];
   let map_m_go = (m, anas, es) => {
     let (pairs, m) =
       map_m2(
@@ -309,6 +323,75 @@ and uexp_to_info_map =
   let go_pat =
     upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
+  /* A theorem's statement, a proposition, and its proof. The proof can't
+     cite the theorem it proves, but sees the variables bound by the
+     statement's outer `forall`s, so a proof of `forall x -> P` reasons
+     about an arbitrary `x`. */
+  let theorem_to_info_map = (stmt: Exp.t, proof: Proof.t, m: Map.t) => {
+    let (stmt_info, stmt_elab, m) =
+      go(~in_theorem=true, ~ana=Atom(Bool) |> Typ.temp, stmt, m);
+    /* Walks the binders the `Forall` rule does, threading the map so the
+       binder patterns keep their info entries. */
+    let rec proof_ctx_of_goal = (ctx, goal: Exp.t, m): (Ctx.t, Map.t) =>
+      switch (goal |> Exp.term_of) {
+      /* Look through parens, as `ProofCheck.peel_stmt_binders` does.
+         Stopping at the paren would leave the inner binder free in the
+         proof. */
+      | Parens(e1) => proof_ctx_of_goal(ctx, e1, m)
+      | Forall(fp, fbody) =>
+        /* Only the binder's ctx is needed. The statement's own walk has
+           already recorded the binder, with the uses the statement makes;
+           recording it again here, with no uses, would mark it unused. */
+        let (fp', _, _) =
+          upat_to_info_map(
+            ~is_synswitch=false,
+            ~ctx,
+            ~co_ctx=CoCtx.empty,
+            ~ancestors=ancestors_inclusive,
+            ~probe_ids,
+            fp,
+            m,
+          );
+        proof_ctx_of_goal(fp'.ctx, fbody, m);
+      | _ => (ctx, m)
+      };
+    let (proof_ctx, m) = proof_ctx_of_goal(ctx, stmt, m);
+    let (proof_elab, m) =
+      proof_to_info_map(
+        ~ctx=proof_ctx,
+        ~ancestors=ancestors_inclusive,
+        proof,
+        m,
+      );
+    /* The proof's free variables: the uses of variables bound outside
+       it, by the binder they have at the theorem. A proof's binders and
+       the placeholders for the names of the facts it cites are other
+       binders. Evaluation reuses a node only if its free variables are
+       unchanged, and checking the proof reads these. */
+    let proof_co_ctx = {
+      let uses = ref([]);
+      let _: Proof.t =
+        Proof.map_term(
+          ~f_exp=
+            (continue, e) => {
+              switch (e.term, Id.Map.find_opt(IdTagged.rep_id(e), m)) {
+              | (Var(x), Some(InfoExp(info))) =>
+                switch (Ctx.lookup_var(info.ctx, x), Ctx.lookup_var(ctx, x)) {
+                | (Some(at_use), Some(at_theorem))
+                    when phys_equal(at_use, at_theorem) =>
+                  uses := [info.co_ctx, ...uses^]
+                | _ => ()
+                }
+              | _ => ()
+              };
+              continue(e);
+            },
+          proof,
+        );
+      CoCtx.union(uses^);
+    };
+    (stmt_info, stmt_elab, proof_elab, proof_co_ctx, m);
+  };
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
      the label name if valid. Used by CustomStatics for builtin label args. */
@@ -688,9 +771,13 @@ and uexp_to_info_map =
           m,
         )
       };
-    | Var(("$e" | "$v") as name) when is_in_filter =>
-      /* Inside a filter, the meta-variables `$e` and `$v` stand for any
-         expression/value, so we synthesize to `?` without consulting the ctx. */
+    | Var(name) when is_in_filter && MetaVar.is_meta_name(name) =>
+      /* Inside a pattern (a stepper filter, or a proof focus's
+         selector), a metavariable stands for any expression/value, so
+         we synthesize to `?` without consulting the ctx. Returning an
+         empty co_ctx is what keeps it from reading as a free variable.
+         `MetaVar` owns the naming convention: `$e`, `$v`, and the named
+         `$x` used by proof-step patterns. */
       add(
         ~elab_term=Var(name) |> rewrap,
         ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -715,6 +802,15 @@ and uexp_to_info_map =
       );
     | DynamicErrorHole(e, err) =>
       let (e, e_elab, m) = go(~ana, e, m);
+      /* Attach the error mark to the inner expression's info entry:
+         printing strips the DynamicErrorHole wrapper, so only inner ids
+         appear in the rendered syntax and can carry the error
+         decoration. */
+      let e = {
+        ...e,
+        marks: [Mark.DynamicError(err), ...e.marks],
+      };
+      let m = add_info(IdTagged.ids(e.user_term), InfoExp(e), m);
       add(
         ~elab_term=DynamicErrorHole(e_elab, err) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
@@ -832,10 +928,13 @@ and uexp_to_info_map =
             m,
           )
         | Some(ty) when Typ.has_fun_up_to_aliases(ctx, ty) =>
+          /* Values that contain functions can't be compared by evaluation.
+             Inside a theorem the comparison is a proposition, proved by
+             funext; elsewhere it is a type error. */
           add(
             ~elab_term=elab_poly,
             ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
-            ~marks=[CompareFun(ty)],
+            ~marks=in_theorem ? [] : [CompareFun(ty)],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
             m,
@@ -1972,6 +2071,7 @@ and uexp_to_info_map =
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
         ~marks=[],
+        ~warnings=forall_warnings,
         ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
         ~probe_targets=
           SubexpProbeTargets.union_all([p.probe_targets, e.probe_targets]),
@@ -2273,18 +2373,33 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem({term: Var(_), _} as p, e1, e2) =>
+    | Theorem({term: Var(x), _} as p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, pf_elab, pf_co_ctx, m) =
+        theorem_to_info_map(e1, pf, m);
+      /* `theorem t = ...` binds `t` in the theorem namespace only. The
+         pattern is walked for its info, but nothing it binds reaches the
+         body's variable context, so `t` in expression position is free
+         (or names some value `t`).
+
+         The fact records the elaborated statement: citing the theorem
+         splices its right-hand side into goals, which are elaborated, and
+         `Equality.ignoring_ascriptions` doesn't equate the unelaborated
+         `Constructor(c, None)` with the goal's
+         `Constructor(c, Some(Some(ty)))`. An `eval ... at` target written
+         after such a rewrite would not be found. */
       let (p', _, _) =
-        go_pat(
-          ~is_synswitch=false,
-          ~co_ctx=CoCtx.empty,
-          ~ana=Typ.fresh(ProofOf(e1)),
-          p,
-          m,
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let body_ctx =
+        Ctx.extend_theorem(
+          ctx,
+          {
+            name: x,
+            id: IdTagged.rep_id(p),
+            prop: Some(e1_elab),
+          },
         );
-      let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
+      let (e2, e2_elab, m) = go(~ctx=body_ctx, ~ana, e2, m);
       let (p, p_elab, m) =
         go_pat(
           ~is_synswitch=false,
@@ -2295,14 +2410,17 @@ and uexp_to_info_map =
           m,
         );
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[],
+        /* No `CoCtx.mk(ctx, p.ctx, ...)`: the theorem pattern binds no
+           variable, so the body's uses are not closed off here. */
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
             e1'.co_ctx,
-            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+            pf_co_ctx,
+            e2.co_ctx,
             pat_typ_refs,
           ]),
         ~probe_targets=
@@ -2313,9 +2431,10 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | Theorem(p, e1, e2) =>
+    | Theorem(p, e1, pf, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
+      let (e1', e1_elab, pf_elab, pf_co_ctx, m) =
+        theorem_to_info_map(e1, pf, m);
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
@@ -2329,13 +2448,14 @@ and uexp_to_info_map =
           m,
         );
       add(
-        ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
+        ~elab_term=Theorem(p_elab, e1_elab, pf_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
         ~marks=[BadTheorem(e2.ty)],
         ~co_ctx=
           CoCtx.union([
             p'.co_ctx,
             e1'.co_ctx,
+            pf_co_ctx,
             CoCtx.mk(ctx, p.ctx, e2.co_ctx),
             pat_typ_refs,
           ]),
@@ -2347,15 +2467,6 @@ and uexp_to_info_map =
           ]),
         m,
       );
-    | ProofObject(e) =>
-      let (_, e_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
-      add(
-        ~elab_term=ProofObject(e_elab) |> rewrap,
-        ~elab_syn_ty=Typ.temp(ProofOf(e)),
-        ~marks=[],
-        ~co_ctx=CoCtx.empty,
-        m,
-      ); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, env) =>
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -4061,16 +4172,6 @@ and utyp_to_info_map =
     let m =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | ProofOf(e) =>
-    let (_, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ancestors=ancestors_inclusive,
-        ~ana=Atom(Bool) |> Typ.temp,
-        e,
-        m,
-      );
-    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
@@ -4240,6 +4341,32 @@ and rul_to_info_map =
     (CoCtx.union(co_ctxs), Rul(r), m);
   | Invalid(_) => (CoCtx.empty, Rul(r), m)
   }
+and prul_to_info_map =
+    (~ctx, ~ancestors, r: PRul.t, m: Map.t): (CoCtx.t, Any.t, Map.t) =>
+  /* Fallback handler for proof-rule tiles not absorbed into an induction;
+     treat the contents as a multihole for purposes of info collection. */
+  switch (r.term) {
+  | ProofRules(scrut, cases) =>
+    let tms =
+      cases
+      |> List.map(~f=((p, body)) =>
+           [Grammar.Pat(p), Grammar.Proof(body)]
+         )
+      |> List.concat;
+    any_to_info_map(
+      ~ctx,
+      ~ancestors,
+      Exp({
+        term: MultiHole([Exp(scrut), ...tms]),
+        annotation: r.annotation,
+      }),
+      m,
+    );
+  | MultiHole(tms) =>
+    let (co_ctxs, _, m) = multi(~ctx, ~ancestors, m, tms);
+    (CoCtx.union(co_ctxs), PRul(r), m);
+  | Invalid(_) => (CoCtx.empty, PRul(r), m)
+  }
 and mod_to_info_map =
     (
       ~ctx,
@@ -4387,18 +4514,580 @@ and mpat_to_info_map =
     let (_, _, m) = any_to_info_map(~ctx, ~ancestors, Typ(typ), m);
     (CoCtx.empty, MPat(mp_term), add_mpat_info(m));
   };
+}
+and proof_to_info_map =
+    (~ctx, ~ancestors, p_term: Proof.t, m: Map.t): (Proof.t, Map.t) => {
+  let ancestors_inclusive = [IdTagged.rep_id(p_term), ...ancestors];
+  /* Record this node's info, and rebuild it around its elaborated parts.
+     The ids and annotation are kept, so the proof map (keyed by id) and
+     the checker stay in sync. */
+  let add = (~marks=[], term: Proof.term, m: Map.t): (Proof.t, Map.t) => {
+    let info =
+      Info.InfoProof({
+        id: IdTagged.rep_id(p_term),
+        user_term: p_term,
+        cls: Cls.Proof(Proof.cls_of_term(p_term.term)),
+        sort: Proof,
+        ctx,
+        ancestors,
+        marks,
+      });
+    (
+      {
+        ...p_term,
+        term,
+      },
+      add_info(IdTagged.ids(p_term), info, m),
+    );
+  };
+  let go = (~ctx=ctx, p: Proof.t, m: Map.t): (Proof.t, Map.t) =>
+    proof_to_info_map(~ctx, ~ancestors=ancestors_inclusive, p, m);
+  /* Every expression in a proof is inside a theorem, where the
+     non-computable forms (`forall`, function `==`) are legal. */
+  let go_exp = (~ctx=ctx, ~ana=?, ~is_in_filter=?, e: Exp.t, m: Map.t) =>
+    uexp_to_info_map(
+      ~ctx,
+      ~ana?,
+      ~is_in_filter?,
+      ~in_theorem=true,
+      ~ancestors=ancestors_inclusive,
+      e,
+      m,
+    );
+  let go_pat = (~co_ctx=CoCtx.empty, ~ana=?, p: Pat.t, m: Map.t) =>
+    upat_to_info_map(
+      ~is_synswitch=false,
+      ~ctx,
+      ~co_ctx,
+      ~ana?,
+      ~ancestors=ancestors_inclusive,
+      p,
+      m,
+    );
+  /* A proof's binders (case patterns, `forall x =>`, `funext x =>`) name
+     parts of the goal, which steps reach through the goal (`from $e do`)
+     as often as by name, so they count as used. Fact names
+     (`assume h = P`, `alias`) bind in the theorem namespace, not the variable one, so no
+     unused-variable warning applies to them either. */
+  let go_binder = (~ana=?, p: Pat.t, m: Map.t) =>
+    go_pat(~co_ctx=CoCtx.of_bindings(Pat.bindings(p)), ~ana?, p, m);
+  let go_prop = (e: Exp.t, m: Map.t): (Exp.t, Map.t) => {
+    let (_, e, m) = go_exp(~ana=Atom(Bool) |> Typ.temp, e, m);
+    (e, m);
+  };
+  /* A fact's name (`assume h = P`) is walked for its info, but its ctx is
+     discarded: like a theorem's name, it binds in the theorem namespace,
+     not the variable one. */
+  let go_name = (name: option(Pat.t), m: Map.t) =>
+    switch (name) {
+    | None => (None, m)
+    | Some(x) =>
+      let (_, x, m) = go_binder(x, m);
+      (Some(x), m);
+    };
+  /* The fact name a pattern gives, read through `Pat.bound_vars` as
+     `ProofCheck.name_or` reads it, so a name wrapped in `Parens`/`Asc`
+     still resolves. */
+  let fact_name = (x: Pat.t): option(Var.t) =>
+    switch (Pat.bound_vars(x)) {
+    | [h] => Some(h)
+    | _ => None
+    };
+  let with_fact = (~ctx=ctx, name: Var.t, ~id: Id.t, prop: Exp.t): Ctx.t =>
+    Ctx.extend_theorem(
+      ctx,
+      {
+        name,
+        id,
+        prop: Some(prop),
+      },
+    );
+  /* `ctx` with `name` bound to a placeholder variable, for walking a name
+     that isn't a program variable without marking it `Free`. */
+  let with_placeholder = (~ctx=ctx, name: Var.t): Ctx.t =>
+    Ctx.extend(
+      ctx,
+      VarEntry({
+        name,
+        id: Id.invalid,
+        typ: Unknown(Internal) |> Typ.temp,
+        custom_statics: None,
+      }),
+    );
+  let rec unwrap_head = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(inner)
+    | Projector(_, inner) => unwrap_head(inner)
+    | _ => e
+    };
+  /* A slot that cites a fact, when it holds a bare name `h`. The name
+     belongs to the theorem namespace, so it is walked as a placeholder if
+     a fact has it, and is marked `FreeHypothesis` if not. Returns the
+     cited fact. None when the slot isn't a bare name. */
+  let go_fact_name =
+      (e: Exp.t, m: Map.t)
+      : option((option(Ctx.theorem_entry), Exp.t, Map.t)) => {
+    let head = unwrap_head(e);
+    switch (head.term) {
+    | Var(name) =>
+      let fact = Ctx.lookup_theorem(ctx, name);
+      let (_, e, m) =
+        switch (fact) {
+        | Some(_) => go_exp(~ctx=with_placeholder(name), e, m)
+        | None => go_exp(e, m)
+        };
+      let m =
+        switch (fact, Id.Map.find_opt(IdTagged.rep_id(head), m)) {
+        | (None, Some(InfoExp(info))) =>
+          let marks =
+            List.map(
+              ~f=
+                fun
+                | Mark.Free(_) => Mark.FreeHypothesis(name)
+                | mark => mark,
+              info.marks,
+            );
+          add_info(
+            [IdTagged.rep_id(head)],
+            InfoExp({
+              ...info,
+              marks,
+            }),
+            m,
+          );
+        | _ => m
+        };
+      Some((fact, e, m));
+    | _ => None
+    };
+  };
+  /* `with <var> = <exp>`, where `<var>` names a binder of the proposition
+     `prop` being cited, not a program variable, so it is walked as a
+     placeholder; the checker reports an unknown binder
+     (`ProofMark.UnknownInstantiationVar`). `<exp>` analyzes against the
+     binder's type when `prop` ascribes one, and otherwise synthesizes: a
+     missing ascription is not an error here, since the checker decides
+     whether the citation makes sense. */
+  let go_binder_instantiation =
+      (~prop: option(Exp.t), instantiation: option((Exp.t, Exp.t)), m) => {
+    /* The ascribed type of the binder `x` among `prop`'s outer `forall`
+       binders. */
+    let rec binder_typ_in_pat = (x: Var.t, pat: Pat.t): option(Typ.t) =>
+      switch (pat.term) {
+      | Parens(p1) => binder_typ_in_pat(x, p1)
+      | Asc(p1, ty) =>
+        switch (p1.term) {
+        | Var(y) when String.equal(y, x) => Some(ty)
+        | Parens(_) => binder_typ_in_pat(x, p1)
+        | _ => None
+        }
+      | _ => None
+      };
+    let rec binder_typ_in_prop = (x: Var.t, prop: Exp.t): option(Typ.t) =>
+      switch (prop.term) {
+      | Parens(e1) => binder_typ_in_prop(x, e1)
+      | Forall(pat, body) =>
+        switch (binder_typ_in_pat(x, pat)) {
+        | Some(_) as found => found
+        | None => binder_typ_in_prop(x, body)
+        }
+      | _ => None
+      };
+    switch (instantiation) {
+    | None => (None, m)
+    | Some((var, inst)) =>
+      let binder =
+        switch (unwrap_head(var).term) {
+        | Var(name) => Some(name)
+        | _ => None
+        };
+      let (_, var, m) =
+        switch (binder) {
+        | Some(name) => go_exp(~ctx=with_placeholder(name), var, m)
+        | None => go_exp(var, m)
+        };
+      let ana =
+        switch (binder, prop) {
+        | (Some(x), Some(prop)) => binder_typ_in_prop(x, prop)
+        | _ => None
+        };
+      let (_, inst, m) = go_exp(~ana?, inst, m);
+      (Some((var, inst)), m);
+    };
+  };
+  /* `cases` or `induction`. Synthesize the scrutinee's type, analyze each
+     pattern against it, then check each case body with the pattern's
+     bindings in scope. Coverage flags inexhaustive and redundant cases;
+     whether each body is a complete proof is the checker's job.
+     `case_eq_name` is the name of a `cases` split's case equation, and
+     `None` for `induction`. */
+  let go_split = (~case_eq_name: option(Var.t), scrut, cases, m) => {
+    let (scrut_info, scrut, m) = go_exp(scrut, m);
+    let (ps, bodies) = List.unzip(cases);
+    let (pats, m) =
+      map_m(
+        (p, m) => {
+          let (info, p, m) = go_binder(~ana=scrut_info.ty, p, m);
+          ((info, p), m);
+        },
+        ps,
+        m,
+      );
+    /* Each case body sees the facts `ProofCheck.check_split` installs,
+       so a name shadows as it does there. A `cases` case gets the case
+       equation `scrut == pat`, absent when the pattern rebinds a variable
+       of the scrutinee. An `induction` case loses the facts that mention
+       the scrutinee and gets an `ih_<var>` per recursive position: the
+       goal at the induction with that position in place of the
+       scrutinee. The statics don't track the goal, so an inductive
+       hypothesis's statement is left unknown. */
+    let body_ctx = ((info: Info.pat, pat: Pat.t)) => {
+      let id = IdTagged.rep_id(pat);
+      switch (case_eq_name) {
+      | Some(name) =>
+        CoCtx.has_any(
+          scrut_info.co_ctx,
+          pat |> Pat.bindings |> Binding.variable_names,
+        )
+          ? info.ctx
+          : with_fact(
+              ~ctx=info.ctx,
+              name,
+              ~id,
+              Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
+            )
+      | None =>
+        List.fold_left(
+          ~f=
+            (case_ctx, h) =>
+              Ctx.extend_theorem(
+                case_ctx,
+                {
+                  name: Induction.hypothesis_name(h),
+                  id,
+                  prop: None,
+                },
+              ),
+          ~init=Ctx.forget_facts(Induction.mentions(scrut), info.ctx),
+          Induction.hypotheses(
+            ProofStatics.of_info_map(m),
+            Typ.normalize(ctx, scrut_info.ty),
+            pat,
+          ),
+        )
+      };
+    };
+    let (bodies, m) =
+      map_m2(
+        (ctx, body, m) => go(~ctx, body, m),
+        List.map(~f=body_ctx, pats),
+        bodies,
+        m,
+      );
+    /* Unlike an expression `case`, a split must be exhaustive to be
+       valid, so inexhaustiveness is an error. The scrutinee is often a
+       bare `forall`-bound variable with no annotation (type `Unknown`),
+       which coverage treats as vacuously covered; so the coverage type is
+       refined from the case patterns (`[]` reveals `List`). A zero-case
+       split proves nothing and is always inexhaustive. */
+    let pat_infos = List.map(~f=fst, pats);
+    let normalized_scrut_ty = Typ.normalize(ctx, scrut_info.ty);
+    let coverage_ty =
+      switch (Typ.term_of(normalized_scrut_ty)) {
+      | Unknown(_) =>
+        pat_infos
+        |> List.map(~f=(pi: Info.pat) => Typ.normalize(ctx, pi.ty))
+        |> List.find(~f=t =>
+             switch (Typ.term_of(t)) {
+             | Unknown(_) => false
+             | _ => true
+             }
+           )
+        |> Option.value(~default=normalized_scrut_ty)
+      | _ => normalized_scrut_ty
+      };
+    let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
+      Coverage.check(
+        List.map(~f=Info.pat_constraint, pat_infos),
+        coverage_ty,
+      );
+    /* The mark goes on the split's own form, not the scrutinee. */
+    let marks =
+      switch (cases, exhaustiveness) {
+      | ([], Exhaustive) => [
+          Mark.InexhaustiveMatch(
+            scrut_info.ty,
+            [],
+            Grammar.Pat(Pat.fresh(Wild)),
+          ),
+        ]
+      | (_, Exhaustive) => []
+      | (_, Inexhaustive(unseen_pattern)) => [
+          Mark.InexhaustiveMatch(scrut_info.ty, [], unseen_pattern),
+        ]
+      };
+    let m =
+      List.fold_left(
+        ~f=
+          (m, row) => {
+            let p = List.nth_exn(ps, row);
+            switch (Id.Map.find_opt(IdTagged.rep_id(p), m)) {
+            | Some(Info.InfoPat(info)) =>
+              let info =
+                prepend_pat_mark(info, Mark.Redundant, ~warnings=[], ());
+              add_info(IdTagged.ids(p), InfoPat(info), m);
+            | _ => m
+            };
+          },
+        ~init=m,
+        redundant_rows,
+      );
+    (scrut, List.zip_exn(List.map(~f=snd, pats), bodies), marks, m);
+  };
+  switch (p_term.term) {
+  | Invalid(_)
+  | EmptyHole => add(p_term.term, m)
+  | MultiHole(tms) =>
+    let (_, _, m) = multi(~ctx, ~ancestors=ancestors_inclusive, m, tms);
+    add(p_term.term, m);
+  | Seq(p1, p2) =>
+    let (p1, m) = go(p1, m);
+    let (p2, m) = go(p2, m);
+    add(Seq(p1, p2), m);
+  | Parens(p) =>
+    let (p, m) = go(p, m);
+    add(Parens(p), m);
+  | AxiomStep({direction, equality, instantiation}) =>
+    /* The equality slot names a fact; it can't be an arbitrary
+       expression. */
+    let (cited, equality_elab, m) =
+      switch (go_fact_name(equality, m)) {
+      | Some(walked) => walked
+      | None =>
+        let (info, elab, m) = go_exp(equality, m);
+        let info = {
+          ...info,
+          marks: [
+            Mark.AxiomSlotNotHypothesis(Exp(equality)),
+            ...info.marks,
+          ],
+        };
+        (
+          None,
+          elab,
+          add_info([IdTagged.rep_id(equality)], InfoExp(info), m),
+        );
+      };
+    let (instantiation, m) =
+      go_binder_instantiation(
+        ~prop=Option.bind(cited, ~f=(fact: Ctx.theorem_entry) => fact.prop),
+        instantiation,
+        m,
+      );
+    add(
+      AxiomStep({
+        direction,
+        equality: equality_elab,
+        instantiation,
+      }),
+      m,
+    );
+  | AlgebriteStep(replacement) =>
+    let (_, replacement, m) = go_exp(replacement, m);
+    add(AlgebriteStep(replacement), m);
+  | EvalStep => add(EvalStep, m)
+  | Focus({ordinal, selector, body}) =>
+    /* The selector is a pattern over the goal. Its `$e`/`$v`/`$x`
+       metavariables (`MetaVar`) must not read as free variables, which
+       `is_in_filter` gives any metavariable-bearing pattern. It may also
+       name variables the goal binds (`x` under a `fun x ->`), which the
+       ctx doesn't have, so a name the ctx lacks is walked as a
+       placeholder; a selector that matches nothing is the checker's to
+       report. The body is walked with those names too, since the checker
+       binds the goal's binders around the target in it. A binder the
+       selector doesn't name stays unknown here. */
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) => {
+            switch (e.term) {
+            | Var(x)
+                when
+                  Option.is_none(Ctx.lookup_var(ctx, x))
+                  && !MetaVar.is_meta_name(x) =>
+              names := [x, ...names^]
+            | _ => ()
+            };
+            continue(e);
+          },
+        selector,
+      );
+    let selector_ctx =
+      List.fold_left(
+        ~f=(ctx, name) => with_placeholder(~ctx, name),
+        ~init=ctx,
+        names^,
+      );
+    let (_, selector, m) =
+      go_exp(~ctx=selector_ctx, ~is_in_filter=true, selector, m);
+    let (body, m) = go(~ctx=selector_ctx, body, m);
+    add(
+      Focus({
+        ordinal,
+        selector,
+        body,
+      }),
+      m,
+    );
+  | Cases(scrut, cases) =>
+    let (scrut, cases, marks, m) =
+      go_split(~case_eq_name=Some("case_eq"), scrut, cases, m);
+    add(~marks, Cases(scrut, cases), m);
+  | Induction(scrut, cases) =>
+    let (scrut, cases, marks, m) =
+      go_split(~case_eq_name=None, scrut, cases, m);
+    add(~marks, Induction(scrut, cases), m);
+  | Forall(pat, body) =>
+    /* The binders enter the variable namespace. */
+    let (pat_info, pat, m) = go_binder(pat, m);
+    let (body, m) = go(~ctx=pat_info.ctx, body, m);
+    add(Forall(pat, body), m);
+  | Funext(pat, body) =>
+    /* The binder names the argument of the pointwise goal `f(x) == g(x)`
+       the checker builds. */
+    let (pat_info, pat, m) = go_binder(pat, m);
+    let (body, m) = go(~ctx=pat_info.ctx, body, m);
+    add(Funext(pat, body), m);
+  | Assume(e, name, body) =>
+    let (e_elab, m) = go_prop(e, m);
+    let (name, m) = go_name(name, m);
+    /* The body can cite the assumption under the name the checker uses
+       (`assume` unless named). The name is fixed, so a nested `assume`
+       shadows the outer one. Only the theorem namespace is extended: an
+       assumption is not a value. */
+    let fact =
+      Option.bind(name, ~f=fact_name) |> Option.value(~default="assume");
+    let (body, m) =
+      go(~ctx=with_fact(fact, ~id=IdTagged.rep_id(p_term), e), body, m);
+    add(Assume(e_elab, name, body), m);
+  | Alias(x, e, body) =>
+    /* `alias <name> = <fact> => <body>` names a fact already in scope,
+       given by name or as a proposition (the checker matches it against
+       the facts in scope). The body sees the fact under <name>, with the
+       statement as written, or, for a name, that fact's statement. */
+    let (_, x_elab, m) = go_binder(x, m);
+    let (e_elab, aliased, m) =
+      switch (go_fact_name(e, m)) {
+      | Some((Some({prop: Some(prop), _}), e, m)) => (e, prop, m)
+      | Some((_, e, m)) => (e, e, m)
+      | None =>
+        let (e, m) = go_prop(e, m);
+        (e, e, m);
+      };
+    let body_ctx =
+      switch (fact_name(x_elab)) {
+      | Some(h) => with_fact(h, ~id=IdTagged.rep_id(x), aliased)
+      | None => ctx
+      };
+    let (body, m) = go(~ctx=body_ctx, body, m);
+    add(Alias(x_elab, e_elab, body), m);
+  | Generalize(e, body) =>
+    /* `generalize x => body` re-quantifies the in-scope variable `x`
+       (the checker rejects anything else with
+       `ProofMark.MalformedGeneralize`). The new quantifier rebinds `x` at
+       the same type, so `x` stays in the body's ctx, but the facts about
+       the old `x` don't, as in the checker. */
+    let body_ctx =
+      switch (ProofSyntax.exp_to_name(e)) {
+      | Some(x) => Ctx.forget_facts(Exp.occurs_free_any([x]), ctx)
+      | None => ctx
+      };
+    let (_, e, m) = go_exp(e, m);
+    let (body, m) = go(~ctx=body_ctx, body, m);
+    add(Generalize(e, body), m);
+  | Revert(e, instantiation, body) =>
+    /* `revert F => body` moves the in-scope fact `F`, given by name or as
+       a proposition, back into the goal. The body is checked in the
+       unchanged ctx: `F` stays citable and nothing new is bound. */
+    let (e_elab, m) =
+      switch (go_fact_name(e, m)) {
+      | Some((_, e, m)) => (e, m)
+      | None => go_prop(e, m)
+      };
+    let (instantiation, m) =
+      go_binder_instantiation(~prop=Some(e), instantiation, m);
+    let (body, m) = go(body, m);
+    add(Revert(e_elab, instantiation, body), m);
+  | Have(e, name, sub, body) =>
+    /* `have <exp> proof <subproof> => <body>`. The subproof proves
+       `<exp>`, so it is checked without it in scope; the body can cite it
+       under the name the checker uses (`have` unless named). */
+    let (e_elab, m) = go_prop(e, m);
+    let (name, m) = go_name(name, m);
+    let fact =
+      Option.bind(name, ~f=fact_name) |> Option.value(~default="have");
+    let (sub, m) = go(sub, m);
+    let (body, m) =
+      go(~ctx=with_fact(fact, ~id=IdTagged.rep_id(p_term), e), body, m);
+    add(Have(e_elab, name, sub, body), m);
+  };
 };
+
+/* The built-in axioms every program can cite. Their statements are rules
+   in `Axioms.axioms`, hence `prop: None`. The names are copied rather than
+   read from there because `Axioms` depends on this module (through
+   `ProofCtx` and `ProofRule`); keep the two in sync. */
+let initial_theorems: list(Ctx.theorem_entry) =
+  [
+    "refl",
+    "impl_def",
+    "and_comm",
+    "or_comm",
+    "and_assoc",
+    "or_assoc",
+    "demorgan_and",
+    "demorgan_or",
+    "and_true",
+    "and_false",
+    "or_true",
+    "or_false",
+    "not_not",
+    "impl_true",
+    "true_impl",
+    "false_impl",
+    /* Closure lemmas. */
+    "nonzero_mul",
+    "nonzero_of_pos",
+    "nonzero_of_neg",
+    "pos_mul",
+    "pos_add",
+    "pow_pos",
+    /* Nat. */
+    "nat_succ_ne_zero",
+    "nat_add_sub",
+  ]
+  |> List.map(~f=name =>
+       Ctx.{
+         name,
+         id: Id.mk_str(name),
+         prop: None,
+       }
+     );
 
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((ana, ctx, e, probe_ids, in_theorem)) => {
+      let ctx =
+        List.fold_left(~f=Ctx.extend_theorem, ~init=ctx, initial_theorems);
       let (_, elab, m) =
         uexp_to_info_map(
           ~ana,
           ~ctx,
           ~ancestors=[],
           ~probe_ids,
+          ~in_theorem,
           e,
           Id.Map.empty,
         );
@@ -4426,9 +5115,11 @@ let mk =
     (
       ~ana=Typ.temp(Unknown(SynSwitch)),
       ~probe_ids=Id.Map.empty,
+      ~in_theorem=false,
       core: CoreSettings.t,
       ctx,
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, in_theorem))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));

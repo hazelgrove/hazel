@@ -21,7 +21,6 @@ type cls =
   | Var
   | Let
   | Theorem
-  | ProofObject
   | Forall
   | FixF
   | TyAlias
@@ -156,7 +155,6 @@ let rec strip_wrappers = (e: t): t =>
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | FixF(_)
   | TyAlias(_)
@@ -205,7 +203,6 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | Var(_) => Var
   | Let(_) => Let
   | Theorem(_) => Theorem
-  | ProofObject(_) => ProofObject
   | Forall(_) => Forall
   | FixF(_) => FixF
   | TyAlias(_) => TyAlias
@@ -266,7 +263,6 @@ let show_cls: cls => string =
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
-  | ProofObject => "Proof placeholder"
   | Forall => "Forall expression"
   | FixF => "Fixpoint operator"
   | TyAlias => "Type Alias definition"
@@ -325,7 +321,6 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofObject(_)
     | Forall(_)
     | FixF(_)
     | TyAlias(_)
@@ -396,7 +391,6 @@ let rec is_fun = (e: t) => {
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | FixF(_)
   | TyAlias(_)
@@ -455,7 +449,6 @@ let rec is_tuple_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofObject(_)
     | Forall(_)
     | FixF(_)
     | TyAlias(_)
@@ -505,7 +498,6 @@ let rec ctr_name = (e: t): option(Constructor.t) =>
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | FixF(_)
   | TyAlias(_)
@@ -568,7 +560,6 @@ let rec get_num_of_functions = (e: t) =>
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofObject(_)
     | Forall(_)
     | Filter(_)
     | TyAlias(_)
@@ -656,7 +647,6 @@ let rec get_fn_name = (e: t) => {
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | TyAlias(_)
   | Use(_)
@@ -712,7 +702,6 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   | Var(_)
   | Let(_)
   | Theorem(_)
-  | ProofObject(_)
   | Forall(_)
   | TyAlias(_)
   | Use(_)
@@ -775,4 +764,96 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
 /* Inject a function name into a Fun or TypFun expression. */
 let add_name = (name: option(string), exp: t): t => {
   map_fn_name(_ => name, exp);
+};
+
+/* Read a pattern as an expression, so that the statics and the checker
+ * build a split's case equation `scrut == pat` the same way. It lives here because `Pat` can't depend on `Exp`.
+ *
+ * `Wild` has no expression counterpart; it becomes `true`, which is what
+ * a wildcard case's equation degenerates to. */
+let rec of_pat = (pat: Pat.t): t => {
+  let term = pat |> Pat.term_of;
+  let rewrap: term => t =
+    term => {
+      term,
+      annotation: pat.annotation,
+    };
+  switch (term) {
+  | Invalid(x) => rewrap(Invalid(x))
+  | EmptyHole => rewrap(EmptyHole)
+  | MultiHole(xs) => rewrap(MultiHole(xs))
+  | Wild => rewrap(Atom(Bool(true)))
+  | Atom(a) => rewrap(Atom(a))
+  | ListLit(xs) => rewrap(ListLit(List.map(~f=of_pat, xs)))
+  | Constructor(c, t) => rewrap(Constructor(c, t))
+  | Cons(e1, e2) => rewrap(Cons(of_pat(e1), of_pat(e2)))
+  | Var(x) => rewrap(Var(x))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=of_pat, xs)))
+  | Parens(e) => rewrap(Parens(of_pat(e)))
+  | Projector(data, e) => rewrap(Projector(data, of_pat(e)))
+  | Ap(e1, e2) => rewrap(Ap(Forward, of_pat(e1), of_pat(e2)))
+  | Asc(e, t1) => rewrap(Asc(of_pat(e), t1))
+  | Label(l) => rewrap(Label(l))
+  | ExplicitNonlabel => rewrap(ExplicitNonlabel)
+  | TupLabel(l, e) => rewrap(TupLabel(of_pat(l), of_pat(e)))
+  };
+};
+
+/* Does any name in `vs` occur free in `e`, given `bound` already in scope?
+ *
+ * Binding structure follows `Substitution.in_exp`, except that, as in
+ * the statics, `Closure(env, body)` looks only at `body`: expanding `env`
+ * would inline the whole environment, the blow-up this walk exists to
+ * avoid.
+ *
+ * Non-binding forms fall through to `map_term`'s generic traversal,
+ * which also walks expressions nested inside patterns (`Asc`) under the
+ * enclosing scope, as `Substitution.in_pat` does. */
+let occurs_free_any = (~bound: list(Var.t)=[], vs: list(Var.t), e: t): bool => {
+  let found = ref(false);
+  let rec f_exp = (bound: list(Var.t), cont, e: t): t => {
+    if (! found^) {
+      let under = (bound', es) => List.iter(~f=go(bound'), es);
+      switch (e |> term_of) {
+      | Var(x) =>
+        if (List.mem(vs, x, ~equal=String.equal)
+            && !List.mem(bound, x, ~equal=String.equal)) {
+          found := true;
+        }
+      | Fun(p, body, t, _) =>
+        Option.iter(~f=go_typ(bound), t);
+        go_pat(bound, p);
+        under(Pat.bound_vars(p) @ bound, [body]);
+      | FixF(p, body, _) =>
+        go_pat(bound, p);
+        under(Pat.bound_vars(p) @ bound, [body]);
+      | Let(p, def, body) =>
+        go_pat(bound, p);
+        under(Pat.bound_vars(p) @ bound, [def, body]);
+      | Theorem(p, stmt, _, body) =>
+        go_pat(bound, p);
+        under(Pat.bound_vars(p) @ bound, [stmt, body]);
+      | Forall(p, body) =>
+        go_pat(bound, p);
+        under(Pat.bound_vars(p) @ bound, [body]);
+      | Match(scrut, cases) =>
+        go(bound, scrut);
+        List.iter(
+          ~f=
+            ((p, body)) => {
+              go_pat(bound, p);
+              under(Pat.bound_vars(p) @ bound, [body]);
+            },
+          cases,
+        );
+      | _ => ignore(cont(e))
+      };
+    };
+    e;
+  }
+  and go = (bound, e) => ignore(map_term(~f_exp=f_exp(bound), e))
+  and go_pat = (bound, p) => ignore(Pat.map_term(~f_exp=f_exp(bound), p))
+  and go_typ = (bound, t) => ignore(Typ.map_term(~f_exp=f_exp(bound), t));
+  go(bound, e);
+  found^;
 };

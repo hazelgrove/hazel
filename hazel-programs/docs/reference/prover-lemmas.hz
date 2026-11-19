@@ -1,0 +1,32 @@
+# VARIABLES AND LEMMAS #
+
+# forall x: T -> P states P for every x of type T. In the proof, x #
+# is an unknown value: evaluation can step around it, but not into #
+# it. Goals keep definitions by name, so rev stays rev until a step #
+# needs to look inside it. #
+
+let rev = fun xs -> case xs | [] => [] | y :: t => rev(t) @ [y] end in
+
+theorem rev_one = forall x: Int -> rev([x]) == [x] proof
+  from rev([x]) do step end;
+  from rev([]) do step end;
+  from [] @ [x] do step end;
+  rewrite refl end
+in
+
+# A proven theorem is a rule. On a goal that matches the rule's left #
+# side, rewrite name end replaces it with the right side; inside from #
+# p do ... end, it rewrites just p. rewrite <- name end goes right to #
+# left, and the builtin rule refl closes e == e. Typing a rule's name #
+# in the write box lists the places it applies. #
+theorem rev_two = forall x: Int -> forall y: Int -> rev([x, y]) == [y, x] proof
+  from rev([x, y]) do step end;
+  from rev([y]) do rewrite rev_one end end;
+  from [y] @ [x] do step end;
+  rewrite refl end
+in
+
+# A proof may use a theorem that isn't finished: it then reads #
+# proven*, assuming that theorem, and the star names it. Using a #
+# refuted one is an error. #
+¿

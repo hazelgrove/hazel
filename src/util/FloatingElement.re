@@ -168,7 +168,9 @@ let update_all = (): unit => {
 };
 
 /* Setup scroll listener on #main to update floating elements.
-   This ensures floating elements stay positioned correctly during scroll. */
+   This ensures floating elements stay positioned correctly during scroll.
+   Scroll events don't bubble, so the listener captures, to also hear the
+   scrollers inside #main (a cell's code scrolls sideways in its own box). */
 let scroll_listener_attached = ref(false);
 
 let setup_scroll_listener = (): unit =>
@@ -183,7 +185,7 @@ let setup_scroll_listener = (): unit =>
           update_all();
           ();
         });
-      let _ = main_coerced##addEventListener("scroll", handler);
+      let _ = main_coerced##addEventListener("scroll", handler, Js._true);
       ();
     };
   };

@@ -97,6 +97,20 @@ let tests = (
       },
     ),
     test_case(
+      "== is reflexive at nan, ==. is IEEE",
+      `Quick,
+      () => {
+        let evaluates_to = (expected, src) =>
+          evaluation_test(src, bool(expected), elaborate(parse_exp(src)));
+        evaluates_to(true, "nan == nan");
+        evaluates_to(true, "(nan, 1) == (nan, 1)");
+        evaluates_to(true, "[nan] == [nan]");
+        evaluates_to(false, "nan != nan");
+        evaluates_to(true, "0.0 == -0.0");
+        evaluates_to(false, "nan ==. nan");
+      },
+    ),
+    test_case(
       "Polymorphic Equality Type Inconsistency Dynamics",
       `Quick,
       () => {
