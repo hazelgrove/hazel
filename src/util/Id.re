@@ -4,7 +4,9 @@ open Ppx_yojson_conv_lib.Yojson_conv;
 
    WHATS AN ID?
 
-   IDs are random-generated 128bit UUIDs; use Id.mk() to generate one.
+   IDs are 128-bit UUIDs (v4 layout); use Id.mk() to generate one. Id.mk
+   makes them from a counter plus a random tail fixed per session (see
+   below), so they are unique but not individually random.
 
    WHAT ARE IDS USED FOR?
 
@@ -124,9 +126,9 @@ let derive = (~salt: string, x: t): t =>
   Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
 
 /* An id is a 16-byte string (Uuidm.unsafe_to_bytes is the identity), so
-   compare it as one: the same order as Uuidm.compare, which is Stdlib's
-   polymorphic compare, without its generic walk. Every Id.Map lookup
-   compares ids. */
+   compare it as one, in the same order as Uuidm.compare. (Uuidm.compare
+   already compiles to a string compare, so this is for clarity, not
+   speed.) */
 let compare: (t, t) => int =
   (a, b) =>
     String.compare(Uuidm.unsafe_to_bytes(a), Uuidm.unsafe_to_bytes(b));
