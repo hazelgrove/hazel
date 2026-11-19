@@ -53,6 +53,98 @@ let slide_keeps_indentation = () => {
   );
 };
 
+/* Every editor of every bundled exercise (Exercises mode) and derivation
+   slide (Documentation › Derivations), as loaded. These ship as stored
+   zippers, so their indentation is whatever spaces were stored. */
+let bundled_exercise_editors = (): list((string, Zipper.t)) => {
+  let drv = (title, s: Web.DerivationExercise.spec) => {
+    let acc = ref([]);
+    let _: Web.DerivationExercise.p(unit) =
+      Web.DerivationExercise.mapi(s, (pos, z) =>
+        acc :=
+          [
+            (title ++ " " ++ Web.DerivationExercise.show_pos(pos), z),
+            ...acc^,
+          ]
+      );
+    List.rev(acc^);
+  };
+  let named = (title, zs) =>
+    List.mapi((i, z) => (title ++ " #" ++ string_of_int(i), z), zs);
+  List.concat_map(
+    (e: Web.Exercise.t) =>
+      switch (e) {
+      | Code(s) => named(s.title, Web.CodeExercise.editors(s))
+      | Theorem(s) => named(s.title, [s.prelude, s.lemmas, s.theorem])
+      | Derivation(s) => drv(s.title, s)
+      },
+    Web.ExerciseSettings_base.exercises,
+  )
+  @ List.concat_map(
+      ((name, s)) => drv(name, s),
+      Web.Init.documentation_drv_slides,
+    );
+};
+
+/* Bundled exercises load indented. They were written when the editor
+   computed indentation at layout time, so they were stored flat (every
+   line at column 0) and loaded flat once indentation became the text's
+   own spaces. A line that re-indenting (Format › Indent) moves in must
+   already be indented; how far is the author's call. */
+let exercises_keep_indentation = () => {
+  let indented_lines = z =>
+    MarkerParse.to_text(z)
+    |> String.split_on_char('\n')
+    |> List.map(line => String.length(line) > 0 && line.[0] == ' ');
+  bundled_exercise_editors()
+  |> List.iter(((label, z)) =>
+       check(
+         list(bool),
+         label,
+         indented_lines(Perform.reindent_zipper(z)),
+         indented_lines(z),
+       )
+     );
+  let prelude =
+    switch (List.hd(Web.ExerciseSettings_base.exercises)) {
+    | Code(s) => s.prelude
+    | _ => fail("expected Oddly Recursive first")
+    };
+  check(
+    string,
+    "Oddly Recursive prelude",
+    "let not : Bool -> Bool =\n  fun x ->\n    if x then false else true\nin ¿",
+    MarkerParse.to_text(prelude),
+  );
+};
+
+/* A tutorial lesson loads with its .hzt source's indentation: every line
+   of each lesson's implementation, solution and hidden tests is a line of
+   its source, leading spaces included. */
+let tutorials_keep_indentation = () =>
+  List.combine(Web.TutorialText.all, Tutorialslides.Slides.all)
+  |> List.iter(((lesson: Web.Tutorial.spec, (rel, raw))) => {
+       let source_lines = String.split_on_char('\n', raw);
+       let check_editor = (part, z) =>
+         MarkerParse.to_text(z)
+         |> String.split_on_char('\n')
+         |> List.filter(line => String.trim(line) != "")
+         |> List.iter(line =>
+              check(
+                bool,
+                rel ++ " " ++ part ++ ": " ++ String.escaped(line),
+                true,
+                List.mem(line, source_lines),
+              )
+            );
+       check_editor("@code", lesson.your_impl);
+       /* a lesson without @test gets a default one */
+       if (List.exists(l => String.trim(l) == "@test", source_lines)) {
+         check_editor("@test", lesson.hidden_tests.tests);
+       };
+       Option.iter(check_editor("@solution"), lesson.solution);
+     });
+
 let tests = (
   "FastParseCorpus",
   [
@@ -61,6 +153,16 @@ let tests = (
       "a slide keeps its indentation",
       `Quick,
       slide_keeps_indentation,
+    ),
+    test_case(
+      "bundled exercises keep their indentation",
+      `Quick,
+      exercises_keep_indentation,
+    ),
+    test_case(
+      "tutorials keep their indentation",
+      `Quick,
+      tutorials_keep_indentation,
     ),
     test_case(
       "every corpus program fast-paths",
