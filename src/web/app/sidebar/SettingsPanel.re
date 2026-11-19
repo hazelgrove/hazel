@@ -11,7 +11,7 @@ let keep_focus = Attr.on_mousedown(_ => Effect.Prevent_default);
 
 let colors_and_keys =
     (~editors_inject: Editors.Update.t => Effect.t(unit)): NutMenu.section => {
-  s_name: "Colors and keys",
+  s_name: "Colors, keys and flags",
   s_rows:
     List.map(
       config_type => {
