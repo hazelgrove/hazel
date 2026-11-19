@@ -238,6 +238,11 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
+    Haz3lcore.PatchworkComm.init_iframe(a =>
+      schedule_action(
+        Page.Update.Editors(Scratch(CellAction(MainEditor(Perform(a))))),
+      )
+    );
     JsUtil.focus_page();
     JsUtil.install_text_selection_guards();
     Haz3lcore.FocusEffect.install_press_tracking();
