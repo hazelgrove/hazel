@@ -24,7 +24,7 @@ let perform = (action: action): unit => {
   Js_of_ocaml.Dom_html.window##.location##reload;
 };
 
-let btn = (caption, action) => {
+let btn = (btn_caption, action) => {
   Node.(
     button(
       ~attrs=[
@@ -33,7 +33,7 @@ let btn = (caption, action) => {
           Ui_effect.Ignore;
         }),
       ],
-      [text(caption)],
+      [text(btn_caption)],
     )
   );
 };

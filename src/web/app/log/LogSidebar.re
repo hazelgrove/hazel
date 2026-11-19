@@ -65,7 +65,7 @@ let progress_bar = (~current, ~total) => {
 };
 
 let message_item = (message: string) => {
-  let timestamp = Printf.sprintf("%.0f", Js_of_ocaml.Js.date##now);
+  let timestamp = Printf.sprintf("%.0f", Js_of_ocaml.Js.to_float(Js_of_ocaml.Js.date##now));
   div(
     ~attrs=[Attr.class_("log-message")],
     [

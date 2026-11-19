@@ -39,8 +39,8 @@ module Js = {
   let box_of = (elem: Js.t(Dom_html.element)): box => {
     let container_rect = elem##getBoundingClientRect;
     {
-      top: container_rect##.top,
-      left: container_rect##.left,
+      top: Js.to_float(container_rect##.top),
+      left: Js.to_float(container_rect##.left),
       height: Js.to_float(container_rect##.height),
       width: Js.to_float(container_rect##.width),
     };

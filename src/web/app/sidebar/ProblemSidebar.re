@@ -7,7 +7,7 @@ open Haz3lcore.ProblemCollection;
 /* ---------- Scroll-into-view hook ---------- */
 
 module ScrollIntoViewHook =
-  Attr.Hooks.Make({
+  Attr.Hooks.Make_js_of_ocaml({
     module State = Unit;
     module Input = {
       type t = unit;
@@ -15,7 +15,7 @@ module ScrollIntoViewHook =
       let combine = ((), ()) => ();
     };
     let init = ((), _el) => ();
-    let on_mount = ((), (), el) =>
+    let on_mount_now = ((), (), el) =>
       Js_of_ocaml.Js.Unsafe.coerce(el)##scrollIntoView(
         Js_of_ocaml.Js.Unsafe.obj([|
           (
@@ -28,6 +28,8 @@ module ScrollIntoViewHook =
           ),
         |]),
       );
+    /* v0.16 always ran on_mount on the next animation frame */
+    let on_mount = `Schedule_animation_frame(on_mount_now);
     let update = (~old_input as (), ~new_input as (), (), _el) => ();
     let destroy = ((), (), _el) => ();
   });

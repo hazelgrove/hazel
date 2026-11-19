@@ -54,8 +54,8 @@ module Event = {
   let mk = (evt): t => {
     sys: Os.is_mac^ ? Mac : PC,
     loc: {
-      row: evt##.clientY,
-      col: evt##.clientX,
+      row: int_of_float(Js.to_float(evt##.clientY)),
+      col: int_of_float(Js.to_float(evt##.clientX)),
     },
     current_target: evt##.currentTarget,
     button: button(evt),

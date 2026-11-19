@@ -643,8 +643,8 @@ module NinjaKeys = {
       let _ =
         Dom_html.document##.body##appendChild(origin##cloneNode(Js._true));
       let* copied = opt_get_copied();
-      let left = ev##.clientX;
-      let bottom = Dom_html.window##.innerHeight - ev##.clientY;
+      let left = int_of_float(Js.to_float(ev##.clientX));
+      let bottom = Dom_html.window##.innerHeight - int_of_float(Js.to_float(ev##.clientY));
       copied##.style##.left := Js.string(Printf.sprintf("%dpx", left));
       copied##.style##.bottom := Js.string(Printf.sprintf("%dpx", bottom));
       Js._true;

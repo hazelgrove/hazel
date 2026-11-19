@@ -735,7 +735,7 @@ module ChatMessagesScrollHook = {
     let run = () => scroll_to_bottom(el);
     ignore(
       Dom_html.window##requestAnimationFrame(
-        Js.wrap_callback((_: float) => {
+        Js.wrap_callback((_: Js.number_t) => {
           run();
           JsUtil.delay(
             0.0,
@@ -749,7 +749,7 @@ module ChatMessagesScrollHook = {
     );
   };
 
-  include Virtual_dom.Vdom.Attr.Hooks.Make({
+  include Virtual_dom.Vdom.Attr.Hooks.Make_js_of_ocaml({
     module State = State;
     module Input = Input;
 
@@ -764,7 +764,7 @@ module ChatMessagesScrollHook = {
     let start_follow = (state: State.t, element) =>
       if (!state.following) {
         state.following = true;
-        let rec follow = (_: float) =>
+        let rec follow = (_: Js.number_t) =>
           if (state.listener_id != None
               && now()
               -. state.last_touch < follow_grace_ms) {
@@ -788,7 +788,7 @@ module ChatMessagesScrollHook = {
         );
       };
 
-    let on_mount = (_input: Input.t, state: State.t, element) => {
+    let on_mount_now = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
       /* keep up every frame while pinned AND recently rendered: streamed
@@ -812,6 +812,8 @@ module ChatMessagesScrollHook = {
       start_follow(state, element);
     };
 
+    /* v0.16 always ran on_mount on the next animation frame */
+    let on_mount = `Schedule_animation_frame(on_mount_now);
     let update =
         (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) => {
       if (old_input != new_input && state.stick_to_bottom) {
@@ -1018,7 +1020,7 @@ let view =
   // Use requestAnimationFrame to ensure DOM is ready
   ignore(
     Dom_html.window##requestAnimationFrame(
-      Js.wrap_callback((_timestamp: float) => {
+      Js.wrap_callback((_timestamp: Js.number_t) => {
         JsUtil.delay(0.0, () => {
           for (i in 0 to num_chunks - 1) {
             let id = "user-message-input-" ++ string_of_int(i);
