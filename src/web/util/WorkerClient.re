@@ -49,6 +49,61 @@ let clear_timeouts = () => {
   clear_timer(eval_timeout_id);
 };
 
+/* A deadline measured on a main-thread timer is only fair if the page could
+   hear the worker meanwhile. When the main thread is blocked -- statics on a
+   large slide held Firefox's for 22-26 s at a stretch -- the timer fires late,
+   and the worker's reply, sent long before, can be queued BEHIND it: the
+   timeout ran first, killed a healthy worker that had answered in 30 ms,
+   respawned it, and the respawn's own blocked stretch did it again, so the
+   slide never drew ("Evaluation timed out").
+
+   So a timer that fires more than [late_slack_ms] late does not decide. It
+   waits [grace_ms] more, long enough for anything already queued to be
+   handled first, and asks again. A grace timer that is itself late may wait
+   again, but at most [max_postponements] times per deadline: a hidden tab's
+   timers are throttled to about once a second, so every grace timer there
+   fires late, and without a cap a runaway loop in a background tab would
+   never be stopped (until the worker's own ~200 s step limit) and a dead
+   worker never reported. The cap bounds that to a few seconds past the
+   deadline (about 3 s with timers throttled to 1 s), while a busy but
+   visible page still hears any queued reply first. */
+let late_slack_ms = 250.;
+let grace_ms = 500;
+let max_postponements = 2;
+
+type deadline_check =
+  | Expire
+  | Postpone;
+
+/* What a deadline timer does when it fires [late_ms] after it was due,
+   having already been postponed [postponed] times. */
+let check_deadline = (~late_ms: float, ~postponed: int): deadline_check =>
+  late_ms > late_slack_ms && postponed < max_postponements ? Postpone : Expire;
+
+let set_deadline = (timer_ref, ~delay_ms: int, on_expire: unit => unit) => {
+  let rec arm = (~delay_ms, ~postponed) => {
+    let due = Util.JsUtil.precise_timestamp() +. float_of_int(delay_ms);
+    timer_ref :=
+      Some(
+        Dom_html.window##setTimeout(
+          Js.wrap_callback(() =>
+            switch (
+              check_deadline(
+                ~late_ms=Util.JsUtil.precise_timestamp() -. due,
+                ~postponed,
+              )
+            ) {
+            | Postpone => arm(~delay_ms=grace_ms, ~postponed=postponed + 1)
+            | Expire => on_expire()
+            }
+          ),
+          float_of_int(delay_ms),
+        ),
+      );
+  };
+  arm(~delay_ms, ~postponed=0);
+};
+
 /* Run f on the current request iff request_id still matches it; messages
  * and timers for superseded requests are dropped. */
 let with_latest = (request_id, f) =>
@@ -130,8 +185,10 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
     worker;
   };
 
-/* Created on first use, not at module init: the test binary links this
-   module (via ScratchMode) under node, where Worker doesn't exist. */
+/* Main starts the worker at page load (see there); get_worker also creates
+   it on first use if nothing has yet. Not at module init: the test binary
+   links this module (via ScratchMode) under node, where Worker doesn't
+   exist. */
 let worker_ref:
   ref(option(Js.t(Worker.worker(Active.request, Active.response)))) =
   ref(None);
@@ -161,49 +218,37 @@ let restart_worker = (): unit => {
  * UI has already shown Timeout. */
 let start_eval_timeout = latest => {
   clear_timer(eval_timeout_id);
-  eval_timeout_id :=
-    Some(
-      Dom_html.window##setTimeout(
-        Js.wrap_callback(() =>
-          with_latest(
-            latest.request.request_id,
-            latest => {
-              restart_worker();
-              fail_latest(latest);
-            },
-          )
-        ),
-        float_of_int(eval_timeout_ms),
-      ),
-    );
+  set_deadline(eval_timeout_id, ~delay_ms=eval_timeout_ms, () =>
+    with_latest(
+      latest.request.request_id,
+      latest => {
+        restart_worker();
+        fail_latest(latest);
+      },
+    )
+  );
 };
 
 let rec start_ack_timeout = (~cold_start, latest) => {
   clear_timer(ack_timeout_id);
   let duration = cold_start ? ack_cold_start_timeout_ms : ack_timeout_ms;
-  ack_timeout_id :=
-    Some(
-      Dom_html.window##setTimeout(
-        Js.wrap_callback(() =>
-          with_latest(latest.request.request_id, latest =>
-            if (latest.ack_retries >= max_ack_retries) {
-              restart_worker();
-              fail_latest(latest);
-            } else {
-              let latest = {
-                ...latest,
-                ack_retries: latest.ack_retries + 1,
-              };
-              latest_request := Some(latest);
-              restart_worker();
-              post_evaluate(get_worker(), latest.request);
-              start_ack_timeout(~cold_start=true, latest);
-            }
-          )
-        ),
-        float_of_int(duration),
-      ),
-    );
+  set_deadline(ack_timeout_id, ~delay_ms=duration, () =>
+    with_latest(latest.request.request_id, latest =>
+      if (latest.ack_retries >= max_ack_retries) {
+        restart_worker();
+        fail_latest(latest);
+      } else {
+        let latest = {
+          ...latest,
+          ack_retries: latest.ack_retries + 1,
+        };
+        latest_request := Some(latest);
+        restart_worker();
+        post_evaluate(get_worker(), latest.request);
+        start_ack_timeout(~cold_start=true, latest);
+      }
+    )
+  );
 };
 
 let request =
