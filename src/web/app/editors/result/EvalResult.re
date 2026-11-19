@@ -302,23 +302,23 @@ module Update = {
           queue_worker({
             expr: elab,
             eval_info_map,
-            /* The worker keeps its own cache from this key's last run. */
-            prev: IncrEval.empty,
-            use_held_prev: true,
-            /* The mode's queue_worker says which document. */
+            /* No cache: the worker evaluates against the one it kept from
+               this document and key's last run. The mode's queue_worker
+               says which document. */
             doc: "",
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.evaluate_sync({
-              expr: elab,
-              eval_info_map,
-              prev: prev_incr,
-              use_held_prev: false,
-              doc: "",
-            })
+            WorkerServer.evaluate_sync(
+              ~prev=prev_incr,
+              {
+                expr: elab,
+                eval_info_map,
+                doc: "",
+              },
+            )
           ) {
           | Ok((exp, state)) =>
             ProgramResult.ResultOk(

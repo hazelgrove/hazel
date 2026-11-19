@@ -150,8 +150,8 @@ let test_span_yojson = (): test_case(_) =>
   );
 
 /* The incremental cache stays in the worker (WorkerServer.Held): a finished
-   run's cache is kept by key and the answer leaves it out, and a request
-   with use_held_prev evaluates against what is kept. */
+   run's cache is kept by document and key, the answer leaves it out, and
+   the key's next run evaluates against what is kept. */
 let request_of = text => {
   switch (Haz3lcore.PersistentZipper.parse_text(~source="t", ~root=Exp, text)) {
   | None => fail("did not parse")
@@ -168,8 +168,6 @@ let request_of = text => {
           ~targets=Id.Map.empty,
           info_map,
         ),
-      prev: IncrEval.empty,
-      use_held_prev: true,
       doc: "",
     };
   };
@@ -180,12 +178,15 @@ let program = n =>
   ++ string_of_int(n)
   ++ "), xs)";
 
-/* One run as the worker does it: resolve the held cache, evaluate, keep. */
+/* One run as the worker does it: find the held cache, evaluate, keep. */
 let run = (key, v: WorkerServer.Request.value) =>
   WorkerServer.Held.keep(
     ~doc=v.doc,
     key,
-    WorkerServer.evaluate_sync(WorkerServer.Held.resolve(key, v)),
+    WorkerServer.evaluate_sync(
+      ~prev=WorkerServer.Held.find(~doc=v.doc, key),
+      v,
+    ),
   );
 
 let result_of = (r: WorkerServer.Response.value) =>
@@ -205,7 +206,7 @@ let test_held_by_key = () =>
         bool,
         "nothing is held at first",
         true,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+        WorkerServer.Held.find("a") === IncrEval.empty,
       );
       switch (run("a", v)) {
       | Ok((_, state)) =>
@@ -221,27 +222,13 @@ let test_held_by_key = () =>
         bool,
         "the next run gets the cache",
         false,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+        WorkerServer.Held.find("a") === IncrEval.empty,
       );
       check(
         bool,
         "another key gets none",
         true,
-        WorkerServer.Held.resolve("b", v).prev === IncrEval.empty,
-      );
-      check(
-        bool,
-        "a request that passes its own prev keeps it",
-        true,
-        WorkerServer.Held.resolve(
-          "a",
-          {
-            ...v,
-            use_held_prev: false,
-          },
-        ).
-          prev
-        === IncrEval.empty,
+        WorkerServer.Held.find("b") === IncrEval.empty,
       );
     },
   );
@@ -264,19 +251,19 @@ let test_held_by_document = () =>
         doc: "scratch:B",
       };
       let _ = run("", a);
-      let held_a = WorkerServer.Held.resolve("", a).prev;
+      let held_a = WorkerServer.Held.find(~doc="scratch:A", "");
       check(
         bool,
         "slide B does not get slide A's cache",
         true,
-        WorkerServer.Held.resolve("", b).prev === IncrEval.empty,
+        WorkerServer.Held.find(~doc="scratch:B", "") === IncrEval.empty,
       );
       let _ = run("", b);
       check(
         bool,
         "back on slide A, its own cache is still held",
         true,
-        WorkerServer.Held.resolve("", a).prev === held_a,
+        WorkerServer.Held.find(~doc="scratch:A", "") === held_a,
       );
     },
   );
@@ -291,12 +278,7 @@ let test_held_same_result = () =>
       let edited = request_of(program(11));
       let held = result_of(run("a", edited));
       let fresh =
-        result_of(
-          WorkerServer.evaluate_sync({
-            ...edited,
-            use_held_prev: false,
-          }),
-        );
+        result_of(WorkerServer.evaluate_sync(~prev=IncrEval.empty, edited));
       check(
         bool,
         "the same as a fresh run",
@@ -319,7 +301,7 @@ let test_held_dropped_on_failure = () =>
         bool,
         "no cache after a failure",
         true,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+        WorkerServer.Held.find("a") === IncrEval.empty,
       );
     },
   );
@@ -328,9 +310,7 @@ let test_held_dropped_on_failure = () =>
  * large or its previous evaluation was expensive. Uses id-preserving edits —
  * re-parsing would mint fresh ids and nothing could be reused regardless of
  * the gate. */
-let request =
-    (~prev=IncrEval.empty, exp: Exp.t)
-    : (WorkerServer.key, WorkerServer.Request.value) => {
+let request = (exp: Exp.t): (WorkerServer.key, WorkerServer.Request.value) => {
   let (info_map, elab) = Test_Evaluator_Incremental.statics_and_elab(exp);
   (
     "cell",
@@ -338,18 +318,16 @@ let request =
       expr: elab,
       eval_info_map:
         Test_Evaluator_Incremental.eval_info_of_statics(info_map),
-      prev,
-      use_held_prev: false,
       doc: "",
     },
   );
 };
 
 /* The worker's reuse plan for a request, and the cache its evaluation leaves. */
-let run = (~prev=?, exp: Exp.t) => {
-  let item = request(~prev?, exp);
-  let (_, plan) = WorkerServer.predict_reuse_for_request(item);
-  switch (WorkerServer.evaluate_sync(snd(item))) {
+let run = (~prev=IncrEval.empty, exp: Exp.t) => {
+  let item = request(exp);
+  let (_, plan) = WorkerServer.predict_reuse_for_request(~prev, item);
+  switch (WorkerServer.evaluate_sync(~prev, snd(item))) {
   | Ok((_, state)) => (plan, state.incr_eval)
   | Error(_) => fail("evaluation failed")
   };
@@ -446,7 +424,7 @@ let test_expensive_small_program_reuses = (): test_case(_) =>
       );
 
       let exp2 = set_addend(2, exp1);
-      let (_, req2) = request(~prev=incr1, exp2);
+      let (_, req2) = request(exp2);
       let fib_id = fib_19_id(req2.expr);
       let (plan2, incr2) = run(~prev=incr1, exp2);
       check(

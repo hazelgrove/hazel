@@ -5,15 +5,12 @@ module Js = Js_of_ocaml.Js;
 type key = string;
 
 module Request = {
+  /* One program to evaluate. It carries no incremental cache: the worker
+     keeps its own (see Held). */
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    prev: Language.EvaluatorState.incr_eval,
-    /* Evaluate against the cache the worker kept from this key's last
-       run, in place of `prev` (see Held). The client of a worker sets it
-       and sends `prev` empty; the main-thread path passes `prev` itself. */
-    use_held_prev: bool,
     /* Which document the request is for: a slide, a tutorial or an
        exercise. Held keeps a cache per document and key, since keys are
        positions within a document (Scratch mode's is always ""), and one
@@ -240,8 +237,10 @@ let error_response = exn =>
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   };
 
-let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+let evaluate_sync =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value)
+    : Response.value => {
+  let Request.{expr, eval_info_map, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -258,12 +257,13 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
   };
 };
 
-/* The incremental cache stays in the worker. It is almost all of a result
-   (330 KB of Kids' Choice's 332 KB), and the client only ever sent it back
-   as the next request's `prev`; now the worker keeps each key's last
-   finished cache, answers with the state's cache emptied, and a request
-   with `use_held_prev` evaluates against what is kept. A restarted worker
-   keeps nothing, so its first run is a full one, which is correct. */
+/* The incremental cache stays in the worker, and never crosses to the
+   client: it is almost all of a result (330 KB of 332 KB on one large
+   program), and the client only ever sent it back. The worker keeps each
+   document and key's last finished cache, evaluates that key's next
+   request against it, and answers with the state's cache emptied. A
+   restarted worker keeps nothing, so its first run is a full one, which
+   is correct. */
 module Held = {
   let max_keys = 32;
   let table: Hashtbl.t((string, key), Language.EvaluatorState.incr_eval) =
@@ -271,19 +271,13 @@ module Held = {
 
   let clear = () => Hashtbl.reset(table);
 
-  let resolve = (key: key, v: Request.value): Request.value =>
-    v.use_held_prev
-      ? {
-        ...v,
-        prev:
-          Hashtbl.find_opt(table, (v.doc, key))
-          |> Option.value(~default=Language.IncrEval.empty),
-        use_held_prev: false,
-      }
-      : v;
+  /* The cache kept from this document and key's last finished run. */
+  let find = (~doc: string="", key: key): Language.EvaluatorState.incr_eval =>
+    Hashtbl.find_opt(table, (doc, key))
+    |> Option.value(~default=Language.IncrEval.empty);
 
   /* Keep a finished run's cache and answer without it; a failed run keeps
-     nothing, as the client did (its next `prev` was empty). */
+     nothing, so the next run is a full one. */
   let keep =
       (~doc: string="", key: key, response: Response.value): Response.value =>
     switch (response) {
@@ -365,10 +359,11 @@ let incremental_min_statics = 2500;
 
 let incremental_min_prev_steps = 100_000;
 
-let wants_incremental = (req_value: Request.value): bool =>
+let wants_incremental =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
   >= incremental_min_statics
-  || req_value.prev.steps >= incremental_min_prev_steps;
+  || prev.steps >= incremental_min_prev_steps;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -379,10 +374,14 @@ let planned_reuse:
   ) =
   ref([]);
 
-let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+let predict_reuse_for_request =
+    (
+      ~prev: Language.EvaluatorState.incr_eval,
+      (key, req_value): (key, Request.value),
+    ) => {
+  let Request.{expr, eval_info_map, _} = req_value;
   let stream =
-    if (!wants_incremental(req_value)) {
+    if (!wants_incremental(~prev, req_value)) {
       Language.IncrEval.empty;
     } else {
       switch (
@@ -425,12 +424,15 @@ let timed_eval: 'a. (unit => 'a) => 'a =
     x;
   };
 
-let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+let start_evaluation =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value)
+    : evaluation_start => {
+  let Request.{expr, eval_info_map, _} = req_value;
   let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
+      ~prev=
+        wants_incremental(~prev, req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       ~reuse_stream=?planned,
@@ -504,7 +506,14 @@ let post_reuse_plan = (model, request: Request.t) =>
     post_message(
       ServerMessage.ReusePlan({
         request_id: request.request_id,
-        initial: List.map(predict_reuse_for_request, request.batch),
+        initial:
+          List.map(
+            ((key, req_value) as item) => {
+              let Request.{doc, _} = req_value;
+              predict_reuse_for_request(~prev=Held.find(~doc, key), item);
+            },
+            request.batch,
+          ),
       }),
     );
   };
@@ -524,12 +533,14 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (timed_eval(() => start_evaluation(req_value))) {
+    let Request.{doc, _} = req_value;
+    let prev = Held.find(~doc, key);
+    switch (timed_eval(() => start_evaluation(~prev, req_value))) {
     | CompletedImmediately(response) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, Held.keep(~doc=req_value.doc, key, response)), ...completed],
+        [(key, Held.keep(~doc, key, response)), ...completed],
         remaining,
       )
     | Yielding(evaluation) =>
@@ -539,14 +550,14 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           Running({
             request_id,
             key,
-            doc: req_value.doc,
+            doc,
             remaining,
             completed,
             evaluation,
           }),
       };
       model;
-    }
+    };
   }
 and begin_latest_batch = model =>
   switch (model.latest_request) {
@@ -659,14 +670,6 @@ let install_message_handler = () => {
 
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
-    let request = {
-      ...request,
-      batch:
-        List.map(
-          ((key, v)) => (key, Held.resolve(key, v)),
-          request.batch,
-        ),
-    };
     post_ack(request);
     eval_total := Core.Time_ns.Span.zero;
     commit({
