@@ -2,6 +2,7 @@
  * debounce, or is forced by the debounce timer firing. Produced by
  * CodeWithStatics.StaticsDebounce.consume; it sits in its own module so
  * PerfMetrics can name the decision without depending on the editor. */
+[@deriving eq]
 type t =
   | Normal
   | Defer

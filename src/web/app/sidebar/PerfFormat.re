@@ -99,7 +99,7 @@ type row('data) =
 let action_column = (get: 'row => option(string)): column('row) => {
   label: "action",
   tooltip: "The edit action that triggered this frame.",
-  cell: r => opt_cell(Option.map(label_cell, get(r))),
+  cell: r => opt_cell(Option.map(~f=label_cell, get(r))),
 };
 
 /* --- the heat scale --- */
@@ -127,15 +127,16 @@ let scale =
     (~columns: list(column('data)), rows: list(row('data)))
     : Core.Time_ns.Span.t =>
   rows
-  |> List.to_seq
-  |> Seq.concat_map((r: row('data)) =>
+  |> Stdlib.List.to_seq
+  |> Stdlib.Seq.concat_map((r: row('data)) =>
        switch (r) {
-       | Group(_) => Seq.empty
-       | Row(data) => columns |> List.to_seq |> Seq.map(c => c.cell(data))
+       | Group(_) => Stdlib.Seq.empty
+       | Row(data) =>
+         columns |> Stdlib.List.to_seq |> Stdlib.Seq.map(c => c.cell(data))
        }
      )
-  |> Seq.filter_map(heat_span)
-  |> Seq.fold_left(Core.Time_ns.Span.max, Core.Time_ns.Span.zero);
+  |> Stdlib.Seq.filter_map(heat_span)
+  |> Stdlib.Seq.fold_left(Core.Time_ns.Span.max, Core.Time_ns.Span.zero);
 
 /* --- rendering: the only part that knows about markup --- */
 
@@ -157,14 +158,14 @@ let heat_ceil_ms = 100.0;
 let heat_style = (~scale: Core.Time_ns.Span.t, s: Core.Time_ns.Span.t): string => {
   let m = Core.Time_ns.Span.to_ms(scale);
   let v = Core.Time_ns.Span.to_ms(s);
-  let anchor = m > heat_ceil_ms ? m : heat_ceil_ms;
+  let anchor = Float.(m > heat_ceil_ms) ? m : heat_ceil_ms;
   let frac = (v -. heat_floor_ms) /. (anchor -. heat_floor_ms);
-  let frac = frac < 0.0 ? 0.0 : frac > 1.0 ? 1.0 : frac;
+  let frac = Float.(frac < 0.0) ? 0.0 : Float.(frac > 1.0) ? 1.0 : frac;
   Printf.sprintf("background-color: rgba(210, 45, 45, %.3f)", frac *. 0.8);
 };
 
 let truncate = (n: int, s: string): string =>
-  String.length(s) <= n ? s : String.sub(s, 0, n) ++ {|…|};
+  String.length(s) <= n ? s : String.sub(s, ~pos=0, ~len=n) ++ {|…|};
 
 let outcome_cls = (o: outcome): string =>
   switch (o) {
@@ -181,7 +182,7 @@ let group_cls = (k: group_kind): string =>
   };
 
 let title_attrs = (tooltip: option(string)): list(Attr.t) =>
-  tooltip |> Option.map(Attr.title) |> Option.to_list;
+  tooltip |> Option.map(~f=Attr.title) |> Option.to_list;
 
 let heat_td =
     (
@@ -233,7 +234,9 @@ let table_node =
   let node_of_row = (r: row('data)): Node.t =>
     switch (r) {
     | Row(data) =>
-      Node.tr(List.map(c => node_of_cell(~scale, c.cell(data)), columns))
+      Node.tr(
+        List.map(~f=c => node_of_cell(~scale, c.cell(data)), columns),
+      )
     | Group({kind, label}) =>
       Node.tr([
         Node.td(
@@ -250,7 +253,10 @@ let table_node =
     [
       Node.table(
         ~attrs=[clss(["perf-table"])],
-        [Node.tr(List.map(head, columns)), ...List.map(node_of_row, rows)],
+        [
+          Node.tr(List.map(~f=head, columns)),
+          ...List.map(~f=node_of_row, rows),
+        ],
       ),
     ],
   );
@@ -283,13 +289,13 @@ let view =
       rows: list(row('data)),
     )
     : list(Node.t) => {
-  let lines = Option.to_list(Option.map(note, live));
+  let lines = Option.to_list(Option.map(~f=note, live));
   switch (rows) {
   | [] => lines @ [empty(empty_msg)]
   | _ =>
     lines
     @ (legend ? [scale_note(~columns, rows)] : [])
-    @ Option.to_list(Option.map(note, note_msg))
+    @ Option.to_list(Option.map(~f=note, note_msg))
     @ [table_node(~columns, rows)]
   };
 };

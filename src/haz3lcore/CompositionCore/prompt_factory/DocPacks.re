@@ -17,11 +17,11 @@ type pack = {
 let all: list(pack) = [];
 
 let lookup = (name: string): option(pack) =>
-  List.find_opt(p => p.name == String.trim(name), all);
+  List.find(all, ~f=p => String.equal(p.name, String.strip(name)));
 
 let topic_lines: string =
   all
-  |> List.map(p => "- `" ++ p.name ++ "` — " ++ p.blurb)
-  |> String.concat("\n");
+  |> List.map(~f=p => "- `" ++ p.name ++ "` — " ++ p.blurb)
+  |> String.concat(~sep="\n");
 
-let topic_names: list(string) = List.map(p => p.name, all);
+let topic_names: list(string) = List.map(all, ~f=p => p.name);

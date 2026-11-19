@@ -75,25 +75,31 @@ let tests = (
        where it wrapped before (at 32 bits in the browser, 63 natively) */
     test_case("SInt overflow is an error", `Quick, () =>
       List.iter(
-        ((name, src)) => {
-          let shown =
-            String.map(
-              c => c == '\n' ? ' ' : c,
-              Language.Exp.show(parse_and_evaluate(src)),
+        ~f=
+          ((name, src)) => {
+            let shown =
+              String.map(
+                ~f=c => Char.equal(c, '\n') ? ' ' : c,
+                Language.Exp.show(parse_and_evaluate(src)),
+              );
+            let has = part =>
+              Str.string_match(
+                Str.regexp(".*" ++ Str.quote(part)),
+                shown,
+                0,
+              );
+            check(
+              Alcotest.bool,
+              name
+              ++ ": "
+              ++ (
+                String.length(shown) > 600
+                  ? String.sub(shown, ~pos=0, ~len=600) : shown
+              ),
+              true,
+              has("DynamicErrorHole") && has("IntegerOverflow"),
             );
-          let has = part =>
-            Str.string_match(Str.regexp(".*" ++ Str.quote(part)), shown, 0);
-          check(
-            Alcotest.bool,
-            name
-            ++ ": "
-            ++ (
-              String.length(shown) > 600 ? String.sub(shown, 0, 600) : shown
-            ),
-            true,
-            has("DynamicErrorHole") && has("IntegerOverflow"),
-          );
-        },
+          },
         [
           ("a sum", "use SInt in 9223372036854775807 + 1"),
           ("a difference", "use SInt in 0 - 9223372036854775807 - 2"),
@@ -149,21 +155,26 @@ let tests = (
        (sint_of_float(3000000000.) was -1294967296 in the browser) */
     test_case("A value outside 64 bits is not made into an SInt", `Quick, () =>
       List.iter(
-        src => {
-          let shown =
-            String.map(
-              c => c == '\n' ? ' ' : c,
-              Language.Exp.show(parse_and_evaluate(src)),
+        ~f=
+          src => {
+            let shown =
+              String.map(
+                ~f=c => Char.equal(c, '\n') ? ' ' : c,
+                Language.Exp.show(parse_and_evaluate(src)),
+              );
+            let has = part =>
+              Str.string_match(
+                Str.regexp(".*" ++ Str.quote(part)),
+                shown,
+                0,
+              );
+            check(
+              Alcotest.bool,
+              src ++ " stays a call, no SInt: " ++ shown,
+              true,
+              has("BuiltinFun") && !has("Atom (SInt"),
             );
-          let has = part =>
-            Str.string_match(Str.regexp(".*" ++ Str.quote(part)), shown, 0);
-          check(
-            Alcotest.bool,
-            src ++ " stays a call, no SInt: " ++ shown,
-            true,
-            has("BuiltinFun") && !has("Atom (SInt"),
-          );
-        },
+          },
         [
           "sint_of_int(9223372036854775808)",
           "sint_of_int(0 - 9223372036854775809)",

@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type mode =
@@ -118,25 +119,25 @@ type bad_literal =
 
 let replace_literal =
     (lit: Atom.t, ana: option(Atom.cls), use_mode: option(mode))
-    : Either.t(Atom.t, bad_literal) => {
+    : result(Atom.t, bad_literal) => {
   switch (lit, ana, use_mode) {
-  | (_, None, None) => L(lit)
-  | (Int(n), Some(Int), _) => L(Int(n))
-  | (Int(n), Some(Nat), _) => L(Nat(n))
-  | (Int(n), Some(Float), _) => L(Float(Bigint.to_float(n)))
+  | (_, None, None) => Ok(lit)
+  | (Int(n), Some(Int), _) => Ok(Int(n))
+  | (Int(n), Some(Nat), _) => Ok(Nat(n))
+  | (Int(n), Some(Float), _) => Ok(Float(Bigint.to_float(n)))
   | (Int(n), Some(SInt), _) =>
-    Atom.sint_fits(n) ? L(SInt(n)) : R(BadInt(Bigint.to_string(n)))
-  | (Int(n), _, Some(Int)) => L(Int(n))
-  | (Int(n), _, Some(Nat)) => L(Nat(n))
-  | (Int(n), _, Some(Float)) => L(Float(Bigint.to_float(n)))
+    Atom.sint_fits(n) ? Ok(SInt(n)) : Error(BadInt(Bigint.to_string(n)))
+  | (Int(n), _, Some(Int)) => Ok(Int(n))
+  | (Int(n), _, Some(Nat)) => Ok(Nat(n))
+  | (Int(n), _, Some(Float)) => Ok(Float(Bigint.to_float(n)))
   | (Int(n), _, Some(SInt)) =>
-    Atom.sint_fits(n) ? L(SInt(n)) : R(BadInt(Bigint.to_string(n)))
-  | (Int(n), Some(Bool | String), None) => L(Int(n))
-  | (SInt(n), _, _) => L(SInt(n))
-  | (Float(n), _, _) => L(Float(n))
-  | (Bool(b), _, _) => L(Bool(b))
-  | (String(s), _, _) => L(String(s))
-  | (Nat(n), _, _) => L(Nat(n))
+    Atom.sint_fits(n) ? Ok(SInt(n)) : Error(BadInt(Bigint.to_string(n)))
+  | (Int(n), Some(Bool | String), None) => Ok(Int(n))
+  | (SInt(n), _, _) => Ok(SInt(n))
+  | (Float(n), _, _) => Ok(Float(n))
+  | (Bool(b), _, _) => Ok(Bool(b))
+  | (String(s), _, _) => Ok(String(s))
+  | (Nat(n), _, _) => Ok(Nat(n))
   };
 };
 
@@ -272,16 +273,15 @@ type un_semantics =
   | Defined(
       Atom.kind('a),
       Atom.kind('b),
-      'a => Either.t('b, InvalidOperationError.t),
+      'a => result('b, InvalidOperationError.t),
     )
     : un_semantics
   | Undefined(string);
 
-let just = (f, x) => Either.L(f(x));
+let just = (f, x) => Ok(f(x));
 /* an SInt result, computed exactly, if it fits in 64 bits (Atom.sint_fits); else IntegerOverflow */
-let sint_checked = (r: Bigint.t): Either.t(Bigint.t, InvalidOperationError.t) =>
-  Atom.sint_fits(r)
-    ? Either.L(r) : Either.R(InvalidOperationError.IntegerOverflow);
+let sint_checked = (r: Bigint.t): result(Bigint.t, InvalidOperationError.t) =>
+  Atom.sint_fits(r) ? Ok(r) : Error(InvalidOperationError.IntegerOverflow);
 
 let semantics_of_un_op = (op: op_un): un_semantics =>
   switch (op) {
@@ -297,40 +297,40 @@ type bin_semantics =
       Atom.kind('a),
       Atom.kind('b),
       Atom.kind('c),
-      ('a, 'b) => Either.t('c, InvalidOperationError.t),
+      ('a, 'b) => result('c, InvalidOperationError.t),
     )
     : bin_semantics
   | DefinedPoly(op_bin_poly)
   | Undefined(string);
 
-let just = (f, x, y) => Either.L(f(x, y));
+let just = (f, x, y) => Ok(f(x, y));
 let int_power = (x, y) =>
   if (y < Bigint.zero) {
-    Either.R(InvalidOperationError.NegativeExponent);
+    Error(InvalidOperationError.NegativeExponent);
   } else {
-    Either.L(Bigint.pow(x, y));
+    Ok(Bigint.pow(x, y));
   };
 /* A power of 64 or more is past 64 bits unless the base is -1, 0 or 1, so it is not computed: those bases repeat
    with period 2 from the second power on, and anything else overflows. */
 let sint_power = (x, y) =>
   if (Bigint.(y < zero)) {
-    Either.R(InvalidOperationError.NegativeExponent);
+    Error(InvalidOperationError.NegativeExponent);
   } else if (Bigint.(y < of_int(64))) {
     sint_checked(Bigint.pow(x, y));
   } else if (Bigint.(abs(x) <= one)) {
     sint_checked(Bigint.(pow(x, of_int(2) + rem(y, of_int(2)))));
   } else {
-    Either.R(InvalidOperationError.IntegerOverflow);
+    Error(InvalidOperationError.IntegerOverflow);
   };
 let int_divide = (x, y) =>
   if (Bigint.equal(y, Bigint.zero)) {
-    Either.R(InvalidOperationError.DivideByZero);
+    Error(InvalidOperationError.DivideByZero);
   } else {
-    Either.L(Bigint.(/)(x, y));
+    Ok(Bigint.(/)(x, y));
   };
 let sint_divide = (x, y) =>
   if (Bigint.equal(y, Bigint.zero)) {
-    Either.R(InvalidOperationError.DivideByZero);
+    Error(InvalidOperationError.DivideByZero);
   } else {
     /* truncated toward zero, as Int's; the one quotient too big is the
        least SInt by -1 */
@@ -450,7 +450,7 @@ let op_name = (op: op_bin): string =>
 let builtins = {
   Atom.(
     all_of_op_bin
-    |> List.filter_map(op =>
+    |> List.filter_map(~f=op =>
          switch (semantics_of_bin_op(op)) {
          | Undefined(_) => None
          | DefinedPoly(_) => None
