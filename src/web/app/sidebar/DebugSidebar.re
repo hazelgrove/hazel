@@ -66,7 +66,7 @@ let copy_button = (on_copy: unit => Effect.t(unit)): Node.t =>
     ~attrs=[
       clss(["debug-copy-button"]),
       Attr.title("Copy to clipboard"),
-      Attr.on_click(_ => on_copy()),
+      Attr.on_click_js_of_ocaml(_ => on_copy()),
     ],
     [text({|⧉|})],
   );
@@ -105,7 +105,7 @@ let section =
     div(
       ~attrs=[
         clss(["debug-section-title"]),
-        Attr.on_click(_ =>
+        Attr.on_click_js_of_ocaml(_ =>
           globals.inject_global(Set(Sidebar(ToggleDebugExpanded(title))))
         ),
       ],
@@ -162,7 +162,7 @@ let field_collapsible =
     span(
       ~attrs=[
         clss(["debug-field-chevron"]),
-        Attr.on_click(_ =>
+        Attr.on_click_js_of_ocaml(_ =>
           globals.inject_global(Set(Sidebar(ToggleDebugExpanded(label))))
         ),
       ],
@@ -722,7 +722,7 @@ let toggle_bar = (~globals: Globals.t): Node.t => {
       div(
         ~attrs=[
           clss(["debug-toggle-button"]),
-          Attr.on_click(on_click),
+          Attr.on_click_js_of_ocaml(on_click),
           Attr.title("Toggle between rendered code and raw `show` output"),
         ],
         [text(raw ? "Show rendered" : "Show raw")],

@@ -40,7 +40,7 @@ let find_anchor = (a: anchor): option(Js.t(Dom_html.element)) =>
 
 let rect_of = (el: Js.t(Dom_html.element)): (float, float, float) => {
   let r = el##getBoundingClientRect;
-  (r##.top, r##.left, r##.right);
+  (Js.to_float(r##.top), Js.to_float(r##.left), Js.to_float(r##.right));
 };
 
 let capture =
@@ -81,18 +81,18 @@ let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
       let main_rect = main##getBoundingClientRect;
       let vp_left = main_rect##.left;
       let vp_right = main_rect##.right;
-      let width = vp_right -. vp_left;
+      let width = Js.to_float(vp_right) -. Js.to_float(vp_left);
       let pad = 16.;
       let lookahead = width *. 0.10;
-      let el_width = el_rect##.right -. el_rect##.left;
+      let el_width = Js.to_float(el_rect##.right) -. Js.to_float(el_rect##.left);
       let m = Float.max(pad, Float.min(lookahead, width -. el_width -. pad));
       let delta =
         if (el_width > width -. 2. *. pad) {
-          el_rect##.left -. (vp_left +. pad);
-        } else if (el_rect##.left < vp_left +. m) {
-          el_rect##.left -. (vp_left +. m);
-        } else if (el_rect##.right > vp_right -. m) {
-          el_rect##.right -. (vp_right -. m);
+          Js.to_float(el_rect##.left) -. (Js.to_float(vp_left) +. pad);
+        } else if (el_rect##.left < Js.float(Js.to_float(vp_left) +. m)) {
+          Js.to_float(el_rect##.left) -. (Js.to_float(vp_left) +. m);
+        } else if (el_rect##.right > Js.float(Js.to_float(vp_right) -. m)) {
+          Js.to_float(el_rect##.right) -. (Js.to_float(vp_right) -. m);
         } else {
           0.;
         };

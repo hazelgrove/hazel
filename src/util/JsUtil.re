@@ -46,7 +46,7 @@ let date_now = () => {
   [%js new Js.date_now];
 };
 
-let timestamp = () => date_now()##valueOf;
+let timestamp = () => Js.to_float(date_now()##valueOf);
 
 let precise_timestamp = () => Js.Unsafe.global##.performance##now()##valueOf;
 
@@ -231,7 +231,7 @@ let show_copy_toast = (): unit => {
           Js.wrap_callback(() => {
             toast##.classList##remove(Js.string("show"))
           }),
-          2000.0,
+          Js.float(2000.0),
         ),
       );
     },
@@ -263,7 +263,8 @@ module ClipboardHandler = {
       | Read_text: t(string)
       | Write_text(string): t(unit);
   };
-  let handle = (type a, action: Action.t(a), ~on_response: a => unit) =>
+  let handle =
+      (type a, action: Action.t(a), ~on_response: a => unit, ~on_exn as _) =>
     switch (action) {
     | Read_text =>
       let cb = Js.wrap_callback(text => on_response(Js.to_string(text)));
@@ -297,7 +298,7 @@ let sync_at_bottom_class = (evt: Js.t(Dom_html.event)): unit =>
   | Some(el) =>
     /* Tolerance: scrollTop is truncated from a sub-pixel position. */
     let at_bottom =
-      el##.scrollTop + el##.clientHeight >= el##.scrollHeight - 2;
+      int_of_float(Js.to_float(el##.scrollTop)) + el##.clientHeight >= el##.scrollHeight - 2;
     if (at_bottom) {
       el##.classList##add(Js.string("at-bottom"));
     } else {
@@ -387,9 +388,9 @@ let find_ancestor_with_class =
 
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
   if (delta != 0.) {
-    let current = float_of_int(container##.scrollTop);
+    let current = float_of_int(int_of_float(Js.to_float(container##.scrollTop)));
     let target = current +. delta;
-    container##.scrollTop := int_of_float(target);
+    container##.scrollTop := Js.float(target);
   };
 
 /* Scroll vertically so that el_rect is visible within the container,
@@ -400,13 +401,13 @@ let scroll_vertically_into_view =
   let container_rect = container##getBoundingClientRect;
   let margin_ratio = 0.10;
   let margin_px =
-    Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
-  let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
+    Js.to_float(container_rect##.height) *. margin_ratio;
+  let top_gap = Js.to_float(el_rect##.top) -. (Js.to_float(container_rect##.top) +. margin_px);
   if (top_gap < 0.) {
     adjust_scroll(container, top_gap);
   } else {
     let bottom_gap =
-      el_rect##.bottom -. (container_rect##.bottom -. margin_px);
+      Js.to_float(el_rect##.bottom) -. (Js.to_float(container_rect##.bottom) -. margin_px);
     if (bottom_gap > 0.) {
       adjust_scroll(container, bottom_gap);
     };
@@ -442,7 +443,7 @@ let caret_in_view = (): bool =>
       | Some(container) =>
         let c = container##getBoundingClientRect;
         (c##.top, c##.bottom);
-      | None => (0., float_of_int(Dom_html.window##.innerHeight))
+      | None => (Js.float(0.), Js.float(float_of_int(Dom_html.window##.innerHeight)))
       };
     rect##.bottom > top && rect##.top < bottom;
   };
@@ -468,7 +469,7 @@ let scroll_cursor_into_view_if_needed = () =>
 let main_scroll_top = (): float =>
   try({
     let main = get_elem_by_id("main");
-    float_of_int(main##.scrollTop);
+    float_of_int(int_of_float(Js.to_float(main##.scrollTop)));
   }) {
   | Assert_failure(_) => 0.
   };
@@ -476,7 +477,7 @@ let main_scroll_top = (): float =>
 let set_main_scroll_top = (top: float) =>
   try({
     let main = get_elem_by_id("main");
-    main##.scrollTop := int_of_float(top);
+    main##.scrollTop := Js.float(top);
   }) {
   | Assert_failure(_) => ()
   };
@@ -528,7 +529,7 @@ let delay = (delay: float, callback: unit => unit) => {
   let _ =
     Js_of_ocaml.Dom_html.window##setTimeout(
       Js.wrap_callback(callback),
-      delay,
+      Js.float(delay),
     );
   ();
 };
@@ -645,8 +646,8 @@ let font_metrics_from_specimen = (): (float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    let col_width = max(1.0, Js.to_float(rect##.right) -. Js.to_float(rect##.left));
+    let row_height = max(1.0, Js.to_float(rect##.bottom) -. Js.to_float(rect##.top));
     (col_width, row_height);
   | None => (10.0, 10.0)
   };
@@ -658,8 +659,7 @@ let on_dpr_change = (callback: unit => unit): unit => {
   let rec listen = () => {
     let dpr: float =
       Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
-      |> Js.float_of_number
-      |> Js.to_float;
+      |> Js.float_of_number;
     let query = Printf.sprintf("(resolution: %fdppx)", dpr);
     let mql =
       Js.Unsafe.meth_call(

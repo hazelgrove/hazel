@@ -173,7 +173,7 @@ let start_eval_timeout = latest => {
             },
           )
         ),
-        float_of_int(eval_timeout_ms),
+        Js.float(float_of_int(eval_timeout_ms)),
       ),
     );
 };
@@ -201,7 +201,7 @@ let rec start_ack_timeout = (~cold_start, latest) => {
             }
           )
         ),
-        float_of_int(duration),
+        Js.float(float_of_int(duration)),
       ),
     );
 };

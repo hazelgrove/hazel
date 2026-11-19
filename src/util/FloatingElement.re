@@ -123,7 +123,7 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | Some("bottom") => rect##.bottom
         | _ => rect##.top
         };
-      let raw_top = base_top +. local_top;
+      let raw_top = Js.to_float(base_top) +. local_top;
       /* Raised completion flags stay in the viewport while their pole
          still reaches a visible caret. Other floating elements opt out. */
       let min_top =
@@ -143,10 +143,10 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let visible =
         switch (min_top, get_data_string(el, "local-bottom")) {
         | (Some(y), Some(bottom)) =>
-          base_top +. float_of_string(bottom) >= y
+          Js.to_float(base_top) +. float_of_string(bottom) >= y
         | _ => true
         };
-      let viewport_left = rect##.left +. local_left;
+      let viewport_left = Js.to_float(rect##.left) +. local_left;
       el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
       el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");

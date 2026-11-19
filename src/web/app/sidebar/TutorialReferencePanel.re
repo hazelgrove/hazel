@@ -87,14 +87,14 @@ let console_header = (~explain_this_inject): Node.t => {
       span(
         ~attrs=
           [clss(["mode-label"] @ (is_ref ? ["active"] : ["inactive"]))]
-          @ (is_ref ? [] : [Attr.on_pointerdown(switch_to(false))]),
+          @ (is_ref ? [] : [Attr.on_pointerdown_js_of_ocaml(switch_to(false))]),
         [text("Reference")],
       ),
       span(~attrs=[clss(["mode-separator"])], [text(" / ")]),
       span(
         ~attrs=
           [clss(["mode-label"] @ (is_ref ? ["inactive"] : ["active"]))]
-          @ (is_ref ? [Attr.on_pointerdown(switch_to(true))] : []),
+          @ (is_ref ? [Attr.on_pointerdown_js_of_ocaml(switch_to(true))] : []),
         [text("Console")],
       ),
     ],

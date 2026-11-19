@@ -41,8 +41,8 @@ module Js = {
     {
       top: container_rect##.top,
       left: container_rect##.left,
-      height: Js.Optdef.get(container_rect##.height, _ => 0.0),
-      width: Js.Optdef.get(container_rect##.width, _ => 0.0),
+      height: Js.to_float(container_rect##.height),
+      width: Js.to_float(container_rect##.width),
     };
   };
 

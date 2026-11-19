@@ -483,7 +483,7 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
          ),
   };
 };
-let stitch_term = Core.Memo.general(stitch_term);
+let stitch_term = Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, stitch_term);
 
 let prelude_key = "prelude";
 let setup_key = "setup";

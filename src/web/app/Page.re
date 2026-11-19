@@ -750,7 +750,7 @@ module View = {
       Key.listener(~f=handle_key_event),
       /* A press on plain text leaves focus on #page itself. Don't move it
          on from here: that would cancel the text selection being started. */
-      Attr.on_blur(_ =>
+      Attr.on_blur_js_of_ocaml(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
           : Effect.Ignore
@@ -1005,7 +1005,7 @@ module View = {
             [Editors.Model.mode_string(editors)]
             @ Editors.Model.extra_main_classes(editors),
           ),
-          Attr.on_scroll(on_scroll),
+          Attr.on_scroll_js_of_ocaml(on_scroll),
         ],
         editors_view,
       ),

@@ -133,8 +133,8 @@ module View = {
         ~attrs=[
           Attr.value(model.filter |> Calc.get_value),
           Attr.placeholder("search assumptions..."),
-          Attr.on_focus(_ => take_focus()),
-          Attr.on_input((_, s) => inject(SetFilter(s))),
+          Attr.on_focus_js_of_ocaml(_ => take_focus()),
+          Attr.on_input_js_of_ocaml((_, s) => inject(SetFilter(s))),
         ],
         (),
       ),

@@ -445,7 +445,7 @@ let view =
               ~attrs=[
                 Attr.class_("pin-icon"),
                 Attr.title("Click to unpin"),
-                Attr.on_pointerdown(evt =>
+                Attr.on_pointerdown_js_of_ocaml(evt =>
                   Effect.Many([
                     Effect.Stop_propagation,
                     unpin(~globals, ps, evt),
@@ -473,7 +473,7 @@ let view =
           ~attrs=[
             Attr.classes(entry_classes),
             Attr.title(entry_tooltip),
-            Attr.on_pointerdown(on_entry_click),
+            Attr.on_pointerdown_js_of_ocaml(on_entry_click),
           ],
           pin_icon @ [text(display_text)],
         );
@@ -569,7 +569,7 @@ let view =
               ~attrs=[
                 Attr.classes(["breadcrumb-body", "ghost"]),
                 Attr.title("Jump to function body"),
-                Attr.on_pointerdown(on_body_click),
+                Attr.on_pointerdown_js_of_ocaml(on_body_click),
               ],
               [text({js|●|js})],
             ),
@@ -584,7 +584,7 @@ let view =
         ~attrs=[
           Attr.classes(["clear-all"]),
           Attr.title("Remove all probes"),
-          Attr.on_pointerdown(_
+          Attr.on_pointerdown_js_of_ocaml(_
             /* also switch auto-probe off, else the auto system repopulates
                the probes we just cleared */
             =>
@@ -601,7 +601,7 @@ let view =
       ~attrs=[
         Attr.id("sample-focus-bar"),
         Attr.tabindex(0),
-        Attr.on_keydown(
+        Attr.on_keydown_js_of_ocaml(
           key_handler(~globals, ~index, ~max_index, ~call_stack, ~info_map),
         ),
       ],

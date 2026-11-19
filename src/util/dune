@@ -2,7 +2,8 @@
  (name util)
  (libraries
   ptmap
-  bonsai.web
+  bonsai_web
+  bonsai_web.proc
   virtual_dom.input_widgets
   bignum
   uuidm

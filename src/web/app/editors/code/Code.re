@@ -14,7 +14,7 @@ let is_ref = (token: string, sort: Sort.t) =>
   && Token.is_typ_var(token);
 
 let of_delim' =
-  Core.Memo.general(
+  Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, 
     ~cache_size_bound=10000,
     (
       token: string,
@@ -62,7 +62,7 @@ let of_delim' =
   );
 
 let secondary_text =
-  Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
+  Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, ~cache_size_bound=10000, (cls, str) =>
     span_c(cls, [text(str)])
   );
 
@@ -74,7 +74,7 @@ let comment_text = (~font_metrics: FontMetrics.t, cls, str) =>
     : span_c(cls, GraphemeView.render(~font_metrics, str));
 
 let whitespace_token =
-  Core.Memo.general(~cache_size_bound=10000, (row, col) =>
+  Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, ~cache_size_bound=10000, (row, col) =>
     String.make(row, '\n') ++ String.make(col, ' ')
   );
 

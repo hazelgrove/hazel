@@ -451,7 +451,7 @@ let post_reuse_plan = (model, request: Request.t) =>
 /* Dom_html.window is unavailable in a worker, so go through the global
  * object for setTimeout. */
 let schedule_async = callback =>
-  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
+  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), Js.float(0.)));
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {

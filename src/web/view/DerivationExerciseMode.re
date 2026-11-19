@@ -636,7 +636,7 @@ module NinjaKeys = {
       let rule = Option.get(RuleImage.to_rule(M.rule_set, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
-        Ui_effect.Expert.handle(M.schedule_action(Refresh));
+        Ui_effect.Expert.handle(~on_exn=raise, M.schedule_action(Refresh));
       };
       let* origin = opt_get_origin();
       let _ = try_remove_copied(ev);
@@ -700,7 +700,7 @@ module NinjaKeys = {
          val section = Js.Optdef.option(Some(show_kind(of_kind(rule))));
          val handler =
            () =>
-             Ui_effect.Expert.handle(
+             Ui_effect.Expert.handle(~on_exn=raise, 
                M.schedule_action(
                  MapEditor(
                    DerivationExercise.switch_rule(
@@ -783,7 +783,7 @@ module View = {
       div(
         ~attrs=[
           Attr.class_("add-premise-btn"),
-          Attr.on_click(_ =>
+          Attr.on_click_js_of_ocaml(_ =>
             inject(MapEditor(DerivationExercise.add_premise(~pos, ~index)))
           ),
         ],
@@ -1081,7 +1081,7 @@ module View = {
       div(
         ~attrs=[
           Attr.class_("add-abbr-btn"),
-          Attr.on_click(_ =>
+          Attr.on_click_js_of_ocaml(_ =>
             inject(MapEditor(DerivationExercise.add_abbr(~index)))
           ),
         ],
@@ -1206,7 +1206,7 @@ module View = {
             ~attrs=[
               Attr.class_("rule-set-select"),
               Attr.title("Toggle Rule Set"),
-              Attr.on_change((_, name) => {
+              Attr.on_change_js_of_ocaml((_, name) => {
                 let rule_set = RuleImage.rule_set_of_string(name);
                 inject(
                   MapEditor(

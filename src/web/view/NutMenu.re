@@ -38,7 +38,7 @@ let submenu = (~tooltip, ~icon, menu) =>
   div(
     ~attrs=[
       clss([item_class]),
-      Attr.on_mouseleave(evt => {
+      Attr.on_mouseleave_js_of_ocaml(evt => {
         switch (Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget)) {
         | None => ()
         | Some(item) =>

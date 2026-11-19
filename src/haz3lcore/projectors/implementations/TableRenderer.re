@@ -356,7 +356,7 @@ let render =
          * click-outside detection so opening + closing both flow
          * through ShowMenu, letting it toggle the same column. */
         Attr.classes(["icon", "closure-nav-button", "menu-trigger"]),
-        Attr.on_click(_ => local(ShowMenu(i))),
+        Attr.on_click_js_of_ocaml(_ => local(ShowMenu(i))),
         Attr.title("Column options"),
       ],
       [Node.text("⋮")],
@@ -450,7 +450,7 @@ let render =
         Node.th(
           ~attrs=[
             Attr.classes(["add-column-header"]),
-            Attr.on_click(_ =>
+            Attr.on_click_js_of_ocaml(_ =>
               switch (to_segment(info, [add_column()])) {
               | Some(seg) => parent(SetSyntax(seg))
               | None => Effect.Ignore

@@ -80,7 +80,7 @@ let ensure_timer = () =>
     let id =
       Dom_html.window##setInterval(
         Js.wrap_callback(() => tick()),
-        interval_ms,
+        Js.float(interval_ms),
       );
     timer_id := Some(id);
   };

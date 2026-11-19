@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Web;
+module Bonsai = Bonsai_web_proc.Bonsai;
 open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
@@ -154,15 +155,19 @@ let apply =
 let start = default_model => {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
-    Bonsai.state_machine1(
-      (module CrashHandling.Model),
-      (module CrashHandling.Update),
+    Bonsai.state_machine_with_input(
+      ~sexp_of_model=CrashHandling.Model.sexp_of_t,
+      ~sexp_of_action=CrashHandling.Update.sexp_of_t,
+      ~equal=CrashHandling.Model.equal,
       ~apply_action=
-        (~inject, ~schedule_event, input) => {
-          let schedule_action = x => schedule_event(inject(x));
+        (ctx, input) => {
+          let schedule_event =
+            Bonsai.Apply_action_context.schedule_event(ctx);
+          let schedule_action = x =>
+            schedule_event(Bonsai.Apply_action_context.inject(ctx, x));
           let schedule_autosave = action =>
             switch (input) {
-            | Active((_, alarm_inject)) =>
+            | Bonsai.Computation_status.Active((_, alarm_inject)) =>
               schedule_event(alarm_inject(action))
             | Inactive => ()
             };
@@ -189,7 +194,7 @@ let start = default_model => {
   let%sub () =
     Bonsai.Clock.every(
       ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
-      Core.Time_ns.Span.of_sec(0.1),
+      Bonsai.Value.return(Core.Time_ns.Span.of_sec(0.1)),
       replay_effect,
     );
 
@@ -207,7 +212,8 @@ let start = default_model => {
     /* Note: once Bonsai is threaded through the system, we won't need
        on_change here */
     Bonsai.Edge.on_change(
-      (module BonsaiUtil.SizeObserver.Size),
+      ~sexp_of_model=BonsaiUtil.SizeObserver.Size.sexp_of_t,
+      ~equal=BonsaiUtil.SizeObserver.Size.equal,
       size,
       ~callback=
         app_inject
@@ -266,7 +272,7 @@ let start = default_model => {
         Bonsai.Effect.Many([
           // Initialize state
           Bonsai.Effect.of_sync_fun(
-            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle),
+            on_startup(x => x |> app_inject |> Bonsai.Effect.Expert.handle(~on_exn=raise)),
             (),
           ),
           // Initialize evaluation on a worker
@@ -328,7 +334,7 @@ let start = default_model => {
         ProbeStagger.update(~font_metrics);
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
-          app_inject(a) |> Bonsai.Effect.Expert.handle
+          app_inject(a) |> Bonsai.Effect.Expert.handle(~on_exn=raise)
         );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();

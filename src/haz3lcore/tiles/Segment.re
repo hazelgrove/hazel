@@ -793,7 +793,7 @@ and remold_mpat = (shape, seg: t): t =>
     }
   };
 
-/* Note: This was previously memoized via Core.Memo.general(~cache_size_bound=10000, ...).
+/* Note: This was previously memoized via Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly,~cache_size_bound=10000, ...).
    The ~sort parameter (added for Mod/Sig grout precedence) broke the single-arg cache.
    Memoization is likely not a net win here anyway: the cache key is a full segment list
    (expensive structural comparison) and segments change on every edit, so hit rates

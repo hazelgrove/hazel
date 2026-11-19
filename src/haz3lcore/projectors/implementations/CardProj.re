@@ -145,7 +145,7 @@ module Singleton = {
             }
           ),
         ),
-        Attr.on_mousedown(on_mousedown),
+        Attr.on_mousedown_js_of_ocaml(on_mousedown),
       ],
       [
         switch (mode) {
@@ -197,7 +197,7 @@ module CardInHand = {
             }
           ),
         ),
-        Attr.on_mousedown(on_mousedown),
+        Attr.on_mousedown_js_of_ocaml(on_mousedown),
       ],
       [
         switch (mode) {

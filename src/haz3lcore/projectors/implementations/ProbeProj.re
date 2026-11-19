@@ -407,8 +407,8 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   switch (text_box) {
   | None => None
   | Some(text_box) =>
-    let x_rel = of_int(e##.clientX) -. text_box##getBoundingClientRect##.left;
-    let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
+    let x_rel = of_int(int_of_float(Js.to_float(e##.clientX))) -. Js.to_float(text_box##getBoundingClientRect##.left);
+    let y_rel = of_int(int_of_float(Js.to_float(e##.clientY))) -. Js.to_float(text_box##getBoundingClientRect##.top);
     let row = to_int(y_rel /. row_height);
     let col = to_int(round(x_rel /. col_width));
     Some({
@@ -711,16 +711,16 @@ let value_view =
         @ (Option.is_some(ap_id) ? ["ap"] : [])
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
-      Attr.on_double_click(_ =>
+      Attr.on_double_click_js_of_ocaml(_ =>
         ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
-      Attr.on_contextmenu(evt =>
+      Attr.on_contextmenu_js_of_ocaml(evt =>
         Key.ctrl_held(evt)
           ? Effect.Ignore
           : Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
       ),
-      Attr.on_pointerdown(evt => {
+      Attr.on_pointerdown_js_of_ocaml(evt => {
         let button: int = Js.Unsafe.coerce(evt)##.button;
         let alt = Js.to_bool(Js.Unsafe.coerce(evt)##.altKey);
         let ctrl = Key.ctrl_held(evt);
@@ -748,8 +748,8 @@ let value_view =
                     ])
                   : val_pointerdown(evt);
       }),
-      Attr.on_pointerup(val_pointerup),
-      Attr.on_mousemove(val_mousemove),
+      Attr.on_pointerup_js_of_ocaml(val_pointerup),
+      Attr.on_mousemove_js_of_ocaml(val_mousemove),
     ],
     {
       /* rich content renders INSIDE the sample chip, inert
@@ -964,7 +964,7 @@ let pin_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_pinned ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_
+      Attr.on_pointerdown_js_of_ocaml(_
         /* Stop propagation: Pin can reorder the refractor list, invalidating
            the wrapper's render-time Focus idx. */
         => Effect.Many([Effect.Stop_propagation, pin_call(ctx)])),
@@ -983,7 +983,7 @@ let focus_action = (ctx: probe_ctx, sample: Sample.t) => {
       Attr.classes(
         ["action-item", "pin-action"] @ (is_focused ? ["pinned"] : []),
       ),
-      Attr.on_pointerdown(_
+      Attr.on_pointerdown_js_of_ocaml(_
         /* Stop propagation: see pin_action above */
         => Effect.Many([Effect.Stop_propagation, focus_call(ctx)])),
     ],
@@ -998,7 +998,7 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
   div(
     ~attrs=[
       Attr.classes(["action-item", "step-into-action"]),
-      Attr.on_pointerdown(_
+      Attr.on_pointerdown_js_of_ocaml(_
         /* Stop propagation so the wrapper's Focus doesn't move the cursor
            back after we jump. */
         =>
@@ -1026,7 +1026,7 @@ let rich_probe_action =
   div(
     ~attrs=[
       Attr.classes(["action-item", "rich-probe-action"]),
-      Attr.on_pointerdown(_
+      Attr.on_pointerdown_js_of_ocaml(_
         /* Stop propagation so the wrapper's Focus doesn't also fire. */
         =>
           Effect.Many([
@@ -1428,7 +1428,7 @@ let ellipsis_view = (local): Node.t =>
   div(
     ~attrs=[
       Attr.classes(["ellipsis"]),
-      Attr.on_double_click(_ => local(ToggleWindowMode)),
+      Attr.on_double_click_js_of_ocaml(_ => local(ToggleWindowMode)),
     ],
     [text("⋯")],
   );
@@ -1449,7 +1449,7 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "hidden-by-pin"]),
         Attr.title("Samples hidden by pin — click to unpin"),
-        Attr.on_pointerdown(_ => ctx.parent(SampleFocus(Reset))),
+        Attr.on_pointerdown_js_of_ocaml(_ => ctx.parent(SampleFocus(Reset))),
       ],
       [text("⍟")] //📌◌🔒
     )
@@ -1458,8 +1458,8 @@ let empty_status_view =
       ~attrs=[
         Attr.classes(["empty-status", "not-aligned"]),
         Attr.title("Samples not aligned with focus — click to align"),
-        Attr.on_pointerdown(mv_least_distant_sample(ctx)),
-        Attr.on_double_click(_ =>
+        Attr.on_pointerdown_js_of_ocaml(mv_least_distant_sample(ctx)),
+        Attr.on_double_click_js_of_ocaml(_ =>
           ctx.auto_rich_ready
             ? local(ToggleAutoRich) : local(ToggleWindowMode)
         ),
@@ -1558,8 +1558,8 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
      * doesn't fall through to the editor and move the caret. */
     let event_attrs =
       disabled
-        ? [Attr.on_pointerdown(_ => Effect.Stop_propagation)]
-        : [Attr.on_click(_ => move_cursor(ctx, offset))];
+        ? [Attr.on_pointerdown_js_of_ocaml(_ => Effect.Stop_propagation)]
+        : [Attr.on_click_js_of_ocaml(_ => move_cursor(ctx, offset))];
     Node.create_svg(
       "g",
       ~attrs=
@@ -1577,7 +1577,7 @@ let nav_bar_view = (ctx: probe_ctx, ~num_total, ~show_arrows: bool) => {
       "g",
       ~attrs=[
         Attr.classes(["drawer-mode-toggle"]),
-        Attr.on_pointerdown(_ =>
+        Attr.on_pointerdown_js_of_ocaml(_ =>
           Effect.Many([Effect.Stop_propagation, ctx.local(ToggleDrawerMode)])
         ),
       ],
@@ -2047,7 +2047,7 @@ let live_offside_view =
         is_cursor_aligned ? "true" : "false",
       ),
       Attr.tabindex(0),
-      Attr.on_keydown(key_handler(ctx, ~id, ~drawer_mode_active, local)),
+      Attr.on_keydown_js_of_ocaml(key_handler(ctx, ~id, ~drawer_mode_active, local)),
       Attr.classes(
         base_classes @ (drawer_mode_active ? ["drawer-mode"] : []),
       ),
@@ -2180,7 +2180,7 @@ let rich_drawer_view =
             ~attrs=[
               Attr.classes(["rich-drawer-close"]),
               Attr.title("Close"),
-              Attr.on_click(_ => local(ToggleModal(None))),
+              Attr.on_click_js_of_ocaml(_ => local(ToggleModal(None))),
             ],
             [text("×")],
           ),
@@ -2410,7 +2410,7 @@ module M: Projector = {
             div(
               ~attrs=[
                 Attr.classes(["modal"]),
-                Attr.on_click(_ => Effect.Stop_propagation),
+                Attr.on_click_js_of_ocaml(_ => Effect.Stop_propagation),
               ],
               (
                 model.active_renderer != None
@@ -2419,7 +2419,7 @@ module M: Projector = {
                       ~attrs=[
                         Attr.classes(["modal-close-btn"]),
                         Attr.title("Close"),
-                        Attr.on_click(_ => local(ToggleModal(None))),
+                        Attr.on_click_js_of_ocaml(_ => local(ToggleModal(None))),
                       ],
                       [text("×")],
                     ),

@@ -52,7 +52,8 @@
   ezjs_idb
   workerServer
   bonsai
-  bonsai.web
+  bonsai_web
+  bonsai_web.proc
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander

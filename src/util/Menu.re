@@ -280,7 +280,7 @@ let divider_view = () => Node.div(~attrs=[clss(["menu-divider"])], []);
 /* `on_fire` is invoked at event-firing time, never at render time —
  * critical for callers whose actions carry side-effecting thunks. */
 let pointerdown_attr = (on_fire: unit => Ui_effect.t(unit)) =>
-  Attr.on_pointerdown(_ =>
+  Attr.on_pointerdown_js_of_ocaml(_ =>
     Effect.Many([Effect.Stop_propagation, Effect.Prevent_default, on_fire()])
   );
 
@@ -307,7 +307,7 @@ let row_view =
     };
   let hover_attrs =
     switch (on_hover) {
-    | Some(eff) => [Attr.on_mouseenter(_ => eff)]
+    | Some(eff) => [Attr.on_mouseenter_js_of_ocaml(_ => eff)]
     | None => []
     };
   let children =
@@ -510,10 +510,10 @@ let space_from =
     : available_space => {
   let main = main_viewport_rect();
   {
-    above: anchor_top -. main##.top,
-    below: main##.bottom -. anchor_bot,
-    left: anchor_right -. main##.left,
-    right: main##.right -. anchor_left,
+    above: anchor_top -. Js.to_float(main##.top),
+    below: Js.to_float(main##.bottom) -. anchor_bot,
+    left: anchor_right -. Js.to_float(main##.left),
+    right: Js.to_float(main##.right) -. anchor_left,
   };
 };
 
@@ -530,10 +530,10 @@ let direction_from_elem =
   let rect = elem##getBoundingClientRect;
   let space =
     space_from(
-      ~anchor_top=rect##.top,
-      ~anchor_bot=rect##.bottom,
-      ~anchor_left=rect##.left,
-      ~anchor_right=rect##.right,
+      ~anchor_top=Js.to_float(rect##.top),
+      ~anchor_bot=Js.to_float(rect##.bottom),
+      ~anchor_left=Js.to_float(rect##.left),
+      ~anchor_right=Js.to_float(rect##.right),
     );
   direction_of(~menu_height, ~menu_width, space);
 };

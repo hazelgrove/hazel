@@ -129,7 +129,7 @@ let encoding_toggle = (~globals: Globals.t, e: WorkerServer.encoding): Node.t =>
         ++ name
         ++ " encoding",
       ),
-      Attr.on_click(_ =>
+      Attr.on_click_js_of_ocaml(_ =>
         globals.inject_global(Set(Sidebar(ToggleWorkerEncoding(e))))
       ),
     ],

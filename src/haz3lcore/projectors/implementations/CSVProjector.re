@@ -180,7 +180,7 @@ module M: Projector = {
                       CsvUtil.WithHeaders(
                         CsvUtil.parse_csv_with_headers(content),
                       );
-                    Bonsai.Effect.Expert.handle(
+                    Bonsai.Effect.Expert.handle(~on_exn=raise, 
                       Effect.Many([
                         local(
                           SetFile({
@@ -204,7 +204,7 @@ module M: Projector = {
               [
                 Node.span(
                   ~attrs=[
-                    Attr.on_click(_ => {
+                    Attr.on_click_js_of_ocaml(_ => {
                       Effect.Many([
                         local(Reset),
                         parent(SetSyntax(reset_syntax(info))),
@@ -224,7 +224,7 @@ module M: Projector = {
                     clss(
                       ["toggle-switch"] @ (with_headers ? ["active"] : []),
                     ),
-                    Attr.on_click(_ => {
+                    Attr.on_click_js_of_ocaml(_ => {
                       let csv_data =
                         if (with_headers) {
                           CsvUtil.WithoutHeaders(

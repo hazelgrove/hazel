@@ -288,7 +288,7 @@ let view_wrapper =
        * drag-select interaction from being triggered.
        * However, we let right-clicks bubble through so the
        * context menu can be shown. */
-      Attr.on_pointerdown(evt =>
+      Attr.on_pointerdown_js_of_ocaml(evt =>
         switch (Pointer.Event.mk(evt)) {
         | {button: Right, _} => Effect.Ignore /* Let right-clicks bubble for context menu */
         | _ =>
@@ -349,7 +349,7 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
     ~attrs=[
       Attr.classes(["below-wrapper"]),
       /* Gates the scroll-affordance fade (proj-probe.css .at-bottom). */
-      Attr.on_scroll(evt => {
+      Attr.on_scroll_js_of_ocaml(evt => {
         JsUtil.sync_at_bottom_class(evt);
         Effect.Ignore;
       }),

@@ -360,7 +360,7 @@ module M: Projector = {
             ~attrs=[
               Attr.classes(["keybinding-clear"]),
               Attr.title("Remove this shortcut"),
-              Attr.on_pointerdown(_ =>
+              Attr.on_pointerdown_js_of_ocaml(_ =>
                 Effect.Many([
                   set_binding(info, ~parent, S.Unbound),
                   Effect.Stop_propagation,
@@ -390,18 +390,18 @@ module M: Projector = {
              handle pointerdown too — moving the caret and pulling focus onto
              the cell. No Prevent_default: that would suppress the native
              focus we are relying on. */
-          Attr.on_pointerdown(_ => Effect.Stop_propagation),
-          Attr.on_focus(_ =>
+          Attr.on_pointerdown_js_of_ocaml(_ => Effect.Stop_propagation),
+          Attr.on_focus_js_of_ocaml(_ =>
             Effect.Many([local(StartRecording), Effect.Stop_propagation])
           ),
           /* Clicking away finishes too, writing whatever was captured. */
-          Attr.on_blur(_ =>
+          Attr.on_blur_js_of_ocaml(_ =>
             Effect.Many([
               finish(model, info, ~local, ~parent),
               Effect.Stop_propagation,
             ])
           ),
-          Attr.on_keydown(key_handler(model, info, ~local, ~parent)),
+          Attr.on_keydown_js_of_ocaml(key_handler(model, info, ~local, ~parent)),
         ],
         (),
       );

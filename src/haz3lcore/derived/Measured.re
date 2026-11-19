@@ -477,7 +477,7 @@ let of_segment_inner =
   go(~top_level=true, initial_acc, seg).map;
 };
 
-let of_segment_memo = Core.Memo.general(of_segment_inner);
+let of_segment_memo = Core.Memo.general(~hashable=Core.Hashtbl.Hashable.poly, of_segment_inner);
 
 let of_segment =
     (

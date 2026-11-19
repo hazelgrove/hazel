@@ -70,7 +70,7 @@ module Make = (C: Config) => {
     | Some(on_close) =>
       let now = Js.Unsafe.global##.performance##now();
       if (now -. opened_at^ > 50.0) {
-        Effect.Expert.handle(on_close());
+        Effect.Expert.handle(~on_exn=raise, on_close());
       };
     };
 
@@ -108,7 +108,7 @@ module Make = (C: Config) => {
             ();
           };
         }),
-        0.0,
+        Js.float(0.0),
       );
     ();
   };
@@ -159,7 +159,7 @@ module Make = (C: Config) => {
                 | Some(effect) =>
                   Dom.preventDefault(evt);
                   Dom_html.stopPropagation(evt);
-                  Effect.Expert.handle(effect);
+                  Effect.Expert.handle(~on_exn=raise, effect);
                 | None => ()
                 }
               | _ => ()

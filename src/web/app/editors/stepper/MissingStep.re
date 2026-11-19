@@ -381,8 +381,8 @@ module View = {
         Node.div(
           ~attrs=[
             Attr.classes(["proof-button"]),
-            Attr.on_pointerdown(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
-            Attr.on_click(_ =>
+            Attr.on_pointerdown_js_of_ocaml(_ => Virtual_dom.Vdom.Effect.Stop_propagation),
+            Attr.on_click_js_of_ocaml(_ =>
               Ui_effect.Many([
                 callback,
                 Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -518,7 +518,7 @@ module View = {
             Node.div(
               ~attrs=[
                 Attr.class_("proof-context-box"),
-                Attr.on_pointerdown(_ =>
+                Attr.on_pointerdown_js_of_ocaml(_ =>
                   Virtual_dom.Vdom.Effect.Stop_propagation
                 ),
               ],

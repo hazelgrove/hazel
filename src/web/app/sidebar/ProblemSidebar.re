@@ -135,7 +135,7 @@ let row_view =
     span(
       ~attrs=[
         clss(["problem-row-chevron"]),
-        Attr.on_pointerdown(evt => {
+        Attr.on_pointerdown_js_of_ocaml(evt => {
           Js_of_ocaml.Dom.preventDefault(evt);
           Js_of_ocaml.Dom_html.stopPropagation(evt);
           globals.inject_global(
@@ -154,7 +154,7 @@ let row_view =
     ~attrs=[
       clss(classes),
       /* click, not pointerdown: a drag over the row selects its text */
-      Attr.on_click(jump_to(~globals, jump_id)),
+      Attr.on_click_js_of_ocaml(jump_to(~globals, jump_id)),
       scroll_attr,
     ],
     [chevron] @ line_num @ [content],
@@ -196,7 +196,7 @@ let section_view =
     ~attrs=[clss(["problem-section", cls])],
     [
       div(
-        ~attrs=[clss(["problem-section-header"]), Attr.on_click(on_toggle)],
+        ~attrs=[clss(["problem-section-header"]), Attr.on_click_js_of_ocaml(on_toggle)],
         [
           text(collapsed ? "▸ " : "▾ "),
           text(title ++ " (" ++ string_of_int(List.length(items)) ++ ")"),
@@ -253,7 +253,7 @@ let nav_btn =
   div(
     ~attrs=[
       clss(["problem-nav-btn"]),
-      Attr.on_pointerdown(evt => {
+      Attr.on_pointerdown_js_of_ocaml(evt => {
         Js_of_ocaml.Dom.preventDefault(evt);
         globals.inject_global(
           ActiveEditor(Move(Goal(NextProblem(direction)))),
@@ -291,7 +291,7 @@ let view =
             clss(
               ["toggle-option"] @ (problems_settings.flat ? [] : ["active"]),
             ),
-            Attr.on_click(_ =>
+            Attr.on_click_js_of_ocaml(_ =>
               if (problems_settings.flat) {
                 globals.inject_global(Set(Sidebar(Problems(ToggleFlat))));
               } else {
@@ -306,7 +306,7 @@ let view =
             clss(
               ["toggle-option"] @ (problems_settings.flat ? ["active"] : []),
             ),
-            Attr.on_click(_ =>
+            Attr.on_click_js_of_ocaml(_ =>
               if (!problems_settings.flat) {
                 globals.inject_global(Set(Sidebar(Problems(ToggleFlat))));
               } else {
@@ -411,7 +411,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["problem-editor-header"]),
-                  Attr.on_click(_ =>
+                  Attr.on_click_js_of_ocaml(_ =>
                     globals.inject_global(
                       Set(Sidebar(Problems(ToggleEditorCollapsed(label)))),
                     )

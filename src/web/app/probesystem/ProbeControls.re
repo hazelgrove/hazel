@@ -60,7 +60,7 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
     div(
       ~attrs=[
         clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
-        Attr.on_pointerdown(_ =>
+        Attr.on_pointerdown_js_of_ocaml(_ =>
           globals.inject_global(Set(SetAutoprobe(mode)))
         ),
       ],
@@ -96,7 +96,7 @@ let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
     div(
       ~attrs=[
         clss(["segment"] @ (active ? ["active"] : [])),
-        Attr.on_pointerdown(_ => {
+        Attr.on_pointerdown_js_of_ocaml(_ => {
           ProbeProj.Settings.go(ToggleWindow);
           explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
         }),
