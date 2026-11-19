@@ -32,7 +32,7 @@ module Model = {
   [@deriving (sexp, yojson)]
   type t = {model: state};
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let load = () => {model: Logged.Model.load()};
 };
@@ -98,7 +98,7 @@ module Update = {
     | Refresh
     | Start
     | Save =>
-      if (current_exception^ != None) {
+      if (Option.is_some(current_exception^)) {
         model |> Updated.return_quiet;
       } else {
         try({
@@ -118,7 +118,7 @@ module Update = {
           };
         }) {
         | Haz3lcore.Action.Failure.Exception(t) =>
-          Printf.printf(
+          printf(
             "ERROR: Action.Failure: %s\n",
             t |> Haz3lcore.Action.Failure.show,
           );
@@ -128,7 +128,7 @@ module Update = {
           model |> Updated.return_quiet;
         | exn =>
           set_last_exception(exn);
-          let msg = Printexc.to_string(exn);
+          let msg = Exn.to_string(exn);
           print_endline("CrashHandling: Caught exception in update: " ++ msg);
           set_current_exception(Update(msg));
           model |> Updated.return_quiet;
@@ -152,7 +152,7 @@ module Update = {
     }) {
     | exn =>
       set_last_exception(exn);
-      let msg = Printexc.to_string(exn);
+      let msg = Exn.to_string(exn);
       print_endline("CrashHandling: Caught exception in calculate: " ++ msg);
       set_current_exception(Calculate(msg));
       previous_model;
@@ -251,7 +251,7 @@ module View = {
       }) {
       | exn =>
         set_last_exception(exn);
-        let msg = Printexc.to_string(exn);
+        let msg = Exn.to_string(exn);
         set_current_exception(View(msg));
         hsod_view(
           ~title="Exception during View",

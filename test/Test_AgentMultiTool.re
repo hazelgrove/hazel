@@ -35,7 +35,7 @@ let tool_result_names_in_order =
     (model: Agent.Model.t, chat_id: Id.t): list(string) => {
   let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
   Chat.Utils.linearize(chat)
-  |> List.filter_map((m: Message.Model.t) =>
+  |> List.filter_map(~f=(m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr.tool_call.name)
        | _ => None
@@ -47,7 +47,7 @@ let tool_results_in_order =
     (model: Agent.Model.t, chat_id: Id.t): list(AgentToolResult.tool_result) => {
   let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
   Chat.Utils.linearize(chat)
-  |> List.filter_map((m: Message.Model.t) =>
+  |> List.filter_map(~f=(m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr)
        | _ => None
@@ -110,19 +110,25 @@ let test_two_workbench_tools_two_results = () => {
     run_handle_llm_response(reply, ~agent, ~cell_editor, ~settings);
   let names = tool_result_names_in_order(agent', chat_id);
   check(int, "two ToolResult messages", 2, List.length(names));
-  check(string, "first tool name", "unset_active_task", List.nth(names, 0));
+  check(
+    string,
+    "first tool name",
+    "unset_active_task",
+    List.nth_exn(names, 0),
+  );
   check(
     string,
     "second tool name",
     "unset_active_subtask",
-    List.nth(names, 1),
+    List.nth_exn(names, 1),
   );
   /* No API key: dispatch appends settings error, must not chain another LLM response action. */
   let has_llm_response =
     List.exists(
-      fun
-      | Agent.Update.Action.HandleLLMResponse(_) => true
-      | _ => false,
+      ~f=
+        fun
+        | Agent.Update.Action.HandleLLMResponse(_) => true
+        | _ => false,
       scheduled,
     );
   check(
@@ -179,14 +185,19 @@ let test_three_tools_preserve_order = () => {
     run_handle_llm_response(reply, ~agent, ~cell_editor, ~settings);
   let names = tool_result_names_in_order(agent', chat_id);
   check(int, "three ToolResult messages", 3, List.length(names));
-  check(string, "tool 1", "create_new_task", List.nth(names, 0));
+  check(string, "tool 1", "create_new_task", List.nth_exn(names, 0));
   check(
     string,
     "tool 2",
     "mark_active_subtask_complete",
-    List.nth(names, 1),
+    List.nth_exn(names, 1),
   );
-  check(string, "tool 3", "mark_active_task_complete", List.nth(names, 2));
+  check(
+    string,
+    "tool 3",
+    "mark_active_task_complete",
+    List.nth_exn(names, 2),
+  );
 };
 
 let test_invalid_tool_skips_following_tools = () => {
@@ -207,8 +218,8 @@ let test_invalid_tool_skips_following_tools = () => {
     run_handle_llm_response(reply, ~agent, ~cell_editor, ~settings);
   let trs = tool_results_in_order(agent', chat_id);
   check(int, "two ToolResult rows", 2, List.length(trs));
-  let first = List.nth(trs, 0);
-  let second = List.nth(trs, 1);
+  let first = List.nth_exn(trs, 0);
+  let second = List.nth_exn(trs, 1);
   check(string, "first name", "not_a_real_hazel_tool", first.tool_call.name);
   check(bool, "first executed and failed", false, first.success);
   check(bool, "first not skipped", false, first.skipped);
@@ -236,10 +247,10 @@ let test_success_then_fail_then_skip = () => {
     run_handle_llm_response(reply, ~agent, ~cell_editor, ~settings);
   let trs = tool_results_in_order(agent', chat_id);
   check(int, "three ToolResult rows", 3, List.length(trs));
-  check(bool, "first ok", true, List.nth(trs, 0).success);
-  check(bool, "first not skipped", false, List.nth(trs, 0).skipped);
-  check(bool, "second failed", false, List.nth(trs, 1).success);
-  check(bool, "third skipped", true, List.nth(trs, 2).skipped);
+  check(bool, "first ok", true, List.nth_exn(trs, 0).success);
+  check(bool, "first not skipped", false, List.nth_exn(trs, 0).skipped);
+  check(bool, "second failed", false, List.nth_exn(trs, 1).success);
+  check(bool, "third skipped", true, List.nth_exn(trs, 2).skipped);
 };
 
 let test_single_tool_call_regression = () => {
@@ -257,7 +268,7 @@ let test_single_tool_call_regression = () => {
     run_handle_llm_response(reply, ~agent, ~cell_editor, ~settings);
   let names = tool_result_names_in_order(agent', chat_id);
   check(int, "single ToolResult", 1, List.length(names));
-  check(string, "name", "unset_active_task", List.hd(names));
+  check(string, "name", "unset_active_task", List.hd_exn(names));
 };
 
 /* A task with one subtask, active, so tool results can land in it */
@@ -296,7 +307,7 @@ let active_subtask_tool_names =
     | None => fail("no active subtask")
     | Some(subtask) =>
       List.map(
-        (tr: AgentToolResult.tool_result) => tr.tool_call.name,
+        ~f=(tr: AgentToolResult.tool_result) => tr.tool_call.name,
         subtask.tools_used,
       )
     }
@@ -336,11 +347,16 @@ let test_boundary_insert_diff_and_subtask = () => {
     );
   let trs = tool_results_in_order(agent', chat_id);
   check(int, "two ToolResult rows", 2, List.length(trs));
-  let ins = List.nth(trs, 1);
+  let ins = List.nth_exn(trs, 1);
   check(bool, "insert succeeded: " ++ ins.content, true, ins.success);
   switch (ins.diff) {
   | Some({old_text, new_text: Some(new_text)}) =>
-    check(bool, "diff shows the change", true, old_text != new_text)
+    check(
+      bool,
+      "diff shows the change",
+      true,
+      !String.equal(old_text, new_text),
+    )
   | Some({new_text: None, _})
   | None => fail("pathless insert has no diff")
   };
@@ -378,9 +394,9 @@ let test_failed_boundary_insert_has_before_text = () => {
     );
   let trs = tool_results_in_order(agent', chat_id);
   check(int, "one ToolResult row", 1, List.length(trs));
-  let ins = List.hd(trs);
+  let ins = List.hd_exn(trs);
   check(bool, "insert rejected (new static error)", false, ins.success);
-  check(bool, "before_text recorded", true, ins.before_text != None);
+  check(bool, "before_text recorded", true, Option.is_some(ins.before_text));
 };
 
 let tests = [
