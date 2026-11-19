@@ -238,8 +238,7 @@ module Make =
     // This is to prevent replacing an pattern that is not an empty hole
     let* _ = I.is_hole(selected_term) ? Some() : None;
 
-    let+ (term, id, move_left) =
-      I.introduce(Typ.weak_head_normalize(ctx, ty));
+    let+ (term, id, move_left) = I.introduce(MatchedTyp.head(ctx, ty));
 
     let seg =
       I.to_segment(
@@ -278,7 +277,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
       }),
     ) =>
     module IE = Make(IntroduceExp);
-    IE.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    IE.introduce(z, ana, ctx);
 
   | Some(
       InfoPat({
@@ -289,7 +288,7 @@ let introduce = (ci: option(Info.t), z: Zipper.t) => {
       }),
     ) =>
     module IP = Make(IntroducePat);
-    IP.introduce(z, Typ.weak_head_normalize(ctx, ana), ctx);
+    IP.introduce(z, ana, ctx);
   | _ => None
   };
 };
