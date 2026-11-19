@@ -41,9 +41,7 @@ let ctr_ana_typ =
     | List(_)
     | Sum(_)
     | Prod(_)
-    | ExplicitNonlabel
     | Label(_)
-    | TupLabel(_)
     | Parens(_)
     | Projector(_)
     | Rec(_)
