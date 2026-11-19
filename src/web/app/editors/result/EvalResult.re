@@ -302,17 +302,21 @@ module Update = {
           queue_worker({
             expr: elab,
             eval_info_map,
-            prev: prev_incr,
+            /* the mode's queue_worker sets doc */
+            doc: "",
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.evaluate_sync({
-              expr: elab,
-              eval_info_map,
-              prev: prev_incr,
-            })
+            WorkerServer.evaluate_sync(
+              ~prev=prev_incr,
+              {
+                expr: elab,
+                eval_info_map,
+                doc: "",
+              },
+            )
           ) {
           | Ok((exp, state)) =>
             ProgramResult.ResultOk(

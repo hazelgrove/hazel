@@ -9,7 +9,11 @@ module Request = {
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    prev: Language.EvaluatorState.incr_eval,
+    /* The document (slide, tutorial or exercise) the request is for. Keys
+       are positions within a document, so Held keeps a cache per document
+       and key. Empty for a caller with only one document. */
+    [@sexp.default ""] [@yojson.default ""]
+    doc: string,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -229,8 +233,10 @@ let error_response = exn =>
     Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   };
 
-let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+let evaluate_sync =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value)
+    : Response.value => {
+  let Request.{expr, eval_info_map, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -247,6 +253,42 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
   };
 };
 
+/* The incremental cache from each document and key's last finished run.
+   The key's next request evaluates against it; responses leave it out. */
+module Held = {
+  let max_keys = 32;
+  let table: Hashtbl.t((string, key), Language.EvaluatorState.incr_eval) =
+    Hashtbl.create(8);
+
+  let clear = () => Hashtbl.reset(table);
+
+  let find = (~doc: string="", key: key): Language.EvaluatorState.incr_eval =>
+    Hashtbl.find_opt(table, (doc, key))
+    |> Option.value(~default=Language.IncrEval.empty);
+
+  /* Keeps a finished run's cache and returns the response without it. */
+  let keep =
+      (~doc: string="", key: key, response: Response.value): Response.value =>
+    switch (response) {
+    | Ok((result, state)) =>
+      if (Hashtbl.length(table) >= max_keys
+          && !Hashtbl.mem(table, (doc, key))) {
+        Hashtbl.reset(table);
+      };
+      Hashtbl.replace(table, (doc, key), state.incr_eval);
+      Ok((
+        result,
+        {
+          ...state,
+          incr_eval: Language.IncrEval.empty,
+        },
+      ));
+    | Error(_) =>
+      Hashtbl.remove(table, (doc, key));
+      response;
+    };
+};
+
 type evaluation_start =
   | Yielding(Language.Evaluator.yielding_evaluation)
   | CompletedImmediately(Response.value);
@@ -254,6 +296,7 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
+  doc: string,
   remaining: Request.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
@@ -304,10 +347,11 @@ let incremental_min_statics = 2500;
 
 let incremental_min_prev_steps = 100_000;
 
-let wants_incremental = (req_value: Request.value): bool =>
+let wants_incremental =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
   >= incremental_min_statics
-  || req_value.prev.steps >= incremental_min_prev_steps;
+  || prev.steps >= incremental_min_prev_steps;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -318,10 +362,14 @@ let planned_reuse:
   ) =
   ref([]);
 
-let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+let predict_reuse_for_request =
+    (
+      ~prev: Language.EvaluatorState.incr_eval,
+      (key, req_value): (key, Request.value),
+    ) => {
+  let Request.{expr, eval_info_map, _} = req_value;
   let stream =
-    if (!wants_incremental(req_value)) {
+    if (!wants_incremental(~prev, req_value)) {
       Language.IncrEval.empty;
     } else {
       switch (
@@ -364,12 +412,15 @@ let timed_eval: 'a. (unit => 'a) => 'a =
     x;
   };
 
-let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+let start_evaluation =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Request.value)
+    : evaluation_start => {
+  let Request.{expr, eval_info_map, _} = req_value;
   let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
+      ~prev=
+        wants_incremental(~prev, req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       ~reuse_stream=?planned,
@@ -443,7 +494,14 @@ let post_reuse_plan = (model, request: Request.t) =>
     post_message(
       ServerMessage.ReusePlan({
         request_id: request.request_id,
-        initial: List.map(predict_reuse_for_request, request.batch),
+        initial:
+          List.map(
+            ((key, req_value) as item) => {
+              let Request.{doc, _} = req_value;
+              predict_reuse_for_request(~prev=Held.find(~doc, key), item);
+            },
+            request.batch,
+          ),
       }),
     );
   };
@@ -463,12 +521,14 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (timed_eval(() => start_evaluation(req_value))) {
+    let Request.{doc, _} = req_value;
+    let prev = Held.find(~doc, key);
+    switch (timed_eval(() => start_evaluation(~prev, req_value))) {
     | CompletedImmediately(response) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, response), ...completed],
+        [(key, Held.keep(~doc, key, response)), ...completed],
         remaining,
       )
     | Yielding(evaluation) =>
@@ -478,13 +538,14 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           Running({
             request_id,
             key,
+            doc,
             remaining,
             completed,
             evaluation,
           }),
       };
       model;
-    }
+    };
   }
 and begin_latest_batch = model =>
   switch (model.latest_request) {
@@ -499,7 +560,10 @@ and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, response), ...running.completed],
+    [
+      (running.key, Held.keep(~doc=running.doc, running.key, response)),
+      ...running.completed,
+    ],
     running.remaining,
   )
 and plan_latest_batch = model =>
