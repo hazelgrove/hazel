@@ -583,7 +583,7 @@ let test_stitch_term_memo_bounded = () => {
     bool,
     "repeat call returns the cached result",
     true,
-    Web.DerivationExercise.stitch_term(eds) === stitched,
+    phys_equal(Web.DerivationExercise.stitch_term(eds), stitched),
   );
   for (_ in 1 to 8) {
     ignore(Web.DerivationExercise.stitch_term(eds_of_blank_spec()));
@@ -592,7 +592,7 @@ let test_stitch_term_memo_bounded = () => {
     bool,
     "evicted after 8 newer states",
     false,
-    Web.DerivationExercise.stitch_term(eds) === stitched,
+    phys_equal(Web.DerivationExercise.stitch_term(eds), stitched),
   );
 };
 
