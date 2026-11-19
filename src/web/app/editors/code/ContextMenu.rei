@@ -36,6 +36,10 @@ let view:
   (
     ~inject: command => Ui_effect.t(unit),
     ~inject_menu: Model.action => Ui_effect.t(unit),
+    /* The menu sits in the top layer, so it closes itself and owns the
+       document-level key and press listener while it is open. */
+    ~on_close: unit => Ui_effect.t(unit),
+    ~handle_key: string => option(Ui_effect.t(unit)),
     ~syntax: Haz3lcore.CachedSyntax.t,
     ~info_map: Language.Statics.Map.t,
     ~elaborated: Language.TermBase.exp_t,

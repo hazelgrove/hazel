@@ -547,7 +547,7 @@ module Layer = {
   let place = (layer: Js.t(Dom_html.element)): unit =>
     switch (
       Js.Opt.to_option(layer##.parentNode)
-      |> Option.map(n => Js.Opt.to_option(Dom_html.CoerceTo.element(n)))
+      |> Option.map(~f=n => Js.Opt.to_option(Dom_html.CoerceTo.element(n)))
       |> Option.join
     ) {
     | None => ()
@@ -567,7 +567,7 @@ module Layer = {
       let set_px = (name, v) =>
         layer##.style##setProperty(
           Js.string(name),
-          Js.string(Printf.sprintf("%fpx", v)),
+          Js.string(sprintf("%fpx", v)),
           Js.undefined,
         )
         |> ignore;
