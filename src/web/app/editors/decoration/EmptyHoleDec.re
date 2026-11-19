@@ -8,8 +8,12 @@ let path_of_mold = (shape: Grout.shape): list(SvgUtil.Path.cmd) =>
   | Concave => WebUtil.EmptyHole.path_concave
   };
 
+/* One tuple argument, so the memo is keyed on both: memoizing the curried
+   version cached only its partial application on the font metrics. A few
+   entries per zoom level (code and chip metrics, two shapes). */
 let view =
-  Core.Memo.general((font_metrics: FontMetrics.t, shape: Grout.shape) =>
+  Core.Memo.general(
+    ~cache_size_bound=16, ((font_metrics: FontMetrics.t, shape: Grout.shape)) =>
     Node.create_svg(
       "svg",
       ~attrs=[
