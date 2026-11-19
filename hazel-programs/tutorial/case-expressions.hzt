@@ -48,5 +48,16 @@ case current_phase
 | _ => base
 end
 
+@solution
+type MoonPhase = New + Waxing + Full + Waning in
+let base = 250 in
+let current_phase: MoonPhase = Full in
+
+case current_phase
+| New => base + 50
+| Full => base - 30
+| _ => base
+end
+
 @test
 test answer == 220 end
