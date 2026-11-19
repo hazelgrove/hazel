@@ -202,7 +202,7 @@ let tests = (
           bool,
           "undo kept the measured font",
           true,
-          m3.current.globals.font_metrics == fm,
+          FontMetrics.equal(m3.current.globals.font_metrics, fm),
         );
         /* Re-measure (e.g. zoom) while undone: redo keeps the new metrics,
            not the ones the redo entry was taken with */
@@ -216,7 +216,7 @@ let tests = (
           bool,
           "redo kept the re-measured font",
           true,
-          m5.current.globals.font_metrics == fm2,
+          FontMetrics.equal(m5.current.globals.font_metrics, fm2),
         );
       },
     ),
@@ -260,7 +260,11 @@ let tests = (
           bool,
           "undo kept the scrolled range",
           true,
-          m3.current.globals.visible_rows == Some(rows(30, 70)),
+          Option.equal(
+            Globals.VisibleRows.equal,
+            m3.current.globals.visible_rows,
+            Some(rows(30, 70)),
+          ),
         );
       },
     ),
@@ -280,7 +284,12 @@ let tests = (
           apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
         /* Adding a slide is undoable and switches to the new slide */
         let m1 = apply(m0, Editors(Scratch(AddSlide)));
-        check(bool, "switched to another slide", true, key(m1) != key(m0));
+        check(
+          bool,
+          "switched to another slide",
+          true,
+          !String.equal(key(m1), key(m0)),
+        );
         let m2 = apply(m1, Globals(UpdateVisibleRows(rows(30, 70))));
         let m3 = apply(m2, undo);
         check(
@@ -293,7 +302,7 @@ let tests = (
           bool,
           "undo reset the range",
           true,
-          m3.current.globals.visible_rows == None,
+          Option.is_none(m3.current.globals.visible_rows),
         );
       },
     ),
