@@ -11,7 +11,8 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type config_type =
     | ColorScheme
-    | Shortcuts;
+    | Shortcuts
+    | Flags;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -53,6 +54,7 @@ module Model = {
     switch (config_type) {
     | ColorScheme => "Color Scheme"
     | Shortcuts => "Shortcuts"
+    | Flags => "Flags"
     };
   };
 
@@ -72,6 +74,7 @@ module Model = {
     switch (config_type) {
     | ColorScheme => "Colors"
     | Shortcuts => "Shortcuts"
+    | Flags => "Flags"
     };
   };
 
@@ -87,6 +90,7 @@ module Model = {
     switch (config_type) {
     | ColorScheme => ("Colors", ColorConfiguration.source)
     | Shortcuts => ("Shortcuts", ShortcutConfiguration.source)
+    | Flags => ("Flags", FlagsConfiguration.source)
     };
   };
 
@@ -95,6 +99,7 @@ module Model = {
     switch (config_type) {
     | ColorScheme => Some(ColorConfiguration.expected_type)
     | Shortcuts => Some(ShortcutConfiguration.expected_type)
+    | Flags => Some(FlagsConfiguration.expected_type)
     };
 
   let persist = (model: t): persistent => (
@@ -372,6 +377,21 @@ let perform_side_effect =
         ),
       ),
     )
+  | Flags =>
+    FlagsConfiguration.set_hud(FlagsConfiguration.hud_of_value(value))
+  };
+};
+
+/* The Flags slide's switches, before the first frame and in every mode, as
+   the theme is: the user's slide if they have edited it, else the defaults
+   (the HUD off). */
+let apply_flags_at_startup = (): unit => {
+  let (_, slides) = StoreConfig.load();
+  switch (List.assoc_opt(Model.persistence_key(Flags), slides)) {
+  | Some(Some({editor: {zipper, _}, _}: CellEditor.Model.persistent)) =>
+    FlagsConfiguration.set_hud(FlagsConfiguration.hud_of_source(zipper))
+  | Some(None)
+  | None => ()
   };
 };
 
@@ -455,7 +475,8 @@ module Update = {
       ()
     | (ColorScheme, Some(value), _) => apply_color_theme(model, value)
     | (ColorScheme, None, _)
-    | (Shortcuts, _, _) => ()
+    | (Shortcuts, _, _)
+    | (Flags, _, _) => ()
     };
 
   let calculate =
