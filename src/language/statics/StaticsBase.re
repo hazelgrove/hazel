@@ -412,7 +412,7 @@ let elab_ascription_salt = "elab-ascription";
 /* Ascribe `d`, of type `t`, with `t'` when the two differ up to aliases. The
    ascription's id derives from `d`'s, and its type is canonical, like every
    type embedded in an elaboration (see Typ.canonicalize). */
-let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+let ascribe = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   switch (t') {
   | Some({term: Unknown(Internal), _}) => d
   /* Settle the common case before resolving anything: equal types
@@ -430,7 +430,7 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   };
 };
 
-/* What `d` wraps, if `d` is an ascription fresh_ascription inserted. */
+/* What `d` wraps, if `d` is an ascription that `ascribe` inserted. */
 let inserted_ascription = (d: Exp.t): option(Exp.t) =>
   switch (d.term) {
   | Asc(inner, _)

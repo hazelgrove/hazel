@@ -252,10 +252,7 @@ and uexp_to_info_map =
       switch (mismatch) {
       | Some(_) when !Typ.is_syn_plus(ana) =>
         let settled = ana_skip_explicit_nonlabel(ana);
-        (
-          settled,
-          fresh_ascription(ctx, elab_term, elab_syn_ty, Some(settled)),
-        );
+        (settled, ascribe(ctx, elab_term, elab_syn_ty, Some(settled)));
       | _ => (elab_syn_ty, elab_term)
       };
     let self_id = Exp.rep_id(user_term);
@@ -573,7 +570,7 @@ and uexp_to_info_map =
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
       let ds =
         List.map2_exn(es_elabs, syn_tys, ~f=(d, t) =>
-          fresh_ascription(ctx, d, t, meet_ty)
+          ascribe(ctx, d, t, meet_ty)
         );
       let list_syn_ty =
         List(
@@ -619,7 +616,7 @@ and uexp_to_info_map =
       /* `hd` was analyzed against `head_ana_ty` (the element-level ana),
          so `hd.ty` already incorporates ana info at the element level.
          Using it directly as the element type means fresh re-synthesis of
-         the elab_term (which will ana-wrap hd via fresh_ascription below)
+         the elab_term (which will ana-wrap hd via ascribe below)
          agrees with the recorded type. normalize_ctr_type, not full
          normalize: a compact builtin alias (Var("HTML")) must stay compact
          here — full normalization expanded the whole recursive sum PER CONS
@@ -631,15 +628,9 @@ and uexp_to_info_map =
         hd.ty |> Typ.canonicalize(ctx) |> Typ.all_ids_temp;
       let elab_term =
         Cons(
-          hd_elab
-          |> fresh_ascription(
-               ctx,
-               _,
-               hd.elab_syn_ty,
-               Some(inner_elab_syn_ty),
-             ),
+          hd_elab |> ascribe(ctx, _, hd.elab_syn_ty, Some(inner_elab_syn_ty)),
           tl_elab
-          |> fresh_ascription(
+          |> ascribe(
                ctx,
                _,
                tl.elab_syn_ty,
@@ -2468,7 +2459,7 @@ and uexp_to_info_map =
       /* Each branch is cast to the type the branches meet at, so the value
          has that type whichever branch runs. */
       let branch_elab = (branch: Info.exp, elab) =>
-        fresh_ascription(ctx, elab, branch.elab_syn_ty, Some(syn_if));
+        ascribe(ctx, elab, branch.elab_syn_ty, Some(syn_if));
       add(
         ~elab_term=
           If(
@@ -2592,7 +2583,7 @@ and uexp_to_info_map =
       /* Each branch is cast to the type the branches meet at, as for If. */
       let es_elabs =
         List.map2_exn(es, es_elabs, ~f=(e: Info.exp, elab) =>
-          fresh_ascription(ctx, elab, e.elab_syn_ty, Some(syn_ty_match))
+          ascribe(ctx, elab, e.elab_syn_ty, Some(syn_ty_match))
         );
       let elab_term =
         Match(scrut_elab, List.zip_exn(ps_elabs, es_elabs)) |> rewrap;
