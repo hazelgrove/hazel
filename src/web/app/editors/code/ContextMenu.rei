@@ -32,6 +32,16 @@ module WithContext: {
     option(Ui_effect.t(unit));
 };
 
+/** What the menu offers at the caret, its sections joined by dividers, as
+    `view` shows them (for tests: test/Test_Editing.re's Editing.GotoUses). */
+let get_all_items:
+  (
+    ~info_map: Language.Statics.Map.t,
+    ~elaborated: Language.TermBase.exp_t,
+    Haz3lcore.ZipperBase.t
+  ) =>
+  list(Util.Menu.item(command));
+
 let view:
   (
     ~inject: command => Ui_effect.t(unit),

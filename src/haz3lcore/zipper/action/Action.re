@@ -14,7 +14,12 @@ type goal =
   | Hole(Direction.t)
   | NextProblem(Direction.t)
   | TileId([@equal (_, _) => true] Id.t)
-  | BindingSiteOfIndicatedVar;
+  | BindingSiteOfIndicatedVar
+  /* From a definition, its first use; from a use, the next use of the
+     same definition (Uses: the terms whose binding site it is, in the
+     order they appear) */
+  | FirstUseOfIndicatedBinding
+  | NextUseOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type vertical =
