@@ -951,6 +951,17 @@ end|}),
     roundtrip_test({|Forall: simple|}, {|forall a -> 1|}),
     roundtrip_test({|Forall: with spaces|}, {|forall a  ->  1|}),
     roundtrip_test({|Forall: compact|}, {|forall a->1|}),
+    /* restricted forall (where-binder) */
+    roundtrip_test(
+      {|ForallWhere: simple|},
+      {|forall a where a != 0 -> a == a|},
+    ),
+    /* function contract (fun-where binder) */
+    roundtrip_test({|FunWhere: simple|}, {|fun a where a != 0 -> 100 / a|}),
+    roundtrip_test(
+      {|FunWhere: conjunctive guard|},
+      {|fun a where a != 0 && a != 1 -> 100 / a|},
+    ),
     /* material implication */
     roundtrip_test({|Implies: simple|}, {|true ==> false|}),
     roundtrip_test({|Implies: with equalities|}, {|a == b ==> c == d|}),
@@ -2073,14 +2084,26 @@ let pad_ids_tests = (
 /* Expressions embedded in proof steps get the same defensive parens as
    any other expression. Steps inserted by the stepper UI are built, not
    parsed, so they carry no explicit Parens node: `parenthesize` has to
-   descend through the proof to add them, otherwise a `fun`
+   descend through the proof to add them, otherwise a `fun`/`fun where`
    in application-head position reparses as the argument being applied
    inside the body (`(fun x -> 100 / x)(y)` printing as
    `fun x -> 100 / x(y)`). */
-let built_fun_ap = (): Exp.t => {
+let built_fun_ap = (~guard: bool, ()): Exp.t => {
   let body = Test_Evaluator_Prelude.parse_exp({|100 / x|});
   let pat = Pat.fresh(Var("x"));
-  let f = Exp.fresh(Fun(pat, body, None, None));
+  let f =
+    Exp.fresh(
+      Fun(
+        guard
+          ? Pat.fresh(
+              Where(pat, Test_Evaluator_Prelude.parse_exp({|x != 0|})),
+            )
+          : pat,
+        body,
+        None,
+        None,
+      ),
+    );
   Exp.fresh(Ap(Forward, f, Test_Evaluator_Prelude.parse_exp({|y|})));
 };
 
@@ -2128,14 +2151,19 @@ let proof_embedded_paren_tests = {
     "Defensive Parens: Proof-Embedded Expressions",
     [
       proof_paren_test(
+        {|focus selector: fun where in application head|},
+        focus(built_fun_ap(~guard=true, ()), refl),
+        {|theorem t = 1 == 1 proof from (fun x where x != 0 -> 100 / x)(y) do rewrite refl end end in t|},
+      ),
+      proof_paren_test(
         {|focus selector: plain fun in application head|},
-        focus(built_fun_ap(), refl),
+        focus(built_fun_ap(~guard=false, ()), refl),
         {|theorem t = 1 == 1 proof from (fun x -> 100 / x)(y) do rewrite refl end end in t|},
       ),
       proof_paren_test(
-        {|assume hypothesis: fun in application head|},
-        Assume(built_fun_ap(), None, Proof.fresh(EmptyHole)),
-        {|theorem t = 1 == 1 proof assume(fun x -> 100 / x)(y) => ? in t|},
+        {|assume hypothesis: fun where in application head|},
+        Assume(built_fun_ap(~guard=true, ()), None, Proof.fresh(EmptyHole)),
+        {|theorem t = 1 == 1 proof assume(fun x where x != 0 -> 100 / x)(y) => ? in t|},
       ),
       /* A built `Seq` whose left arm is a wrapping form: the wrapping
          form's body slot extends rightward (P.fun_ is looser than P.semi),

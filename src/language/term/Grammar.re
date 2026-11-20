@@ -41,6 +41,8 @@ and exp_term('a) =
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
+  /* `fun p where g -> e` is `Fun(Where(p, g), e)`: a function contract
+     lives on the parameter pattern. See `Where` in `pat_term`. */
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -52,6 +54,8 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), proof_t('a), exp_t('a))
+  /* `forall p where g -> e` is `Forall(Where(p, g), e)`. The checker
+     reads it as `forall p -> g ==> e` (`ProofRule.exp_to_rule`). */
   | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
@@ -96,6 +100,11 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* `p where g`: matches when `p` matches and the boolean `g` holds. `g`
+     sees the bindings to its left in the enclosing pattern, `p`'s
+     included. Matching is structural; `Transition`'s `Match`, `Ap` and
+     `Let` rules evaluate the guard as an ordinary `if`. */
+  | Where(pat_t('a), exp_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -229,7 +238,8 @@ and proof_term('a) =
    * An unresolvable <fact> is marked `UnknownFactReverted`. */
   | Alias(pat_t('a), exp_t('a), proof_t('a))
   /* `generalize x => <proof>`: re-quantify the in-scope variable `x`, so
-   * the sub-proof's goal is `forall x -> G`. Used before `induction` to get
+   * the sub-proof's goal is `forall x -> G` (with `x`'s `where`
+   * restriction back on the binder). Used before `induction` to get
    * quantified induction hypotheses. */
   | Generalize(exp_t('a), proof_t('a))
   /* `revert <exp> => <proof>`: move an in-scope fact back into the goal,
@@ -517,6 +527,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Where(p, g) =>
+          Where(map_pat_annotation(f, p), map_exp_annotation(f, g))
         },
       annotation: new_annotation,
     };
@@ -1058,6 +1070,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
     let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
       term: Asc(p, t),
+      annotation: default_annotation(ann),
+    };
+
+    let where_ = (~ann=?, p, g): pat_t(DefaultAnnotation.t) => {
+      term: Where(p, g),
       annotation: default_annotation(ann),
     };
   };

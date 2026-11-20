@@ -168,12 +168,14 @@ let rec match_exp =
     Some(ctx)
   | (Constructor(_, _), _) => None
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
-    let* alphas' = match_pat(p1, p2);
-    match_exp(alphas' @ alphas, ctx, e1, e2);
+    let* (alphas, ctx) =
+      match_binder(~statics, ~meta, ~defs, alphas, ctx, p1, p2);
+    match_exp(alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
   | (Forall(p1, e1), Forall(p2, e2)) =>
-    let* alphas' = match_pat(p1, p2);
-    match_exp(alphas' @ alphas, ctx, e1, e2);
+    let* (alphas, ctx) =
+      match_binder(~statics, ~meta, ~defs, alphas, ctx, p1, p2);
+    match_exp(alphas, ctx, e1, e2);
   | (Forall(_, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
     // TODO: type alpha equivalence
@@ -311,6 +313,36 @@ let rec match_exp =
 
 and match_any = (_: match_ctx, _: Any.t, _: Any.t): option(unit) => None
 
+/* Match two binder patterns (`fun p where g -> e` is
+   `Fun(Where(p, g), e)`). The top-level `where` guards are expressions, so
+   they are matched here, under the patterns' alphas, where a ctx is in
+   hand; a guarded binder matches only one with a matching guard. Returns
+   the alphas for the binders' scope. */
+and match_binder =
+    (
+      ~statics: ProofStatics.t,
+      ~meta: option(MetaVar.env),
+      ~defs: Environment.t(Exp.t),
+      alphas: alphas,
+      ctx: match_ctx,
+      p_r: Pat.t,
+      p: Pat.t,
+    )
+    : option((alphas, match_ctx)) => {
+  let (p_r, g_r) = Exp.split_pat_guard(p_r);
+  let (p, g) = Exp.split_pat_guard(p);
+  let* alphas' = match_pat(p_r, p);
+  let alphas = alphas' @ alphas;
+  let+ ctx =
+    switch (g_r, g) {
+    | (None, None) => Some(ctx)
+    | (Some(g_r), Some(g)) =>
+      match_exp(~statics, ~meta, ~defs, alphas, ctx, g_r, g)
+    | _ => None
+    };
+  (alphas, ctx);
+}
+
 and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   switch (pat_r |> Pat.term_of, pat |> Pat.term_of) {
   | (Parens(p1), _)
@@ -319,6 +351,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
   | (Asc(p1, _), _) => match_pat(p1, pat)
   | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  /* Matching a guard would mean matching its expression under the
+     pattern's alphas; until that is needed, a guarded pattern matches
+     nothing. */
+  | (Where(_), _)
+  | (_, Where(_)) => None
   | (Invalid(x), Invalid(y)) when String.equal(x, y) => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

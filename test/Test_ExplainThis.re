@@ -949,6 +949,23 @@ let test_proof_forms_documented = () =>
     Proof.all_of_cls,
   );
 
+/* The two restricted binders are Exp forms, but they are prover syntax. */
+let test_restricted_binders_documented = () => {
+  let ids = () => (Id.mk(), Id.mk(), Id.mk());
+  let (pat_id, guard_id, body_id) = ids();
+  check_doc(
+    ~what="forall where",
+    ~needs_example=true,
+    Web.ForallExp.where_single(~pat_id, ~guard_id, ~body_id),
+  );
+  let (pat_id, guard_id, body_id) = ids();
+  check_doc(
+    ~what="fun where",
+    ~needs_example=true,
+    Web.FunWhereExp.single(~pat_id, ~guard_id, ~body_id),
+  );
+};
+
 /* End-to-end: the cursor inspector's own path. `color_map_of` gives an
    empty color map for plain prose and a populated one for a form whose
    message references its children, so a non-empty map on every InfoProof
@@ -964,7 +981,8 @@ let proof_sources = [
   "theorem t = forall n: Int -> n == 1 ==> n == 1 proof assume n == 1 => from n == 1 do rewrite assume end end in 0",
   "theorem t = forall x -> x == 1 proof have 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
   "theorem t = forall x -> x == 1 proof have h = 1 == 1 proof from 1 == 1 do rewrite refl end end => ? in 0",
-  "theorem inv = forall w -> w / w == 1 proof ? in theorem t = forall n -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end in 0",
+  "theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end in 0",
+  "let f = fun x where x != 0 -> 100 / x in theorem t = forall y -> f(y) == f(y) proof ? in 0",
   "let f = fun x -> x + 1 in theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in theorem g = f(2) == 3 proof from f(2) do rewrite lem with n = 1 end end in 0",
   "let f = fun x -> x + 1 in theorem p = forall n: Int -> n + 0 == n proof ? in theorem g = f(2) == 3 proof revert p with n = 5 => ? in 0",
   "theorem t = forall n: Int -> forall m: Int -> n == n proof cases n > 0 | true => alias hn = case_eq => cases m > 0 | true => revert hn => ? | false => ? end | false => ? end in 0",
@@ -1056,6 +1074,11 @@ let tests = (
       "every prover form has a real message",
       `Quick,
       test_proof_forms_documented,
+    ),
+    Alcotest.test_case(
+      "restricted binders documented",
+      `Quick,
+      test_restricted_binders_documented,
     ),
     Alcotest.test_case(
       "cursor on a proof step gets a real message",

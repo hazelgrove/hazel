@@ -19,18 +19,19 @@ type conclusion =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   bindings: list(Ctx.entry),
-  /* Conditions on the rule, in source order: the peeled top-level `==>`
-   * antecedents (`A ==> B ==> concl` contributes [A, B]). A rule with
-   * assumptions is a conditional rewrite rule; applying it emits each assumption,
+  /* Conditions on the rule, in source order: the `where` guards of
+   * restricted binders followed by the peeled top-level `==>` antecedents
+   * (`A ==> B ==> concl` contributes [A, B]). A rule with assumptions is
+   * a conditional rewrite rule; applying it emits each assumption,
    * instantiated by the match, as an obligation. */
   assumptions: list(Exp.t),
   conclusion,
 };
 
-/* Peel only the outer `forall` binders off a theorem statement,
- * collecting the binders' ctx entries. Returns the remaining core, which
- * may retain `==>` antecedents. */
-let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), Exp.t) =>
+/* Peel only the outer binders (forall / forall-where) off a theorem
+ * statement, collecting the binders' ctx entries and any `where` guards.
+ * Returns the remaining core, which may retain `==>` antecedents. */
+let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), list(Exp.t), Exp.t) =>
   switch (exp |> Exp.term_of) {
   /* A `Parens` from an editor splice must not hide a binder. */
   | Parens(e) => peel_binders(e)
@@ -39,9 +40,15 @@ let rec peel_binders = (exp: Exp.t): (list(Ctx.entry), Exp.t) =>
       SemanticCtx.bind_pattern(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map(~f=(x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
-    let (bindings, core) = peel_binders(e);
-    (bindings' @ bindings, core);
-  | _ => ([], exp)
+    let (bindings, guards, core) = peel_binders(e);
+    /* `forall p where g -> e` is `Forall(Where(p, g), e)`. */
+    let guards =
+      switch (Exp.pat_guard(p)) {
+      | None => guards
+      | Some(g) => [g, ...guards]
+      };
+    (bindings' @ bindings, guards, core);
+  | _ => ([], [], exp)
   };
 
 /* `A ==> B` as `(A, B)`, through parentheses. */
@@ -63,11 +70,11 @@ let exp_to_rule = (exp: Exp.t): t => {
       ([e1, ...assumptions], core);
     | None => ([], exp)
     };
-  let (bindings, core) = peel_binders(exp);
+  let (bindings, guards, core) = peel_binders(exp);
   let (antecedents, conclusion) = peel_implications(core);
   {
     bindings,
-    assumptions: antecedents,
+    assumptions: guards @ antecedents,
     conclusion:
       switch (conclusion |> Exp.term_of) {
       | BinOp(Poly(Equals), e1, e2) => Equality(e1, e2)
@@ -91,22 +98,30 @@ let conclusion_exp = (rule: t): Exp.t =>
  * `e` for it, the semantics of `revert <fact> with x = e`:
  *
  *   `forall x -> B`            ↦  `B[x := e]`
+ *   `forall x where g -> B`    ↦  `g[x := e] ==> B[x := e]`
  *
- * Binders quantified outside `x` stay in place. `None` when no binder in
- * the prefix is named `x`. */
+ * Dropping the `where` restriction would be unsound, so it survives as
+ * an antecedent. Binders quantified outside `x` stay in place. `None`
+ * when no binder in the prefix is named `x`. */
 let rec instantiate_binder = (x: Var.t, e: Exp.t, prop: Exp.t): option(Exp.t) => {
   let subst = (body: Exp.t) =>
     Substitution.in_exp(Environment.of_bindings([(x, e)]), body);
   switch (prop |> Exp.term_of) {
   | Parens(inner) => instantiate_binder(x, e, inner)
   | Forall(pat, body) =>
-    switch (ProofSyntax.pat_to_name(pat)) {
-    | Some(actual) when String.equal(actual, x) => Some(subst(body))
+    let (base, guard) = Exp.split_pat_guard(pat);
+    switch (ProofSyntax.pat_to_name(base)) {
+    | Some(actual) when String.equal(actual, x) =>
+      switch (guard) {
+      | None => Some(subst(body))
+      | Some(g) =>
+        Some(Exp.fresh(BinOp(Bool(Implies), subst(g), subst(body))))
+      }
     | Some(_)
     | None =>
       instantiate_binder(x, e, body)
       |> Option.map(~f=b => Exp.fresh(Forall(pat, b)))
-    }
+    };
   | _ => None
   };
 };
@@ -114,8 +129,8 @@ let rec instantiate_binder = (x: Var.t, e: Exp.t, prop: Exp.t): option(Exp.t) =>
 /* The boolean reading.
  *
  * A rule that holds says its conclusion denotes `true`, so a boolean
- * conclusion `P` (a comparison, a connective, a Bool-typed application)
- * can be read as the equation `P == true`, which
+ * conclusion `P` (a comparison, a connective, a `where` guard, a
+ * Bool-typed application) can be read as the equation `P == true`, which
  * makes it usable as a rewrite rule. So `... ==> (a * b != 0)` needs no
  * trailing `== true`.
  *

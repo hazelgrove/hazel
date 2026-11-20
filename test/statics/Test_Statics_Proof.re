@@ -202,7 +202,7 @@ let tests = (
       {|theorem t = 1 == 1 proof assume 2 == 2 => ? in t|},
       is_expectation_mismatch,
     ),
-    /* --- Implication ------------------------------------------------- */
+    /* --- Implication and restrictions -------------------------------- */
     /* `==>` types Bool × Bool → Bool: boolean operands are fine... */
     expects_no_mark(
       "==> accepts boolean operands",
@@ -214,6 +214,44 @@ let tests = (
       "==> rejects non-boolean operands",
       {|theorem t = 5 ==> true proof ? in t|},
       is_expectation_mismatch,
+    ),
+    /* Restricted binder: the binder is in scope for both the guard and
+       the body, and both analyze against Bool. */
+    expects_no_mark(
+      "forall-where binder scopes over guard and body",
+      {|theorem t = forall x where x == 1 -> x == 1 proof ? in 0|},
+      is_free_var,
+    ),
+    expects_mark(
+      "forall-where guard analyzes against Bool",
+      {|theorem t = forall x where 5 -> x == x proof ? in t|},
+      is_expectation_mismatch,
+    ),
+    /* Function contract: the parameter is in scope for both
+       the guard and the body... */
+    expects_no_mark(
+      "fun-where binder scopes over guard and body",
+      {|let f = fun x where x != 0 -> 100 / x in f(1) == f(1)|},
+      is_free_var,
+    ),
+    /* ...and the guard analyzes against Bool. */
+    expects_mark(
+      "fun-where guard analyzes against Bool",
+      {|let f = fun x where 5 -> x in f(1)|},
+      is_expectation_mismatch,
+    ),
+    expects_no_mark(
+      "fun-where bool guard has no type error",
+      {|let f = fun x where x != 0 -> 100 / x in f(1)|},
+      is_expectation_mismatch,
+    ),
+    /* Peeling a restricted binder installs the guard as a hypothesis
+       (base name "where"): citing it in the proof is not a free
+       hypothesis. */
+    expects_no_mark(
+      "forall-where restriction is citable as `where`",
+      {|theorem t = forall x where x == 1 -> x == 1 proof from x do rewrite where end end in 0|},
+      is_free_hyp,
     ),
     /* --- Proofs are not values ---------------------------------------
        Theorems, axioms and hypotheses live in their own context
@@ -287,9 +325,9 @@ let tests = (
       is_free_hyp,
     ),
     /* --- The facts a split's case installs ---------------------------
-       A case body sees what `ProofCheck.check_split` gives it: in an
-       `induction`, an `ih_<var>` per recursive position, and in a
-       `cases`, the case equation. */
+       A case body sees what `ProofCheck.check_split` gives it: the arm's
+       `where` facts, and in an `induction`, an `ih_<var>` per recursive
+       position, and in a `cases`, the case equation. */
     expects_no_mark(
       "`ih_rest` is in scope in a recursive case",
       snoc_citing("ih_rest"),
@@ -324,6 +362,16 @@ let tests = (
       {|theorem t = forall xs: [Int] -> xs == [] ==> xs == xs proof assume xs == [] => induction xs | [] => from xs do rewrite assume end end | y :: rest => ? end in t|},
       is_free_hyp,
     ),
+    expects_mark(
+      "an `induction` case can't cite a `where` fact about the scrutinee",
+      {|theorem t = forall xs: [Int] where xs == [1] -> xs == xs proof induction xs | [] => from xs do rewrite where end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
+    expects_no_mark(
+      "a `cases` case can cite a `where` fact about the scrutinee",
+      {|theorem t = forall xs: [Int] where xs == [1] -> xs == xs proof cases xs | [] => from xs do rewrite where end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
     expects_no_mark(
       "a `cases` case can cite a fact about the scrutinee",
       {|theorem t = forall xs: [Int] -> xs == [] ==> xs == xs proof assume xs == [] => cases xs | [] => from xs do rewrite assume end end | y :: rest => ? end in t|},
@@ -349,8 +397,29 @@ let tests = (
       is_free_hyp,
     ),
     expects_mark(
+      "generalize hides its variable's `where` restriction",
+      {|theorem t = forall x: Int where x > 0 -> x + 0 == x proof generalize x => revert where => ? in t|},
+      is_free_hyp,
+    ),
+    expects_mark(
       "an unknown name in a case still errors",
       snoc_citing("nosuchfact"),
+      is_free_hyp,
+    ),
+    expects_no_mark(
+      "a case arm's guard is citable as `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => from xs do rewrite where end end | y :: rest => ? end in t|},
+      is_free_hyp,
+    ),
+    /* The last arm is reached only when the guarded arm above failed. */
+    expects_no_mark(
+      "an earlier overlapping arm's negated guard is citable as `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | [] => ? | y :: rest where y > 0 => ? | y :: rest => from xs do rewrite where end end end in t|},
+      is_free_hyp,
+    ),
+    expects_mark(
+      "a constructor-disjoint earlier arm gives no `where`",
+      {|theorem t = forall xs: [Int] -> xs == xs proof induction xs | y :: rest where y > 0 => ? | y :: rest => ? | [] => from xs do rewrite where end end end in t|},
       is_free_hyp,
     ),
     /* --- Other forms that extend a body's scope ---------------------- */

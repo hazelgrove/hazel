@@ -63,15 +63,22 @@ module Status = {
 /* A pending obligation's exits, each a patch to the program text.
  *
  * For a proof step's obligation:
- *   1. Prove here: wrap the proof region in `have <goal> proof ? => …`.
+ *   1. Add to statement: `forall n ->` becomes `forall n where <goal> ->`,
+ *      extending an existing guard with `&&`. Only for the statement's
+ *      binders: on a split case's binder a restriction breaks
+ *      exhaustiveness, so the exit shows disabled, with that reason.
+ *   2. Prove here: wrap the proof region in `have <goal> proof ? => …`.
  *      The obligation is discharged at once by the have's hypothesis, and
  *      the `?` is proved later.
- *   2. Split on it: wrap the region in `cases <goal> | true =>
+ *   3. Split on it: wrap the region in `cases <goal> | true =>
  *      <region> | false => ? end`. The `true` case's equation covers the
  *      obligation; the `false` case is left open.
- * Both are checked before they are offered: the wrapped proof is
+ * Exits 2 and 3 are checked before they are offered: the wrapped proof is
  * checked again, and an exit that would break a step or leave the
- * obligation pending shows disabled. */
+ * obligation pending shows disabled.
+ *
+ * For a function's contract, which no theorem's text can discharge:
+ *   Add to contract: `fun x ->` becomes `fun x where <goal> ->`. */
 module Exits = {
   /* One exit. With no patch it shows disabled, its title saying why. */
   type t = {
@@ -80,13 +87,49 @@ module Exits = {
     patch: option(Haz3lcore.EditorTransform.patch),
   };
 
-  /* The theorem a step's exits patch: they wrap a region of the proof,
-   * checked with the program's statics. */
+  /* The theorem a step's exits patch: exit 1 rewrites a binder of the
+   * statement, exits 2 and 3 wrap a region of the proof, checked with
+   * the program's statics. */
   type ctx = {
+    stmt: option(Exp.t),
     proof: Proof.t,
     proof_map: ProofMap.t,
     info_map: Statics.Map.t,
   };
+
+  /* One theorem-level `forall` binder of the statement, kept whole so the
+   * float patch can rebuild the node in place. */
+  type binder = {
+    /* The Forall node itself: the ExpPatch target. */
+    id: Id.t,
+    pat: Pat.t,
+    guard: option(Exp.t),
+    body: Exp.t,
+    vars: list(Var.t),
+  };
+
+  /* The statement's theorem-level binders, outermost first. Only the
+   * unbroken prefix of `forall`s counts: those are the binders whose
+   * restriction is the public statement's. */
+  let rec binders_of_stmt = (e: Exp.t): list(binder) =>
+    switch (Exp.term_of(e)) {
+    | Forall(p, body) =>
+      /* `forall p where g -> body` is `Forall(Where(p, g), body)`: split
+         the restriction back off the binder's pattern. */
+      let (bare, guard) = Exp.split_pat_guard(p);
+      [
+        {
+          id: Exp.rep_id(e),
+          pat: bare,
+          guard,
+          body,
+          vars: Pat.bound_vars(bare),
+        },
+        ...binders_of_stmt(body),
+      ];
+    | Parens(e') => binders_of_stmt(e')
+    | _ => []
+    };
 
   /* Is `origin` the id of a node in this proof subtree? */
   let rec proof_contains = (~origin: Id.t, p: Proof.t): bool =>
@@ -117,6 +160,137 @@ module Exits = {
       }
     );
 
+  /* Variables bound by split cases on the path from the proof's root
+   * to `origin`: a goal mentioning one can't be added to the statement. A
+   * `forall` step's binder doesn't count: the statement already declares
+   * it. */
+  let rec case_vars_to = (~origin: Id.t, ~acc: list(Var.t), p: Proof.t) =>
+    if (Id.equal(Proof.rep_id(p), origin)) {
+      acc;
+    } else {
+      switch (p.term) {
+      | EmptyHole
+      | Invalid(_)
+      | MultiHole(_)
+      | AxiomStep(_)
+      | AlgebriteStep(_)
+      | EvalStep => acc
+      | Seq(a, b) =>
+        proof_contains(~origin, a)
+          ? case_vars_to(~origin, ~acc, a) : case_vars_to(~origin, ~acc, b)
+      | Focus({body, _})
+      | Parens(body)
+      | Forall(_, body)
+      | Assume(_, _, body)
+      | Generalize(_, body)
+      | Alias(_, _, body)
+      | Revert(_, _, body) => case_vars_to(~origin, ~acc, body)
+      /* Unlike `forall`'s, a `funext` binder is not the statement's: the
+         statement says `f == g`, and `x` exists only inside the step. */
+      | Funext(pat, body) =>
+        case_vars_to(~origin, ~acc=Pat.bound_vars(pat) @ acc, body)
+      | Have(_, _, sub, body) =>
+        proof_contains(~origin, sub)
+          ? case_vars_to(~origin, ~acc, sub)
+          : case_vars_to(~origin, ~acc, body)
+      | Cases(_, cases)
+      | Induction(_, cases) =>
+        switch (
+          List.find(~f=((_, body)) => proof_contains(~origin, body), cases)
+        ) {
+        | Some((pat, body)) =>
+          case_vars_to(~origin, ~acc=Pat.bound_vars(pat) @ acc, body)
+        | None => acc
+        }
+      };
+    };
+
+  /* Where exit 1 adds the goal. */
+  type float_target =
+    /* The innermost theorem binder the goal mentions. */
+    | FloatTo(binder)
+    /* The goal mentions a case-local binder: a restriction there is
+     * unsound, so the exit is disabled with this reason. */
+    | UnsoundAtCase
+    /* The goal mentions this variable, bound inside the statement or by
+     * the proof, which isn't in scope at the statement's binders. */
+    | BoundLater(Var.t)
+    /* No theorem binder is mentioned, so there is nothing to restrict
+     * (ground obligations, or a goal over local definitions only). */
+    | NoBinder;
+
+  /* The names of the variables in `e`. */
+  let variables = (e: Exp.t): list(Var.t) => {
+    let names = ref([]);
+    let _: Exp.t =
+      Exp.map_term(
+        ~f_exp=
+          (continue, e) =>
+            switch (Exp.term_of(e)) {
+            | Var(x) =>
+              names := [x, ...names^];
+              e;
+            | _ => continue(e)
+            },
+        e,
+      );
+    names^;
+  };
+
+  let float_target_of = (~ctx: ctx, ob: Obligation.t): float_target => {
+    let goal = ob.goal;
+    let mentions = (v: Var.t) => Exp.occurs_free_any([v], goal);
+    let case_vars =
+      proof_contains(~origin=ob.origin, ctx.proof)
+        ? case_vars_to(~origin=ob.origin, ~acc=[], ctx.proof) : [];
+    /* Case-scoping wins: even if the goal also mentions a theorem binder,
+     * the restriction would have to hold at the case to be usable there. */
+    /* The proof's own scope, before any of its steps, once it is checked. */
+    let outer =
+      ProofMap.lookup(Proof.rep_id(ctx.proof), ctx.proof_map)
+      |> Option.map(~f=(entry: ProofMap.entry) =>
+           SemanticCtx.get_ctx(entry.ctx)
+         );
+    let in_step_scope = x =>
+      List.exists(
+        ~f=
+          (entry: Ctx.entry) =>
+            switch (entry) {
+            | VarEntry({name, _}) => String.equal(name, x)
+            | ConstructorEntry(_)
+            | TVarEntry(_)
+            | LivelitEntry(_)
+            | TheoremEntry(_) => false
+            },
+        ob.bindings,
+      );
+    let bound_later =
+      Option.bind(outer, ~f=outer =>
+        List.find(
+          ~f=
+            x =>
+              mentions(x)
+              && in_step_scope(x)
+              && Option.is_none(Ctx.lookup_var(outer, x)),
+          variables(goal),
+        )
+      );
+    switch (bound_later) {
+    | _ when List.exists(~f=mentions, case_vars) => UnsoundAtCase
+    | Some(x) => BoundLater(x)
+    | None =>
+      let binders =
+        switch (ctx.stmt) {
+        | Some(stmt) => binders_of_stmt(stmt)
+        | None => []
+        };
+      switch (List.filter(~f=b => List.exists(~f=mentions, b.vars), binders)) {
+      | [] => NoBinder
+      | mentioned => FloatTo(Util.ListUtil.last(mentioned))
+      };
+    };
+  };
+
   /* The goal, fit to write into the program, as in
    * `StepperPicker.Terms.embed_exp`. The goal is a slice of the program
    * and carries its tiles' ids: written in verbatim, one id would land on
@@ -124,7 +298,35 @@ module Exits = {
   let embed_goal = (ob: Obligation.t): Exp.t =>
     ob.goal |> Substitution.in_exp(Environment.empty) |> Exp.replace_all_ids;
 
-  /* The proof region the exits wrap: the whole step chain of the
+  /* `p` restricted by `<goal>`, or with an existing guard `g`, by
+   * `g && <goal>`: a `forall`'s binder or a `fun`'s parameter. */
+  let restrict = (~goal: Exp.t, pat: Pat.t, guard: option(Exp.t)): Pat.t => {
+    let guard =
+      switch (guard) {
+      | None => goal
+      | Some(g) => Exp.fresh(BinOp(Bool(And), g, goal))
+      };
+    Pat.fresh(Where(pat, guard));
+  };
+
+  let float_patch =
+      (~ctx: ctx, ob: Obligation.t): option(Haz3lcore.EditorTransform.patch) =>
+    switch (float_target_of(~ctx, ob)) {
+    | FloatTo(b) =>
+      Some(
+        Haz3lcore.EditorTransform.mk_patch(
+          ~target_id=b.id,
+          Exp.fresh(
+            Forall(restrict(~goal=embed_goal(ob), b.pat, b.guard), b.body),
+          ),
+        ),
+      )
+    | UnsoundAtCase
+    | BoundLater(_)
+    | NoBinder => None
+    };
+
+  /* The proof region exits 2 and 3 wrap: the whole step chain of the
    * innermost scope holding the step that incurred the obligation. It has
    * to be the innermost, or a goal mentioning a case's variable would be
    * wrapped outside the case that binds it. Taking the whole chain keeps
@@ -305,8 +507,38 @@ module Exits = {
           }
         }
       };
+    let float =
+      switch (float_target_of(~ctx, ob)) {
+      | FloatTo(b) => {
+          label: "Add to statement",
+          title:
+            "Restrict the theorem's `forall "
+            ++ String.concat(~sep=", ", b.vars)
+            ++ "` with this condition (changes the statement)",
+          patch: float_patch(~ctx, ob),
+        }
+      | UnsoundAtCase => {
+          label: "Add to statement",
+          title: "Unavailable: a restriction at a case is unsound — it would break exhaustiveness",
+          patch: None,
+        }
+      | BoundLater(x) => {
+          label: "Add to statement",
+          title:
+            "Unavailable: this goal mentions `"
+            ++ x
+            ++ "`, which isn't in scope at the statement's binders",
+          patch: None,
+        }
+      | NoBinder => {
+          label: "Add to statement",
+          title: "Unavailable: this goal mentions no quantified variable of the statement",
+          patch: None,
+        }
+      };
     Obligation.is_pending(ob)
       ? [
+        float,
         wrap(
           ~label="Prove here",
           ~title=
@@ -321,5 +553,41 @@ module Exits = {
         ),
       ]
       : [];
+  };
+
+  /* A contract's one exit. `func` is the function's syntax in the
+   * program being edited, or None when it isn't there (it is defined in
+   * another cell). */
+  let for_contract = (~func: option(Exp.t), ob: Obligation.t): list(t) => {
+    let label = "Add to contract";
+    let exit =
+      switch (func) {
+      | Some({term: Fun(p, body, typ, name), _} as f) =>
+        let (pat, guard) = Exp.split_pat_guard(p);
+        {
+          label,
+          title: "Restrict the function's parameter with this condition (changes its contract)",
+          patch:
+            Some(
+              Haz3lcore.EditorTransform.mk_patch(
+                ~target_id=Exp.rep_id(f),
+                Exp.fresh(
+                  Fun(
+                    restrict(~goal=embed_goal(ob), pat, guard),
+                    body,
+                    typ,
+                    name,
+                  ),
+                ),
+              ),
+            ),
+        };
+      | _ => {
+          label,
+          title: "Unavailable: the function isn't written in this cell",
+          patch: None,
+        }
+      };
+    Obligation.is_pending(ob) ? [exit] : [];
   };
 };

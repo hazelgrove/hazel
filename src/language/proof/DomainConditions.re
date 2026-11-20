@@ -27,7 +27,11 @@ open Util;
  *
  * The scan doesn't descend into `Fun` bodies: a lambda's body doesn't
  * run until applied, and its conditions are phrased in the lambda's own
- * bound variables, which mean nothing to the caller.
+ * bound variables, which mean nothing to the caller. Instead:
+ *   - applying a contract function `Fun(Where(p, g), _)` emits the
+ *     instantiated contract `g[p := arg]`, in the caller's vocabulary;
+ *   - unguarded functions get their body conditions once, at the
+ *     definition (ProofCheck.definition_obligations), not per call.
  *
  * Not covered:
  *   - the `int_of_string` family: the language has no boolean predicate
@@ -38,6 +42,11 @@ open Util;
  *     is emitted.
  *   - mod/conversion builtins applied to a computed (non-literal)
  *     tuple: the denominator can't be named.
+ *   - a contract whose parameter pattern destructures is skipped at call
+ *     sites (it is still discharged at the definition); only simple
+ *     variable parameters, possibly in Parens/Asc, are instantiated.
+ *   - an applied inline unguarded lambda `(fun x -> 1/x)(y)` emits
+ *     nothing: it is neither a contract application nor a definition.
  *
  * Identical conditions are deduplicated (Exp.fast_equal). */
 
@@ -109,8 +118,14 @@ let builtin_conditions = (name: string, arg: Exp.t): list(Exp.t) => {
 // The scan
 
 /* The domain conditions of every partial-primitive application in
- * `exp`, in traversal (pre-)order, deduplicated. */
-let scan = (exp: Exp.t): list(Exp.t) => {
+ * `exp`, in traversal (pre-)order, deduplicated. Names in `exp` that
+ * `defs` defines are looked through to find contract functions. */
+let scan = (~defs: Environment.t(Exp.t), exp: Exp.t): list(Exp.t) => {
+  let is_contract = (e: Exp.t): bool =>
+    switch (ProofSyntax.unwrap(e) |> Exp.term_of) {
+    | Fun(p, _, _, _) => Option.is_some(Exp.pat_guard(p))
+    | _ => false
+    };
   /* A manifestly non-negative exponent literal needs no condition. */
   let nonneg_literal = (e: Exp.t): bool =>
     switch (ProofSyntax.unwrap(e) |> Exp.term_of) {
@@ -134,12 +149,44 @@ let scan = (exp: Exp.t): list(Exp.t) => {
     | BinOp(SInt(Power), _, e2) when !nonneg_literal(e2) =>
       emit(Exp.fresh(BinOp(SInt(GreaterThanOrEqual), e2, sint_zero())))
     | Ap(_, fn, arg) =>
+      /* A definition is unfolded only if it is a contract function. */
+      let fn =
+        switch (ProofSyntax.exp_to_name(fn)) {
+        | Some(name)
+            when
+              Option.value_map(
+                Environment.lookup(defs, name),
+                ~default=false,
+                ~f=is_contract,
+              ) =>
+          Definitions.unfold(defs, name) |> Option.value(~default=fn)
+        | Some(_)
+        | None => fn
+        };
       switch (ProofSyntax.unwrap(fn) |> Exp.term_of) {
+      /* A contract function's guard instantiated by the argument,
+       * `g[p := arg]`. The body is discharged once, at the definition.
+       * A destructuring parameter is skipped. */
+      | Fun(fp, _body, _, _) =>
+        switch (Exp.split_pat_guard(fp)) {
+        | (p, Some(g)) =>
+          switch (ProofSyntax.pat_to_name(p)) {
+          | Some(x) =>
+            emit(
+              g
+              |> Substitution.in_exp(
+                   Environment.extend(Environment.empty, (x, arg)),
+                 ),
+            )
+          | None => ()
+          }
+        | (_, None) => ()
+        }
       | Var(name)
       | BuiltinFun(name) =>
         List.iter(~f=emit, builtin_conditions(name, arg))
       | _ => ()
-      }
+      };
     | _ => ()
     };
   let _: Exp.t =
@@ -148,7 +195,8 @@ let scan = (exp: Exp.t): list(Exp.t) => {
         (continue, e: Exp.t) => {
           visit(e);
           switch (e |> Exp.term_of) {
-          /* Function bodies are skipped (module header). */
+          /* Function bodies are covered at the definition (module
+           * header). */
           | Fun(_) => e
           | _ => continue(e)
           };

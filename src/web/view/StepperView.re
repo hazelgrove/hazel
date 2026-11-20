@@ -1192,12 +1192,14 @@ module View = {
   /* A side condition: a circle on a line, which opens into a section
    * holding a read-only stepper from its goal to `true`. A closed one
    * shows how the checker closed it; a pending one's `?` row holds the
-   * exits that discharge it. A step's circles sit on its line. */
+   * exits that discharge it. A step's circles sit on its line, a
+   * theorem's contracts' on its header. */
   module Condition = {
     /* The circle's icon and the section's label. */
     let kind = (kind: Obligation.kind): (string, string) =>
       switch (kind) {
       | Definedness => ("÷", "definedness")
+      | Contract => ("ƒ", "contract")
       | Premise => ("⇒", "premise")
       | Citation => ("↗", "unfinished theorem")
       | Algebra => ("=", "algebra")
@@ -2571,8 +2573,8 @@ module View = {
         | Some(patch) => edit_syntax(patch)
         | None => Ui_effect.Ignore
         };
-      /* The facts a case adds to the split's scope: the case equation or
-       * the inductive hypotheses. */
+      /* The facts a case adds to the split's scope: its pattern's `where`
+       * facts, and the case equation or the inductive hypotheses. */
       let outer_facts =
         Rows.ctx(row)
         |> Option.map(~f=SemanticCtx.facts)

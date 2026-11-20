@@ -208,6 +208,26 @@ let test_revert_with_instantiates = () => {
   check_status("revert+with closes the goal", ProofMap.Proven, pm, proof);
 };
 
+/* A restricted binder keeps its restriction as an antecedent:
+   `forall n where n > 0 -> ...` instantiated at 5 is `5 > 0 ==> ...`. */
+let test_revert_with_restricted_binder = () => {
+  let (pm, proof) =
+    run_named(
+      "g",
+      prelude
+      ++ "theorem p = forall n: Int where n > 0 -> n + 0 == n proof ? in "
+      ++ "theorem g = f(2) == 3 proof revert p with n = 5 => ? in g",
+    );
+  check_mark_free("revert+with on a restricted binder", pm, proof);
+  let d = dump(pm, proof);
+  if (!contains(d, "5 > 0 ==>")) {
+    Alcotest.fail(
+      "expected the instantiated restriction `5 > 0 ==> ...` in the goal:\n"
+      ++ d,
+    );
+  };
+};
+
 /* A quantified inductive hypothesis, cited by name and instantiated, as
    in Test_Milestone_STLC. It covers two things the spelled-out form
    doesn't: by-name resolution of a fact, and identification of a binder
@@ -398,6 +418,11 @@ let tests = (
       "revert+with cashes in the instance",
       `Quick,
       test_revert_with_instantiates,
+    ),
+    test_case(
+      "revert+with on a restricted binder keeps the restriction",
+      `Quick,
+      test_revert_with_restricted_binder,
     ),
     test_case(
       "revert: a quantified IH is citable by name",

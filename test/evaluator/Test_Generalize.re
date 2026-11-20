@@ -5,8 +5,9 @@ open Test_ProofMap.Harness;
 /* The `generalize` proof step.
  *
  * `generalize x => body` re-quantifies an already-peeled binder: the
- * body's incoming goal is `forall x -> G`, every fact mentioning the old x
- * is removed from the body's scope (capture soundness), and the node's
+ * body's incoming goal is `forall x -> G` (`forall x where g -> G` when
+ * x carried a `where` restriction), every fact mentioning the old x is
+ * removed from the body's scope (capture soundness), and the node's
  * outgoing is `true` only when the body proves the re-quantified goal.
  * The payoff is forall-quantified inductive hypotheses. */
 
@@ -21,6 +22,13 @@ let generalize_body = (p: Proof.t): Proof.t =>
 let is_forall = (e: Exp.t): bool =>
   switch (e |> Exp.term_of) {
   | Forall(_, _) => true
+  | _ => false
+  };
+
+let is_forall_where = (e: Exp.t): bool =>
+  switch (e |> Exp.term_of) {
+  /* `forall p where g -> _` is `Forall(Where(p, g), _)`. */
+  | Forall(p, _) => Option.is_some(Exp.pat_guard(p))
   | _ => false
   };
 
@@ -164,7 +172,43 @@ let test_unquantified_ih_too_weak = () => {
   );
 };
 
-/* --- 4. Malformed ------------------------------------------------------- */
+/* --- 4. Where-restriction travel ---------------------------------------- */
+
+/* Generalizing a restricted binder re-attaches the restriction:
+ * the body's goal is `forall n where n != 0 -> ...`, and after
+ * re-peeling, a division axiom's `n != 0` condition discharges against
+ * the reinstalled `where` hypothesis. */
+let test_where_restriction_travels = () => {
+  let src = {|theorem inv = forall w where w != 0 -> w / w == 1 proof ? in theorem t = forall n where n != 0 -> n / n == 1 proof generalize n => forall n => from n / n do rewrite inv end end; from 1 == 1 do rewrite refl end end in t|};
+  let (pm, proof) = run_named("t", src);
+  let body = generalize_body(proof);
+  let body_goal = incoming_of(pm, body);
+  Alcotest.check(
+    Alcotest.bool,
+    "the body's incoming goal is a restricted forall",
+    true,
+    is_forall_where(body_goal),
+  );
+  let obs = without_citations(ProofMap.obligations_of_proof(pm, proof));
+  Alcotest.check(Alcotest.int, "one guard obligation", 1, List.length(obs));
+  switch (obs) {
+  | [ob] =>
+    check_exp("the obligation is the guard at n", "n != 0", ob.goal);
+    Alcotest.check(
+      Alcotest.bool,
+      "discharged remotely against the re-peeled where hypothesis",
+      true,
+      switch (ob.discharge) {
+      | Obligation.Remote(_) => true
+      | _ => false
+      },
+    );
+  | _ => ()
+  };
+  check_proven_given_lemmas("theorem t is fully Proven", pm, proof);
+};
+
+/* --- 5. Malformed ------------------------------------------------------- */
 
 let has_malformed_generalize = (pm, proof) =>
   has_mark_kind(
@@ -238,6 +282,11 @@ let tests = (
       "control: the unquantified IH is too weak",
       `Quick,
       test_unquantified_ih_too_weak,
+    ),
+    test_case(
+      "a where restriction travels onto the re-quantified binder",
+      `Quick,
+      test_where_restriction_travels,
     ),
     test_case(
       "generalize of a literal is marked malformed",

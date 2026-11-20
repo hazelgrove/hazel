@@ -56,6 +56,20 @@ let is_eval_step = (p: Proof.t): bool =>
   | _ => false
   };
 
+/* Every `fun` in the term, outermost first. */
+let find_funs = (e: Exp.t): list(Exp.t) => {
+  let found = ref([]);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Fun(_) => found := found^ @ [e]
+    | _ => ()
+    };
+    continue(e);
+  };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
+
 let is_focus_step = (p: Proof.t): bool =>
   switch (p.term) {
   | Focus(_) => true
@@ -73,6 +87,20 @@ let is_focus_step = (p: Proof.t): bool =>
  * model-level tests in Test_Obligations). */
 
 module Exits = Web.Obligations.Exits;
+
+/* The first Theorem's statement sub-term. */
+let find_theorem_stmt = (e: Exp.t): option(Exp.t) => {
+  let found = ref(None);
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Theorem(_, stmt, _, _) when Option.is_none(found^) =>
+      found := Some(stmt);
+      e;
+    | _ => continue(e)
+    };
+  let _ = TermBase.Exp.map_term(~f_exp, e);
+  found^;
+};
 
 /* An obligation as its exits see one: only `origin` (the incurring step)
  * and `goal` drive them. */
@@ -172,6 +200,7 @@ let check_no_duplicate_tile_ids = (~msg: string, z: Haz3lcore.Zipper.t) => {
 let exits_ctx_of = (z: Haz3lcore.Zipper.t): Exits.ctx => {
   let term = zipper_term(z);
   {
+    stmt: find_theorem_stmt(term),
     proof:
       switch (find_theorem_proof(term)) {
       | Some(p) => p
@@ -863,7 +892,69 @@ let tests = (
         );
       },
     ),
-    /* --- exit 1: prove here, via a `have` ----------------------------- */
+    /* --- exit 1: float the restriction onto the theorem's binder ------ */
+    test_case(
+      "float patch turns `forall z` into `forall z where <goal>`",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
+        let patch =
+          require_patch(
+            "float action should be available for a theorem binder",
+            Exits.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="binder now carries the guard", out, "where");
+        check_contains(
+          ~msg="the guard is the obligation goal",
+          out,
+          "n != 0",
+        );
+        check_contains(~msg="the binder survives", out, "forall n");
+        check_contains(~msg="the body survives", out, "8 / n == 8 / n");
+        /* Reparse: the statement is a restricted binder. */
+        switch (find_theorem_stmt(parse_exp(out))) {
+        /* `forall p where g -> _` is `Forall(Where(p, g), _)`. */
+        | Some({term: Forall(p, _), _})
+            when Option.is_some(Exp.pat_guard(p)) =>
+          ()
+        | Some(other) =>
+          Alcotest.fail(
+            "expected a restricted forall statement, got: " ++ Exp.show(other),
+          )
+        | None => Alcotest.fail("no statement after patch: " ++ out)
+        };
+      },
+    ),
+    test_case(
+      "float patch AND-extends an existing where guard",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int where n > 0 -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
+        let patch =
+          require_patch(
+            "float action available",
+            Exits.float_patch(~ctx, mk_obligation(~origin, ~goal="n != 0")),
+          );
+        let out =
+          Haz3lcore.EditorTransform.apply_patch(z, patch) |> serialize;
+        check_contains(~msg="old guard kept", out, "n > 0");
+        check_contains(~msg="new guard conjoined", out, "&&");
+        check_contains(~msg="new guard present", out, "n != 0");
+      },
+    ),
+    /* --- exit 2: prove here, via a `have` ----------------------------- */
     test_case(
       "have patch wraps the enclosing proof region",
       `Quick,
@@ -928,7 +1019,7 @@ let tests = (
         };
       },
     ),
-    /* --- exit 2: split on the obligation ----------------------------- */
+    /* --- exit 3: split on the obligation ----------------------------- */
     test_case(
       "split patch wraps the region in a true/false induction",
       `Quick,
@@ -994,6 +1085,67 @@ let tests = (
      * for a single tile and `Highlight.of_tile` dies with
      *   "shard mismatch: ... label = [\"z\"] ... tile_Shards:2".
      * The view isn't testable headlessly, but the duplicate is. */
+    test_case(
+      "float patch on a program-sourced goal mints fresh tile ids",
+      `Quick,
+      () => {
+        let z =
+          parse_zipper(
+            "theorem t = forall n: Int -> 8 / n == 8 / n proof ? in t",
+          );
+        let ctx = exits_ctx_of(z);
+        let origin = Proof.rep_id(ctx.proof);
+        let patch =
+          require_patch(
+            "float action available for a program-sourced goal",
+            Exits.float_patch(
+              ~ctx,
+              mk_obligation_reusing(~origin, ~var="n", z),
+            ),
+          );
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="float patch reused the goal's program ids",
+          patched,
+        );
+        check_contains(
+          ~msg="the guard still landed",
+          serialize(patched),
+          "where",
+        );
+      },
+    ),
+    test_case(
+      "contract patch turns `fun w ->` into `fun w where <goal> ->`, with fresh tile ids",
+      `Quick,
+      () => {
+        let z = parse_zipper("let g = fun w where w > 0 -> 100 / w in g(1)");
+        let func =
+          switch (find_funs(zipper_term(z))) {
+          | [f, ..._] => Some(f)
+          | [] => Alcotest.fail("no fun")
+          };
+        let patch =
+          switch (
+            Exits.for_contract(
+              ~func,
+              mk_obligation_reusing(~origin=Id.mk(), ~var="w", z),
+            )
+          ) {
+          | [{patch: Some(p), _}] => p
+          | _ => Alcotest.fail("Add to contract unavailable")
+          };
+        let patched = Haz3lcore.EditorTransform.apply_patch(z, patch);
+        check_no_duplicate_tile_ids(
+          ~msg="contract patch reused the goal's program ids",
+          patched,
+        );
+        let out = serialize(patched);
+        check_contains(~msg="old guard kept", out, "w > 0");
+        check_contains(~msg="new guard conjoined", out, "&& w != 0");
+        check_contains(~msg="the body survives", out, "100 / w");
+      },
+    ),
     test_case(
       "have patch on a program-sourced goal mints fresh tile ids",
       `Quick,

@@ -8,7 +8,7 @@ open Util;
  * reads the occurrence back with `nth_env_target`. */
 
 /* Immediate expression children, in `map_term` order, including those
- * inside patterns. */
+ * inside patterns (`where` guards). */
 let children = (e: Exp.t): list(Exp.t) => {
   let kids = ref([]);
   let root_id = Exp.rep_id(e);

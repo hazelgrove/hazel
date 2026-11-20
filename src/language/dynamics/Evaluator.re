@@ -176,9 +176,10 @@ module Proofs = {
     ProofCheck.check(~step, ~statics, ~ctx, Some(goal), proof) |> snd;
 
   /* A theorem's proof checked in `scope`: the statement's outer `forall`s
-   * are introduced first, so their variables enter the proof's context,
-   * and the proof is checked against the rest, including any `==>`
-   * antecedents (which the proof introduces with `assume`). The
+   * are introduced first, so their variables enter the proof's context
+   * and their `where` restrictions become hypotheses, and the proof is
+   * checked against the rest, including any `==>` antecedents (which the
+   * proof introduces with `assume`). The
    * per-theorem stepper (`Theorems.re`) seeds its goal the same way, so
    * the two agree. */
   let check_theorem =
@@ -191,7 +192,8 @@ module Proofs = {
   /* The proofs of the theorems evaluation reached, checked in the order it
    * reached them, each knowing the verdicts of the theorems before it, so
    * a proof that cites one can tell whether it rests on a refuted or
-   * unfinished statement. Returns the proof map and the checks to cache.
+   * unfinished statement. Returns the proof map, with the contracts of the
+   * functions in each theorem's scope, and the checks to cache.
    *
    * A check in `prev` is reused while the theorem, its scope and the
    * verdicts in it, and the values it names are the same. `inputs` has
@@ -229,13 +231,17 @@ module Proofs = {
             ~verdicts=verdicts_in_scope,
             theorem,
           );
+        let scope = TheoremNamespace.scope(~env, ~verdicts, namespace);
         let checked =
           switch (IncrEval.CheckedProofs.find(~prev, ~input, id, key)) {
           | Some(proof_map) => proof_map
-          | None =>
-            let scope = TheoremNamespace.scope(~env, ~verdicts, namespace);
-            check_theorem(~statics, ~scope, ~statement, proof);
+          | None => check_theorem(~statics, ~scope, ~statement, proof)
           };
+        /* Function contracts are discharged at their definitions, in the
+         * theorem's scope before its binders are peeled. They depend on
+         * every function in that scope, not only the values the theorem
+         * names, so they aren't cached with its check. */
+        let contracts = ProofCheck.definition_obligations(~step, ~ctx=scope);
         let checks =
           switch (
             IncrEval.CheckedProofs.entry(~prev, ~input, id, key, checked)
@@ -251,7 +257,7 @@ module Proofs = {
           | Incomplete => Unfinished
           };
         (
-          ProofMap.union(proof_map, checked),
+          ProofMap.union(proof_map, ProofMap.union(contracts, checked)),
           [(Pat.rep_id(p), verdict), ...verdicts],
           checks,
         );

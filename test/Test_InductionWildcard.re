@@ -64,5 +64,12 @@ let tests = (
         {|theorem w = forall p: (Bool, Bool) -> p == (true, true) proof induction p | ((_, _) : (Bool, Bool)) => from (true, true) == (true, true) do rewrite refl end end end in true|},
       ),
     ),
+    test_case(
+      "under a where guard",
+      `Quick,
+      check_refused(
+        {|theorem w = forall b: Bool -> b == true proof induction b | _ where true => from true == true do rewrite refl end end | x => ? end in true|},
+      ),
+    ),
   ],
 );

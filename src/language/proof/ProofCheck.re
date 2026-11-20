@@ -14,7 +14,7 @@ open Util;
  * disproven status also require a mark-free proof subtree
  * (`ProofMap.status_of_proof`).
  *
- * The rewrite steps, binder peeling and funext goals are
+ * The rewrite steps, binder peeling, `where` facts and funext goals are
  * shared with the UI stepper, so both compute a step the same way.
  *
  * This module doesn't depend on the dynamics (`Transition`,
@@ -307,7 +307,9 @@ module Gate = {
     | None =>
       Ok(
         instantiations
-        |> List.concat_map(~f=((_, e)) => DomainConditions.scan(e))
+        |> List.concat_map(~f=((_, e)) =>
+             DomainConditions.scan(~defs=env, e)
+           )
         |> DomainConditions.dedup,
       )
     };
@@ -347,13 +349,58 @@ module Gate = {
         | Error(_) => [ProofMark.PossiblyDivergentScrutinee]
         };
       let obligations =
-        DomainConditions.scan(scrut)
+        DomainConditions.scan(~defs=env, scrut)
         |> List.map(
              ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
            );
       (marks, obligations);
     };
   };
+};
+
+/* `where` restrictions installed as hypotheses. */
+module Where = {
+  /* The `&&`-conjuncts of a guard, looking through parens. */
+  let rec conjuncts = (g: Exp.t): list(Exp.t) =>
+    switch (g |> Exp.term_of) {
+    | Parens(g1) => conjuncts(g1)
+    | BinOp(Bool(And), a, b) => conjuncts(a) @ conjuncts(b)
+    | _ => [g]
+    };
+
+  /* Install a binder's `where` restriction as a hypothesis. Peeling a
+   * restricted binder needs no obligation. Every peeling site
+   * (`peel_stmt_binders` and the `Forall` proof form) goes through here so
+   * they agree.
+   *
+   * A conjunctive guard also installs each conjunct as its own fact, so
+   * `Discharge.lookup` finds them; `a && b` holding entails both `a` and
+   * `b` under the Kleene reading. `definition_obligations` treats a
+   * `fun p where g` contract the same way. The Add to statement and Add to
+   * contract exits depend on it when the binder already has a guard,
+   * since `Obligations.Exits.restrict` extends the guard with `&&`.
+   *
+   * All entries go under the one name `where`, and the whole guard is
+   * installed last, so that `Ctx.lookup_theorem`, which takes the most
+   * recent match, resolves `where` to the guard the user wrote, as
+   * `Statics.proof_ctx_of_goal` records it. */
+  let add_facts = (ctx: SemanticCtx.t, g: Exp.t): SemanticCtx.t => {
+    let install = (ctx, fact) =>
+      SemanticCtx.add_hypothesis(ctx, "where", fact) |> fst;
+    let ctx =
+      switch (conjuncts(g)) {
+      | [_] => ctx
+      | conjuncts => List.fold_left(~f=install, ~init=ctx, conjuncts)
+      };
+    install(ctx, g);
+  };
+
+  /* `add_facts` for the guard a binder pattern carries, if any. */
+  let add_pat_facts = (ctx: SemanticCtx.t, p: Pat.t): SemanticCtx.t =>
+    switch (Exp.pat_guard(p)) {
+    | Some(g) => add_facts(ctx, g)
+    | None => ctx
+    };
 };
 
 // Binders
@@ -385,23 +432,35 @@ let bind = (ctx: SemanticCtx.t, p: Pat.t, ty: Typ.t): SemanticCtx.t =>
   );
 
 /* Peel the outermost binder from a "for all pat, P" goal, for the
- * `Forall` proof form: the binder, its type and the body. */
-let rec peel_binder = (goal: Exp.t): option((Pat.t, Typ.t, Exp.t)) =>
+ * `Forall` proof form: the binder, its type, its `where` restriction
+ * (which the caller installs as a hypothesis) and the body. */
+let rec peel_binder =
+        (goal: Exp.t): option((Pat.t, Typ.t, option(Exp.t), Exp.t)) =>
   switch (goal |> Exp.term_of) {
   /* `EditorTransform` wraps a spliced sub-term in `Parens` whenever it
-   * shares a segment level with sibling pieces. */
+   * shares a segment level with sibling pieces, so the obligations
+   * panel's "Add to statement" exit turns
+   * `forall y where g -> forall z -> P` into
+   * `forall y where g -> (forall z where c -> P)`. If the parens hid the
+   * binder, its `where` restriction would never be installed and the
+   * floated condition would stay Pending. */
   | Parens(inner) => peel_binder(inner)
+  /* `forall p where g -> _` is `Forall(Where(p, g), _)`: split the
+   * guard back off the binder pattern. */
   | Fun(p, body, t, _) =>
     let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-    Some((p, t, body));
-  | Forall(p, body) => Some((p, Typ.fresh(Unknown(Internal)), body))
+    let (p, g) = Exp.split_pat_guard(p);
+    Some((p, t, g, body));
+  | Forall(p, body) =>
+    let (p, g) = Exp.split_pat_guard(p);
+    Some((p, Typ.fresh(Unknown(Internal)), g, body));
   | _ => None
   };
 
 /* Introduce a theorem statement's outer binders: extend the semantic ctx
- * with each binder's variables, and return the remaining core goal,
- * which keeps any `==>` antecedents (those are introduced with
- * `assume`). Used by the
+ * with each binder's variables, install `where` restrictions as
+ * hypotheses, and return the remaining core goal, which keeps any `==>`
+ * antecedents (those are introduced with `assume`). Used by the
  * evaluator and the UI stepper to seed the proof goal. */
 let rec peel_stmt_binders =
         (ctx: SemanticCtx.t, goal: Exp.t): (SemanticCtx.t, Exp.t) =>
@@ -410,7 +469,7 @@ let rec peel_stmt_binders =
   | Parens(inner) => peel_stmt_binders(ctx, inner)
   | Forall(p, body) =>
     let ctx = bind(ctx, p, Typ.fresh(Unknown(Internal)));
-    peel_stmt_binders(ctx, body);
+    peel_stmt_binders(Where.add_pat_facts(ctx, p), body);
   | _ => (ctx, goal)
   };
 
@@ -457,8 +516,8 @@ module Axiom = {
       ProofCtx.lookup_rule(equality, proof_ctx)
       |> Result.of_option(~error=ProofMark.UnknownEquality(equality));
     /* A cited rule with a boolean conclusion `P` reads as `P == true`.
-     * `~statics` settles conclusions whose shape doesn't (a plain
-     * variable, a Bool-typed application). */
+     * `~statics` settles conclusions whose shape doesn't (a `where`
+     * guard that is a plain variable, a Bool-typed application). */
     let rule = ProofRule.BoolReading.apply(~statics=Some(statics), rule);
     let* bindings =
       switch (instantiation) {
@@ -740,9 +799,11 @@ module Algebrite = {
       };
     };
     let obligation = Discharge.obligation(~step, ~ctx, ~origin);
+    let env = SemanticCtx.get_env(ctx);
     let domain_conditions = () =>
       DomainConditions.dedup(
-        DomainConditions.scan(goal) @ DomainConditions.scan(replacement),
+        DomainConditions.scan(~defs=env, goal)
+        @ DomainConditions.scan(~defs=env, replacement),
       )
       |> List.map(~f=obligation(~kind=Definedness));
     let rewritten = rewritten(Exp.replace_all_ids(replacement));
@@ -864,8 +925,8 @@ module Eval = {
  *   1. Statics: the recorded type of either side is an `Arrow`. This is
  *      the answer whenever the statics reached the goal (the usual case
  *      in a theorem statement).
- *   2. Syntax: either side is literally a lambda (`fun` / a `Parens`
- *      around one). Covers goals statics left `Unknown`,
+ *   2. Syntax: either side is literally a lambda (`fun` / `fun ... where`
+ *      / a `Parens` around one). Covers goals statics left `Unknown`,
  *      and gives a domain annotation when the lambda carries one.
  *   3. The env: a bare variable naming a function definition.
  *      `inv == (fun x -> 1 / x)` has a lambda on the right, so this is
@@ -945,6 +1006,9 @@ module Funext = {
    *   - a named function (`inv(x)`, `f(x)`). Unfolding a definition is
    *     `step`'s job, and keeping the `Ap` is why `refl` closes
    *     `inv(x) == inv(x)` without ever applying `inv`.
+   *   - a contract lambda (`fun p where g -> body`). Contracting it would
+   *     drop `g`, and funext adds no `where` restriction of its own:
+   *     partiality surfaces at the step that applies the function.
    *   - a non-variable parameter pattern (a tuple, say): there is no
    *     single name to substitute for. */
   let pointwise = (~binder: Pat.t, l: Exp.t, r: Exp.t): Exp.t => {
@@ -982,6 +1046,81 @@ module Funext = {
     Exp.fresh(BinOp(Poly(Equals), apply(l), apply(r)))
     |> Exp.replace_all_ids;
   };
+};
+
+/* Definition-time discharge of function contracts.
+ *
+ * When a theorem is checked, every function definition its context
+ * can see (env-bound, non-builtin, non-recursive) is scanned once:
+ *   - `fun p where g -> body`: each of the body's domain conditions is
+ *     discharged if it is `Exp.fast_equal` to the guard `g` or one of
+ *     its `&&`-conjuncts; leftover conditions become obligations.
+ *   - `fun p -> body`: every body condition is an obligation, recorded
+ *     here once rather than at every call (DomainConditions.scan doesn't
+ *     descend into function bodies).
+ *
+ * Leftovers are recorded in a ProofMap of their own under the function
+ * term's id, so each entry has only obligations, each with `origin` the
+ * function's id. Recording is idempotent across theorems. Because the
+ * function's id is not inside any proof subtree, these obligations don't
+ * affect Proven/ProvenModulo status; they are shown on each theorem that
+ * has the function in scope.
+ *
+ * The body scan runs with the parameter's bindings visible, so
+ * conditions may mention the parameter. */
+let definition_obligations = (~step: step_fn, ~ctx: SemanticCtx.t): ProofMap.t => {
+  let env = SemanticCtx.get_env(ctx);
+  /* A builtin is in scope with no binding site; a definition that
+   * shadows it has one. */
+  let is_builtin = name =>
+    switch (Ctx.lookup_var(SemanticCtx.get_ctx(ctx), name)) {
+    | Some(entry) => Id.equal(entry.id, Id.invalid)
+    | None => false
+    };
+  let record_leftovers = (m, fun_term: Exp.t, p: Pat.t, guard, body) => {
+    let conjuncts =
+      guard |> Option.map(~f=Where.conjuncts) |> Option.value(~default=[]);
+    let leftover =
+      DomainConditions.scan(~defs=env, body)
+      |> List.filter(~f=c => !List.exists(~f=Exp.fast_equal(c), conjuncts));
+    switch (leftover) {
+    | [] => m
+    | [_, ..._] =>
+      let fun_id = Exp.rep_id(fun_term);
+      let ctx =
+        SemanticCtx.add_from_pattern(ctx, p, Typ.fresh(Unknown(Internal)));
+      let obligations =
+        List.map(
+          ~f=
+            Discharge.obligation(~step, ~ctx, ~origin=fun_id, ~kind=Contract),
+          leftover,
+        );
+      record(~ctx, ~obligations, fun_id, None, None, m);
+    };
+  };
+  Environment.to_list(env)
+  |> List.fold_left(
+       ~f=
+         (m, (name, value)) =>
+           if (is_builtin(name)) {
+             m;
+           } else {
+             /* The body as written: its names resolve in `env`, as a
+              * goal's do, so the obligations show them. */
+             let v = ProofSyntax.unwrap(value);
+             switch (v |> Exp.term_of) {
+             /* `fun p where g -> body` is `Fun(Where(p, g), body)`: split
+                the contract guard back off the parameter. */
+             | Fun(p, body, _, _) =>
+               let (p, g) = Exp.split_pat_guard(p);
+               record_leftovers(m, v, p, g, body);
+             /* Recursive definitions (FixF), non-functions and self-map
+                Vars are skipped. */
+             | _ => m
+             };
+           },
+       ~init=ProofMap.empty,
+     );
 };
 
 // The walk
@@ -1299,21 +1438,34 @@ and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
       None,
       body,
     )
-  | Some(Some((p, t, inner))) =>
-    let open_body = (p, inner) =>
+  | Some(Some((p, t, guard, inner))) =>
+    let open_body = (p, guard, inner) => {
+      let body_ctx = bind(ctx, p, t);
+      let body_ctx =
+        Option.value_map(
+          guard,
+          ~default=body_ctx,
+          ~f=Where.add_facts(body_ctx),
+        );
       check_subgoal(
         ~step,
         ~statics,
         ~ctx,
-        ~body_ctx=bind(ctx, p, t),
+        ~body_ctx,
         ~id,
         incoming,
         Some(inner),
         body,
       );
+    };
     switch (ProofSyntax.pat_to_name(p), ProofSyntax.pat_to_name(pat)) {
     | (Some(from), Some(to_)) when !String.equal(from, to_) =>
-      if (Exp.occurs_free_any([to_], inner)) {
+      if (Exp.occurs_free_any([to_], inner)
+          || Option.value_map(
+               guard,
+               ~default=false,
+               ~f=Exp.occurs_free_any([to_]),
+             )) {
         check_subgoal(
           ~step,
           ~statics,
@@ -1340,17 +1492,16 @@ and check_forall = (~step, ~statics, ~ctx, ~id, incoming, pat, body) =>
           );
         /* `to_` maps to itself so that substitution renames an inner
          * binder that would capture it. */
-        let inner =
+        let rename =
           Substitution.in_exp(
             Environment.of_bindings([
               (to_, Exp.fresh(Var(to_))),
               (from, Exp.fresh(Var(to_))),
             ]),
-            inner,
           );
-        open_body(renamed, inner);
+        open_body(renamed, Option.map(~f=rename, guard), rename(inner));
       }
-    | _ => open_body(p, inner)
+    | _ => open_body(p, guard, inner)
     };
   /* No binder to peel: mark it, but let the body keep working on the goal
    * as is. */
@@ -1546,17 +1697,27 @@ and check_have = (~step, ~statics, ~ctx, ~id, incoming, e, name, sub, body) => {
 }
 
 /* Re-quantify an already-peeled binder x: with incoming goal G, the
- * body's incoming goal is `forall x -> G`. Soundness: `forall x -> G`
- * denoting true entails G at the ambient x.
+ * body's incoming goal is `forall x -> G`, or `forall x where g -> G`
+ * when x carries a recoverable `where` restriction (below). Soundness:
+ * `forall x -> G` denoting true entails G at the ambient x; for a
+ * restricted binder, the guard's ambient instance is the `where`
+ * hypothesis installed when x was peeled. (Dropping the restriction
+ * would also be sound, but the goal could be unprovable.)
  *
  * Capture: inside the body, every fact whose statement mentions x
- * (assume-hypotheses, case_eq, IHs) is about the
+ * (assume-hypotheses, case_eq, IHs, the where guard itself) is about the
  * old x, so those entries are removed from the body's scope. One filter
  * over the theorem namespace covers both `Discharge.lookup` and rule
  * lookup (`ProofCtx.of_theorem_ctx`); `is_captured` would cover only rule
  * lookup, and only once the body re-peels the binder. The test is free
  * occurrence (`ProofRule.mentions_any`), so a lemma `forall x -> ...`
- * that binds its own x stays available. */
+ * that binds its own x stays available.
+ *
+ * Restriction: x's restriction is recovered as the `where` hypotheses
+ * whose fact mentions x, conjoined with `&&`. Re-attaching an ambient
+ * hypothesis as a binder guard is sound whichever binder it came from:
+ * it weakens the generalized statement, and its ambient instance is
+ * discharged by that same hypothesis. */
 and check_generalize = (~step, ~statics, ~ctx, ~id, incoming, e, body) => {
   /* Every variable in scope, the proof's binders included, is in the env. */
   let in_scope =
@@ -1597,7 +1758,26 @@ and check_generalize = (~step, ~statics, ~ctx, ~id, incoming, e, body) => {
       | None => Pat.fresh(Var(x))
       | Some({typ, _}) => Pat.fresh(Asc(Pat.fresh(Var(x)), typ))
       };
-    let subgoal = Exp.fresh(Forall(binder, goal));
+    let mentions_x = (fact: Exp.t) =>
+      ProofRule.mentions_any(ProofRule.exp_to_rule(fact), [x]);
+    let guards =
+      SemanticCtx.facts(ctx)
+      |> List.filter_map(~f=((name, _id, fact)) =>
+           String.equal(name, "where") && mentions_x(fact)
+             ? Some(fact) : None
+         );
+    let subgoal =
+      switch (guards) {
+      | [] => Exp.fresh(Forall(binder, goal))
+      | [g, ...gs] =>
+        let guard =
+          List.fold_left(
+            ~f=(acc, g') => Exp.fresh(BinOp(Bool(And), acc, g')),
+            ~init=g,
+            gs,
+          );
+        Exp.fresh(Forall(Pat.fresh(Where(binder, guard)), goal));
+      };
     /* x's own binder entry stays: it is inert once no fact mentions it
      * (its env binding is the identity `x ↦ Var(x)`), and the body's
      * re-peel of the new binder rebinds it anyway. */
@@ -1739,11 +1919,12 @@ and check_alias = (~step, ~statics, ~ctx, ~id, incoming, x, e, body) => {
 /* A split on `scrut` in the incoming goal: `cases` or `induction`.
  *
  * Each case's body is checked against the goal with `scrut` replaced by
- * the case's pattern, in a scope extended with the pattern's bindings
- * and the split's `case_facts`. If the cases are exhaustive, the split's
- * outgoing is `true`; an unfinished case keeps the proof incomplete. The
- * split node itself is marked for empty cases, non-exhaustive cases and
- * an untyped scrutinee; per-case failures are marked on the cases.
+ * the case's pattern, in a scope extended with the pattern's bindings,
+ * the arm's `where` facts and the split's `case_facts`. If the cases are
+ * exhaustive, the split's outgoing is `true`; an unfinished case keeps
+ * the proof incomplete. The split node itself is marked for empty cases,
+ * non-exhaustive cases and an untyped scrutinee; per-case failures are
+ * marked on the cases.
  *
  * `induction` on a computed `scrut` is induction on a fresh variable
  * standing for it: replacing `scrut` throughout the goal is the same
@@ -1806,13 +1987,8 @@ and check_split =
   };
   let scrut_co_ctx =
     statics.co_ctx(scrut_id) |> Option.value(~default=CoCtx.empty);
-  let induction_ctx =
-    SemanticCtx.map_ctx(
-      _ => Ctx.forget_facts(Induction.mentions(scrut), tyctx),
-      ctx,
-    );
-  /* The goal and scope of the case for `pat`. */
-  let case = (pat: Pat.t) => {
+  /* The goal and scope of the case for `pat`, below the `earlier` arms. */
+  let case = (~earlier: list(Pat.t), pat: Pat.t) => {
     let added_vars = pat |> Pat.bindings |> Binding.variable_names;
     let replace_scrut = (by: Pat.t, goal: Exp.t) =>
       Induction.replace(
@@ -1825,11 +2001,16 @@ and check_split =
         goal,
       );
     let case_ctx =
+      List.fold_left(
+        ~f=Where.add_facts,
+        ~init=bind(ctx, pat, scrut_ty),
+        Induction.where_facts(~earlier, pat),
+      );
+    let case_ctx =
       switch (case_facts) {
       /* The case equation, absent when the pattern's variables capture
        * the scrutinee. */
       | CaseEquation =>
-        let case_ctx = bind(ctx, pat, scrut_ty);
         CoCtx.has_any(scrut_co_ctx, added_vars)
           ? case_ctx
           : SemanticCtx.add_hypothesis(
@@ -1837,7 +2018,9 @@ and check_split =
               "case_eq",
               Exp.fresh(BinOp(Poly(Equals), scrut, Exp.of_pat(pat))),
             )
-            |> fst;
+            |> fst
+      /* The arm's `where` facts leave scope with the others when they
+       * mention the scrutinee. */
       | InductiveHypotheses =>
         let goal = incoming |> Option.value(~default=Exp.fresh(EmptyHole));
         let ihs =
@@ -1846,11 +2029,16 @@ and check_split =
                replace_scrut(h, goal)
                |> Option.map(~f=ih => (Induction.hypothesis_name(h), ih))
              );
+        let without_scrut_facts =
+          SemanticCtx.map_ctx(
+            Ctx.forget_facts(Induction.mentions(scrut)),
+            case_ctx,
+          );
         List.fold_left(
           ~f=
             (ctx, (name, ih)) =>
               SemanticCtx.add_hypothesis(ctx, name, ih) |> fst,
-          ~init=bind(induction_ctx, pat, scrut_ty),
+          ~init=without_scrut_facts,
           ihs,
         );
       };
@@ -1894,7 +2082,8 @@ and check_split =
     | Ap(a, b) => has_wild(a) || has_wild(b)
     | Parens(q)
     | Projector(_, q)
-    | Asc(q, _) => has_wild(q)
+    | Asc(q, _)
+    | Where(q, _) => has_wild(q)
     };
   let (outgoing, marks, m) =
     if (List.exists(~f=((p, _)) => has_wild(p), cases)) {
@@ -1902,10 +2091,11 @@ and check_split =
     } else {
       let pats = List.map(~f=fst, cases);
       let checked =
-        List.map(
+        List.mapi(
           ~f=
-            ((pat, body)) => {
-              let (case_goal, case_ctx, captured) = case(pat);
+            (i, (pat, body)) => {
+              let earlier = List.filteri(~f=(j, _) => j < i, pats);
+              let (case_goal, case_ctx, captured) = case(~earlier, pat);
               (
                 check(~step, ~statics, ~ctx=case_ctx, case_goal, body),
                 captured,
@@ -1918,11 +2108,16 @@ and check_split =
         List.filter_map(~f=snd, checked)
         |> ListUtil.dedup
         |> List.map(~f=var => ProofMark.BinderCaptures({var: var}));
-      /* Strict mode also catches nested `Unknown`s, e.g. an ADT whose
-       * payload type is a hole. */
+      /* A guarded arm contributes no coverage constraint, as in the
+       * statics, so `| S(m) where P => .. | Z => .. end` is reported not
+       * exhaustive. Strict mode also catches nested `Unknown`s, e.g. an
+       * ADT whose payload type is a hole. */
       let constraints =
         List.filter_map(
-          ~f=pat => statics.pat_constraint(Pat.rep_id(pat)),
+          ~f=
+            pat =>
+              Pat.is_guarded(pat)
+                ? None : statics.pat_constraint(Pat.rep_id(pat)),
           pats,
         );
       let is_exhaustive =

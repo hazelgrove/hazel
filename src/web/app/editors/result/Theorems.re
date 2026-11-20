@@ -2,7 +2,7 @@ open Util;
 open Language;
 open Poly;
 
-/* The theorems of a cell, each with its stepper. The
+/* The theorems of a cell, each with its stepper and contracts. The
  * theorems and their proof map come from the last completed evaluation,
  * checked with the statics of its request. Their proofs' syntax is read
  * from the current statics, so a step just written has its row (and its
@@ -25,9 +25,18 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
     name: string,
+    /* The statement as written. The Add to statement exit rewrites one
+     * of its `forall` binders, so it needs the syntactic term, ids and
+     * all. */
+    stmt: option(Exp.t),
     /* The proof as written; a hole when there is none. */
     proof: Proof.t,
     stepper: StepperView.Model.t,
+    /* The obligations of the functions in the theorem's scope, discharged
+     * at their definitions. */
+    contracts: list(Obligation.t),
+    /* The contracts shown open, by index into `contracts`. */
+    open_contracts: list(int),
     /* While the program no longer reaches the theorem, or its proof can't
      * be found, the stepper is drawn as it last was, with the proof map
      * it was checked with, and keeps its state for when the theorem is
@@ -158,7 +167,8 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | TheoremUpdate(Id.t, StepperView.Update.t);
+    | TheoremUpdate(Id.t, StepperView.Update.t)
+    | ToggleContract(Id.t, int);
 
   let update =
       (~settings: Settings.t, action, model: Model.t): Updated.t(Model.t) => {
@@ -184,6 +194,28 @@ module Update = {
               model.thm_map,
             ),
         };
+      | None => model |> raise_invalid_action
+      }
+    | ToggleContract(id, i) =>
+      switch (Id.Map.find_opt(id, model.thm_map)) {
+      | Some(thm) =>
+        let open_contracts =
+          List.mem(thm.open_contracts, i, ~equal=Int.equal)
+            ? List.filter(~f=(!=)(i), thm.open_contracts)
+            : [i, ...thm.open_contracts];
+        {
+          ...model,
+          thm_map:
+            Id.Map.add(
+              id,
+              {
+                ...thm,
+                open_contracts,
+              },
+              model.thm_map,
+            ),
+        }
+        |> return_quiet(~logged=true);
       | None => model |> raise_invalid_action
       }
     };
@@ -229,8 +261,10 @@ module Update = {
         /* The evaluation checked each proof in what it has of the proof's
          * scope: the theorems, and the proof's own binders. The steppers
          * also type the goals, so each step's scope gets the program's
-         * types and variables, from the statics at its theorem. */
-        let proof_map =
+         * types and variables, from the statics at its theorem. The
+         * evaluation also checked the contracts of the functions in each
+         * theorem's scope, keyed by function. */
+        let (proof_map, contracts_of) =
           if (Calc.is_new(checked)) {
             let with_typing = (proof_map, (id, _, _, _)) =>
               switch (
@@ -259,13 +293,42 @@ module Update = {
                 go(proof_map, proof);
               | _ => proof_map
               };
-            List.fold_left(
-              ~f=with_typing,
-              ~init=dynamics.proof_map,
-              dynamics.theorems,
-            );
+            let proof_map =
+              List.fold_left(
+                ~f=with_typing,
+                ~init=dynamics.proof_map,
+                dynamics.theorems,
+              );
+            let contract_of = ((_, value)) => {
+              let f = ProofSyntax.unwrap(value);
+              switch (Exp.term_of(f)) {
+              | Fun(_) =>
+                switch (ProofMap.lookup(Exp.rep_id(f), proof_map)) {
+                | Some(entry) => entry.obligations
+                | None => []
+                }
+              | _ => []
+              };
+            };
+            let contracts_of = id =>
+              switch (
+                List.find(
+                  ~f=((t, _, _, _)) => Id.equal(t, id),
+                  dynamics.theorems,
+                )
+              ) {
+              | Some((_, _, env, _)) =>
+                List.concat_map(~f=contract_of, Environment.to_list(env))
+              | None => []
+              };
+            (proof_map, contracts_of);
           } else {
-            model.proof_map;
+            let contracts_of = id =>
+              switch (Id.Map.find_opt(id, model.thm_map)) {
+              | Some(thm) => thm.contracts
+              | None => []
+              };
+            (model.proof_map, contracts_of);
           };
         let info_map = Calc.get_value(statics).info_map;
         let syntax = id =>
@@ -284,11 +347,11 @@ module Update = {
             |> Option.map(~f=(info: Info.exp) => Exp.term_of(info.user_term)),
             Id.Map.find_opt(id, model.thm_map),
           ) {
-          | (Some(Theorem(_, _, proof, _)), last) =>
-            let stepper =
+          | (Some(Theorem(_, stmt, proof, _)), last) =>
+            let (stepper, open_contracts) =
               switch (last) {
-              | Some(thm) => thm.stepper
-              | None => StepperView.Model.init
+              | Some(thm) => (thm.stepper, thm.open_contracts)
+              | None => (StepperView.Model.init, [])
               };
             let stepper =
               StepperView.Update.calculate(
@@ -301,8 +364,11 @@ module Update = {
               id,
               Model.{
                 name,
+                stmt: Some(stmt),
                 proof,
                 stepper,
+                contracts: contracts_of(id),
+                open_contracts,
                 stale: None,
               },
             );
@@ -311,8 +377,11 @@ module Update = {
               id,
               Model.{
                 name,
+                stmt: None,
                 proof: Proof.fresh(EmptyHole),
                 stepper: StepperView.Model.init,
+                contracts: contracts_of(id),
+                open_contracts: [],
                 stale: None,
               },
             )
@@ -406,13 +475,57 @@ module View = {
       ...globals,
       settings: stepper_settings(globals.settings),
     };
-    let theorem = ((id, {name, proof, stepper, stale}: Model.theorem)) => {
+    let theorem =
+        (
+          (
+            id,
+            {name, stmt, proof, stepper, contracts, open_contracts, stale}: Model.theorem,
+          ),
+        ) => {
       let proof_map = Option.value(~default=model.proof_map, stale);
       /* A stale stepper is for reading: its proof may not be where it was
        * in the program. */
       let edit_syntax = stale == None ? edit_syntax : (_ => Ui_effect.Ignore);
       let status = Obligations.Status.of_proof(proof_map, proof);
       let dom_id = "theorem-" ++ Id.to_string(id);
+      let toggle = i => inject(Update.ToggleContract(id, i));
+      let contract_exits = (ob: Obligation.t) =>
+        Obligations.Exits.for_contract(
+          ~func=
+            Statics.Map.lookup_exp(ob.origin, model.info_map)
+            |> Option.map(~f=(info: Info.exp) => info.user_term),
+          ob,
+        );
+      let dots =
+        List.concat(
+          List.mapi(
+            ~f=
+              (i, ob) =>
+                List.mem(open_contracts, i, ~equal=Int.equal)
+                  ? []
+                  : [StepperView.View.Condition.dot(~toggle=toggle(i), ob)],
+            contracts,
+          ),
+        );
+      let sections =
+        List.concat(
+          List.mapi(
+            ~f=
+              (i, ob) =>
+                List.mem(open_contracts, i, ~equal=Int.equal)
+                  ? [
+                    StepperView.View.Condition.view(
+                      ~globals,
+                      ~edit_syntax,
+                      ~exits=contract_exits(ob),
+                      ~toggle=toggle(i),
+                      ob,
+                    ),
+                  ]
+                  : [],
+            contracts,
+          ),
+        );
       let header =
         div_c(
           "theorem-header",
@@ -482,8 +595,12 @@ module View = {
                 [Node.text(Obligations.Status.label(status))],
               );
             },
-          ],
+          ]
+          @ (List.is_empty(dots) ? [] : [div_c("theorem-contracts", dots)]),
         );
+      let contracts =
+        List.is_empty(sections)
+          ? [] : [div_c("theorem-contract-sections", sections)];
       let stepper =
         StepperView.View.view(
           ~globals,
@@ -506,6 +623,7 @@ module View = {
           ~exits=
             Obligations.Exits.for_step(
               ~ctx={
+                stmt,
                 proof,
                 proof_map,
                 info_map: model.info_map,
@@ -519,7 +637,7 @@ module View = {
           Attr.id(dom_id),
           Attr.classes(["theorem"] @ (stale == None ? [] : ["stale"])),
         ],
-        [header] @ stepper,
+        [header] @ contracts @ stepper,
       );
     };
     List.map(

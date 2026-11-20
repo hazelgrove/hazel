@@ -2,8 +2,9 @@ open Alcotest;
 open Test_Statics_Prelude;
 open Language;
 
-/* Non-computable forms: `forall` is a proposition, and `==` / `!=` at a
-   type containing a function has no evaluation semantics. Inside a theorem's statement or proof they are
+/* Non-computable forms: `forall` / `forall ... where ...` are
+   propositions, and `==` / `!=` at a type containing a function has no
+   evaluation semantics. Inside a theorem's statement or proof they are
    legal; outside they are warnings, not marks. */
 
 let warnings = (map: Statics.Map.t): list(Warning.list_item) =>
@@ -189,6 +190,17 @@ let tests = (
       "function == in a theorem statement is not an error",
       {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ? in 0|},
     ),
+    /* --- `forall ... where ...` --------------------------------------- */
+    expects_warning(
+      "forall-where outside a theorem warns",
+      {|forall x where x != 0 -> x / x == 1|},
+      is_forall_warning,
+    ),
+    expects_no_warning(
+      "forall-where in a theorem statement is quiet",
+      {|theorem t = forall x where x != 0 -> x / x == 1 proof ? in 0|},
+      is_forall_warning,
+    ),
     /* --- nesting ------------------------------------------------------- */
     /* The inner theorem's own statement is quiet; the program-level
        `forall` in the outer let-binding still warns. Exactly one warning. */
@@ -226,6 +238,12 @@ let tests = (
       "stepper: function != is not an error",
       {|(fun x -> x) != (fun x -> x)|},
       false,
+    ),
+    expects_no_warning_via(
+      statics_stepper,
+      "stepper: forall-where is quiet",
+      {|forall x where x != 0 -> x / x == 1|},
+      is_forall_warning,
     ),
     /* Same, through the editor-facing entry point the stepper actually
        uses (`CachedStatics.init_from_term(~is_dynamic_term=true)`). */

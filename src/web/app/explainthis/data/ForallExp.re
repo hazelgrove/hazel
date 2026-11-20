@@ -21,7 +21,7 @@ let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
   expandable_id: Some((Piece.id(tpat), [exp_arg])),
   explanation:
     sprintf(
-      "Asserts that for every total value of the [*variable*](%s) the [*body*](%s) denotes `true`. Quantifiers range over total values only — terminating, error-free ones — which is what makes a proven `forall` an operational guarantee: every closed instance of it really evaluates to `true`. It states a property rather than computing one, so it does not run (that would take forever).",
+      "Asserts that for every total value of the [*variable*](%s) the [*body*](%s) denotes `true`. Quantifiers range over total values only — terminating, error-free ones — which is what makes a proven `forall` an operational guarantee: every closed instance of it really evaluates to `true`. It states a property rather than computing one, so it does not run (that would take forever). Write `forall p where g -> e` to quantify over only the values satisfying `g`.",
       Id.to_string(pat_id),
       Id.to_string(body_id),
     ),
@@ -36,3 +36,44 @@ let forall_exp = (~pat_id: Id.t, ~body_id: Id.t): form => {
 
 let forall = (~pat_id: Id.t, ~body_id: Id.t): group =>
   singleton(forall_exp(~pat_id, ~body_id));
+
+/* `forall p where g -> e`: the restricted binder. Sugar for
+   `forall p -> g ==> e`, but the restriction is on the binder, which is
+   where the proof and every use of the theorem can see it. */
+let where_single = (~pat_id: Id.t, ~guard_id: Id.t, ~body_id: Id.t): Simple.t => {
+  let (p, g, b) = (pat("p"), exp("g"), exp("e"));
+  {
+    group_id: ForallWhereExp,
+    form_id: ForallWhereExp,
+    abstract: (
+      [
+        mk_forall_where([space(), p, space()], [space(), g, space()]),
+        space(),
+        b,
+      ],
+      [
+        (Piece.id(p), pat_id),
+        (Piece.id(g), guard_id),
+        (Piece.id(b), body_id),
+      ],
+    ),
+    explanation:
+      sprintf(
+        "Asserts that the [*body*](%s) denotes `true` for every total value of the [*variable*](%s) that satisfies the [*restriction*](%s) — sugar for `forall p -> g ==> e`, written on the binder. Inside the proof the restriction is a hypothesis citable as `where` — a fixed name, so an inner restricted binder shadows it and `alias` is what reaches past that — and citing it is how obligations about the variable get discharged. Every use of the theorem incurs the restriction, instantiated at that use, as an obligation of its own — so a restricted theorem is a conditional rule.",
+        body_id |> Id.to_string,
+        pat_id |> Id.to_string,
+        guard_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ForallWhere1,
+        term:
+          mk_example(
+            "theorem inv = forall x where x != 0 -> x / x == 1 proof ? in
+theorem u = 2 / 2 == 1 proof from 2 / 2 do rewrite inv end end; from 1 == 1 do rewrite refl end end in 0",
+          ),
+        message: "Without the restriction `x / x == 1` is not a theorem, because `0 / 0` is an error rather than `1`. Citing `inv` at `2 / 2` incurs the restriction as the obligation `2 != 0`, which is closed by evaluating it.",
+      },
+    ],
+  };
+};

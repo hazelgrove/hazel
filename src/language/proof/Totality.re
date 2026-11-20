@@ -63,6 +63,7 @@ open Util;
  *
  * Quantified functions are total on their type's whole domain; there is
  * no way to quantify over a function that is total only on part of it.
+ * `where` is a boolean hypothesis, not a totality domain.
  *
  * The expression is expected to be environment-substituted
  * (`Substitution.in_exp`) before calling: substitution inlines visible
@@ -163,7 +164,8 @@ let check =
      * instantiated (ProofCheck.Gate.instantiations). */
     | Var(_) => Ok()
     /* A lambda is total exactly when its body is, with the parameters
-     * assumed total (header). */
+     * assumed total (header). A parameter's `where` guard can only make
+     * the function match fewer arguments, never diverge. */
     | Fun(p, body, _, _) => go(~assumed=bind_total(assumed, p), body)
     | TypFun(_, body, _) => go(~assumed, body)
     /* A structurally recursive fix unrolls to its body with itself (a

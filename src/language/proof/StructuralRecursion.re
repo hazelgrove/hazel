@@ -258,7 +258,15 @@ and chain =
           p,
         )
         @ shadow(env, bound);
-      chain(~self, ~index=index + 1, ~env=env', body);
+      /* A parameter's `where` guard (`fun p where g -> _`) runs on every
+         call, so a self-reference inside it counts. */
+      let* g =
+        switch (Exp.pat_guard(p)) {
+        | None => Ok([])
+        | Some(guard) => go(~self, ~env=env', guard)
+        };
+      let* b = chain(~self, ~index=index + 1, ~env=env', body);
+      Ok(g @ b);
     };
   | _ => go(~self, ~env, e)
   }
@@ -335,7 +343,14 @@ and go =
   | UnOp(_, e1) => go(~self, ~env, e1)
   | If(e1, e2, e3) => go_all([e1, e2, e3])
   | DeferredAp(fn, args) => go_all([fn, ...args])
-  | Fun(p, body, _, _) => under(~seed=None, p, body)
+  | Fun(p, body, _, _) =>
+    let* g =
+      switch (Exp.pat_guard(p)) {
+      | None => Ok([])
+      | Some(guard) => under(~seed=None, p, guard)
+      };
+    let* b = under(~seed=None, p, body);
+    Ok(g @ b);
   | TypFun(_, body, _) => go(~self, ~env, body)
   | Let(p, e1, e2) =>
     let* r1 = go(~self, ~env, e1);

@@ -174,6 +174,32 @@ let tests = [
         ),
       ),
       test_case(
+        "guarded binders match on their guards",
+        `Quick,
+        () => {
+          match_check(
+            ~ctx_in=[("x", (hole_typ, None))],
+            "fun u where u != x -> u",
+            "fun v where v != 0 -> v",
+            Some([("x", (hole_typ, Some(int(0))))]),
+            (),
+          );
+          match_check(
+            "forall u where u > 0 -> u == u",
+            "forall v where v > 0 -> v == v",
+            Some([]),
+            (),
+          );
+          match_check(
+            "fun u where u > 0 -> u",
+            "fun v where v < 0 -> v",
+            None,
+            (),
+          );
+          match_check("fun u where u > 0 -> u", "fun v -> v", None, ());
+        },
+      ),
+      test_case(
         "Match equality with shadowing 1",
         `Quick,
         match_check(
