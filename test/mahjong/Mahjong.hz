@@ -251,9 +251,9 @@ let bot_claim : (Game, Int) -> Act = fun (g, s) ->
   else if c == 2 && (t >= 27 || near(st.hand, t) <= 3) then (kind = 6, tile = t)
   else if s == nxt(g.from) then (case singles(chows_for(st.hand, t)) | [] => (kind = 4, tile = 0 - 1) | k :: _ => (kind = 5, tile = k) end)
   else (kind = 4, tile = 0 - 1);
-# the claims on a discard, in their order: a win first (the nearest seat after the thrower), then a pung or kong, then the next seat's chow; with none, the next seat draws. mine: your claim, if you may make one #
+# the claims on a discard, in their order: a win first (the nearest seat after the thrower), then a pung or kong, then the next seat's chow; with none, the next seat draws. mine: your claim, if you may make one, or kind 9 for a Hazel player's claim in your seat #
 let resolve : (Game, Act) -> Game = fun (g, mine) ->
-  let claim_by : Int -> Act = fun s -> if s == 0 then (if legal(g, 0, mine) then mine else (kind = 4, tile = 0 - 1)) else bot_claim(g, s) in
+  let claim_by : Int -> Act = fun s -> if s == 0 && !(mine.kind == 9) then (if legal(g, 0, mine) then mine else (kind = 4, tile = 0 - 1)) else bot_claim(g, s) in
   let s1 = nxt(g.from) in
   let s2 = nxt(s1) in
   let s3 = nxt(s2) in
@@ -276,11 +276,11 @@ let options : Game -> Opts = fun g ->
     (discard = false, win = wins(g, 0, insert(g.tile, st.hand), false), kongs = [], pung = count(g.tile, st.hand) >= 2,
      kong = count(g.tile, st.hand) >= 3 && len(g.wall) > 0, chows = (if nxt(g.from) == 0 then chows_for(st.hand, g.tile) else []))
   else (discard = false, win = false, kongs = [], pung = false, kong = false, chows = []);
-# one step of the table: your move when it is yours to make (the game as it was, if none is given), else the next Hazel player's, or the claims on a discard #
+# one step of the table: your move when it is yours to make (the game as it was, if none is given; kind 9, Hazel plays for you, as it plays its own seats), else the next Hazel player's, or the claims on a discard #
 let step : (Game, Act) -> Game = fun (g, a) ->
   if g.phase == 3 then g
   else if g.phase == 1 then
-    (if !(g.turn == 0) then bot_turn(g) else
+    (if !(g.turn == 0) || a.kind == 9 then bot_turn(g) else
      let st = seat_at(g.seats, 0) in
      if a.kind == 1 && mem(a.tile, st.hand) then discard(g, 0, a.tile)
      else if a.kind == 2 && g.drawn >= 0 && wins(g, 0, st.hand, true) then win_self(g, 0)
