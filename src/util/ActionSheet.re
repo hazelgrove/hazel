@@ -59,7 +59,7 @@ let close_open_dialogs =
         Js.string("dialog.action-sheet[open]"),
       )
       |> Dom.list_of_nodeList
-      |> List.iter(close_dialog),
+      |> List.iter(~f=close_dialog),
     (),
   );
 
@@ -153,24 +153,25 @@ module Hook =
         },
       );
       listen(el, "pointermove", e =>
-        if (state.drag_from^ != None) {
+        if (Option.is_some(state.drag_from^)) {
           let dy = drag_dy(e);
-          if (dy > 0.0) {
+          if (Float.(dy > 0.0)) {
             state.pressed := false;
           };
           set_style(el, "transform", Printf.sprintf("translateY(%fpx)", dy));
         }
       );
       listen(el, "pointerup", e =>
-        if (state.drag_from^ != None) {
+        if (Option.is_some(state.drag_from^)) {
           let height = float_of_int(el##.offsetHeight);
           end_drag(
-            ~dismiss=drag_dy(e) > Float.min(dismiss_drag_px, height /. 4.0),
+            ~dismiss=
+              Float.(drag_dy(e) > Float.min(dismiss_drag_px, height /. 4.0)),
           );
         }
       );
       listen(el, "pointercancel", _ =>
-        if (state.drag_from^ != None) {
+        if (Option.is_some(state.drag_from^)) {
           end_drag(~dismiss=false);
         }
       );
@@ -179,7 +180,6 @@ module Hook =
        * bubble on to the caller as presses there: a code editor would take
        * one for a tap and move its caret. */
       List.iter(
-        name => listen(el, name, Dom_html.stopPropagation),
         [
           "pointerdown",
           "pointerup",
@@ -189,6 +189,8 @@ module Hook =
           "mouseup",
           "click",
         ],
+        ~f=name =>
+        listen(el, name, Dom_html.stopPropagation)
       );
       listen(el, "contextmenu", Dom.preventDefault);
       /* Runs in the capture phase, ahead of the rows' own handlers. A
@@ -212,17 +214,19 @@ module Hook =
             float_of_int(e##.clientY),
           );
           let outside =
-            x <
-            rect##.left
-            || x >
-            rect##.right
-            || y <
-            rect##.top
-            || y >
-            rect##.bottom;
+            Float.(
+              x <
+              rect##.left
+              || x >
+              rect##.right
+              || y <
+              rect##.top
+              || y >
+              rect##.bottom
+            );
           let on_dialog =
             switch (Js.Opt.to_option(e##.target)) {
-            | Some(t) => t === el
+            | Some(t) => phys_equal(t, el)
             | None => false
             };
           if (!pressed && Js.Unsafe.get(e, "detail") != 0) {
@@ -334,9 +338,11 @@ let view =
       /* Keyed by path so each submenu panel is a fresh node and replays
        * the drill-in animation. */
       Node.div(
-        ~key=String.concat("\000", path),
+        ~key=String.concat(~sep="\000", path),
         ~attrs=[
-          clss(["action-sheet-rows"] @ (path == [] ? [] : ["nested"])),
+          clss(
+            ["action-sheet-rows"] @ (List.is_empty(path) ? [] : ["nested"]),
+          ),
         ],
         Menu.render(
           ~sheet=true,
