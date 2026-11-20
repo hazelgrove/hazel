@@ -71,9 +71,9 @@ let len : poly A -> (rec L -> + Nil + Cons(A, L)) -> Int =
 let ex8 = len@<Int>(Cons(1, Cons(2, Cons(3, Nil)))) in # 3 #
 
 # The same for a recursive product, taken apart through its unrolling: #
-let first_of : poly A -> (rec P -> (A, P)) -> A =
-  typfun A -> fun (a, _) -> a in
-let ex9 = first_of@<Int>(c) in # 1 #
+let first_of : (rec P -> (Int, P)) -> Int =
+  fun (a, _) -> a in
+let ex9 = first_of(c) in # 1 #
 
 # A recursive occurrence is the type itself, not a hole. This chain has a #
 # Bool at every second link, so it is not a chain of Ints: #
