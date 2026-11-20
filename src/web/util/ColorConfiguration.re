@@ -265,6 +265,12 @@ let aliases: list(((string, string), list(string))) = [
   (("problems", "row"), ["hole-fill"]),
   (("problems", "row-edge"), ["hole-stroke"]),
   (("problems", "row-active"), ["hole-active"]),
+  (("problems", "live-row"), ["live-typing-fill"]),
+  (
+    ("palette", "live-typing"),
+    ["live-typing-stroke", "live-typing-error-hole-stroke"],
+  ),
+  (("palette", "live-typing-strong"), ["live-typing-active"]),
   (("results", "divider"), ["cell-result-border"]),
   (("results", "reused"), ["incremental-frozen"]),
   (("results", "reused-edge"), ["incremental-frozen-edge"]),

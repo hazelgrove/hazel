@@ -13,10 +13,22 @@ type statics_outcome =
 /* The constructor's name; the panel lowercases it for display. */
 let show_statics_outcome: statics_outcome => string;
 
+/* Why the live-typing pass did or didn't run on a frame; it can be skipped by
+ * the streaming throttle or by having nothing new to type against. */
+type live_typing_outcome =
+  | Ran
+  | Throttled
+  | Reused
+  | Off;
+
+/* The constructor's name; the panel lowercases it for display. */
+let show_live_typing_outcome: live_typing_outcome => string;
+
 type frame = {
   perform: option((string, Core.Time_ns.Span.t)),
   statics: option(Core.Time_ns.Span.t),
   syntax: option(Core.Time_ns.Span.t),
+  live_typing: option(Core.Time_ns.Span.t),
   cursor_info: option(Core.Time_ns.Span.t),
   color_map: option(Core.Time_ns.Span.t),
   total: option(Core.Time_ns.Span.t),
@@ -24,6 +36,9 @@ type frame = {
   errors: int,
   warnings: int,
   statics_outcome: option(statics_outcome),
+  live_typing_entries: int,
+  live_typing_errors: int,
+  live_typing_outcome: option(live_typing_outcome),
   segment_tokens: int,
   tiles: int,
   rows: int,
@@ -52,10 +67,13 @@ let time_frame: (unit => 'a) => 'a;
 let time_perform: (~action: Haz3lcore.Action.t, unit => 'a) => 'a;
 let time_statics: (unit => 'a) => 'a;
 let time_syntax: (unit => 'a) => 'a;
+let time_live_typing: (unit => 'a) => 'a;
 let time_cursor: (unit => 'a) => 'a;
 let time_colors: (unit => 'a) => 'a;
 
 let record_statics_counts:
   (~recompute: bool, ~mode: StaticsMode.t, Haz3lcore.CachedStatics.t) => unit;
+let record_live_typing_counts:
+  (~outcome: live_typing_outcome, Haz3lcore.CachedStatics.t) => unit;
 let record_syntax_counts: Haz3lcore.CachedSyntax.t => unit;
 let record_history: (~undo: list('a), ~redo: list('b)) => unit;

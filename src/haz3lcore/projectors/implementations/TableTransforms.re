@@ -169,8 +169,6 @@ let convert_column = (column: string, conversion_fn: string): transform => {
               ),
             ]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -193,8 +191,6 @@ let rename_column = (old_name: string, new_name: string): transform => {
               tup_label(label(new_name), dot(var("r"), label(old_name))),
             ]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -213,8 +209,6 @@ let add_column = (): transform =>
             var("r"),
             tuple([tup_label(empty_hole(), empty_hole())]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -230,8 +224,6 @@ let clear_column = (column: string): transform => {
             var("r"),
             tuple([tup_label(label(column), empty_hole())]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -250,8 +242,6 @@ let noop_column = (column: string): transform => {
               tup_label(label(column), dot(var("r"), label(column))),
             ]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -266,12 +256,7 @@ let group_by_column = (column: string): transform => {
           var("group_on_key"),
           [
             deferral(InAp),
-            fn(
-              Pat.var("row"),
-              dot(var("row"), label(column)),
-              None,
-              None,
-            ),
+            fn(Pat.var("row"), dot(var("row"), label(column))),
           ],
         )
       ),
@@ -290,8 +275,6 @@ let filter_by_column = (op, column: string): transform => {
             fn(
               Pat.var("row"),
               bin_op(op, dot(var("row"), label(column)), empty_hole()),
-              None,
-              None,
             ),
           ],
         )
@@ -308,7 +291,7 @@ let custom_filter = (): transform =>
       Exp.(
         deferred_ap(
           var("filter"),
-          [deferral(InAp), fn(Pat.var("row"), empty_hole(), None, None)],
+          [deferral(InAp), fn(Pat.var("row"), empty_hole())],
         )
       ),
     )
@@ -331,8 +314,6 @@ let string_match_filter = (column: string): transform =>
                 var("string_match"),
                 tuple([empty_hole(), dot(var("row"), label(column))]),
               ),
-              None,
-              None,
             ),
           ],
         )
@@ -361,13 +342,9 @@ let drop_nones_column = (column: string): transform => {
                       var("row"),
                       tuple([tup_label(label(column), var("v"))]),
                     ),
-                    None,
-                    None,
                   ),
                 ]),
               ),
-              None,
-              None,
             ),
           ],
         )
@@ -400,8 +377,6 @@ let provide_default_column = (column: string): transform => {
               ),
             ]),
           ),
-          None,
-          None,
         )
       ),
     )
@@ -489,12 +464,7 @@ let sort_column =
             deferred_ap(
               var("sort"),
               [
-                fn(
-                  Pat.tuple([Pat.var("r1"), Pat.var("r2")]),
-                  body,
-                  None,
-                  None,
-                ),
+                fn(Pat.tuple([Pat.var("r1"), Pat.var("r2")]), body),
                 deferral(InAp),
               ],
             )

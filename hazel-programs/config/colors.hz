@@ -153,7 +153,10 @@ let sort_plate(c) =
     problems = (
       `row` = wash(p.`pattern`, 0.11, 0.2),
       `row-edge` = wash(p.`pattern`, 0.82, 0.75),
-      `row-active` = wash(p.`pattern`, 1.04, 1.)
+      `row-active` = wash(p.`pattern`, 1.04, 1.),
+      # a problem only live typing found: a wash of its mark, as deep #
+      # into the page as an ordinary row #
+      `live-row` = wash(p.`live-typing`, 0.11, 0.1333)
     ),
     # results, and the incremental evaluator's tints #
     results = (
@@ -296,7 +299,9 @@ let light =
       `probe-pattern-edge` = ^^color(Oklch(50., 0.1, 245.)),
       `probe-timeline` = ^^color(Oklch(80.13895, 0.05096, 177.90838)),
       `statics-background` = ^^color(Oklch(94.8122, 0.03085, 315.29055)),
-      `statics-edge` = ^^color(Oklch(33.96448, 0.0941, 314.00959))
+      `statics-edge` = ^^color(Oklch(33.96448, 0.0941, 314.00959)),
+      `live-typing` = ^^color(Oklch(40., 0.3, 326.)),
+      `live-typing-strong` = ^^color(Oklch(35., 0.3, 326.))
     ),
     (
       `frame-2` = 70.,
@@ -377,7 +382,9 @@ let dark = ^^fold(let p = palette_of(
       `probe-pattern-edge` = ^^color(Oklch(25., 0.1, 260.)),
       `probe-timeline` = ^^color(Oklch(45.47879, 0.06612, 283.45785)),
       `statics-background` = ^^color(Oklch(23.76605, 0.04345, 290.34169)),
-      `statics-edge` = ^^color(Oklch(14.52088, 0.01659, 292.02116))
+      `statics-edge` = ^^color(Oklch(14.52088, 0.01659, 292.02116)),
+      `live-typing` = ^^color(Oklch(65., 0.25, 326.)),
+      `live-typing-strong` = ^^color(Oklch(75., 0.25, 326.))
     ),
     (
       `frame-2` = 40.,
@@ -427,7 +434,9 @@ let contrast_light = ^^fold(let p = palette_of(
       `probe-pattern-edge` = ^^color(Oklch(35., 0.14, 245.)),
       `probe-timeline` = ^^color(Oklch(90., 0.06, 177.90838)),
       `statics-background` = ^^color(Oklch(96., 0.04, 315.29055)),
-      `statics-edge` = ^^color(Oklch(25., 0.12, 314.00959))
+      `statics-edge` = ^^color(Oklch(25., 0.12, 314.00959)),
+      `live-typing` = ^^color(Oklch(35.5, 0.28, 326.)),
+      `live-typing-strong` = ^^color(Oklch(28., 0.28, 326.))
     ),
     (
       `frame-2` = 25.,
@@ -482,7 +491,9 @@ let contrast_dark = ^^fold(let p = palette_of(
       `probe-pattern-edge` = ^^color(Oklch(78., 0.12, 260.)),
       `probe-timeline` = ^^color(Oklch(57., 0.08, 283.45785)),
       `statics-background` = ^^color(Oklch(32., 0.06, 290.34169)),
-      `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116))
+      `statics-edge` = ^^color(Oklch(6., 0.02, 292.02116)),
+      `live-typing` = ^^color(Oklch(70., 0.2, 326.)),
+      `live-typing-strong` = ^^color(Oklch(80., 0.15, 326.))
     ),
     (
       `frame-2` = 75.,

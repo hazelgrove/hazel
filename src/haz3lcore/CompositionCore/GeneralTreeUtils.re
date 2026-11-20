@@ -61,6 +61,7 @@ let subtree_of =
             ? {
               let (_, _, m) =
                 Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
                   ~ctx=def_info.ctx,
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
@@ -77,6 +78,7 @@ let subtree_of =
             ? {
               let (_, _, m) =
                 Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
                   ~ctx=body_info.ctx,
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
@@ -121,6 +123,7 @@ let subtree_of =
             ? {
               let (_, _, m) =
                 Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
                   ~ctx=body_info.ctx,
                   ~ana=body_info.ana,
                   ~is_in_filter=false,
@@ -148,6 +151,7 @@ let subtree_of =
             ? {
               let (_, _, m) =
                 Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
                   ~ctx=def_info.ctx,
                   ~ana=def_info.ana,
                   ~is_in_filter=false,
@@ -164,6 +168,7 @@ let subtree_of =
             ? {
               let (_, _, m) =
                 Statics.uexp_to_info_map(
+                  ~dynamics=LiveTyping.Map.empty,
                   ~ctx=body_info.ctx,
                   ~ana=body_info.ana,
                   ~is_in_filter=false,

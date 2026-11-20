@@ -27,7 +27,7 @@ module Update = {
           ~settings=settings.core,
           action,
           model.statics,
-          model.dynamics,
+          model.dynamics.probe_map,
           model.editor,
         )
       )
@@ -39,6 +39,8 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            live_typing: model.live_typing,
+            sample_focus: model.sample_focus,
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )

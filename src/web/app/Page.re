@@ -475,6 +475,7 @@ module Update = {
     PerfMetrics.sync(
       ~enabled=
         debug_panel_open(StaticsSection.title)
+        || debug_panel_open(LiveTypingSection.title)
         || debug_panel_open(EditorSection.title)
         || debug_panel_open(FrameSection.title),
     );
@@ -596,6 +597,10 @@ module Selection = {
          of_shortcut(
            ~action=inject(Globals(Set(Dynamics))),
            ToggleDynamics,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(LiveTyping))),
+           ToggleLiveTyping,
          ),
          of_shortcut(
            ~action=inject(Globals(Set(Elaborate))),

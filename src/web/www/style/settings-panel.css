@@ -138,6 +138,16 @@
   color: var(--text-muted);
 }
 
+/* a caution on a setting, e.g. that it is experimental */
+#settings-panel .settings-warning,
+#settings-panel .settings-warning-glyph {
+  color: var(--text-warning);
+}
+
+#settings-panel .settings-warning-glyph {
+  margin-left: 0.35em;
+}
+
 #settings-panel .settings-toggle .toggle-switch {
   margin: 0;
   height: 0.95em;

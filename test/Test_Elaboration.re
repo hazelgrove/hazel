@@ -152,18 +152,14 @@ module PlainTests = {
     );
 
   // x => 4 + 5
-  let f =
-    Exp.(
-      fn(Pat.var("x"), bin_op(Int(Plus), int(4), int(5)), None, None)
-    );
+  let f = Exp.(fn(Pat.var("x"), bin_op(Int(Plus), int(4), int(5))));
 
   let f' =
     Exp.(
       fn(
         Pat.var("x"),
         bin_op(Int(Plus), int(4), int(5)),
-        Some(Typ.unknown(Hole(EmptyHole))),
-        None,
+        ~typ=Typ.unknown(Hole(EmptyHole)),
       )
     );
   let unapplied_function = () =>
@@ -206,12 +202,7 @@ module PlainTests = {
     Exp.(
       let_(
         Pat.(asc(var("f"), Typ.arrow(Typ.int(), Typ.int()))),
-        fn(
-          Pat.var("x"),
-          bin_op(Int(Plus), int(1), var("x")),
-          None,
-          None,
-        ),
+        fn(Pat.var("x"), bin_op(Int(Plus), int(1), var("x"))),
         int(55),
       )
     );
@@ -223,8 +214,8 @@ module PlainTests = {
         fn(
           Pat.var("x"),
           bin_op(Int(Plus), int(1), var("x")),
-          Some(Typ.int()),
-          Some("f"),
+          ~typ=Typ.int(),
+          ~name="f",
         ),
         int(55),
       )
@@ -621,8 +612,7 @@ module PlainTests = {
                 tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
               ),
               var("x"),
-              Some(Typ.(prod([tup_label(label("a"), int())]))),
-              None,
+              ~typ=Typ.(prod([tup_label(label("a"), int())])),
             ),
             tuple([tup_label(label("a"), int(1))]),
           )
@@ -644,8 +634,7 @@ module PlainTests = {
                 tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
               ),
               var("x"),
-              Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
-              None,
+              ~typ=Typ.(prod([tup_label(label("a"), Typ.int())])),
             ),
             tuple([tup_label(label("a"), int(1))]),
           )
@@ -695,10 +684,7 @@ module PlainTests = {
             fn(
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
-              Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
-              ),
-              None,
+              ~typ=Typ.(prod([tup_label(label("a"), unknown(Internal))])),
             ),
             tuple([tup_label(label("a"), int(1))]),
           )
