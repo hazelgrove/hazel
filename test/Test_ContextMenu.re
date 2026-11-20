@@ -9,10 +9,11 @@ let zipper = (acts: list(Action.t)): Zipper.t =>
 let labels = (z: Zipper.t): list(string) =>
   Web.ContextMenu.put_down_data(z)
   |> List.filter_map(
-       fun
-       | Util.Menu.Action({label, _}) => Some(label)
-       | Submenu(_)
-       | Divider => None,
+       ~f=
+         fun
+         | Util.Menu.Action({label, _}) => Some(label)
+         | Submenu(_)
+         | Divider => None,
      );
 
 let tests = [
