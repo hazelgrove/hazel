@@ -410,19 +410,16 @@ module Utils = {
     };
 
     module SafeTaskAssertion = {
-      module StringSet = Stdlib.Set.Make(String);
       let assert_no_duplicates_in_ordering = (~task: task): unit => {
         // Assert no duplicates in subtask_ordering
         let unique_subtask_titles =
           task.subtask_ordering
           |> List.fold_left(
                ~f=
-                 (acc: StringSet.t, title: string) => {
-                   StringSet.add(title, acc)
-                 },
-               ~init=StringSet.empty,
+                 (acc: String.Set.t, title: string) => {Set.add(acc, title)},
+               ~init=String.Set.empty,
              );
-        StringSet.cardinal(unique_subtask_titles)
+        Set.length(unique_subtask_titles)
         == List.length(task.subtask_ordering)
           ? ()
           : raise(

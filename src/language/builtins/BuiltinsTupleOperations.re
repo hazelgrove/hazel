@@ -238,10 +238,9 @@ let builtins: list(BuiltinsUtil.fn) = [
             labels,
           );
         let labels = OptUtil.sequence(labs);
-        module StringSet = Stdlib.Set.Make(String);
         switch (labels) {
         | Some(labels: list(string)) =>
-          let labels_set = StringSet.of_list(labels);
+          let labels_set = String.Set.of_list(labels);
           let-unbox entries = (LabeledTupleEntries, tup);
           let entries =
             List.filter_map(
@@ -249,7 +248,7 @@ let builtins: list(BuiltinsUtil.fn) = [
                 ((l, e)) => {
                   switch (l) {
                   | Some(l) =>
-                    if (StringSet.mem(l, labels_set)) {
+                    if (Set.mem(labels_set, l)) {
                       None;
                     } else {
                       Some(tup_label(label(l), e));
