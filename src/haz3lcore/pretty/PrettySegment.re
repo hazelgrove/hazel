@@ -1,3 +1,4 @@
+open Poly;
 /* Pretty printer for Hazel segments.
 
    Uses a Wadler/Lindig-style document IR with a greedy layout algorithm.
@@ -105,14 +106,14 @@ let rec piece_width = (p: Piece.t): int =>
        pieces from decomposition it's just the shard's token. */
     let label_w =
       List.fold_left(
-        (acc, s) => acc + Token.length(s),
-        0,
+        ~f=(acc, s) => acc + Token.length(s),
+        ~init=0,
         Tile.effective_label(t),
       );
     let children_w =
       List.fold_left(
-        (acc, child) => acc + segment_flat_width(child),
-        0,
+        ~f=(acc, child) => acc + segment_flat_width(child),
+        ~init=0,
         t.children,
       );
     label_w + children_w;
@@ -121,7 +122,7 @@ let rec piece_width = (p: Piece.t): int =>
   | Projector(_) => 10
   }
 and segment_flat_width = (seg: Segment.t): int =>
-  List.fold_left((acc, p) => acc + piece_width(p), 0, seg);
+  List.fold_left(~f=(acc, p) => acc + piece_width(p), ~init=0, seg);
 
 /* === Greedy layout algorithm (Lindig-style for strict evaluation) === */
 
@@ -168,7 +169,7 @@ let layout =
     (width: int, col: int, cmds: list((int, mode, doc))): list(output) => {
   /* Push ONewline then N OSpaces of indent onto the reversed acc. */
   let break_with_indent = (indent: int, acc: list(output)): list(output) =>
-    List.init(indent, _ => OSpace) @ [ONewline, ...acc];
+    List.init(indent, ~f=_ => OSpace) @ [ONewline, ...acc];
   let rec go =
           (acc: list(output), col: int, cmds: list((int, mode, doc)))
           : list(output) =>
@@ -196,7 +197,10 @@ let layout =
     | [(i, _, Group(x)), ...rest] =>
       let fit_cmds =
         List.rev(
-          List.rev_map(((_, m, d)) => (m, d), [(i, Flat, x), ...rest]),
+          List.rev_map(
+            ~f=((_, m, d)) => (m, d),
+            [(i, Flat, x), ...rest],
+          ),
         );
       if (fits(width - col, fit_cmds)) {
         go(acc, col, [(i, Flat, x), ...rest]);
@@ -211,10 +215,11 @@ let layout =
 let output_to_segment = (outputs: list(output)): Segment.t =>
   List.rev(
     List.rev_map(
-      fun
-      | OPiece(p) => p
-      | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
-      | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
+      ~f=
+        fun
+        | OPiece(p) => p
+        | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
+        | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
       outputs,
     ),
   );
@@ -234,7 +239,7 @@ let is_linebreak = (p: Piece.t): bool =>
   };
 
 let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
-  List.filter(p => !is_whitespace(p), seg);
+  List.filter(~f=p => !is_whitespace(p), seg);
 
 /* Detect blank lines in original segment.
    Returns a set of piece IDs that had a blank line (2+ newlines) before them.
@@ -244,13 +249,17 @@ let strip_whitespace = (seg: Segment.t): list(Piece.t) =>
 let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
   let (_, set) =
     List.fold_left(
-      ((newline_count, set), p) =>
-        if (is_whitespace(p)) {
-          (is_linebreak(p) ? newline_count + 1 : newline_count, set);
-        } else {
-          (0, newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set);
-        },
-      (0, Id.Map.empty),
+      ~f=
+        ((newline_count, set), p) =>
+          if (is_whitespace(p)) {
+            (is_linebreak(p) ? newline_count + 1 : newline_count, set);
+          } else {
+            (
+              0,
+              newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set,
+            );
+          },
+      ~init=(0, Id.Map.empty),
       seg,
     );
   set;
@@ -310,7 +319,11 @@ let classify_trailing_comments = (seg: Segment.t): Id.Map.t(unit) => {
       go(acc, true, rest);
     | [Piece.Tile(t), ...rest] =>
       let acc =
-        List.fold_left((acc, ch) => go(acc, true, ch), acc, t.children);
+        List.fold_left(
+          ~f=(acc, ch) => go(acc, true, ch),
+          ~init=acc,
+          t.children,
+        );
       go(acc, true, rest);
     | [_, ...rest] => go(acc, true, rest)
     };
@@ -373,13 +386,14 @@ let piece_precedence = (p: Piece.t): option(int) =>
 /* Find the loosest (highest int) precedence among operators in pieces */
 let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
   List.fold_left(
-    (best, p) =>
-      switch (piece_precedence(p), best) {
-      | (Some(prec), None) => Some(prec)
-      | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
-      | _ => best
-      },
-    None,
+    ~f=
+      (best, p) =>
+        switch (piece_precedence(p), best) {
+        | (Some(prec), None) => Some(prec)
+        | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
+        | _ => best
+        },
+    ~init=None,
     pieces,
   );
 
@@ -478,7 +492,7 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
       _,
     }) =>
     /* Complete tile (has children) or opening shard (index 0) */
-    List.length(children) > 0 || shards == [0]
+    !List.is_empty(children) || shards == [0]
   /* nullary application: f() */
   | Tile(t) when Tile.is_empty_tuple_shaped(t) => true
   | _ => false
@@ -539,8 +553,8 @@ let piece_doc = (p: Piece.t): doc => Piece(p, piece_width(p));
 /* Build doc for a piece followed by trailing comments (Space-separated) */
 let piece_with_comments = (p: Piece.t, comments: list(Piece.t)): doc =>
   List.fold_left(
-    (acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
-    piece_doc(p),
+    ~f=(acc, c) => Cat(acc, Cat(Space, piece_doc(c))),
+    ~init=piece_doc(p),
     comments,
   );
 
@@ -586,8 +600,8 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
       let (comments, rest_after) = absorb_comments(rest);
       let comment_suffix =
         List.fold_left(
-          (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-          Empty,
+          ~f=(acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+          ~init=Empty,
           comments,
         );
       switch (rest_after) {
@@ -626,7 +640,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
           {form: Form.Compound(Parens | Ap | ListLit | ModBody), _} as dt,
         ),
       ]
-        when s.hanging_delimiters && List.length(dt.children) > 0 =>
+        when s.hanging_delimiters && !List.is_empty(dt.children) =>
       let open_s = Tile.to_piece(Tile.shard_of(dt, 0));
       let close_s = Tile.to_piece(Tile.shard_of(dt, Tile.arity(dt) - 1));
       switch (Tile.contained_children(dt)) {
@@ -726,7 +740,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
               cats([
                 piece_doc(Tile.to_piece(Tile.shard_of(ft, 0))),
                 Space,
-                Group(child_doc(s, List.hd(ft.children))),
+                Group(child_doc(s, List.hd_exn(ft.children))),
                 Space,
                 piece_doc(
                   Tile.to_piece(Tile.shard_of(ft, Tile.arity(ft) - 1)),
@@ -1064,7 +1078,7 @@ and build_tile_doc = (s: settings, t: Tile.t, rest: list(Piece.t)): doc => {
    broken mode), but grouping a tail that still contains semis would
    let multiple items re-pack onto one line mid-block */
 and semi_tail_doc = (s: settings, after: list(Piece.t)): doc => {
-  let has_semi = List.exists(Piece.is_semi, after);
+  let has_semi = List.exists(~f=Piece.is_semi, after);
   has_semi ? segment_to_doc(s, after) : Group(segment_to_doc(s, after));
 }
 
@@ -1100,7 +1114,7 @@ and segment_to_doc = (s: settings, pieces: list(Piece.t)): doc =>
 
 /* Wrap accumulated prefix docs (reversed) around the terminal doc */
 and seg_finish = (acc_rev: list(doc), last: doc): doc =>
-  List.fold_left((acc, d) => Cat(d, acc), last, acc_rev)
+  List.fold_left(~f=(acc, d) => Cat(d, acc), ~init=last, acc_rev)
 
 and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   switch (pieces) {
@@ -1108,7 +1122,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
   | [p] =>
     switch (p) {
     /* Single tile with children: decompose */
-    | Tile(t) when List.length(t.children) > 0 =>
+    | Tile(t) when !List.is_empty(t.children) =>
       seg_finish(acc_rev, build_tile_doc(s, t, []))
     | _ => seg_finish(acc_rev, piece_doc(p))
     }
@@ -1117,7 +1131,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      build_tile_doc handlers (test/end, case/end, etc.) handle the semi
      in rest, so the tile gets proper Group wrapping for layout. */
   | [Tile(t), semi, ...rest]
-      when List.length(t.children) > 0 && Piece.is_semi(semi) =>
+      when !List.is_empty(t.children) && Piece.is_semi(semi) =>
     seg_finish(acc_rev, build_tile_doc(s, t, [semi, ...rest]))
 
   /* Semicolon sequence with a multi-piece item: the item is an
@@ -1125,7 +1139,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
      force it to explode. (Without this, the first tile's body-doc
      swallows the whole remaining item list.) */
   | _ when Option.is_some(split_at_semi_multi(pieces)) =>
-    let (item, semi, after) = Option.get(split_at_semi_multi(pieces));
+    let (item, semi, after) = Option.value_exn(split_at_semi_multi(pieces));
     seg_finish(
       acc_rev,
       cats([
@@ -1148,7 +1162,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     let brk = s.soft_semis ? Break : HardBreak;
     switch (rest) {
     | [] => seg_finish(acc_rev, left)
-    | _ when List.exists(Piece.is_semi, rest) =>
+    | _ when List.exists(~f=Piece.is_semi, rest) =>
       seg_loop(s, [Cat(left, brk), ...acc_rev], rest)
     | _ =>
       seg_finish(
@@ -1173,8 +1187,8 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     let (comments, rest_after) = absorb_comments(rest);
     let left =
       List.fold_left(
-        (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-        cats([segment_to_doc(s, [p]), piece_doc(comma)]),
+        ~f=(acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+        ~init=cats([segment_to_doc(s, [p]), piece_doc(comma)]),
         comments,
       );
     switch (rest_after) {
@@ -1226,7 +1240,7 @@ and seg_loop = (s: settings, acc_rev: list(doc), pieces: list(Piece.t)): doc =>
     seg_finish(acc_rev, chain_doc);
 
   /* Tile with children: decompose on-demand */
-  | [Tile(t), ...rest] when List.length(t.children) > 0 =>
+  | [Tile(t), ...rest] when !List.is_empty(t.children) =>
     seg_finish(acc_rev, build_tile_doc(s, t, rest))
 
   /* Single-token prefix (leading +): keep attached via Space */
@@ -1305,36 +1319,38 @@ and build_infix_chain_doc =
         | _ => false
         }
       );
-    let is_comma_chain = List.exists(no_fill, operators);
+    let is_comma_chain = List.exists(~f=no_fill, operators);
     let chain_w =
       List.fold_left(
-        (acc, seg) => acc + segment_flat_width(seg) + 1,
-        List.fold_left(
-          (acc, op) => acc + piece_width(op) + 1,
-          0,
-          operators,
-        ),
+        ~f=(acc, seg) => acc + segment_flat_width(seg) + 1,
+        ~init=
+          List.fold_left(
+            ~f=(acc, op) => acc + piece_width(op) + 1,
+            ~init=0,
+            operators,
+          ),
         operands,
       );
     let budget = s.width - 8;
     if (!is_comma_chain && chain_w > budget) {
-      let steps = List.combine(operators, rest_operands);
+      let steps = List.zip_exn(operators, rest_operands);
       let (doc, _) =
         List.fold_left(
-          ((acc, line_w), (op, operand)) => {
-            let step_w = piece_width(op) + segment_flat_width(operand) + 2;
-            let operand_doc = Group(segment_to_doc(s, operand));
-            line_w + step_w > budget
-              ? (
-                cats([acc, HardBreak, piece_doc(op), Space, operand_doc]),
-                step_w,
-              )
-              : (
-                cats([acc, Space, piece_doc(op), Space, operand_doc]),
-                line_w + step_w,
-              );
-          },
-          (first_doc, segment_flat_width(first)),
+          ~f=
+            ((acc, line_w), (op, operand)) => {
+              let step_w = piece_width(op) + segment_flat_width(operand) + 2;
+              let operand_doc = Group(segment_to_doc(s, operand));
+              line_w + step_w > budget
+                ? (
+                  cats([acc, HardBreak, piece_doc(op), Space, operand_doc]),
+                  step_w,
+                )
+                : (
+                  cats([acc, Space, piece_doc(op), Space, operand_doc]),
+                  line_w + step_w,
+                );
+            },
+          ~init=(first_doc, segment_flat_width(first)),
           steps,
         );
       doc;
@@ -1351,8 +1367,8 @@ and build_infix_chain_doc =
           let operand_doc = Group(segment_to_doc(s, actual_operand));
           let comment_suffix =
             List.fold_left(
-              (acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
-              Empty,
+              ~f=(acc, c) => Cat(acc, cats([Space, piece_doc(c)])),
+              ~init=Empty,
               leading_comments,
             );
           /* An operand that is a single delimited tile hangs: keep
@@ -1362,7 +1378,7 @@ and build_infix_chain_doc =
           let hangable =
             switch (actual_operand) {
             | [Tile({form: Form.Compound(ModBody), children, _})]
-                when List.length(children) > 0 =>
+                when !List.is_empty(children) =>
               true
             | _ => false
             };

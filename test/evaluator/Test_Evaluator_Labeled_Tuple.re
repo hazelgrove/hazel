@@ -18,6 +18,9 @@ let tests = (
     test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
+    test_case("Repeated label ascribed to a labeled tuple type", `Quick, () =>
+      parse_and_evaluate_test("(a=1, a=2)", {|((a=1, a=2) : (a=Int, b=Int))|})
+    ),
     test_case("Labeled tuple field access", `Quick, () =>
       parse_and_evaluate_test("1", {|(a=1,b=2).a|})
     ),
