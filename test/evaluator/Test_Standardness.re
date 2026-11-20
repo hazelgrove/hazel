@@ -149,9 +149,29 @@ let routine_tests = [
     "let f : Int -> Int = fun n -> n + 1 in let g = fun (h : Int -> Int) -> fun x -> h(x) in g",
   ),
   judged(
-    "both branches count, whichever is taken",
-    Some(["0 != 0"]),
+    "a branch's condition holds under its guard",
+    Some(["! true ==> 0 != 0"]),
     "if true then 1 else 1 / 0",
+  ),
+  judged(
+    "a guard that implies the condition discharges it",
+    Some([]),
+    "fun (a : Int) -> fun (b : Int) -> if b == 0 then 0 else a / b",
+  ),
+  judged(
+    "and through `!` and `&&`",
+    Some([]),
+    "fun (a : Int) -> fun (b : Int) -> if !(b <= 0) && a > 1 then a / b else 0",
+  ),
+  judged(
+    "a guard that doesn't is kept with the condition",
+    Some(["9 > 5 ==> 9 - 7 != 0"]),
+    "(fun (c : Int) -> if c > 5 then 10 / (c - 7) else 0)(9)",
+  ),
+  judged(
+    "a case's literal rules guard the later rules",
+    Some([]),
+    "fun (n : Int) -> case n | 0 => 0 | m => 10 / m end",
   ),
   judged(
     "a case covering its scrutinee",
@@ -253,6 +273,17 @@ let code_tests = [
       option(list(string)),
       "count",
       None,
+      routine_in(
+        "let count = fun n -> if n == 0 then 0 else count(n - 1) in",
+        "count(3)",
+      ),
+    )
+  ),
+  test_case("a recursion on a number above a bound", `Quick, () =>
+    check(
+      option(list(string)),
+      "count",
+      Some([]),
       routine_in(
         "let count = fun n -> if n <= 0 then 0 else count(n - 1) in",
         "count(3)",
