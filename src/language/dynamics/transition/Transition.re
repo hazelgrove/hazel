@@ -256,8 +256,8 @@ module Transition = (EV: EV_MODE) => {
       (ctx, (rev_left, right)) => {
         /* rev_left holds the entries left of the hole, nearest first */
         let n_left = List.length(rev_left);
-        let left = List.filteri((i, _) => i < n_left, entries);
-        let hole_and_right = List.filteri((i, _) => i >= n_left, entries);
+        let left = List.filteri(~f=(i, _) => i < n_left, entries);
+        let hole_and_right = List.filteri(~f=(i, _) => i >= n_left, entries);
         switch (hole_and_right) {
         | [hole, ...right_entries] =>
           wrap_ctx(
@@ -270,7 +270,7 @@ module Transition = (EV: EV_MODE) => {
         | [] => ctx
         };
       },
-      List.map(TupleEntry.value, entries),
+      List.map(~f=TupleEntry.value, entries),
     );
 
   /* Helper function to wrap a closure around an expression. Required for functions, but also for
@@ -876,7 +876,7 @@ module Transition = (EV: EV_MODE) => {
         | DeferredAp(d3, d4s) =>
           let is_deferral = entry =>
             Exp.is_deferral(TupleEntry.value(entry));
-          let n_args = List.length(List.filter(is_deferral, d4s));
+          let n_args = List.length(List.filter(~f=is_deferral, d4s));
           let-unboxed args =
             if (n_args == 1) {
               Matches([Grammar.Unlabeled(d2')]);
@@ -1076,15 +1076,13 @@ module Transition = (EV: EV_MODE) => {
           switch (DHExp.term_of(d1'')) {
           | Tuple(ds) =>
             let projected =
-              List.filter_map(
-                entry =>
-                  Option.equal(
-                    String.equal,
-                    TupleEntry.label_name(entry),
-                    Some(name),
-                  )
-                    ? Some(TupleEntry.value(entry)) : None,
-                ds,
+              List.filter_map(ds, ~f=entry =>
+                Option.equal(
+                  String.equal,
+                  TupleEntry.label_name(entry),
+                  Some(name),
+                )
+                  ? Some(TupleEntry.value(entry)) : None
               );
 
             switch (projected) {
@@ -1102,7 +1100,7 @@ module Transition = (EV: EV_MODE) => {
             | _ => Indet
             };
           | ListLit(ds) =>
-            let mapped = List.map(d => generated(Dot(d, l)), ds);
+            let mapped = List.map(~f=d => generated(Dot(d, l)), ds);
             let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
@@ -1142,12 +1140,11 @@ module Transition = (EV: EV_MODE) => {
       let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
         tuple_entries(
           List.map(
-            ((lab, d)) =>
-              switch (lab) {
-              | Some(l) => TupleEntry.labeled(l, d)
-              | None => Grammar.Unlabeled(d)
-              },
-            LabeledTuple.extension(e1_entries, e2_entries),
+            LabeledTuple.extension(e1_entries, e2_entries), ~f=((lab, d)) =>
+            switch (lab) {
+            | Some(l) => TupleEntry.labeled(l, d)
+            | None => Grammar.Unlabeled(d)
+            }
           ),
         );
 

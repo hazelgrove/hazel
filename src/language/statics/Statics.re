@@ -934,34 +934,38 @@ and uexp_to_info_map =
     | Tuple(es) =>
       let expected_labels =
         LabeledTupleStaticsHelpers.expected_labels_of_ana(ctx, ana);
-      let original_labels = List.map(TupleEntry.label_name, es);
+      let original_labels = List.map(~f=TupleEntry.label_name, es);
       /* Line the entries up with the analyzed type; an unlabeled entry
          matched to a labeled field records the label it is inferred to have */
       let (inferred_es, ana_tys) =
         MatchedTyp.prod(
           ctx,
-          List.map(e => (None: option(string), e), es),
+          List.map(~f=e => (None: option(string), e), es),
           ((inferred, e)) =>
             TupleEntry.get_label(e)
-            |> Option.map(((label, _)) => (label, (inferred, e))),
+            |> Option.map(~f=((label, _)) => (label, (inferred, e))),
           ana,
           (name, (_, e)) => (Some(name), e),
         );
-      let es = List.map(snd, inferred_es);
+      let es = List.map(~f=snd, inferred_es);
       let new_labels =
         List.map(
-          ((inferred, e)) =>
-            switch (TupleEntry.label_name(e)) {
-            | Some(_) as label => label
-            | None => inferred
-            },
+          ~f=
+            ((inferred, e)) =>
+              switch (TupleEntry.label_name(e)) {
+              | Some(_) as label => label
+              | None => inferred
+              },
           inferred_es,
         );
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(TupleEntry.get_label, es);
       let (entry_infos, es_elab, m) =
-        List.fold_left2(
-          ((infos, elabs, m), ana, (inferred_label, entry)) => {
+        List.fold2_exn(
+          ana_tys,
+          inferred_es,
+          ~init=([], [], m),
+          ~f=((infos, elabs, m), ana, (inferred_label, entry)) => {
             let (value_info, value_elab, m) =
               go(
                 ~ana=LabeledTupleStaticsHelpers.value_ana(ctx, ana),
@@ -1020,11 +1024,8 @@ and uexp_to_info_map =
               };
             (infos @ [(value_info, entry_ty)], elabs @ [elab], m);
           },
-          ([], [], m),
-          ana_tys,
-          inferred_es,
         );
-      let value_infos = List.map(fst, entry_infos);
+      let value_infos = List.map(~f=fst, entry_infos);
       let (info, elab, m) =
         add(
           ~elab_term=Tuple(es_elab) |> rewrap,
@@ -1032,14 +1033,14 @@ and uexp_to_info_map =
             Prod(
               Typ.remove_duplicate_labels(
                 ~duplicate_labels,
-                List.map(snd, entry_infos),
+                List.map(~f=snd, entry_infos),
               ),
             )
             |> Typ.temp,
-          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, value_infos)),
+          ~co_ctx=CoCtx.union(List.map(~f=Info.exp_co_ctx, value_infos)),
           ~probe_targets=
             SubexpProbeTargets.union_all(
-              List.map(Info.exp_probe_targets, value_infos),
+              List.map(~f=Info.exp_probe_targets, value_infos),
             ),
           ~label_inference=
             Some(
@@ -1093,7 +1094,7 @@ and uexp_to_info_map =
         };
       };
       let labels_of = ts =>
-        List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
+        List.filter_map(~f=Typ.match_tup_label, ts) |> List.map(~f=fst);
       let dot_labels =
         switch (whnf_dot(info_e1.ty).term) {
         | Prod(ts)
@@ -1141,7 +1142,7 @@ and uexp_to_info_map =
           let (typ, label_marks) = field(ts);
           (
             typ
-            |> Option.map(typ => List(typ) |> Typ.fresh)
+            |> Option.map(~f=typ => List(typ) |> Typ.fresh)
             |> Option.value(~default=unknown),
             [],
             label_marks,
@@ -1492,19 +1493,16 @@ and uexp_to_info_map =
         | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
-      let arg_values = List.map(TupleEntry.value, args);
+      let arg_values = List.map(~f=TupleEntry.value, args);
       let m =
-        List.fold_left(
-          (m, arg) =>
-            switch (arg) {
-            | Grammar.Labeled(_, l, _) =>
-              snd(
-                label_to_info_map(~ctx, ~ancestors=ancestors_inclusive, l, m),
-              )
-            | Unlabeled(_) => m
-            },
-          m,
-          args,
+        List.fold(args, ~init=m, ~f=(m, arg) =>
+          switch (arg) {
+          | Grammar.Labeled(_, l, _) =>
+            snd(
+              label_to_info_map(~ctx, ~ancestors=ancestors_inclusive, l, m),
+            )
+          | Unlabeled(_) => m
+          }
         );
 
       switch (custom_statics) {
@@ -1529,11 +1527,11 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
-        | L(ty_ins) =>
+        | Ok(ty_ins) =>
           let ((args_infos, args_elabs), m) =
             map_m_go(
               m,
-              List.map(LabeledTupleStaticsHelpers.value_ana(ctx), ty_ins),
+              List.map(~f=LabeledTupleStaticsHelpers.value_ana(ctx), ty_ins),
               arg_values,
             );
           let arg_co_ctx =
@@ -1543,9 +1541,9 @@ and uexp_to_info_map =
               List.map(~f=Info.exp_probe_targets, args_infos),
             );
           let ty_in' =
-            List.combine(ty_ins, arg_values)
-            |> List.filter(((_, e)) => Exp.is_deferral(e))
-            |> List.map(fst)
+            List.zip_exn(ty_ins, arg_values)
+            |> List.filter(~f=((_, e)) => Exp.is_deferral(e))
+            |> List.map(~f=fst)
             |> (
               fun
               | [x] => x
@@ -1567,13 +1565,14 @@ and uexp_to_info_map =
           );
         | Error(expected) =>
           let ty_ins =
-            List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+            List.init(num_args, ~f=_ => Unknown(Internal) |> Typ.temp);
           let ((arg_infos, args_elabs), m) =
             map_m_go(m, ty_ins, arg_values);
-          let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, arg_infos));
+          let arg_co_ctx =
+            CoCtx.union(List.map(~f=Info.exp_co_ctx, arg_infos));
           let arg_probe_targets =
             SubexpProbeTargets.union_all(
-              List.map(Info.exp_probe_targets, arg_infos),
+              List.map(~f=Info.exp_probe_targets, arg_infos),
             );
           add(
             ~elab_term=
@@ -4100,10 +4099,8 @@ and label_to_info_map =
       /* A term where a label belongs, e.g. `x + y` left of `=`, is marked
          on its own tiles */
       let m =
-        List.fold_left(
-          (m, tm) => append_mark_any(m, tm, [BadLabel(tm)]),
-          m,
-          tms,
+        List.fold(tms, ~init=m, ~f=(m, tm) =>
+          append_mark_any(m, tm, [BadLabel(tm)])
         );
       (CoCtx.union(co_ctxs), [IsMulti], m);
     };

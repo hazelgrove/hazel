@@ -62,8 +62,8 @@ let adt_node_ids = exp => {
       go(arg);
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
-      List.iter(entry => go(TupleEntry.value(entry)), es);
-    | ListLit(es) => List.iter(go, es)
+      List.iter(~f=entry => go(TupleEntry.value(entry)), es);
+    | ListLit(es) => List.iter(~f=go, es)
     | Let(_, def, body)
     | Seq(def, body)
     | Theorem(_, def, body) =>
@@ -99,7 +99,7 @@ let adt_node_ids = exp => {
     | FixF(_, body, _env) => go(body)
     | DeferredAp(fn, es) =>
       go(fn);
-      List.iter(entry => go(TupleEntry.value(entry)), es);
+      List.iter(~f=entry => go(TupleEntry.value(entry)), es);
     | _ => ()
     };
   go(exp);

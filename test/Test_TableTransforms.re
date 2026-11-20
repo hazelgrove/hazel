@@ -33,12 +33,10 @@ let assert_transforms = (transforms, expected_str) => {
 let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
   IdTagged.FreshGrammar.Exp.(
     list_lit(
-      List.map(
-        fields =>
-          parens(
-            tuple_entries(List.map(((l, v)) => labeled(l, v), fields)),
-          ),
-        rows,
+      List.map(rows, ~f=fields =>
+        parens(
+          tuple_entries(List.map(~f=((l, v)) => labeled(l, v), fields)),
+        )
       ),
     )
   );

@@ -16,7 +16,7 @@ let label_name: t('e) => option(LabeledTuple.label) =
 
 /* label_name in the shape LabeledTuple's helpers take */
 let get_label = (entry: t('e)): option((LabeledTuple.label, t('e))) =>
-  label_name(entry) |> Option.map(name => (name, entry));
+  label_name(entry) |> Option.map(~f=name => (name, entry));
 
 let map = (f: 'e1 => 'e2, entry: t('e1)): t('e2) =>
   switch (entry) {
@@ -34,17 +34,18 @@ let labeled = (name: LabeledTuple.label, v: 'e): t('e) =>
   );
 
 let find = (name: LabeledTuple.label, entries: list(t('e))): option('e) =>
-  LabeledTuple.find_label(get_label, entries, name) |> Option.map(value);
+  LabeledTuple.find_label(get_label, entries, name) |> Option.map(~f=value);
 
 /* The ids of the entries' `=` tiles */
 let eq_ids = (entries: list(t('e))): list(Id.t) =>
   List.concat_map(
-    fun
-    | Grammar.Labeled(eq: IdTagged.IdTag.t, _, _) => eq.ids
-    | Unlabeled(_) => [],
+    ~f=
+      fun
+      | Grammar.Labeled(eq: IdTagged.IdTag.t, _, _) => eq.ids
+      | Unlabeled(_) => [],
     entries,
   );
 
 /* The entries with their values replaced, in order */
 let with_values = (entries: list(t('e1)), vs: list('e2)): list(t('e2)) =>
-  List.map2((entry, v) => map(_ => v, entry), entries, vs);
+  List.map2_exn(entries, vs, ~f=(entry, v) => map(_ => v, entry));

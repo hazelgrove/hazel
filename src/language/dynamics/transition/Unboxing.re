@@ -93,7 +93,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
               TupleEntry.label_name(entry),
               DHExp.strip_ascriptions(TupleEntry.value(entry)).term,
             ) {
-            | (Some(name), Atom(String(e))) when name == l => Some(e)
+            | (Some(name), Atom(String(e))) when String.equal(name, l) =>
+              Some(e)
             | _ => None
             },
           ds,
@@ -105,7 +106,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (LabeledTupleEntries, Tuple(ds)) =>
       Matches(
         List.map(
-          entry => (TupleEntry.label_name(entry), TupleEntry.value(entry)),
+          ~f=
+            entry =>
+              (TupleEntry.label_name(entry), TupleEntry.value(entry)),
           ds,
         ),
       )
@@ -133,7 +136,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n =>
-      Matches(List.map(TupleEntry.value, t))
+      Matches(List.map(~f=TupleEntry.value, t))
     | (Tuple(_), Tuple(_)) => IndetMatch
     | (TupleEntries(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (TupleEntries(_), Tuple(_)) => IndetMatch

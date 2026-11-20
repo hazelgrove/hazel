@@ -29,10 +29,11 @@ let builtins: list(BuiltinsUtil.fn) = [
                  ~f=List.map(~f=PairUtil.map_snd(List.map(~f=snd))),
                );
           Option.map(
-            List.map(((name: string, es)) =>
-              TupleEntry.labeled(name, Fresh.Exp.list_lit(es))
-            ),
             unboxed,
+            ~f=
+              List.map(~f=((name: string, es)) =>
+                TupleEntry.labeled(name, Fresh.Exp.list_lit(es))
+              ),
           )
           |> Option.map(~f=Exp.to_tuple);
 
@@ -66,17 +67,15 @@ let builtins: list(BuiltinsUtil.fn) = [
           entries,
         );
       let unpivoted_entries =
-        List.map(
-          ((name, e)) =>
-            IdTagged.FreshGrammar.(
-              Exp.(
-                tuple_entries([
-                  TupleEntry.labeled("label", string(name)),
-                  TupleEntry.labeled("value", e),
-                ])
-              )
-            ),
-          entries,
+        List.map(entries, ~f=((name, e)) =>
+          IdTagged.FreshGrammar.(
+            Exp.(
+              tuple_entries([
+                TupleEntry.labeled("label", string(name)),
+                TupleEntry.labeled("value", e),
+              ])
+            )
+          )
         );
       Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
     },
@@ -154,12 +153,10 @@ let builtins: list(BuiltinsUtil.fn) = [
         switch (labels) {
         | Some(labels: list(string)) =>
           let entries =
-            List.map(
-              (l: string) =>
-                Grammar.Unlabeled(
-                  IdTagged.FreshGrammar.(Exp.dot(tup, Label.label(l))),
-                ),
-              labels,
+            List.map(labels, ~f=(l: string) =>
+              Grammar.Unlabeled(
+                IdTagged.FreshGrammar.(Exp.dot(tup, Label.label(l))),
+              )
             );
           Some(Exp.to_tuple(entries));
         | None => None
@@ -196,13 +193,11 @@ let builtins: list(BuiltinsUtil.fn) = [
         switch (labels) {
         | Some(labels: list(string)) =>
           let entries =
-            List.map(
-              l =>
-                TupleEntry.labeled(
-                  l,
-                  IdTagged.FreshGrammar.(Exp.dot(tup, Label.label(l))),
-                ),
-              labels,
+            List.map(labels, ~f=l =>
+              TupleEntry.labeled(
+                l,
+                IdTagged.FreshGrammar.(Exp.dot(tup, Label.label(l))),
+              )
             );
           Some(Exp.to_tuple(entries));
         | None => None
@@ -242,20 +237,17 @@ let builtins: list(BuiltinsUtil.fn) = [
           let labels_set = StringSet.of_list(labels);
           let-unbox entries = (LabeledTupleEntries, tup);
           let entries =
-            List.filter_map(
-              ((l, e)) => {
-                switch (l) {
-                | Some(l) =>
-                  if (StringSet.mem(l, labels_set)) {
-                    None;
-                  } else {
-                    Some(TupleEntry.labeled(l, e));
-                  }
-                | None => Some(Grammar.Unlabeled(e))
+            List.filter_map(entries, ~f=((l, e)) => {
+              switch (l) {
+              | Some(l) =>
+                if (StringSet.mem(l, labels_set)) {
+                  None;
+                } else {
+                  Some(TupleEntry.labeled(l, e));
                 }
-              },
-              entries,
-            );
+              | None => Some(Grammar.Unlabeled(e))
+              }
+            });
           Some(Exp.to_tuple(entries));
         | None => None
         };
@@ -269,7 +261,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret: Unknown(Internal),
     imp: d => {
       let-unbox entries = (LabeledTupleEntries, d);
-      let entries = List.map(((_, e)) => Grammar.Unlabeled(e), entries);
+      let entries = List.map(~f=((_, e)) => Grammar.Unlabeled(e), entries);
       Some(Exp.to_tuple(entries));
     },
     custom_statics: Some(OmitAllLabels),

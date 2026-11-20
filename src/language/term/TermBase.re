@@ -464,7 +464,9 @@ and Exp: {
           )
         | TypFun(tp, e, f) => TypFun(tpat_map_term(tp), exp_map_term(e), f)
         | Tuple(xs) =>
-          Tuple(List.map(map_tuple_entry(label_map_term, exp_map_term), xs))
+          Tuple(
+            List.map(~f=map_tuple_entry(label_map_term, exp_map_term), xs),
+          )
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e, l) => Dot(exp_map_term(e), label_map_term(l))
@@ -483,7 +485,7 @@ and Exp: {
         | DeferredAp(e, es) =>
           DeferredAp(
             exp_map_term(e),
-            List.map(map_tuple_entry(label_map_term, exp_map_term), es),
+            List.map(~f=map_tuple_entry(label_map_term, exp_map_term), es),
           )
         | If(e1, e2, e3) =>
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))

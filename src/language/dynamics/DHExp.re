@@ -208,12 +208,9 @@ let rec ty_comparable = (d1, d2) => {
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(
-         (e1, e2) =>
-           same_entry_label(e1, e2)
-           && ty_comparable(TupleEntry.value(e1), TupleEntry.value(e2)),
-         ds1,
-         ds2,
+    && List.for_all2_exn(ds1, ds2, ~f=(e1, e2) =>
+         same_entry_label(e1, e2)
+         && ty_comparable(TupleEntry.value(e1), TupleEntry.value(e2))
        )
   | (Tuple(_), _) => false
   | (

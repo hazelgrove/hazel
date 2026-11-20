@@ -107,7 +107,7 @@ module AbbrevSequence = {
     labeled: 'a => bool,
   };
   let exp_item: item(Exp.t) = {
-    of_exp: Fun.id,
+    of_exp: Fn.id,
     min_cost: min_display_cost,
     labeled: _ => false,
   };
@@ -267,10 +267,12 @@ module AbbrevSequence = {
       let available_now: int = available^;
       /* Compute min_item from the maximum per-item minimum cost. */
       let min_item: int =
-        List.fold_left((acc, i) => max(acc, kind.min_cost(i)), 1, items);
+        List.fold(items, ~init=1, ~f=(acc, i) =>
+          max(acc, kind.min_cost(i))
+        );
       /* Check if all items are TupLabels (record-like). If so, use even
          distribution so all field names become visible simultaneously. */
-      let all_labeled: bool = List.for_all(kind.labeled, items);
+      let all_labeled: bool = List.for_all(~f=kind.labeled, items);
       /* Useful cost: same as min — items are shown when they can render
          at least their minimum structural form. For TupLabels (min=3) that's
          "…=…", for Parens (min=3) that's "(…)", for atomics it's the value. */
@@ -767,7 +769,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           available := available^ - 1; // space between terms
           let e' = abbreviate_exp(e);
           if (available^ > 0) {
-            let es' = List.map(abbreviate_entry, es);
+            let es' = List.map(~f=abbreviate_entry, es);
             DeferredAp(e', es');
           } else {
             e'.term;

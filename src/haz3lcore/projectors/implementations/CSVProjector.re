@@ -33,11 +33,11 @@ module M: Projector = {
       switch (rows) {
       | CsvUtil.WithHeaders(rows) =>
         ListLit(
-          List.map(
-            (row: list((string, string))) =>
-              Language.IdTagged.FreshGrammar.(
-                Exp.tuple_entries(
-                  List.map(
+          List.map(rows, ~f=(row: list((string, string))) =>
+            Language.IdTagged.FreshGrammar.(
+              Exp.tuple_entries(
+                List.map(
+                  ~f=
                     ((header: string, value: string)) =>
                       Exp.labeled(
                         StringUtil.sanitize_for_label(header),
@@ -45,11 +45,10 @@ module M: Projector = {
                           StringUtil.sanitize_for_string_expression(value),
                         ),
                       ),
-                    row,
-                  ),
-                )
-              ),
-            rows,
+                  row,
+                ),
+              )
+            )
           ),
         )
       | CsvUtil.WithoutHeaders(rows) =>

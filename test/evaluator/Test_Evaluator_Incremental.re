@@ -1043,7 +1043,10 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
     | _ => []
     };
   let ids =
-    List.map(entry => Exp.rep_id(TupleEntry.value(entry)), rhs_tuple_elts);
+    List.map(
+      ~f=entry => Exp.rep_id(TupleEntry.value(entry)),
+      rhs_tuple_elts,
+    );
   check(
     int,
     "RHS tuple has 2 elements after elaboration",

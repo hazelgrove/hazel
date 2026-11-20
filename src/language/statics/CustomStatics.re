@@ -234,7 +234,7 @@ let handle_tuple_operation =
     | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
       let (tup, labs) = (
         TupleEntry.value(tup),
-        List.map(TupleEntry.value, labs),
+        List.map(~f=TupleEntry.value, labs),
       );
       /* Ensure all source tuple nodes get baseline info entries before
          specialized builtin tuple/label analysis rewrites parts of the arg. */

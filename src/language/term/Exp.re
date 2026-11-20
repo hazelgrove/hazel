@@ -358,7 +358,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | Parens(e)
     | Projector(_, e) => is_tuple_of_functions(e)
     | Tuple(es) =>
-      es |> List.for_all(entry => is_fun(TupleEntry.value(entry)))
+      es |> List.for_all(~f=entry => is_fun(TupleEntry.value(entry)))
     | Dot(e, l) =>
       switch (dot_entry(e, l)) {
       | Some(exp) => is_tuple_of_functions(exp)

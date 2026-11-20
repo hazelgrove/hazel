@@ -677,11 +677,12 @@ let tests = (
           "the sum carries BadLabel",
           true,
           List.exists(
-            (m: Mark.t) =>
-              switch (m) {
-              | BadLabel(_) => true
-              | _ => false
-              },
+            ~f=
+              (m: Mark.t) =>
+                switch (m) {
+                | BadLabel(_) => true
+                | _ => false
+                },
             binop_marks,
           ),
         );

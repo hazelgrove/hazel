@@ -1101,7 +1101,7 @@ let get_arg_var_info =
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
     | Tuple(elements) =>
-      List.map(entry => extract_var(TupleEntry.value(entry)), elements)
+      List.map(~f=entry => extract_var(TupleEntry.value(entry)), elements)
     | _ => [None]
     }
   | _ => []
@@ -1166,23 +1166,21 @@ let sample_call_display =
       | Tuple(elements) when List.length(elements) > 1 =>
         let num_elems = List.length(elements);
         let arg_rows =
-          List.mapi(
-            (i, elem) =>
-              arg_row(
-                ~var_info=
-                  switch (List.nth_opt(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(
-                  switch (elem) {
-                  | Language.Grammar.Unlabeled(v) => v
-                  | Labeled(_) => Exp.fresh(Tuple([elem]))
-                  },
-                ),
+          List.mapi(elements, ~f=(i, elem) =>
+            arg_row(
+              ~var_info=
+                switch (List.nth(arg_var_info, i)) {
+                | Some(v) => v
+                | None => None
+                },
+              ~is_last=i == num_elems - 1,
+              render_exp(
+                switch (elem) {
+                | Language.Grammar.Unlabeled(v) => v
+                | Labeled(_) => Exp.fresh(Tuple([elem]))
+                },
               ),
-            elements,
+            )
           );
         [
           div(
