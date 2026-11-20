@@ -189,6 +189,8 @@ let typed_regressions = (
     typed_case("stranded prefix minus on typ side", ": -"),
     typed_case("keyword prefix in op position", "?]l"),
     typed_case("singleton labeled list element", "=]"),
+    typed_case("infix op left of a lone =", "?+?=?"),
+    typed_case("orphan closer left of a lone =", "?]=?"),
     typed_case("unit in list", "[()"),
     typed_case("cross-sort list closer at typ", "?:?]"),
     typed_case("typ-side postfix parens", "?:1("),

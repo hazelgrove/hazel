@@ -8,7 +8,7 @@ open Poly;
  * expanding delimiters, leftwards for trailing delimiters. This
  * is mostly a wrapper around Form.Expansion; the additional logic
  * here handles special cases of context-dependent expansion. */
-let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
+let expansion = (sort: Sort.t, t: Token.t, z: t): (FormLabel.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
       ~f=
@@ -462,7 +462,7 @@ let insert_or_append =
 
 let is_opening_delimiter = Token.is_opening_bracket;
 
-let delimiter_label = (char: string): Label.t =>
+let delimiter_label = (char: string): FormLabel.t =>
   switch (Token.label_of_opening_bracket(char)) {
   | Some(lbl) => lbl
   | None => failwith("not a delimiter: " ++ char)
