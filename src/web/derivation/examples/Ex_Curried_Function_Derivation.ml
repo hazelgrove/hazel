@@ -19,7 +19,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = "";
+          backup_text = "\194\191\n";
         };
       setup =
         {
@@ -98,7 +98,7 @@ let exercise : DerivationExercise.spec =
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $ctx_a = of_ctx (a : Num)::[] end in\n\
-             let $ctx_ab = of_ctx (b : Num)::$ctx_a end in";
+             let $ctx_ab = of_ctx (b : Num)::$ctx_a end in\194\191\n";
         };
       rule_set = ALFp;
       trees =
@@ -133,7 +133,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "$ctx_ab |- a : Num";
+                      backup_text = "$ctx_ab |- a : Num\n";
                     };
                   rule = Some T_Var;
                 },
@@ -168,7 +168,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "$ctx_ab |- b : Num";
+                      backup_text = "$ctx_ab |- b : Num\n";
                     };
                   rule = Some T_Var;
                 },
@@ -283,7 +283,7 @@ let exercise : DerivationExercise.spec =
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "|- (fun a : Num -> fun b : Num -> if a < b then a \
-                         else b) : Num -> Num -> Num";
+                         else b) : Num -> Num -> Num\n";
                     };
                   rule = Some T_FunAnn;
                 },
@@ -376,7 +376,7 @@ let exercise : DerivationExercise.spec =
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text =
                               "$ctx_a |- (fun b : Num -> if a < b then a else \
-                               b) : Num -> Num";
+                               b) : Num -> Num\n";
                           };
                         rule = Some T_FunAnn;
                       },
@@ -441,7 +441,7 @@ let exercise : DerivationExercise.spec =
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text =
-                                    "$ctx_ab |- (if a < b then a else b) : Num";
+                                    "$ctx_ab |- (if a < b then a else b) : Num\n";
                                 };
                               rule = Some T_If;
                             },
@@ -495,7 +495,7 @@ let exercise : DerivationExercise.spec =
                                            -1)(pinned_stack())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
-                                          "$ctx_ab |- (a < b) : Bool";
+                                          "$ctx_ab |- (a < b) : Bool\n";
                                       };
                                     rule = Some T_Lt;
                                   },
