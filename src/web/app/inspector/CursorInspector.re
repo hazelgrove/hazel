@@ -1040,7 +1040,7 @@ let label_info_view = ({user_term, cls, marks, dot_labels, _}: Info.label) =>
         text("Label "),
         label_view(name),
         text(" of a tuple with labels: "),
-        ...List.map(label_view, dot_labels),
+        ...List.map(~f=label_view, dot_labels),
       ])
     | (EmptyHole, _) => div_ok([text("Fillable by any label")])
     | (ExplicitNonlabel, _) => div_ok([text("Explicitly unlabeled entry")])

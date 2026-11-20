@@ -823,7 +823,7 @@ let labeled_entry_docs = () => {
   Alcotest.(check(string))(
     "the second `=` explains its labeled entry",
     "LabeledExp",
-    labeled_entry_group(~indicate=ids => List.nth_opt(ids, 1)),
+    labeled_entry_group(~indicate=ids => List.nth(ids, 1)),
   );
   Alcotest.(check(string))(
     "a comma explains the tuple",

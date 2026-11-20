@@ -21,7 +21,7 @@ let mk_builtin_ap_elab =
 let append_marks_for_term = append_mark_exp;
 
 let extract_labels = (entries: tuple_type) =>
-  List.filter_map(TupleEntry.label_name, entries);
+  List.filter_map(~f=TupleEntry.label_name, entries);
 
 let get_tuple_label = (tuple: tuple_type, label: string): Typ.t =>
   TupleEntry.find(label, tuple) |> Option.value(~default=unknown);
@@ -129,8 +129,10 @@ let labels_to_info_map =
       m: Map.t,
     )
     : (list(option(string)), Map.t) => {
-  List.fold_left(
-    ((labels: list(option(string)), m: Map.t), label) => {
+  List.fold(
+    labs,
+    ~init=([], m),
+    ~f=((labels: list(option(string)), m: Map.t), label) => {
       let (lab_name, lab_info, _, m) =
         analyze_label_to_info_map((module S), ~ctx, syn, label, m);
       /* If expected_labels provided and this label isn't in the set,
@@ -138,7 +140,7 @@ let labels_to_info_map =
       let (lab_name, m) =
         switch (label.term, expected_labels, lab_name) {
         | (LabelLit(name), Some(expected), _)
-            when !List.mem(name, expected) =>
+            when !List.mem(expected, name, ~equal=String.equal) =>
           let m =
             set_marks_exp(
               m,
@@ -150,8 +152,6 @@ let labels_to_info_map =
         };
       (labels @ [lab_name], m);
     },
-    ([], m),
-    labs,
   );
 };
 
@@ -351,11 +351,13 @@ let omit_labels_statics =
         | Some(labeled_tup_info) =>
           let tys =
             List.filter(
-              entry =>
-                switch (TupleEntry.label_name(entry)) {
-                | Some(lab) => !List.mem(lab, labels_to_drop)
-                | None => true
-                },
+              ~f=
+                entry =>
+                  switch (TupleEntry.label_name(entry)) {
+                  | Some(lab) =>
+                    !List.mem(labels_to_drop, lab, ~equal=String.equal)
+                  | None => true
+                  },
               labeled_tup_info,
             );
           Prod(tys) |> Typ.temp;
@@ -392,7 +394,8 @@ let group_by_label_statics =
         analyze_label_to_info_map((module S), ~ctx, syn, pivot_label, m);
       let m =
         switch (pivot_label.term, expected_labels) {
-        | (LabelLit(name), Some(expected)) when !List.mem(name, expected) =>
+        | (LabelLit(name), Some(expected))
+            when !List.mem(expected, name, ~equal=String.equal) =>
           append_mark_exp(m, pivot_label, [InvalidLabel(name, expected)])
         | _ => m
         };

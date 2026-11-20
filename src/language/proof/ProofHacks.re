@@ -90,7 +90,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(TupleEntry.map(exp_to_pat), xs)))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=TupleEntry.map(exp_to_pat), xs)))
   | LabelLit(l) => rewrap(Label(l))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Projector(data, e) => rewrap(Projector(data, exp_to_pat(e)))
