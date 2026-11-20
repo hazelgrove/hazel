@@ -2085,6 +2085,61 @@ let today : Moment = (year = 2026, month = 11, day = 17, hour = 19.) in
    others seem to? ... It seems like we should, if possible") The rules compiled whole, as the page will ask for them, its
    answer a function: printed after the run for tools/make-compiled.py, as the I Ching's and the Tarot's were */
 let astrology_tail = "\n(reading = Reading.reading)";
+/* (^ticket(794)) the games of hazeljs-examples compiled ahead of time, as the oracles are: each game's rules (its rules
+   folder, copied to test/<game>), joined as hazeljs joins them, with the page's tail; the JS printed after the run for
+   tools/make-compiled.py. Checkers first (hazeljs-examples 0.0.30, its rules folder). */
+let game_rules = (~dir: string, ~modules: list(string)) => {
+  let read = name => {
+    let candidates = [
+      "test/" ++ dir ++ "/" ++ name ++ ".hz",
+      dir ++ "/" ++ name ++ ".hz",
+      "../test/" ++ dir ++ "/" ++ name ++ ".hz",
+    ];
+    let path =
+      switch (List.find_opt(Sys.file_exists, candidates)) {
+      | Some(p) => p
+      | None => List.hd(candidates)
+      };
+    switch (CorpusUtil.read_file(path)) {
+    | Some(t) => t
+    | None => fail("no " ++ path)
+    };
+  };
+  read("preamble")
+  ++ String.concat(
+       "",
+       List.map(
+         m => "\nmodule " ++ m ++ " = {\n" ++ read(m) ++ "\n} in",
+         modules,
+       ),
+     );
+};
+let game_aot =
+    (~dir: string, ~modules: list(string), ~tail: string, ~mark: string, ()) =>
+  switch (
+    HazelJit.try_compile(
+      ~env=Builtins.env_init,
+      elaborate(parse_fast(game_rules(~dir, ~modules) ++ tail)),
+    )
+  ) {
+  | Ok(js) =>
+    at_exit(() => {
+      print_endline("HAZEL-JIT-" ++ mark ++ "-BEGIN");
+      print_endline(js);
+      print_endline("HAZEL-JIT-" ++ mark ++ "-END");
+      flush(stdout);
+    })
+  | Error(why) => fail("the " ++ dir ++ " rules, not compiled: " ++ why)
+  };
+let checkers_aot =
+  game_aot(
+    ~dir="checkers",
+    ~modules=["Checkers"],
+    ~tail=
+      "\n(start = Checkers.start, moves = Checkers.moves, apply = Checkers.apply, choose = Checkers.choose)",
+    ~mark="CHECKERS",
+  );
+
 let astrology_aot = () =>
   switch (
     HazelJit.try_compile(
@@ -2664,6 +2719,11 @@ let tests = (
       "astrology, the rules compiled whole, their JS printed after the run",
       `Quick,
       astrology_aot,
+    ),
+    test_case(
+      "checkers (hazeljs-examples), the rules compiled whole, their JS printed after the run",
+      `Quick,
+      checkers_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

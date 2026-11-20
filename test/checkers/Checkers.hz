@@ -1,0 +1,135 @@
+# Checkers (English draughts): the board, a move (a step, or jumps, which are compulsory and go on while they can), kings, the end, and the opponent, who looks ahead. One module: in hazeljs a call into another module costs the build seconds #
+# ---- The board ---- #
+# 2 to the k, for k from 0 to 31 #
+let lo8 : Int -> Int = fun k ->
+  if k < 4 then (if k < 2 then (if k == 0 then 1 else 2) else (if k == 2 then 4 else 8))
+  else (if k < 6 then (if k == 4 then 16 else 32) else (if k == 6 then 64 else 128));
+let bit : Int -> Int = fun k ->
+  if k < 8 then lo8(k) else if k < 16 then 256 * lo8(k - 8) else if k < 24 then 65536 * lo8(k - 16) else 16777216 * lo8(k - 24);
+# whether square k is in the set b; b with k, and without it #
+let has : (Int, Int) -> Bool = fun (b, k) -> (let q = b / bit(k) in q - (q / 2) * 2 == 1);
+let add : (Int, Int) -> Int = fun (b, k) -> if has(b, k) then b else b + bit(k);
+let drop : (Int, Int) -> Int = fun (b, k) -> if has(b, k) then b - bit(k) else b;
+let drop_all : (Int, [Int]) -> Int = fun (b, ks) -> case ks | [] => b | k :: rest => drop_all(drop(b, k), rest) end;
+# the squares in b, from square k up #
+let squares : (Int, Int) -> [Int] = fun (b, k) ->
+  if b == 0 then [] else
+  let rest = squares(b / 2, k + 1) in
+  if b - (b / 2) * 2 == 1 then k :: rest else rest;
+# the square dr rows down and dc columns right of square s, or -1 off the board #
+let step : (Int, Int, Int) -> Int = fun (s, dr, dc) ->
+  let r = s / 4 in
+  let c = 2 * (s - r * 4) + (if r - (r / 2) * 2 == 0 then 1 else 0) in
+  let r2 = r + dr in
+  let c2 = c + dc in
+  if r2 < 0 || r2 > 7 || c2 < 0 || c2 > 7 then 0 - 1 else r2 * 4 + c2 / 2;
+let mem : (Int, [Int]) -> Bool = fun (x, xs) -> case xs | [] => false | y :: rest => y == x || mem(x, rest) end;
+# the ways a piece goes: a man forward (black up, white down), a king both ways #
+let dirs : (Int, Bool) -> [(Int, Int)] = fun (who, king) ->
+  if king then [(0 - 1, 0 - 1), (0 - 1, 1), (1, 0 - 1), (1, 1)]
+  else if who == 1 then [(0 - 1, 0 - 1), (0 - 1, 1)] else [(1, 0 - 1), (1, 1)];
+let side : (Game, Int) -> Int = fun (g, who) -> if who == 1 then g.black else g.white;
+let crowns : (Int, Int) -> Bool = fun (who, s) -> if who == 1 then s < 4 else s >= 28;
+# a game from the page: a set past 2^31 comes back from JavaScript cut to 32 bits, negative, so it is read again as the 32 bits it is #
+let wide : Int -> Int = fun b -> if b < 0 then b + 4294967296 else b;
+let from_page : Game -> Game = fun g ->
+  (black = wide(g.black), white = wide(g.white), kings = wide(g.kings), turn = g.turn, quiet = g.quiet, over = g.over, winner = g.winner, last = g.last);
+# ---- Moves ---- #
+let join_seqs : ([([Int], [Int])], [([Int], [Int])]) -> [([Int], [Int])] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: join_seqs(rest, ys) end;
+let prefix : (Int, Int, [([Int], [Int])]) -> [([Int], [Int])] = fun (land, over, seqs) ->
+  case seqs | [] => [] | (ls, ts) :: rest => (land :: ls, over :: ts) :: prefix(land, over, rest) end;
+# every way to jump on from s, each (the squares landed on, the pieces taken): over one of the other side's pieces (them) not yet taken, onto an empty square, and on again while it can; a man that reaches the far row is crowned, and stops. all: the squares with a piece, less the one moving #
+let jumps_in : (Int, Bool, Int, Int, Int, [Int], [(Int, Int)]) -> [([Int], [Int])] = fun (who, king, all, them, s, took, ds) ->
+  case ds
+  | [] => []
+  | (dr, dc) :: rest =>
+    let others = jumps_in(who, king, all, them, s, took, rest) in
+    let over = step(s, dr, dc) in
+    let land = step(s, dr + dr, dc + dc) in
+    if over >= 0 && land >= 0 && has(them, over) && !mem(over, took) && !has(all, land) then
+      (let more = (if !king && crowns(who, land) then [] else jumps_in(who, king, all, them, land, over :: took, dirs(who, king))) in
+       join_seqs((case more | [] => [([land], [over])] | _ :: _ => prefix(land, over, more) end), others))
+    else others
+  end;
+let join_moves : ([Move], [Move]) -> [Move] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join_moves(rest, ys) end;
+let as_moves : (Int, [([Int], [Int])]) -> [Move] = fun (s, seqs) ->
+  case seqs | [] => [] | (ls, ts) :: rest => (from = s, path = ls, took = ts) :: as_moves(s, rest) end;
+let caps_of : (Game, Int, Int, Int, [Int]) -> [Move] = fun (g, who, all, them, ss) ->
+  case ss
+  | [] => []
+  | s :: rest => (let k = has(g.kings, s) in join_moves(as_moves(s, jumps_in(who, k, drop(all, s), them, s, [], dirs(who, k))), caps_of(g, who, all, them, rest)))
+  end;
+let steps_in : (Int, Int, [(Int, Int)]) -> [Move] = fun (all, s, ds) ->
+  case ds
+  | [] => []
+  | (dr, dc) :: rest => (let t = step(s, dr, dc) in let others = steps_in(all, s, rest) in if t >= 0 && !has(all, t) then (from = s, path = [t], took = []) :: others else others)
+  end;
+let steps_of : (Game, Int, Int, [Int]) -> [Move] = fun (g, who, all, ss) ->
+  case ss | [] => [] | s :: rest => join_moves(steps_in(all, s, dirs(who, has(g.kings, s))), steps_of(g, who, all, rest)) end;
+# the moves of whoever's turn it is: the jumps if there are any (taking is compulsory), else the steps #
+let legal : Game -> [Move] = fun g ->
+  if g.over then [] else
+  let who = g.turn in
+  let all = g.black + g.white in
+  let ss = squares(side(g, who), 0) in
+  case caps_of(g, who, all, side(g, 3 - who), ss) | [] => steps_of(g, who, all, ss) | cs => cs end;
+let last_of : ([Int], Int) -> Int = fun (xs, d) -> case xs | [] => d | x :: rest => last_of(rest, x) end;
+# a move made: the piece to its last square, the pieces it took gone, crowned on the far row #
+let after : (Game, Move) -> Game = fun (g, m) ->
+  let who = g.turn in
+  let dest = last_of(m.path, m.from) in
+  let king = has(g.kings, m.from) in
+  let mine = add(drop(side(g, who), m.from), dest) in
+  let theirs = drop_all(side(g, 3 - who), m.took) in
+  let ks = drop_all(drop(g.kings, m.from), m.took) in
+  let quiet = (case m.took | [] => (if king then g.quiet + 1 else 0) | _ :: _ => 0 end) in
+  (black = (if who == 1 then mine else theirs), white = (if who == 1 then theirs else mine),
+   kings = (if king || crowns(who, dest) then add(ks, dest) else ks),
+   turn = 3 - who, quiet = quiet, over = false, winner = 0, last = m.from :: m.path);
+# a move made, and the end: the side left with no move has lost; 80 moves with no capture and no man moving, a draw #
+let apply : (Game, Move) -> Game = fun (g0, m) ->
+  let g = from_page(g0) in
+  let c = after(g, m) in
+  let end_as = fun w : Int -> (black = c.black, white = c.white, kings = c.kings, turn = c.turn, quiet = c.quiet, over = true, winner = w, last = c.last) in
+  if c.quiet >= 80 then end_as(0) else
+  case legal(c) | [] => end_as(g.turn) | _ :: _ => c end;
+# the moves the page offers #
+let moves : Game -> [Move] = fun g -> legal(from_page(g));
+let start : Game = (black = 4293918720, white = 4095, kings = 0, turn = 1, quiet = 0, over = false, winner = 0, last = []);
+# ---- The opponent ---- #
+# what the pieces of side who are worth: a man 100, and 2 for each row it has come; a king 160 #
+let worth_of : (Int, Int, [Int], Int) -> Int = fun (who, kings, ss, acc) ->
+  case ss
+  | [] => acc
+  | s :: rest => worth_of(who, kings, rest, acc + (if has(kings, s) then 160 else 100 + 2 * (if who == 1 then 7 - s / 4 else s / 4)))
+  end;
+# a position's worth to whoever's turn it is #
+let value : Game -> Int = fun g ->
+  worth_of(g.turn, g.kings, squares(side(g, g.turn), 0), 0) - worth_of(3 - g.turn, g.kings, squares(side(g, 3 - g.turn), 0), 0);
+# the best the side to move at g can make of its moves ms, looking depth moves ahead, between alpha and beta (alpha-beta) #
+let walk : (Game, [Move], Int, Int, Int) -> Int = fun (g, ms, depth, alpha, beta) ->
+  case ms
+  | [] => alpha
+  | m :: rest =>
+    let c = after(g, m) in
+    let v = (if depth <= 1 then 0 - value(c) else
+             case legal(c) | [] => 10000 + depth | cms => 0 - walk(c, cms, depth - 1, 0 - beta, 0 - alpha) end) in
+    let a = (if v > alpha then v else alpha) in
+    if a >= beta then a else walk(g, rest, depth, a, beta)
+  end;
+# each move tried, the best kept; a tie goes to the larger of the page's random numbers #
+let pick : (Game, [Move], Int, [Int], Move, Int, Int) -> Move = fun (g, ms, depth, rs, best, bv, br) ->
+  case ms
+  | [] => best
+  | m :: rest =>
+    let (r, more) = (case rs | [] => (0, []) | x :: xs => (x, xs) end) in
+    let c = after(g, m) in
+    let v = (if depth <= 1 then 0 - value(c) else
+             case legal(c) | [] => 10000 + depth | cms => 0 - walk(c, cms, depth - 1, 0 - 1000000, 1000000) end) in
+    if v > bv || (v == bv && r > br) then pick(g, rest, depth, more, m, v, r) else pick(g, rest, depth, more, best, bv, br)
+  end;
+# the opponent's move, looking depth moves ahead (its own and yours) #
+let choose : (Game, Int, [Int]) -> Move = fun (g0, depth, rs) ->
+  let g = from_page(g0) in
+  pick(g, legal(g), depth, rs, (from = 0 - 1, path = [], took = []), 0 - 1000000, 0 - 1)

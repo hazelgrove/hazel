@@ -1,0 +1,6 @@
+# Checkers' vocabulary, which the module sees #
+# The 32 dark squares, numbered row by row from the top left, 0 to 31; a set of squares is a number whose bit k is square k. You play black, from the bottom; Hazel plays white, from the top #
+# A game: black's pieces, white's, which of them are kings; whose turn (1 black, 2 white); moves since a capture or a man moved; whether it is over, and who won (0 a draw); the last move's squares #
+type Game = (black = Int, white = Int, kings = Int, turn = Int, quiet = Int, over = Bool, winner = Int, last = [Int]) in
+# A move: the square it starts from, the squares it lands on in order (one for a step, one for each jump), and the squares of the pieces it takes #
+type Move = (from = Int, path = [Int], took = [Int]) in

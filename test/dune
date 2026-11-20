@@ -14,7 +14,8 @@
   (glob_files golden/*.txt)
   (glob_files petri/*.hz)
   (glob_files iching/*.hz)
-  (glob_files astrology/*.hz))
+  (glob_files astrology/*.hz)
+  (glob_files checkers/*.hz))
  (action
   (setenv
    IDB_STUB
@@ -31,7 +32,8 @@
   (glob_files golden/*.txt)
   (glob_files petri/*.hz)
   (glob_files iching/*.hz)
-  (glob_files astrology/*.hz))
+  (glob_files astrology/*.hz)
+  (glob_files checkers/*.hz))
  (action
   (setenv
    IDB_STUB
