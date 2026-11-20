@@ -28,14 +28,14 @@ let mk_all = (~core_settings, ~instructor_mode, ~log) => {
   let scratch =
     ScratchMode.Persist.export_all(
       "scratch",
-      ~default_names=List.map(fst, scratch_slides),
+      ~default_names=List.map(~f=fst, scratch_slides),
       ~default_current=scratch_current,
     );
   let (doc_current, doc_slides) = Lazy.force(Init.startup).documentation;
   let documentation =
     ScratchMode.Persist.export_all(
       "doc",
-      ~default_names=List.map(fst, doc_slides),
+      ~default_names=List.map(~f=fst, doc_slides),
       ~default_current=doc_current,
     );
   let tutorial =
@@ -78,7 +78,7 @@ let import_all =
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Persist.import_all("scratch", all.scratch);
-  if (all.documentation != "") {
+  if (!String.equal(all.documentation, "")) {
     ScratchMode.Persist.import_all("doc", all.documentation);
   };
   ExercisesMode.Store.import(
