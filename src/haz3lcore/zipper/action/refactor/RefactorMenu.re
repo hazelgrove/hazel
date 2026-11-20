@@ -5,6 +5,7 @@ open RefactorBase;
 open RefactorInline;
 open RefactorMove;
 open RefactorRegistry;
+open Poly;
 
 /* Program-dependent labels for static kinds (rename already
  * enumerates its own). A one-pat print is bounded — unlike the
@@ -23,7 +24,7 @@ let label_override =
     | Some((p, _)) =>
       switch (IdTagged.term_of(p)) {
       | Let(sp, _, _) =>
-        let_head_name(sp) |> Option.map(n => "Merge into " ++ n)
+        let_head_name(sp) |> Option.map(~f=n => "Merge into " ++ n)
       | _ => None
       }
     | None => None
@@ -35,7 +36,7 @@ let label_override =
       | Let(_, _, lbody) =>
         switch (IdTagged.term_of(lbody)) {
         | Let(sp, _, _) =>
-          let_head_name(sp) |> Option.map(n => "Merge into " ++ n)
+          let_head_name(sp) |> Option.map(~f=n => "Merge into " ++ n)
         | _ => None
         }
       | _ => None
@@ -46,7 +47,7 @@ let label_override =
     switch (find_hit(~hit=hit_node(target), term)) {
     | Some(e) =>
       next_arm(~info_map, e)
-      |> Option.map(w => {
+      |> Option.map(~f=w => {
            let text =
              Printer.of_segment(
                ~holes="?",
@@ -61,8 +62,10 @@ let label_override =
     switch (find_hit(~hit=hit_param(target), term)) {
     | Some(l) =>
       param_items(l)
-      |> List.find_opt((it: Pat.t) => List.mem(target, IdTagged.ids(it)))
-      |> Option.map((it: Pat.t) =>
+      |> List.find(~f=(it: Pat.t) =>
+           List.mem(IdTagged.ids(it), target, ~equal=Id.equal)
+         )
+      |> Option.map(~f=(it: Pat.t) =>
            "Remove param"
            ++ (
              switch (var_pat_name(it)) {
@@ -84,7 +87,7 @@ let label_override =
           | None => let_head_name(p)
           }
         )
-        |> Option.map(f => "Add param to " ++ f)
+        |> Option.map(~f=f => "Add param to " ++ f)
       | _ => None
       }
     | None => None
@@ -103,7 +106,7 @@ let rename_items =
     switch (find_hit(~hit=hit_rename(target), term)) {
     | Some(e) =>
       rename_pairs(~info_map, ~target, e)
-      |> List.map(((x, y)) =>
+      |> List.map(~f=((x, y)) =>
            (
              Action.RenameFree(x, y),
              "Rename " ++ x ++ " to " ++ y,
@@ -114,7 +117,7 @@ let rename_items =
     };
   let typ_items =
     rename_typ_pairs(~info_map, ~target, term)
-    |> List.map(((x, t)) =>
+    |> List.map(~f=((x, t)) =>
          (
            Action.RenameTypFree(x, t),
            "Rename " ++ x ++ " to " ++ t,
@@ -132,7 +135,7 @@ let menu_items =
   | Some(target) =>
     let static =
       all
-      |> List.filter_map(kind => {
+      |> List.filter_map(~f=kind => {
            let i = impl(kind);
            if (applies(kind, ~info_map, ~target, term)) {
              let label =
@@ -147,17 +150,17 @@ let menu_items =
       switch (swap_site(~info_map, ~target, term)) {
       | Some((l, _)) =>
         let names = swap_param_names(l);
-        List.init(max(List.length(names) - 1, 0), i => i)
-        |> List.filter(i =>
+        List.init(max(List.length(names) - 1, 0), ~f=i => i)
+        |> List.filter(~f=i =>
              Option.is_some(swap_params_rewrite(~fixup=false, i, l))
            )
-        |> List.map(i =>
+        |> List.map(~f=i =>
              (
                Action.SwapParams(i),
                "Swap "
-               ++ List.nth(names, i)
+               ++ List.nth_exn(names, i)
                ++ " ↔ "
-               ++ List.nth(names, i + 1),
+               ++ List.nth_exn(names, i + 1),
                "Swap these parameters at the definition and all call sites",
              )
            );
@@ -194,17 +197,17 @@ let menu_items =
           | _ => []
           };
         let name = (j: int) =>
-          switch (var_pat_name(List.nth(items, j))) {
+          switch (var_pat_name(List.nth_exn(items, j))) {
           | Some(n) => n
           | None => "#" ++ string_of_int(j + 1)
           };
-        List.init(max(List.length(items) - 1, 0), i => i)
-        |> List.filter(i =>
+        List.init(max(List.length(items) - 1, 0), ~f=i => i)
+        |> List.filter(~f=i =>
              Option.is_some(
                swap_tuple_pat_rewrite(~fixup=false, ~target, i, l),
              )
            )
-        |> List.map(i =>
+        |> List.map(~f=i =>
              (
                Action.SwapTuplePat(i),
                "Swap " ++ name(i) ++ " ↔ " ++ name(i + 1),

@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Haz3lcore;
+open Poly;
 
 /* FLIP for code movement: animates the REAL token elements in place.
  * request() (during the MVU update, before the edit applies) captures
@@ -41,7 +42,7 @@ type entry =
 
 let rec entries_of_segment = (seg: Segment.t): list(entry) =>
   seg
-  |> List.concat_map((p: Piece.t) =>
+  |> List.concat_map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
          Aba.mk(t.shards, t.children)
@@ -61,7 +62,7 @@ let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
   switch (k) {
   | Shard(id, i) =>
     switch (Id.Map.find_opt(id, m.tiles)) {
-    | Some(shards) => List.assoc_opt(i, shards)
+    | Some(shards) => List.Assoc.find(shards, i, ~equal=Poly.equal)
     | None => None
     }
   | GroutK(id) => Id.Map.find_opt(id, m.grout)
@@ -71,12 +72,12 @@ let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
 /* a tile's label, found anywhere in a segment */
 let rec tile_label = (seg: Segment.t, id: Id.t): option(list(string)) =>
   seg
-  |> List.find_map((p: Piece.t) =>
+  |> List.find_map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
          t.id == id
            ? Some(Tile.label(t))
-           : t.children |> List.find_map(c => tile_label(c, id))
+           : t.children |> List.find_map(~f=c => tile_label(c, id))
        | _ => None
        }
      );
@@ -107,14 +108,15 @@ let find_meas_end_aligned =
   | Shard(id, i) =>
     switch (Id.Map.find_opt(id, m.tiles), Id.Map.find_opt(id, other.tiles)) {
     | (Some(m_shards), Some(o_shards)) =>
-      let last = shards => shards |> List.map(fst) |> List.fold_left(max, 0);
+      let last = shards =>
+        shards |> List.map(~f=fst) |> List.fold_left(~f=max, ~init=0);
       let (m_last, o_last) = (last(m_shards), last(o_shards));
       let same_glyph =
         switch (m_seg, other_seg) {
         | (Some(ms), Some(os)) =>
           switch (tile_label(ms, id), tile_label(os, id)) {
           | (Some(ml), Some(ol)) =>
-            switch (List.nth_opt(ml, m_last), List.nth_opt(ol, o_last)) {
+            switch (List.nth(ml, m_last), List.nth(ol, o_last)) {
             | (Some(a), Some(b)) => a == b
             | _ => false
             }
@@ -124,7 +126,7 @@ let find_meas_end_aligned =
         | _ => true
         };
       let i' = m_last != o_last && i == o_last && same_glyph ? m_last : i;
-      List.assoc_opt(i', m_shards);
+      List.Assoc.find(m_shards, i', ~equal=Poly.equal);
     | _ => find_meas(m, k)
     }
   | _ => find_meas(m, k)
@@ -245,7 +247,7 @@ let remove_merge_overlay = (): unit =>
 
 let cancel_active = (): unit => {
   active^
-  |> List.iter(anim =>
+  |> List.iter(~f=anim =>
        switch (Js.Unsafe.meth_call(anim, "cancel", [||])) {
        | exception _ => ()
        | _ => ()
@@ -291,17 +293,17 @@ let key_kind_match = (a: key, b: key): bool =>
 let rec keyed_tokens_of_segment =
         (ids: list(Id.t), seg: Segment.t): list((key, string)) =>
   seg
-  |> List.concat_map((p: Piece.t) =>
+  |> List.concat_map(~f=(p: Piece.t) =>
        switch (p) {
        | Tile(t) =>
          Aba.mk(t.shards, t.children)
          |> Aba.join(
               i =>
-                List.mem(t.id, ids)
+                List.mem(ids, t.id, ~equal=Id.equal)
                   ? [
                     (
                       Shard(t.id, i),
-                      List.nth_opt(Tile.label(t), i)
+                      List.nth(Tile.label(t), i)
                       |> Option.value(~default=""),
                     ),
                   ]
@@ -309,10 +311,13 @@ let rec keyed_tokens_of_segment =
               keyed_tokens_of_segment(ids),
             )
          |> List.concat
-       | Grout(g) => List.mem(g.id, ids) ? [(GroutK(g.id), "")] : []
+       | Grout(g) =>
+         List.mem(ids, g.id, ~equal=Id.equal) ? [(GroutK(g.id), "")] : []
        | Secondary(s) =>
          switch (s.content) {
-         | Comment(c) when List.mem(s.id, ids) => [(CommentK(s.id), c)]
+         | Comment(c) when List.mem(ids, s.id, ~equal=Id.equal) => [
+             (CommentK(s.id), c),
+           ]
          | _ => []
          }
        | Projector(_) => []
@@ -324,28 +329,28 @@ let rec keyed_tokens_of_segment =
 let rec keyed_cls_tokens_of_segment =
         (ids: list(Id.t), seg: Segment.t): list((key, string, string)) =>
   seg
-  |> List.concat_map((piece: Piece.t) =>
+  |> List.concat_map(~f=(piece: Piece.t) =>
        switch (piece) {
        | Tile(t) =>
          let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
          let sort_cls = Sort.class_of(Tile.mold(t).out);
          (
-           List.mem(t.id, ids)
+           List.mem(ids, t.id, ~equal=Id.equal)
              ? t.shards
-               |> List.filter_map(i =>
-                    switch (List.nth_opt(Tile.label(t), i)) {
+               |> List.filter_map(~f=i =>
+                    switch (List.nth(Tile.label(t), i)) {
                     | Some(txt) =>
                       let cls =
                         ["token", sort_cls, plurality]
                         @ (Token.is_keyword(txt) ? ["keyword"] : [])
-                        |> String.concat(" ");
+                        |> String.concat(~sep=" ");
                       Some((Shard(t.id, i), txt, cls));
                     | None => None
                     }
                   )
              : []
          )
-         @ List.concat_map(keyed_cls_tokens_of_segment(ids), t.children);
+         @ List.concat_map(~f=keyed_cls_tokens_of_segment(ids), t.children);
        | Grout(_)
        | Secondary(_)
        | Projector(_) => []
@@ -380,9 +385,9 @@ let animate_enter = (~from: option(float)=?, node: Js.t(Dom.node)): unit => {
   | Some(t0) =>
     /* the ghost carried the entrance to (opacity t0, scale
        0.1+0.9*t0) — continue both, don't restart */
-    run([("opacity", Printf.sprintf("%f", t0)), ("opacity", "1")]);
+    run([("opacity", sprintf("%f", t0)), ("opacity", "1")]);
     run([
-      ("transform", Printf.sprintf("scale(%f)", 0.1 +. 0.9 *. t0)),
+      ("transform", sprintf("scale(%f)", 0.1 +. 0.9 *. t0)),
       ("transform", "scale(1)"),
     ]);
   | None =>
@@ -414,7 +419,7 @@ let animate_emerge =
     *. remaining;
   let keyframes =
     Animation.Js.keyframes_unsafe([
-      ("transform", Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
+      ("transform", sprintf("translate(%fpx, %fpx)", dx, dy)),
       ("transform", "translate(0px, 0px)"),
     ]);
   let options =
@@ -452,7 +457,7 @@ let animate_node =
   let dy = float_of_int(o.row - n.row) *. font_metrics.row_height +. ey;
   let keyframes =
     Animation.Js.keyframes_unsafe([
-      ("transform", Printf.sprintf("translate(%fpx, %fpx)", dx, dy)),
+      ("transform", sprintf("translate(%fpx, %fpx)", dx, dy)),
       ("transform", "translate(0px, 0px)"),
     ]);
   let options =
@@ -493,13 +498,12 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
   switch (
     {
       let cls = Js.to_string(Js.Unsafe.get(node, "className"));
-      if (List.mem(cls, vetted^)) {
+      if (List.mem(vetted^, cls, ~equal=Poly.equal)) {
         None;
       } else {
         vetted := [cls, ...vetted^];
         let name =
-          Js.to_string(Js.Unsafe.get(node, "nodeName"))
-          |> String.lowercase_ascii;
+          Js.to_string(Js.Unsafe.get(node, "nodeName")) |> String.lowercase;
         let display =
           Js.Unsafe.meth_call(
             Js.Unsafe.global##.window,
@@ -513,7 +517,7 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
   ) {
   | exception _ => ()
   | None => ()
-  | Some(cls) when List.mem(cls, warned^) => ()
+  | Some(cls) when List.mem(warned^, cls, ~equal=Poly.equal) => ()
   | Some(cls) =>
     warned := [cls, ...warned^];
     print_endline(
@@ -554,9 +558,9 @@ let shake_nodes = (nodes: list(Js.t(Dom.node))): unit => {
       easing: "ease-out",
     });
   nodes
-  |> List.iter(node =>
+  |> List.iter(~f=node =>
        [keyframes, tint]
-       |> List.iter(kf =>
+       |> List.iter(~f=kf =>
             switch (
               Js.Unsafe.meth_call(
                 node,
@@ -595,9 +599,10 @@ let shake_tokens = (~syntax: CachedSyntax.t, ids: list(Id.t)): unit =>
               | None => ()
               | Some(pairs) =>
                 pairs
-                |> List.filter_map(((k, node)) =>
+                |> List.filter_map(~f=((k, node)) =>
                      switch (k) {
-                     | Shard(id, _) when List.mem(id, ids) => Some(node)
+                     | Shard(id, _) when List.mem(ids, id, ~equal=Id.equal) =>
+                       Some(node)
                      | _ => None
                      }
                    )
@@ -635,7 +640,7 @@ let shake_insist = (): unit => {
       easing: "ease-out",
     });
   ids
-  |> List.iter(id =>
+  |> List.iter(~f=id =>
        switch (JsUtil.get_elem_by_id_opt(id)) {
        | None => ()
        | Some(el) =>
@@ -686,23 +691,24 @@ let deco_prefixes = [
    own token */
 let anchored_decos = (): list((Id.t, option(int), Js.t(Dom.node))) =>
   deco_prefixes
-  |> List.concat_map(prefix =>
+  |> List.concat_map(~f=prefix =>
        JsUtil.ids_with_prefix(prefix)
-       |> List.filter_map(dom_id => {
+       |> List.filter_map(~f=dom_id => {
             let rest =
               String.sub(
                 dom_id,
-                String.length(prefix),
-                String.length(dom_id) - String.length(prefix),
+                ~pos=String.length(prefix),
+                ~len=String.length(dom_id) - String.length(prefix),
               );
             /* a uuid is 36 chars; an optional -<shard> follows */
             let uuid =
-              String.length(rest) > 36 ? String.sub(rest, 0, 36) : rest;
+              String.length(rest) > 36
+                ? String.sub(rest, ~pos=0, ~len=36) : rest;
             let shard =
               if (String.length(rest) > 37) {
                 switch (
                   int_of_string_opt(
-                    String.sub(rest, 37, String.length(rest) - 37),
+                    String.sub(rest, ~pos=37, ~len=String.length(rest) - 37),
                   )
                 ) {
                 | s => s
@@ -716,7 +722,7 @@ let anchored_decos = (): list((Id.t, option(int), Js.t(Dom.node))) =>
             | None => None
             | Some(id) =>
               JsUtil.get_elem_by_id_opt(dom_id)
-              |> Option.map(el => (id, shard, (el :> Js.t(Dom.node))))
+              |> Option.map(~f=el => (id, shard, (el :> Js.t(Dom.node))))
             };
           })
      );
@@ -754,9 +760,9 @@ let shake_dead_press =
      indication anchor (backing-only reads as nothing — andrew) */
   let indicated_uuids =
     ids
-    |> List.filter_map(dom_id =>
+    |> List.filter_map(~f=dom_id =>
          String.length(dom_id) > 47
-           ? Some(String.sub(dom_id, 11, 36)) : None
+           ? Some(String.sub(dom_id, ~pos=11, ~len=36)) : None
        );
   let text_nodes =
     switch (segment) {
@@ -766,7 +772,7 @@ let shake_dead_press =
       | Some(caret) =>
         switch (
           Js.Opt.to_option(caret##.parentNode)
-          |> Option.map(deco => Js.Opt.to_option(deco##.parentNode))
+          |> Option.map(~f=deco => Js.Opt.to_option(deco##.parentNode))
           |> Option.join
         ) {
         | None => []
@@ -787,10 +793,15 @@ let shake_dead_press =
             | None => []
             | Some(pairs) =>
               pairs
-              |> List.filter_map(((k, node)) =>
+              |> List.filter_map(~f=((k, node)) =>
                    switch (k) {
                    | Shard(id, _)
-                       when List.mem(Id.to_string(id), indicated_uuids) =>
+                       when
+                         List.mem(
+                           indicated_uuids,
+                           Id.to_string(id),
+                           ~equal=Poly.equal,
+                         ) =>
                      Some(node)
                    | _ => None
                    }
@@ -810,19 +821,19 @@ let shake_dead_press =
       }
     | ids =>
       ids
-      |> List.filter_map(JsUtil.get_elem_by_id_opt)
-      |> List.map(el => (el :> Js.t(Dom.node)))
+      |> List.filter_map(~f=JsUtil.get_elem_by_id_opt)
+      |> List.map(~f=el => (el :> Js.t(Dom.node)))
     };
   /* wiggle along the attempted direction: a refused vertical move
      shakes vertically */
   let tr = (px: int) =>
     switch (axis) {
-    | `X => Printf.sprintf("translateX(%dpx)", px)
-    | `Y => Printf.sprintf("translateY(%dpx)", px)
+    | `X => sprintf("translateX(%dpx)", px)
+    | `Y => sprintf("translateY(%dpx)", px)
     };
   backing
   @ text_nodes
-  |> List.iter(node => {
+  |> List.iter(~f=node => {
        let keyframes =
          Animation.Js.keyframes_unsafe([
            ("transform", tr(0)),
@@ -952,9 +963,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                   if (merge_dissolved != [] && merge_survivor != []) {
                     let olds =
                       keyed_cls_tokens_of_segment(merge_dissolved, old_seg)
-                      |> List.filter_map(((k, txt, cls)) =>
+                      |> List.filter_map(~f=((k, txt, cls)) =>
                            find_meas(old_m, k)
-                           |> Option.map((m: Measured.measurement) =>
+                           |> Option.map(~f=(m: Measured.measurement) =>
                                 (txt, cls, m.origin)
                               )
                          );
@@ -963,9 +974,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                         merge_survivor,
                         syntax.segment,
                       )
-                      |> List.filter_map(((k, _, _)) =>
+                      |> List.filter_map(~f=((k, _, _)) =>
                            find_meas(new_m, k)
-                           |> Option.map((m: Measured.measurement) =>
+                           |> Option.map(~f=(m: Measured.measurement) =>
                                 m.origin
                               )
                          );
@@ -996,8 +1007,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                         *. font_metrics.row_height,
                       );
                       let first = ref(true);
-                      List.combine(olds, news)
-                      |> List.iter((((txt, cls, o), n)) => {
+                      List.zip_exn(olds, news)
+                      |> List.iter(~f=(((txt, cls, o), n)) => {
                            let (ox, oy) = px(o);
                            let (nx, ny) = px(n);
                            let span = Dom_html.createSpan(Dom_html.document);
@@ -1005,7 +1016,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                            span##.textContent := Js.some(Js.string(txt));
                            span##.style##.cssText :=
                              Js.string(
-                               Printf.sprintf(
+                               sprintf(
                                  "position:absolute;left:%fpx;top:%fpx;",
                                  nx,
                                  ny,
@@ -1016,7 +1027,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                              Animation.Js.keyframes_unsafe([
                                (
                                  "transform",
-                                 Printf.sprintf(
+                                 sprintf(
                                    "translate(%fpx, %fpx)",
                                    ox -. nx,
                                    oy -. ny,
@@ -1053,7 +1064,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                            };
                          });
                     } else if (olds != []) {
-                      Printf.eprintf(
+                      eprintf(
                         "CodeFlip: merge staged but windows differ (%d old vs %d new tokens) — no convergence\n",
                         List.length(olds),
                         List.length(news),
@@ -1062,7 +1073,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                   };
                   let moved =
                     pairs
-                    |> List.filter_map(((k, node)) =>
+                    |> List.filter_map(~f=((k, node)) =>
                          switch (
                            find_meas_end_aligned(
                              ~m_seg=old_seg,
@@ -1086,7 +1097,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                     !enters_ok
                       ? []
                       : pairs
-                        |> List.filter_map(((k, node)) =>
+                        |> List.filter_map(~f=((k, node)) =>
                              switch (
                                find_meas(old_m, k),
                                find_meas(new_m, k),
@@ -1113,9 +1124,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                       && List.length(moved)
                       + List.length(entered) <= max_moved) {
                     moved
-                    |> List.iter(((k, node, o, n)) => {
+                    |> List.iter(~f=((k, node, o, n)) => {
                          let (ex, ey) =
-                           List.assoc_opt(k, offsets)
+                           List.Assoc.find(offsets, k, ~equal=Poly.equal)
                            |> Option.value(~default=(0., 0.));
                          animate_node(
                            ~font_metrics,
@@ -1130,7 +1141,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                        replaced them), offsets looked up by the
                        anchor's shard keys */
                     anchored_decos()
-                    |> List.iter(((id, shard, node)) =>
+                    |> List.iter(~f=((id, shard, node)) =>
                          switch (
                            anchor_meas(old_m, id, shard),
                            anchor_meas(new_m, id, shard),
@@ -1138,14 +1149,14 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                          | (Some(o), Some(n)) when o.origin != n.origin =>
                            let (ex, ey) =
                              offsets
-                             |> List.find_opt(((k, _)) =>
+                             |> List.find(~f=((k, _)) =>
                                   switch (k) {
                                   | Shard(kid, _)
                                   | GroutK(kid)
                                   | CommentK(kid) => kid == id
                                   }
                                 )
-                             |> Option.map(snd)
+                             |> Option.map(~f=snd)
                              |> Option.value(~default=(0., 0.));
                            animate_node(
                              ~font_metrics,
@@ -1184,11 +1195,11 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                     let windows =
                       n_src == 0 || Array.length(ents) < n_src
                         ? []
-                        : List.init(Array.length(ents) - n_src + 1, i => i)
-                          |> List.filter(i =>
+                        : List.init(Array.length(ents) - n_src + 1, ~f=i => i)
+                          |> List.filter(~f=i =>
                                srcs
-                               |> List.mapi((j, s) => (j, s))
-                               |> List.for_all(((j, (sk, stext))) => {
+                               |> List.mapi(~f=(j, s) => (j, s))
+                               |> List.for_all(~f=((j, (sk, stext))) => {
                                     let (ek, enode) = ents[i + j];
                                     key_kind_match(sk, ek)
                                     && (
@@ -1206,7 +1217,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                       switch (windows) {
                       | [] => false
                       | ws =>
-                        let sorted = List.sort(compare, ws);
+                        let sorted = List.sort(~compare, ws);
                         let rec ok = w =>
                           switch (w) {
                           | []
@@ -1218,42 +1229,43 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                       };
                     if (disjoint) {
                       let in_window = i =>
-                        windows |> List.exists(w => i >= w && i < w + n_src);
+                        windows |> List.exists(~f=w => i >= w && i < w + n_src);
                       windows
-                      |> List.iter(w =>
+                      |> List.iter(~f=w =>
                            List.iteri(
-                             (j, (sk, _)) => {
-                               let (k, node) = ents[w + j];
-                               switch (
-                                 find_meas(old_m, sk),
-                                 find_meas(new_m, k),
-                               ) {
-                               | (Some(o), Some(n))
-                                   when
-                                     o.origin.row == o.last.row
-                                     && n.origin.row == n.last.row =>
-                                 animate_emerge(
-                                   ~font_metrics,
-                                   ~from=?enter_from,
-                                   ~bump=bump_y,
-                                   node,
-                                   o.origin,
-                                   n.origin,
-                                 )
-                               | _ => animate_enter(node)
-                               };
-                             },
+                             ~f=
+                               (j, (sk, _)) => {
+                                 let (k, node) = ents[w + j];
+                                 switch (
+                                   find_meas(old_m, sk),
+                                   find_meas(new_m, k),
+                                 ) {
+                                 | (Some(o), Some(n))
+                                     when
+                                       o.origin.row == o.last.row
+                                       && n.origin.row == n.last.row =>
+                                   animate_emerge(
+                                     ~font_metrics,
+                                     ~from=?enter_from,
+                                     ~bump=bump_y,
+                                     node,
+                                     o.origin,
+                                     n.origin,
+                                   )
+                                 | _ => animate_enter(node)
+                                 };
+                               },
                              srcs,
                            )
                          );
                       ents
-                      |> Array.iteri((i, (_, node)) =>
+                      |> Array.iteri(~f=(i, (_, node)) =>
                            in_window(i) ? () : animate_enter(node)
                          );
                     } else {
                       if (emerge != [] && entered != []) {
                         print_endline(
-                          Printf.sprintf(
+                          sprintf(
                             "CodeFlip: emerge staged (%d source tokens) but %s clone window among %d entered — grow-in fallback",
                             n_src,
                             windows == [] ? "no" : "no disjoint",
@@ -1262,12 +1274,14 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                         );
                       };
                       entered
-                      |> List.iter(((_, node)) =>
+                      |> List.iter(~f=((_, node)) =>
                            animate_enter(~from=?enter_from, node)
                          );
                     };
                     moved
-                    |> List.iter(((_, node, _, _)) => warn_invisible(node));
+                    |> List.iter(~f=((_, node, _, _)) =>
+                         warn_invisible(node)
+                       );
                   };
                 };
               },

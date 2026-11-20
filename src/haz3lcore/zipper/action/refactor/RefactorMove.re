@@ -3,6 +3,7 @@
 open Language;
 open RefactorBase;
 open RefactorParens;
+open Poly;
 
 let bool_pat = (p: Pat.t): option(bool) =>
   switch (IdTagged.term_of(p)) {
@@ -100,8 +101,8 @@ let if_of_branch = (~target: Id.t, program: Exp.t): option(Exp.t) =>
   switch (find_path(~hit=hit_node(target), program)) {
   | Some(path) when List.length(path) >= 2 =>
     let n = List.length(path);
-    let b = List.nth(path, n - 1);
-    let p = List.nth(path, n - 2);
+    let b = List.nth_exn(path, n - 1);
+    let p = List.nth_exn(path, n - 2);
     switch (IdTagged.term_of(p)) {
     | If(_, t, alt) when same_node(t, b) || same_node(alt, b) => Some(p)
     | _ => None
@@ -236,7 +237,7 @@ let match_witness = (~info_map: Statics.Map.t, e: Exp.t): option(Pat.t) =>
   switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
   | Some(InfoExp({marks, _})) =>
     marks
-    |> List.find_map((m: Mark.t) =>
+    |> List.find_map(~f=(m: Mark.t) =>
          switch (m) {
          | InexhaustiveMatch(_, _, Pat(p)) => Some(p)
          | _ => None
@@ -271,7 +272,7 @@ let rec space_pat = (p: Pat.t): Pat.t => {
       term:
         Tuple(
           List.mapi(
-            (i, x) => i == 0 ? space_pat(x) : before(space_pat(x)),
+            ~f=(i, x) => i == 0 ? space_pat(x) : before(space_pat(x)),
             xs,
           ),
         ),
@@ -323,7 +324,7 @@ let scrutinee_cases =
       switch (IdTagged.term_of(t)) {
       | Sum(variants) =>
         variants
-        |> List.filter_map((v: ConstructorMap.variant(Typ.t)) =>
+        |> List.filter_map(~f=(v: ConstructorMap.variant(Typ.t)) =>
              switch (v) {
              | Variant(name, _, arg) => Some((name, arg != None))
              | _ => None
@@ -353,10 +354,12 @@ let next_arm = (~info_map: Statics.Map.t, e: Exp.t): option(Pat.t) =>
   switch (IdTagged.term_of(e), match_witness(~info_map, e)) {
   | (Match(scrut, rules), Some(w)) =>
     let handled =
-      rules |> List.filter_map(((p, _)) => covered_case(~info_map, p));
+      rules |> List.filter_map(~f=((p, _)) => covered_case(~info_map, p));
     switch (
       scrutinee_cases(~info_map, scrut)
-      |> List.find_opt(((name, _)) => !List.mem(name, handled))
+      |> List.find(~f=((name, _)) =>
+           !List.mem(handled, name, ~equal=String.equal)
+         )
     ) {
     | Some(c) => Some(case_pat(c))
     | None => Some(space_pat(wildify(refresh_pat_ids(w))))
@@ -377,7 +380,8 @@ let add_case_arm_impl: impl = {
             switch (next_arm(~info_map, e)) {
             | Some(w) =>
               let w = pat_needs_parens(w) ? fresh_pat(Parens(w)) : w;
-              let (_, last_body) = List.nth(rules, List.length(rules) - 1);
+              let (_, last_body) =
+                List.nth_exn(rules, List.length(rules) - 1);
               /* the last body's trailing run stays put, becoming the
                  separator before the new |; the new body gets a fresh
                  copy so end keeps its position style */
@@ -451,7 +455,7 @@ let patch_calls =
             switch (IdTagged.term_of(arg)) {
             | Tuple(items) when arity > 1 && List.length(items) == arity => {
                 ...arg,
-                term: Tuple(List.map(go, items) @ [hole]),
+                term: Tuple(List.map(~f=go, items) @ [hole]),
               }
             | _ when arity == 1 =>
               /* the whole argument is the one param's value: a bare
@@ -608,7 +612,7 @@ let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
       }
     | Asc(inner, ann) =>
       go(inner)
-      |> Option.map((inner': Pat.t): Pat.t =>
+      |> Option.map(~f=(inner': Pat.t): Pat.t =>
            {
              ...p,
              term: Asc(inner', ann),
@@ -616,7 +620,7 @@ let extended_ap_pat = (p: Pat.t, name: string): option((Pat.t, Id.t)) => {
          )
     | _ => None
     };
-  go(p) |> Option.map(p' => (p', focus));
+  go(p) |> Option.map(~f=p' => (p', focus));
 };
 
 /* Shared by applies and prepare (no printing/parsing here, so gating
@@ -655,7 +659,7 @@ let hit_add_param = (target: Id.t, e: Exp.t): bool =>
   hit_let(target, e)
   || (
     switch (param_paren(e)) {
-    | Some(paren) => List.mem(target, IdTagged.ids(paren))
+    | Some(paren) => List.mem(IdTagged.ids(paren), target, ~equal=Id.equal)
     | None => false
     }
   );
@@ -685,7 +689,9 @@ let add_param_rewrite = (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
           switch (sugar_fn_name(p)) {
           | Some(f) =>
             extended_ap_pat(p, name)
-            |> Option.map(((p', focus)) => (f, p', patched(f, def), focus))
+            |> Option.map(~f=((p', focus)) =>
+                 (f, p', patched(f, def), focus)
+               )
           | None =>
             switch (IdTagged.term_of(p), IdTagged.term_of(def)) {
             | (Var(f), Fun(fp, fbody, fty, nm)) =>
@@ -803,13 +809,13 @@ let hoist_step =
   if (n < 2) {
     None;
   } else {
-    let l = List.nth(path, n - 1);
-    let direct = List.nth(path, n - 2);
+    let l = List.nth_exn(path, n - 1);
+    let direct = List.nth_exn(path, n - 2);
     /* a def-position let is usually parenthesized; treat the parens
        as packaging */
     let (p, c) =
       switch (IdTagged.term_of(direct)) {
-      | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
+      | Parens(_) when n >= 3 => (List.nth_exn(path, n - 3), direct)
       | _ => (direct, l)
       };
     /* def-line general moves first: absorption of an identical
@@ -962,14 +968,14 @@ let hoist_step =
             when
               same_node(c, l)
               && rules
-              |> List.exists(((rp, rb)) =>
+              |> List.exists(~f=((rp, rb)) =>
                    same_node(rb, c)
                    && disjoint_names(l_names, pat_var_names(rp))
                    && !names_mentioned(pat_var_names(rp), ldef)
                  )
               && !(
                    l_names
-                   |> List.exists(x =>
+                   |> List.exists(~f=x =>
                         free_in(
                           x,
                           replace_node(
@@ -983,7 +989,7 @@ let hoist_step =
           /* out of an arm: evaluates unconditionally now */
           let rules' =
             rules
-            |> List.map(((rp, rb)) =>
+            |> List.map(~f=((rp, rb)) =>
                  same_node(rb, c)
                    ? (rp, occupy(l.annotation.secondary, lbody)) : (rp, rb)
                );
@@ -1014,7 +1020,7 @@ let hoist_step =
               && (same_node(t_, c) || same_node(alt_, c))
               && !(
                    l_names
-                   |> List.exists(x =>
+                   |> List.exists(~f=x =>
                         free_in(
                           x,
                           replace_node(
@@ -1084,7 +1090,7 @@ let hoist_step =
            in the def) must NOT fall into the generic case below — that
            path knows nothing about the crossed binders */
         | Match(_, rules)
-            when rules |> List.exists(((_, rb)) => same_node(rb, c)) =>
+            when rules |> List.exists(~f=((_, rb)) => same_node(rb, c)) =>
           None
         /* binder-introducing bodies the generic case can't gate: Use
            imports names we can't enumerate here; the rest bind exp/typ
@@ -1111,7 +1117,7 @@ let hoist_step =
           same_node(c, l)
           && !(
                l_names
-               |> List.exists(x =>
+               |> List.exists(~f=x =>
                     free_in(
                       x,
                       replace_node(
@@ -1128,7 +1134,7 @@ let hoist_step =
             ? {
               let lbody =
                 splice_parens_needed(
-                  ~program=List.hd(path),
+                  ~program=List.hd_exn(path),
                   ~at=Exp.rep_id(l),
                   lbody,
                 )
@@ -1153,7 +1159,7 @@ let hoist_step =
                  `(let w = 4 in g(w)) - 1`) */
               let l' =
                 splice_parens_needed(
-                  ~program=List.hd(path),
+                  ~program=List.hd_exn(path),
                   ~at=Exp.rep_id(p),
                   l',
                 )
@@ -1196,7 +1202,7 @@ let rec is_proper_block = (e: Exp.t): bool =>
    bottom). Structural check only — no printing in gating paths. */
 let rec is_bare_use = (names: list(string), e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
-  | Var(y) => List.mem(y, names)
+  | Var(y) => List.mem(names, y, ~equal=String.equal)
   | Parens(inner) => is_bare_use(names, inner)
   | _ => false
   };
@@ -1418,8 +1424,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
         /* into the single arm that uses the binding */
         switch (
           rules
-          |> List.mapi((i, r) => (i, r))
-          |> List.filter(((_, (_, b))) => names_mentioned(l_names, b))
+          |> List.mapi(~f=(i, r) => (i, r))
+          |> List.filter(~f=((_, (_, b))) => names_mentioned(l_names, b))
         ) {
         | [(i, (rp, rb))]
             when
@@ -1436,7 +1442,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
                 term: Let(lp, ldef, rb'),
               },
             );
-          let rules' = rules |> List.mapi((j, r) => j == i ? (rp, l') : r);
+          let rules' =
+            rules |> List.mapi(~f=(j, r) => j == i ? (rp, l') : r);
           let match': Exp.t =
             with_secondary(
               l.annotation.secondary,
@@ -1528,8 +1535,8 @@ let merge_site_up = (~info_map, ~target, program): option((Exp.t, Exp.t)) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | Some(path) when List.length(path) >= 2 =>
     let n = List.length(path);
-    let l = List.nth(path, n - 1);
-    let p = List.nth(path, n - 2);
+    let l = List.nth_exn(path, n - 1);
+    let p = List.nth_exn(path, n - 2);
     switch (def_line_of(p), def_line_of(l)) {
     | (Some((_, pbody)), Some((_, lbody)))
         when
@@ -1624,7 +1631,7 @@ let hoist_let_impl: impl = {
         comment_rung(
           ~up=true,
           ~program,
-          List.nth(path, List.length(path) - 1),
+          List.nth_exn(path, List.length(path) - 1),
         )
       ) {
       | Some(r) => Some(r)
@@ -1653,7 +1660,7 @@ let sink_let_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (
       find_path(~hit=hit_def_line(target), program)
-      |> Option.map(path => List.nth(path, List.length(path) - 1))
+      |> Option.map(~f=path => List.nth_exn(path, List.length(path) - 1))
     ) {
     | Some(l) =>
       /* a comment line just below is the first rung */
@@ -1691,14 +1698,14 @@ let hoist_carry_site = (~target: Id.t, program: Exp.t): option(carry_site) =>
          cross X */
       List.length(block) >= 2
       && block_dls
-      |> List.for_all(m => lines_swappable(dl, m))
+      |> List.for_all(~f=m => lines_swappable(dl, m))
         ? Some(CarrySwap(x, block)) : None
     | Some({block, stop: StopCeiling(_, anc), _})
         when List.length(block) >= 2 =>
       switch (IdTagged.term_of(anc)) {
       | Let(op, odef, _)
           when
-            same_node(odef, List.hd(block))
+            same_node(odef, List.hd_exn(block))
             && FunctionSugar.detect(op) == None =>
         Some(CarryExit(block))
       | _ => None
@@ -1714,7 +1721,7 @@ let hoist_carry_impl: impl = {
     switch (hoist_carry_site(~target, program)) {
     | None => None
     | Some(CarrySwap(x, [top, ...rest])) =>
-      let bottom = List.nth([top, ...rest], List.length(rest));
+      let bottom = List.nth_exn([top, ...rest], List.length(rest));
       /* the block crosses the comment and blank lines above it first,
          one per rung, then swaps with x */
       switch (comment_rung(~up=true, ~program, ~bottom, top)) {
@@ -1722,7 +1729,7 @@ let hoist_carry_impl: impl = {
       | None => block_swap_up(~program, ~x, ~top, ~bottom)
       };
     | Some(CarryExit([top, ...rest])) =>
-      let bottom = List.nth([top, ...rest], List.length(rest));
+      let bottom = List.nth_exn([top, ...rest], List.length(rest));
       switch (comment_rung(~up=true, ~program, ~bottom, top)) {
       | Some(r) => Some(r)
       | None =>
@@ -1730,17 +1737,18 @@ let hoist_carry_impl: impl = {
            outside */
         [top, ...rest]
         |> List.fold_left(
-             (acc, m) =>
-               switch (acc) {
-               | Some((prog, _)) =>
-                 hoist_let_impl.prepare(
-                   ~info_map,
-                   ~target=Exp.rep_id(m),
-                   prog,
-                 )
-               | None => None
-               },
-             Some((program, target)),
+             ~f=
+               (acc, m) =>
+                 switch (acc) {
+                 | Some((prog, _)) =>
+                   hoist_let_impl.prepare(
+                     ~info_map,
+                     ~target=Exp.rep_id(m),
+                     prog,
+                   )
+                 | None => None
+                 },
+             ~init=Some((program, target)),
            )
       };
     | Some(_) => None
@@ -1762,11 +1770,11 @@ let sink_carry_site =
       let rec walk = (block_dls, block, cur) =>
         switch (def_line_of(cur)) {
         | Some((dl, body)) =>
-          if (block_dls |> List.exists(m => line_depends_on(dl, m))) {
+          if (block_dls |> List.exists(~f=m => line_depends_on(dl, m))) {
             walk([dl, ...block_dls], block @ [cur], body);
           } else if (List.length(block) >= 2
                      && block_dls
-                     |> List.for_all(m => lines_swappable(dl, m))) {
+                     |> List.for_all(~f=m => lines_swappable(dl, m))) {
             Some((block, cur));
           } else {
             None;
@@ -1783,7 +1791,7 @@ let sink_carry_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (sink_carry_site(~target, program)) {
     | Some(([top, ...rest], y)) =>
-      let bottom = List.nth([top, ...rest], List.length(rest));
+      let bottom = List.nth_exn([top, ...rest], List.length(rest));
       /* the block crosses the comment and blank lines below it first,
          one per rung, then the line y crosses it */
       switch (comment_rung(~up=false, ~program, ~bottom, top)) {
@@ -1813,10 +1821,10 @@ let wildcard_expansion =
   | Match(scrut, rules) =>
     let wild_idx =
       rules
-      |> List.mapi((i, (p, _)) => (i, p))
-      |> List.find_opt(((_, p: Pat.t)) =>
+      |> List.mapi(~f=(i, (p, _)) => (i, p))
+      |> List.find(~f=((_, p: Pat.t)) =>
            switch (IdTagged.term_of(p)) {
-           | Wild => List.mem(target, IdTagged.ids(p))
+           | Wild => List.mem(IdTagged.ids(p), target, ~equal=Id.equal)
            | _ => false
            }
          );
@@ -1826,10 +1834,13 @@ let wildcard_expansion =
       let cases = scrutinee_cases(~info_map, scrut);
       let handled =
         rules
-        |> List.filteri((j, _) => j < i)
-        |> List.filter_map(((p, _)) => covered_case(~info_map, p));
+        |> List.filteri(~f=(j, _) => j < i)
+        |> List.filter_map(~f=((p, _)) => covered_case(~info_map, p));
       let missing =
-        cases |> List.filter(((name, _)) => !List.mem(name, handled));
+        cases
+        |> List.filter(~f=((name, _)) =>
+             !List.mem(handled, name, ~equal=String.equal)
+           );
       missing == [] ? None : Some((i, missing));
     };
   | _ => None
@@ -1847,11 +1858,11 @@ let expand_wildcard_impl: impl = {
           | Some((i, missing)) =>
             switch (IdTagged.term_of(e)) {
             | Match(scrut, rules) =>
-              let (wild_pat, wild_body) = List.nth(rules, i);
+              let (wild_pat, wild_body) = List.nth_exn(rules, i);
               let ctor_pat = case_pat;
               let new_rules =
                 missing
-                |> List.mapi((k, m) => {
+                |> List.mapi(~f=(k, m) => {
                      let p: Pat.t =
                        k == 0
                          ? with_secondary_pat(
@@ -1864,14 +1875,14 @@ let expand_wildcard_impl: impl = {
                    });
               let rules' =
                 rules
-                |> List.mapi((j, r) => j == i ? new_rules : [r])
+                |> List.mapi(~f=(j, r) => j == i ? new_rules : [r])
                 |> List.concat;
               Some((
                 {
                   ...e,
                   term: Match(scrut, rules'),
                 },
-                Pat.rep_id(fst(List.hd(new_rules))),
+                Pat.rep_id(fst(List.hd_exn(new_rules))),
               ));
             | _ => None
             }
@@ -1887,8 +1898,8 @@ let expand_wildcard_impl: impl = {
  * swapped elements exchange leads. ~fixup as in hoist/sink. */
 
 let swap_exp_items = (~fixup: bool, i: int, items: list(Exp.t)): list(Exp.t) => {
-  let a = List.nth(items, i);
-  let b = List.nth(items, i + 1);
+  let a = List.nth_exn(items, i);
+  let b = List.nth_exn(items, i + 1);
   let (a', b') =
     if (fixup) {
       let sa = Slot.lead_of(a);
@@ -1903,7 +1914,7 @@ let swap_exp_items = (~fixup: bool, i: int, items: list(Exp.t)): list(Exp.t) => 
       );
     };
   items
-  |> List.mapi((j, x) =>
+  |> List.mapi(~f=(j, x) =>
        if (j == i) {
          a';
        } else if (j == i + 1) {
@@ -1915,8 +1926,8 @@ let swap_exp_items = (~fixup: bool, i: int, items: list(Exp.t)): list(Exp.t) => 
 };
 
 let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
-  let a = List.nth(items, i);
-  let b = List.nth(items, i + 1);
+  let a = List.nth_exn(items, i);
+  let b = List.nth_exn(items, i + 1);
   /* slot-wise (leads), as swap_exp_items: node-level exchange stacks
      runs on compound pats whose lead lives on a leaf */
   let sa = pat_slot_lead(a);
@@ -1924,7 +1935,7 @@ let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
   let a' = pat_slot_give(sa, pat_slot_drop(sb, b));
   let b' = pat_slot_give(sb, pat_slot_drop(sa, a));
   items
-  |> List.mapi((j, x) =>
+  |> List.mapi(~f=(j, x) =>
        if (j == i) {
          a';
        } else if (j == i + 1) {
@@ -1936,14 +1947,14 @@ let swap_pat_items = (i: int, items: list(Pat.t)): list(Pat.t) => {
 };
 
 let swap_typ_items = (i: int, items: list(Typ.t)): list(Typ.t) => {
-  let a = List.nth(items, i);
-  let b = List.nth(items, i + 1);
+  let a = List.nth_exn(items, i);
+  let b = List.nth_exn(items, i + 1);
   let sa = typ_slot_lead(a);
   let sb = typ_slot_lead(b);
   let a' = typ_slot_give(sa, typ_slot_drop(sb, b));
   let b' = typ_slot_give(sb, typ_slot_drop(sa, a));
   items
-  |> List.mapi((j, x) =>
+  |> List.mapi(~f=(j, x) =>
        if (j == i) {
          a';
        } else if (j == i + 1) {
@@ -1981,7 +1992,7 @@ let swap_call_args =
         if (is_var_named(x, fn)) {
           switch (IdTagged.term_of(arg)) {
           | Tuple(items) when List.length(items) > i + 1 =>
-            let items = items |> List.map(go);
+            let items = items |> List.map(~f=go);
             let arg': Exp.t = {
               ...arg,
               term: Tuple(swap_exp_items(~fixup, i, items)),
@@ -2049,7 +2060,7 @@ let swap_arrow_ann = (i: int, ann: Typ.t): option(Typ.t) =>
       | _ => None
       };
     swap_in(a)
-    |> Option.map((a': Typ.t): Typ.t =>
+    |> Option.map(~f=(a': Typ.t): Typ.t =>
          {
            ...ann,
            term: Arrow(a', b),
@@ -2087,7 +2098,7 @@ let swap_params_rewrite =
             }
           | Asc(inner, ann) =>
             swap_in_pat(inner)
-            |> Option.map((inner': Pat.t): Pat.t =>
+            |> Option.map(~f=(inner': Pat.t): Pat.t =>
                  {
                    ...p,
                    term: Asc(inner', ann),
@@ -2096,7 +2107,7 @@ let swap_params_rewrite =
           | _ => None
           };
         swap_in_pat(p)
-        |> Option.map(p' =>
+        |> Option.map(~f=p' =>
              (f, p', swap_call_args(~fixup, ~bare_use, ~ok, i, f, def))
            );
       | None =>
@@ -2107,7 +2118,7 @@ let swap_params_rewrite =
             | Var(_) => Some(p)
             | Asc(inner, ann) =>
               swap_arrow_ann(i, ann)
-              |> Option.map((ann': Typ.t): Pat.t =>
+              |> Option.map(~f=(ann': Typ.t): Pat.t =>
                    {
                      ...p,
                      term: Asc(inner, ann'),
@@ -2175,7 +2186,7 @@ let swap_param_names = (e: Exp.t): list(string) => {
       | _ => []
       };
     items
-    |> List.mapi((k, it) =>
+    |> List.mapi(~f=(k, it) =>
          switch (var_pat_name(it)) {
          | Some(n) => n
          | None => "#" ++ string_of_int(k + 1)
@@ -2194,7 +2205,7 @@ let swap_param_names = (e: Exp.t): list(string) => {
  * n >= 2 params, every call a matching-width tuple, no bare uses. */
 
 let drop_exp_item = (i: int, items: list(Exp.t)): list(Exp.t) => {
-  let items = items |> List.filteri((j, _) => j != i);
+  let items = items |> List.filteri(~f=(j, _) => j != i);
   /* a new first element takes over the old tight-lead slot */
   i == 0
     ? switch (items) {
@@ -2205,7 +2216,7 @@ let drop_exp_item = (i: int, items: list(Exp.t)): list(Exp.t) => {
 };
 
 let drop_pat_item = (i: int, items: list(Pat.t)): list(Pat.t) => {
-  let items = items |> List.filteri((j, _) => j != i);
+  let items = items |> List.filteri(~f=(j, _) => j != i);
   i == 0
     ? switch (items) {
       | [x, ...rest] => [with_secondary_pat(([], []), x), ...rest]
@@ -2215,7 +2226,7 @@ let drop_pat_item = (i: int, items: list(Pat.t)): list(Pat.t) => {
 };
 
 let drop_typ_item = (i: int, items: list(Typ.t)): list(Typ.t) => {
-  let items = items |> List.filteri((j, _) => j != i);
+  let items = items |> List.filteri(~f=(j, _) => j != i);
   i == 0
     ? switch (items) {
       | [x, ...rest] => [with_secondary_typ(([], []), x), ...rest]
@@ -2280,11 +2291,12 @@ let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
     };
   let labeled = (xs: list(Pat.t)) =>
     List.exists(
-      (x: Pat.t) =>
-        switch (IdTagged.term_of(x)) {
-        | TupLabel(_) => true
-        | _ => false
-        },
+      ~f=
+        (x: Pat.t) =>
+          switch (IdTagged.term_of(x)) {
+          | TupLabel(_) => true
+          | _ => false
+          },
       xs,
     );
   switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
@@ -2295,7 +2307,7 @@ let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
   | (Tuple(xs), Tuple(ys))
       when
         List.length(xs) == List.length(ys) && !labeled(xs) && !labeled(ys) =>
-    List.exists2(pats_disjoint, xs, ys)
+    List.exists2_exn(xs, ys, ~f=pats_disjoint)
   | _ =>
     switch (ctor_head(a), ctor_head(b)) {
     | (Some((n, _)), Some((m, _))) when n != m => true
@@ -2322,7 +2334,7 @@ let rec constraints_disjoint =
       }
     )
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
-    List.exists2(constraints_disjoint, xs, ys)
+    List.exists2_exn(xs, ys, ~f=constraints_disjoint)
   | _ => false
   };
 
@@ -2361,8 +2373,8 @@ let swap_arms_rewrite =
     : option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Match(scrut, rules) when i >= 0 && List.length(rules) > i + 1 =>
-    let (pa, ba) = List.nth(rules, i);
-    let (pb, bb) = List.nth(rules, i + 1);
+    let (pa, ba) = List.nth_exn(rules, i);
+    let (pb, bb) = List.nth_exn(rules, i + 1);
     if (arms_disjoint(~info_map, pa, pb)) {
       /* boundary runs belong to SLOTS, and they may be stored
          node-level OR leaf-deep (mixed storage doubled a lead here
@@ -2407,7 +2419,7 @@ let swap_arms_rewrite =
       let pb' = pat_slot_give(spb, pat_slot_drop(spa, pa));
       let rules' =
         rules
-        |> List.mapi((j, r) =>
+        |> List.mapi(~f=(j, r) =>
              if (j == i) {
                (pa', ba');
              } else if (j == i + 1) {
@@ -2425,11 +2437,11 @@ let swap_arms_rewrite =
         | [head, ...slot_ids] =>
           let swapped =
             slot_ids
-            |> List.mapi((j, id) =>
+            |> List.mapi(~f=(j, id) =>
                  if (j == i) {
-                   List.nth_opt(slot_ids, i + 1) |> Option.value(~default=id);
+                   List.nth(slot_ids, i + 1) |> Option.value(~default=id);
                  } else if (j == i + 1) {
-                   List.nth_opt(slot_ids, i) |> Option.value(~default=id);
+                   List.nth(slot_ids, i) |> Option.value(~default=id);
                  } else {
                    id;
                  }
@@ -2438,9 +2450,9 @@ let swap_arms_rewrite =
         | [] => []
         };
       let focus =
-        if (List.mem(target, pat_subtree_ids(pa))
-            || List.mem(target, pat_subtree_ids(pb))
-            || List.mem(target, arm_slot_ids(e))) {
+        if (List.mem(pat_subtree_ids(pa), target, ~equal=Id.equal)
+            || List.mem(pat_subtree_ids(pb), target, ~equal=Id.equal)
+            || List.mem(arm_slot_ids(e), target, ~equal=Id.equal)) {
           target;
         } else {
           Pat.rep_id(pa);
@@ -2468,16 +2480,18 @@ let arm_index_at = (target: Id.t, e: Exp.t): option(int) =>
   | Match(_, rules) =>
     let by_pat =
       rules
-      |> List.mapi((j, (p, _)) => (j, p))
-      |> List.find_opt(((_, p)) => List.mem(target, pat_subtree_ids(p)))
-      |> Option.map(fst);
+      |> List.mapi(~f=(j, (p, _)) => (j, p))
+      |> List.find(~f=((_, p)) =>
+           List.mem(pat_subtree_ids(p), target, ~equal=Id.equal)
+         )
+      |> Option.map(~f=fst);
     switch (by_pat) {
     | Some(_) => by_pat
     | None =>
       arm_slot_ids(e)
-      |> List.mapi((j, id) => (j, id))
-      |> List.find_opt(((j, id)) => id == target && j < List.length(rules))
-      |> Option.map(fst)
+      |> List.mapi(~f=(j, id) => (j, id))
+      |> List.find(~f=((j, id)) => id == target && j < List.length(rules))
+      |> Option.map(~f=fst)
     };
   | _ => None
   };
@@ -2519,7 +2533,7 @@ let swap_tuple_pat_rewrite =
       switch (IdTagged.term_of(p)) {
       | Parens(inner) =>
         swap_in_pat(inner)
-        |> Option.map((inner': Pat.t): Pat.t =>
+        |> Option.map(~f=(inner': Pat.t): Pat.t =>
              {
                ...p,
                term: Parens(inner'),
@@ -2536,7 +2550,7 @@ let swap_tuple_pat_rewrite =
       switch (IdTagged.term_of(d)) {
       | Parens(inner) =>
         swap_in_def(inner)
-        |> Option.map((inner': Exp.t): Exp.t =>
+        |> Option.map(~f=(inner': Exp.t): Exp.t =>
              {
                ...d,
                term: Parens(inner'),
@@ -2565,9 +2579,17 @@ let swap_tuple_pat_rewrite =
       let ditems = tuple_def_items(def);
       let in_swapped = (j: int) =>
         j < List.length(pitems)
-        && List.mem(target, pat_subtree_ids(List.nth(pitems, j)))
+        && List.mem(
+             pat_subtree_ids(List.nth_exn(pitems, j)),
+             target,
+             ~equal=Id.equal,
+           )
         || j < List.length(ditems)
-        && List.mem(target, exp_subtree_ids(List.nth(ditems, j)));
+        && List.mem(
+             exp_subtree_ids(List.nth_exn(ditems, j)),
+             target,
+             ~equal=Id.equal,
+           );
       /* caret follows the component it was on (ids travel through
          the swap, either side) */
       let focus =
@@ -2591,20 +2613,22 @@ let tuple_pat_index_at = (target: Id.t, e: Exp.t): option(int) =>
   | Let(p, def, _) =>
     let by_pat =
       tuple_pat_items(p)
-      |> List.mapi((j, it) => (j, it))
-      |> List.find_opt(((_, it)) => List.mem(target, pat_subtree_ids(it)))
-      |> Option.map(fst);
+      |> List.mapi(~f=(j, it) => (j, it))
+      |> List.find(~f=((_, it)) =>
+           List.mem(pat_subtree_ids(it), target, ~equal=Id.equal)
+         )
+      |> Option.map(~f=fst);
     switch (by_pat) {
     | Some(_) => by_pat
     | None =>
       tuple_pat_items(p) == []
         ? None
         : tuple_def_items(def)
-          |> List.mapi((j, it) => (j, it))
-          |> List.find_opt(((_, it)) =>
-               List.mem(target, exp_subtree_ids(it))
+          |> List.mapi(~f=(j, it) => (j, it))
+          |> List.find(~f=((_, it)) =>
+               List.mem(exp_subtree_ids(it), target, ~equal=Id.equal)
              )
-          |> Option.map(fst)
+          |> Option.map(~f=fst)
     };
   | _ => None
   };
@@ -2650,19 +2674,24 @@ let split_component_site =
           let ps = tuple_pat_items(p);
           List.length(ps) >= 2
           && List.length(ps) == List.length(tuple_def_items(d))
-          && List.for_all(it => simple_var(it) != None, ps)
-          && List.exists(it => List.mem(target, IdTagged.ids(it)), ps);
+          && List.for_all(~f=it => simple_var(it) != None, ps)
+          && List.exists(
+               ~f=it => List.mem(IdTagged.ids(it), target, ~equal=Id.equal),
+               ps,
+             );
         | _ => false
         },
     program,
   )
-  |> Option.bind(_, l =>
+  |> Option.bind(_, ~f=l =>
        switch (IdTagged.term_of(l)) {
        | Let(p, _, _) =>
          tuple_pat_items(p)
-         |> List.mapi((i, it) => (i, it))
-         |> List.find_opt(((_, it)) => List.mem(target, IdTagged.ids(it)))
-         |> Option.map(((i, _)) => (l, i))
+         |> List.mapi(~f=(i, it) => (i, it))
+         |> List.find(~f=((_, it)) =>
+              List.mem(IdTagged.ids(it), target, ~equal=Id.equal)
+            )
+         |> Option.map(~f=((i, _)) => (l, i))
        | _ => None
        }
      );
@@ -2673,10 +2702,12 @@ let split_component_rewrite =
   | Let(p, d, body) =>
     let ps = tuple_pat_items(p);
     let ds = tuple_def_items(d);
-    let pi = List.nth(ps, i);
-    let vi = List.nth(ds, i);
+    let pi = List.nth_exn(ps, i);
+    let vi = List.nth_exn(ds, i);
     let other_names =
-      ps |> List.filteri((j, _) => j != i) |> List.filter_map(simple_var);
+      ps
+      |> List.filteri(~f=(j, _) => j != i)
+      |> List.filter_map(~f=simple_var);
     if (names_mentioned(other_names, vi)) {
       None;
     } else {
@@ -2690,7 +2721,7 @@ let split_component_rewrite =
             pad(
               with_secondary_pat(
                 ([], []),
-                List.hd(drop_pat_item(i, items)),
+                List.hd_exn(drop_pat_item(i, items)),
               ),
             )
           | _ => {
@@ -2700,7 +2731,10 @@ let split_component_rewrite =
           }
         | Tuple(items) when List.length(items) == 2 =>
           pad(
-            with_secondary_pat(([], []), List.hd(drop_pat_item(i, items))),
+            with_secondary_pat(
+              ([], []),
+              List.hd_exn(drop_pat_item(i, items)),
+            ),
           )
         | Tuple(items) => {
             ...q,
@@ -2714,7 +2748,7 @@ let split_component_rewrite =
           switch (IdTagged.term_of(inner)) {
           | Tuple(items) when List.length(items) == 2 =>
             pad(
-              List.hd(drop_exp_item(i, items))
+              List.hd_exn(drop_exp_item(i, items))
               |> strip_leading
               |> strip_trailing,
             )
@@ -2725,7 +2759,7 @@ let split_component_rewrite =
           }
         | Tuple(items) when List.length(items) == 2 =>
           pad(
-            List.hd(drop_exp_item(i, items))
+            List.hd_exn(drop_exp_item(i, items))
             |> strip_leading
             |> strip_trailing,
           )
@@ -2781,8 +2815,8 @@ let join_site = (~target: Id.t, program: Exp.t): option((Exp.t, Exp.t)) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | Some(path) when List.length(path) >= 2 =>
     let n = List.length(path);
-    let lower = List.nth(path, n - 1);
-    let upper = List.nth(path, n - 2);
+    let lower = List.nth_exn(path, n - 1);
+    let upper = List.nth_exn(path, n - 2);
     switch (IdTagged.term_of(upper), IdTagged.term_of(lower)) {
     | (Let(up, ud, ub), Let(lp, ld, _)) when same_node(ub, lower) =>
       let upper_names =
@@ -2791,18 +2825,18 @@ let join_site = (~target: Id.t, program: Exp.t): option((Exp.t, Exp.t)) =>
         | None =>
           let ps = tuple_pat_items(up);
           ps != []
-          && List.for_all(it => simple_var(it) != None, ps)
+          && List.for_all(~f=it => simple_var(it) != None, ps)
           && List.length(ps) == List.length(tuple_def_items(ud))
-            ? Some(List.filter_map(simple_var, ps)) : None;
+            ? Some(List.filter_map(~f=simple_var, ps)) : None;
         };
       switch (upper_names, simple_var(lp)) {
       | (Some(names), Some(q))
           when
-            !List.mem(q, names)
+            !List.mem(names, q, ~equal=Poly.equal)
             && !names_mentioned(names, ld)
             && !
                  List.exists(
-                   is_comment_piece,
+                   ~f=is_comment_piece,
                    fst(lower.annotation.secondary),
                  ) =>
         Some((upper, lower))
@@ -2913,17 +2947,19 @@ let swap_arms_impl = (i: int): impl => {
 /* index of the param var whose token is the target */
 let param_index_at = (target: Id.t, e: Exp.t): option(int) =>
   param_items(e)
-  |> List.mapi((j, it) => (j, it))
-  |> List.find_opt(((_, it: Pat.t)) => List.mem(target, IdTagged.ids(it)))
-  |> Option.map(fst);
+  |> List.mapi(~f=(j, it) => (j, it))
+  |> List.find(~f=((_, it: Pat.t)) =>
+       List.mem(IdTagged.ids(it), target, ~equal=Id.equal)
+     )
+  |> Option.map(~f=fst);
 
 let hit_param = (target: Id.t, e: Exp.t): bool =>
   param_items(e)
-  |> List.exists((it: Pat.t) =>
+  |> List.exists(~f=(it: Pat.t) =>
        switch (IdTagged.term_of(it)) {
        | Var(_)
        | EmptyHole
-       | Wild => List.mem(target, IdTagged.ids(it))
+       | Wild => List.mem(IdTagged.ids(it), target, ~equal=Id.equal)
        | _ => false
        }
      );
@@ -2949,7 +2985,10 @@ let swap_site =
           switch (IdTagged.term_of(f), IdTagged.term_of(arg)) {
           | (Var(_), Tuple(items))
           | (Var(_), Parens({term: Tuple(items), _})) =>
-            items |> List.exists(it => List.mem(target, exp_subtree_ids(it)))
+            items
+            |> List.exists(~f=it =>
+                 List.mem(exp_subtree_ids(it), target, ~equal=Id.equal)
+               )
           | _ => false
           }
         | _ => false
@@ -2967,15 +3006,15 @@ let swap_site =
             };
           let j =
             items
-            |> List.mapi((k, it) => (k, it))
-            |> List.find_opt(((_, it)) =>
-                 List.mem(target, exp_subtree_ids(it))
+            |> List.mapi(~f=(k, it) => (k, it))
+            |> List.find(~f=((_, it)) =>
+                 List.mem(exp_subtree_ids(it), target, ~equal=Id.equal)
                )
-            |> Option.map(fst);
+            |> Option.map(~f=fst);
           switch (
             binder_of_occurrence(~info_map, ~target=Exp.rep_id(f), program)
           ) {
-          | Some(binder) => let_of(binder) |> Option.map(l => (l, j))
+          | Some(binder) => let_of(binder) |> Option.map(~f=l => (l, j))
           | None => None
           };
         | _ => None
@@ -3070,7 +3109,7 @@ let drop_arrow_ann = (i: int, ann: Typ.t): option(Typ.t) =>
       | _ => None
       };
     dropped
-    |> Option.map((a': Typ.t): Typ.t =>
+    |> Option.map(~f=(a': Typ.t): Typ.t =>
          {
            ...ann,
            term: Arrow(a', b),
@@ -3098,7 +3137,7 @@ let drop_call_args =
         if (is_var_named(x, fn)) {
           switch (IdTagged.term_of(arg)) {
           | Tuple(items) when List.length(items) > i =>
-            let items = items |> List.map(go);
+            let items = items |> List.map(~f=go);
             let arg': Exp.t =
               switch (drop_exp_item(i, items)) {
               | [single] => single
@@ -3129,7 +3168,8 @@ let remove_param_target = (~target: Id.t, e: Exp.t): option(Id.t) =>
     Some(target);
   } else {
     switch (param_paren(e)) {
-    | Some(paren) when List.mem(target, IdTagged.ids(paren)) =>
+    | Some(paren)
+        when List.mem(IdTagged.ids(paren), target, ~equal=Id.equal) =>
       switch (List.rev(param_items(e))) {
       | [last, ..._] =>
         switch (IdTagged.term_of(last)) {
@@ -3150,13 +3190,13 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
     let items = param_items(e);
     let idx =
       items
-      |> List.mapi((i, it) => (i, it))
-      |> List.find_opt(((_, it: Pat.t)) =>
+      |> List.mapi(~f=(i, it) => (i, it))
+      |> List.find(~f=((_, it: Pat.t)) =>
            switch (IdTagged.term_of(it)) {
            /* a hole/wild param binds nothing — trivially removable */
            | Var(_)
            | EmptyHole
-           | Wild => List.mem(target, IdTagged.ids(it))
+           | Wild => List.mem(IdTagged.ids(it), target, ~equal=Id.equal)
            | _ => false
            }
          );
@@ -3202,7 +3242,7 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
                   }
                 | Asc(inner, ann) =>
                   drop_in_pat(inner)
-                  |> Option.map((inner': Pat.t): Pat.t =>
+                  |> Option.map(~f=(inner': Pat.t): Pat.t =>
                        {
                          ...p,
                          term: Asc(inner', ann),
@@ -3211,7 +3251,7 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
                 | _ => None
                 };
               drop_in_pat(p)
-              |> Option.map(p' =>
+              |> Option.map(~f=p' =>
                    (f, p', drop_call_args(~bare_use, ~ok, i, f, def))
                  );
             }
@@ -3226,7 +3266,7 @@ let remove_param_rewrite = (~target: Id.t, e: Exp.t): option((Exp.t, Id.t)) =>
                   | Var(_) => Some(p)
                   | Asc(inner, ann) =>
                     drop_arrow_ann(i, ann)
-                    |> Option.map((ann': Typ.t): Pat.t =>
+                    |> Option.map(~f=(ann': Typ.t): Pat.t =>
                          {
                            ...p,
                            term: Asc(inner, ann'),
@@ -3279,7 +3319,7 @@ let remove_param_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (
       find_path(~hit=e => remove_param_target(~target, e) != None, program)
-      |> Option.map(path => List.nth(path, List.length(path) - 1))
+      |> Option.map(~f=path => List.nth_exn(path, List.length(path) - 1))
     ) {
     | Some(l) =>
       switch (

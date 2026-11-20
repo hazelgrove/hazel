@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Haz3lcore;
+open Poly;
 
 /* Drag-to-refactor (plans/refactor-drag.md). Candidates come from
    Refactor.drag_candidates — every refactor the grabbed element can
@@ -190,10 +191,7 @@ let overlay_named =
     el##.id := Js.string(id);
     el##.style##.cssText :=
       Js.string(
-        Printf.sprintf(
-          "position:fixed;inset:0;pointer-events:none;z-index:%s;",
-          z,
-        ),
+        sprintf("position:fixed;inset:0;pointer-events:none;z-index:%s;", z),
       );
     Dom.appendChild(parent, el);
     el;
@@ -253,7 +251,7 @@ let overlay_under_el = (s: session): Js.t(Dom_html.element) =>
 
 let remove_overlay = () =>
   [overlay_id, overlay_under_id]
-  |> List.iter(id =>
+  |> List.iter(~f=id =>
        switch (
          Js.Opt.to_option(Dom_html.document##getElementById(Js.string(id)))
        ) {
@@ -286,9 +284,7 @@ let rebound = (node: Js.t(Dom.node), from: vec): unit => {
         "transform",
         Js.Unsafe.inject(
           Js.array([|
-            Js.string(
-              Printf.sprintf("translate(%fpx, %fpx)", from.x, from.y),
-            ),
+            Js.string(sprintf("translate(%fpx, %fpx)", from.x, from.y)),
             Js.string("translate(0px, 0px)"),
           |]),
         ),
@@ -331,7 +327,7 @@ let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
     | None => []
     | Some((tid, shard)) =>
       CodeFlip.anchored_decos()
-      |> List.filter_map(((id, sh, node)) =>
+      |> List.filter_map(~f=((id, sh, node)) =>
            id == tid && (shard == None || sh == None || sh == shard)
              ? Some(node) : None
          )
@@ -353,7 +349,7 @@ let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
 
 let apply_local_give = (s: session, g: vec): unit => {
   s.local_give
-  |> List.iter(anim =>
+  |> List.iter(~f=anim =>
        switch (Js.Unsafe.meth_call(anim, "cancel", [||])) {
        | exception _ => ()
        | _ => ()
@@ -363,22 +359,20 @@ let apply_local_give = (s: session, g: vec): unit => {
   if (g.x == 0. && g.y == 0.) {
     let prev = s.local_give_g;
     if (!(prev.x == 0. && prev.y == 0.)) {
-      lean_nodes(s) |> List.iter(node => rebound(node, prev));
+      lean_nodes(s) |> List.iter(~f=node => rebound(node, prev));
     };
   };
   s.local_give_g = g;
   if (!(g.x == 0. && g.y == 0.)) {
     lean_nodes(s)
-    |> List.iter(node => {
+    |> List.iter(~f=node => {
          let keyframes =
            Js.Unsafe.obj([|
              (
                "transform",
                Js.Unsafe.inject(
                  Js.array([|
-                   Js.string(
-                     Printf.sprintf("translate(%fpx, %fpx)", g.x, g.y),
-                   ),
+                   Js.string(sprintf("translate(%fpx, %fpx)", g.x, g.y)),
                  |]),
                ),
              ),
@@ -432,12 +426,12 @@ let lerp = (a: vec, b: vec, t: float): vec => {
 let along = (pts: list(vec), u: float): vec => {
   let n = List.length(pts) - 1;
   if (n <= 0) {
-    List.hd(pts);
+    List.hd_exn(pts);
   } else {
-    let i = max(0, min(n - 1, int_of_float(floor(u))));
+    let i = max(0, min(n - 1, int_of_float(Float.round_down(u))));
     lerp(
-      List.nth(pts, i),
-      List.nth(pts, i + 1),
+      List.nth_exn(pts, i),
+      List.nth_exn(pts, i + 1),
       max(0., min(1., u -. float_of_int(i))),
     );
   };
@@ -447,7 +441,7 @@ let along = (pts: list(vec), u: float): vec => {
    now, then its place at each rung */
 let screen_pts = (c: cand): list(vec) => [
   c.cur,
-  ...List.map((r: rung) => r.tgt, c.rungs),
+  ...List.map(~f=(r: rung) => r.tgt, c.rungs),
 ];
 
 /* the track in pull space: the hand's start plus each rung's
@@ -455,7 +449,7 @@ let screen_pts = (c: cand): list(vec) => [
    progress) */
 let pull_pts = (s: session, c: cand): list(vec) =>
   screen_pts(c)
-  |> List.map(q =>
+  |> List.map(~f=q =>
        {
          x: s.down_at.x +. q.x -. c.cur.x,
          y: s.down_at.y +. q.y -. c.cur.y,
@@ -478,7 +472,9 @@ let project = (pts: list(vec), p: vec): (float, float) => {
               min(1., ((p.x -. a.x) *. dx +. (p.y -. a.y) *. dy) /. len2),
             );
       let gap =
-        sqrt((p.x -. a.x -. t *. dx) ** 2. +. (p.y -. a.y -. t *. dy) ** 2.);
+        Float.sqrt(
+          (p.x -. a.x -. t *. dx) ** 2. +. (p.y -. a.y -. t *. dy) ** 2.,
+        );
       let best =
         switch (best) {
         | Some((_, g)) when g <= gap => best
@@ -495,7 +491,7 @@ let project = (pts: list(vec), p: vec): (float, float) => {
 
 /* detents: within each rung the preview hugs the ends */
 let sharpen_u = (u: float): float => {
-  let i = floor(u);
+  let i = Float.round_down(u);
   i +. sharpen(u -. i);
 };
 
@@ -505,7 +501,7 @@ let draw = (s: session) => {
      lines rather than lapping the lower one */
   let label_pill = (~win: bool, x: float, y: float, label: string) => {
     let w = float_of_int(String.length(label)) *. 5.8 +. 9.;
-    Printf.sprintf(
+    sprintf(
       {|<rect x="%f" y="%f" width="%f" height="13" rx="6.5" fill="%s" stroke="%s" stroke-width="%s" opacity="%s"/>
         <text x="%f" y="%f" style="font-family:var(--code-font);font-size:9.5px" fill="%s" opacity="%s">%s</text>|},
       x,
@@ -524,10 +520,10 @@ let draw = (s: session) => {
   };
   let points = (pts: list(vec)) =>
     pts
-    |> List.map(q => Printf.sprintf("%f,%f", o.x +. q.x, o.y +. q.y))
-    |> String.concat(" ");
+    |> List.map(~f=q => sprintf("%f,%f", o.x +. q.x, o.y +. q.y))
+    |> String.concat(~sep=" ");
   let polyline = (~stroke, ~width, ~extra="", pts) =>
-    Printf.sprintf(
+    sprintf(
       {|<polyline points="%s" fill="none" stroke="%s" stroke-width="%s" stroke-linecap="round" stroke-linejoin="round" %s/>|},
       points(pts),
       stroke,
@@ -535,7 +531,7 @@ let draw = (s: session) => {
       extra,
     );
   let dot = (~r, ~fill, ~stroke, ~opacity, q: vec) =>
-    Printf.sprintf(
+    sprintf(
       {|<circle cx="%f" cy="%f" r="%s" fill="%s" stroke="%s" stroke-width="1.5" opacity="%s"/>|},
       o.x +. q.x,
       o.y +. q.y,
@@ -549,8 +545,8 @@ let draw = (s: session) => {
     let pts = screen_pts(c);
     /* the label sits by the FIRST rung: the ladder growing never moves
        it */
-    let first = List.nth(pts, 1);
-    let rungs = List.tl(pts);
+    let first = List.nth_exn(pts, 1);
+    let rungs = List.tl_exn(pts);
     /* cream casing lifts every track off the code */
     let casing =
       polyline(
@@ -563,11 +559,11 @@ let draw = (s: session) => {
       /* traveled reads solid, remaining dotted; the halo marks the rung
          a release lands on */
       let n = List.length(rungs);
-      let k = max(0, min(n, int_of_float(Float.round(s.u))));
+      let k = max(0, min(n, int_of_float(Stdlib.Float.round(s.u))));
       let here = along(pts, s.u);
-      let i0 = int_of_float(floor(s.u));
-      let traveled = (pts |> List.filteri((j, _) => j <= i0)) @ [here];
-      let remaining = [here, ...pts |> List.filteri((j, _) => j > i0)];
+      let i0 = int_of_float(Float.round_down(s.u));
+      let traveled = (pts |> List.filteri(~f=(j, _) => j <= i0)) @ [here];
+      let remaining = [here, ...pts |> List.filteri(~f=(j, _) => j > i0)];
       (
         casing
         ++ polyline(
@@ -580,21 +576,22 @@ let draw = (s: session) => {
         ++ (
           rungs
           |> List.map(
-               dot(
-                 ~r="2.5",
-                 ~fill=ov_accent,
-                 ~stroke=ov_casing,
-                 ~opacity="0.9",
-               ),
+               ~f=
+                 dot(
+                   ~r="2.5",
+                   ~fill=ov_accent,
+                   ~stroke=ov_casing,
+                   ~opacity="0.9",
+                 ),
              )
-          |> String.concat("")
+          |> String.concat(~sep="")
         )
         ++ (
           k >= 1
-            ? Printf.sprintf(
+            ? sprintf(
                 {|<circle cx="%f" cy="%f" r="8.5" fill="%s" opacity="0.16"/>|},
-                o.x +. List.nth(pts, k).x,
-                o.y +. List.nth(pts, k).y,
+                o.x +. List.nth_exn(pts, k).x,
+                o.y +. List.nth_exn(pts, k).y,
                 ov_accent,
               )
               ++ dot(
@@ -602,7 +599,7 @@ let draw = (s: session) => {
                    ~fill=ov_accent,
                    ~stroke=ov_casing,
                    ~opacity="1",
-                   List.nth(pts, k),
+                   List.nth_exn(pts, k),
                  )
             : ""
         ),
@@ -612,7 +609,7 @@ let draw = (s: session) => {
           ~win=true,
           o.x +. first.x +. 12.,
           o.y +. first.y -. 4.,
-          switch (List.nth_opt(c.rungs, max(0, k - 1))) {
+          switch (List.nth(c.rungs, max(0, k - 1))) {
           | Some(r) => r.label
           | None => c.label
           },
@@ -630,9 +627,15 @@ let draw = (s: session) => {
         ++ (
           rungs
           |> List.map(
-               dot(~r="3", ~fill=ov_casing, ~stroke=ov_idle, ~opacity="0.8"),
+               ~f=
+                 dot(
+                   ~r="3",
+                   ~fill=ov_casing,
+                   ~stroke=ov_idle,
+                   ~opacity="0.8",
+                 ),
              )
-          |> String.concat("")
+          |> String.concat(~sep="")
         ),
         label_pill(
           ~win=false,
@@ -645,8 +648,8 @@ let draw = (s: session) => {
   };
   let xml_escape = (t: string): string =>
     t
-    |> String.to_seq
-    |> Seq.map(c =>
+    |> Stdlib.String.to_seq
+    |> Stdlib.Seq.map(c =>
          switch (c) {
          | '&' => "&amp;"
          | '<' => "&lt;"
@@ -654,8 +657,8 @@ let draw = (s: session) => {
          | c => String.make(1, c)
          }
        )
-    |> List.of_seq
-    |> String.concat("");
+    |> Stdlib.List.of_seq
+    |> String.concat(~sep="");
   /* incoming tokens: REAL-styled token spans (same classes as
      Code.view emits, inside a .code wrapper so the whole stylesheet
      pipeline applies). A token entering at rung j grows in (or flies
@@ -664,7 +667,7 @@ let draw = (s: session) => {
   let ghosts =
     switch (s.winner) {
     | Some(w) when s.u > 0.02 =>
-      switch (List.nth_opt(s.cands, w)) {
+      switch (List.nth(s.cands, w)) {
       | Some(c) =>
         let rungs = Array.of_list(c.rungs);
         let n = Array.length(rungs);
@@ -672,18 +675,18 @@ let draw = (s: session) => {
           k < 1 || k > n
             ? None
             : rungs[k - 1].enters
-              |> List.find_map(((k', _, _, dest, _)) =>
+              |> List.find_map(~f=((k', _, _, dest, _)) =>
                    k' == key ? Some(dest) : None
                  );
-        let seen = Hashtbl.create(16);
+        let seen = Stdlib.Hashtbl.create(16);
         let spans = ref([]);
-        let i = int_of_float(floor(s.u))
-        and f = s.u -. floor(s.u);
+        let i = int_of_float(Float.round_down(s.u))
+        and f = s.u -. Float.round_down(s.u);
         for (j in 1 to n) {
           rungs[j - 1].enters
-          |> List.iter(((key, text, cls, dest, origin)) =>
-               if (!Hashtbl.mem(seen, key)) {
-                 Hashtbl.add(seen, key, ());
+          |> List.iter(~f=((key, text, cls, dest, origin)) =>
+               if (!Stdlib.Hashtbl.mem(seen, key)) {
+                 Stdlib.Hashtbl.add(seen, key, ());
                  let shown =
                    if (j == i + 1) {
                      Some(
@@ -697,7 +700,13 @@ let draw = (s: session) => {
                      | (Some(a), Some(b)) => Some((lerp(a, b, f), 1., 1.))
                      | (Some(a), None) when i + 1 > n => Some((a, 1., 1.))
                      | (Some(a), None) =>
-                       switch (List.assoc_opt(key, rungs[i].absorb_into)) {
+                       switch (
+                         List.Assoc.find(
+                           rungs[i].absorb_into,
+                           key,
+                           ~equal=Poly.equal,
+                         )
+                       ) {
                        | Some(b) => Some((lerp(a, b, f), 1. -. f, 1.))
                        | None => Some((a, 1. -. f, 1.))
                        }
@@ -712,7 +721,7 @@ let draw = (s: session) => {
                    k < 1 || k > n
                      ? None
                      : rungs[k - 1].enters
-                       |> List.find_map(((k', t, _, _, _)) =>
+                       |> List.find_map(~f=((k', t, _, _, _)) =>
                             k' == key ? Some(t) : None
                           );
                  let shown =
@@ -721,7 +730,7 @@ let draw = (s: session) => {
                        when j <= i && ta != tb =>
                      spans :=
                        [
-                         Printf.sprintf(
+                         sprintf(
                            {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f">%s</span>|},
                            cls,
                            o.x +. pos.x,
@@ -743,7 +752,7 @@ let draw = (s: session) => {
                  | Some((pos, op, scale)) when op > 0.01 =>
                    spans :=
                      [
-                       Printf.sprintf(
+                       sprintf(
                          {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f;transform:scale(%f)">%s</span>|},
                          cls,
                          o.x +. pos.x,
@@ -761,21 +770,23 @@ let draw = (s: session) => {
         };
         spans^ == []
           ? ""
-          : Printf.sprintf(
+          : sprintf(
               {|<div class="code" style="position:fixed;inset:0;pointer-events:none">%s</div>|},
-              String.concat("", spans^),
+              String.concat(~sep="", spans^),
             );
       | None => ""
       }
     | _ => ""
     };
-  let parts = s.cands |> List.mapi(seg);
+  let parts = s.cands |> List.mapi(~f=seg);
   let mk_svg = body =>
-    Printf.sprintf({|<svg width="100%%" height="100%%">%s</svg>|}, body);
+    sprintf({|<svg width="100%%" height="100%%">%s</svg>|}, body);
   let tracks =
-    s.show_tracks ? parts |> List.map(fst) |> String.concat("\n") : "";
+    s.show_tracks
+      ? parts |> List.map(~f=fst) |> String.concat(~sep="\n") : "";
   let labels =
-    s.show_labels ? parts |> List.map(snd) |> String.concat("\n") : "";
+    s.show_labels
+      ? parts |> List.map(~f=snd) |> String.concat(~sep="\n") : "";
   overlay_under_el(s)##.innerHTML := Js.string(mk_svg(tracks));
   overlay_el()##.innerHTML := Js.string(mk_svg(labels) ++ ghosts);
 };
@@ -788,7 +799,7 @@ let now_ms = (): float => Js.Unsafe.global##.performance##now();
 
 let cancel_anims = (anims: list(Js.Unsafe.any)): unit =>
   anims
-  |> List.iter(a =>
+  |> List.iter(~f=a =>
        switch (Js.Unsafe.meth_call(a, "cancel", [||])) {
        | exception _ => ()
        | _ => ()
@@ -796,7 +807,7 @@ let cancel_anims = (anims: list(Js.Unsafe.any)): unit =>
      );
 
 let scrub_clear = (s: session): unit => {
-  s.scrub_anims |> List.iter(((_, anims)) => cancel_anims(anims));
+  s.scrub_anims |> List.iter(~f=((_, anims)) => cancel_anims(anims));
   s.scrub_anims = [];
   s.scrub_active = None;
 };
@@ -841,19 +852,21 @@ let node_tracks =
   let n = List.length(rungs);
   let keyed =
     rungs
-    |> List.concat_map((r: rung) =>
-         (r.moved |> List.map(((k, node, _, _)) => (k, node)))
-         @ (r.exits |> List.map(((k, node, _)) => (k, node)))
+    |> List.concat_map(~f=(r: rung) =>
+         (r.moved |> List.map(~f=((k, node, _, _)) => (k, node)))
+         @ (r.exits |> List.map(~f=((k, node, _)) => (k, node)))
        )
     |> List.fold_left(
-         (acc, (k, node)) =>
-           List.mem_assoc(k, acc) ? acc : acc @ [(k, node)],
-         [],
+         ~f=
+           (acc, (k, node)) =>
+             List.Assoc.mem(acc, k, ~equal=Poly.equal)
+               ? acc : acc @ [(k, node)],
+         ~init=[],
        );
   let track_of = (state: (int, rung) => option((float, float, float))) => {
-    let vals = Array.make(n + 1, (0., 0., 1.));
+    let vals = Array.create(~len=n + 1, (0., 0., 1.));
     rungs
-    |> List.iteri((i, r) => {
+    |> List.iteri(~f=(i, r) => {
          let (px, py, _) = vals[i];
          vals[i + 1] = (
            switch (state(i, r)) {
@@ -866,14 +879,14 @@ let node_tracks =
   };
   let tokens =
     keyed
-    |> List.map(((k, node)) =>
+    |> List.map(~f=((k, node)) =>
          (
            Some(k),
            node,
            track_of((_, r) =>
              switch (
-               r.exits |> List.find_opt(((k', _, _)) => k' == k),
-               r.moved |> List.find_opt(((k', _, _, _)) => k' == k),
+               r.exits |> List.find(~f=((k', _, _)) => k' == k),
+               r.moved |> List.find(~f=((k', _, _, _)) => k' == k),
              ) {
              | (Some((_, _, Some((dx, dy)))), _) => Some((dx, dy, 0.))
              | (Some((_, _, None)), _) => None
@@ -885,8 +898,9 @@ let node_tracks =
        );
   let decos =
     CodeFlip.anchored_decos()
-    |> List.filter_map(((id, shard, node)) =>
-         rungs |> List.exists((r: rung) => r.deco_delta((id, shard)) != None)
+    |> List.filter_map(~f=((id, shard, node)) =>
+         rungs
+         |> List.exists(~f=(r: rung) => r.deco_delta((id, shard)) != None)
            ? Some((
                None,
                node,
@@ -910,7 +924,7 @@ let node_tracks =
       Dom.list_of_nodeList(
         s.text_box##querySelectorAll(Js.string(".indication-arm")),
       )
-      |> List.map((el: Js.t(Dom_html.element)) => {
+      |> List.map(~f=(el: Js.t(Dom_html.element)) => {
            /* the line's svg box is positioned in px; the path inside is
               drawn in row/column units */
            let box =
@@ -940,7 +954,8 @@ let node_tracks =
      caret logically stays put) */
   let caret =
     switch (JsUtil.get_elem_by_id_opt("caret")) {
-    | Some(el) when rungs |> List.exists((r: rung) => r.caret_delta != None) => [
+    | Some(el)
+        when rungs |> List.exists(~f=(r: rung) => r.caret_delta != None) => [
         (
           None,
           (el :> Js.t(Dom.node)),
@@ -959,7 +974,7 @@ let node_tracks =
 
 let value_at = (vals: array((float, float, float)), u: float) => {
   let n = Array.length(vals) - 1;
-  let i = max(0, min(n, int_of_float(floor(u))));
+  let i = max(0, min(n, int_of_float(Float.round_down(u))));
   let f = max(0., min(1., u -. float_of_int(i)));
   let (x0, y0, o0) = vals[i];
   let (x1, y1, o1) = i < n ? vals[i + 1] : vals[i];
@@ -967,13 +982,13 @@ let value_at = (vals: array((float, float, float)), u: float) => {
 };
 
 let frame_css = (~shrink=true, (dx, dy, op)) => (
-  Printf.sprintf(
+  sprintf(
     "translate(%fpx, %fpx) scale(%f)",
     dx,
     dy,
     shrink ? 0.25 +. 0.75 *. op : 1.,
   ),
-  Printf.sprintf("%f", op),
+  sprintf("%f", op),
 );
 
 /* an indication outline line fades in place; tokens leaving shrink */
@@ -988,9 +1003,9 @@ let is_outline = (node: Js.t(Dom.node)): bool =>
 
 let make_anims = (c: cand): list(Js.Unsafe.any) =>
   node_tracks(c)
-  |> List.filter_map(((_, node, vals)) => {
+  |> List.filter_map(~f=((_, node, vals)) => {
        let shrink = !is_outline(node);
-       let frames = Array.to_list(vals) |> List.map(frame_css(~shrink));
+       let frames = Array.to_list(vals) |> List.map(~f=frame_css(~shrink));
        paused_anim(
          node,
          Js.Unsafe.obj([|
@@ -999,7 +1014,7 @@ let make_anims = (c: cand): list(Js.Unsafe.any) =>
              Js.Unsafe.inject(
                Js.array(
                  frames
-                 |> List.map(((t, _)) => Js.string(t))
+                 |> List.map(~f=((t, _)) => Js.string(t))
                  |> Array.of_list,
                ),
              ),
@@ -1009,7 +1024,7 @@ let make_anims = (c: cand): list(Js.Unsafe.any) =>
              Js.Unsafe.inject(
                Js.array(
                  frames
-                 |> List.map(((_, o)) => Js.string(o))
+                 |> List.map(~f=((_, o)) => Js.string(o))
                  |> Array.of_list,
                ),
              ),
@@ -1023,7 +1038,7 @@ let make_anims = (c: cand): list(Js.Unsafe.any) =>
 let relax_from = (c: cand, u: float): unit =>
   if (u > 0.01) {
     node_tracks(c)
-    |> List.iter(((_, node, vals)) => {
+    |> List.iter(~f=((_, node, vals)) => {
          let (t0, o0) =
            frame_css(~shrink=!is_outline(node), value_at(vals, u));
          let keyframes =
@@ -1076,14 +1091,15 @@ let scrub_to = (s: session, winner: option(int), u: float): unit => {
        paused fill-both animation at 0 is an ACTIVE identity transform,
        and later-created animations win compositing). Exactly one
        ladder's animations exist at any time; the relax bridges. */
-    switch (List.assoc_opt(prev, s.scrub_anims)) {
+    switch (List.Assoc.find(s.scrub_anims, prev, ~equal=Int.equal)) {
     | Some(anims) =>
-      switch (List.nth_opt(s.cands, prev)) {
+      switch (List.nth(s.cands, prev)) {
       | Some(c) => relax_from(c, s.u)
       | None => ()
       };
       cancel_anims(anims);
-      s.scrub_anims = List.remove_assoc(prev, s.scrub_anims);
+      s.scrub_anims =
+        List.Assoc.remove(s.scrub_anims, prev, ~equal=Int.equal);
     | None => ()
     }
   | (None, _) => ()
@@ -1091,10 +1107,10 @@ let scrub_to = (s: session, winner: option(int), u: float): unit => {
   switch (winner) {
   | None => s.scrub_active = None
   | Some(w) =>
-    switch (List.nth_opt(s.cands, w)) {
+    switch (List.nth(s.cands, w)) {
     | Some(c) =>
       let anims =
-        switch (List.assoc_opt(w, s.scrub_anims)) {
+        switch (List.Assoc.find(s.scrub_anims, w, ~equal=Int.equal)) {
         | Some(anims) => anims
         | None =>
           let anims = make_anims(c);
@@ -1102,7 +1118,7 @@ let scrub_to = (s: session, winner: option(int), u: float): unit => {
           anims;
         };
       let time = u /. float_of_int(max(1, n_rungs(c))) *. scrub_duration;
-      anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", time));
+      anims |> List.iter(~f=a => Js.Unsafe.set(a, "currentTime", time));
       s.scrub_active = Some(w);
     | None => s.scrub_active = None
     }
@@ -1118,8 +1134,8 @@ let request_rung = (s: session, i: int, c: cand): unit =>
       Dom_html.setTimeout(
         () =>
           switch (session^) {
-          | Some(s') when s' === s =>
-            switch (Option.map(f => f(c), s.extend)) {
+          | Some(s') when phys_equal(s', s) =>
+            switch (Option.map(~f=f => f(c), s.extend)) {
             | Some(Some(r)) =>
               c.rungs = c.rungs @ [r];
               if (n_rungs(c) >= max_rungs) {
@@ -1127,11 +1143,12 @@ let request_rung = (s: session, i: int, c: cand): unit =>
               };
               /* the keyframes span the rungs: rebuild the active scrub */
               if (s.scrub_active == Some(i)) {
-                switch (List.assoc_opt(i, s.scrub_anims)) {
+                switch (List.Assoc.find(s.scrub_anims, i, ~equal=Int.equal)) {
                 | Some(anims) => cancel_anims(anims)
                 | None => ()
                 };
-                s.scrub_anims = List.remove_assoc(i, s.scrub_anims);
+                s.scrub_anims =
+                  List.Assoc.remove(s.scrub_anims, i, ~equal=Int.equal);
                 s.scrub_active = None;
                 scrub_to(s, Some(i), s.u);
               };
@@ -1153,16 +1170,16 @@ let request_rung = (s: session, i: int, c: cand): unit =>
 let resolve = (s: session, p: vec): unit => {
   let scored =
     s.cands
-    |> List.mapi((i, c) => {
+    |> List.mapi(~f=(i, c) => {
          let pts = pull_pts(s, c);
          let (u, gap) = project(pts, p);
          /* pull-direction affinity, against the ladder's first rung */
-         let a = List.hd(pts)
-         and b = List.nth(pts, 1);
+         let a = List.hd_exn(pts)
+         and b = List.nth_exn(pts, 1);
          let dx = b.x -. a.x
          and dy = b.y -. a.y;
-         let plen = sqrt((p.x -. a.x) ** 2. +. (p.y -. a.y) ** 2.);
-         let tlen = sqrt(dx *. dx +. dy *. dy);
+         let plen = Float.sqrt((p.x -. a.x) ** 2. +. (p.y -. a.y) ** 2.);
+         let tlen = Float.sqrt(dx *. dx +. dy *. dy);
          let cos =
            plen < 6. || tlen == 0.
              ? 0.
@@ -1172,23 +1189,24 @@ let resolve = (s: session, p: vec): unit => {
   let best =
     scored
     |> List.fold_left(
-         (acc, (i, c, pts, u, gap, cos)) => {
-           let bonus = s.winner == Some(i) ? stickiness : 0.;
-           /* ALIGNMENT GATE: a track engages only when the pull points
-              along it; nothing engages before ~6px — the lean covers
-              that. Past its first dot the chosen track is followed
-              wherever it turns (a run of feeds goes left, then right) */
-           let following = s.winner == Some(i) && u >= 0.9;
-           if (cos <= 0.25 && !following) {
-             acc;
-           } else {
-             switch (acc) {
-             | Some((_, _, _, _, best_gap)) when gap -. bonus >= best_gap => acc
-             | _ => Some((i, c, pts, u, gap -. bonus))
+         ~f=
+           (acc, (i, c, pts, u, gap, cos)) => {
+             let bonus = s.winner == Some(i) ? stickiness : 0.;
+             /* ALIGNMENT GATE: a track engages only when the pull points
+                along it; nothing engages before ~6px — the lean covers
+                that. Past its first dot the chosen track is followed
+                wherever it turns (a run of feeds goes left, then right) */
+             let following = s.winner == Some(i) && u >= 0.9;
+             if (cos <= 0.25 && !following) {
+               acc;
+             } else {
+               switch (acc) {
+               | Some((_, _, _, _, best_gap)) when gap -. bonus >= best_gap => acc
+               | _ => Some((i, c, pts, u, gap -. bonus))
+               };
              };
-           };
-         },
-         None,
+           },
+         ~init=None,
        );
   switch (best) {
   | Some((i, c, pts, u, _)) =>
@@ -1203,7 +1221,7 @@ let resolve = (s: session, p: vec): unit => {
       let q = along(pts, u);
       let rx = p.x -. q.x
       and ry = p.y -. q.y;
-      let dist = sqrt(rx *. rx +. ry *. ry);
+      let dist = Float.sqrt(rx *. rx +. ry *. ry);
       let mag = give_damp(dist);
       apply_local_give(
         s,
@@ -1230,7 +1248,7 @@ let resolve = (s: session, p: vec): unit => {
        leans a few damped px toward the pointer */
     let ddx = p.x -. s.down_at.x
     and ddy = p.y -. s.down_at.y;
-    let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+    let dist = Float.sqrt(ddx *. ddx +. ddy *. ddy);
     let mag = give_damp(dist);
     apply_local_give(
       s,
@@ -1267,13 +1285,14 @@ let update_readout = (s: session): unit =>
   if (s.readout) {
     let shown =
       switch (
-        s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
+        s.winner |> Option.map(~f=i => List.nth(s.cands, i)) |> Option.join
       ) {
       | Some(c) when s.began =>
-        let k = max(0, min(n_rungs(c), int_of_float(Float.round(s.u))));
+        let k =
+          max(0, min(n_rungs(c), int_of_float(Stdlib.Float.round(s.u))));
         Some(
           k >= 1
-            ? (List.nth(c.rungs, k - 1).label, true) : (c.label, false),
+            ? (List.nth_exn(c.rungs, k - 1).label, true) : (c.label, false),
         );
       | _ => None
       };
@@ -1300,7 +1319,7 @@ let update_readout = (s: session): unit =>
       let r = bar##getBoundingClientRect;
       el##.style##.cssText :=
         Js.string(
-          Printf.sprintf(
+          sprintf(
             "left:%fpx;top:%fpx;width:%fpx;height:%fpx;",
             r##.left,
             r##.top,
@@ -1319,7 +1338,7 @@ let end_session = () => {
   | Some(s) =>
     switch (s.scrub_active) {
     | Some(w) =>
-      switch (List.nth_opt(s.cands, w)) {
+      switch (List.nth(s.cands, w)) {
       | Some(c) => relax_from(c, s.u)
       | None => ()
       }
@@ -1333,7 +1352,7 @@ let end_session = () => {
       },
     );
     scrub_clear(s);
-    s.listeners |> List.iter(Dom.removeEventListener);
+    s.listeners |> List.iter(~f=Dom.removeEventListener);
   | None => ()
   };
   Dom_html.document##.body##.style##.cursor := Js.string("");
@@ -1361,7 +1380,8 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
   | Some(s) when mine(s, e) =>
     let p = local(s, e);
     if (!s.began) {
-      let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
+      let d =
+        Float.sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
         s.began = true;
         Dom_html.document##.body##.style##.cursor := Js.string("grabbing");
@@ -1381,7 +1401,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
          shake */
       let ddx = p.x -. s.down_at.x
       and ddy = p.y -. s.down_at.y;
-      let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+      let dist = Float.sqrt(ddx *. ddx +. ddy *. ddy);
       let mag = give_damp(dist);
       apply_local_give(
         s,
@@ -1411,17 +1431,17 @@ let on_up = (e: Js.t(Dom_html.event)): unit =>
     };
     /* D2's drop: the nearest state — the closest rung */
     switch (
-      s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
+      s.winner |> Option.map(~f=i => List.nth(s.cands, i)) |> Option.join
     ) {
-    | Some(c) when Float.round(s.u) >= 1. =>
-      let k = min(n_rungs(c), int_of_float(Float.round(s.u)));
-      let landing = List.nth(c.rungs, k - 1);
+    | Some(c) when Stdlib.Float.round(s.u) >= 1. =>
+      let k = min(n_rungs(c), int_of_float(Stdlib.Float.round(s.u)));
+      let landing = List.nth_exn(c.rungs, k - 1);
       /* handoff: the commit's FLIP starts each token from where the
          scrub holds it; the scrub animations are adopted so they die
          exactly when the flights take over */
       CodeFlip.set_drag_offsets(
         node_tracks(c)
-        |> List.filter_map(((key, _, vals)) =>
+        |> List.filter_map(~f=((key, _, vals)) =>
              switch (key) {
              | Some(key) =>
                let (dx, dy, _) = value_at(vals, s.u);
@@ -1442,13 +1462,13 @@ let on_up = (e: Js.t(Dom_html.event)): unit =>
          post-commit segment; several clones (a run of feeds) have no
          unique pairing, so they grow in */
       CodeFlip.set_emerge_src(k == 1 ? landing.emerge_src : []);
-      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+      CodeFlip.adopt(s.scrub_anims |> List.concat_map(~f=snd));
       s.scrub_anims = [];
       s.scrub_active = None;
       s.commit(
         c.rungs
-        |> List.filteri((j, _) => j < k)
-        |> List.map((r: rung) => (r.kind, r.at)),
+        |> List.filteri(~f=(j, _) => j < k)
+        |> List.map(~f=(r: rung) => (r.kind, r.at)),
       );
     | _ => ()
     };
@@ -1574,8 +1594,8 @@ let pickup_ring = (x: float, y: float): unit => {
       Dom.appendChild(Dom_html.document##.body, el);
       el;
     };
-  el##.style##.left := Js.string(Printf.sprintf("%fpx", x));
-  el##.style##.top := Js.string(Printf.sprintf("%fpx", y));
+  el##.style##.left := Js.string(sprintf("%fpx", x));
+  el##.style##.top := Js.string(sprintf("%fpx", y));
   ignore(
     Js.Unsafe.meth_call(
       el,
@@ -1608,7 +1628,7 @@ let cancel_hold = () => {
   switch (hold_pending^) {
   | Some(h) =>
     Dom_html.clearTimeout(h.timer);
-    h.listeners |> List.iter(Dom.removeEventListener);
+    h.listeners |> List.iter(~f=Dom.removeEventListener);
   | None => ()
   };
   hold_pending := None;
@@ -1641,7 +1661,7 @@ let hold =
           if (this(e)) {
             let x: float = Js.Unsafe.coerce(e)##.clientX
             and y: float = Js.Unsafe.coerce(e)##.clientY;
-            if (sqrt((x -. x0) ** 2. +. (y -. y0) ** 2.) > hold_slop) {
+            if (Float.sqrt((x -. x0) ** 2. +. (y -. y0) ** 2.) > hold_slop) {
               cancel_hold();
             };
           }
@@ -1746,7 +1766,7 @@ let sync =
       let moved_for =
           (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
         pairs
-        |> List.filter_map(((k, node)) =>
+        |> List.filter_map(~f=((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas_end_aligned(~other=measured, cand_m, k),
@@ -1773,26 +1793,26 @@ let sync =
       let rec token_texts =
               (seg: Segment.t): list((CodeFlip.key, string, string)) =>
         seg
-        |> List.concat_map((piece: Piece.t) =>
+        |> List.concat_map(~f=(piece: Piece.t) =>
              switch (piece) {
              | Tile(t) =>
                let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
                let sort_cls = Sort.class_of(Tile.mold(t).out);
                (
                  t.shards
-                 |> List.filter_map(i =>
-                      switch (List.nth_opt(Tile.label(t), i)) {
+                 |> List.filter_map(~f=i =>
+                      switch (List.nth(Tile.label(t), i)) {
                       | Some(txt) =>
                         let cls =
                           ["token", sort_cls, plurality]
                           @ (Token.is_keyword(txt) ? ["keyword"] : [])
-                          |> String.concat(" ");
+                          |> String.concat(~sep=" ");
                         Some((CodeFlip.Shard(t.id, i), txt, cls));
                       | None => None
                       }
                     )
                )
-               @ List.concat_map(token_texts, t.children);
+               @ List.concat_map(~f=token_texts, t.children);
              | Grout(_)
              | Secondary(_)
              | Projector(_) => []
@@ -1800,17 +1820,17 @@ let sync =
            );
       /* a live token whose text differs in the candidate (a use
          renamed by a merge): its old text leaves, its new text enters */
-      let live_text = Hashtbl.create(List.length(pairs));
+      let live_text = Stdlib.Hashtbl.create(List.length(pairs));
       pairs
-      |> List.iter(((k, node)) =>
-           Hashtbl.replace(
+      |> List.iter(~f=((k, node)) =>
+           Stdlib.Hashtbl.replace(
              live_text,
              k,
              Js.to_string(Js.Unsafe.get(node, "textContent")),
            )
          );
       let renamed = (k: CodeFlip.key, text: string) =>
-        switch (Hashtbl.find_opt(live_text, k)) {
+        switch (Stdlib.Hashtbl.find_opt(live_text, k)) {
         | Some(t) => t != text
         | None => false
         };
@@ -1824,7 +1844,7 @@ let sync =
             cand_m: Measured.t,
           ) =>
         token_texts(cand_seg)
-        |> List.filter_map(((k, text, cls)) =>
+        |> List.filter_map(~f=((k, text, cls)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
@@ -1841,10 +1861,10 @@ let sync =
                let origin =
                  switch (k) {
                  | Shard(kid, i) =>
-                   switch (List.assoc_opt(kid, emerge)) {
+                   switch (List.Assoc.find(emerge, kid, ~equal=Poly.equal)) {
                    | Some(from_id) =>
                      CodeFlip.find_meas(measured, Shard(from_id, i))
-                     |> Option.map((m: Measured.measurement) =>
+                     |> Option.map(~f=(m: Measured.measurement) =>
                           px_of(m.origin)
                         )
                    | None => None
@@ -1865,9 +1885,11 @@ let sync =
             cand_seg: Segment.t,
             cand_m: Measured.t,
           ) => {
-        let texts = Hashtbl.create(256);
+        let texts = Stdlib.Hashtbl.create(256);
         token_texts(cand_seg)
-        |> List.iter(((k, text, _)) => Hashtbl.replace(texts, k, text));
+        |> List.iter(~f=((k, text, _)) =>
+             Stdlib.Hashtbl.replace(texts, k, text)
+           );
         let delta = (o: Measured.measurement, n: Measured.measurement) => {
           let p = Refactor.DragCandidate.frame_point(frame, n.origin);
           (
@@ -1876,7 +1898,7 @@ let sync =
           );
         };
         pairs
-        |> List.filter_map(((k, node)) =>
+        |> List.filter_map(~f=((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
@@ -1885,17 +1907,17 @@ let sync =
                let into =
                  switch (k) {
                  | CodeFlip.Shard(id, i) =>
-                   switch (List.assoc_opt(id, absorb)) {
+                   switch (List.Assoc.find(absorb, id, ~equal=Id.equal)) {
                    | Some(v) =>
                      CodeFlip.find_meas(cand_m, Shard(v, i))
-                     |> Option.map(delta(o))
+                     |> Option.map(~f=delta(o))
                    | None => None
                    }
                  | _ => None
                  };
                Some((k, node, into));
              | (Some(o), Some(n)) =>
-               switch (Hashtbl.find_opt(texts, k)) {
+               switch (Stdlib.Hashtbl.find_opt(texts, k)) {
                | Some(text) when renamed(k, text) =>
                  Some((k, node, Some(delta(o, n))))
                | _ => None
@@ -1940,8 +1962,8 @@ let sync =
           };
         | (Some(o), None) =>
           switch (
-            List.assoc_opt(id, absorb)
-            |> Option.map(v => CodeFlip.anchor_meas(cand_m, v, shard))
+            List.Assoc.find(absorb, id, ~equal=Id.equal)
+            |> Option.map(~f=v => CodeFlip.anchor_meas(cand_m, v, shard))
           ) {
           | Some(Some(n)) =>
             let (dx, dy) = delta(o, n);
@@ -1955,15 +1977,21 @@ let sync =
          (rounded to the nearer gap) would pick the left neighbour of a
          one-character token pressed on its left half */
       let pressed = {
-        let row = int_of_float(floor(s.down_at.y /. font_metrics.row_height))
-        and col = int_of_float(floor(s.down_at.x /. font_metrics.col_width));
+        let row =
+          int_of_float(
+            Float.round_down(s.down_at.y /. font_metrics.row_height),
+          )
+        and col =
+          int_of_float(
+            Float.round_down(s.down_at.x /. font_metrics.col_width),
+          );
         Id.Map.fold(
           (id, shards, found) =>
             switch (found) {
             | Some(_) => found
             | None =>
               shards
-              |> List.find_map(((i, m: Measured.measurement)) =>
+              |> List.find_map(~f=((i, m: Measured.measurement)) =>
                    m.origin.row == row
                    && m.last.row == row
                    && m.origin.col <= col
@@ -2004,7 +2032,7 @@ let sync =
         | Some(tid) =>
           let find = exact =>
             pairs
-            |> List.find_map(((k, n)) =>
+            |> List.find_map(~f=((k, n)) =>
                  switch (k) {
                  | CodeFlip.Shard(id, i)
                      when id == tid && (!exact || Some(i) == grab_shard) =>
@@ -2038,41 +2066,39 @@ let sync =
           let shards_of =
               (ids, meas: (Id.t, int) => option(Measured.Point.t)) =>
             ids
-            |> List.concat_map(id =>
+            |> List.concat_map(~f=id =>
                  switch (Id.Map.find_opt(id, measured.tiles)) {
                  | Some(shards) =>
-                   shards |> List.filter_map(((i, _)) => meas(id, i))
+                   shards |> List.filter_map(~f=((i, _)) => meas(id, i))
                  | None => []
                  }
                );
           let ends = (meas: (Id.t, int) => option(Measured.Point.t)) => {
-            let pts = shards_of(tokens, meas) |> List.sort(compare);
+            let pts = shards_of(tokens, meas) |> List.sort(~compare);
             switch (pts) {
             | [] => []
             | [first, ..._] => [first, ListUtil.last(pts)]
             };
           };
           let points = (meas: (Id.t, int) => option(Measured.Point.t)) =>
-            shards_of(own, meas) @ ends(meas) |> List.sort(compare);
+            shards_of(own, meas) @ ends(meas) |> List.sort(~compare);
           let live =
             points((id, i) =>
               CodeFlip.find_meas(measured, Shard(id, i))
-              |> Option.map((m: Measured.measurement) => m.origin)
+              |> Option.map(~f=(m: Measured.measurement) => m.origin)
             );
           let here =
             points((id, i) =>
               CodeFlip.find_meas(c.measured, Shard(id, i))
-              |> Option.map(framed)
+              |> Option.map(~f=framed)
             );
           switch (live, here) {
           | ([l0, ..._], [h0, ..._])
               when List.length(live) == List.length(here) =>
             let (dr, dc) = (h0.row - l0.row, h0.col - l0.col);
-            List.for_all2(
-              (l: Measured.Point.t, h: Measured.Point.t) =>
-                h.row - l.row == dr && h.col - l.col == dc,
-              live,
-              here,
+            List.for_all2_exn(
+              live, here, ~f=(l: Measured.Point.t, h: Measured.Point.t) =>
+              h.row - l.row == dr && h.col - l.col == dc
             )
               ? Some((
                   float_of_int(dc) *. font_metrics.col_width,
@@ -2095,11 +2121,11 @@ let sync =
           enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
           absorb_into:
             c.absorb
-            |> List.concat_map(((d, v)) =>
-                 List.init(4, i => i)
-                 |> List.filter_map(i =>
+            |> List.concat_map(~f=((d, v)) =>
+                 List.init(4, ~f=i => i)
+                 |> List.filter_map(~f=i =>
                       CodeFlip.find_meas(c.measured, Shard(v, i))
-                      |> Option.map((m: Measured.measurement) => {
+                      |> Option.map(~f=(m: Measured.measurement) => {
                            let p =
                              Refactor.DragCandidate.frame_point(
                                c.frame,
@@ -2118,7 +2144,7 @@ let sync =
                          })
                     )
                ),
-          emerge_src: c.emerge |> List.map(snd),
+          emerge_src: c.emerge |> List.map(~f=snd),
           /* the caret is the hand: it rides the track from where the
              held piece was to where this state puts it */
           caret_delta: {
@@ -2135,7 +2161,7 @@ let sync =
       s.extend =
         Some(
           (lad: cand) => {
-            let last = List.nth(lad.rungs, List.length(lad.rungs) - 1);
+            let last = List.nth_exn(lad.rungs, List.length(lad.rungs) - 1);
             Refactor.next_rung(
               ~settings,
               ~info_map,
@@ -2146,7 +2172,7 @@ let sync =
               ~held=last.held,
               last.cand,
             )
-            |> Option.map(((c: Refactor.DragCandidate.t, used)) => {
+            |> Option.map(~f=((c: Refactor.DragCandidate.t, used)) => {
                  /* a step that added a line (extract) laid its state out
                     against the screen with a global shift; later steps
                     are laid out against that state, so they inherit
@@ -2181,7 +2207,7 @@ let sync =
             ~shard=grab_shard,
             (),
           )
-          |> List.map((c: Refactor.DragCandidate.t) =>
+          |> List.map(~f=(c: Refactor.DragCandidate.t) =>
                {
                  kind: c.kind,
                  label: c.label,
@@ -2226,7 +2252,7 @@ let sync =
           switch (Id.Map.find_opt(id, measured.tiles)) {
           | Some(shards) =>
             shards
-            |> List.exists(((_, m: Measured.measurement)) =>
+            |> List.exists(~f=((_, m: Measured.measurement)) =>
                  m.origin.row == goal.row
                  && m.last.row == goal.row
                  && m.origin.col <= goal.col
@@ -2239,7 +2265,7 @@ let sync =
       let here = Zipper.Caret.point(measured, z) == goal || on_clicked_token;
       let changed =
         switch (stale) {
-        | Some(z0) => !(z0 === z)
+        | Some(z0) => !phys_equal(z0, z)
         | None => false
         };
       if (here || changed) {
@@ -2257,8 +2283,9 @@ let sync =
          term to catch up. */
       let changed =
         switch (z0, t0) {
-        | (Some(z0), Some(t0)) => !(z0 === z) && !(t0 === term)
-        | (Some(z0), None) => !(z0 === z)
+        | (Some(z0), Some(t0)) =>
+          !phys_equal(z0, z) && !phys_equal(t0, term)
+        | (Some(z0), None) => !phys_equal(z0, z)
         | (None, _) => true
         };
       if (changed) {

@@ -8,6 +8,7 @@ open RefactorMove;
 open RefactorReduce;
 open RefactorRegistry;
 open RefactorGesture;
+open Poly;
 
 let emerge_source =
     (~info_map, ~target, kind: Action.refactor, term): list(Id.t) =>
@@ -177,7 +178,7 @@ let drag_anchor =
     | Some(m) =>
       switch (IdTagged.term_of(m), arm_index_at(target, m)) {
       | (Match(_, rules), Some(j)) when j < List.length(rules) =>
-        let (rp, _) = List.nth(rules, j);
+        let (rp, _) = List.nth_exn(rules, j);
         /* the grabbed arm is index j; it swaps with i/i+1 — anchor
            the arm the user grabbed either way */
         ignore(i);
@@ -208,7 +209,7 @@ let drag_anchor =
       switch (IdTagged.term_of(l)) {
       | Let(_, def, body) =>
         first_occurrence(x, body)
-        |> Option.map(o => (Exp.rep_id(def), Exp.rep_id(o)))
+        |> Option.map(~f=o => (Exp.rep_id(def), Exp.rep_id(o)))
       | _ => None
       }
     | None => None
@@ -276,7 +277,12 @@ type held = {
    definition; not the body); any other token holds its own term. */
 let held_piece = (~target: Id.t, term: Exp.t): held => {
   let own_term = () =>
-    switch (find_hit(~hit=e => List.mem(target, IdTagged.ids(e)), term)) {
+    switch (
+      find_hit(
+        ~hit=e => List.mem(IdTagged.ids(e), target, ~equal=Id.equal),
+        term,
+      )
+    ) {
     | Some(e) => {
         tile: target,
         own: IdTagged.ids(e),
@@ -294,7 +300,9 @@ let held_piece = (~target: Id.t, term: Exp.t): held => {
   | Some(l) =>
     switch (IdTagged.term_of(l)) {
     | Let(p, def, _)
-        when hit_node(target, l) || List.mem(target, head_name_ids(p)) => {
+        when
+          hit_node(target, l)
+          || List.mem(head_name_ids(p), target, ~equal=Id.equal) => {
         tile: Exp.rep_id(l),
         own: IdTagged.ids(l),
         tokens: IdTagged.ids(l) @ pat_subtree_ids(p) @ exp_subtree_ids(def),
@@ -345,7 +353,8 @@ let drag_kinds =
     | Some(l) =>
       switch (IdTagged.term_of(l)) {
       | Let(p, _, _) =>
-        hit_node(target, l) || List.mem(target, head_name_ids(p))
+        hit_node(target, l)
+        || List.mem(head_name_ids(p), target, ~equal=Id.equal)
       | _ => true
       }
     | None => false
@@ -362,14 +371,14 @@ let drag_kinds =
      out onto its own line, a line joins the tuple above it */
   let extra =
     [Action.NegateIf, SplitComponent, JoinLet]
-    |> List.filter(k =>
+    |> List.filter(~f=k =>
          (k != Action.NegateIf || branch_root)
          && applies(k, ~info_map, ~target, term)
        );
   let insist =
     push
       ? [Action.HoistCarry, SinkCarry, LiftFunction]
-        |> List.filter(k => applies(k, ~info_map, ~target, term))
+        |> List.filter(~f=k => applies(k, ~info_map, ~target, term))
       : [];
   /* composites: a grabbed value's line moves with it — its place is
      bound-on-this-line until a feed puts it in a use */
@@ -381,27 +390,31 @@ let drag_kinds =
     | Some(l) =>
       [Action.MergeUp, HoistLet]
       @ (push ? [Action.HoistCarry, LiftFunction] : [])
-      |> List.filter(k =>
+      |> List.filter(~f=k =>
            applies(k, ~info_map, ~target=Exp.rep_id(l), term)
          )
-      |> List.map(k => (k, target))
+      |> List.map(~f=k => (k, target))
     | None => []
     };
   via_line
   @ (
     [Action.Gesture.Up, Down, Left, Right]
-    |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
-    |> List.filter(k =>
+    |> List.concat_map(
+         ~f=gesture_options(~info_map, ~term, ~target, ~shard),
+       )
+    |> List.filter(~f=k =>
          k != Action.UnfoldCall && (k != Action.NegateIf || branch_root)
        )
     |> (ks => ks @ extra @ insist)
-    |> List.filter(drives)
-    |> List.map(k => (k, target))
+    |> List.filter(~f=drives)
+    |> List.map(~f=k => (k, target))
   )
   |> List.fold_left(
-       (acc, (k, at)) =>
-         List.exists(((k', _)) => k' == k, acc) ? acc : acc @ [(k, at)],
-       [],
+       ~f=
+         (acc, (k, at)) =>
+           List.exists(~f=((k', _)) => k' == k, acc)
+             ? acc : acc @ [(k, at)],
+       ~init=[],
      );
 };
 
@@ -448,7 +461,7 @@ let drag_candidates =
     | Some(k) when id == target =>
       switch (Id.Map.find_opt(id, m.tiles)) {
       | Some(shards) =>
-        switch (List.assoc_opt(k, shards)) {
+        switch (List.Assoc.find(shards, k, ~equal=Int.equal)) {
         | Some(meas) => Some(meas)
         | None => Measured.find_by_id(id, m)
         }
@@ -497,7 +510,7 @@ let drag_candidates =
           |> Option.value(~default=(target, target));
         let to_pos = (id: Id.t) =>
           shard_meas(id, cand_measured)
-          |> Option.map((m: Measured.measurement) => m.origin);
+          |> Option.map(~f=(m: Measured.measurement) => m.origin);
         /* a merge drops the grab onto its twin (D2's drop target): the
            track ends at the twin's LIVE place (merging down, the
            survivor rises into the vacated row — the result alone
@@ -595,7 +608,7 @@ let drag_candidates =
           /* a spawned clone's track ends at the CLONE (the
              occurrence's ids no longer exist in the candidate) */
           let tgt =
-            switch (emerge |> List.find_opt(((_, d)) => d == from_id)) {
+            switch (emerge |> List.find(~f=((_, d)) => d == from_id)) {
             | Some((clone_id, _)) =>
               switch (to_pos(clone_id)) {
               | Some(p) => DragCandidate.frame_point(frame, p)
@@ -615,7 +628,7 @@ let drag_candidates =
                   kind,
                   term,
                 );
-              List.length(d) == List.length(v) ? List.combine(d, v) : [];
+              List.length(d) == List.length(v) ? List.zip_exn(d, v) : [];
             | _ => []
             };
           cur.origin != tgt
@@ -652,18 +665,20 @@ let drag_candidates =
     composites
       ? cs
         |> List.fold_left(
-             (acc, c: DragCandidate.t) => {
-               let way = (c: DragCandidate.t) =>
-                 compare(c.target.row, c.current.row);
-               place_kind(c.kind)
-               && List.exists(
-                    (c': DragCandidate.t) =>
-                      place_kind(c'.kind) && way(c') == way(c),
-                    acc,
-                  )
-                 ? acc : acc @ [c];
-             },
-             [],
+             ~f=
+               (acc, c: DragCandidate.t) => {
+                 let way = (c: DragCandidate.t) =>
+                   compare(c.target.row, c.current.row);
+                 place_kind(c.kind)
+                 && List.exists(
+                      ~f=
+                        (c': DragCandidate.t) =>
+                          place_kind(c'.kind) && way(c') == way(c),
+                      acc,
+                    )
+                   ? acc : acc @ [c];
+               },
+             ~init=[],
            )
       : cs;
   drag_kinds(
@@ -674,13 +689,17 @@ let drag_candidates =
     ~target,
     ~shard=grab_shard,
   )
-  |> List.filter_map(k => mk(k))
+  |> List.filter_map(~f=k => mk(k))
   |> one_place_track
   |> List.fold_left(
-       (acc, c: DragCandidate.t) =>
-         List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
-           ? acc : acc @ [c],
-       [],
+       ~f=
+         (acc, c: DragCandidate.t) =>
+           List.exists(
+             ~f=(c': DragCandidate.t) => c'.target == c.target,
+             acc,
+           )
+             ? acc : acc @ [c],
+       ~init=[],
      );
 };
 
@@ -772,10 +791,10 @@ let next_rung =
         ~shard=snd(held),
         (),
       )
-      |> List.find_opt((c: DragCandidate.t) =>
+      |> List.find(~f=(c: DragCandidate.t) =>
            continues(c.kind) && way(c) == way(prev)
          )
-      |> Option.map(c => (c, held));
+      |> Option.map(~f=c => (c, held));
 };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a

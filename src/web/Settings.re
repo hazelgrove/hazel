@@ -1,7 +1,7 @@
 open Util;
 
 module CompletionDisplay = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Quiver
     | Flag
@@ -152,7 +152,7 @@ module Store =
             Js_of_ocaml.Js.to_bool(
               global##matchMedia(Js_of_ocaml.Js.string("(pointer: coarse)"))##.matches,
             );
-          coarse && min(w, h) <= 600.;
+          coarse && Float.(min(w, h) <= 600.);
         | _ => false
         };
       {
@@ -435,7 +435,8 @@ module Update = {
             show:
               !settings.sidebar.show
                 ? true
-                : settings.sidebar.panel == windowToSwitchTo ? false : true,
+                : Poly.equal(settings.sidebar.panel, windowToSwitchTo)
+                    ? false : true,
             panel: windowToSwitchTo,
           },
         }
@@ -566,8 +567,8 @@ module Update = {
         }
       | CompletionDisplay(mode) => {
           ...settings,
-          quiver: mode != CompletionDisplay.Hidden,
-          quiver_flagpole: mode == CompletionDisplay.Flag,
+          quiver: !CompletionDisplay.equal(mode, Hidden),
+          quiver_flagpole: CompletionDisplay.equal(mode, Flag),
         }
       | AutoprobeMode =>
         /* User-facing controls cycle Off<->All; Caret remains an internal

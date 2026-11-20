@@ -4,6 +4,7 @@
  * RefactorBase; consumed by the inline/feed/reduce transforms. */
 open Language;
 open RefactorBase;
+open Poly;
 
 /* === Static splice parenthesization ===
    The parser molds by precedence, so whether a spliced term needs
@@ -56,7 +57,7 @@ let rec sp_exposure =
     /* tuple: first/last element */
     | (Tuple([x, ..._]), Util.Direction.Left) => Some(x)
     | (Tuple(xs), Util.Direction.Right) when xs != [] =>
-      Some(List.nth(xs, List.length(xs) - 1))
+      Some(List.nth_exn(xs, List.length(xs) - 1))
     /* ap: fn side open, arg side closed by its parens */
     | (Ap(Forward, f, _), Util.Direction.Left) => Some(f)
     | (Ap(Forward, _, _), Util.Direction.Right) => None
@@ -199,11 +200,13 @@ let sp_bounds = (~side: Util.Direction.t, path: list(Exp.t)): list(sp_bound) => 
         | (TupleExtension(l, r), Util.Direction.Right) =>
           is(r) ? `Fringe : is(l) ? op(Precedence.plus) : `Opaque
         | (Tuple(xs), Util.Direction.Left) =>
-          xs != [] && is(List.hd(xs))
-            ? `Fringe : List.exists(is, xs) ? op(Precedence.comma) : `Opaque
+          xs != [] && is(List.hd_exn(xs))
+            ? `Fringe
+            : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
         | (Tuple(xs), Util.Direction.Right) =>
-          xs != [] && is(List.nth(xs, List.length(xs) - 1))
-            ? `Fringe : List.exists(is, xs) ? op(Precedence.comma) : `Opaque
+          xs != [] && is(List.nth_exn(xs, List.length(xs) - 1))
+            ? `Fringe
+            : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
         | (Asc(l, _), Util.Direction.Left) => is(l) ? `Fringe : `Delim
         | (Asc(l, _), Util.Direction.Right) =>
           is(l) ? op(Precedence.asc) : `Delim
@@ -257,12 +260,12 @@ let sp_bounds = (~side: Util.Direction.t, path: list(Exp.t)): list(sp_bound) => 
             `Opaque;
           }
         | (Match(scrut, rules), _) =>
-          is(scrut) || List.exists(((_, b)) => is(b), rules)
+          is(scrut) || List.exists(~f=((_, b)) => is(b), rules)
             ? `Delim : `Opaque
         /* list elements are separated by commas, so an element's own
            top-level comma would read as a separator */
         | (ListLit(items), _) =>
-          List.exists(is, items) ? op(Precedence.comma) : `Delim
+          List.exists(~f=is, items) ? op(Precedence.comma) : `Delim
         | (Parens(_), _)
         | (Test(_), _)
         | (HintedTest(_), _) => `Delim
@@ -337,7 +340,7 @@ let splice_parens_needed = (~program: Exp.t, ~at: Id.t, d: Exp.t): bool =>
   | Some(path) =>
     let check = side =>
       sp_bounds(~side, path)
-      |> List.exists(b => sp_captures(b, sp_exposure(~side, d)));
+      |> List.exists(~f=b => sp_captures(b, sp_exposure(~side, d)));
     check(Util.Direction.Left) || check(Util.Direction.Right);
   };
 

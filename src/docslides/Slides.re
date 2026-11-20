@@ -33,6 +33,6 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Refactoring / Types", [%blob "refactoring-types.hz"]),
     ("Refactoring / Drag Tour", [%blob "refactoring-drag-tour.hz"]),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

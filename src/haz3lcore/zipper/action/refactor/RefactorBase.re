@@ -2,6 +2,7 @@
  * machinery, name/mention analysis, tree walking, id discipline,
  * splice parens, def-line helpers. */
 open Language;
+open Poly;
 
 /* Term-level refactorings, built on the segment<->term roundtrip:
  * parse the buffer to a term (via canonical completion), transform the
@@ -69,7 +70,10 @@ let drop_secondary = (ids: list(Id.t), e: Exp.t): Exp.t =>
     ~f_exp=
       (cont, e: Exp.t) => {
         let keep = (ws: list(Secondary.t)) =>
-          ws |> List.filter((w: Secondary.t) => !List.mem(w.id, ids));
+          ws
+          |> List.filter(~f=(w: Secondary.t) =>
+               !List.mem(ids, w.id, ~equal=Id.equal)
+             );
         let (before, after) = e.annotation.secondary;
         {
           ...e,
@@ -122,7 +126,10 @@ module Slot = {
   };
   /* remove the slot's pieces (by id) wherever they occur in a term */
   let drop = (s: t, e: Exp.t): Exp.t =>
-    drop_secondary(List.map((w: Secondary.t) => w.id, s.lead @ s.trail), e);
+    drop_secondary(
+      List.map(~f=(w: Secondary.t) => w.id, s.lead @ s.trail),
+      e,
+    );
   /* attach at a node's outer boundary */
   let give = (s: t, e: Exp.t): Exp.t => {
     let (b, a) = e.annotation.secondary;
@@ -179,14 +186,14 @@ let split_eol =
     | [w, ...tl] => go([w, ...acc], tl)
     };
   let (eol, rest) = go([], run);
-  List.exists(is_comment_piece, eol) ? (eol, rest) : ([], run);
+  List.exists(~f=is_comment_piece, eol) ? (eol, rest) : ([], run);
 };
 
 /* strip only the WHITESPACE pieces of a run, leaving comments where
    they live (P4: prose is content with a place, not spacing) */
 let ws_of_slot = (s: Slot.t): Slot.t => {
-  lead: s.lead |> List.filter(w => !is_comment_piece(w)),
-  trail: s.trail |> List.filter(w => !is_comment_piece(w)),
+  lead: s.lead |> List.filter(~f=w => !is_comment_piece(w)),
+  trail: s.trail |> List.filter(~f=w => !is_comment_piece(w)),
 };
 let strip_boundaries_keep_comments = (e: Exp.t): Exp.t =>
   Slot.(drop(ws_of_slot(of_exp(e)), e));
@@ -200,7 +207,7 @@ let strip_trailing_keep_comments = (e: Exp.t): Exp.t =>
 let boundary_comments = (e: Exp.t): list(Secondary.t) =>
   Slot.of_exp(e).lead
   @ Slot.of_exp(e).trail
-  |> List.filter(is_comment_piece);
+  |> List.filter(~f=is_comment_piece);
 
 /* prose belongs to the ORIGINAL: minted COPIES drop comments rather
    than duplicating the text (the first/traveling copy keeps them) */
@@ -264,7 +271,7 @@ let strip_comments = (e: Exp.t): Exp.t => {
 let strip_leading_ws = (e: Exp.t): Exp.t => {
   let has_comment =
     Slot.lead_of(e).lead
-    |> List.exists((w: Secondary.t) =>
+    |> List.exists(~f=(w: Secondary.t) =>
          switch (w.content) {
          | Comment(_) => true
          | _ => false
@@ -287,14 +294,14 @@ let space = (): list(Secondary.t) => [
 let sep_like = (run: list(Secondary.t)): list(Secondary.t) => {
   let text =
     run
-    |> List.filter_map((w: Secondary.t) =>
+    |> List.filter_map(~f=(w: Secondary.t) =>
          switch (w.content) {
          | Whitespace(s) => Some(s)
          | _ => None
          }
        )
-    |> String.concat("");
-  switch (String.rindex_opt(text, '\n')) {
+    |> String.concat(~sep="");
+  switch (String.rindex(text, '\n')) {
   | Some(i) =>
     /* atomic pieces only: the renderer accepts exactly " " or "\n"
        per Secondary (a compound "\n    " crashes Code.of_secondary) */
@@ -305,7 +312,7 @@ let sep_like = (run: list(Secondary.t)): list(Secondary.t) => {
         content: Whitespace("\n"),
       },
     ]
-    @ List.init(indent, _ =>
+    @ List.init(indent, ~f=_ =>
         {
           Secondary.id: Id.mk(),
           content: Secondary.Whitespace(" "),
@@ -324,7 +331,7 @@ let newline = (): list(Secondary.t) => [
 
 let has_newline = (ws: list(Secondary.t)): bool =>
   ws
-  |> List.exists((w: Secondary.t) =>
+  |> List.exists(~f=(w: Secondary.t) =>
        switch (w.content) {
        | Whitespace(s) => String.contains(s, '\n')
        | _ => false
@@ -398,7 +405,7 @@ let fresh_from = (id: Id.t): Id.t => {
 let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
   let refresh_sec = (ws: list(Secondary.t)) =>
     ws
-    |> List.map((w: Secondary.t) =>
+    |> List.map(~f=(w: Secondary.t) =>
          {
            ...w,
            id: Id.mk(),
@@ -412,7 +419,7 @@ let refresh_annotation = (a: IdTagged.IdTag.t): IdTagged.IdTag.t => {
        base-independent — every starved case in the program got THE
        SAME derived ids (duplicate |=> tiles: glommed indication,
        caret jumping to the wrong twin) */
-    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(fresh_from),
+    ids: a.ids == [] ? [Id.mk()] : a.ids |> List.map(~f=fresh_from),
     secondary: (refresh_sec(before), refresh_sec(after)),
     incomplete: [],
     lexeme: a.lexeme,
@@ -465,7 +472,10 @@ let drop_secondary_typ = (ids: list(Id.t), t: Typ.t): Typ.t =>
     ~f_typ=
       (cont, t: Typ.t) => {
         let keep = (ws: list(Secondary.t)) =>
-          ws |> List.filter((w: Secondary.t) => !List.mem(w.id, ids));
+          ws
+          |> List.filter(~f=(w: Secondary.t) =>
+               !List.mem(ids, w.id, ~equal=Id.equal)
+             );
         let (before, after) = t.annotation.secondary;
         {
           ...t,
@@ -481,7 +491,7 @@ let drop_secondary_typ = (ids: list(Id.t), t: Typ.t): Typ.t =>
 
 let strip_typ_boundaries = (t: Typ.t): Typ.t => {
   let seg = TypToSegment.typ_to_segment(~settings=roundtrip_settings, t);
-  let ids = ws => ws |> List.map((w: Secondary.t) => w.id);
+  let ids = ws => ws |> List.map(~f=(w: Secondary.t) => w.id);
   let lead = secondary_run_pieces(seg) |> ids;
   let trail = secondary_run_pieces(List.rev(seg)) |> ids;
   drop_secondary_typ(lead @ trail, t);
@@ -495,7 +505,10 @@ let drop_secondary_pat = (ids: list(Id.t), p: Pat.t): Pat.t =>
     ~f_pat=
       (cont, p: Pat.t) => {
         let keep = (ws: list(Secondary.t)) =>
-          ws |> List.filter((w: Secondary.t) => !List.mem(w.id, ids));
+          ws
+          |> List.filter(~f=(w: Secondary.t) =>
+               !List.mem(ids, w.id, ~equal=Id.equal)
+             );
         let (before, after) = p.annotation.secondary;
         {
           ...p,
@@ -518,7 +531,7 @@ let pat_slot = (p: Pat.t): Slot.t => {
 };
 let pat_slot_drop = (s: Slot.t, p: Pat.t): Pat.t =>
   drop_secondary_pat(
-    List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
+    List.map(~f=(w: Secondary.t) => w.id, s.lead @ s.trail),
     p,
   );
 let pat_slot_give = (s: Slot.t, p: Pat.t): Pat.t => {
@@ -549,7 +562,7 @@ let typ_slot_lead = (t: Typ.t): Slot.t => {
 };
 let typ_slot_drop = (s: Slot.t, t: Typ.t): Typ.t =>
   drop_secondary_typ(
-    List.map((w: Secondary.t) => w.id, s.lead @ s.trail),
+    List.map(~f=(w: Secondary.t) => w.id, s.lead @ s.trail),
     t,
   );
 let typ_slot_give = (s: Slot.t, t: Typ.t): Typ.t => {
@@ -638,15 +651,17 @@ let pick_placeholder = (~transform=x => x, used: list(string)): string => {
      elsewhere in the pool */
   let pool = PlaceholderNames.pool;
   let n = List.length(pool);
-  let start = n == 0 ? 0 : Hashtbl.hash(used) mod n;
+  let start = n == 0 ? 0 : Stdlib.Hashtbl.hash(used) mod n;
   let rotated =
-    List.init(n, i => transform(List.nth(pool, (start + i) mod n)));
-  switch (rotated |> List.find_opt(c => !List.mem(c, used))) {
+    List.init(n, ~f=i => transform(List.nth_exn(pool, (start + i) mod n)));
+  switch (
+    rotated |> List.find(~f=c => !List.mem(used, c, ~equal=String.equal))
+  ) {
   | Some(c) => c
   | None =>
     let rec pick = k => {
       let cand = transform("x" ++ string_of_int(k));
-      List.mem(cand, used) ? pick(k + 1) : cand;
+      List.mem(used, cand, ~equal=String.equal) ? pick(k + 1) : cand;
     };
     pick(1);
   };
@@ -706,47 +721,52 @@ let let_scopes = (p: Pat.t, d: Exp.t): (list(string), list(string), bool) => {
 let map_mod_items =
     (~x: string, ~go: Exp.t => Exp.t, items: list(Mod.t)): list(Mod.t) =>
   List.fold_left(
-    ((acc, shadowed), item: Mod.t) =>
-      if (shadowed) {
-        ([item, ...acc], true);
-      } else {
-        switch (IdTagged.term_of(item)) {
-        | ModLet(p, d) =>
-          let (in_def, in_body, _) = let_scopes(p, d);
-          (
-            [
-              {
-                ...item,
-                term: ModLet(p, List.mem(x, in_def) ? d : go(d)),
-              },
-              ...acc,
-            ],
-            List.mem(x, in_body),
-          );
-        | ModExp(e) => (
-            [
-              {
-                ...item,
-                term: ModExp(go(e)),
-              },
-              ...acc,
-            ],
-            false,
-          )
-        | ModuleMod(mp, e) => (
-            [
-              {
-                ...item,
-                term: ModuleMod(mp, go(e)),
-              },
-              ...acc,
-            ],
-            false,
-          )
-        | _ => ([item, ...acc], false)
-        };
-      },
-    ([], false),
+    ~f=
+      ((acc, shadowed), item: Mod.t) =>
+        if (shadowed) {
+          ([item, ...acc], true);
+        } else {
+          switch (IdTagged.term_of(item)) {
+          | ModLet(p, d) =>
+            let (in_def, in_body, _) = let_scopes(p, d);
+            (
+              [
+                {
+                  ...item,
+                  term:
+                    ModLet(
+                      p,
+                      List.mem(in_def, x, ~equal=String.equal) ? d : go(d),
+                    ),
+                },
+                ...acc,
+              ],
+              List.mem(in_body, x, ~equal=String.equal),
+            );
+          | ModExp(e) => (
+              [
+                {
+                  ...item,
+                  term: ModExp(go(e)),
+                },
+                ...acc,
+              ],
+              false,
+            )
+          | ModuleMod(mp, e) => (
+              [
+                {
+                  ...item,
+                  term: ModuleMod(mp, go(e)),
+                },
+                ...acc,
+              ],
+              false,
+            )
+          | _ => ([item, ...acc], false)
+          };
+        },
+    ~init=([], false),
     items,
   )
   |> fst
@@ -785,8 +805,9 @@ let rec map_unshadowed =
     let (in_def, in_body, _) = let_scopes(p, d);
     /* sequenced: constructor arguments evaluate right-to-left, and go's
        effects must run in source order */
-    let d' = List.mem(skip, in_def) ? d : go(d);
-    let body' = List.mem(skip, in_body) ? body : go(body);
+    let d' = List.mem(in_def, skip, ~equal=String.equal) ? d : go(d);
+    let body' =
+      List.mem(in_body, skip, ~equal=String.equal) ? body : go(body);
     rewrap(Let(p, d', body'));
   | Module(items) => rewrap(Module(map_mod_items(~x=skip, ~go, items)))
   | Fun(p, body, t, n) when binds(skip, p) => rewrap(Fun(p, body, t, n))
@@ -795,7 +816,7 @@ let rec map_unshadowed =
     let scrut' = go(scrut);
     let rules' =
       rules
-      |> List.map(((p, body)) => (p, binds(skip, p) ? body : go(body)));
+      |> List.map(~f=((p, body)) => (p, binds(skip, p) ? body : go(body)));
     rewrap(Match(scrut', rules'));
   | _ => descend(e)
   };
@@ -860,22 +881,23 @@ let rec subst =
   /* rename p's avoid-colliding binders in p + the given scopes */
   let freshen = (p: Pat.t, scopes: list(Exp.t)): (Pat.t, list(Exp.t)) =>
     pat_var_names(p)
-    |> List.sort_uniq(compare)
-    |> List.filter(y => List.mem(y, avoid))
+    |> List.dedup_and_sort(~compare=String.compare)
+    |> List.filter(~f=y => List.mem(avoid, y, ~equal=String.equal))
     |> List.fold_left(
-         ((p, scopes), y) => {
-           let rec pick = n => {
-             let c = y ++ string_of_int(n);
-             List.mem(c, used^) ? pick(n + 1) : c;
-           };
-           let y' = pick(1);
-           used := [y', ...used^];
-           (
-             rename_pat_var(y, y', p),
-             scopes |> List.map(rename_syntactic(y, y')),
-           );
-         },
-         (p, scopes),
+         ~f=
+           ((p, scopes), y) => {
+             let rec pick = n => {
+               let c = y ++ string_of_int(n);
+               List.mem(used^, c, ~equal=String.equal) ? pick(n + 1) : c;
+             };
+             let y' = pick(1);
+             used := [y', ...used^];
+             (
+               rename_pat_var(y, y', p),
+               scopes |> List.map(~f=rename_syntactic(y, y')),
+             );
+           },
+         ~init=(p, scopes),
        );
   let (term, rewrap) = Exp.unwrap(e);
   switch (term) {
@@ -897,10 +919,11 @@ let rec subst =
     if (sugar) {
       /* params scope over d only; a capture here is refused by
          RefactorCheck rather than freshened */
-      let d' = List.mem(x, in_def) ? d : go(d);
-      let body' = List.mem(x, in_body) ? body : go(body);
+      let d' = List.mem(in_def, x, ~equal=String.equal) ? d : go(d);
+      let body' =
+        List.mem(in_body, x, ~equal=String.equal) ? body : go(body);
       rewrap(Let(p, d', body'));
-    } else if (List.mem(x, in_body)) {
+    } else if (List.mem(in_body, x, ~equal=String.equal)) {
       /* x shadowed in body; also in a recursive def */
       rewrap(
         Let(p, recursive ? d : go(d), body),
@@ -935,7 +958,7 @@ let rec subst =
     let scrut' = go(scrut);
     let rules' =
       rules
-      |> List.map(((p, body)) =>
+      |> List.map(~f=((p, body)) =>
            if (binds(x, p)) {
              (p, body);
            } else {
@@ -988,11 +1011,11 @@ let dedupe_ids = (e: Exp.t): Exp.t => {
     ~f_exp=
       (cont, e: Exp.t) => {
         let ids = IdTagged.ids(e);
-        if (List.exists(id => Id.Map.mem(id, seen^), ids)) {
+        if (List.exists(~f=id => Id.Map.mem(id, seen^), ids)) {
           dedupe_healed := dedupe_healed^ + 1;
           refresh_ids(e);
         } else {
-          List.iter(id => seen := Id.Map.add(id, (), seen^), ids);
+          List.iter(~f=id => seen := Id.Map.add(id, (), seen^), ids);
           cont(e);
         };
       },
@@ -1035,7 +1058,8 @@ let binder_of_occurrence =
       ~f_exp=
         (cont, e: Exp.t) => {
           switch (IdTagged.term_of(e)) {
-          | Var(name) when List.mem(target, IdTagged.ids(e)) =>
+          | Var(name)
+              when List.mem(IdTagged.ids(e), target, ~equal=Id.equal) =>
             occ := Some((name, Exp.rep_id(e)))
           | _ => ()
           };
@@ -1048,7 +1072,7 @@ let binder_of_occurrence =
     switch (Id.Map.find_opt(id, info_map)) {
     | Some(InfoExp({ctx, _})) =>
       Ctx.lookup_var(ctx, name)
-      |> Option.map((entry: Ctx.var_entry) => entry.id)
+      |> Option.map(~f=(entry: Ctx.var_entry) => entry.id)
     | _ => None
     }
   | None => None
@@ -1108,17 +1132,18 @@ let rewrite_node =
           },
       program,
     );
-  focus^ |> Option.map(f => (dedupe_ids(program'), f));
+  focus^ |> Option.map(~f=f => (dedupe_ids(program'), f));
 };
 
 let hit_node = (target: Id.t, e: Exp.t): bool =>
-  List.mem(target, IdTagged.ids(e));
+  List.mem(IdTagged.ids(e), target, ~equal=Id.equal);
 
 /* a let is targetable at its delimiters or its pattern */
 let hit_let = (target: Id.t, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Let(p, _, _) =>
-    hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
+    hit_node(target, e)
+    || List.mem(pat_subtree_ids(p), target, ~equal=Id.equal)
   | _ => false
   };
 
@@ -1127,7 +1152,8 @@ let hit_let = (target: Id.t, e: Exp.t): bool =>
 let hit_tyalias = (target: Id.t, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | TyAlias(tp, _, _) =>
-    hit_node(target, e) || List.mem(target, IdTagged.ids(tp))
+    hit_node(target, e)
+    || List.mem(IdTagged.ids(tp), target, ~equal=Id.equal)
   | _ => false
   };
 
@@ -1139,7 +1165,8 @@ let hit_def_line = (target: Id.t, e: Exp.t): bool =>
 let hit_fun = (target: Id.t, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Fun(p, _, _, _) =>
-    hit_node(target, e) || List.mem(target, pat_subtree_ids(p))
+    hit_node(target, e)
+    || List.mem(pat_subtree_ids(p), target, ~equal=Id.equal)
   | _ => false
   };
 
@@ -1165,7 +1192,10 @@ let find_hit = (~hit: Exp.t => bool, program: Exp.t): option(Exp.t) => {
 let hit_match_pat = (target: Id.t, e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Match(_, rules) =>
-    rules |> List.exists(((p, _)) => List.mem(target, pat_subtree_ids(p)))
+    rules
+    |> List.exists(~f=((p, _)) =>
+         List.mem(pat_subtree_ids(p), target, ~equal=Id.equal)
+       )
   | _ => false
   };
 
@@ -1206,13 +1236,13 @@ let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
     Some([e]);
   } else {
     children_of(e)
-    |> List.find_map(c => find_path(~hit, c))
-    |> Option.map(rest => [e, ...rest]);
+    |> List.find_map(~f=c => find_path(~hit, c))
+    |> Option.map(~f=rest => [e, ...rest]);
   };
 
 /* the deepest node matched by ~hit (children before parents) */
 let rec find_innermost = (~hit: Exp.t => bool, e: Exp.t): option(Exp.t) =>
-  switch (children_of(e) |> List.find_map(find_innermost(~hit))) {
+  switch (children_of(e) |> List.find_map(~f=find_innermost(~hit))) {
   | Some(x) => Some(x)
   | None => hit(e) ? Some(e) : None
   };
@@ -1267,7 +1297,7 @@ let bounded_region = (occ_id: Id.t, program: Exp.t): Exp.t => {
     | Ap(Forward, _, arg) => same_node(arg, child)
     | If(_, t, _) => same_node(t, child)
     | Match(scrut, _) => same_node(scrut, child)
-    | ListLit(items) => items |> List.exists(it => same_node(it, child))
+    | ListLit(items) => items |> List.exists(~f=it => same_node(it, child))
     | _ => false
     };
   switch (find_path(~hit=e => Exp.rep_id(e) == occ_id, program)) {
@@ -1290,7 +1320,7 @@ let typ_captured_by_use_at = (occ_id: Id.t, moved: Exp.t, body: Exp.t): bool =>
       | None => false
       | Some(path) =>
         path
-        |> List.exists((e: Exp.t) =>
+        |> List.exists(~f=(e: Exp.t) =>
              switch (IdTagged.term_of(e)) {
              | Use(_) => true
              | _ => false
@@ -1308,7 +1338,8 @@ let rename_typ_var = (x: string, y: string, e: Exp.t): Exp.t => {
      occurrences there would capture); a rebinding tyalias's own
      def still sees the outer names */
   let stops = tp =>
-    List.mem(x, tpat_names(tp)) || List.mem(y, tpat_names(tp));
+    List.mem(tpat_names(tp), x, ~equal=String.equal)
+    || List.mem(tpat_names(tp), y, ~equal=String.equal);
   let in_typ = (ty: Typ.t): Typ.t =>
     Typ.map_term(
       ~f_typ=
@@ -1356,7 +1387,8 @@ let mentions_typ_free = (x: string, e: Exp.t): bool => {
             found := true;
             t;
           | Rec(tp, _)
-          | Poly(tp, _) when List.mem(x, tpat_names(tp)) => t
+          | Poly(tp, _)
+              when List.mem(tpat_names(tp), x, ~equal=String.equal) => t
           | _ => cont(t)
           },
       ty,
@@ -1366,13 +1398,15 @@ let mentions_typ_free = (x: string, e: Exp.t): bool => {
       ~f_exp=
         (cont, e: Exp.t) =>
           switch (IdTagged.term_of(e)) {
-          | TyAlias(tp, d, b) when List.mem(x, tpat_names(tp)) =>
+          | TyAlias(tp, d, b)
+              when List.mem(tpat_names(tp), x, ~equal=String.equal) =>
             let _ = in_typ(d);
             {
               ...e,
               term: TyAlias(tp, d, b),
             };
-          | TypFun(tp, _, _) when List.mem(x, tpat_names(tp)) => e
+          | TypFun(tp, _, _)
+              when List.mem(tpat_names(tp), x, ~equal=String.equal) => e
           | _ => cont(e)
           },
       ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
@@ -1432,7 +1466,9 @@ let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t =>
             | TyAlias(tp, _, b)
                 when
                   tpat_names(tp)
-                  |> List.exists(n => List.mem(n, mentioned))
+                  |> List.exists(~f=n =>
+                       List.mem(mentioned, n, ~equal=String.equal)
+                     )
                   && occurrences_of(x, b) != [] =>
               switch (tpat_names(tp)) {
               | [n] => victims := [(IdTagged.rep_id(e), n), ...victims^]
@@ -1447,16 +1483,17 @@ let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t =>
     let used = ref(typ_names_in(body) @ mentioned);
     victims^
     |> List.fold_left(
-         (acc, (id, n)) => {
-           let rec pick = k => {
-             let c = n ++ string_of_int(k);
-             List.mem(c, used^) ? pick(k + 1) : c;
-           };
-           let y = pick(1);
-           used := [y, ...used^];
-           rename_alias_binding(~alias_id=id, y, acc);
-         },
-         body,
+         ~f=
+           (acc, (id, n)) => {
+             let rec pick = k => {
+               let c = n ++ string_of_int(k);
+               List.mem(used^, c, ~equal=String.equal) ? pick(k + 1) : c;
+             };
+             let y = pick(1);
+             used := [y, ...used^];
+             rename_alias_binding(~alias_id=id, y, acc);
+           },
+         ~init=body,
        );
   };
 };
@@ -1468,7 +1505,7 @@ let freshen_crossed_aliases = (~x: string, ~moved: Exp.t, body: Exp.t): Exp.t =>
 
 let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
   ws
-  |> List.map((w: Secondary.t) =>
+  |> List.map(~f=(w: Secondary.t) =>
        {
          ...w,
          id: Id.mk(),
@@ -1501,7 +1538,7 @@ let line_child = (parent: Exp.t, child: Exp.t): bool =>
   | Fun(_, body, _, _) => same_node(body, child)
   | FixF(_, body, _) => same_node(body, child)
   | Match(_, rules) =>
-    rules |> List.exists(((_, b)) => same_node(b, child))
+    rules |> List.exists(~f=((_, b)) => same_node(b, child))
   | If(_, t, alt) => same_node(t, child) || same_node(alt, child)
   | _ => false
   };
@@ -1598,7 +1635,7 @@ let eq_defs = (a: Exp.t, b: Exp.t): bool =>
    Some(None) when unbound; None when the node isn't a reference */
 let resolution_of = (info: Info.t): option(option(Id.t)) => {
   let entry = (e: option(Ctx.var_entry)) =>
-    Some(Option.map((e: Ctx.var_entry) => e.id, e));
+    Some(Option.map(~f=(e: Ctx.var_entry) => e.id, e));
   switch (info) {
   | InfoExp({user_term, ctx, _}) =>
     switch (IdTagged.term_of(user_term)) {
@@ -1630,7 +1667,7 @@ let same_meaning_defs = (~info_map: Statics.Map.t, a: Exp.t, b: Exp.t): bool => 
          | Var(_)
          | Constructor(_) => [
              Id.Map.find_opt(Exp.rep_id(e'), info_map)
-             |> Option.map(resolution_of),
+             |> Option.map(~f=resolution_of),
            ]
          | _ => []
          }
@@ -1754,7 +1791,7 @@ let rec run_before_in_seg =
         let deeper =
           switch (pc) {
           | Piece.Tile({children, _}) =>
-            children |> List.find_map(run_before_in_seg(id))
+            children |> List.find_map(~f=run_before_in_seg(id))
           | _ => None
           };
         switch (deeper) {
@@ -1800,14 +1837,14 @@ let run_lines =
 
 /* l0 b0 ... l(n-1) b(n-1): the first n lines with their breaks */
 let lines_prefix = (n: int, lines, breaks): list(Secondary.t) =>
-  List.init(n, i => List.nth(lines, i) @ [List.nth(breaks, i)])
+  List.init(n, ~f=i => List.nth_exn(lines, i) @ [List.nth_exn(breaks, i)])
   |> List.concat;
 
 /* b(from-1) l(from) ... b(to_-1) l(to_): lines from..to_, each after
    its break */
 let lines_from = (lines, breaks, from: int, to_: int): list(Secondary.t) =>
-  List.init(max(0, to_ - from + 1), d =>
-    [List.nth(breaks, from + d - 1)] @ List.nth(lines, from + d)
+  List.init(max(0, to_ - from + 1), ~f=d =>
+    [List.nth_exn(breaks, from + d - 1)] @ List.nth_exn(lines, from + d)
   )
   |> List.concat;
 
@@ -1827,11 +1864,11 @@ let comment_rung_runs =
   let mm = List.length(ml) - 1;
   if (up && k >= 2) {
     Some((
-      e @ lines_prefix(k - 1, rl, rb) @ List.nth(rl, k),
+      e @ lines_prefix(k - 1, rl, rb) @ List.nth_exn(rl, k),
       me
-      @ List.nth(ml, 0)
-      @ [List.nth(rb, k - 1)]
-      @ List.nth(rl, k - 1)
+      @ List.nth_exn(ml, 0)
+      @ [List.nth_exn(rb, k - 1)]
+      @ List.nth_exn(rl, k - 1)
       /* an inline body gets its own line under the crossed one */
       @ (mm == 0 ? newline() : lines_from(ml, mb, 1, mm)),
     ));
@@ -1839,10 +1876,10 @@ let comment_rung_runs =
     Some((
       e
       @ lines_prefix(k, rl, rb)
-      @ List.nth(ml, 1)
-      @ [List.nth(mb, 0)]
-      @ List.nth(rl, k),
-      me @ List.nth(ml, 0) @ lines_from(ml, mb, 2, mm),
+      @ List.nth_exn(ml, 1)
+      @ [List.nth_exn(mb, 0)]
+      @ List.nth_exn(rl, k),
+      me @ List.nth_exn(ml, 0) @ lines_from(ml, mb, 2, mm),
     ));
   } else {
     None;
@@ -1866,13 +1903,13 @@ let comment_rung_applies = (~up: bool, l: Exp.t): bool =>
    parent, a body's on its leftmost leaf) */
 let run_before_node = (seg: Segment.t, e: Exp.t): option(list(Secondary.t)) =>
   ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
-  |> List.find_map((pc: Piece.t) =>
+  |> List.find_map(~f=(pc: Piece.t) =>
        switch (pc) {
        | Secondary(_) => None
        | pc => Some(Piece.id(pc))
        }
      )
-  |> Option.bind(_, id => run_before_in_seg(id, seg));
+  |> Option.bind(_, ~f=id => run_before_in_seg(id, seg));
 
 /* the block of definition lines top..bottom (one line: top = bottom)
    crosses one comment or blank line; runs are relocated by piece id */
@@ -1892,7 +1929,7 @@ let comment_rung =
       | Some((lead', body_lead')) =>
         let program =
           drop_secondary(
-            List.map((w: Secondary.t) => w.id, lead @ body_lead),
+            List.map(~f=(w: Secondary.t) => w.id, lead @ body_lead),
             program,
           );
         let program =
@@ -1959,7 +1996,7 @@ let block_swap_up =
       let (eol_b, rb) = split_eol(lb);
       let program =
         drop_secondary(
-          List.map((w: Secondary.t) => w.id, lx @ lt @ lb),
+          List.map(~f=(w: Secondary.t) => w.id, lx @ lt @ lb),
           program,
         );
       let give = (run, e) =>
@@ -1996,9 +2033,9 @@ let block_swap_up =
                       );
                     let rebuilt =
                       List.fold_right(
-                        (line, inner) => def_line_rebuild(line, inner),
+                        ~f=(line, inner) => def_line_rebuild(line, inner),
                         lines,
-                        x',
+                        ~init=x',
                       );
                     give(lx, rebuilt);
                   | None => e
@@ -2037,7 +2074,7 @@ let block_swap_down =
       let (eol_y, rb) = split_eol(lb);
       let program =
         drop_secondary(
-          List.map((w: Secondary.t) => w.id, lt @ ly @ lb),
+          List.map(~f=(w: Secondary.t) => w.id, lt @ ly @ lb),
           program,
         );
       let give = (run, e) =>
@@ -2069,9 +2106,9 @@ let block_swap_down =
                   | Some((_, ybody)) =>
                     let top' =
                       List.fold_right(
-                        (line, inner) => def_line_rebuild(line, inner),
+                        ~f=(line, inner) => def_line_rebuild(line, inner),
                         lines,
-                        give(eol_b @ rb, ybody),
+                        ~init=give(eol_b @ rb, ybody),
                       );
                     give(
                       lt,
@@ -2091,17 +2128,15 @@ let block_swap_down =
     };
   };
 
-let fresh_names = (k: int, program: Exp.t): list(string) => {
-  let used = ref(used_names(program));
-  List.init(
-    k,
-    _ => {
-      let c = pick_placeholder(used^);
-      used := [c, ...used^];
-      c;
+let fresh_names = (k: int, program: Exp.t): list(string) =>
+  List.folding_map(
+    List.range(0, k),
+    ~init=used_names(program),
+    ~f=(used, _) => {
+      let c = pick_placeholder(used);
+      ([c, ...used], c);
     },
   );
-};
 
 /* arity of an arrow's argument side, syntactically */
 let arrow_arity = (a: Typ.t): int =>
@@ -2187,7 +2222,7 @@ type dep_run = {
 
 let dep_run_walk = (path: list(Exp.t)): option(dep_run) => {
   let n = List.length(path);
-  let c = List.nth(path, n - 1);
+  let c = List.nth_exn(path, n - 1);
   switch (def_line_of(c)) {
   | None => None
   | Some((c_dl, _)) =>
@@ -2199,11 +2234,11 @@ let dep_run_walk = (path: list(Exp.t)): option(dep_run) => {
           stop: StopTop,
         };
       } else {
-        let anc = List.nth(path, i);
-        let child = List.nth(path, i + 1);
+        let anc = List.nth_exn(path, i);
+        let child = List.nth_exn(path, i + 1);
         switch (def_line_of(anc)) {
         | Some((dl, body)) when same_node(body, child) =>
-          block_dls |> List.exists(m => line_depends_on(m, dl))
+          block_dls |> List.exists(~f=m => line_depends_on(m, dl))
             ? walk(i - 1, [dl, ...block_dls], [anc, ...block])
             : {
               block,
@@ -2227,7 +2262,7 @@ let dep_run_walk = (path: list(Exp.t)): option(dep_run) => {
 /* a sep is spliced at several positions — each use mints fresh ids */
 let sep_copy = (run: list(Secondary.t)): list(Secondary.t) =>
   run
-  |> List.map((w: Secondary.t) =>
+  |> List.map(~f=(w: Secondary.t) =>
        {
          Secondary.id: Id.mk(),
          content: w.content,
@@ -2250,7 +2285,7 @@ let intro_sep = (~program: Exp.t, ~at: Id.t): list(Secondary.t) =>
   | Some(path) =>
     path
     |> List.rev
-    |> List.find_opt(e => has_newline(Slot.of_exp(e).lead))
-    |> Option.map(e => sep_like(Slot.of_exp(e).lead))
+    |> List.find(~f=e => has_newline(Slot.of_exp(e).lead))
+    |> Option.map(~f=e => sep_like(Slot.of_exp(e).lead))
     |> Option.value(~default=newline())
   };

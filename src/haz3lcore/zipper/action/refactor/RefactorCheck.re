@@ -6,6 +6,7 @@
  * (one statics pass); gating and drag previews stay on the cheap tier. */
 open Language;
 open RefactorBase;
+open Poly;
 
 /* how the check holds a reference: an expression variable to its exact
    binder; a type variable bound by typfun/poly (Abstract) to staying
@@ -71,7 +72,7 @@ let preserves =
             let expected =
               Id.Map.find_opt(b, binder_redirect^)
               |> Option.value(~default=b);
-            Option.map(origin, binder') == Some(expected);
+            Option.map(~f=origin, binder') == Some(expected);
           | Some((Some(_), AbstractTVar)) =>
             binder' != None && held' == AbstractTVar
           /* was unbound, isn't held, or is new */
@@ -110,10 +111,13 @@ let preserves =
       );
     let old_errors =
       Statics.Map.error_ids(info_map)
-      |> List.fold_left((s, id) => Id.Map.add(id, (), s), Id.Map.empty);
+      |> List.fold_left(
+           ~f=(s, id) => Id.Map.add(id, (), s),
+           ~init=Id.Map.empty,
+         );
     let no_new_errors =
       Statics.Map.error_ids(info')
-      |> List.for_all(id => Id.Map.mem(origin(id), old_errors));
+      |> List.for_all(~f=id => Id.Map.mem(origin(id), old_errors));
     bound_same && literals_same && no_new_errors;
   /* no statics to consult (disabled, or no root info): cheap tier only */
   | _ => true

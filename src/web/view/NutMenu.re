@@ -29,7 +29,7 @@ let dismiss = (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)): unit =>
   | None => ()
   | Some(el) =>
     Util.JsUtil.find_ancestor_with_class(el, item_class)
-    |> Option.iter(item =>
+    |> Option.iter(~f=item =>
          item##.classList##add(Js_of_ocaml.Js.string(dismissed_class))
        )
   };
@@ -204,7 +204,7 @@ let code_display = (~globals: Globals.t): section => {
   let preview = (c_label, c_tooltip, mode) => {
     c_label,
     c_tooltip,
-    c_active: current == mode,
+    c_active: Poly.equal(current, mode),
     c_set:
       globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
   };
@@ -253,8 +253,11 @@ let code_display = (~globals: Globals.t): section => {
         ),
         toggle(
           "Drag ladders",
-          globals.settings.core.drag_chain
-          != Language.CoreSettings.DragChain.Off,
+          !
+            Poly.equal(
+              globals.settings.core.drag_chain,
+              Language.CoreSettings.DragChain.Off,
+            ),
           DragChain,
           "A drag runs through its refactoring repeated, landing on the nearest step at release",
         ),
@@ -318,7 +321,7 @@ let editing = (~globals: Globals.t): section => {
   let format = (c_label, c_tooltip, mode) => {
     c_label,
     c_tooltip,
-    c_active: current == mode,
+    c_active: Poly.equal(current, mode),
     c_set: globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
   };
   let key = Util.Os.is_mac^ ? "Cmd" : "Ctrl";

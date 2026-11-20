@@ -8,6 +8,7 @@ open RefactorInline;
 open RefactorMove;
 open RefactorReduce;
 open RefactorLift;
+open Poly;
 
 let impl: Action.refactor => impl =
   fun
@@ -213,10 +214,19 @@ let applies =
     | None => false
     }
   | RenameTypFree(x, t) =>
-    rename_typ_pairs(~info_map, ~target, program) |> List.mem((x, t))
+    List.mem(
+      rename_typ_pairs(~info_map, ~target, program),
+      (x, t),
+      ~equal=Poly.equal,
+    )
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
-    | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
+    | Some(e) =>
+      List.mem(
+        rename_pairs(~info_map, ~target, e),
+        (x, y),
+        ~equal=Poly.equal,
+      )
     | None => false
     }
   | SwapParams(i) =>
@@ -242,7 +252,10 @@ let applies =
   | HoistLet =>
     switch (find_path(~hit=hit_def_line(target), program)) {
     | Some(path) =>
-      comment_rung_applies(~up=true, List.nth(path, List.length(path) - 1))
+      comment_rung_applies(
+        ~up=true,
+        List.nth_exn(path, List.length(path) - 1),
+      )
       || Option.is_some(hoist_step(~fixup=false, path))
     | None => false
     }
@@ -333,10 +346,10 @@ let applies =
          evaluation runs in) */
       let root_ctx =
         Id.Map.find_opt(Exp.rep_id(program), info_map)
-        |> Option.map(Info.ctx_of);
+        |> Option.map(~f=Info.ctx_of);
       let builtin_only = (ctx, co_ctx: CoCtx.t) =>
         Util.VarMap.to_list(co_ctx)
-        |> List.for_all(((x, _)) =>
+        |> List.for_all(~f=((x, _)) =>
              switch (Ctx.lookup_var(ctx, x), root_ctx) {
              | (Some(here), Some(root)) =>
                switch (Ctx.lookup_var(root, x)) {
@@ -358,7 +371,7 @@ let applies =
         switch (IdTagged.term_of(t)) {
         | Arrow(_)
         | Poly(_) => true
-        | Prod(ts) => List.exists(has_arrow, ts)
+        | Prod(ts) => List.exists(~f=has_arrow, ts)
         | List(t)
         | Parens(t)
         | TupLabel(_, t) => has_arrow(t)
@@ -404,7 +417,7 @@ let applies =
       let line = lowest_line(path);
       !(
         crossed_typ_binders(line, path)
-        |> List.exists(n => typ_mentions([n], ty))
+        |> List.exists(~f=n => typ_mentions([n], ty))
       );
     | _ => false
     }
@@ -598,7 +611,7 @@ let land_result =
       };
     };
     let candidates = Option.to_list(hand) @ [focus, target] @ ancestors;
-    switch (List.find_map(place, candidates)) {
+    switch (List.find_map(~f=place, candidates)) {
     | Some(z'') => Some(z'')
     | None =>
       let z' = mk(Zipper.unzip(seg));
@@ -627,7 +640,10 @@ let go =
     id_origin := Id.Map.empty;
     binder_redirect := Id.Map.empty;
     impl(kind).prepare(~info_map, ~target, term)
-    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z));
+    |> Option.bind(
+         _,
+         ~f=land_result(~settings, ~info_map, ~term, ~target, z),
+       );
   };
 
 /* a drag ladder's commit: refactors in sequence, each at its own
@@ -657,7 +673,8 @@ let value_line = (~target: Id.t, term: Exp.t): option(Exp.t) =>
         ~hit=
           e =>
             switch (IdTagged.term_of(e)) {
-            | Let(_, def, _) => IdTagged.ids(def) |> List.mem(target)
+            | Let(_, def, _) =>
+              List.mem(IdTagged.ids(def), target, ~equal=Id.equal)
             | _ => false
             },
         term,
@@ -694,10 +711,11 @@ let merge_target =
   | ExtractLet =>
     switch (extract_path(~target, term)) {
     | Some(path) =>
-      let t = List.nth(path, List.length(path) - 1);
+      let t = List.nth_exn(path, List.length(path) - 1);
       let line = lowest_line(path);
       let blocked =
-        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+        crossed_rec_binders(line, path)
+        |> List.exists(~f=n => mentions(n, t));
       let rec host = (path: list(Exp.t)) =>
         switch (path) {
         | [parent, child, ..._] when same_node(child, line) => Some(parent)
@@ -710,7 +728,14 @@ let merge_target =
         | Let(lp, ldef, lbody)
             when same_node(lbody, line) && eq_defs(ldef, t) =>
           switch (let_head_name(lp)) {
-          | Some(nm) when !List.mem(nm, binders_over(Exp.rep_id(t), lbody)) => (
+          | Some(nm)
+              when
+                !
+                  List.mem(
+                    binders_over(Exp.rep_id(t), lbody),
+                    nm,
+                    ~equal=String.equal,
+                  ) => (
               exp_subtree_ids(t),
               exp_subtree_ids(ldef),
             )
@@ -736,12 +761,13 @@ let feed_copies =
   | Some(Feed(_, def, _)) =>
     let live = exp_subtree_ids(term);
     let fresh =
-      exp_subtree_ids(term') |> List.filter(id => !List.mem(id, live));
+      exp_subtree_ids(term')
+      |> List.filter(~f=id => !List.mem(live, id, ~equal=Id.equal));
     let d = exp_subtree_ids(def);
     /* combine raises on length mismatch — guard FIRST
        (the eager-evaluation gotcha) */
     let zip = ids =>
-      List.length(ids) == List.length(d) ? List.combine(ids, d) : [];
+      List.length(ids) == List.length(d) ? List.zip_exn(ids, d) : [];
     switch (zip(fresh)) {
     | [] =>
       /* reparse demanded a paren wrapper: the parens
@@ -750,7 +776,8 @@ let feed_copies =
       let fresh_parens = (e: Exp.t) =>
         switch (IdTagged.term_of(e)) {
         | Parens(_) =>
-          IdTagged.ids(e) |> List.exists(id => List.mem(id, fresh))
+          IdTagged.ids(e)
+          |> List.exists(~f=id => List.mem(fresh, id, ~equal=Id.equal))
         | _ => false
         };
       switch (find_hit(~hit=fresh_parens, term')) {
@@ -773,7 +800,7 @@ let feed_copies =
 let step_target = (kind: Action.refactor, target: Id.t, term: Exp.t): Id.t =>
   moves_line(kind)
     ? value_line(~target, term)
-      |> Option.map(Exp.rep_id)
+      |> Option.map(~f=Exp.rep_id)
       |> Option.value(~default=target)
     : target;
 
@@ -800,17 +827,19 @@ let go_path =
     let target = step_target(k, at, t);
     let (d, v) = merge_target(~info_map=im, ~target, k, t);
     let dissolved =
-      List.length(d) == List.length(v) ? List.combine(d, v) : [];
+      List.length(d) == List.length(v) ? List.zip_exn(d, v) : [];
     let result = impl(k).prepare(~info_map=im, ~target, t);
     switch (held^, result) {
     | (Some(h), Some((t', _))) =>
       let copies =
         k == FeedLet ? feed_copies(~info_map=im, ~target, t, t') : [];
-      let h' = List.assoc_opt(h, dissolved) |> Option.value(~default=h);
+      let h' =
+        List.Assoc.find(dissolved, h, ~equal=Poly.equal)
+        |> Option.value(~default=h);
       held := Some(h');
       hand :=
         Some(
-          switch (List.find_opt(((_, src)) => src == h, copies)) {
+          switch (List.find(~f=((_, src)) => src == h, copies)) {
           | Some((copy, _)) => copy
           | None => h'
           },
@@ -837,7 +866,8 @@ let go_path =
     run(term, info_map, steps)
     |> Option.bind(
          _,
-         land_result(~hand=?hand^, ~settings, ~info_map, ~term, ~target, z),
+         ~f=
+           land_result(~hand=?hand^, ~settings, ~info_map, ~term, ~target, z),
        );
   };
 };

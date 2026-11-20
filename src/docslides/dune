@@ -6,7 +6,9 @@
 
 (library
  (name docslides)
- (libraries haz3lcore)
+ (flags
+  (:standard -open Core))
+ (libraries core haz3lcore)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

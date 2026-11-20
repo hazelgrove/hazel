@@ -4,6 +4,7 @@
  * dependency on the rest of the refactor kit (Language only), so it
  * sits at the bottom of the stack. */
 open Language;
+open Poly;
 
 let var_pat_name = (p: Pat.t): option(string) =>
   switch (IdTagged.term_of(p)) {
@@ -83,7 +84,8 @@ let mentions_typ_names = (names: list(string), e: Exp.t): bool => {
       ~f_typ=
         (cont, t: Typ.t) => {
           switch (IdTagged.term_of(t)) {
-          | Var(y) when List.mem(y, names) => found := true
+          | Var(y) when List.mem(names, y, ~equal=String.equal) =>
+            found := true
           | _ => ()
           };
           cont(t);
@@ -183,10 +185,10 @@ let children_of = (e: Exp.t): list(Exp.t) =>
   | ModuleExp(_, a, b) => [a, b]
   | If(c, t, f) => [c, t, f]
   | DeferredAp(f, args) => [f, ...args]
-  | Match(scrut, rules) => [scrut, ...List.map(snd, rules)]
+  | Match(scrut, rules) => [scrut, ...List.map(~f=snd, rules)]
   | Module(items) =>
     items
-    |> List.filter_map((it: Mod.t) =>
+    |> List.filter_map(~f=(it: Mod.t) =>
          switch (IdTagged.term_of(it)) {
          | ModLet(_, d) => Some(d)
          | ModExp(x)
@@ -202,13 +204,17 @@ let children_of = (e: Exp.t): list(Exp.t) =>
    source order */
 let map_children_in_order = (f: Exp.t => Exp.t, e: Exp.t): Exp.t => {
   let done_ =
-    List.fold_left((acc, c) => [(c, f(c)), ...acc], [], children_of(e));
+    List.fold_left(
+      ~f=(acc, c) => [(c, f(c)), ...acc],
+      ~init=[],
+      children_of(e),
+    );
   let entered = ref(false);
   Exp.map_term(
     ~f_exp=
       (cont, e': Exp.t) =>
         if (entered^) {
-          switch (List.assq_opt(e', done_)) {
+          switch (List.Assoc.find(done_, e', ~equal=phys_equal)) {
           | Some(r) => r
           | None => e'
           };
@@ -232,8 +238,8 @@ let rec free_in = (x: string, e: Exp.t): bool =>
   | Match(scrut, rules) =>
     free_in(x, scrut)
     || rules
-    |> List.exists(((p, b)) => !binds(x, p) && free_in(x, b))
-  | _ => children_of(e) |> List.exists(free_in(x))
+    |> List.exists(~f=((p, b)) => !binds(x, p) && free_in(x, b))
+  | _ => children_of(e) |> List.exists(~f=free_in(x))
   };
 
 let sugar_fn_name = (p: Pat.t): option(string) => {
@@ -254,7 +260,7 @@ let vars_of = (e: Exp.t): list(string) =>
        | _ => []
        }
      )
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 
 let typ_names_mentioned = (e: Exp.t): list(string) => {
   let acc = ref([]);
@@ -270,7 +276,7 @@ let typ_names_mentioned = (e: Exp.t): list(string) => {
         },
       e,
     );
-  List.sort_uniq(compare, acc^);
+  List.dedup_and_sort(acc^, ~compare=Poly.compare);
 };
 
 /* capture by a crossed `use` only — the refusal that remains after
@@ -291,7 +297,7 @@ let typ_names_in = (e: Exp.t): list(string) => {
         },
       e,
     );
-  List.sort_uniq(compare, acc^);
+  List.dedup_and_sort(acc^, ~compare=Poly.compare);
 };
 
 /* rename the alias BOUND at this TyAlias node to y: the binder
@@ -324,15 +330,17 @@ let mentions = (x: string, e: Exp.t): bool => {
  * blocked move is simply not offered. */
 
 let names_mentioned = (names: list(string), e: Exp.t): bool =>
-  names |> List.exists(n => free_in(n, e));
+  names |> List.exists(~f=n => free_in(n, e));
 
 let disjoint_names = (a: list(string), b: list(string)): bool =>
-  !(a |> List.exists(n => List.mem(n, b)));
+  !(a |> List.exists(~f=n => List.mem(b, n, ~equal=String.equal)));
 let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) =>
   e
   |> collect_exp(e' =>
        switch (IdTagged.term_of(e')) {
-       | Var(x) when List.mem(x, names) => [Exp.rep_id(e')]
+       | Var(x) when List.mem(names, x, ~equal=String.equal) => [
+           Exp.rep_id(e'),
+         ]
        | _ => []
        }
      );
@@ -343,7 +351,9 @@ let pat_binder_ids = (names: list(string), p: Pat.t): list(Id.t) =>
   p
   |> collect_pat(p' =>
        switch (IdTagged.term_of(p')) {
-       | Var(x) when List.mem(x, names) => [Pat.rep_id(p')]
+       | Var(x) when List.mem(names, x, ~equal=String.equal) => [
+           Pat.rep_id(p'),
+         ]
        | _ => []
        }
      );
@@ -355,7 +365,7 @@ let binder_ids_in = (names: list(string), e: Exp.t): list(Id.t) =>
        | Let(p, _, _)
        | Fun(p, _, _, _) => pat_binder_ids(names, p)
        | Match(_, rules) =>
-         rules |> List.concat_map(((rp, _)) => pat_binder_ids(names, rp))
+         rules |> List.concat_map(~f=((rp, _)) => pat_binder_ids(names, rp))
        | _ => []
        }
      );

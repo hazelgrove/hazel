@@ -1,6 +1,6 @@
 open Junit_alcotest;
 
-Printexc.register_printer(exn => {
+Stdlib.Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
@@ -14,7 +14,7 @@ Printexc.register_printer(exn => {
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
-    ~argv=Sys.argv,
+    ~argv=Stdlib.Sys.argv,
     "HazelTests",
     [
       Test_LazyHydration.tests,
@@ -81,6 +81,7 @@ let (suite, exit_with_test_status) =
     @ Test_LocalReformat.tests
     @ Test_Refactor.tests
     @ Test_MatchExp.tests
+    @ [Test_ProofHacks.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
@@ -106,6 +107,7 @@ let (suite, exit_with_test_status) =
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
     @ Test_HazelDB.tests
+    @ [Test_WorkerClient.tests]
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]

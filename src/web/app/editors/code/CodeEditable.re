@@ -13,10 +13,12 @@ let insist_window_ms = 1100.;
 let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
 let insist_armed = signature =>
   switch (insist_pending^) {
-  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | Some((s, t)) =>
+    Poly.equal(s, signature) && Float.(insist_now() -. t < insist_window_ms)
   | None => false
   };
 open Util;
+open Poly;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -181,17 +183,23 @@ module Update = {
         /* the indication backing FLIPs by id like the caret; ids only
            survive the action when the same construct stays indicated
            (focus-follows-content), which is exactly when motion makes
-           sense — otherwise the request drops out harmlessly */
-        Animation.request(
-          [Animation.Actions.move("caret")]
-          @ (
-            JsUtil.ids_with_prefix("indication-")
-            @ JsUtil.ids_with_prefix("varhl-")
-            @ JsUtil.ids_with_prefix("errdec-")
-            @ JsUtil.ids_with_prefix("warndec-")
-            |> List.map(Animation.Actions.move)
-          ),
-        );
+           sense — otherwise the request drops out harmlessly.
+           Rapid input snaps instead of gliding: every qualifying action
+           starts a fresh 125ms glide, so under key repeat the caret is
+           perpetually mid-glide, visibly trailing the text. Animate only
+           when the previous glide has had time to finish. */
+        if (Animation.caret_glide_available()) {
+          Animation.request(
+            [Animation.Actions.move("caret")]
+            @ (
+              JsUtil.ids_with_prefix("indication-")
+              @ JsUtil.ids_with_prefix("varhl-")
+              @ JsUtil.ids_with_prefix("errdec-")
+              @ JsUtil.ids_with_prefix("warndec-")
+              |> List.map(~f=Animation.Actions.move)
+            ),
+          );
+        };
         switch (action) {
         | Refactor(_)
         | RefactorGesture(_)
@@ -325,7 +333,7 @@ module Selection = {
            ~term=model.statics.term,
            model.editor.state.zipper,
          )
-         |> List.map(((kind, label, _tooltip)) =>
+         |> List.map(~f=((kind, label, _tooltip)) =>
               ContextualAction.of_dynamic(
                 ~action=inject(Perform(Refactor(kind))),
                 ~section=Refactoring,
@@ -405,7 +413,10 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     switch (Indicated.index(z)) {
     | Some(id) =>
-      switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+      switch (
+        List.findi(refractors, ~f=(_, (rid, _)) => rid == id)
+        |> Option.map(~f=fst)
+      ) {
       | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
       | None => None
       }
@@ -422,12 +433,16 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     let probe_on_row =
       refractors
-      |> List.find_index(((id, _)) =>
-           switch (Measured.find_by_id(id, measured)) {
-           | Some(m) => m.last.row == caret_row
-           | None => false
-           }
-         );
+      |> (
+        l =>
+          List.findi(l, ~f=(_, (id, _)) =>
+            switch (Measured.find_by_id(id, measured)) {
+            | Some(m) => m.last.row == caret_row
+            | None => false
+            }
+          )
+          |> Option.map(~f=fst)
+      );
     switch (probe_on_row) {
     | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
     | None => None
@@ -509,7 +524,7 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(k) |> Option.map(~f=x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
     /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
@@ -645,10 +660,10 @@ module View = {
             ~flagpole=globals.settings.quiver_flagpole,
             ~head_padding=
               CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
-              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
-                   List.nth_opt(i.delimiters, 0)
+              |> Option.bind(_, ~f=(i: CanonicalCompletion.insertion) =>
+                   List.nth(i.delimiters, 0)
                  )
-              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+              |> Option.bind(_, ~f=(d: CanonicalCompletion.delimiter_info) =>
                    d.typed_len == None
                      ? Some(CompletionQuery.padding(z, d)) : None
                  ),
@@ -664,7 +679,7 @@ module View = {
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)
-                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                  |> Option.map(~f=(t: Haz3lcore.Tile.t) =>
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
@@ -720,11 +735,12 @@ module View = {
       } else {
         let ids = Haz3lcore.Segment.ids(selection);
         List.exists(
-          id =>
-            List.exists(
-              ((id2, _)) => Id.equal(id, id2),
-              refractors.manuals,
-            ),
+          ~f=
+            id =>
+              List.exists(
+                ~f=((id2, _)) => Id.equal(id, id2),
+                refractors.manuals,
+              ),
           ids,
         );
       };
@@ -742,7 +758,8 @@ module View = {
          sub-token string must re-parse on paste, not round-trip to the
          full segment. */
       let cache_for_paste =
-        str == full && !selection_has_refractors(z.refractors, segment)
+        String.equal(str, full)
+        && !selection_has_refractors(z.refractors, segment)
           ? Effect.of_sync_fun(
               () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
               (),
@@ -892,8 +909,11 @@ module View = {
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
-        List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        List.map(~f=fst, zipper.refractors.manuals)
+        @ List.map(
+            ~f=fst,
+            Id.Map.to_list(zipper.refractors.multis.ephemerals),
+          ),
       );
     let projectors =
       ProjectorView.all(
@@ -1224,7 +1244,9 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     fst(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Left)])
           | {
               key: D("ArrowRight" | "ArrowDown"),
@@ -1237,7 +1259,9 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     snd(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
           /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
