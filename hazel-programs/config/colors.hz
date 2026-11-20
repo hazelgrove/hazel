@@ -62,14 +62,14 @@ let theme_of(p : ColorPalette, role : ColorOverrides): ColorScheme = ^^fold(let 
 let text_l = color_lightness(p.`ink`) in
 let toward(base, c, t) =
   color_with_lightness(c, base +. (text_l -. base) *. t) in
-# at(c, t) places c on this scheme's OWN contrast axis: t = 0. is the #
+# on_axis(c, t) places c on this scheme's OWN contrast axis: t = 0. is the #
 # page background's lightness, t = 1. the body text's. That is why one #
 # definition is correct in all four schemes, where a fixed lightness is #
 # right in light and invisible in dark. #
-let at(c, t) = toward(bg_l, c, t) in
+let on_axis(c, t) = toward(bg_l, c, t) in
 # wash scales chroma too: a fill wants a wash of its hue, an accent #
 # the whole thing. #
-let wash(c, t, sat) = at(color_saturate(c, sat), t) in
+let wash(c, t, sat) = on_axis(color_saturate(c, sat), t) in
 # a fill must be placed against the surface it actually sits ON, and #
 # not every surface is the page: table rows sit on the code background, #
 # ten lightness points off the page in dark. Same span, same ink. #

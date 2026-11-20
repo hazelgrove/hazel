@@ -74,24 +74,26 @@ let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
   derived;
 };
 
+let perform_one = (~settings=default_settings, a: Action.t, z: Zipper.t) =>
+  Perform.go(
+    ~settings,
+    ~statics=Lazy.force(derive(~settings, z).statics),
+    ~syntax=CachedSyntax.init(z),
+    a,
+    {
+      zipper: z,
+      col_target: None,
+    },
+    ~root=Exp,
+  );
+
 let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
-    : Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go(
-      ~settings,
-      ~statics=Lazy.force(derive(~settings, z).statics),
-      ~syntax=CachedSyntax.init(z),
-      a,
-      {
-        zipper: z,
-        col_target: None,
-      },
-    );
+    : Zipper.t =>
   List.fold_left(
     ~f=
       (z: Zipper.t, a: Action.t) =>
-        switch (perform(a, z, ~root=Exp)) {
+        switch (perform_one(~settings, a, z)) {
         | Ok(z) =>
           /* Term construction must be total on every reachable editor state
            * (statics/display consume it after every action). Checking here
@@ -116,7 +118,6 @@ let perform =
     ~init=zip,
     actions,
   );
-};
 
 let string_to_ltr_actions = (s: string): list(Action.t) =>
   s |> Token.to_list |> List.map(~f=c => Action.Insert(c));
@@ -6103,7 +6104,61 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+let fold = Action.Project(SetIndicated(Specific(Fold)));
+
+let has_fold = (z: Zipper.t): bool =>
+  List.exists(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Projector(pr) => Poly.equal(pr.kind, Fold)
+        | Tile(_)
+        | Grout(_)
+        | Secondary(_) => false
+        },
+    Zipper.unselect_and_zip(z),
+  );
+
+let fold_tests = [
+  /* A projector stands for a whole term, and a header has no body for
+     the `in` to take. */
+  test_case(
+    "A let header without its body doesn't fold",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\n§let y = 2 in¦\nx + y");
+      check(
+        bool,
+        "fold refused",
+        true,
+        switch (perform_one(fold, z)) {
+        | Error(Cant_project) => true
+        | Ok(_)
+        | Error(_) => false
+        },
+      );
+    },
+  ),
+  test_case(
+    "A whole selected term folds",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\nlet y = 2 in\n§x + y¦");
+      check(bool, "folded", true, has_fold(perform(z, [fold])));
+    },
+  ),
+  test_case(
+    "The let at the caret folds",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\n¦let y = 2 in\nx + y");
+      check(bool, "folded", true, has_fold(perform(z, [fold])));
+    },
+  ),
+];
+
 let tests = [
+  ("Editing.Fold", fold_tests),
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),

@@ -1893,15 +1893,16 @@ let clippable_guard_tests = {
     Alcotest.test_case("form-table sort coverage", `Quick, () =>
       Alcotest.(check(string))(
         "coverage",
-        /* Pat 8 -> 9: negative literal patterns (#2419) gave `-` a
-           Pat mold. Re-decided, not repinned blindly: 9/88 is still
-           real signal, so clippable_sort stands.
-           Typ 14 -> 15, TPat 2 -> 4: #2448's symbolic delimiter-prefix
-           backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
-           the InfixDelimiterPrefix atomic, which molds at all four
-           sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+        /* If this drifts, re-make the `clippable_sort` decision (pinned
+           by the next test) rather than bumping the number. An Exp
+           frontier is vacuous (69 of 105 labels carry an Exp mold),
+           while Pat, Typ and TPat stay narrow. Pat counts negative
+           literal patterns; Typ and TPat count the
+           symbolic delimiter-prefix backup molds
+           (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
+           four sorts. All four also count the proof's one-token `step`,
+           which as a bare word takes the atomic molds. */
+        "Exp 69/105 | Pat 10/105 | Typ 15/105 | TPat 5/105 | Rul 1/105",
         table,
       )
     ),
@@ -1995,7 +1996,50 @@ let depth_count_tests = [
   ),
 ];
 
+/* A theorem typed without its proof gets a hole for the proof from
+   completion. Editing the statement keeps the hole's id, which the
+   stepper's rows for the unwritten proof are keyed by. */
+let stable_hole_tests = [
+  test_case(
+    "a completed theorem's proof keeps its id",
+    `Quick,
+    () => {
+      let proof_id = (z: Zipper.t): string => {
+        let found = ref("none");
+        let _: Language.Exp.t =
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, e: Language.Exp.t) => {
+                switch (e.term) {
+                | Theorem(_, _, proof, _) =>
+                  found := Id.to_string(Language.Proof.rep_id(proof))
+                | _ => ()
+                };
+                continue(e);
+              },
+            MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+          );
+        found^;
+      };
+      let typed =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("theorem t = 1¦"),
+        );
+      let edited = Test_Editing.perform(typed, [Action.Insert("2")]);
+      check(Alcotest.bool, "a theorem", true, proof_id(typed) != "none");
+      check(
+        string_testable,
+        "the proof's id",
+        proof_id(typed),
+        proof_id(edited),
+      );
+    },
+  ),
+];
+
 let tests: list((string, list(Alcotest.test_case(unit)))) = [
+  ("CanonicalCompletion: stable hole ids", stable_hole_tests),
   (
     "CanonicalCompletion: depth",
     run_completion_tests(depth_tests) @ depth_count_tests,

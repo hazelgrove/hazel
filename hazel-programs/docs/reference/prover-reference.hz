@@ -1,0 +1,75 @@
+# EVERY STEP #
+
+# Click any step in these proofs to read about it in the docs panel. #
+
+let sum = fun xs -> case xs | [] => 0 | y :: t => y + sum(t) end in
+let sum_acc = fun (xs, a) -> case xs | [] => a | y :: t => sum_acc((t, a + y)) end in
+let sign = fun n -> if n > 0 then 1 else 0 in
+
+theorem app_nil = forall xs: [Int] -> xs @ [] == xs proof
+  induction xs
+  | [] => from [] @ [] do step end; rewrite refl end
+  | x :: t => from (x :: t) @ [] do step end; from t @ [] do rewrite ih_t end end; rewrite refl end
+  end
+in
+
+theorem app_nil_fun = (fun ys: [Int] -> ys @ []) == (fun ys: [Int] -> ys) proof
+  funext ys =>
+  revert app_nil with xs = ys =>
+  assume ys @ [] == ys =>
+  from ys at 2 do rewrite <- assume end end;
+  rewrite refl end
+in
+
+theorem shuffle = forall s: Int -> forall a: Int -> forall y: Int -> (y + s) + a == s + (a + y) proof
+  from (y + s) + a do algebra s + (a + y) end end; rewrite refl end
+in
+
+theorem acc = forall xs: [Int] -> forall a: Int -> sum_acc((xs, a)) == sum(xs) + a proof
+  generalize a =>
+  induction xs
+  | [] => forall a =>
+    from sum_acc(([], a)) do step end; from sum([]) do step end;
+    from 0 + a do algebra a end end; rewrite refl end
+  | y :: t => forall a =>
+    from sum_acc((y :: t, a)) do step end; from sum(y :: t) do step end;
+    from (y + sum(t)) + a do rewrite shuffle end end;
+    from sum(t) + (a + y) do rewrite <- ih_t with a = a + y end end; rewrite refl end
+  end
+in
+
+theorem div_pos = forall z: Int -> z > 0 ==> 8 / z == 8 / z proof
+  assume pos = z > 0 =>
+  have z != 0 proof rewrite nonzero_of_pos with a = z end =>
+  rewrite refl end
+in
+
+theorem div_neg = forall z: Int -> z < 0 ==> 8 / z == 8 / z proof
+  assume z < 0 =>
+  have nz = z != 0 proof rewrite nonzero_of_neg end =>
+  rewrite refl end
+in
+
+theorem sum_three = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x + y == 3 proof
+  assume x == 1 => alias hx = assume => assume y == 2 =>
+  from x do rewrite hx end end; from y do rewrite assume end end;
+  from 1 + 2 do step end; step
+in
+
+theorem sign_pos = forall n: Int -> n > 0 ==> sign(n) == 1 proof
+  assume n > 0 =>
+  from sign(n) do step end;
+  cases n > 0
+  | true => from if true then 1 else 0 do step end; step
+  | false => revert case_eq => from n > 0 do rewrite assume end end; from true == false do step end; rewrite false_impl end
+  end
+in
+
+theorem sign_le = forall n: Int -> sign(n) <= 1 proof
+  from sign(n) do step end;
+  cases n > 0
+  | true => from if true then 1 else 0 do step end; step
+  | false => from if false then 1 else 0 do step end; step
+  end
+in
+¿

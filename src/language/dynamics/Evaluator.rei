@@ -11,10 +11,23 @@ type limited_result =
   | LimitedCompleted((Exp.t, EvaluatorState.t))
   | StepLimitExceeded;
 
+/* Incremental evaluator. Reuses entries from `prev` for non-deferred
+ * sub-expressions whose elaboration (per `eval_info`) and co-ctx
+ * dependencies are unchanged. The defaults for `prev` and `eval_info`
+ * turn reuse off.
+ *
+ * `eval_info` is a serializable projection of the statics map (see
+ * `EvalInfo.of_info_map`); the full map holds closures and can't cross
+ * postMessage. Once evaluation is done, the proofs of the theorems it
+ * reached are checked, in the order it reached them, with the statics
+ * `eval_info` carries for a program with theorems, or with `statics`,
+ * the full map, when it is given. Each check is cached in the state's
+ * `incr_eval` and reused from `prev`. */
 let evaluate:
   (
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
+    ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     Exp.t
   ) =>
@@ -37,6 +50,7 @@ let evaluate_and_limit:
     ~step_limit: int,
     ~prev: EvaluatorState.incr_eval=?,
     ~eval_info: EvalInfo.t=?,
+    ~statics: Statics.Map.t=?,
     ~env: Environment.t(Exp.t),
     ~reuse_map: IncrEval.reuse_map=?,
     ~outbox: ref(IncrEval.outbox(EvaluatorState.t))=?,
@@ -62,3 +76,24 @@ let yielding_step_count: yielding_evaluation => int;
 
 let drain_streaming_outbox:
   yielding_evaluation => IncrEval.outbox(EvaluatorState.t);
+
+/* Checking theorems' proofs. */
+module Proofs: {
+  /* The steps a `step` proof step passes through silently from an
+   * expression (auto-hidden steps and `VarLookup`s), each as (input,
+   * justification, output), and the expression they reach. None if there
+   * are more than `max_steps`. */
+  let advance_hidden:
+    (~max_steps: int=?, ~env: Environment.t(Exp.t), Exp.t) =>
+    option((list((Exp.t, string, Exp.t)), Exp.t));
+
+  /* One `step` proof step: the silent steps, one visible step, and the
+   * silent steps after it. The checker takes its evaluation steps with
+   * this. */
+  let step: ProofCheck.step_fn;
+
+  /* The proof map of `proof` checked against `goal` in `ctx`. */
+  let check_proof:
+    (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, Proof.t) =>
+    ProofMap.t;
+};

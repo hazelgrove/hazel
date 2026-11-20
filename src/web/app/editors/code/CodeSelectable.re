@@ -50,6 +50,7 @@ module Update = {
         Introduce |
         ToggleLineComment,
       )
+    | PerformConfined(_, _)
     | DebugConsole(_)
     | ContextMenu(_)
     | TAB => None;

@@ -197,6 +197,16 @@ let bool_and2_ex = {
   term: mk_example("1 < 2 && 3 < 4"),
   message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evaluates to true, the whole expression evaluates to true.",
 };
+let bool_implies1_ex = {
+  sub_id: ImpliesFalse,
+  term: mk_example("true ==> false"),
+  message: "The left operand is true, so evaluate the right operand. Since the right operand is false, the whole expression evaluates to false.",
+};
+let bool_implies2_ex = {
+  sub_id: ImpliesTrue,
+  term: mk_example("false ==> false"),
+  message: "The left operand evaluates to false, so the right operand is not evaluated. The whole expression evaluates to true.",
+};
 let bool_or1_ex = {
   sub_id: OrFalse,
   term: mk_example("false \\/ 2 < 1"),
@@ -803,6 +813,29 @@ let bool_or_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
 };
 let exp1 = exp("e1");
 let exp2 = exp("e2");
+let bool_implies_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  binop_exp_coloring_ids(
+    Piece.id(exp1),
+    Piece.id(exp2),
+    ~left_id,
+    ~right_id,
+  );
+let bool_implies_exp = (~left_id: Id.t, ~right_id: Id.t): form => {
+  id: BinOpExp(Bool(Implies)),
+  syntactic_form: [exp1, space(), logical_implies(), space(), exp2],
+  colorings: bool_implies_exp_coloring_ids(~left_id, ~right_id),
+  expandable_id: None,
+  explanation:
+    binop_explanation(
+      ~left_id,
+      ~right_id,
+      "Material implication. If the [*left operand*](%s) evaluates to `false`, the whole expression evaluates to `true` without evaluating the [*right operand*](%s). Otherwise, evaluates to the right operand. In a proof the connectives are read symmetrically (Kleene), so their laws — `impl_def` (`a ==> b` is `!a || b`), commutativity, associativity, De Morgan, `impl_true` — are built-in axioms you can cite. A goal `a ==> b` is also what `assume a` introduces, and what `revert` produces from a fact in scope.",
+    ),
+  examples: [bool_implies1_ex, bool_implies2_ex],
+};
+let exp1 = exp("e1");
+let exp2 = exp("e2");
 let str_concat_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   binop_exp_coloring_ids(
@@ -896,6 +929,9 @@ let bool_and = (~left_id: Id.t, ~right_id: Id.t): group =>
 
 let bool_or = (~left_id: Id.t, ~right_id: Id.t): group =>
   singleton(bool_or_exp(~left_id, ~right_id));
+
+let bool_implies = (~left_id: Id.t, ~right_id: Id.t): group =>
+  singleton(bool_implies_exp(~left_id, ~right_id));
 
 let string_concat = (~left_id: Id.t, ~right_id: Id.t): group =>
   singleton(str_concat_exp(~left_id, ~right_id));
