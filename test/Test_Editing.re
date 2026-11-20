@@ -3379,7 +3379,7 @@ let label_sort_tests = {
   let check_label_tiles_parse_as_labels = (z: Zipper.t) => {
     let syntax = CachedSyntax.init(z);
     find_tiles(t => Sort.equal(Tile.mold(t).out, Label), Zipper.zip(z))
-    |> List.iter((t: Tile.t) => {
+    |> List.iter(~f=(t: Tile.t) => {
          check(
            sort,
            "term_data sort",
@@ -3401,7 +3401,7 @@ let label_sort_tests = {
       token ++ " tile sorts",
       expected,
       find_tiles_by_label([token], Zipper.zip(z))
-      |> List.map(t => Tile.mold(t).out),
+      |> List.map(~f=t => Tile.mold(t).out),
     );
     check_label_tiles_parse_as_labels(z);
   };

@@ -523,7 +523,7 @@ and map_label_annotation: 'a 'b. ('a => 'b, label_t('a)) => label_t('b) =
       | Invalid(s) => Invalid(s)
       | EmptyHole => EmptyHole
       | MultiHole(l) =>
-        MultiHole(List.map(x => map_any_annotation(f, x), l))
+        MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
       | Label(s) => Label(s)
       | ExplicitNonlabel => ExplicitNonlabel
       },

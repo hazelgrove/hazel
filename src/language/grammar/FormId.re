@@ -271,7 +271,7 @@ let label_of: t => FormLabel.t =
  * ["(",")"] is both Parens and Ap), and Tok ids can spell the same
  * tokens as a registered form. */
 let has_label_of = (f: t, fam: family): bool =>
-  Label.equal(label_of(f), label_of_family(fam));
+  FormLabel.equal(label_of(f), label_of_family(fam));
 
 /* Every delimiter token of the grammar's compound forms. */
 let delims: list(Token.t) =
