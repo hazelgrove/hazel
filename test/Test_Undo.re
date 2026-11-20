@@ -195,6 +195,7 @@ let tests = (
         let fm: FontMetrics.t = {
           row_height: 25.,
           col_width: 10.4,
+          text_height: 25.,
         };
         let m2 = apply(m1, Globals(SetFontMetrics(fm)));
         let m3 = apply(m2, undo);
@@ -209,6 +210,7 @@ let tests = (
         let fm2: FontMetrics.t = {
           row_height: 30.,
           col_width: 12.,
+          text_height: 30.,
         };
         let m4 = apply(m3, Globals(SetFontMetrics(fm2)));
         let m5 = apply(m4, redo);
@@ -246,9 +248,9 @@ let tests = (
       "undo keeps the visible rows within the same editor",
       `Quick,
       () => {
-        let rows = (first, last): Globals.VisibleRows.t => {
-          first,
-          last,
+        let rows = (top, bottom): Globals.VisibleRows.t => {
+          top: Float.of_int(top),
+          bottom: Float.of_int(bottom),
         };
         let m0 =
           apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
@@ -274,9 +276,9 @@ let tests = (
       () => {
         /* The live range belongs to the current slide; a restored state
            showing a different slide has it re-measured */
-        let rows = (first, last): Globals.VisibleRows.t => {
-          first,
-          last,
+        let rows = (top, bottom): Globals.VisibleRows.t => {
+          top: Float.of_int(top),
+          bottom: Float.of_int(bottom),
         };
         let key = (m: History.Model.t) =>
           Editors.Model.editor_key(m.current.editors);

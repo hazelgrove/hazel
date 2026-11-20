@@ -4,14 +4,14 @@
   position: relative;
 }
 
-.code-container.show-row-lines {
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--row-height-px) - 1px),
-    var(--border-error) calc(var(--row-height-px) - 1px),
-    var(--border-error) var(--row-height-px)
-  );
+/* Row lines (settings: show row lines): one per row, at its bottom. */
+.row-lines .row-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-error);
+  pointer-events: none;
 }
 
 /* Use this style for all text that should
@@ -163,6 +163,16 @@
 }
 
 /* For emoji rendering in code */
+/* Block padding (Grid gadgets): room before a piece for the block edges
+ * meeting there. */
+.code .gadget {
+  display: inline-block;
+}
+.code .gadget.vertical {
+  width: 0;
+  vertical-align: top;
+}
+
 .code .grapheme-cell {
   display: inline-flex;
   align-items: center;
@@ -332,6 +342,99 @@ svg.shard.error {
 
 .warnings svg.shard.error {
   z-index: var(--warn-hole-z);
+}
+
+/* BLOCKS: the region behind every term, keyed on its type, its scope or its
+ * evaluation count (settings: Blocks). Below every other backing. */
+svg.shard.block {
+  z-index: var(--block-z);
+}
+svg.shard.block > path {
+  stroke-width: 1;
+}
+svg.shard.type-block-int > path {
+  fill: var(--type-block-int);
+  stroke: var(--type-block-int-edge);
+}
+svg.shard.type-block-float > path {
+  fill: var(--type-block-float);
+  stroke: var(--type-block-float-edge);
+}
+svg.shard.type-block-bool > path {
+  fill: var(--type-block-bool);
+  stroke: var(--type-block-bool-edge);
+}
+svg.shard.type-block-string > path {
+  fill: var(--type-block-string);
+  stroke: var(--type-block-string-edge);
+}
+svg.shard.type-block-list > path {
+  fill: var(--type-block-list);
+  stroke: var(--type-block-list-edge);
+}
+svg.shard.type-block-arrow > path {
+  fill: var(--type-block-arrow);
+  stroke: var(--type-block-arrow-edge);
+}
+svg.shard.type-block-tuple > path {
+  fill: var(--type-block-tuple);
+  stroke: var(--type-block-tuple-edge);
+}
+svg.shard.type-block-sum > path {
+  fill: var(--type-block-sum);
+  stroke: var(--type-block-sum-edge);
+}
+svg.shard.type-block-unknown > path {
+  fill: var(--type-block-unknown);
+  stroke: var(--type-block-unknown-edge);
+}
+svg.shard.scope-block-depth-0 > path {
+  fill: var(--scope-block-depth-0);
+  stroke: var(--scope-block-depth-0-edge);
+}
+svg.shard.scope-block-depth-1 > path {
+  fill: var(--scope-block-depth-1);
+  stroke: var(--scope-block-depth-1-edge);
+}
+svg.shard.scope-block-depth-2 > path {
+  fill: var(--scope-block-depth-2);
+  stroke: var(--scope-block-depth-2-edge);
+}
+svg.shard.scope-block-depth-3 > path {
+  fill: var(--scope-block-depth-3);
+  stroke: var(--scope-block-depth-3-edge);
+}
+svg.shard.scope-block-depth-4 > path {
+  fill: var(--scope-block-depth-4);
+  stroke: var(--scope-block-depth-4-edge);
+}
+svg.shard.scope-block-depth-5 > path {
+  fill: var(--scope-block-depth-5);
+  stroke: var(--scope-block-depth-5-edge);
+}
+svg.shard.eval-block-heat-0 > path {
+  fill: var(--eval-block-heat-0);
+  stroke: var(--eval-block-heat-0-edge);
+}
+svg.shard.eval-block-heat-1 > path {
+  fill: var(--eval-block-heat-1);
+  stroke: var(--eval-block-heat-1-edge);
+}
+svg.shard.eval-block-heat-2 > path {
+  fill: var(--eval-block-heat-2);
+  stroke: var(--eval-block-heat-2-edge);
+}
+svg.shard.eval-block-heat-3 > path {
+  fill: var(--eval-block-heat-3);
+  stroke: var(--eval-block-heat-3-edge);
+}
+svg.shard.eval-block-heat-4 > path {
+  fill: var(--eval-block-heat-4);
+  stroke: var(--eval-block-heat-4-edge);
+}
+svg.shard.eval-block-heat-5 > path {
+  fill: var(--eval-block-heat-5);
+  stroke: var(--eval-block-heat-5-edge);
 }
 
 svg.shard.selected > path {

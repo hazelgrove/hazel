@@ -39,7 +39,7 @@ let view:
     ~syntax: Haz3lcore.CachedSyntax.t,
     ~info_map: Language.Statics.Map.t,
     ~elaborated: Language.TermBase.exp_t,
-    ~font_metrics: FontMetrics.t,
+    ~grid: Grid.t,
     ~model: Util.Menu.t,
     Haz3lcore.ZipperBase.t
   ) =>

@@ -24,6 +24,7 @@
   /* ── Z-STACK ──────────────────────────────────────────────────────── */
 
   /* BELOW CODE LEVEL */
+  --block-z: 0;
   --err-hole-arms-z: 1;
   --tile-z: 2;
   --err-hole-z: 3;

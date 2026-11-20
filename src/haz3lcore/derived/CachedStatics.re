@@ -8,6 +8,8 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
+  type_blocks: list(Blocks.t),
+  scope_blocks: list(Blocks.t),
   completion: option(MakeTerm.completion_snapshot),
   targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };
@@ -24,6 +26,8 @@ let empty: t = {
   info_map: Id.Map.empty,
   error_ids: [],
   warning_ids: [],
+  type_blocks: [],
+  scope_blocks: [],
   completion: None,
   targets: Sample.no_targets,
 };
@@ -115,6 +119,8 @@ let init_from_term =
     Statics.mk(~ana?, ~probe_ids, settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
   let warning_ids = Statics.Map.warning_ids(info_map);
+  let type_blocks = TypeBlocks.of_map(info_map);
+  let scope_blocks = ScopeBlocks.of_map(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
@@ -129,6 +135,8 @@ let init_from_term =
     info_map,
     error_ids,
     warning_ids,
+    type_blocks,
+    scope_blocks,
     completion: None,
     targets,
   };

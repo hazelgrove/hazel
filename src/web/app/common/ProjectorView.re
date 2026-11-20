@@ -98,6 +98,7 @@ module ViewCache = {
  * of the projector overlaps with the visible range, not just the origin. */
 let filter_by_visibility =
     (
+      ~grid: Grid.t,
       visible: option(visible_rows),
       data: list('a),
       get_row_range: 'a => (int, int),
@@ -105,17 +106,9 @@ let filter_by_visibility =
     : list('a) =>
   switch (visible) {
   | None => data
-  | Some({first, last}) =>
-    List.filter(
-      ~f=
-        item => {
-          let (origin_row, last_row) = get_row_range(item);
-          /* Projector is visible if it overlaps with visible range:
-           * - Starts before visible area ends: origin_row <= last
-           * - Ends after visible area starts: last_row >= first */
-          origin_row <= last && last_row >= first;
-        },
-      data,
+  | Some(band) =>
+    List.filter(data, ~f=item =>
+      Globals.VisibleRows.overlaps(~grid, band, get_row_range(item))
     )
   };
 
@@ -242,10 +235,9 @@ module Model = {
 /* Projectors get a default backing decoration similar
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
-let backing_deco =
-    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement, p) =>
+let backing_deco = (~grid: Grid.t, ~measurement: Measured.measurement, p) =>
   ShardDec.relative({
-    font_metrics,
+    grid,
     measurement,
     tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
   });
@@ -275,7 +267,7 @@ let view_wrapper =
     (
       ~inject: Action.t => Ui_effect.t(unit),
       ~make_active,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
       ~view_error: bool=false,
@@ -303,7 +295,7 @@ let view_wrapper =
           ])
         }
       ),
-      DecUtil.abs_style(measurement, ~font_metrics),
+      DecUtil.abs_style(measurement, ~grid),
     ],
     views,
   );
@@ -321,13 +313,7 @@ let handle = (idx, kind, action: external_action): Action.t =>
   };
 
 let offside_wrapper =
-    (
-      font_metrics: FontMetrics.t,
-      offside_base: int,
-      ~row: int,
-      ~origin_col: int,
-      v: Node.t,
-    ) =>
+    (grid: Grid.t, offside_base: int, ~row: int, ~origin_col: int, v: Node.t) =>
   div(
     ~attrs=[
       /* class + row/col identity for the after-display stagger pass
@@ -340,7 +326,8 @@ let offside_wrapper =
         "style",
         sprintf(
           "position: absolute; left: %fpx;",
-          font_metrics.col_width *. float_of_int(offside_base),
+          Grid.x_start(grid, ~row, origin_col + offside_base)
+          -. Grid.x_start(grid, ~row, origin_col),
         ),
       ),
     ],
@@ -348,7 +335,7 @@ let offside_wrapper =
   );
 
 /* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
-let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+let below_wrapper = (grid: Grid.t, ~row: int, origin_col: int, v: Node.t) =>
   div(
     ~attrs=[
       Attr.classes(["below-wrapper"]),
@@ -361,8 +348,8 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
         "style",
         Printf.sprintf(
           "position: absolute; top: %fpx; left: %fpx;",
-          font_metrics.row_height,
-          -. (font_metrics.col_width *. float_of_int(origin_col)),
+          Grid.font_metrics(grid).row_height,
+          Grid.x_start(grid, ~row, 0) -. Grid.x_start(grid, ~row, origin_col),
         ),
       ),
     ],
@@ -374,11 +361,13 @@ let simple_code =
       ~background=false,
       ~classes=?,
       ~is_single_line=false,
-      font_metrics,
+      font_metrics: FontMetrics.t,
       _sort,
       segment,
     )
     : Node.t => {
+  /* measured on its own, so laid out on its own flat grid */
+  let grid = Grid.flat(font_metrics);
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
@@ -390,6 +379,7 @@ let simple_code =
       ~settings=Settings.Model.init,
       ~shape_map,
       ~refractor_rows,
+      ~grid,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
@@ -401,7 +391,7 @@ let simple_code =
         Highlight.of_segment(
           ~measured,
           ~shape_map,
-          ~font_metrics,
+          ~grid,
           ~shape_init=Some(Convex),
           ~clss=[],
           segment,
@@ -446,7 +436,7 @@ let text_code = (segment): Node.t =>
 
 let flex_code =
     (
-      ~font_metrics,
+      ~font_metrics: FontMetrics.t,
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
@@ -470,7 +460,7 @@ let flex_code =
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       ~core_settings: Language.CoreSettings.t,
       {
         p,
@@ -538,7 +528,7 @@ let mk_view =
             segment,
           ) =>
           flex_code(
-            ~font_metrics,
+            ~font_metrics=Grid.font_metrics(grid),
             ~single_line?,
             ~background?,
             ~classes?,
@@ -569,7 +559,7 @@ let split_views =
     (
       inject: Action.t => Ui_effect.t(unit),
       make_active,
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       ~core_settings: Language.CoreSettings.t,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
@@ -581,18 +571,12 @@ let split_views =
     |> Option.map(~f=fst)
     |> Option.value_exn;
   let views =
-    mk_view(
-      inject,
-      font_metrics,
-      ~core_settings,
-      projector_data,
-      projector_list,
-    );
+    mk_view(inject, grid, ~core_settings, projector_data, projector_list);
   let wrapper =
     view_wrapper(
       ~inject,
       ~make_active,
-      ~font_metrics,
+      ~grid,
       ~measurement,
       ~status,
       ~view_error=views.error,
@@ -606,7 +590,7 @@ let split_views =
       |> Option.map(
            ~f=
              offside_wrapper(
-               font_metrics,
+               grid,
                offside_base,
                ~row=measurement.origin.row,
                ~origin_col=measurement.origin.col,
@@ -615,11 +599,18 @@ let split_views =
       |> Option.to_list;
     let below_view =
       views.below
-      |> Option.map(~f=below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.map(
+           ~f=
+             below_wrapper(
+               grid,
+               ~row=measurement.origin.row,
+               measurement.origin.col,
+             ),
+         )
       |> Option.to_list;
     wrapper(
       (skip_inline ? [] : [views.inline])
-      @ [backing_deco(~font_metrics, ~measurement, p)]
+      @ [backing_deco(~grid, ~measurement, p)]
       @ offside_view
       @ below_view,
     );
@@ -637,7 +628,7 @@ let all =
     (
       inject: Action.t => Ui_effect.t(unit),
       make_active,
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(visible_rows)=?,
       projector_data: list(Model.projector_data),
@@ -655,7 +646,7 @@ let all =
   );
   let (base_views, overlay_views) =
     projector_data
-    |> filter_by_visibility(visible, _, get_row_range)
+    |> filter_by_visibility(~grid, visible, _, get_row_range)
     |> List.sort(~compare=by_measurement)
     |> List.map(
          ~f=
@@ -664,7 +655,7 @@ let all =
              ~core_settings,
              inject,
              make_active,
-             font_metrics,
+             grid,
              _,
              projector_list,
            ),

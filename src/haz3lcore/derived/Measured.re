@@ -503,3 +503,31 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   | None => 0
   | Some(row) => row.max_col
   };
+
+/* The pieces of each row, in order. */
+let row_pieces = (map: t): array(list(Piece.t)) =>
+  map.piece_rows |> List.rev_map(~f=List.rev) |> Array.of_list;
+
+/* The columns a piece of a row occupies, or None for whitespace; a piece
+   reaching past its row runs to Int.max_value. Rows hold one shard per tile. */
+let content_span = (p: Piece.t, map: t): option((col, col)) => {
+  let span = (m: measurement) =>
+    Some((
+      m.origin.col,
+      m.origin.row == m.last.row ? m.last.col : Int.max_value,
+    ));
+  switch (p) {
+  | Secondary(w) when Secondary.is_space(w) || Secondary.is_linebreak(w) =>
+    None
+  | Secondary(w) =>
+    Option.bind(Id.Map.find_opt(w.id, map.secondary), ~f=span)
+  | Grout(g) => Option.bind(Id.Map.find_opt(g.id, map.grout), ~f=span)
+  | Projector(pr) =>
+    Option.bind(Id.Map.find_opt(pr.id, map.projectors), ~f=span)
+  | Tile({id, shards: [i], _}) =>
+    Option.bind(Id.Map.find_opt(id, map.tiles), ~f=shards =>
+      Option.bind(List.Assoc.find(shards, i, ~equal=Int.equal), ~f=span)
+    )
+  | Tile(_) => None
+  };
+};
