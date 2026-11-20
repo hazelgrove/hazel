@@ -842,6 +842,25 @@ module Beta = {
   let contract = ((x, body, arg): (Var.t, Exp.t, Exp.t)): Exp.t =>
     Substitution.in_exp(Substitution.env_for([(x, arg)], ~into=body), body)
     |> Exp.replace_all_ids;
+
+  /* Whether `e` is a value, as a variable is: a quantified one ranges
+   * over values, and a definition names one. */
+  let rec is_value = (e: Exp.t): bool =>
+    switch (Exp.term_of(e)) {
+    | Parens(e)
+    | TupLabel(_, e) => is_value(e)
+    | Var(_)
+    | Atom(_)
+    | Fun(_)
+    | Constructor(_)
+    | BuiltinFun(_)
+    | Label(_) => true
+    | Tuple(es)
+    | ListLit(es) => List.for_all(~f=is_value, es)
+    | Cons(a, b) => is_value(a) && is_value(b)
+    | Ap(_, {term: Constructor(_), _}, arg) => is_value(arg)
+    | _ => false
+    };
 };
 
 /* `step`: one evaluation step at the root of the goal, or, where
@@ -849,14 +868,28 @@ module Beta = {
  * contracts a lambda or `let` itself whatever the argument, as a variable
  * pattern matches anything, but not a named function whose argument isn't
  * a value yet. The evaluator inlines the definitions it looks up, and the
- * goals it leaves name them again (`Definitions.fold`). */
+ * goals it leaves name them again (`Definitions.fold`).
+ *
+ * Contracting a redex at an argument that isn't a value equates two
+ * terms that differ where the argument has none: `(fun x -> 0)(loop(0))`
+ * isn't `0`. The step needs the argument standard, by whichever path it
+ * contracts, as an instantiation needs its term (`Gate`). */
 module Eval = {
   let check =
-      (~step: step_fn, ~env: Environment.t(Exp.t), goal: Exp.t)
+      (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, goal: Exp.t)
       : result((step_result, list(Obligation.t)), ProofMark.t) => {
+    let env = SemanticCtx.get_env(ctx);
     let fold = Definitions.fold(env);
-    switch (step(~env, ~at=Root, goal)) {
-    | Some({auto_incoming, auto_outgoing, outgoing}) =>
+    let redex = Beta.redex(~env, goal);
+    let conditions =
+      switch (redex) {
+      | Some((_, _, arg)) when !Beta.is_value(arg) =>
+        Gate.obligations(~step, ~ctx, ~origin, Gate.standard(~ctx, [arg]))
+      | Some(_)
+      | None => []
+      };
+    switch (step(~env, ~at=Root, goal), redex) {
+    | (Some({auto_incoming, auto_outgoing, outgoing}), _) =>
       Ok((
         {
           auto_incoming:
@@ -865,13 +898,11 @@ module Eval = {
             List.map(~f=((e, j)) => (fold(e), j), auto_outgoing),
           outgoing: fold(outgoing),
         },
-        [],
+        conditions,
       ))
-    | None =>
-      switch (Beta.redex(~env, goal)) {
-      | Some(redex) => Ok((rewritten(fold(Beta.contract(redex))), []))
-      | None => Error(ProofMark.NothingToStep)
-      }
+    | (None, Some(redex)) =>
+      Ok((rewritten(fold(Beta.contract(redex))), conditions))
+    | (None, None) => Error(ProofMark.NothingToStep)
     };
   };
 };
@@ -1181,12 +1212,7 @@ let rec check =
       Algebrite.check(~step, ~statics, ~ctx, ~origin=id, ~replacement),
     )
   | EvalStep =>
-    check_rewrite(
-      ~ctx,
-      ~id,
-      incoming,
-      Eval.check(~step, ~env=SemanticCtx.get_env(ctx)),
-    )
+    check_rewrite(~ctx, ~id, incoming, Eval.check(~step, ~ctx, ~origin=id))
   | Focus({ordinal, selector, body}) =>
     check_focus(
       ~step,
