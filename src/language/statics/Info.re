@@ -39,6 +39,7 @@ type exp = {
   ctx: Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   elab_syn_ty: Typ.t, /* Synthesized type of the elaborated expression */
+  syn_ty: Typ.t, /* Synthesized type of the user's expression, errors included */
   marks: list(Mark.t), /* Error marks from statics */
   co_ctx: CoCtx.t, /* Locally free variables */
   probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
@@ -62,6 +63,7 @@ type pat = {
   probe_targets: SubexpProbeTargets.t, /* Equality witness for incremental eval cache invalidation */
   ana: Typ.t,
   elab_syn_ty: Typ.t,
+  syn_ty: Typ.t,
   marks: list(Mark.t),
   cls: Cls.t,
   message: Message.t, /* DERIVED: non-error inspector payload (Pat only) */

@@ -262,6 +262,7 @@ let handle_tuple_operation =
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
             elab_syn_ty: args_typ,
+            syn_ty: args_typ,
             marks: [],
             ty: fixed_typ(ctx, syn, args_typ),
             ana: syn,
@@ -465,6 +466,7 @@ let group_by_label_statics =
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
             elab_syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
+            syn_ty: Prod([table_info.syn_ty, unknown]) |> Typ.temp,
             marks: [],
             ty:
               fixed_typ(

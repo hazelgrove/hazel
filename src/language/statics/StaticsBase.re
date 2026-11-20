@@ -285,6 +285,13 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
     }
   };
 
+/* The syn type of several things written together (list elements, branches):
+   their meet, or unknown if they have none. Their inconsistency is marked
+   where their elab syn types are met. */
+let meet_syn_types = (ctx: Ctx.t, tys: list(Typ.t)): Typ.t =>
+  Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys)
+  |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>
@@ -293,6 +300,7 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
       InfoExp({
         ...info,
         elab_syn_ty: new_syn_ty,
+        syn_ty: new_syn_ty,
         ty: fixed_typ(info.ctx, info.ana, new_syn_ty),
       }),
       m,
@@ -464,6 +472,7 @@ module type ExpressionStatics = {
       ~user_term: Exp.t=?,
       ~elab_term: Exp.t,
       ~elab_syn_ty: Typ.t,
+      ~syn_ty: Typ.t=?,
       ~marks: list(Mark.t)=?,
       ~warnings: list(Warning.list_item)=?,
       ~ctx: Ctx.t=?,
