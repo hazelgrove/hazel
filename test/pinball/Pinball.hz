@@ -1,51 +1,104 @@
-# Pinball: ten boards as data, and one step of the game, 1/60 of a second: the flippers turned as their buttons are held, then in four small steps gravity, the walls, the bumpers, the flippers and the portals, then the drain. One module: in hazeljs a call into another module costs the build seconds #
+# Pinball: ten boards as data, and one step of the game, 1/60 of a second: the flippers turned as their buttons are held, then in four small steps gravity, the walls, the bumpers, the flippers and the portals, then the drain. One module: in hazeljs a call into another module costs the build seconds. Round two (ticket 805): chambers with flippers of their own, portals that hold the ball a moment, a ball save, a launch from soft to full #
 # ---- Building boards ---- #
 let w : (Int, Int, Int, Int) -> Wall = fun (ax, ay, bx, by) -> (ax = ax, ay = ay, bx = bx, by = by, bounce = 50, kick = 0);
 let sling : (Int, Int, Int, Int) -> Wall = fun (ax, ay, bx, by) -> (ax = ax, ay = ay, bx = bx, by = by, bounce = 60, kick = 55);
+# a kicker: a wall that kicks harder: a kickback at an outlane's foot, a trampoline under a gap #
+let kicker : (Int, Int, Int, Int, Int) -> Wall = fun (ax, ay, bx, by, k) -> (ax = ax, ay = ay, bx = bx, by = by, bounce = 60, kick = k);
 let bp : (Int, Int, Int, Int) -> Bumper = fun (x, y, r, p) -> (x = x, y = y, r = r, points = p);
+let fl : (Int, Int, Int, Int) -> Flipper = fun (x, y, len, side) -> (x = x, y = y, len = len, side = side);
 let gate : (Int, Int, Int, Int, Int) -> Portal = fun (x, y, r, tx, ty) -> (x = x, y = y, r = r, tx = tx, ty = ty);
 let join : ([Wall], [Wall]) -> [Wall] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join(rest, ys) end;
+let cat_w : [[Wall]] -> [Wall] = fun xss -> case xss | [] => [] | xs :: rest => join(xs, cat_w(rest)) end;
+let join_l : ([Light], [Light]) -> [Light] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join_l(rest, ys) end;
+let cat_l : [[Light]] -> [Light] = fun xss -> case xss | [] => [] | xs :: rest => join_l(xs, cat_l(rest)) end;
 # an arc of n walls round (cx, cy), radius r, from angle a0 to a1 (thousandths of a radian; y down, so 0 is to the right and 1571 down) #
 let arc : (Int, Int, Int, Int, Int, Int) -> [Wall] = fun (cx, cy, r, a0, a1, n) ->
   let px : Int -> Int = fun i -> cx + int_of_float(float_of_int(r) *. cos(float_of_int(a0 + (a1 - a0) * i / n) /. 1000.)) in
   let py : Int -> Int = fun i -> cy + int_of_float(float_of_int(r) *. sin(float_of_int(a0 + (a1 - a0) * i / n) /. 1000.)) in
   let go : Int -> [Wall] = fun i -> if i >= n then [] else w(px(i), py(i), px(i + 1), py(i + 1)) :: go(i + 1) in
   go(0);
-# What every board has: the walls up the sides, the arch over the top, the launch lane on the right (its floor too), the slopes down to the flippers, and a slingshot above each flipper #
-let frame : [Wall] = join([w(20, 300, 20, 820), w(580, 300, 580, 1000), w(545, 330, 545, 1000), w(545, 965, 580, 965), w(20, 820, 190, 905), w(545, 820, 410, 905),
-  sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795)], arc(300, 300, 280, 3142, 6283, 16));
-# a board: its name and colours, its own walls, bumpers, extra flippers and portals, and its gravity; the frame, two flippers and the launch lane's start the same on every board #
-let bd : (String, String, String, String, [Wall], [Bumper], [Flipper], [Portal], Int) -> Board = fun (name, bg, ink, glow, walls, bumpers, more, portals, gravity) ->
-  (name = name, bg = bg, ink = ink, glow = glow, walls = join(frame, walls), bumpers = bumpers, flippers = (x = 190, y = 905, len = 92, side = 1) :: (x = 410, y = 905, len = 92, side = 0 - 1) :: more,
-   portals = portals, sx = 562, sy = 940, svx = 0, svy = 0 - 300, gravity = gravity);
-# The ten boards #
+# a row of n lamps from (x0, y0) to (x1, y1), in group g #
+let lamps : (Int, Int, Int, Int, Int, Int) -> [Light] = fun (x0, y0, x1, y1, n, g) ->
+  let go : Int -> [Light] = fun i -> if i >= n then [] else (x = x0 + (x1 - x0) * i / (n - 1), y = y0 + (y1 - y0) * i / (n - 1), group = g) :: go(i + 1) in
+  go(0);
+# What every board has: the right wall, the launch lane (its floor too) and the arch over the top; the rest (the left wall, the slopes, the flippers, the chambers) is each board's own #
+let shell : [Wall] = join([w(580, 300, 580, 1000), w(545, 330, 545, 1000), w(545, 965, 580, 965)], arc(300, 300, 280, 3142, 6283, 16));
+# a board: its name, colours and pattern, its walls, bumpers, flippers, portals and lamps, and its gravity; the shell and the launch lane's start the same on every board #
+let bd : (String, String, String, String, String, [Wall], [Bumper], [Flipper], [Portal], [Light], Int) -> Board = fun (name, bg, ink, glow, pattern, walls, bumpers, flippers, portals, lights, gravity) ->
+  (name = name, bg = bg, ink = ink, glow = glow, pattern = pattern, walls = join(shell, walls), bumpers = bumpers, flippers = flippers, portals = portals, lights = lights,
+   sx = 562, sy = 940, svx = 0, svy = 0 - 300, gravity = gravity);
+# The ten boards, as designed in pinball/rules/boards.mjs (where tools/pinball-lab.mjs plays them, and writes them out as below): chambers whose gutters drop to the chamber below, extra flippers that move with the bottom ones, a different way down to the gutter on each #
 let boards : [Board] = [
-  bd("🌌 Starfield", "#0b1030", "#7dd3fc", "#f0abfc", [], [bp(220, 300, 30, 100), bp(380, 300, 30, 100), bp(300, 420, 30, 100)], [], [], 390),
-  bd("🌋 Volcano", "#2a0a05", "#fb923c", "#fde047", [w(250, 580, 300, 520), w(300, 520, 350, 580)],
-     [bp(410, 380, 26, 50), bp(334, 485, 26, 50), bp(211, 445, 26, 50), bp(211, 315, 26, 50), bp(334, 275, 26, 50)], [], [], 400),
-  bd("🌊 Ocean", "#03243a", "#5eead4", "#93c5fd", join(arc(170, 470, 120, 3300, 4600, 6), arc(430, 470, 120, 4800, 6100, 6)),
-     [bp(300, 260, 18, 40), bp(240, 340, 18, 40), bp(360, 340, 18, 40), bp(300, 420, 18, 40), bp(200, 520, 18, 40), bp(400, 520, 18, 40)], [], [], 360),
-  bd("🍄 Mushroom forest", "#14261a", "#86efac", "#fca5a5", [],
-     [bp(200, 260, 16, 30), bp(300, 260, 16, 30), bp(400, 260, 16, 30), bp(250, 340, 16, 30), bp(350, 340, 16, 30), bp(200, 420, 16, 30), bp(300, 420, 16, 30), bp(400, 420, 16, 30), bp(300, 500, 16, 30)], [], [], 390),
-  bd("🏰 Castle, two floors", "#1e1033", "#c4b5fd", "#fcd34d", [w(60, 230, 250, 230), w(350, 230, 520, 230), w(250, 230, 250, 200), w(350, 230, 350, 200)],
-     [bp(160, 150, 24, 200), bp(300, 120, 24, 200), bp(440, 150, 24, 200), bp(300, 420, 30, 50)], [], [gate(70, 640, 22, 300, 170), gate(300, 215, 18, 300, 470)], 390),
-  bd("🐱 Cat face", "#2b1030", "#f9a8d4", "#5eead4", [w(170, 260, 210, 170), w(210, 170, 250, 260), w(350, 260, 390, 170), w(390, 170, 430, 260), sling(140, 430, 230, 415), sling(460, 430, 370, 415)],
-     [bp(240, 330, 28, 150), bp(360, 330, 28, 150), bp(300, 410, 18, 300)], [], [], 390),
-  bd("🎡 Funfair ring", "#1a0b2e", "#fde047", "#f472b6", arc(300, 380, 120, 0, 5400, 12), [bp(300, 380, 32, 80), bp(150, 560, 22, 40), bp(450, 560, 22, 40)], [], [], 390),
-  bd("🌙 Moon, low gravity", "#0f172a", "#e2e8f0", "#93c5fd", [], [bp(200, 300, 34, 60), bp(400, 340, 34, 60), bp(300, 470, 34, 60)], [], [], 210),
-  bd("🌀 Portals", "#0a0008", "#ff2bd6", "#ffffff", [], [bp(220, 380, 26, 80), bp(380, 380, 26, 80)],
-     [], [gate(110, 300, 22, 470, 200), gate(470, 560, 22, 130, 470), gate(300, 600, 22, 300, 150)], 390),
-  bd("🏙️ City, two levels", "#1f1a14", "#fdba74", "#93c5fd", [w(20, 470, 150, 560), w(545, 470, 450, 560)], [bp(220, 280, 26, 70), bp(380, 280, 26, 70), bp(300, 720, 26, 70)],
-     [(x = 150, y = 560, len = 70, side = 1), (x = 450, y = 560, len = 70, side = 0 - 1)], [], 390)];
+  bd("🌌 Starfield", "#0b1030", "#7dd3fc", "#f0abfc", "stars",
+     cat_w([[w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(240, 80, 240, 135), w(300, 70, 300, 125), w(360, 80, 360, 135)], arc(300, 300, 226, 3142, 3950, 6), [w(74, 300, 74, 430)]]),
+     [bp(225, 290, 28, 100), bp(375, 290, 28, 100), bp(300, 390, 28, 100), bp(300, 200, 10, 250)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1)],
+     [],
+     cat_l([lamps(47, 430, 47, 310, 4, 0), lamps(210, 115, 390, 115, 4, 1), lamps(45, 812, 165, 872, 4, 2), lamps(520, 812, 435, 855, 4, 3)]), 260),
+  bd("🌋 Volcano", "#2a0a05", "#fb923c", "#fde047", "basalt",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(80, 410, 215, 462), w(500, 410, 385, 462)],
+     [bp(300, 990, 8, 5), bp(300, 250, 26, 50), bp(205, 195, 20, 50), bp(395, 195, 20, 50), bp(235, 345, 18, 50), bp(365, 345, 18, 50), bp(300, 640, 22, 30)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(215, 470, 68, 1), fl(385, 470, 68, 0 - 1)],
+     [],
+     cat_l([lamps(95, 392, 200, 442, 4, 0), lamps(505, 392, 400, 442, 4, 1), lamps(50, 600, 50, 450, 4, 2), lamps(522, 600, 522, 450, 4, 3)]), 280),
+  bd("🌊 Ocean", "#03243a", "#5eead4", "#93c5fd", "waves",
+     cat_w([[w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897)], arc(200, 470, 120, 3500, 4600, 6), arc(400, 470, 120, 4825, 5900, 6)]),
+     [bp(85, 805, 14, 20), bp(480, 805, 14, 20), bp(200, 135, 9, 20), bp(260, 112, 9, 20), bp(340, 112, 9, 20), bp(400, 135, 9, 20), bp(300, 260, 18, 40), bp(240, 340, 18, 40), bp(360, 340, 18, 40), bp(300, 420, 18, 40)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(20, 610, 60, 1), fl(545, 610, 60, 0 - 1)],
+     [],
+     cat_l([lamps(70, 440, 120, 370, 3, 0), lamps(530, 440, 480, 370, 3, 1), lamps(230, 160, 370, 160, 3, 2), lamps(40, 760, 40, 660, 3, 3), lamps(525, 760, 525, 660, 3, 4)]), 250),
+  bd("🍄 Mushroom forest", "#14261a", "#86efac", "#fca5a5", "leaves",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(140, 400, 140, 500), w(20, 537, 55, 552), w(425, 400, 425, 500), w(545, 537, 510, 552)],
+     [bp(220, 230, 16, 30), bp(300, 190, 16, 30), bp(380, 230, 16, 30), bp(255, 315, 16, 30), bp(345, 315, 16, 30), bp(300, 410, 16, 30), bp(300, 600, 14, 30)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(55, 560, 64, 1), fl(510, 560, 64, 0 - 1)],
+     [],
+     cat_l([lamps(80, 420, 80, 520, 3, 0), lamps(485, 420, 485, 520, 3, 1), lamps(200, 140, 400, 140, 5, 2), lamps(45, 812, 165, 872, 4, 3)]), 260),
+  bd("🏰 Castle, two floors", "#1e1033", "#c4b5fd", "#fcd34d", "bricks",
+     [w(20, 300, 20, 905), w(70, 690, 70, 905), w(70, 850, 190, 897), kicker(20, 905, 70, 905, 300), sling(100, 690, 165, 800), w(100, 690, 100, 775), w(100, 775, 165, 800), w(505, 690, 505, 905), w(505, 850, 410, 897), kicker(505, 905, 545, 905, 300), sling(475, 690, 415, 800), w(475, 690, 475, 775), w(475, 775, 415, 800), w(26, 250, 215, 312), w(500, 250, 385, 312)],
+     [bp(160, 150, 22, 200), bp(300, 105, 22, 200), bp(440, 150, 22, 200), bp(300, 480, 30, 50), bp(175, 570, 16, 40), bp(425, 570, 16, 40)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(215, 320, 68, 1), fl(385, 320, 68, 0 - 1)],
+     [gate(70, 640, 22, 300, 190)],
+     cat_l([lamps(60, 262, 200, 305, 4, 0), lamps(495, 262, 400, 305, 4, 1), lamps(45, 700, 45, 880, 4, 2), lamps(525, 700, 525, 880, 4, 3)]), 260),
+  bd("🐱 Cat face", "#2b1030", "#f9a8d4", "#5eead4", "paws",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(170, 200, 210, 120), w(210, 120, 250, 200), w(350, 200, 390, 120), w(390, 120, 430, 200), sling(140, 430, 230, 415), sling(460, 430, 370, 415)],
+     [bp(240, 300, 26, 150), bp(360, 300, 26, 150), bp(300, 385, 16, 300), bp(300, 160, 12, 100)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1)],
+     [],
+     cat_l([lamps(180, 230, 240, 230, 2, 0), lamps(360, 230, 420, 230, 2, 1), lamps(150, 470, 450, 470, 6, 2), lamps(45, 812, 165, 872, 4, 3)]), 260),
+  bd("🎡 Funfair ring", "#1a0b2e", "#fde047", "#f472b6", "diamonds",
+     cat_w([[w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), kicker(284, 1000, 316, 1000, 220)], arc(300, 380, 120, 0, 1350, 4), arc(300, 380, 120, 1800, 5400, 8), [w(220, 75, 220, 125), w(300, 62, 300, 112), w(380, 75, 380, 125)]]),
+     [bp(300, 380, 30, 80), bp(150, 600, 22, 40), bp(450, 600, 22, 40)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1)],
+     [],
+     cat_l([lamps(190, 110, 410, 110, 4, 0), lamps(185, 380, 300, 265, 4, 1), lamps(300, 495, 415, 380, 4, 2), lamps(45, 812, 165, 872, 4, 3)]), 250),
+  bd("🌙 Moon, low gravity", "#0f172a", "#e2e8f0", "#93c5fd", "craters",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(70, 470, 220, 522), w(530, 470, 380, 522)],
+     [bp(200, 290, 30, 60), bp(400, 290, 30, 60), bp(300, 190, 22, 60), bp(300, 690, 24, 40)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(220, 530, 64, 1), fl(380, 530, 64, 0 - 1)],
+     [],
+     cat_l([lamps(85, 485, 205, 520, 4, 0), lamps(515, 485, 395, 520, 4, 1), lamps(150, 200, 450, 200, 4, 2)]), 170),
+  bd("🌀 Portals", "#0a0008", "#ff2bd6", "#ffffff", "rings",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(26, 290, 210, 332), w(545, 290, 390, 332)],
+     [bp(300, 150, 24, 100), bp(195, 215, 16, 50), bp(405, 215, 16, 50), bp(220, 480, 24, 80), bp(380, 480, 24, 80)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(210, 340, 75, 1), fl(390, 340, 75, 0 - 1)],
+     [gate(110, 580, 22, 300, 235), gate(470, 580, 22, 300, 235), gate(300, 1004, 14, 300, 235)],
+     cat_l([lamps(60, 300, 190, 325, 4, 0), lamps(540, 300, 410, 325, 4, 1), lamps(110, 520, 470, 520, 5, 2), lamps(45, 812, 165, 872, 4, 3)]), 250),
+  bd("🏙️ City, two levels", "#1f1a14", "#fdba74", "#93c5fd", "windows",
+     [w(20, 300, 20, 820), w(20, 820, 190, 897), w(545, 820, 410, 897), sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795), w(70, 420, 215, 472), w(505, 420, 385, 472)],
+     [bp(220, 270, 24, 70), bp(380, 270, 24, 70), bp(300, 190, 20, 70), bp(300, 640, 24, 70)],
+     [fl(190, 905, 100, 1), fl(410, 905, 100, 0 - 1), fl(215, 480, 68, 1), fl(385, 480, 68, 0 - 1)],
+     [],
+     cat_l([lamps(85, 432, 200, 470, 4, 0), lamps(495, 432, 400, 470, 4, 1), lamps(45, 600, 45, 440, 4, 2), lamps(525, 600, 525, 440, 4, 3)]), 260)];
+
 let board : Int -> Board = fun i ->
-  let nth : ([Board], Int) -> Board = fun (bs, k) -> case bs | [] => bd("", "#000000", "#ffffff", "#ffffff", [], [], [], [], 390) | b :: rest => if k <= 0 then b else nth(rest, k - 1) end in
+  let nth : ([Board], Int) -> Board = fun (bs, k) -> case bs | [] => bd("", "#000000", "#ffffff", "#ffffff", "", [], [], [], [], [], 260) | b :: rest => if k <= 0 then b else nth(rest, k - 1) end in
   nth(boards, i);
 # ---- A game ---- #
 let rests : [Flipper] -> [Int] = fun fs -> case fs | [] => [] | _ :: rest => 500 :: rests(rest) end;
-# a new game on board i: three balls, the first in the launch lane #
+# a new game on board i: three balls, the first in the launch lane, its save ready #
 let start : Int -> Game = fun i ->
   let b = board(i) in
-  (x = b.sx * 1000, y = b.sy * 1000, vx = 0, vy = 0, flips = rests(b.flippers), score = 0, balls = 3, over = false, hits = []);
+  (x = b.sx * 1000, y = b.sy * 1000, vx = 0, vy = 0, flips = rests(b.flippers), score = 0, balls = 3, over = false, hits = [], warp = 0, gate = 0 - 1, save = 0);
 # each flipper turned toward up while its side's button is held, quickly, else back down, more slowly (angles in thousandths of a radian: 500 resting, -500 up) #
 let turn : ([Flipper], [Int], Bool, Bool) -> [Int] = fun (fs, angles, left, right) ->
   case (fs, angles)
@@ -72,13 +125,14 @@ let off_seg : (Ball, Float, Float, Float, Float, Float, Float, Float, Float, Flo
   let y2 = cy +. ny *. reach in
   if vn >=. 0. then ((x = x2, y = y2, vx = b.vx, vy = b.vy), true) else
   ((x = x2, y = y2, vx = b.vx -. (1. +. e) *. vn *. nx +. kick *. nx, vy = b.vy -. (1. +. e) *. vn *. ny +. kick *. ny), true);
-# the ball against every wall; a slingshot's kick scores 10 #
-let walls_hit : (Ball, [Wall], Int) -> (Ball, Int) = fun (b, ws, score) ->
+# the ball against every wall (j counts them); a kicking wall touched scores 10 and is noted among the hits as 1000 + its number #
+let walls_hit : (Ball, [Wall], Int, Int, [Int]) -> (Ball, Int, [Int]) = fun (b, ws, j, score, hits) ->
   case ws
-  | [] => (b, score)
+  | [] => (b, score, hits)
   | v :: rest =>
     let (b2, hit) = off_seg(b, float_of_int(v.ax), float_of_int(v.ay), float_of_int(v.bx), float_of_int(v.by), 0., float_of_int(v.bounce) /. 100., float_of_int(v.kick) /. 10., 0., 0.) in
-    walls_hit(b2, rest, if hit && v.kick > 0 then score + 10 else score)
+    let kicked = hit && v.kick > 0 in
+    walls_hit(b2, rest, j + 1, (if kicked then score + 10 else score), (if kicked then (1000 + j) :: hits else hits))
   end;
 # the ball against every bumper: pushed out and kicked away; its points scored, its number noted (i counts them) #
 let bumps : (Ball, [Bumper], Int, Int, [Int]) -> (Ball, Int, [Int]) = fun (b, bs, i, score, hits) ->
@@ -110,41 +164,50 @@ let flips_hit : (Ball, [Flipper], [Int], [Int], Float) -> Ball = fun (b, fs, a0s
     flips_hit(b2, frest, r0, r1, u)
   | _ => b
   end;
-# into a portal: out at its other end, its speed kept #
-let through : (Ball, [Portal]) -> Ball = fun (b, ps) ->
+# into a portal: out at its other end, its speed kept (most of it), and which portal (i counts them; -1 for none) #
+let through : (Ball, [Portal], Int) -> (Ball, Int) = fun (b, ps, i) ->
   case ps
-  | [] => b
+  | [] => (b, 0 - 1)
   | p :: rest =>
     let dx = b.x -. float_of_int(p.x) in
     let dy = b.y -. float_of_int(p.y) in
-    if dx *. dx +. dy *. dy <. float_of_int(p.r * p.r) then (x = float_of_int(p.tx), y = float_of_int(p.ty), vx = b.vx *. 0.8, vy = b.vy *. 0.8) else through(b, rest)
+    if dx *. dx +. dy *. dy <. float_of_int(p.r * p.r) then ((x = float_of_int(p.tx), y = float_of_int(p.ty), vx = b.vx *. 0.8, vy = b.vy *. 0.8), i) else through(b, rest, i + 1)
   end;
 # no faster than 32 units a step: a ball no quicker than that cannot pass through a wall in a small step #
 let cap : Ball -> Ball = fun b ->
   let s = sqrt(b.vx *. b.vx +. b.vy *. b.vy) in
   if s <=. 32. then b else (x = b.x, y = b.y, vx = b.vx *. 32. /. s, vy = b.vy *. 32. /. s);
-# four small steps of a step: gravity, moving, then the walls, the bumpers, the flippers, the portals #
-let sub : (Board, Ball, [Int], [Int], Int, Int, [Int]) -> (Ball, Int, [Int]) = fun (bo, b, a0s, a1s, k, score, hits) ->
-  if k >= 4 then (b, score, hits) else
+# four small steps of a step: gravity, moving, then the walls, the bumpers, the flippers, the portals; a portal ends the step (its number given back, else -1) #
+let sub : (Board, Ball, [Int], [Int], Int, Int, [Int]) -> (Ball, Int, [Int], Int) = fun (bo, b, a0s, a1s, k, score, hits) ->
+  if k >= 4 then (b, score, hits, 0 - 1) else
   let g = float_of_int(bo.gravity) /. 1000. in
   let vy = b.vy +. g /. 4. in
   let moved = cap((x = b.x +. b.vx /. 4., y = b.y +. vy /. 4., vx = b.vx, vy = vy)) in
-  let (b1, s1) = walls_hit(moved, bo.walls, score) in
-  let (b2, s2, h2) = bumps(b1, bo.bumpers, 0, s1, hits) in
+  let (b1, s1, h1) = walls_hit(moved, bo.walls, 0, score, hits) in
+  let (b2, s2, h2) = bumps(b1, bo.bumpers, 0, s1, h1) in
   let b3 = flips_hit(b2, bo.flippers, a0s, a1s, float_of_int(k + 1) /. 4.) in
-  sub(bo, through(cap(b3), bo.portals), a0s, a1s, k + 1, s2, h2);
-# One step of the game on board i: the left and right flippers' buttons held or not, and the plunger let go (how hard, 1 to 100; 0 while not). A ball below the flippers is gone: the next one waits in the launch lane, or, with none left, the game is over. A ball waiting in the launch lane stays there till the plunger is let go: then it is launched, the harder the faster, and even the lightest pull takes it out of the lane and onto the table #
+  let (b4, gi) = through(cap(b3), bo.portals, 0) in
+  if gi >= 0 then (b4, s2, h2, gi) else sub(bo, b4, a0s, a1s, k + 1, s2, h2);
+# One step of the game on board i: the left and right flippers' buttons held or not, and the plunger let go (how hard, 1 to 100; 0 while not). A ball in a portal waits there 40 steps (the page shows its trip) and comes out with 25 points. A ball below the flippers is gone: within 8 seconds of its launch it is saved (once a ball) and waits in the launch lane again; else the next one waits there, or, with none left, the game is over. A ball waiting in the launch lane stays till the plunger is let go: then it is launched, from just out of the lane (on this board's gravity) at the softest to full speed at the hardest #
 let step : (Int, Game, Bool, Bool, Int) -> Game = fun (i, g, left, right, launch) ->
   if g.over then g else
   let bo = board(i) in
   let a1s = turn(bo.flippers, g.flips, left, right) in
+  if g.warp > 0 then (x = g.x, y = g.y, vx = g.vx, vy = g.vy, flips = a1s, score = g.score, balls = g.balls, over = false, hits = [], warp = g.warp - 1, gate = (if g.warp > 1 then g.gate else 0 - 1), save = g.save) else
   let b0 = (x = float_of_int(g.x) /. 1000., y = float_of_int(g.y) /. 1000., vx = float_of_int(g.vx) /. 1000., vy = float_of_int(g.vy) /. 1000.) in
-  let (b, score, hits) = sub(bo, b0, g.flips, a1s, 0, g.score, []) in
+  let (b, score, hits, gate) = sub(bo, b0, g.flips, a1s, 0, g.score, []) in
   let ml : Float -> Int = fun f -> int_of_float(floor(f *. 1000. +. 0.5)) in
+  let save = (if g.save > 0 then g.save - 1 else g.save) in
+  if gate >= 0 then (x = ml(b.x), y = ml(b.y), vx = ml(b.vx), vy = ml(b.vy), flips = a1s, score = score + 25, balls = g.balls, over = false, hits = hits, warp = 40, gate = gate, save = save) else
   if b.y >. 1030. then
-    (if g.balls <= 1 then (x = g.x, y = g.y, vx = 0, vy = 0, flips = a1s, score = score, balls = 0, over = true, hits = hits)
-     else (x = bo.sx * 1000, y = bo.sy * 1000, vx = 0, vy = 0, flips = a1s, score = score, balls = g.balls - 1, over = false, hits = hits))
+    (if g.save > 0 then (x = bo.sx * 1000, y = bo.sy * 1000, vx = 0, vy = 0, flips = a1s, score = score, balls = g.balls, over = false, hits = 2000 :: hits, warp = 0, gate = 0 - 1, save = 0 - 1)
+     else if g.balls <= 1 then (x = g.x, y = g.y, vx = 0, vy = 0, flips = a1s, score = score, balls = 0, over = true, hits = hits, warp = 0, gate = 0 - 1, save = 0)
+     else (x = bo.sx * 1000, y = bo.sy * 1000, vx = 0, vy = 0, flips = a1s, score = score, balls = g.balls - 1, over = false, hits = hits, warp = 0, gate = 0 - 1, save = 0))
   else
   let waiting = b.x >. 545. && b.y >. 920. && b.vy >. 0. -. 1. && b.vy <. 2. in
-  let push = 0 - (24000 + 80 * (if launch > 100 then 100 else launch)) in
-  (x = ml(b.x), y = ml(b.y), vx = ml(b.vx), vy = (if waiting then (if launch > 0 then push else 0) else ml(b.vy)), flips = a1s, score = score, balls = g.balls, over = false, hits = hits)
+  let gr = float_of_int(bo.gravity) /. 1000. in
+  let vmin = sqrt(2. *. gr *. 700.) in
+  let v = vmin +. (32. -. vmin) *. float_of_int(if launch > 100 then 100 else launch) /. 100. in
+  let push = 0 - int_of_float(v *. 1000.) in
+  (x = ml(b.x), y = ml(b.y), vx = ml(b.vx), vy = (if waiting then (if launch > 0 then push else 0) else ml(b.vy)), flips = a1s, score = score, balls = g.balls, over = false, hits = hits,
+   warp = 0, gate = 0 - 1, save = (if waiting && launch > 0 && save == 0 then 480 else save))
