@@ -11,11 +11,9 @@ type list_examples =
   | Cons2;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typfun_examples =
+type typabs_examples =
   | Basic
-  | EmptyHole
-  | MultiHole /* TODO: Maybe no good examples with Multihole? */
-  | Var;
+  | Multi;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type fun_examples =
@@ -82,7 +80,7 @@ type example_id =
   | RecTyp
   | Deferral
   | List(list_examples)
-  | TypFun(typfun_examples)
+  | TypAbs(typabs_examples)
   | Fun(fun_examples)
   | Label1
   | Label2
@@ -105,7 +103,14 @@ type example_id =
   | Forall
   | Yes
   | UseExp1
-  | TypFunAp
+  | TypAbsAp
+  | TypAbsAp2
+  | TypFunTyp1
+  | TypFunTyp2
+  | TypParamAp1
+  | TypParamAp2
+  | ParamTyAlias1
+  | ParamTyAlias2
   | FunAp
   | ConAp
   | LivelitAp
@@ -212,7 +217,7 @@ type form_id =
   | ListExp
   | ConsExp
   | ListConcatExp
-  | TypFunctionExp
+  | TypAbsExp
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
   | DotExp
@@ -223,7 +228,7 @@ type form_id =
   | FixExp(pat_sub_form_id)
   | TheoremExp
   | ProofObjectExp
-  | TypFunApExp
+  | TypAbsApExp
   | FunApExp
   | ConApExp
   | DeferredApExp
@@ -238,6 +243,7 @@ type form_id =
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
+  | ParamTyAliasExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
@@ -272,6 +278,9 @@ type form_id =
   | VarTyp
   | ListTyp
   | PolyTyp
+  | TypFunTyp
+  | TypParamApTyp
+  | TypArgsTyp
   | RecTyp
   | ArrowTyp
   | Arrow3Typ
@@ -290,6 +299,8 @@ type form_id =
   | EmptyHoleTPat
   | MultiHoleTPat
   | VarTPat
+  | ParamTPat
+  | TupleTPat
   | PipelineExp
   | FilterPause
   | FilterEval

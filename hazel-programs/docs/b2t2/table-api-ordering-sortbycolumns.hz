@@ -27,7 +27,7 @@ let ensures = [
   (enforced=("static"), "schema(t2) is equal to schema(t1)")
 ] in
 let lexicographical =
-  typfun t ->
+  abs t ->
     fun (comparator : (t, t) -> Ord, ts : [t], ts' : [t]) ->
       case (ts, ts')
       | ([], []) => Eq
@@ -46,7 +46,7 @@ let int_compare =
     else if first > second then Gt else Eq in
 # Idiomatically I think we would do this with a implicit comparator on tuples and then project them #
 let sort_by_columns =
-  typfun r ->
+  abs r ->
     let get_values =
       fun (r, c : [String]) ->
         (let entries = to_lvs(r) in filter_map(c,fun c -> find_opt(entries,fun (label=l, value=v) -> c == l))).value in

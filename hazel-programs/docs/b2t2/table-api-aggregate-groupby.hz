@@ -28,10 +28,10 @@ let ensures = [
 # projection, and aggregation as functions, so it needs only projection and #
 # tuple construction at the callsite #
 let group_by =
-  typfun r1 ->
-    typfun r3 ->
-      typfun K ->
-        typfun V ->
+  abs r1 ->
+    abs r3 ->
+      abs K ->
+        abs V ->
           fun (
             t1 : [r1],
             key : (r1 -> K),

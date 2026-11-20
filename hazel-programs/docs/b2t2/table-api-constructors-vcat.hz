@@ -21,11 +21,11 @@ let ensures = [
 ] in
 #Hazel tables are lists; so vcat is just list concatenation. This is also the same as add_rows#
 let vcat =
-  typfun r -> fun (t1 : [r], t2 : [r]) -> t1 @ t2 in
+  abs r -> fun (t1 : [r], t2 : [r]) -> t1 @ t2 in
 
 test
   let update = (
-    typfun row ->
+    abs row ->
       fun (t1 : [row], f : (row -> ?)) ->
         map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?]
   ) in

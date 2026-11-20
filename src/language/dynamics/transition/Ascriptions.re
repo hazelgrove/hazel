@@ -133,20 +133,32 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               Cons(d1', d2') |> DHExp.fresh,
             ),
           );
-    | (TypFun(tp, body, name), Poly(tp', t')) =>
-      let new_ty: Typ.t =
-        switch (TPat.tyvar_of_utpat(tp)) {
-        | Some(tyvar) => Var(tyvar) |> Typ.temp
-        | None => Unknown(Internal) |> Typ.temp
+    | (TypAbs(tp, body, name), Poly(tp', t')) =>
+      /* Push the ascription into the body, renaming the `poly`'s binders
+         to the `abs`'s (element-wise for `abs a, b`). Arities that differ
+         are a type error, so the body is left unconstrained. */
+      let user_binders = TPat.binders_of(tp);
+      let outer_binders = TPat.binders_of(tp');
+      let body_ty =
+        if (List.length(user_binders) == List.length(outer_binders)) {
+          let args =
+            List.map(
+              ~f=
+                (b: TPat.t): Typ.t =>
+                  switch (TPat.tyvar_of_utpat(b)) {
+                  | Some(tyvar) => Var(tyvar) |> Typ.temp
+                  | None => Unknown(Internal) |> Typ.temp
+                  },
+              user_binders,
+            );
+          Typ.subst_many(args, outer_binders, t');
+        } else {
+          Unknown(Internal) |> Typ.temp;
         };
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
-          TypFun(
-            tp,
-            recur(Asc(body, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
-            name,
-          )
+          TypAbs(tp, recur(Asc(body, body_ty) |> DHExp.fresh), name)
           |> DHExp.fresh,
         ),
       );
@@ -310,7 +322,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
-    | (TypFun(_), _)
+    | (TypAbs(_), _)
     | (Test(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)

@@ -31,7 +31,7 @@ let get_value =
   fun (r, c : String) ->
     (to_lvs(r) |> find(_, fun (label=l, value=v) -> l == c)).value in
 let tsort =
-  typfun r ->
+  abs r ->
     fun (t : [?], c : String, b : Bool) ->
       let sorted =
         sort(

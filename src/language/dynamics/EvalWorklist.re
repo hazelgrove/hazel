@@ -19,7 +19,7 @@ let is_inside_function = (info_map: StaticsBase.Map.t, info: Info.t) =>
        | Some(Info.InfoExp({user_term, _})) =>
          switch (Exp.term_of(user_term)) {
          | Fun(_)
-         | TypFun(_) => true
+         | TypAbs(_) => true
          | _ => false
          }
        | _ => false

@@ -171,7 +171,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             TPat.empty_hole()
             |> (
               exp => (
-                typ_fun(exp, empty_hole(), None),
+                typ_abs(exp, empty_hole(), None),
                 List.hd_exn(exp.annotation.ids),
                 false,
               )

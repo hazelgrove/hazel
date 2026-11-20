@@ -15,6 +15,10 @@ let is_typ: t => option(TermBase.Typ.t) =
   fun
   | Typ(t) => Some(t)
   | _ => None;
+let is_tpat: t => option(TermBase.TPat.t) =
+  fun
+  | TPat(t) => Some(t)
+  | _ => None;
 let is_drv_exp: t => option(DrvTermBase.Exp.t) =
   fun
   | Drv(Exp(e)) => Some(e)

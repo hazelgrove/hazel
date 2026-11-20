@@ -62,9 +62,9 @@ let ensures = [
   (enforced=("no"), "nrows(t3) is equal to nrows(t1) * nrows(t2)")
 ] in
 let cross_join =
-  typfun r1 ->
-    typfun r2 ->
-      typfun r3 ->
+  abs r1 ->
+    abs r2 ->
+      abs r3 ->
         fun (t1 : [r1], t2 : [r2], combine : ((r1, r2) -> r3)) ->
           flat_map(t1, fun r1 -> map(t2, fun r2 -> combine(r1, r2)))
           : [r3] in

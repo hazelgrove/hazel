@@ -68,7 +68,8 @@ let necessary_ids: Typ.t => int =
     | Sum([]) => 1
     | Sig([]) => 1
     /* one id per separator */
-    | Prod(tys) => List.length(tys) - 1
+    | Prod(tys)
+    | TypTuple(tys) => List.length(tys) - 1
     /* one id per variant; the single-variant form prints from rep_id */
     | Sum(tys) => max(1, List.length(tys))
     /* rep_id for the braces, then one id per `;` between items */
@@ -77,6 +78,20 @@ let necessary_ids: Typ.t => int =
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
     /* every other form prints from rep_id alone */
     | _ => 1
+    };
+
+/* Ids a printed type pattern consumes: one per comma of a binder list,
+   and for `T(a, b)` the application's then one per comma. */
+let necessary_tpat_ids: TPat.t => int =
+  tp =>
+    switch (tp.term) {
+    | Tuple(tps) => List.length(tps) - 1
+    | Param(_, params) => 1 + max(0, List.length(params) - 1)
+    | Var(_)
+    | Parens(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => 1
     };
 
 /* Ids a printed variant consumes. */
@@ -134,6 +149,10 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | Parens(t) => Parens(pad_variant_anns(t))
     | Rec(tp, t) => Rec(tp, pad_variant_anns(t))
     | Poly(tp, t) => Poly(tp, pad_variant_anns(t))
+    | TypFun(tp, t) => TypFun(tp, pad_variant_anns(t))
+    | TypParamAp(t1, t2) =>
+      TypParamAp(pad_variant_anns(t1), pad_variant_anns(t2))
+    | TypTuple(ts) => TypTuple(List.map(~f=pad_variant_anns, ts))
     | Projector(d, t) => Projector(d, pad_variant_anns(t))
     | ProdProjection(t1, t2) =>
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
@@ -171,6 +190,23 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
             annotation: {
               ...ty.annotation,
               ids,
+            },
+          });
+        },
+      ~f_tpat=
+        (cont, tp) => {
+          let current_ids = tp.annotation.ids;
+          let needed_ids = necessary_tpat_ids(tp);
+          cont({
+            ...tp,
+            annotation: {
+              ...tp.annotation,
+              ids:
+                current_ids
+                @ List.init(
+                    max(0, needed_ids - List.length(current_ids)), ~f=_ =>
+                    Id.mk()
+                  ),
             },
           });
         },

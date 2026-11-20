@@ -187,7 +187,7 @@ let tests =
           check(
             option(exp),
             "Function",
-            Some(Exp.(typ_fun(TPat.empty_hole(), empty_hole(), None))),
+            Some(Exp.(typ_abs(TPat.empty_hole(), empty_hole(), None))),
             introduce_expression(Typ.(poly(TPat.var("a"), var("a")))),
           )
         }),

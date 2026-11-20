@@ -343,7 +343,7 @@ let step_into_frame_tests = [
         | Some(Info.InfoExp({user_term: {term, _}, _})) =>
           switch (term) {
           | Fun(_) => "Fun"
-          | TypFun(_) => "TypFun"
+          | TypAbs(_) => "TypAbs"
           | Parens(_) => "Parens"
           | Var(_) => "Var"
           | Ap(_) => "Ap"

@@ -39,8 +39,8 @@ let brown_get_acne =
   let brown_and_get_acne =
     fun r : JellyNamed -> r.brown && r.get_acne in
   let count = (
-    typfun row ->
-      typfun v ->
+    abs row ->
+      abs v ->
         fun (t1 : [row], proj : row -> v) ->
           let go =
             fun (groups : [(value= v, count= Int)], row : row) ->
@@ -56,9 +56,9 @@ let brown_get_acne =
   : poly r1 ->
     poly r2 ->
       poly r3 -> ([r1], r1 -> r2, (r1, r2) -> r3) -> [r3] = (
-    typfun r1 ->
-      typfun r2 ->
-        typfun r3 ->
+    abs r1 ->
+      abs r2 ->
+        abs r3 ->
           fun (table, project, build_result) ->
             map(table, fun r : r1 -> build_result(r, project(r)))
   ) in

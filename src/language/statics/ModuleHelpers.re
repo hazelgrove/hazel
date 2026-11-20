@@ -1,5 +1,14 @@
 /* Module-related helper functions used during statics/elaboration. */
 
+/* A type a module exports: its name, its type, and the id of the
+   declaration that binds it (where jump-to-definition and var-highlight
+   on `M.T` land). */
+type type_export = {
+  name: Var.t,
+  typ: Typ.t,
+  binding_id: Id.t,
+};
+
 type value_export = {
   name: Var.t,
   pat: Pat.t,
@@ -8,7 +17,7 @@ type value_export = {
 type lowered = {
   expanded: Exp.t,
   value_exports: list(value_export),
-  type_exports: list((Var.t, Typ.t)),
+  type_exports: list(type_export),
 };
 
 /* Collect module variable references from type annotations.
@@ -183,65 +192,110 @@ let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
   | _ => []
   };
 
-let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
+/* The labeled tuple of a module's type exports, the last of each name
+   winning. Each label carries its declaration's id, so var-highlight on
+   the label of `M.T` can find where `T` is bound. */
+let type_exports_type = (exports: list(type_export)): Typ.t => {
   let deduped =
     List.fold_right(
       ~f=
-        ((name, ty), (seen, acc)) =>
-          if (List.mem(seen, name, ~equal=String.equal)) {
-            (seen, acc);
-          } else {
-            ([name, ...seen], [(name, ty), ...acc]);
-          },
+        (export: type_export, (seen, acc)) =>
+          List.mem(seen, export.name, ~equal=String.equal)
+            ? (seen, acc) : ([export.name, ...seen], [export, ...acc]),
       ~init=([], []),
       exports,
     )
     |> snd;
   Prod(
     deduped
-    |> List.map(~f=((name, ty)) =>
-         TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
+    |> List.map(~f=({name, typ, binding_id}) =>
+         TupLabel(
+           IdTagged.mk_internal([binding_id], Label(name): Typ.term),
+           typ,
+         )
+         |> Typ.temp
        ),
   )
   |> Typ.temp;
 };
 
-let type_exports_alias_type =
-    (exports: list((Var.t, Typ.t))): option(Typ.t) =>
+let type_exports_alias_type = (exports: list(type_export)): option(Typ.t) =>
   switch (exports) {
   | [] => None
   | _ => Some(type_exports_type(exports))
   };
 
 let rec collect_type_exports =
-        (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
+        (ctx: Ctx.t, items: list(Mod.t)): list(type_export) =>
   items
   |> List.fold(
        ~f=
          ((ctx, acc), item: Mod.t) =>
            switch (item.term) {
            | ModType(tpat, typ) =>
-             switch (tpat.term) {
-             | Var(name) =>
+             /* As for `type` in an expression (Statics' TyAlias), a
+                parameterized alias `type T(a, b) = body` stands for the
+                type function `typfun a, b -> body`. */
+             let alias =
+               switch (tpat.term) {
+               | Var(name) => Some((name, TPat.rep_id(tpat), [], typ))
+               | Param(head, params) =>
+                 switch (TPat.head_name_of(head)) {
+                 | Some(name) =>
+                   Some((name, TPat.rep_id(head), params, typ))
+                 | None => None
+                 }
+               | Tuple(_)
+               | Parens(_)
+               | Invalid(_)
+               | EmptyHole
+               | MultiHole(_) => None
+               };
+             switch (alias) {
+             | Some((name, binding_id, params, body)) =>
+               let ty_fun =
+                 switch (params) {
+                 | [] => body
+                 | [param] => TypFun(param, body) |> Typ.temp
+                 | _ => TypFun(TPat.fresh(Tuple(params)), body) |> Typ.temp
+                 };
                let (resolved, alias_ty) =
-                 switch (Typ.recursive_def(name, typ)) {
+                 switch (Typ.recursive_def(name, ty_fun)) {
                  | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+                 | Typ.Plain when !List.is_empty(params) => (ty_fun, ty_fun)
                  | Typ.Plain =>
-                   let locals = List.map(~f=fst, acc);
+                   let locals =
+                     List.map(~f=({name, _}: type_export) => name, acc);
                    (
                      Typ.normalize(
                        ~expand=n => List.mem(locals, n, ~equal=String.equal),
                        ctx,
-                       typ,
+                       ty_fun,
                      ),
-                     typ,
+                     ty_fun,
                    );
                  };
                let ctx =
-                 Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
-               (ctx, [(name, resolved), ...acc]);
-             | _ => (ctx, acc)
-             }
+                 Ctx.extend_alias(
+                   ctx,
+                   name,
+                   binding_id,
+                   ~typ_kind=TypKind.of_param_count(List.length(params)),
+                   alias_ty,
+                 );
+               (
+                 ctx,
+                 [
+                   {
+                     name,
+                     typ: resolved,
+                     binding_id,
+                   },
+                   ...acc,
+                 ],
+               );
+             | None => (ctx, acc)
+             };
            | ModuleMod(mp, def) =>
              let rhs_exports_ty =
                switch (Exp.strip_wrappers(def).term) {
@@ -258,9 +312,19 @@ let rec collect_type_exports =
                };
              switch (mpat_names(mp), rhs_exports_ty) {
              | ([name], Some(exports_ty)) =>
-               let ctx =
-                 Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
-               (ctx, [(name, exports_ty), ...acc]);
+               let binding_id = MPat.rep_id(mp);
+               let ctx = Ctx.extend_alias(ctx, name, binding_id, exports_ty);
+               (
+                 ctx,
+                 [
+                   {
+                     name,
+                     typ: exports_ty,
+                     binding_id,
+                   },
+                   ...acc,
+                 ],
+               );
              | _ => (ctx, acc)
              };
            | _ => (ctx, acc)

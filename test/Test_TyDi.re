@@ -71,8 +71,11 @@ let variable_tests = (
       ~expect=None,
     ),
     tydi_test(
+      /* `ab` is no longer a free identifier prefix — `abs` is the
+         value-level type-abstraction keyword. Use `xy`/`xyc` to avoid
+         the keyword-completion suggestion ("xys "). */
       ~name="Multiple candidates: picks first alphabetically",
-      ~code="let abc = 1 in let abd = 2 in ab¦",
+      ~code="let xyc = 1 in let xyd = 2 in xy¦",
       ~expect=Some("c"),
     ),
     /* When the top alphabetical match is exact, no suffix is returned,
@@ -339,16 +342,17 @@ let flagged_tests = (
     Alcotest.test_case("prefix ! has no entry", `Quick, () =>
       absent(of_infix_delim, "!")
     ),
-    /* The manual leading table used Poly(Var(""), unk) for typfun;
+    /* The manual leading table used Poly(Var(""), unk) for typfun
+     * (now spelled abs);
      * the minimal form's binder is a TPat hole. Behavior-identical:
      * the unk body makes both consistent with exactly the Poly (and
      * unknown) expectations. */
-    Alcotest.test_case("typfun derives Poly with hole binder", `Quick, () =>
+    Alcotest.test_case("abs derives Poly with hole binder", `Quick, () =>
       Alcotest.check(
         Alcotest.option(typ_t),
-        "typfun ",
+        "abs ",
         Some(Typ.temp(Poly(TPat.temp(EmptyHole), unk))),
-        List.Assoc.find(of_leading_delim, "typfun ", ~equal=String.equal),
+        List.Assoc.find(of_leading_delim, "abs ", ~equal=String.equal),
       )
     ),
     /* The manual leading table mapped the seven Drv of_* rows to

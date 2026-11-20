@@ -206,7 +206,7 @@ let tests = (
         );
         evaluation_test(
           ~ignore_constructor_types=true,
-          "Indet when unboxing constructor as typfun",
+          "Indet when unboxing constructor as abs",
           typ_ap(
             constructor(
               "B",

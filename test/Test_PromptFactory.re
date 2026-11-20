@@ -83,7 +83,7 @@ let reserved = [
   "test",
   "theorem",
   "type",
-  "typfun",
+  "abs",
   "use",
   "proof_object",
   "of_jdmt",
@@ -111,6 +111,7 @@ let soft_reserved = [
   "poly",
   "proof_of",
   "rec",
+  "typfun",
   "then",
   "val",
   "valid",
@@ -118,7 +119,7 @@ let soft_reserved = [
 ];
 
 /* Reserved in type positions only (backs the prompt's second tier). */
-let typ_reserved = ["rec", "poly"];
+let typ_reserved = ["rec", "poly", "typfun"];
 let typ_usable = ["val", "valid", "consistent"];
 
 /* Near-miss words that must stay usable, so the warning doesn't overreach. */
@@ -247,7 +248,7 @@ let doc_examples_clean = () =>
       "1.5 +. 2.5 ==. 4.0",
       "let inc(x) = x + 1 in 1 |> inc",
       /* HazelSyntaxNotes: polymorphic map */
-      "let map : poly A -> poly B -> ((A -> B), [A]) -> [B] =\n  typfun A -> typfun B -> fun f, xs ->\n    case xs\n    | [] => []\n    | hd :: tl => f(hd) :: map@<A>@<B>(f, tl)\n    end\nin\nmap@<Int>@<Bool>(fun n -> n > 1, [1, 2, 3])",
+      "let map : poly A, B -> ((A -> B), [A]) -> [B] =\n  abs A, B -> fun f, xs ->\n    case xs\n    | [] => []\n    | hd :: tl => f(hd) :: map@<A, B>(f, tl)\n    end\nin\nmap@<Int, Bool>(fun n -> n > 1, [1, 2, 3])",
       /* HazelSyntaxNotes: modules */
       "let m = { let x = 1; let y = true } in m.x",
       "let m = { type T = Int; let x = 5 : T } in m.x",

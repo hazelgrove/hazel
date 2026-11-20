@@ -30,9 +30,9 @@ let select_many
   poly r2 ->
     poly r3 ->
       ([r1], (r1, Int) -> [r2], (r1, r2) -> r3) -> [r3] =
-  typfun r1 ->
-    typfun r2 ->
-      typfun r3 ->
+  abs r1 ->
+    abs r2 ->
+      abs r3 ->
         fun (
           t1 : [r1],
           project : ((r1, Int) -> [r2]),

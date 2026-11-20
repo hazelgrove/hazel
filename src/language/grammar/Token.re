@@ -136,6 +136,13 @@ let keywords = [
   "else",
   "hint",
   "module",
+  /* binder keywords that may be followed by a parenthesized binder list
+     (`poly (a, b) -> …`); listing them keeps the space before the `(` */
+  "abs",
+  "poly",
+  "typfun",
+  "forall",
+  "rec",
 ];
 
 let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
@@ -260,7 +267,7 @@ let uppercase_chars = {|\p{Lu}\p{Lt}|};
 
 /* What may continue a name: every name character except the ASCII
  * modifier-ish ones, which only ever prefix or suffix a token. `'` is
- * allowed in vars but not constructors, matching the ASCII behaviour. What
+ * allowed in vars and capitalized names but may not start a name. What
  * may START a name additionally excludes digits, so `1abc` is not a name. */
 let name_start_class = "[^" ++ non_name_chars ++ {|0-9'?\^\$]|};
 let name_rest_class = "[^" ++ non_name_chars ++ {|'?\^\$]|};
@@ -305,8 +312,9 @@ let is_var = str =>
   && !is_wild(str)
   && unicode_match(var_regexp, str);
 
+/* Constructor / module / type names accept trailing primes (`Result'`). */
 let capitalized_name_regexp =
-  unicode_regexp("^" ++ uppercase_start ++ name_rest_class ++ "*$");
+  unicode_regexp("^" ++ uppercase_start ++ var_rest_class ++ "*$");
 let is_ctr = unicode_match(capitalized_name_regexp);
 
 /* Keywords pass is_var but cannot lex as an identifier in label position,

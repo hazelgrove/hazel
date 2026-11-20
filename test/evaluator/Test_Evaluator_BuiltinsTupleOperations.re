@@ -116,7 +116,7 @@ let tests = (
       "Projection of labeled values",
       `Quick,
       () => {
-        let program = {|let filter = typfun a -> fun (pred :a -> Bool, xs : [a]) -> case xs
+        let program = {|let filter = abs a -> fun (pred :a -> Bool, xs : [a]) -> case xs
   | [] => []
   | (x :: xs) => (if pred(x) then [x] else []) @ filter@<a>(pred, xs)
 end in

@@ -129,6 +129,13 @@ module Ctr = {
       | None => Unknown
       | Some(ty') => all_ctrs_of_typ(ty')
       }
+    /* A recursive family at an argument, `(rec L -> typfun a -> …)(T)`:
+       its constructors are one unfolding away. */
+    | TypParamAp({term: Rec(_), _}, _) =>
+      switch (Typ.unfold_family(ty)) {
+      | None => Unknown
+      | Some(ty') => all_ctrs_of_typ(ty')
+      }
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
     | ProofOf(_) => Infinite
@@ -150,6 +157,9 @@ module Ctr = {
     | DrvQuoteTy(_)
     | Arrow(_)
     | Poly(_)
+    | TypFun(_)
+    | TypParamAp(_)
+    | TypTuple(_)
     | ProdProjection(_)
     | ProdExtension(_)
     | Var(_) => Infinite
@@ -302,7 +312,10 @@ module UnseenPatternList: UnseenPatternList = {
     | _ when Ctr.compare(ctr, Ctr.default_ctr) == 0 =>
       cons_pat_t(wild(), unseen_pattern)
     | Sum(_)
-    | Rec(_) =>
+    | Rec(_)
+    /* Parameterized recursive type — same shape as Rec/Sum after one
+       step of higher-kinded unfolding. */
+    | TypParamAp({term: Rec(_), _}, _) =>
       let pat_ctr = constructor(ctr.ctr, None);
       if (Ctr.num_args_of(ctr) == 0) {
         cons_pat_t(pat_ctr, unseen_pattern);
@@ -425,6 +438,9 @@ module UnseenPatternList: UnseenPatternList = {
       )
     | Arrow(_)
     | Poly(_)
+    | TypFun(_)
+    | TypParamAp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => unseen_pattern
@@ -564,6 +580,9 @@ module UnseenPatternList: UnseenPatternList = {
       cons_ctr(first_unused_str(""), col_type, unseen_pattern);
     | Arrow(_)
     | Poly(_)
+    | TypFun(_)
+    | TypParamAp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)
@@ -629,6 +648,9 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(String) => cons_wild(unseen_pattern)
     | Arrow(_)
     | Poly(_)
+    | TypFun(_)
+    | TypParamAp(_)
+    | TypTuple(_)
     | ProofOf(_)
     | DrvQuoteTy(_)
     | Var(_) => cons_wild(unseen_pattern)

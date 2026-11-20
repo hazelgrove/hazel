@@ -225,8 +225,20 @@ let corpus = [
   ("let-annot-pat", "let x : Int = 1 in x"),
   /* Application patterns — reaches AppPat.funaps/conaps. */
   ("ap-pat", "let f(x) = x * 2 in f(3)"),
-  /* Type functions — reaches TypFunctionExp. */
-  ("typfun", "typfun a -> fun x : a -> x"),
+  /* Type abstractions — reaches TypAbsExp. */
+  ("abs", "abs a -> fun x : a -> x"),
+  /* Parameterized types, type functions, multi-binder poly and type
+     application — reach ParamTyAliasExp, ParamTPat, TypFunTyp,
+     TypParamApTyp, TypArgsTyp, PolyTyp, TupleTPat and TypAbsApExp. */
+  (
+    "param-alias",
+    "type T(a, b) = (a, b) in let x : T(Int, Bool) = (1, true) in x",
+  ),
+  ("typfun", "type F = typfun a -> [a] in let x : F(Int) = [1] in x"),
+  (
+    "poly2",
+    "let f : poly a, b -> (a, b) -> a = abs a, b -> fun (x, _) -> x in f@<Int, Bool>",
+  ),
   /* Labeled tuple pattern — reaches FunctionExp.functions_tuplabel. */
   ("fun-tuplabel", "fun (x=y) -> y"),
   /* Two-level cons pattern — reaches ListPat.cons2. */
@@ -462,15 +474,90 @@ x => VarExp colorings=[]
 x => VarPat colorings=[]|},
   ),
   (
-    "typfun",
+    "abs",
     {|a => VarTPat colorings=[]
 a => VarTyp colorings=[]
+abs a -> fun x:(a) -> x => TypAbsExp colorings=[a,fun x:(a) -> x]
 fun x:(a) -> x => (FunctionExp Base) colorings=[x,x:(a)]
 fun x:(a) -> x => (FunctionExp Var) colorings=[x,x]
-typfun a -> fun x:(a) -> x => TypFunctionExp colorings=[a,fun x:(a) -> x]
 x => VarExp colorings=[]
 x => VarPat colorings=[]
 x:(a) => TypAnnPat colorings=[a,x]|},
+  ),
+  (
+    "param-alias",
+    {|(1, true) => Tuple2Exp colorings=[1,true]
+(1, true) => TupleExp colorings=[]
+(a, b) => Tuple2Typ colorings=[a,b]
+(a, b) => TupleTyp colorings=[]
+1 => IntExp colorings=[]
+Bool => BoolTyp colorings=[]
+Int => IntTyp colorings=[]
+Int, Bool => TypArgsTyp colorings=[Bool,Int]
+T => VarTPat colorings=[]
+T => VarTyp colorings=[]
+T(Int, Bool) => TypParamApTyp colorings=[Bool,Int,T]
+T(a, b) => ParamTPat colorings=[T,a,b]
+a => VarTPat colorings=[]
+a => VarTyp colorings=[]
+b => VarTPat colorings=[]
+b => VarTyp colorings=[]
+let x:(T(Int, Bool)) = (1, true) in x => (LetExp Base) colorings=[(1, true),x]
+let x:(T(Int, Bool)) = (1, true) in x => (LetExp Var) colorings=[(1, true),x,x]
+true => BoolExp colorings=[]
+type T(a, b) = (a, b) in let x:(T(Int, Bool)) = (1, true) in x => ParamTyAliasExp colorings=[(a, b),T,a,b]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(T(Int, Bool)) => TypAnnPat colorings=[T(Int, Bool),x]|},
+  ),
+  (
+    "typfun",
+    {|1 => IntExp colorings=[]
+F => VarTPat colorings=[]
+F => VarTyp colorings=[]
+F(Int) => TypParamApTyp colorings=[F,Int]
+Int => IntTyp colorings=[]
+[1] => ListExp colorings=[]
+[a] => ListTyp colorings=[a]
+a => VarTPat colorings=[]
+a => VarTyp colorings=[]
+let x:(F(Int)) = [1] in x => (LetExp Base) colorings=[[1],x]
+let x:(F(Int)) = [1] in x => (LetExp Var) colorings=[[1],x,x]
+type F = typfun a -> [a] in let x:(F(Int)) = [1] in x => TyAliasExp colorings=[F,typfun a -> [a]]
+typfun a -> [a] => TypFunTyp colorings=[[a],a]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x:(F(Int)) => TypAnnPat colorings=[F(Int),x]|},
+  ),
+  (
+    "poly2",
+    {|(a, b) -> a => ArrowTyp colorings=[(a, b),a]
+(a, b) => Tuple2Typ colorings=[a,b]
+(a, b) => TupleTyp colorings=[]
+(x, _) => Tuple2Pat colorings=[_,x]
+(x, _) => TuplePat colorings=[]
+Bool => BoolTyp colorings=[]
+Int => IntTyp colorings=[]
+Int, Bool => TypArgsTyp colorings=[Bool,Int]
+_ => WildPat colorings=[]
+a => VarTPat colorings=[]
+a => VarTyp colorings=[]
+a, b => TupleTPat colorings=[a,b]
+abs a, b -> fun (x, _) -> x => TypAbsExp colorings=[a,b,fun (x, _) -> x]
+b => VarTPat colorings=[]
+b => VarTyp colorings=[]
+f => VarExp colorings=[]
+f => VarPat colorings=[]
+f @< Int, Bool > => TypAbsApExp colorings=[Bool,Int,f]
+f:(poly a, b -> (a, b) -> a) => TypAnnPat colorings=[f,poly a, b -> (a, b) -> a]
+fun (x, _) -> x => (FunctionExp Base) colorings=[(x, _),x]
+fun (x, _) -> x => (FunctionExp Tuple) colorings=[(x, _),x]
+fun (x, _) -> x => (FunctionExp Tuple2) colorings=[_,x,x]
+let f:(poly a, b -> (a, b) -> a) = abs a, b -> fun (x, _) -> x in f @< Int, Bool > => (LetExp Base) colorings=[abs a, b -> fun (x, _) -> x,f]
+let f:(poly a, b -> (a, b) -> a) = abs a, b -> fun (x, _) -> x in f @< Int, Bool > => (LetExp Var) colorings=[abs a, b -> fun (x, _) -> x,f,f @< Int, Bool >]
+poly a, b -> (a, b) -> a => PolyTyp colorings=[(a, b) -> a,a,b]
+x => VarExp colorings=[]
+x => VarPat colorings=[]|},
   ),
   (
     "fun-tuplabel",
@@ -651,18 +738,28 @@ let expected_groups = [
   "LabeledPat",
   "ListConcatExp",
   "ListExp",
+  "ListTyp",
+  "ParamTPat",
+  "ParamTyAliasExp",
   "PipelineExp",
+  "PolyTyp",
   "SeqExp",
   "TestExp",
   "Tuple2Exp",
   "Tuple2Pat",
+  "Tuple2Typ",
   "Tuple3Exp",
   "Tuple3Pat",
   "TupleExp",
   "TuplePat",
+  "TupleTPat",
   "TyAliasExp",
+  "TypAbsApExp",
+  "TypAbsExp",
   "TypAnnPat",
-  "TypFunctionExp",
+  "TypArgsTyp",
+  "TypFunTyp",
+  "TypParamApTyp",
   "VarExp",
   "VarPat",
   "VarTPat",

@@ -31,8 +31,8 @@ let jellyAnon : [JellyAnon] = (
   ]
 ) in
 let count =
-  typfun row ->
-    typfun v ->
+  abs row ->
+    abs v ->
       fun (t1 : [row], proj : row -> v) ->
         let go =
           fun (groups : [(value= v, count= Int)], row : row) ->

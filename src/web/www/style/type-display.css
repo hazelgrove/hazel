@@ -9,6 +9,14 @@
   color: var(--token-tpat);
 }
 
+/* `type` keyword preceding a type alias entry in the context
+   inspector. Bold + Exp-token color so the declaration form
+   reads as surface syntax. */
+.typ-keyword {
+  color: var(--token-exp);
+  font-weight: bold;
+}
+
 .type .typ-view.atom.unknown {
   /* to advertise provenance display on-hover */
   cursor: help;

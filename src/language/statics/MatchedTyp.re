@@ -16,6 +16,15 @@ let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
     | Some(ty) => weak_head_normalize(ctx, ty)
     | None => ty
     }
+  /* likewise a recursive family at an argument, one unfolding at a time */
+  | TypParamAp({term: Rec(_), _}, _) =>
+    switch (unfold_family(ty)) {
+    | Some(ty) => weak_head_normalize(ctx, ty)
+    | None => ty
+    }
+  | TypParamAp(_)
+  | TypFun(_)
+  | TypTuple(_)
   | Unknown(_)
   | Atom(_)
   | DrvQuoteTy(_)

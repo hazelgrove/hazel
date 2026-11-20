@@ -26,14 +26,14 @@ let departments : [Department] = (
   ]
 ) in
 let tfilter =
-  typfun row ->
+  abs row ->
     fun (t : [row], pred : (row -> Bool)) ->
       filter(t, pred) : [row] in
 let get_row =
-  typfun row -> fun (t : [row], n : Int) -> nth(t, n) : row in
+  abs row -> fun (t : [row], n : Int) -> nth(t, n) : row in
 let build_column =
-  typfun row ->
-    typfun row' ->
+  abs row ->
+    abs row' ->
       fun (t : [row], fn : (row -> row')) ->
         map(t, fn) : [row'] in
 let incorrect =

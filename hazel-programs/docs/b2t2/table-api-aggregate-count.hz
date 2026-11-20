@@ -63,8 +63,8 @@ let ensures = [
 ] in
 # Plain structural recursion: accumulate (value, count) pairs, bumping the count when a key is seen again. #
 let count =
-  typfun row ->
-    typfun key ->
+  abs row ->
+    abs key ->
       fun (t1 : [row], c : (row -> key)) ->
         case t1
         | [] => []

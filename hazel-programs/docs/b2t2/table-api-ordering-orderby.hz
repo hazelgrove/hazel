@@ -26,7 +26,7 @@ let ensures = [
 # order_by is benchmark-style higher-order: B2T2 itself passes each sort key as #
 # a getKey function paired with a comparator. It uses only `.` projection. #
 let order_by =
-  typfun row ->
+  abs row ->
     fun (
       t1 : [row],
       comparators : [(get_key= row -> ?, comparator= ? -> Ord)]

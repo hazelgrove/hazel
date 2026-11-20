@@ -288,13 +288,13 @@ let equality =
     | (Theorem(_, _, _), _) => false
 
     // Forms with type binders
-    | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
+    | (TypAbs(tp1, e1, _), TypAbs(tp2, e2, _)) =>
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
         exp(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), e1, e2)
       | None => false
       }
-    | (TypFun(_, _, _), _) => false
+    | (TypAbs(_, _, _), _) => false
     | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
       switch (tpat(tp1, tp2)) {
       | Some(alphas_typ') =>
@@ -664,6 +664,13 @@ let equality =
       | None => false
       }
     | (Poly(_, _), _) => false
+    | (TypFun(tp1, t1), TypFun(tp2, t2)) =>
+      switch (tpat'(tp1, tp2)) {
+      | Some(alphas_typ') =>
+        typ(alphas_exp, Alphas.combine(alphas_typ', alphas_typ), t1, t2)
+      | None => false
+      }
+    | (TypFun(_, _), _) => false
 
     // Type variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) =>
@@ -697,6 +704,13 @@ let equality =
     | (Label(_), _) => false
     | (List(ty1), List(ty2)) => typ'(ty1, ty2)
     | (List(_), _) => false
+    | (TypParamAp(t11, t12), TypParamAp(t21, t22)) =>
+      typ'(t11, t21) && typ'(t12, t22)
+    | (TypParamAp(_, _), _) => false
+    | (TypTuple(ts1), TypTuple(ts2))
+        when List.length(ts1) == List.length(ts2) =>
+      List.equal(typ', ts1, ts2)
+    | (TypTuple(_), _) => false
     | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
       List.equal(typ', tys1, tys2)
     | (Prod(_), _) => false
@@ -793,11 +807,38 @@ let equality =
   }
   and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
     switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
+    | (Parens(t1), _) when ignore_parens => tpat(t1, tp2)
+    | (_, Parens(t2)) when ignore_parens => tpat(tp1, t2)
+    | (Parens(t1), Parens(t2)) => tpat(t1, t2)
+    | (Parens(_), _) => None
+
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when String.equal(x, y) =>
       Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
+    | (Param(h1, ps1), Param(h2, ps2))
+        when List.length(ps1) == List.length(ps2) =>
+      switch (tpat(h1, h2)) {
+      | Some(alphas_head) =>
+        ListUtil.fold_left_opt(
+          (alphas, (p1, p2)) =>
+            tpat(p1, p2) |> Option.map(~f=Alphas.combine(_, alphas)),
+          alphas_head,
+          List.zip_exn(ps1, ps2),
+        )
+      | None => None
+      }
+    | (Param(_, _), _) => None
+
+    | (Tuple(ts1), Tuple(ts2)) when List.length(ts1) == List.length(ts2) =>
+      ListUtil.fold_left_opt(
+        (alphas, (t1, t2)) =>
+          tpat(t1, t2) |> Option.map(~f=Alphas.combine(_, alphas)),
+        Alphas.empty,
+        List.zip_exn(ts1, ts2),
+      )
+    | (Tuple(_), _) => None
 
     // Holes: equal if provenance is ignored
     | (

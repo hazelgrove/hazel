@@ -11,7 +11,7 @@ type cls =
   | ListLit
   | Constructor
   | Fun
-  | TypFun
+  | TypAbs
   | ExplicitNonlabel
   | Label
   | TupLabel
@@ -146,7 +146,7 @@ let rec strip_wrappers = (e: t): t =>
   | ListLit(_)
   | Constructor(_)
   | Fun(_)
-  | TypFun(_)
+  | TypAbs(_)
   | Tuple(_)
   | Label(_)
   | ExplicitNonlabel
@@ -195,7 +195,7 @@ let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
   | Fun(_) => Fun
-  | TypFun(_) => TypFun
+  | TypAbs(_) => TypAbs
   | Tuple(_) => Tuple
   | TupleExtension(_) => TupleExtension
   | Label(_) => Label
@@ -256,7 +256,7 @@ let show_cls: cls => string =
   | ListLit => "List literal"
   | Constructor => "Constructor"
   | Fun => "Function literal"
-  | TypFun => "Type Function Literal"
+  | TypAbs => "Type abstraction"
   | Tuple => "Tuple literal"
   | Label => "Label"
   | ExplicitNonlabel => "Explicitly unlabeled entry"
@@ -316,7 +316,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     | ListLit(_)
     | Constructor(_)
     | Fun(_)
-    | TypFun(_)
+    | TypAbs(_)
     | Tuple(_)
     | Label(_)
     | ExplicitNonlabel
@@ -371,7 +371,7 @@ let rec is_fun = (e: t) => {
   | Parens(e)
   | Projector(_, e) => is_fun(e)
   | Asc(e, _) => is_fun(e)
-  | TypFun(_)
+  | TypAbs(_)
   | Fun(_)
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
@@ -449,7 +449,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | TypFun(_)
+    | TypAbs(_)
     | Closure(_)
     | BuiltinFun(_)
     | Var(_)
@@ -495,7 +495,7 @@ let rec ctr_name = (e: t): option(Constructor.t) =>
   | DrvQuote(_)
   | ListLit(_)
   | Fun(_)
-  | TypFun(_)
+  | TypAbs(_)
   | Tuple(_)
   | Label(_)
   | ExplicitNonlabel
@@ -564,7 +564,7 @@ let rec get_num_of_functions = (e: t) =>
     | ListLit(_)
     | TupleExtension(_)
     | Fun(_)
-    | TypFun(_)
+    | TypAbs(_)
     | Var(_)
     | Let(_)
     | Theorem(_)
@@ -632,7 +632,7 @@ let unfix = (e: t, p: Pat.t) => {
 let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
-  | TypFun(_, _, n) => n
+  | TypAbs(_, _, n) => n
   | FixF(_, e, _)
   | Parens(e)
   | Projector(_, e)
@@ -681,14 +681,14 @@ let rec get_fn_name = (e: t) => {
   };
 };
 
-/* Rewrite the name of the Fun or TypFun that `e` denotes, looking through
+/* Rewrite the name of the Fun or TypAbs that `e` denotes, looking through
    FixF, Parens, Projector and Asc (as get_fn_name does), so that
    `let f = (fun x -> x) in ...` names its function too. */
 let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
   let (term, rewrap) = unwrap(e);
   switch (term) {
   | Fun(p, body, t, name) => Fun(p, body, t, f(name)) |> rewrap
-  | TypFun(tpat, body, name) => TypFun(tpat, body, f(name)) |> rewrap
+  | TypAbs(tpat, body, name) => TypAbs(tpat, body, f(name)) |> rewrap
   | Parens(e) => Parens(map_fn_name(f, e)) |> rewrap
   | Projector(pr, e) => Projector(pr, map_fn_name(f, e)) |> rewrap
   | Asc(e, ty) => Asc(map_fn_name(f, e), ty) |> rewrap
@@ -743,7 +743,7 @@ let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
 let rec get_fn_def_id = (e: t) =>
   switch (e.term) {
   | Fun(_)
-  | TypFun(_) => Some(rep_id(e))
+  | TypAbs(_) => Some(rep_id(e))
   | FixF(_, e, _)
   | Parens(e) => get_fn_def_id(e)
   | _ => None
@@ -772,7 +772,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
   };
 };
 
-/* Inject a function name into a Fun or TypFun expression. */
+/* Inject a function name into a Fun or TypAbs expression. */
 let add_name = (name: option(string), exp: t): t => {
   map_fn_name(_ => name, exp);
 };

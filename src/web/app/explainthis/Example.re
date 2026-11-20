@@ -78,7 +78,11 @@ let dot_typ = () => mk_monotile(Dot, Typ);
 let ascription_exp = () => mk_monotile(TypeAsc, Exp);
 let deferral = () => exp("_");
 let typeann = () => mk_monotile(TypeAsc, Pat);
-let mk_typfun = mk_tile(TypFun, Exp);
+let mk_typabs = mk_tile(TypAbs, Exp);
+let mk_typfun = mk_tile(TypFun, Typ);
+let mk_ap_typ = mk_tile(Ap, Typ);
+let mk_ap_tpat = mk_tile(Ap, TPat);
+let comma_tpat = () => mk_monotile(Comma, TPat);
 let mk_fun = mk_tile(Fun, Exp);
 let mk_ap_exp_typ = mk_tile(ApExpTyp, Exp);
 let mk_fix = mk_tile(Fix, Exp);
@@ -113,3 +117,56 @@ let mk_example = str =>
 
 /* Int param below should be ~ width of sidebar */
 let abbreviate = Token.abbreviate(20);
+
+/* [n] placeholder pieces named after [name] (`a`, or `a1`, `a2`, … for
+   more than one) separated by commas, as in a binder list `a1, a2` or an
+   argument list `T1, T2`; returns the segment and the placeholders. */
+let comma_list =
+    (~sep: unit => Piece.t, mk: string => Piece.t, name: string, n: int)
+    : (Segment.t, list(Piece.t)) => {
+  let pieces =
+    n == 1
+      ? [mk(name)]
+      : List.init(n, ~f=i => mk(Printf.sprintf("%s%d", name, i + 1)));
+  let seg =
+    pieces
+    |> List.mapi(~f=(i, p) => i == 0 ? [p] : [sep(), space(), p])
+    |> List.concat;
+  (seg, pieces);
+};
+let tpat_list = comma_list(~sep=comma_tpat, tpat);
+let typ_list = comma_list(~sep=comma_typ, typ);
+
+/* Colorings pairing placeholders with the terms they stand for, as far
+   as both lists go. */
+let rec zip_colorings =
+        (pieces: list(Piece.t), ids: list(Id.t)): list((Id.t, Id.t)) =>
+  switch (pieces, ids) {
+  | ([p, ...ps], [id, ...ids]) => [
+      (Piece.id(p), id),
+      ...zip_colorings(ps, ids),
+    ]
+  | _ => []
+  };
+
+/* `[*label*](id)` links, comma separated */
+let links = (label: string, ids: list(Id.t)): string =>
+  ids
+  |> List.map(~f=id =>
+       Printf.sprintf("[*%s*](%s)", label, Id.to_string(id))
+     )
+  |> String.concat(~sep=", ");
+
+/* Links labelled with the names they stand for, `a` and `b` */
+let named_links = (named: list((string, Id.t))): string => {
+  let link = ((name, id)) =>
+    Printf.sprintf("[*%s*](%s)", name, Id.to_string(id));
+  switch (List.rev(named)) {
+  | [] => ""
+  | [last] => link(last)
+  | [last, ...rest] =>
+    String.concat(~sep=", ", List.rev_map(~f=link, rest))
+    ++ " and "
+    ++ link(last)
+  };
+};

@@ -99,6 +99,7 @@ type family =
   | HintedTest
   | Fun
   | Fix
+  | TypAbs
   | TypFun
   | Poly
   | Forall
@@ -216,6 +217,7 @@ let label_of_family: family => Label.t =
   | HintedTest => ["hint", "test", "end"]
   | Fun => ["fun", "->"]
   | Fix => ["fix", "->"]
+  | TypAbs => ["abs", "->"]
   | TypFun => ["typfun", "->"]
   | Poly => ["poly", "->"]
   | Forall => ["forall", "->"]

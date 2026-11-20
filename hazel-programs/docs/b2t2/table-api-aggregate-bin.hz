@@ -110,7 +110,7 @@ let bin_int =
       fun (i, cnt) -> (group= (i, i + bin_size), count= cnt)
     ) in
 let bin =
-  typfun row ->
+  abs row ->
     fun (
       t1 : [row],
       c : String,

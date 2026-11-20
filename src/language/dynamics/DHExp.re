@@ -69,15 +69,18 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
       ~f_exp=
         (continue, exp) =>
           switch (term_of(exp)) {
-          | TypFun(utpat, _, _) =>
-            switch (TPat.tyvar_of_utpat(utpat)) {
-            | Some(x') when String.equal(x, x') => exp
-            | Some(_)
-            | None => continue(exp)
-            /* Capture avoidance inside embedded types is handled by
-               `Typ.subst`, which alpha-renames clashing binders. The
-               `TypFun` binder here is on the expression side, not the
-               type side, so it cannot capture free type variables in `s`. */
+          | TypAbs(utpat, _, _) =>
+            /* `utpat` may itself be a `TPat.Tuple([…])` for multi-binder
+               typfuns. The binder shadows `x` if any of its element names
+               equals `x`. Capture avoidance inside embedded types is
+               handled by `Typ.subst`, which alpha-renames clashing
+               binders. The `TypAbs` binder here is on the expression
+               side, not the type side, so it cannot capture free type
+               variables in `s`. */
+            if (List.mem(TPat.tyvars_of(utpat), x, ~equal=String.equal)) {
+              exp;
+            } else {
+              continue(exp);
             }
           | Asc(_)
           | FixF(_)
@@ -131,6 +134,68 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   };
 };
 
+/* Substitute a list of types for a corresponding list of binders all
+   at once. Used for reducing `TypAp(TypAbs(TPat.Tuple([a, b, …]),
+   body, _), TypTuple([t1, t2, …]))` and the analogous `Poly` schema
+   specialization in a single step. The lists must have the same
+   length; the caller is expected to enforce that. */
+/* Simultaneous, as Typ.subst_many. */
+let ty_subst_many = (args: list(Typ.t), binders: list(TPat.t), exp: t): t => {
+  let names = List.filter_map(~f=TPat.tyvar_of_utpat, binders);
+  let subst_all = (binders, exp) =>
+    List.fold2_exn(args, binders, ~init=exp, ~f=(exp, arg, binder) =>
+      ty_subst(arg, binder, exp)
+    );
+  if (List.exists(
+        ~f=
+          arg =>
+            List.exists(
+              ~f=x => List.mem(names, x, ~equal=String.equal),
+              Typ.free_vars(arg),
+            ),
+        args,
+      )) {
+    let renamed =
+      List.map(
+        ~f=
+          (b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(x) => TPat.fresh(Var(Typ.fresh_var(x)))
+            | None => b
+            },
+        binders,
+      );
+    let exp =
+      List.fold2_exn(binders, renamed, ~init=exp, ~f=(exp, b, b') =>
+        switch (TPat.tyvar_of_utpat(b')) {
+        | Some(x') => ty_subst(Var(x') |> Typ.temp, b, exp)
+        | None => exp
+        }
+      );
+    subst_all(renamed, exp);
+  } else {
+    subst_all(binders, exp);
+  };
+};
+
+/* The type arguments of `e@<tau>` for the binders of [tpat]: one each
+   from a `TypTuple` of matching length, or `tau` itself for a single
+   binder. Any other arity is a type error (statics marks it); the
+   binders are then taken as unknown so evaluation can go on. */
+let type_args = (tpat: TPat.t, tau: Typ.t): (list(TPat.t), list(Typ.t)) => {
+  let binders = TPat.binders_of(tpat);
+  let unknown = () => Typ.temp(Unknown(Internal));
+  switch (binders, Typ.term_of(tau)) {
+  | ([_], TypTuple(_)) => (binders, [unknown()])
+  | ([_], _) => (binders, [tau])
+  | (_, TypTuple(ts)) when List.length(ts) == List.length(binders) => (
+      binders,
+      ts,
+    )
+  | _ => (binders, List.map(~f=_ => unknown(), binders))
+  };
+};
+
 let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
   | (Invalid(_), _)
@@ -164,7 +229,7 @@ let rec ty_comparable = (d1, d2) => {
   | (LivelitName(_), _)
   | (Fun(_), _)
   | (BuiltinFun(_), _)
-  | (TypFun(_), _)
+  | (TypAbs(_), _)
   | (TupleExtension(_), _) => false
   | (Parens(d1), _) => ty_comparable(d1, d2)
   | (_, Parens(d2)) => ty_comparable(d1, d2)
@@ -268,7 +333,7 @@ let rec poly_equal = (d1, d2): option(bool) => {
   | (Dot(_), _)
   | (LivelitName(_), _)
   | (Fun(_), _)
-  | (TypFun(_), _)
+  | (TypAbs(_), _)
   | (Use(_), _)
   | (BuiltinFun(_), _) => None
 

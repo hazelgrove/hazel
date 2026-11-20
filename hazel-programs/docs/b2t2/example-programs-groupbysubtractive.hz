@@ -2,7 +2,7 @@ let get_value =
   fun (r : ?, label : String) ->
     find(to_lvs(r), fun e ->e.label == label).value in
 let add_rows =
-  typfun row -> fun (r : row, rs : [row]) -> rs @ [r] in
+  abs row -> fun (r : row, rs : [row]) -> rs @ [r] in
 let add_col =
   fun (t : [?], c : String, vs : [?]) ->
     zip(t, vs)

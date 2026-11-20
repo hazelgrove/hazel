@@ -42,8 +42,8 @@ let tests = (
     ),
     /* Test_Evaluator_TypAp pins the result this type has to agree with. */
     fully_consistent_typecheck(
-      "typfun binder shadows a type alias, so the body's `y` is not Int (#1717)",
-      {|type y = Int in typfun y -> (? : y)|},
+      "abs binder shadows a type alias, so the body's `y` is not Int (#1717)",
+      {|type y = Int in abs y -> (? : y)|},
       FTemp.Typ.(Some(poly(TPat.var("y"), var("y")))),
     ),
     inconsistent_typecheck(
@@ -92,7 +92,7 @@ let tests = (
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 6",
-      {| let a = typfun A -> fun x : A -> x in a == a |} |> parse_exp,
+      {| let a = abs A -> fun x : A -> x in a == a |} |> parse_exp,
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 7",

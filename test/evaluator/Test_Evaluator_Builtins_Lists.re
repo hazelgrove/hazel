@@ -353,28 +353,28 @@ let tests = (
         {|remove_assoc([(1, 10), (2, 42), (3, 30)], 5)|},
       )
     ),
-    test_case("partition_map with Left and Right values", `Quick, () =>
+    test_case("partition_map with L and R values", `Quick, () =>
       parse_and_evaluate_test(
         {|([2, 4], [1, 3])|},
-        {|partition_map([1, 2, 3, 4], fun x -> if int_mod(x, 2) == 0 then Left(x) else Right(x))|},
+        {|partition_map([1, 2, 3, 4], fun x -> if int_mod(x, 2) == 0 then L(x) else R(x))|},
       )
     ),
-    test_case("partition_map with all Left values", `Quick, () =>
+    test_case("partition_map with all L values", `Quick, () =>
       parse_and_evaluate_test(
         {|([1, 2, 3], [])|},
-        {|partition_map([1, 2, 3], fun x -> Left(x))|},
+        {|partition_map([1, 2, 3], fun x -> L(x))|},
       )
     ),
-    test_case("partition_map with all Right values", `Quick, () =>
+    test_case("partition_map with all R values", `Quick, () =>
       parse_and_evaluate_test(
         {|([], [1, 2, 3])|},
-        {|partition_map([1, 2, 3], fun x -> Right(x))|},
+        {|partition_map([1, 2, 3], fun x -> R(x))|},
       )
     ),
     test_case("partition_map with empty list", `Quick, () =>
       parse_and_evaluate_test(
         {|([], [])|},
-        {|partition_map([], fun x -> Left(x))|},
+        {|partition_map([], fun x -> L(x))|},
       )
     ),
     test_case("sort empty list", `Quick, () =>

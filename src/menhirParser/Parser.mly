@@ -17,6 +17,7 @@ open AST
 %token <string> LIVELIT_IDENT
 %token MOD_SEMI
 %token TYP
+%token TYP_ABS
 %token TYP_FUN
 %token FIX
 %token WILD
@@ -263,9 +264,22 @@ typ:
     | UNKNOWN; INTERNAL { UnknownType(Internal) }
     | QUESTION { UnknownType(EmptyHole) }
     | UNIT { TupleType([]) }
-    | POLY; a = tpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | POLY; a = polyTpat; DASH_ARROW; t = typ { PolyType(a, t) }
+    | TYP_FUN; a = polyTpat; DASH_ARROW; t = typ { TypFunType(a, t) }
     | t = tupleType { t }
     | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    (* Type application `T(a)` / `T(a, b)`. A constructor-named head is
+       spelled out, sharing its prefix with the no-leading-plus sum term
+       `Ctor(args) + …`, so the two part ways on the lookahead after `)`;
+       the low precedence lets a following `+` continue the sum. *)
+    | c = CONSTRUCTOR_IDENT; OPEN_PAREN; t = typ; CLOSE_PAREN { TypParamAp(TypVar(c), t) } %prec SUM_TYP
+    | c = CONSTRUCTOR_IDENT; OPEN_PAREN; hd = tupTypeEntry; COMMA; ts = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN {
+        TypParamAp(TypVar(c), TypTuple(hd :: ts))
+      } %prec SUM_TYP
+    | t1 = typ; OPEN_PAREN; t2 = typ; CLOSE_PAREN { TypParamAp(t1, t2) }
+    | t1 = typ; OPEN_PAREN; t2 = tupTypeEntry; COMMA; ts = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN {
+        TypParamAp(t1, TypTuple(t2 :: ts))
+      }
     | t1 = typ; DASH_ARROW; t2 = typ { ArrowType(t1, t2) }
     | s = sumTyp; { SumTyp(s) }
     (* Sums WITHOUT the leading plus: `Nil + Cons(Int, T)`. The bare-
@@ -429,8 +443,19 @@ tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
     | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
+    | v = IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
+    | v = CONSTRUCTOR_IDENT; OPEN_PAREN; ps = separated_list(COMMA, tpat); CLOSE_PAREN {ParamTPat(v, ps)}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
+
+(* `poly a, b -> t` and `typfun a, b -> e` allow a comma-separated list of
+   binders directly, with optional parens around the list (`poly (a, b) -> t`).
+   A single tpat collapses to a bare tpat; two or more become a `TupleTPat`. *)
+polyTpat:
+    | t = tpat { t }
+    | t = tpat; COMMA; ts = separated_nonempty_list(COMMA, tpat) { TupleTPat(t :: ts) }
+    | OPEN_PAREN; t = tpat; CLOSE_PAREN { t }
+    | OPEN_PAREN; t = tpat; COMMA; ts = separated_nonempty_list(COMMA, tpat); CLOSE_PAREN { TupleTPat(t :: ts) }
 
 unExp:
     | MINUS; e = exp {UnOp(Int(Minus), e)} %prec UMINUS
@@ -490,7 +515,7 @@ exp:
     | f = funExp {f}
     | FALSE { Atom (Bool false) }
     | FIX;  p = funPat; DASH_ARROW; e = exp { FixF(p, e) }
-    | TYP_FUN; t = tpat; DASH_ARROW; e = exp {TypFun(t, e)}
+    | TYP_ABS; t = polyTpat; DASH_ARROW; e = exp {TypAbs(t, e)}
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
@@ -501,6 +526,7 @@ exp:
     |  E_EXP; s = STRING; { InvalidExp(s) }
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
+    | e = exp; TYP_AP_SYMBOL; ty = typ; COMMA; tys = separated_nonempty_list(COMMA, typ); GREATER_THAN; {TypAp(e, TypTuple(ty :: tys))}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = QUOTED_LABEL; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}

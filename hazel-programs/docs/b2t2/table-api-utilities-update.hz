@@ -30,7 +30,7 @@ let ensures = [
 # update applies a function returning the fields to overwrite, merged with `...`. #
 # It needs only tuple extension. #
 let update =
-  typfun row ->
+  abs row ->
     fun (t1 : [row], f : (row -> ?)) ->
       map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in
 

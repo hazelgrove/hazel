@@ -22,7 +22,7 @@ let ensures = [
   (enforced=("static"), "schema(t2) is equal to schema(t1)")
 ] in
 let distinct =
-  typfun row ->
+  abs row ->
     fun (t : [row]) ->
       fold_left(
         t,

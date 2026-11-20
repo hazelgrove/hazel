@@ -88,8 +88,8 @@ let group_by_retentive
 : poly row ->
   poly key ->
     ([row], (row -> key)) -> [(key= key, groups= [row])] =
-  typfun row ->
-    typfun key ->
+  abs row ->
+    abs key ->
       fun (t1, c) ->
         case t1
         | [] => []

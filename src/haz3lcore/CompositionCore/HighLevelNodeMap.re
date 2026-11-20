@@ -72,7 +72,7 @@ module Utils = {
     | FixF(_, e, _)
     | Use(_, e)
     | TypAp(e, _)
-    | TypFun(_, e, _)
+    | TypAbs(_, e, _)
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)
@@ -251,10 +251,16 @@ module Namer = {
     };
   };
 
-  let mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
+  let rec mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
     switch (tpat.term) {
     | Var(name)
     | Invalid(name) => name
+    | Param(head, _) => mk_name_from_tpat(head)
+    | Tuple(tps) =>
+      "("
+      ++ String.concat(~sep=", ", List.map(~f=mk_name_from_tpat, tps))
+      ++ ")"
+    | Parens(inner) => mk_name_from_tpat(inner)
     | EmptyHole => "{empty type pattern hole}"
     | MultiHole(_) => "{multi type pattern hole}"
     };

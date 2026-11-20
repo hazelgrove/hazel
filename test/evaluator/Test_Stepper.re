@@ -63,5 +63,72 @@ let tests = (
         ),
       )
     }),
+    /* Regression: `{ let y = 1; let y = y }` lowers to
+       `let y = 1 in let y = y in …`; small-step substitution must not
+       capture the inner definition's `y` (found by the confluence
+       property test). */
+    test_case(
+      "Stepper: module item rebinds same name",
+      `Quick,
+      () => {
+        let prog = {|{ let y = 1; let y = y }|};
+        let elaborated = elaborate(parse_exp(prog));
+        let bigstep =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=1000,
+            elaborated,
+          );
+        let smallstep =
+          full_small_step_reduction(~step_limit=1000, elaborated);
+        switch (bigstep, smallstep) {
+        | (
+            LimitedCompleted((bigstep_exp, _)),
+            LimitedCompleted((smallstep_exp, _)),
+          ) =>
+          check(
+            dhexp_typ,
+            "small-step result matches big-step result",
+            bigstep_exp,
+            smallstep_exp,
+          )
+        | (StepLimitExceeded, _)
+        | (_, StepLimitExceeded) =>
+          Alcotest.fail("evaluation hit step limit")
+        };
+      },
+    ),
+    /* The same program without the module wrapper. */
+    test_case(
+      "Stepper: nested let rebinds same name (no module)",
+      `Quick,
+      () => {
+        let prog = {|let y = 1 in let y = y in y|};
+        let elaborated = elaborate(parse_exp(prog));
+        let bigstep =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=1000,
+            elaborated,
+          );
+        let smallstep =
+          full_small_step_reduction(~step_limit=1000, elaborated);
+        switch (bigstep, smallstep) {
+        | (
+            LimitedCompleted((bigstep_exp, _)),
+            LimitedCompleted((smallstep_exp, _)),
+          ) =>
+          check(
+            dhexp_typ,
+            "small-step result matches big-step result",
+            bigstep_exp,
+            smallstep_exp,
+          )
+        | (StepLimitExceeded, _)
+        | (_, StepLimitExceeded) =>
+          Alcotest.fail("evaluation hit step limit")
+        };
+      },
+    ),
   ],
 );

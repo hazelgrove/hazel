@@ -26,8 +26,8 @@ let complete_cases =
       t,
       fun r ->
         # The scrutinee is annotated so Some/None resolve to the builtin Option rather than the OptInt/OptString constructors defined above #
-        case ((to_lvs(r) |> find_opt(_, fun e -> e.label == c)) : Option)
-        | Some(e) => ! (e.value == (None : Option))
+        case ((to_lvs(r) |> find_opt(_, fun e -> e.label == c)) : Option(?))
+        | Some(e) => ! (e.value == (None : Option(?)))
         | None => false
         end
     )
@@ -42,8 +42,8 @@ let ensures = [
   (enforced=("no"), "length(bs) is equal to nrows(t)")
 ] in
 let complete_cases =
-  typfun R ->
-    typfun C ->
+  abs R ->
+    abs C ->
       fun (t : [R], project : (R -> + None + Some(C))) ->
         map(
           t,

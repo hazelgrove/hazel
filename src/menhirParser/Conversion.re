@@ -257,8 +257,8 @@ module rec Exp: {
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
-    | TypFun(t, e) =>
-      typ_fun(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
+    | TypAbs(t, e) =>
+      typ_abs(TPat.of_menhir_ast(t), of_menhir_ast(e), None)
     | Undefined => undefined()
     | TyAlias(tp, ty, e) =>
       ty_alias(
@@ -376,7 +376,7 @@ module rec Exp: {
     | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
-    | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
+    | TypAbs(tp, e, _) => TypAbs(TPat.of_core(tp), of_core(e))
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
@@ -491,6 +491,9 @@ and Typ: {
       tup_label(of_menhir_ast(t1), of_menhir_ast(t2))
     | ArrayType(t) => list(of_menhir_ast(t))
     | ArrowType(t1, t2) => arrow(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypParamAp(t1, t2) =>
+      typ_param_ap(of_menhir_ast(t1), of_menhir_ast(t2))
+    | TypTuple(ts) => typ_tuple(List.map(~f=of_menhir_ast, ts))
     | ProdProjection(t1, t2) =>
       let t2 =
         switch (t2) {
@@ -520,6 +523,8 @@ and Typ: {
         );
       sum(converted_terms);
     | PolyType(tp, t) => poly(TPat.of_menhir_ast(tp), of_menhir_ast(t))
+    | TypFunType(tp, t) =>
+      typ_fun(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | RecType(tp, t) => rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t))
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
@@ -553,8 +558,14 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(~f=of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
+    | TypParamAp(t1, t2) => TypParamAp(of_core(t1), of_core(t2))
+    /* `TypTuple` is the multi-argument bundle in a type-level
+       application like `Either(a, b)`; round-trip it as the matching
+       Menhir AST node. */
+    | TypTuple(ts) => TypTuple(List.map(~f=of_core, ts))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
+    | TypFun(tp, t) => TypFunType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => ParenTyp(of_core(t))
@@ -591,18 +602,34 @@ and TPat: {
   let of_core: IndicatedG.tpat => AST.tpat;
 } = {
   open IndicatedG.TPat;
-  let of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
+  let rec of_menhir_ast = (tpat: AST.tpat): IndicatedG.tpat => {
     switch (tpat) {
     | InvalidTPat(s) => invalid(s)
     | EmptyHoleTPat => empty_hole()
     | VarTPat(s) => var(s)
+    | ParamTPat(name, params) =>
+      param(var(name), List.map(~f=of_menhir_ast, params))
+    | TupleTPat(tps) => tuple(List.map(~f=of_menhir_ast, tps))
     };
   };
 
-  let of_core = (tpat: IndicatedG.tpat): AST.tpat => {
+  let rec of_core = (tpat: IndicatedG.tpat): AST.tpat => {
     switch (tpat.term) {
     | EmptyHole => EmptyHoleTPat
     | Var(x) => VarTPat(x)
+    | Param(head, params) =>
+      let name =
+        switch (head.term) {
+        | Var(x) => x
+        | Invalid(s) => s
+        | _ => "?"
+        };
+      ParamTPat(name, List.map(~f=of_core, params));
+    | Tuple(tps) => TupleTPat(List.map(~f=of_core, tps))
+    /* Parens are dropped on conversion to the Menhir AST (the
+       round-trip tests compare syntactic shape without surface
+       parens). */
+    | Parens(inner) => of_core(inner)
     | Invalid(i) => InvalidTPat(i)
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     };
@@ -672,6 +699,17 @@ and ModItem: {
       mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
     | ModItemType(tp, t) =>
       mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    | ModItemExp(EmptyHole) =>
+      /* A bare `?` at module-item position has a dedicated
+         `Mod.EmptyHole` term in the core grammar (used by MakeTerm).
+         The Menhir AST has no module-level empty-hole variant — it
+         sees the `?` as a plain expression and wraps it in
+         `ModItemExp` — so canonicalize on conversion to keep
+         round-tripping consistent. The `Mod.EmptyHole` core variant
+         is what `Statics`/`ExpandModule` expect for true bare-hole
+         items (vs the `let _ = ?` pattern that an `Exp.EmptyHole`
+         would receive via `wrap_item`'s `ModExp` branch). */
+      empty_hole()
     | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
     | ModItemModule(p, e) =>
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));

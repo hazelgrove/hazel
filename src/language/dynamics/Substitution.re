@@ -86,7 +86,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | DrvQuote(_)
         | ListLit(_)
         | Constructor(_)
-        | TypFun(_)
+        | TypAbs(_)
         | Tuple(_)
         | TupLabel(_)
         | TupleExtension(_)
@@ -220,6 +220,9 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Var(_)
         | List(_)
         | Arrow(_, _)
+        | TypFun(_, _)
+        | TypParamAp(_, _)
+        | TypTuple(_)
         | Sum(_)
         | Prod(_)
         | ExplicitNonlabel

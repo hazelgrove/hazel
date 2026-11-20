@@ -1900,8 +1900,11 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
-        "Exp 67/88 | Pat 9/88 | Typ 15/88 | TPat 4/88 | Rul 1/88",
+           clippable_sort stands.
+           88 -> 89 families, Typ 15 -> 16, TPat 4 -> 5: #2254 split the
+           value-level `abs` (Exp) from the type-level `typfun` (now Typ),
+           and gave tpats comma and application molds (`T(a, b)`). */
+        "Exp 67/89 | Pat 9/89 | Typ 16/89 | TPat 5/89 | Rul 1/89",
         table,
       )
     ),

@@ -23,6 +23,9 @@ type cls =
   | Projector
   | Rec
   | Poly
+  | TypFun
+  | TypParamAp
+  | TypTuple
   | ProofOf
   | ProdProjection
   | ProdExtension
@@ -98,6 +101,9 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Sum(_) => Sum
   | Rec(_) => Rec
   | Poly(_) => Poly
+  | TypFun(_) => TypFun
+  | TypParamAp(_) => TypParamAp
+  | TypTuple(_) => TypTuple
   | ProofOf(_) => ProofOf
   | ProdProjection(_) => ProdProjection
   | ProdExtension(_) => ProdExtension
@@ -125,6 +131,9 @@ let show_cls: cls => string =
   | Projector => "Projector type"
   | Rec => "Recursive type"
   | Poly => "Type quantifier"
+  | TypFun => "Type-level function"
+  | TypParamAp => "Type parameter application"
+  | TypTuple => "Type parameter argument tuple"
   | ProofOf => "Proof type"
   | ProdProjection => "Tuple projection"
   | ProdExtension => "Tuple extension"
@@ -144,6 +153,9 @@ let rec is_arrow = (typ: t) => {
   | ExplicitNonlabel
   | Prod(_)
   | Var(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | Sum(_)
   | Poly(_)
   | ProofOf(_)
@@ -162,6 +174,7 @@ let rec has_fun = (typ: t) =>
   | ProdProjection(typ, _) => has_fun(typ)
   | Arrow(_)
   | Poly(_)
+  | TypFun(_)
   | ProofOf(_) => true
   | Unknown(_)
   | Atom(_)
@@ -169,6 +182,8 @@ let rec has_fun = (typ: t) =>
   | Label(_)
   | ExplicitNonlabel
   | Var(_) => false
+  | TypParamAp(t1, t2) => has_fun(t1) || has_fun(t2)
+  | TypTuple(ts) => List.exists(~f=has_fun, ts)
   | List(t) => has_fun(t)
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
@@ -250,6 +265,9 @@ let rec strip_wrappers = (ty: t): t =>
   | ProofOf(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | Sig(_) => ty
   };
 
@@ -278,6 +296,9 @@ let rec match_tup_optional_label = (ty: t) =>
   | ProofOf(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | Sig(_) => None
   };
 let match_tup_label = ty => {
@@ -295,6 +316,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Label(_)
   | ExplicitNonlabel => []
   | Var(v) => List.mem(bound, v, ~equal=String.equal) ? [] : [v]
+  | TypParamAp(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
+  | TypTuple(ts) => List.concat_map(~f=free_vars(~bound), ts)
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -305,8 +328,12 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | ProdProjection(t1, _) => free_vars(~bound, t1)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
-  | Poly(x, ty) =>
-    free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Poly(x, ty)
+  | TypFun(x, ty) =>
+    /* `x` may be a single binder or a `TPat.Tuple` with multiple
+       binders; `tyvars_of` flattens both cases into the list of bound
+       names. */
+    free_vars(~bound=TPat.tyvars_of(x) @ bound, ty)
   | ProofOf(_) => []
   | Sig(_) => []
   };
@@ -325,6 +352,9 @@ let rec count_unknowns = (ty: t): int =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Var(_) => 0
+  | TypParamAp(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
+  | TypTuple(ts) =>
+    List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, ts)
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
     List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, tys)
@@ -345,7 +375,8 @@ let rec count_unknowns = (ty: t): int =>
   | List(ty) => count_unknowns(ty)
   | Parens(ty)
   | Projector(_, ty) => count_unknowns(ty)
-  | Poly(_, ty) => count_unknowns(ty)
+  | Poly(_, ty)
+  | TypFun(_, ty) => count_unknowns(ty)
   | ProofOf(_) => 0
   | ExplicitNonlabel
   | Label(_) => 0
@@ -366,7 +397,9 @@ let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
    `fresh_var`) before recursing. The inner subst used for renaming is itself
    capture-avoiding, so repeated collisions are handled naturally. */
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
-  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+  /* Rename a single binder to a fresh name in `body` if its name
+     would capture a free variable of `s`. */
+  let avoid_capture_one = (tp2: TPat.t, body: t): (TPat.t, t) =>
     switch (TPat.tyvar_of_utpat(tp2)) {
     | Some(name) when List.mem(free_vars(s), name, ~equal=String.equal) =>
       let fresh = fresh_var(name);
@@ -374,6 +407,38 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       let body' = subst(Var(fresh) |> temp, tp2, body);
       (tp2', body');
     | _ => (tp2, body)
+    };
+  /* For a binder that may be a `TPat.Tuple([…])`, alpha-rename each
+     element binder in turn so none captures free variables of `s`. A
+     non-tuple binder is treated as a singleton list. */
+  let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
+    switch (tp2.term) {
+    | Tuple(tps) =>
+      let (tps', body') =
+        List.fold_left(
+          ~f=
+            ((acc, b), tp) => {
+              let (tp', b') = avoid_capture_one(tp, b);
+              (acc @ [tp'], b');
+            },
+          ~init=([], body),
+          tps,
+        );
+      (
+        {
+          ...tp2,
+          term: Tuple(tps'),
+        },
+        body',
+      );
+    | _ => avoid_capture_one(tp2, body)
+    };
+  /* `x` shadows the binder if it appears anywhere in the binder's
+     flattened tyvars list. */
+  let binder_shadows_x = (tp2: TPat.t): bool =>
+    switch (TPat.tyvar_of_utpat(x)) {
+    | Some(name) => List.mem(TPat.tyvars_of(tp2), name, ~equal=String.equal)
+    | None => false
     };
   switch (TPat.tyvar_of_utpat(x)) {
   | Some(str) =>
@@ -385,29 +450,23 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Unknown(prov) => Unknown(prov) |> rewrap
     | Arrow(ty1, ty2) =>
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | TypParamAp(ty1, ty2) =>
+      TypParamAp(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+    | TypTuple(ts) => TypTuple(List.map(~f=subst(s, x), ts)) |> rewrap
     | Prod(tys) => Prod(List.map(~f=subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
       Sum(ConstructorMap.map(Option.map(~f=subst(s, x)), sm)) |> rewrap
-    | Poly(tp2, ty)
-        when
-          Option.equal(
-            String.equal,
-            TPat.tyvar_of_utpat(x),
-            TPat.tyvar_of_utpat(tp2),
-          ) =>
-      Poly(tp2, ty) |> rewrap
+    | Poly(tp2, ty) when binder_shadows_x(tp2) => Poly(tp2, ty) |> rewrap
     | Poly(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Poly(tp2', subst(s, x, ty')) |> rewrap;
-    | Rec(tp2, ty)
-        when
-          Option.equal(
-            String.equal,
-            TPat.tyvar_of_utpat(x),
-            TPat.tyvar_of_utpat(tp2),
-          ) =>
-      Rec(tp2, ty) |> rewrap
+    | TypFun(tp2, ty) when binder_shadows_x(tp2) =>
+      TypFun(tp2, ty) |> rewrap
+    | TypFun(tp2, ty) =>
+      let (tp2', ty') = avoid_capture(tp2, ty);
+      TypFun(tp2', subst(s, x, ty')) |> rewrap;
+    | Rec(tp2, ty) when binder_shadows_x(tp2) => Rec(tp2, ty) |> rewrap
     | Rec(tp2, ty) =>
       let (tp2', ty') = avoid_capture(tp2, ty);
       Rec(tp2', subst(s, x, ty')) |> rewrap;
@@ -424,6 +483,50 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | DrvQuoteTy(_) => ty
     };
   | None => ty
+  };
+};
+
+/* Substitute `args` for the corresponding `binders` of a multi-binder
+   form (`TPat.binders_of`) in one step. The lists must have equal length;
+   callers check the arity first. */
+let subst_many = (args: list(t), binders: list(TPat.t), body: t): t => {
+  let names = List.filter_map(~f=TPat.tyvar_of_utpat, binders);
+  let subst_all = (binders, body) =>
+    List.fold2_exn(args, binders, ~init=body, ~f=(body, arg, binder) =>
+      subst(arg, binder, body)
+    );
+  /* Simultaneous: when an argument mentions one of the binders' names
+     (`(abs a, b -> …)@<b, Int>`), rename the binders apart first so that
+     argument is not substituted into again. */
+  if (List.exists(
+        ~f=
+          arg =>
+            List.exists(
+              ~f=x => List.mem(names, x, ~equal=String.equal),
+              free_vars(arg),
+            ),
+        args,
+      )) {
+    let renamed =
+      List.map(
+        ~f=
+          (b: TPat.t) =>
+            switch (TPat.tyvar_of_utpat(b)) {
+            | Some(x) => TPat.fresh(Var(fresh_var(x)))
+            | None => b
+            },
+        binders,
+      );
+    let body =
+      List.fold2_exn(binders, renamed, ~init=body, ~f=(body, b, b') =>
+        switch (TPat.tyvar_of_utpat(b')) {
+        | Some(x') => subst(Var(x') |> temp, b, body)
+        | None => body
+        }
+      );
+    subst_all(renamed, body);
+  } else {
+    subst_all(binders, body);
   };
 };
 
@@ -446,6 +549,18 @@ let non_contractive = (ty: t): option(TPat.t) => {
         |> Option.to_list;
       go(named @ bound, body);
     | Var(x) => List.Assoc.find(bound, x, ~equal=String.equal)
+    /* a recursive family `rec L -> typfun a -> L(…)` reaches its own
+       binder through the type function and the application head */
+    | TypFun(tp, body) =>
+      let shadowed = TPat.tyvars_of(tp);
+      go(
+        List.filter(
+          ~f=((x, _)) => !List.mem(shadowed, x, ~equal=String.equal),
+          bound,
+        ),
+        body,
+      );
+    | TypParamAp(fn, _) => go(bound, fn)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -457,6 +572,7 @@ let non_contractive = (ty: t): option(TPat.t) => {
     | Label(_)
     | TupLabel(_)
     | Poly(_)
+    | TypTuple(_)
     | ProofOf(_)
     | ProdProjection(_)
     | ProdExtension(_)
@@ -494,7 +610,57 @@ let rec unroll = (ty: t): option(t) =>
   | ProofOf(_)
   | ProdProjection(_)
   | ProdExtension(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | Sig(_) => Some(ty)
+  };
+
+/* The binders of a type function's leading `typfun`s and the body under
+   them: `typfun a, b -> body` gives ([[a, b]], body) and the curried
+   `typfun a -> typfun b -> body` gives ([[a], [b]], body). */
+let rec typfun_binders = (ty: t): (list(list(TPat.t)), t) =>
+  switch (term_of(strip_wrappers(ty))) {
+  | TypFun(p, body) =>
+    let (groups, body) = typfun_binders(body);
+    ([TPat.binders_of(p), ...groups], body);
+  | _ => ([], ty)
+  };
+
+/* Beta-reduce the type-level application `fn(arg)` when `fn` is a type
+   function (looking through parens). A multi-binder `typfun a, b -> body`
+   takes a `TypTuple` of matching arity in one step; a single binder takes
+   `arg` as is. None when `fn` is not a type function or the arity does not
+   match (an ill-kinded application, which statics marks, stays stuck). */
+let rec beta = (fn: t, arg: t): option(t) =>
+  switch (term_of(fn)) {
+  | Parens(fn) => beta(fn, arg)
+  | TypFun(p, body) =>
+    switch (TPat.binders_of(p), term_of(arg)) {
+    | ([_], TypTuple(_)) => None
+    | ([_], _) => Some(subst(arg, p, body))
+    | (binders, TypTuple(args))
+        when List.length(binders) == List.length(args) =>
+      Some(subst_many(args, binders, body))
+    | _ => None
+    }
+  | _ => None
+  };
+
+/* One unfolding of a higher-kinded recursive family at an argument:
+   `(rec L -> typfun a -> body)(arg)` becomes `body[(rec L -> …)/L][arg/a]`.
+   Exactly one step, so a non-uniformly recursive family (`L((Int, a))` in
+   its own body) is never expanded further. None when `ty` is not such an
+   application or the family is non-contractive. */
+let unfold_family = (ty: t): option(t) =>
+  switch (term_of(ty)) {
+  | TypParamAp(fn, arg) =>
+    switch (term_of(fn)) {
+    | Rec(tp, body) when Option.is_none(non_contractive(fn)) =>
+      beta(subst(fn, tp, body), arg)
+    | _ => None
+    }
+  | _ => None
   };
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
@@ -589,6 +755,15 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
+  | TypParamAp(fn, arg) =>
+    let (_, rewrap) = unwrap(ty);
+    let fn = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
+    switch (beta(fn, arg)) {
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
+    /* Stuck, or a recursive family at an argument: that is a normal form,
+       peered into one step at a time by `unfold_family`. */
+    | None => TypParamAp(fn, arg) |> rewrap
+    };
   | TupLabel({term: ExplicitNonlabel, _}, ty) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
   | ProdProjection(ty, label) =>
@@ -699,8 +874,18 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Parens(t)
   | Projector(_, t) => normalize(ctx, t)
   | List(t) => List(normalize(ctx, t)) |> rewrap
+  | TypParamAp(t1, t2) =>
+    /* With `expand` off for the callee's alias, `Option(Int)` stays
+       compact; a recursive family's application is left as is. */
+    let t1 = normalize(ctx, t1);
+    let t2 = normalize(ctx, t2);
+    switch (beta(t1, t2)) {
+    | Some(ty) => normalize(ctx, ty)
+    | None => TypParamAp(t1, t2) |> rewrap
+    };
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
+  | TypTuple(ts) => TypTuple(List.map(~f=normalize(ctx), ts)) |> rewrap
   | Prod(ts) =>
     let ts = List.map(~f=normalize(ctx), ts);
     let duplicate_labels =
@@ -723,6 +908,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | TypFun(name, ty) =>
+    TypFun(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
   | ProofOf(_) => ty // Todo: should we normalize this?
   | Sig(items) =>
     /* Desugar signature to labeled tuple type:
@@ -797,8 +984,11 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | TypParamAp(t1, t2) =>
+    TypParamAp(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(~f=desugar_sig(ctx), ts)) |> rewrap
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
+  | TypFun(tp, t) => TypFun(tp, desugar_sig(ctx, t)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
   | Sum(sm) =>
@@ -816,6 +1006,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | ExplicitNonlabel
   | Label(_)
   | ProofOf(_) => ty
+  | TypTuple(ts) => TypTuple(List.map(~f=desugar_sig(ctx), ts)) |> rewrap
   };
 };
 
@@ -838,12 +1029,20 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
         | ProdProjection(t, _) => go(~depth=depth + 1, ctx, t)
         | Arrow(_)
         | Poly(_)
+        | TypFun(_)
         | ProofOf(_) => true
         | Var(x) =>
           switch (Ctx.lookup_alias(ctx, x)) {
           | Some(t) => go(~depth=depth + 1, ctx, t)
           | None => false
           }
+        | TypParamAp(fn, arg) =>
+          switch (term_of(weak_head_normalize(ctx, ty))) {
+          | TypParamAp(_) =>
+            go(~depth=depth + 1, ctx, fn) || go(~depth=depth + 1, ctx, arg)
+          | _ => go(~depth=depth + 1, ctx, weak_head_normalize(ctx, ty))
+          }
+        | TypTuple(tys) => List.exists(~f=go(~depth=depth + 1, ctx), tys)
         | Unknown(_)
         | Atom(_)
         | DrvQuoteTy(_)
@@ -992,8 +1191,50 @@ let shared_binder =
   };
 };
 
+/* [shared_binder] for binders that may bind several variables
+   (`poly a, b -> …`), compared element-wise; None when the binder counts
+   differ. A binder of holes only, as in the `poly ? -> ?` that a type
+   application's callee is analyzed against, takes the other side's. */
+let shared_binders =
+    (tp1: TPat.t, body1: t, tp2: TPat.t, body2: t): option((TPat.t, t, t)) => {
+  let holes = (tp: TPat.t) =>
+    List.for_all(
+      ~f=b => Option.is_none(TPat.tyvar_of_utpat(b)),
+      TPat.binders_of(tp),
+    );
+  switch (TPat.binders_of(tp1), TPat.binders_of(tp2)) {
+  | ([_], [_]) => Some(shared_binder(tp1, body1, tp2, body2))
+  | _ when holes(tp1) => Some((tp2, body1, body2))
+  | _ when holes(tp2) => Some((tp1, body1, body2))
+  | (bs1, bs2) when List.length(bs1) == List.length(bs2) =>
+    let (rev_bs, body1, body2) =
+      List.fold2_exn(
+        bs1,
+        bs2,
+        ~init=([], body1, body2),
+        ~f=((rev_bs, body1, body2), b1, b2) => {
+          let (b, body1, body2) = shared_binder(b1, body1, b2, body2);
+          ([b, ...rev_bs], body1, body2);
+        },
+      );
+    Some((TPat.fresh(Tuple(List.rev(rev_bs))), body1, body2));
+  | _ => None
+  };
+};
+
+/* Bound on nested unfoldings of recursive families within one meet (see
+   the family cases of [meet]). */
+let max_family_unfoldings = 64;
+
 /* [seen] holds the (recursive type, other type) pairs being met through an
-   unrolling on the way here. */
+   unrolling on the way here.
+
+   Binding forms (`rec`, `poly`, `typfun`) meet when their bodies do under
+   a shared binder ([shared_binders]); a `poly ? -> …` binder of holes, the
+   expected type of a type application's callee, matches a quantifier over
+   any number of variables and takes its binders. A type application meets
+   through beta reduction, and a recursive family at an argument through
+   one unfolding at a time (see the family cases). */
 let rec meet =
         (~seen: list((t, t))=[], ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   let meet' = meet(~seen, ctx);
@@ -1004,6 +1245,7 @@ let rec meet =
      the meet is exactly its unrolling. */
   let through_unrolling =
       (
+        ~unroll: t => option(t)=unroll,
         ty_rec: t,
         ty: t,
         meet_unrolled: (~seen: list((t, t)), t) => option(t),
@@ -1023,6 +1265,7 @@ let rec meet =
   | (Projector(_, ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
+  | _ when Equality.syntactic.typ(ty1, ty2) => Some(ty1)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
@@ -1053,6 +1296,52 @@ let rec meet =
   | (_, ProdProjection(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  /* A higher-kinded recursive family applied at an argument,
+     `(rec L -> typfun a -> body)(arg)`, is a normal form. One family is
+     taken to be injective, so it meets itself by its arguments (unfolding
+     both sides would never stop for a non-uniform family); against
+     anything else it meets through one unfolding, like a `Rec`, with a
+     depth bound for the same reason. */
+  | (
+      TypParamAp({term: Rec(_), _} as r1, a1),
+      TypParamAp({term: Rec(_), _} as r2, a2),
+    )
+      when fast_equal(r1, r2) =>
+    let+ a = meet'(a1, a2);
+    TypParamAp(r1, a) |> temp;
+  | (TypParamAp({term: Rec(_), _}, _), _)
+  | (_, TypParamAp({term: Rec(_), _}, _))
+      when List.length(seen) > max_family_unfoldings =>
+    None
+  | (TypParamAp({term: Rec(_), _}, _), _) =>
+    through_unrolling(~unroll=unfold_family, ty1, ty2, (~seen, ty1') =>
+      meet(~seen, ctx, ty1', ty2)
+    )
+  | (_, TypParamAp({term: Rec(_), _}, _)) =>
+    through_unrolling(~unroll=unfold_family, ty2, ty1, (~seen, ty2') =>
+      meet(~seen, ctx, ty1, ty2')
+    )
+  /* Any other application reduces by beta (`weak_head_normalize`); one
+     that is stuck (its callee a type variable or hole) meets only an
+     application of the same shape. */
+  | (TypParamAp(_), _)
+  | (_, TypParamAp(_)) =>
+    let ty1' = weak_head_normalize(ctx, ty1);
+    let ty2' = weak_head_normalize(ctx, ty2);
+    switch (term_of(ty1'), term_of(ty2')) {
+    | (TypParamAp(f1, a1), TypParamAp(f2, a2))
+        when equal(ty1', ty1) && equal(ty2', ty2) =>
+      let* f = meet'(f1, f2);
+      let+ a = meet'(a1, a2);
+      TypParamAp(f, a) |> temp;
+    | _ when equal(ty1', ty1) && equal(ty2', ty2) => None
+    | _ => meet'(ty1', ty2')
+    };
+  | (TypTuple(ts1), TypTuple(ts2)) when List.length(ts1) == List.length(ts2) =>
+    let* tys = ListUtil.map2_opt(meet', ts1, ts2);
+    let+ tys = OptUtil.sequence(tys);
+    TypTuple(tys) |> temp;
+  | (TypTuple(_), _) => None
   | (Rec(tp1, body1), Rec(tp2, body2)) =>
     let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
     let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
@@ -1064,9 +1353,14 @@ let rec meet =
   | (_, Rec(_)) =>
     through_unrolling(ty2, ty1, (~seen, ty2') => meet(~seen, ctx, ty1, ty2'))
   | (Poly(tp1, body1), Poly(tp2, body2)) =>
-    let (tp, body1, body2) = shared_binder(tp1, body1, tp2, body2);
+    let* (tp, body1, body2) = shared_binders(tp1, body1, tp2, body2);
     let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Poly(tp, ty_body) |> temp;
+  | (TypFun(tp1, body1), TypFun(tp2, body2)) =>
+    let* (tp, body1, body2) = shared_binders(tp1, body1, tp2, body2);
+    let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
+    TypFun(tp, ty_body) |> temp;
+  | (TypFun(_), _) => None
   | (Poly(_), _) => None
   | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => Some(ty1)
   | (Atom(_), _) => None
@@ -1145,12 +1439,20 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (ExplicitNonlabel, _)
   | (Var(_), _)
   | (Rec(_), _)
+  | (TypFun(_), _)
   | (ProofOf(_), _)
   | (ProdProjection(_), _)
   | (ProdExtension(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
+  | (TypParamAp(t1a, t1b), TypParamAp(t2a, t2b)) =>
+    TypParamAp(match_synswitch(t1a, t2a), match_synswitch(t1b, t2b))
+    |> rewrap1
+  | (TypParamAp(_), _) => t1
+  | (TypTuple(ts1), TypTuple(ts2)) when List.length(ts1) == List.length(ts2) =>
+    TypTuple(List.map2_exn(ts1, ts2, ~f=match_synswitch)) |> rewrap1
+  | (TypTuple(_), _) => t1
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
@@ -1202,6 +1504,17 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   switch (term_of(ty)) {
   | Parens(ty) => get_sum_constructors(ctx, ty)
   | Sum(sm) => Some(sm)
+  /* A higher-kinded recursive family at an argument: one unfolding
+     exposes its sum, whose payloads refer back to the family at their
+     own (possibly different, for non-uniform recursion) arguments. */
+  | TypParamAp({term: Rec(_), _}, _) =>
+    let rec sum_of = (ty: t) =>
+      switch (term_of(ty)) {
+      | Parens(ty) => sum_of(ty)
+      | Sum(sm) => Some(sm)
+      | _ => None
+      };
+    Option.bind(unfold_family(ty), ~f=sum_of);
   | Rec(_) =>
     /* Unrolled so that the constructor types do not mention the rec
        parameter. */
@@ -1224,6 +1537,9 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
       | Projector(_)
       | Rec(_)
       | Poly(_)
+      | TypFun(_)
+      | TypParamAp(_)
+      | TypTuple(_)
       | ProofOf(_)
       | ProdProjection(_)
       | ProdExtension(_)
@@ -1247,6 +1563,9 @@ let rec is_syn = (ty: t): bool =>
   | Var(_)
   | Rec(_)
   | Poly(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1271,6 +1590,9 @@ let rec is_ana_atom = (ty: t) =>
   | Var(_)
   | Rec(_)
   | Poly(_)
+  | TypFun(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | ProofOf(_)
   | List(_)
   | Arrow(_)
@@ -1289,6 +1611,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
+  | TypFun(_, t) => is_syn(t)
   | ProofOf(_)
   | Unknown(_)
   | Atom(_)
@@ -1297,6 +1620,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | Label(_)
   | Var(_)
   | Rec(_)
+  | TypParamAp(_)
+  | TypTuple(_)
   | List(_)
   | Prod(_)
   | Sum(_)
@@ -1333,15 +1658,28 @@ let rec needs_parens = (ty: t): bool =>
   | TupLabel(_, _)
   | Rec(_, _)
   | Poly(_, _)
+  | TypFun(_, _)
+  | TypParamAp(_, _)
+  | TypTuple(_) /* TypTuple is the bare argument bundle in `T(a, b)`; if
+                   it ever appears outside a TypParamAp position we wrap so
+                   downstream readers don't conflate it with a tuple. */
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   | Sig(_) => false /* already wrapped in {} */
   };
 
-let pretty_print_tvar = (tv: TPat.t): string =>
+let rec pretty_print_tvar = (tv: TPat.t): string =>
   switch (IdTagged.term_of(tv)) {
   | Var(x) => x
+  | Param(head, params) =>
+    pretty_print_tvar(head)
+    ++ "("
+    ++ String.concat(~sep=", ", List.map(~f=pretty_print_tvar, params))
+    ++ ")"
+  | Tuple(tps) =>
+    String.concat(~sep=", ", List.map(~f=pretty_print_tvar, tps))
+  | Parens(inner) => "(" ++ pretty_print_tvar(inner) ++ ")"
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => "?"
@@ -1361,6 +1699,17 @@ let rec pretty_print = (ty: t): string =>
   | Atom(Nat) => "Nat"
   | Atom(SInt) => "SInt"
   | Var(tvar) => tvar
+  | TypFun(tv, t) =>
+    "typfun " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | TypParamAp(t1, t2) =>
+    /* a single tuple argument keeps its own parens: `T((a, b))` */
+    let arg =
+      switch (term_of(t2)) {
+      | Prod([_, _, ..._]) => "(" ++ pretty_print(t2) ++ ")"
+      | _ => pretty_print(t2)
+      };
+    pretty_print(t1) ++ "(" ++ arg ++ ")";
+  | TypTuple(ts) => String.concat(~sep=", ", List.map(~f=pretty_print, ts))
   | List(t) => "[" ++ pretty_print(t) ++ "]"
   | Arrow(t1, t2) => paren_pretty_print(t1) ++ " -> " ++ pretty_print(t2)
   | Sum(sm) =>
@@ -1473,15 +1822,18 @@ let all_ids = (ty: t): list(Id.t) => {
     | Arrow(t1, t2)
     | TupLabel(t1, t2)
     | ProdExtension(t1, t2)
-    | ProdProjection(t1, t2) =>
+    | ProdProjection(t1, t2)
+    | TypParamAp(t1, t2) =>
       collect_ann_ids(t1);
       collect_ann_ids(t2);
     | List(t)
     | Parens(t)
     | Projector(_, t)
     | Rec(_, t)
-    | Poly(_, t) => collect_ann_ids(t)
-    | Prod(ts) => List.iter(~f=collect_ann_ids, ts)
+    | Poly(_, t)
+    | TypFun(_, t) => collect_ann_ids(t)
+    | Prod(ts)
+    | TypTuple(ts) => List.iter(~f=collect_ann_ids, ts)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -1590,6 +1942,17 @@ let rec diff =
   | (Poly(tp1, t1), Poly(tp2, t2)) when Equality.syntactic.tpat(tp1, tp2) =>
     diff(~ctx?, t1, t2)
   | (Poly(_), _) => get_ids()
+  | (TypFun(tp1, t1), TypFun(tp2, t2))
+      when Equality.syntactic.tpat(tp1, tp2) =>
+    diff(~ctx?, t1, t2)
+  | (TypFun(_), _) => get_ids()
+  | (TypParamAp(t1a, t1b), TypParamAp(t2a, t2b)) =>
+    diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
+  | (TypParamAp(_), _) => get_ids()
+  | (TypTuple(tys1), TypTuple(tys2))
+      when List.length(tys1) == List.length(tys2) =>
+    List.map2_exn(tys1, tys2, ~f=diff(~ctx?)) |> List.concat
+  | (TypTuple(_), _) => get_ids()
   | (ProofOf(e1), ProofOf(e2)) =>
     Equality.syntactic.exp(e1, e2) ? [] : get_ids()
   | (ProofOf(_), _) => get_ids()

@@ -169,6 +169,7 @@ let derive_typ_tests = [
             name: "T",
             id: Id.invalid,
             kind: Abstract,
+            typ_kind: TypKind.Type,
           },
         );
       let ty = Var("T") |> Typ.temp;
@@ -470,8 +471,8 @@ let tests = (
   "Statics.Types",
   [
     fully_consistent_typecheck(
-      "Type alias works for typfun variable",
-      {|typfun a -> fun y ->
+      "Type alias works for abs variable",
+      {|abs a -> fun y ->
   let x :a =  ? in
   type F = a in
   x : F|},
@@ -745,7 +746,7 @@ let tests = (
     ),
     fully_consistent_typecheck(
       "A type application checks against an arrow type",
-      "let f : poly a -> a -> a = typfun a -> fun x -> x in let g : Int -> Int = f@<Int> in g(1)",
+      "let f : poly a -> a -> a = abs a -> fun x -> x in let g : Int -> Int = f@<Int> in g(1)",
       Some(FTemp.Typ.int()),
     ),
     fully_consistent_typecheck(
@@ -968,20 +969,28 @@ let tests = (
       Some(FTemp.Typ.int()),
     ),
     test_case(
-      "Type parse failure",
+      "Type application kind failure",
       `Quick,
       () => {
-        // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics
+        // This was https://github.com/hazelgrove/hazel/issues/1459 which used to crash statics.
+        // With type-level application syntax, it is now a kind error rather than a parse failure.
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
         let s = statics(exp);
-
-        let errors = errors(s) |> List.map(~f=((_, ms)) => Marks(ms));
+        let marks = errors(s) |> List.map(~f=snd) |> List.concat;
 
         check(
-          list(testable_issue),
-          "Has parse failure error",
-          [Marks([Mark.TypParseFailure])],
-          errors,
+          bool,
+          "Has kind error",
+          true,
+          List.exists(
+            ~f=
+              mark =>
+                equal_mark(
+                  mark,
+                  Mark.TypParamApplyNonArrowKind(TypKind.Type),
+                ),
+            marks,
+          ),
         );
       },
     ),

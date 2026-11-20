@@ -8,7 +8,7 @@ let ensures = [
   (enforced=("no"), "nrows(t) is equal to length(rs)")
 ] in
 # Hazel's tables are lists so this is just the identity function #
-let values = typfun row -> fun (rs : [row]) -> rs in
+let values = abs row -> fun (rs : [row]) -> rs in
 
 # Examples #
 test

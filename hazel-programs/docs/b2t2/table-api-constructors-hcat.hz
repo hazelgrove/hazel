@@ -77,9 +77,9 @@ let ensures = [
   (enforced=("no"), "nrows(t3) is equal to nrows(t1)")
 ] in
 let hcat =
-  typfun r1 ->
-    typfun r2 ->
-      typfun r3 ->
+  abs r1 ->
+    abs r2 ->
+      abs r3 ->
         fun (t1 : [r1], t2 : [r2], combine : (r1, r2) -> r3) ->
           (zip(t1, t2) |> map(_, combine)) : [r3] in
 # Examples #

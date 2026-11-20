@@ -8,7 +8,7 @@ let ensures = [
 ] in
 #Hazel tables are lists; so add_rows is just list concatenation#
 let add_rows =
-  typfun row -> fun (rs : [row], rs' : [row]) -> rs @ rs' in
+  abs row -> fun (rs : [row], rs' : [row]) -> rs @ rs' in
 
 # Examples #
 type GradebookEntry = (

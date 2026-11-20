@@ -65,11 +65,11 @@ let tests = (
           elaborate(parse_exp("(a= false, b= 1) == (a= false, b= 2)")),
         );
         evaluation_test(
-          "TypFun Equality 1",
+          "TypAbs Equality 1",
           bool(true),
           elaborate(
             parse_exp(
-              "let f = typfun X -> let x: A+B(X) = A in x in f@<Int> == f@<Int>",
+              "let f = abs X -> let x: A+B(X) = A in x in f@<Int> == f@<Int>",
             ),
           ),
         );
@@ -138,10 +138,10 @@ let tests = (
           "Typfun is not comparable",
           ~ignore_constructor_types=true,
           dynamic_error_hole(
-            elaborate(parse_exp("(typfun X -> 1) == (typfun X -> 1)")),
+            elaborate(parse_exp("(abs X -> 1) == (abs X -> 1)")),
             Incomparable,
           ),
-          elaborate(parse_exp("let f = typfun X -> 1 in f == f")),
+          elaborate(parse_exp("let f = abs X -> 1 in f == f")),
         );
         evaluation_test(
           ~ignore_dynamic_errors=true,

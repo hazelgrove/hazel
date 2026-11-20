@@ -78,7 +78,39 @@ type t =
   | ExplicitNonlabel
   | TPatShadowsType(string, tpat_shadow_src)
   | TPatNotAVar(tpat_var_err)
+  /* The `T(a, b)` parameter-list form (a `TPat.Param`) is only valid
+     as the outermost tpat of a type alias declaration:
+     `type T(a, b) = ...`. It is rejected as a sub-tpat (e.g.
+     `type T(A(a)) = ...`) and as the binder of `poly`, `typfun`,
+     `typlam`, or `rec` (e.g. `poly A(a) -> ...`). The associated
+     string is the head name (or `"?"` if the head is a hole). */
+  | TPatParamNotAtAliasHead(string)
   | TypFreeTypeVariable(string)
+  | TypKindMismatch({
+      expected: TypKind.t,
+      actual: TypKind.t,
+    })
+  | TypParamApplyNonArrowKind(TypKind.t)
+  | TypParamApplyArityMismatch({
+      callee: Typ.t,
+      callee_kind: TypKind.t,
+      expected: int,
+      actual: int,
+    })
+  /* Value-level type abstraction (`abs`) applied with the wrong
+     number of type arguments at `e@<T>`. `expected` is the number
+     of binders on the function's `Poly` type (with multi-binder
+     `Poly(TPat.Tuple([…]), …)` flattened via `TPat.binders_of`);
+     `actual` is the number of types provided in the application's
+     `TypTuple` (or 1 for a single-arg `e@<T>`). The mark sits on
+     the `TypAp` node and the result type is `Unknown` (so the
+     surrounding application doesn't surface a downstream
+     mismatch on `e`'s arguments using free type variables that
+     leaked from a partially-substituted body). */
+  | TypAbsApplyArityMismatch({
+      expected: int,
+      actual: int,
+    })
   | TypDuplicateConstructor(Constructor.t)
   | TypDuplicateLabels(list(LabeledTuple.label), Typ.t)
   | TypWantTypeFoundAp

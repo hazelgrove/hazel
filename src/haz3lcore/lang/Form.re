@@ -182,6 +182,8 @@ let rows_of: family => list(row) =
       mk_infix(Exp, P.comma),
       mk_infix(Pat, P.comma),
       mk_infix(Typ, P.comma),
+      /* multi-binder tpats: `poly a, b -> …`, `type T(a, b) = …` */
+      mk_infix(TPat, P.comma),
       mk_infix(Drv(Exp), P.comma),
       mk_infix(Drv(Pat), P.comma),
     ]
@@ -210,6 +212,8 @@ let rows_of: family => list(row) =
       mk_post_c(LT, P.ap, Exp, [Exp]),
       mk_post_c(LT, P.ap, Pat, [Pat]),
       mk_post_c(LT, P.type_sum_ap, Typ, [Typ]),
+      /* parameterized alias head: `type T(a, b) = …` */
+      mk_post_c(LT, P.ap, TPat, [TPat]),
       mk_post_c(LT, P.ap, Drv(Exp), [Drv(Exp)]),
       mk_post_c(LT, P.ap, Drv(Pat), [Drv(Pat)]),
     ]
@@ -227,7 +231,11 @@ let rows_of: family => list(row) =
       mk_pre_c(L, P.fun_, Exp, [Pat]),
       mk_pre_c(L, P.fun_, Drv(Exp), [Drv(Pat)]),
     ]
-  | TypFun => [mk_pre_c(L, P.fun_, Exp, [TPat])]
+  /* `abs a -> e`: value-level type abstraction (System F's big-Lambda).
+     `typfun a -> t`: type-level type function, e.g. the alias body in
+     `type Option = typfun a -> + None + Some(a)`. */
+  | TypAbs => [mk_pre_c(L, P.fun_, Exp, [TPat])]
+  | TypFun => [mk_pre_c(L, P.fun_, Typ, [TPat])]
   | Poly => [mk_pre_c(L, P.fun_, Typ, [TPat])]
   | Forall => [mk_pre_c(L, P.fun_, Exp, [Pat])]
   | Rec => [

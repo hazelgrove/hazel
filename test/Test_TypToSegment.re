@@ -242,6 +242,7 @@ let alias_exact_match_test =
             name: "MyList",
             id: Id.mk(),
             kind: Singleton(typ("[Int]")),
+            typ_kind: TypKind.Type,
           },
         );
       let result = classify_regions(~ctx, typ("MyList"), typ("[Int]"));
@@ -260,6 +261,7 @@ let alias_partial_diff_test =
           {
             name: "Pair",
             id: Id.mk(),
+            typ_kind: TypKind.Type,
             kind: Singleton(typ("(Int, ?)")),
           },
         );
@@ -309,6 +311,7 @@ let alias_on_dynamic_side_test =
             name: "MyList",
             id: Id.mk(),
             kind: Singleton(typ("[Int]")),
+            typ_kind: TypKind.Type,
           },
         );
       let result = classify_regions(~ctx, typ("[Int]"), typ("MyList"));
@@ -318,7 +321,51 @@ let alias_on_dynamic_side_test =
     },
   );
 
+/* A single tuple type argument keeps its own parens even after
+   normalization drops the written ones: `T(Int, Bool)` would be two
+   arguments. */
+let tuple_argument_test =
+  test_case(
+    "Single tuple type argument prints doubly parenthesized",
+    `Quick,
+    () => {
+      let ty =
+        Typ.fresh(
+          TypParamAp(
+            Typ.fresh(Var("List")),
+            Typ.normalize(Ctx.empty, typ("(Int, Bool)")),
+          ),
+        );
+      let result = classify_regions(ty, ty);
+      check(
+        list(region),
+        "List((Int, Bool))",
+        [s("List((Int, Bool))")],
+        result,
+      );
+    },
+  );
+
+/* Several type arguments print as one comma-separated list. */
+let type_arguments_test =
+  test_case(
+    "Type arguments print as a list",
+    `Quick,
+    () => {
+      let result =
+        classify_regions(typ("Either(Int, ?)"), typ("Either(Int, Bool)"));
+      check(
+        list(region),
+        "Bool dynamic",
+        [s("Either(Int,"), d("Bool"), s(")")],
+        result,
+      );
+    },
+  );
+
 let region_tests = [
+  tuple_argument_test,
+  type_arguments_test,
   sum_partial_diff_test,
   sum_fully_diff_test,
   sum_same_test,

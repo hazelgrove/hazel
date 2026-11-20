@@ -102,7 +102,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Undefined
   | DrvQuote(_)
   | Fun(_)
-  | TypFun(_)
+  | TypAbs(_)
   | Dot(_)
   | LivelitName(_)
   | Let(_)
@@ -487,7 +487,7 @@ let rec replace_exp =
         | DrvQuote(_, _)
         | ListLit(_)
         | Constructor(_)
-        | TypFun(_)
+        | TypAbs(_)
         | Tuple(_)
         | TupleExtension(_)
         | Label(_)

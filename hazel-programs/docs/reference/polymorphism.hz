@@ -1,57 +1,38 @@
 # Polymorphism #
 
-# We can take types as parameters to type functions, #
-# and use them in annoatations in the body: #
-let id = typfun A -> fun x : A -> x in
+# A type abstraction takes a type as a parameter, #
+# which its body can use in annotations: #
+let id = abs a -> fun x : a -> x in
 
-# Such functions are applied like so: #
-let ex1 = id@<Int>(1) in # 1 #
+# Type abstractions are applied to types like so: #
+test id@<Int>(1) == 1 end;
 
-# We can annotate the type of a type function with a poly. #
-let const : poly A -> poly B -> A -> B -> A = 
-  typfun A -> typfun B -> fun x -> fun y -> x in
-let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
+# The type of a type abstraction is a poly type. #
+# A poly type can bind several type variables at once, #
+# and one type application then supplies all of them: #
+let const : poly a, b -> (a, b) -> a =
+  abs a, b -> fun (x, _y) -> x in
+test const@<Int, String>(2, "Hello World") == 2 end;
 
 # We can go beyond rank 1 polymorphism: #
-let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
-let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") # 
+let apply_both : poly a, b -> (poly d -> d -> d, a, b) -> (a, b) =
+  abs a, b -> fun (f, x, y) -> (f@<a>(x), f@<b>(y)) in
+test apply_both@<Int, String>(id, 3, "Hello World") == (3, "Hello World") end;
 
-# Finally, here is a more in-depth, yet applicable example: polymorphic map #
-let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
-let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = 
-  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
-    case l
-    | h :: t => f(h) :: map@<A>@<B>(f)(t)
-    | _ => emptylist@<B>   
+# A polymorphic map over lists: #
+let map : poly a, b -> ([a], a -> b) -> [b] =
+  abs a, b -> fun (xs, f) ->
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map@<a, b>(tl, f)
     end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+test map@<Int, String>([1, 2, 3], string_of_int) == ["1", "2", "3"] end;
 
-
-# Recursive types #
-
-# We can express recursive types using type aliases #
-type MyList = Nil + Cons(Int, MyList) in
-
-# Hazel does not (yet) support higher-kinded or existential types, #
-# So we cannot implement our own polymorphic lists. #
-
-# Now anything that returns an element of the least fixed point matches MyList. #
-let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
-
-# Note that if the sum is the top level operator, #
-# type aliases are implicitly least fixed points on their own name: #
-type MyList2 = Nil + Cons(Int, MyList2) in
-type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in 
-
-
-let list_of_mylist : (MyList -> [Int]) = fun myl : MyList -> 
-  case myl 
-  | Nil => []
-  | Cons(h, t) => h :: list_of_mylist(t)    
-  end in
-let ex5 = list_of_mylist(x) in # [1, 2, 3] #
-
-
-# All output from examples: #
-(ex1, ex2, ex3, ex4, ex5)
+# A poly type is an ordinary type: values have it. #
+# A type FUNCTION (typfun) is different: it maps types to types, #
+# and no value has it until it is applied to a type argument. #
+# Parameterized types are type functions (see the ADTs docs): #
+type Pair(a) = (a, a) in
+let p : Pair(Int) = (1, 2) in
+let swap : poly a -> Pair(a) -> Pair(a) = abs a -> fun (x, y) -> (y, x) in
+swap@<Int>(p)

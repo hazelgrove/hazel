@@ -67,9 +67,9 @@ let ensures = [
   (enforced=("no"), "nrows(t2) is equal to nrows(t1)")
 ] in
 let add_column =
-  typfun r ->
-    typfun v ->
-      typfun r' ->
+  abs r ->
+    abs v ->
+      abs r' ->
         fun (t : [r], c : ((r, v) -> r'), vs : [v]) ->
           (zip(t, vs) |> map(_, c)) : [r'] in
 test

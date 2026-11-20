@@ -27,6 +27,7 @@ type tvar_entry = {
   name: string,
   id: Id.t,
   kind,
+  typ_kind: TypKind.t,
 };
 
 type node_or_list =
@@ -59,35 +60,59 @@ let extend = (ctx: t, entry): t => {
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
-let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
+let extend_alias =
+    (
+      ctx: t,
+      name: string,
+      id: Id.t,
+      ~typ_kind=TypKind.Type,
+      ty: TermBase.Typ.t,
+    )
+    : t =>
   extend_tvar(
     ctx,
     {
       name,
       id,
       kind: Singleton(ty),
+      typ_kind,
     },
   );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        name,
-        id: Id.invalid,
-      },
-    )
-  | None => ctx
-  };
+  /* `tvar` may be a single binder or a `TPat.Tuple` representing a
+     comma-separated list of binders; flatten and extend ctx with each
+     name. Non-name binders (e.g. holes) are ignored. */
+  List.fold_left(
+    ~f=
+      (ctx, name) =>
+        extend_tvar(
+          ctx,
+          {
+            kind: Abstract,
+            typ_kind: TypKind.Type,
+            name,
+            id: Id.invalid,
+          },
+        ),
+    ~init=ctx,
+    TPat.tyvars_of(tvar),
+  );
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     ~f=
       fun
       | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
+      | _ => None,
+    ctx.entries,
+  );
+
+let lookup_tvar_typ_kind = (ctx: t, name: string): option(TypKind.t) =>
+  List.find_map(
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.typ_kind)
       | _ => None,
     ctx.entries,
   );
@@ -155,6 +180,96 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
+/* All constructor entries with a given name, innermost first.
+   Multiple sum types in scope can declare a constructor of the same
+   name — `lookup_ctr` returns just the innermost one (its OCaml-style
+   shadowing semantics), while this helper exposes every candidate so
+   higher-level code can disambiguate (typically by analysis type). */
+let lookup_ctrs = (ctx: t, name: string): list(var_entry) =>
+  List.filter_map(
+    ~f=
+      fun
+      | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
+      | _ => None,
+    ctx.entries,
+  );
+
+/* Walk `ty` past `Poly`, `Arrow` outputs, `TypParamAp` callees, and
+   `Parens` to the leftmost type-alias name. Used to align a
+   constructor schema's result-type head with an analysis target's
+   head for type-directed disambiguation. */
+let rec result_head_name_of = (ty: TermBase.Typ.t): option(string) =>
+  switch (ty.term) {
+  /* Look-through forms: walk towards the result-type's head. */
+  | Poly(_, body) => result_head_name_of(body)
+  | Arrow(_, out) => result_head_name_of(out)
+  | TypParamAp(callee, _) => result_head_name_of(callee)
+  | Parens(inner)
+  | Projector(_, inner) => result_head_name_of(inner)
+  | Rec(_, body) => result_head_name_of(body)
+  | TypFun(_, body) => result_head_name_of(body)
+  /* The leftmost type-alias name — what we want. */
+  | Var(name) => Some(name)
+  /* Forms that have no head name. Listed explicitly (no `_` wildcard)
+     so adding a new `Typ.term` constructor in the future forces this
+     code to be revisited. */
+  | Atom(_)
+  | Unknown(_)
+  | DrvQuoteTy(_)
+  | List(_)
+  | Sum(_)
+  | Prod(_)
+  | TypTuple(_)
+  | Label(_)
+  | TupLabel(_, _)
+  | ExplicitNonlabel
+  | ProdProjection(_, _)
+  | ProdExtension(_, _)
+  | ProofOf(_)
+  | Sig(_) => None
+  };
+
+/* Type-directed constructor lookup. When two sum types in scope both
+   declare a constructor `B`, plain `lookup_ctr` returns the innermost,
+   but the user-visible meaning is determined by the analysis type
+   (`ana`): a `B(true) : OneOfThree(_, _, _)` should resolve to
+   `OneOfThree`'s `B` even if a more recent `Either`'s `B` is in
+   scope. We pick the entry whose schema result-type head matches
+   `ana`'s head; if no candidate matches we fall back to the
+   innermost. */
+let lookup_ctr_for_ana =
+    (ctx: t, name: string, ana: option(TermBase.Typ.t)): option(var_entry) => {
+  let candidates = lookup_ctrs(ctx, name);
+  let target = Option.bind(ana, ~f=result_head_name_of);
+  switch (target) {
+  | None =>
+    switch (candidates) {
+    | [hd, ..._] => Some(hd)
+    | [] => None
+    }
+  | Some(target) =>
+    let matching =
+      List.find(
+        ~f=
+          (e: var_entry) =>
+            Option.equal(
+              String.equal,
+              result_head_name_of(e.typ),
+              Some(target),
+            ),
+        candidates,
+      );
+    switch (matching) {
+    | Some(_) => matching
+    | None =>
+      switch (candidates) {
+      | [hd, ..._] => Some(hd)
+      | [] => None
+      }
+    };
+  };
+};
+
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(_)) => true
@@ -179,39 +294,88 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
     )
   };
 
-let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
-  ...ctx,
-  entries:
-    List.filter_map(
-      ~f=
-        fun
-        | ConstructorMap.Variant(ctr, ann, typ) => {
-            let ctr_id = List.hd_exn(ann.ids);
-            Some(
-              ConstructorEntry({
-                name: ctr,
-                id: ctr_id,
-                typ:
-                  switch (typ) {
-                  | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-                  | Some(typ) =>
-                    (
-                      Arrow(
-                        typ,
-                        (Var(name): TermBase.typ_term) |> IdTagged.fresh,
-                      ): TermBase.typ_term
-                    )
-                    |> IdTagged.fresh
-                  },
-                custom_statics: None,
-              }),
-            );
-          }
-        | ConstructorMap.BadEntry(_) => None,
-      ctrs,
-    )
-    @ ctx.entries,
+/* The type a constructor of alias `name` produces: the alias applied
+   to its parameters, one application per parameter group, so
+   `type Either(a, b) = …` gives `Either(a, b)` and the curried
+   `type R = typfun e -> typfun o -> …` gives `R(e)(o)`. A parameter
+   that is not a name (a hole) is applied as an unknown type. */
+let result_type_for_params =
+    (name: string, param_groups: list(list(TermBase.TPat.t)))
+    : TermBase.Typ.t => {
+  let typ = (term: TermBase.Typ.term) => IdTagged.fresh(term);
+  let arg = (param: TermBase.TPat.t) =>
+    switch (TermBase.TPat.tyvar_of_utpat(param)) {
+    | Some(param_name) => typ(Var(param_name))
+    | None => typ(Unknown(Internal))
+    };
+  List.fold_left(
+    ~f=
+      (head, group) =>
+        switch (group) {
+        | [] => head
+        | [param] => typ(TypParamAp(head, arg(param)))
+        | _ =>
+          typ(TypParamAp(head, typ(TypTuple(List.map(~f=arg, group)))))
+        },
+    ~init=typ(Var(name)),
+    param_groups,
+  );
 };
+
+/* A constructor schema quantifies all of its alias's parameters at once
+   (`poly a, b -> …`), so one type application `C@<A, B>` instantiates it
+   whether the alias's parameters are one group or curried. */
+let quantify_params = (params: list(TermBase.TPat.t), ty: TermBase.Typ.t) =>
+  switch (params) {
+  | [] => ty
+  | [param] => (Poly(param, ty): TermBase.Typ.term) |> IdTagged.fresh
+  | _ =>
+    let tuple_binder: TermBase.TPat.t =
+      (Tuple(params): TermBase.TPat.term) |> IdTagged.fresh;
+    (Poly(tuple_binder, ty): TermBase.Typ.term) |> IdTagged.fresh;
+  };
+
+let add_ctrs_with_params =
+    (
+      ctx: t,
+      name: string,
+      param_groups: list(list(TermBase.TPat.t)),
+      ctrs: TermBase.Typ.sum_map,
+    )
+    : t => {
+  let result_ty = result_type_for_params(name, param_groups);
+  {
+    ...ctx,
+    entries:
+      List.filter_map(
+        ~f=
+          fun
+          | ConstructorMap.Variant(ctr, ann, typ) => {
+              let ctr_id = List.hd_exn(ann.ids);
+              let typ =
+                switch (typ) {
+                | None => result_ty
+                | Some(typ) =>
+                  (Arrow(typ, result_ty): TermBase.Typ.term) |> IdTagged.fresh
+                };
+              Some(
+                ConstructorEntry({
+                  name: ctr,
+                  id: ctr_id,
+                  typ: quantify_params(List.concat(param_groups), typ),
+                  custom_statics: None,
+                }),
+              );
+            }
+          | ConstructorMap.BadEntry(_) => None,
+        ctrs,
+      )
+      @ ctx.entries,
+  };
+};
+
+let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
+  add_ctrs_with_params(ctx, name, [], ctrs);
 
 let set_use_mode = (ctx: t, use_mode: option(Operators.mode)): t => {
   ...ctx,

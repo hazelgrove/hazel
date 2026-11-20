@@ -108,7 +108,7 @@ type step_kind =
   | FixUnwrap
   | FixClosure
   | UpdateTest
-  | TypFunAp
+  | TypAbsAp
   | FunAp
   | DeferredAp
   | AscriptionTypAp
@@ -159,7 +159,7 @@ let provenance_of_kind: step_kind => provenance =
   | LetBind(_)
   | TheoremBind
   | UpdateTest
-  | TypFunAp
+  | TypAbsAp
   | FunAp
   | DeferredAp
   | BuiltinAp(_)
@@ -267,7 +267,7 @@ module Transition = (EV: EV_MODE) => {
     switch (d.term) {
     | Closure(_, e) => get_fn_name_from_expr(e)
     | Fun(_, _, _, name) => name
-    | TypFun(_, _, name) => name
+    | TypAbs(_, _, name) => name
     | DeferredAp(d3, _) => get_fn_name_from_expr(d3)
     | BuiltinFun(name) => Some(name)
     | _ => Exp.get_fn_name(d)
@@ -280,7 +280,7 @@ module Transition = (EV: EV_MODE) => {
     switch (d.term) {
     | Closure(_, e) => get_fn_def_id_from_expr(e)
     | Fun(_)
-    | TypFun(_) => Some(DHExp.rep_id(d))
+    | TypAbs(_) => Some(DHExp.rep_id(d))
     | DeferredAp(d3, _) => get_fn_def_id_from_expr(d3)
     | BuiltinFun(_) => None
     | _ => Exp.get_fn_def_id(d)
@@ -601,7 +601,7 @@ module Transition = (EV: EV_MODE) => {
     | Forall(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | TypFun(_)
+    | TypAbs(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
@@ -693,24 +693,44 @@ module Transition = (EV: EV_MODE) => {
     | TypAp(d, tau) =>
       let. _ = otherwise(env, d => TypAp(d, tau) |> rewrap)
       and. d' = req_final(req(env), d => TypAp(d, tau) |> wrap_ctx, d);
-      let-unbox typfun = (TypFun, d');
-      switch (typfun) {
-      | TypFun(utpat, tfbody, name) =>
-        /* Rule ITTLam */
+      let instantiate = (tpat, body) => {
+        let (binders, args) = DHExp.type_args(tpat, tau);
+        DHExp.ty_subst_many(args, binders, body);
+      };
+      switch (DHExp.term_of(d')) {
+      | Constructor(name, Some(Some({term: Poly(tpat, body), _}))) =>
+        /* A polymorphic constructor is specialized in place. */
+        let (binders, args) = DHExp.type_args(tpat, tau);
         Step({
           expr:
-            DHExp.assign_name_if_none(
-              /* Inherit name for user clarity */
-              DHExp.ty_subst(tau, utpat, tfbody),
-              Option.map(
-                ~f=x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
-                name,
-              ),
-            ),
+            Constructor(
+              name,
+              Some(Some(Typ.subst_many(args, binders, body))),
+            )
+            |> DHExp.fresh,
           side_effects: [],
-          kind: TypFunAp,
-          is_value: false,
-        })
+          kind: TypAbsAp,
+          is_value: true,
+        });
+      | _ =>
+        let-unbox typfun = (TypAbs, d');
+        switch (typfun) {
+        | TypAbs(utpat, tfbody, name) =>
+          /* Rule ITTLam. */
+          Step({
+            expr:
+              DHExp.assign_name_if_none(
+                instantiate(utpat, tfbody),
+                Option.map(
+                  ~f=x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                  name,
+                ),
+              ),
+            side_effects: [],
+            kind: TypAbsAp,
+            is_value: false,
+          })
+        };
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
@@ -1341,7 +1361,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | TheoremBind
   | Seq
   | UpdateTest
-  | TypFunAp
+  | TypAbsAp
   | FunAp
   | DeferredAp
   | BuiltinAp(_)
@@ -1379,7 +1399,7 @@ let stepper_justification: step_kind => string =
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
-  | TypFunAp => "apply type function"
+  | TypAbsAp => "apply type function"
   | FunAp => "apply function"
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"

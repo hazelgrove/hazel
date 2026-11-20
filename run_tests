@@ -4,11 +4,23 @@
 #   ./run_tests                        # Run all tests
 #   ./run_tests test 'Statics.*' -q    # Run Statics tests, quick output
 #   ./run_tests test 'Evaluator' 19    # Run only Evaluator test 19
+#
+# [SKIP] lines (tests filtered out by the CLI pattern) are suppressed from
+# the output since they're noise when targeting a specific group. The test
+# runner's exit code is preserved via PIPESTATUS. Set NO_SKIP_FILTER=1 to
+# see all lines verbatim.
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-dune build test --profile dev
+dune build test/idb_stub.js test --profile dev
 
-"$SCRIPT_DIR/test/run_node.sh" "$@"
+if [ -n "$NO_SKIP_FILTER" ]; then
+  exec "$SCRIPT_DIR/test/run_node.sh" "$@"
+fi
+
+set +e
+"$SCRIPT_DIR/test/run_node.sh" "$@" | grep -v $'^\\s*\\[SKIP\\]'
+status=${PIPESTATUS[0]}
+exit "$status"

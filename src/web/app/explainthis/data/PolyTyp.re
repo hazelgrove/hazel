@@ -2,27 +2,33 @@ open Haz3lcore;
 open Example;
 open ExplainThisForm;
 
-let tpat = tpat("t_var");
-let typ_arg = typ("ty_arg");
-let poly_typ_coloring_ids =
-    (~tpat_id: Id.t, ~tbody_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(tpat), tpat_id),
-  (Piece.id(typ_arg), tbody_id),
-];
-let poly_typ_form = [mk_poly([[space(), tpat, space()]]), typ_arg];
-let poly_typ = (~tpat_id: Id.t, ~tbody_id: Id.t): form => {
-  id: PolyTyp,
-  syntactic_form: poly_typ_form,
-  colorings: poly_typ_coloring_ids(~tpat_id, ~tbody_id),
-  expandable_id: Some((Piece.id(tpat), [typ_arg])),
-  explanation:
-    sprintf(
-      "This poly type classifies polymorphic values varying over [*type variable*](%s) with [*instantiated type*](%s).",
-      Id.to_string(tpat_id),
-      Id.to_string(tbody_id),
-    ),
-  examples: [],
+/* `poly a -> t`, `poly a, b -> t`: the type of polymorphic values. A
+   proper type (kind `Type`), unlike the type function `typfun a -> t`. */
+let poly_typ = (~binders: list((string, Id.t)), ~tbody_id: Id.t): form => {
+  let tpat_ids = List.map(~f=snd, binders);
+  let n = List.length(tpat_ids);
+  let (binder_seg, binder_pieces) = tpat_list("a", n);
+  let typ_body = typ("ty");
+  {
+    id: PolyTyp,
+    syntactic_form: [
+      mk_poly([[space()] @ binder_seg @ [space()]]),
+      space(),
+      typ_body,
+    ],
+    colorings:
+      zip_colorings(binder_pieces, tpat_ids)
+      @ [(Piece.id(typ_body), tbody_id)],
+    expandable_id: None,
+    explanation:
+      Printf.sprintf(
+        "A polymorphic type: the type of values that work at every choice of %s, with type [*body*](%s). It is an ordinary type (kind `Type`) whose values are type abstractions (`abs`), used by applying them to types, `e@<T>`. Compare `typfun`, which is not the type of any value but a function from types to types.",
+        named_links(binders),
+        Id.to_string(tbody_id),
+      ),
+    examples: [],
+  };
 };
 
-let poly = (~tpat_id: Id.t, ~tbody_id: Id.t): group =>
-  singleton(poly_typ(~tpat_id, ~tbody_id));
+let poly = (~binders: list((string, Id.t)), ~tbody_id: Id.t): group =>
+  singleton(poly_typ(~binders, ~tbody_id));

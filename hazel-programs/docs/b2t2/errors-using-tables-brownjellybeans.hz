@@ -54,13 +54,13 @@ let tfilter = filter in
 let incorrect =
   let keep = fun (r : JellyAnon) -> r.color in
   let count_participants =
-    typfun row ->
+    abs row ->
       fun (t : [row], color : row -> Bool) ->
         length(filter(t, keep)) in
   count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown) in
 let correct =
   let count_participants =
-    typfun row ->
+    abs row ->
       fun (t : [row], color : row -> Bool) ->
         let keep = fun (r : row) -> color(r) in
         length(filter(t, keep)) in

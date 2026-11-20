@@ -32,7 +32,7 @@ let tests = (
         [
           FunAp,
           DeferredAp,
-          TypFunAp,
+          TypAbsAp,
           BuiltinAp("string_length"),
           LetBind("x"),
           CaseApply,

@@ -8,12 +8,12 @@ let ensures = [
   (enforced=("static"), "schema(t2) is equal to schema(t1)")
 ] in
 let dropna =
-  typfun R ->
+  abs R ->
     fun (t1 : [R]) ->
       filter(
         t1,
         fun row ->
-          ! any(to_lvs(row), fun e -> e.value == (None : Option))
+          ! any(to_lvs(row), fun e -> e.value == (None : Option(?)))
       )
       : [R] in
 type StudentFullyOptional = (

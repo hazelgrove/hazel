@@ -530,6 +530,24 @@ let rec bypass_parens_pat = (pat: Pat.t) => {
 let nth_rep_id = (elements, n) =>
   IdTagged.rep_id(List.nth_exn(elements, n));
 
+/* The variables a binder binds, as names and ids (`?` for a hole). */
+let binder_names = (tpat: TPat.t): list((string, Id.t)) =>
+  TPat.binders_of(tpat)
+  |> List.map(~f=(b: TPat.t) =>
+       (
+         Option.value(~default="?", TPat.tyvar_of_utpat(b)),
+         IdTagged.rep_id(b),
+       )
+     );
+
+/* The type arguments of a type application: a `TypTuple` supplies
+   several at once. */
+let type_args = (ty: Typ.t): list(Typ.t) =>
+  switch (ty.term) {
+  | TypTuple(args) => args
+  | _ => [ty]
+  };
+
 let rec bypass_parens_typ = (typ: Typ.t) => {
   switch (typ.term) {
   | Parens(t) => bypass_parens_typ(t)
@@ -867,6 +885,14 @@ let decide =
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
+      | TyAlias({term: Param(head, params), _}, ty_def, _body) =>
+        get_message(
+          TyAliasExp.param_tyalias_exps(
+            ~head_id=IdTagged.rep_id(head),
+            ~param_ids=List.map(~f=IdTagged.rep_id, params),
+            ~def_id=IdTagged.rep_id(ty_def),
+          ),
+        )
       | TyAlias(ty_pat, ty_def, _body) =>
         let tpat_id = IdTagged.rep_id(ty_pat);
         let def_id = IdTagged.rep_id(ty_def);
@@ -882,11 +908,13 @@ let decide =
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
         get_message(ListExp.listlits(~n=List.length(terms)))
-      | TypFun(tpat, body, _) =>
-        let tpat_id = IdTagged.rep_id(tpat);
-        let body_id = IdTagged.rep_id(body);
-        /* TODO: More could be done here probably for different patterns. */
-        get_message(TypFunctionExp.type_functions_basic(~tpat_id, ~body_id));
+      | TypAbs(tpat, body, _) =>
+        get_message(
+          TypAbsExp.typ_abss(
+            ~binders=binder_names(tpat),
+            ~body_id=IdTagged.rep_id(body),
+          ),
+        )
       | Fun(pat, body, _, _) =>
         /* The generic fallback form describes the *unbypassed* pattern, while
            the specific forms below describe the pattern with parens and
@@ -1261,9 +1289,12 @@ let decide =
           ),
         )
       | TypAp(f, typ) =>
-        let f_id = IdTagged.rep_id(f);
-        let typ_id = IdTagged.rep_id(typ);
-        get_message(TypAppExp.typfunaps(~f_id, ~typ_id));
+        get_message(
+          TypAppExp.typabsaps(
+            ~f_id=IdTagged.rep_id(f),
+            ~typ_ids=List.map(~f=IdTagged.rep_id, type_args(typ)),
+          ),
+        )
 
       | Ap(Forward, x, arg) =>
         let x_id = IdTagged.rep_id(x);
@@ -1548,10 +1579,32 @@ let decide =
     | List(elem) =>
       let elem_id = IdTagged.rep_id(elem);
       get_message(ListTyp.list(~elem_id));
-    | Poly(tpat, typ) =>
-      let tpat_id = IdTagged.rep_id(tpat);
-      let tbody_id = IdTagged.rep_id(typ);
-      get_message(PolyTyp.poly(~tpat_id, ~tbody_id));
+    | Poly(tpat, body) =>
+      get_message(
+        PolyTyp.poly(
+          ~binders=binder_names(tpat),
+          ~tbody_id=IdTagged.rep_id(body),
+        ),
+      )
+    | TypFun(tpat, body) =>
+      get_message(
+        TypFunTyp.typfun(
+          ~binders=binder_names(tpat),
+          ~tbody_id=IdTagged.rep_id(body),
+          ~kind=TypKind.to_string(Kinding.kind_of_typ(typ_info.ctx, typ)),
+        ),
+      )
+    | TypParamAp(callee, arg) =>
+      get_message(
+        TypParamApTyp.typ_param_aps(
+          ~callee_id=IdTagged.rep_id(callee),
+          ~arg_ids=List.map(~f=IdTagged.rep_id, type_args(arg)),
+        ),
+      )
+    | TypTuple(args) =>
+      get_message(
+        TypParamApTyp.typ_argss(~arg_ids=List.map(~f=IdTagged.rep_id, args)),
+      )
     | Rec(tpat, typ) =>
       let tpat_id = IdTagged.rep_id(tpat);
       let tbody_id = IdTagged.rep_id(typ);
@@ -1659,6 +1712,18 @@ let decide =
     | EmptyHole => get_message(HoleTPat.empty_hole_tpats)
     | MultiHole(_) => get_message(HoleTPat.multi_hole_tpats)
     | Var(v) => get_message(VarTPat.var_typ_pats(v))
+    | Param(head, params) =>
+      get_message(
+        ParamTPat.param_tpats(
+          ~head_id=IdTagged.rep_id(head),
+          ~param_ids=List.map(~f=IdTagged.rep_id, params),
+        ),
+      )
+    | Tuple(tps) =>
+      get_message(
+        TupleTPat.tuple_tpats(~binder_ids=List.map(~f=IdTagged.rep_id, tps)),
+      )
+    | Parens(_) => NoDoc
     }
   | Some(InfoDrv({term, _})) =>
     let (syntax, msg) =

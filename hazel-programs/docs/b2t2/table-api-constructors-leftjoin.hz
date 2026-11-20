@@ -111,12 +111,12 @@ test
           name= String,
           age= Int,
           favorite_color= String,
-          quiz1= Option,
-          quiz2= Option,
-          midterm= Option,
-          quiz3= Option,
-          quiz4= Option,
-          final= Option
+          quiz1= Option(?),
+          quiz2= Option(?),
+          midterm= Option(?),
+          quiz3= Option(?),
+          quiz4= Option(?),
+          final= Option(?)
         )
       ]
     )
@@ -140,10 +140,10 @@ let ensures = [
 # We just require the caller to combine the resulting rows. The closest to leftJoin would be to just wrap the right row in a new column. #
 # The caller could also decide to flatten the option type into individual optional columns #
 let left_join =
-  typfun r1 ->
-    typfun r2 ->
-      typfun r3 ->
-        typfun k ->
+  abs r1 ->
+    abs r2 ->
+      abs r3 ->
+        abs k ->
           fun (
             t1 : [r1],
             t2 : [r2],

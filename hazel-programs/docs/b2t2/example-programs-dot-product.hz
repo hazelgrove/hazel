@@ -32,7 +32,7 @@ dot_product(gradebook, "quiz1", "quiz2")
 
 # (idiomatic) Version using function for column access #
 let dot_product =
-  typfun R ->
+  abs R ->
     fun (t1 : [R], c1 : R -> Int, c2 : R -> Int) ->
       fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0)
       : Int in

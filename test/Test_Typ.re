@@ -360,7 +360,6 @@ let diff_tests = (
         let tpat_y = TPat.fresh(Var("y"));
         let var_y = Typ.fresh(Var("y"));
         let rec2 = Typ.fresh(Rec(tpat_y, var_y));
-
         let expected = [
           TPat.rep_id(tpat_y),
           Typ.rep_id(var_y),
@@ -385,6 +384,7 @@ let diff_tests = (
               name: "MyList",
               id: Id.mk(),
               kind: Singleton(Typ.fresh(List(Typ.fresh(Atom(Atom.Int))))),
+              typ_kind: TypKind.Type,
             },
           );
         let static_typ = Typ.fresh(List(Typ.fresh(Atom(Atom.Int))));
@@ -407,6 +407,7 @@ let diff_tests = (
             {
               name: "Pair",
               id: Id.mk(),
+              typ_kind: TypKind.Type,
               kind:
                 Singleton(
                   Typ.fresh(
@@ -464,6 +465,7 @@ let diff_tests = (
             {
               name,
               id: Id.mk(),
+              typ_kind: TypKind.Type,
               kind,
             },
           );
@@ -499,6 +501,7 @@ let diff_tests = (
             {
               name,
               id: Id.mk(),
+              typ_kind: TypKind.Type,
               kind,
             },
           );
@@ -967,8 +970,314 @@ let meet_out_of_phase_tests = {
   );
 };
 
+let normalize_tests = (
+  "Typ.normalize",
+  IdTagged.FreshGrammar.Typ.[
+    test_case(
+      "Type-level beta reduction",
+      `Quick,
+      () => {
+        let ctx = Builtins.ctx_init(None);
+        let ty =
+          typ_param_ap(
+            typ_fun(Var("a") |> TPat.temp, list(var("a"))),
+            int(),
+          );
+        check(
+          typ,
+          "beta-normalized type application",
+          list(int()),
+          Typ.normalize(ctx, ty),
+        );
+      },
+    ),
+    test_case(
+      "Parameterized alias application normalizes",
+      `Quick,
+      () => {
+        let option_ty =
+          typ_fun(
+            Var("a") |> TPat.temp,
+            sum([
+              ConstructorMap.Variant(
+                "None",
+                ConstructorMap.empty_variant_ann,
+                None,
+              ),
+              Variant(
+                "Some",
+                ConstructorMap.empty_variant_ann,
+                Some(var("a")),
+              ),
+            ]),
+          );
+        let ctx =
+          Ctx.extend_alias(
+            Builtins.ctx_init(None),
+            "Option",
+            Id.invalid,
+            ~typ_kind=TypKind.of_param_count(1),
+            option_ty,
+          );
+        let normalized =
+          Typ.normalize(ctx, typ_param_ap(var("Option"), int()));
+        check(
+          typ,
+          "instantiated option",
+          sum([
+            ConstructorMap.Variant(
+              "None",
+              ConstructorMap.empty_variant_ann,
+              None,
+            ),
+            Variant("Some", ConstructorMap.empty_variant_ann, Some(int())),
+          ]),
+          normalized,
+        );
+      },
+    ),
+    test_case(
+      "Recursive parameterized alias exposes sum constructors",
+      `Quick,
+      () => {
+        let list_name = "List";
+        let param = Var("a") |> TPat.temp;
+        let recursive_list_a = typ_param_ap(var(list_name), var("a"));
+        let list_body =
+          typ_fun(
+            param,
+            sum([
+              ConstructorMap.Variant(
+                "Nil",
+                ConstructorMap.empty_variant_ann,
+                None,
+              ),
+              Variant(
+                "Cons",
+                ConstructorMap.empty_variant_ann,
+                Some(prod([var("a"), recursive_list_a])),
+              ),
+            ]),
+          );
+        let list_ty =
+          Rec(Var(list_name) |> TPat.temp, list_body) |> Typ.temp;
+        let ctx =
+          Ctx.extend_alias(
+            Builtins.ctx_init(None),
+            list_name,
+            Id.invalid,
+            ~typ_kind=TypKind.of_param_count(1),
+            list_ty,
+          );
+        let constructors =
+          Typ.get_sum_constructors(
+            ctx,
+            typ_param_ap(var(list_name), int()),
+          );
+        check(
+          Alcotest.bool,
+          "recursive list constructors found",
+          true,
+          Option.is_some(constructors),
+        );
+      },
+    ),
+  ],
+);
+
+/* Type functions, recursive families and multi-binder quantifiers. */
+let type_function_tests = {
+  let parse = (src: string): Typ.t =>
+    switch (
+      Haz3lcore.Parser.to_segment(src, ~root=Typ)
+      |> Option.map(~f=Haz3lcore.MakeTerm.for_projection)
+    ) {
+    | Some(Some(Typ(t))) => t
+    | _ => Alcotest.failf("could not parse the type `%s`", src)
+    };
+  let ctx = Builtins.ctx_init(Some(Int));
+  let consistent = (a, b) => Typ.is_consistent(ctx, parse(a), parse(b));
+  /* `type NU(a) = + Nil + Cons(a, NU((Int, a)))`, as statics stores it */
+  let nu = {
+    let body = parse("+ Nil + Cons(a, NU((Int, a)))");
+    Typ.fresh(
+      Rec(
+        TPat.fresh(Var("NU")),
+        Typ.fresh(TypFun(TPat.fresh(Var("a")), body)),
+      ),
+    );
+  };
+  let nu_at = arg => Typ.fresh(TypParamAp(nu, parse(arg)));
+  (
+    "Typ.type_functions",
+    [
+      test_case("multi-binder poly meets up to renaming", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          consistent("poly a, b -> (a, b)", "poly c, d -> (c, d)"),
+        )
+      ),
+      test_case("multi-binder poly binder order matters", `Quick, () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          consistent("poly a, b -> (a, b)", "poly c, d -> (d, c)"),
+        )
+      ),
+      test_case("poly binder counts must agree", `Quick, () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          consistent("poly a, b -> a", "poly a -> a"),
+        )
+      ),
+      test_case("multi-binder typfun meets up to renaming", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          consistent("typfun a, b -> (a, b)", "typfun x, y -> (x, y)"),
+        )
+      ),
+      test_case("beta takes a TypTuple for a multi-binder typfun", `Quick, () =>
+        check(
+          typ,
+          "reduced",
+          parse("(Int, Bool)"),
+          Typ.normalize(ctx, parse("(typfun a, b -> (a, b))(Int, Bool)")),
+        )
+      ),
+      test_case("a single tuple argument is not two arguments", `Quick, () =>
+        check(
+          bool,
+          "stuck",
+          true,
+          switch (
+            Typ.weak_head_normalize(
+              ctx,
+              parse("(typfun a, b -> (a, b))((Int, Bool))"),
+            ).
+              term
+          ) {
+          | TypParamAp(_) => true
+          | _ => false
+          },
+        )
+      ),
+      test_case("multi-binder substitution is simultaneous", `Quick, () =>
+        check(
+          typ,
+          "(b, Int), not (Int, Int)",
+          parse("(b, Int)"),
+          Typ.subst_many(
+            [parse("b"), parse("Int")],
+            [TPat.fresh(Var("a")), TPat.fresh(Var("b"))],
+            parse("(a, b)"),
+          ),
+        )
+      ),
+      test_case("canonicalize keeps an applied alias compact", `Quick, () =>
+        check(
+          string,
+          "compact",
+          "Option(Int)",
+          Typ.pretty_print(Typ.canonicalize(ctx, parse("Option(Int)"))),
+        )
+      ),
+      test_case("normalize expands an applied alias", `Quick, () =>
+        check(
+          bool,
+          "a sum",
+          true,
+          switch (Typ.normalize(ctx, parse("Option(Int)")).term) {
+          | Sum(_) => true
+          | _ => false
+          },
+        )
+      ),
+      test_case("a recursive family at an argument unfolds once", `Quick, () =>
+        check(
+          bool,
+          "Cons payload refers to the family at (Int, Bool)",
+          true,
+          switch (Typ.get_sum_constructors(ctx, nu_at("Bool"))) {
+          | Some(sm) =>
+            switch (ConstructorMap.get_entry("Cons", sm)) {
+            | Some(Some({term: Prod([_, tail]), _})) =>
+              Typ.fast_equal(tail, nu_at("(Int, Bool)"))
+            | _ => false
+            }
+          | None => false
+          },
+        )
+      ),
+      test_case("a non-uniform family meets itself", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          Typ.is_consistent(ctx, nu_at("Bool"), nu_at("Bool")),
+        )
+      ),
+      test_case(
+        "a non-uniform family at different arguments: no meet, terminates",
+        `Quick,
+        () =>
+        check(
+          bool,
+          "inconsistent",
+          false,
+          Typ.is_consistent(ctx, nu_at("Bool"), nu_at("Int")),
+        )
+      ),
+      test_case("a family meets its own unfolding", `Quick, () =>
+        check(
+          bool,
+          "consistent",
+          true,
+          switch (Typ.unfold_family(nu_at("Bool"))) {
+          | Some(unfolded) =>
+            Typ.is_consistent(ctx, nu_at("Bool"), unfolded)
+          | None => false
+          },
+        )
+      ),
+      test_case("a non-contractive family does not unfold", `Quick, () =>
+        check(
+          bool,
+          "no unfolding",
+          true,
+          Option.is_none(
+            Typ.unfold_family(
+              Typ.fresh(
+                TypParamAp(
+                  Typ.fresh(
+                    Rec(
+                      TPat.fresh(Var("L")),
+                      Typ.fresh(
+                        TypFun(TPat.fresh(Var("a")), parse("L((a, a))")),
+                      ),
+                    ),
+                  ),
+                  parse("Int"),
+                ),
+              ),
+            ),
+          ),
+        )
+      ),
+    ],
+  );
+};
+
 let tests = [
   meet_tests,
+  type_function_tests,
+  normalize_tests,
   meet_rec_binder_tests,
   meet_rec_tests,
   meet_out_of_phase_tests,

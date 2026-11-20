@@ -77,7 +77,9 @@ type typ_provenance =
 type tpat =
   | InvalidTPat(string)
   | EmptyHoleTPat
-  | VarTPat(string);
+  | VarTPat(string)
+  | ParamTPat(string, list(tpat))
+  | TupleTPat(list(tpat));
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
@@ -94,9 +96,12 @@ type typ =
   | TupleType(list(typ))
   | ArrayType(typ)
   | ArrowType(typ, typ)
+  | TypParamAp(typ, typ)
+  | TypTuple(list(typ))
   | TypVar(string)
   | InvalidTyp(string)
   | PolyType(tpat, typ)
+  | TypFunType(tpat, typ)
   | RecType(tpat, typ)
   | ProofOfType(exp)
   | LabelType(string)
@@ -161,7 +166,7 @@ and exp =
   | Test(exp)
   | HintedTest(exp, exp)
   | Deferral
-  | TypFun(tpat, exp)
+  | TypAbs(tpat, exp)
   | Cons(exp, exp)
   | ListConcat(exp, exp)
   | If(exp, exp, exp)
@@ -334,6 +339,47 @@ let gen_tpat: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
     );
 
 /**
+ * `tpat` for a `Poly`/`TypAbs` binder. May be a single `Var`/hole or a
+ * comma-separated `TupleTPat([...])` for n-ary type abstractions
+ * (`poly a, b, c -> …`). `ParamTPat(_, _)` is rejected in binder
+ * position so we don't generate it here.
+ */
+let gen_tpat_binder: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
+  (~minimal_idents) => {
+    open QCheck.Gen;
+    let gen_simple = gen_tpat(~minimal_idents);
+    /* Inner binders of a `TupleTPat` can only be plain Var/hole. */
+    let gen_tuple_inner = gen_simple;
+    let gen_tuple = {
+      let* len = int_range(2, 4);
+      let+ tps = list_size(return(len), gen_tuple_inner);
+      TupleTPat(tps);
+    };
+    oneof([gen_simple, gen_tuple]);
+  };
+
+/**
+ * `tpat` for the head of a `type T(a, …) = body` declaration. May be
+ * a plain `Var(name)` or `ParamTPat(name, params)` with each param a
+ * fresh distinct variable. `TupleTPat` is rejected at the alias
+ * head, so it isn't generated here.
+ */
+let gen_tpat_alias: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
+  (~minimal_idents) => {
+    open QCheck.Gen;
+    let gen_ident = gen_ident(~minimal_idents);
+    let gen_var = map(x => VarTPat(x), gen_ident);
+    let gen_param = {
+      let* head = gen_ident;
+      let* len = int_range(1, 3);
+      let+ params =
+        list_size(return(len), map(x => VarTPat(x), gen_ident));
+      ParamTPat(head, params);
+    };
+    oneof([gen_var, gen_param]);
+  };
+
+/**
  * Generates a string literal for use in the program.
  * This generator produces strings that match the `string` pattern in the lexer.
  */
@@ -363,7 +409,8 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
 
   let gen_pat_sized = n => gen_pat_sized(~minimal_idents, n);
   let gen_typ_sized = n => gen_typ_sized(~minimal_idents, n);
-  let gen_tpat = gen_tpat(~minimal_idents);
+  let gen_tpat_binder = gen_tpat_binder(~minimal_idents);
+  let gen_tpat_alias = gen_tpat_alias(~minimal_idents);
   let leaf =
     oneof([
       map(x => Atom(Int(x |> Bigint.of_int)), small_int),
@@ -420,8 +467,19 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             BinExp(e1, op, e2);
           },
           {
+            /* `e.x` field/label access: the right operand must be a
+               name (Var or Constructor) for a meaningful projection.
+               Generating arbitrary expressions on the right (e.g. a
+               Module body or a binding form) round-trips poorly
+               through `ExpToSegment` / Menhir because `.` precedence
+               interacts with right-extending forms in surprising
+               ways. */
             let* e1 = self((n - 1) / 2);
-            let+ e2 = self((n - 1) / 2);
+            let+ e2 =
+              oneof([
+                map(x => Var(x), gen_ident),
+                map(x => Constructor(x, None), gen_constructor_ident),
+              ]);
             Dot(e1, e2);
           },
           {
@@ -495,9 +553,9 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             ListConcat(e1, e2);
           },
           {
-            let* tp = gen_tpat;
+            let* tp = gen_tpat_binder;
             let+ e = self(n - 1);
-            TypFun(tp, e);
+            TypAbs(tp, e);
           },
           {
             let* t = gen_typ_sized((n - 1) / 2);
@@ -505,7 +563,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             TypAp(e, t);
           },
           {
-            let* tp = gen_tpat;
+            let* tp = gen_tpat_alias;
             let* t = gen_typ_sized((n - 1) / 2);
             let+ e = self((n - 1) / 2);
             TyAlias(tp, t, e);
@@ -528,7 +586,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
                           ModItemLet(p, e);
                         },
                         {
-                          let* tp = gen_tpat;
+                          let* tp = gen_tpat_alias;
                           let+ t = gen_typ_sized(size / 2);
                           ModItemType(tp, t);
                         },
@@ -567,6 +625,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
       let gen_ident = gen_ident(~minimal_idents);
       let gen_constructor_ident = gen_constructor_ident(~minimal_idents);
       let gen_tpat = gen_tpat(~minimal_idents);
+      let gen_tpat_binder = gen_tpat_binder(~minimal_idents);
       let leaf_nodes =
         oneof([
           return(StringType),
@@ -618,14 +677,17 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 TypVar(ident);
               },
               {
-                let* gen_tpat = gen_tpat;
+                let* tp = gen_tpat_binder;
                 let+ t = self(n - 1);
-                PolyType(gen_tpat, t);
+                PolyType(tp, t);
               },
               {
-                let* gen_tpat = gen_tpat;
+                /* `Rec` doesn't accept tuple binders surface-side
+                   (it's an internal-only form for recursive type
+                   bodies). Stick with plain Var/hole binders. */
+                let* tp = gen_tpat;
                 let+ t = self(n - 1);
-                RecType(gen_tpat, t);
+                RecType(tp, t);
               },
               {
                 let* sizes = gen_non_empty_array(n - 1);
@@ -1073,11 +1135,11 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(HintedTest(e1, shrunk));
           }
         | Deferral => Iter.empty
-        | TypFun(tpat, e) =>
+        | TypAbs(tpat, e) =>
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(TypFun(tpat, shrunk));
+            return(TypAbs(tpat, shrunk));
           } // Not worth shrinking tpat
         | Cons(e1, e2) =>
           {
@@ -1346,12 +1408,34 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             let* shrunk2 = shrink_typ(t2);
             return(ArrowType(t1, shrunk2));
           }
+        | TypParamAp(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(TypParamAp(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(TypParamAp(t1, shrunk2));
+          }
+        | TypTuple(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
+          switch (shrunk) {
+          | [x] => Iter.return(x)
+          | _ => return(TypTuple(shrunk))
+          };
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
         | PolyType(tpat, t) =>
           return(t)
           <+> {
             let* shrunk = shrink_typ(t);
             return(PolyType(tpat, shrunk));
+          }
+        | TypFunType(tpat, t) =>
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(TypFunType(tpat, shrunk));
           }
         | RecType(tpat, t) =>
           return(t)

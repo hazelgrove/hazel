@@ -43,10 +43,10 @@ let join
     poly r3 ->
       poly k ->
         ([r1], [r2], r1 -> k, r2 -> k, (r1, r2) -> r3) -> [r3] =
-  typfun r1 ->
-    typfun r2 ->
-      typfun r3 ->
-        typfun k ->
+  abs r1 ->
+    abs r2 ->
+      abs r3 ->
+        abs k ->
           fun (
             t1 : [r1],
             t2 : [r2],

@@ -91,10 +91,10 @@ let utf8_3 =
 let nonascii = utf8_2 | utf8_3 | utf8_4
 let name_start = ['a'-'z' '_'] | nonascii
 let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
-(* `'` continues a variable but not a constructor, as in the editor. *)
+(* `'` continues a name but does not start one, as in the editor. *)
 let var_rest = name_rest | '\''
 let identifier = name_start var_rest*
-let constructor_ident = ['A'-'Z'] name_rest*
+let constructor_ident = ['A'-'Z'] var_rest*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
 let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
@@ -203,7 +203,8 @@ rule token =
     | "_" {WILD}
     | "use" {USE}
     | "fix" {FIX}
-    | "typfun" {TYP_FUN}
+    | "abs" {TYP_ABS}        (* value-level type abstraction *)
+    | "typfun" {TYP_FUN}     (* type-level type function (TypFun) *)
     | "type" {TYP}
     | "~" {TILDE}
     | "/~" {SLASH_TILDE}

@@ -24,7 +24,7 @@ let ensures = [
   (enforced=("static"), "schema(t2) is equal to schema(t1)")
 ] in
 let tfilter =
-  typfun r ->
+  abs r ->
     fun (t : [r], f : r -> Bool) -> filter(t, f) : [r] in
 test
   tfilter@<GradebookEntry>(gradebook, fun s -> string_length(s.name) > 3)

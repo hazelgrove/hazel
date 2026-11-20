@@ -21,8 +21,8 @@ let ensures = [
 ] in
 
 let select =
-  typfun r1 ->
-    typfun r2 ->
+  abs r1 ->
+    abs r2 ->
       fun (t1 : [r1], f : ((r1, Int) -> r2)) ->
         mapi(t1, fun (i, r) -> f(r, i)) : [r2] in
 
