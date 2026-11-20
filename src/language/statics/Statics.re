@@ -4391,6 +4391,7 @@ and mpat_to_info_map =
 
 let mk =
   Core.Memo.general(
+    ~hashable=Core.Hashtbl.Hashable.poly,
     ~cache_size_bound=1000,
     ((ana, ctx, e, probe_ids)) => {
       let (_, elab, m) =

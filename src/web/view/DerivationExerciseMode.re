@@ -646,15 +646,17 @@ module NinjaKeys = {
       let rule = Option.value_exn(RuleImage.to_rule(M.rule_set, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
-        Ui_effect.Expert.handle(M.schedule_action(Refresh));
+        Ui_effect.Expert.handle(~on_exn=raise, M.schedule_action(Refresh));
       };
       let* origin = opt_get_origin();
       let _ = try_remove_copied(ev);
       let _ =
         Dom_html.document##.body##appendChild(origin##cloneNode(Js._true));
       let* copied = opt_get_copied();
-      let left = ev##.clientX;
-      let bottom = Dom_html.window##.innerHeight - ev##.clientY;
+      let left = int_of_float(Js.to_float(ev##.clientX));
+      let bottom =
+        Dom_html.window##.innerHeight
+        - int_of_float(Js.to_float(ev##.clientY));
       copied##.style##.left := Js.string(sprintf("%dpx", left));
       copied##.style##.bottom := Js.string(sprintf("%dpx", bottom));
       Js._true;
@@ -719,6 +721,7 @@ module NinjaKeys = {
          val handler =
            () =>
              Ui_effect.Expert.handle(
+               ~on_exn=raise,
                M.schedule_action(
                  MapEditor(
                    DerivationExercise.switch_rule(
@@ -801,7 +804,7 @@ module View = {
       div(
         ~attrs=[
           Attr.class_("add-premise-btn"),
-          Attr.on_click(_ =>
+          Attr.on_click_js_of_ocaml(_ =>
             inject(MapEditor(DerivationExercise.add_premise(~pos, ~index)))
           ),
         ],
@@ -1099,7 +1102,7 @@ module View = {
       div(
         ~attrs=[
           Attr.class_("add-abbr-btn"),
-          Attr.on_click(_ =>
+          Attr.on_click_js_of_ocaml(_ =>
             inject(MapEditor(DerivationExercise.add_abbr(~index)))
           ),
         ],
@@ -1229,7 +1232,7 @@ module View = {
             ~attrs=[
               Attr.class_("rule-set-select"),
               Attr.title("Toggle Rule Set"),
-              Attr.on_change((_, name) => {
+              Attr.on_change_js_of_ocaml((_, name) => {
                 let rule_set = RuleImage.rule_set_of_string(name);
                 inject(
                   MapEditor(

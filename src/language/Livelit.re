@@ -82,7 +82,7 @@ module Slider: BuiltinLivelit = {
 
     Util.WebUtil.range(
       ~attrs=[
-        Attr.on_input((_, v: string) => {
+        Attr.on_input_js_of_ocaml((_, v: string) => {
           send_action(SetModel(Bigint.of_string(v)))
         }),
       ],
@@ -254,7 +254,7 @@ module Emotion: BuiltinLivelit = {
       ),
       Util.WebUtil.range(
         ~attrs=[
-          Attr.on_input((_, v) => {
+          Attr.on_input_js_of_ocaml((_, v) => {
             send_action(SetModel(Bigint.of_string(v)))
           }),
         ],
@@ -407,7 +407,7 @@ module Js: BuiltinLivelit = {
         ~attrs=[
           Attr.type_("text"),
           Attr.value(code),
-          Attr.on_input((_, v: string) => {
+          Attr.on_input_js_of_ocaml((_, v: string) => {
             /* Update the code, keep the same result */
             send_action(
               SetModel({
@@ -422,7 +422,7 @@ module Js: BuiltinLivelit = {
       /* Compute button */
       Node.button(
         ~attrs=[
-          Attr.on_click(_ => {
+          Attr.on_click_js_of_ocaml(_ => {
             /* Evaluate the code and set the result */
             let evaluated =
               Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");

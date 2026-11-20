@@ -131,7 +131,7 @@ module StaticsDebounce = {
               force_on_next := true;
               schedule_refresh();
             }),
-            debounce_ms,
+            Js_of_ocaml.Js.float(debounce_ms),
           ),
         );
       Defer;

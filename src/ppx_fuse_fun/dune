@@ -1,0 +1,12 @@
+; Works around reasonml/reason#2949: since Reason 3.16 (OCaml 5.2 parsetree),
+; `(a, b) => e` parses as `fun a -> fun b -> e`, two one-argument closures,
+; where OCaml syntax gives one two-argument function. Besides the allocation,
+; a self tail call through such a function is no longer a loop under
+; js_of_ocaml, so e.g. the evaluator's Trampoline.run overflows the stack.
+; This rewriter fuses directly nested functions back together. Drop it once
+; Reason parses multi-argument functions as one Pexp_function.
+
+(library
+ (name ppx_fuse_fun)
+ (kind ppx_rewriter)
+ (libraries ppxlib))

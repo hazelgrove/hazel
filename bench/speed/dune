@@ -1,0 +1,19 @@
+; Evaluator benchmark built with both js_of_ocaml and wasm_of_ocaml (#1131).
+; Depends only on haz3lcore (parser) and language (statics, evaluator), not
+; on the web UI.
+;   dune build bench/speed/hazelbench.bc.js bench/speed/hazelbench.bc.wasm.js --profile release
+;   node _build/default/bench/speed/hazelbench.bc.js bench/eval-bench.hz 10
+;   node _build/default/bench/speed/hazelbench.bc.wasm.js bench/eval-bench.hz 10
+
+; Only built on request (the wasm mode needs wasm_of_ocaml and Binaryen).
+
+(alias
+ (name default)
+ (deps))
+
+(executable
+ (name hazelbench)
+ (libraries haz3lcore language unix)
+ (modes js wasm)
+ (preprocess
+  (pps ppx_fuse_fun)))

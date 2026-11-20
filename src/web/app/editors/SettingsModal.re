@@ -94,7 +94,7 @@ let view =
     div(
       ~attrs=[
         Attr.class_("modal-back"),
-        Attr.on_mousedown(_ => inject(Evaluation(ShowSettings))),
+        Attr.on_mousedown_js_of_ocaml(_ => inject(Evaluation(ShowSettings))),
       ],
       [],
     ),

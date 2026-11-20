@@ -71,7 +71,11 @@ module Make = (P: PARAMS) : Projector => {
   let view = ({info, parent, _}: View.args(model, action)) =>
     View.mk(
       Util.WebUtil.range(
-        ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
+        ~attrs=[
+          Attr.on_input_js_of_ocaml((_, v) =>
+            parent(SetSyntax(put(info, v)))
+          ),
+        ],
         info |> get |> P.to_string,
       ),
     );

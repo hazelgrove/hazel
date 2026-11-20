@@ -1,0 +1,77 @@
+opam-version: "2.0"
+synopsis: "LSP Server for OCaml"
+description: "An LSP server for OCaml."
+maintainer: ["Rudi Grinberg <me@rgrinberg.com>"]
+authors: [
+  "Andrey Popp <8mayday@gmail.com>"
+  "Rusty Key <iam@stfoo.ru>"
+  "Louis Roché <louis@louisroche.net>"
+  "Oleksiy Golovko <alexei.golovko@gmail.com>"
+  "Rudi Grinberg <me@rgrinberg.com>"
+  "Sacha Ayoun <sachaayoun@gmail.com>"
+  "cannorin <cannorin@gmail.com>"
+  "Ulugbek Abdullaev <ulugbekna@gmail.com>"
+  "Thibaut Mattio <thibaut.mattio@gmail.com>"
+  "Max Lantas <mnxndev@outlook.com>"
+]
+license: "ISC"
+homepage: "https://github.com/ocaml/ocaml-lsp"
+bug-reports: "https://github.com/ocaml/ocaml-lsp/issues"
+depends: [
+  "dune" {>= "3.0"}
+  "yojson"
+  "base" {>= "v0.16.0"}
+  "lsp" {= version}
+  "jsonrpc" {= version}
+  "re" {>= "1.5.0"}
+  "ppx_yojson_conv_lib" {>= "v0.14"}
+  "dune-rpc" {>= "3.22.0"}
+  "chrome-trace" {>= "3.3.0"}
+  "dyn"
+  "stdune" {>= "3.22.0" & < "3.25"}
+  "fiber" {>= "3.1.1" & < "4.0.0"}
+  "ocaml" {>= "5.4" & < "5.5"}
+  "xdg"
+  "ordering"
+  "dune-build-info" {>= "3.22.0"}
+  "spawn"
+  "astring"
+  "camlp-streams"
+  "ppx_expect" {>= "v0.17.0" & with-test}
+  "ocamlformat" {with-test & = "0.28.1"}
+  "ocamlc-loc" {>= "3.7.0"}
+  "pp" {>= "1.1.2"}
+  "csexp" {>= "1.5"}
+  "ocamlformat-rpc-lib" {>= "0.21.0"}
+  "odoc" {with-doc}
+  "merlin-lib" {>= "5.7" & < "5.8"}
+  "ocaml-index" {post}
+  "ppx_yojson_conv" {with-dev-setup}
+]
+dev-repo: "git+https://github.com/ocaml/ocaml-lsp.git"
+build: [
+  ["dune" "subst"] {dev}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@doc" {with-doc}
+  ]
+]
+
+x-maintenance-intent: [ "(latest)" ]
+url {
+  src:
+    "https://github.com/ocaml/ocaml-lsp/releases/download/1.26.1/lsp-1.26.1.tbz"
+  checksum: [
+    "sha256=10f679248972e5658aad4629ed6aa50f81942356918aa94301c8439ffe19a0dd"
+    "sha512=55e5543540c45d20ce3c88d8fdb32d3a670816145731eb16ed0bcd00f0b9d81f60a658aba3de210996579ac967489446ee38e9ccf289ef2d40d2e9a32a58bacd"
+  ]
+}
+x-commit-hash: "ae4742574471fb638b65272f231c5e5e7da2a61c"
+patches: ["base-v0.18.patch"]
+extra-files: [["base-v0.18.patch" "sha256=c61ab590b41dca6849335c21923f964d61cdbf255904404768a72861c6a03656"]]

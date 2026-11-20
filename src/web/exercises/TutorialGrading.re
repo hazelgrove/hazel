@@ -105,7 +105,7 @@ module ImplGradingReport = {
     div(
       ~attrs=[
         Attr.classes(["test-report"]),
-        Attr.on_click(_ => signal_jump(id)),
+        Attr.on_click_js_of_ocaml(_ => signal_jump(id)),
       ],
       [
         div(

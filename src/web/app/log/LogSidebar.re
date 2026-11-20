@@ -17,7 +17,7 @@ module Model = {
 let button = (~attrs=[], ~tooltip="", ~onclick, ~disabled=false, children) => {
   let base_attrs = [
     Attr.class_("log-button"),
-    Attr.on_pointerdown(onclick),
+    Attr.on_pointerdown_js_of_ocaml(onclick),
     disabled ? Attr.disabled : Attr.empty,
   ];
   let all_attrs =
@@ -66,7 +66,8 @@ let progress_bar = (~current, ~total) => {
 };
 
 let message_item = (message: string) => {
-  let timestamp = sprintf("%.0f", Js_of_ocaml.Js.date##now);
+  let timestamp =
+    sprintf("%.0f", Js_of_ocaml.Js.to_float(Js_of_ocaml.Js.date##now));
   div(
     ~attrs=[Attr.class_("log-message")],
     [
@@ -206,7 +207,9 @@ let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
             ~attrs=[
               Attr.class_("log-button"),
               Attr.title("Clear all log entries"),
-              Attr.on_pointerdown(_ => globals.inject_global(Log(ClearLog))),
+              Attr.on_pointerdown_js_of_ocaml(_ =>
+                globals.inject_global(Log(ClearLog))
+              ),
             ],
             [text("Clear Log")],
           ),

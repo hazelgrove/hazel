@@ -6,7 +6,7 @@ let button = (~clss=[], ~tooltip="", icon, action) =>
   div(
     ~attrs=[
       Util.WebUtil.clss(["icon"] @ clss),
-      Attr.on_mousedown(action),
+      Attr.on_mousedown_js_of_ocaml(action),
       Attr.title(tooltip),
     ],
     [icon],
@@ -14,7 +14,7 @@ let button = (~clss=[], ~tooltip="", icon, action) =>
 
 let button_named = (~tooltip="", icon, action) =>
   div(
-    ~attrs=[clss(["named-menu-item"]), Attr.on_click(action)],
+    ~attrs=[clss(["named-menu-item"]), Attr.on_click_js_of_ocaml(action)],
     [button(icon, _ => Effect.Ignore), div([text(tooltip)])],
   );
 
@@ -23,7 +23,7 @@ let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
     ~attrs=[
       clss(["icon"] @ (disabled ? ["disabled"] : [])),
       Attr.title(tooltip),
-      Attr.on_mousedown(_ => unless(disabled, action)),
+      Attr.on_mousedown_js_of_ocaml(_ => unless(disabled, action)),
     ],
     [icon],
   );
@@ -43,7 +43,7 @@ let toggle = (~tooltip="", label, active, action) =>
   div(
     ~attrs=[
       clss(["toggle-switch"] @ (active ? ["active"] : [])),
-      Attr.on_pointerdown(action),
+      Attr.on_pointerdown_js_of_ocaml(action),
       Attr.title(tooltip),
     ],
     [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
@@ -59,7 +59,7 @@ let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {
     ~attrs=
       [
         clss(["named-menu-item"] @ (active ? ["active"] : [])),
-        Attr.on_pointerdown(action),
+        Attr.on_pointerdown_js_of_ocaml(action),
       ]
       @ tooltip_attrs,
     [

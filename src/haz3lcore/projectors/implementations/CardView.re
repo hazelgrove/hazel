@@ -39,7 +39,8 @@ module Card = {
       );
 
   let view =
-    Core.Memo.general((sort: Sort.t, card: card) =>
+    Core.Memo.general(
+      ~hashable=Core.Hashtbl.Hashable.poly, (sort: Sort.t, card: card) =>
       Node.div(
         ~attrs=[Attr.classes(["card-scene", Sort.show(sort)])],
         [
@@ -129,7 +130,7 @@ module Chooser = {
         Attr.classes(
           ["card-wrapper"] @ (equal_card(c, indicated) ? ["indicated"] : []),
         ),
-        Attr.on_mousedown(_ => on_pick(c)),
+        Attr.on_mousedown_js_of_ocaml(_ => on_pick(c)),
         card_pos(col, row),
       ],
       [Card.view(sort, c)],

@@ -1639,7 +1639,7 @@ module Local = {
         /* an exception out of a structural action is OUR bug: dump the
            pre-action program and the action so it can be replayed in a test */
         Js_of_ocaml.(
-          Firebug.console##error_3(
+          Console.console##error_3(
             Js.string("[structural action] Failure: " ++ e),
             Js.string(Action.Structural.show(a)),
             Js.string(Printer.of_zipper(~holes="?", z)),

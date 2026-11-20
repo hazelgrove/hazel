@@ -53,7 +53,7 @@ module View = {
            div_c(
              "step-next",
              Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~attr=[Attr.on_mousedown_js_of_ocaml(_ => inject(i))],
                ~font_metrics,
                ~syntax,
                t,
@@ -76,7 +76,7 @@ module View = {
            div_c(
              "step-refl",
              Arms.term(
-               ~attr=[Attr.on_mousedown(_ => inject(i))],
+               ~attr=[Attr.on_mousedown_js_of_ocaml(_ => inject(i))],
                ~font_metrics,
                ~syntax,
                t,

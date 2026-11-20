@@ -1,7 +1,14 @@
 open Js_of_ocaml;
 open WorkerServer;
 
-let name = "worker.js"; // Worker file name
+/* Worker file name. `?wasm` in the page URL loads the wasm_of_ocaml build
+   of the same worker instead (#1131). */
+let name = () =>
+  Core.String.is_substring(
+    ~substring="wasm",
+    Js.to_string(Dom_html.window##.location##.search),
+  )
+    ? "worker.bc.wasm.js" : "worker.js";
 /* Warm-worker ack timeout. Must exceed a typical eval slice so a busy
  * but healthy worker is not killed mid-slice before it can ACK. */
 let ack_timeout_ms = 5000;
@@ -98,7 +105,7 @@ let set_deadline = (timer_ref, ~delay_ms: int, on_expire: unit => unit) => {
             | Expire => on_expire()
             }
           ),
-          float_of_int(delay_ms),
+          Js.float(float_of_int(delay_ms)),
         ),
       );
   };
@@ -125,7 +132,7 @@ let with_latest = (request_id, f) =>
 let post_evaluate = (worker, request: Request.t) => {
   let encoded = Active.encode_request(ClientMessage.Evaluate(request));
   EvalMetrics.record_sent(~request, ~encoded);
-  worker##postMessage(encoded);
+  worker##postMessage(Js.bytestring(encoded));
 };
 
 let fail_latest = latest => {
@@ -150,7 +157,8 @@ let setup_worker_message_handler = worker => {
     Dom.handler(evt => {
       /* Stop the latency clock first thing, before any decode/benchmark. */
       let now = Util.JsUtil.precise_timestamp();
-      switch (Active.decode_response(evt##.data)) {
+      let encoded = Js.to_bytestring(evt##.data);
+      switch (Active.decode_response(encoded)) {
       | ServerMessage.Ack({request_id}) =>
         /* Liveness only — reuse tinting arrives next via ReusePlan. */
         with_latest(request_id, _ => clear_timer(ack_timeout_id))
@@ -170,7 +178,7 @@ let setup_worker_message_handler = worker => {
              * can take tens of ms and must not delay evaluation latency. */
             latest.callbacks.on_result(result.response);
             WorkerMetrics.record_response(result.request_id, msg);
-            EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
+            EvalMetrics.record_done(~now, ~encoded, result);
           },
         )
       | ServerMessage.Coverage(coverage) => live_coverage := Some(coverage)
@@ -179,9 +187,11 @@ let setup_worker_message_handler = worker => {
     });
 };
 
-let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
+type worker = Js.t(Worker.worker(Js.t(Js.js_string), Js.t(Js.js_string)));
+
+let init_worker: unit => worker =
   () => {
-    let worker = Worker.create(name);
+    let worker = Worker.create(name());
     setup_worker_message_handler(worker);
     worker;
   };
@@ -190,9 +200,7 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
    it on first use if nothing has yet. Not at module init: the test binary
    links this module (via ScratchMode) under node, where Worker doesn't
    exist. */
-let worker_ref:
-  ref(option(Js.t(Worker.worker(Active.request, Active.response)))) =
-  ref(None);
+let worker_ref: ref(option(worker)) = ref(None);
 
 let get_worker = () =>
   switch (worker_ref.contents) {

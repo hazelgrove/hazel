@@ -32,6 +32,7 @@
  (js_of_ocaml)
  (preprocess
   (pps
+   ppx_fuse_fun
    js_of_ocaml-ppx
    ppx_yojson_conv
    ppx_sexp_conv
@@ -57,7 +58,8 @@
   ezjs_idb
   workerServer
   bonsai
-  bonsai.web
+  bonsai_web
+  bonsai_web.proc
   virtual_dom.input_widgets
   util
   ppx_yojson_conv.expander
@@ -69,6 +71,7 @@
  (js_of_ocaml)
  (preprocess
   (pps
+   ppx_fuse_fun
    js_of_ocaml-ppx
    ppx_let
    ppx_sexp_conv
@@ -92,6 +95,7 @@
  (modes js)
  (preprocess
   (pps
+   ppx_fuse_fun
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let
@@ -107,9 +111,10 @@
  (instrumentation
   (backend bisect_ppx))
  (libraries core workerServer)
- (modes js)
+ ; wasm: opt-in, built only for the wasm-worker alias in www/ (#1131)
+ (modes js wasm)
  (preprocess
-  (pps js_of_ocaml-ppx)))
+  (pps ppx_fuse_fun js_of_ocaml-ppx)))
 
 ; Example-module exporter (dev tool, not shipped): regenerates the example
 ; exercise modules' persistent literals. Run under node; see the header of
@@ -124,6 +129,7 @@
  (modes js)
  (preprocess
   (pps
+   ppx_fuse_fun
    ppx_yojson_conv
    js_of_ocaml-ppx
    ppx_let

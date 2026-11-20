@@ -1,0 +1,12 @@
+--- a/ocaml-lsp-server/src/dune
++++ b/ocaml-lsp-server/src/dune
+@@ -37,7 +37,8 @@
+   dune-rpc
+   ocamlformat-rpc-lib
+   ocamlc-loc
+-  base)
++  base
++  ppx_compare.runtime-lib)
+  (lint
+   (pps ppx_yojson_conv))
+  (instrumentation

@@ -43,8 +43,8 @@ let compute_delta = (client_y: float): float =>
     let rect = container##getBoundingClientRect;
     let top = rect##.top;
     let bottom = rect##.bottom;
-    let dist_from_top = client_y -. top;
-    let dist_from_bottom = bottom -. client_y;
+    let dist_from_top = client_y -. Js.to_float(top);
+    let dist_from_bottom = Js.to_float(bottom) -. client_y;
     if (Float.(dist_from_top < 0.0)) {
       -. max_speed_px;
     } else if (dist_from_bottom < 0.0) {
@@ -81,7 +81,7 @@ let ensure_timer = () =>
     let id =
       Dom_html.window##setInterval(
         Js.wrap_callback(() => tick()),
-        interval_ms,
+        Js.float(interval_ms),
       );
     timer_id := Some(id);
   };

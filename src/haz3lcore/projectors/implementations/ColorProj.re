@@ -352,11 +352,12 @@ module M: Projector = {
     let target = e##.currentTarget |> Js.Opt.get(_, _ => failwith("target"));
     let r = target##getBoundingClientRect;
     let clamp = x => Float.min(1., Float.max(0., x));
-    let w = r##.right -. r##.left;
-    let h = r##.bottom -. r##.top;
+    let (left, top) = (Js.to_float(r##.left), Js.to_float(r##.top));
+    let w = Js.to_float(r##.right) -. left;
+    let h = Js.to_float(r##.bottom) -. top;
     (
-      clamp((float_of_int(e##.clientX) -. r##.left) /. Float.max(1., w)),
-      clamp((float_of_int(e##.clientY) -. r##.top) /. Float.max(1., h)),
+      clamp((Js.to_float(e##.clientX) -. left) /. Float.max(1., w)),
+      clamp((Js.to_float(e##.clientY) -. top) /. Float.max(1., h)),
     );
   };
 
@@ -421,7 +422,7 @@ module M: Projector = {
         Node.div(
           ~attrs=[
             Attr.classes(["cp-closed"]),
-            Attr.on_pointerdown(e =>
+            Attr.on_pointerdown_js_of_ocaml(e =>
               primary(e)
                 ? Effect.Many([local(Toggle), Effect.Stop_propagation])
                 : Effect.Ignore
@@ -468,9 +469,9 @@ module M: Projector = {
           ]);
         };
       let drag_attrs = t => [
-        Attr.on_pointerdown(grab(t)),
-        Attr.on_mousemove(move(t)),
-        Attr.on_pointerup(release(t)),
+        Attr.on_pointerdown_js_of_ocaml(grab(t)),
+        Attr.on_mousemove_js_of_ocaml(move(t)),
+        Attr.on_pointerup_js_of_ocaml(release(t)),
       ];
       let pct = x => Printf.sprintf("%.2f%%", x *. 100.);
       let dot = (~extra=[], style) =>
@@ -590,7 +591,7 @@ module M: Projector = {
           ~attrs=
             [
               Attr.classes(["cp-tab", ...Poly.equal(form, f) ? ["on"] : []]),
-              Attr.on_pointerdown(e =>
+              Attr.on_pointerdown_js_of_ocaml(e =>
                 if (!primary(e)) {
                   Effect.Ignore;
                 } else if (Poly.equal(f, form)) {
@@ -628,7 +629,7 @@ module M: Projector = {
           ~attrs=[
             Attr.classes(["cp-text"]),
             Attr.string_property("value", text_of(form, current)),
-            Attr.on_change((_, v) =>
+            Attr.on_change_js_of_ocaml((_, v) =>
               switch (parse_text(form, v)) {
               | Some(l) => parent(SetSyntax(put(info, l)))
               | None => Effect.Ignore
@@ -636,7 +637,7 @@ module M: Projector = {
             ),
             /* The editor treats keystrokes as edits; the text field needs
                them. */
-            Attr.on_keydown(_ => Effect.Stop_propagation),
+            Attr.on_keydown_js_of_ocaml(_ => Effect.Stop_propagation),
           ],
           (),
         );
@@ -650,7 +651,7 @@ module M: Projector = {
                rather than opening the editor's menu on top of it. The closed
                swatch is the opposite -- there the code underneath is what you
                are pointing at. */
-            Attr.on_pointerdown(_ => Effect.Stop_propagation),
+            Attr.on_pointerdown_js_of_ocaml(_ => Effect.Stop_propagation),
           ],
           surface
           @ [
@@ -660,7 +661,7 @@ module M: Projector = {
                 Node.div(
                   ~attrs=[
                     Attr.classes(["cp-close"]),
-                    Attr.on_pointerdown(e =>
+                    Attr.on_pointerdown_js_of_ocaml(e =>
                       primary(e)
                         ? Effect.Many([
                             local(Toggle),

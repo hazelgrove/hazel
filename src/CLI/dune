@@ -4,10 +4,15 @@
  (name cli)
  (flags
   (:standard -open Core))
- (libraries core ppx_yojson_conv.expander haz3lcore web cmdliner)
- (modes js)
+ (libraries core ppx_yojson_conv.expander haz3lcore web cmdliner unix)
+ (modes js wasm)
  (preprocess
-  (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))
+  (pps
+   ppx_fuse_fun
+   js_of_ocaml-ppx
+   ppx_deriving.show
+   ppx_yojson_conv
+   ppx_sexp_conv)))
 
 (env
  (dev

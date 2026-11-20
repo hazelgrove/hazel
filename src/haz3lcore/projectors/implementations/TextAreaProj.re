@@ -80,16 +80,16 @@ let textarea =
   Node.textarea(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
-      Attr.on_keydown(key_handler(info.id, ~parent)),
-      Attr.on_input((_, str) =>
+      Attr.on_keydown_js_of_ocaml(key_handler(info.id, ~parent)),
+      Attr.on_input_js_of_ocaml((_, str) =>
         Effect.(Many([parent(SetSyntax(str |> put(info)))]))
       ),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
        * unnecesary maybe if we move handling down */
-      Attr.on_copy(_ => Effect.Stop_propagation),
-      Attr.on_cut(_ => Effect.Stop_propagation),
-      Attr.on_paste(_ => Effect.Stop_propagation),
+      Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
+      Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
+      Attr.on_paste_js_of_ocaml(_ => Effect.Stop_propagation),
       Attr.string_property("value", text),
     ],
     [],

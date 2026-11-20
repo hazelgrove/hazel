@@ -115,7 +115,7 @@ module Singleton = {
         Node.div(
           ~attrs=[
             Attr.classes(["card-wrapper", mode_class(mode)]),
-            Attr.on_mousedown(mode_click(mode, true, local)),
+            Attr.on_mousedown_js_of_ocaml(mode_click(mode, true, local)),
           ],
           [
             switch (mode) {
@@ -165,7 +165,7 @@ module Hand = {
     Node.div(
       ~attrs=[
         projector_attrs(mode, sort),
-        Attr.on_mousedown(mode_click(mode, false, local)),
+        Attr.on_mousedown_js_of_ocaml(mode_click(mode, false, local)),
       ],
       [
         Node.div(

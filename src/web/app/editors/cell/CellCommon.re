@@ -46,7 +46,7 @@ let wrong_impl_caption = (~inject_delete, sub: string, n: int) => {
       div(
         ~attrs=[
           Attr.class_("instructor-edit-icon"),
-          Attr.on_mousedown(_ =>
+          Attr.on_mousedown_js_of_ocaml(_ =>
             Virtual_dom.Vdom.Effect.(
               Many([Prevent_default, Stop_propagation])
             )

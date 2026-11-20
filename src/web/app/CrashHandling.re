@@ -192,7 +192,7 @@ module View = {
                               "hsod-button",
                               "hsod-button-primary",
                             ]),
-                            Attr.on_click(_ => inject_backtrack),
+                            Attr.on_click_js_of_ocaml(_ => inject_backtrack),
                           ],
                           [Node.text("Revert to previous state")],
                         ),
@@ -200,7 +200,7 @@ module View = {
                           ~attrs=[
                             Attr.create("type", "button"),
                             Attr.class_("hsod-button"),
-                            Attr.on_click(_ => inject_rethrow),
+                            Attr.on_click_js_of_ocaml(_ => inject_rethrow),
                           ],
                           [Node.text("Rethrow exception")],
                         ),

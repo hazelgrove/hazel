@@ -26,7 +26,7 @@ module ViewComponents = {
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
+                Attr.on_click_js_of_ocaml(_ =>
                   Effect.Many([
                     agent_inject(
                       Agent.Update.Action.ChatSystemAction(
@@ -69,7 +69,7 @@ module ViewComponents = {
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
+                Attr.on_click_js_of_ocaml(_ =>
                   Effect.Many([
                     agent_inject(
                       Agent.Update.Action.ChatSystemAction(
@@ -272,7 +272,7 @@ module ViewComponents = {
                     Attr.title(
                       "Copy the exact context snapshot text sent to the model (XML-style blocks + footer).",
                     ),
-                    Attr.on_click(_ => {
+                    Attr.on_click_js_of_ocaml(_ => {
                       let snapshot =
                         Agent.Utils.llm_context_snapshot_text(
                           ~session_mode=
@@ -291,7 +291,7 @@ module ViewComponents = {
                 div(
                   ~attrs=[
                     clss(["view-close-button", "icon"]),
-                    Attr.on_click(_ =>
+                    Attr.on_click_js_of_ocaml(_ =>
                       Effect.Many([
                         agent_inject(
                           Agent.Update.Action.ChatSystemAction(
@@ -411,7 +411,7 @@ module ViewComponents = {
           div(
             ~attrs=[
               clss(["tools-view-item-header"]),
-              Attr.on_click(toggle_expand),
+              Attr.on_click_js_of_ocaml(toggle_expand),
             ],
             [
               div(
@@ -421,7 +421,7 @@ module ViewComponents = {
               div(
                 ~attrs=[
                   clss(["tools-view-item-toggle"]),
-                  Attr.on_click(toggle_tool),
+                  Attr.on_click_js_of_ocaml(toggle_tool),
                   Attr.title(
                     is_enabled
                       ? "Disable tool for this chat"
@@ -482,7 +482,7 @@ module ViewComponents = {
                     ]
                     @ (all_enabled ? [] : ["tools-view-category-master-off"]),
                   ),
-                  Attr.on_click(toggle_category),
+                  Attr.on_click_js_of_ocaml(toggle_category),
                   Attr.title(
                     all_enabled
                       ? "Disable all tools in this category for this chat"
@@ -519,7 +519,7 @@ module ViewComponents = {
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
+                Attr.on_click_js_of_ocaml(_ =>
                   Effect.Many([
                     agent_inject(
                       Agent.Update.Action.ChatSystemAction(
@@ -564,7 +564,7 @@ module ViewComponents = {
             div(
               ~attrs=[
                 clss(["view-close-button", "icon"]),
-                Attr.on_click(_ =>
+                Attr.on_click_js_of_ocaml(_ =>
                   Effect.Many([
                     agent_inject(
                       Agent.Update.Action.ChatSystemAction(
@@ -745,7 +745,7 @@ module ChatMessagesScrollHook = {
     let run = () => scroll_to_bottom(el);
     ignore(
       Dom_html.window##requestAnimationFrame(
-        Js.wrap_callback((_: float) => {
+        Js.wrap_callback((_: Js.number_t) => {
           run();
           JsUtil.delay(
             0.0,
@@ -759,7 +759,7 @@ module ChatMessagesScrollHook = {
     );
   };
 
-  include Virtual_dom.Vdom.Attr.Hooks.Make({
+  include Virtual_dom.Vdom.Attr.Hooks.Make_js_of_ocaml({
     module State = State;
     module Input = Input;
 
@@ -774,7 +774,7 @@ module ChatMessagesScrollHook = {
     let start_follow = (state: State.t, element) =>
       if (!state.following) {
         state.following = true;
-        let rec follow = (_: float) =>
+        let rec follow = (_: Js.number_t) =>
           if (Option.is_some(state.listener_id)
               && Float.(now() -. state.last_touch < follow_grace_ms)) {
             if (ChatScrollPin.request^) {
@@ -797,7 +797,7 @@ module ChatMessagesScrollHook = {
         );
       };
 
-    let on_mount = (_input: Input.t, state: State.t, element) => {
+    let on_mount_now = (_input: Input.t, state: State.t, element) => {
       scroll_to_bottom(element);
       schedule_scroll_to_bottom(element);
       /* keep up every frame while pinned AND recently rendered: streamed
@@ -821,6 +821,8 @@ module ChatMessagesScrollHook = {
       start_follow(state, element);
     };
 
+    /* v0.16 always ran on_mount on the next animation frame */
+    let on_mount = `Schedule_animation_frame(on_mount_now);
     let update =
         (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) => {
       if (old_input != new_input && state.stick_to_bottom) {
@@ -998,7 +1000,7 @@ let view =
             div(
               ~attrs=[
                 clss(["branch-nav-button", can_go_left ? "" : "disabled"]),
-                Attr.on_click(switch_to_prev),
+                Attr.on_click_js_of_ocaml(switch_to_prev),
                 Attr.title("Previous branch"),
               ],
               [Icons.back],
@@ -1006,7 +1008,7 @@ let view =
             div(
               ~attrs=[
                 clss(["branch-nav-button", can_go_right ? "" : "disabled"]),
-                Attr.on_click(switch_to_next),
+                Attr.on_click_js_of_ocaml(switch_to_next),
                 Attr.title("Next branch"),
               ],
               [Icons.forward],
@@ -1027,7 +1029,7 @@ let view =
   // Use requestAnimationFrame to ensure DOM is ready
   ignore(
     Dom_html.window##requestAnimationFrame(
-      Js.wrap_callback((_timestamp: float) => {
+      Js.wrap_callback((_timestamp: Js.number_t) => {
         JsUtil.delay(0.0, () => {
           for (i in 0 to num_chunks - 1) {
             let id = "user-message-input-" ++ string_of_int(i);
@@ -1065,7 +1067,7 @@ let view =
                       Attr.id(unique_id),
                       Attr.value(user_msg.content),
                       Attr.property("autocomplete", Js.Unsafe.inject("off")),
-                      Attr.on_focus(_ => {
+                      Attr.on_focus_js_of_ocaml(_ => {
                         JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Many([
                           signal(
@@ -1076,15 +1078,15 @@ let view =
                           Effect.Stop_propagation,
                         ]);
                       }),
-                      Attr.on_blur(_ => {
+                      Attr.on_blur_js_of_ocaml(_ => {
                         JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Stop_propagation;
                       }),
-                      Attr.on_input((_event, _value) => {
+                      Attr.on_input_js_of_ocaml((_event, _value) => {
                         JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Stop_propagation;
                       }),
-                      Attr.on_keydown(event => {
+                      Attr.on_keydown_js_of_ocaml(event => {
                         let key =
                           Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
                         let shift_pressed = Key.shift_held(event);
@@ -1114,12 +1116,12 @@ let view =
                         | _ => Effect.Stop_propagation
                         };
                       }),
-                      Attr.on_copy(_ => Effect.Stop_propagation),
-                      Attr.on_paste(_ => {
+                      Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
+                      Attr.on_paste_js_of_ocaml(_ => {
                         JsUtil.delay(0.0, () => autosize_textarea(unique_id));
                         Effect.Stop_propagation;
                       }),
-                      Attr.on_cut(_ => Effect.Stop_propagation),
+                      Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
                     ],
                     [text(user_msg.content)],
                   ),
@@ -1130,7 +1132,7 @@ let view =
                         "icon",
                         "user-message-send-button",
                       ]),
-                      Attr.on_mousedown(_event => {
+                      Attr.on_mousedown_js_of_ocaml(_event => {
                         Js.Opt.iter(
                           Dom_html.document##getElementById(
                             Js.string(unique_id),
@@ -1289,7 +1291,7 @@ let view =
           ~attrs=[
             Attr.id(chip_dom_id),
             clss(["agent-token-chip"]),
-            Attr.on_click(toggle),
+            Attr.on_click_js_of_ocaml(toggle),
             Attr.title("Click for detailed token breakdown"),
           ],
           [
@@ -1582,7 +1584,7 @@ let view =
                   is_disabled ? "disabled" : "",
                   is_active ? "active" : "",
                 ]),
-                Attr.on_click(on_click),
+                Attr.on_click_js_of_ocaml(on_click),
                 Attr.title(
                   is_disabled
                     ? node.label ++ " (no segment data)" : node.label,
@@ -1634,7 +1636,7 @@ let view =
             div(
               ~attrs=[
                 clss(["summary-tool-link"]),
-                Attr.on_click(on_click),
+                Attr.on_click_js_of_ocaml(on_click),
                 Attr.title(
                   "Jump to " ++ tool_result.tool_call.name ++ " in chat",
                 ),
@@ -1706,7 +1708,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["agent-restore-original-button"]),
-                  Attr.on_click(_ =>
+                  Attr.on_click_js_of_ocaml(_ =>
                     Effect.Many([
                       agent_inject(Agent.Update.Action.RestoreOriginal),
                       Effect.Stop_propagation,
@@ -1731,7 +1733,7 @@ let view =
                 div(
                   ~attrs=[
                     clss(["agent-tool-summary-header"]),
-                    Attr.on_click(toggle_summary_collapsed),
+                    Attr.on_click_js_of_ocaml(toggle_summary_collapsed),
                   ],
                   [
                     div(

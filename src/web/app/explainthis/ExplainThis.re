@@ -16,14 +16,14 @@ let feedback_view = (message, up_active, up_action, down_active, down_action) =>
       div(
         ~attrs=[
           clss(["option"] @ (up_active ? ["active"] : [])),
-          Attr.on_click(up_action),
+          Attr.on_click_js_of_ocaml(up_action),
         ],
         [text("👍")],
       ),
       div(
         ~attrs=[
           clss(["option"] @ (down_active ? ["active"] : [])),
-          Attr.on_click(down_action),
+          Attr.on_click_js_of_ocaml(down_action),
         ],
         [text("👎")],
       ),
@@ -100,19 +100,20 @@ let highlight =
   let classes = clss(["highlight-" ++ c, "clickable"]);
   let attrs = [
     classes,
-    Attr.on_mouseenter(_ =>
+    Attr.on_mouseenter_js_of_ocaml(_ =>
       globals.inject_global(Set(ExplainThis(SetHighlight(Hover(id)))))
     ),
-    Attr.on_mouseleave(_ =>
+    Attr.on_mouseleave_js_of_ocaml(_ =>
       globals.inject_global(Set(ExplainThis(SetHighlight(UnsetHover))))
     ),
-    Attr.on_click(_ => globals.inject_global(JumpToTile(id))),
+    Attr.on_click_js_of_ocaml(_ => globals.inject_global(JumpToTile(id))),
   ];
   (Node.span(~attrs, msg), mapping);
 };
 
 let memo_parse =
-  Core.Memo.general(~cache_size_bound=1000, code =>
+  Core.Memo.general(
+    ~hashable=Core.Hashtbl.Hashable.poly, ~cache_size_bound=1000, code =>
     Parser.to_zipper(~root=Exp, String.strip(code))
   );
 
@@ -387,7 +388,7 @@ let expander_deco =
               Node.div(
                 ~attrs=[
                   clss(classes),
-                  Attr.on_click(update_group_selection),
+                  Attr.on_click_js_of_ocaml(update_group_selection),
                 ],
                 [code_view],
               );
@@ -423,7 +424,7 @@ let expander_deco =
     Node.div(
       ~attrs=[
         clss(["expandable-target"]),
-        Attr.on_click(_ =>
+        Attr.on_click_js_of_ocaml(_ =>
           inject(ExplainThisUpdate.SpecificityOpen(!docs.specificity_open))
         ),
       ],

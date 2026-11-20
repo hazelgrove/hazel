@@ -3,8 +3,11 @@
 ; List of warning codes found at https://ocaml.org/manual/5.2/comp.html#s:comp-options
 (env
  (dev
+  ; Disable some unused warnings. -warn-error -3: the js_of_ocaml 6 port
+  ; (#1131) still uses some deprecated virtual_dom API (Effect.Prevent_default),
+  ; so report deprecations as warnings rather than errors for now.
   (flags
-   (:standard -w -56-58 -warn-error +A-26-27-K-58))) ; Disable some unused warnings.
+   (:standard -w -56-58 -warn-error +A-3-26-27-K-58)))
  (release
   (flags
    (:standard -w
@@ -12,4 +15,4 @@
   -strict-sequence
   -strict-formats
   -short-paths
-  -keep-locs -warn-error +A-58))))
+  -keep-locs -warn-error +A-3-58))))

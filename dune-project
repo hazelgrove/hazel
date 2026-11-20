@@ -1,6 +1,8 @@
-(lang dune 3.16)
+(lang dune 3.17)
 
 (using menhir 2.0)
+
+(using directory-targets 0.1)
 
 (name hazel)
 
@@ -38,27 +40,37 @@
   (omd
    (>= 2.0.0~alpha4))
   ezjs_idb
-  bonsai
+  ; Jane Street v0.18 preview packages (janestreet/opam-repository), the first
+  ; Bonsai/virtual_dom to allow js_of_ocaml 6 (#1131). See opam-jsoo6/README.md.
+  (bonsai
+   (>= v0.18~preview))
+  (bonsai_web
+   (>= v0.18~preview))
+  (virtual_dom
+   (>= v0.18~preview))
+  ; Js_of_ocaml.Promise, which the preview's `browser` library needs
+  (js_of_ocaml
+   (>= 6.4.0))
   ppx_deriving
   ptmap
+  ; 0.9.8 caps cmdliner < 2, which js_of_ocaml >= 6.3 needs
   (uuidm
-   (= 0.9.8)) ; 0.9.9 has breaking deprecated changes
+   (>= 0.9.10))
   unionFind
   ocamlformat
   (junit_alcotest
    (and
     (>= 2.2.0)
     :with-test))
+  ; 1.10 swaps its log link with Unix.rename, which js_of_ocaml >= 6.0.1 has
+  (alcotest
+   (and
+    (>= 1.10.0)
+    :with-test))
   ocaml-lsp-server
   ocaml-index
   qcheck
   qcheck-alcotest
-  ; alcotest 1.10 calls Unix.rename, which js_of_ocaml < 6 does not implement, so
-  ; the tests crash under node (caml_unix_rename is not a function). We are held
-  ; below js_of_ocaml 6 by virtual_dom/bonsai v0.16; lift this cap with that move
-  ; (see #1131).
-  (alcotest
-   (< 1.10.0))
   ppx_deriving_qcheck
   bignum
   csv
