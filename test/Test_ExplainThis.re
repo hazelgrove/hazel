@@ -35,11 +35,11 @@ let qcheck_explainthis_does_not_crash =
     | exception _ => true
     | info_map =>
       Id.Map.iter(
-        (_id, info: Info.t) => {
+        info_map,
+        ~f=(info: Info.t) => {
           let _ = ET.color_map_of(~globals, ET.decide(~docs, Some(info)));
           ();
         },
-        info_map,
       );
       true;
     }
@@ -55,13 +55,11 @@ let unop_label = (program: string): option(string) => {
     | None => Alcotest.fail("Failed to parse expression: " ++ program)
     };
   Id.Map.fold(
-    (_id, info: Info.t, acc) =>
-      switch (acc, Info.cls_of(info)) {
-      | (None, Exp(UnOp(_))) => Some(Info.cls_label(info))
-      | _ => acc
-      },
-    statics(exp),
-    None,
+    statics(exp), ~init=None, ~f=(~key as _id, ~data as info: Info.t, acc) =>
+    switch (acc, Info.cls_of(info)) {
+    | (None, Exp(UnOp(_))) => Some(Info.cls_label(info))
+    | _ => acc
+    }
   );
 };
 
@@ -106,7 +104,7 @@ let print_any = (any: Any.t): string =>
   };
 
 let canonical_id = (info_map, id: Id.t): string =>
-  switch (Id.Map.find_opt(id, info_map)) {
+  switch (Id.Map.find(info_map, id)) {
   | Some(info) =>
     switch (Info.any_of(info)) {
     | Some(any) => print_any(any)
@@ -177,19 +175,17 @@ let info_map_of = (src: string) =>
 let doc_fingerprint = (src: string): string => {
   let info_map = info_map_of(src);
   Id.Map.fold(
-    (_id, info: Info.t, acc) =>
-      switch (Info.any_of(info)) {
-      | None => acc /* Secondary — no doc */
-      | Some(any) =>
-        let cursor = print_any(any);
-        List.map(
-          ~f=l => cursor ++ " => " ++ l,
-          fingerprint_of_info(info_map, info),
-        )
-        @ acc;
-      },
-    info_map,
-    [],
+    info_map, ~init=[], ~f=(~key as _id, ~data as info: Info.t, acc) =>
+    switch (Info.any_of(info)) {
+    | None => acc /* Secondary — no doc */
+    | Some(any) =>
+      let cursor = print_any(any);
+      List.map(
+        ~f=l => cursor ++ " => " ++ l,
+        fingerprint_of_info(info_map, info),
+      )
+      @ acc;
+    }
   )
   |> List.dedup_and_sort(~compare=Poly.compare)
   |> String.concat(~sep="\n");
@@ -592,10 +588,8 @@ let over_corpus_docs =
   |> List.concat_map(~f=((_name, src)) => {
        let info_map = info_map_of(src);
        Id.Map.fold(
-         (_id, info: Info.t, acc) =>
-           List.concat_map(~f=f(info_map), swept_docs(info)) @ acc,
-         info_map,
-         [],
+         info_map, ~init=[], ~f=(~key as _id, ~data as info: Info.t, acc) =>
+         List.concat_map(~f=f(info_map), swept_docs(info)) @ acc
        );
      });
 

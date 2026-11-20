@@ -270,7 +270,11 @@ let freshen_ancestor_shards =
               }),
               ...acc_seg,
             ],
-            Id.Map.add(fresh_id, (ancestor_id, tile.shards), acc_map),
+            Id.Map.set(
+              acc_map,
+              ~key=fresh_id,
+              ~data=(ancestor_id, tile.shards),
+            ),
           );
         | _ => ([piece, ...acc_seg], acc_map)
         },
@@ -357,7 +361,7 @@ let repair_fresh_ids =
         ~f=
           fun
           | Piece.Tile(tile) =>
-            switch (Id.Map.find_opt(tile.id, fresh_map)) {
+            switch (Id.Map.find(fresh_map, tile.id)) {
             | Some((original_id, shards))
                 when
                   !ShardKeySet.mem((original_id, shards), stolen_originals) =>
@@ -429,7 +433,7 @@ let stats_of = (~anchors: Id.Map.t(unit), seg: Segment.t): repair_stats => {
     incomplete_multitiles,
     preserved_anchors:
       List.length(
-        List.filter(~f=id => Id.Map.mem(id, anchors), complete_ids),
+        List.filter(~f=id => Id.Map.mem(anchors, id), complete_ids),
       ),
   };
 };
@@ -455,7 +459,7 @@ let accept_candidate =
      trivially preserved in the base itself. */
   let anchors =
     List.fold_left(
-      ~f=(m, id) => Id.Map.add(id, (), m),
+      ~f=(m, id) => Id.Map.set(m, ~key=id, ~data=()),
       ~init=Id.Map.empty,
       base_complete_ids,
     );

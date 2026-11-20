@@ -8,7 +8,7 @@ module Utils = {
   let exp_to_info = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.t => {
     // Helper function
     let e = Exp.rep_id(term);
-    Id.Map.find(e, info_map);
+    Id.Map.find_exn(info_map, e);
   };
 
   let exp_to_exp = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.exp => {
@@ -21,7 +21,7 @@ module Utils = {
   let pat_to_info = (term: Pat.t, info_map: Id.Map.t(Info.t)): Info.t => {
     // Helper function
     let e = Pat.rep_id(term);
-    Id.Map.find(e, info_map);
+    Id.Map.find_exn(info_map, e);
   };
 
   let pat_to_pat = (term: Pat.t, info_map: Id.Map.t(Info.t)): Info.pat => {
@@ -34,7 +34,7 @@ module Utils = {
   let tpat_to_info = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
     // Helper function
     let e = TPat.rep_id(term);
-    Id.Map.find(e, info_map);
+    Id.Map.find_exn(info_map, e);
   };
 
   let tpat_to_tpat = (term: TPat.t, info_map: Id.Map.t(Info.t)): Info.tpat => {
@@ -47,7 +47,7 @@ module Utils = {
   let typ_to_info = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.t => {
     // Helper function
     let e = Typ.rep_id(term);
-    Id.Map.find(e, info_map);
+    Id.Map.find_exn(info_map, e);
   };
 
   let typ_to_typ = (term: Typ.t, info_map: Id.Map.t(Info.t)): Info.typ => {
@@ -134,7 +134,7 @@ module Utils = {
             ) => {
       switch (candidates) {
       | [candidate, ...rest] =>
-        let candidate = Id.Map.find(candidate, info_map);
+        let candidate = Id.Map.find_exn(info_map, candidate);
         let nominee =
           switch (candidate) {
           | InfoExp({user_term: term, _}) =>
@@ -205,7 +205,7 @@ module Utils = {
     switch (
       {
         let* id = ListUtil.hd_opt(List.rev(Info.ancestors_of(info)));
-        Id.Map.find_opt(id, info_map);
+        Id.Map.find(info_map, id);
       }
     ) {
     | Some(info) => info
@@ -334,7 +334,7 @@ let id_of = (node: node) => {
 };
 
 let find = (node_map: t, id: Id.t) => {
-  switch (Id.Map.find_opt(id, node_map)) {
+  switch (Id.Map.find(node_map, id)) {
   | Some(node) => node
   | None =>
     raise(
@@ -418,27 +418,27 @@ let prev_sibling_of = (node: node): option(Id.t) => {
 };
 
 let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
-  switch (Id.Map.find_opt(Info.id_of(info), node_map)) {
+  switch (Id.Map.find(node_map, Info.id_of(info))) {
   | Some(node) => Some(node)
   | None =>
     let ancestors = Info.ancestors_of(info);
     List.find_map(
-      ~f=(ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
+      ~f=(ancestor: Id.t) => Id.Map.find(node_map, ancestor),
       ancestors,
     );
   };
 };
 
 let add_child = (node_map: t, parent: Id.t, child: Id.t): t => {
-  switch (Id.Map.find_opt(parent, node_map)) {
+  switch (Id.Map.find(node_map, parent)) {
   | Some(parent_node) =>
-    Id.Map.add(
-      parent,
-      {
+    Id.Map.set(
+      node_map,
+      ~key=parent,
+      ~data={
         ...parent_node,
         children: parent_node.children @ [child],
       },
-      node_map,
     )
   | None => node_map
   };
@@ -461,7 +461,7 @@ let init_node = (info: Info.t, path: list(Id.t), node_map: t): t => {
     name: Namer.mk_name(info),
   };
   // 3. Add the node to the node map
-  let node_map = Id.Map.add(Info.id_of(info), node, node_map);
+  let node_map = Id.Map.set(node_map, ~key=Info.id_of(info), ~data=node);
   // 4. Build the children of the node
   node_map;
 };
@@ -525,7 +525,7 @@ let rec build_children =
       switch (items) {
       | [] => node_map
       | [first, ..._] =>
-        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
+        switch (Id.Map.find(info_map, Mod.rep_id(first))) {
         | Some(wrapper_info) =>
           build_children(wrapper_info, path, node_map, info_map)
         | None => node_map
@@ -572,24 +572,24 @@ let build_siblings_and_trim = (node_map: t): t => {
   let node_map =
     node_map
     |> Id.Map.fold(
-         (current_id, current_node, acc_map) => {
-           switch (parent_of(node_map, current_node)) {
-           | Some(parent) =>
-             Id.Map.add(
-               current_id,
-               {
-                 ...current_node,
-                 path: List.tl_exn(current_node.path), // removes dummy root
-                 siblings: List.map(~f=id_of, children_of(node_map, parent)),
-                 sibling_idx: sibling_idx_of(parent.children, current_id),
-               },
-               acc_map,
-             )
-           | None => Id.Map.add(current_id, current_node, acc_map)
-           }
-         },
-         node_map,
-       );
+         _,
+         ~init=node_map,
+         ~f=(~key as current_id, ~data as current_node, acc_map) => {
+         switch (parent_of(node_map, current_node)) {
+         | Some(parent) =>
+           Id.Map.set(
+             acc_map,
+             ~key=current_id,
+             ~data={
+               ...current_node,
+               path: List.tl_exn(current_node.path), // removes dummy root
+               siblings: List.map(~f=id_of, children_of(node_map, parent)),
+               sibling_idx: sibling_idx_of(parent.children, current_id),
+             },
+           )
+         | None => Id.Map.set(acc_map, ~key=current_id, ~data=current_node)
+         }
+       });
   node_map;
 };
 
@@ -598,7 +598,7 @@ let gather_top_level = (node_map: t): list(Id.t) => {
   // XXX: Hacky, cause it could be done more efficiently either on the fly or in
   // build_siblings_and_trim...
   node_map
-  |> Id.Map.bindings
+  |> Id.Map.to_alist
   |> List.filter_map(~f=((id: Id.t, node: node)) => {
        switch (parent_of(node_map, node)) {
        | Some(_) => None
@@ -653,7 +653,7 @@ let sort_ids_in_program_order = (node_map: t, ids: list(Id.t)): list(Id.t) => {
 let matches_for_path = (node_map: t, path_names: list(string)): list(Id.t) => {
   // Convert each node's path (list of Ids) to a list of names and compare
   // XXX: O(n) in bindings (not program size); fine until node maps get large.
-  Id.Map.bindings(node_map)
+  Id.Map.to_alist(node_map)
   |> List.filter_map(~f=((id: Id.t, node: node)) =>
        id_path_to_name_path(node.path, node_map) == path_names
          ? Some(id) : None
@@ -691,7 +691,7 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
     [[Select.term]] + syntax projectors must target the **definition** (rhs), not the whole binding. */
 let binding_id_to_syntax_projector_target_id =
     (node_map: t, binding_id: Id.t): option(Id.t) => {
-  switch (Id.Map.find_opt(binding_id, node_map)) {
+  switch (Id.Map.find(node_map, binding_id)) {
   | None => None
   | Some(node) =>
     switch (node.info) {
@@ -760,7 +760,7 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
       d1 < d2;
     };
 
-  switch (Id.Map.bindings(node_map)) {
+  switch (Id.Map.to_alist(node_map)) {
   /* Called from error-handling paths (path_to_id failure branch); must not raise. */
   | [] => ""
   | bindings =>
@@ -795,7 +795,7 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
     strings, sorted for stable output. Used for failure diagnostics so the
     agent can self-correct rather than guess. */
 let all_path_strings = (node_map: t): list(string) => {
-  Id.Map.bindings(node_map)
+  Id.Map.to_alist(node_map)
   |> List.map(~f=((_, node: node)) =>
        String.concat(
          ~sep="/",
@@ -814,7 +814,7 @@ let unique_suffix_match = (node_map: t, path: string): option(string) =>
     None;
   } else {
     let matches =
-      Id.Map.bindings(node_map)
+      Id.Map.to_alist(node_map)
       |> List.filter_map(~f=((_, node: node)) => {
            let names =
              List.map(~f=(id: Id.t) => id_to_name(node_map, id), node.path);
@@ -928,26 +928,26 @@ let build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
     let oldest_ancestor = Utils.get_oldest_ancestor(top_level_term, info_map);
     let dummy_root = Id.mk();
     let node_map: t =
-      Id.Map.add(
-        dummy_root,
-        {
-          // This info is NEVER used, just for the sake of the algorithm and
-          // to avoid making this an optional type solely for the dummy root...
-          info: oldest_ancestor,
-          path: [dummy_root],
-          children: [],
-          siblings: [],
-          sibling_idx: (-1),
-          name: "{dummy root}",
-        }: node,
+      Id.Map.set(
         Id.Map.empty,
+        ~key=dummy_root,
+        ~data={
+                // This info is NEVER used, just for the sake of the algorithm and
+                // to avoid making this an optional type solely for the dummy root...
+                info: oldest_ancestor,
+                path: [dummy_root],
+                children: [],
+                siblings: [],
+                sibling_idx: (-1),
+                name: "{dummy root}",
+              }: node,
       );
     let node_map =
       build_children(oldest_ancestor, [dummy_root], node_map, info_map);
     // Build siblings for all nodes and trim dummy root from paths
     let node_map = build_siblings_and_trim(node_map);
     // Remove the dummy root from the node map
-    let node_map = Id.Map.remove(dummy_root, node_map);
+    let node_map = Id.Map.remove(node_map, dummy_root);
     Some(node_map);
   };
 };

@@ -42,9 +42,8 @@ let should_probe = (info: Info.t): bool =>
 /* Collect all expression and pattern IDs from info_map that pass the should_probe predicate. */
 let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) =>
   Id.Map.fold(
-    (id, info, acc) => should_probe(info) ? Id.Map.add(id, (), acc) : acc,
-    info_map,
-    Id.Map.empty,
+    info_map, ~init=Id.Map.empty, ~f=(~key as id, ~data as info, acc) =>
+    should_probe(info) ? Id.Map.set(acc, ~key=id, ~data=()) : acc
   );
 
 /* Compute targets from probe_ids. For each ID, determine whether it's
@@ -65,9 +64,11 @@ let compute_targets =
      sample's env copy of the enclosing bindings was ~80% of the
      retained memory (each of a site's samples ships its own copy of
      every bound list and view). Explicit probes keep their env. */
-  let ambient = id => settings.probe_all && !Id.Map.mem(id, probe_ids);
+  let ambient = id => settings.probe_all && !Id.Map.mem(probe_ids, id);
   Id.Map.fold(
-    (id, (), acc) => {
+    effective_probe_ids,
+    ~init=Id.Map.empty,
+    ~f=(~key as id, ~data as (), acc) => {
       let refs =
         switch (Statics.Map.lookup_exp(id, info_map)) {
         | Some(_) when ambient(id) => []
@@ -80,20 +81,23 @@ let compute_targets =
           }
         };
       let spec: Sample.capture_spec = {refs: refs};
-      Id.Map.add(id, spec, acc);
+      Id.Map.set(acc, ~key=id, ~data=spec);
     },
-    effective_probe_ids,
-    Id.Map.empty,
   );
 };
 
 /* Extract probe IDs directly from zipper's refractors (manuals + ephemerals).
  * Map values to unit since we only need the IDs as keys. */
 let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
-  Id.Map.union(
-    (_, _, _) => Some(),
-    Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-    Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+  Id.Map.merge_skewed(
+    Id.Map.map(
+      Id.Map.of_alist_reduce(z.refractors.manuals, ~f=(_, latest) => latest),
+      ~f=_ =>
+      ()
+    ),
+    Id.Map.map(z.refractors.multis.ephemerals, ~f=_ => ()),
+    ~combine=(~key as _, _, _) =>
+    ()
   );
 
 let init_from_term =

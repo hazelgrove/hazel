@@ -237,7 +237,11 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
     |> List.fold_left(
          ~f=
            (map, p) =>
-             Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
+             Id.Map.set(
+               map,
+               ~key=Piece.id(p),
+               ~data=TermData.mk(p, sort, skel, seg),
+             ),
          ~init=term_data^,
        );
 
@@ -253,7 +257,7 @@ let secondary_map: ref(Segment.SecondaryCollection.secondary_map) =
 let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
   switch (ids) {
   | [id, ..._] =>
-    switch (Id.Map.find_opt(id, secondary_map^)) {
+    switch (Id.Map.find(secondary_map^, id)) {
     | Some(sec) => sec
     | None => IdTagged.IdTag.empty_secondary
     }
@@ -277,8 +281,7 @@ let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
     ? []
     : ids
       |> List.filter_map(~f=id =>
-           Id.Map.find_opt(id, shard_masks^)
-           |> Option.map(~f=mask => (id, mask))
+           Id.Map.find(shard_masks^, id) |> Option.map(~f=mask => (id, mask))
          );
 
 /* Surface spelling of the token a *_term branch just parsed, when its
@@ -351,7 +354,7 @@ let adopted_ids: ref(list(Id.t)) = ref([]);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
-  projectors := Id.Map.add(pr.id, pr, projectors^);
+  projectors := Id.Map.set(projectors^, ~key=pr.id, ~data=pr);
   projector_list := [pr.id, ...projector_list^];
 };
 
@@ -1873,32 +1876,29 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
 let consolidate_adopted = (): unit => {
   adopted_ids^
   |> List.iter(~f=id => {
-       switch (Id.Map.find_opt(id, map^)) {
+       switch (Id.Map.find(map^, id)) {
        | None => ()
        | Some(term) =>
          let rep = Language.Any.rep_id(term);
-         switch (
-           Id.Map.find_opt(rep, term_data^),
-           Id.Map.find_opt(id, term_data^),
-         ) {
+         switch (Id.Map.find(term_data^, rep), Id.Map.find(term_data^, id)) {
          | (Some(rep_data), Some(old_data)) =>
            /* Preserve the original root_piece and sort while updating skel/base_seg.
               root_piece: identifies the actual tile for shard decoration.
               sort: the adopted tile's own sort context (e.g. Mod for semicolons
               inside a Module body), not the outer expression's sort. */
            term_data :=
-             Id.Map.add(
-               id,
-               {
+             Id.Map.set(
+               term_data^,
+               ~key=id,
+               ~data={
                  ...rep_data,
                  root_piece: old_data.root_piece,
                  sort: old_data.sort,
                },
-               term_data^,
              )
          | (Some(rep_data), None) =>
            /* Fallback: if no old entry, use rep_data as-is (shouldn't happen normally) */
-           term_data := Id.Map.add(id, rep_data, term_data^)
+           term_data := Id.Map.set(term_data^, ~key=id, ~data=rep_data)
          | (None, _) => ()
          };
        }
