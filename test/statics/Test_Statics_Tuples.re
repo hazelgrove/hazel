@@ -187,27 +187,10 @@ module ExplicitlyUnlabeledTuples = {
         FIError.(
           Exp.(
             asc(
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Marks([
-                        ExpectationMismatch({
-                          ana:
-                            parens(
-                              prod([
-                                tup_label(explicit_non_label(), string()),
-                              ]),
-                            ),
-                          syn:
-                            prod([tup_label(explicit_non_label(), int())]),
-                        }),
-                      ])
-                    ),
-                  ),
-                [
-                  tup_label(
-                    explicit_non_label(),
+              tuple([
+                tup_label(
+                  explicit_non_label(),
+                  int(
                     ~ann=
                       Some(
                         FTemp.Typ.(
@@ -219,23 +202,10 @@ module ExplicitlyUnlabeledTuples = {
                           ])
                         ),
                       ),
-                    int(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Marks([
-                              ExpectationMismatch({
-                                ana: string(),
-                                syn: int(),
-                              }),
-                            ])
-                          ),
-                        ),
-                      1,
-                    ),
+                    1,
                   ),
-                ],
-              ),
+                ),
+              ]),
               Typ.(
                 parens(prod([tup_label(explicit_non_label(), string())]))
               ),

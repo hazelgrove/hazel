@@ -1036,8 +1036,10 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
   let rhs_tuple_elts =
     switch (elab.term) {
     | Let(_, rhs, _) =>
+      /* The tuple does not fit the pattern, so it is ascribed with it. */
       switch (rhs.term) {
-      | Tuple(elts) => elts
+      | Tuple(elts)
+      | Asc({term: Tuple(elts), _}, _) => elts
       | _ => []
       }
     | _ => []

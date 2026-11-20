@@ -225,8 +225,9 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    let mismatch = expectation_mismatch_mark(ctx, ana, elab_syn_ty);
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (mismatch) {
       | None => marks
       | Some(m) when List.is_empty(marks) => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -243,6 +244,21 @@ and uexp_to_info_map =
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
     let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    /* The rule's elab syn type, unless it fails ana (marked here): then ana,
+       so the failure goes no further up, and the elaboration is ascribed
+       with it so it still synthesizes its elab syn type on its own. A
+       synthetic ana, such as a function position's, leaves the rule's type
+       as it is. */
+    let (elab_syn_ty, elab_term) =
+      switch (mismatch) {
+      | Some(_) when !Typ.is_syn_plus(ana) =>
+        let settled = ana_skip_explicit_nonlabel(ana);
+        (
+          settled,
+          fresh_ascription(ctx, elab_term, elab_syn_ty, Some(settled)),
+        );
+      | _ => (elab_syn_ty, elab_term)
+      };
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -451,6 +467,10 @@ and uexp_to_info_map =
       /* Desugar any Sig types in the annotation without full normalization */
       let t_ty = Typ.desugar_sig(ctx, t.user_term);
       let (e, e_elab, m) = go(~ana=t_ty, ~ctx=t.ctx, e, m);
+      /* The annotation carries the expectation, so an ascription the body's
+         rule added to settle on it would only repeat it. */
+      let e_elab =
+        inserted_ascription(e_elab) |> Option.value(~default=e_elab);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
@@ -1657,9 +1677,14 @@ and uexp_to_info_map =
         switch (Ctx.lookup_var(ctx, name)) {
         | Some({typ, _}) =>
           let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
-          let elab_term = Var(name) |> rewrap;
-          let (info, _, m) =
-            add(~elab_term, ~elab_syn_ty=typ, ~marks=[], ~co_ctx, m);
+          let (info, elab_term, m) =
+            add(
+              ~elab_term=Var(name) |> rewrap,
+              ~elab_syn_ty=typ,
+              ~marks=[],
+              ~co_ctx,
+              m,
+            );
           let m =
             add_info(
               ids,
@@ -2447,41 +2472,19 @@ and uexp_to_info_map =
           [cons.elab_syn_ty, alt.elab_syn_ty],
           branch_ids,
         );
-      let result_ty =
-        fixed_typ(ctx, ana, syn_if)
-        |> Typ.canonicalize(ctx)
-        |> Typ.all_ids_temp;
-      let elab =
-        If(
-          cond_elab,
-          fresh_ascription(ctx, cons_elab, cons.ty, Some(result_ty)),
-          fresh_ascription(ctx, alt_elab, alt.ty, Some(result_ty)),
-        )
-        |> rewrap;
-      /* Compute the `elab_syn_ty` that a fresh re-synthesis of the
-         elaborated If would produce. Each branch contributes
-         `result_ty` iff `fresh_ascription` actually wrapped it (i.e.
-         the branch got an outer Asc), otherwise it contributes its
-         original raw `elab_syn_ty`. This keeps the recorded type in
-         sync with what fresh re-synth yields without altering the
-         wrap decision. */
-      let branch_fresh_syn = (branch_info: Info.exp) => {
-        let wrapped =
-          switch (result_ty.term) {
-          | Unknown(Internal) => false
-          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, branch_info.ty)
-          };
-        wrapped ? result_ty : branch_info.elab_syn_ty;
-      };
-      let (elab_syn_ty, _) =
-        ConstructorStaticsHelpers.syn_marks_match(
-          ctx,
-          [branch_fresh_syn(cons), branch_fresh_syn(alt)],
-          branch_ids,
-        );
+      /* Each branch is cast to the type the branches meet at, so the value
+         has that type whichever branch runs. */
+      let branch_elab = (branch: Info.exp, elab) =>
+        fresh_ascription(ctx, elab, branch.elab_syn_ty, Some(syn_if));
       add(
-        ~elab_term=elab,
-        ~elab_syn_ty,
+        ~elab_term=
+          If(
+            cond_elab,
+            branch_elab(cons, cons_elab),
+            branch_elab(alt, alt_elab),
+          )
+          |> rewrap,
+        ~elab_syn_ty=syn_if,
         ~syn_ty=meet_syn_types(ctx, [cons.syn_ty, alt.syn_ty]),
         ~marks=cms_if,
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
@@ -2593,37 +2596,16 @@ and uexp_to_info_map =
           @ List.map(~f=Info.pat_probe_targets, ps')
           @ List.map(~f=Info.exp_probe_targets, es),
         );
-      /* Build elaboration with ascriptions on branch bodies */
-      let result_ty =
-        fixed_typ(ctx, ana, syn_ty_match)
-        |> Typ.canonicalize(ctx)
-        |> Typ.all_ids_temp;
-      let e_tys = List.map(~f=Info.exp_ty, es);
+      /* Each branch is cast to the type the branches meet at, as for If. */
       let es_elabs =
-        List.map2_exn(es_elabs, e_tys, ~f=(e_elab, ty) =>
-          fresh_ascription(ctx, e_elab, ty, Some(result_ty))
+        List.map2_exn(es, es_elabs, ~f=(e: Info.exp, elab) =>
+          fresh_ascription(ctx, elab, e.elab_syn_ty, Some(syn_ty_match))
         );
       let elab_term =
         Match(scrut_elab, List.zip_exn(ps_elabs, es_elabs)) |> rewrap;
-      /* Compute the `elab_syn_ty` that a fresh re-synthesis of the
-         elaborated Match would produce. See analogous comment on If. */
-      let branch_fresh_syn = (e: Info.exp) => {
-        let wrapped =
-          switch (result_ty.term) {
-          | Unknown(Internal) => false
-          | _ => !Typ.equal_up_to_aliases(ctx, result_ty, e.ty)
-          };
-        wrapped ? result_ty : e.elab_syn_ty;
-      };
-      let (elab_syn_ty, _) =
-        ConstructorStaticsHelpers.syn_marks_match(
-          ctx,
-          List.map(~f=branch_fresh_syn, es),
-          branch_ids,
-        );
       add(
         ~elab_term,
-        ~elab_syn_ty,
+        ~elab_syn_ty=syn_ty_match,
         ~syn_ty=
           meet_syn_types(ctx, List.map(~f=(e: Info.exp) => e.syn_ty, es)),
         ~marks=marks_match',

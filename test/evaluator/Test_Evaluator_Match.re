@@ -150,8 +150,8 @@ go(Var("yo"))|},
     test_case("Indet case passes ascriptions through", `Quick, () => {
       parse_and_evaluate_test(
         {|(case ?
-          | 1 => true : String
-          | _ => false : String
+          | 1 => (true : String) : String
+          | _ => (false : String) : String
           end)|},
         {|(case ?
           | 1 => true

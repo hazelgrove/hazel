@@ -301,7 +301,7 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
         ...info,
         elab_syn_ty: new_syn_ty,
         syn_ty: new_syn_ty,
-        ty: fixed_typ(info.ctx, info.ana, new_syn_ty),
+        ty: new_syn_ty,
       }),
       m,
     )
@@ -401,7 +401,11 @@ let prepend_pat_mark =
   };
 };
 
-/* Add an ascription wrapper if the types differ after normalization. */
+let elab_ascription_salt = "elab-ascription";
+
+/* Ascribe `d`, of type `t`, with `t'` when the two differ up to aliases. The
+   ascription's id derives from `d`'s, and its type is canonical, like every
+   type embedded in an elaboration (see Typ.canonicalize). */
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   switch (t') {
   | Some({term: Unknown(Internal), _}) => d
@@ -410,14 +414,28 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
      alias on both sides first. */
   | Some(ty) when Typ.fast_equal(ty, t) => d
   | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) =>
+    let ty = Typ.canonicalize(ctx, ty) |> Typ.all_ids_temp;
     IdTagged.derived(
-      ~salt="elab-ascription",
+      ~salt=elab_ascription_salt,
       Exp.rep_id(d),
       Asc(d, ty): Exp.term,
-    )
+    );
   | _ => d
   };
 };
+
+/* What `d` wraps, if `d` is an ascription fresh_ascription inserted. */
+let inserted_ascription = (d: Exp.t): option(Exp.t) =>
+  switch (d.term) {
+  | Asc(inner, _)
+      when
+        Id.equal(
+          Exp.rep_id(d),
+          Id.derive(~salt=elab_ascription_salt, Exp.rep_id(inner)),
+        ) =>
+    Some(inner)
+  | _ => None
+  };
 
 /* Fold patterns with expected modes using the provided analyzer callback. */
 let fold_patterns_with_modes =

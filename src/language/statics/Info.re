@@ -3,12 +3,17 @@ open OptUtil.Syntax;
 
 /* INFO.re — cursor statics bundle per AST node.
 
-   Statics supplies elab_syn_ty, marks, optional warnings, and inspector message
+   Statics supplies the types, marks, optional warnings, and inspector message
    payloads; Info stores/queries the resulting per-node data.
 
-   elab_syn_ty is the synthesized type of the elaborated expression (before
-   hole fixing). Note: it can be influenced by the analytic type in some cases
-   (e.g. via expectation/meet interaction), so it is not purely synthetic.
+   An expression has three types. ana is what its parent expects, passed
+   down. syn_ty is the type of what is written, passed up with any errors in
+   it. elab_syn_ty is the type its elaboration synthesizes, which parents
+   build theirs from: the type this node's rule builds from its children's
+   elab_syn_ty, or ana where that is inconsistent with ana. The
+   inconsistency is marked here and goes no further up. A pattern's
+   elab_syn_ty is not settled this way, as the elaborated pattern could not
+   carry ana. Both sorts also record ty, their elab syn type refined by ana.
    Marks on Info are statics errors; use marks_of for problem display.
 
    See Message.re for inspector payload types; statics computes marks/messages.
@@ -46,7 +51,7 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
-  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: elab_syn_ty refined by ana */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
