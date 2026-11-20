@@ -366,7 +366,62 @@ let primitive_rules = [
   ),
 ];
 
+/* The rule `standard : forall x -> !!x` closes a goal `!!e` where `e`'s
+ * standardness is shown, and leaves it otherwise. */
+let left_by_standard = (src: string): list(string) => {
+  let (pm, proof) = run_named("t", src);
+  ProofMap.obligations_of_proof(pm, proof)
+  |> List.map(~f=(ob: Obligation.t) => print_exp(ob.goal));
+};
+
+let closing_goals = [
+  test_case("standard closes a goal the routine shows", `Quick, () =>
+    check(
+      bool,
+      "proven",
+      true,
+      proven(
+        "theorem t = forall (x : Int) -> !!(x + 1) proof rewrite standard end in t",
+      ),
+    )
+  ),
+  test_case("and one about a quantified function", `Quick, () =>
+    check(
+      bool,
+      "proven",
+      true,
+      proven(
+        "theorem t = forall (f : Int -> Int) -> forall (x : Int) -> !!f(x) proof rewrite standard end in t",
+      ),
+    )
+  ),
+  test_case("standard leaves a domain condition", `Quick, () =>
+    check(
+      list(string),
+      "y != 0",
+      ["y != 0"],
+      left_by_standard(
+        "theorem t = forall (y : Int) -> !!(10 / y) proof rewrite standard end in t",
+      ),
+    )
+  ),
+  test_case("standard leaves what the routine can't show", `Quick, () =>
+    check(
+      list(string),
+      "!!loop(0)",
+      ["!! loop(0)"],
+      left_by_standard(
+        "let loop = fun (u : Int) -> loop(u) in theorem t = !!loop(0) proof rewrite standard end in t",
+      ),
+    )
+  ),
+];
+
 let tests = (
   "Evaluator.Standardness",
-  named_binder_facts @ routine_tests @ code_tests @ primitive_rules,
+  named_binder_facts
+  @ routine_tests
+  @ code_tests
+  @ primitive_rules
+  @ closing_goals,
 );

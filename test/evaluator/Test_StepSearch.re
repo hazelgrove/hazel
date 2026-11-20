@@ -527,6 +527,26 @@ let tests = (
       },
     ),
     test_case(
+      "typing stand completes to the rule closing !! goals",
+      `Quick,
+      () => {
+        let g =
+          goal("theorem t = forall (x : Int) -> !!(x + 1) proof ? in t");
+        check(
+          bool,
+          "standard is offered",
+          true,
+          Search.items(g, ~typed_name=Some("stand"), None)
+          |> List.exists(~f=(item: Search.item) =>
+               switch (item) {
+               | Complete(name) => String.equal(name, "standard")
+               | Use(_) => false
+               }
+             ),
+        );
+      },
+    ),
+    test_case(
       "typing nat_ completes to the Nat rules",
       `Quick,
       () => {

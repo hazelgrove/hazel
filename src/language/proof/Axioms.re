@@ -155,6 +155,10 @@ let standard_primitives:
 let axioms: list((string, Exp.t)) = [
   /* Reflexivity of equality. */
   ("refl", forall("x", eq(eq(var("x"), var("x")), tt))),
+  /* Closes a goal `!!e`. Its instantiation has to be standard, as any
+   * rule's does, so it holds exactly where the routine, a fact or closed
+   * evaluation shows `!!e`, and leaves `!!e` to prove otherwise. */
+  ("standard", forall("x", Exp.fresh(Standard(var("x"))))),
   /* Definition of implication. Kleene: ==> is *defined* as !a || b. */
   ("impl_def", foralls(["a", "b"], eq(a ==>> b, neg(a) ||| b))),
   /* Commutativity / associativity: Kleene ∧/∨ are symmetric. */
