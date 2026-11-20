@@ -63,26 +63,29 @@ let apply_overlay_action =
     let syntax = CachedSyntax.init(z);
     let (new_z, paths_to_expand, n_changed, unresolved) =
       List.fold_left(
-        ((z, expanded, n_changed, unresolved), path) =>
-          switch (resolve_path(node_map, path)) {
-          | Some(id) =>
-            switch (perform(~info_map, ~syntax, z, id)) {
-            | Some((z', should_expand)) =>
-              let expanded = should_expand ? [path, ...expanded] : expanded;
-              (z', expanded, n_changed + 1, unresolved);
-            | None => (z, expanded, n_changed, unresolved)
-            }
-          | None => (z, expanded, n_changed, [path, ...unresolved])
-          },
-        (z, [], 0, []),
+        ~f=
+          ((z, expanded, n_changed, unresolved), path) =>
+            switch (resolve_path(node_map, path)) {
+            | Some(id) =>
+              switch (perform(~info_map, ~syntax, z, id)) {
+              | Some((z', should_expand)) =>
+                let expanded = should_expand ? [path, ...expanded] : expanded;
+                (z', expanded, n_changed + 1, unresolved);
+              | None => (z, expanded, n_changed, unresolved)
+              }
+            | None => (z, expanded, n_changed, [path, ...unresolved])
+            },
+        ~init=(z, [], 0, []),
         paths,
       );
-    if (List.length(paths) > 0 && n_changed == 0) {
+    if (!List.is_empty(paths) && n_changed == 0) {
       let unresolved_sfx =
         switch (unresolved) {
         | [] => ""
         | ps =>
-          " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
+          " Unresolved path(s): "
+          ++ String.concat(~sep=", ", List.rev(ps))
+          ++ "."
         };
       Error(
         Failure.Info(
@@ -98,7 +101,7 @@ let apply_overlay_action =
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
-      if (List.length(paths_to_expand) > 0) {
+      if (!List.is_empty(paths_to_expand)) {
         let expand_action = AgentContext.Update.Expand(paths_to_expand);
         let chat_system =
           ChatSystem.Update.update(
@@ -197,7 +200,7 @@ let update =
       switch (
         CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
       ) {
-      | Some(st) when st.info_map != Id.Map.empty => st.info_map
+      | Some(st) when !Id.Map.is_empty(st.info_map) => st.info_map
       | _ => full_statics(z).info_map
       };
     let z_at_boundary =
@@ -234,7 +237,7 @@ let update =
         Error(
           Failure.Info(
             "Not applying the action you requested as it would introduce new static error(s): "
-            ++ String.concat(", ", new_errors)
+            ++ String.concat(~sep=", ", new_errors)
             ++ CompositionGo.Local.PerformUtils.reserved_word_note(code),
           ),
         );
@@ -402,7 +405,7 @@ let update =
                 z,
               )
             };
-          z_opt |> Option.map(z' => (z', true));
+          z_opt |> Option.map(~f=z' => (z', true));
         },
       ~paths,
       ~agent,

@@ -4,6 +4,7 @@ open ProjectorBase;
 open Language;
 open TableCore;
 open TableTransforms;
+open Poly;
 
 /* TableRenderer - A reusable module for rendering interactive tables with column operations */
 
@@ -70,8 +71,8 @@ let build_column_menu =
     )
     : menu_data => {
   let column_type =
-    dyn_type |> Option.bind(_, ty => get_column_type_from_ty(ty, h));
-  let columns_opt = dyn_type |> Option.bind(_, get_columns);
+    dyn_type |> Option.bind(_, ~f=ty => get_column_type_from_ty(ty, h));
+  let columns_opt = dyn_type |> Option.bind(_, ~f=get_columns);
   let can_move_left = can_move_column(columns_opt, h, true);
   let can_move_right = can_move_column(columns_opt, h, false);
   let apply = ts =>
@@ -80,7 +81,7 @@ let build_column_menu =
     | None => local(CloseMenu)
     };
 
-  let column_cls = Option.bind(column_type, atom_cls_of_typ);
+  let column_cls = Option.bind(column_type, ~f=atom_cls_of_typ);
 
   let filter_children = {
     let numeric_comparators: list((string, string, Operators.op_bin_num)) = [
@@ -110,9 +111,9 @@ let build_column_menu =
       | None => []
       | Some(cls) =>
         numeric_comparators
-        |> List.filter_map(((text, tooltip, op_num)) =>
+        |> List.filter_map(~f=((text, tooltip, op_num)) =>
              Operators.numeric_bin_op(cls, op_num)
-             |> Option.map(op =>
+             |> Option.map(~f=op =>
                   leaf(~tooltip, text, () =>
                     apply([filter_by_column(op, h)])
                   )
@@ -154,7 +155,7 @@ let build_column_menu =
       switch (column_cls) {
       | Some(cls) =>
         Atom.conversions_from(cls)
-        |> List.map(((func, to_)) => {
+        |> List.map(~f=((func, to_)) => {
              let display = Atom.show_cls(to_);
              leaf(~tooltip="Convert column values to " ++ display, display, () =>
                apply([convert_column(h, func)])
@@ -163,7 +164,7 @@ let build_column_menu =
       | None => []
       };
     conversion_items
-    @ (List.length(conversion_items) > 0 ? [Menu.divider] : [])
+    @ (!List.is_empty(conversion_items) ? [Menu.divider] : [])
     @ [
       leaf(~tooltip="Replace all values with holes", "Clear", () =>
         apply([clear_column(h)])
@@ -305,8 +306,8 @@ let build_column_menu =
     };
 
   structural_items
-  @ (List.length(data_items) > 0 ? [Menu.divider] @ data_items : [])
-  @ (List.length(option_items) > 0 ? [Menu.divider] @ option_items : []);
+  @ (!List.is_empty(data_items) ? [Menu.divider] @ data_items : [])
+  @ (!List.is_empty(option_items) ? [Menu.divider] @ option_items : []);
 };
 
 /* Build the column menu tree for a specific column. */
@@ -320,7 +321,7 @@ let items_for_column =
       col: int,
     )
     : menu_data =>
-  switch (List.nth_opt(headers, col) |> Option.value(~default=None)) {
+  switch (List.nth(headers, col) |> Option.value(~default=None)) {
   | None => []
   | Some(name) =>
     let dyn_type =
@@ -364,23 +365,24 @@ let render =
 
   let header_cells =
     List.mapi(
-      (i, h) => {
-        let (label_node, has_name) =
-          switch (h) {
-          | Some(name) => (
-              Node.span(
-                ~attrs=[Attr.classes(["column-label"])],
-                [Node.text(name)],
-              ),
-              true,
-            )
-          | None => (WebUtil.empty_hole_svg(), false)
-          };
-        let menu_button = make_menu_button(i);
-        let content = [
-          label_node,
-          is_readonly || !has_name ? Node.none : menu_button,
-        ];
+      ~f=
+        (i, h) => {
+          let (label_node, has_name) =
+            switch (h) {
+            | Some(name) => (
+                Node.span(
+                  ~attrs=[Attr.classes(["column-label"])],
+                  [Node.text(name)],
+                ),
+                true,
+              )
+            | None => (WebUtil.empty_hole_svg(), false)
+            };
+          let menu_button = make_menu_button(i);
+          let content = [
+            label_node,
+            is_readonly || !has_name ? Node.none : menu_button,
+          ];
 
         let full_content =
           switch (h, model.menu_state) {
@@ -500,7 +502,7 @@ let render =
       );
     };
   ColumnMenuListener.sync(
-    ~menu_open=model.menu_state != None,
+    ~menu_open=Option.is_some(model.menu_state),
     ~on_close=() => local(CloseMenu),
     ~handle_key,
     (),
@@ -509,17 +511,18 @@ let render =
     ~header_cells,
     ~rows=
       List.map(
-        row => {
-          let cells = row_cells(info.utility, view_seg, row);
-          is_readonly ? cells : cells @ [Node.td([])];
-        },
+        ~f=
+          row => {
+            let cells = row_cells(info.utility, view_seg, row);
+            is_readonly ? cells : cells @ [Node.td([])];
+          },
         rows,
       ),
   );
 };
 
 let menu_col = (st: menu_state): option(int) =>
-  Option.map(((c, _)) => c, st);
+  Option.map(~f=((c, _)) => c, st);
 
 let update: (model, action) => model =
   (model, action) => {

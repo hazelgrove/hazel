@@ -30,7 +30,7 @@ let spent = ref(false);
 let listening = ref(false);
 
 let is_touch = (evt: Js.t(Dom_html.pointerEvent)): bool =>
-  Js.to_string(Js.Unsafe.get(evt, "pointerType")) == "touch"
+  String.equal(Js.to_string(Js.Unsafe.get(evt, "pointerType")), "touch")
   && Js.to_bool(evt##.isPrimary);
 
 let cancel = () =>
@@ -88,20 +88,21 @@ let start_listening = () =>
       switch (current^) {
       | Some({x, y, _})
           when
-            Float.abs(float_of_int(evt##.clientX) -. x) > slop_px
-            || Float.abs(float_of_int(evt##.clientY) -. y) > slop_px =>
+            Float.(
+              abs(of_int(evt##.clientX) -. x) > slop_px
+              || abs(of_int(evt##.clientY) -. y) > slop_px
+            ) =>
         cancel()
       | _ => ()
       }
     );
     listen("pointerup", _ => cancel());
     listen("pointercancel", _ => cancel());
-    List.iter(
-      name => listen(name, swallow),
-      ["mousedown", "mouseup", "click"],
+    List.iter(["mousedown", "mouseup", "click"], ~f=name =>
+      listen(name, swallow)
     );
     listen("contextmenu", (evt: Js.t(Dom_html.event)) =>
-      if (spent^ || current^ != None) {
+      if (spent^ || Option.is_some(current^)) {
         Dom.preventDefault(evt);
       }
     );
