@@ -74,6 +74,15 @@ can also be accessed at the following URL (once the GitHub action is finished bu
 ### Hazel CLI
 Although Hazel is primarily designed as an integrated development environment, we do have a Hazel CLI executable called `hazel` available for basic tasks at the terminal. Further information is available in the [CLI README](src/CLI/README.md).
 
+### Hazel in JavaScript: `hazeljs` (experimental)
+[`hazeljs`](https://www.npmjs.com/package/hazeljs) is an experimental npm package that makes Hazel available as a JavaScript library: from Node or a web page, you can analyze and run Hazel programs and call the functions they define. Its source and issues are at [hazelgrove/hazeljs](https://github.com/hazelgrove/hazeljs).
+
+```sh
+npm install hazeljs
+```
+
+It is a prototype (0.0.x), and its API may change in any release. The plan is for the package to track `dev`, but it does not do that yet: it is built from the draft library in [#2711](https://github.com/hazelgrove/hazel/pull/2711) and [#2719](https://github.com/hazelgrove/hazel/pull/2719), not from this branch, and `Hazel.build` names the commit it came from.
+
 ## Running Tests
 You can run Hazel's unit tests with `make test`. Further details on testing are in the [test README](test/README.md).
 
