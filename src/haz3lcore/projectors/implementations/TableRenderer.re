@@ -384,84 +384,84 @@ let render =
             is_readonly || !has_name ? Node.none : menu_button,
           ];
 
-        let full_content =
-          switch (h, model.menu_state) {
-          | (Some(name), Some((j, menu_t)))
-              when i == j && JsUtil.coarse_pointer() =>
-            let items =
-              items_for_column(info, exp, headers, local, parent, j);
-            content
-            @ [
-              ActionSheet.view(
-                ~menu_class="context-menu",
-                ~heading={
-                  label: Some("Column"),
-                  title: name,
-                  code: false,
-                },
-                ~on_close=() => local(CloseMenu),
-                ~inject_action=thunk => thunk(),
-                ~inject_menu=a => local(MenuAction(a)),
-                ~items,
-                menu_t,
-              ),
-            ];
-          | (Some(_), Some((j, menu_t))) when i == j =>
-            let items =
-              items_for_column(info, exp, headers, local, parent, j);
-            let menu_nodes =
-              Menu.render(
-                ~inject_action=thunk => thunk(),
-                ~inject_menu=a => local(MenuAction(a)),
-                ~item_class="named-menu-item",
-                ~items,
-                menu_t,
-              );
-            let dir =
-              Menu.direction_from_id(
-                ~menu_height=200.0,
-                ~menu_width=180.0,
-                menu_button_id(i),
-              );
-            let dir_class =
-              switch (dir) {
-              | {vertical: `Down, horizontal: `Right} => "cm-down-right"
-              | {vertical: `Down, horizontal: `Left} => "cm-down-left"
-              | {vertical: `Up, horizontal: `Right} => "cm-up-right"
-              | {vertical: `Up, horizontal: `Left} => "cm-up-left"
-              };
-            content
-            @ [
-              Node.div(
-                ~attrs=[
-                  Attr.id("column-menu-" ++ string_of_int(i)),
-                  Attr.classes([
-                    "context-menu",
-                    "nut-menu",
-                    "column-menu",
-                    dir_class,
-                  ]),
-                ],
-                [
-                  WebUtil.div_c(
-                    "group",
-                    [WebUtil.div_c("contents", menu_nodes)],
-                  ),
-                ],
-              ),
-            ];
-          | _ => content
-          };
-        let is_menu_open =
-          switch (model.menu_state) {
-          | Some((j, _)) => i == j
-          | None => false
-          };
-        Node.th(
-          ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
-          full_content,
-        );
-      },
+          let full_content =
+            switch (h, model.menu_state) {
+            | (Some(name), Some((j, menu_t)))
+                when i == j && JsUtil.coarse_pointer() =>
+              let items =
+                items_for_column(info, exp, headers, local, parent, j);
+              content
+              @ [
+                ActionSheet.view(
+                  ~menu_class="context-menu",
+                  ~heading={
+                    label: Some("Column"),
+                    title: name,
+                    code: false,
+                  },
+                  ~on_close=() => local(CloseMenu),
+                  ~inject_action=thunk => thunk(),
+                  ~inject_menu=a => local(MenuAction(a)),
+                  ~items,
+                  menu_t,
+                ),
+              ];
+            | (Some(_), Some((j, menu_t))) when i == j =>
+              let items =
+                items_for_column(info, exp, headers, local, parent, j);
+              let menu_nodes =
+                Menu.render(
+                  ~inject_action=thunk => thunk(),
+                  ~inject_menu=a => local(MenuAction(a)),
+                  ~item_class="named-menu-item",
+                  ~items,
+                  menu_t,
+                );
+              let dir =
+                Menu.direction_from_id(
+                  ~menu_height=200.0,
+                  ~menu_width=180.0,
+                  menu_button_id(i),
+                );
+              let dir_class =
+                switch (dir) {
+                | {vertical: `Down, horizontal: `Right} => "cm-down-right"
+                | {vertical: `Down, horizontal: `Left} => "cm-down-left"
+                | {vertical: `Up, horizontal: `Right} => "cm-up-right"
+                | {vertical: `Up, horizontal: `Left} => "cm-up-left"
+                };
+              content
+              @ [
+                Node.div(
+                  ~attrs=[
+                    Attr.id("column-menu-" ++ string_of_int(i)),
+                    Attr.classes([
+                      "context-menu",
+                      "nut-menu",
+                      "column-menu",
+                      dir_class,
+                    ]),
+                  ],
+                  [
+                    WebUtil.div_c(
+                      "group",
+                      [WebUtil.div_c("contents", menu_nodes)],
+                    ),
+                  ],
+                ),
+              ];
+            | _ => content
+            };
+          let is_menu_open =
+            switch (model.menu_state) {
+            | Some((j, _)) => i == j
+            | None => false
+            };
+          Node.th(
+            ~attrs=is_menu_open ? [Attr.classes(["menu-open"])] : [],
+            full_content,
+          );
+        },
       headers,
     );
 
