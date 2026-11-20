@@ -906,6 +906,8 @@ module View = {
 
   let main_view =
       (
+        ~can_undo: bool,
+        ~can_redo: bool,
         ~get_log_and: (string => unit) => unit,
         ~log_model,
         ~inject: Update.t => Ui_effect.t(unit),
@@ -1025,6 +1027,7 @@ module View = {
       ),
       sidebar,
       bottom_bar,
+      KeyBar.view(~can_undo, ~can_redo, cursor),
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),
     ];
@@ -1032,6 +1035,8 @@ module View = {
 
   let view =
       (
+        ~can_undo: bool,
+        ~can_redo: bool,
         ~log_model,
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
@@ -1050,7 +1055,15 @@ module View = {
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
       [FontSpecimen.view]
-      @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
+      @ main_view(
+          ~can_undo,
+          ~can_redo,
+          ~log_model,
+          ~get_log_and,
+          ~cursor,
+          ~inject,
+          model,
+        ),
     );
   };
 };
