@@ -69,7 +69,7 @@ let place = (el: Js.t(Dom_html.element), anchor: Js.t(Dom_html.element)) => {
       Float.min(centered, viewport_width -. width -. gap_px),
     );
   let above = rect##.top -. gap_px -. height;
-  let top = above >= gap_px ? above : rect##.bottom +. gap_px;
+  let top = Float.(above >= gap_px) ? above : rect##.bottom +. gap_px;
   el##.style##.left := Js.string(Printf.sprintf("%fpx", left));
   el##.style##.top := Js.string(Printf.sprintf("%fpx", top));
 };
