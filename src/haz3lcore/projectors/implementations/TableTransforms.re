@@ -450,7 +450,7 @@ let move_column =
             IdTagged.FreshGrammar.Exp.(
               deferred_ap(
                 var("select_labels"),
-                [deferral(InAp)] @ List.map(label_lit, new_columns),
+                [deferral(InAp)] @ List.map(~f=label_lit, new_columns),
               )
             ),
           ),

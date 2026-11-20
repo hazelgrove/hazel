@@ -764,13 +764,14 @@ let indicated_labeled_entry =
   | [Labeled(_, l, v)] => Some((l, v))
   | _ =>
     List.find_map(
-      (entry: TupleEntry.t('v)) =>
-        switch (entry, indicated) {
-        | (Labeled(eq, l, v), Some(id))
-            when List.exists(Id.equal(id), eq.ids) =>
-          Some((l, v))
-        | (Labeled(_) | Unlabeled(_), _) => None
-        },
+      ~f=
+        (entry: TupleEntry.t('v)) =>
+          switch (entry, indicated) {
+          | (Labeled(eq, l, v), Some(id))
+              when List.exists(~f=Id.equal(id), eq.ids) =>
+            Some((l, v))
+          | (Labeled(_) | Unlabeled(_), _) => None
+          },
       entries,
     )
   };
@@ -1098,7 +1099,7 @@ let decide =
             ),
           )
         | None =>
-          let terms = List.map(TupleEntry.value, entries);
+          let terms = List.map(~f=TupleEntry.value, entries);
           let n = List.length(terms);
           let basic = group =>
             get_message(
@@ -1533,7 +1534,7 @@ let decide =
           ),
         )
       | None =>
-        let elements = List.map(TupleEntry.value, entries);
+        let elements = List.map(~f=TupleEntry.value, entries);
         let n = List.length(elements);
         let basic = group =>
           get_message(
@@ -1648,7 +1649,7 @@ let decide =
           ),
         )
       | None =>
-        let elements = List.map(TupleEntry.value, entries);
+        let elements = List.map(~f=TupleEntry.value, entries);
         let n = List.length(elements);
         let basic = group =>
           get_message(

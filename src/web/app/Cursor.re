@@ -51,7 +51,7 @@ let empty = {
 };
 
 let indicated_id = (cursor: cursor(_)): option(Id.t) =>
-  Option.map(Piece.id, cursor.indicated_piece);
+  Option.map(~f=Piece.id, cursor.indicated_piece);
 
 let with_actions = (actions: list(ContextualAction.t), cursor) => {
   ...cursor,
