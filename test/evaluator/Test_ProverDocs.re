@@ -67,9 +67,36 @@ let slide = (file, expected: list((string, string))) =>
     },
   );
 
+/* `div_ok`'s `rewrite refl` at `8 / z` incurs `z != 0`, which the
+ * slide's `have nz` discharges. */
+let test_div_ok_discharges_by_nz = () => {
+  let (state, _, elab) =
+    read_slide("prover-side-conditions.hz") |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let discharged_by = (ob: Obligation.t) =>
+    switch (Obligation.remote_fact(ob)) {
+    | Some((name, _)) => name
+    | None => Obligation.show_discharge(ob.discharge)
+    };
+  check(
+    list(string),
+    "its side conditions and what discharges them",
+    ["z > 0 by pos", "z != 0 by nz"],
+    ProofMap.obligations_of_proof(pm, proof_of_named("div_ok", elab))
+    |> List.map(~f=(ob: Obligation.t) =>
+         print_exp(ob.goal) ++ " by " ++ discharged_by(ob)
+       ),
+  );
+};
+
 let tests = (
   "ProverDocs",
   [
+    test_case(
+      "div_ok's z != 0 is discharged by nz",
+      `Quick,
+      test_div_ok_discharges_by_nz,
+    ),
     slide(
       "prover-theorems.hz",
       [("six", "proven"), ("seven", "refuted"), ("eight", "incomplete")],

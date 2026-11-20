@@ -1201,6 +1201,7 @@ module View = {
       | Premise => ("⇒", "premise")
       | Citation => ("↗", "unfinished theorem")
       | Algebra => ("=", "algebra")
+      | Standardness => ("!!", "standardness")
       };
 
     let dot = (~toggle: Ui_effect.t(unit), ob: Obligation.t) => {

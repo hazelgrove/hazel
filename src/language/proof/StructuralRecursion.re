@@ -1,5 +1,5 @@
-/* Structural-recursion detection, the part of the divergence gate
- * (Totality) that accepts recursive definitions.
+/* Structural-recursion detection, the part of the standardness routine
+ * (`Standardness`) that accepts recursive definitions.
  *
  * `check` conservatively decides whether a `FixF(self_pat, body, _)` is
  * structurally recursive: every recursive call to the self-name inside
@@ -11,8 +11,8 @@
  * literal patterns, or constructor patterns directly in a `fun` binder).
  * When this holds, every recursive-call chain descends strictly in the
  * well-founded subterm order on position i, so — provided everything
- * else in the body terminates, which Totality.re verifies separately —
- * evaluation terminates.
+ * else in the body terminates, which the standardness routine judges
+ * separately — evaluation terminates.
  *
  * What is tracked (per lexical scope):
  *   - a status map: variable -> (param index, optional tuple component,
@@ -45,8 +45,9 @@
  *     to the outer self with the inner binders shadowed);
  *   - any expression form the walk does not positively understand.
  *
- * Like Totality.check, the input is expected to be environment-
- * substituted (Substitution.in_exp): other definitions are inlined
+ * The input is expected to be environment-substituted
+ * (Substitution.in_exp), as a definition's value is when the
+ * standardness routine judges it: other definitions are inlined
  * (recursive ones surfacing their own FixF spine, handled as nested
  * fixes), and only the self-name refers back to this fixpoint. */
 
@@ -202,7 +203,7 @@ let rec check = (fix: Exp.t): result(unit, reason) =>
   | FixF(self_pat, body, _) =>
     switch (self_pat |> Pat.bound_vars) {
     /* `fix () -> ...`, `fix _ -> ...`: no self-name, so nothing can
-     * recur. Totality walks the body itself. */
+     * recur. The standardness routine judges the body itself. */
     | [] => Ok()
     | [self] =>
       let* possets = chain(~self, ~index=0, ~env=[], body);
@@ -357,8 +358,8 @@ and go =
     );
   /* A nested fixpoint must itself be structurally recursive; its body
    * is then still walked for calls to the outer self, with the inner
-   * binder shadowing. Totality re-checks the inner fix too, but this
-   * check must stand on its own. */
+   * binder shadowing. The standardness routine judges the inner fix
+   * too, but this check must stand on its own. */
   | FixF(p, body, _) =>
     let* _ =
       switch (check(e)) {
@@ -392,8 +393,8 @@ and go =
       let* ra = go_all(args);
       Ok(rh @ ra);
     };
-  /* Holes, modules, theorems, quantifiers, invalid text, ... (Totality
-   * refuses them independently). */
+  /* Holes, modules, theorems, quantifiers, invalid text, ... (the
+   * standardness routine doesn't judge them standard either). */
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)

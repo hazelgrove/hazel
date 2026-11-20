@@ -262,98 +262,67 @@ let is_hole = (e: Exp.t): bool =>
   | _ => false
   };
 
-/* Definedness gates.
- *
- * Divergence (⊥) is never a boolean obligation: a failed
- * structural-totality check refuses the step (the PossiblyDivergent*
- * marks). Domain errors (err) can be stated as booleans: the domain
- * scan's conditions are incurred as ordinary obligations. Eval steps
- * have no gates: they preserve denotation. */
+/* Where a step needs a term to be standard: an instantiation of a
+ * cited rule's binder, since quantifiers range over standard values, and
+ * a split's computed scrutinee, so that its case equation is an
+ * equation between values. The standardness routine reduces `!!e` to
+ * the conditions it holds under, `b != 0` for `a / b`, which the step
+ * incurs as Definedness obligations. Where it can't, `!!e` itself is
+ * the obligation. Eval steps need nothing: they preserve denotation. */
 module Gate = {
-  /* For the instantiations an axiom or lemma step's match bound: each
-   * must be structurally total; `Error(var)` names the first that is not,
-   * and the step is refused. Otherwise `Ok(conditions)` carries the
-   * domain scan of the instantiations. Common instantiations (x := y,
-   * x := 2, x := a + b) pass and scan to nothing. */
-  let instantiations =
-      (
-        ~statics: ProofStatics.t,
-        ~ctx: SemanticCtx.t,
-        instantiations: list((Var.t, Exp.t)),
-      )
-      : result(list(Exp.t), Var.t) => {
-    let env = SemanticCtx.get_env(ctx);
-    /* Totality reads the bodies of the definitions an instantiation
-     * calls, so it checks a copy with them substituted: recursive ones
-     * surface their FixF spine, and quantified binders stay bare Vars. */
-    let divergent =
-      List.find_map(
+  /* The conditions under which every one of `es` is standard, and the
+   * `!!e` goals left for those the routine can't judge. */
+  let standard =
+      (~ctx: SemanticCtx.t, es: list(Exp.t)): (list(Exp.t), list(Exp.t)) => {
+    let verdicts =
+      List.map(
         ~f=
-          ((n, e)) =>
+          e =>
             switch (
-              Totality.check(
-                ~statics,
+              Standardness.check(
                 ~ctx=SemanticCtx.get_ctx(ctx),
-                Substitution.in_exp(env, e),
+                ~env=SemanticCtx.get_env(ctx),
+                ~is_standard=SemanticCtx.is_standard(ctx),
+                e,
               )
             ) {
-            | Ok () => None
-            | Error(_) => Some(n)
+            | Standard(conditions) => (conditions, [])
+            | Unknown(_) => (
+                [],
+                [Exp.replace_all_ids(Exp.fresh(Standard(e)))],
+              )
             },
-        instantiations,
+        es,
       );
-    switch (divergent) {
-    | Some(n) => Error(n)
-    | None =>
-      Ok(
-        instantiations
-        |> List.concat_map(~f=((_, e)) => DomainConditions.scan(e))
-        |> DomainConditions.dedup,
-      )
-    };
+    (
+      DomainConditions.dedup(List.concat_map(~f=fst, verdicts)),
+      DomainConditions.dedup(List.concat_map(~f=snd, verdicts)),
+    );
   };
 
-  /* For a split's scrutinee. A bare quantified variable needs nothing:
-   * quantifiers range over total values. A computed scrutinee has to
-   * denote a value: for `cases`, so its case equation is a symmetric
-   * equation, and for `induction`, so the goal is an instance of the
-   * generalized one. So a possibly-divergent scrutinee is marked and its
-   * domain conditions become obligations. */
-  let scrutinee =
+  let obligations =
       (
         ~step: step_fn,
-        ~statics: ProofStatics.t,
         ~ctx: SemanticCtx.t,
         ~origin: Id.t,
-        scrut: Exp.t,
+        (conditions, goals): (list(Exp.t), list(Exp.t)),
       )
-      : (list(ProofMark.t), list(Obligation.t)) => {
-    let env = SemanticCtx.get_env(ctx);
-    switch (ProofSyntax.exp_to_name(scrut)) {
-    /* A scrutinee still to fill in is unfinished, not divergent. */
-    | None when is_hole(scrut) => ([], [])
-    | Some(x) when !Definitions.is_definition(env, x) => ([], [])
-    | Some(_)
-    | None =>
-      let marks =
-        switch (
-          Totality.check(
-            ~statics,
-            ~ctx=SemanticCtx.get_ctx(ctx),
-            Substitution.in_exp(env, scrut),
-          )
-        ) {
-        | Ok () => []
-        | Error(_) => [ProofMark.PossiblyDivergentScrutinee]
-        };
-      let obligations =
-        DomainConditions.scan(scrut)
-        |> List.map(
-             ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
-           );
-      (marks, obligations);
-    };
-  };
+      : list(Obligation.t) =>
+    List.map(
+      ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
+      conditions,
+    )
+    @ List.map(
+        ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Standardness),
+        goals,
+      );
+
+  /* A scrutinee still to fill in is unfinished, and needs nothing yet. */
+  let scrutinee =
+      (~step: step_fn, ~ctx: SemanticCtx.t, ~origin: Id.t, scrut: Exp.t)
+      : list(Obligation.t) =>
+    is_hole(scrut)
+      ? [] : obligations(~step, ~ctx, ~origin, standard(~ctx, [scrut]));
 };
 
 // Binders
@@ -427,8 +396,7 @@ let rewritten = (outgoing: Exp.t): step_result => {
 module Axiom = {
   /* The rewritten goal, with the rule's assumptions instantiated by the
    * match (the conditions the step incurs as obligations) and the
-   * metavariable instantiations the match bound (for
-   * `Gate.instantiations`).
+   * metavariable instantiations the match bound (for `Gate.standard`).
    *
    * Every binder of the rule must be assigned, by the match or by a
    * `with <var> = <exp>` clause (`~instantiation`), or the step is
@@ -517,8 +485,8 @@ module Axiom = {
     };
   };
 
-  /* The step as written: the rule's instantiated assumptions and the
-   * instantiations' domain conditions are its obligations. */
+  /* The step as written: the rule's instantiated assumptions, and what
+   * its instantiations need to be standard, are its obligations. */
   let check =
       (
         ~step: step_fn,
@@ -560,47 +528,63 @@ module Axiom = {
       };
     let* (out, conditions, instantiations) =
       apply(~statics, ~ctx, ~direction, ~equality, ~instantiation, goal);
-    switch (Gate.instantiations(~statics, ~ctx, instantiations)) {
-    | Error(var) =>
-      Error(
-        PossiblyDivergentInstantiation({
-          equality,
-          var,
-        }),
-      )
-    | Ok(domain_conditions) =>
-      /* A condition that is both a premise and a domain condition is
-       * shown once, as the premise the rule states. */
-      let premises = DomainConditions.dedup(conditions);
-      let domain_conditions =
-        DomainConditions.dedup(domain_conditions)
-        |> List.filter(~f=c => !List.exists(~f=Exp.fast_equal(c), premises));
-      let obligations =
-        List.map(
-          ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Premise),
-          premises,
+    let cited = Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), equality);
+    let is_refl =
+      switch (cited) {
+      | Some({prop: Some(_), _}) => false
+      | Some({prop: None, _})
+      | None => String.equal(equality, "refl")
+      };
+    let instantiations = List.map(~f=snd, instantiations);
+    /* The built-in `refl` holds at every term, so its instantiations
+     * needn't be standard. Their domain conditions are still incurred,
+     * the ones a partial term like `8 / z` incurs everywhere else. */
+    let (domain_conditions, standardness) =
+      is_refl
+        ? (
+          DomainConditions.dedup(
+            List.concat_map(~f=DomainConditions.scan, instantiations),
+          ),
+          [],
         )
-        @ List.map(
-            ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
-            domain_conditions,
-          );
-      let citation =
-        switch (Ctx.lookup_theorem(SemanticCtx.get_ctx(ctx), equality)) {
-        | Some({id, prop: Some(statement), _})
-            when Poly.equal(SemanticCtx.verdict(ctx, id), Some(Unfinished)) => [
-            Discharge.obligation(
-              ~step,
-              ~ctx,
-              ~origin,
-              ~kind=Citation,
-              statement,
-            ),
-          ]
-        | Some(_)
-        | None => []
-        };
-      Ok((rewritten(out), obligations @ citation));
-    };
+        : Gate.standard(~ctx, instantiations);
+    /* A condition that is both a premise and a domain condition is shown
+     * once, as the premise the rule states. */
+    let premises = DomainConditions.dedup(conditions);
+    let domain_conditions =
+      List.filter(
+        ~f=c => !List.exists(~f=Exp.fast_equal(c), premises),
+        domain_conditions,
+      );
+    let citation =
+      switch (cited) {
+      | Some({id, prop: Some(statement), _})
+          when Poly.equal(SemanticCtx.verdict(ctx, id), Some(Unfinished)) => [
+          Discharge.obligation(
+            ~step,
+            ~ctx,
+            ~origin,
+            ~kind=Citation,
+            statement,
+          ),
+        ]
+      | Some(_)
+      | None => []
+      };
+    Ok((
+      rewritten(out),
+      List.map(
+        ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Premise),
+        premises,
+      )
+      @ Gate.obligations(
+          ~step,
+          ~ctx,
+          ~origin,
+          (domain_conditions, standardness),
+        )
+      @ citation,
+    ));
   };
 };
 
@@ -1270,7 +1254,11 @@ and check_subgoal =
  * itself in the env and the facts that mention its name are dropped,
  * since they are about an outer variable of that name. Rewriting under
  * a binder is then sound because the body's steps hold for every value
- * of the variable.
+ * the variable can take there. A `forall`'s variable takes standard
+ * values. Any other's takes whatever value it is given, which is
+ * standard only at a type that is data (`Funext.first_order`): at a
+ * function type the steps would otherwise hold only for standard
+ * functions, so the variable isn't standard.
  *
  * A selector with no such occurrence is marked, the goal passes through,
  * and the body is checked with no goal. */
@@ -1314,12 +1302,42 @@ and check_focus =
       ),
     );
   | (Some(_), Some((goal, target))) =>
-    let binders = Occurrence.binders(Exp.rep_id(target), goal);
+    let unknown = Typ.fresh(Unknown(Internal));
+    let typ_of = (e: Exp.t) =>
+      statics.typ(Exp.rep_id(e)) |> Option.value(~default=unknown);
+    let open_binder = (ctx, (p, form): (Pat.t, Exp.t)) =>
+      switch (Exp.term_of(form)) {
+      | Forall(_) => bind(ctx, p, unknown)
+      | _ =>
+        let ty =
+          switch (Exp.term_of(form)) {
+          | Fun(_, _, t, _) =>
+            switch (t, Typ.term_of(typ_of(form))) {
+            | (Some({term: Unknown(_), _}) | None, Arrow(dom, _)) => dom
+            | (Some(t), _) => t
+            | (None, _) => unknown
+            }
+          | Let(_, def, _) => typ_of(def)
+          | Match(scrut, _) => typ_of(scrut)
+          | _ => unknown
+          };
+        let ctx = bind(ctx, p, ty);
+        let tyctx = SemanticCtx.get_ctx(ctx);
+        let is_data = x =>
+          switch (Ctx.lookup_var(tyctx, x)) {
+          | Some({typ, _}) => Funext.first_order(tyctx, typ)
+          | None => false
+          };
+        SemanticCtx.mark_nonstandard(
+          List.filter(~f=x => !is_data(x), Pat.bound_vars(p)),
+          ctx,
+        );
+      };
     let body_ctx =
       List.fold_left(
-        ~f=(ctx, p) => bind(ctx, p, Typ.fresh(Unknown(Internal))),
+        ~f=open_binder,
         ~init=ctx,
-        binders,
+        Occurrence.binders(Exp.rep_id(target), goal),
       );
     let (out_body, m) =
       check(~step, ~statics, ~ctx=body_ctx, Some(target), body);
@@ -1705,11 +1723,10 @@ and check_generalize = (~step, ~statics, ~ctx, ~id, incoming, e, body) => {
  * (e.g. a `case_eq`) until the antecedent evaluates to `false`, and
  * `false ==> G` evaluates to `true`.
  *
- * With `with x = v`, the antecedent is the fact instantiated at `v`.
- * Sound for the same reason, once `v` passes the instantiation gate as a
- * matched instantiation would at an axiom step: `forall x -> F(x)` holds
- * in this scope, so `F(v)` does, so `F(v) ==> G` denotes what `G`
- * denotes.
+ * With `with x = v`, the antecedent is the fact instantiated at `v`,
+ * and the step needs `v` standard, as an axiom step needs its
+ * instantiations: `forall x -> F(x)` holds in this scope, so `F(v)` does
+ * for a standard `v`, so `F(v) ==> G` denotes what `G` denotes.
  *
  * The fact is found by `Discharge.lookup`, so the cited expression must
  * name it as it stands. A failure marks the step and passes the goal
@@ -1724,26 +1741,18 @@ and check_revert =
       |> Result.of_option(
            ~error=ProofMark.RevertFactNotQuantified({var: "?"}),
          );
-    let* instantiated =
+    let+ instantiated =
       ProofRule.instantiate_binder(x, inst, fact)
       |> Result.of_option(~error=ProofMark.RevertFactNotQuantified({var: x}));
-    switch (Gate.instantiations(~statics, ~ctx, [(x, inst)])) {
-    | Error(var) =>
-      Error(
-        ProofMark.PossiblyDivergentInstantiation({
-          equality: x,
-          var,
-        }),
-      )
-    | Ok(conditions) =>
-      Ok((
-        instantiated,
-        List.map(
-          ~f=Discharge.obligation(~step, ~ctx, ~origin=id, ~kind=Definedness),
-          conditions,
-        ),
-      ))
-    };
+    (
+      instantiated,
+      Gate.obligations(
+        ~step,
+        ~ctx,
+        ~origin=id,
+        Gate.standard(~ctx, [inst]),
+      ),
+    );
   };
   let fail = mark =>
     pass_through(~step, ~statics, ~ctx, ~id, ~marks=[mark], incoming, body);
@@ -1824,6 +1833,8 @@ and check_alias = (~step, ~statics, ~ctx, ~id, incoming, x, e, body) => {
  * standing for it: replacing `scrut` throughout the goal is the same
  * substitution, and with no case equation and no fact about `scrut` in
  * scope, nothing ties a case's pattern back to `scrut`'s actual value.
+ * Either way `scrut` has to be standard (`Gate.scrutinee`), as a
+ * quantified variable is.
  *
  * Exhaustiveness here is stricter than the edit-time check in the
  * statics: a column whose type is `Unknown` is refused rather than
@@ -1842,8 +1853,7 @@ and check_split =
     )
     : (option(Exp.t), ProofMap.t) => {
   let tyctx = SemanticCtx.get_ctx(ctx);
-  let (gate_marks, gate_obligations) =
-    Gate.scrutinee(~step, ~statics, ~ctx, ~origin=id, scrut);
+  let gate_obligations = Gate.scrutinee(~step, ~ctx, ~origin=id, scrut);
   let scrut_id = Exp.rep_id(scrut);
   /* The statics record the scrutinee's type when elaborating the
    * theorem. But they analyze a `funext` binder at `Unknown`, while the
@@ -2037,7 +2047,7 @@ and check_split =
     outgoing,
     record(
       ~ctx,
-      ~marks=gate_marks @ marks,
+      ~marks,
       ~obligations=gate_obligations,
       id,
       incoming,

@@ -91,15 +91,6 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
         ++ "\" matched, but quantified variables remain undetermined; supply an explicit instantiation.",
       ),
     ]
-  | PossiblyDivergentInstantiation({equality, var}) => [
-      text(
-        "Applying \""
-        ++ equality
-        ++ "\" here instantiates "
-        ++ var
-        ++ " at an expression that may not terminate.",
-      ),
-    ]
   | FloatAlgebrite => [
       text("Algebraic rewrites are refused on float-typed expressions."),
     ]
@@ -153,9 +144,6 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
       text(
         "The scrutinee's type is unknown, so these cases cannot be shown to cover it. Annotate the binder.",
       ),
-    ]
-  | PossiblyDivergentScrutinee => [
-      text("The split scrutinee may not terminate."),
     ]
   | UnknownFactReverted => [text("No fact in scope matches this `revert`.")]
   | UnknownInstantiationVar({equality, var}) => [

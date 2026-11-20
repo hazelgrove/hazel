@@ -30,6 +30,9 @@ type t = {
   /* Theorems in `ctx` that are about a variable since rebound by the
    * program, which `ctx` has no binder for. */
   captured: list(Id.t),
+  /* The binders in `env` whose values may not be standard. Every other
+   * binder ranges over standard values. */
+  nonstandard: list(Var.t),
 };
 
 let of_ctx_and_env = (~captured=[], ctx: Ctx.t, env: Environment.t(Exp.t)): t => {
@@ -37,6 +40,7 @@ let of_ctx_and_env = (~captured=[], ctx: Ctx.t, env: Environment.t(Exp.t)): t =>
   env,
   verdicts: [],
   captured,
+  nonstandard: [],
 };
 
 /* `t` with the types, constructors and variables of `typing` under its
@@ -167,25 +171,45 @@ let bind_pattern = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) => {
   List.fold_left(~f=(ctx, entry) => Ctx.extend(ctx, entry), ~init=ctx, l);
 };
 
+/* `t` with the variables `pattern` binds, as binders over standard
+ * values. */
 let add_from_pattern =
     ({ctx, env, _} as t: t, pattern: Pat.t, pat_typ: Typ.t) => {
+  let names = pattern |> Pat.bindings |> Binding.variable_names;
   let ctx =
     bind_pattern(pattern, pat_typ, ctx) |> Option.value(~default=ctx);
   let env =
     List.fold_left(
       ~f=Environment.extend,
       ~init=env,
-      List.map(
-        ~f=v => (v, Exp.fresh(Var(v))),
-        pattern |> Pat.bindings |> Binding.variable_names,
-      ),
+      List.map(~f=v => (v, Exp.fresh(Var(v))), names),
     );
   {
     ...t,
     ctx,
     env,
+    nonstandard:
+      List.filter(
+        ~f=x => !List.mem(names, x, ~equal=String.equal),
+        t.nonstandard,
+      ),
   };
 };
+
+let mark_nonstandard = (names: list(Var.t), t: t): t => {
+  ...t,
+  nonstandard: names @ t.nonstandard,
+};
+
+/* Whether `x` is a binder over standard values. A definition isn't a
+ * binder: the standardness routine judges it by its value. */
+let is_standard = (t: t, x: Var.t): bool =>
+  switch (Environment.lookup(t.env, x)) {
+  | Some({term: Var(y), _}) =>
+    String.equal(x, y) && !List.mem(t.nonstandard, x, ~equal=String.equal)
+  | Some(_)
+  | None => false
+  };
 
 /* A hypothesis goes only in the theorem namespace: not in the variable
    namespace (no `Ctx.VarEntry`, so its name is free as far as the

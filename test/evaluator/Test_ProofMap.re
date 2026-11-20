@@ -179,10 +179,10 @@ module Harness = {
     | None => false
     };
 
-  let is_divergent_instantiation: ProofMark.t => bool =
-    fun
-    | ProofMark.PossiblyDivergentInstantiation(_) => true
-    | _ => false;
+  /* A lemma that does what `refl` does, for citing where the citation
+   * should need its instantiation standard: the built-in `refl` holds at
+   * every term, so it doesn't. */
+  let refl_lemma = {|theorem same = forall y -> (y == y) == true proof from y == y do rewrite refl end end; rewrite refl end in |};
 
   /* Runs `src`, returning the proof map and its first theorem's proof. */
   let run = (src: string): (ProofMap.t, Proof.t) => {
@@ -198,6 +198,12 @@ module Harness = {
   /* `run`, with the obligations recorded in the proof. */
   let obligations = (src: string): (ProofMap.t, Proof.t, list(Obligation.t)) => {
     let (pm, proof) = run(src);
+    (pm, proof, ProofMap.obligations_of_proof(pm, proof));
+  };
+
+  let obligations_named =
+      (name: string, src: string): (ProofMap.t, Proof.t, list(Obligation.t)) => {
+    let (pm, proof) = run_named(name, src);
     (pm, proof, ProofMap.obligations_of_proof(pm, proof));
   };
 
@@ -228,6 +234,12 @@ module Harness = {
     ++ " ["
     ++ Obligation.show_discharge(ob.discharge)
     ++ "]";
+
+  /* The `!!e` goals among `obs`, printed. */
+  let standardness_goals = (obs: list(Obligation.t)): list(string) =>
+    obs
+    |> List.filter(~f=(ob: Obligation.t) => ob.kind == Standardness)
+    |> List.map(~f=(ob: Obligation.t) => print_exp(ob.goal));
 
   /* Each step of `proof` with its incoming and outgoing goals, marks and
    * obligations, indented by nesting, for failure messages. */
@@ -1571,29 +1583,22 @@ let test_refl_at_nan = () => {
 };
 
 /* A split whose scrutinee is still a hole, as the Strategy tab writes
- * it, is unfinished, not marked as possibly divergent. */
-let test_hole_scrutinee_unmarked = () =>
+ * it, is unfinished, and needs nothing of the hole. */
+let test_hole_scrutinee_needs_nothing = () =>
   List.iter(
     ~f=
       split => {
-        let (pm, _) =
-          run(
+        let (_, _, obs) =
+          obligations(
             "theorem t = forall xs: [Int] -> xs == xs proof "
             ++ split
             ++ " ? end in t",
           );
         Alcotest.check(
-          Alcotest.bool,
+          Alcotest.list(Alcotest.string),
           split ++ " ?",
-          false,
-          List.mem(
-            List.concat_map(
-              ~f=((_, entry: ProofMap.entry)) => entry.marks,
-              Id.Map.bindings(pm),
-            ),
-            ProofMark.PossiblyDivergentScrutinee,
-            ~equal=Poly.equal,
-          ),
+          [],
+          List.map(~f=show_obligation, obs),
         );
       },
     ["induction", "cases"],
@@ -1603,9 +1608,9 @@ let tests = (
   "Evaluator.ProofMap",
   [
     test_case(
-      "a split on a hole isn't possibly divergent",
+      "a split on a hole needs nothing of it",
       `Quick,
-      test_hole_scrutinee_unmarked,
+      test_hole_scrutinee_needs_nothing,
     ),
     test_case(
       "a forall step renames the goal's binder",

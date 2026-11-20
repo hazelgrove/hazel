@@ -48,7 +48,9 @@ let is_evaluated = (ob: Obligation.t): bool =>
 /* --- Section A: the six statements ------------------------------------- */
 
 /* Each is the corresponding `Axioms.re` entry transcribed into surface
- * syntax, identical up to binder names (a/b -> a1/b1). The Axioms.re
+ * syntax, identical up to binder names (a/b -> a1/b1) and their `Int`
+ * annotations: splitting on `a1 != 0` needs it standard, which the
+ * routine sees only when it knows `a1` isn't a function. The Axioms.re
  * builder is quoted above each one so the correspondence is checkable by
  * eye. `==>` is right-associative, and the nested antecedent is written
  * without parentheses, the shape `Axioms.foralls` builds.
@@ -57,22 +59,22 @@ let is_evaluated = (ob: Obligation.t): bool =>
  * (`ProofRule.BoolReading`). */
 
 /* forall("a", gt0(a) ==>> neq0(a)) */
-let stmt_nonzero_of_pos = "forall a1 -> a1 > 0 ==> a1 != 0";
+let stmt_nonzero_of_pos = "forall a1: Int -> a1 > 0 ==> a1 != 0";
 
 /* forall("a", lt0(a) ==>> neq0(a)) */
-let stmt_nonzero_of_neg = "forall a1 -> a1 < 0 ==> a1 != 0";
+let stmt_nonzero_of_neg = "forall a1: Int -> a1 < 0 ==> a1 != 0";
 
 /* foralls(["a","b"], neq0(a) ==>> (neq0(b) ==>> neq0(mul(a,b)))) */
-let stmt_nonzero_mul = "forall a1 -> forall b1 -> a1 != 0 ==> b1 != 0 ==> a1 * b1 != 0";
+let stmt_nonzero_mul = "forall a1: Int -> forall b1: Int -> a1 != 0 ==> b1 != 0 ==> a1 * b1 != 0";
 
 /* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> gt0(mul(a,b)))) */
-let stmt_pos_mul = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> a1 * b1 > 0";
+let stmt_pos_mul = "forall a1: Int -> forall b1: Int -> a1 > 0 ==> b1 > 0 ==> a1 * b1 > 0";
 
 /* foralls(["a","b"], gt0(a) ==>> (gt0(b) ==>> gt0(add(a,b)))) */
-let stmt_pos_add = "forall a1 -> forall b1 -> a1 > 0 ==> b1 > 0 ==> a1 + b1 > 0";
+let stmt_pos_add = "forall a1: Int -> forall b1: Int -> a1 > 0 ==> b1 > 0 ==> a1 + b1 > 0";
 
 /* foralls(["a","b"], gt0(a) ==>> (geq0(b) ==>> gt0(pow(a,b)))) */
-let stmt_pow_pos = "forall a1 -> forall b1 -> a1 > 0 ==> b1 >= 0 ==> a1 ** b1 > 0";
+let stmt_pow_pos = "forall a1: Int -> forall b1: Int -> a1 > 0 ==> b1 >= 0 ==> a1 ** b1 > 0";
 
 let theorem = (name: string, stmt: string, proof: string): string =>
   "theorem " ++ name ++ " = " ++ stmt ++ " proof " ++ proof ++ " in " ++ name;
@@ -370,7 +372,7 @@ let test_algebrite_leaves_the_lemma_open = () => {
 /* (C4) A nested antecedent in parentheses, as `Axioms.re`'s `==>>`
  * reads, is introduced as the bare one is. */
 let test_parens_nested_antecedent_introduced = () => {
-  let parenthesised = "forall a1 -> forall b1 -> a1 != 0 ==> (b1 != 0 ==> a1 * b1 != 0)";
+  let parenthesised = "forall a1: Int -> forall b1: Int -> a1 != 0 ==> (b1 != 0 ==> a1 * b1 != 0)";
   let (pm, proof) =
     run_named(
       "t",
