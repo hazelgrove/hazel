@@ -81,7 +81,7 @@ let svg_px =
   create_svg(
     "svg",
     ~attrs=
-      (id == "" ? [] : [Attr.id(id)])
+      (String.equal(id, "") ? [] : [Attr.id(id)])
       @ [
         Attr.classes(base_cls),
         Attr.create(

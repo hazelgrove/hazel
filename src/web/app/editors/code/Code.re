@@ -3,12 +3,13 @@ open Node;
 open Haz3lcore;
 open Util;
 open Util.WebUtil;
+open Poly;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
 let is_ref = (token: string, sort: Sort.t) =>
-  sort != Pat
-  && sort != TPat
+  !Poly.equal(sort, Pat)
+  && !Poly.equal(sort, TPat)
   && !Token.is_keyword(token)
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
@@ -137,7 +138,7 @@ let view =
       Tile.arity(t),
       sort,
       is_consistent(sort, t),
-      List.mem(t.id, buffer_ids),
+      List.mem(buffer_ids, t.id, ~equal=Id.equal),
       Tile.is_complete(t),
       Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,

@@ -15,11 +15,12 @@ let shard_svg =
   | Grout(g) => g |> Grout.shapes |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
-        (s: Nib.Shape.t) =>
-          switch (s) {
-          | Concave(_) => Nib.Shape.Convex
-          | Convex => Nib.Shape.Concave(0)
-          },
+        ~f=
+          (s: Nib.Shape.t) =>
+            switch (s) {
+            | Concave(_) => Nib.Shape.Convex
+            | Convex => Nib.Shape.Concave(0)
+            },
         start_shape,
       ),
       None,
@@ -34,7 +35,7 @@ let multiline_shard =
       {origin, last}: Measured.measurement,
       tips: (option(Nib.Shape.t), option(Nib.Shape.t)),
     ) =>
-  List.init(num_lb + 1, i =>
+  List.init(num_lb + 1, ~f=i =>
     [
       Some((
         Measured.{
@@ -90,7 +91,7 @@ let rows_of_segment =
                 ),
               ),
             ) => {
-    let tag = is_ws => Option.map(x => (x, is_ws));
+    let tag = is_ws => Option.map(~f=x => (x, is_ws));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
@@ -102,7 +103,7 @@ let rows_of_segment =
       | Secondary(w) => [
           Some((
             find_w(w),
-            (start_shape |> Option.map(Nib.Shape.flip), start_shape),
+            (start_shape |> Option.map(~f=Nib.Shape.flip), start_shape),
           ))
           |> tag(
                switch (w.content) {
@@ -123,26 +124,26 @@ let rows_of_segment =
     let shards = Measured.find_shards(~msg="sel_of_tile", t, measured);
     let tile_shards =
       shards
-      |> List.filter_map(((i, m)) =>
-           List.mem(i, t.shards) ? Some((i, m)) : None
+      |> List.filter_map(~f=((i, m)) =>
+           List.mem(t.shards, i, ~equal=Int.equal) ? Some((i, m)) : None
          )
-      |> List.map(((index, m)) => {
+      |> List.map(~f=((index, m)) => {
            let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [
                Some(shard_svg(~start_shape, m, Tile(shard)))
-               |> Option.map(x => (x, false)),
+               |> Option.map(~f=x => (x, false)),
              ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
-             |> List.map(Option.map(x => (x, false)))
+             |> List.map(~f=Option.map(~f=x => (x, false)))
            };
          });
     let shape_at = index =>
       Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
-      t.children |> List.mapi(index => of_segment(shape_at(index)));
+      t.children |> List.mapi(~f=index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
       failwith(
         "Highlight.of_tile: shard mismatch:"
@@ -154,7 +155,7 @@ let rows_of_segment =
         ++ string_of_int(List.length(children_shards)),
       );
     };
-    ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
+    ListUtil.interleave(tile_shards, children_shards) |> List.concat;
   }
   and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
     switch (Measured.find_pr_opt(p, measured)) {
@@ -184,12 +185,12 @@ let rows_of_segment =
           )),
         ];
       } else {
-        List.init(num_lb + 1, _ => None);
+        List.init(num_lb + 1, ~f=_ => None);
       };
     }
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
-    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+    seg |> List.fold_map(~f=of_piece, ~init=start_shape) |> snd |> List.concat;
   let trim_row = row => {
     let rec drop = xs =>
       switch (xs) {
@@ -203,10 +204,10 @@ let rows_of_segment =
   };
   of_segment(shape_init, segment)
   |> ListUtil.split_at_nones
-  |> List.mapi((i, row) => trim_ws && i > 0 ? trim_row(row) : row)
-  |> List.map(List.map(fst))
+  |> List.mapi(~f=(i, row) => trim_ws && i > 0 ? trim_row(row) : row)
+  |> List.map(~f=List.map(~f=fst))
   |> ListUtil.first_and_last
-  |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
+  |> List.map(~f=(((m1, (l1, _)), (m2, (_, r2)))) =>
        (
          Measured.{
            origin: m1.origin,
@@ -241,8 +242,8 @@ let row_data_of =
     row_num: measurement.origin.row,
     left_col: measurement.origin.col,
     right_col: measurement.last.col,
-    left_tip: Option.map(Nib.Shape.direction_of(Left), l),
-    right_tip: Option.map(Nib.Shape.direction_of(Right), r),
+    left_tip: Option.map(~f=Nib.Shape.direction_of(Left), l),
+    right_tip: Option.map(~f=Nib.Shape.direction_of(Right), r),
   };
 };
 
@@ -478,8 +479,8 @@ let clip_char_selection =
       switch (left_inner) {
       | None => rows
       | Some(n) =>
-        let left_piece = List.hd(content);
-        let shard = List.hd(Piece.disassemble(left_piece));
+        let left_piece = List.hd_exn(content);
+        let shard = List.hd_exn(Piece.disassemble(left_piece));
         switch (Piece.token_of(shard)) {
         | Some(tok) =>
           let offset = Zipper.Caret.inner_offset_for_token(n, tok);
@@ -547,7 +548,7 @@ let of_segment =
     : list(Node.t) => {
   let rows =
     rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
-    |> List.map(((m, tips)) => row_data_of(m, tips));
+    |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
   List.filter_map(svg_of_group(~grid, ~clss, ~sweep), groups);
 };
@@ -567,7 +568,7 @@ let selection =
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
       z.selection.content,
     )
-    |> List.map(((m, tips)) => row_data_of(m, tips));
+    |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   /* Clip partial-token boundaries for char-level selections */
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
@@ -697,8 +698,8 @@ let incr_eval =
     Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
   let ranged_ids_of = ids =>
     ids
-    |> List.sort_uniq(Id.compare)
-    |> List.filter_map(id =>
+    |> List.dedup_and_sort(~compare=Id.compare)
+    |> List.filter_map(~f=id =>
          switch (
            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
          ) {
@@ -713,23 +714,24 @@ let incr_eval =
     };
   let outermost = ranged_ids =>
     List.fold_left(
-      (acc, (id, r)) =>
-        if (List.exists(
-              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
-              ranged_ids,
-            )
-            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
-          acc;
-        } else {
-          [(id, r), ...acc];
-        },
-      [],
+      ~f=
+        (acc, (id, r)) =>
+          if (List.exists(
+                ~f=((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
+                ranged_ids,
+              )
+              || List.exists(~f=((_, r2)) => range_eq(r2, r), acc)) {
+            acc;
+          } else {
+            [(id, r), ...acc];
+          },
+      ~init=[],
       ranged_ids,
     );
   let frozen_ids =
     show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
-    pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
+    pending_eval_ids |> ranged_ids_of |> List.sort(~compare=range_compare);
   let active_ids =
     if (show_active_eval) {
       pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
@@ -738,10 +740,10 @@ let incr_eval =
     };
   let pending_inactive_ranges =
     pending_eval_ranges
-    |> List.filter(((_, range)) =>
+    |> List.filter(~f=((_, range)) =>
          !
            List.exists(
-             ((_, active_range)) => range_eq(active_range, range),
+             ~f=((_, active_range)) => range_eq(active_range, range),
              active_ids,
            )
        );

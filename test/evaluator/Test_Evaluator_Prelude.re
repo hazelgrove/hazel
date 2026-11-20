@@ -197,7 +197,7 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
 
   let new_ty =
     switch (
-      Statics.Map.ty_of(evaluated.annotation.ids |> List.hd, new_statics)
+      Statics.Map.ty_of(evaluated.annotation.ids |> List.hd_exn, new_statics)
     ) {
     | Some(ty) => ty
     | None =>

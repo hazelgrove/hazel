@@ -8,7 +8,7 @@ open Util;
    on screen, in pixels from its top, with a buffer above and below so that
    scrolling doesn't pop. None = no culling (all visible). */
 module VisibleRows = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     top: float,
     bottom: float,

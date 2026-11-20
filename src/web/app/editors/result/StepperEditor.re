@@ -1,5 +1,6 @@
 open Util;
 open Haz3lcore;
+open Poly;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
@@ -47,8 +48,8 @@ module View = {
     let next_steps =
         (next_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
       next_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
+      |> List.filter_map(~f=TermData.root_tile(_, syntax.term_data))
+      |> List.mapi(~f=(i, t: Tile.t) =>
            div_c(
              "step-next",
              Arms.term(
@@ -68,8 +69,8 @@ module View = {
     let refl_steps =
         (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
       refl_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.mapi((i, t: Tile.t) =>
+      |> List.filter_map(~f=TermData.root_tile(_, syntax.term_data))
+      |> List.mapi(~f=(i, t: Tile.t) =>
            div_c(
              "step-refl",
              Arms.term(
@@ -87,11 +88,11 @@ module View = {
           open OptUtil.Syntax;
           let+ range =
             TermData.extreme_measures(
-              List.nth(model.next_steps, x),
+              List.nth_exn(model.next_steps, x),
               model.editor.editor.syntax.term_data,
               model.editor.editor.syntax.measured,
             );
-          Some(List.nth(model.next_steps, x)) == selected_id
+          Some(List.nth_exn(model.next_steps, x)) == selected_id
             ? signal(TakeStep(x)) : inject(Select(PointToPoint(range)));
         }
         |> Option.value(~default=Ui_effect.Ignore)
@@ -101,11 +102,11 @@ module View = {
           open OptUtil.Syntax;
           let+ range =
             TermData.extreme_measures(
-              List.nth(model.refls, x),
+              List.nth_exn(model.refls, x),
               model.editor.editor.syntax.term_data,
               model.editor.editor.syntax.measured,
             );
-          Some(List.nth(model.refls, x)) == selected_id
+          Some(List.nth_exn(model.refls, x)) == selected_id
             ? signal(Refl(x))
             : {
               inject(Select(PointToPoint(range)));

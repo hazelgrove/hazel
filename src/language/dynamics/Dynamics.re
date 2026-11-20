@@ -21,8 +21,10 @@ module Info = {
 
   let is_in = (di: t): option(Sample.t) => {
     let cursor_stack = Sample.Focus.effective_stack(di.sample_focus);
-    List.find_opt(
-      (sample: Sample.t) => CallStack.equal(sample.call_stack, cursor_stack),
+    List.find(
+      ~f=
+        (sample: Sample.t) =>
+          CallStack.equal(sample.call_stack, cursor_stack),
       di.samples,
     );
   };

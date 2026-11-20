@@ -19,7 +19,7 @@ module View = {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(measured.piece_rows);
     let empty_row = row => {
-      let result = List.nth_opt(List.rev(measured.piece_rows), row);
+      let result = List.nth(List.rev(measured.piece_rows), row);
       switch (result) {
       | Some(value) =>
         switch (value) {
@@ -104,7 +104,7 @@ module View = {
         [
           Node.span(
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
-            List.init(num_rows, (i): Node.t => {index_to_span(i)}),
+            List.init(num_rows, ~f=(i): Node.t => {index_to_span(i)}),
           ),
         ],
       ),

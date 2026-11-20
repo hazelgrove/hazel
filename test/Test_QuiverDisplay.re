@@ -29,12 +29,12 @@ let chips_of = (input: string): list((int, int, string)) => {
     ~owned=CompletionQuery.chips_at_caret(~seg=engine_seg, z),
     engine_seg,
   )
-  |> List.map((c: QuiverDec.positioned_insertion) =>
+  |> List.map(~f=(c: QuiverDec.positioned_insertion) =>
        (
          c.row,
          c.col,
          c.delimiters
-         |> List.map((d: CanonicalCompletion.delimiter_info) =>
+         |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
               d.text
               ++ (
                 switch (d.typed_len) {
@@ -43,15 +43,15 @@ let chips_of = (input: string): list((int, int, string)) => {
                 }
               )
             )
-         |> String.concat(" "),
+         |> String.concat(~sep=" "),
        )
      );
 };
 
 let show = chips =>
   chips
-  |> List.map(((r, c, s)) => Printf.sprintf("(%d,%d)[%s]", r, c, s))
-  |> String.concat(" ");
+  |> List.map(~f=((r, c, s)) => Printf.sprintf("(%d,%d)[%s]", r, c, s))
+  |> String.concat(~sep=" ");
 
 let chip_case = (~name, ~input, ~expected) =>
   test_case(name, `Quick, () =>
@@ -61,11 +61,11 @@ let chip_case = (~name, ~input, ~expected) =>
 let flagpole_edges =
   test_case("flagpole joins every caret profile", `Quick, () => {
     List.iter(
-      font_metrics =>
-        List.iter(
-          side =>
-            List.iter(
-              shape =>
+      ~f=
+        font_metrics =>
+          List.iter(
+            ~f=
+              side =>
                 List.iter(
                   row =>
                     List.iter(
@@ -112,10 +112,8 @@ let flagpole_edges =
                     ),
                   [0, 1, 4, 9],
                 ),
-              [None, Some(Util.Direction.Left), Some(Right)],
-            ),
-          [Util.Direction.Left, Right],
-        ),
+            [Util.Direction.Left, Right],
+          ),
       [
         font_metrics,
         FontMetrics.{
