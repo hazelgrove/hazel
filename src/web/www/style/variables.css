@@ -21,6 +21,15 @@
   --eval-recalc-visual-delay: 180ms;
 
 
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  /* The exercise score badge in the top bar's right corner, and the room the
+     build info leaves for it. Both elements are at 0.7em, so these ems agree;
+     the width fits scores up to "10.0 / 10.0 pts" (a slightly wider one
+     only eats into the build info's own padding). */
+  --corner-score-width: 8.5em;
+  --corner-score-margin: 0.5em;
+
+
   /* ── Z-STACK ──────────────────────────────────────────────────────── */
 
   /* BELOW CODE LEVEL */
