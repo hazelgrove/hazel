@@ -70,20 +70,18 @@ module Repeat = {
   let start = (f: unit => unit): unit => {
     if (! listening^) {
       listening := true;
-      List.iter(
-        name =>
-          ignore(
-            Dom_html.addEventListener(
-              Dom_html.window,
-              Dom.Event.make(name),
-              Dom_html.handler(_ => {
-                stop();
-                Js._true;
-              }),
-              Js._true,
-            ),
+      List.iter(["pointerup", "pointercancel"], ~f=name =>
+        ignore(
+          Dom_html.addEventListener(
+            Dom_html.window,
+            Dom.Event.make(name),
+            Dom_html.handler(_ => {
+              stop();
+              Js._true;
+            }),
+            Js._true,
           ),
-        ["pointerup", "pointercancel"],
+        )
       );
     };
     stop();
@@ -167,10 +165,11 @@ let view =
     | Some(editor) =>
       tab_label(
         ~has_problems=
-          cursor.error_ids != []
+          !List.is_empty(cursor.error_ids)
           || List.exists(
-               (g: Haz3lcore.Grout.t) => g.shape == Convex,
                Haz3lcore.Segment.holes(editor.syntax.segment),
+               ~f=(g: Haz3lcore.Grout.t) =>
+               Haz3lcore.Grout.equal_shape(g.shape, Convex)
              ),
         editor.state.zipper,
       )
