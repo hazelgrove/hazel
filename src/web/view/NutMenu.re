@@ -31,7 +31,7 @@ let dismiss = (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)): unit =>
   | None => ()
   | Some(el) =>
     Util.JsUtil.find_ancestor_with_class(el, item_class)
-    |> Option.iter(item =>
+    |> Option.iter(~f=item =>
          item##.classList##add(Js_of_ocaml.Js.string(dismissed_class))
        )
   };
@@ -214,7 +214,7 @@ let code_display = (~globals: Globals.t): section => {
   let preview = (c_label, c_tooltip, mode) => {
     c_label,
     c_tooltip,
-    c_active: current == mode,
+    c_active: Poly.equal(current, mode),
     c_set:
       globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
   };
@@ -291,7 +291,7 @@ let editing = (~globals: Globals.t): section => {
   let format = (c_label, c_tooltip, mode) => {
     c_label,
     c_tooltip,
-    c_active: current == mode,
+    c_active: Poly.equal(current, mode),
     c_set: globals.inject_global(Set(Settings.Update.FormatShortcut(mode))),
   };
   let key = Util.Os.is_mac^ ? "Cmd" : "Ctrl";

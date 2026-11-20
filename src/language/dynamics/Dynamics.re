@@ -77,8 +77,10 @@ module Info = {
 
   let is_in = (di: t): option(Sample.t) => {
     let cursor_stack = Sample.Focus.effective_stack(di.sample_focus);
-    List.find_opt(
-      (sample: Sample.t) => CallStack.equal(sample.call_stack, cursor_stack),
+    List.find(
+      ~f=
+        (sample: Sample.t) =>
+          CallStack.equal(sample.call_stack, cursor_stack),
       di.samples,
     );
   };
@@ -99,7 +101,7 @@ module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Sample.Map.t;
   let empty: t = Sample.Map.empty;
-  let mk: t => t = Fun.id;
+  let mk: t => t = Fn.id;
   let lookup = (id, map: t) => Id.Map.find_opt(id, map);
 
   /* Apply pin filtering to all probes in the map, using the centralized

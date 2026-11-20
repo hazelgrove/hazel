@@ -35,7 +35,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
-          | Some({term: Var(y), _}) when y == x => e
+          | Some({term: Var(y), _}) when String.equal(y, x) => e
           | Some(e) => e |> Exp.replace_all_ids |> in_exp(Environment.empty)
           | None => e
           }
@@ -43,7 +43,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         // Forms with environments: look up in new environment
         | Closure(env, e) => in_exp(env, e)
         | Fun(p, e, t, n) =>
-          let t' = Option.map(in_typ(env), t);
+          let t' = Option.map(~f=in_typ(env), t);
           let (env', p') = in_pat(env, env, p);
           Fun(p', in_exp(env', e), t', n) |> rewrap;
         | FixF(p, e, Some(env)) =>
@@ -65,7 +65,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           Match(
             in_exp(env, e),
             cases
-            |> List.map(((p, e)) => {
+            |> List.map(~f=((p, e)) => {
                  let (env', p') = in_pat(env, env, p);
                  (p', in_exp(env', e));
                }),
@@ -138,7 +138,7 @@ and in_pat =
   // Variables: special case
   | Var(x) =>
     let x' = Environment.free_name(x, env_acc);
-    if (x == x') {
+    if (String.equal(x, x')) {
       (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
     } else {
       (
@@ -169,22 +169,24 @@ and in_pat =
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
-        (env_acc, []),
+        ~f=
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
+        ~init=(env_acc, []),
         l,
       );
     (env', Tuple(l') |> Pat.fresh);
   | ListLit(l) =>
     let (env', l') =
       List.fold_left(
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
-        (env_acc, []),
+        ~f=
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
+        ~init=(env_acc, []),
         l,
       );
     (env', ListLit(l') |> Pat.fresh);

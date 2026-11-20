@@ -1,6 +1,7 @@
 open Util;
 open Calc.Syntax;
 open Language;
+open Poly;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -505,7 +506,7 @@ module Update = {
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) =>
+             Option.map(~f=((exp, editor)) =>
                (
                  exp,
                  CodeSelectable.Update.calculate(
@@ -648,7 +649,7 @@ module View = {
         result: ProgramResult.t(ProgramResult.inner),
         editor: option(('a, CodeSelectable.Model.t)),
       ) => {
-    let editor = Option.map(snd, editor);
+    let editor = Option.map(~f=snd, editor);
     let code_view =
       Option.map(
         (editor: CodeSelectable.Model.t) =>
@@ -770,11 +771,12 @@ module View = {
     WebUtil.div_c(
       "test-decos",
       List.filter_map(
-        ((id, insts)) =>
-          switch (Id.Map.find_opt(id, measured.tiles)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-          | None => None
-          },
+        ~f=
+          ((id, insts)) =>
+            switch (Id.Map.find_opt(id, measured.tiles)) {
+            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+            | None => None
+            },
         test_results.test_map,
       ),
     );
@@ -831,7 +833,7 @@ module View = {
               model.theorems,
             );
       let theorems =
-        List.length(theorems) == 0
+        List.is_empty(theorems)
           ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 

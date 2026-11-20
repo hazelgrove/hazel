@@ -595,6 +595,10 @@ let tests = (
         );
       },
     ),
+    inconsistent_typecheck(
+      "Repeated label ascribed to a labeled tuple type",
+      parse_exp({|((a=1, a=2) : (a=Int, b=Int))|}),
+    ),
     test_case("Bad label projection", `Quick, () => {
       annotated_tree_test(
         {|(1, 2) . 1|},
