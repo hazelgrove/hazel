@@ -1,0 +1,158 @@
+# Mahjong solitaire (ticket 803): the layouts as data, which tiles are free (each place keeping count of the tiles still on it and beside it), a deal that can always be won (made by playing it from full), a match, a clue, a shuffle that keeps a game winnable, and Hazel's own choice of a pair. One module: in hazeljs a call into another module costs the build seconds #
+# ---- Lists of numbers ---- #
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+let at : ([Int], Int) -> Int = fun (xs, i) -> case xs | [] => 0 - 1 | x :: rest => if i <= 0 then x else at(rest, i - 1) end;
+let set : ([Int], Int, Int) -> [Int] = fun (xs, i, v) -> case xs | [] => [] | x :: rest => if i == 0 then v :: rest else x :: set(rest, i - 1, v) end;
+let has : ([Int], Int) -> Bool = fun (xs, v) -> case xs | [] => false | x :: rest => x == v || has(rest, v) end;
+let drop : ([Int], Int) -> [Int] = fun (xs, v) -> case xs | [] => [] | x :: rest => if x == v then drop(rest, v) else x :: drop(rest, v) end;
+# ---- Layouts ---- #
+let cat_p : ([Place], [Place]) -> [Place] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat_p(rest, ys) end;
+let cat_ps : [[Place]] -> [Place] = fun xss -> case xss | [] => [] | xs :: rest => cat_p(xs, cat_ps(rest)) end;
+# a row of tiles on layer z at height y, from column x0 to x1 (in halves of a tile: a tile every 2; one tile, x0 and x1 the same); a block of rows from y0 to y1 #
+let row : (Int, Int, Int, Int) -> [Place] = fun (y, x0, x1, z) -> if x0 > x1 then [] else (x = x0, y = y, z = z) :: row(y, x0 + 2, x1, z);
+let block : (Int, Int, Int, Int, Int) -> [Place] = fun (x0, x1, y0, y1, z) -> if y0 > y1 then [] else cat_p(row(y0, x0, x1, z), block(x0, x1, y0 + 2, y1, z));
+# The turtle, the traditional layout: 87 on the table (eight rows of 12, 8, 10, 12, 12, 10, 8 and 12, one tile out on the left and two on the right, half way down), 36, 16 and 4 above, one on top: 144 #
+let turtle : [Place] = cat_ps([row(0, 2, 24, 0), row(2, 6, 20, 0), row(4, 4, 22, 0), row(6, 2, 24, 0), row(8, 2, 24, 0), row(10, 4, 22, 0), row(12, 6, 20, 0), row(14, 2, 24, 0),
+  row(7, 0, 0, 0), row(7, 26, 26, 0), row(7, 28, 28, 0), block(8, 18, 2, 12, 1), block(10, 16, 4, 10, 2), block(12, 14, 6, 8, 3), row(7, 13, 13, 4)]);
+# The pyramid: 10 by 8 on the table, 8 by 6 on that, 4 by 4 on top: 144 #
+let pyramid : [Place] = cat_ps([block(0, 18, 0, 14, 0), block(2, 16, 2, 12, 1), block(6, 12, 4, 10, 2)]);
+# The fortress: 12 by 8 on the table; on that a tower 2 by 2 at each corner, the walls between them, and a keep 2 by 2 in the middle; a tile on top of each tower: 144 #
+let fortress : [Place] = cat_ps([block(0, 22, 0, 14, 0), block(0, 2, 0, 2, 1), block(20, 22, 0, 2, 1), block(0, 2, 12, 14, 1), block(20, 22, 12, 14, 1),
+  row(0, 4, 18, 1), row(14, 4, 18, 1), block(0, 0, 4, 10, 1), block(22, 22, 4, 10, 1), block(10, 12, 6, 8, 1), row(1, 1, 1, 2), row(1, 21, 21, 2), row(13, 1, 1, 2), row(13, 21, 21, 2)]);
+let layout : Int -> [Place] = fun i -> if i == 1 then pyramid else if i == 2 then fortress else turtle;
+# ---- Neighbours: the places above that cover a place, the places it covers, and those touching it on its left and right #
+let near_of : ([Place], Place) -> Near = fun (ps, p) ->
+  let go : ([Place], Int) -> Near = fun (qs, j) ->
+    case qs
+    | [] => (above = [], below = [], left = [], right = [])
+    | q :: rest =>
+      let n = go(rest, j + 1) in
+      let dx = q.x - p.x in
+      let dy = q.y - p.y in
+      let over = dx < 2 && dx > 0 - 2 && dy < 2 && dy > 0 - 2 in
+      let beside = dy < 2 && dy > 0 - 2 in
+      if q.z == p.z + 1 && over then (above = j :: n.above, below = n.below, left = n.left, right = n.right)
+      else if q.z == p.z - 1 && over then (above = n.above, below = j :: n.below, left = n.left, right = n.right)
+      else if q.z == p.z && beside && dx == 0 - 2 then (above = n.above, below = n.below, left = j :: n.left, right = n.right)
+      else if q.z == p.z && beside && dx == 2 then (above = n.above, below = n.below, left = n.left, right = j :: n.right)
+      else n
+    end in
+  go(ps, 0);
+let nears : [Place] -> [Near] = fun ps ->
+  let go : [Place] -> [Near] = fun qs -> case qs | [] => [] | q :: rest => near_of(ps, q) :: go(rest) end in
+  go(ps);
+let near_at : ([Near], Int) -> Near = fun (ns, i) -> case ns | [] => (above = [], below = [], left = [], right = []) | n :: rest => if i <= 0 then n else near_at(rest, i - 1) end;
+# ---- Free places #
+# a place's slot when every tile is out (its face -2: a tile not dealt yet) #
+let fresh : [Near] -> [Slot] = fun ns -> case ns | [] => [] | n :: rest => (face = 0 - 2, up = len(n.above), lf = len(n.left), rt = len(n.right)) :: fresh(rest) end;
+let is_free : Slot -> Bool = fun s -> !(s.face == 0 - 1) && s.up == 0 && (s.lf == 0 || s.rt == 0);
+let frees : [Slot] -> [Int] = fun ss ->
+  let go : ([Slot], Int) -> [Int] = fun (xs, i) -> case xs | [] => [] | x :: rest => if is_free(x) then i :: go(rest, i + 1) else go(rest, i + 1) end in
+  go(ss, 0);
+let slot_at : ([Slot], Int) -> Slot = fun (ss, i) -> case ss | [] => (face = 0 - 1, up = 1, lf = 1, rt = 1) | x :: rest => if i <= 0 then x else slot_at(rest, i - 1) end;
+# take the tile at place i (n its neighbours), in one pass: its face gone, and one fewer on the places it covered, on the right of the places on its left, on the left of those on its right #
+let lift : ([Slot], Int, Near) -> [Slot] = fun (ss, i, n) ->
+  let go : ([Slot], Int) -> [Slot] = fun (xs, k) ->
+    case xs
+    | [] => []
+    | x :: rest =>
+      (if k == i then (face = 0 - 1, up = x.up, lf = x.lf, rt = x.rt)
+       else (face = x.face, up = (if has(n.below, k) then x.up - 1 else x.up), lf = (if has(n.right, k) then x.lf - 1 else x.lf), rt = (if has(n.left, k) then x.rt - 1 else x.rt))) :: go(rest, k + 1)
+    end in
+  go(ss, 0);
+let lift2 : ([Slot], [Near], Int, Int) -> [Slot] = fun (ss, near, a, b) -> lift(lift(ss, a, near_at(near, a)), b, near_at(near, b));
+# the slots given faces (out: a face for each place; -1 where none) #
+let with_faces : ([Slot], [Int]) -> [Slot] = fun (ss, fs) ->
+  case ss | [] => [] | x :: rest => (case fs | [] => [] | f :: more => (face = f, up = x.up, lf = x.lf, rt = x.rt) :: with_faces(rest, more) end) end;
+# ---- Faces: what matches what #
+let key : Int -> Int = fun f -> if f < 34 then f else if f < 38 then 34 else 38;
+# the pairs free to take: two free places whose tiles match, each pair once #
+let pairs_of : [Slot] -> [Pair] = fun ss ->
+  let cat_pr : ([Pair], [Pair]) -> [Pair] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat_pr(rest, ys) end in
+  let fk : ([Slot], Int) -> [(Int, Int)] = fun (xs, i) -> case xs | [] => [] | x :: rest => if is_free(x) && x.face >= 0 then (i, key(x.face)) :: fk(rest, i + 1) else fk(rest, i + 1) end in
+  let with : (Int, Int, [(Int, Int)]) -> [Pair] = fun (a, ka, bs) -> case bs | [] => [] | (b, kb) :: rest => if ka == kb then (a = a, b = b) :: with(a, ka, rest) else with(a, ka, rest) end in
+  let go : [(Int, Int)] -> [Pair] = fun xs -> case xs | [] => [] | (a, ka) :: rest => cat_pr(with(a, ka, rest), go(rest)) end in
+  go(fk(ss, 0));
+# ---- Chance: the page gives a seed (1 to 2147483646), and the rules draw from it, so a deal can be made again from its number #
+# a remainder (Hazel has no % of its own) #
+let modulo : (Int, Int) -> Int = fun (a, b) -> a - b * (a / b);
+let next : Int -> Int = fun r -> modulo(r * 16807, 2147483647);
+let stream : (Int, Int) -> [Int] = fun (r, n) -> if n <= 0 then [] else next(r) :: stream(next(r), n - 1);
+# a list put in a random order: each item given a number from the stream as its key, and sorted by the keys (a merge sort) #
+let shuffled : ([Int], Int) -> [Int] = fun (xs, seed) ->
+  let keyed : ([Int], [Int]) -> [(Int, Int)] = fun (ys, rs) -> case ys | [] => [] | y :: rest => (case rs | [] => (0, y) :: keyed(rest, []) | r :: more => (r, y) :: keyed(rest, more) end) end in
+  let merge : ([(Int, Int)], [(Int, Int)]) -> [(Int, Int)] = fun (ys, zs) ->
+    case ys | [] => zs | (a, y) :: yr => (case zs | [] => ys | (b, z) :: zr => if a <= b then (a, y) :: merge(yr, zs) else (b, z) :: merge(ys, zr) end) end in
+  let halves : ([(Int, Int)], [(Int, Int)], [(Int, Int)]) -> ([(Int, Int)], [(Int, Int)]) = fun (ys, l, r) -> case ys | [] => (l, r) | y :: rest => halves(rest, r, y :: l) end in
+  let msort : [(Int, Int)] -> [(Int, Int)] = fun ys ->
+    case ys | [] => [] | y :: rest => (case rest | [] => [y] | _ :: _ => (let (l, r) = halves(ys, [], []) in merge(msort(l), msort(r))) end) end in
+  let untag : [(Int, Int)] -> [Int] = fun ys -> case ys | [] => [] | (_, y) :: rest => y :: untag(rest) end in
+  untag(msort(keyed(xs, stream(seed, len(xs)))));
+let count_to : Int -> [Int] = fun n -> let go : Int -> [Int] = fun i -> if i >= n then [] else i :: go(i + 1) in go(0);
+let cat_i : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat_i(rest, ys) end;
+# ---- Dealing so that a game can be won: play the places from full, two free places at a time (picked by chance), and give each pair taken the next pair of faces; taking those pairs in that order then wins. A play from full can stick (one tile free, on another): then it starts again on the next numbers #
+# the faces as pairs: given faces sorted like by like, the pairs (by number) in a random order #
+let pair_faces : ([Int], [Int]) -> [Int] = fun (fs, order) -> case order | [] => [] | p :: rest => at(fs, 2 * p) :: at(fs, 2 * p + 1) :: pair_faces(fs, rest) end;
+# play from the slots ss, two free places at a time, the faces given to those places into out; [] if it stuck #
+let unplay : ([Slot], [Near], [Int], [Int], Int) -> [Int] = fun (ss, near, faces, out, r) ->
+  case faces
+  | [] => out
+  | f1 :: frest =>
+    (case frest
+     | [] => []
+     | f2 :: fs =>
+       let free = frees(ss) in
+       let m = len(free) in
+       if m < 2 then [] else
+       let r1 = next(r) in
+       let r2 = next(r1) in
+       let a = at(free, modulo(r1, m)) in
+       let b = at(drop(free, a), modulo(r2, m - 1)) in
+       unplay(lift2(ss, near, a, b), near, fs, set(set(out, a, f1), b, f2), r2)
+     end)
+  end;
+# deal the faces fs (sorted like by like) to the places of ss that have a tile, trying up to 40 times; at the last, the faces in order (a game that may not come out) #
+let redeal : ([Slot], [Near], [Int], Int, Int) -> [Int] = fun (ss, near, fs, seed, k) ->
+  let none : [Slot] -> [Int] = fun xs -> case xs | [] => [] | _ :: rest => (0 - 1) :: none(rest) end in
+  let fill : ([Slot], [Int]) -> [Int] = fun (xs, gs) -> case xs | [] => [] | x :: rest => (if x.face == 0 - 1 then (0 - 1) :: fill(rest, gs) else (case gs | [] => (0 - 1) :: fill(rest, []) | g :: more => g :: fill(rest, more) end)) end in
+  let faces = pair_faces(fs, shuffled(count_to(len(fs) / 2), seed)) in
+  let out = unplay(ss, near, faces, none(ss), next(next(seed))) in
+  case out | [] => (if k >= 40 then fill(ss, faces) else redeal(ss, near, fs, next(seed + 7919), k + 1)) | _ => out end;
+# a new game on layout k from a seed: every face, like by like, dealt so that it can be won #
+let deal : (Int, Int) -> Game = fun (k, seed) ->
+  let near = nears(layout(k)) in
+  let ss = fresh(near) in
+  let fs : Int -> [Int] = fun i -> if i >= 144 then [] else (if i < 136 then i / 4 else 34 + (i - 136)) :: fs(i + 1) in
+  (layout = k, slots = with_faces(ss, redeal(ss, near, fs(0), seed, 0)), near = near);
+# ---- Playing #
+let faces_of : [Slot] -> [Int] = fun ss -> case ss | [] => [] | x :: rest => x.face :: faces_of(rest) end;
+# take the tiles at places a and b, if both are free and they match; else the game as it was #
+let take : (Game, Int, Int) -> Game = fun (g, a, b) ->
+  let sa = slot_at(g.slots, a) in
+  let sb = slot_at(g.slots, b) in
+  if !(a == b) && is_free(sa) && is_free(sb) && sa.face >= 0 && sb.face >= 0 && key(sa.face) == key(sb.face)
+  then (layout = g.layout, slots = lift2(g.slots, g.near, a, b), near = g.near) else g;
+let free_places : Game -> [Int] = fun g -> frees(g.slots);
+let pairs : Game -> [Pair] = fun g -> pairs_of(g.slots);
+let won : Game -> Bool = fun g -> case drop(faces_of(g.slots), 0 - 1) | [] => true | _ => false end;
+# a shuffle of the tiles still out: their faces paired again, like with like, and dealt again to the same places so that the game can be won #
+let shuffle : (Game, Int) -> Game = fun (g, seed) ->
+  let left = drop(faces_of(g.slots), 0 - 1) in
+  let only : ([Int], Int) -> [Int] = fun (fs, k) -> case fs | [] => [] | f :: rest => if key(f) == k then f :: only(rest, k) else only(rest, k) end in
+  let sorted : [Int] -> [Int] = fun ks -> case ks | [] => [] | k :: rest => cat_i(only(left, k), sorted(rest)) end in
+  (layout = g.layout, slots = with_faces(g.slots, redeal(g.slots, g.near, sorted(cat_i(count_to(34), [34, 38])), seed, 0)), near = g.near);
+# Hazel's choice of a pair, for a clue or for playing: of the pairs free to take, the one that leaves the most free places and pairs after it, and takes from a stack (a pair that wins, first; one that leaves none, last); none (a = -1) when no pair is free #
+let best : Game -> Pair = fun g ->
+  let len_pr : [Pair] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len_pr(rest) end in
+  let worth : Pair -> Int = fun p ->
+    let s2 = lift2(g.slots, g.near, p.a, p.b) in
+    case drop(faces_of(s2), 0 - 1)
+    | [] => 1000000
+    | _ =>
+      (case pairs_of(s2)
+       | [] => 0 - 1000000
+       | ps => 10 * len(frees(s2)) + 3 * len_pr(ps) + 4 * (len(near_at(g.near, p.a).below) + len(near_at(g.near, p.b).below))
+       end)
+    end in
+  let go : ([Pair], Pair, Int) -> Pair = fun (ps, top, v) -> case ps | [] => top | p :: rest => (let w = worth(p) in if w > v then go(rest, p, w) else go(rest, top, v)) end in
+  go(pairs(g), (a = 0 - 1, b = 0 - 1), 0 - 2000000)

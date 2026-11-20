@@ -1,0 +1,12 @@
+# Mahjong solitaire's vocabulary, which the module sees #
+# A tile's face is a number: 0 to 33 as in Mahjong (dots 1 to 9 are 0 to 8, bamboo 9 to 17, characters 18 to 26, the winds east, south, west, north 27 to 30, the dragons red, green, white 31 to 33), four of each; 34 to 37 the four flowers and 38 to 41 the four seasons, one of each: 144 in all. Two tiles match when their faces are the same, or both are flowers, or both are seasons #
+# A place in a layout: its column and its row, each in halves of a tile (a tile is 2 across and 2 down, so one can sit half way between two), and its layer, 0 on the table #
+type Place = (x = Int, y = Int, z = Int) in
+# A place's neighbours, by their numbers in the layout: the places on the layer above that cover it, those below that it covers, and the places beside it on its left and on its right #
+type Near = (above = [Int], below = [Int], left = [Int], right = [Int]) in
+# A place's slot: its tile's face (-1 once taken), and how many tiles are still on it, on its left and on its right (a taking counts its neighbours' down, so a place is free when it has a tile, none on it, and none on one side) #
+type Slot = (face = Int, up = Int, lf = Int, rt = Int) in
+# A game: its layout (by number), each place's slot, and each place's neighbours (worked out once, when the game is dealt) #
+type Game = (layout = Int, slots = [Slot], near = [Near]) in
+# Two places, a pair to take (a = -1: none) #
+type Pair = (a = Int, b = Int) in
