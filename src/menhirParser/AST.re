@@ -789,7 +789,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
               } else {
                 return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
               }
-            | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
+            | SInt(i) =>
+              if (Bigint.(<)(Bigint.abs(i), Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(Atom(SInt(Bigint.(/)(i, Bigint.of_int(2)))));
+              }
             | _ => Iter.empty
             }
           )
@@ -1207,7 +1212,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
               } else {
                 return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
               }
-            | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
+            | SInt(i) =>
+              if (Bigint.(<)(Bigint.abs(i), Bigint.of_int(2))) {
+                Iter.empty;
+              } else {
+                return(AtomPat(SInt(Bigint.(/)(i, Bigint.of_int(2)))));
+              }
             | _ => Iter.empty
             }
           )

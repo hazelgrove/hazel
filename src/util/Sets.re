@@ -6,8 +6,8 @@ module IntSet =
 
 module SIntSet =
   Stdlib.Set.Make({
-    type t = int;
-    let compare = Int.compare;
+    type t = Bigint.t;
+    let compare = Bigint.compare;
   });
 
 module BoolSet =

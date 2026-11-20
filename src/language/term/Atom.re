@@ -15,7 +15,7 @@ type cls =
    us to use the ocaml type checker to check we're using payloads correctly */
 type kind('a) =
   | Int: kind(Bigint.t)
-  | SInt: kind(int)
+  | SInt: kind(Bigint.t)
   | Nat: kind(Bigint.t)
   | Float: kind(float)
   | Bool: kind(bool)
@@ -24,7 +24,7 @@ type kind('a) =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Int(Bigint.t)
-  | SInt(int)
+  | SInt(Bigint.t)
   | Nat(Bigint.t)
   | Float
       // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
@@ -123,16 +123,22 @@ let (let.cls) = (type b, cls: cls, f: cls_wrapper => b): b =>
 
 /* ========== CONVERSION ========== */
 
+/* An SInt has 64 bits everywhere: its values are [-2^63, 2^63 - 1]. It is held in a Bigint, as an Int is, because an
+   OCaml int cannot hold 64 bits: it has 32 in the browser (js_of_ocaml) and 63 natively, and before, SInt wrapped
+   silently at whichever width ran it (2147483647 + 1 was -2147483648 in the browser). A value made into an SInt, and
+   each SInt operation's result (Operators), is checked against that range; outside it is an error, never a wrap. */
+let sint_max = Bigint.(pow(of_int(2), of_int(63)) - one);
+let sint_min = Bigint.(neg(pow(of_int(2), of_int(63))));
+let sint_fits = (n: Bigint.t): bool =>
+  Bigint.(n >= sint_min) && Bigint.(n <= sint_max);
+
 let convert =
     (type a, type b, from: kind(a), to_: kind(b), v: a)
     : result(b, InvalidOperationError.t) => {
   switch (from, to_) {
   | (Int, Int) => Ok(v)
   | (Int, SInt) =>
-    switch (Bigint.to_int(v)) {
-    | Some(i) => Ok(i)
-    | None => Error(InvalidOperationError.IntegerTooBig)
-    }
+    sint_fits(v) ? Ok(v) : Error(InvalidOperationError.IntegerTooBig)
   | (Int, Nat) =>
     Bigint.(v < zero) ? Error(InvalidOperationError.NegativeNat) : Ok(v)
   | (Int, Float) => Ok(Bigint.to_float(v))
@@ -140,26 +146,30 @@ let convert =
   | (Int, String) => Ok(Bigint.to_string(v))
 
   | (SInt, SInt) => Ok(v)
-  | (SInt, Int) => Ok(Bigint.of_int(v))
+  | (SInt, Int) => Ok(v)
   | (SInt, Nat) =>
-    v < 0 ? Error(InvalidOperationError.NegativeNat) : Ok(Bigint.of_int(v))
-  | (SInt, Bool) => Ok(v != 0)
-  | (SInt, Float) => Ok(float_of_int(v))
-  | (SInt, String) => Ok(string_of_int(v))
+    Bigint.(v < zero) ? Error(InvalidOperationError.NegativeNat) : Ok(v)
+  | (SInt, Bool) => Ok(!Bigint.equal(v, Bigint.zero))
+  | (SInt, Float) => Ok(Bigint.to_float(v))
+  | (SInt, String) => Ok(Bigint.to_string(v))
 
   | (Nat, Nat) => Ok(v)
   | (Nat, SInt) =>
-    switch (Bigint.to_int(v)) {
-    | Some(i) => Ok(i)
-    | None => Error(InvalidOperationError.IntegerTooBig)
-    }
+    sint_fits(v) ? Ok(v) : Error(InvalidOperationError.IntegerTooBig)
   | (Nat, Int) => Ok(v)
   | (Nat, Bool) => Ok(!Bigint.equal(v, Bigint.zero))
   | (Nat, Float) => Ok(Bigint.to_float(v))
   | (Nat, String) => Ok(Bigint.to_string(v))
 
   | (Float, Float) => Ok(v)
-  | (Float, SInt) => Ok(int_of_float(v))
+  | (Float, SInt) =>
+    /* truncated toward zero; NaN and the infinities do not fit */
+    if (Float.is_finite(v)) {
+      let n = Bigint.of_float(Float.round_towards_zero(v));
+      sint_fits(n) ? Ok(n) : Error(InvalidOperationError.IntegerTooBig);
+    } else {
+      Error(InvalidOperationError.IntegerTooBig);
+    }
   | (Float, Int) => Ok(Bigint.of_float(v))
   | (Float, Nat) =>
     Float.(v < 0.0)
@@ -168,7 +178,7 @@ let convert =
   | (Float, String) => Ok(string_of_float(v))
 
   | (Bool, Bool) => Ok(v)
-  | (Bool, SInt) => Ok(v ? 1 : 0)
+  | (Bool, SInt) => Ok(v ? Bigint.one : Bigint.zero)
   | (Bool, Nat) => Ok(v ? Bigint.one : Bigint.zero)
   | (Bool, Int) => Ok(v ? Bigint.one : Bigint.zero)
   | (Bool, Float) => Ok(v ? 1.0 : 0.0)
@@ -176,8 +186,9 @@ let convert =
 
   | (String, String) => Ok(v)
   | (String, SInt) =>
-    switch (int_of_string_opt(v)) {
-    | Some(i) => Ok(i)
+    switch (Bigint.of_string_opt(v)) {
+    | Some(i) =>
+      sint_fits(i) ? Ok(i) : Error(InvalidOperationError.IntegerTooBig)
     | None => Error(InvalidOperationError.InvalidOfString)
     }
   | (String, Int) =>
@@ -208,7 +219,7 @@ let to_literal = (e: t): string =>
   switch (e) {
   | Int(i) => i |> Bigint.to_string
   | Nat(i) => i |> Bigint.to_string
-  | SInt(i) => i |> string_of_int
+  | SInt(i) => i |> Bigint.to_string
   | Float(f) => sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
@@ -238,7 +249,7 @@ type compare_entry =
 let compare_of_cls: cls => option(compare_entry) =
   fun
   | Int => Some(Cmp(Int, Bigint.compare))
-  | SInt => Some(Cmp(SInt, Int.compare))
+  | SInt => Some(Cmp(SInt, Bigint.compare))
   | Nat => Some(Cmp(Nat, Bigint.compare))
   | Float => Some(Cmp(Float, Float.compare))
   | String => Some(Cmp(String, String.compare))

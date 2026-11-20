@@ -46,15 +46,15 @@ let int_exp = (n: Bigint.t): form => {
 };
 let int_exps = (i: Bigint.t): group => singleton(int_exp(i));
 
-let sint_exp = (n: int): form => {
+let sint_exp = (n: Bigint.t): form => {
   id: SIntExp,
-  syntactic_form: [n |> string_of_int |> exp],
+  syntactic_form: [n |> Bigint.to_string |> exp],
   colorings: [],
   expandable_id: None,
   explanation: "A system integer literal.",
   examples: [],
 };
-let sint_exps = (i: int): group => singleton(sint_exp(i));
+let sint_exps = (i: Bigint.t): group => singleton(sint_exp(i));
 
 let nat_exp = (n: Bigint.t): form => {
   id: NatExp,

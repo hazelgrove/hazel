@@ -12,16 +12,16 @@ let wild_pat: form = {
   };
 };
 
-let sintlit_pat = (i: int): form => {
+let sintlit_pat = (i: Bigint.t): form => {
   id: SIntPat,
-  syntactic_form: [i |> string_of_int |> abbreviate |> pat],
+  syntactic_form: [i |> Bigint.to_string |> abbreviate |> pat],
   colorings: [],
   expandable_id: None,
   explanation:
     sprintf(
-      "Only expressions with value `%i` match the *`%i` pattern*.",
-      i,
-      i,
+      "Only expressions with value `%s` match the *`%s` pattern*.",
+      Bigint.to_string(i),
+      Bigint.to_string(i),
     ),
   examples: [],
 };
@@ -127,7 +127,7 @@ let wild: group = {
 
 let intlit = (i: Bigint.t): group =>
   singleton(intlit_pat(i |> Bigint.to_string));
-let sintlit = (i: int): group => singleton(sintlit_pat(i));
+let sintlit = (i: Bigint.t): group => singleton(sintlit_pat(i));
 
 let floatlit = (f: float): group => singleton(floatlit_pat(f));
 
