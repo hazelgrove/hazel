@@ -49,7 +49,7 @@ let opened: t =
     selected_idx: 0,
     path: [],
   });
-let is_open = (m: t): bool => m != None;
+let is_open = (m: t): bool => Option.is_some(m);
 let path = (m: t): list(string) =>
   switch (m) {
   | None => []
@@ -125,10 +125,11 @@ let rec items_at =
   | [] => items
   | [name, ...rest] =>
     let child =
-      List.find_opt(
-        fun
-        | Submenu({label, _}) => label == name
-        | _ => false,
+      List.find(
+        ~f=
+          fun
+          | Submenu({label, _}) => String.equal(label, name)
+          | _ => false,
         items,
       );
     switch (child) {
@@ -175,7 +176,7 @@ let rec to_visible = (it: item('a)): visible_item('a) =>
       tooltip,
       submenu_name: label,
     })
-  | Inline(items) => VInline(List.map(to_visible, items))
+  | Inline(items) => VInline(List.map(~f=to_visible, items))
   | Divider => VDivider
   };
 
@@ -184,8 +185,8 @@ let rec to_visible = (it: item('a)): visible_item('a) =>
 let visible_layout =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let p = path(model);
-  let here = items_at(p, items) |> List.map(to_visible);
-  p == [] ? here : [VBack, ...here];
+  let here = items_at(p, items) |> List.map(~f=to_visible);
+  List.is_empty(p) ? here : [VBack, ...here];
 };
 
 /* The same rows in selection order: inline groups spliced in, which is
@@ -194,10 +195,11 @@ let visible_items =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let rec flatten = vs =>
     List.concat_map(
-      fun
-      | VInline(vs) => flatten(vs)
-      | v => [v],
       vs,
+      ~f=
+        fun
+        | VInline(vs) => flatten(vs)
+        | v => [v],
     );
   flatten(visible_layout(~items, model));
 };
@@ -205,14 +207,15 @@ let visible_items =
 /* Split at dividers, dropping them. */
 let sections = (vs: list(visible_item('a))): list(list(visible_item('a))) =>
   List.fold_right(
-    (v, acc) =>
-      switch (v, acc) {
-      | (VDivider, _) => [[], ...acc]
-      | (v, [section, ...rest]) => [[v, ...section], ...rest]
-      | (v, []) => [[v]]
-      },
     vs,
-    [[]],
+    ~f=
+      (v, acc) =>
+        switch (v, acc) {
+        | (VDivider, _) => [[], ...acc]
+        | (v, [section, ...rest]) => [[v, ...section], ...rest]
+        | (v, []) => [[v]]
+        },
+    ~init=[[]],
   );
 
 let is_visible_selectable = (v: visible_item('a)): bool =>
@@ -225,7 +228,7 @@ let is_visible_selectable = (v: visible_item('a)): bool =>
   };
 
 let count_selectable_visible = (vs: list(visible_item('a))): int =>
-  List.fold_left((n, v) => is_visible_selectable(v) ? n + 1 : n, 0, vs);
+  List.count(vs, ~f=is_visible_selectable);
 
 let nth_selectable_visible =
     (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
@@ -397,7 +400,7 @@ let render =
   /* Only selectable rows take an index (disabled ones don't), matching
      nth_selectable_visible, which the keyboard path resolves through. */
   let rec view_all = (sel_idx, vs) => {
-    let (sel_idx, nodes) = List.fold_left_map(view_one, sel_idx, vs);
+    let (sel_idx, nodes) = List.fold_map(vs, ~init=sel_idx, ~f=view_one);
     (sel_idx, List.concat(nodes));
   }
   and view_one = (sel_idx, v) =>
@@ -463,12 +466,13 @@ let render =
     };
   let layout = visible_layout(~items, model);
   if (sheet) {
-    let (_, groups) = List.fold_left_map(view_all, 0, sections(layout));
+    let (_, groups) = List.fold_map(sections(layout), ~init=0, ~f=view_all);
     List.filter_map(
-      fun
-      | [] => None
-      | nodes => Some(Node.div(~attrs=[clss(["menu-group"])], nodes)),
       groups,
+      ~f=
+        fun
+        | [] => None
+        | nodes => Some(Node.div(~attrs=[clss(["menu-group"])], nodes)),
     );
   } else {
     snd(view_all(0, layout));
@@ -507,7 +511,8 @@ let handle_key =
         MenuUpdate(EnterSubmenu(submenu_name))
       | _ => Unhandled
       }
-    | Key.D("ArrowLeft") => path == [] ? Unhandled : MenuUpdate(BackSubmenu)
+    | Key.D("ArrowLeft") =>
+      List.is_empty(path) ? Unhandled : MenuUpdate(BackSubmenu)
     | Key.D("Enter") =>
       switch (selected_item) {
       | Some(VAction({enabled: true, action, _})) => RunAction(action)
@@ -596,8 +601,8 @@ let space_from =
 let direction_of =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
-  vertical: space.below >= menu_height ? `Down : `Up,
-  horizontal: space.right >= menu_width ? `Right : `Left,
+  vertical: Float.(space.below >= menu_height) ? `Down : `Up,
+  horizontal: Float.(space.right >= menu_width) ? `Right : `Left,
 };
 
 let direction_from_elem =

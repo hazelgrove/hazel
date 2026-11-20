@@ -7,7 +7,7 @@ open Util;
 /* Viewport culling for projectors/refractors.
  * None = no culling (all visible), Some(range) = only show in range */
 module VisibleRows = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     first: int,
     last: int,

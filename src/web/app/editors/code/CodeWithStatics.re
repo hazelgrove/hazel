@@ -1,5 +1,6 @@
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -69,7 +70,7 @@ module Model = {
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
-      |> Option.map(({piece, _}: Indicated.piece) => piece),
+      |> Option.map(~f=({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
         () => {
@@ -124,7 +125,7 @@ module StaticsDebounce = {
       | None => ()
       };
       Force;
-    } else if (is_edited && debounce_ms > 0.0) {
+    } else if (is_edited && Float.(debounce_ms > 0.0)) {
       switch (timer_id^) {
       | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
       | None => ()
@@ -190,7 +191,7 @@ module Update = {
         && editor.root == Sort.Exp
           ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
       ) {
-      | Some(st) when stitch(st.term) === st.term => st
+      | Some(st) when phys_equal(stitch(st.term), st.term) => st
       | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>

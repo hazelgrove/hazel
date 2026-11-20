@@ -11,11 +11,12 @@ let zipper = (acts: list(Action.t)): Zipper.t =>
 let labels = (items: list(Util.Menu.item(_))): list(string) =>
   items
   |> List.filter_map(
-       fun
-       | Util.Menu.Action({label, _}) => Some(label)
-       | Submenu(_)
-       | Inline(_)
-       | Divider => None,
+       ~f=
+         fun
+         | Util.Menu.Action({label, _}) => Some(label)
+         | Submenu(_)
+         | Inline(_)
+         | Divider => None,
      );
 
 let tests = [
