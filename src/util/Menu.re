@@ -176,7 +176,7 @@ let rec to_visible = (it: item('a)): visible_item('a) =>
       tooltip,
       submenu_name: label,
     })
-  | Inline(items) => VInline(List.map(to_visible, items))
+  | Inline(items) => VInline(List.map(~f=to_visible, items))
   | Divider => VDivider
   };
 
@@ -195,10 +195,11 @@ let visible_items =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let rec flatten = vs =>
     List.concat_map(
-      fun
-      | VInline(vs) => flatten(vs)
-      | v => [v],
       vs,
+      ~f=
+        fun
+        | VInline(vs) => flatten(vs)
+        | v => [v],
     );
   flatten(visible_layout(~items, model));
 };
@@ -206,14 +207,15 @@ let visible_items =
 /* Split at dividers, dropping them. */
 let sections = (vs: list(visible_item('a))): list(list(visible_item('a))) =>
   List.fold_right(
-    (v, acc) =>
-      switch (v, acc) {
-      | (VDivider, _) => [[], ...acc]
-      | (v, [section, ...rest]) => [[v, ...section], ...rest]
-      | (v, []) => [[v]]
-      },
     vs,
-    [[]],
+    ~f=
+      (v, acc) =>
+        switch (v, acc) {
+        | (VDivider, _) => [[], ...acc]
+        | (v, [section, ...rest]) => [[v, ...section], ...rest]
+        | (v, []) => [[v]]
+        },
+    ~init=[[]],
   );
 
 let is_visible_selectable = (v: visible_item('a)): bool =>
@@ -398,7 +400,7 @@ let render =
   /* Only selectable rows take an index (disabled ones don't), matching
      nth_selectable_visible, which the keyboard path resolves through. */
   let rec view_all = (sel_idx, vs) => {
-    let (sel_idx, nodes) = List.fold_left_map(view_one, sel_idx, vs);
+    let (sel_idx, nodes) = List.fold_map(vs, ~init=sel_idx, ~f=view_one);
     (sel_idx, List.concat(nodes));
   }
   and view_one = (sel_idx, v) =>
@@ -464,12 +466,13 @@ let render =
     };
   let layout = visible_layout(~items, model);
   if (sheet) {
-    let (_, groups) = List.fold_left_map(view_all, 0, sections(layout));
+    let (_, groups) = List.fold_map(sections(layout), ~init=0, ~f=view_all);
     List.filter_map(
-      fun
-      | [] => None
-      | nodes => Some(Node.div(~attrs=[clss(["menu-group"])], nodes)),
       groups,
+      ~f=
+        fun
+        | [] => None
+        | nodes => Some(Node.div(~attrs=[clss(["menu-group"])], nodes)),
     );
   } else {
     snd(view_all(0, layout));

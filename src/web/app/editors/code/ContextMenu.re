@@ -584,14 +584,14 @@ let sheet_heading =
   let excerpt = (z: Zipper.t): option(string) =>
     switch (
       Printer.selected_text(z)
-      |> String.split_on_char('\n')
-      |> List.map(String.trim)
-      |> List.filter(line => line != "")
+      |> String.split(~on='\n')
+      |> List.map(~f=String.strip)
+      |> List.filter(~f=line => line != "")
     ) {
     | [] => None
     | lines =>
       Some(
-        String.concat(" ", lines)
+        String.concat(~sep=" ", lines)
         |> StringUtil.abbreviate(sheet_excerpt_length),
       )
     };
@@ -600,7 +600,7 @@ let sheet_heading =
     | [_, ..._] => ("Selection", excerpt(z))
     | [] => (
         Indicated.ci_of(z, info_map)
-        |> Option.map(Language.Info.cls_label)
+        |> Option.map(~f=Language.Info.cls_label)
         |> Option.value(~default="Code"),
         Select.current_term(
           syntax.term_data,
@@ -638,7 +638,7 @@ let view =
     )
     : Node.t => {
   let items = get_all_items(~info_map, ~elaborated, z);
-  if (items == []) {
+  if (List.is_empty(items)) {
     div([]);
   } else if (JsUtil.coarse_pointer()) {
     ActionSheet.view(
