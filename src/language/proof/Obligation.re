@@ -34,7 +34,11 @@ type kind =
   | Citation
   /* An `algebra` step the CAS can't verify: the goal equals what it is
    * rewritten to. */
-  | Algebra;
+  | Algebra
+  /* `!!e` for a term the step needs to be standard (a cited rule's
+   * instantiation, a split's scrutinee) that the standardness routine
+   * can't reduce to conditions. */
+  | Standardness;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {

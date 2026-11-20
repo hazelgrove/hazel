@@ -413,8 +413,7 @@ let exits_ctx = (f: Test_StepperView.Fixture.t): Exits.ctx => {
   program: f.theorem.program,
 };
 
-/* Every exit enabled writes a proof the checker marks nowhere. `f` is
- * possibly divergent, so a split on `f(y) != 0` is refused. */
+/* Every exit enabled writes a proof the checker marks nowhere. */
 let test_exits_write_unmarked_proofs = () =>
   List.iter(
     ~f=
