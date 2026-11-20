@@ -84,7 +84,8 @@ module Model = {
     },
     sidebar: {
       panel: TaskReference,
-      show: true,
+      /* a phone's panel overlays the editor (style.css), so it starts closed */
+      show: Util.JsUtil.can_hover(),
       problems: {
         collapsed: [],
         collapsed_editors: [],
