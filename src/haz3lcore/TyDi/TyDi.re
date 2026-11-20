@@ -60,10 +60,10 @@ let suggest_entry_labels = (ci: Info.t): list(t) => {
     };
   let entries = (labels, strategy) =>
     labels
-    |> List.filter(label =>
+    |> List.filter(~f=label =>
          String.equal(Token.quote_label_when_necessary(label), label)
        )
-    |> List.map(label =>
+    |> List.map(~f=label =>
          {
            content: label ++ "=",
            strategy,
@@ -119,10 +119,11 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       @ TyDiCtx.suggest_lookahead_variable(ci)
       |> List.sort(~compare=TyDiSuggestion.compare);
     let operators =
-      TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
+      TyDiForms.suggest_operator(ci)
+      |> List.sort(~compare=TyDiSuggestion.compare);
     /* An expected label is the most specific signal there is */
     let entry_labels =
-      suggest_entry_labels(ci) |> List.sort(TyDiSuggestion.compare);
+      suggest_entry_labels(ci) |> List.sort(~compare=TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
       suggest_witnesses(z)
