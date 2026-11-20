@@ -30,6 +30,13 @@
   flex-grow: 1;
 }
 
+.proof-step-landing {
+  position: relative;
+  z-index: var(--stepper-interactive-z);
+  background-color: var(--cell-result);
+  pointer-events: none;
+}
+
 .stepper-controls {
   display: flex;
   flex-direction: row;

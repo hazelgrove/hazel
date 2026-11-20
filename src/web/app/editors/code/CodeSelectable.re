@@ -104,5 +104,8 @@ module View = {
     };
 
   let view = (~edit_mode) =>
-    CodeEditable.View.view(~edit_mode=wrap_edit_mode(edit_mode));
+    CodeEditable.View.view(
+      ~allow_source_refactors=false,
+      ~edit_mode=wrap_edit_mode(edit_mode),
+    );
 };
