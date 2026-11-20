@@ -76,7 +76,7 @@ type delimited_breaks = {
 };
 let delimited_breaks = (t: Tile.t, body: Segment.t): delimited_breaks =>
   switch (t.form) {
-  | Compound(ModBody) when List.exists(Piece.is_semi, body) => {
+  | Compound(ModBody) when List.exists(~f=Piece.is_semi, body) => {
       edge: HardBreak,
       soft_semis: false,
       content: d => Group(d),
