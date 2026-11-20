@@ -277,15 +277,16 @@ let rec at_same_position =
   };
 
 /* The patterns binding variables around the node with id `id` in `e`,
- * outermost first: the parameters of the `fun`s, `fix`es and `forall`s
- * it is inside, the patterns of the `let`s whose body it is in, and of
- * the case arms it is in. Empty if `id` isn't in `e`. */
-let binders = (id: Id.t, e: Exp.t): list(Pat.t) => {
-  let rec go = (outer: list(Pat.t), e: Exp.t): option(list(Pat.t)) =>
+ * outermost first, each with the form that binds it: the parameters of
+ * the `fun`s, `fix`es and `forall`s it is inside, the patterns of the
+ * `let`s whose body it is in, and of the case arms it is in. Empty if
+ * `id` isn't in `e`. */
+let binders = (id: Id.t, e: Exp.t): list((Pat.t, Exp.t)) => {
+  let rec go = (outer, e: Exp.t) =>
     if (Id.equal(Exp.rep_id(e), id)) {
       Some(List.rev(outer));
     } else {
-      let under = p => go([p, ...outer]);
+      let under = p => go([(p, e), ...outer]);
       switch (Exp.term_of(e)) {
       | Fun(p, _, _, _)
       | FixF(p, _, _)

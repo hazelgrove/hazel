@@ -50,7 +50,7 @@ let tests =
     Test_Have.tests,
     Test_HypothesisNaming.tests,
     Test_Funext.tests,
-    Test_FunctionTotality.tests,
+    Test_StandardInstantiation.tests,
     Test_Equiv_Inductions.tests,
     Test_ListFoldLibrary.tests,
     Test_Focus.tests,

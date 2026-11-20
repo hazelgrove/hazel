@@ -222,29 +222,17 @@ let tests = (
         ),
       )
     ),
-    /* Both rules apply, so the sum unfolds. It recurses through `monus`,
-       which the totality check doesn't follow, so `refl` at a goal that
-       mentions it is refused: the first mark is on that last step. */
+    /* Both rules apply, so the sum unfolds, and `refl` closes it: `refl`
+       holds at every term. */
     test_case("a sum written with if unfolds at m + 1", `Quick, () =>
       check(
-        bool,
-        "only refl is refused",
-        true,
-        {
-          let (pm, proof) =
-            run_named(
-              "t",
-              "use Nat in let sum = fun (n : Nat) -> if n == 0 then 0 else n + sum(monus(n, 1)) in theorem t = forall m: Nat -> sum(m + 1) == m + 1 + sum(m) proof from sum(m + 1) do step end; from m + 1 == 0 do rewrite nat_succ_ne_zero end end; from if false then 0 else m + 1 + sum(monus(m + 1, 1)) do step end; from monus(m + 1, 1) do rewrite nat_add_sub end end; rewrite refl end in t",
-            );
-          has_mark_kind(
-            pm,
-            proof,
-            fun
-            | ProofMark.PossiblyDivergentInstantiation({equality: "refl", _}) =>
-              true
-            | _ => false,
-          );
-        },
+        string,
+        "Proven",
+        "Proven",
+        status(
+          "t",
+          "use Nat in let sum = fun (n : Nat) -> if n == 0 then 0 else n + sum(monus(n, 1)) in theorem t = forall m: Nat -> sum(m + 1) == m + 1 + sum(m) proof from sum(m + 1) do step end; from m + 1 == 0 do rewrite nat_succ_ne_zero end end; from if false then 0 else m + 1 + sum(monus(m + 1, 1)) do step end; from monus(m + 1, 1) do rewrite nat_add_sub end end; rewrite refl end in t",
+        ),
       )
     ),
   ],
