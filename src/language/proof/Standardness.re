@@ -6,19 +6,21 @@ open Util;
  * `!!e` says that `e` has a value whose parts are standard, and that a
  * function is standard when it gives a standard result on every standard
  * argument. The routine answers `Standard(conditions)`: `e` is standard
- * wherever the boolean `conditions` hold. They are domain conditions as
- * `DomainConditions` states them (`b != 0` for a division), so a step
- * that needs `!!e` incurs the same obligations it would for definedness
- * alone. Otherwise it answers `Unknown(reason)`, and `!!e` is left to be
- * proved.
+ * wherever the boolean `conditions` hold. They are the partial
+ * primitives' conditions, written as `DomainConditions` writes them
+ * (`b != 0` for a division), so a step that needs `!!e` incurs the
+ * obligations it would for definedness alone. Otherwise it answers
+ * `Unknown(reason)`, and `!!e` is left to be proved.
  *
  * Standard:
  *   - a variable the caller says is standard (a quantified binder), or
  *     one bound inside `e` to something standard;
  *   - literals, constructors, and tuples, lists and labels of standard
  *     parts;
- *   - an operator on standard operands of its type, total or with its
- *     domain condition;
+ *   - a total operator on standard operands of its type;
+ *   - a partial primitive, `a / b` or `int_mod(a, b)`, through its rule in
+ *     `Axioms.standard_primitives`, `!!(a / b) == (b != 0)`: the rule a
+ *     proof cites, its condition left as the routine's;
  *   - `if`, `let`, and a `case` that covers its scrutinee's type, whose
  *     parts are standard;
  *   - a lambda whose body is standard for every standard argument with no
@@ -28,8 +30,7 @@ open Util;
  *     the argument; a structurally recursive function applied, through
  *     its body with its recursive calls standard, by induction on the
  *     argument;
- *   - a primitive builtin that is total, or whose domain condition is
- *     known;
+ *   - a total primitive builtin;
  *   - `forall x -> p` with `p` standard for every standard `x`. Only this
  *     way round: a forall can be standard when its body isn't;
  *   - `!!e` for a standard `e`.
@@ -49,8 +50,8 @@ type verdict =
   | Unknown(string);
 
 /* Primitive builtins that are total on standard arguments of their
- * types. The partial ones with a known domain condition are in
- * `DomainConditions.builtin_conditions`, and any other is Unknown. */
+ * types. A partial one is standard through its rule in
+ * `Axioms.standard_primitives`, if it has one. */
 let total_builtins = [
   "abs",
   "abs_float",
@@ -81,15 +82,6 @@ let total_builtins = [
   "string_uncapitalize",
   "fst",
   "snd",
-];
-
-let partial_builtins = [
-  "int_mod",
-  "sint_mod",
-  "nat_mod",
-  "float_mod",
-  "int_of_float",
-  "sint_of_float",
 ];
 
 /* What the walk knows about the names bound inside `e`: each is standard,
@@ -425,7 +417,94 @@ let check =
   };
   let outside_domain = (name: string) =>
     Error("the argument to " ++ name ++ " isn't known to be of its domain");
-  let rec go = (scope: scope, e: Exp.t): result(list(Exp.t), string) => {
+  /* The rule in `Axioms.standard_primitives` for the partial primitive
+   * `e` applies, with the rule's binders and their instantiation. A
+   * builtin's name counts only where it still names the builtin. */
+  let primitive_rule = (e: Exp.t) => {
+    let names_builtin = (x: Var.t) =>
+      switch (Environment.lookup(env, x)) {
+      | Some({term: BuiltinFun(y), _}) => String.equal(x, y)
+      | Some(_) => false
+      | None => is_builtin(x)
+      };
+    let rec unify = (binders, pat: Exp.t, e: Exp.t, instantiation) =>
+      switch (instantiation) {
+      | None => None
+      | Some(bound) =>
+        switch (Exp.term_of(pat), Exp.term_of(e)) {
+        | (_, Parens(e)) => unify(binders, pat, e, instantiation)
+        | (Var(v), _) when List.Assoc.mem(binders, v, ~equal=String.equal) =>
+          switch (List.Assoc.find(bound, v, ~equal=String.equal)) {
+          | Some(e') => Exp.fast_equal(e', e) ? instantiation : None
+          | None => Some([(v, e), ...bound])
+          }
+        | (Var(f), Var(g)) =>
+          String.equal(f, g) && names_builtin(g) ? instantiation : None
+        | (Var(f), BuiltinFun(g)) =>
+          String.equal(f, g) ? instantiation : None
+        | (BinOp(op, p1, p2), BinOp(op', e1, e2))
+            when Operators.equal_op_bin(op, op') =>
+          unify(binders, p2, e2, unify(binders, p1, e1, instantiation))
+        | (Ap(_, p1, p2), Ap(Forward, e1, e2)) =>
+          unify(binders, p2, e2, unify(binders, p1, e1, instantiation))
+        | (Tuple(ps), Tuple(es)) when List.length(ps) == List.length(es) =>
+          List.fold2_exn(
+            ~f=(instantiation, p, e) => unify(binders, p, e, instantiation),
+            ~init=instantiation,
+            ps,
+            es,
+          )
+        | _ => None
+        }
+      };
+    List.find_map(
+      ~f=
+        ((_, binders, application, condition)) =>
+          unify(binders, application, e, Some([]))
+          |> Option.map(~f=instantiation =>
+               (binders, instantiation, condition)
+             ),
+      Axioms.standard_primitives,
+    );
+  };
+  let rec go = (scope: scope, e: Exp.t): result(list(Exp.t), string) =>
+    switch (primitive_rule(e)) {
+    /* Each argument standard and of its binder's type, and the rule's
+     * condition on them. */
+    | Some((binders, instantiation, condition)) =>
+      let* conditions =
+        List.fold_left(
+          ~f=
+            (acc, (v, t)) => {
+              let* acc = acc;
+              let arg =
+                List.Assoc.find_exn(instantiation, v, ~equal=String.equal);
+              switch (type_of(scope, arg)) {
+              | Some(t') when Typ.fast_equal(t, t') =>
+                let+ cs = go(scope, arg);
+                acc @ cs;
+              | _ =>
+                Error(
+                  "an argument isn't known to be " ++ Typ.pretty_print(t),
+                )
+              };
+            },
+          ~init=Ok([]),
+          binders,
+        );
+      Ok(
+        conditions
+        @ [
+          Substitution.in_exp(
+            Substitution.env_for(instantiation, ~into=condition),
+            condition,
+          ),
+        ],
+      );
+    | None => structure(scope, e)
+    }
+  /* `e` judged by its form. */
+  and structure = (scope: scope, e: Exp.t): result(list(Exp.t), string) => {
     let all = es =>
       List.fold_left(
         ~f=
@@ -472,26 +551,9 @@ let check =
     | ListConcat(a, b) =>
       is_list(scope, a) && is_list(scope, b)
         ? all([a, b]) : Error("`@` of something not a list")
-    | BinOp(Int(Divide), a, b) =>
-      let+ cs = operands(Int, a, b);
-      cs @ [DomainConditions.neq_zero(DomainConditions.int_zero(), b)];
-    | BinOp(SInt(Divide), a, b) =>
-      let+ cs = operands(SInt, a, b);
-      cs @ [DomainConditions.neq_zero(DomainConditions.sint_zero(), b)];
-    | BinOp(Nat(Divide), a, b) =>
-      let+ cs = operands(Nat, a, b);
-      cs @ [DomainConditions.neq_zero(DomainConditions.nat_zero(), b)];
-    | BinOp(Int(Power), a, b) =>
-      let+ cs = operands(Int, a, b);
-      cs @ [DomainConditions.geq_zero_int(b)];
-    | BinOp(SInt(Power), a, b) =>
-      let+ cs = operands(SInt, a, b);
-      cs
-      @ [
-        Exp.fresh(
-          BinOp(SInt(GreaterThanOrEqual), b, DomainConditions.sint_zero()),
-        ),
-      ];
+    /* Each matches its rule in `Axioms.standard_primitives` first. */
+    | BinOp(Int(Divide | Power) | SInt(Divide | Power) | Nat(Divide), _, _) =>
+      Error("a partial operator outside its rule")
     /* A natural number below zero is an error, and its condition isn't
      * stated. */
     | BinOp(Nat(Minus), _, _)
@@ -665,20 +727,14 @@ let check =
         instantiate(x, arg, cs);
       | None => go(scope, f)
       }
-    /* A partial builtin's condition has to be one the scan can state,
-     * which needs a tuple argument written out. */
     | BuiltinFun(name) =>
-      let conditions = DomainConditions.builtin_conditions(name, arg);
       if (!fits(scope, ctx_type(name), arg)) {
         outside_domain(name);
       } else if (List.mem(total_builtins, name, ~equal=String.equal)) {
         Ok([]);
-      } else if (List.mem(partial_builtins, name, ~equal=String.equal)
-                 && !List.is_empty(conditions)) {
-        Ok(conditions);
       } else {
         Error("the builtin `" ++ name ++ "` may fail here");
-      };
+      }
     | Var(x)
         when List.mem(scope.bound, x, ~equal=String.equal) || is_standard(x) =>
       fits(scope, type_of(scope, f), arg)

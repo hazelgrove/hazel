@@ -5097,7 +5097,7 @@ and proof_to_info_map =
 };
 
 /* The built-in axioms every program can cite. Their statements are rules
-   in `Axioms.axioms`, hence `prop: None`. The names are copied rather than
+   in `Axioms.v`, hence `prop: None`. The names are copied rather than
    read from there because `Axioms` depends on this module (through
    `ProofCtx` and `ProofRule`); keep the two in sync. */
 let initial_theorems: list(Ctx.theorem_entry) =
@@ -5128,6 +5128,18 @@ let initial_theorems: list(Ctx.theorem_entry) =
     /* Nat. */
     "nat_succ_ne_zero",
     "nat_add_sub",
+    /* Standardness of partial primitives (`Axioms.standard_primitives`). */
+    "div_standard",
+    "sint_div_standard",
+    "nat_div_standard",
+    "pow_standard",
+    "sint_pow_standard",
+    "int_mod_standard",
+    "sint_mod_standard",
+    "nat_mod_standard",
+    "float_mod_standard",
+    "int_of_float_standard",
+    "sint_of_float_standard",
   ]
   |> List.map(~f=name =>
        Ctx.{

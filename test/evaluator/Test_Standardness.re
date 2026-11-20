@@ -257,7 +257,37 @@ let code_tests = [
   ),
 ];
 
+/* A partial primitive is standard through its rule, which proofs cite
+ * and the routine uses. */
+let primitive_rules = [
+  test_case("div_standard proves !!(a / b) from b != 0", `Quick, () =>
+    check(
+      bool,
+      "proven",
+      true,
+      proven(
+        "theorem t = forall a : Int -> forall b : Int -> b != 0 ==> !!(a / b) proof assume h = b != 0 => rewrite div_standard end; rewrite h end in t",
+      ),
+    )
+  ),
+  judged(
+    "the routine leaves div_standard's condition",
+    Some(["3 - 1 != 0"]),
+    "(fun (y : Int) -> 10 / (y - 1))(3)",
+  ),
+  judged(
+    "a division on an operand of unknown type",
+    None,
+    "fun x -> fun (y : Int) -> x / y",
+  ),
+  judged(
+    "a conversion's condition",
+    Some(["is_finite(1.5)"]),
+    "int_of_float(1.5)",
+  ),
+];
+
 let tests = (
   "Evaluator.Standardness",
-  named_binder_facts @ routine_tests @ code_tests,
+  named_binder_facts @ routine_tests @ code_tests @ primitive_rules,
 );

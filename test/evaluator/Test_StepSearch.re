@@ -537,7 +537,12 @@ let tests = (
         check(
           list(string),
           "completions",
-          ["nat_add_sub", "nat_succ_ne_zero"],
+          [
+            "nat_mod_standard",
+            "nat_div_standard",
+            "nat_add_sub",
+            "nat_succ_ne_zero",
+          ],
           Search.items(g, ~typed_name=Some("nat_"), None)
           |> List.filter_map(~f=(item: Search.item) =>
                switch (item) {
