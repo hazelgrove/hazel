@@ -143,8 +143,285 @@ let module_tests = [
   ),
 ];
 
+/* Grouping of refractor triggers in a text read whole (#2442). Loading,
+   the CLI and doc slides go through PersistentZipper.parse_text, which is
+   FastParse first. There a trigger's parens group its target as any
+   parens would, so `^^probe(1 + 2) * 3` is `(1 + 2) * 3`; the editor adds
+   parens only where the bare target would regroup. (Typing is different:
+   see the Editing.RefractorTyping tests.) */
+let load = (code: string): Zipper.t =>
+  switch (PersistentZipper.parse_text(~source="test", ~root=Exp, code)) {
+  | Some(z) => z
+  | None => fail("Failed to load: " ++ code)
+  };
+
+let term_of = (z: Zipper.t): Language.Exp.t =>
+  MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+
+/* Strict on parens: the point is where the grouping lands. Projector
+   wrappers are not syntax the trigger text spells. */
+let testable_term =
+  testable(
+    Fmt.using(Language.Exp.show, Fmt.string),
+    Language.Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_projectors: true,
+      }).
+        exp
+    ),
+  );
+
+/* Load `code`: its term is the one `term` spells without triggers, it
+   prints as `printed`, and the printed text loads back to the same term
+   and the same text (no paren accretion across saves). */
+let test_load =
+    (~name: string, ~code: string, ~term: string, ~printed: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let z = load(code);
+      check(testable_term, "term", term_of(load(term)), term_of(z));
+      let p1 = Printer.of_zipper(z);
+      check(string, "printed", printed, p1);
+      let z2 = load(p1);
+      check(testable_term, "reloaded term", term_of(z), term_of(z2));
+      check(string, "reprinted", p1, Printer.of_zipper(z2));
+    },
+  );
+
+/* No parens needed: the text survives the load byte for byte. */
+let test_load_unchanged = (~name: string, ~code: string, ~term: string) =>
+  test_load(~name, ~code, ~term, ~printed=code);
+
+/* Run the loaded program with its manual refractors sampled: the result
+   and each probe's samples. */
+let run = (z: Zipper.t): (Language.Exp.t, Language.Sample.Map.t) => {
+  open Language;
+  let (_, elaborated) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term_of(z));
+  let targets =
+    List.fold(z.refractors.manuals, ~init=Id.Map.empty, ~f=(acc, (id, _)) =>
+      Id.Map.add(id, Sample.{refs: []}, acc)
+    );
+  let (result, state) =
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env=Builtins.env_init,
+      elaborated,
+    );
+  (result, EvaluatorState.get_probes(state));
+};
+
+let int_value = (e: Language.Exp.t): option(int) =>
+  switch (e.term) {
+  | Atom(Int(n)) => Util.Bigint.to_int(n)
+  | _ => None
+  };
+
+let grouping_tests = [
+  test_case(
+    "Probe on a sum under * evaluates as the text groups it",
+    `Quick,
+    () => {
+      let z = load("^^probe(1 + 2) * 3");
+      let (result, probes) = run(z);
+      check(option(int), "result", Some(9), int_value(result));
+      /* the probe is on the sum, not on the whole product */
+      check(
+        list(list(option(int))),
+        "probe samples",
+        [[Some(3)]],
+        Id.Map.bindings(probes)
+        |> List.map(~f=((_, samples)) =>
+             List.map(samples, ~f=(s: Language.Sample.t) =>
+               int_value(s.value)
+             )
+           ),
+      );
+    },
+  ),
+  test_load(
+    ~name="Probe on a sum under *",
+    ~code="^^probe(1 + 2) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="(^^probe(1 + 2)) * 3",
+  ),
+  test_load(
+    ~name="Probe on a sum as the right operand of *",
+    ~code="3 * ^^probe(1 + 2)",
+    ~term="3 * (1 + 2)",
+    ~printed="3 * (^^probe(1 + 2))",
+  ),
+  test_load(
+    ~name="Probe on a difference as the right operand of -",
+    ~code="1 - ^^probe(2 - 3)",
+    ~term="1 - (2 - 3)",
+    ~printed="1 - (^^probe(2 - 3))",
+  ),
+  test_load(
+    ~name="Probes on both operands of *",
+    ~code="^^probe(1 + 2) * ^^probe(3 + 4)",
+    ~term="(1 + 2) * (3 + 4)",
+    ~printed="(^^probe(1 + 2)) * (^^probe(3 + 4))",
+  ),
+  test_load(
+    ~name="Probe on a fun, then applied",
+    ~code="^^probe(fun x -> x)(1)",
+    ~term="(fun x -> x)(1)",
+    ~printed="(^^probe(fun x -> x))(1)",
+  ),
+  test_load(
+    ~name="Probe on an if under +",
+    ~code="^^probe(if true then 1 else 2) + 1",
+    ~term="(if true then 1 else 2) + 1",
+    ~printed="(^^probe(if true then 1 else 2)) + 1",
+  ),
+  test_load(
+    ~name="Probe on a let under +",
+    ~code="^^probe(let y = 1 in y) + 1",
+    ~term="(let y = 1 in y) + 1",
+    ~printed="(^^probe(let y = 1 in y)) + 1",
+  ),
+  test_load(
+    ~name="Statics on a sum under *",
+    ~code="^^statics(1 + 2) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="(^^statics(1 + 2)) * 3",
+  ),
+  test_load(
+    ~name="Probe on a sum under * inside a let",
+    ~code="let x = ^^probe(1 + 2) * 3 in x",
+    ~term="let x = (1 + 2) * 3 in x",
+    ~printed="let x = (^^probe(1 + 2)) * 3 in x",
+  ),
+  test_load(
+    ~name="Whitespace inside the trigger moves inside the parens",
+    ~code="^^probe( 1 + 2 ) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="( ^^probe(1 + 2) ) * 3",
+  ),
+  /* Nested triggers add one pair, and the round trip is stable. A term
+     holds one refractor (ZipperBase.add_manual), so of two triggers on the
+     same target the inner one stays, as before. */
+  test_load(
+    ~name="Probe on a probed sum under *",
+    ~code="^^probe(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="(^^probe(1 + 2)) * 3",
+  ),
+  test_load(
+    ~name="Statics on a probed sum under *",
+    ~code="^^statics(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="(^^probe(1 + 2)) * 3",
+  ),
+  test_load(
+    ~name="Probe on a statics'd sum under *",
+    ~code="^^probe(^^statics(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+    ~printed="(^^statics(1 + 2)) * 3",
+  ),
+  test_load(
+    ~name="Probe on a product of a probed sum",
+    ~code="^^probe(^^probe(1 + 2) * 3)",
+    ~term="(1 + 2) * 3",
+    ~printed="^^probe((^^probe(1 + 2)) * 3)",
+  ),
+  /* Grouped already: no parens added, the text survives byte for byte */
+  test_load_unchanged(
+    ~name="Probe on a let definition (the probes doc)",
+    ~code="let chips = ^^probe(10 + 10) in chips",
+    ~term="let chips = 10 + 10 in chips",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a sum under a looser +",
+    ~code="^^probe(1 + 2) + 3",
+    ~term="1 + 2 + 3",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a product under +",
+    ~code="1 + ^^probe(2 * 3)",
+    ~term="1 + 2 * 3",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a fun body",
+    ~code="fun x -> ^^probe(x + 1)",
+    ~term="fun x -> x + 1",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a parenthesized sum",
+    ~code="^^probe((1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a sum the user parenthesized",
+    ~code="(^^probe(1 + 2)) * 3",
+    ~term="(1 + 2) * 3",
+  ),
+  test_load_unchanged(
+    ~name="Probe on an application under *",
+    ~code="let f = fun x -> x in ^^probe(f(1)) * 3",
+    ~term="let f = fun x -> x in f(1) * 3",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a function, then applied",
+    ~code="let f = fun x -> x in ^^probe(f)(1 + 2)",
+    ~term="let f = fun x -> x in f(1 + 2)",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a field access under +",
+    ~code="let r = (x=1) in ^^probe(r.x) + 1",
+    ~term="let r = (x=1) in r.x + 1",
+  ),
+  test_load_unchanged(
+    ~name="Probe on an operand under prefix minus",
+    ~code="let f = fun x -> x in -^^probe(f(1))",
+    ~term="let f = fun x -> x in -f(1)",
+  ),
+  test_load_unchanged(
+    ~name="Probe on a negation under +",
+    ~code="^^probe(-1) + 3",
+    ~term="-1 + 3",
+  ),
+  test_load(
+    ~name="Probe on a sum under * in a case rule",
+    ~code="case 1 | x => ^^probe(x + 1) * 2 end",
+    ~term="case 1 | x => (x + 1) * 2 end",
+    ~printed="case 1 | x => (^^probe(x + 1)) * 2 end",
+  ),
+  test_case(
+    "Probe text view keeps the grouping",
+    `Quick,
+    () => {
+      /* the agent and the CLI read ⟦⟧ as display brackets, not parens */
+      let z = load("^^probe(1 + 2) * 3");
+      let text =
+        ProbeText.of_segment(
+          ~probe_map=Language.Sample.Map.empty,
+          ~refractors=z.refractors.manuals,
+          Zipper.unselect_and_zip(z),
+        );
+      /* the program, before the probe's (here empty) samples */
+      let program = "(⟦1 + 2⟧) * 3";
+      check(
+        string,
+        "probe text",
+        program,
+        String.sub(
+          text,
+          ~pos=0,
+          ~len=min(String.length(program), String.length(text)),
+        ),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("RoundTrip.Basic", basic_tests),
   ("RoundTrip.Probes", probe_tests),
+  ("RoundTrip.ProbeGrouping", grouping_tests),
   ("RoundTrip.Modules", module_tests),
 ];

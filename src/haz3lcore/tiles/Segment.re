@@ -1221,6 +1221,132 @@ let unparenthesize = (seg: t): t =>
   | _ => seg
   };
 
+/* The pieces of a refractor trigger's target (`1 + 2` in `^^probe(1 + 2)`),
+   by the ids of the first and last of them. */
+type extent = (Id.t, Id.t);
+
+let index_of_piece = (id: Id.t, seg: t): option(int) =>
+  ListUtil.findi_opt(p => Piece.id(p) == id, seg) |> Option.map(~f=fst);
+
+/* Keep the grouping refractor triggers spell when a whole text is parsed
+   at once (loading, paste). The editor splices a trigger's target into
+   the surrounding syntax bare, which is right while typing: the trigger
+   expands when its `)` is typed, before anything to its right exists.
+   But in a text read whole, the trigger's parens group its target like
+   any parens: `^^probe(1 + 2) * 3` means `(1 + 2) * 3` (#2442). So each
+   target is wrapped in parens exactly when, spliced bare, it would not
+   be one subtree of its enclosing segment's skel. The skel is the only
+   judge of "needs parens", so there is no list of forms to keep in step
+   with the grammar, and a target that is already grouped (`let x =
+   ^^probe(1 + 2) in`, the parens a nested trigger added) is left bare.
+     `^^probe(1 + 2) * 3`          ==> `(1 + 2) * 3`
+     `^^probe(10 + 10) in`         ==> unchanged
+     `^^probe(^^probe(1 + 2)) * 3` ==> `(1 + 2) * 3` (one pair)
+   Targets are found at any depth and judged in the segment holding them;
+   ones not found, or in a segment with no skel, are left as they are.
+   Wider targets come first (the order a parse completes triggers in,
+   reversed), so an outer target is judged before the ones inside it.
+   Returns the targets too: a wider target sharing an end with one that
+   was wrapped now ends at the parens (`^^probe(^^probe(1 + 2) * 3)`), so
+   target_root still finds it in one segment. */
+let rec group_refractor_targets =
+        (targets: list(extent), seg: t): (t, list(extent)) =>
+  if (targets == []) {
+    (seg, targets);
+  } else {
+    let group = ((seg, targets): (t, list(extent)), k: int) => {
+      let (first, last) = List.nth_exn(targets, k);
+      switch (index_of_piece(first, seg), index_of_piece(last, seg)) {
+      | (Some(i), Some(j)) when i <= j =>
+        let sub = range => ListUtil.sublist(range, seg);
+        let solid =
+          List.init(j - i + 1, ~f=k => i + k)
+          |> List.filter(~f=k => !Piece.is_secondary(List.nth_exn(seg, k)));
+        let grouped =
+          switch (solid) {
+          | [] => true
+          | [a, ..._] =>
+            switch (Skel.has_range((a, ListUtil.last(solid)), skel(seg))) {
+            | grouped => grouped
+            | exception _ => true
+            }
+          };
+        switch (grouped ? None : Some(parenthesize(sub((i, j + 1))))) {
+        | None
+        | exception _ => (seg, targets)
+        | Some(parens) =>
+          let retarget = ((f, l): extent): extent =>
+            switch (index_of_piece(f, seg), index_of_piece(l, seg)) {
+            | (Some(fi), Some(li))
+                when fi <= i && j <= li && (fi, li) != (i, j) => (
+                fi == i ? Piece.id(parens) : f,
+                li == j ? Piece.id(parens) : l,
+              )
+            | _ => (f, l)
+            };
+          (
+            sub((0, i)) @ [parens] @ sub((j + 1, List.length(seg))),
+            List.map(targets, ~f=retarget),
+          );
+        };
+      | _ => (seg, targets)
+      };
+    };
+    let (seg, targets) =
+      List.fold(
+        List.init(List.length(targets), ~f=Fn.id),
+        ~init=(seg, targets),
+        ~f=group,
+      );
+    let (rev_seg, targets) =
+      List.fold(seg, ~init=([], targets), ~f=((acc, targets), p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let (rev_children, targets) =
+            List.fold(
+              t.children,
+              ~init=([], targets),
+              ~f=((cs, targets), child) => {
+                let (child, targets) =
+                  group_refractor_targets(targets, child);
+                ([child, ...cs], targets);
+              },
+            );
+          (
+            [
+              Piece.Tile({
+                ...t,
+                children: List.rev(rev_children),
+              }),
+              ...acc,
+            ],
+            targets,
+          );
+        | _ => ([p, ...acc], targets)
+        }
+      );
+    (List.rev(rev_seg), targets);
+  };
+
+/* The root of a target's own pieces, wherever in the segment they are:
+   the term a refractor on the target pins. */
+let rec target_root = ((first, last): extent, seg: t): option(Id.t) =>
+  switch (index_of_piece(first, seg), index_of_piece(last, seg)) {
+  | (Some(i), Some(j)) when i <= j =>
+    let sub = ListUtil.sublist((i, j + 1), seg);
+    switch (root_id(skel(sub), sub)) {
+    | id => Some(id)
+    | exception _ => None
+    };
+  | _ =>
+    List.find_map(seg, ~f=(p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => List.find_map(t.children, ~f=target_root((first, last)))
+      | _ => None
+      }
+    )
+  };
+
 /* Split the leading run of space secondaries (not linebreaks) */
 let split_space_run = (seg: t): (list(Piece.t), t) => {
   let rec go = (acc, seg: t) =>

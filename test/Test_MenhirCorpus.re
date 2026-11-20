@@ -121,6 +121,42 @@ let check_file = (path: string): unit => {
   };
 };
 
+/* Loading a program with refractor triggers (the fast path, as slides,
+   share links and the CLI do) keeps the grouping the trigger text spells
+   and adds parens only where the bare target would regroup (#2442). The
+   menhir grammar erases a trigger to its target, keeping that grouping in
+   the tree with no ParenExp, so a shipped program whose load needed parens
+   would differ here: none does, and their text loads as before. */
+let has_refractor_trigger = (txt: string): bool =>
+  List.exists(["^^probe", "^^statics"], ~f=trigger =>
+    String.is_substring(txt, ~substring=trigger)
+  );
+
+let check_load = (path: string): unit => {
+  let txt = read_file(path) |> ParsedCorpus.normalize;
+  switch (
+    PersistentZipper.parse_text(~source="test", ~root=Exp, txt),
+    MenhirParser.Interface.parse_program(txt),
+  ) {
+  | (Some(z), ast) =>
+    check(
+      bool,
+      "menhir == loaded: " ++ path,
+      true,
+      equal_terms(
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+        Grammar.map_exp_annotation(
+          _ => IdTagged.IdTag.fresh(),
+          MenhirParser.Conversion.Exp.of_menhir_ast(ast),
+        ),
+      ),
+    )
+  | (None, _) => fail("load failed: " ++ path)
+  | exception e =>
+    fail("menhir rejects " ++ path ++ ": " ++ Exn.to_string(e))
+  };
+};
+
 let tests = (
   "MenhirCorpus",
   {
@@ -140,6 +176,26 @@ let tests = (
               check_file(path)
             ),
         files,
+      )
+      @ (
+        files
+        |> List.filter(~f=path =>
+             !
+               List.Assoc.mem(
+                 known_gaps,
+                 Filename.basename(path),
+                 ~equal=Poly.equal,
+               )
+             && has_refractor_trigger(read_file(path))
+           )
+        |> List.map(~f=path =>
+             test_case(
+               "refractor triggers load as menhir groups them: " ++ path,
+               `Slow,
+               () =>
+               check_load(path)
+             )
+           )
       )
     };
   },
