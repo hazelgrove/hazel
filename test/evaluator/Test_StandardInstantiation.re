@@ -204,9 +204,23 @@ let with_fact = (term: string) =>
   ++ term
   ++ " do rewrite same end end in t";
 
+/* The obligations of the step citing `refl_lemma`: assuming `h` needs it
+ * standard too, which the routine can't show for a looping `f`. */
 let fact_conditions = (term: string): list(string) => {
-  let (pm, proof, obs) = obligations_named("t", with_fact(term));
+  let (pm, proof) = run_named("t", with_fact(term));
   check_mark_free("nothing is refused", pm, proof);
+  let rec cite = (p: Proof.t) =>
+    switch (p.term) {
+    | AxiomStep(_) => Some(p)
+    | _ => List.find_map(~f=cite, Proof.children(p))
+    };
+  let obs =
+    switch (
+      Option.bind(cite(proof), ~f=p => ProofMap.lookup(Proof.rep_id(p), pm))
+    ) {
+    | Some({obligations, _}) => obligations
+    | None => Alcotest.fail("no citing step")
+    };
   List.map(
     ~f=
       (ob: Obligation.t) =>
@@ -251,6 +265,56 @@ let test_fact_at_its_binder_type = () =>
     "a list of Bools isn't a list of Ints",
     ["!! f(bs) Pending"],
     fact_conditions("f(bs)"),
+  );
+
+/* --- Assuming an antecedent ------------------------------------------ */
+
+/* `assume` on `P ==> Q` needs `!!P`. The step is accepted either way, and
+ * the condition is left for later. */
+let assumed = (src: string): list(string) => {
+  let (pm, proof, obs) = obligations_named("t", src);
+  check_mark_free("assume is accepted", pm, proof);
+  List.map(~f=show_obligation, obs);
+};
+
+let test_assume_typed = () =>
+  check(
+    list(string),
+    "nothing",
+    [],
+    assumed(
+      "theorem t = forall (x : Int) -> x > 0 ==> x > 0 proof assume x > 0 => rewrite assume end in t",
+    ),
+  );
+
+let test_assume_untyped = () =>
+  check(
+    list(string),
+    "`x` could be a function",
+    ["!! (x > 0) [Pending]"],
+    assumed(
+      "theorem t = forall x -> x > 0 ==> x > 0 proof assume x > 0 => rewrite assume end in t",
+    ),
+  );
+
+let test_assume_nonstandard = () =>
+  check(
+    list(string),
+    "a looping antecedent",
+    ["!! l(0) [Pending]"],
+    assumed(
+      "let l = fun (u : Int) -> l(u) in theorem t = l(0) ==> l(0) proof assume l(0) => rewrite assume end in t",
+    ),
+  );
+
+let test_assume_condition = () =>
+  check(
+    list(string),
+    "a division's condition",
+    ["y != 0 [Pending]"],
+    assumed(
+      "theorem t = forall (y : Int) -> 10 / y > 1 ==> 10 / y > 1 proof assume 10 / y > 1 => rewrite assume end in t",
+    ),
   );
 
 let tests = (
@@ -333,6 +397,26 @@ let tests = (
       "a fact applies only at its binder's type",
       `Quick,
       test_fact_at_its_binder_type,
+    ),
+    test_case(
+      "assuming a typed antecedent needs nothing",
+      `Quick,
+      test_assume_typed,
+    ),
+    test_case(
+      "assuming an untyped antecedent leaves !!P",
+      `Quick,
+      test_assume_untyped,
+    ),
+    test_case(
+      "assuming a looping antecedent leaves !!P",
+      `Quick,
+      test_assume_nonstandard,
+    ),
+    test_case(
+      "assuming an antecedent incurs its conditions",
+      `Quick,
+      test_assume_condition,
     ),
   ],
 );

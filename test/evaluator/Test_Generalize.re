@@ -79,7 +79,7 @@ let test_captured_hypothesis_not_citable = () => {
  * the generalize, since lookup can't see the removed fact; the same
  * program without `generalize` discharges it Remote. */
 let test_captured_fact_does_not_discharge = () => {
-  let src = {|theorem t = forall x -> x != 0 ==> x == x proof assume x != 0 => generalize x => forall x => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
+  let src = {|theorem t = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => generalize x => forall x => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
   Alcotest.check(Alcotest.int, "the have's obligation", 1, List.length(obs));
@@ -91,7 +91,7 @@ let test_captured_fact_does_not_discharge = () => {
   );
   /* Control: without the generalize, the have's obligation discharges
    * against the assumption by lookup (Remote). */
-  let control = {|theorem t = forall x -> x != 0 ==> x == x proof assume x != 0 => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
+  let control = {|theorem t = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
   let (pm', proof') = run(control);
   let obs' = ProofMap.obligations_of_proof(pm', proof');
   Alcotest.check(

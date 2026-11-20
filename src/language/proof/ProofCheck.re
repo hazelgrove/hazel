@@ -1673,18 +1673,17 @@ and check_funext = (~step, ~statics, ~ctx, ~id, incoming, pat, body) => {
  * fact on any goal. A hole for `e` assumes nothing yet, so the goal
  * passes through unmarked, as for `have`. */
 and check_assume = (~step, ~statics, ~ctx, ~id, incoming, e, name, body) => {
-  let consequent =
+  let implication =
     switch (Option.bind(incoming, ~f=ProofRule.implication)) {
-    | Some((a, b))
+    | Some((a, _)) as implication
         when
           Exp.fast_equal(a, e)
-          || MatchExp.equal_modulo(~defs=SemanticCtx.get_env(ctx), a, e) =>
-      Some(b)
+          || MatchExp.equal_modulo(~defs=SemanticCtx.get_env(ctx), a, e) => implication
     | Some(_)
     | None => None
     };
-  switch (consequent) {
-  | Some(b) =>
+  switch (implication) {
+  | Some((a, b)) =>
     /* Unnamed, the hypothesis is `assume`, which shadows any enclosing
      * one; naming a nested assumption keeps the outer one citable. */
     let (body_ctx, _) =
@@ -1696,7 +1695,14 @@ and check_assume = (~step, ~statics, ~ctx, ~id, incoming, e, name, body) => {
      * (`ProofMap.cases_closed`). Its body's result would not equal the
      * implication: in a focus it would replace it. */
     let outgoing = Some(Exp.temp(Atom(Bool(true))));
-    (outgoing, record(~ctx, id, incoming, outgoing, m));
+    /* `==>` is a Bool, and only a standard antecedent makes assuming it
+     * sound: unrestricted, `L = fix x -> x ==> false` would prove
+     * `L ==> false`, which is `L` itself, and then `false` (Curry's
+     * paradox). The step needs `a` standard, as an obligation the proof
+     * can leave for later. */
+    let obligations =
+      Gate.obligations(~step, ~ctx, ~origin=id, Gate.standard(~ctx, [a]));
+    (outgoing, record(~ctx, ~obligations, id, incoming, outgoing, m));
   | None =>
     let marks =
       is_hole(e)

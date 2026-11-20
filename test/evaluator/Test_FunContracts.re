@@ -41,7 +41,7 @@ let test_nonzero_mul_pending_without_binders = () => {
  * an obligation needs, here as an axiom step rewriting the goal
  * itself. */
 let test_nonzero_of_pos_bridge = () => {
-  let src = {|theorem t = forall a -> a > 0 ==> a != 0 proof assume a > 0 => from a != 0 do rewrite nonzero_of_pos end end in t|};
+  let src = {|theorem t = forall a: Int -> a > 0 ==> a != 0 proof assume a > 0 => from a != 0 do rewrite nonzero_of_pos end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("one antecedent obligation", 1, obs);
   switch (obs) {
