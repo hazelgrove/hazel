@@ -213,11 +213,55 @@
   gap: 5px;
 }
 
-/* STEPPER (OLD) */
+/* STEP JUSTIFICATIONS */
 
+/* A justification that can list the variables its step substituted (see
+ * SingleStep.view_justification). The dotted underline hints that there is
+ * more on hover; the list pops up over the steps below instead of reflowing
+ * them. */
 .stepper-justification {
-  width: 260px;
+  position: relative;
+  /* Don't stretch to the step's height, so the popup opens under the text. */
+  align-self: flex-start;
 }
+
+.stepper-justification .substitutions-hint {
+  cursor: help;
+  text-decoration: underline dotted var(--text-muted);
+  text-underline-offset: 0.2em;
+}
+
+.stepper-justification .substitutions-popup {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.2em);
+  right: 0;
+  z-index: var(--projector-overlay-z);
+  flex-direction: column;
+  gap: 0.1em;
+  width: max-content;
+  padding: 0.3em 0.6em;
+  background-color: var(--menu-bkg);
+  border-radius: 0.3em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+}
+
+.stepper-justification:hover .substitutions-popup {
+  display: flex;
+}
+
+.stepper-justification .substitutions-label {
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.stepper-justification .substituted-var {
+  font-family: var(--code-font);
+  color: var(--code-text);
+}
+
+/* STEPPER (OLD) */
 
 .substituted {
   text-decoration: line-through;

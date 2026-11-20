@@ -101,7 +101,9 @@ type step_kind =
   | InvalidStep
   | VarLookup
   | Seq
-  | LetBind(string)
+  /* LetBind, FunAp and CaseApply carry the variables the step
+     substitutes, in pattern order; see stepper_justification_vars. */
+  | LetBind(list(string))
   | TheoremBind
   | RecordTheorem
   | WrapClosure
@@ -109,7 +111,7 @@ type step_kind =
   | FixClosure
   | UpdateTest
   | TypFunAp
-  | FunAp
+  | FunAp(list(string))
   | DeferredAp
   | AscriptionTypAp
   | AscriptionAp
@@ -124,7 +126,7 @@ type step_kind =
   | TupleExtension
   | ListCons
   | ListConcat
-  | CaseApply
+  | CaseApply(list(string))
   | CompleteClosure
   | CompleteFilter
   | Ascription
@@ -160,7 +162,7 @@ let provenance_of_kind: step_kind => provenance =
   | TheoremBind
   | UpdateTest
   | TypFunAp
-  | FunAp
+  | FunAp(_)
   | DeferredAp
   | BuiltinAp(_)
   | UnOp(_)
@@ -171,7 +173,7 @@ let provenance_of_kind: step_kind => provenance =
   | TupleExtension
   | ListCons
   | ListConcat
-  | CaseApply
+  | CaseApply(_)
   | FixUnwrap
   | RemoveTypeAlias
   | RemoveUse => Proper
@@ -186,6 +188,11 @@ let provenance_of_kind: step_kind => provenance =
   | Ascription
   | AscriptionTypAp
   | AscriptionAp => Administrative({may_delegate: true});
+
+/* The names a successful pattern match binds, for the step kinds above.
+   Pattern matching returns its bindings in source order. */
+let bound_vars = (bindings: list((string, 'a))): list(string) =>
+  List.map(~f=fst, bindings);
 
 type rule =
   | Step({
@@ -531,23 +538,11 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = (env, Let(dp, d1', d2) |> rewrap);
       let {matches, samples} = matches(targets, dp, d1');
-      let matches_str = {
-        switch (matches) {
-        | IndetMatch
-        | DoesNotMatch => ""
-        | Matches(env) =>
-          env
-          |> List.rev
-          |> List.map(~f=((s, _)) => s)
-          |> String.concat(~sep=", ")
-        };
-      };
-
       switch (matches) {
       | IndetMatch
       | DoesNotMatch => Indet
-      | Matches(env') =>
-        let env' = Environment.add_bindings(env, env');
+      | Matches(bindings) =>
+        let env' = Environment.add_bindings(env, bindings);
         Step({
           expr: subst_env(env', d2),
           side_effects: [
@@ -557,7 +552,7 @@ module Transition = (EV: EV_MODE) => {
               samples,
             }),
           ],
-          kind: LetBind(matches_str),
+          kind: LetBind(bound_vars(bindings)),
           is_value: false,
         });
       };
@@ -770,7 +765,7 @@ module Transition = (EV: EV_MODE) => {
                   samples: matches.samples,
                 }),
               ],
-              kind: FunAp,
+              kind: FunAp(bound_vars(added_env)),
               is_value: false,
             });
           };
@@ -794,7 +789,7 @@ module Transition = (EV: EV_MODE) => {
                   samples: matches.samples,
                 }),
               ],
-              kind: FunAp,
+              kind: FunAp(bound_vars(added_env)),
               is_value: false,
             })
           };
@@ -1202,7 +1197,7 @@ module Transition = (EV: EV_MODE) => {
               samples,
             }),
           ],
-          kind: CaseApply,
+          kind: CaseApply(bound_vars(env')),
           is_value: false,
         })
       | None =>
@@ -1342,7 +1337,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Seq
   | UpdateTest
   | TypFunAp
-  | FunAp
+  | FunAp(_)
   | DeferredAp
   | BuiltinAp(_)
   | BinOp(_)
@@ -1351,7 +1346,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | ListCons
   | ListConcat
   | TupleExtension => false
-  | CaseApply => !settings.show_case_steps
+  | CaseApply(_) => !settings.show_case_steps
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias
@@ -1373,14 +1368,16 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind(s) => "substitution for " ++ s
+  | LetBind([]) => "substitution"
+  | LetBind([x]) => "substitution for " ++ x
+  | LetBind(_) => "substitution for ..." // names listed on hover
   | TheoremBind => "theorem substitution"
   | RecordTheorem => "record theorem"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
   | TypFunAp => "apply type function"
-  | FunAp => "apply function"
+  | FunAp(_) => "apply function"
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
@@ -1405,7 +1402,7 @@ let stepper_justification: step_kind => string =
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
-  | CaseApply => "case selection"
+  | CaseApply(_) => "case selection"
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
@@ -1422,3 +1419,15 @@ let stepper_justification: step_kind => string =
   | Dot => "Labeled tuple access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";
+
+/* The variables to list when the user hovers over a step's justification:
+   those substituted by a function application, a case selection, or a let
+   binding several names. Empty when there is nothing to add, including a let
+   binding exactly one name, which stepper_justification already spells out. */
+let stepper_justification_vars: step_kind => list(string) =
+  fun
+  | LetBind([_]) => []
+  | LetBind(xs)
+  | FunAp(xs)
+  | CaseApply(xs) => xs
+  | _ => [];
