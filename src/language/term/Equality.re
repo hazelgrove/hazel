@@ -1016,6 +1016,9 @@ let equality =
       | (Revert(e1, n1, b1), Revert(e2, n2, b2)) =>
         exp'(e1, e2) && inst'(n1, n2) && proof'(b1, b2)
       | (Revert(_, _, _), _) => false
+      | (Contradiction(e1, n1), Contradiction(e2, n2)) =>
+        exp'(e1, e2) && inst'(n1, n2)
+      | (Contradiction(_, _), _) => false
       | (Have(e1, a1, s1, b1), Have(e2, a2, s2, b2)) =>
         exp'(e1, e2) && name'(a1, a2) && proof'(s1, s2) && proof'(b1, b2)
       | (Have(_, _, _, _), _) => false

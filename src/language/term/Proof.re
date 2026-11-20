@@ -15,6 +15,7 @@ type cls =
   | Assume
   | Generalize
   | Revert
+  | Contradiction
   | Have
   | Alias
   | Parens;
@@ -48,6 +49,7 @@ let rec cls_of_term: Grammar.proof_term('a) => cls =
   | Assume(_, _, _) => Assume
   | Generalize(_, _) => Generalize
   | Revert(_, _, _) => Revert
+  | Contradiction(_) => Contradiction
   | Have(_, _, _, _) => Have
   | Alias(_, _, _) => Alias
   | EvalStep => EvalStep
@@ -69,6 +71,7 @@ let show_cls: cls => string =
   | Assume => "assume"
   | Generalize => "generalize"
   | Revert => "revert"
+  | Contradiction => "contradiction"
   | Alias => "alias"
   | Have => "have"
   | Parens => "Parenthesized proof"
@@ -94,7 +97,8 @@ let children = (p: t): list(t) =>
   | MultiHole(_)
   | AxiomStep(_)
   | AlgebriteStep(_)
-  | EvalStep => []
+  | EvalStep
+  | Contradiction(_) => []
   | Seq(p1, p2) => [p1, p2]
   | Focus({body, _})
   | Parens(body)
@@ -129,6 +133,7 @@ let rec has_hole = (p: t): bool =>
   | Assume(_)
   | Generalize(_)
   | Revert(_)
+  | Contradiction(_)
   | Have(_)
   | Alias(_) => List.exists(~f=has_hole, children(p))
   };
@@ -206,6 +211,7 @@ let rec args_have_hole = (p: t): bool => {
   | Generalize(e, _) => exp(e)
   /* A have's subproof is a nested proof and reports its own holes. */
   | Have(e, x, _, _) => exp(e) || name(x)
-  | Revert(e, i, _) => exp(e) || inst(i)
+  | Revert(e, i, _)
+  | Contradiction(e, i) => exp(e) || inst(i)
   };
 };

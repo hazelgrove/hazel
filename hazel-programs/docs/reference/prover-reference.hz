@@ -56,6 +56,11 @@ theorem sum_three = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x + 
   from 1 + 2 do step end; step
 in
 
+theorem vacuous = forall n: Int -> n == 1 ==> n == 2 ==> false proof
+  assume n == 1 => assume n == 2 =>
+  contradiction n == 1 with n = 2 end
+in
+
 theorem sign_pos = forall n: Int -> n > 0 ==> sign(n) == 1 proof
   assume n > 0 =>
   from sign(n) do step end;

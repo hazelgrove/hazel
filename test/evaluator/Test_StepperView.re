@@ -1353,7 +1353,14 @@ module Picking = {
         check(
           list(string),
           "strategies",
-          ["Induction", "Cases", "Have", "Generalize", "Revert"],
+          [
+            "Induction",
+            "Cases",
+            "Have",
+            "Contradiction",
+            "Generalize",
+            "Revert",
+          ],
           labels(general),
         );
         check(
@@ -1381,6 +1388,7 @@ module Picking = {
             "induction ? end",
             "cases ? end",
             "have ? proof ? => ?",
+            "contradiction ? end",
             "generalize ? => ?",
             "revert ? => ?",
           ],
@@ -1599,7 +1607,12 @@ module Regressions = {
               ),
             );
           },
-        ["revert ? => ?", "generalize ? => ?", "have ? proof ? => ?"],
+        [
+          "revert ? => ?",
+          "generalize ? => ?",
+          "have ? proof ? => ?",
+          "contradiction ? end",
+        ],
       )
     ),
     test_case(

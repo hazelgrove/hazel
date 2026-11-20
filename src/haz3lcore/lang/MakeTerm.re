@@ -1838,6 +1838,13 @@ and proof_term: unsorted => (Proof.term, list(Id.t)) = {
         ) =>
         axiom(~instantiation=(var, inst), equality)
       | (F(Compound(ProofAlgebrite)), [Exp(e)]) => ret(AlgebriteStep(e))
+      | (F(Compound(ProofContradiction)), [Exp(e)]) =>
+        ret(Contradiction(e, None))
+      | (
+          F(Compound(ProofContradictionWith)),
+          [Exp(e), Exp(var), Exp(inst)],
+        ) =>
+        ret(Contradiction(e, Some((var, inst))))
       | (F(Compound(ProofEval)), []) => ret(EvalStep)
       | (F(Compound(ProofFocus)), [Exp(selector), Proof(body)]) =>
         ret(

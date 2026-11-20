@@ -30,6 +30,7 @@ open AST
 %token DEBUG
 %token HIDE
 %token EVAL
+%token CONTRADICTION
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
@@ -268,6 +269,7 @@ name:
     | HAVE { "have" }
     | REVERT { "revert" }
     | CASES { "cases" }
+    | CONTRADICTION { "contradiction" }
     | INDUCTION { "induction" }
     | ALIAS { "alias" }
     | REWRITE { "rewrite" }
@@ -501,6 +503,8 @@ proof:
     | FROM; sel = exp; DO; pf = proof; END { ProofFocus(None, sel, pf) }
     | FROM; sel = exp; AT; n = INT; DO; pf = proof; END { ProofFocus(Some(Bigint.to_int_exn n), sel, pf) }
     | CASES; e = exp; cases = list(prul); END { ProofCases(e, cases) }
+    | CONTRADICTION; e = exp; END { ProofContradiction(e) }
+    | CONTRADICTION; e = exp; WITH; v = exp; SINGLE_EQUAL; i = exp; END { ProofContradictionWith(e, v, i) }
     | INDUCTION; e = exp; cases = list(prul); END { ProofInduction(e, cases) }
 
 

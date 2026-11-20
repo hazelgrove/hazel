@@ -98,6 +98,7 @@ module Exits = {
       | MultiHole(_)
       | AxiomStep(_)
       | AlgebriteStep(_)
+      | Contradiction(_)
       | EvalStep => false
       | Seq(a, b) =>
         proof_contains(~origin, a) || proof_contains(~origin, b)
@@ -165,6 +166,7 @@ module Exits = {
       | MultiHole(_)
       | AxiomStep(_)
       | AlgebriteStep(_)
+      | Contradiction(_)
       | EvalStep => None
       };
     let rec region_containing = (root: Proof.t): option(Proof.t) =>

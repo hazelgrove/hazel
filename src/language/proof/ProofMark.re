@@ -88,6 +88,21 @@ type t =
    * urgent than a broken axiom citation, more urgent than the structural
    * induction marks. */
   | UnknownFactReverted
+  /* Contradiction: no in-scope fact matches the cited expression. The
+     goal passes through, as for `UnknownFactReverted`. */
+  | UnknownFactContradicted
+  /* Contradiction: the fact was found, but after the step's own
+     `with <var> = <exp>` rewrite (if any) it did not evaluate to `false`:
+     it computed to `true`, got stuck (typically because it is still
+     open), or ran out of fuel. The goal passes through. */
+  | ContradictionNotFalse
+  /* Contradiction: a `with <var> = <exp>` clause was supplied, but the
+     equation licensing it (`<var> == <exp>`, either orientation) is not
+     an in-scope fact, or `<var>` is not a bare variable. The step
+     substitutes only what the branch already knows, so the goal passes
+     through. `var` is the offending name, or "?" for a non-variable
+     slot. */
+  | ContradictionSubstitutionUnverified({var: string})
   /* Induction: cases don't cover the scrutinee's type. */
   | InductionNotExhaustive
   /* Induction: the scrutinee's type could not be positively determined

@@ -44,6 +44,7 @@ let record =
       ~marks: list(ProofMark.t)=[],
       ~auto_incoming: list((string, Exp.t))=[],
       ~auto_outgoing: list((Exp.t, string))=[],
+      ~substitutions: list((string, Exp.t))=[],
       ~obligations: list(Obligation.t)=[],
       id: Id.t,
       incoming: option(Exp.t),
@@ -58,6 +59,7 @@ let record =
       auto_incoming,
       auto_outgoing,
       outgoing,
+      substitutions,
       marks,
       obligations,
       ctx,
@@ -175,8 +177,8 @@ module Discharge = {
   /* How `goal` is discharged: by lookup, or else by closed evaluation to
    * `true`. Only a goal whose free variables are all definitions
    * (`2 != 0`, `f(2) > 0`) is evaluated, and not one that calls a
-   * recursive function: only explicit steps (`step`) run those. Both are
-   * judged on a copy with the definitions substituted. */
+   * recursive function: only explicit steps (`step`, `contradiction`) run
+   * those. Both are judged on a copy with the definitions substituted. */
   let find = (~step: step_fn, ~ctx: SemanticCtx.t, goal: Exp.t) => {
     let substituted =
       lazy(Substitution.in_exp(SemanticCtx.get_env(ctx), goal));
@@ -237,7 +239,7 @@ module Discharge = {
     };
 };
 
-/* The proposition a `revert` or `alias` step cites: a
+/* The proposition a `revert`, `contradiction` or `alias` step cites: a
  * hypothesis or theorem by name, looked up in the theorem namespace so
  * that `revert h` names the same thing `rewrite h` does, or else the
  * proposition as spelled out. */
@@ -1145,6 +1147,8 @@ let rec check =
     check_generalize(~step, ~statics, ~ctx, ~id, incoming, e, body)
   | Revert(e, instantiation, body) =>
     check_revert(~step, ~statics, ~ctx, ~id, incoming, e, instantiation, body)
+  | Contradiction(e, instantiation) =>
+    check_contradiction(~step, ~ctx, ~id, incoming, e, instantiation)
   | Alias(x, e, body) =>
     check_alias(~step, ~statics, ~ctx, ~id, incoming, x, e, body)
   | Cases(scrut, cases) =>
@@ -1696,6 +1700,106 @@ and check_revert =
         Some(Exp.fresh(BinOp(Bool(Implies), antecedent, goal))),
         body,
       )
+    };
+  };
+}
+
+/* `contradiction F end` / `contradiction F with x = e end`: ex falso as
+ * one terminal step. It closes any goal by showing that the in-scope
+ * fact `F` is false under the rest of the scope's knowledge.
+ *
+ * Soundness: `F` being in scope means `F` denotes `true` in this branch.
+ * If `F`, rewritten by an equation the branch also knows, denotes
+ * `false`, the branch's hypotheses are jointly unsatisfiable and the
+ * branch is vacuous, so concluding `true` is the Kleene reading of ex
+ * falso quodlibet. It is what `revert F => ...rewrite...; step` proves,
+ * in one step, once the antecedent is `false`.
+ *
+ * Only two things are trusted, both trusted elsewhere too:
+ *   1. the step's `with` rewrite, which the user writes and the checker
+ *      verifies against an in-scope equation (below); and
+ *   2. `Discharge.evaluate`, under the same fuel bound as discharge by
+ *      closed evaluation. Each step preserves the denotation for every
+ *      assignment of the free variables, so reaching `false` means `F`
+ *      denotes `false` here.
+ *
+ * Unlike discharge by closed evaluation, the term need not be closed:
+ * that discharge concludes a positive fact and keeps closedness as its
+ * boundary, while here the conclusion rests only on evaluation
+ * preserving denotation. Open terms matter in practice:
+ * `is_value(TmVar(m0)) == true` is false for every `m0` because the
+ * match only inspects the constructor. An open term that gets stuck
+ * fails to reach `false` and is marked, as are `true` and running out of
+ * fuel. Every failure passes the goal through.
+ *
+ * The applied binding is recorded in the ProofMap entry's
+ * `substitutions` field. */
+and check_contradiction = (~step, ~ctx, ~id, incoming, e, instantiation) => {
+  let env = SemanticCtx.get_env(ctx);
+  let fact = cited_fact(~ctx, e);
+  /* The step's one rewrite: the user's `with <var> = <exp>` clause,
+   * verified against the facts in scope. The checker doesn't search for
+   * equations; it only confirms that the branch already knows the one
+   * the user named.
+   *
+   * `<var> == <exp>` (or `<exp> == <var>`) must be found by
+   * `Discharge.lookup`. `<var>` must be a bare variable.
+   *
+   * One binding is applied once. The cited fact may license its own
+   * rewrite (`contradiction n == 1 with n = 1 end`), but that only lands
+   * on a tautology (`1 == 1`), which isn't `false`. */
+  let substituted =
+    switch (instantiation) {
+    | None => Ok((fact, []))
+    | Some((var, inst)) =>
+      let known = (l, r) =>
+        Option.is_some(
+          Discharge.lookup(ctx, Exp.temp(BinOp(Poly(Equals), l, r))),
+        );
+      switch (ProofSyntax.exp_to_name(var)) {
+      | Some(x) when known(var, inst) || known(inst, var) =>
+        let rewritten =
+          fact
+          |> Substitution.in_exp(
+               Environment.extend(Environment.empty, (x, inst)),
+             );
+        Ok((rewritten, [(x, inst)]));
+      | Some(x) =>
+        Error(ProofMark.ContradictionSubstitutionUnverified({var: x}))
+      | None =>
+        Error(ProofMark.ContradictionSubstitutionUnverified({var: "?"}))
+      };
+    };
+  let fail = (~substitutions=[], mark) => (
+    incoming,
+    record(
+      ~ctx,
+      ~substitutions,
+      ~marks=[mark],
+      id,
+      incoming,
+      incoming,
+      ProofMap.empty,
+    ),
+  );
+  switch (incoming, Discharge.lookup(ctx, fact), substituted) {
+  | (None, _, _) => fail(ProofMark.MissingIncoming)
+  | (Some(_), None, _) when is_hole(e) => (
+      incoming,
+      record(~ctx, id, incoming, incoming, ProofMap.empty),
+    )
+  | (Some(_), None, _) => fail(ProofMark.UnknownFactContradicted)
+  | (Some(_), Some(_), Error(mark)) => fail(mark)
+  | (Some(_), Some(_), Ok((fact, substitutions))) =>
+    let computed = Discharge.evaluate(~step, ~env, fact);
+    if (Exp.fast_equal(computed, Exp.temp(Atom(Bool(false))))) {
+      let outgoing = Some(Exp.fresh(Atom(Bool(true))));
+      (
+        outgoing,
+        record(~ctx, ~substitutions, id, incoming, outgoing, ProofMap.empty),
+      );
+    } else {
+      fail(~substitutions, ProofMark.ContradictionNotFalse);
     };
   };
 }

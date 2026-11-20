@@ -240,6 +240,17 @@ and proof_term('a) =
    * With the optional `with <var> = <exp>` clause, the fact must be
    * quantified, and the antecedent is the fact instantiated at `exp`. */
   | Revert(exp_t('a), option((exp_t('a), exp_t('a))), proof_t('a))
+  /* `contradiction <exp> end`: ex falso. Like `rewrite` and `step` it
+   * has no body. It closes any goal by showing that the in-scope fact
+   * `<exp>` is false given what else is known, so the branch is vacuous;
+   * the outgoing goal is `true`.
+   *
+   * The optional `with <var> = <exp>` clause means something different
+   * here than on axiom/revert: it rewrites the cited fact by the in-scope
+   * equation `var == exp`. The checker checks that the equation is in
+   * scope and substitutes only that binding; no other equations are
+   * used. One binding per step. */
+  | Contradiction(exp_t('a), option((exp_t('a), exp_t('a))))
   /* `have <exp> proof <subproof> => <body>`, or `have <name> = <exp>
    * proof ...`: forward reasoning, i.e. `assume` with a proof attached.
    * The subproof's goal is <exp>, and <body> can cite <exp> as `have`
@@ -477,6 +488,7 @@ and map_proof_annotation: 'a 'b. ('a => 'b, proof_t('a)) => proof_t('b) =
         | Alias(x, e, body) => Alias(pat(x), exp(e), proof(body))
         | Generalize(e, body) => Generalize(exp(e), proof(body))
         | Revert(e, i, body) => Revert(exp(e), inst(i), proof(body))
+        | Contradiction(e, i) => Contradiction(exp(e), inst(i))
         | Have(e, name, sub, body) =>
           Have(exp(e), Option.map(~f=pat, name), proof(sub), proof(body))
         },
@@ -1373,6 +1385,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let revert =
         (~ann=?, ~instantiation=None, e, body): proof_t(DefaultAnnotation.t) => {
       term: Revert(e, instantiation, body),
+      annotation: default_annotation(ann),
+    };
+    let contradiction =
+        (~ann=?, ~instantiation=None, e): proof_t(DefaultAnnotation.t) => {
+      term: Contradiction(e, instantiation),
       annotation: default_annotation(ann),
     };
     let have =

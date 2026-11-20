@@ -37,7 +37,7 @@ type t = {
   /* The id in `goal` of the part the step acts on: the occurrence a focus
    * selected, or all of `goal` for a step that rewrites it whole. None
    * for a step that changes the goal's shape or closes it from facts
-   * (forall, induction, ...). */
+   * (forall, induction, contradiction, ...). */
   acts_on: option(Id.t),
   /* Whether a step can be written at the row, in its write box: in place
    * of a hole, or after the chain's last step where the proof goes on. */
@@ -112,7 +112,8 @@ let single_step = (focus: Proof.t): option(Proof.t) =>
     switch (inner.term) {
     | AxiomStep(_)
     | AlgebriteStep(_)
-    | EvalStep => Some(inner)
+    | EvalStep
+    | Contradiction(_) => Some(inner)
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
@@ -153,6 +154,7 @@ let passes_goal_through = (step: Proof.t): bool =>
   | AlgebriteStep(_)
   | EvalStep
   | Focus(_)
+  | Contradiction(_)
   | Alias(_)
   | Have(_) => false
   };
@@ -205,6 +207,7 @@ let rec chain =
     | MultiHole(_)
     | Seq(_)
     | Parens(_)
+    | Contradiction(_)
     | Forall(_)
     | Funext(_)
     | Assume(_)
@@ -231,7 +234,8 @@ let rec chain =
     | MultiHole(_) => row(Hole)
     | AxiomStep(_)
     | AlgebriteStep(_)
-    | EvalStep => row(Step(Leaf))
+    | EvalStep
+    | Contradiction(_) => row(Step(Leaf))
     | Focus({body, _}) =>
       row(
         Step(

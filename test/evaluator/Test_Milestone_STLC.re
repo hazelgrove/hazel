@@ -289,9 +289,9 @@ let test_lemma_some_tm_is_some = () =>
  *   - lambda head + non-value argument + step(y0) = SomeTm(_):
  *     congruence lemma;
  *   - value head that is a TmVar or a TmAp: vacuous by canonical forms,
- *     closed by ex falso (`revert` the value-ness case_eq into the goal,
- *     rewrite x0 there by the shape case_eq, and let evaluation falsify
- *     the antecedent);
+ *     closed by ex falso (`contradiction`, or `revert` the value-ness
+ *     case_eq into the goal, rewrite x0 there by the shape case_eq, and
+ *     let evaluation falsify the antecedent);
  *   - value head that steps to NoTm, and lambda head + non-value
  *     argument stepping to NoTm: vacuous by the inductive hypothesis at
  *     the type the enclosing split produced. `revert` the IH
@@ -387,10 +387,14 @@ let progress_src =
     ++ "end "
     ++ "| true => cases x0 "
     /* Vacuous by canonical forms: is_value(x0) == true and
-     * x0 == TmVar(m0) are contradictory. Reverting the value-ness fact
-     * and rewriting x0 by the split's own case_eq gives
-     * `is_value(TmVar(m0)) == true`, which evaluates to `false`. */
-    ++ "| TmVar(m0) => alias hx0 = case_eq => revert is_value(x0) == true => from x0 do rewrite hx0 end end; from is_value(TmVar(m0)) do step end; from false == true do step end; from false ==> (is_value(TmAp(TmVar(m0), y0)) || is_some_tm(step(TmAp(TmVar(m0), y0)))) do step end "
+     * x0 == TmVar(m0) are contradictory. `contradiction` cites the
+     * value-ness fact, and the `with` clause names the rewrite that
+     * falsifies it: the split's own case_eq, `x0 == TmVar(m0)`, which the
+     * checker verifies is in scope before substituting. That yields
+     * `is_value(TmVar(m0)) == true`, which evaluates to `false`, so the
+     * branch is vacuous. The TmAp leaf below uses the revert-based idiom
+     * instead, so both stay tested. */
+    ++ "| TmVar(m0) => contradiction is_value(x0) == true with x0 = TmVar(m0) end "
     ++ "| TmLam(w0, q0) => from is_value(TmAp(TmLam(w0, q0), y0)) do step end; "
     ++ "from false || is_some_tm(step(TmAp(TmLam(w0, q0), y0))) do step end; "
     ++ "cases is_value(y0) "

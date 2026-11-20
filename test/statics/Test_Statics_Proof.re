@@ -129,6 +129,18 @@ let tests = (
       {|theorem t = true proof from 1 do rewrite bogus end end in t|},
       is_free_hyp,
     ),
+    /* `contradiction` cites a fact by name, as `revert` does. */
+    expects_no_mark(
+      "contradiction assume is a known hypothesis",
+      {|theorem t = forall n: Int -> n == 1 ==> false proof assume n == 1 => contradiction assume end in 0|},
+      mark =>
+      is_free_var(mark) || is_free_hyp(mark)
+    ),
+    expects_mark(
+      "contradiction bogus is a free hypothesis",
+      {|theorem t = false proof contradiction bogus end in t|},
+      is_free_hyp,
+    ),
     /* `forall x => ...`: `x` should be visible as a variable,
        not as a hypothesis. */
     expects_no_mark(

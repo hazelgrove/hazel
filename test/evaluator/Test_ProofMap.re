@@ -166,6 +166,7 @@ module Harness = {
       | MultiHole(_)
       | AxiomStep(_)
       | AlgebriteStep(_)
+      | Contradiction(_)
       | EvalStep => None
       | Focus({body, _}) => find_marked_sub(pm, body)
       };

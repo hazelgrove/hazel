@@ -315,6 +315,7 @@ let soft_proof_keywords = [
   "have",
   "revert",
   "cases",
+  "contradiction",
   "induction",
   "alias",
   "rewrite",
@@ -1307,6 +1308,17 @@ let ex5 = list_of_mylist(x) in
       menhir_maketerm_equivalent_test(
         "plain cases with an assume in a case body",
         "theorem t = forall n: Int -> n == n proof cases n > 0 | true => assume n == 1 => ? | false => ? end in t",
+      ),
+      /* Test_Contradiction.conflicting_src: the terminal form. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 end in t",
+      ),
+      /* Test_Contradiction.conflicting_src with an explicit `with`
+         clause: the same with-shards as revert/axiom, on a terminal step. */
+      menhir_maketerm_equivalent_test(
+        "Full program: contradiction step with explicit substitution",
+        "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in t",
       ),
       /* --- core -> menhir AST (Conversion.of_core) ---------------------- */
       of_core_renders_test("of_core: implies", "a ==> b ==> c"),

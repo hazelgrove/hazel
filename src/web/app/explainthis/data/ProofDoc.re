@@ -517,6 +517,66 @@ let revert_with =
   };
 };
 
+// Contradiction
+
+let contradiction = (~exp_id: Id.t): Simple.t => {
+  let e = exp("fact");
+  {
+    group_id: ProofContradictionStep,
+    form_id: ProofContradictionStep,
+    abstract: ([mk_contradiction([slot(e)])], [(Piece.id(e), exp_id)]),
+    explanation:
+      sprintf(
+        "Closes any goal by showing that the in-scope [*fact*](%s) — named by its hypothesis name, or spelled out — evaluates to `false`. If the hypotheses of this branch are jointly unsatisfiable then the branch is vacuous, and concluding it is the ex falso reading. This is the one-step way to dismiss the impossible case of a split, in place of reverting the fact and rewriting it to `false` by hand. It is terminal — there is no sub-proof — and it incurs no obligation. If the fact gets stuck instead of reaching `false`, the step is marked rather than believed.",
+        exp_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofContradiction1,
+        term:
+          mk_example(
+            "theorem t = forall n: Int -> false ==> n == n proof assume false => contradiction false end in 0",
+          ),
+        message: "`assume false` introduces the antecedent as a hypothesis; citing it evaluates to `false`, so the branch is vacuous and the goal closes.",
+      },
+    ],
+  };
+};
+
+let contradiction_with =
+    (~exp_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t => {
+  let (e, vr, it) = (exp("fact"), exp("x"), exp("e"));
+  {
+    group_id: ProofContradictionStep,
+    form_id: ProofContradictionStep,
+    abstract: (
+      [mk_contradiction_with([slot(e), slot(vr), slot(it)])],
+      [
+        (Piece.id(e), exp_id),
+        (Piece.id(vr), var_id),
+        (Piece.id(it), inst_id),
+      ],
+    ),
+    explanation:
+      sprintf(
+        "Closes any goal by showing the in-scope [*fact*](%s) is `false` in this branch, after exactly one rewrite: the [*variable*](%s) is replaced by the [*expression*](%s) before the fact is evaluated. The rewrite must be licensed — `x == e` (in either orientation) has to be a fact in scope, typically the `case_eq` of the split that made this branch — and the checker refuses anything it cannot verify. Only the rewrite written here is applied; nothing is searched for, so the step's reasoning is what you can read.",
+        exp_id |> Id.to_string,
+        var_id |> Id.to_string,
+        inst_id |> Id.to_string,
+      ),
+    examples: [
+      {
+        sub_id: ProofContradictionWith1,
+        term:
+          mk_example(
+            "theorem t = forall n: Int -> n == 1 ==> n == 2 ==> false proof assume n == 1 => assume n == 2 => contradiction n == 1 with n = 2 end in 0",
+          ),
+        message: "Both antecedents are hypotheses here. Rewriting `n` to `2` in the first — licensed by the second — makes it `2 == 1`, which evaluates to `false`, so the branch is vacuous.",
+      },
+    ],
+  };
+};
+
 // Have
 
 let have = (~exp_id: Id.t, ~sub_id: Id.t, ~body_id: Id.t): Simple.t => {
@@ -717,6 +777,13 @@ let rec single = (p: Proof.t): Simple.t =>
       ~var_id=Exp.rep_id(v),
       ~inst_id=Exp.rep_id(i),
       ~body_id=Proof.rep_id(body),
+    )
+  | Contradiction(e, None) => contradiction(~exp_id=Exp.rep_id(e))
+  | Contradiction(e, Some((v, i))) =>
+    contradiction_with(
+      ~exp_id=Exp.rep_id(e),
+      ~var_id=Exp.rep_id(v),
+      ~inst_id=Exp.rep_id(i),
     )
   | Have(e, None, sub, body) =>
     have(

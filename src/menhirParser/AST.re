@@ -216,6 +216,11 @@ and proof =
   | ProofFocus(option(int), exp, proof)
   /* `cases <scrut> | <pat> => <proof> ... end` */
   | ProofCases(exp, list((pat, proof)))
+  /* `contradiction <exp> end` */
+  | ProofContradiction(exp)
+  /* `contradiction <fact> with <var> = <exp> end`: the extra (var, exp)
+     pair is one explicit rewrite of the cited fact. */
+  | ProofContradictionWith(exp, exp, exp)
   /* `induction <scrut> | <pat> => <proof> ... end` */
   | ProofInduction(exp, list((pat, proof)))
 
