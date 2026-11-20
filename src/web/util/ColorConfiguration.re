@@ -423,18 +423,16 @@ let entries_of = (v: Exp.t): list(TupleEntry.t(Exp.t)) =>
    one, but a field standing in for a family sets several. */
 let colors_of_group =
     (group_name: string, group: Exp.t): list((string, string)) =>
-  List.concat_map(
-    entry =>
-      switch (
-        TupleEntry.label_name(entry),
-        C.of_exp(TupleEntry.value(entry)),
-      ) {
-      | (Some(name), Some(c)) =>
-        let css = C.to_css(c);
-        List.map(t => (t, css), targets_of(group_name, name));
-      | _ => []
-      },
-    entries_of(group),
+  List.concat_map(entries_of(group), ~f=entry =>
+    switch (
+      TupleEntry.label_name(entry),
+      C.of_exp(TupleEntry.value(entry)),
+    ) {
+    | (Some(name), Some(c)) =>
+      let css = C.to_css(c);
+      List.map(~f=t => (t, css), targets_of(group_name, name));
+    | _ => []
+    }
   );
 
 /* Read the evaluated slide back out as the CSS custom properties to write.
@@ -442,16 +440,17 @@ let colors_of_group =
    palette is published too, because it is what a saved user theme writes. */
 let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
-    section => {
+    entries_of(value),
+    ~f=section => {
       let body = TupleEntry.value(section);
       switch (TupleEntry.label_name(section)) {
       | Some("palette") => colors_of_group("palette", body)
-      | Some(l) when l == CS.polarity_field =>
+      | Some(l) when String.equal(l, CS.polarity_field) =>
         switch (Unboxing.unbox(Atom(Bool), body)) {
         | Matches(b) => [(polarity_target, b ? "dark" : "light")]
         | _ => []
         }
-      | Some(l) when l == CS.contrast_field =>
+      | Some(l) when String.equal(l, CS.contrast_field) =>
         switch (Unboxing.unbox(Atom(Bool), body)) {
         | Matches(b) => [(contrast_target, b ? "high" : "normal")]
         | _ => []
@@ -459,17 +458,17 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
       /* roles nest one level deeper: group -> entries */
       | Some("roles") =>
         List.concat_map(
-          g =>
-            switch (TupleEntry.label_name(g)) {
-            | Some(gname) => colors_of_group(gname, TupleEntry.value(g))
-            | None => []
-            },
+          ~f=
+            g =>
+              switch (TupleEntry.label_name(g)) {
+              | Some(gname) => colors_of_group(gname, TupleEntry.value(g))
+              | None => []
+              },
           entries_of(body),
         )
       | _ => []
       };
     },
-    entries_of(value),
   );
 
 /* All of the properties, or none of them.

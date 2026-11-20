@@ -19,12 +19,10 @@ module G = IdTagged.FreshGrammar.Exp;
 let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
   G.(
     list_lit(
-      List.map(
-        fields =>
-          parens(
-            tuple_entries(List.map(((l, v)) => labeled(l, v), fields)),
-          ),
-        rows,
+      List.map(rows, ~f=fields =>
+        parens(
+          tuple_entries(List.map(~f=((l, v)) => labeled(l, v), fields)),
+        )
       ),
     )
   );

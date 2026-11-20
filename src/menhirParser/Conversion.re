@@ -226,14 +226,14 @@ module rec Exp: {
     | Constructor(x, ty) =>
       constructor(x, Option.map(~f=Option.map(~f=Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
-    | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
+    | ListExp(l) => list_lit(List.map(~f=of_menhir_ast, l))
     | ParenExp(e) => parens(of_menhir_ast(e))
     | TupleExp([]) => tuple([])
     /* singleton labeled tuple `(a=1,)` stays a tuple */
     | TupleExp([TupLabel(_) as tl]) =>
       tuple_entries([entry_of_menhir_ast(tl)])
     | TupleExp([e]) => of_menhir_ast(e)
-    | TupleExp(e) => tuple_entries(List.map(entry_of_menhir_ast, e))
+    | TupleExp(e) => tuple_entries(List.map(~f=entry_of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
@@ -271,12 +271,12 @@ module rec Exp: {
     | ApExp(e1, args) =>
       switch (args) {
       | TupleExp(l) =>
-        List.mem(AST.Deferral, l)
+        List.mem(l, AST.Deferral, ~equal=Poly.equal)
           ? {
             term:
               DeferredAp(
                 of_menhir_ast(e1),
-                List.map(entry_of_menhir_ast, l),
+                List.map(~f=entry_of_menhir_ast, l),
               ),
             annotation: false,
           }
@@ -382,8 +382,8 @@ module rec Exp: {
     | Var(x) => Var(x)
     | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
-    | ListLit(l) => ListExp(List.map(of_core, l))
-    | Tuple(l) => TupleExp(List.map(entry_of_core, l))
+    | ListLit(l) => ListExp(List.map(~f=of_core, l))
+    | Tuple(l) => TupleExp(List.map(~f=entry_of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
@@ -431,7 +431,7 @@ module rec Exp: {
     | Constructor(s, typ) =>
       Constructor(s, Option.map(~f=Option.map(~f=Typ.of_core), typ))
     | DeferredAp(e, es) =>
-      ApExp(of_core(e), TupleExp(List.map(entry_of_core, es)))
+      ApExp(of_core(e), TupleExp(List.map(~f=entry_of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
     | Dot(e, l) => Dot(of_core(e), label_of_core(l))

@@ -94,14 +94,15 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
     rewrap(
       Tuple(
         List.map(
-          fun
-          | Grammar.Labeled(eq, l, e) => (
-              {
-                term: TupLabel(Pat.of_label(l), exp_to_pat(e)),
-                annotation: eq,
-              }: Pat.t
-            )
-          | Unlabeled(e) => exp_to_pat(e),
+          ~f=
+            fun
+            | Grammar.Labeled(eq, l, e) => (
+                {
+                  term: TupLabel(Pat.of_label(l), exp_to_pat(e)),
+                  annotation: eq,
+                }: Pat.t
+              )
+            | Unlabeled(e) => exp_to_pat(e),
           xs,
         ),
       ),
@@ -164,7 +165,10 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Tuple(xs) =>
     rewrap(
       Tuple(
-        List.map(p => TupleEntry.map(pat_to_exp, Pat.tuple_entry(p)), xs),
+        List.map(
+          ~f=p => TupleEntry.map(pat_to_exp, Pat.tuple_entry(p)),
+          xs,
+        ),
       ),
     )
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))

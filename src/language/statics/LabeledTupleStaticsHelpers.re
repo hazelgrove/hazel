@@ -56,13 +56,13 @@ let check_label =
   switch (l.term) {
   | Label(name) =>
     switch (expected_labels) {
-    | Some(expected) when !List.mem(name, expected) => (
+    | Some(expected) when !List.mem(expected, name, ~equal=String.equal) => (
         [Mark.InvalidLabel(name, expected)],
         None,
       )
     | _ =>
       let label_ty = Label(name) |> Typ.temp;
-      List.mem(name, duplicate_labels)
+      List.mem(duplicate_labels, name, ~equal=String.equal)
         ? ([Mark.DuplicateLabel(name, label_ty)], Some(label_ty))
         : ([], Some(label_ty));
     }

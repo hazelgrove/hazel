@@ -60,7 +60,7 @@ let rec match_exp =
             )
           : None,
       ctx,
-      List.combine(xs, ys),
+      List.zip_exn(xs, ys),
     );
   switch (exp_r |> Exp.term_of, exp |> Exp.term_of) {
   /* Parens */

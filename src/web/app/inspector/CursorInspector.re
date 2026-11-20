@@ -1086,7 +1086,7 @@ let label_info_view = (cls: Cls.t, marks: list(Mark.t)) =>
       text("Invalid label: "),
       label_view(name),
       text(" is not part of the expected labels: "),
-      ...List.map(code, expected),
+      ...List.map(expected, ~f=code),
     ])
   | Some(DuplicateLabel(name, _)) =>
     div_err([text("Duplicate Label:"), label_view(name)])
@@ -1095,7 +1095,7 @@ let label_info_view = (cls: Cls.t, marks: list(Mark.t)) =>
       text("Label "),
       label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(label_view, labels),
+      ...List.map(~f=label_view, labels),
     ])
   | Some(m) => div_err([text(Mark.show(m))])
   };

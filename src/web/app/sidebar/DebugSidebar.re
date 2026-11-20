@@ -551,7 +551,7 @@ let label_view = (~globals, ~raw, l: Info.label): list(Node.t) =>
       field_str("marks", marks_str(l.marks)),
       field_str(
         "dot_labels",
-        "[" ++ String.concat(", ", l.dot_labels) ++ "]",
+        "[" ++ String.concat(~sep=", ", l.dot_labels) ++ "]",
       ),
       field_str("ancestors", ancestors_str(l.ancestors)),
       field_ctx(~globals, ~raw, "ctx", l.ctx),

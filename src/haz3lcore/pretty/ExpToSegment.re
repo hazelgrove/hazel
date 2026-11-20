@@ -554,9 +554,10 @@ let rec parenthesize =
       Tuple(
         es
         |> List.map(
-             TupleEntry.map(e =>
-               parenthesize(e) |> paren_at(Precedence.comma)
-             ),
+             ~f=
+               TupleEntry.map(e =>
+                 parenthesize(e) |> paren_at(Precedence.comma)
+               ),
            ),
       )
       |> rewrap;
@@ -642,9 +643,10 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.ap),
       es
       |> List.map(
-           TupleEntry.map(e =>
-             parenthesize(e) |> paren_at(Precedence.comma)
-           ),
+           ~f=
+             TupleEntry.map(e =>
+               parenthesize(e) |> paren_at(Precedence.comma)
+             ),
          ),
     )
     |> rewrap
@@ -1889,7 +1891,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           term: (),
           annotation: eq,
         },
-        List.flatten([
+        List.concat([
           label_to_seg(~settings, l),
           [
             Tile({
@@ -1904,7 +1906,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           | AutoFormat =>
             let first = Segment.first_string(v);
             if (Token.begins_with_potential_operator(first)
-                && !String.starts_with(first, ~prefix="…")) {
+                && !String.is_prefix(first, ~prefix="…")) {
               [Secondary(mk_space(Id.mk())), ...v];
             } else {
               v;
@@ -2196,7 +2198,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Tuple([x, ...xs]) =>
     // TODO: Add optional newlines
     let+ x = entry_to_pretty(x)
-    and+ xs = xs |> List.map(entry_to_pretty) |> all;
+    and+ xs = xs |> List.map(~f=entry_to_pretty) |> all;
     let ids = IdTagged.ids(exp) |> PadIds.pad_ids(List.length(xs));
     wrap(
       exp,
@@ -2316,7 +2318,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | DeferredAp(e, es) =>
     // TODO: Add optional newlines
     let+ e = go(e)
-    and+ es = es |> List.map(entry_to_pretty) |> all;
+    and+ es = es |> List.map(~f=entry_to_pretty) |> all;
     /* ids = [ap tile, comma tiles...]: n args have n-1 commas, so pad
        the tail to n-1 and use it directly (padding to n and dropping
        the head would mint a fresh id for the first comma) */

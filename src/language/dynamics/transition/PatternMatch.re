@@ -73,8 +73,8 @@ let match_pattern =
       | (Some((_, x)), _) => recur(x, TupleEntry.value(entry))
       | (None, _) => recur(p, TupleEntry.value(entry))
       };
-    List.map2(match_entry, ps, entries)
-    |> List.fold_left(combine_result, Matches([]));
+    List.map2_exn(ps, entries, ~f=match_entry)
+    |> List.fold(~init=Matches([]), ~f=combine_result);
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>

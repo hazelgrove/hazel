@@ -219,7 +219,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) =>
           Tuple(
-            List.map(map_tuple_entry_annotation(f, map_exp_annotation), l),
+            List.map(
+              ~f=map_tuple_entry_annotation(f, map_exp_annotation),
+              l,
+            ),
           )
         | Label(l) => Label(l)
         | Dot(e, l) =>
@@ -257,7 +260,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | DeferredAp(e, l) =>
           DeferredAp(
             map_exp_annotation(f, e),
-            List.map(map_tuple_entry_annotation(f, map_exp_annotation), l),
+            List.map(
+              ~f=map_tuple_entry_annotation(f, map_exp_annotation),
+              l,
+            ),
           )
         | If(e1, e2, e3) =>
           If(
@@ -705,7 +711,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     /* an unlabeled tuple */
     let tuple = (~ann=?, es): exp_t(DefaultAnnotation.t) => {
-      term: Tuple(List.map(e => Unlabeled(e), es)),
+      term: Tuple(List.map(~f=e => Unlabeled(e), es)),
       annotation: default_annotation(ann),
     };
     let tuple_entries = (~ann=?, entries): exp_t(DefaultAnnotation.t) => {
@@ -791,7 +797,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     /* unlabeled arguments */
     let deferred_ap = (~ann=?, e, l): exp_t(DefaultAnnotation.t) => {
-      term: DeferredAp(e, List.map(e => Unlabeled(e), l)),
+      term: DeferredAp(e, List.map(~f=e => Unlabeled(e), l)),
       annotation: default_annotation(ann),
     };
     let if_ = (~ann=?, e1, e2, e3): exp_t(DefaultAnnotation.t) => {

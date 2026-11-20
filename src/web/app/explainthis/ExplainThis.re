@@ -1071,7 +1071,7 @@ let decide =
           ),
         )
       | Tuple(entries) =>
-        let terms = List.map(TupleEntry.value, entries);
+        let terms = List.map(~f=TupleEntry.value, entries);
         let n = List.length(terms);
         let basic = group =>
           get_message(
@@ -1287,7 +1287,7 @@ let decide =
         | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
-        let args = List.map(TupleEntry.value, args);
+        let args = List.map(~f=TupleEntry.value, args);
         let x_id = IdTagged.rep_id(x);
         let supplied_id = Id.mk();
         let deferred_id = {

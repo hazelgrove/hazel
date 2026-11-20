@@ -105,9 +105,10 @@ let label_text = (l: TermBase.Label.t): option(string) =>
 let collect_labels = (elements: list(TupleEntry.t(Exp.t))): list(string) =>
   elements
   |> List.filter_map(
-       fun
-       | Grammar.Labeled(_, l, _) => label_text(l)
-       | Unlabeled(_) => None,
+       ~f=
+         fun
+         | Grammar.Labeled(_, l, _) => label_text(l)
+         | Unlabeled(_) => None,
      );
 
 let is_flat_ellipses_exp = (exp: Exp.t): bool =>
@@ -126,10 +127,11 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
     switch (exp.term) {
     | Tuple(elements) =>
       List.exists(
-        e => exp_contains_flat_ellipses(TupleEntry.value(e)),
+        ~f=e => exp_contains_flat_ellipses(TupleEntry.value(e)),
         elements,
       )
-    | ListLit(elements) => List.exists(exp_contains_flat_ellipses, elements)
+    | ListLit(elements) =>
+      List.exists(~f=exp_contains_flat_ellipses, elements)
     | _ => false
     };
   };
@@ -198,7 +200,7 @@ let structural_tests = [
       switch (abbreviated_12.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "element count at 12", 2, List.length(elements));
-        switch (List.nth(elements, 0)) {
+        switch (List.nth_exn(elements, 0)) {
         | Labeled(_, {term: Label(name), _}, _) =>
           check(Alcotest.string, "first label name", "alpha", name)
         | Labeled(_, {term: Invalid(name), _}, _) =>

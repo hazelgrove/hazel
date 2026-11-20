@@ -81,18 +81,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         | _ => ty
         };
       let es' =
-        List.map2(
-          (entry, ty) =>
-            TupleEntry.map(
-              v => recur(Asc(v, value_typ(ty)) |> DHExp.fresh),
-              entry,
-            ),
-          es,
-          tys,
+        List.map2_exn(es, tys, ~f=(entry, ty) =>
+          TupleEntry.map(
+            v => recur(Asc(v, value_typ(ty)) |> DHExp.fresh),
+            entry,
+          )
         );
       unchanged(
-        List.map(TupleEntry.value, es),
-        List.map(TupleEntry.value, es'),
+        List.map(~f=TupleEntry.value, es),
+        List.map(~f=TupleEntry.value, es'),
       )
         ? Some(e)
         : Some(

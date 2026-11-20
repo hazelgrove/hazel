@@ -894,7 +894,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               map := TermMap.add_all(eq.ids, Exp(singleton), map^);
               singleton;
             };
-          (ListLit(List.map(element, es)), ids);
+          (ListLit(List.map(~f=element, es)), ids);
         | term => ret(ListLit([term]))
         }
       | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
@@ -1031,14 +1031,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [Unlabeled(use_deferral(arg))]))
         | Tuple(es)
-            when List.exists(e => Exp.is_deferral(TupleEntry.value(e)), es) => (
+            when
+              List.exists(~f=e => Exp.is_deferral(TupleEntry.value(e)), es) => (
             DeferredAp(
               l,
               List.map(
-                TupleEntry.map(arg =>
-                  Exp.is_deferral(arg) ? use_deferral(arg) : arg
-                ),
                 es,
+                ~f=
+                  TupleEntry.map(arg =>
+                    Exp.is_deferral(arg) ? use_deferral(arg) : arg
+                  ),
               ),
             ),
             IdTagged.ids(arg),
@@ -1068,7 +1070,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Exp.t) =>
+        |> List.map(~f=(child: Exp.t) =>
              switch (child) {
              /* a labeled entry carries over its singleton tuple's
                 annotation, the `=` tile's */

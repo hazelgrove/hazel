@@ -83,7 +83,7 @@ module Utils = {
     | Cons(e1, e2)
     | ListConcat(e1, e2)
     | BinOp(_, e1, e2) => [e1, e2]
-    | Tuple(es) => List.map(TupleEntry.value, es)
+    | Tuple(es) => List.map(~f=TupleEntry.value, es)
     | ListLit(es) => es
     | If(e1, e2, e3) => [e1, e2, e3]
     | Match(e, branches) => [e, ...List.map(~f=snd, branches)]

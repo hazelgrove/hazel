@@ -26,10 +26,8 @@ let projected_binding = (b: S.binding): Exp.t =>
 let exp_of_section = (s: A.section): Exp.t => {
   IdTagged.FreshGrammar.(
     Exp.tuple_entries(
-      List.map(
-        a =>
-          Exp.labeled(A.label(a), projected_binding(A.default_binding(a))),
-        A.in_section(s),
+      List.map(A.in_section(s), ~f=a =>
+        Exp.labeled(A.label(a), projected_binding(A.default_binding(a)))
       ),
     )
   );
@@ -38,9 +36,8 @@ let exp_of_section = (s: A.section): Exp.t => {
 let shortcut_theme = (): Exp.t => {
   IdTagged.FreshGrammar.(
     Exp.tuple_entries(
-      List.map(
-        s => Exp.labeled(A.section_label(s), exp_of_section(s)),
-        A.populated_sections,
+      List.map(A.populated_sections, ~f=s =>
+        Exp.labeled(A.section_label(s), exp_of_section(s))
       ),
     )
   );
@@ -97,11 +94,11 @@ let entries_of = (v: Exp.t): list(TupleEntry.t(Exp.t)) =>
    program leaves `Unbound` maps to None, which CLEARS a default binding
    rather than falling back to it. */
 let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
-  List.concat_map(
-    section =>
-      switch (section) {
-      | Language.Grammar.Labeled(_, _, group) =>
-        List.filter_map(
+  List.concat_map(entries_of(value), ~f=section =>
+    switch (section) {
+    | Language.Grammar.Labeled(_, _, group) =>
+      List.filter_map(
+        ~f=
           entry =>
             switch (
               TupleEntry.label_name(entry),
@@ -111,9 +108,8 @@ let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
               Some((action_name, S.string_of_binding(b)))
             | _ => None
             },
-          entries_of(group),
-        )
-      | Unlabeled(_) => []
-      },
-    entries_of(value),
+        entries_of(group),
+      )
+    | Unlabeled(_) => []
+    }
   );
