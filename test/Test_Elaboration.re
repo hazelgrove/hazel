@@ -188,10 +188,7 @@ module PlainTests = {
     Exp.(
       match(
         bin_op(Poly(Equals), int(4), int(3)),
-        [
-          (Pat.bool(true), asc(int(24), Typ.unknown(SynSwitch))),
-          (Pat.bool(false), asc(bool(false), Typ.unknown(SynSwitch))),
-        ],
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
@@ -494,21 +491,27 @@ module PlainTests = {
     test_case("Inconsistent let ascription", `Quick, () =>
       alco_check(
         {|let x : String = 4  in x|},
-        Exp.(let_(Pat.(asc(var("x"), Typ.string())), int(4), var("x"))),
+        Exp.(
+          let_(
+            Pat.(asc(var("x"), Typ.string())),
+            asc(int(4), Typ.string()),
+            var("x"),
+          )
+        ),
         dhexp_of_uexp(parse_exp({|let x : String = 4 in x|})),
       )
     ),
     test_case("Inconsistent list ascription", `Quick, () =>
       alco_check(
         {|[1,2,3] : [String]|},
-        parse_exp({|[1,2,3] : [String]|}),
+        parse_exp({|[1 : String, 2 : String, 3 : String] : [String]|}),
         dhexp_of_uexp(parse_exp({|[1,2,3] : [String]|})),
       )
     ),
     test_case("Inlines type aliases", `Quick, () =>
       alco_check(
         {|type T = [String] in [1,2,3] : T|},
-        parse_exp({|[1,2,3] : [String]|}),
+        parse_exp({|[1 : String, 2 : String, 3 : String] : [String]|}),
         dhexp_of_uexp(parse_exp({|type T = [String] in [1,2,3] : T|})),
       )
     ),
@@ -912,7 +915,7 @@ module MenhirElaborationTests = {
   //Menhir test for a binary operation
   let bin_op_uexp: Exp.t = Exp.(bin_op(Int(Plus), bool(false), var("y")));
 
-  let bin_op_str = "false + y";
+  let bin_op_str = "(false : Int) + y";
 
   let bin_op_menhir = () =>
     alco_check_menhir(
@@ -1032,7 +1035,7 @@ module MenhirElaborationTests = {
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
-  let test_str = "test 1 end";
+  let test_str = "test (1 : Bool) end";
   let test_uexp: Exp.t = Exp.(test(int(1)));
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);

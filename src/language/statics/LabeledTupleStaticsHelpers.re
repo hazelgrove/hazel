@@ -35,9 +35,22 @@ let validate_label_name =
       : (Label(name) |> Typ.temp, [], false)
   };
 
-/* Compute the synthesized type and marks for a TupLabel node
-   given its label analysis and child value type. */
-let tup_label_self_type =
+/* The type of a labeled entry whose value has type `value_ty`. */
+let tup_label_type =
+    (~lab_name: option(string), ~label_is_empty_hole: bool, value_ty: Typ.t)
+    : Typ.t => {
+  let label: Typ.t =
+    switch (lab_name) {
+    | Some(name) => Label(name) |> Typ.temp
+    | None when label_is_empty_hole => Unknown(SynSwitch) |> Typ.temp
+    | None => Unknown(Internal) |> Typ.temp
+    };
+  TupLabel(label, value_ty) |> Typ.temp;
+};
+
+/* The syn type of a TupLabel node, given its value's syn type, and the marks
+   its label earns. */
+let tup_label_syn_type =
     (
       ~lab_name: option(string),
       ~label_invalid: bool,
@@ -46,51 +59,31 @@ let tup_label_self_type =
       ~label_is_empty_hole: bool,
       ~malformed_source: Any.t,
     )
-    : (Typ.t, list(Mark.t)) =>
-  switch (lab_name) {
-  | Some(name) =>
-    let labeled_syn =
-      TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp;
-    let marks =
-      label_invalid
-        ? [
-          Mark.TupleLabelError({
-            malformed_labels: [],
-            duplicate_labels: [],
-            invalid_labels: [name],
-            typ: labeled_syn,
-          }),
-        ]
-        : List.mem(duplicate_labels, name, ~equal=String.equal)
-            ? [
-              Mark.TupleLabelError({
-                malformed_labels: [],
-                duplicate_labels: [name],
-                invalid_labels: [],
-                typ: labeled_syn,
-              }),
-            ]
-            : [];
-    (labeled_syn, marks);
-  | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch) |> Typ.temp, value_ty) |> Typ.temp,
-      [],
-    )
-  | None => (
-      TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
-      [
-        Mark.TupleLabelError({
-          malformed_labels: [malformed_source],
-          duplicate_labels: [],
-          invalid_labels: [],
-          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
-        }),
-      ],
-    )
-  };
+    : (Typ.t, list(Mark.t)) => {
+  let typ = tup_label_type(~lab_name, ~label_is_empty_hole, value_ty);
+  let error =
+      (~malformed_labels=[], ~duplicate_labels=[], ~invalid_labels=[], ()) =>
+    Mark.TupleLabelError({
+      malformed_labels,
+      duplicate_labels,
+      invalid_labels,
+      typ,
+    });
+  let marks =
+    switch (lab_name) {
+    | Some(name) when label_invalid => [error(~invalid_labels=[name], ())]
+    | Some(name) when List.mem(duplicate_labels, name, ~equal=String.equal) => [
+        error(~duplicate_labels=[name], ()),
+      ]
+    | Some(_) => []
+    | None when label_is_empty_hole => []
+    | None => [error(~malformed_labels=[malformed_source], ())]
+    };
+  (typ, marks);
+};
 
 /* Standalone TupLabel variant (no expected/duplicate labels to check) */
-let standalone_tup_label_self_type =
+let standalone_tup_label_syn_type =
     (
       ~lab_name: option(string),
       ~value_ty: Typ.t,
@@ -98,27 +91,14 @@ let standalone_tup_label_self_type =
       ~malformed_source: Any.t,
     )
     : (Typ.t, list(Mark.t)) =>
-  switch (lab_name) {
-  | Some(name) => (
-      TupLabel(Label(name) |> Typ.temp, value_ty) |> Typ.temp,
-      [],
-    )
-  | None when label_is_empty_hole => (
-      TupLabel(Unknown(SynSwitch) |> Typ.temp, value_ty) |> Typ.temp,
-      [],
-    )
-  | None => (
-      TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
-      [
-        Mark.TupleLabelError({
-          malformed_labels: [malformed_source],
-          duplicate_labels: [],
-          invalid_labels: [],
-          typ: TupLabel(Unknown(Internal) |> Typ.temp, value_ty) |> Typ.temp,
-        }),
-      ],
-    )
-  };
+  tup_label_syn_type(
+    ~lab_name,
+    ~label_invalid=false,
+    ~duplicate_labels=[],
+    ~value_ty,
+    ~label_is_empty_hole,
+    ~malformed_source,
+  );
 
 /* Compute expected labels from an analysis type. */
 let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
@@ -132,6 +112,68 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
     )
   | _ => None
   };
+
+/* Why a tuple of type `syn` does not fit the tuple type `ana`, when their
+   shapes differ: their sizes and, if the tuple has labels, the labels it is
+   missing or should not have. None when either is not a tuple, or is the
+   empty one, or their shapes agree: the types say more. */
+let shape_mismatch_message =
+    (ctx: Ctx.t, ~ana: Typ.t, ~syn: Typ.t): option(string) => {
+  let labels = (ty: Typ.t) =>
+    switch (MatchedTyp.head(ctx, ty).term) {
+    | Prod([_, ..._] as tys) =>
+      Some(
+        List.map(tys, ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst)),
+      )
+    | _ => None
+    };
+  switch (labels(ana), labels(syn)) {
+  | (Some(expected), Some(actual)) =>
+    let expected_names = List.filter_opt(expected);
+    let actual_names = List.filter_opt(actual);
+    let not_in = (names, name) =>
+      !List.mem(names, name, ~equal=String.equal);
+    let missing =
+      List.is_empty(actual_names)
+        ? [] : List.filter(expected_names, ~f=not_in(actual_names));
+    let unexpected = List.filter(actual_names, ~f=not_in(expected_names));
+    if (List.length(expected) == List.length(actual)
+        && List.is_empty(missing)
+        && List.is_empty(unexpected)) {
+      None;
+    } else {
+      let size = labels => {
+        let n = List.length(labels);
+        Printf.sprintf("%d element%s", n, n == 1 ? "" : "s");
+      };
+      let quoted = names =>
+        String.concat(
+          ~sep=", ",
+          List.map(names, ~f=Token.quote_label_when_necessary),
+        );
+      let with_labels = names =>
+        List.is_empty(names) ? "" : " with labels " ++ quoted(names);
+      let extra = (what, names) =>
+        switch (names) {
+        | [] => ""
+        | [_] => Printf.sprintf("; %s label %s", what, quoted(names))
+        | _ => Printf.sprintf("; %s labels %s", what, quoted(names))
+        };
+      Some(
+        Printf.sprintf(
+          "Expecting a tuple of %s%s but got %s%s%s%s",
+          size(expected),
+          with_labels(expected_names),
+          size(actual),
+          with_labels(actual_names),
+          extra("missing", missing),
+          extra("unexpected", unexpected),
+        ),
+      );
+    };
+  | _ => None
+  };
+};
 
 /* Expand per-occurrence duplicate labels from unique duplicates. */
 let expand_duplicate_labels =
@@ -197,8 +239,9 @@ let collect_malformed_labels =
     infos,
   );
 
-/* Build the final Prod type and TupleLabelError mark for a Tuple node. */
-let finalize_tuple_type =
+/* The syn type of a Tuple node, given its entries' syn types, and the
+   TupleLabelError mark its labels earn. */
+let tuple_syn_type =
     (
       ~duplicate_labels: list(string),
       ~invalid_labels: list(string),

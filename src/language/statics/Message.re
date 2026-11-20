@@ -1,8 +1,7 @@
 open Util;
 
-/* Static messages: unified Message.t for inspector ok payloads. Info.derived_*
-   enriches statics marks with ExpectationMismatch when ana/syn fail to meet, so
-   marks on Info are authoritative for errors (no marks ⇒ no error). */
+/* Static messages: the inspector's payloads for unmarked nodes. Marks on Info
+   are authoritative for errors (no marks ⇒ no error). */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_ana =
@@ -10,6 +9,12 @@ type ok_ana =
       ana: Typ.t,
       syn: Typ.t,
       meet: Typ.t,
+    })
+  /* Unmarked here: the inconsistency is marked further down, where it
+     arose. */
+  | Inconsistent({
+      ana: Typ.t,
+      syn: Typ.t,
     })
   | InternallyInconsistent({
       ana: Typ.t,
@@ -21,8 +26,8 @@ type ok_common =
   | Syn(Typ.t)
   | Ana(ok_ana);
 
-/* Non-error inspector payload for expressions / patterns. Principal syn type
-   is Info.elab_syn_ty; Default is synthesis-only (no Ana payload). */
+/* Non-error inspector payload for expressions / patterns: syn_ty against ana.
+   Default is synthesis-only (no Ana payload). */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type exp =
   | Default

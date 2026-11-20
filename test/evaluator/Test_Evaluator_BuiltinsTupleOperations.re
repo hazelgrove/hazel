@@ -187,7 +187,17 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
               ap(
                 Forward,
                 builtin_fun("from_lvs"),
-                list_lit([tuple([tup_label(label("x"), int(1))])]),
+                list_lit([
+                  asc(
+                    tuple([tup_label(label("x"), int(1))]),
+                    Typ.(
+                      prod([
+                        tup_label(label("label"), string()),
+                        tup_label(label("value"), unknown(Internal)),
+                      ])
+                    ),
+                  ),
+                ]),
               )
             )
           ),
