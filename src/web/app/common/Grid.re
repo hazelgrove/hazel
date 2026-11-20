@@ -41,16 +41,18 @@ let of_padding =
     : t => {
   let {col_width, row_height, text_height}: FontMetrics.t = font_metrics;
   let gadgets =
-    List.fold_left(
-      (acc, {row, before, hi, demand}: Padding.gap) => {
+    List.fold(
+      gaps,
+      ~init=IntMap.empty,
+      ~f=(acc, {row, before, hi, demand}: Padding.gap) => {
         let lo = Option.value(before, ~default=0);
         let px =
           float_of_int(demand) *. pad -. float_of_int(hi - lo) *. col_width;
-        if (px > 0.) {
+        if (Float.(px > 0.)) {
           let gadget = {
             at:
               Option.map(
-                lo => (float_of_int(lo) +. float_of_int(hi)) /. 2.,
+                ~f=lo => (float_of_int(lo) +. float_of_int(hi)) /. 2.,
                 before,
               ),
             col: (lo + hi) / 2,
@@ -67,8 +69,6 @@ let of_padding =
           acc;
         };
       },
-      IntMap.empty,
-      gaps,
     )
     |> IntMap.map(List.rev);
   /* the space between the two rows' text boxes is used first, the gaps
@@ -77,25 +77,24 @@ let of_padding =
      open. */
   let gaps =
     leading
-    |> List.stable_sort((a: Padding.leading, b: Padding.leading) =>
+    |> List.stable_sort(~compare=(a: Padding.leading, b: Padding.leading) =>
          Int.compare(a.below - a.above, b.below - b.above)
        )
-    |> List.fold_left(
-         (gaps, {above, below, demand}: Padding.leading) => {
+    |> List.fold(
+         ~init=IntMap.empty,
+         ~f=(gaps, {above, below, demand}: Padding.leading) => {
            let opened =
-             List.init(below - above, i => above + i)
-             |> List.fold_left(
-                  (acc, row) =>
-                    acc
-                    +. Option.value(IntMap.find_opt(row, gaps), ~default=0.),
-                  0.,
+             List.init(below - above, ~f=i => above + i)
+             |> List.fold(~init=0., ~f=(acc, row) =>
+                  acc
+                  +. Option.value(IntMap.find_opt(row, gaps), ~default=0.)
                 );
            let px =
              float_of_int(demand)
              *. pad
              -. (float_of_int(below - above) *. row_height -. text_height)
              -. opened;
-           px > 0.
+           Float.(px > 0.)
              ? IntMap.update(
                  below - 1,
                  fun
@@ -105,13 +104,12 @@ let of_padding =
                )
              : gaps;
          },
-         IntMap.empty,
        );
   let tops =
     switch (IntMap.max_binding_opt(gaps)) {
     | None => [||]
     | Some((last_gap, _)) =>
-      let tops = Array.make(last_gap + 2, 0.);
+      let tops = Array.create(~len=last_gap + 2, 0.);
       for (row in 0 to last_gap) {
         tops[row + 1] =
           tops[row]
@@ -135,14 +133,12 @@ let gadgets = ({gadgets, _}: t, row: int): list(gadget) =>
 /* The pixels of the gadgets before `col`: those at the row's start, those
    strictly before it, and with `inclusive` one on it. */
 let shift = (grid: t, ~row: int, ~inclusive: bool, col: float): float =>
-  List.fold_left(
-    (acc, {at, px, _}) =>
-      switch (at) {
-      | None => acc +. px
-      | Some(at) => at < col || inclusive && at == col ? acc +. px : acc
-      },
-    0.,
-    gadgets(grid, row),
+  List.fold(gadgets(grid, row), ~init=0., ~f=(acc, {at, px, _}) =>
+    switch (at) {
+    | None => acc +. px
+    | Some(at) =>
+      Float.(at < col) || inclusive && Float.equal(at, col) ? acc +. px : acc
+    }
   );
 
 let x =
@@ -160,10 +156,8 @@ let x_end =
 
 let gadget_before = (grid: t, ~row: int, col: int): option(float) =>
   switch (
-    List.fold_left(
-      (acc, g) => g.col == col ? acc +. g.px : acc,
-      0.,
-      gadgets(grid, row),
+    List.fold(gadgets(grid, row), ~init=0., ~f=(acc, g) =>
+      g.col == col ? acc +. g.px : acc
     )
   ) {
   | 0. => None
@@ -198,10 +192,11 @@ let text_bottom = ({font_metrics: {text_height, _}, _} as grid: t, row: int) =>
    row_height. */
 let row_of_px = ({font_metrics: {row_height, _}, tops, _}: t, y: float): int => {
   let n = Array.length(tops);
-  if (n == 0 || y < 0.) {
+  if (n == 0 || Float.(y < 0.)) {
     int_of_float(y /. row_height);
   } else {
-    let rec go = row => row + 1 < n && tops[row + 1] <= y ? go(row + 1) : row;
+    let rec go = row =>
+      row + 1 < n && Float.(<=)(tops[row + 1], y) ? go(row + 1) : row;
     let row = go(0);
     row == n - 1 ? row + int_of_float((y -. tops[row]) /. row_height) : row;
   };
@@ -217,12 +212,12 @@ let point_of_px =
     | [{at, px, _}, ...rest] =>
       let left =
         switch (at) {
-        | None => neg_infinity
+        | None => Float.neg_infinity
         | Some(at) => at *. col_width +. offset
         };
-      if (x < left) {
+      if (Float.(x < left)) {
         x -. offset;
-      } else if (x < left +. px) {
+      } else if (Float.(<)(x, left +. px)) {
         left -. offset;
       } else {
         cell(offset +. px, rest);

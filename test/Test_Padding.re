@@ -23,17 +23,18 @@ let padding = (~pad_cols=0., program: string): Padding.t =>
     );
   };
 
-let block_row = testable(Padding.pp_block_row, (==));
-let gap = testable(Padding.pp_gap, (==));
-let leading = testable(Padding.pp_leading, (==));
+let block_row = testable(Padding.pp_block_row, Poly.equal);
+let gap = testable(Padding.pp_gap, Poly.equal);
+let leading = testable(Padding.pp_leading, Poly.equal);
 
 /* Ids are random, so a block is found by its level and head. */
 let rows_of = (p: Padding.t, level: int, head: Typ.head) =>
   switch (
-    List.find_opt(
-      (b: Padding.block) =>
-        b.block.level == level
-        && Blocks.equal_paint(b.block.paint, Type(head)),
+    List.find(
+      ~f=
+        (b: Padding.block) =>
+          b.block.level == level
+          && Blocks.equal_paint(b.block.paint, Type(head)),
       p.blocks,
     )
   ) {

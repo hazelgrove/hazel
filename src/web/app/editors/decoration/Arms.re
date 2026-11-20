@@ -236,7 +236,7 @@ let paths =
       |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
-    |> List.map(svg(~grid, ~path_cls));
+    |> List.map(~f=svg(~grid, ~path_cls));
   };
 
 /* This draws the shards backing decorations,
@@ -251,23 +251,24 @@ let shards =
     )
     : list(Node.t) =>
   List.concat_map(
-    ((id, mold: Mold.t, shards: list(Shards.shard))) => {
+    tiles,
+    ~f=((id, mold: Mold.t, shards: list(Shards.shard))) => {
       let sort = refine_sort(id, mold.out);
       List.map(
-        ((index: int, measurement: Measured.measurement)) =>
-          ShardDec.simple(
-            ~attr?,
-            {
-              grid,
-              measurement,
-              tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-            },
-            Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
-          ),
+        ~f=
+          ((index: int, measurement: Measured.measurement)) =>
+            ShardDec.simple(
+              ~attr?,
+              {
+                grid,
+                measurement,
+                tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+              },
+              Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
+            ),
         shards,
       );
     },
-    tiles,
   );
 
 /* This draws the indication decoration for a term, comprising shard
@@ -352,7 +353,7 @@ let term =
     | Some((l, r)) =>
       let r = apply_clip(clip_right, r);
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
+      let tiles = is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
       term(~refine_sort, ~grid, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
     | _ => []
     };
@@ -574,15 +575,16 @@ module Errors = {
     div_c(
       is_warning ? "warnings" : "errors",
       List.map(
-        of_id(
-          ~refine_sort,
-          ~is_warning,
-          ~simple_indication,
-          ~grid,
-          ~syntax,
-          ~completion,
-        ),
         error_ids,
+        ~f=
+          of_id(
+            ~refine_sort,
+            ~is_warning,
+            ~simple_indication,
+            ~grid,
+            ~syntax,
+            ~completion,
+          ),
       ),
     );
 };

@@ -6,7 +6,7 @@ type scope = {
 };
 
 let binders = (p: Pat.t): list(Id.t) =>
-  List.map((b: Binding.t) => b.id, Pat.bindings(p));
+  List.map(~f=(b: Binding.t) => b.id, Pat.bindings(p));
 
 /* A recursive let's definition is in scope of its own binders, which the
    elaborated let shows by binding them around the definition. A let in
@@ -39,7 +39,7 @@ let scopes_of = (info: Info.exp): list(scope) => {
     );
   | Fun(p, body, _, _) => Option.to_list(scope(Exp.rep_id(body), p))
   | Match(_, rules) =>
-    List.filter_map(((p, e)) => scope(Exp.rep_id(e), p), rules)
+    List.filter_map(~f=((p, e)) => scope(Exp.rep_id(e), p), rules)
   | _ => []
   };
 };
@@ -55,37 +55,29 @@ let of_map = (m: StaticsBase.Map.t): list(Blocks.t) => {
       m,
       [],
     );
-  let scopes = List.concat_map(scopes_of, exps);
-  let scope_ids = Id.Set.of_list(List.map(s => s.id, scopes));
+  let scopes = List.concat_map(~f=scopes_of, exps);
+  let scope_ids = Id.Set.of_list(List.map(~f=s => s.id, scopes));
   /* the scopes among `ids`; an ancestor can be listed twice (function
      sugar traverses its let twice) */
   let depth = (ids: list(Id.t)): int =>
     Id.Set.cardinal(Id.Set.inter(scope_ids, Id.Set.of_list(ids)));
   let depth_of = (id: Id.t): option(int) =>
     Option.map(
-      info => depth(Info.ancestors_of(info)),
+      ~f=info => depth(Info.ancestors_of(info)),
       StaticsBase.Map.lookup(id, m),
     );
   let depths: Id.Map.t(int) =
-    List.fold_left(
-      (acc, s: scope) =>
-        switch (depth_of(s.id)) {
-        | Some(d) => Id.Map.add(s.id, d, acc)
-        | None => acc
-        },
-      Id.Map.empty,
-      scopes,
+    List.fold(scopes, ~init=Id.Map.empty, ~f=(acc, s: scope) =>
+      switch (depth_of(s.id)) {
+      | Some(d) => Id.Map.add(s.id, d, acc)
+      | None => acc
+      }
     );
   let scope_of_binder: Id.Map.t(Id.t) =
-    List.fold_left(
-      (acc, s: scope) =>
-        List.fold_left(
-          (acc, b) => Id.Map.add(b, s.id, acc),
-          acc,
-          s.binders,
-        ),
-      Id.Map.empty,
-      scopes,
+    List.fold(scopes, ~init=Id.Map.empty, ~f=(acc, s: scope) =>
+      List.fold(s.binders, ~init=acc, ~f=(acc, b) =>
+        Id.Map.add(b, s.id, acc)
+      )
     );
   let paint_of_binder = (b: Id.t): option(Blocks.paint) => {
     open OptUtil.Syntax;
@@ -106,34 +98,38 @@ let of_map = (m: StaticsBase.Map.t): list(Blocks.t) => {
     );
   let binder_blocks =
     List.concat_map(
-      (s: scope) =>
-        List.filter_map(
-          b => {
-            open OptUtil.Syntax;
-            let* level = depth_of(b);
-            let+ paint = paint_of_binder(b);
-            block(b, level, paint);
-          },
-          s.binders,
-        ),
+      ~f=
+        (s: scope) =>
+          List.filter_map(
+            ~f=
+              b => {
+                open OptUtil.Syntax;
+                let* level = depth_of(b);
+                let+ paint = paint_of_binder(b);
+                block(b, level, paint);
+              },
+            s.binders,
+          ),
       scopes,
     );
   let use_blocks =
     List.filter_map(
-      (e: Info.exp) =>
-        switch (e.user_term.term) {
-        | Var(_) =>
-          open OptUtil.Syntax;
-          let* binder = Info.get_binding_site(InfoExp(e));
-          let+ paint = paint_of_binder(binder);
-          let id = Exp.rep_id(e.user_term);
-          block(id, depth([id, ...e.ancestors]), paint);
-        | _ => None
-        },
+      ~f=
+        (e: Info.exp) =>
+          switch (e.user_term.term) {
+          | Var(_) =>
+            open OptUtil.Syntax;
+            let* binder = Info.get_binding_site(InfoExp(e));
+            let+ paint = paint_of_binder(binder);
+            let id = Exp.rep_id(e.user_term);
+            block(id, depth([id, ...e.ancestors]), paint);
+          | _ => None
+          },
       exps,
     );
   List.stable_sort(
-    (a: Blocks.t, b: Blocks.t) => Int.compare(a.level, b.level),
     scope_blocks @ binder_blocks @ use_blocks,
+    ~compare=(a: Blocks.t, b: Blocks.t) =>
+    Int.compare(a.level, b.level)
   );
 };

@@ -81,9 +81,10 @@ let update =
    * or rebuilding the map elsewhere would silently defeat the gate. */
   | Some(was)
       when
-        was.editor_key == editor_key && was.refractor_rows === refractor_rows =>
+        String.equal(was.editor_key, editor_key)
+        && phys_equal(was.refractor_rows, refractor_rows) =>
     ()
-  | Some(was) when was.editor_key == editor_key =>
+  | Some(was) when String.equal(was.editor_key, editor_key) =>
     let caret_row = Zipper.Caret.point(measured, z).row;
     let delta_rows =
       above_locus_delta_rows(

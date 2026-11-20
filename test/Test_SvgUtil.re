@@ -10,7 +10,7 @@ let box = (~inset=0., row, left, right): Rows.box => {
   right: float_of_int(right) -. inset,
 };
 
-let close = (a: float, b: float) => Float.abs(a -. b) < 1e-9;
+let close = (a: float, b: float) => Float.(abs(a -. b) < 1e-9);
 
 /* Absolute commands, and arcs, which are only ever relative. */
 let equal_cmd = (a: Path.cmd, b: Path.cmd) =>
@@ -22,8 +22,8 @@ let equal_cmd = (a: Path.cmd, b: Path.cmd) =>
   | (A_(a), A_(b)) =>
     close(a.rx, b.rx)
     && close(a.ry, b.ry)
-    && a.large_arc_flag == b.large_arc_flag
-    && a.sweep_flag == b.sweep_flag
+    && Bool.equal(a.large_arc_flag, b.large_arc_flag)
+    && Bool.equal(a.sweep_flag, b.sweep_flag)
     && close(a.dx, b.dx)
     && close(a.dy, b.dy)
   | (Z, Z) => true
@@ -35,10 +35,11 @@ let path =
     (fmt, p) =>
       Format.pp_print_string(
         fmt,
-        String.concat(" ", List.map(Path.string_of_command, p)),
+        String.concat(~sep=" ", List.map(~f=Path.string_of_command, p)),
       ),
     (a, b) =>
-      List.length(a) == List.length(b) && List.for_all2(equal_cmd, a, b),
+      List.length(a) == List.length(b)
+      && List.for_all2_exn(a, b, ~f=equal_cmd),
   );
 
 let m = (x, y) =>
@@ -208,7 +209,7 @@ let test_rounded_concave =
 
 let groups = list(list(int));
 let rows_of = (gs: list(list(Rows.box))) =>
-  List.map(List.map((b: Rows.box) => b.row), gs);
+  List.map(~f=List.map(~f=(b: Rows.box) => b.row), gs);
 
 let test_split_disjoint =
   test_case(
@@ -304,7 +305,7 @@ let test_transform_keeps_edges_straight =
     () => {
       /* columns from 2 on are pushed right by 10 */
       let pt = ({x, y}: Point.t): Point.t => {
-        x: x >= 2. ? x +. 10. : x,
+        x: Float.(x >= 2.) ? x +. 10. : x,
         y,
       };
       check(

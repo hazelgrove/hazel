@@ -91,7 +91,7 @@ module Model = {
   let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.map.samples);
+    |> Option.map(~f=(d: Dynamics.t) => d.map.samples);
 
   let test_results = (model: t): option(TestResults.t) =>
     model.dynamics
@@ -723,13 +723,11 @@ module View = {
       : WebUtil.Node.t =>
     WebUtil.div_c(
       "test-decos",
-      List.filter_map(
-        ((id, insts)) =>
-          switch (Id.Map.find_opt(id, measured.tiles)) {
-          | Some(ms) => test_status_icon_view(~grid, insts, ms)
-          | None => None
-          },
-        test_results.test_map,
+      List.filter_map(test_results.test_map, ~f=((id, insts)) =>
+        switch (Id.Map.find_opt(id, measured.tiles)) {
+        | Some(ms) => test_status_icon_view(~grid, insts, ms)
+        | None => None
+        }
       ),
     );
 

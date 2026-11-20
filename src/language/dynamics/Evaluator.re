@@ -209,7 +209,7 @@ let rec evaluate =
     let (call_stack, new_state) =
       EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
     let new_state =
-      switch (Option.map(provenance_of_kind, kind)) {
+      switch (Option.map(~f=provenance_of_kind, kind)) {
       | Some(Proper)
           when EvalInfo.is_program_node(DHExp.rep_id(exp), eval_info) =>
         EvaluatorState.record_evaluation(new_state, DHExp.rep_id(exp))

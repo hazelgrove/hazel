@@ -49,21 +49,18 @@ type span = {
 };
 
 let count = (p: 'a => bool, xs: list('a)): int =>
-  List.length(List.filter(p, xs));
+  List.length(List.filter(~f=p, xs));
 
 /* Lists keyed by row, in order. */
 let by_row = (row: 'a => int, xs: list('a)): IntMap.t(list('a)) =>
-  List.fold_left(
-    (acc, x) =>
-      IntMap.update(
-        row(x),
-        fun
-        | None => Some([x])
-        | Some(l) => Some([x, ...l]),
-        acc,
-      ),
-    IntMap.empty,
-    xs,
+  List.fold(xs, ~init=IntMap.empty, ~f=(acc, x) =>
+    IntMap.update(
+      row(x),
+      fun
+      | None => Some([x])
+      | Some(l) => Some([x, ...l]),
+      acc,
+    )
   )
   |> IntMap.map(List.rev);
 
@@ -84,8 +81,8 @@ let row_of_span = (peers: list(span), s: span): block_row => {
     && s'.extent.end_col <= e.end_col;
   let deepest =
     peers
-    |> List.filter(nested)
-    |> List.fold_left((acc, s': span) => max(acc, s'.level), s.level);
+    |> List.filter(~f=nested)
+    |> List.fold(~init=s.level, ~f=(acc, s': span) => max(acc, s'.level));
   {
     row: e.row,
     left: {
@@ -113,10 +110,12 @@ let gaps_of_row =
     count((s: span) => s.extent.start_col == col, spans);
   let ends_at = col => count((s: span) => s.extent.end_col == col, spans);
   let (_, gaps) =
-    List.fold_left(
-      ((before, acc), (start, end_)) => {
+    List.fold(
+      content,
+      ~init=(None, []),
+      ~f=((before, acc), (start, end_)) => {
         let demand =
-          Option.fold(~none=0, ~some=ends_at, before) + starts_at(start);
+          Option.value_map(before, ~default=0, ~f=ends_at) + starts_at(start);
         let acc =
           demand > 0
             ? [
@@ -131,8 +130,6 @@ let gaps_of_row =
             : acc;
         (Some(end_), acc);
       },
-      (None, []),
-      content,
     );
   List.rev(gaps);
 };
@@ -147,7 +144,7 @@ type ledge = {
 };
 
 let stretch = (l: ledge, lo: float, hi: float): list(ledge) =>
-  lo < hi
+  Float.(lo < hi)
     ? [
       {
         ...l,
@@ -159,10 +156,11 @@ let stretch = (l: ledge, lo: float, hi: float): list(ledge) =>
 
 /* `l` less the columns from `lo` to `hi`. */
 let minus = (l: ledge, (lo, hi): (float, float)): list(ledge) =>
-  stretch(l, l.lo, min(l.hi, lo)) @ stretch(l, max(l.lo, hi), l.hi);
+  stretch(l, l.lo, Float.min(l.hi, lo))
+  @ stretch(l, Float.max(l.lo, hi), l.hi);
 
 let overlaps = (l: ledge, (lo, hi): (float, float)) =>
-  l.lo < hi && lo < l.hi;
+  Float.(l.lo < hi) && Float.(lo < l.hi);
 
 /* A block row's columns, its pads included. */
 let columns = (~pad_cols: float, r: block_row): (float, float) => {
@@ -221,7 +219,7 @@ let of_blocks =
     : t => {
   let extents =
     blocks
-    |> List.filter_map((b: Language.Blocks.t) =>
+    |> List.filter_map(~f=(b: Language.Blocks.t) =>
          switch (TermData.row_extents(b.id, term_data, measured)) {
          | None
          | Some([]) => None
@@ -230,39 +228,41 @@ let of_blocks =
        );
   let spans =
     extents
-    |> List.concat_map(((b: Language.Blocks.t, extents)) =>
+    |> List.concat_map(~f=((b: Language.Blocks.t, extents)) =>
          List.map(
-           extent =>
-             {
-               level: b.level,
-               extent,
-             },
+           ~f=
+             extent =>
+               {
+                 level: b.level,
+                 extent,
+               },
            extents,
          )
        )
     |> by_row((s: span) => s.extent.row);
   let blocks =
     extents
-    |> List.map(((b: Language.Blocks.t, extents)) =>
+    |> List.map(~f=((b: Language.Blocks.t, extents)) =>
          {
            block: b,
            rows:
              List.map(
-               (extent: TermData.row_extent) =>
-                 row_of_span(
-                   on(spans, extent.row),
-                   {
-                     level: b.level,
-                     extent,
-                   },
-                 ),
+               ~f=
+                 (extent: TermData.row_extent) =>
+                   row_of_span(
+                     on(spans, extent.row),
+                     {
+                       level: b.level,
+                       extent,
+                     },
+                   ),
                extents,
              ),
          }
        );
   let content =
     Measured.row_pieces(measured)
-    |> Array.map(List.filter_map(Measured.content_span(_, measured)));
+    |> Array.map(~f=List.filter_map(~f=Measured.content_span(_, measured)));
   let gaps =
     IntMap.fold(
       (row, spans, acc) =>
@@ -276,11 +276,13 @@ let of_blocks =
     |> List.rev;
   let text =
     Array.map(
-      List.map(((s, e)) => (float_of_int(s), float_of_int(e))),
       content,
+      ~f=List.map(~f=((s, e)) => (float_of_int(s), float_of_int(e))),
     );
   let (tops, bottoms) =
-    blocks |> List.map((b: block) => ledges(~pad_cols, b.rows)) |> List.split;
+    blocks
+    |> List.map(~f=(b: block) => ledges(~pad_cols, b.rows))
+    |> List.unzip;
   let (tops, bottoms) = (List.concat(tops), List.concat(bottoms));
   let (tops_on, bottoms_on) = (
     by_row((l: ledge) => l.row, tops),
@@ -304,22 +306,22 @@ let of_blocks =
     | _ when row < 0 || row >= Array.length(text) => acc
     | _ =>
       let (acc, rest) =
-        List.fold_left(
-          ((acc, rest), s: ledge) => {
+        List.fold(
+          stretches,
+          ~init=(acc, []),
+          ~f=((acc, rest), s: ledge) => {
             let over =
               List.filter(
-                (o: ledge) => overlaps(s, (o.lo, o.hi)),
+                ~f=(o: ledge) => overlaps(s, (o.lo, o.hi)),
                 on(facing, row),
               );
-            let over_text = List.filter(overlaps(s), at(text, row));
+            let over_text = List.filter(~f=overlaps(s), at(text, row));
             switch (over, over_text) {
             | ([], []) => (acc, [s, ...rest])
             | _ =>
               let deepest =
-                List.fold_left(
-                  (acc, o: ledge) => max(acc, o.rank),
-                  0,
-                  over,
+                List.fold(over, ~init=0, ~f=(acc, o: ledge) =>
+                  max(acc, o.rank)
                 );
               let asks = {
                 above: min(s.row, row),
@@ -327,64 +329,50 @@ let of_blocks =
                 demand: s.rank + deepest,
               };
               let hits =
-                List.map((o: ledge) => (o.lo, o.hi), over) @ over_text;
+                List.map(~f=(o: ledge) => (o.lo, o.hi), over) @ over_text;
               let rest =
-                List.fold_left(
-                  (stretches, hit) =>
-                    List.concat_map(minus(_, hit), stretches),
-                  [s],
-                  hits,
+                List.fold(hits, ~init=[s], ~f=(stretches, hit) =>
+                  List.concat_map(~f=minus(_, hit), stretches)
                 )
                 @ rest;
               ([asks, ...acc], rest);
             };
           },
-          (acc, []),
-          stretches,
         );
       faces(~step, ~facing, row + step, rest, acc);
     };
   let asked =
-    List.fold_left(
-      (acc, l: ledge) =>
-        faces(~step=1, ~facing=tops_on, l.row + 1, [l], acc),
-      [],
-      bottoms,
+    List.fold(bottoms, ~init=[], ~f=(acc, l: ledge) =>
+      faces(~step=1, ~facing=tops_on, l.row + 1, [l], acc)
     );
   let asked =
-    List.fold_left(
-      (acc, l: ledge) =>
-        faces(~step=-1, ~facing=bottoms_on, l.row - 1, [l], acc),
-      asked,
-      tops,
+    List.fold(tops, ~init=asked, ~f=(acc, l: ledge) =>
+      faces(~step=-1, ~facing=bottoms_on, l.row - 1, [l], acc)
     );
   /* the most asked between any two rows */
   let leading =
-    List.fold_left(
-      (acc, {above, below, demand}) =>
-        IntMap.update(
-          above,
-          fun
-          | None => Some(IntMap.singleton(below, demand))
-          | Some(belows) =>
-            Some(
-              IntMap.update(
-                below,
-                fun
-                | None => Some(demand)
-                | Some(d) => Some(max(d, demand)),
-                belows,
-              ),
+    List.fold(asked, ~init=IntMap.empty, ~f=(acc, {above, below, demand}) =>
+      IntMap.update(
+        above,
+        fun
+        | None => Some(IntMap.singleton(below, demand))
+        | Some(belows) =>
+          Some(
+            IntMap.update(
+              below,
+              fun
+              | None => Some(demand)
+              | Some(d) => Some(max(d, demand)),
+              belows,
             ),
-          acc,
-        ),
-      IntMap.empty,
-      asked,
+          ),
+        acc,
+      )
     )
     |> IntMap.bindings
-    |> List.concat_map(((above, belows)) =>
+    |> List.concat_map(~f=((above, belows)) =>
          IntMap.bindings(belows)
-         |> List.map(((below, demand)) =>
+         |> List.map(~f=((below, demand)) =>
               {
                 above,
                 below,

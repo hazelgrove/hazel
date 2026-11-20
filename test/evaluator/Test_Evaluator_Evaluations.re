@@ -51,17 +51,18 @@ let evaluations = (program: string): list((string, int)) => {
 let check_counts = (program: string, expected: list((string, int))) => {
   let counts = evaluations(program);
   List.iter(
-    ((text, n)) =>
-      switch (List.assoc_opt(text, counts)) {
-      | Some(count) => check(int, text, n, count)
-      | None =>
-        fail(
-          "no expression "
-          ++ text
-          ++ " among "
-          ++ String.concat(", ", List.map(fst, counts)),
-        )
-      },
+    ~f=
+      ((text, n)) =>
+        switch (List.Assoc.find(counts, text, ~equal=String.equal)) {
+        | Some(count) => check(int, text, n, count)
+        | None =>
+          fail(
+            "no expression "
+            ++ text
+            ++ " among "
+            ++ String.concat(~sep=", ", List.map(~f=fst, counts)),
+          )
+        },
     expected,
   );
 };

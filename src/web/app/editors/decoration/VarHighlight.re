@@ -67,6 +67,6 @@ let view =
   let ids = compute_caret_ids(~info_map, z);
   div_c(
     "var-highlights",
-    List.concat_map(highlight_of_id(~measured, ~grid, ~info_map), ids),
+    List.concat_map(~f=highlight_of_id(~measured, ~grid, ~info_map), ids),
   );
 };

@@ -653,7 +653,7 @@ let specimen_text_height = (~default: float): float =>
         [|Js.Unsafe.inject(specimen)|],
       );
     let rect = Js.Unsafe.meth_call(range, "getBoundingClientRect", [||]);
-    max(1.0, Js.Unsafe.get(rect, "height"));
+    Float.max(1.0, Js.Unsafe.get(rect, "height"));
   | None => default
   };
 
@@ -664,8 +664,8 @@ let font_metrics_from_specimen = (): (float, float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    let col_width = Float.max(1.0, rect##.right -. rect##.left);
+    let row_height = Float.max(1.0, rect##.bottom -. rect##.top);
     (col_width, row_height, specimen_text_height(~default=row_height));
   | None => (10.0, 10.0, 10.0)
   };

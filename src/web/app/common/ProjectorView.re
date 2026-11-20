@@ -107,9 +107,8 @@ let filter_by_visibility =
   switch (visible) {
   | None => data
   | Some(band) =>
-    List.filter(
-      item => Globals.VisibleRows.overlaps(~grid, band, get_row_range(item)),
-      data,
+    List.filter(data, ~f=item =>
+      Globals.VisibleRows.overlaps(~grid, band, get_row_range(item))
     )
   };
 
@@ -589,22 +588,24 @@ let split_views =
     let offside_view =
       views.offside
       |> Option.map(
-           offside_wrapper(
-             grid,
-             offside_base,
-             ~row=measurement.origin.row,
-             ~origin_col=measurement.origin.col,
-           ),
+           ~f=
+             offside_wrapper(
+               grid,
+               offside_base,
+               ~row=measurement.origin.row,
+               ~origin_col=measurement.origin.col,
+             ),
          )
       |> Option.to_list;
     let below_view =
       views.below
       |> Option.map(
-           below_wrapper(
-             grid,
-             ~row=measurement.origin.row,
-             measurement.origin.col,
-           ),
+           ~f=
+             below_wrapper(
+               grid,
+               ~row=measurement.origin.row,
+               measurement.origin.col,
+             ),
          )
       |> Option.to_list;
     wrapper(
@@ -646,17 +647,18 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> filter_by_visibility(~grid, visible, _, get_row_range)
-    |> List.sort(by_measurement)
+    |> List.sort(~compare=by_measurement)
     |> List.map(
-         split_views(
-           ~skip_inline=false,
-           ~core_settings,
-           inject,
-           make_active,
-           grid,
-           _,
-           projector_list,
-         ),
+         ~f=
+           split_views(
+             ~skip_inline=false,
+             ~core_settings,
+             inject,
+             make_active,
+             grid,
+             _,
+             projector_list,
+           ),
        )
     |> List.unzip;
   let overlay_views = List.filter_map(~f=Fn.id, overlay_views);

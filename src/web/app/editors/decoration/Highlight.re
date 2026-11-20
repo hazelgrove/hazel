@@ -327,7 +327,9 @@ let rec side =
   | [box] => edge(box)
   | [box, next, ...rest] =>
     edge(box)
-    @ (x(box) == x(next) ? [] : [SvgUtil.Path.H({x: x(next)})])
+    @ (
+      Float.equal(x(box), x(next)) ? [] : [SvgUtil.Path.H({x: x(next)})]
+    )
     @ side(edge, x, [next, ...rest])
   };
 
@@ -394,7 +396,7 @@ let svg_of_group =
             int_of_float(box.height *. 10.0),
           );
         let sweep_width =
-          max(
+          Float.max(
             Grid.font_metrics(grid).col_width,
             box.width *. sweep_width_ratio,
           );
@@ -550,7 +552,7 @@ let of_segment =
     rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~grid, ~clss, ~sweep), groups);
+  List.filter_map(~f=svg_of_group(~grid, ~clss, ~sweep), groups);
 };
 
 let selection =
@@ -573,7 +575,7 @@ let selection =
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
   let groups = group_consecutive(rows);
-  div_c("selects", List.filter_map(svg_of_group(~grid, ~clss), groups));
+  div_c("selects", List.filter_map(~f=svg_of_group(~grid, ~clss), groups));
 };
 
 // Expands selection to make it a subtree of the exp
@@ -674,11 +676,12 @@ let colors =
   div_c(
     "color-highlights",
     List.concat_map(
-      ((id, c)) => color(~syntax, ~grid, ["highlight-code-" ++ c], id),
       switch (color_highlights) {
       | Some(colorMap) => ColorSteps.to_list(colorMap)
       | _ => []
       },
+      ~f=((id, c)) =>
+      color(~syntax, ~grid, ["highlight-code-" ++ c], id)
     ),
   );
 
@@ -750,24 +753,20 @@ let incr_eval =
   let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
   div_c(
     "incremental-highlights",
-    List.concat_map(
-      ((id, _)) => color(~syntax, ~grid, ["incremental-frozen"], id),
-      frozen_outermost,
+    List.concat_map(frozen_outermost, ~f=((id, _)) =>
+      color(~syntax, ~grid, ["incremental-frozen"], id)
     )
-    @ List.concat_map(
-        ((id, _)) => color(~syntax, ~grid, ["incremental-pending"], id),
-        pending_inactive_ranges,
+    @ List.concat_map(pending_inactive_ranges, ~f=((id, _)) =>
+        color(~syntax, ~grid, ["incremental-pending"], id)
       )
-    @ List.concat_map(
-        ((id, _)) =>
-          color(
-            ~syntax,
-            ~grid,
-            ~sweep=true,
-            ["incremental-pending", "incremental-active"],
-            id,
-          ),
-        active_ids,
+    @ List.concat_map(active_ids, ~f=((id, _)) =>
+        color(
+          ~syntax,
+          ~grid,
+          ~sweep=true,
+          ["incremental-pending", "incremental-active"],
+          id,
+        )
       ),
   );
 };
@@ -781,17 +780,22 @@ let blocks =
   div_c(
     "blocks",
     List.concat_map(
-      ((paint, boxes)) => {
-        let base_cls = ["shard", "block", Language.Blocks.paint_name(paint)];
-        boxes
-        |> SvgUtil.Rows.split
-        |> List.map(group =>
-             DecUtil.svg_px(
-               ~base_cls,
-               SvgUtil.Rows.outline(~radius=block_radius, group),
-             )
-           );
-      },
+      ~f=
+        ((paint, boxes)) => {
+          let base_cls = [
+            "shard",
+            "block",
+            Language.Blocks.paint_name(paint),
+          ];
+          boxes
+          |> SvgUtil.Rows.split
+          |> List.map(~f=group =>
+               DecUtil.svg_px(
+                 ~base_cls,
+                 SvgUtil.Rows.outline(~radius=block_radius, group),
+               )
+             );
+        },
       blocks,
     ),
   );
@@ -807,25 +811,28 @@ let inset_boxes =
     (~grid: Grid.t, ~syntax: CachedSyntax.t, blocks: list(Language.Blocks.t))
     : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) =>
   List.filter_map(
-    ({id, level, paint}: Language.Blocks.t) => {
-      let inset = inset_per_level *. float_of_int(min(level, inset_levels));
-      TermData.row_extents(id, syntax.term_data, syntax.measured)
-      |> Option.map(
-           List.map(({row, start_col, end_col}: TermData.row_extent) => {
-             let left = Grid.x_start(grid, ~row, start_col);
-             let right = Grid.x_end(grid, ~row, end_col);
-             let mid = (left +. right) /. 2.;
-             SvgUtil.Rows.{
-               row,
-               top: Grid.y_top(grid, row) +. inset,
-               bottom: Grid.y_bottom(grid, row) -. inset,
-               left: min(left +. inset, mid),
-               right: max(right -. inset, mid),
-             };
-           }),
-         )
-      |> Option.map(boxes => (paint, boxes));
-    },
+    ~f=
+      ({id, level, paint}: Language.Blocks.t) => {
+        let inset =
+          inset_per_level *. float_of_int(min(level, inset_levels));
+        TermData.row_extents(id, syntax.term_data, syntax.measured)
+        |> Option.map(
+             ~f=
+               List.map(~f=({row, start_col, end_col}: TermData.row_extent) => {
+                 let left = Grid.x_start(grid, ~row, start_col);
+                 let right = Grid.x_end(grid, ~row, end_col);
+                 let mid = (left +. right) /. 2.;
+                 SvgUtil.Rows.{
+                   row,
+                   top: Grid.y_top(grid, row) +. inset,
+                   bottom: Grid.y_bottom(grid, row) -. inset,
+                   left: Float.min(left +. inset, mid),
+                   right: Float.max(right -. inset, mid),
+                 };
+               }),
+           )
+        |> Option.map(~f=boxes => (paint, boxes));
+      },
     blocks,
   );
 
@@ -836,21 +843,24 @@ let padded_boxes =
     : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) => {
   let out = (rank: int) => float_of_int(rank) *. Grid.pad(grid);
   List.map(
-    ({block: {paint, _}, rows}: Padding.block) =>
-      (
-        paint,
-        List.map(
-          ({row, left, right, rank}: Padding.block_row) =>
-            SvgUtil.Rows.{
-              row,
-              top: Grid.text_top(grid, row) -. out(rank),
-              bottom: Grid.text_bottom(grid, row) +. out(rank),
-              left: Grid.x_start(grid, ~row, left.col) -. out(left.rank),
-              right: Grid.x_end(grid, ~row, right.col) +. out(right.rank),
-            },
-          rows,
+    ~f=
+      ({block: {paint, _}, rows}: Padding.block) =>
+        (
+          paint,
+          List.map(
+            ~f=
+              ({row, left, right, rank}: Padding.block_row) =>
+                SvgUtil.Rows.{
+                  row,
+                  top: Grid.text_top(grid, row) -. out(rank),
+                  bottom: Grid.text_bottom(grid, row) +. out(rank),
+                  left: Grid.x_start(grid, ~row, left.col) -. out(left.rank),
+                  right:
+                    Grid.x_end(grid, ~row, right.col) +. out(right.rank),
+                },
+            rows,
+          ),
         ),
-      ),
     padding.blocks,
   );
 };

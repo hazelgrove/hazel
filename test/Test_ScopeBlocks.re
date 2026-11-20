@@ -16,8 +16,8 @@ let shapes = list(pair(int, paint));
 /* (level, paint) of every block in a fixed order: ids are random. */
 let shape = (bs: list(Blocks.t)): list((int, Blocks.paint)) =>
   bs
-  |> List.map((b: Blocks.t) => (b.level, b.paint))
-  |> List.sort(((l1, p1), (l2, p2)) =>
+  |> List.map(~f=(b: Blocks.t) => (b.level, b.paint))
+  |> List.sort(~compare=((l1, p1), (l2, p2)) =>
        switch (Int.compare(l1, l2)) {
        | 0 => String.compare(Blocks.paint_name(p1), Blocks.paint_name(p2))
        | c => c
@@ -29,7 +29,7 @@ let check_shape = (program: string, expected: list((int, int))) =>
   check(
     shapes,
     program,
-    List.map(((l, d)) => (l, Blocks.Scope(d)), expected),
+    List.map(~f=((l, d)) => (l, Blocks.Scope(d)), expected),
     shape(blocks(program)),
   );
 
@@ -119,8 +119,13 @@ let test_sorted_by_level =
     () => {
       let levels =
         blocks("let x = 1 in let y = 2 in x")
-        |> List.map((b: Blocks.t) => b.level);
-      check(list(int), "levels", List.sort(Int.compare, levels), levels);
+        |> List.map(~f=(b: Blocks.t) => b.level);
+      check(
+        list(int),
+        "levels",
+        List.sort(~compare=Int.compare, levels),
+        levels,
+      );
     },
   );
 

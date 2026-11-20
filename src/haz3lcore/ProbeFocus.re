@@ -251,7 +251,7 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
         && List.equal(Id.equal, s_ids, tail_ids);
       };
       Id.Map.exists(
-        (_, samples) => List.exists(alive, samples),
+        (_, samples) => List.exists(~f=alive, samples),
         dynamics.samples,
       )
         ? Some(stack) : None;

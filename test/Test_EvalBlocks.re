@@ -31,8 +31,8 @@ let shapes = list(pair(int, paint));
 /* (level, paint) of every block in a fixed order: ids are random. */
 let shape = (bs: list(Blocks.t)): list((int, Blocks.paint)) =>
   bs
-  |> List.map((b: Blocks.t) => (b.level, b.paint))
-  |> List.sort(((l1, p1), (l2, p2)) =>
+  |> List.map(~f=(b: Blocks.t) => (b.level, b.paint))
+  |> List.sort(~compare=((l1, p1), (l2, p2)) =>
        switch (Int.compare(l1, l2)) {
        | 0 => String.compare(Blocks.paint_name(p1), Blocks.paint_name(p2))
        | c => c
@@ -44,7 +44,7 @@ let check_shape = (program: string, expected: list((int, int))) =>
   check(
     shapes,
     program,
-    List.map(((l, h)) => (l, Blocks.Heat(h)), expected),
+    List.map(~f=((l, h)) => (l, Blocks.Heat(h)), expected),
     shape(blocks(program)),
   );
 

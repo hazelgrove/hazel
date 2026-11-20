@@ -30,16 +30,19 @@ module VisibleRows = {
     switch (old) {
     | None => true
     | Some(old) =>
-      Float.abs(old.top -. now.top) > 2.
-      *. row_height
-      || Float.abs(old.bottom -. now.bottom) > 2.
-      *. row_height
+      Float.(
+        abs(old.top -. now.top) > 2.
+        *. row_height
+        || abs(old.bottom -. now.bottom) > 2.
+        *. row_height
+      )
     };
 
   /* Whether rows `first` through `last` reach into the band. */
   let overlaps =
       (~grid: Grid.t, {top, bottom}: t, (first, last): (int, int)): bool =>
-    Grid.y_top(grid, first) <= bottom && Grid.y_bottom(grid, last) >= top;
+    Float.(Grid.y_top(grid, first) <= bottom)
+    && Float.(Grid.y_bottom(grid, last) >= top);
 };
 
 module Action = {

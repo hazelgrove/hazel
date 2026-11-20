@@ -90,8 +90,8 @@ type row_extent = {
 let row_extents =
     (id: Id.t, data: t, measured: Measured.t): option(list(row_extent)) => {
   let+ (start, last) = extreme_measures(id, data, measured);
-  List.init(last.row - start.row + 1, i => start.row + i)
-  |> List.filter_map(row => {
+  List.init(last.row - start.row + 1, ~f=i => start.row + i)
+  |> List.filter_map(~f=row => {
        let* shape = Measured.Rows.find_opt(row, measured.rows);
        let start_col = row == start.row ? start.col : shape.content_start;
        let end_col = row == last.row ? last.col : shape.content_end;

@@ -17,8 +17,8 @@ let shapes = list(pair(int, paint));
    same-level blocks are ordered by paint name. */
 let shape = (bs: list(Blocks.t)): list((int, Blocks.paint)) =>
   bs
-  |> List.map((b: Blocks.t) => (b.level, b.paint))
-  |> List.sort(((l1, p1), (l2, p2)) =>
+  |> List.map(~f=(b: Blocks.t) => (b.level, b.paint))
+  |> List.sort(~compare=((l1, p1), (l2, p2)) =>
        switch (Int.compare(l1, l2)) {
        | 0 => String.compare(Blocks.paint_name(p1), Blocks.paint_name(p2))
        | c => c
@@ -29,7 +29,7 @@ let check_shape = (program: string, expected: list((int, Typ.head))) =>
   check(
     shapes,
     program,
-    List.map(((l, h)) => (l, Blocks.Type(h)), expected),
+    List.map(~f=((l, h)) => (l, Blocks.Type(h)), expected),
     shape(blocks(program)),
   );
 
@@ -78,8 +78,13 @@ let test_sorted_by_level =
     `Quick,
     () => {
       let levels =
-        blocks("[fun x -> x + 1]") |> List.map((b: Blocks.t) => b.level);
-      check(list(int), "levels", List.sort(Int.compare, levels), levels);
+        blocks("[fun x -> x + 1]") |> List.map(~f=(b: Blocks.t) => b.level);
+      check(
+        list(int),
+        "levels",
+        List.sort(~compare=Int.compare, levels),
+        levels,
+      );
     },
   );
 

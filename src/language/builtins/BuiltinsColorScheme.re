@@ -129,20 +129,27 @@ let palette: list(string) = seeds @ derived;
 /* The block behind every term, one fill and one edge per type head. */
 let type_block_roles: list(string) =
   List.concat_map(
-    head => {
-      let name = Typ.head_name(head);
-      [name, name ++ "-edge"];
-    },
+    ~f=
+      head => {
+        let name = Typ.head_name(head);
+        [name, name ++ "-edge"];
+      },
     Typ.all_of_head,
   );
 
 /* The block behind every scope, one fill and one edge per scope color. */
 let scope_block_roles: list(string) =
-  List.concat_map(name => [name, name ++ "-edge"], Blocks.scope_color_names);
+  List.concat_map(
+    ~f=name => [name, name ++ "-edge"],
+    Blocks.scope_color_names,
+  );
 
 /* The block behind every evaluation count, one fill and one edge per heat. */
 let eval_block_roles: list(string) =
-  List.concat_map(name => [name, name ++ "-edge"], Blocks.heat_color_names);
+  List.concat_map(
+    ~f=name => [name, name ++ "-edge"],
+    Blocks.heat_color_names,
+  );
 
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),

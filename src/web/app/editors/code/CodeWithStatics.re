@@ -291,8 +291,9 @@ let eval_blocks = (model: Model.t): list(Language.Blocks.t) => {
     evaluations: model.dynamics.evaluations,
   };
   let same = (k: eval_blocks_key) =>
-    k.info_map === key.info_map && k.evaluations === key.evaluations;
-  switch (List.find_opt(((k, _)) => same(k), eval_blocks_cache^)) {
+    phys_equal(k.info_map, key.info_map)
+    && phys_equal(k.evaluations, key.evaluations);
+  switch (List.find(~f=((k, _)) => same(k), eval_blocks_cache^)) {
   | Some((_, blocks)) => blocks
   | None =>
     let blocks =
@@ -302,7 +303,7 @@ let eval_blocks = (model: Model.t): list(Language.Blocks.t) => {
       );
     eval_blocks_cache :=
       List.filteri(
-        (i, _) => i < layout_cache_size,
+        ~f=(i, _) => i < layout_cache_size,
         [(key, blocks), ...eval_blocks_cache^],
       );
     blocks;
@@ -328,13 +329,13 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
     pad: globals.settings.block_pad,
   };
   let same = (k: layout_key) =>
-    k.measured === key.measured
-    && k.blocks === key.blocks
+    phys_equal(k.measured, key.measured)
+    && phys_equal(k.blocks, key.blocks)
     && FontMetrics.equal(k.font_metrics, key.font_metrics)
     && Settings.Blocks.equal(k.show, key.show)
     && Settings.Blocks.equal_layout(k.how, key.how)
     && k.pad == key.pad;
-  switch (List.find_opt(((k, _)) => same(k), layout_cache^)) {
+  switch (List.find(~f=((k, _)) => same(k), layout_cache^)) {
   | Some((_, layout)) => layout
   | None =>
     let layout =
@@ -364,7 +365,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
       };
     layout_cache :=
       List.filteri(
-        (i, _) => i < layout_cache_size,
+        ~f=(i, _) => i < layout_cache_size,
         [(key, layout), ...layout_cache^],
       );
     layout;
@@ -456,7 +457,7 @@ module View = {
         ? [
           div_c(
             "row-lines",
-            List.init(Measured.total_rows(measured), row =>
+            List.init(Measured.total_rows(measured), ~f=row =>
               Node.div(
                 ~attrs=[
                   Attr.classes(["row-line"]),

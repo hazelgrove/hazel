@@ -63,8 +63,8 @@ module View = {
 
     let taken_steps = (taken_steps: list(Id.t)) =>
       taken_steps
-      |> List.filter_map(TermData.root_tile(_, syntax.term_data))
-      |> List.map(t => div_c("step-taken", Arms.term(~grid, ~syntax, t)));
+      |> List.filter_map(~f=TermData.root_tile(_, syntax.term_data))
+      |> List.map(~f=t => div_c("step-taken", Arms.term(~grid, ~syntax, t)));
 
     let refl_steps =
         (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>

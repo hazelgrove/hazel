@@ -138,8 +138,8 @@ let all =
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(~grid, visible, _, get_row_range)
-    |> List.sort(ProjectorView.by_measurement)
-    |> List.map(data =>
+    |> List.sort(~compare=ProjectorView.by_measurement)
+    |> List.map(~f=data =>
          ProjectorView.split_views(
            inject,
            make_active,

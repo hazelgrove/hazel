@@ -22,10 +22,10 @@ let px_of_cell =
     : SvgUtil.Point.t => {
   let {col_width, row_height, _}: FontMetrics.t = Grid.font_metrics(grid);
   let row_offset =
-    min(max(0, int_of_float(Float.floor(y))), hi.row - lo.row);
+    min(max(0, Float.to_int(Float.round_down(y))), hi.row - lo.row);
   let row = lo.row + row_offset;
   let col = float_of_int(lo.col) +. x;
-  let near = (c: int) => Float.abs(col -. float_of_int(c)) < 0.5;
+  let near = (c: int) => Float.(abs(col -. of_int(c)) < 0.5);
   let from = (edge: float, c: int) =>
     edge +. (col -. float_of_int(c)) *. col_width;
   let px_x =
@@ -75,8 +75,8 @@ let svg_px =
   let box = Option.value(SvgUtil.Path.bbox(path), ~default=empty_rect);
   let box = {
     ...box,
-    width: max(box.width, 1.),
-    height: max(box.height, 1.),
+    width: Float.max(box.width, 1.),
+    height: Float.max(box.height, 1.),
   };
   create_svg(
     "svg",

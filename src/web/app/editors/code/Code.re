@@ -150,7 +150,7 @@ let view =
   /* The room block padding (Grid) makes before a piece. */
   let gadget = (origin: option(Point.t)): list(Node.t) =>
     switch (
-      Option.bind(origin, (o: Point.t) =>
+      Option.bind(origin, ~f=(o: Point.t) =>
         Grid.gadget_before(grid, ~row=o.row, o.col)
       )
     ) {
@@ -160,7 +160,7 @@ let view =
   /* `n` line breaks ending `row`, then the indent of the row after them. */
   let newlines = (~row: int, ~indent: int, n: int): list(Node.t) =>
     List.concat(
-      List.init(n, i =>
+      List.init(n, ~f=i =>
         Gadgets.below_row(~grid, row + i) @ [Node.text("\n")]
       ),
     )
@@ -169,8 +169,8 @@ let view =
   let gadget_before_shard = (t: Tile.t, i: int) =>
     gadget(
       Measured.find_shards(~msg="Code", t, measured)
-      |> List.assoc_opt(i)
-      |> Option.map((m: Measured.measurement) => m.origin),
+      |> List.Assoc.find(_, i, ~equal=Int.equal)
+      |> Option.map(~f=(m: Measured.measurement) => m.origin),
     );
 
   let of_secondary = (secondary: Secondary.t): list(Node.t) =>
@@ -186,7 +186,7 @@ let view =
         );
     | Whitespace(str) when str == Token.space => [Node.text(ws_icon)]
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) => [
+    | Comment(str) when List.mem(buffer_ids, secondary.id, ~equal=Id.equal) => [
         comment_text(~font_metrics, "in-unparsed-buffer", str),
       ]
     | Comment(str) => [comment_text(~font_metrics, "comment", str)]
@@ -212,33 +212,34 @@ let view =
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
-           * side effects fire in document order, matching Measured.of_segment */
-          let delim = i => gadget_before_shard(t, i) @ [of_delim(t, i)];
-          let nodes =
-            Aba.fold_left(
-              delim,
-              (acc, seg, i) => acc @ of_segment(seg) @ delim(i),
-              Aba.mk(t.shards, t.children),
-            );
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_rows)) {
-            | Some(n) =>
-              DeferredLinebreaks.update(n) |> ignore;
-              ();
-            | None => ()
-            };
-          switch (classes(t.id)) {
-          | [] => nodes
-          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
-          };
-        }
-      | Grout(g) as p => gadget_before(p) @ [of_grout(g)]
-      | Secondary(s) as p => gadget_before(p) @ of_secondary(s)
-      | Projector(pr) as p => gadget_before(p) @ [of_projector(pr)],
       seg,
+      ~f=
+        fun
+        | Piece.Tile(t) => {
+            /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+             * side effects fire in document order, matching Measured.of_segment */
+            let delim = i => gadget_before_shard(t, i) @ [of_delim(t, i)];
+            let nodes =
+              Aba.fold_left(
+                delim,
+                (acc, seg, i) => acc @ of_segment(seg) @ delim(i),
+                Aba.mk(t.shards, t.children),
+              );
+            let _ =
+              switch (Id.Map.find_opt(t.id, refractor_rows)) {
+              | Some(n) =>
+                DeferredLinebreaks.update(n) |> ignore;
+                ();
+              | None => ()
+              };
+            switch (classes(t.id)) {
+            | [] => nodes
+            | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+            };
+          }
+        | Grout(g) as p => gadget_before(p) @ [of_grout(g)]
+        | Secondary(s) as p => gadget_before(p) @ of_secondary(s)
+        | Projector(pr) as p => gadget_before(p) @ [of_projector(pr)],
     );
 
   /* Trailing filler: a text layer ending in a linebreak gets no

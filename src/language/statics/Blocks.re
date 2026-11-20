@@ -17,13 +17,13 @@ let scope_colors = 6;
 
 let scope_color_name = (i: int) => "depth-" ++ string_of_int(i);
 
-let scope_color_names = List.init(scope_colors, scope_color_name);
+let scope_color_names = List.init(scope_colors, ~f=scope_color_name);
 
 let heat_colors = 6;
 
 let heat_color_name = (i: int) => "heat-" ++ string_of_int(i);
 
-let heat_color_names = List.init(heat_colors, heat_color_name);
+let heat_color_names = List.init(heat_colors, ~f=heat_color_name);
 
 let heat = (~most: int, count: int): paint =>
   Heat(
@@ -54,9 +54,10 @@ let parent =
     )
     : option((Id.t, (paint, Info.ancestors))) =>
   List.find_map(
-    a =>
-      Id.equal(a, id)
-        ? None : Option.map(p => (a, p), Id.Map.find_opt(a, painted)),
+    ~f=
+      a =>
+        Id.equal(a, id)
+          ? None : Option.map(~f=p => (a, p), Id.Map.find_opt(a, painted)),
     ancestors,
   );
 
@@ -109,8 +110,7 @@ let nest = (painted: Id.Map.t((paint, Info.ancestors))): list(t) => {
       painted,
       (Id.Map.empty, []),
     );
-  List.stable_sort(
-    (a: t, b: t) => Int.compare(a.level, b.level),
-    List.rev(blocks),
+  List.stable_sort(List.rev(blocks), ~compare=(a: t, b: t) =>
+    Int.compare(a.level, b.level)
   );
 };

@@ -68,7 +68,7 @@ module View = {
     /* A row's label: nothing for a row to skip, else its line number
        (absolute or relative). */
     let index_to_text = (i): string => {
-      let line_number = List.nth(processed_list, i);
+      let line_number = List.nth_exn(processed_list, i);
       if (line_number == 0) {
         "";
       } else if (show_relative_numbers && selected) {

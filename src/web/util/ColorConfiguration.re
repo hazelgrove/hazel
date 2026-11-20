@@ -374,15 +374,15 @@ let aliases: list(((string, string), list(string))) = [
 let aliases =
   aliases
   @ List.map(
-      name => (("type-block", name), ["type-block-" ++ name]),
+      ~f=name => (("type-block", name), ["type-block-" ++ name]),
       CS.type_block_roles,
     )
   @ List.map(
-      name => (("scope-block", name), ["scope-block-" ++ name]),
+      ~f=name => (("scope-block", name), ["scope-block-" ++ name]),
       CS.scope_block_roles,
     )
   @ List.map(
-      name => (("eval-block", name), ["eval-block-" ++ name]),
+      ~f=name => (("eval-block", name), ["eval-block-" ++ name]),
       CS.eval_block_roles,
     );
 
