@@ -300,6 +300,73 @@ module Gate = {
     );
   };
 
+  /* A fact in scope `forall x̄ -> !!p` of which `!!e` is an instance: the
+   * fact's id and the instance's terms. A binder with a type takes only a
+   * term the routine types alike. A theorem whose proof isn't finished
+   * discharges nothing, as for lookup. */
+  let instance =
+      (~ctx: SemanticCtx.t, e: Exp.t): option((Id.t, list(Exp.t))) => {
+    let env = SemanticCtx.get_env(ctx);
+    let tyctx = SemanticCtx.get_ctx(ctx);
+    let routine =
+      Standardness.in_context(
+        ~ctx=tyctx,
+        ~env,
+        ~is_standard=SemanticCtx.is_standard(ctx),
+      );
+    let fits = ((typ, term): (Typ.t, Exp.t)) =>
+      switch (Typ.term_of(Typ.normalize(tyctx, typ))) {
+      | Unknown(_) => true
+      | _ =>
+        Option.exists(routine.type_of(term), ~f=t =>
+          Typ.fast_equal(Typ.normalize(tyctx, typ), t)
+        )
+      };
+    let goal = Exp.fresh(Standard(e));
+    SemanticCtx.facts(ctx)
+    |> List.find_map(~f=((_, id, fact)) => {
+         let rule = ProofRule.BoolReading.apply(ProofRule.exp_to_rule(fact));
+         switch (SemanticCtx.verdict(ctx, id), rule) {
+         | (Some(Unfinished | Refuted), _) => None
+         | (
+             Some(Proven) | None,
+             {bindings: [_, ..._], assumptions: [], conclusion: BoolFact(p)},
+           ) =>
+           switch (Exp.term_of(ProofSyntax.unwrap(p))) {
+           | Standard(_) =>
+             switch (
+               snd(
+                 ProofRule.Rewrite.matches(
+                   ~statics=ProofStatics.empty,
+                   ~env,
+                   rule,
+                   goal,
+                 ),
+               )
+             ) {
+             | Some((_, mctx)) when !ProofRule.Rewrite.has_unassigned(mctx) =>
+               let assigned =
+                 List.filter_map(
+                   ~f=
+                     ((_, (typ, term))) =>
+                       Option.map(term, ~f=term => (typ, term)),
+                   mctx,
+                 );
+               List.for_all(~f=fits, assigned)
+                 ? Some((id, List.map(~f=snd, assigned))) : None;
+             | _ => None
+             }
+           | _ => None
+           }
+         | _ => None
+         };
+       });
+  };
+
+  /* After lookup and closed evaluation, a `!!e` goal can be discharged
+   * by one application of a quantified fact (`instance`). Its terms then
+   * have to be standard themselves, by the routine, lookup or closed
+   * evaluation, but by no further application. */
   let obligations =
       (
         ~step: step_fn,
@@ -307,15 +374,31 @@ module Gate = {
         ~origin: Id.t,
         (conditions, goals): (list(Exp.t), list(Exp.t)),
       )
-      : list(Obligation.t) =>
-    List.map(
-      ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Definedness),
-      conditions,
-    )
-    @ List.map(
-        ~f=Discharge.obligation(~step, ~ctx, ~origin, ~kind=Standardness),
-        goals,
-      );
+      : list(Obligation.t) => {
+    let obligation = Discharge.obligation(~step, ~ctx, ~origin);
+    let definedness = List.map(~f=obligation(~kind=Definedness));
+    let standardness = goal => {
+      let ob = obligation(~kind=Standardness, goal);
+      switch (ob.discharge, Exp.term_of(goal)) {
+      | (Pending, Standard(e)) =>
+        switch (instance(~ctx, e)) {
+        | Some((fact, terms)) =>
+          let (conditions, goals) = standard(~ctx, terms);
+          [
+            {
+              ...ob,
+              discharge: Remote(fact),
+            },
+          ]
+          @ definedness(conditions)
+          @ List.map(~f=obligation(~kind=Standardness), goals);
+        | None => [ob]
+        }
+      | _ => [ob]
+      };
+    };
+    definedness(conditions) @ List.concat_map(~f=standardness, goals);
+  };
 
   /* A scrutinee still to fill in is unfinished, and needs nothing yet. */
   let scrutinee =

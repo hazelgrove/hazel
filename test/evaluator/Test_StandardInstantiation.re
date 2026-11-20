@@ -1,4 +1,5 @@
 open Alcotest;
+open Language;
 open Test_ProofMap.Harness;
 
 /* A rule cited at a term needs the term standard, as quantifiers range
@@ -185,6 +186,73 @@ let test_focus_under_forall = () =>
     focused("forall (g: Int -> Int) -> g(1) + 0 == g(1)", "g(1) + 0"),
   );
 
+/* --- Applying a quantified `!!` fact --------------------------------- */
+
+/* `f` loops, so the routine can't judge `f(t)`, though it types it a
+ * list of Ints; the hypothesis `h` says it is standard for every list. Citing `refl_lemma` at `term` needs
+ * `!!term`. */
+let with_fact = (term: string) =>
+  refl_lemma
+  ++ "let f = fun (xs : [Int]) -> if f(xs) == [] then xs else xs in "
+  ++ "theorem t = (forall (xs : [Int]) -> !!f(xs)) ==> forall (ys : [Int]) -> forall (bs : [Bool]) -> "
+  ++ term
+  ++ " == "
+  ++ term
+  ++ " proof assume h = forall (xs : [Int]) -> !!f(xs) => forall ys => forall bs => from "
+  ++ term
+  ++ " == "
+  ++ term
+  ++ " do rewrite same end end in t";
+
+let fact_conditions = (term: string): list(string) => {
+  let (pm, proof, obs) = obligations_named("t", with_fact(term));
+  check_mark_free("nothing is refused", pm, proof);
+  List.map(
+    ~f=
+      (ob: Obligation.t) =>
+        print_exp(ob.goal)
+        ++ (
+          switch (Obligation.remote_fact(ob)) {
+          | Some((name, _)) => " by " ++ name
+          | None => " " ++ Obligation.show_discharge(ob.discharge)
+          }
+        ),
+    obs,
+  );
+};
+
+let test_fact_applied = () =>
+  check(
+    list(string),
+    "discharged by the fact",
+    ["!! f(ys) by h"],
+    fact_conditions("f(ys)"),
+  );
+
+let test_fact_instance_needs_standard_terms = () =>
+  check(
+    list(string),
+    "the instance's term has to be standard",
+    ["!! f([1 / 0]) by h", "0 != 0 Pending"],
+    fact_conditions("f([1 / 0])"),
+  );
+
+let test_fact_applied_once = () =>
+  check(
+    list(string),
+    "the instance's term isn't discharged by a second application",
+    ["!! f(f(ys)) by h", "!! f(ys) Pending"],
+    fact_conditions("f(f(ys))"),
+  );
+
+let test_fact_at_its_binder_type = () =>
+  check(
+    list(string),
+    "a list of Bools isn't a list of Ints",
+    ["!! f(bs) Pending"],
+    fact_conditions("f(bs)"),
+  );
+
 let tests = (
   "Evaluator.StandardInstantiation",
   [
@@ -249,6 +317,22 @@ let tests = (
       "focus: a forall's variable is standard",
       `Quick,
       test_focus_under_forall,
+    ),
+    test_case(
+      "a quantified !! fact discharges an instance",
+      `Quick,
+      test_fact_applied,
+    ),
+    test_case(
+      "the instance's terms have to be standard",
+      `Quick,
+      test_fact_instance_needs_standard_terms,
+    ),
+    test_case("a fact is applied once", `Quick, test_fact_applied_once),
+    test_case(
+      "a fact applies only at its binder's type",
+      `Quick,
+      test_fact_at_its_binder_type,
     ),
   ],
 );
