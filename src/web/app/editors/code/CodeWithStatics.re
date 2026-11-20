@@ -24,9 +24,6 @@ module Model = {
     dynamics: Language.Dynamics.Map.t,
   };
 
-  let context_menu_is_open = (model: t): bool =>
-    Util.Menu.is_open(model.context_menu);
-
   let mk =
       (
         ~dynamics=Language.Dynamics.Map.empty,

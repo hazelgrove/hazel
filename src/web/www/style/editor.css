@@ -555,17 +555,38 @@ svg:has(.child-line) {
   stroke: var(--token-mpat);
 }
 
-/* Invisible backdrop to capture clicks outside context menu */
+/* The context menu lives in the browser's top layer (see ContextMenu.Layer),
+ * so it is painted above everything and no ancestor clips it; z-index plays
+ * no part. Its zero-width anchor sits at the caret, inside the editor. */
+.context-menu-anchor {
+  position: absolute;
+  width: 0;
+}
+
+/* Invisible full-viewport backdrop: the popover itself, which catches clicks
+ * and wheel events outside the menu. Undoes the UA's [popover] box styles.
+ * --menu-left/--menu-top are the anchor's viewport coordinates, set inline
+ * after each render; data-open picks the corner the menu hangs from. */
 .context-menu-backdrop {
+  --menu-left: 0px;
+  --menu-top: 0px;
   position: fixed;
   inset: 0;
-  z-index: calc(var(--context-menu-z) - 1);
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: none;
+  overflow: visible;
+  color: inherit;
+  background: transparent;
 }
 
 .context-menu {
   position: absolute;
+  left: var(--menu-left);
+  top: var(--menu-top);
   min-width: 160px;
-  z-index: var(--context-menu-z);
   flex-direction: column;
   justify-content: center;
   background-color: var(--menu-bkg);
@@ -576,24 +597,24 @@ svg:has(.child-line) {
 }
 
 /* Border radius, transforms, and animations based on opening direction */
-.context-menu.open-down-right {
+[data-open="down-right"] > .context-menu {
   border-radius: 0 0.5em 0.5em 0.5em; /* top-left sharp */
   transform-origin: top left;
   animation: context-menu-open-down-right 0.12s ease-out;
 }
-.context-menu.open-down-left {
+[data-open="down-left"] > .context-menu {
   border-radius: 0.5em 0 0.5em 0.5em; /* top-right sharp */
   transform: translateX(-100%);
   transform-origin: top right;
   animation: context-menu-open-down-left 0.12s ease-out;
 }
-.context-menu.open-up-right {
+[data-open="up-right"] > .context-menu {
   border-radius: 0.5em 0.5em 0.5em 0; /* bottom-left sharp */
   transform: translateY(-100%);
   transform-origin: bottom left;
   animation: context-menu-open-up-right 0.12s ease-out;
 }
-.context-menu.open-up-left {
+[data-open="up-left"] > .context-menu {
   border-radius: 0.5em 0.5em 0 0.5em; /* bottom-right sharp */
   transform: translate(-100%, -100%);
   transform-origin: bottom right;

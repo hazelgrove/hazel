@@ -154,17 +154,6 @@
   z-index: var(--proof-step-panel-z);
 }
 
-/* A context menu opened inside a proof (in a case pattern, the induction
- * scrutinee or a rewrite box) shares the proof's stacking context with the
- * raised rows above, so it and its backdrop have to clear them too. */
-.cell-result .context-menu-backdrop {
-  z-index: calc(var(--proof-step-panel-z) + 1);
-}
-
-.cell-result .context-menu {
-  z-index: calc(var(--proof-step-panel-z) + 2);
-}
-
 .proof-context-box {
   position: absolute;
   top: calc(100% + 0.5em);
