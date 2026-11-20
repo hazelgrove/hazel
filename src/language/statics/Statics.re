@@ -349,21 +349,15 @@ and uexp_to_info_map =
       user_term: uexp,
     };
 
-    let elaborated_exp =
+    let lifted =
       rewrap(
         Tuple([
           TupLabel(Label(l) |> Exp.fresh, original_expression) |> Exp.fresh,
         ]),
       );
 
-    let (info, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana,
-        ~ancestors=ancestors_inclusive,
-        elaborated_exp,
-        m,
-      );
+    let (info, elab, m) =
+      uexp_to_info_map(~ctx, ~ana, ~ancestors=ancestors_inclusive, lifted, m);
     let info = {
       ...info,
       message: inner_info.message,
@@ -376,9 +370,9 @@ and uexp_to_info_map =
         ),
     };
 
-    let m = add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m);
+    let m = add_info(IdTagged.ids(lifted), InfoExp(info), m);
     let m = add_info(IdTagged.ids(uexp), InfoExp(inner_for_source), m);
-    (info, elaborated_exp, m);
+    (info, elab, m);
   };
 
   // HACK: we use the co-context to check for unused variables in surrounding
