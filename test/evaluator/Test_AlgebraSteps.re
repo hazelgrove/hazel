@@ -5,9 +5,10 @@ open Test_ProofMap.Harness;
 /* `algebra` steps, verified by Algebrite. It verifies Int arithmetic
  * (literals, +, −, ×, unary −, ** with a literal exponent) over variables
  * known to be Int, and Nat arithmetic (literals, +, ×, **) over variables
- * known to be Nat, and refuses a step it finds wrong. Any other step's
- * equation is left as an obligation, so the proof can't read plain
- * Proven. */
+ * known to be Nat, and refuses a step it finds wrong. Any other Int or
+ * Nat subterm is an unknown, which the step needs standard. Any other
+ * step's equation is left as an obligation, so the proof can't read
+ * plain Proven. */
 
 let status = (name, src) => {
   let (pm, proof) = run_named(name, src);
@@ -37,6 +38,100 @@ let differs = (name, src) => {
     | _ => false,
   );
 };
+
+/* `loop(0) == loop(0) + 1` holds, by `step` and `refl`. Read as numbers,
+ * `0 == loop(0) - loop(0)` and `loop(0) - (loop(0) + 1) == -1` would then
+ * prove `0 == -1`; the unknown `loop(0)` has to be standard, which it
+ * isn't. */
+let loop_derivation = {|let loop = fun (x : Int) -> loop(x) + 1 in
+theorem bad = 0 == -1 proof
+  have h = loop(0) == loop(0) + 1 proof from loop(0) do step end; rewrite refl end =>
+  from 0 do algebra loop(0) - loop(0) end end;
+  from loop(0) at 2 do rewrite h end end;
+  from loop(0) - (loop(0) + 1) do algebra -1 end end;
+  rewrite refl end
+in bad|};
+
+let unknown_tests = [
+  test_case(
+    "0 == -1 through a looping call isn't proven",
+    `Quick,
+    () => {
+      let (pm, proof) = run_named("bad", loop_derivation);
+      check_mark_free("every step applies", pm, proof);
+      check(
+        string,
+        "verified, but resting on the unknown's standardness",
+        "ProvenModulo Standardness, Standardness",
+        status("bad", loop_derivation),
+      );
+      check(
+        list(string),
+        "the unknown's standardness is left",
+        ["!! loop(0)"],
+        List.dedup_and_sort(
+          standardness_goals(ProofMap.obligations_of_proof(pm, proof)),
+          ~compare=String.compare,
+        ),
+      );
+    },
+  ),
+  test_case("a call to a standard function is an unknown", `Quick, () =>
+    check(
+      string,
+      "Proven",
+      "Proven",
+      status(
+        "t",
+        "let sum = fun (n : Int) -> if n <= 0 then 0 else n + sum(n - 1) in theorem t = forall m: Int -> 2 * (m + 2 + sum(m + 1)) == 2 * (m + 2) + 2 * sum(m + 1) proof from 2 * (m + 2 + sum(m + 1)) do algebra 2 * (m + 2) + 2 * sum(m + 1) end end; rewrite refl end in t",
+      ),
+    )
+  ),
+  test_case("an unknown carries its domain condition", `Quick, () =>
+    check(
+      string,
+      "the condition 0 != 0",
+      "ProvenModulo Definedness",
+      status(
+        "t",
+        "let f = fun (x : Int) -> 1 / x in theorem t = 0 * f(0) == 0 proof from 0 * f(0) do algebra 0 end end; rewrite refl end in t",
+      ),
+    )
+  ),
+  test_case("a term that isn't a number stays an obligation", `Quick, () =>
+    check(
+      string,
+      "ProvenModulo",
+      "ProvenModulo Algebra",
+      status(
+        "t",
+        "let g = fun (y : Int) -> y in theorem t = 0 * g == 0 proof from 0 * g do algebra 0 end end; rewrite refl end in t",
+      ),
+    )
+  ),
+  test_case("a Float inside an unknown leaves its condition open", `Quick, () =>
+    check(
+      string,
+      "is_finite(x)",
+      "ProvenModulo Definedness",
+      status(
+        "t",
+        "theorem t = forall x: Float -> 0 * int_of_float(x) == 0 proof from 0 * int_of_float(x) do algebra 0 end end; rewrite refl end in t",
+      ),
+    )
+  ),
+  test_case("Int division is an unknown", `Quick, () =>
+    check(
+      string,
+      "b != 0",
+      "ProvenModulo Definedness",
+      status(
+        "t",
+        "theorem t = forall a: Int -> forall b: Int -> a / b - a / b == 0 proof from a / b - a / b do algebra 0 end end; rewrite refl end in t",
+      ),
+    )
+  ),
+];
 
 let tests = (
   "AlgebraSteps",
@@ -235,5 +330,6 @@ let tests = (
         ),
       )
     ),
-  ],
+  ]
+  @ unknown_tests,
 );
