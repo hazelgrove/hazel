@@ -19,7 +19,8 @@
   (glob_files go/*.hz)
   (glob_files minesweeper/*.hz)
   (glob_files mahjong/*.hz)
-  (glob_files solitaire/*.hz))
+  (glob_files solitaire/*.hz)
+  (glob_files pinball/*.hz))
  (action
   (setenv
    IDB_STUB
@@ -41,7 +42,8 @@
   (glob_files go/*.hz)
   (glob_files minesweeper/*.hz)
   (glob_files mahjong/*.hz)
-  (glob_files solitaire/*.hz))
+  (glob_files solitaire/*.hz)
+  (glob_files pinball/*.hz))
  (action
   (setenv
    IDB_STUB

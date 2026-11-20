@@ -2194,6 +2194,14 @@ let solitaire_aot =
       "\n(deal = Deal.deal, moves = Moves.moves, moves_from = Moves.moves_from, apply = Moves.apply, won = Moves.won)",
     ~mark="SOLITAIRE",
   );
+let pinball_aot =
+  game_aot(
+    ~dir="pinball",
+    ~modules=["Pinball"],
+    ~tail=
+      "\n(start = Pinball.start, step = Pinball.step, board = Pinball.board)",
+    ~mark="PINBALL",
+  );
 
 let astrology_aot = () =>
   switch (
@@ -2799,6 +2807,11 @@ let tests = (
       "solitaire (hazeljs-examples), the rules compiled whole, their JS in a file",
       `Quick,
       solitaire_aot,
+    ),
+    test_case(
+      "pinball (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      pinball_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

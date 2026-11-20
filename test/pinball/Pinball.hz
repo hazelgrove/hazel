@@ -1,0 +1,150 @@
+# Pinball: ten boards as data, and one step of the game, 1/60 of a second: the flippers turned as their buttons are held, then in four small steps gravity, the walls, the bumpers, the flippers and the portals, then the drain. One module: in hazeljs a call into another module costs the build seconds #
+# ---- Building boards ---- #
+let w : (Int, Int, Int, Int) -> Wall = fun (ax, ay, bx, by) -> (ax = ax, ay = ay, bx = bx, by = by, bounce = 50, kick = 0);
+let sling : (Int, Int, Int, Int) -> Wall = fun (ax, ay, bx, by) -> (ax = ax, ay = ay, bx = bx, by = by, bounce = 60, kick = 55);
+let bp : (Int, Int, Int, Int) -> Bumper = fun (x, y, r, p) -> (x = x, y = y, r = r, points = p);
+let gate : (Int, Int, Int, Int, Int) -> Portal = fun (x, y, r, tx, ty) -> (x = x, y = y, r = r, tx = tx, ty = ty);
+let join : ([Wall], [Wall]) -> [Wall] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join(rest, ys) end;
+# an arc of n walls round (cx, cy), radius r, from angle a0 to a1 (thousandths of a radian; y down, so 0 is to the right and 1571 down) #
+let arc : (Int, Int, Int, Int, Int, Int) -> [Wall] = fun (cx, cy, r, a0, a1, n) ->
+  let px : Int -> Int = fun i -> cx + int_of_float(float_of_int(r) *. cos(float_of_int(a0 + (a1 - a0) * i / n) /. 1000.)) in
+  let py : Int -> Int = fun i -> cy + int_of_float(float_of_int(r) *. sin(float_of_int(a0 + (a1 - a0) * i / n) /. 1000.)) in
+  let go : Int -> [Wall] = fun i -> if i >= n then [] else w(px(i), py(i), px(i + 1), py(i + 1)) :: go(i + 1) in
+  go(0);
+# What every board has: the walls up the sides, the arch over the top, the launch lane on the right (its floor too), the slopes down to the flippers, and a slingshot above each flipper #
+let frame : [Wall] = join([w(20, 300, 20, 820), w(580, 300, 580, 1000), w(545, 330, 545, 1000), w(545, 965, 580, 965), w(20, 820, 190, 905), w(545, 820, 410, 905),
+  sling(90, 680, 160, 795), w(90, 680, 90, 770), w(90, 770, 160, 795), sling(510, 680, 440, 795), w(510, 680, 510, 770), w(510, 770, 440, 795)], arc(300, 300, 280, 3142, 6283, 16));
+# a board: its name and colours, its own walls, bumpers, extra flippers and portals, and its gravity; the frame, two flippers and the launch lane's start the same on every board #
+let bd : (String, String, String, String, [Wall], [Bumper], [Flipper], [Portal], Int) -> Board = fun (name, bg, ink, glow, walls, bumpers, more, portals, gravity) ->
+  (name = name, bg = bg, ink = ink, glow = glow, walls = join(frame, walls), bumpers = bumpers, flippers = (x = 190, y = 905, len = 92, side = 1) :: (x = 410, y = 905, len = 92, side = 0 - 1) :: more,
+   portals = portals, sx = 562, sy = 940, svx = 0, svy = 0 - 300, gravity = gravity);
+# The ten boards #
+let boards : [Board] = [
+  bd("🌌 Starfield", "#0b1030", "#7dd3fc", "#f0abfc", [], [bp(220, 300, 30, 100), bp(380, 300, 30, 100), bp(300, 420, 30, 100)], [], [], 390),
+  bd("🌋 Volcano", "#2a0a05", "#fb923c", "#fde047", [w(250, 580, 300, 520), w(300, 520, 350, 580)],
+     [bp(410, 380, 26, 50), bp(334, 485, 26, 50), bp(211, 445, 26, 50), bp(211, 315, 26, 50), bp(334, 275, 26, 50)], [], [], 400),
+  bd("🌊 Ocean", "#03243a", "#5eead4", "#93c5fd", join(arc(170, 470, 120, 3300, 4600, 6), arc(430, 470, 120, 4800, 6100, 6)),
+     [bp(300, 260, 18, 40), bp(240, 340, 18, 40), bp(360, 340, 18, 40), bp(300, 420, 18, 40), bp(200, 520, 18, 40), bp(400, 520, 18, 40)], [], [], 360),
+  bd("🍄 Mushroom forest", "#14261a", "#86efac", "#fca5a5", [],
+     [bp(200, 260, 16, 30), bp(300, 260, 16, 30), bp(400, 260, 16, 30), bp(250, 340, 16, 30), bp(350, 340, 16, 30), bp(200, 420, 16, 30), bp(300, 420, 16, 30), bp(400, 420, 16, 30), bp(300, 500, 16, 30)], [], [], 390),
+  bd("🏰 Castle, two floors", "#1e1033", "#c4b5fd", "#fcd34d", [w(60, 230, 250, 230), w(350, 230, 520, 230), w(250, 230, 250, 200), w(350, 230, 350, 200)],
+     [bp(160, 150, 24, 200), bp(300, 120, 24, 200), bp(440, 150, 24, 200), bp(300, 420, 30, 50)], [], [gate(70, 640, 22, 300, 170), gate(300, 215, 18, 300, 470)], 390),
+  bd("🐱 Cat face", "#2b1030", "#f9a8d4", "#5eead4", [w(170, 260, 210, 170), w(210, 170, 250, 260), w(350, 260, 390, 170), w(390, 170, 430, 260), sling(140, 430, 230, 415), sling(460, 430, 370, 415)],
+     [bp(240, 330, 28, 150), bp(360, 330, 28, 150), bp(300, 410, 18, 300)], [], [], 390),
+  bd("🎡 Funfair ring", "#1a0b2e", "#fde047", "#f472b6", arc(300, 380, 120, 0, 5400, 12), [bp(300, 380, 32, 80), bp(150, 560, 22, 40), bp(450, 560, 22, 40)], [], [], 390),
+  bd("🌙 Moon, low gravity", "#0f172a", "#e2e8f0", "#93c5fd", [], [bp(200, 300, 34, 60), bp(400, 340, 34, 60), bp(300, 470, 34, 60)], [], [], 210),
+  bd("🌀 Portals", "#0a0008", "#ff2bd6", "#ffffff", [], [bp(220, 380, 26, 80), bp(380, 380, 26, 80)],
+     [], [gate(110, 300, 22, 470, 200), gate(470, 560, 22, 130, 470), gate(300, 600, 22, 300, 150)], 390),
+  bd("🏙️ City, two levels", "#1f1a14", "#fdba74", "#93c5fd", [w(20, 470, 150, 560), w(545, 470, 450, 560)], [bp(220, 280, 26, 70), bp(380, 280, 26, 70), bp(300, 720, 26, 70)],
+     [(x = 150, y = 560, len = 70, side = 1), (x = 450, y = 560, len = 70, side = 0 - 1)], [], 390)];
+let board : Int -> Board = fun i ->
+  let nth : ([Board], Int) -> Board = fun (bs, k) -> case bs | [] => bd("", "#000000", "#ffffff", "#ffffff", [], [], [], [], 390) | b :: rest => if k <= 0 then b else nth(rest, k - 1) end in
+  nth(boards, i);
+# ---- A game ---- #
+let rests : [Flipper] -> [Int] = fun fs -> case fs | [] => [] | _ :: rest => 500 :: rests(rest) end;
+# a new game on board i: three balls, the first in the launch lane #
+let start : Int -> Game = fun i ->
+  let b = board(i) in
+  (x = b.sx * 1000, y = b.sy * 1000, vx = 0, vy = 0, flips = rests(b.flippers), score = 0, balls = 3, over = false, hits = []);
+# each flipper turned toward up while its side's button is held, quickly, else back down, more slowly (angles in thousandths of a radian: 500 resting, -500 up) #
+let turn : ([Flipper], [Int], Bool, Bool) -> [Int] = fun (fs, angles, left, right) ->
+  case (fs, angles)
+  | (f :: frest, a :: arest) =>
+    let held = (f.side == 1 && left) || (f.side == 0 - 1 && right) in
+    (if held then (if a - 260 < 0 - 500 then 0 - 500 else a - 260) else (if a + 120 > 500 then 500 else a + 120)) :: turn(frest, arest, left, right)
+  | _ => []
+  end;
+# a ball against a piece from (ax, ay) to (bx, by), th thick, whose far end moves (tdx, tdy) a step (a flipper's sweep; 0 for a wall): pushed out of it, its speed reflected (e its bounce) and a kick added along the push; and whether it touched #
+let off_seg : (Ball, Float, Float, Float, Float, Float, Float, Float, Float, Float) -> (Ball, Bool) = fun (b, ax, ay, bx, by, th, e, kick, tdx, tdy) ->
+  let dx = bx -. ax in
+  let dy = by -. ay in
+  let t0 = ((b.x -. ax) *. dx +. (b.y -. ay) *. dy) /. (dx *. dx +. dy *. dy +. 0.0001) in
+  let t = (if t0 <. 0. then 0. else if t0 >. 1. then 1. else t0) in
+  let cx = ax +. t *. dx in
+  let cy = ay +. t *. dy in
+  let d = sqrt((b.x -. cx) *. (b.x -. cx) +. (b.y -. cy) *. (b.y -. cy)) in
+  let reach = 12. +. th in
+  if d >=. reach || d <. 0.0001 then (b, false) else
+  let nx = (b.x -. cx) /. d in
+  let ny = (b.y -. cy) /. d in
+  let vn = (b.vx -. t *. tdx) *. nx +. (b.vy -. t *. tdy) *. ny in
+  let x2 = cx +. nx *. reach in
+  let y2 = cy +. ny *. reach in
+  if vn >=. 0. then ((x = x2, y = y2, vx = b.vx, vy = b.vy), true) else
+  ((x = x2, y = y2, vx = b.vx -. (1. +. e) *. vn *. nx +. kick *. nx, vy = b.vy -. (1. +. e) *. vn *. ny +. kick *. ny), true);
+# the ball against every wall; a slingshot's kick scores 10 #
+let walls_hit : (Ball, [Wall], Int) -> (Ball, Int) = fun (b, ws, score) ->
+  case ws
+  | [] => (b, score)
+  | v :: rest =>
+    let (b2, hit) = off_seg(b, float_of_int(v.ax), float_of_int(v.ay), float_of_int(v.bx), float_of_int(v.by), 0., float_of_int(v.bounce) /. 100., float_of_int(v.kick) /. 10., 0., 0.) in
+    walls_hit(b2, rest, if hit && v.kick > 0 then score + 10 else score)
+  end;
+# the ball against every bumper: pushed out and kicked away; its points scored, its number noted (i counts them) #
+let bumps : (Ball, [Bumper], Int, Int, [Int]) -> (Ball, Int, [Int]) = fun (b, bs, i, score, hits) ->
+  case bs
+  | [] => (b, score, hits)
+  | p :: rest =>
+    let px = float_of_int(p.x) in
+    let py = float_of_int(p.y) in
+    let d = sqrt((b.x -. px) *. (b.x -. px) +. (b.y -. py) *. (b.y -. py)) in
+    let reach = float_of_int(p.r) +. 12. in
+    if d >=. reach || d <. 0.0001 then bumps(b, rest, i + 1, score, hits) else
+    let nx = (b.x -. px) /. d in
+    let ny = (b.y -. py) /. d in
+    let vn = b.vx *. nx +. b.vy *. ny in
+    let out = (if vn <. 0. then 0. -. vn else vn) +. 6. in
+    bumps((x = px +. nx *. reach, y = py +. ny *. reach, vx = b.vx -. vn *. nx +. out *. nx, vy = b.vy -. vn *. ny +. out *. ny), rest, i + 1, score + p.points, i :: hits)
+  end;
+# a flipper's tip, at angle a (radians) #
+let tip : (Flipper, Float) -> (Float, Float) = fun (f, a) -> (float_of_int(f.x) +. float_of_int(f.side * f.len) *. cos(a), float_of_int(f.y) +. float_of_int(f.len) *. sin(a));
+# the ball against every flipper, each at the angle it has reached in this small step (u of the way from a0 to a1), sweeping as it turns #
+let flips_hit : (Ball, [Flipper], [Int], [Int], Float) -> Ball = fun (b, fs, a0s, a1s, u) ->
+  case (fs, a0s, a1s)
+  | (f :: frest, a0 :: r0, a1 :: r1) =>
+    let a = (float_of_int(a0) +. (float_of_int(a1) -. float_of_int(a0)) *. u) /. 1000. in
+    let (tx, ty) = tip(f, a) in
+    let (ox, oy) = tip(f, float_of_int(a0) /. 1000.) in
+    let (nx, ny) = tip(f, float_of_int(a1) /. 1000.) in
+    let (b2, _) = off_seg(b, float_of_int(f.x), float_of_int(f.y), tx, ty, 8., 0.3, 0., nx -. ox, ny -. oy) in
+    flips_hit(b2, frest, r0, r1, u)
+  | _ => b
+  end;
+# into a portal: out at its other end, its speed kept #
+let through : (Ball, [Portal]) -> Ball = fun (b, ps) ->
+  case ps
+  | [] => b
+  | p :: rest =>
+    let dx = b.x -. float_of_int(p.x) in
+    let dy = b.y -. float_of_int(p.y) in
+    if dx *. dx +. dy *. dy <. float_of_int(p.r * p.r) then (x = float_of_int(p.tx), y = float_of_int(p.ty), vx = b.vx *. 0.8, vy = b.vy *. 0.8) else through(b, rest)
+  end;
+# no faster than 32 units a step: a ball no quicker than that cannot pass through a wall in a small step #
+let cap : Ball -> Ball = fun b ->
+  let s = sqrt(b.vx *. b.vx +. b.vy *. b.vy) in
+  if s <=. 32. then b else (x = b.x, y = b.y, vx = b.vx *. 32. /. s, vy = b.vy *. 32. /. s);
+# four small steps of a step: gravity, moving, then the walls, the bumpers, the flippers, the portals #
+let sub : (Board, Ball, [Int], [Int], Int, Int, [Int]) -> (Ball, Int, [Int]) = fun (bo, b, a0s, a1s, k, score, hits) ->
+  if k >= 4 then (b, score, hits) else
+  let g = float_of_int(bo.gravity) /. 1000. in
+  let vy = b.vy +. g /. 4. in
+  let moved = cap((x = b.x +. b.vx /. 4., y = b.y +. vy /. 4., vx = b.vx, vy = vy)) in
+  let (b1, s1) = walls_hit(moved, bo.walls, score) in
+  let (b2, s2, h2) = bumps(b1, bo.bumpers, 0, s1, hits) in
+  let b3 = flips_hit(b2, bo.flippers, a0s, a1s, float_of_int(k + 1) /. 4.) in
+  sub(bo, through(cap(b3), bo.portals), a0s, a1s, k + 1, s2, h2);
+# One step of the game on board i: the left and right flippers' buttons held or not, and the plunger let go (how hard, 1 to 100; 0 while not). A ball below the flippers is gone: the next one waits in the launch lane, or, with none left, the game is over. A ball waiting in the launch lane stays there till the plunger is let go: then it is launched, the harder the faster #
+let step : (Int, Game, Bool, Bool, Int) -> Game = fun (i, g, left, right, launch) ->
+  if g.over then g else
+  let bo = board(i) in
+  let a1s = turn(bo.flippers, g.flips, left, right) in
+  let b0 = (x = float_of_int(g.x) /. 1000., y = float_of_int(g.y) /. 1000., vx = float_of_int(g.vx) /. 1000., vy = float_of_int(g.vy) /. 1000.) in
+  let (b, score, hits) = sub(bo, b0, g.flips, a1s, 0, g.score, []) in
+  let ml : Float -> Int = fun f -> int_of_float(floor(f *. 1000. +. 0.5)) in
+  if b.y >. 1030. then
+    (if g.balls <= 1 then (x = g.x, y = g.y, vx = 0, vy = 0, flips = a1s, score = score, balls = 0, over = true, hits = hits)
+     else (x = bo.sx * 1000, y = bo.sy * 1000, vx = 0, vy = 0, flips = a1s, score = score, balls = g.balls - 1, over = false, hits = hits))
+  else
+  let waiting = b.x >. 545. && b.y >. 920. && b.vy >. 0. -. 1. && b.vy <. 2. in
+  let push = 0 - (14000 + 180 * (if launch > 100 then 100 else launch)) in
+  (x = ml(b.x), y = ml(b.y), vx = ml(b.vx), vy = (if waiting then (if launch > 0 then push else 0) else ml(b.vy)), flips = a1s, score = score, balls = g.balls, over = false, hits = hits)
