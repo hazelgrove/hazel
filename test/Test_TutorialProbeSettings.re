@@ -139,7 +139,7 @@ let tests = (
             ~f=
               a =>
                 switch (a) {
-                | Page.Update.Globals(Set(SetAutoprobe(Off))) => true
+                | Page.Update.Globals(Set(ApplyAutoprobe(Off))) => true
                 | _ => false
                 },
             requested^,
