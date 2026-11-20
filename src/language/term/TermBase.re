@@ -1364,7 +1364,7 @@ and Label: {
         | EmptyHole
         | Label(_)
         | ExplicitNonlabel => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
         },
     };
     x |> f_label(rec_call);

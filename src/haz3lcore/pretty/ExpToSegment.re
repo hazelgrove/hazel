@@ -3394,7 +3394,7 @@ and label_to_seg = (~settings: Settings.t, l: Label.t): Segment.t => {
           shape: Convex,
         }),
       ])
-    | MultiHole(kids) => List.concat_map(any_to_pretty(~settings), kids)
+    | MultiHole(kids) => List.concat_map(~f=any_to_pretty(~settings), kids)
     };
   wrap(l, content);
 }

@@ -256,9 +256,8 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   /* A Label mold depends on the `=` or `.` beside it, which an edit can
      absorb into another form (`=` into a rule's `=>`) without changing
      this child's sort, so a child holding one is always remolded. */
-  let has_label_tile = (child: t) =>
+  let has_label_tile =
     List.exists(
-      child,
       ~f=
         fun
         | Piece.Tile(t) => Tile.mold(t).out == Sort.Label

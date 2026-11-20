@@ -806,11 +806,11 @@ let equality =
     | (ExplicitNonlabel, _) => false
     | (EmptyHole, EmptyHole) => true
     | (EmptyHole, _) => false
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (Invalid(_), _) => false
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2)
-      && List.for_all2(any(alphas_exp, alphas_typ), xs1, xs2)
+      && List.for_all2_exn(xs1, xs2, ~f=any(alphas_exp, alphas_typ))
     | (MultiHole(_), _) => false
     };
   }

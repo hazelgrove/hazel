@@ -189,7 +189,7 @@ let rec equal_segment = (a: Base.segment, b: Base.segment) =>
 and equal_piece = (a: Base.piece, b: Base.piece) =>
   switch (a, b) {
   | (Tile(t1), Tile(t2)) =>
-    Label.equal(Tile.label(t1), Tile.label(t2))
+    FormLabel.equal(Tile.label(t1), Tile.label(t2))
     && List.equal(equal_segment, t1.children, t2.children)
     && Mold.equal(Tile.mold(t1), Tile.mold(t2))
     && List.equal(Int.equal, t1.shards, t2.shards)
