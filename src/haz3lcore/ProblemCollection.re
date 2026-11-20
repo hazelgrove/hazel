@@ -147,23 +147,21 @@ let make_problem_context =
     };
   /* Collect live typing error ids from dynamic statics */
   let live_typing_error_ids =
-    List.filter_map(
-      id =>
-        switch (
-          Statics.Map.lookup(id, statics.live_typing_info_map),
-          Statics.Map.lookup(id, info_map),
-        ) {
-        | (Some(live), Some(static)) when Info.is_error(live) =>
-          Some((
-            id,
-            {
-              live,
-              static,
-            },
-          ))
-        | _ => None
-        },
-      statics.live_typing_error_ids,
+    List.filter_map(statics.live_typing_error_ids, ~f=id =>
+      switch (
+        Statics.Map.lookup(id, statics.live_typing_info_map),
+        Statics.Map.lookup(id, info_map),
+      ) {
+      | (Some(live), Some(static)) when Info.is_error(live) =>
+        Some((
+          id,
+          {
+            live,
+            static,
+          },
+        ))
+      | _ => None
+      }
     );
   /* Collect holes once and partition into convex (empty holes) and concave (missing operators) */
   let all_holes = Segment.holes(syntax.segment);
@@ -279,8 +277,8 @@ let collect_category =
        )
   | LiveTyping =>
     ctx.live_typing_error_ids
-    |> List.to_seq
-    |> Seq.map(((id, error)) =>
+    |> Stdlib.List.to_seq
+    |> Stdlib.Seq.map(((id, error)) =>
          {
            id,
            category: LiveTyping,

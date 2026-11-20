@@ -287,7 +287,7 @@ let is_error = (ci: t): bool =>
    there for what is deliberately excluded (sibling-join NoMeets,
    exhaustiveness/redundancy extrapolations). */
 let has_live_reportable_mark = (ci: t): bool =>
-  List.exists(Mark.is_live_reportable, marks_of(ci));
+  List.exists(~f=Mark.is_live_reportable, marks_of(ci));
 
 let warnings_of: t => list(Warning.list_item) =
   fun

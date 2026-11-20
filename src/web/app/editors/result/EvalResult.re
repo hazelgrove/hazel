@@ -109,12 +109,12 @@ module Model = {
   let probe_results = (model: t): Calc.t(option(Dynamics.Map.t)) =>
     model
     |> dynamics
-    |> Calc.map(_, Option.map((d: Dynamics.t) => d.probe_map));
+    |> Calc.map(_, Option.map(~f=(d: Dynamics.t) => d.probe_map));
 
   let test_results = (model: t): Calc.t(option(TestResults.t)) =>
     model
     |> dynamics
-    |> Calc.map(_, Option.map((d: Dynamics.t) => d.test_results));
+    |> Calc.map(_, Option.map(~f=(d: Dynamics.t) => d.test_results));
   let type_inst_map = (model: t): Calc.t(Dynamics.TypeInstMap.t) =>
     model
     |> dynamics
@@ -651,24 +651,22 @@ module View = {
       ) => {
     let editor = Option.map(~f=snd, editor);
     let code_view =
-      Option.map(
-        (editor: CodeSelectable.Model.t) =>
-          CodeSelectable.View.view(
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(Evaluation())),
-            ~edit_mode=
-              EditMode.Editable({
-                inject: a => inject(EvalEditorAction(a)),
-                escape: _ => Ui_effect.Ignore,
-                take_focus: _ => Ui_effect.Ignore,
-                focus: selected ? Some() : None,
-              }),
-            ~globals,
-            ~dynamics=editor.dynamics.probe_map,
-            editor,
-          ),
-        editor,
+      Option.map(editor, ~f=(editor: CodeSelectable.Model.t) =>
+        CodeSelectable.View.view(
+          ~signal=
+            fun
+            | MakeActive => signal(MakeActive(Evaluation())),
+          ~edit_mode=
+            EditMode.Editable({
+              inject: a => inject(EvalEditorAction(a)),
+              escape: _ => Ui_effect.Ignore,
+              take_focus: _ => Ui_effect.Ignore,
+              focus: selected ? Some() : None,
+            }),
+          ~globals,
+          ~dynamics=editor.dynamics.probe_map,
+          editor,
+        )
       );
     let exn_view =
       switch (result) {

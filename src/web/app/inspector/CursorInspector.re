@@ -326,7 +326,11 @@ let core_mark_err_view =
       ]
     | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | ExpectationMismatch({ana, syn}) =>
-      expectation_view(~static=Option.bind(static_info, typs_of), ~ana, ~syn)
+      expectation_view(
+        ~static=Option.bind(static_info, ~f=typs_of),
+        ~ana,
+        ~syn,
+      )
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
@@ -429,7 +433,7 @@ let common_ok_view =
       ok: Message.ok_common,
     ) => {
   let view_syn_type = typ =>
-    switch (Option.bind(live_typing_info, typs_of)) {
+    switch (Option.bind(live_typing_info, ~f=typs_of)) {
     | Some(live) =>
       view_live_type(~globals, ~ctx=live.ctx, ~static_typ=typ, live.syn)
     | None => view_type(~globals, typ)

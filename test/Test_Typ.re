@@ -196,7 +196,8 @@ let join_precision_property =
         let rec excluded = (ty: Typ.t): bool =>
           switch (Typ.term_of(ty)) {
           | Rec(_, _) => true
-          | Poly(tp, t) => TPat.tyvar_of_utpat(tp) == None || excluded(t)
+          | Poly(tp, t) =>
+            Option.is_none(TPat.tyvar_of_utpat(tp)) || excluded(t)
           | Parens(t)
           | List(t)
           | Projector(_, t) => excluded(t)
@@ -204,13 +205,14 @@ let join_precision_property =
           | TupLabel(a, b)
           | ProdExtension(a, b)
           | ProdProjection(a, b) => excluded(a) || excluded(b)
-          | Prod(ts) => List.exists(excluded, ts)
+          | Prod(ts) => List.exists(~f=excluded, ts)
           | Sum(sm) =>
             List.exists(
-              fun
-              | ConstructorMap.Variant(_, _, Some(t)) => excluded(t)
-              | _ => false,
               sm,
+              ~f=
+                fun
+                | ConstructorMap.Variant(_, _, Some(t)) => excluded(t)
+                | _ => false,
             )
           | _ => false
           };

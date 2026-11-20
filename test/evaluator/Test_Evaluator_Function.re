@@ -223,7 +223,7 @@ Ok(Lam("yo", Var("yo"))))|},
         [Some("f@<Int>")],
         fn_names(
           DHExp.assign_name_if_none(
-            parens(fn(Pat.var("x"), var("x"), None, None)),
+            parens(fn(Pat.var("x"), var("x"))),
             Some("f@<Int>"),
           ),
         ),

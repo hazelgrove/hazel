@@ -76,7 +76,7 @@ module Model = {
       implied_hole: Lazy.from_val(None),
       indicated_piece:
         Indicated.for_decoration(model.editor.state.zipper)
-        |> Option.map(({piece, _}: Indicated.piece) => piece),
+        |> Option.map(~f=({piece, _}: Indicated.piece) => piece),
       selected_text:
         Some(
           () => {

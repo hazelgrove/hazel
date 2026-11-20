@@ -180,7 +180,7 @@ let tests = [
               ~settings,
               ~is_edited,
               ~statics_mode,
-              ~stitch=Fun.id,
+              ~stitch=Fn.id,
               ~dynamics=Util.Calc.OldValue(Language.Dynamics.empty),
               ~is_dynamic_term=true,
               model,

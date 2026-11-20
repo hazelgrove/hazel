@@ -148,9 +148,9 @@ let update_context =
     switch (context_memo^) {
     | Some((z, info, dyn, view, printed, errs))
         when
-          z === editor.editor.state.zipper
-          && info === editor.statics.info_map
-          && dyn === editor.dynamics.probe_map
+          phys_equal(z, editor.editor.state.zipper)
+          && phys_equal(info, editor.statics.info_map)
+          && phys_equal(dyn, editor.dynamics.probe_map)
           && view == curr_chat.agent_view => (
         printed,
         errs,

@@ -604,15 +604,16 @@ module Errors = {
     div_c(
       group_cls(kind),
       List.map(
-        of_id(
-          ~kind,
-          ~refine_sort,
-          ~simple_indication,
-          ~font_metrics,
-          ~syntax,
-          ~completion,
-        ),
         error_ids,
+        ~f=
+          of_id(
+            ~kind,
+            ~refine_sort,
+            ~simple_indication,
+            ~font_metrics,
+            ~syntax,
+            ~completion,
+          ),
       ),
     );
 };

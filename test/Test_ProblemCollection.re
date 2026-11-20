@@ -46,15 +46,13 @@ let count_by_category = (cat: ProblemCollection.problem_category, problems) =>
 
 let has_structural =
     (desc: string, problems: list(ProblemCollection.problem)) =>
-  List.exists(
-    (p: ProblemCollection.problem) =>
-      switch (p.source) {
-      | Structural(d) => d == desc
-      | FromInfo(_)
-      | FromLiveTyping(_)
-      | FromProjector(_) => false
-      },
-    problems,
+  List.exists(problems, ~f=(p: ProblemCollection.problem) =>
+    switch (p.source) {
+    | Structural(d) => d == desc
+    | FromInfo(_)
+    | FromLiveTyping(_)
+    | FromProjector(_) => false
+    }
   );
 
 let has_multihole_error = (problems: list(ProblemCollection.problem)) =>
@@ -299,12 +297,11 @@ let make_counts_every_category = () => {
     list(string),
     "counted categories",
     List.map(
-      ProblemCollection.show_problem_category,
       ProblemCollection.all_of_problem_category,
+      ~f=ProblemCollection.show_problem_category,
     ),
-    List.map(
-      ((cat, _)) => ProblemCollection.show_problem_category(cat),
-      coll.counts,
+    List.map(coll.counts, ~f=((cat, _)) =>
+      ProblemCollection.show_problem_category(cat)
     ),
   );
 };

@@ -1203,13 +1203,14 @@ let rec join =
      onto it, or the restore reads it back as "the alias describes the result"
      and resurrects the variable. */
   let expand = name =>
-    if (List.exists(String.equal(name), expanded_aliases)) {
+    if (List.exists(~f=String.equal(name), expanded_aliases)) {
       None;
     } else {
       switch (Ctx.lookup_tvar(ctx, name)) {
       | Some(Singleton(ty)) => Some((ty, true))
       | Some(Abstract) => None
-      | None => Ctx.lookup_alias(ctx, name) |> Option.map(ty => (ty, false))
+      | None =>
+        Ctx.lookup_alias(ctx, name) |> Option.map(~f=ty => (ty, false))
       };
     };
   switch (term_of(ty1), term_of(ty2)) {
@@ -1223,7 +1224,7 @@ let rec join =
     Unknown(meet_type_provenance(p1, p2)) |> temp
   | (Unknown(_), _) => ty1
   | (_, Unknown(_)) => ty2
-  | (Var(n1), Var(n2)) when n1 == n2 => ty1
+  | (Var(n1), Var(n2)) when String.equal(n1, n2) => ty1
   /* As in meet: join against the expansion, but if the result is just the
      expansion again then the alias already describes it, so hand back the Var
      the caller wrote rather than the definition out of the context. */
@@ -1282,7 +1283,7 @@ let rec join =
     let ty_body = join(ctx, ty1', ty2);
     Poly(x2, ty_body) |> temp;
   | (Poly(_), _) => Unknown(Internal) |> temp
-  | (Atom(c1), Atom(c2)) when c1 == c2 => ty1
+  | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => ty1
   | (Atom(_), _) => Unknown(Internal) |> temp
   | (Label(_), Label("")) => ty1
   | (Label(""), Label(_)) => ty2
@@ -1311,7 +1312,7 @@ let rec join =
     if (List.length(tys1) != List.length(tys2)) {
       Unknown(Internal) |> temp;
     } else {
-      Prod(List.map2(join', tys1, tys2)) |> temp;
+      Prod(List.map2_exn(tys1, tys2, ~f=join')) |> temp;
     };
   | (Prod(_), _) => Unknown(Internal) |> temp
   | (ProofOf(e1), ProofOf(e2)) =>
@@ -1324,7 +1325,7 @@ let rec join =
   | (List(_), _) => Unknown(Internal) |> temp
   | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
   | (Sig(_), _) => Unknown(Internal) |> temp
-  | (DrvQuoteTy(s1), DrvQuoteTy(s2)) when s1 == s2 => ty1
+  | (DrvQuoteTy(s1), DrvQuoteTy(s2)) when DrvSort.equal(s1, s2) => ty1
   | (DrvQuoteTy(_), _) => Unknown(Internal) |> temp
   };
 };

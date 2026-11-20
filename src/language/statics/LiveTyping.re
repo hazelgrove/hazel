@@ -62,9 +62,9 @@ let refine_typ_with_dynamics =
     | None
     | Some([]) => ty
     | Some(entry) =>
-      let exps = List.map((s: sample) => s.exp, entry);
+      let exps = List.map(~f=(s: sample) => s.exp, entry);
       let dyn_typs = OptUtil.traverse(calculate_dynamic_type, exps);
-      let dyn_typ = Option.bind(dyn_typs, Typ.meet_all(~empty=ty, ctx));
+      let dyn_typ = Option.bind(dyn_typs, ~f=Typ.meet_all(~empty=ty, ctx));
       switch (dyn_typ) {
       | None => ty
       | Some(t) => t
@@ -78,7 +78,7 @@ let refine_typ_with_dynamics =
 let extend_ctx_with_instantiations =
     (ctx: Ctx.t, name, tpat_id: Id.t, insts: list(type_instantiation)): Ctx.t => {
   let new_ty =
-    Typ.join_all(ctx, List.map(inst => inst.instantiated_type, insts))
+    Typ.join_all(ctx, List.map(~f=inst => inst.instantiated_type, insts))
     |> Option.value(~default=Unknown(Internal) |> Typ.temp);
   Ctx.extend_tvar(
     ctx,
@@ -118,7 +118,7 @@ let rec reabstract = (ctx: Ctx.t, slice: Typ.t, syn: Typ.t): Typ.t => {
   | (TupLabel(sl, s), TupLabel(tl, t)) when Typ.is_consistent(ctx, sl, tl) =>
     Grammar.TupLabel(tl, reabstract(ctx, s, t)) |> rewrap
   | (Prod(ss), Prod(ts)) when List.length(ss) == List.length(ts) =>
-    Grammar.Prod(List.map2(reabstract(ctx), ss, ts)) |> rewrap
+    Grammar.Prod(List.map2_exn(ss, ts, ~f=reabstract(ctx))) |> rewrap
   | (Poly(sx, s), Poly(tx, t)) =>
     let s' =
       switch (TPat.tyvar_of_utpat(tx)) {

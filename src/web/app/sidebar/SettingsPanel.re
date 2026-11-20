@@ -116,8 +116,8 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
           [div(~attrs=[clss(["toggle-knob"])], [])],
         ),
       ]
-      @ Option.to_list(Option.map(desc, tooltip))
-      @ Option.to_list(Option.map(warning_line, warning)),
+      @ Option.to_list(Option.map(~f=desc, tooltip))
+      @ Option.to_list(Option.map(~f=warning_line, warning)),
     )
   | Choice(name, description, choices) =>
     div(

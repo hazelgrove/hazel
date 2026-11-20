@@ -43,13 +43,11 @@ module TypeInstMap = {
       : list(TypeInstantiation.t) =>
     switch (sample_focus.pinned_stack) {
     | Some(pinned_stack) =>
-      List.filter(
-        (closure: TypeInstantiation.t) =>
-          ListUtil.is_suffix_of(
-            CallStack.ids_of_stack(pinned_stack),
-            closure.call_stack,
-          ),
-        closures,
+      List.filter(closures, ~f=(closure: TypeInstantiation.t) =>
+        ListUtil.is_suffix_of(
+          CallStack.ids_of_stack(pinned_stack),
+          closure.call_stack,
+        )
       )
     | None => closures
     };
@@ -181,7 +179,7 @@ let filter_by_focus = (sample_focus: Sample.Focus.t, dyn: t): t => {
 let to_live_typing_map = (dyn: t): LiveTyping.Map.t =>
   LiveTyping.Map.mk(
     Id.Map.map(
-      List.map((s: Sample.t): LiveTyping.sample =>
+      List.map(~f=(s: Sample.t): LiveTyping.sample =>
         {
           exp:
             Substitution.in_exp(Environment.empty, s.value)
@@ -191,7 +189,7 @@ let to_live_typing_map = (dyn: t): LiveTyping.Map.t =>
       dyn.probe_map,
     ),
     Id.Map.map(
-      List.map((inst: TypeInstantiation.t): LiveTyping.type_instantiation =>
+      List.map(~f=(inst: TypeInstantiation.t): LiveTyping.type_instantiation =>
         {
           tpat_id: inst.tpat_id,
           type_var: inst.type_var,

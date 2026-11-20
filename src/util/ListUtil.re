@@ -472,7 +472,7 @@ let rec forall2_opt =
 let reduce = (f: ('a, 'a) => 'a, xs: list('a)): option('a) =>
   switch (xs) {
   | [] => None
-  | [x, ...xs] => Some(List.fold_left((acc, x) => f(acc, x), x, xs))
+  | [x, ...xs] => Some(List.fold(xs, ~init=x, ~f=(acc, x) => f(acc, x)))
   };
 
 let assoc_opt_by = (eq, key, assoc) => {

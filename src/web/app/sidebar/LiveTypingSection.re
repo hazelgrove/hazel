@@ -12,7 +12,7 @@ let title = "Live Typing";
 
 let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
   PerfFormat.action_column((f: PerfMetrics.frame) =>
-    Option.map(fst, f.perform)
+    Option.map(~f=fst, f.perform)
   ),
   {
     label: "time",
@@ -34,14 +34,10 @@ let columns: list(PerfFormat.column(PerfMetrics.frame)) = [
     tooltip: "What became of the live pass this frame: ran, throttled (a stream slice arrived inside the throttle window), reused (nothing new to type against), or off (live typing disabled).",
     cell: f =>
       PerfFormat.opt_cell(
-        Option.map(
-          o =>
-            PerfFormat.text_cell(
-              String.lowercase_ascii(
-                PerfMetrics.show_live_typing_outcome(o),
-              ),
-            ),
-          f.live_typing_outcome,
+        Option.map(f.live_typing_outcome, ~f=o =>
+          PerfFormat.text_cell(
+            String.lowercase(PerfMetrics.show_live_typing_outcome(o)),
+          )
         ),
       ),
   },
@@ -51,5 +47,5 @@ let view = (~globals as _: Globals.t): list(Node.t) =>
   PerfFormat.view(
     ~columns,
     ~empty="No live typing recorded yet — type in the editor.",
-    List.map(f => PerfFormat.Row(f), PerfMetrics.history^),
+    List.map(~f=f => PerfFormat.Row(f), PerfMetrics.history^),
   );

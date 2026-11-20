@@ -45,8 +45,8 @@ module Map = {
     Id.Map.fold(
       (id, info, acc) =>
         Info.has_live_reportable_mark(info)
-        && id == Info.id_of(info)
-        && !List.mem(id, static_error_ids)
+        && Id.equal(id, Info.id_of(info))
+        && !List.mem(static_error_ids, id, ~equal=Id.equal)
           ? [id, ...acc] : acc,
       live_map,
       [],

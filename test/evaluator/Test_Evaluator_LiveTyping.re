@@ -21,7 +21,8 @@ let mark_equal = (a: Language.Mark.t, b: Language.Mark.t): bool =>
       ExpectationMismatch({ana: ana1, syn: syn1}),
       ExpectationMismatch({ana: ana2, syn: syn2}),
     ) =>
-    Typ.show(ana1) == Typ.show(ana2) && Typ.show(syn1) == Typ.show(syn2)
+    String.equal(Typ.show(ana1), Typ.show(ana2))
+    && String.equal(Typ.show(syn1), Typ.show(syn2))
   | (ExpectationMismatch(_), _)
   | (_, ExpectationMismatch(_)) => false
   | _ =>
@@ -94,16 +95,16 @@ let show_any = (any: Any.t): string =>
  */
 let map_error_annotation = (static_info, live_typing_info) => {
   let static_error =
-    Option.map(Info.marks_of, static_info)
-    |> Option.bind(_, ms =>
+    Option.map(~f=Info.marks_of, static_info)
+    |> Option.bind(_, ~f=ms =>
          switch (ms) {
          | [] => None
          | _ => Some(ms)
          }
        );
   let live_typing_error =
-    Option.map(Info.marks_of, live_typing_info)
-    |> Option.bind(_, ms =>
+    Option.map(~f=Info.marks_of, live_typing_info)
+    |> Option.bind(_, ~f=ms =>
          switch (ms) {
          | [] => None
          | _ => Some(ms)
@@ -309,7 +310,7 @@ let live_run = (~pinned: bool, program: string): live_run => {
    compare as one value. */
 let describe_live_errors = ({live_map, live_ids, _}: live_run): list(string) =>
   live_ids
-  |> List.concat_map(id => {
+  |> List.concat_map(~f=id => {
        let info =
          switch (StaticsBase.Map.lookup(id, live_map)) {
          | Some(info) => info
@@ -321,10 +322,10 @@ let describe_live_errors = ({live_map, live_ids, _}: live_run): list(string) =>
          | None => fail("live typing error on a secondary node")
          };
        Info.marks_of(info)
-       |> List.filter(Mark.is_live_reportable)
-       |> List.map(mark => Mark.Variants.to_name(mark) ++ " " ++ term);
+       |> List.filter(~f=Mark.is_live_reportable)
+       |> List.map(~f=mark => Mark.Variants.to_name(mark) ++ " " ++ term);
      })
-  |> List.sort(String.compare);
+  |> List.sort(~compare=String.compare);
 
 /* `call`, marked for sampling the way a user pins it: with a probe on the
    application. */
@@ -337,7 +338,8 @@ let pat_info = (name: string, map: Statics.Map.t): option(Info.pat) =>
     (_, info, acc) =>
       switch (info) {
       | Info.InfoPat({user_term, _} as p)
-          when Pat.get_var(user_term) == Some(name) =>
+          when
+            Option.equal(String.equal, Pat.get_var(user_term), Some(name)) =>
         Some(p)
       | _ => acc
       },
@@ -348,14 +350,14 @@ let pat_info = (name: string, map: Statics.Map.t): option(Info.pat) =>
 /* The synthesized type of binder `name`: the type that drives both the
    inspector display and the context entry seen by uses. */
 let pat_elab_syn_ty = (name: string, map: Statics.Map.t): option(Typ.t) =>
-  pat_info(name, map) |> Option.map((p: Info.pat) => p.elab_syn_ty);
+  pat_info(name, map) |> Option.map(~f=(p: Info.pat) => p.elab_syn_ty);
 
 /* The type of binder `name` with its head resolved through the binder's own
    context, so a `typfun` parameter reads as the type live typing
    instantiated it to. */
 let pat_ty_normalized = (name: string, map: Statics.Map.t): option(Typ.t) =>
   pat_info(name, map)
-  |> Option.map((p: Info.pat) => Typ.weak_head_normalize(p.ctx, p.ty));
+  |> Option.map(~f=(p: Info.pat) => Typ.weak_head_normalize(p.ctx, p.ty));
 
 /* Property: for every expression-info id, the elab_syn_ty produced by static
    analysis run *with* live-typing dynamics is more precise than (or equal to)
@@ -969,10 +971,11 @@ in
           Id.Map.exists(
             (_id, info) =>
               List.exists(
-                fun
-                | Mark.NoMeet(_) => true
-                | _ => false,
                 Info.marks_of(info),
+                ~f=
+                  fun
+                  | Mark.NoMeet(_) => true
+                  | _ => false,
               ),
             live_map,
           );
@@ -997,19 +1000,18 @@ in
           List.length(live_ids),
         );
         let all_em =
-          List.for_all(
-            id =>
-              switch (StaticsBase.Map.lookup(id, live_map)) {
-              | Some(info) =>
-                List.exists(
+          List.for_all(live_ids, ~f=id =>
+            switch (StaticsBase.Map.lookup(id, live_map)) {
+            | Some(info) =>
+              List.exists(
+                Info.marks_of(info),
+                ~f=
                   fun
                   | Mark.ExpectationMismatch(_) => true
                   | _ => false,
-                  Info.marks_of(info),
-                )
-              | None => false
-              },
-            live_ids,
+              )
+            | None => false
+            }
           );
         check(
           Alcotest.bool,
@@ -1042,19 +1044,18 @@ in
           List.length(live_ids),
         );
         let has_label_not_found =
-          List.for_all(
-            id =>
-              switch (StaticsBase.Map.lookup(id, live_map)) {
-              | Some(info) =>
-                List.exists(
+          List.for_all(live_ids, ~f=id =>
+            switch (StaticsBase.Map.lookup(id, live_map)) {
+            | Some(info) =>
+              List.exists(
+                Info.marks_of(info),
+                ~f=
                   fun
                   | Mark.LabelNotFound(_) => true
                   | _ => false,
-                  Info.marks_of(info),
-                )
-              | None => false
-              },
-            live_ids,
+              )
+            | None => false
+            }
           );
         check(
           Alcotest.bool,

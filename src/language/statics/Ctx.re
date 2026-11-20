@@ -306,24 +306,21 @@ let filter_shadowed = (ctx: t): t => {
    the value first (`Dynamics.to_live_typing_map` does), which leaves no
    closure for this to see at all. */
 let of_closure_env = (ctx: t, names: list(Var.t)): t =>
-  List.fold_left(
-    (ctx, name) =>
-      switch (lookup_var(ctx, name)) {
-      | Some({id, _}) when !Id.equal(id, Id.invalid) =>
-        extend(
-          ctx,
-          VarEntry({
-            name,
-            id: Id.invalid,
-            typ: (Unknown(Internal): TermBase.Typ.term) |> IdTagged.fresh,
-            custom_statics: None,
-          }),
-        )
-      | Some(_)
-      | None => ctx
-      },
-    ctx,
-    names,
+  List.fold(names, ~init=ctx, ~f=(ctx, name) =>
+    switch (lookup_var(ctx, name)) {
+    | Some({id, _}) when !Id.equal(id, Id.invalid) =>
+      extend(
+        ctx,
+        VarEntry({
+          name,
+          id: Id.invalid,
+          typ: (Unknown(Internal): TermBase.Typ.term) |> IdTagged.fresh,
+          custom_statics: None,
+        }),
+      )
+    | Some(_)
+    | None => ctx
+    }
   );
 
 let filter_stepper_filter_variables = (ctx: t): t => {
