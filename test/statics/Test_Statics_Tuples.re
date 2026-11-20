@@ -3,6 +3,69 @@ open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+module ShapeMessages = {
+  /* The message on the one tuple in `program`. */
+  let tuple_message = (name, program, expected) =>
+    test_case(
+      name,
+      `Quick,
+      () => {
+        let map = statics(parse_exp(program));
+        let tuple =
+          Id.Map.fold(
+            (_, info: Info.t, found) =>
+              switch (info) {
+              | InfoExp({user_term: {term: Tuple(_), _}, _} as info) =>
+                Some(info)
+              | _ => found
+              },
+            map,
+            None,
+          )
+          |> Option.value_exn;
+        check(
+          Alcotest.string,
+          "message",
+          expected,
+          Haz3lcore.ErrorPrint.string_of_marks(InfoExp(tuple), tuple.marks),
+        );
+      },
+    );
+
+  let tests = [
+    tuple_message(
+      "A tuple with too few elements says how many it has",
+      "(1, 2) : (Int, Int, Int)",
+      "Expecting a tuple of 3 elements but got 2 elements",
+    ),
+    tuple_message(
+      "A tuple with a wrong label says which labels are missing",
+      "(a=1, c=2) : (a=Int, b=Int)",
+      "Expecting a tuple of 2 elements with labels a, b but got 2 elements with labels a, c; missing label b; unexpected label c",
+    ),
+    tuple_message(
+      "A tuple with no labels is not told the labels it is missing",
+      {|("a", 1, true) : (name=String, age=Int)|},
+      "Expecting a tuple of 2 elements with labels name, age but got 3 elements",
+    ),
+    tuple_message(
+      "A label that is not an identifier is quoted",
+      {|(`favorite color`="red", age=1) : (name=String, age=Int)|},
+      "Expecting a tuple of 2 elements with labels name, age but got 2 elements with labels `favorite color`, age; missing label name; unexpected label `favorite color`",
+    ),
+    tuple_message(
+      "A tuple against the empty tuple has a type mismatch, not a shape",
+      "(1, 2) : ()",
+      "Expecting type () but got inconsistent type Int, Int",
+    ),
+    tuple_message(
+      "A recursive tuple type is unrolled to count its elements",
+      "type T = (Int, [T]) in (1, [], 3) : T",
+      "Expecting a tuple of 2 elements but got 3 elements",
+    ),
+  ];
+};
+
 module TupleExtension = {
   let tests = [
     fully_consistent_typecheck(
@@ -1082,5 +1145,6 @@ let tests = (
   ]
   @ TupleExtension.tests
   @ ProductProjection.tests
-  @ ExplicitlyUnlabeledTuples.tests,
+  @ ExplicitlyUnlabeledTuples.tests
+  @ ShapeMessages.tests,
 );

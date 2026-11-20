@@ -113,6 +113,68 @@ let expected_labels_of_ana = (ctx: Ctx.t, ana: Typ.t): option(list(string)) =>
   | _ => None
   };
 
+/* Why a tuple of type `syn` does not fit the tuple type `ana`, when their
+   shapes differ: their sizes and, if the tuple has labels, the labels it is
+   missing or should not have. None when either is not a tuple, or is the
+   empty one, or their shapes agree: the types say more. */
+let shape_mismatch_message =
+    (ctx: Ctx.t, ~ana: Typ.t, ~syn: Typ.t): option(string) => {
+  let labels = (ty: Typ.t) =>
+    switch (MatchedTyp.head(ctx, ty).term) {
+    | Prod([_, ..._] as tys) =>
+      Some(
+        List.map(tys, ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst)),
+      )
+    | _ => None
+    };
+  switch (labels(ana), labels(syn)) {
+  | (Some(expected), Some(actual)) =>
+    let expected_names = List.filter_opt(expected);
+    let actual_names = List.filter_opt(actual);
+    let not_in = (names, name) =>
+      !List.mem(names, name, ~equal=String.equal);
+    let missing =
+      List.is_empty(actual_names)
+        ? [] : List.filter(expected_names, ~f=not_in(actual_names));
+    let unexpected = List.filter(actual_names, ~f=not_in(expected_names));
+    if (List.length(expected) == List.length(actual)
+        && List.is_empty(missing)
+        && List.is_empty(unexpected)) {
+      None;
+    } else {
+      let size = labels => {
+        let n = List.length(labels);
+        Printf.sprintf("%d element%s", n, n == 1 ? "" : "s");
+      };
+      let quoted = names =>
+        String.concat(
+          ~sep=", ",
+          List.map(names, ~f=Token.quote_label_when_necessary),
+        );
+      let with_labels = names =>
+        List.is_empty(names) ? "" : " with labels " ++ quoted(names);
+      let extra = (what, names) =>
+        switch (names) {
+        | [] => ""
+        | [_] => Printf.sprintf("; %s label %s", what, quoted(names))
+        | _ => Printf.sprintf("; %s labels %s", what, quoted(names))
+        };
+      Some(
+        Printf.sprintf(
+          "Expecting a tuple of %s%s but got %s%s%s%s",
+          size(expected),
+          with_labels(expected_names),
+          size(actual),
+          with_labels(actual_names),
+          extra("missing", missing),
+          extra("unexpected", unexpected),
+        ),
+      );
+    };
+  | _ => None
+  };
+};
+
 /* Expand per-occurrence duplicate labels from unique duplicates. */
 let expand_duplicate_labels =
     (

@@ -149,14 +149,18 @@ let core_mark_err_view =
   let view_type = view_type(~globals);
   let view_any = view_any(~globals);
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
+  let shape_mismatch = (~ana, ~syn) =>
+    LabeledTupleStaticsHelpers.shape_mismatch_message(ctx, ~ana, ~syn)
+    |> Option.map(~f=message => [text(message)]);
   let expectation_view = (~ana: Typ.t, ~syn: Typ.t) =>
-    switch (syn.term, ana.term) {
-    | (Label(syn_l), Label(an_label)) => [
+    switch (shape_mismatch(~ana, ~syn), syn.term, ana.term) {
+    | (Some(message), _, _) => message
+    | (None, Label(syn_l), Label(an_label)) => [
         code(syn_l),
         text("but expected label"),
         code(an_label),
       ]
-    | _ =>
+    | (None, _, _) =>
       colon_prefix(show_type_colon)
       @ [
         view_type(syn) |> code_box_container,
@@ -214,28 +218,44 @@ let core_mark_err_view =
       ]
     | IsMulti => [text("Broken expression")]
 
-    | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
-      (
-        List.is_empty(malformed_labels)
-          ? []
-          : [
-            text("Malformed labels: "),
-            ...List.map(~f=view_any, malformed_labels),
-          ]
-      )
-      @ (
-        List.is_empty(duplicate_labels)
-          ? []
-          : [
-            text("Duplicate labels: "),
-            ...List.map(~f=code, duplicate_labels),
-          ]
-      )
-      @ (
-        List.is_empty(invalid_labels)
-          ? []
-          : [text("Invalid labels: "), ...List.map(~f=code, invalid_labels)]
-      )
+    | TupleLabelError({
+        malformed_labels,
+        duplicate_labels,
+        invalid_labels,
+        typ,
+      }) =>
+      switch (
+        malformed_labels,
+        duplicate_labels,
+        shape_mismatch(~ana, ~syn=typ),
+      ) {
+      | ([], [], Some(message)) => message
+      | _ =>
+        (
+          List.is_empty(malformed_labels)
+            ? []
+            : [
+              text("Malformed labels: "),
+              ...List.map(~f=view_any, malformed_labels),
+            ]
+        )
+        @ (
+          List.is_empty(duplicate_labels)
+            ? []
+            : [
+              text("Duplicate labels: "),
+              ...List.map(~f=code, duplicate_labels),
+            ]
+        )
+        @ (
+          List.is_empty(invalid_labels)
+            ? []
+            : [
+              text("Invalid labels: "),
+              ...List.map(~f=code, invalid_labels),
+            ]
+        )
+      }
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
