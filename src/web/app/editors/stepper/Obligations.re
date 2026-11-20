@@ -307,19 +307,31 @@ module Exits = {
       };
     Obligation.is_pending(ob)
       ? [
-        wrap(
-          ~label="Prove here",
-          ~title=
-            "Wrap this part of the proof in `have <goal> proof ? => …` and prove it later",
-          have,
-        ),
-        wrap(
-          ~label="Split on it",
-          ~title=
-            "Case-split on this condition: the `true` branch gets it as a fact, the `false` branch stays open",
-          split,
-        ),
-      ]
+          wrap(
+            ~label="Prove here",
+            ~title=
+              "Wrap this part of the proof in `have <goal> proof ? => …` and prove it later",
+            have,
+          ),
+        ]
+        /* `!!e` is never `false`, and splitting on it would need it
+         * standard itself. */
+        @ (
+          switch (ob.kind) {
+          | Standardness => []
+          | Definedness
+          | Premise
+          | Citation
+          | Algebra => [
+              wrap(
+                ~label="Split on it",
+                ~title=
+                  "Case-split on this condition: the `true` branch gets it as a fact, the `false` branch stays open",
+                split,
+              ),
+            ]
+          }
+        )
       : [];
   };
 };

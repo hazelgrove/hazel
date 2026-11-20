@@ -1032,6 +1032,10 @@
   cursor: pointer;
 }
 
+.condition-dot.standardness {
+  letter-spacing: -1px;
+}
+
 .condition-dot.unproven {
   border-color: var(--border-error-strong);
   background-color: var(--border-error);

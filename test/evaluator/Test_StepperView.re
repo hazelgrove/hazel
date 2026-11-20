@@ -2426,6 +2426,15 @@ module Structure = {
             first,
           ),
         );
+        check(
+          list(string),
+          "a term with no value the step needs standard",
+          ["Standardness"],
+          kinds_at(
+            "let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t",
+            first,
+          ),
+        );
       },
     ),
   ];

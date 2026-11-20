@@ -99,9 +99,39 @@ let test_division_conditions = () => {
   );
 };
 
+/* The standardness slide's `!!` circles: closed by evaluation, then
+ * open. */
+let test_standardness_conditions = () => {
+  let (state, _, elab) =
+    read_slide("prover-standardness.hz") |> parse_exp |> eval_with_proof;
+  let pm = EvaluatorState.get_proof_map(state);
+  let conditions = name =>
+    ProofMap.obligations_of_proof(pm, proof_of_named(name, elab))
+    |> List.map(~f=(ob: Obligation.t) =>
+         print_exp(ob.goal) ++ " " ++ Obligation.show_discharge(ob.discharge)
+       );
+  check(
+    list(string),
+    "parse_ok",
+    [{|!! int_of_string("3") Evaluated|}],
+    conditions("parse_ok"),
+  );
+  check(
+    list(string),
+    "parse_open",
+    [{|!! int_of_string("x") Pending|}],
+    conditions("parse_open"),
+  );
+};
+
 let tests = (
   "ProverDocs",
   [
+    test_case(
+      "the standardness slide's circles: closed, then open",
+      `Quick,
+      test_standardness_conditions,
+    ),
     test_case(
       "the division slide's z != 0: open, then discharged by nz",
       `Quick,
@@ -120,6 +150,14 @@ let tests = (
     slide(
       "prover-side-conditions.hz",
       [("div_open", "incomplete · 1 open"), ("div_ok", "proven")],
+    ),
+    slide(
+      "prover-standardness.hz",
+      [
+        ("parse_ok", "proven"),
+        ("parse_open", "incomplete · 1 open"),
+        ("length_std", "proven"),
+      ],
     ),
     slide(
       "prover-reference.hz",

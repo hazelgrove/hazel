@@ -374,9 +374,34 @@ let test_split_disabled_when_it_breaks_a_step = () => {
   };
 };
 
+/* `!!e` is never `false`, so a `!!` condition offers no split. */
+let test_standardness_exits = () => {
+  let (pm, proof, ctx) =
+    run_with_ctx(
+      {|let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t|},
+    );
+  let ob = one_pending("loop", pm, proof);
+  bool_check(
+    "a !! condition",
+    true,
+    Poly.equal(ob.kind, Obligation.Standardness),
+  );
+  check(
+    list(string),
+    "only prove here",
+    ["Prove here"],
+    List.map(~f=(e: Exits.t) => e.label, Exits.for_step(~ctx, ob)),
+  );
+};
+
 let tests = (
   "Obligations",
   [
+    test_case(
+      "a !! condition offers no split",
+      `Quick,
+      test_standardness_exits,
+    ),
     test_case(
       "an exit that would break a step is disabled, with a reason",
       `Quick,

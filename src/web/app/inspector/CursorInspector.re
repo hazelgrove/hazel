@@ -75,10 +75,27 @@ let standardness_badge = (ci: Info.t): list(Node.t) =>
         )
       ) {
       | Standard([]) => ("standard", Icons.circle_with_check, "standard")
-      | Standard(_) => (
+      | Standard(conditions) => (
           "standard",
           Icons.circle_with_check,
-          "standard where its domain conditions hold",
+          "standard where "
+          ++ String.concat(
+               ~sep=", ",
+               List.map(
+                 ~f=
+                   c =>
+                     Haz3lcore.ExpToSegment.exp_to_segment(
+                       ~settings=
+                         Haz3lcore.ExpToSegment.Settings.of_core(
+                           ~inline=true,
+                           CoreSettings.off,
+                         ),
+                       c,
+                     )
+                     |> Haz3lcore.Printer.of_segment(~holes="?"),
+                 conditions,
+               ),
+             ),
         )
       | Unknown(reason) => (
           "not-standard",
