@@ -8,17 +8,22 @@ open Poly;
  * editor's layout when the editor or what it marks changes, not on every
  * render. */
 module Deco = {
+  /* A part of the goal, by the first and last nodes it covers: one node
+   * twice, or the ends of a run of operands. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type part = (Id.t, Id.t);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type marks = {
     /* The offered steps and reflexivities, which a click takes. */
     next_steps: list(Id.t),
     refls: list(Id.t),
     /* The part the step below acts on. */
-    acts_on: option(Id.t),
+    acts_on: option(part),
     /* The selected part, which the write box writes a replacement for. */
-    selected: option(Id.t),
+    selected: option(part),
     /* The part a step the user is choosing would act on. */
-    previewing: option(Id.t),
+    previewing: option(part),
   };
 
   let no_marks = {
@@ -56,10 +61,15 @@ module Deco = {
           tile,
         )
       );
-    let line = id =>
+    let line = (part: option(part)) => {
+      let measures = id =>
+        TermData.extreme_measures(id, syntax.term_data, measured);
       switch (
-        Option.bind(id, ~f=id =>
-          TermData.extreme_measures(id, syntax.term_data, measured)
+        Option.bind(part, ~f=((first, last)) =>
+          switch (measures(first), measures(last)) {
+          | (Some((origin, _)), Some((_, end_))) => Some((origin, end_))
+          | _ => None
+          }
         )
       ) {
       | None => []
@@ -79,6 +89,7 @@ module Deco = {
              };
            })
       };
+    };
     {
       marks,
       syntax,

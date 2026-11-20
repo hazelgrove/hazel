@@ -127,6 +127,7 @@ let (suite, exit_with_test_status) =
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
     @ [Test_SubEditor.tests]
+    @ [Test_SelectedPart.tests]
     @ [Test_ListCaseStep.tests]
     @ [Test_ProofContext.tests]
     @ [Test_NegativeSelector.tests]

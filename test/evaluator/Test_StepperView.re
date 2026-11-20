@@ -936,7 +936,13 @@ module State = {
             option(string),
             "the same node selected",
             Some(print(Settings_change.applied(local.goal))),
-            Option.map(~f=print, Picker.Goal.selected(local.goal)),
+            Option.map(
+              ~f=print,
+              Option.map(
+                ~f=Occurrence.exp,
+                Picker.Goal.selected(local.goal),
+              ),
+            ),
           );
           check(
             bool,
@@ -1253,13 +1259,13 @@ module Picking = {
           ghost_t,
           "ghost",
           Some(("step", "from ($e + $e) do step end", "2")),
-          ghost(~selected=Some(node(goal, "1 + 1")), goal),
+          ghost(~selected=Some(Node(node(goal, "1 + 1"))), goal),
         );
         check(
           ghost_t,
           "a part with no step has none",
           None,
-          ghost(~selected=Some(node(goal, "4")), goal),
+          ghost(~selected=Some(Node(node(goal, "4"))), goal),
         );
       },
     ),
@@ -1286,7 +1292,7 @@ module Picking = {
           ghost_t,
           "selected",
           Some(("step", "from $e($e) do step end", "2 + 3 + 1")),
-          ghost(~selected=Some(call), goal),
+          ghost(~selected=Some(Node(call)), goal),
         );
         check(
           ghost_t,
@@ -1522,7 +1528,13 @@ module Regressions = {
             (row.key, Goal(Select(Term(Id(Exp.rep_id(part), Right))))),
           );
         let selected = (f: Fixture.t) =>
-          Option.map(~f=print, Picker.Goal.selected(Fixture.goal(f, row)));
+          Option.map(
+            ~f=print,
+            Option.map(
+              ~f=Occurrence.exp,
+              Picker.Goal.selected(Fixture.goal(f, row)),
+            ),
+          );
         let f = Fixture.act(f, (row.key, Tab(Write)));
         check(option(string), "Write", Some("(1 + 1)"), selected(f));
         let f = Fixture.act(f, (row.key, Tab(Strategy)));
@@ -2415,8 +2427,8 @@ module Focusing = {
    * and which of the display's occurrences of it it is, counting from 0. */
   let underlined = (goal: Picker.Goal.t, row: Rows.t): (string, int) =>
     switch (
-      Option.bind(Picker.Goal.acts_on(goal, row), ~f=id =>
-        Exp.find_by_id(id, goal.written)
+      Option.bind(Picker.Goal.acts_on(goal, row), ~f=((first, last)) =>
+        Id.equal(first, last) ? Exp.find_by_id(first, goal.written) : None
       )
     ) {
     | Some(node) => (
@@ -2433,7 +2445,7 @@ module Focusing = {
       Picker.write(
         row,
         {
-          at: Picker.target(goal, node),
+          at: Picker.target(goal, Node(node)),
           step: Proof.fresh(EvalStep),
         },
       )
@@ -2630,7 +2642,7 @@ module Focusing = {
         let row = last(f.rows);
         let goal = Fixture.goal(f, row);
         let pick: Picker.pick = {
-          at: Picker.target(goal, Picking.node(goal, "5 * 2")),
+          at: Picker.target(goal, Node(Picking.node(goal, "5 * 2"))),
           step: Proof.fresh(EvalStep),
         };
         switch (Picker.write(row, pick)) {
@@ -2816,7 +2828,7 @@ module Focusing = {
           true,
           switch (row.goal, row.acts_on) {
           | (Some(written), Some(part)) =>
-            switch (Exp.find_by_id(part, written)) {
+            switch (Exp.find_by_id(Exp.rep_id(part), written)) {
             | Some({term: Asc(_), _}) => true
             | _ => false
             }
@@ -2828,7 +2840,9 @@ module Focusing = {
           "the application, not its ascription",
           Some("application"),
           Picker.Goal.acts_on(goal, row)
-          |> Option.bind(_, ~f=id => Exp.find_by_id(id, goal.written))
+          |> Option.bind(_, ~f=((id, _)) =>
+               Exp.find_by_id(id, goal.written)
+             )
           |> Option.map(~f=(e: Exp.t) =>
                switch (Exp.term_of(e)) {
                | Ap(_) => "application"
@@ -2854,7 +2868,7 @@ module Focusing = {
           "a fold",
           Some("fold"),
           Picker.Goal.acts_on(goal, row)
-          |> Option.bind(_, ~f=id => Exp.find_by_id(id, term))
+          |> Option.bind(_, ~f=((id, _)) => Exp.find_by_id(id, term))
           |> Option.map(~f=(e: Exp.t) =>
                switch (Exp.term_of(e)) {
                | Projector(_) => "fold"
@@ -3505,6 +3519,291 @@ module Redrawing = {
   ];
 };
 
+/* A selection across some operands of a chain snaps to the run of them,
+ * which picks, the write box and underlines then act on. */
+module Runs = {
+  /* `f` with the row's goal selected from the start of the node printed
+   * `from` to the end of the node printed `to_`. */
+  let select = (f: Fixture.t, row: Rows.t, ~from: string, ~to_: string) => {
+    let goal = Fixture.goal(f, row);
+    let syntax = goal.editor.editor.syntax;
+    let measure = printed =>
+      switch (
+        TermData.extreme_measures(
+          Exp.rep_id(Picking.node(goal, printed)),
+          syntax.term_data,
+          CachedSyntax.measured(syntax),
+        )
+      ) {
+      | Some(measures) => measures
+      | None => Alcotest.fail(printed ++ " isn't drawn")
+      };
+    let (start, _) = measure(from);
+    let (_, end_) = measure(to_);
+    Fixture.act(f, (row.key, Goal(Select(PointToPoint((start, end_))))));
+  };
+
+  /* What is selected: a node or a run, printed. */
+  let selected = (goal: Picker.Goal.t): option((string, string)) =>
+    Picker.Goal.selected(goal)
+    |> Option.map(~f=(part: Occurrence.t) =>
+         (
+           switch (part) {
+           | Node(_) => "node"
+           | Run(_) => "run"
+           },
+           print(Occurrence.exp(part)),
+         )
+       );
+
+  let chain = "theorem t = 1 + 2 + 3 == 6 proof ? in t";
+
+  let tests = [
+    test_case(
+      "a selection across operands is the run of them",
+      `Quick,
+      () => {
+        let f = Fixture.mk(chain);
+        let row = first(f.rows);
+        let f = select(f, row, ~from="2", ~to_="3");
+        check(
+          option(pair(string, string)),
+          "`2 + 3`, which the parser leaves without a node",
+          Some(("run", "2 + 3")),
+          selected(Fixture.goal(f, row)),
+        );
+      },
+    ),
+    test_case(
+      "a selection that is a node of the chain stays that node",
+      `Quick,
+      () => {
+        let f = Fixture.mk(chain);
+        let row = first(f.rows);
+        let f = select(f, row, ~from="1", ~to_="2");
+        check(
+          option(pair(string, string)),
+          "`1 + 2`",
+          Some(("node", "1 + 2")),
+          selected(Fixture.goal(f, row)),
+        );
+      },
+    ),
+    test_case(
+      "an operator selected takes in the operands it joins",
+      `Quick,
+      () => {
+        let f = Fixture.mk(chain);
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        let syntax = goal.editor.editor.syntax;
+        let three =
+          TermData.extreme_measures(
+            Exp.rep_id(Picking.node(goal, "3")),
+            syntax.term_data,
+            CachedSyntax.measured(syntax),
+          );
+        let f =
+          switch (three) {
+          | Some((start, end_)) =>
+            Fixture.act(
+              f,
+              (
+                row.key,
+                Goal(
+                  Select(
+                    PointToPoint((
+                      {
+                        ...start,
+                        col: start.col - 2,
+                      },
+                      end_,
+                    )),
+                  ),
+                ),
+              ),
+            )
+          | None => Alcotest.fail("3 isn't drawn")
+          };
+        check(
+          option(pair(string, string)),
+          "`+ 3` takes in the `2`",
+          Some(("run", "2 + 3")),
+          selected(Fixture.goal(f, row)),
+        );
+      },
+    ),
+    test_case(
+      "the editor highlights the run, not the node around it",
+      `Quick,
+      () => {
+        let f = Fixture.mk(chain);
+        let row = first(f.rows);
+        let goal = Fixture.goal(select(f, row, ~from="2", ~to_="3"), row);
+        let editor = goal.editor.editor;
+        check(
+          option(string),
+          "`2 + 3`",
+          Some("2 + 3"),
+          SelectedPart.expanded(
+            ~measured=CachedSyntax.measured(editor.syntax),
+            ~term_data=editor.syntax.term_data,
+            ~term=Web.CodeEditable.Model.get_statics(goal.editor).term,
+            editor.state.zipper,
+          )
+          |> Option.map(~f=seg =>
+               Segment.to_string(
+                 seg,
+                 ~projector_to_segment=_ => [],
+                 ~refractor_seg_to_seg=(r, s) => (r, s),
+               )
+             ),
+        );
+      },
+    ),
+    test_case(
+      "a fold the selection snaps over is drawn selected",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = 1 + (fun x: Int -> x + 0)(2) + 3 == 6 proof ? in t",
+          );
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        let syntax = goal.editor.editor.syntax;
+        let f =
+          switch (
+            TermData.extreme_measures(
+              Exp.rep_id(Picking.node(goal, "3")),
+              syntax.term_data,
+              CachedSyntax.measured(syntax),
+            )
+          ) {
+          | Some((start, end_)) =>
+            Fixture.act(
+              f,
+              (
+                row.key,
+                Goal(
+                  Select(
+                    PointToPoint((
+                      {
+                        ...start,
+                        col: start.col - 2,
+                      },
+                      end_,
+                    )),
+                  ),
+                ),
+              ),
+            )
+          | None => Alcotest.fail("3 isn't drawn")
+          };
+        let goal = Fixture.goal(f, row);
+        let editor = goal.editor.editor;
+        let folds =
+          Id.Map.bindings(editor.syntax.projectors) |> List.map(~f=fst);
+        let selected = (~expand_selection) =>
+          Web.CodeEditable.View.selection_ids(~expand_selection, goal.editor);
+        check(bool, "the call's function is folded", true, folds != []);
+        check(
+          bool,
+          "`+ 3` doesn't hold the fold",
+          false,
+          List.exists(folds, ~f=id =>
+            List.mem(selected(~expand_selection=false), id, ~equal=Id.equal)
+          ),
+        );
+        check(
+          bool,
+          "but it snaps to the run with the call, which does",
+          true,
+          List.exists(folds, ~f=id =>
+            List.mem(selected(~expand_selection=true), id, ~equal=Id.equal)
+          ),
+        );
+      },
+    ),
+    test_case(
+      "Tab on a run steps the run",
+      `Quick,
+      () => {
+        let f = Fixture.mk(chain);
+        let row = first(f.rows);
+        let goal = Fixture.goal(select(f, row, ~from="2", ~to_="3"), row);
+        check(
+          Picking.ghost_t,
+          "ghost",
+          Some(("step", "from 2 + $e do step end", "5")),
+          Picking.ghost(~selected=Picker.Goal.selected(goal), goal),
+        );
+      },
+    ),
+    test_case(
+      "Tab on a run steps inside its operands first",
+      `Quick,
+      () => {
+        let f = Fixture.mk("theorem t = 1 + 2 * 2 + 3 == 8 proof ? in t");
+        let row = first(f.rows);
+        let goal =
+          Fixture.goal(select(f, row, ~from="2 * 2", ~to_="3"), row);
+        check(
+          Picking.ghost_t,
+          "ghost",
+          Some(("step", "from $e * $e do step end", "4 + 3")),
+          Picking.ghost(~selected=Picker.Goal.selected(goal), goal),
+        );
+      },
+    ),
+    test_case(
+      "Tab on a run takes the outermost step of its first operand with one",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "let inc = fun x -> x + 1 in theorem t = 1 + inc(2 + 3) + 4 == 11 proof ? in t",
+          );
+        let row = first(f.rows);
+        let goal =
+          Fixture.goal(select(f, row, ~from="inc(2 + 3)", ~to_="4"), row);
+        check(
+          Picking.ghost_t,
+          "ghost",
+          Some(("step", "from $e($e) do step end", "2 + 3 + 1 + 4")),
+          Picking.ghost(~selected=Picker.Goal.selected(goal), goal),
+        );
+      },
+    ),
+    test_case(
+      "a focus on a run is underlined from its first operand to its last",
+      `Quick,
+      () => {
+        let f =
+          Fixture.mk(
+            "theorem t = 1 + 2 + 3 == 6 proof from 2 + 3 do step end; ? in t",
+          );
+        let row = first(f.rows);
+        let goal = Fixture.goal(f, row);
+        check(
+          option(pair(string, string)),
+          "`2` to `3`",
+          Some(("2", "3")),
+          Picker.Goal.acts_on(goal, row)
+          |> Option.map(~f=((first, last)) =>
+               (
+                 Exp.find_by_id(first, goal.written)
+                 |> Option.value_map(~default="?", ~f=print),
+                 Exp.find_by_id(last, goal.written)
+                 |> Option.value_map(~default="?", ~f=print),
+               )
+             ),
+        );
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -3520,5 +3819,6 @@ let tests = (
   @ Focusing.generalizing_tests
   @ Writing.tests
   @ Scrolling.tests
-  @ Redrawing.tests,
+  @ Redrawing.tests
+  @ Runs.tests,
 );

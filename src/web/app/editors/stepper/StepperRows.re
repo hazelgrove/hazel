@@ -34,11 +34,12 @@ type t = {
   /* The goal the row shows, as the checker wrote it. None when there is
    * none to show: nothing checked yet, or an earlier step broke. */
   goal: option(Exp.t),
-  /* The id in `goal` of the part the step acts on: the occurrence a focus
-   * selected, or all of `goal` for a step that rewrites it whole. None
-   * for a step that changes the goal's shape or closes it from facts
-   * (forall, induction, ...). */
-  acts_on: option(Id.t),
+  /* The part of `goal` the step acts on: the occurrence a focus selected,
+   * or all of `goal` for a step that rewrites it whole. A run a focus
+   * selected is not a node of `goal`, but its operands are. None for a
+   * step that changes the goal's shape or closes it from facts (forall,
+   * induction, ...). */
+  acts_on: option(Exp.t),
   /* Whether a step can be written at the row, in its write box: in place
    * of a hole, or after the chain's last step where the proof goes on. */
   continues: bool,
@@ -194,12 +195,10 @@ let rec chain =
     switch (step.term) {
     /* The checker starts a focus's body from the occurrence it selected. */
     | Focus({body, _}) =>
-      lookup(body)
-      |> Option.bind(_, ~f=(e: ProofMap.entry) => e.incoming)
-      |> Option.map(~f=Exp.rep_id)
+      lookup(body) |> Option.bind(_, ~f=(e: ProofMap.entry) => e.incoming)
     | AxiomStep(_)
     | AlgebriteStep(_)
-    | EvalStep => Option.map(~f=Exp.rep_id, goal)
+    | EvalStep => goal
     | EmptyHole
     | Invalid(_)
     | MultiHole(_)
