@@ -62,10 +62,8 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   model_default: B.model_to_hazel(B.model_default),
   expansion_t: B.hazel_expansion_t,
   expand: (exp: model_exp) =>
-    switch (B.model_from_hazel(exp)) {
-    | Some(m) => Some(B.expand(m) |> B.expand_to_hazel)
-    | None => None
-    },
+    B.model_from_hazel(exp)
+    |> Option.map(~f=m => B.expand(m) |> B.expand_to_hazel),
   action_t: B.hazel_action_t,
   update: (action: action_exp, model: model_exp) =>
     B.model_to_hazel(

@@ -97,13 +97,10 @@ module Model = {
         ~f=unpersist_exercise(~settings, ~instructor_mode),
       );
     let current =
-      ListUtil.findi_opt(
-        (spec: exercise_spec) =>
-          Id.equal(id_of_spec(spec), persistent.cur_exercise),
-        ExerciseSettings.exercises,
+      List.findi(ExerciseSettings.exercises, ~f=(_, spec: exercise_spec) =>
+        Id.equal(id_of_spec(spec), persistent.cur_exercise)
       )
-      |> Option.map(~f=fst)
-      |> Option.value(~default=0);
+      |> Option.value_map(~default=0, ~f=fst);
     {
       current,
       exercises,
@@ -190,7 +187,7 @@ module StoreExerciseKey =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth_exn(ExerciseSettings.exercises, 0) |> Model.id_of_spec;
+      List.hd_exn(ExerciseSettings.exercises) |> Model.id_of_spec;
     let key = Store.CurrentExercise;
   });
 
@@ -282,9 +279,8 @@ module Store = {
       ~f=
         ((key, value)) => {
           let n =
-            ListUtil.findi_opt(
-              spec => Model.id_of_spec(spec) == key,
-              exercise_specs,
+            List.findi(exercise_specs, ~f=(_, spec) =>
+              Model.id_of_spec(spec) == key
             )
             |> Option.value_exn
             |> fst;

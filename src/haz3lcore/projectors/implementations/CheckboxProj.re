@@ -14,15 +14,11 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Any.t) =>
-    switch (bool_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
+  let init = (any: Language.Any.t) => Option.map(bool_of(any), ~f=ignore);
 
   let get = (info: info): bool =>
     switch (
-      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of)
+      info.syntax |> info.utility.seg_to_term |> Option.bind(~f=bool_of)
     ) {
     | Some(b) => b
     | None => failwith("Checkbox: Get: not boolean literal")

@@ -33,8 +33,6 @@ let unescape_linebreaks: string => string;
 /** Normalizes line endings to `\n` and strips leading spaces and tabs from
     every line. */
 let trim_leading: string => string;
-/** Splits around the first occurrence of the character. */
-let split_first: (~on: char, string) => option((string, string));
 let strip_final_newline: string => string;
 let isEmptyOrWhitespace: string => bool;
 /** URI-component encoding (`encodeURIComponent`); nothing is compressed. */

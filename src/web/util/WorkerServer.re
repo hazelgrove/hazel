@@ -338,8 +338,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
     };
   /* a superseded request's plan is never taken: keep only the newest
      few so abandoned plans (whole reuse streams) don't accumulate */
-  planned_reuse :=
-    [(expr, stream), ...Util.ListUtil.take(3, planned_reuse^)];
+  planned_reuse := [(expr, stream), ...List.take(planned_reuse^, 3)];
   (key, stream);
 };
 

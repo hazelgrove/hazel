@@ -257,23 +257,17 @@ module Local = {
         | Grout(_)
         | Projector(_) => None
         | Tile(t) =>
-          let* shard =
-            d == Left
-              ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
+          let* shard = d == Left ? List.hd(t.shards) : List.last(t.shards);
           List.nth(Tile.label(t), shard);
         };
       let outer_token = (d: Direction.t): option(Token.t) => {
         let (l_sibs, r_sibs) = z.relatives.siblings;
-        switch (
-          d == Left ? ListUtil.last_opt(l_sibs) : ListUtil.hd_opt(r_sibs)
-        ) {
+        switch (d == Left ? List.last(l_sibs) : List.hd(r_sibs)) {
         | Some(p) => edge_token(Direction.toggle(d), p)
         | None =>
           let* a = Ancestors.parent(z.relatives.ancestors);
           let* shard =
-            d == Left
-              ? ListUtil.last_opt(fst(a.shards))
-              : ListUtil.hd_opt(snd(a.shards));
+            d == Left ? List.last(fst(a.shards)) : List.hd(snd(a.shards));
           List.nth(Ancestor.label(a), shard);
         };
       };
@@ -288,7 +282,7 @@ module Local = {
           content: Secondary.Whitespace(Token.space),
         });
       let seg_edge = (d: Direction.t, seg: Segment.t) => {
-        let* p = d == Left ? ListUtil.hd_opt(seg) : ListUtil.last_opt(seg);
+        let* p = d == Left ? List.hd(seg) : List.last(seg);
         edge_token(d, p);
       };
       let seg =
@@ -383,13 +377,10 @@ module Local = {
              | `Tok(p) => [p]
              | `Run(left, run, right, witness) => {
                  let preserved =
-                   switch (
-                     Id.Map.find(old_runs, Piece.id(List.hd_exn(run)))
-                   ) {
-                   | Some((l, old, r)) =>
-                     l == witness && r == id(right) && old == run
-                   | None => false
-                   };
+                   Id.Map.find(old_runs, Piece.id(List.hd_exn(run)))
+                   |> Option.exists(~f=((l, old, r)) =>
+                        l == witness && r == id(right) && old == run
+                      );
                  if (preserved) {
                    run;
                  } else {
@@ -507,10 +498,7 @@ module Local = {
          separator collapse below. Holes INSIDE a member (e.g. `let x = ?`)
          have a non-separator neighbor and are kept. */
       let is_member_boundary = (tok: option(Piece.t)): bool =>
-        switch (tok) {
-        | None => true
-        | Some(t) => is_semi(t)
-        };
+        Option.for_all(tok, ~f=is_semi);
       let rec drop_hole_members = (prev_tok: option(Piece.t), ps) =>
         switch (ps) {
         | [] => []
@@ -621,13 +609,12 @@ module Local = {
     let normalize_top_level = (~before=?, z: Zipper.t): Zipper.t => {
       let after = Zipper.unselect_and_zip(z);
       let old =
-        Option.map(before, ~f=Zipper.unselect_and_zip)
-        |> Option.value(~default=[]);
+        Option.value_map(before, ~default=[], ~f=Zipper.unselect_and_zip);
       let next =
         after
         |> normalize_top_level_whitespace(~before=old)
         |> normalize_module_bodies(~before=old)
-        |> EditIdentity.restore(before == None ? after : old, _);
+        |> EditIdentity.restore(Option.is_none(before) ? after : old, _);
       Segment.ptr_eq(next, after)
         ? z
         : {
@@ -863,7 +850,8 @@ module Local = {
             )
           : None
       ) {
-      | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+      | Some(segment)
+          when Option.is_some(reserved_binder_garbage(code, segment)) =>
         Error(
           Action.Failure.Composition_action_failure(
             "Inserted code does not parse as intended."
@@ -951,7 +939,8 @@ module Local = {
         switch (
           PerfTimer.time("typing-parse", () => Parser.to_segment(code, ~root))
         ) {
-        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
+        | Some(segment)
+            when Option.is_some(reserved_binder_garbage(code, segment)) =>
           Error(
             Action.Failure.Composition_action_failure(
               "Inserted code does not parse as intended."
@@ -1344,7 +1333,7 @@ module Local = {
                rewrite; any other bound-name count change makes old→new use
                site mapping ambiguous, so reject rather than silently leaving
                stale references. */
-            if (old_names != []
+            if (!List.is_empty(old_names)
                 && List.length(old_names) != List.length(new_names)) {
               Error(
                 Action.Failure.Composition_action_failure(
@@ -1394,7 +1383,7 @@ module Local = {
                    spellings but paths stay consistent after follow-up edits
                    (see [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
                 let final_z =
-                  old_names == []
+                  List.is_empty(old_names)
                     ? new_z
                     : GeneralTreeUtils.update_use_sites_of_pat(
                         ~z=new_z,

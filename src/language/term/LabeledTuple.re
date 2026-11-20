@@ -33,20 +33,10 @@ let separate_and_keep_labels:
   ('a => option((label, 'b)), list('a)) =>
   (list(option(label)), list('a))
  =
-  (get_label, es) => {
-    let results =
-      List.fold_left(
-        ~f=
-          ((ls, ns), e) =>
-            switch (get_label(e)) {
-            | Some((s1, _)) => (ls @ [Some(s1)], ns @ [e])
-            | None => (ls @ [None], ns @ [e])
-            },
-        ~init=([], []),
-        es,
-      );
-    results;
-  };
+  (get_label, es) => (
+    List.map(es, ~f=e => Option.map(get_label(e), ~f=fst)),
+    es,
+  );
 
 // Keeps the labels in x that exist in y. Maintains the order from x.
 let intersect = (xs: list(label), ys: list(label)) => {
@@ -80,7 +70,7 @@ let get_duplicate_labels:
   (get_label, es) => {
     separate_and_keep_labels(get_label, es)
     |> fst
-    |> List.filter_map(~f=Fn.id)
+    |> List.filter_opt
     |> get_duplicate_labels_base;
   };
 
@@ -100,7 +90,7 @@ let rec rearrange_base:
   list((option(label), 'b))
  =
   (~show_b=?, l1: list(option(label)), l2: list((option(label), 'b))) => {
-    let l1_labels = List.filter_map(~f=Fn.id, l1);
+    let l1_labels = List.filter_opt(l1);
     let l2_labels = List.filter_map(~f=fst, l2);
     let common_labels = intersect(l1_labels, l2_labels);
 
@@ -129,11 +119,9 @@ let rec rearrange_base:
           post: list((option(label), 'b)),
         ) =
           ListUtil.split(remaining, ((label: option(label), _)) => {
-            switch (label) {
-            | Some(label) =>
+            Option.for_all(label, ~f=label =>
               !List.mem(common_labels, label, ~equal=String.equal)
-            | None => true
-            }
+            )
           });
 
         switch (current) {
@@ -151,11 +139,9 @@ let rec rearrange_base:
         post: list((option(label), 'b)),
       ) =
         ListUtil.split(remaining, ((label: option(label), _)) => {
-          switch (label) {
-          | Some(label) =>
+          Option.for_all(label, ~f=label =>
             !List.mem(common_labels, label, ~equal=String.equal)
-          | None => true
-          }
+          )
         });
       switch (current) {
       | Some((_existing_label, b)) =>
@@ -213,10 +199,7 @@ let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
     List.find(
       ~f=
         e => {
-          switch (filt(e)) {
-          | Some((s, _)) => String.equal(s, label)
-          | None => false
-          }
+          Option.exists(filt(e), ~f=((s, _)) => String.equal(s, label))
         },
       es,
     );

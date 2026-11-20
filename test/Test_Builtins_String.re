@@ -58,14 +58,12 @@ let as_strings = (d: option(DHExp.t)): list(string) =>
   };
 
 let is_index_error = (d: option(DHExp.t)): bool =>
-  switch (d) {
-  | Some(d) =>
+  Option.exists(d, ~f=d =>
     switch (DHExp.term_of(d)) {
     | DynamicErrorHole(_, IndexOutOfBounds) => true
     | _ => false
     }
-  | None => false
-  };
+  );
 
 let grin = "\xF0\x9F\x98\x80"; /* U+1F600 */
 let family = "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D\xF0\x9F\x91\xA7\xE2\x80\x8D\xF0\x9F\x91\xA6"; /* ZWJ family */

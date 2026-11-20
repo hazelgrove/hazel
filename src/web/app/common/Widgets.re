@@ -29,8 +29,8 @@ let button_d = (~tooltip="", icon, action, ~disabled: bool) =>
   );
 
 let link = (~tooltip="", icon, url) =>
-  div(
-    ~attrs=[clss(["icon"])],
+  div_c(
+    "icon",
     [
       a(
         ~attrs=Attr.[href(url), title(tooltip), create("target", "_blank")],
@@ -46,7 +46,7 @@ let toggle = (~tooltip="", label, active, action) =>
       Attr.on_pointerdown(action),
       Attr.title(tooltip),
     ],
-    [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
+    [div_c("toggle-knob", [text(label)])],
   );
 
 let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {
@@ -83,8 +83,8 @@ let file_select_button_named =
         ~on_input,
         (),
       ),
-      div(
-        ~attrs=[clss(["named-menu-item"])],
+      div_c(
+        "named-menu-item",
         [
           div(~attrs=[clss(["icon"]), Attr.title(tooltip)], [icon]),
           text(tooltip),

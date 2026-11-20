@@ -156,7 +156,7 @@ let grade_theorem_exercise =
 /* ---- Dispatch ---- */
 
 let find_spec = (id: Id.t) =>
-  ListUtil.findi_opt(spec => Id.equal(Web.Exercise.id_of(spec), id), specs);
+  List.findi(specs, ~f=(_, spec) => Id.equal(Web.Exercise.id_of(spec), id));
 
 let grade_one =
     (id: Uuidm.t, persistent: Model.persistent_exercise): option(section) => {

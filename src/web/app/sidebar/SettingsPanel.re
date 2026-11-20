@@ -66,7 +66,7 @@ let matches = (query: string, text: string): bool => {
 };
 
 let desc = (text: string): Node.t =>
-  div(~attrs=[clss(["settings-desc"])], [Node.text(text)]);
+  div_c("settings-desc", [Node.text(text)]);
 
 let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
   switch (row) {
@@ -81,10 +81,10 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
         Attr.on_click(_ => globals.inject_global(Set(setting))),
       ],
       [
-        span(~attrs=[clss(["settings-name"])], [Node.text(name)]),
+        span_c("settings-name", [Node.text(name)]),
         div(
           ~attrs=[clss(["toggle-switch"] @ (active ? ["active"] : []))],
-          [div(~attrs=[clss(["toggle-knob"])], [])],
+          [div_c("toggle-knob", [])],
         ),
       ]
       @ Option.to_list(Option.map(~f=desc, tooltip)),
@@ -93,7 +93,7 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
     div(
       ~attrs=[clss(["settings-row", "settings-choice"])],
       [
-        span(~attrs=[clss(["settings-name"])], [Node.text(name)]),
+        span_c("settings-name", [Node.text(name)]),
         div(
           ~attrs=[
             clss(["segmented-control"]),
@@ -171,11 +171,8 @@ let section_view =
                 ),
               ],
               [
-                span(~attrs=[clss(["settings-chevron"])], []),
-                span(
-                  ~attrs=[clss(["settings-section-name"])],
-                  [Node.text(sec.s_name)],
-                ),
+                span_c("settings-chevron", []),
+                span_c("settings-section-name", [Node.text(sec.s_name)]),
               ],
             ),
           ]
@@ -183,8 +180,8 @@ let section_view =
             folded
               ? []
               : [
-                div(
-                  ~attrs=[clss(["settings-rows"])],
+                div_c(
+                  "settings-rows",
                   List.map(~f=row_view(~globals), rows),
                 ),
               ]
@@ -213,10 +210,10 @@ let view =
       Attr.on_focus(_ => Effect.Stop_propagation),
     ],
     [
-      div(
-        ~attrs=[clss(["settings-title-bar"])],
+      div_c(
+        "settings-title-bar",
         [
-          span(~attrs=[clss(["settings-title"])], [Node.text("Settings")]),
+          span_c("settings-title", [Node.text("Settings")]),
           input(
             ~attrs=[
               clss(["settings-filter"]),
@@ -240,12 +237,12 @@ let view =
           ),
         ],
       ),
-      div(
-        ~attrs=[clss(["settings-body"])],
+      div_c(
+        "settings-body",
         List.is_empty(body)
           ? [
-            div(
-              ~attrs=[clss(["settings-empty"])],
+            div_c(
+              "settings-empty",
               [
                 Node.text(
                   "No settings match " ++ {js|“|js} ++ query ++ {js|”|js},

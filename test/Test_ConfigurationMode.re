@@ -24,7 +24,7 @@ let rec bad_tiles = (seg: Base.segment): list(string) =>
           let here =
             List.length(t.shards) != List.length(t.children) + 1
               ? [
-                String.concat(~sep="", Tile.label(t))
+                String.concat(Tile.label(t))
                 ++ " shards="
                 ++ string_of_int(List.length(t.shards))
                 ++ " children="
@@ -231,10 +231,8 @@ let value_read_back_matches_the_event = () => {
     bool,
     "get_value returns the very value UpdateResult carried",
     true,
-    switch (Web.EvalResult.Model.get_value(evaluated(result))) {
-    | Some(v) => phys_equal(v, result)
-    | None => false
-    },
+    Web.EvalResult.Model.get_value(evaluated(result))
+    |> Option.exists(~f=v => phys_equal(v, result)),
   );
 };
 

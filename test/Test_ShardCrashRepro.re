@@ -293,10 +293,7 @@ let sample_to_seg = (v: Language.Exp.t): Segment.t =>
   ExpToSegment.any_to_segment(~settings=projector_display_settings, Exp(v));
 
 let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
-  let all: list(Language.Sample.t) =
-    Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as ss, acc) =>
-      acc @ ss
-    );
+  let all: list(Language.Sample.t) = List.concat(Id.Map.data(probes));
   List.iteri(
     ~f=
       (n, sample: Language.Sample.t) => {
@@ -626,10 +623,7 @@ let drawer_seg_of_value = (v: Language.Exp.t): Segment.t =>
   );
 
 let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) => {
-  let all: list(Language.Sample.t) =
-    Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as ss, acc) =>
-      acc @ ss
-    );
+  let all: list(Language.Sample.t) = List.concat(Id.Map.data(probes));
   List.iteri(
     ~f=
       (n, sample: Language.Sample.t) => {

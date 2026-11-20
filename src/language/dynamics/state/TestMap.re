@@ -43,8 +43,6 @@ let extend = ((id, report), test_map) => {
 let count = List.length;
 
 let count_status = (status, test_map) =>
-  List.filter(
-    ~f=((_, instances)) => Poly.equal(status, joint_status(instances)),
-    test_map,
-  )
-  |> List.length;
+  List.count(test_map, ~f=((_, instances)) =>
+    Poly.equal(status, joint_status(instances))
+  );

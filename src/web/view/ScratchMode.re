@@ -298,10 +298,9 @@ module Persist = {
         || Option.is_some(agent.pending_dispatch_send);
       let now = JsUtil.timestamp();
       let recently =
-        switch (Hashtbl.find(last_agent_save_ts, agent_key_str)) {
-        | Some(t) => Float.(now -. t < 10000.)
-        | None => false
-        };
+        Option.exists(Hashtbl.find(last_agent_save_ts, agent_key_str), ~f=t =>
+          Float.(now -. t < 10000.)
+        );
       if (!unchanged && !(busy && recently)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.set(last_saved_agent, ~key=agent_key_str, ~data=agent);
@@ -319,11 +318,7 @@ module Persist = {
       (~settings, prefix: string, name: string): Scratchpad.t => {
     switch (load_slide_kind(prefix, name)) {
     | Some(CodePersist({editor: e, agent})) =>
-      let agent =
-        switch (load_agent(prefix, name)) {
-        | Some(p) => p
-        | None => agent
-        };
+      let agent = Option.value(load_agent(prefix, name), ~default=agent);
       Scratchpad.{
         name,
         kind:
@@ -455,10 +450,7 @@ module Persist = {
             switch (load_slide_kind(prefix, name)) {
             | Some(CodePersist({editor, agent})) =>
               let agent =
-                switch (load_agent(prefix, name)) {
-                | Some(a) => a
-                | None => agent
-                };
+                Option.value(load_agent(prefix, name), ~default=agent);
               Scratchpad.{
                 name,
                 kind:
@@ -538,10 +530,8 @@ module Persist = {
 let integrate_share =
     (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
   let share_name =
-    switch (JsUtil.QueryParams.get_param("name")) {
-    | None => "Unknown Share"
-    | Some(name) => name
-    };
+    JsUtil.QueryParams.get_param("name")
+    |> Option.value(~default="Unknown Share");
   switch (JsUtil.QueryParams.get_param("share")) {
   | None => model
   | Some(data) =>
@@ -1025,14 +1015,14 @@ module Update = {
           ~is_edited,
           ~statics_mode,
           ~queue_worker,
-          ~stitch=x => x,
+          ~stitch=Fn.id,
           editor,
         );
       let dispatch = (_key, action) =>
         schedule_action(CellAction(ResultAction(action)));
       EvalRequest.request(
         worker_request^,
-        ~pos_of_key=key => key,
+        ~pos_of_key=Fn.id,
         ~dispatch,
         ~on_timeout=
           List.iter(~f=((key, _)) =>

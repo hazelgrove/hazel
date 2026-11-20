@@ -50,21 +50,12 @@ let insert_text = (z: t, text: string, ~root): t =>
   if (String.length(text) == 0) {
     z;
   } else {
-    let result =
-      Token.to_list(text)
-      |> List.fold_left(
-           ~f=
-             (z_opt, c) =>
-               switch (z_opt) {
-               | None => None
-               | Some(z) => Insert.go(c, z, ~root)
-               },
-           ~init=Some(z),
-         );
-    switch (result) {
-    | Some(z) => z
-    | None => z
-    };
+    Util.OptUtil.fold_left_opt(
+      (z, c) => Insert.go(c, z, ~root),
+      Token.to_list(text),
+      z,
+    )
+    |> Option.value(~default=z);
   };
 
 /* Select the current line's content, excluding line breaks.
@@ -74,15 +65,9 @@ let insert_text = (z: t, text: string, ~root): t =>
  * covers any leading indent. */
 let select_line = (z: t): t => {
   let z = Zipper.unselect(z);
-  let z =
-    switch (Move.to_linebreak_raw(Left, z)) {
-    | Some(z) => z
-    | None => z
-    };
-  switch (Select.to_linebreak(Right, z)) {
-  | Some(z) => z
-  | None => z
-  };
+  z
+  |> Util.OptUtil.replace(Move.to_linebreak_raw(Left))
+  |> Util.OptUtil.replace(Select.to_linebreak(Right));
 };
 
 /* Uncomment: extract content from comment pieces, destroy
@@ -96,7 +81,7 @@ let uncomment = (z: t, ~root): option(t) => {
 /* Toggle comment for a single line at the caret position */
 let toggle_single = (z: t, ~root): option(t) => {
   let z = select_line(z);
-  if (z.selection.content == []) {
+  if (List.is_empty(z.selection.content)) {
     Some(Zipper.unselect(z));
   } else {
     switch (classify(z.selection.content)) {
@@ -143,11 +128,7 @@ let classify_lines = (seg: Segment.t): line_class => {
  * Move back to start of first line, then select forward to end of
  * last line, so the toggled region remains selected. */
 let reselect_lines = (z: t, num_newlines: int): t => {
-  let or_stay = (f, z) =>
-    switch (f(z)) {
-    | Some(z) => z
-    | None => z
-    };
+  let or_stay = Util.OptUtil.replace;
   /* Move to start of current (last) line. Use raw variant so we land
    * at the literal line edge (not past leading indent), keeping the
    * subsequent Select.to_linebreak symmetric. */
@@ -186,17 +167,9 @@ let toggle_multi = (z: t, ~root): option(t) => {
    * Must set focus to match the extension direction,
    * since to_linebreak moves the focus end. */
   let z = Zipper.set_focus(z, Left);
-  let z =
-    switch (Select.to_linebreak(Left, z)) {
-    | Some(z) => z
-    | None => z
-    };
+  let z = Util.OptUtil.replace(Select.to_linebreak(Left), z);
   let z = Zipper.set_focus(z, Right);
-  let z =
-    switch (Select.to_linebreak(Right, z)) {
-    | Some(z) => z
-    | None => z
-    };
+  let z = Util.OptUtil.replace(Select.to_linebreak(Right), z);
   let content = z.selection.content;
   switch (classify_lines(content)) {
   | Empty
@@ -236,7 +209,7 @@ let toggle_multi = (z: t, ~root): option(t) => {
  * No selection → toggle current line.
  * With selection → toggle all lines the selection spans. */
 let go = (z: t, ~root): option(t) =>
-  if (z.selection.content != []) {
+  if (!List.is_empty(z.selection.content)) {
     toggle_multi(z, ~root);
   } else {
     toggle_single(z, ~root);

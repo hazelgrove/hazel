@@ -99,11 +99,7 @@ let append = (base: t, ext: t): t => {
           } else {
             List.map(~f=shift_sample(delta), ext_samples);
           };
-        let existing =
-          switch (Id.Map.find(acc, id)) {
-          | Some(l) => l
-          | None => []
-          };
+        let existing = Id.Map.find(acc, id) |> Option.value(~default=[]);
         Id.Map.set(acc, ~key=id, ~data=samples @ existing);
       },
     );

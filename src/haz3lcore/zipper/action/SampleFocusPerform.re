@@ -1,4 +1,3 @@
-open Util;
 open Language;
 
 let update = (z: Zipper.t, f: Sample.Focus.t => Sample.Focus.t) =>
@@ -55,10 +54,10 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
              sightline so below-focus frames aren't lost — symmetric
              with the None branch below. */
           let extended = CallStack.extend(ap_id, data.call_stack);
-          ListUtil.is_suffix_of(
-            ~eq=CallStack.equal_frame,
-            extended,
+          List.is_suffix(
             sample_focus.call_stack,
+            ~suffix=extended,
+            ~equal=CallStack.equal_frame,
           )
             ? sample_focus.call_stack : extended;
         | None =>
@@ -71,16 +70,15 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
              ensures consumers reading fn_def_id off sample_focus.call_stack
              see accurate values the moment the user walks into a sample
              that would overlap a previously-seeded synthetic frame. */
-          if (ListUtil.is_suffix_of(
-                ~eq=CallStack.equal_frame,
-                data.call_stack,
+          if (List.is_suffix(
                 sample_focus.call_stack,
+                ~suffix=data.call_stack,
+                ~equal=CallStack.equal_frame,
               )) {
             let prefix_len =
               List.length(sample_focus.call_stack)
               - List.length(data.call_stack);
-            ListUtil.take(prefix_len, sample_focus.call_stack)
-            @ data.call_stack;
+            List.take(sample_focus.call_stack, prefix_len) @ data.call_stack;
           } else {
             data.call_stack;
           }

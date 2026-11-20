@@ -90,7 +90,7 @@ module Utils = {
     // Calling linearize makes this a little costly
     // but it also keeps code safer rather than storing a current tail pointer
     let linear = linearize(chat);
-    ListUtil.hd_opt(List.rev(linear))
+    List.last(linear)
     |> OptUtil.get_or_fail(
          "[Chat.Utils.current_tail] Failed to get current tail",
        );
@@ -242,7 +242,7 @@ module Utils = {
       | None => 2
       | Some(i) => i
       };
-    ListUtil.remove_first_n(start, linear);
+    List.drop(linear, start);
   };
 
   /** OpenRouter payload for the main agent: always prompt + dev notes + active suffix from latest compaction, then context. */
@@ -254,7 +254,7 @@ module Utils = {
       | Some(idx) =>
         switch (linear) {
         | [p, d, ..._] =>
-          let suffix = ListUtil.remove_first_n(idx, linear);
+          let suffix = List.drop(linear, idx);
           [p, d, ...suffix];
         | _ => linear
         }

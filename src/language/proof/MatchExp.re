@@ -90,10 +90,10 @@ let rec match_exp =
   | (EmptyHole, _) => None
   | (MultiHole(xs), MultiHole(ys)) when List.length(xs) == List.length(ys) =>
     let* () =
-      ListUtil.fold_left_opt(
+      OptUtil.fold_left_opt(
         ((), (x, y)) => match_any(ctx, x, y),
-        (),
         List.zip_exn(xs, ys),
+        (),
       );
     Some(ctx);
   | (MultiHole(_), _) => None
@@ -120,10 +120,10 @@ let rec match_exp =
   | (Atom(Nat(i1)), Atom(Nat(i2))) when i1 == i2 => Some(ctx)
   | (Atom(Nat(_)), _) => None
   | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
-      ctx,
       List.zip_exn(xs, ys),
+      ctx,
     )
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
@@ -143,10 +143,10 @@ let rec match_exp =
     match_exp(alphas, ctx, e1, e2);
   | (TypFun(_, _, _), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
-      ctx,
       List.zip_exn(xs, ys),
+      ctx,
     )
   | (Tuple(_), _) => None
   | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
@@ -186,10 +186,10 @@ let rec match_exp =
   | (DeferredAp(e1, es1), DeferredAp(e2, es2))
       when List.length(es1) == List.length(es2) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
-      ctx,
       List.zip_exn(es1, es2),
+      ctx,
     );
   | (DeferredAp(_, _), _) => None
   | (DrvQuote(e1, _), DrvQuote(e2, _))
@@ -237,13 +237,13 @@ let rec match_exp =
   | (Match(e1, rs1), Match(e2, rs2))
       when List.length(rs1) == List.length(rs2) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (ctx, ((p1, body1), (p2, body2))) => {
         let* alphas' = match_pat(p1, p2);
         match_exp(alphas' @ alphas, ctx, body1, body2);
       },
-      ctx,
       List.zip_exn(rs1, rs2),
+      ctx,
     );
   | (Match(_, _), _) => None
   | (Label(l1), Label(l2)) when String.equal(l1, l2) => Some(ctx)
@@ -312,11 +312,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Atom(Nat(i1)), Atom(Nat(i2))) when i1 == i2 => Some([])
   | (Atom(Nat(_)), _) => None
   | (ListLit(xs), ListLit(ys)) when List.length(xs) == List.length(ys) =>
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (alphas, (x, y)) =>
         match_pat(x, y) |> Option.map(~f=alphas1 => alphas1 @ alphas),
-      [],
       List.zip_exn(xs, ys),
+      [],
     )
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when String.equal(c1, c2) =>
@@ -328,11 +328,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     Some(alphas1 @ alphas2);
   | (Cons(_, _), _) => None
   | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
-    ListUtil.fold_left_opt(
+    OptUtil.fold_left_opt(
       (alphas, (x, y)) =>
         match_pat(x, y) |> Option.map(~f=alphas1 => alphas1 @ alphas),
-      [],
       List.zip_exn(xs, ys),
+      [],
     )
   | (Tuple(_), _) => None
   | (Ap(x1, x2), Ap(y1, y2)) =>

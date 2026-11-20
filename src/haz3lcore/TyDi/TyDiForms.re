@@ -13,7 +13,7 @@ module Delims = {
     Form.delims
     |> List.filter_map(~f=token => {
          let (lbl, _) = Form.Expansion.get(sort, token);
-         Form.remold_candidates(lbl, sort) != []
+         !List.is_empty(Form.remold_candidates(lbl, sort))
          && List.length(lbl) > 1
          && token == List.hd_exn(lbl)
            ? Some(token ++ leading_expander) : None;
@@ -75,7 +75,9 @@ module Delims = {
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
     Token.const_mono_delims
-    |> List.filter(~f=token => Form.remold_candidates([token], sort) != [])
+    |> List.filter(~f=token =>
+         !List.is_empty(Form.remold_candidates([token], sort))
+       )
     |> Token.sort_uniq;
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort

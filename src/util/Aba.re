@@ -15,7 +15,7 @@ let first_a = ((as_, _): t('a, _)): 'a => {
 };
 let last_a = ((as_, _): t('a, _)): 'a => {
   assert(!List.is_empty(as_));
-  ListUtil.last(as_);
+  List.last_exn(as_);
 };
 
 let rev = (rev_a, rev_b, (as_, bs): t('a, 'b)): t('a, 'b) => (

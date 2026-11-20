@@ -308,7 +308,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
 };
 
 let is_base_typ = (name: string): bool =>
-  List.exists(~f=String.equal(name), Token.base_typs);
+  List.mem(Token.base_typs, name, ~equal=String.equal);
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),

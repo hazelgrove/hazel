@@ -177,19 +177,22 @@ module Settings = {
       }
     | ToggleBeforeCutoff => {
         ...settings,
-        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+        before_cutoff:
+          Option.is_none(settings.before_cutoff) ? Some(1) : None,
       }
     | ToggleAfterCutoff => {
         ...settings,
-        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+        after_cutoff: Option.is_none(settings.after_cutoff) ? Some(1) : None,
       }
     | ToggleCallerCutoff => {
         ...settings,
-        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+        caller_cutoff:
+          Option.is_none(settings.caller_cutoff) ? Some(1) : None,
       }
     | ToggleCalleeCutoff => {
         ...settings,
-        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+        callee_cutoff:
+          Option.is_none(settings.callee_cutoff) ? Some(1) : None,
       }
     };
 
@@ -334,7 +337,7 @@ let select_samples =
       dynamics.sample_focus,
       samples,
     );
-  if (first_idx == None && settings.window == Single) {
+  if (Option.is_none(first_idx) && settings.window == Single) {
     [];
   } else {
     let cursor_idx = first_idx |> Option.value(~default=0);
@@ -446,12 +449,12 @@ let depth_clss =
   switch (relation.relative_level_to_cursor) {
   | Same => ["depth-same"]
   | Below(n)
-      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      when Option.for_all(settings.before_cutoff, ~f=cutoff => n <= cutoff) => [
       "depth-below",
       "depth-" ++ string_of_int(n),
     ]
   | Above(n)
-      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      when Option.for_all(settings.after_cutoff, ~f=cutoff => n <= cutoff) => [
       "depth-above",
       "depth-" ++ string_of_int(n),
     ]
@@ -492,24 +495,21 @@ let color_clss =
     ) {
     | (true, _, _) => ["focus"]
     | (_, Some(0), _) => ["related-before"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
+    | (_, Some(_), _) when Option.is_none(settings.caller_cutoff) => [
         "related-before",
       ]
     | (_, _, Some(0)) => ["related-after"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+    | (_, _, Some(_)) when Option.is_none(settings.callee_cutoff) => [
         "related-after",
       ]
     | (_, _, _) =>
       switch (relation.relative_level_to_cursor) {
       | Above(n)
-          when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+          when Option.for_all(settings.after_cutoff, ~f=cutoff => n <= cutoff) => [
           "tangent-before",
         ]
       | Below(n)
-          when
-            settings.before_cutoff == None
-            || Some(n) <= settings.before_cutoff => [
+          when Option.for_all(settings.before_cutoff, ~f=cutoff => n <= cutoff) => [
           "tangent-after",
         ]
       | _ => ["unrelated"]
@@ -517,7 +517,7 @@ let color_clss =
     };
   | StepRange => step_range_clss()
   | Hybrid =>
-    if (sample.call_stack == []) {
+    if (List.is_empty(sample.call_stack)) {
       step_range_clss();
     } else {
       let relation =
@@ -587,7 +587,7 @@ let pin_call = (ctx: probe_ctx) =>
 
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
+  | Some(sample) when !List.is_empty(sample.call_stack) =>
     ctx.parent(
       SampleFocus(
         TogglePin(
@@ -781,12 +781,9 @@ let value_view =
           | Some(r)
               when
                 r.can_handle(ctx.sort, sample.value)
-                && (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => n <= inline_rows_cap
-                  | None => true
-                  }
-                ) =>
+                && Option.for_all(r.drawer_rows(ctx.sort, sample.value), ~f=n =>
+                     n <= inline_rows_cap
+                   ) =>
             render_rich(r, pm)
           | _ => None
           }
@@ -805,12 +802,9 @@ let value_view =
               )
               && (
                 ctx.auto_unbounded
-                || (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => n <= inline_rows_cap
-                  | None => true
-                  }
-                )
+                || Option.for_all(r.drawer_rows(ctx.sort, sample.value), ~f=n =>
+                     n <= inline_rows_cap
+                   )
               )
             )
           ) {
@@ -935,27 +929,14 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | _ => None
     };
   let is_builtin = name =>
-    Environment.lookup(Builtins.env_init, name) != None;
-  let static_ok =
-    switch (fn_var_name) {
-    | Some(name) => !is_builtin(name)
-    | None => false
-    };
+    Option.is_some(Environment.lookup(Builtins.env_init, name));
+  let static_ok = Option.exists(fn_var_name, ~f=name => !is_builtin(name));
   /* Suppress the dynamic offer for direct builtin call sites: their fn_def_id
      points to library code with nowhere to step. */
-  let static_fn_is_builtin =
-    switch (fn_var_name) {
-    | Some(name) => is_builtin(name)
-    | None => false
-    };
+  let static_fn_is_builtin = Option.exists(fn_var_name, ~f=is_builtin);
   let dynamic_ok =
     !static_fn_is_builtin
-    && (
-      switch (sample.frame) {
-      | Some(f) => Option.is_some(f.fn_def_id)
-      | None => false
-      }
-    );
+    && Option.exists(sample.frame, ~f=f => Option.is_some(f.fn_def_id));
   static_ok || dynamic_ok;
 };
 
@@ -1066,7 +1047,7 @@ let sample_primary_actions =
     [pin_action(ctx, sample)]
     @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
     @ rich_items
-  | None when sample.call_stack != [] =>
+  | None when !List.is_empty(sample.call_stack) =>
     [focus_action(ctx, sample)] @ rich_items
   | None => rich_items
   };
@@ -1240,7 +1221,7 @@ let sample_environment =
     )
     : list(Node.t) => {
   let elems = filtered_env_entries(~filter_vars, sample);
-  elems == []
+  List.is_empty(elems)
     ? []
     : [
       div(
@@ -1269,7 +1250,7 @@ let sample_context_sections =
   let filter_vars =
     List.filter_map(~f=Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
-  let has_env = env_elems != [];
+  let has_env = !List.is_empty(env_elems);
   let has_call = Option.is_some(sample.args);
   let primary =
     sample_primary_actions(
@@ -1282,7 +1263,9 @@ let sample_context_sections =
   let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
   /* Emit no nodes when empty so the caller suppresses the whole menu. */
   let nodes =
-    primary == [] && call_display == [] && env == []
+    List.is_empty(primary)
+    && List.is_empty(call_display)
+    && List.is_empty(env)
       ? []
       : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
         @ call_display
@@ -1354,15 +1337,16 @@ let sample_view =
     && {
       let hide_env = hide_env(ctx.statics);
       let has_rich =
-        switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
-        | Some(indicated) =>
-          List.exists(
-            ~f=r => r.can_handle(ctx.sort, indicated.value),
-            renderers,
-          )
-        | None => false
-        };
-      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+        Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)
+        |> Option.exists(~f=(indicated: Sample.t) =>
+             List.exists(
+               ~f=r => r.can_handle(ctx.sort, indicated.value),
+               renderers,
+             )
+           );
+      !(hide_env && Option.is_none(ctx.ap_id))
+      || !List.is_empty(sample.call_stack)
+      || has_rich;
     };
   /* `indicated-sample` marks the most-aligned sample, the DOM anchor
    * SampleAnchor uses to compensate scroll on Left/Right.
@@ -1697,7 +1681,7 @@ let key_handler =
   };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("Escape") when Settings.open_dropdown^ != None =>
+  | D("Escape") when Option.is_some(Settings.open_dropdown^) =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
@@ -1863,7 +1847,7 @@ let prepare_offside =
       Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       (model.auto_rich || settings.auto_rich_default)
-      && model.active_renderer == None
+      && Option.is_none(model.active_renderer)
       && List.exists(
            ~f=
              (sample: Sample.t) =>
@@ -1949,12 +1933,13 @@ let prepare_offside =
       switch (dynamics.sample_focus.pinned_stack) {
       | None =>
         /* Unpinned: legacy alignment (looser, has fallback tiers). */
-        Sample.Selection.most_aligned_index(
-          ~ap_id,
-          dynamics.sample_focus,
-          filtered_samples,
+        Option.is_some(
+          Sample.Selection.most_aligned_index(
+            ~ap_id,
+            dynamics.sample_focus,
+            filtered_samples,
+          ),
         )
-        != None
       | Some(_) =>
         Sample.Selection.is_reachable_pinned(
           ~cursor=dynamics.sample_focus,
@@ -1971,10 +1956,9 @@ let prepare_offside =
       );
     let (num_shown, groups) = Sample.Selection.collate(samples);
     let is_evaluating =
-      switch (dynamics.sample_focus.pending_focus) {
-      | Some({probe_id, _}) => probe_id == id
-      | None => false
-      };
+      Option.exists(dynamics.sample_focus.pending_focus, ~f=({probe_id, _}) =>
+        probe_id == id
+      );
     let empty_status =
       Sample.Selection.get_empty_status(
         ~num_total,
@@ -2041,7 +2025,7 @@ let live_offside_view =
     @ (scrollable ? ["drawer-overflow"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
-    ~menu_open=Settings.open_dropdown^ != None,
+    ~menu_open=Option.is_some(Settings.open_dropdown^),
     ~on_close=() => local(SetDropdown(None)),
     (),
   );
@@ -2101,7 +2085,7 @@ let live_offside_view =
       /* Sample-count circle at the start of the samples row. */
       let count_badge = count_badge_nodes(~count=num_total);
       let samples_part =
-        group_views == []
+        List.is_empty(group_views)
           ? []
           : [
             div(
@@ -2127,7 +2111,7 @@ let get_current = (~settings, info: info) => {
     | Some(closure) => Some(closure.value)
     | None =>
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
-      ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.value);
+      List.hd(samples) |> Option.map(~f=(s: Sample.t) => s.value);
     };
   | _ => None
   };
@@ -2350,18 +2334,14 @@ module M: Projector = {
          drawer (chevron / Cmd+ArrowUp toggles back) */
       let activate = () => {
         let wants_drawer =
-          switch (
-            rich_drawer_rows(
-              {
-                ...model,
-                active_renderer: pm,
-              },
-              info,
-            )
-          ) {
-          | Some(n) => n > inline_rows_cap
-          | None => false
-          };
+          rich_drawer_rows(
+            {
+              ...model,
+              active_renderer: pm,
+            },
+            info,
+          )
+          |> Option.exists(~f=n => n > inline_rows_cap);
         {
           ...model,
           active_renderer: pm,
@@ -2420,7 +2400,7 @@ module M: Projector = {
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               (
-                model.active_renderer != None
+                Option.is_some(model.active_renderer)
                   ? [
                     div(
                       ~attrs=[
@@ -2488,12 +2468,9 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
+      && Option.exists(rich_drawer_rows(model, info), ~f=n =>
+           n > inline_rows_cap
+         )
         ? rich_content(
             ~settings,
             model,
@@ -2509,7 +2486,7 @@ module M: Projector = {
                  ~overflowing=drawer_overflow,
                  /* auto-rich (no explicit renderer) has nothing to close:
                     dismissal would just re-trigger */
-                 ~closable=model.active_renderer != None,
+                 ~closable=Option.is_some(model.active_renderer),
                  content,
                )
              )

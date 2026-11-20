@@ -38,7 +38,7 @@ let get_selection_anchor_info =
     Some({
       focus,
       first: endpoint_of(first_piece),
-      last: endpoint_of(ListUtil.last(content)),
+      last: endpoint_of(List.last_exn(content)),
       cursor_edge,
     })
   };
@@ -61,7 +61,7 @@ let get_selection_edge_piece =
   switch (grow_direction, z.selection.content) {
   | (_, []) => None
   | (Left, [p, ..._]) => Some(p)
-  | (Right, content) => ListUtil.last_opt(content)
+  | (Right, content) => List.last(content)
   };
 
 /* Grow from the cursor's edge toward the far endpoint: cursor at the
@@ -117,10 +117,10 @@ let move_to_predecessor = (z: t, predecessor_ids: Id.Map.t(unit)): option(t) => 
   let z = move_to_start(z);
   let rec go = (z: t, best: option(t)): option(t) => {
     let is_pred =
-      switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
-      | Some(p) => Id.Map.mem(predecessor_ids, Piece.id(p))
-      | None => false
-      };
+      z.relatives.siblings
+      |> fst
+      |> List.last
+      |> Option.exists(~f=p => Id.Map.mem(predecessor_ids, Piece.id(p)));
     let best = is_pred ? Some(z) : best;
     switch (Move.local(ByToken, Right, z)) {
     | Some(z) => go(z, best)
@@ -143,7 +143,7 @@ let move_to_id_anc = (z: t, (id, shard, child_idx)): option(t) => {
             Id.equal(fst(a).id, id)
             && Option.equal(
                  Int.equal,
-                 fst(a).shards |> fst |> ListUtil.hd_opt,
+                 fst(a).shards |> fst |> List.hd,
                  shard,
                ),
         z.relatives.ancestors,
@@ -198,7 +198,7 @@ let move_to_id =
           false,
         )
       | ([_, ..._] as l, _) when Direction.equal(d_init, Left) => (
-          Id.equal(Piece.id(ListUtil.last(l)), id),
+          Id.equal(Piece.id(List.last_exn(l)), id),
           false,
         )
       | (_, [p, ..._]) when Zipper.equal_caret(caret_init, Outer) => (
@@ -209,12 +209,7 @@ let move_to_id =
       };
     found
       ? needs_adjust ? Move.local(ByToken, Left, z) : Some(z)
-      : (
-        switch (Move.local(ByToken, Right, z)) {
-        | Some(z) => go(z)
-        | None => None
-        }
-      );
+      : Option.bind(Move.local(ByToken, Right, z), ~f=go);
   };
   go(z);
 };
@@ -252,19 +247,8 @@ let reposition_cursor =
       switch (move_to_predecessor(z, predecessor_ids)) {
       | Some(z) => z
       | None =>
-        let rec go = (ancestor_ids, z): option(t) =>
-          switch (ancestor_ids) {
-          | [] => None
-          | [ancestor_id, ...ancestor_ids] =>
-            switch (move_to_id_anc(z, ancestor_id)) {
-            | Some(z) => Some(z)
-            | None => go(ancestor_ids, z)
-            }
-          };
-        switch (go(ancestor_ids, z)) {
-        | Some(z) => z
-        | None => z
-        };
+        List.find_map(ancestor_ids, ~f=move_to_id_anc(z))
+        |> Option.value(~default=z)
       };
     (z, false);
   };
@@ -280,13 +264,13 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
     switch (z.relatives.siblings, z.selection.content) {
     | ((_, [p, ..._]), _) => (Piece.id(p), Right, Right)
     | (([_, ..._] as l, []), _) => (
-        Piece.id(ListUtil.last(l)),
+        Piece.id(List.last_exn(l)),
         Left,
         Left,
       )
     | (([], []), [_, ..._] as sel) =>
       switch (z.selection.focus) {
-      | Right => (Piece.id(ListUtil.last(sel)), Left, Right)
+      | Right => (Piece.id(List.last_exn(sel)), Left, Right)
       | Left => (Piece.id(List.hd_exn(sel)), Right, Left)
       }
     | (([], []), []) => (Id.invalid, Left, Left)
@@ -299,7 +283,7 @@ let transform = (z: Zipper.t, f: Segment.t => Segment.t): Zipper.t => {
     |> List.map(~f=((anc: Ancestor.t, _sibs)) =>
          (
            anc.id,
-           anc.shards |> fst |> ListUtil.hd_opt,
+           anc.shards |> fst |> List.hd,
            List.length(fst(anc.children)),
          )
        );

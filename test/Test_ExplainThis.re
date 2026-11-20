@@ -106,10 +106,8 @@ let print_any = (any: Any.t): string =>
 let canonical_id = (info_map, id: Id.t): string =>
   switch (Id.Map.find(info_map, id)) {
   | Some(info) =>
-    switch (Info.any_of(info)) {
-    | Some(any) => print_any(any)
-    | None => "<secondary>"
-    }
+    Info.any_of(info)
+    |> Option.value_map(~default="<secondary>", ~f=print_any)
   | None => "<unmapped>"
   };
 
@@ -747,10 +745,8 @@ let golden_case = ((name, src)) =>
     `Quick,
     () => {
       let expected =
-        switch (List.Assoc.find(golden, name, ~equal=Poly.equal)) {
-        | Some(g) => g
-        | None => "<no golden recorded for " ++ name ++ ">"
-        };
+        List.Assoc.find(golden, name, ~equal=Poly.equal)
+        |> Option.value(~default="<no golden recorded for " ++ name ++ ">");
       Alcotest.check(Alcotest.string, name, expected, doc_fingerprint(src));
     },
   );

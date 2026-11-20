@@ -44,14 +44,14 @@ let card =
       div(
         ~attrs=[clss(["slash-card", "slash-card-" ++ kind])],
         [
-          div(
-            ~attrs=[clss(["slash-card-header"])],
+          div_c(
+            "slash-card-header",
             [
-              span(~attrs=[clss(["slash-card-icon"])], [text(icon)]),
-              span(~attrs=[clss(["slash-card-title"])], [text(title)]),
+              span_c("slash-card-icon", [text(icon)]),
+              span_c("slash-card-title", [text(title)]),
             ],
           ),
-          div(~attrs=[clss(["slash-card-body"])], body),
+          div_c("slash-card-body", body),
         ],
       ),
     ],
@@ -62,8 +62,8 @@ let stat_tile =
   div(
     ~attrs=[clss(["slash-stat", ...accent ? ["slash-stat-accent"] : []])],
     [
-      div(~attrs=[clss(["slash-stat-label"])], [text(label)]),
-      div(~attrs=[clss(["slash-stat-value"])], [text(value)]),
+      div_c("slash-stat-label", [text(label)]),
+      div_c("slash-stat-value", [text(value)]),
     ],
   );
 
@@ -71,8 +71,8 @@ let kv_row = (~k: string, ~v: string, ~strong=false, ()): Node.t =>
   div(
     ~attrs=[clss(["slash-kv", ...strong ? ["slash-kv-strong"] : []])],
     [
-      span(~attrs=[clss(["slash-kv-key"])], [text(k)]),
-      span(~attrs=[clss(["slash-kv-value"])], [text(v)]),
+      span_c("slash-kv-key", [text(k)]),
+      span_c("slash-kv-value", [text(v)]),
     ],
   );
 
@@ -85,10 +85,10 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
     | Some(c) => format_usd(c)
     };
   let footer =
-    div(
-      ~attrs=[clss(["slash-card-footer"])],
+    div_c(
+      "slash-card-footer",
       [
-        span(~attrs=[clss(["slash-card-footer-label"])], [text("model")]),
+        span_c("slash-card-footer-label", [text("model")]),
         code(
           ~attrs=[clss(["slash-card-footer-value"])],
           [text(model_name)],
@@ -96,8 +96,8 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
       ],
     );
   let stats =
-    div(
-      ~attrs=[clss(["slash-stat-row"])],
+    div_c(
+      "slash-stat-row",
       [
         stat_tile(
           ~label="input tokens",
@@ -119,16 +119,16 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
     String.equal(p.cost_model, "")
       ? [
         stats,
-        div(
-          ~attrs=[clss(["slash-card-note"])],
+        div_c(
+          "slash-card-note",
           [text("Pick a model to enable the $ estimate.")],
         ),
       ]
       : [
         stats,
         footer,
-        div(
-          ~attrs=[clss(["slash-card-note"])],
+        div_c(
+          "slash-card-note",
           [
             text(
               "Cost uses the currently-selected model's pricing across all turns.",
@@ -155,8 +155,8 @@ let view_credits = (p: Message.Model.credits_output): Node.t => {
       };
     };
   let bar =
-    div(
-      ~attrs=[clss(["slash-progress"])],
+    div_c(
+      "slash-progress",
       [
         div(
           ~attrs=[
@@ -168,8 +168,8 @@ let view_credits = (p: Message.Model.credits_output): Node.t => {
       ],
     );
   let stats =
-    div(
-      ~attrs=[clss(["slash-stat-row"])],
+    div_c(
+      "slash-stat-row",
       [
         stat_tile(~label="used", ~value=format_usd(p.credits_used), ()),
         stat_tile(~label="total", ~value=format_usd(p.credits_total), ()),
@@ -191,10 +191,7 @@ let view_credits = (p: Message.Model.credits_output): Node.t => {
 
 let view_usage = (p: Message.Model.usage_output): Node.t => {
   let opt_row = (label: string, value: option(float)): option(Node.t) =>
-    switch (value) {
-    | None => None
-    | Some(v) => Some(kv_row(~k=label, ~v=format_usd(v), ()))
-    };
+    Option.map(value, ~f=v => kv_row(~k=label, ~v=format_usd(v), ()));
   let tier_row =
     kv_row(~k="tier", ~v=p.usage_is_free_tier ? "free" : "paid", ());
   let total_row =
@@ -208,12 +205,12 @@ let view_usage = (p: Message.Model.usage_output): Node.t => {
     opt_row("limit", p.usage_limit),
     opt_row("remaining", p.usage_remaining),
   ];
-  let rows = List.filter_map(~f=x => x, candidates);
+  let rows = List.filter_opt(candidates);
   card(
     ~kind="usage",
     ~title="OpenRouter key usage",
     ~icon="◌",
-    [div(~attrs=[clss(["slash-kv-grid"])], rows)],
+    [div_c("slash-kv-grid", rows)],
   );
 };
 
@@ -224,8 +221,8 @@ let view_key = (key: string): Node.t =>
       ~title="OpenRouter API key",
       ~icon="⚿",
       [
-        div(
-          ~attrs=[clss(["slash-card-note"])],
+        div_c(
+          "slash-card-note",
           [text("No API key set. Open Settings to add one.")],
         ),
       ],
@@ -236,8 +233,8 @@ let view_key = (key: string): Node.t =>
       ~title="OpenRouter API key",
       ~icon="⚿",
       [
-        div(
-          ~attrs=[clss(["slash-key-value"])],
+        div_c(
+          "slash-key-value",
           [code(~attrs=[clss(["slash-key-code"])], [text(key)])],
         ),
       ],
@@ -249,17 +246,14 @@ let view_help = (p: Message.Model.help_output): Node.t => {
     List.map(
       ~f=
         (e: Message.Model.help_entry) =>
-          div(
-            ~attrs=[clss(["slash-help-row"])],
+          div_c(
+            "slash-help-row",
             [
               code(
                 ~attrs=[clss(["slash-help-cmd"])],
                 [text("/" ++ e.help_name)],
               ),
-              span(
-                ~attrs=[clss(["slash-help-desc"])],
-                [text(e.help_description)],
-              ),
+              span_c("slash-help-desc", [text(e.help_description)]),
             ],
           ),
       p.help_entries,
@@ -268,7 +262,7 @@ let view_help = (p: Message.Model.help_output): Node.t => {
     ~kind="help",
     ~title="Slash commands",
     ~icon="?",
-    [div(~attrs=[clss(["slash-help-list"])], rows)],
+    [div_c("slash-help-list", rows)],
   );
 };
 
