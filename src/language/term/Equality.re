@@ -345,9 +345,9 @@ let equality =
     | (Deferral(_), _) => false
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Atom(_), _) => false
-    | (Label(l1), Label(l2)) => String.equal(l1, l2)
-    | (Label(_), _) => false
-    | (LivelitName(s1), LivelitName(s2)) => String.equal(s1, s2)
+    | (LabelLit(l1), LabelLit(l2)) => l1 == l2
+    | (LabelLit(_), _) => false
+    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (LivelitName(_), _) => false
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(tuple_entry(alphas_exp, alphas_typ, exp'), xs1, xs2)

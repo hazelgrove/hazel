@@ -169,7 +169,7 @@ let syn_and_elab_of =
 
 let is_bare_label = (e: Language.Exp.t): bool =>
   switch (Exp.term_of(e)) {
-  | Label(_) => true
+  | LabelLit(_) => true
   | _ => false
   };
 

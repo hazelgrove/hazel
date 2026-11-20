@@ -165,6 +165,7 @@ let role_groups: list((string, list(string))) = [
       "pattern",
       "type",
       "type-pattern",
+      "label",
       "derivation",
       "module",
       "signature",

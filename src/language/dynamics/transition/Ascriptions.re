@@ -288,7 +288,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Undefined, _)
     | (Invalid(_), _)
     | (MultiHole(_), _)
-    | (Label(_), _)
+    | (LabelLit(_), _)
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)

@@ -88,7 +88,7 @@ module Utils = {
     | If(e1, e2, e3) => [e1, e2, e3]
     | Match(e, branches) => [e, ...List.map(~f=snd, branches)]
     | BuiltinFun(_)
-    | Label(_)
+    | LabelLit(_)
     | EmptyHole
     | Undefined
     | Invalid(_)

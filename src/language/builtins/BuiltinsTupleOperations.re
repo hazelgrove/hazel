@@ -14,7 +14,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp:
       binary((d: DHExp.t, lab: DHExp.t) => {
         switch (lab.term) {
-        | Label(name) =>
+        | LabelLit(name) =>
           let-unbox l = (ListLit, d);
           let unboxed:
             option(list((LabeledTuple.label, list(TermBase.exp_t)))) =

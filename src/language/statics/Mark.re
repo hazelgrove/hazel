@@ -75,24 +75,15 @@ type t =
   | BadLabel(Any.t)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
   | UnexpectedLabelSort(LabeledTuple.label)
-  | ExplicitNonlabel
   | TPatShadowsType(string, tpat_shadow_src)
   | TPatNotAVar(tpat_var_err)
   | TypFreeTypeVariable(string)
   | TypDuplicateConstructor(Constructor.t)
-  | TypDuplicateLabels(list(LabeledTuple.label), Typ.t)
   | TypWantTypeFoundAp
-  | TypWantLabel
   | TypWantProduct(Typ.t)
   | TypWantConstructorFoundType(Typ.t)
   | TypWantConstructorFoundAp
   | TypParseFailure
-  | TupleLabelError({
-      malformed_labels: list(Any.t),
-      duplicate_labels: list(LabeledTuple.label),
-      invalid_labels: list(LabeledTuple.label),
-      typ: Typ.t,
-    })
   | IsDeferral(Exp.deferral_position)
   | FreeConstructor(Constructor.t)
   | CompareFun(Typ.t)
