@@ -24,27 +24,20 @@ let projected_binding = (b: S.binding): Exp.t =>
 /* One labeled field per action, grouped into one labeled field per section —
    the same grouping the command palette displays. */
 let exp_of_section = (s: A.section): Exp.t => {
-  IdTagged.FreshGrammar.Exp.(
-    tuple(
-      List.map(
-        ~f=
-          a =>
-            tup_label(
-              label(A.label(a)),
-              projected_binding(A.default_binding(a)),
-            ),
-        A.in_section(s),
+  IdTagged.FreshGrammar.(
+    Exp.tuple_entries(
+      List.map(A.in_section(s), ~f=a =>
+        Exp.labeled(A.label(a), projected_binding(A.default_binding(a)))
       ),
     )
   );
 };
 
 let shortcut_theme = (): Exp.t => {
-  IdTagged.FreshGrammar.Exp.(
-    tuple(
-      List.map(
-        ~f=s => tup_label(label(A.section_label(s)), exp_of_section(s)),
-        A.populated_sections,
+  IdTagged.FreshGrammar.(
+    Exp.tuple_entries(
+      List.map(A.populated_sections, ~f=s =>
+        Exp.labeled(A.section_label(s), exp_of_section(s))
       ),
     )
   );
@@ -90,7 +83,7 @@ let expected_type = {
   );
 };
 
-let entries_of = (v: Exp.t): list(Exp.t) =>
+let entries_of = (v: Exp.t): list(TupleEntry.t(Exp.t)) =>
   switch (v.term) {
   | Tuple(es) => es
   | _ => []
@@ -101,26 +94,22 @@ let entries_of = (v: Exp.t): list(Exp.t) =>
    program leaves `Unbound` maps to None, which CLEARS a default binding
    rather than falling back to it. */
 let overrides_of_value = (value: Exp.t): list((string, option(string))) =>
-  List.concat_map(
-    ~f=
-      (section: Exp.t) =>
-        switch (section.term) {
-        | TupLabel(_, group) =>
-          List.filter_map(
-            ~f=
-              (entry: Exp.t) =>
-                switch (entry.term) {
-                | TupLabel(l, v) =>
-                  switch (l.term, S.binding_of_exp(v)) {
-                  | (Label(action_name), Some(b)) =>
-                    Some((action_name, S.string_of_binding(b)))
-                  | _ => None
-                  }
-                | _ => None
-                },
-            entries_of(group),
-          )
-        | _ => []
-        },
-    entries_of(value),
+  List.concat_map(entries_of(value), ~f=section =>
+    switch (section) {
+    | Language.Grammar.Labeled(_, _, group) =>
+      List.filter_map(
+        ~f=
+          entry =>
+            switch (
+              TupleEntry.label_name(entry),
+              S.binding_of_exp(TupleEntry.value(entry)),
+            ) {
+            | (Some(action_name), Some(b)) =>
+              Some((action_name, S.string_of_binding(b)))
+            | _ => None
+            },
+        entries_of(group),
+      )
+    | Unlabeled(_) => []
+    }
   );

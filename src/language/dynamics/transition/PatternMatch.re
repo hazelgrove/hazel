@@ -61,13 +61,20 @@ let match_pattern =
   | Label(name) =>
     let* name' = Unboxing.unbox(Label, d);
     LabeledTuple.match_labels(name, name') ? Matches([]) : DoesNotMatch;
-  | TupLabel(_, x) =>
-    let* x' = Unboxing.unbox(TupLabel(dp), d);
-    recur(x, x');
+  /* A labeled pattern matches an entry by value; it only fails to match
+     an entry with a different label */
+  | TupLabel(_, x) => recur(x, d)
   | Tuple(ps) =>
-    let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2_exn(ps, ds, ~f=recur)
-    |> List.fold_left(~f=combine_result, ~init=Matches([]));
+    let* entries = Unboxing.unbox(TupleEntries(List.length(ps)), d);
+    let match_entry = (p: Pat.t, entry: TupleEntry.t(DHExp.t)) =>
+      switch (Pat.match_tup_label(p), TupleEntry.label_name(entry)) {
+      | (Some((l, _)), Some(l')) when !LabeledTuple.equal_label(l, l') =>
+        DoesNotMatch
+      | (Some((_, x)), _) => recur(x, TupleEntry.value(entry))
+      | (None, _) => recur(p, TupleEntry.value(entry))
+      };
+    List.map2_exn(ps, entries, ~f=match_entry)
+    |> List.fold(~init=Matches([]), ~f=combine_result);
   | Parens(p)
   | Projector(_, p) => recur(p, d)
   | Asc(p, t1) =>

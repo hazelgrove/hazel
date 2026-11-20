@@ -881,7 +881,6 @@ let decide =
         get_message(TyAliasExp.tyalias_exps(~tpat_id, ~def_id));
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1056,18 +1055,23 @@ let decide =
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Label(name) => get_message(LabelTerm.labels(name))
-      | TupLabel(l, e) =>
+      /* the cursor on a labeled entry's `=` indicates its tuple */
+      | Tuple([Labeled(_, l, e)]) =>
         get_message(
           TupLabelExp.labeled_exps(
-            ~label_id=Exp.rep_id(l),
+            ~label_id=Label.rep_id(l),
             ~exp_id=Exp.rep_id(e),
           ),
         )
       | Dot(tup, lab) =>
         get_message(
-          DotExp.dot_exp(~lab_id=Exp.rep_id(lab), ~tup_id=Exp.rep_id(tup)),
+          DotExp.dot_exp(
+            ~lab_id=Label.rep_id(lab),
+            ~tup_id=Exp.rep_id(tup),
+          ),
         )
-      | Tuple(terms) =>
+      | Tuple(entries) =>
+        let terms = List.map(~f=TupleEntry.value, entries);
         let n = List.length(terms);
         let basic = group =>
           get_message(
@@ -1283,6 +1287,7 @@ let decide =
         | (None, _) => basic(AppExp.funaps(~x_id, ~arg_id))
         };
       | DeferredAp(x, args) =>
+        let args = List.map(~f=TupleEntry.value, args);
         let x_id = IdTagged.rep_id(x);
         let supplied_id = Id.mk();
         let deferred_id = {

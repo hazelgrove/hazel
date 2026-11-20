@@ -151,22 +151,11 @@ let analyze_label_to_info_map =
          clear the mark AND patch the synthesized type so the cursor inspector
          shows Label(name) rather than Unknown(Internal). */
       let m = set_marks_exp(m, label, []);
-      let m = patch_elab_syn_ty_exp(m, label, Label(name) |> Typ.temp);
-      set_label_sort_exp(m, label, true);
-    | EmptyHole => set_label_sort_exp(m, label, true)
-    | _ =>
-      append_mark_exp(m, label, [BadLabel(Exp(label))])
-      |> set_label_sort_exp(_, label, true)
+      patch_elab_syn_ty_exp(m, label, Label(name) |> Typ.temp);
+    | EmptyHole => m
+    | _ => append_mark_exp(m, label, [BadLabel(Exp(label))])
     };
-  (
-    lab_name,
-    {
-      ...i,
-      label_sort: true,
-    },
-    i_elab,
-    m,
-  );
+  (lab_name, i, i_elab, m);
 };
 
 let labels_to_info_map =
@@ -242,7 +231,11 @@ let handle_tuple_operation =
     ) => {
   S.(
     switch (arg.term) {
-    | Tuple([tup, ...labs]) when !List.is_empty(labs) =>
+    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
+      let (tup, labs) = (
+        TupleEntry.value(tup),
+        List.map(~f=TupleEntry.value, labs),
+      );
       /* Ensure all source tuple nodes get baseline info entries before
          specialized builtin tuple/label analysis rewrites parts of the arg. */
       let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
@@ -275,8 +268,6 @@ let handle_tuple_operation =
             elab_term: arg,
             label_inference: None,
             inferred_label: None,
-            label_sort: false,
-            dot_labels: [],
           }),
           m,
         );
@@ -444,6 +435,10 @@ let group_by_label_statics =
   S.(
     switch (arg.term) {
     | Tuple([table, pivot_label]) =>
+      let (table, pivot_label) = (
+        TupleEntry.value(table),
+        TupleEntry.value(pivot_label),
+      );
       let (_, arg_elab, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       let (row_info: option(tuple_type), table_info, m) =
         analyze_table_argument((module S), ~ctx, m, table);
@@ -483,8 +478,6 @@ let group_by_label_statics =
             elab_term: arg,
             label_inference: None,
             inferred_label: None,
-            label_sort: false,
-            dot_labels: [],
           }),
           m,
         );

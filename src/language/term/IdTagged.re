@@ -107,7 +107,7 @@ module IdTag = {
     lexeme,
   };
 
-  let rep_id = ({ids, _}: t) => List.hd(ids);
+  let rep_id = ({ids, _}: t) => List.hd_exn(ids);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
