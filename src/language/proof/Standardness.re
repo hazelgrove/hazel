@@ -116,12 +116,101 @@ let check =
     | Unknown(_) => None
     | _ => Some(t)
     };
+  /* A definition's value, closed. Evaluation leaves a recursive function
+   * unrolled once: a lambda whose own calls are its fixpoint, inlined.
+   * That fixpoint is the definition. The statics name a recursive
+   * function `f+`, and its fixpoint's lambda has the same name. */
+  let definition_value = (x: Var.t): option(Exp.t) =>
+    Definitions.unfold(env, x)
+    |> Option.map(~f=(value: Exp.t) =>
+         switch (Exp.term_of(value)) {
+         | Fun(_, body, _, Some(name))
+             when
+               String.length(name) > 0
+               && Char.equal(name.[String.length(name) - 1], '+') =>
+           let rec lambda_name = (e: Exp.t) =>
+             switch (Exp.term_of(e)) {
+             | Parens(e)
+             | Asc(e, _) => lambda_name(e)
+             | Fun(_, _, _, name) => name
+             | _ => None
+             };
+           let found = ref(None);
+           let _: Exp.t =
+             Exp.map_term(
+               ~f_exp=
+                 (continue, e) =>
+                   switch (Exp.term_of(e)) {
+                   | FixF(_, f, _)
+                       when
+                         Option.is_none(found^)
+                         && Option.equal(
+                              String.equal,
+                              lambda_name(f),
+                              Some(name),
+                            ) =>
+                     found := Some(e);
+                     e;
+                   | _ => continue(e)
+                   },
+               body,
+             );
+           Option.value(~default=value, found^);
+         | _ => value
+         }
+       );
   let ctx_type = (x: Var.t): option(Typ.t) =>
     Ctx.lookup_var(ctx, x)
     |> Option.map(~f=(entry: Ctx.var_entry) =>
          Typ.normalize(ctx, entry.typ)
        )
     |> Option.bind(~f=known);
+  let within = (scope: scope, names: list(Var.t), types) => {
+    bound: names @ scope.bound,
+    types:
+      types
+      @ List.filter(
+          ~f=((x, _)) => !List.mem(names, x, ~equal=String.equal),
+          scope.types,
+        ),
+  };
+  /* The types a pattern's variables get from matching a value of type
+   * `t`, where the routine can see them. */
+  let rec pattern_types = (p: Pat.t, t: option(Typ.t)) =>
+    switch (Pat.term_of(p), t) {
+    | (Var(x), Some(t)) => [(x, t)]
+    | (Parens(p) | Standard(p, _), _) => pattern_types(p, t)
+    | (Asc(p, a), _) => pattern_types(p, known(Typ.normalize(ctx, a)))
+    | (Cons(h, rest), Some(t)) =>
+      switch (Typ.term_of(t)) {
+      | List(elem) =>
+        pattern_types(h, Some(elem)) @ pattern_types(rest, Some(t))
+      | _ => []
+      }
+    | (ListLit(ps), Some(t)) =>
+      switch (Typ.term_of(t)) {
+      | List(elem) =>
+        List.concat_map(~f=p => pattern_types(p, Some(elem)), ps)
+      | _ => []
+      }
+    | (Tuple(ps), Some(t)) =>
+      switch (Typ.term_of(t)) {
+      | Prod(ts) when List.length(ps) == List.length(ts) =>
+        List.concat(
+          List.map2_exn(~f=(p, t) => pattern_types(p, Some(t)), ps, ts),
+        )
+      | _ => []
+      }
+    | _ => []
+    };
+  /* The type all of `ts` are, if they are known and agree. Branches of a
+   * `case` or `if` can differ in a type the statics leave unknown. */
+  let agreed = (ts: list(option(Typ.t))): option(Typ.t) =>
+    switch (OptUtil.sequence(ts)) {
+    | Some([t, ...rest]) when List.for_all(~f=Typ.fast_equal(t), rest) =>
+      Some(t)
+    | _ => None
+    };
   /* The type of `e`, where its binders, literals and operators show it. */
   let rec type_of = (scope: scope, e: Exp.t): option(Typ.t) =>
     switch (Exp.term_of(e)) {
@@ -165,7 +254,15 @@ let check =
     | UnOp(SInt(Minus), _) => Some(Typ.temp(Atom(SInt)))
     | UnOp(Nat(Minus), _) => Some(Typ.temp(Atom(Nat)))
     | UnOp(Float(Minus), _) => Some(Typ.temp(Atom(Float)))
-    | If(_, a, _) => type_of(scope, a)
+    | If(_, a, b) => agreed([type_of(scope, a), type_of(scope, b)])
+    | Match(scrut, rules) => agreed(arm_types(scope, scrut, rules))
+    | Fun(p, body, t, _) =>
+      switch (ProofSyntax.pat_to_name(p), Option.bind(t, ~f=known)) {
+      | (Some(x), Some(t)) =>
+        type_of(within(scope, [x], [(x, t)]), body)
+        |> Option.map(~f=cod => Typ.temp(Arrow(t, cod)))
+      | _ => None
+      }
     | Tuple(es) =>
       List.map(~f=type_of(scope), es)
       |> OptUtil.sequence
@@ -179,7 +276,19 @@ let check =
       | _ => None
       }
     | _ => None
-    };
+    }
+  and arm_types = (scope, scrut, rules) => {
+    let scrut_ty = type_of(scope, scrut);
+    List.map(
+      ~f=
+        ((p, rhs)) =>
+          type_of(
+            within(scope, Pat.bound_vars(p), pattern_types(p, scrut_ty)),
+            rhs,
+          ),
+      rules,
+    );
+  };
   let is_atom = (cls: Atom.cls, scope, e) =>
     switch (Option.map(~f=Typ.term_of, type_of(scope, e))) {
     | Some(Atom(c)) => Atom.equal_cls(c, cls)
@@ -195,44 +304,6 @@ let check =
     switch (type_of(scope, e)) {
     | Some(t) => !Typ.has_fun(t) && !Typ.contains_unknown(t)
     | None => false
-    };
-  let within = (scope: scope, names: list(Var.t), types) => {
-    bound: names @ scope.bound,
-    types:
-      types
-      @ List.filter(
-          ~f=((x, _)) => !List.mem(names, x, ~equal=String.equal),
-          scope.types,
-        ),
-  };
-  /* The types a pattern's variables get from matching a value of type
-   * `t`, where the routine can see them. */
-  let rec pattern_types = (p: Pat.t, t: option(Typ.t)) =>
-    switch (Pat.term_of(p), t) {
-    | (Var(x), Some(t)) => [(x, t)]
-    | (Parens(p) | Standard(p, _), _) => pattern_types(p, t)
-    | (Asc(p, a), _) => pattern_types(p, known(Typ.normalize(ctx, a)))
-    | (Cons(h, rest), Some(t)) =>
-      switch (Typ.term_of(t)) {
-      | List(elem) =>
-        pattern_types(h, Some(elem)) @ pattern_types(rest, Some(t))
-      | _ => []
-      }
-    | (ListLit(ps), Some(t)) =>
-      switch (Typ.term_of(t)) {
-      | List(elem) =>
-        List.concat_map(~f=p => pattern_types(p, Some(elem)), ps)
-      | _ => []
-      }
-    | (Tuple(ps), Some(t)) =>
-      switch (Typ.term_of(t)) {
-      | Prod(ts) when List.length(ps) == List.length(ts) =>
-        List.concat(
-          List.map2_exn(~f=(p, t) => pattern_types(p, Some(t)), ps, ts),
-        )
-      | _ => []
-      }
-    | _ => []
     };
   let rec irrefutable = (p: Pat.t) =>
     switch (Pat.term_of(p)) {
@@ -615,11 +686,11 @@ let check =
     /* A lambda's conditions take the argument; any other definition is
      * judged as a whole. */
     | Var(x) when Definitions.is_definition(env, x) =>
-      switch (Definitions.unfold(env, x)) {
-      | Some({term: Fun(_), _} as value) => apply(scope, value, arg)
+      switch (definition_value(x)) {
+      | Some({term: Fun(_) | BuiltinFun(_), _} as value) =>
+        apply(scope, value, arg)
       | Some(_)
-      | None =>
-        fits(scope, ctx_type(x), arg) ? definition(x) : outside_domain(x)
+      | None => definition(~at=type_of(scope, arg), x)
       }
     | Var(x) when is_builtin(x) =>
       apply(scope, Exp.fresh(BuiltinFun(x)), arg)
@@ -628,33 +699,128 @@ let check =
       fits(scope, type_of(scope, f), arg)
         ? go(scope, f) : outside_domain("the function")
     }
-  /* A definition's value, closed, with the definition's type for the
-   * name a recursive one calls itself by. */
-  and definition = (x: Var.t): result(list(Exp.t), string) =>
-    switch (Stdlib.Hashtbl.find_opt(definitions, x)) {
-    | Some(verdict) => verdict
-    | None =>
-      let verdict =
-        switch (Definitions.unfold(env, x)) {
-        | Some(value) =>
-          let self_types =
-            switch (Exp.term_of(value), ctx_type(x)) {
-            | (FixF(p, _, _), Some(t)) =>
-              List.map(~f=name => (name, t), Pat.bound_vars(p))
-            | _ => []
+  /* A definition's value, closed and judged once. Applied, a recursive
+   * definition is judged at its argument's type `at`, not at the type it
+   * declares: its parameter gets that type, from which the patterns it
+   * splits on give its parts theirs, and its own calls take arguments of
+   * that type, as the induction on their size needs. Its result type is
+   * the definition's own, or else the one its base case gives, if every
+   * branch then gives it. */
+  and definition =
+      (~at: option(option(Typ.t))=?, x: Var.t)
+      : result(list(Exp.t), string) => {
+    let judge = value =>
+      switch (at, Exp.term_of(value)) {
+      | (Some(arg_type), FixF(self, f, fix_env)) =>
+        let rec lambda = (f: Exp.t) =>
+          switch (Exp.term_of(f)) {
+          | Parens(f)
+          | Asc(f, _) => lambda(f)
+          | Fun(param, body, _, name) => Some((param, body, name))
+          | _ => None
+          };
+        switch (lambda(f)) {
+        | Some((param, body, name)) =>
+          let dom =
+            Option.value(~default=Typ.temp(Unknown(Internal)), arg_type);
+          let scope_with = (cod: option(Typ.t)) => {
+            let self_type =
+              Typ.temp(
+                Arrow(
+                  dom,
+                  Option.value(~default=Typ.temp(Unknown(Internal)), cod),
+                ),
+              );
+            within(
+              {
+                bound: [],
+                types: [],
+              },
+              Pat.bound_vars(self) @ Pat.bound_vars(param),
+              List.map(~f=name => (name, self_type), Pat.bound_vars(self))
+              @ pattern_types(param, arg_type),
+            );
+          };
+          let first_known = (scope, e: Exp.t) =>
+            switch (Exp.term_of(e)) {
+            | Match(scrut, rules) =>
+              List.find_map(~f=Fn.id, arm_types(scope, scrut, rules))
+            | If(_, a, b) =>
+              List.find_map(
+                ~f=Fn.id,
+                [type_of(scope, a), type_of(scope, b)],
+              )
+            | _ => type_of(scope, e)
+            };
+          let cod =
+            switch (Option.map(~f=Typ.term_of, ctx_type(x))) {
+            | Some(Arrow(_, cod)) when Option.is_some(known(cod)) =>
+              Some(cod)
+            | _ =>
+              switch (first_known(scope_with(None), body)) {
+              | Some(c) =>
+                switch (type_of(scope_with(Some(c)), body)) {
+                | Some(c') when Typ.fast_equal(c, c') => Some(c)
+                | _ => None
+                }
+              | None => None
+              }
             };
           go(
             {
               bound: [],
-              types: self_types,
+              types:
+                List.filter(
+                  ~f=
+                    ((n, _)) =>
+                      List.mem(Pat.bound_vars(self), n, ~equal=String.equal),
+                  scope_with(cod).types,
+                ),
+            },
+            Exp.fresh(
+              FixF(
+                self,
+                Exp.fresh(Fun(param, body, arg_type, name)),
+                fix_env,
+              ),
+            ),
+          );
+        | None =>
+          go(
+            {
+              bound: [],
+              types: [],
             },
             value,
-          );
+          )
+        };
+      | _ =>
+        let self_types =
+          switch (Exp.term_of(value), ctx_type(x)) {
+          | (FixF(p, _, _), Some(t)) =>
+            List.map(~f=name => (name, t), Pat.bound_vars(p))
+          | _ => []
+          };
+        go(
+          {
+            bound: [],
+            types: self_types,
+          },
+          value,
+        );
+      };
+    switch (Stdlib.Hashtbl.find_opt(definitions, (x, at))) {
+    | Some(verdict) => verdict
+    | None =>
+      let verdict =
+        switch (definition_value(x)) {
+        | Some(value) => judge(value)
         | None => Error("`" ++ x ++ "` has no definition")
         };
-      Stdlib.Hashtbl.add(definitions, x, verdict);
+      Stdlib.Hashtbl.add(definitions, (x, at), verdict);
       verdict;
     };
+  };
   switch (
     go(
       {

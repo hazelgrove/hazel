@@ -66,7 +66,7 @@ let routine = (src: string): option(list(string)) => {
   switch (
     Standardness.check(
       ~ctx,
-      ~env=Environment.empty,
+      ~env=Builtins.env_init,
       ~is_standard=_ => false,
       elab,
     )
@@ -171,4 +171,93 @@ let routine_tests = [
   ),
 ];
 
-let tests = ("Evaluator.Standardness", named_binder_facts @ routine_tests);
+/* The routine on `goal` in the scope of a theorem after `definitions`,
+ * with the environment and typing context the checker has there. */
+let routine_in = (definitions: string, goal: string): option(list(string)) => {
+  let (pm, proof) =
+    run_named(
+      "t",
+      definitions
+      ++ " theorem t = "
+      ++ goal
+      ++ " == "
+      ++ goal
+      ++ " proof ? in t",
+    );
+  switch (ProofMap.lookup(Proof.rep_id(proof), pm)) {
+  | Some({incoming: Some(statement), ctx, _}) =>
+    switch (Exp.term_of(statement)) {
+    | BinOp(Poly(Equals), l, _) =>
+      switch (
+        Standardness.check(
+          ~ctx=SemanticCtx.get_ctx(ctx),
+          ~env=SemanticCtx.get_env(ctx),
+          ~is_standard=_ => false,
+          l,
+        )
+      ) {
+      | Standard(conditions) => Some(List.map(~f=print_exp, conditions))
+      | Unknown(_) => None
+      }
+    | _ => Alcotest.fail("not an equation: " ++ print_exp(statement))
+    }
+  | _ => Alcotest.fail("no goal recorded")
+  };
+};
+
+/* A library or user function is judged by its code, at its argument's
+ * type: structural recursion shows in the patterns it splits on. */
+let code_tests = [
+  judged(
+    "length of a standard list",
+    Some([]),
+    "fun (xs : [Int]) -> length(xs)",
+  ),
+  judged(
+    "length's result, as a standardness statement",
+    Some([]),
+    "forall (xs : [Int]) -> !!length(xs)",
+  ),
+  judged(
+    "map of a standard function over a standard list",
+    Some([]),
+    "fun (xs : [Int]) -> fun (f : Int -> Int) -> map(xs, f)",
+  ),
+  judged(
+    "map of a total lambda",
+    Some([]),
+    "fun (xs : [Int]) -> map(xs, fun (y : Int) -> y + 1)",
+  ),
+  judged(
+    "map of a lambda that isn't standard",
+    None,
+    "fun (xs : [Int]) -> map(xs, fun (y : Int) -> 1 / y)",
+  ),
+  test_case("an unannotated recursive definition", `Quick, () =>
+    check(
+      option(list(string)),
+      "len",
+      Some([]),
+      routine_in(
+        "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in",
+        "len([1, 2])",
+      ),
+    )
+  ),
+  test_case("a recursion that isn't structural", `Quick, () =>
+    check(
+      option(list(string)),
+      "count",
+      None,
+      routine_in(
+        "let count = fun n -> if n <= 0 then 0 else count(n - 1) in",
+        "count(3)",
+      ),
+    )
+  ),
+];
+
+let tests = (
+  "Evaluator.Standardness",
+  named_binder_facts @ routine_tests @ code_tests,
+);
