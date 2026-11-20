@@ -1,0 +1,8 @@
+(executable
+ (name agentfill_bench)
+ (flags
+  (:standard -open Core))
+ (libraries web)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))

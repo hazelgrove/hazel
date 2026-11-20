@@ -96,4 +96,15 @@ module Proofs: {
   let check_proof:
     (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, ~goal: Exp.t, Proof.t) =>
     ProofMap.t;
+
+  /* The theorems an evaluation recorded (`Dynamics.theorems`), checked as
+   * the evaluation checks them, against `elaborated`, a program whose
+   * proofs may have changed since. Nothing is reused. */
+  let recheck_theorems:
+    (
+      ~statics: ProofStatics.t,
+      ~elaborated: Exp.t,
+      list((Id.t, string, Environment.t(Exp.t), Exp.t))
+    ) =>
+    ProofMap.t;
 };

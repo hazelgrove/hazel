@@ -135,7 +135,8 @@ let (suite, exit_with_test_status) =
     @ [Test_ProverDocs.tests]
     @ [Test_TheoremNamespace.tests]
     @ [Test_CheckedProofs.tests]
-    @ [Test_AlgebraSteps.tests],
+    @ [Test_AlgebraSteps.tests]
+    @ [Test_AgentFill.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
