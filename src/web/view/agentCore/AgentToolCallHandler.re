@@ -159,6 +159,7 @@ let update =
           statics: editor.statics,
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
+          expansions: editor.expansions,
         },
       ));
     | Error(err) =>

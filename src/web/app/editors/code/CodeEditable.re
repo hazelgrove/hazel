@@ -15,6 +15,10 @@ module Update = {
     | Perform(Action.t)
     | TAB
     | ContextMenu(ContextMenu.Model.action)
+    /* Select the enclosing term, remembering the selection it grew from */
+    | ExpandSelection
+    /* Return to the selection the last ExpandSelection grew from */
+    | ShrinkSelection
     | DebugConsole(string);
 
   exception CantReset;
@@ -39,6 +43,7 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
             context_menu: None,
+            expansions: [],
           }
         | Error(err) => raise(Action.Failure.Exception(err))
       )
@@ -78,7 +83,49 @@ module Update = {
              };
            },
          );
+    /* (anchor, focus) of the selection, or the caret twice */
+    let selection_ends = (model: Model.t): (Point.t, Point.t) => {
+      let z = model.editor.state.zipper;
+      let point = Zipper.Caret.point(model.editor.syntax.measured);
+      Selection.is_empty(z.selection)
+        ? (point(z), point(z))
+        : (point(Zipper.toggle_focus(z)), point(z));
+    };
     switch (action) {
+    | ExpandSelection =>
+      let from = selection_ends(model);
+      let expansions = model.expansions;
+      Updated.(
+        {
+          let* model = perform(Select(Term(Current)), model);
+          {
+            ...model,
+            expansions:
+              selection_ends(model) == from
+                ? expansions : [from, ...expansions],
+          };
+        }
+      );
+    | ShrinkSelection =>
+      switch (model.expansions) {
+      | [] => model |> Updated.return_quiet
+      | [(anchor, focus), ...expansions] =>
+        Updated.(
+          {
+            let* model =
+              perform(
+                anchor == focus
+                  ? Move(Point(focus, None))
+                  : Select(PointToPoint((anchor, focus))),
+                model,
+              );
+            {
+              ...model,
+              expansions,
+            };
+          }
+        )
+      }
     | Perform(action) =>
       /* Rapid input snaps instead of gliding: every qualifying action
          starts a fresh 125ms caret translate, so under key repeat the
@@ -681,6 +728,8 @@ module View = {
           paste_from_clipboard(),
           inject(ContextMenu(ContextMenu.Model.Close)),
         ])
+      | ExpandSelection => inject(ExpandSelection)
+      | ShrinkSelection => inject(ShrinkSelection)
       | Perform(a) => inject(Perform(a))
       };
     /* Sync document-level listeners (click-outside + keyboard) for the
@@ -695,6 +744,7 @@ module View = {
             ~info_map=model.statics.info_map,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
+            ~can_shrink=!List.is_empty(model.expansions),
             ~dispatch_menu=a => inject(ContextMenu(a)),
             ~dispatch_action=perform_from_menu,
             model.context_menu,
@@ -743,6 +793,7 @@ module View = {
                   ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~model=model.context_menu,
+                  ~can_shrink=!List.is_empty(model.expansions),
                   model.editor.state.zipper,
                 ),
               ]

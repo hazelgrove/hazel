@@ -393,6 +393,7 @@ module Update = {
                   statics: cell.editor.statics,
                   dynamics: cell.editor.dynamics,
                   context_menu: cell.editor.context_menu,
+                  expansions: cell.editor.expansions,
                 },
                 result: cell.result,
               };
