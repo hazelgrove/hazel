@@ -141,6 +141,12 @@ The test log prints each count (`PERF …`). Step counts can't see a step that
 got slower, such as extra work inside one step, so time evaluator hot-path
 changes separately (e.g. `hazel bench-eval` before and after).
 
+These budgets are the merge gate. Every pull request into `dev` also gets an
+advisory **Performance report** check, which counts steps over the whole slide
+corpus and times the editor pipeline and the evaluator against the PR's merge
+base, commenting on the PR only when something changed significantly. It never
+blocks a merge; see [docs/performance.md](../docs/performance.md).
+
 ## Troubleshooting
 
 - If you encounter build errors, ensure all dependencies are installed:
