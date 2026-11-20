@@ -2422,7 +2422,7 @@ module Structure = {
           "a division the instantiation brings in",
           ["Definedness"],
           kinds_at(
-            "theorem t = forall z -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t",
+            "theorem t = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in t",
             first,
           ),
         );

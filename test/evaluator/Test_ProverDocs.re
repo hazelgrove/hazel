@@ -67,25 +67,35 @@ let slide = (file, expected: list((string, string))) =>
     },
   );
 
-/* `div_ok`'s `rewrite refl` at `8 / z` incurs `z != 0`, which the
- * slide's `have nz` discharges. */
-let test_div_ok_discharges_by_nz = () => {
+/* `rewrite or_true` at `8 / z > 0` incurs `z != 0`: open in
+ * `div_open`, and discharged by the fact `nz` in `div_ok`. */
+let test_division_conditions = () => {
   let (state, _, elab) =
     read_slide("prover-side-conditions.hz") |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
-  let discharged_by = (ob: Obligation.t) =>
-    switch (Obligation.remote_fact(ob)) {
-    | Some((name, _)) => name
-    | None => Obligation.show_discharge(ob.discharge)
-    };
+  let conditions = name =>
+    ProofMap.obligations_of_proof(pm, proof_of_named(name, elab))
+    |> List.map(~f=(ob: Obligation.t) =>
+         print_exp(ob.goal)
+         ++ " by "
+         ++ (
+           switch (Obligation.remote_fact(ob)) {
+           | Some((fact, _)) => fact
+           | None => Obligation.show_discharge(ob.discharge)
+           }
+         )
+       );
   check(
     list(string),
-    "its side conditions and what discharges them",
+    "div_open",
+    ["z != 0 by Pending"],
+    conditions("div_open"),
+  );
+  check(
+    list(string),
+    "div_ok",
     ["z > 0 by pos", "z != 0 by nz"],
-    ProofMap.obligations_of_proof(pm, proof_of_named("div_ok", elab))
-    |> List.map(~f=(ob: Obligation.t) =>
-         print_exp(ob.goal) ++ " by " ++ discharged_by(ob)
-       ),
+    conditions("div_ok"),
   );
 };
 
@@ -93,9 +103,9 @@ let tests = (
   "ProverDocs",
   [
     test_case(
-      "div_ok's z != 0 is discharged by nz",
+      "the division slide's z != 0: open, then discharged by nz",
       `Quick,
-      test_div_ok_discharges_by_nz,
+      test_division_conditions,
     ),
     slide(
       "prover-theorems.hz",

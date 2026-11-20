@@ -20,12 +20,14 @@ let is_float_algebrite: ProofMark.t => bool =
   | ProofMark.FloatAlgebrite => true
   | _ => false;
 
-/* An open instantiation containing division: `x := y / z` scans to the
- * denominator condition `z != 0`, which stays Pending (open goals are
- * never evaluated). */
+/* An open instantiation containing division: citing a rule at `y / z`
+ * needs the denominator condition `z != 0`, which stays Pending (open
+ * goals are never evaluated). The built-in `refl` would need nothing. */
 let test_open_division_instantiation_pending = () => {
-  let src = {|theorem u = forall y -> forall z -> y / z == y / z proof from y / z == y / z do rewrite refl end end in u|};
-  let (pm, proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem u = forall y: Int -> forall z: Int -> y / z == y / z proof from y / z == y / z do rewrite same end end in u|};
+  let (pm, proof, obs) = obligations_named("u", src);
   check_count("one scanned obligation", 1, obs);
   switch (obs) {
   | [ob] =>
@@ -411,8 +413,10 @@ let test_eval_step_division_no_gate = () => {
 
 /* `int_mod(a, b)` emits `b != 0`. */
 let test_mod_builtin_condition = () => {
-  let src = {|theorem t = forall a -> forall b -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do rewrite refl end end in t|};
-  let (_pm, _proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = forall a: Int -> forall b: Int -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do rewrite same end end in t|};
+  let (_pm, _proof, obs) = obligations_named("t", src);
   check_count("one mod obligation", 1, obs);
   switch (obs) {
   | [ob] => check_exp("the condition is b != 0", "b != 0", ob.goal)
@@ -423,8 +427,10 @@ let test_mod_builtin_condition = () => {
 /* Int power with a variable exponent emits `y >= 0` (NegativeExponent
  * is the error; Nat power would be total). */
 let test_power_exponent_condition = () => {
-  let src = {|theorem t = forall x -> forall y -> x ** y == x ** y proof from x ** y == x ** y do rewrite refl end end in t|};
-  let (_pm, _proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = forall x: Int -> forall y: Int -> x ** y == x ** y proof from x ** y == x ** y do rewrite same end end in t|};
+  let (_pm, _proof, obs) = obligations_named("t", src);
   check_count("one exponent obligation", 1, obs);
   switch (obs) {
   | [ob] => check_exp("the condition is y >= 0", "y >= 0", ob.goal)
@@ -435,8 +441,10 @@ let test_power_exponent_condition = () => {
 /* `int_of_float` at a closed finite float: the `is_finite` condition is
  * emitted and discharges by closed evaluation. */
 let test_of_float_is_finite_condition = () => {
-  let src = {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do rewrite refl end end in t|};
-  let (pm, proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do rewrite same end end in t|};
+  let (pm, proof, obs) = obligations_named("t", src);
   check_count("one is_finite obligation", 1, obs);
   Alcotest.check(
     Alcotest.bool,

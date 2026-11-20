@@ -535,19 +535,11 @@ module Axiom = {
       | Some({prop: None, _})
       | None => String.equal(equality, "refl")
       };
-    let instantiations = List.map(~f=snd, instantiations);
-    /* The built-in `refl` holds at every term, so its instantiations
-     * needn't be standard. Their domain conditions are still incurred,
-     * the ones a partial term like `8 / z` incurs everywhere else. */
+    /* The built-in `refl` holds at every term, so it needs nothing of
+     * its instantiation. */
     let (domain_conditions, standardness) =
       is_refl
-        ? (
-          DomainConditions.dedup(
-            List.concat_map(~f=DomainConditions.scan, instantiations),
-          ),
-          [],
-        )
-        : Gate.standard(~ctx, instantiations);
+        ? ([], []) : Gate.standard(~ctx, List.map(~f=snd, instantiations));
     /* A condition that is both a premise and a domain condition is shown
      * once, as the premise the rule states. */
     let premises = DomainConditions.dedup(conditions);

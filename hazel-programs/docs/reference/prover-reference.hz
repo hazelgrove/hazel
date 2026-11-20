@@ -38,16 +38,16 @@ theorem acc = forall xs: [Int] -> forall a: Int -> sum_acc((xs, a)) == sum(xs) +
   end
 in
 
-theorem div_pos = forall z: Int -> z > 0 ==> 8 / z == 8 / z proof
+theorem div_pos = forall z: Int -> z > 0 ==> 8 / z > 0 || true proof
   assume pos = z > 0 =>
   have z != 0 proof rewrite nonzero_of_pos with a = z end =>
-  rewrite refl end
+  rewrite or_true end
 in
 
-theorem div_neg = forall z: Int -> z < 0 ==> 8 / z == 8 / z proof
+theorem div_neg = forall z: Int -> z < 0 ==> 8 / z > 0 || true proof
   assume z < 0 =>
   have nz = z != 0 proof rewrite nonzero_of_neg end =>
-  rewrite refl end
+  rewrite or_true end
 in
 
 theorem sum_three = forall x: Int -> forall y: Int -> x == 1 ==> y == 2 ==> x + y == 3 proof

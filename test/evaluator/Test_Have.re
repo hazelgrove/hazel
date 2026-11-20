@@ -106,8 +106,8 @@ let test_incomplete_subproof_pending = () => {
  * body discharges against the have's hypothesis by lookup even while
  * the subproof is still a hole. `8 / z` in the goal makes the axiom step
  * incur `z != 0`, and nothing else in scope covers it. */
-let citable_src = {|theorem t = forall z: Int -> 8 / z == 8 / z
-proof have z != 0 proof ? => from 8 / z == 8 / z do rewrite refl end end
+let citable_src = {|theorem t = forall z: Int -> 8 / z > 0 || true
+proof have z != 0 proof ? => rewrite or_true end
 in t|};
 
 let test_hypothesis_citable_in_body = () => {
@@ -199,8 +199,8 @@ let test_form_roundtrips = () => {
   );
 };
 
-let split_probe_src = {|theorem t = forall z: Int -> 8 / z == 8 / z
-proof cases z != 0 | true => from 8 / z == 8 / z do rewrite refl end end | false => ? end
+let split_probe_src = {|theorem t = forall z: Int -> 8 / z > 0 || true
+proof cases z != 0 | true => rewrite or_true end | false => ? end
 in t|};
 
 /* The obligations panel's split exit, end to end: in the `true` branch
