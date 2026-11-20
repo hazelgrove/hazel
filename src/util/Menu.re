@@ -49,7 +49,7 @@ let opened: t =
     selected_idx: 0,
     path: [],
   });
-let is_open = (m: t): bool => m != None;
+let is_open = (m: t): bool => Option.is_some(m);
 let path = (m: t): list(string) =>
   switch (m) {
   | None => []
@@ -125,10 +125,11 @@ let rec items_at =
   | [] => items
   | [name, ...rest] =>
     let child =
-      List.find_opt(
-        fun
-        | Submenu({label, _}) => label == name
-        | _ => false,
+      List.find(
+        ~f=
+          fun
+          | Submenu({label, _}) => String.equal(label, name)
+          | _ => false,
         items,
       );
     switch (child) {
@@ -184,8 +185,8 @@ let rec to_visible = (it: item('a)): visible_item('a) =>
 let visible_layout =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let p = path(model);
-  let here = items_at(p, items) |> List.map(to_visible);
-  p == [] ? here : [VBack, ...here];
+  let here = items_at(p, items) |> List.map(~f=to_visible);
+  List.is_empty(p) ? here : [VBack, ...here];
 };
 
 /* The same rows in selection order: inline groups spliced in, which is
@@ -225,7 +226,7 @@ let is_visible_selectable = (v: visible_item('a)): bool =>
   };
 
 let count_selectable_visible = (vs: list(visible_item('a))): int =>
-  List.fold_left((n, v) => is_visible_selectable(v) ? n + 1 : n, 0, vs);
+  List.count(vs, ~f=is_visible_selectable);
 
 let nth_selectable_visible =
     (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
@@ -507,7 +508,8 @@ let handle_key =
         MenuUpdate(EnterSubmenu(submenu_name))
       | _ => Unhandled
       }
-    | Key.D("ArrowLeft") => path == [] ? Unhandled : MenuUpdate(BackSubmenu)
+    | Key.D("ArrowLeft") =>
+      List.is_empty(path) ? Unhandled : MenuUpdate(BackSubmenu)
     | Key.D("Enter") =>
       switch (selected_item) {
       | Some(VAction({enabled: true, action, _})) => RunAction(action)
@@ -596,8 +598,8 @@ let space_from =
 let direction_of =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
-  vertical: space.below >= menu_height ? `Down : `Up,
-  horizontal: space.right >= menu_width ? `Right : `Left,
+  vertical: Float.(space.below >= menu_height) ? `Down : `Up,
+  horizontal: Float.(space.right >= menu_width) ? `Right : `Left,
 };
 
 let direction_from_elem =
