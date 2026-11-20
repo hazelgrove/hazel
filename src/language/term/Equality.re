@@ -444,37 +444,13 @@ let equality =
     };
   }
   /* Compare patterns with literal variable names (no alpha-renaming).
-     Used for ModLet/SigLet where binding names become labels. */
+     Used for ModLet/SigLet where binding names become labels. Otherwise
+     identical to [pat], so it honours the same settings and covers every
+     pattern form. */
   and pat_names_equal =
-      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
-    let pne = pat_names_equal(alphas_exp, alphas_typ);
-    let typ' = typ(alphas_exp, alphas_typ);
-    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
-    | (Parens(x), _) when ignore_parens => pne(x, p2)
-    | (_, Parens(x)) when ignore_parens => pne(p1, x)
-    | (Var(x), Var(y)) => String.equal(x, y)
-    | (Wild, Wild) => true
-    | (EmptyHole, EmptyHole) => true
-    | (Parens(x), Parens(y)) => pne(x, y)
-    | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
-    | (Tuple(ps1), Tuple(ps2)) =>
-      List.length(ps1) == List.length(ps2)
-      && List.for_all2_exn(ps1, ps2, ~f=pne)
-    | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
-    | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
-    /* Non-name-binding pattern forms still need structural equality —
-       without these, identical literal/list/cons member patterns
-       compared unequal (reflexivity bug caught by the Menhir/MakeTerm
-       equivalence property). */
-    | (Atom(c1), Atom(c2)) => c1 == c2
-    | (Cons(h1, t1), Cons(h2, t2)) => pne(h1, h2) && pne(t1, t2)
-    | (ListLit(ps1), ListLit(ps2)) =>
-      List.length(ps1) == List.length(ps2)
-      && List.for_all2_exn(ps1, ps2, ~f=pne)
-    | (Ap(f1, a1), Ap(f2, a2)) => pne(f1, f2) && pne(a1, a2)
-    | _ => false
-    };
-  }
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool =>
+    pat_gen(~literal_names=true, alphas_exp, alphas_typ, p1, p2)
+    |> Option.is_some
   and mod_ =
       (
         alphas_exp: Alphas.t,
@@ -515,8 +491,20 @@ let equality =
   }
   and pat =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
+      : option(Alphas.t) =>
+    pat_gen(~literal_names=false, alphas_exp, alphas_typ, p1, p2)
+  /* [literal_names] disables alpha-equivalence of variables (see
+     [pat_names_equal]). */
+  and pat_gen =
+      (
+        ~literal_names: bool,
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        p1: Pat.t,
+        p2: Pat.t,
+      )
       : option(Alphas.t) => {
-    let pat' = pat(alphas_exp, alphas_typ);
+    let pat' = pat_gen(~literal_names, alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
     let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
@@ -542,7 +530,8 @@ let equality =
     | (Asc(_), _) => None
 
     // Variables: special case depending on alpha equivalence.
-    | (Var(x), Var(y)) when exp_alpha => Some(Alphas.singleton(x, y))
+    | (Var(x), Var(y)) when exp_alpha && !literal_names =>
+      Some(Alphas.singleton(x, y))
     | (Var(x), Var(y)) when String.equal(x, y) =>
       Some(Alphas.singleton(x, x))
     | (Var(_), _) => None
