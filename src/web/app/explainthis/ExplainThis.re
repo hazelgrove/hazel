@@ -1000,7 +1000,7 @@ let decide =
             );
           leveled(~fallback=basic, group);
         | Tuple(entries) =>
-          let elements = List.map(TupleEntry.value, entries);
+          let elements = List.map(~f=TupleEntry.value, entries);
           let n = List.length(elements);
           switch (n) {
           | 2 =>
@@ -1175,7 +1175,7 @@ let decide =
             LetExp.lets_var(~def_id, ~pat_id, ~name=var, ~body_id),
           )
         | Tuple(entries) =>
-          let elements = List.map(TupleEntry.value, entries);
+          let elements = List.map(~f=TupleEntry.value, entries);
           let n = List.length(elements);
           /* The middle level describes the tuple generically, so unlike the
              other fallbacks it substitutes its own explanation. */
@@ -1499,7 +1499,7 @@ let decide =
         ),
       )
     | Tuple(entries) =>
-      let elements = List.map(TupleEntry.value, entries);
+      let elements = List.map(~f=TupleEntry.value, entries);
       let n = List.length(elements);
       let basic = group =>
         get_message(~explanation=TuplePat.tuple_pat_explanation(~n), group);

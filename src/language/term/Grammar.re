@@ -369,7 +369,10 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Var(v) => Var(v)
         | Tuple(l) =>
           Tuple(
-            List.map(map_tuple_entry_annotation(f, map_pat_annotation), l),
+            List.map(
+              ~f=map_tuple_entry_annotation(f, map_pat_annotation),
+              l,
+            ),
           )
         | Label(l) => Label(l)
         | Parens(p) => Parens(map_pat_annotation(f, p))
@@ -932,7 +935,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     /* an unlabeled tuple */
     let tuple = (~ann=?, ps): pat_t(DefaultAnnotation.t) => {
-      term: Tuple(List.map(p => Unlabeled(p), ps)),
+      term: Tuple(List.map(~f=p => Unlabeled(p), ps)),
       annotation: default_annotation(ann),
     };
     let tuple_entries = (~ann=?, entries): pat_t(DefaultAnnotation.t) => {

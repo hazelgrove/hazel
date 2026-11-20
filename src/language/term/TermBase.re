@@ -646,12 +646,14 @@ and Pat: {
         | Constructor(_)
         | Label(_)
         | Var(_) => term
-        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
-        | ListLit(ts) => ListLit(List.map(pat_map_term, ts))
+        | MultiHole(things) => MultiHole(List.map(~f=any_map_term, things))
+        | ListLit(ts) => ListLit(List.map(~f=pat_map_term, ts))
         | Ap(e1, e2) => Ap(pat_map_term(e1), pat_map_term(e2))
         | Cons(e1, e2) => Cons(pat_map_term(e1), pat_map_term(e2))
         | Tuple(xs) =>
-          Tuple(List.map(map_tuple_entry(label_map_term, pat_map_term), xs))
+          Tuple(
+            List.map(~f=map_tuple_entry(label_map_term, pat_map_term), xs),
+          )
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))

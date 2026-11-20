@@ -342,7 +342,10 @@ module UnseenPatternList: UnseenPatternList = {
         | Tuple([Labeled(_) as entry]) => entry
         | _ => Unlabeled(p)
         };
-      cons_pat_t(tuple_entries(List.rev_map(entry, first_n)), {pat: tl});
+      cons_pat_t(
+        tuple_entries(List.rev_map(first_n, ~f=entry)),
+        {pat: tl},
+      );
     | TupLabel(label_pos, _) =>
       // associate the tuple's labels to element in the unseen list
       switch (IdTagged.term_of(label_pos)) {

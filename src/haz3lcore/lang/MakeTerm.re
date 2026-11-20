@@ -906,7 +906,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               ~tuple=(es): Exp.term => Tuple(es),
               ~any=e => Exp(e),
             );
-          (ListLit(List.map(element, es)), ids);
+          (ListLit(List.map(~f=element, es)), ids);
         | term => ret(ListLit([term]))
         }
       | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
@@ -1225,7 +1225,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               ~tuple=(ps): Pat.term => Tuple(ps),
               ~any=p => Pat(p),
             );
-          (ListLit(List.map(element, ps)), ids);
+          (ListLit(List.map(~f=element, ps)), ids);
         | term => ret(ListLit([term]))
         }
       | (F(Tok(t)), []) when is_hole_label(t) =>
@@ -1279,7 +1279,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Pat.t) =>
+        |> List.map(~f=(child: Pat.t) =>
              switch (child) {
              /* as in exp_term */
              | {term: Tuple([Labeled(_, l, v)]), annotation} =>

@@ -36,9 +36,9 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
     ])
   | Tuple(ps) =>
     CoCtx.union(
-      List.map(p => collect_pat_type_refs(ctx, TupleEntry.value(p)), ps),
+      List.map(~f=p => collect_pat_type_refs(ctx, TupleEntry.value(p)), ps),
     )
-  | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
+  | ListLit(ps) => CoCtx.union(List.map(~f=collect_pat_type_refs(ctx), ps))
   | Cons(p1, p2)
   | Ap(p1, p2) =>
     CoCtx.union([
@@ -80,9 +80,11 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | Asc(inner, _) => pat_for_bound_name(name, inner)
   | Tuple(entries) =>
     entries
-    |> List.map(TupleEntry.value)
-    |> List.find_opt(p => List.mem(name, Pat.bound_vars(p)))
-    |> Option.map(pat_for_bound_name(name))
+    |> List.map(~f=TupleEntry.value)
+    |> List.find(~f=p =>
+         List.mem(Pat.bound_vars(p), name, ~equal=String.equal)
+       )
+    |> Option.map(~f=pat_for_bound_name(name))
     |> Option.value(~default=pat)
   | ListLit(ps) =>
     ps

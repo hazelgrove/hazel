@@ -799,9 +799,10 @@ and parenthesize_pat =
       Tuple(
         ps
         |> List.map(
-             TupleEntry.map(p =>
-               parenthesize_pat(p) |> paren_pat_at(Precedence.comma)
-             ),
+             ~f=
+               TupleEntry.map(p =>
+                 parenthesize_pat(p) |> paren_pat_at(Precedence.comma)
+               ),
            ),
       )
       |> rewrap;
@@ -2588,7 +2589,7 @@ and tuple_entry_to_pretty:
           term: (),
           annotation: eq,
         },
-        List.flatten([
+        List.concat([
           label_to_seg(~settings, l),
           [
             Tile({
@@ -2603,7 +2604,7 @@ and tuple_entry_to_pretty:
           | AutoFormat =>
             let first = Segment.first_string(v);
             if (Token.begins_with_potential_operator(first)
-                && !String.starts_with(first, ~prefix="…")) {
+                && !String.is_prefix(first, ~prefix="…")) {
               [Secondary(mk_space(Id.mk())), ...v];
             } else {
               v;
@@ -2698,7 +2699,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let entry_to_pretty =
       tuple_entry_to_pretty(~settings, ~sort=Sort.Pat, ~go);
     let+ x = entry_to_pretty(x)
-    and+ xs = xs |> List.map(entry_to_pretty) |> all;
+    and+ xs = xs |> List.map(~f=entry_to_pretty) |> all;
     let ids = IdTagged.ids(pat) |> PadIds.pad_ids(List.length(xs));
     wrap(
       pat,

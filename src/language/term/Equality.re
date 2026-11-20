@@ -450,7 +450,11 @@ let equality =
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2)
-      && List.for_all2(tuple_entry(alphas_exp, alphas_typ, pne), ps1, ps2)
+      && List.for_all2_exn(
+           ps1,
+           ps2,
+           ~f=tuple_entry(alphas_exp, alphas_typ, pne),
+         )
     | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns
@@ -581,7 +585,7 @@ let equality =
           /* the values bind; the labels only have to agree */
           tuple_entry(alphas_exp, alphas_typ, (_, _) => true, x, y)
             ? pat'(TupleEntry.value(x), TupleEntry.value(y))
-              |> Option.map(Alphas.combine(_, alphas))
+              |> Option.map(~f=Alphas.combine(_, alphas))
             : None,
         Alphas.empty,
         List.zip_exn(xs1, xs2),

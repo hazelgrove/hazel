@@ -151,7 +151,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Asc(pat, _) => is_tuple_of_vars(pat)
     | Tuple(pats) =>
       pats
-      |> List.for_all(entry =>
+      |> List.for_all(~f=entry =>
            entry |> TupleEntry.value |> is_var |> Option.is_some
          )
     | Label(_)
@@ -238,7 +238,7 @@ let rec bindings = (dp: t): Binding.s =>
       },
     ]
   | Tuple(dps) =>
-    List.concat_map(entry => bindings(TupleEntry.value(entry)), dps)
+    List.concat_map(~f=entry => bindings(TupleEntry.value(entry)), dps)
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)

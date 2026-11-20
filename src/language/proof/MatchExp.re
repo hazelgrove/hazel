@@ -339,7 +339,7 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
           TupleEntry.label_name(y),
         )
           ? match_pat(TupleEntry.value(x), TupleEntry.value(y))
-            |> Option.map(alphas1 => alphas1 @ alphas)
+            |> Option.map(~f=alphas1 => alphas1 @ alphas)
           : None,
       [],
       List.zip_exn(xs, ys),

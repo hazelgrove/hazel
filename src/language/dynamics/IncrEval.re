@@ -286,7 +286,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, entry) => {
+      |> List.mapi(~f=(i, entry) => {
            let path = [TupleIndex(arity, i), ...path];
            switch (entry) {
            | Grammar.Labeled(_, l, p) =>
@@ -294,7 +294,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
            | Unlabeled(p) => go(path, p)
            };
          })
-      |> List.flatten;
+      |> List.concat;
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
