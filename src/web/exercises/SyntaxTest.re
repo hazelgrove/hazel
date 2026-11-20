@@ -223,7 +223,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+    List.fold(l, ~init=false, ~f=(acc, ue) => {acc || var_mention(name, ue)})
   | Let(_, p, def, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, def)
@@ -318,7 +318,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+    List.fold(l, ~init=false, ~f=(acc, ue) => {acc || var_applied(name, ue)})
   | Let(_, p, def, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, def)

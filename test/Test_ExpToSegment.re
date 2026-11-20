@@ -449,7 +449,7 @@ let tests = (
         "where",
         "let y = x in y where x = 1",
         Parser.to_term("let y = x in y where x = 1", ~root=Exp)
-        |> Option.get
+        |> Option.value_exn
         |> exp_to_segment
         |> print_seg,
       )

@@ -846,7 +846,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         if (available^ < overhead + 3) {
           switch (
             ListUtil.last_opt(
-              List.filter(((cost, _)) => cost <= available^, partials),
+              List.filter(~f=((cost, _)) => cost <= available^, partials),
             )
           ) {
           | None =>

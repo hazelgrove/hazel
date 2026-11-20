@@ -384,7 +384,7 @@ let is_annoying_delim = t =>
  * delimiter */
 let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.concat_map(((_, form: def))
+  |> List.concat_map(~f=((_, form: def))
        /* Non-leading delimiters (the `in` of a let) are typed in infix
           position, and so is the leading delimiter of a form that is
           concave on the left (`where`); there the backup infix mold
@@ -402,9 +402,9 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
          | (Convex, []) => []
          }
        )
-  |> List.filter(Token.is_potential_operand)
-  |> List.sort_uniq(compare)
-  |> List.map(Token.prefixes)
+  |> List.filter(~f=Token.is_potential_operand)
+  |> List.dedup_and_sort(~compare)
+  |> List.map(~f=Token.prefixes)
   |> List.concat;
 
 /* Symbolic analogue: proper prefixes of non-leading symbolic delimiters
