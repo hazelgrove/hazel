@@ -16,6 +16,11 @@ module Evaluation = {
     show_settings: bool,
     show_hidden_steps: bool,
     enable_proof: bool,
+    /* The stepper offers no step and completes nothing: each step is
+     * typed into its write box, which writes only a step that reaches the
+     * typed goal at once. */
+    [@sexp.default false] [@yojson.default false]
+    write_out_steps: bool,
     project_tables: bool,
   };
 
@@ -32,6 +37,7 @@ module Evaluation = {
     show_settings: false,
     show_hidden_steps: false,
     enable_proof: false,
+    write_out_steps: false,
     project_tables: true,
   };
 };

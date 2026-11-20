@@ -121,6 +121,17 @@ module Model = {
     | (_, None) => false
     };
 
+  /* The box's tabs, its default first. A cell's stepper steps a program,
+   * so it has no Strategy tab, and starts on Step. Writing out steps,
+   * there is no Step tab, whose marks hand over the next step. */
+  let tabs = (~settings: CoreSettings.t, ~cell: bool): list(tab) =>
+    switch (settings.evaluation.write_out_steps, cell) {
+    | (false, true) => [Step, Write]
+    | (false, false) => [Write, Step, Strategy]
+    | (true, true) => [Write]
+    | (true, false) => [Write, Strategy]
+    };
+
   /* Whether nothing is typed in the box. */
   let is_empty = (box: box): bool =>
     switch (Exp.term_of(CodeEditable.Model.get_statics(box.editor).term)) {
@@ -250,9 +261,18 @@ module Update = {
   type t = (Rows.key, action);
 
   /* The box's text is an expression in the goal's scope. */
+  /* Writing out steps, the box's editor completes nothing either. */
+  let box_settings = (goal: Picker.Goal.t, settings: CoreSettings.t) =>
+    goal.settings.evaluation.write_out_steps
+      ? {
+        ...settings,
+        assist: false,
+      }
+      : settings;
+
   let calculate_box = (~settings, goal: Picker.Goal.t, editor) =>
     CodeEditable.Update.calculate(
-      ~settings,
+      ~settings=box_settings(goal, settings),
       ~is_edited=true,
       ~is_dynamic_term=true,
       ~dynamics=Dynamics.Map.empty,
@@ -262,7 +282,8 @@ module Update = {
     );
 
   let ghost = (goal: Picker.Goal.t) =>
-    Picker.Ghost.mk(goal, ~selected=Picker.Goal.selected(goal));
+    goal.settings.evaluation.write_out_steps
+      ? None : Picker.Ghost.mk(goal, ~selected=Picker.Goal.selected(goal));
 
   /* The goal typed into the box, or None while it is empty or
    * incomplete. */
@@ -340,6 +361,9 @@ module Update = {
       suggestions:
         switch (box.suggestions) {
         | _ when Model.is_empty(box) => None
+        /* Each use listed gives its goal, so the list would hand over
+         * the next step. */
+        | _ when goal.settings.evaluation.write_out_steps => None
         | Some(suggestions)
             when suggestions.rule == rule && suggestions.at == at && !new_goal =>
           Some(suggestions)
@@ -441,12 +465,13 @@ module Update = {
       | Some((_, None))
       | None => None
       };
+    let offers = !goal.settings.evaluation.write_out_steps;
     let deco =
       StepperEditor.Deco.update(
         ~syntax=goal.editor.editor.syntax,
         {
-          next_steps: Picker.Goal.step_ids(goal),
-          refls: List.map(~f=Exp.rep_id, goal.refls),
+          next_steps: offers ? Picker.Goal.step_ids(goal) : [],
+          refls: offers ? List.map(~f=Exp.rep_id, goal.refls) : [],
           acts_on,
           selected: Option.map(~f=Exp.rep_id, selected_part(goal)),
           previewing,
@@ -557,7 +582,15 @@ module Update = {
        * check the whole program again. */
       | (BoxEditor(a), Some(box)) =>
         let* editor = {
-          ...CodeEditable.Update.update(~settings, a, box.editor),
+          ...
+            CodeEditable.Update.update(
+              ~settings={
+                ...settings,
+                core: box_settings(local.goal, settings.core),
+              },
+              a,
+              box.editor,
+            ),
           is_edit: false,
         };
         let editor =
@@ -1143,9 +1176,11 @@ module View = {
       );
 
     /* The repairs a broken step offers: removing it, and, for an axiom
-     * that doesn't apply, trying the other direction. */
+     * that doesn't apply, trying the other direction, unless steps are
+     * written out, as that is a step to take. */
     let repairs =
         (
+          ~settings: CoreSettings.t,
           ~edit_syntax: Picker.Patches.patch => Ui_effect.t(unit),
           ~info_map: Statics.Map.t,
           ~proof_map: ProofMap.t,
@@ -1161,7 +1196,7 @@ module View = {
       | Broken(mark) =>
         let flip =
           switch (mark) {
-          | RuleDoesNotApply(_) =>
+          | RuleDoesNotApply(_) when !settings.evaluation.write_out_steps =>
             Picker.Patches.flip_direction(~info_map, ~proof_map, step)
             |> Option.map(
                  ~f=
@@ -1666,7 +1701,13 @@ module View = {
                 keycap("Enter"),
                 div_c(
                   "box-hint-none",
-                  [Node.text("nothing proves this step")],
+                  [
+                    Node.text(
+                      globals.settings.core.evaluation.write_out_steps
+                        ? "not one step away: write the step between"
+                        : "nothing proves this step",
+                    ),
+                  ],
                 ),
               ],
             )
@@ -2185,10 +2226,7 @@ module View = {
           ),
         ]
         : [];
-    /* The cell's own stepper steps a program, so it has no Proof strategy
-     * tab, and starts on Step. */
-    let tabs: list(Model.tab) =
-      is_toplevel ? [Step, Write] : [Write, Step, Strategy];
+    let tabs = Model.tabs(~settings=globals.settings.core, ~cell=is_toplevel);
     /* A chain's rows, then, until they reach it, the `true` a proof aims
      * at: a quiet row shaped like a step row, so the chain reads evenly. A
      * focus's chain rewrites part of a goal, so it aims at nothing. */
@@ -2303,7 +2341,14 @@ module View = {
           ~delete=Some(edit_syntax(Picker.Patches.remove(step))),
           ~popup_extra,
           ~repair=
-            Row.repairs(~edit_syntax, ~info_map, ~proof_map, status, step),
+            Row.repairs(
+              ~settings=globals.settings.core,
+              ~edit_syntax,
+              ~info_map,
+              ~proof_map,
+              status,
+              step,
+            ),
           ~editor_view=goal_view(~hints=false, ~prev_broken, row),
           ~justification=Node.text(justification(step)),
           ~dots,
@@ -2346,7 +2391,12 @@ module View = {
                   List.map(~f=justification, steps),
                 ),
               )
-            | Some(NotFound) => lozenge("none", "no step gets here")
+            | Some(NotFound) =>
+              lozenge(
+                "none",
+                globals.settings.core.evaluation.write_out_steps
+                  ? "not one step away" : "no step gets here",
+              )
             | Some(Searching) => lozenge("searching", "searching…")
             | Some(Found([]))
             | None => []

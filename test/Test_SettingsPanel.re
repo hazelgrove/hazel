@@ -42,7 +42,48 @@ let old_blob = () => {
   );
 };
 
+let without_write_out = () => {
+  let rec drop = (s: Sexplib.Sexp.t): Sexplib.Sexp.t =>
+    switch (s) {
+    | List(items) =>
+      List(
+        List.filter_map(
+          ~f=
+            (item: Sexplib.Sexp.t) =>
+              switch (item) {
+              | List([Atom("write_out_steps"), ..._]) => None
+              | other => Some(drop(other))
+              },
+          items,
+        ),
+      )
+    | atom => atom
+    };
+  let on = {
+    ...Settings.Model.init,
+    core: {
+      ...Settings.Model.init.core,
+      evaluation: {
+        ...Settings.Model.init.core.evaluation,
+        write_out_steps: true,
+      },
+    },
+  };
+  let loaded =
+    Settings.Model.persistent_of_sexp(
+      drop(Settings.Model.sexp_of_persistent(on)),
+    );
+  check(bool, "off", false, loaded.core.evaluation.write_out_steps);
+};
+
 let tests = (
   "SettingsPanel",
-  [test_case("settings saved before the panel load", `Quick, old_blob)],
+  [
+    test_case("settings saved before the panel load", `Quick, old_blob),
+    test_case(
+      "settings saved without writing out steps load with it off",
+      `Quick,
+      without_write_out,
+    ),
+  ],
 );

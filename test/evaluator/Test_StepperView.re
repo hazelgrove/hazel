@@ -16,6 +16,7 @@ let settings = CoreSettings.on;
 /* A cell evaluated and checked as the editor does it. */
 module Fixture = {
   type t = {
+    settings: CoreSettings.t,
     statics: CachedStatics.t,
     cell: Web.EvalResult.Model.t,
     id: Id.t,
@@ -31,7 +32,8 @@ module Fixture = {
 
   /* Evaluates on the main thread, or, with `pending`, sends the request to
    * a worker that never answers. */
-  let calculate = (~pending=false, ~is_edited, statics, cell) =>
+  let calculate =
+      (~settings=settings, ~pending=false, ~is_edited, statics, cell) =>
     Web.EvalResult.Update.calculate(
       ~settings,
       ~queue_worker=pending ? Some(_ => ()) : None,
@@ -40,7 +42,8 @@ module Fixture = {
       cell,
     );
 
-  let of_cell = (~name, statics, cell: Web.EvalResult.Model.t): t => {
+  let of_cell =
+      (~settings=settings, ~name, statics, cell: Web.EvalResult.Model.t): t => {
     let theorems = cell.theorems;
     switch (
       Web.Theorems.Model.theorems(theorems)
@@ -49,6 +52,7 @@ module Fixture = {
          )
     ) {
     | Some((id, theorem)) => {
+        settings,
         statics,
         cell,
         id,
@@ -59,12 +63,18 @@ module Fixture = {
     };
   };
 
-  let mk = (~name="t", src: string): t => {
+  let mk = (~settings=settings, ~name="t", src: string): t => {
     let statics = statics(src);
     of_cell(
+      ~settings,
       ~name,
       statics,
-      calculate(~is_edited=true, statics, Web.EvalResult.Model.init),
+      calculate(
+        ~settings,
+        ~is_edited=true,
+        statics,
+        Web.EvalResult.Model.init,
+      ),
     );
   };
 
@@ -78,9 +88,15 @@ module Fixture = {
         f.cell,
       );
     of_cell(
+      ~settings=f.settings,
       ~name=f.theorem.name,
       f.statics,
-      calculate(~is_edited=false, f.statics, updated.model),
+      calculate(
+        ~settings=f.settings,
+        ~is_edited=false,
+        f.statics,
+        updated.model,
+      ),
     );
   };
 
@@ -3505,6 +3521,202 @@ module Redrawing = {
   ];
 };
 
+/* With steps written out, nothing offers a step: each is typed into the
+ * box, which writes only a step that reaches the typed goal at once. */
+module Writing_out = {
+  let write_out = {
+    ...settings,
+    evaluation: {
+      ...settings.evaluation,
+      write_out_steps: true,
+    },
+  };
+
+  /* Types `text` into the box a character at a time. */
+  let type_ = (f: Fixture.t, text: string): Fixture.t =>
+    String.fold(text, ~init=f, ~f=(f, c) =>
+      Writing.type_(f, String.of_char(c))
+    );
+
+  /* The box's search's steps, each as written, or None if it found
+   * none. */
+  let found = (box: Stepper.Model.box): option(list(string)) =>
+    switch (box.search) {
+    | Some({status: Found(steps), _}) => Some(List.map(~f=written, steps))
+    | Some({status: NotFound, _}) => None
+    | Some({status: Searching, _})
+    | None => Alcotest.fail("no finished search")
+    };
+
+  /* What the stepper offers at the first row: the ghost, the eval steps
+   * and reflexivities marked on the goal, and the uses of rules listed
+   * once something is typed. */
+  let offers = (~settings, src) => {
+    let f = Fixture.mk(~settings, src);
+    let row = first(f.rows);
+    let local = Fixture.local(f, row);
+    let typed = type_(f, "3");
+    (
+      Option.is_some(Writing.box(f).ghost),
+      !List.is_empty(local.deco.marks.next_steps)
+      || !List.is_empty(local.deco.marks.refls),
+      Option.is_some(Writing.box(typed).suggestions),
+    );
+  };
+
+  /* A cell's stepper, with `text` typed into its last row's box. */
+  let cell = (src: string, text: string) => {
+    let statics = Fixture.statics(src);
+    let calculate = (~is_edited, cell) =>
+      Fixture.calculate(~settings=write_out, ~is_edited, statics, cell);
+    let update = (action, cell) =>
+      calculate(
+        ~is_edited=false,
+        Web.EvalResult.Update.update(
+          ~settings=Web.Settings.Model.init,
+          action,
+          cell,
+        ).
+          model,
+      );
+    let stepper = (cell: Web.EvalResult.Model.t) =>
+      switch (cell.display) {
+      | Stepper(s) => s
+      | Evaluation(_) => Alcotest.fail("the stepper is off")
+      };
+    let rows = cell =>
+      Rows.chain(
+        ~proof_map=stepper(cell).proof_map,
+        Web.EvalResult.CellStepper.proof(stepper(cell)),
+      );
+    let box = cell =>
+      switch (
+        Stepper.Model.find(last(rows(cell)).key, stepper(cell).stepper)
+      ) {
+      | Some({box: Some(box), _}) => box
+      | Some({box: None, _})
+      | None => Alcotest.fail("the last row has no box")
+      };
+    let act = (action, cell) =>
+      update(StepperAction((last(rows(cell)).key, action)), cell);
+    let rec run = (cell, slices) =>
+      slices > 1000 || !Stepper.Model.running(box(cell))
+        ? cell
+        : run(act(SearchSlice(box(cell).generation), cell), slices + 1);
+    let cell =
+      String.fold(
+        text,
+        ~init=
+          update(
+            ToggleStepper,
+            calculate(~is_edited=true, Web.EvalResult.Model.init),
+          ),
+        ~f=(cell, c) =>
+        run(act(BoxEditor(Perform(Insert(String.of_char(c)))), cell), 0)
+      );
+    let write = cell =>
+      switch (box(cell).search) {
+      | Some({status: Found(steps), _}) =>
+        switch (Picker.write_steps(last(rows(cell)), steps)) {
+        | Some(patch) => update(StepperPatch(patch), cell)
+        | None => Alcotest.fail("the steps found write nothing")
+        }
+      | _ => Alcotest.fail("nothing found")
+      };
+    (box(cell), () => List.map(~f=goal, rows(write(cell))));
+  };
+
+  let tests = [
+    test_case(
+      "there is no Step tab",
+      `Quick,
+      () => {
+        let tabs = (~cell) =>
+          List.map(
+            ~f=Stepper.Model.show_tab,
+            Stepper.Model.tabs(~settings=write_out, ~cell),
+          );
+        check(
+          list(string),
+          "a theorem",
+          ["Write", "Strategy"],
+          tabs(~cell=false),
+        );
+        check(list(string), "a cell", ["Write"], tabs(~cell=true));
+      },
+    ),
+    test_case(
+      "the stepper offers no ghost, marks or listed uses of rules",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 + 2 + 3 == 6 proof ? in t";
+        let offered = triple(bool, bool, bool);
+        check(offered, "off", (true, true, true), offers(~settings, src));
+        check(
+          offered,
+          "on",
+          (false, false, false),
+          offers(~settings=write_out, src),
+        );
+      },
+    ),
+    test_case(
+      "the box completes no name, so Tab has nothing to take",
+      `Quick,
+      () => {
+        let completes = settings => {
+          let f =
+            Fixture.mk(~settings, "theorem t = 1 + 2 + 3 == 6 proof ? in t");
+          let f = type_(f, "and_");
+          let box = Writing.box(f);
+          let goal = Fixture.goal(f, Writing.box_row(f));
+          Option.is_some(box.ghost)
+          || !List.is_empty(fst(Stepper.Update.listing(goal, box)));
+        };
+        check(bool, "off", true, completes(settings));
+        check(bool, "on", false, completes(write_out));
+      },
+    ),
+    test_case(
+      "the box's editor suggests no completion",
+      `Quick,
+      () => {
+        let suggests = settings => {
+          let f =
+            Fixture.mk(~settings, "theorem t = 1 + 2 + 3 == 6 proof ? in t");
+          let selection =
+            Writing.box(type_(f, "tr")).editor.editor.state.zipper.selection;
+          Selection.is_buffer(selection) && !List.is_empty(selection.content);
+        };
+        check(bool, "off", true, suggests(settings));
+        check(bool, "on", false, suggests(write_out));
+      },
+    ),
+    test_case(
+      "in a cell, typing the next goal writes its step",
+      `Quick,
+      () => {
+        let (box, written) = cell("1 + 2 + 3", "3 + 3");
+        check(
+          option(list(string)),
+          "found",
+          Some(["from 1 + 2 do step end"]),
+          found(box),
+        );
+        check(list(string), "the goals", ["1 + 2 + 3", "3 + 3"], written());
+      },
+    ),
+    test_case(
+      "in a cell, a goal two steps away isn't found",
+      `Quick,
+      () => {
+        let (box, _) = cell("1 + 2 + 3", "6");
+        check(option(list(string)), "found", None, found(box));
+      },
+    ),
+  ];
+};
+
 let tests = (
   "StepperView",
   Walk.tests
@@ -3519,6 +3731,7 @@ let tests = (
   @ Focusing.tests
   @ Focusing.generalizing_tests
   @ Writing.tests
+  @ Writing_out.tests
   @ Scrolling.tests
   @ Redrawing.tests,
 );
