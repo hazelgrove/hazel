@@ -8,6 +8,7 @@ let cons_exp = () => mk_monotile(Cons, Exp);
 let list_concat_exp = () => mk_monotile(ListConcat, Exp);
 let tuple_extension_exp = () => mk_monotile(TupleExtension, Exp);
 let cons_pat = () => mk_monotile(Cons, Pat);
+let plus_pat = () => mk_monotile(Plus, Pat);
 let seq = () => mk_monotile(CellJoin, Exp);
 /* Placeholder tokens must be operands: an operator-shaped token here
  * (e.g. ASCII "..." = TupleExtension) makes the docs segment nonconvex

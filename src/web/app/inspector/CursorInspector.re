@@ -296,6 +296,7 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | BadOperator(_)
+    | BadAddPattern(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
     | Redundant
@@ -792,6 +793,10 @@ let exp_mark_err_view =
       div_err([text("(internal) livelit should not surface as error")])
     }
   | BadOperator(msg) => div_err([text("Invalid operator: "), text(msg)])
+  | BadAddPattern(NoConstant) =>
+    div_err([text("Addition pattern needs a number on one side")])
+  | BadAddPattern(Float) =>
+    div_err([text("Addition patterns match whole numbers, not floats")])
   | LabelNotFound(name, labels) =>
     div_err([
       text("Label "),

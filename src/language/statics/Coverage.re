@@ -14,6 +14,8 @@ module Constraint = {
     | Truth
     | Hole(option(t))
     | BigInt(Bigint.t)
+    /* A Nat no less than n: what `p + n` matches. */
+    | AtLeast(Bigint.t)
     | SInt(int)
     | Float(float)
     | String(string)
@@ -25,6 +27,20 @@ module Constraint = {
 
   let true_ = Ap(Token.true_, None);
   let false_ = Ap(Token.false_, None);
+
+  /* The constraint of the Nat pattern `p + k`, given `p`'s. */
+  let plus_nat = (k: Bigint.t, p: t): t =>
+    switch (p) {
+    | BigInt(n) => BigInt(Bigint.(n + k))
+    | AtLeast(n) => AtLeast(Bigint.(n + k))
+    | Truth
+    | Hole(_)
+    | SInt(_)
+    | Float(_)
+    | String(_)
+    | Ap(_)
+    | Tuple(_) => AtLeast(k)
+    };
 
   /* A constraint that matches any value of its type: coverage checking
      (and the type normalization it requires) is skippable. */
@@ -211,6 +227,7 @@ module Seen = {
   // [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     seen_ints: IntSet.t,
+    seen_at_least: IntSet.t,
     seen_sints: SIntSet.t,
     seen_floats: FloatSet.t,
     seen_strings: StringSet.t,
@@ -221,8 +238,16 @@ module Seen = {
     first_col_redundant_rows: redundant_rows,
   };
 
+  /* Whether an `AtLeast` row already seen matches n. */
+  let at_least_covers = (seen: t, n: Bigint.t): bool =>
+    switch (IntSet.min_elt_opt(seen.seen_at_least)) {
+    | Some(k) => Bigint.(k <= n)
+    | None => false
+    };
+
   let init: t = {
     seen_ints: IntSet.empty,
+    seen_at_least: IntSet.empty,
     seen_sints: SIntSet.empty,
     seen_floats: FloatSet.empty,
     seen_strings: StringSet.empty,
@@ -692,7 +717,19 @@ module Submatrices = {
           seen_ints: IntSet.add(n, seen.seen_ints),
           first_col_redundant_rows:
             add_redundant_row_if(
-              IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+              IntSet.mem(n, seen.seen_ints)
+              || seen.seen_truth
+              || Seen.at_least_covers(seen, n),
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [AtLeast(k), ..._] => {
+          ...seen,
+          seen_at_least: IntSet.add(k, seen.seen_at_least),
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              seen.seen_truth || Seen.at_least_covers(seen, k),
               row.idx,
               seen.first_col_redundant_rows,
             ),
@@ -836,6 +873,7 @@ module Submatrices = {
     let seen_data = seen(m, all_ctrs);
     let {
       seen_ints,
+      seen_at_least,
       seen_sints,
       seen_floats,
       seen_strings,
@@ -846,8 +884,32 @@ module Submatrices = {
       first_col_redundant_rows,
     }: Seen.t = seen_data;
 
+    /* `AtLeast` rows split a Nat column into intervals that each row
+       matches all or none of, named by their least members: 0, each
+       literal n and n + 1, and each `AtLeast` bound. The intervals cover
+       every Nat, so there is no default. */
+    let nat_intervals =
+      IntSet.is_empty(seen_at_least)
+        ? None
+        : Some(
+            IntSet.union(seen_ints, seen_at_least)
+            |> IntSet.union(IntSet.map(n => Bigint.(n + one), seen_ints))
+            |> IntSet.add(Bigint.zero)
+            |> IntSet.elements,
+          );
+    /* Covered when every interval below the least bound is a literal's. */
+    let nat_intervals_covered =
+      switch (nat_intervals, IntSet.min_elt_opt(seen_at_least)) {
+      | (Some(starts), Some(k)) =>
+        List.for_all(starts, ~f=n =>
+          Bigint.(n >= k) || IntSet.mem(n, seen_ints)
+        )
+      | _ => false
+      };
+
     let include_default =
       switch (all_ctrs) {
+      | _ when Option.is_some(nat_intervals) => false
       | Unknown => true
       | Infinite => true
       | Finite(_) => !seen_all_ctrs
@@ -872,6 +934,17 @@ module Submatrices = {
             ...submatrices,
             ctrs:
               update_ctrs(Ctr.of_int(n), row.idx, cols, submatrices.ctrs),
+          }
+        | [AtLeast(k), ...cols] => {
+            ...submatrices,
+            ctrs:
+              List.fold(
+                Option.value(nat_intervals, ~default=[]),
+                ~init=submatrices.ctrs,
+                ~f=(ctrs, n) =>
+                Bigint.(n >= k)
+                  ? update_ctrs(Ctr.of_int(n), row.idx, cols, ctrs) : ctrs
+              ),
           }
         | [Float(x), ...cols] => {
             ...submatrices,
@@ -926,7 +999,10 @@ module Submatrices = {
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_int(elt)},
-                   IntSet.to_list(seen_ints),
+                   Option.value(
+                     nat_intervals,
+                     ~default=IntSet.to_list(seen_ints),
+                   ),
                  ),
                )
             |> update_ctrs_with_truth(
@@ -969,10 +1045,13 @@ module Submatrices = {
       /* A column of unknown type. At edit time it counts as covered, so
        * an in-progress program doesn't flag a match whose scrutinee type
        * isn't known yet. With `strict_unknown` (the prover) it is treated
-       * like `Infinite`: with no known constructor set, only a catch-all
-       * (a wildcard, a variable or a hole) covers it. */
-      | Unknown => strict_unknown ? seen_truth || seen_hole : true
-      | Infinite => seen_truth || seen_hole
+       * like `Infinite`: with no known constructor set, it takes a
+       * catch-all (a wildcard, a variable or a hole), or Nat literals
+       * below an `AtLeast` bound, to cover it. */
+      | Unknown =>
+        strict_unknown
+          ? seen_truth || seen_hole || nat_intervals_covered : true
+      | Infinite => seen_truth || seen_hole || nat_intervals_covered
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
 

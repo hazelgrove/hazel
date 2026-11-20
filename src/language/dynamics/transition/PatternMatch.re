@@ -19,6 +19,69 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
  * Collected during pattern matching when patterns are targeted. */
 type sample_closures = list((CallStack.t, int, int) => Sample.t);
 
+/* `d` as `e + k` for a number literal `k`, on either side: the form an
+   induction case gives an open number, as in `m + 1`. */
+let rec open_sum = (d: DHExp.t): option((Operators.op_bin, DHExp.t, Atom.t)) =>
+  switch (DHExp.term_of(d)) {
+  | BinOp(
+      (Int(Plus) | Nat(Plus) | SInt(Plus)) as op,
+      e,
+      {term: Atom(k), _},
+    )
+  | BinOp(
+      (Int(Plus) | Nat(Plus) | SInt(Plus)) as op,
+      {term: Atom(k), _},
+      e,
+    ) =>
+    Some((op, e, k))
+  | Parens(d) => open_sum(d)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Projector(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
+
 /* Core pattern matching logic - just a switch on pattern structure */
 let match_pattern =
     (recur: (Pat.t, DHExp.t) => match_result, dp: Pat.t, d: DHExp.t)
@@ -36,8 +99,43 @@ let match_pattern =
     )
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
-    let* d' = Unboxing.unbox(Atom(kind), d);
-    Poly.equal(value, d') ? Matches([]) : DoesNotMatch;
+    switch (Unboxing.unbox(Atom(kind), d), open_sum(d)) {
+    | (IndetMatch, Some((_, e, k))) =>
+      switch (c, k, Pat.Addition.minus(c, k)) {
+      | (_, _, Some(rest)) => recur(Atom(rest) |> Pat.fresh, e)
+      /* `e + k` is at least `k`, which is more than `c`. */
+      | (Nat(_), Nat(_), None) => DoesNotMatch
+      | _ => IndetMatch
+      }
+    | (unboxed, _) =>
+      let* d' = unboxed;
+      Poly.equal(value, d') ? Matches([]) : DoesNotMatch;
+    };
+  | Add(p1, p2) =>
+    switch (Pat.Addition.split(p1, p2)) {
+    | None => IndetMatch
+    | Some((p, c)) =>
+      let V(_, kind) = Atom.unpack(c);
+      switch (Unboxing.unbox(Atom(kind), d), open_sum(d)) {
+      | (Matches(n), _) =>
+        switch (Pat.Addition.minus(Atom.repack(kind, n), c)) {
+        | Some(rest) => recur(p, Atom(rest) |> DHExp.fresh)
+        | None => DoesNotMatch
+        }
+      | (IndetMatch, Some((_, e, k))) when Atom.equal(k, c) => recur(p, e)
+      | (IndetMatch, Some((op, e, k))) =>
+        switch (Pat.Addition.minus(k, c), Pat.Addition.minus(c, k)) {
+        | (Some(rest), _) =>
+          recur(p, BinOp(op, e, Atom(rest) |> DHExp.fresh) |> DHExp.fresh)
+        /* A Nat `p + 2` against `e + 1` is `p + 1` against `e`. */
+        | (None, Some(rest)) =>
+          recur(Add(p, Atom(rest) |> Pat.fresh) |> Pat.fresh, e)
+        | (None, None) => IndetMatch
+        }
+      | (IndetMatch, None) => IndetMatch
+      | (DoesNotMatch, _) => DoesNotMatch
+      };
+    }
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
     List.map2_exn(xs, s', ~f=recur)

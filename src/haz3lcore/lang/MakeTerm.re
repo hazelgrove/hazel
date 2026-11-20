@@ -1357,6 +1357,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
+      | ([(_id, (F(Compound(Plus)), []))], []) => ret(Add(l, r))
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));

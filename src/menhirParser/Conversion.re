@@ -777,6 +777,7 @@ and Pat: {
     | ParenPat(p) => parens(of_menhir_ast(p))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) => cons(of_menhir_ast(p1), of_menhir_ast(p2))
+    | AddPat(p1, p2) => add(of_menhir_ast(p1), of_menhir_ast(p2))
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
@@ -799,6 +800,7 @@ and Pat: {
       ConstructorPat(x, Option.map(~f=Option.map(~f=Typ.of_core), ty))
     | Tuple(l) => TuplePat(List.map(~f=of_core, l))
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
+    | Add(p1, p2) => AddPat(of_core(p1), of_core(p2))
     | ListLit(l) => ListPat(List.map(~f=of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
     | EmptyHole => EmptyHolePat

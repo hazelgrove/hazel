@@ -188,6 +188,10 @@ and in_pat =
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);
     (env'', Cons(p1', p2') |> Pat.fresh);
+  | Add(p1, p2) =>
+    let (env', p1') = in_pat(env_outer, env_acc, p1);
+    let (env'', p2') = in_pat(env_outer, env', p2);
+    (env'', Add(p1', p2') |> Pat.fresh);
   | Ap(p1, p2) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     let (env'', p2') = in_pat(env_outer, env', p2);

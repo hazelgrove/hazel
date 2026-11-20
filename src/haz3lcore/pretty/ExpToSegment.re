@@ -323,6 +323,7 @@ let external_precedence_pat = (dp: Pat.t) =>
 
   // Other forms
   | Cons(_) => Precedence.cons
+  | Add(_) => Precedence.plus
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
@@ -853,6 +854,12 @@ and parenthesize_pat =
     Cons(
       parenthesize_pat(p1) |> paren_pat_at(Precedence.cons),
       parenthesize_pat(p2) |> paren_pat_assoc_at(Precedence.cons),
+    )
+    |> rewrap
+  | Add(p1, p2) =>
+    Add(
+      parenthesize_pat(p1) |> paren_pat_assoc_at(Precedence.plus),
+      parenthesize_pat(p2) |> paren_pat_at(Precedence.plus),
     )
     |> rewrap
   | Tuple(ps) =>
@@ -2864,6 +2871,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p1 = go(p1)
     and+ p2 = go(p2);
     wrap(pat, p1 @ [mk_form(Cons, id, [])] @ p2);
+  | Add(p1, p2) =>
+    let id = pat |> Pat.rep_id;
+    let+ p1 = go(p1)
+    and+ p2 = go(p2);
+    wrap(pat, p1 @ [mk_form(Plus, id, [])] @ p2);
   | Tuple([]) =>
     wrap(pat, text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.empty_tuple))
   | Tuple([x, ...xs]) =>
