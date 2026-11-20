@@ -133,7 +133,7 @@ let sub : (Board, Ball, [Int], [Int], Int, Int, [Int]) -> (Ball, Int, [Int]) = f
   let (b2, s2, h2) = bumps(b1, bo.bumpers, 0, s1, hits) in
   let b3 = flips_hit(b2, bo.flippers, a0s, a1s, float_of_int(k + 1) /. 4.) in
   sub(bo, through(cap(b3), bo.portals), a0s, a1s, k + 1, s2, h2);
-# One step of the game on board i: the left and right flippers' buttons held or not, and the plunger let go (how hard, 1 to 100; 0 while not). A ball below the flippers is gone: the next one waits in the launch lane, or, with none left, the game is over. A ball waiting in the launch lane stays there till the plunger is let go: then it is launched, the harder the faster #
+# One step of the game on board i: the left and right flippers' buttons held or not, and the plunger let go (how hard, 1 to 100; 0 while not). A ball below the flippers is gone: the next one waits in the launch lane, or, with none left, the game is over. A ball waiting in the launch lane stays there till the plunger is let go: then it is launched, the harder the faster, and even the lightest pull takes it out of the lane and onto the table #
 let step : (Int, Game, Bool, Bool, Int) -> Game = fun (i, g, left, right, launch) ->
   if g.over then g else
   let bo = board(i) in
@@ -146,5 +146,5 @@ let step : (Int, Game, Bool, Bool, Int) -> Game = fun (i, g, left, right, launch
      else (x = bo.sx * 1000, y = bo.sy * 1000, vx = 0, vy = 0, flips = a1s, score = score, balls = g.balls - 1, over = false, hits = hits))
   else
   let waiting = b.x >. 545. && b.y >. 920. && b.vy >. 0. -. 1. && b.vy <. 2. in
-  let push = 0 - (14000 + 180 * (if launch > 100 then 100 else launch)) in
+  let push = 0 - (24000 + 80 * (if launch > 100 then 100 else launch)) in
   (x = ml(b.x), y = ml(b.y), vx = ml(b.vx), vy = (if waiting then (if launch > 0 then push else 0) else ml(b.vy)), flips = a1s, score = score, balls = g.balls, over = false, hits = hits)
