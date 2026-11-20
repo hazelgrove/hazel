@@ -97,14 +97,15 @@ type scope = {
   guards: Bounds.t,
 };
 
-let check =
-    (
-      ~ctx: Ctx.t,
-      ~env: Environment.t(Exp.t),
-      ~is_standard: Var.t => bool,
-      e: Exp.t,
-    )
-    : verdict => {
+/* The routine in one context: `check` judges a term, and `type_of`
+ * gives its type where its binders, literals and operators show it. */
+type t = {
+  check: Exp.t => verdict,
+  type_of: Exp.t => option(Typ.t),
+};
+
+let in_context =
+    (~ctx: Ctx.t, ~env: Environment.t(Exp.t), ~is_standard: Var.t => bool): t => {
   open Result.Syntax;
   let definitions = Stdlib.Hashtbl.create(8);
   let definition_types = Stdlib.Hashtbl.create(8);
@@ -1138,8 +1139,22 @@ let check =
       verdict;
     };
   };
-  switch (go(empty, e)) {
-  | Ok(conditions) => Standard(DomainConditions.dedup(conditions))
-  | Error(reason) => Unknown(reason)
+  {
+    check: e =>
+      switch (go(empty, e)) {
+      | Ok(conditions) => Standard(DomainConditions.dedup(conditions))
+      | Error(reason) => Unknown(reason)
+      },
+    type_of: type_of(empty),
   };
 };
+
+let check =
+    (
+      ~ctx: Ctx.t,
+      ~env: Environment.t(Exp.t),
+      ~is_standard: Var.t => bool,
+      e: Exp.t,
+    )
+    : verdict =>
+  in_context(~ctx, ~env, ~is_standard).check(e);
