@@ -1498,12 +1498,18 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           available := available^ - 2; // "()"
           let ps' =
             List.map(
-              fun
-              | Grammar.Unlabeled(p) => Grammar.Unlabeled(abbreviate_pat(p))
-              | Labeled(eq, l, p) => {
-                  available := available^ - 1; /* "=" */
-                  Labeled(eq, abbreviate_label_term(l), abbreviate_pat(p));
-                },
+              ~f=
+                fun
+                | Grammar.Unlabeled(p) =>
+                  Grammar.Unlabeled(abbreviate_pat(p))
+                | Labeled(eq, l, p) => {
+                    available := available^ - 1; /* "=" */
+                    Labeled(
+                      eq,
+                      abbreviate_label_term(l),
+                      abbreviate_pat(p),
+                    );
+                  },
               ps,
             );
           Tuple(ps');

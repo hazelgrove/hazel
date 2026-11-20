@@ -160,14 +160,14 @@ and in_pat =
     (env', Projector(data, p1') |> Pat.fresh);
   | Tuple(l) =>
     let (env', l') =
-      List.fold_left(
-        ((env_acc, l_acc), entry) => {
+      List.fold(
+        l,
+        ~init=(env_acc, []),
+        ~f=((env_acc, l_acc), entry) => {
           let (env_new, p_new) =
             in_pat(env_outer, env_acc, TupleEntry.value(entry));
           (env_new, l_acc @ [TupleEntry.map(_ => p_new, entry)]);
         },
-        (env_acc, []),
-        l,
       );
     (env', Tuple(l') |> Pat.fresh);
   | ListLit(l) =>

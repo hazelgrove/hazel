@@ -239,10 +239,10 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
   | Parens(pat)
   | Asc(pat, _) => var_names_of_pat(pat)
-  | ListLit(pats) => List.concat_map(var_names_of_pat, pats)
+  | ListLit(pats) => List.concat_map(~f=var_names_of_pat, pats)
   | Tuple(entries) =>
     List.concat_map(
-      entry => var_names_of_pat(TupleEntry.value(entry)),
+      ~f=entry => var_names_of_pat(TupleEntry.value(entry)),
       entries,
     )
   | Invalid(_)

@@ -1025,21 +1025,21 @@ and uexp_to_info_map =
             (infos @ [(value_info, entry_ty)], elabs @ [elab], m);
           },
         );
-      let value_infos = List.map(fst, entry_infos);
+      let value_infos = List.map(~f=fst, entry_infos);
       add(
         ~elab_term=Tuple(es_elab) |> rewrap,
         ~elab_syn_ty=
           Prod(
             Typ.remove_duplicate_labels(
               ~duplicate_labels,
-              List.map(snd, entry_infos),
+              List.map(~f=snd, entry_infos),
             ),
           )
           |> Typ.temp,
-        ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, value_infos)),
+        ~co_ctx=CoCtx.union(List.map(~f=Info.exp_co_ctx, value_infos)),
         ~probe_targets=
           SubexpProbeTargets.union_all(
-            List.map(Info.exp_probe_targets, value_infos),
+            List.map(~f=Info.exp_probe_targets, value_infos),
           ),
         ~label_inference=
           Some(
@@ -2181,9 +2181,11 @@ and uexp_to_info_map =
         };
       let add_pattern_redundancy =
           (ps: list(Pat.t), redundant_rows: list(int), m: Map.t): Map.t =>
-        List.fold_left(
-          (m, row) => {
-            let p = List.nth(ps, row);
+        List.fold(
+          redundant_rows,
+          ~init=m,
+          ~f=(m, row) => {
+            let p = List.nth_exn(ps, row);
             switch (Id.Map.find(IdTagged.rep_id(p), m)) {
             | Info.InfoPat(info) =>
               let info =
@@ -2192,8 +2194,6 @@ and uexp_to_info_map =
             | _ => failwith("Invalid sort for pattern.")
             };
           },
-          m,
-          redundant_rows,
         );
       let m = add_pattern_redundancy(ps, redundant_rows, m);
       let co_ctx =
@@ -2900,26 +2900,27 @@ and upat_to_info_map =
     | Tuple(ps) =>
       let expected_labels =
         LabeledTupleStaticsHelpers.expected_labels_of_ana(ctx, ana);
-      let original_labels = List.map(TupleEntry.label_name, ps);
+      let original_labels = List.map(~f=TupleEntry.label_name, ps);
       /* Line the entries up with the analyzed type; an unlabeled entry
          matched to a labeled field records the label it is inferred to have */
       let (inferred_ps, modes) =
         MatchedTyp.prod(
           ctx,
-          List.map(p => (None: option(string), p), ps),
+          List.map(~f=p => (None: option(string), p), ps),
           ((inferred, p)) =>
             TupleEntry.get_label(p)
-            |> Option.map(((label, _)) => (label, (inferred, p))),
+            |> Option.map(~f=((label, _)) => (label, (inferred, p))),
           ana,
           (name, (_, p)) => (Some(name), p),
         );
       let new_labels =
         List.map(
-          ((inferred, p)) =>
-            switch (TupleEntry.label_name(p)) {
-            | Some(_) as label => label
-            | None => inferred
-            },
+          ~f=
+            ((inferred, p)) =>
+              switch (TupleEntry.label_name(p)) {
+              | Some(_) as label => label
+              | None => inferred
+              },
           inferred_ps,
         );
       let new_duplicate_bindings =
@@ -2927,15 +2928,18 @@ and upat_to_info_map =
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(
           TupleEntry.get_label,
-          List.map(snd, inferred_ps),
+          List.map(~f=snd, inferred_ps),
         );
       let (ctx, tys, cons, m, info_pats, ps_elabs) =
-        List.fold_left2(
-          (
-            (ctx, tys, cons, m, info_all, elabs),
-            (inferred_label, entry),
-            ana,
-          ) => {
+        List.fold2_exn(
+          inferred_ps,
+          modes,
+          ~init=(ctx, [], [], m, [], []),
+          ~f=(
+               (ctx, tys, cons, m, info_all, elabs),
+               (inferred_label, entry),
+               ana,
+             ) => {
             let (info, value_elab, m) =
               go(
                 ~ctx,
@@ -3007,9 +3011,6 @@ and upat_to_info_map =
               elabs @ [elab],
             );
           },
-          (ctx, [], [], m, [], []),
-          inferred_ps,
-          modes,
         );
       add(
         ~elab_syn_ty=

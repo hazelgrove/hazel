@@ -229,16 +229,17 @@ module Namer = {
     | Tuple(pats) =>
       "("
       ++ String.concat(
-           ", ",
+           ~sep=", ",
            List.map(
-             fun
-             | Grammar.Labeled(_, l, pat) =>
-               "("
-               ++ Option.value(Label.name(l), ~default="{label}")
-               ++ " : "
-               ++ mk_name_from_pat(pat)
-               ++ ")"
-             | Unlabeled(pat) => mk_name_from_pat(pat),
+             ~f=
+               fun
+               | Grammar.Labeled(_, l, pat) =>
+                 "("
+                 ++ Option.value(Label.name(l), ~default="{label}")
+                 ++ " : "
+                 ++ mk_name_from_pat(pat)
+                 ++ ")"
+               | Unlabeled(pat) => mk_name_from_pat(pat),
              pats,
            ),
          )

@@ -90,7 +90,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(TupleEntry.map(exp_to_pat), xs)))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=TupleEntry.map(exp_to_pat), xs)))
   | Label(l) => rewrap(Label(l))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Projector(data, e) => rewrap(Projector(data, exp_to_pat(e)))
@@ -146,7 +146,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))
-  | Tuple(xs) => rewrap(Tuple(List.map(TupleEntry.map(pat_to_exp), xs)))
+  | Tuple(xs) => rewrap(Tuple(List.map(~f=TupleEntry.map(pat_to_exp), xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
@@ -199,7 +199,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           None
         | _ => dhpat_var_entry(TupleEntry.value(entry), typ)
         };
-      let* l = List.map2(entry_var_entry, l1, ts) |> OptUtil.sequence;
+      let* l = List.map2_exn(l1, ts, ~f=entry_var_entry) |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
       let* t = MatchedTyp.list_strict(ctx, ty);
@@ -255,7 +255,7 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Var(_) => []
   | Tuple(xs) =>
     List.concat_map(
-      x => get_inductive_hypotheses_inner(m, t, TupleEntry.value(x)),
+      ~f=x => get_inductive_hypotheses_inner(m, t, TupleEntry.value(x)),
       xs,
     )
   | Parens(e)
