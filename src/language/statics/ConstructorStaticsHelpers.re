@@ -24,15 +24,34 @@ let syn_marks_match =
 let ctr_ana_typ =
     (ctx: Ctx.t, ty_ana: Typ.t, ctr: Constructor.t): option(Typ.t) => {
   Util.OptUtil.Syntax.(
-    switch (ty_ana) {
-    | {term: Arrow(_, ty_out), _} =>
+    /* Normalize the head so an alias for an arrow (or a parenthesized
+       arrow) is recognized as one. */
+    switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty_ana))) {
+    | Arrow(_, ty_out) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
       let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
       | None => None
       | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
       };
-    | _ =>
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Var(_)
+    | List(_)
+    | Sum(_)
+    | Prod(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Rec(_)
+    | Poly(_)
+    | ProofOf(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | Sig(_) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
       let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {

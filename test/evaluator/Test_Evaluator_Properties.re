@@ -1,6 +1,7 @@
 open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
+open Poly;
 
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
@@ -30,7 +31,7 @@ let qcheck_evaluator_does_not_crash_test =
         | Failure(msg)
             when
               List.exists(
-                (==)(msg),
+                ~f=(==)(msg),
                 ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
@@ -40,7 +41,7 @@ let qcheck_evaluator_does_not_crash_test =
       }
     | exception e =>
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -95,23 +96,21 @@ let check_evaluator_stepper_consistent =
       if (require_comparison) {
         failf(
           "evaluation raised %s, so nothing was compared; re-minimize the counterexample",
-          Printexc.to_string(e),
+          Exn.to_string(e),
         );
       } else {
-        print_endline(
-          "Skipping evaluation failure: " ++ Printexc.to_string(e),
-        );
+        print_endline("Skipping evaluation failure: " ++ Exn.to_string(e));
       }
     }
   | exception e =>
     if (require_comparison) {
       failf(
         "statics/elaborate raised %s, so nothing was compared; re-minimize the counterexample",
-        Printexc.to_string(e),
+        Exn.to_string(e),
       );
     } else {
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
     }
   };
@@ -221,8 +220,7 @@ let qcheck_pattern_equivalence_test =
     ) {
     | e =>
       print_endline(
-        "Skipping pattern equivalence test due to error: "
-        ++ Printexc.to_string(e),
+        "Skipping pattern equivalence test due to error: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -255,7 +253,7 @@ let qcheck_preservation_test =
                 Builtins.ctx_init(Some(Int)),
                 next,
               );
-            Statics.Map.ty_of(next.annotation.ids |> List.hd, statics);
+            Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
           }
         ) {
         | Some(ty) =>
@@ -382,7 +380,7 @@ let check_incremental_against_fresh_after_edit =
     | Failure(msg)
         when
           List.exists(
-            (==)(msg),
+            ~f=(==)(msg),
             ["type application in dynamics", "Type meet of ap"],
           ) =>
       None
@@ -395,7 +393,7 @@ let check_incremental_against_fresh_after_edit =
   | [] => no_comparison("the program has no int literal to edit")
   | lits =>
     let (target_id, old_value) =
-      List.nth(lits, literal_index mod List.length(lits));
+      List.nth_exn(lits, literal_index mod List.length(lits));
     /* +1 keeps the type fixed, so the edit typechecks the same as the
      * original while still changing the value at `target_id`. */
     let new_value = Bigint.(old_value + of_int(1));
@@ -439,7 +437,7 @@ let check_incremental_against_fresh_after_edit =
             Some(LimitedCompleted((e_fresh, _))),
             Some(LimitedCompleted((e_incr, _))),
           ) =>
-          Option.iter(incr, compared);
+          Option.iter(compared, ~f=incr);
           check(testable, msg, e_fresh, e_incr);
         | _ =>
           no_comparison(
@@ -549,56 +547,50 @@ let recursive_templates = [
 
 let fill = (template: string, a: int, b: int, c: int): string =>
   List.fold_left(
-    (s, (hole, v)) =>
-      Str.global_replace(Str.regexp_string(hole), string_of_int(v), s),
-    template,
     [("{a}", a), ("{b}", b), ("{c}", c)],
+    ~init=template,
+    ~f=(s, (hole, v)) =>
+    Str.global_replace(Str.regexp_string(hole), string_of_int(v), s)
   );
 
 let incremental_recursive_lets_tests =
-  List.map(
-    ((name, template)) =>
-      test_case(
-        "Incremental eval agrees with fresh eval after a literal edit: "
-        ++ name,
-        `Quick,
-        () =>
-        List.iter(
-          ((a, b, c)) => {
-            let exp = parse_exp(fill(template, a, b, c));
-            let lits = collect_int_lits(exp);
-            List.iter(
-              v =>
-                switch (
-                  List.find_index(
-                    ((_, n)) => Bigint.equal(n, Bigint.of_int(v)),
-                    lits,
-                  )
-                ) {
-                | Some(literal_index) =>
-                  check_incremental_against_fresh_after_edit(
-                    ~values_only=true,
-                    ~literal_index,
-                    ~testable=testable_core_exp,
-                    ~msg=
-                      Printf.sprintf(
-                        "%s, editing %d: incremental and fresh agree",
-                        fill(template, a, b, c),
-                        v,
-                      ),
-                    ~require_comparison=true,
-                    exp,
-                  )
-                | None =>
-                  failf("no literal %d in %s", v, fill(template, a, b, c))
-                },
-              [a, b, c],
-            );
-          },
-          [(17, 23, 3), (17, 5, 4), (41, 23, 4), (41, 5, 3)],
-        )
-      ),
-    recursive_templates,
+  List.map(recursive_templates, ~f=((name, template)) =>
+    test_case(
+      "Incremental eval agrees with fresh eval after a literal edit: " ++ name,
+      `Quick,
+      () =>
+      List.iter(
+        [(17, 23, 3), (17, 5, 4), (41, 23, 4), (41, 5, 3)],
+        ~f=((a, b, c)) => {
+          let exp = parse_exp(fill(template, a, b, c));
+          let lits = collect_int_lits(exp);
+          List.iter([a, b, c], ~f=v =>
+            switch (
+              List.findi(lits, ~f=(_, (_, n)) =>
+                Bigint.equal(n, Bigint.of_int(v))
+              )
+            ) {
+            | Some((literal_index, _)) =>
+              check_incremental_against_fresh_after_edit(
+                ~values_only=true,
+                ~literal_index,
+                ~testable=testable_core_exp,
+                ~msg=
+                  Printf.sprintf(
+                    "%s, editing %d: incremental and fresh agree",
+                    fill(template, a, b, c),
+                    v,
+                  ),
+                ~require_comparison=true,
+                exp,
+              )
+            | None =>
+              failf("no literal %d in %s", v, fill(template, a, b, c))
+            }
+          );
+        },
+      )
+    )
   );
 
 let incremental_literal_edit_known_bug_test =
