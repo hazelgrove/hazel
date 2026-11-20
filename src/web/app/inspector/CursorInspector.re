@@ -56,14 +56,16 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
   );
 
 /* Whether the expression at the cursor is standard, by the proof
- * checker's own routine, `Standardness.check`. It is computed for the
- * cursor only, since statics doesn't track standardness. The elaborated
- * term is checked, where a recursive `let` is the `FixF` the routine
- * looks for. A variable other than a builtin reads as standard: the
- * checker treats variables as quantified binders. */
-let standardness_badge = (ci: Info.t): list(Node.t) =>
+ * checker's own routine, `Standardness.check`. It is shown where a proof
+ * can use it, as the built-in axioms are listed
+ * (`ContextInspector.lists_axioms`), and computed for the cursor only,
+ * since statics doesn't track standardness. The elaborated term is
+ * checked, where a recursive `let` is the `FixF` the routine looks for.
+ * A variable other than a builtin reads as standard: the checker treats
+ * variables as quantified binders. */
+let standardness_badge = (~proof_map: ProofMap.t, ci: Info.t): list(Node.t) =>
   switch (ci) {
-  | InfoExp(info) =>
+  | InfoExp(info) when ContextInspector.lists_axioms(~proof_map, ci) =>
     let (cls, icon, tooltip) =
       switch (
         Standardness.check(
@@ -75,10 +77,27 @@ let standardness_badge = (ci: Info.t): list(Node.t) =>
         )
       ) {
       | Standard([]) => ("standard", Icons.circle_with_check, "standard")
-      | Standard(_) => (
+      | Standard(conditions) => (
           "standard",
           Icons.circle_with_check,
-          "standard where its domain conditions hold",
+          "standard where "
+          ++ String.concat(
+               ~sep=", ",
+               List.map(
+                 ~f=
+                   c =>
+                     Haz3lcore.ExpToSegment.exp_to_segment(
+                       ~settings=
+                         Haz3lcore.ExpToSegment.Settings.of_core(
+                           ~inline=true,
+                           CoreSettings.off,
+                         ),
+                       c,
+                     )
+                     |> Haz3lcore.Printer.of_segment(~holes="?"),
+                 conditions,
+               ),
+             ),
         )
       | Unknown(reason) => (
           "not-standard",
@@ -138,7 +157,7 @@ let term_view =
       ),
     ],
     [ctx_toggle(~globals)]
-    @ standardness_badge(ci)
+    @ standardness_badge(~proof_map, ci)
     @ [
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),

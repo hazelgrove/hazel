@@ -445,6 +445,7 @@ let test_exits_write_unmarked_proofs = () =>
     [
       "let f = fun n -> if n <= 0 then 1 else f(n - 1) in theorem t = forall y: Int -> 8 / f(y) + 0 == 8 / f(y) proof from 8 / f(y) + 0 do algebra 8 / f(y) end end in t",
       "theorem t = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in t",
+      "let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t",
     ],
   );
 
