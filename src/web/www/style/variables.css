@@ -17,7 +17,10 @@
   --line-height: 1.45;
   --base-font-size: 13pt;
   --code-font: "Source Code Pro", monospace;
-  --ui-font: "Helvetica Neue";
+  /* The interface's font: IBM Plex Sans, shipped with Hazel (style/fonts.css)
+     under the SIL Open Font License, so it looks the same everywhere. A
+     character outside its Latin subset comes from the reader's sans-serif. */
+  --ui-font: "IBM Plex Sans", sans-serif;
   --eval-recalc-visual-delay: 180ms;
 
 

@@ -1,15 +1,17 @@
+/* IBM Plex Sans, the interface font, under the SIL Open Font License
+   (licenses/LICENSE.IBMPlexSans). Latin subset. */
 @font-face {
-  font-family: "Helvetica Neue";
+  font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: normal;
-  src: url("fonts/HelveticaNeue-Regular.woff2") format("woff2");
+  src: url("fonts/IBMPlexSans-Regular.woff2") format("woff2");
 }
 
 @font-face {
-  font-family: "Helvetica Neue";
+  font-family: "IBM Plex Sans";
   font-style: normal;
   font-weight: bold;
-  src: url("fonts/HelveticaNeue-Bold.woff2") format("woff2");
+  src: url("fonts/IBMPlexSans-Bold.woff2") format("woff2");
 }
 
 @font-face {
