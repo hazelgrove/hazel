@@ -40,7 +40,16 @@ let at_caret =
             switch (info) {
             | InfoExp({user_term: {term: EmptyHole, _}, _})
             | InfoPat({user_term: {term: EmptyHole, _}, _}) => Some(info)
-            | _ => None
+            /* only expression and pattern holes are implied holes */
+            | InfoExp(_)
+            | InfoPat(_)
+            | InfoDrv(_)
+            | InfoTyp(_)
+            | InfoTPat(_)
+            | InfoMod(_)
+            | InfoSig(_)
+            | InfoMPat(_)
+            | Secondary(_) => None
             };
           | _ => None
           };
