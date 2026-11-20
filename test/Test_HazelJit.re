@@ -2123,12 +2123,35 @@ let game_aot =
     )
   ) {
   | Ok(js) =>
-    at_exit(() => {
-      print_endline("HAZEL-JIT-" ++ mark ++ "-BEGIN");
-      print_endline(js);
-      print_endline("HAZEL-JIT-" ++ mark ++ "-END");
-      flush(stdout);
-    })
+    /* (CI run 44789093607: dune cut the middle of the test output, and this program with it) One file for each game,
+       which the quick tests' job uploads as the artifact hazel-jit-aot (checks.yml), and a line on the trail */
+    let file = "hazel-jit-aot-" ++ String.lowercase_ascii(mark) ++ ".js";
+    switch (open_out_bin(file)) {
+    | oc =>
+      output_string(oc, js);
+      close_out(oc);
+    | exception _ => ()
+    };
+    switch (
+      open_out_gen(
+        [Open_append, Open_creat, Open_text],
+        0o644,
+        "hazel-jit-trail.txt",
+      )
+    ) {
+    | oc =>
+      output_string(
+        oc,
+        Printf.sprintf(
+          "%s: compiled, %d bytes of JS, in %s\n",
+          dir,
+          String.length(js),
+          file,
+        ),
+      );
+      close_out(oc);
+    | exception _ => ()
+    };
   | Error(why) => fail("the " ++ dir ++ " rules, not compiled: " ++ why)
   };
 let checkers_aot =

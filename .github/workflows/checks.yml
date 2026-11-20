@@ -81,6 +81,16 @@ jobs:
         if: ${{ always() }}
         run: tail -n 300 _build/default/test/hazel-jit-trail.txt 2>/dev/null || echo "no trail"
 
+      # (trial branches, ticket 794) the games' compiled programs, one file each, for hazeljs-examples'
+      # tools/make-compiled.py: dune cuts the middle of the test output, where a program printed after the run sat
+      - name: hazel-jit's compiled games
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hazel-jit-aot
+          path: _build/default/test/hazel-jit-aot-*.js
+          if-no-files-found: warn
+
       # Results UI, not the gate: the steps above already fail the job.
       - name: Quick Test Report
         if: ${{ always() }}
