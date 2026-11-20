@@ -1029,7 +1029,7 @@ let binder_name = (ty: t): option(Var.t) =>
    [name] is free nowhere in [ty]. */
 let close_loop = (x: Var.t, name: Var.t, ty: t): t => {
   let marker = Var(x) |> TPat.fresh;
-  if (List.exists(String.equal(name), free_vars(ty))) {
+  if (List.exists(~f=String.equal(name), free_vars(ty))) {
     Rec(marker, ty) |> temp;
   } else {
     Rec(Var(name) |> TPat.fresh, subst(Var(name) |> temp, marker, ty))
@@ -1055,7 +1055,7 @@ let rec meet =
      closed where the pair was first met. */
   let assumption = (ty_rec: t, ty: t): option(Var.t) =>
     List.find_map(
-      ((r, o, x)) => equal(r, ty_rec) && equal(o, ty) ? Some(x) : None,
+      ~f=((r, o, x)) => equal(r, ty_rec) && equal(o, ty) ? Some(x) : None,
       seen,
     );
   /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
@@ -1078,7 +1078,7 @@ let rec meet =
       let x = fresh_var(name);
       let+ ty_meet =
         meet_unrolled(~seen=[(ty_rec, ty, x), ...seen], ty_rec');
-      if (List.exists(String.equal(x), free_vars(ty_meet))) {
+      if (List.exists(~f=String.equal(x), free_vars(ty_meet))) {
         if (count_unknowns(ty_rec) == 0) {
           ty_rec;
         } else if (count_unknowns(ty) == 0) {
