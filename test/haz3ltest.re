@@ -123,6 +123,7 @@ let (suite, exit_with_test_status) =
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
     @ [Test_SettingsPanel.tests]
+    @ [Test_TheoremExercise.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]

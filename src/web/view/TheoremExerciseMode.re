@@ -35,6 +35,7 @@ module Model = {
     max_points: int,
     cells,
     editing_flags,
+    write_out_steps: bool,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,6 +61,7 @@ module Model = {
           CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
       editing_flags: editing_flags_false,
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -78,6 +80,7 @@ module Model = {
           CellEditor.Model.mk(Editor.Model.mk(spec.theorem, ~root=Exp)),
       },
       editing_flags: editing_flags_false,
+      write_out_steps: spec.write_out_steps,
     };
   };
 
@@ -91,7 +94,25 @@ module Model = {
       prelude: model.cells.prelude.editor.editor.state.zipper,
       lemmas: model.cells.lemmas.editor.editor.state.zipper,
       theorem: model.cells.theorem.editor.editor.state.zipper,
+      write_out_steps: model.write_out_steps,
     };
+  };
+
+  /* The exercise's flag turns the write-out mode on, but can't turn the
+   * setting off. */
+  let core_settings_for =
+      (model: t, settings: Language.CoreSettings.t): Language.CoreSettings.t => {
+    ...settings,
+    evaluation: {
+      ...settings.evaluation,
+      write_out_steps:
+        settings.evaluation.write_out_steps || model.write_out_steps,
+    },
+  };
+
+  let settings_for = (model: t, settings: Settings.t): Settings.t => {
+    ...settings,
+    core: core_settings_for(model, settings.core),
   };
 
   let export_module = (model: t): string => {
@@ -121,7 +142,8 @@ module Update = {
     | EditingPrompt
     | UpdateTitle(string)
     | UpdateModuleName(string)
-    | UpdatePrompt(string);
+    | UpdatePrompt(string)
+    | ToggleWriteOutSteps;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -173,6 +195,11 @@ module Update = {
         ...model,
         prompt,
       })
+    | ToggleWriteOutSteps =>
+      Updated.return({
+        ...model,
+        write_out_steps: !model.write_out_steps,
+      })
     };
   };
 
@@ -186,6 +213,7 @@ module Update = {
     };
 
   let update = (~settings: Settings.t, action: t, model: Model.t) => {
+    let settings = Model.settings_for(model, settings);
     switch (action) {
     | Instructor(action) => instructor_update(~settings, action, model)
     | Prelude(action) when settings.instructor_mode =>
@@ -297,6 +325,7 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
+    let settings = Model.core_settings_for(model, settings);
     let statics_mode =
       CodeWithStatics.StaticsDebounce.consume(~is_edited, ~schedule_refresh=() =>
         schedule_action(RefreshStatics)
@@ -501,6 +530,10 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+    let globals = {
+      ...globals,
+      settings: Model.settings_for(model, globals.settings),
+    };
     let editing_flags = model.editing_flags;
     let on_focus_textbox = _ => take_focus(TextBox);
 
@@ -535,6 +568,22 @@ module View = {
         ~toggle_editing=_ => inject(Instructor(EditingPrompt)),
         ~update_prompt=p => inject(Instructor(UpdatePrompt(p))),
       );
+
+    let write_out_steps_view =
+      globals.settings.instructor_mode
+        ? [
+          CellCommon.simple_cell_view([
+            Widgets.toggle_named(
+              ~name="Write out steps",
+              ~tooltip="Students type every step: the stepper offers none",
+              "✍",
+              model.write_out_steps,
+              _ =>
+              inject(Instructor(ToggleWriteOutSteps))
+            ),
+          ]),
+        ]
+        : [];
 
     let prelude_view =
       CellEditor.View.view(
@@ -593,14 +642,8 @@ module View = {
         |> Option.value(~default=(Float.nan, Float.nan)),
       );
 
-    [
-      score_view,
-      title_view,
-      module_name_view,
-      prompt_view,
-      prelude_view,
-      lemmas_view,
-      theorem_view,
-    ];
+    [score_view, title_view, module_name_view]
+    @ write_out_steps_view
+    @ [prompt_view, prelude_view, lemmas_view, theorem_view];
   };
 };

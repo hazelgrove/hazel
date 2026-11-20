@@ -26,8 +26,10 @@ open Poly;
  * either way.
  *
  * The search goes `max_depth` steps deep, one more on a small goal, and
- * checks at most `max_checks` candidates. It runs in slices (`run`), so a
- * slow check never holds up typing for longer than one candidate takes. */
+ * checks at most `max_checks` candidates. Writing out steps, it goes one
+ * step deep: the box writes no step the user didn't type. It runs in
+ * slices (`run`), so a slow check never holds up typing for longer than
+ * one candidate takes. */
 
 module Picker = StepperPicker;
 
@@ -158,7 +160,9 @@ let start = (goal: Picker.Goal.t, ~wanted: Exp.t): t => {
     next: [],
     seen: [here],
     checks: 0,
-    depth: size(here) <= small_goal ? max_depth + 1 : max_depth,
+    depth:
+      goal.settings.evaluation.write_out_steps
+        ? 1 : size(here) <= small_goal ? max_depth + 1 : max_depth,
   };
 };
 
@@ -601,8 +605,8 @@ let names =
 };
 
 /* What the box lists under itself. Typing the start of a name lists the
- * names it completes to; a name in full, or any other text, lists the
- * rules' uses. */
+ * names it completes to, unless steps are written out; a name in full, or
+ * any other text, lists the rules' uses. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type item =
   | Complete(string)
@@ -617,6 +621,7 @@ let items =
     : list(item) => {
   let completions =
     switch (typed_name) {
+    | Some(_) when goal.settings.evaluation.write_out_steps => []
     | Some(start) =>
       names(goal)
       |> List.map(~f=fst)
@@ -712,8 +717,9 @@ let generalized = (goal: Picker.Goal.t, steps: list(Proof.t)): list(Proof.t) => 
  * the hole's goal, and steps written in the hole change the goal it acts
  * on. The steps are written in place of the hole when the step after
  * still checks once they are taken. Otherwise the search looks for steps
- * back to the hole's goal: found, they are written too; not found, the
- * hole stays after the written steps, marking the gap still to bridge. */
+ * back to the hole's goal, unless steps are written out: found, they are
+ * written too; not found, the hole stays after the written steps,
+ * marking the gap still to bridge. */
 module Bridge = {
   /* The step after `hole` in its chain in `proof`. */
   let step_after = (proof: Proof.t, hole: Proof.t): option(Proof.t) => {
@@ -806,6 +812,9 @@ module Bridge = {
         != None;
       switch (Picker.outgoing(goal, goal.written, written)) {
       | _ when next_checks => steps
+      /* The steps back are the user's to write. */
+      | Some(_) when goal.settings.evaluation.write_out_steps =>
+        steps @ [Proof.fresh(EmptyHole)]
       | Some(reached) =>
         let from =
           Picker.Goal.mk(~settings=goal.settings, ~ctx=goal.ctx, reached);

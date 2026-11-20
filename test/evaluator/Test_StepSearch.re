@@ -13,8 +13,8 @@ let written = Test_StepperView.written;
 
 /* The goal of the theorem's first row, or of its first row inside the
  * first row's body. */
-let goal = (~inside=false, src) => {
-  let f = Fixture.mk(src);
+let goal = (~settings=Test_StepperView.settings, ~inside=false, src) => {
+  let f = Fixture.mk(~settings, src);
   let row = first(f.rows);
   Fixture.goal(f, inside ? first(body(row)) : row);
 };
@@ -59,6 +59,27 @@ let arithmetic = "theorem t = (1 + 1) * 2 == 4 proof ? in t";
 let tests = (
   "StepSearch",
   [
+    test_case(
+      "writing out steps, a goal one step away is found and two steps away isn't",
+      `Quick,
+      () => {
+        let src = "theorem t = 1 + 2 + 3 == 6 proof ? in t";
+        let g = goal(~settings=Test_StepperView.Writing_out.write_out, src);
+        check(
+          steps,
+          "one step",
+          Some(["from 1 + 2 do step end"]),
+          found(search(g, "3 + 3 == 6")),
+        );
+        check(steps, "two steps", None, found(search(g, "6 == 6")));
+        check(
+          steps,
+          "two steps, not writing out",
+          Some(["from 1 + 2 do step end", "from 3 + 3 do step end"]),
+          found(search(goal(src), "6 == 6")),
+        );
+      },
+    ),
     test_case(
       "a step on either operand is found",
       `Quick,

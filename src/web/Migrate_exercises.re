@@ -155,6 +155,7 @@ let emit_item = (item: item): string =>
       prelude: persist_zipper(spec.prelude),
       lemmas: persist_zipper(spec.lemmas),
       theorem: persist_zipper(spec.theorem),
+      write_out_steps: spec.write_out_steps,
     };
     "let "
     ++ name
