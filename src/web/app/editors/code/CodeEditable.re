@@ -419,7 +419,7 @@ module View = {
 
   let focus_input = (editor: Js.t(Dom_html.element)): unit =>
     JsUtil.get_child_with_class(editor, input_class)
-    |> Option.iter(FocusEffect.focus_no_scroll);
+    |> Option.iter(~f=FocusEffect.focus_no_scroll);
 
   /* The input text already dispatched to the editor, which the next `input`
    * event is diffed against. Reset when the caret moves or the input loses
@@ -1140,7 +1140,7 @@ module View = {
           Js.Unsafe.coerce(target)##.value := Js.string("")
         );
       };
-      Effect.Many(List.map(a => inject(Perform(a)), actions));
+      Effect.Many(List.map(~f=a => inject(Perform(a)), actions));
     };
     /* Read-only editors (CodeSelectable) take keys on the div itself: no
        input, so a phone does not raise a keyboard for them. */
