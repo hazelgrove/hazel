@@ -934,7 +934,7 @@ module Transition = (EV: EV_MODE) => {
             generated(Atom(Atom.repack(out_ty, return_value)))
           | Error(error) =>
             // e.g. divide by zero
-            dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
+            dynamic_error_hole(UnOp(op, d1') |> rewrap, error)
           };
         Step({
           expr,
@@ -1241,11 +1241,12 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       // let.wrap_closure _ = env;  // uncomment for hole closures
       Indet;
-    | DynamicErrorHole(d, err) =>
-      let. _ = otherwise(env, d => DynamicErrorHole(d, err) |> rewrap)
-      and. _ =
-        req_final(req(env), d1 => DynamicErrorHole(d1, err) |> wrap_ctx, d);
-      let.wrap_closure _ = (env, d);
+    /* A dynamic error is final, like the holes above. Its contents are the
+       operation or call that failed, built from already-computed values,
+       so nothing in it runs again (re-running it would only raise the same
+       error inside the hole). */
+    | DynamicErrorHole(_) =>
+      let. _ = otherwise(env, d);
       Indet;
     | Asc(d', t) =>
       switch (Ascriptions.transition(d)) {
