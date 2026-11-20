@@ -69,7 +69,7 @@ let is_simple_ascii = (s: string): bool => {
   let i = ref(0);
   let ok = ref(true);
   while (ok^ && i^ < n) {
-    let c = Stdlib.Char.code(String.unsafe_get(s, i^));
+    let c = Char.to_int(String.unsafe_get(s, i^));
     if (c >= 0x80 || c == 0x0D) {
       ok := false;
     } else {
@@ -82,7 +82,7 @@ let is_simple_ascii = (s: string): bool => {
 /* Byte index just past the UTF-8 sequence starting at [i]. Malformed lead
    bytes advance by one so scans always terminate. */
 let next_offset = (s: string, i: int): int => {
-  let b0 = Stdlib.Char.code(String.unsafe_get(s, i));
+  let b0 = Char.to_int(String.unsafe_get(s, i));
   let len =
     if (b0 < 0xC0) {
       1;
@@ -100,8 +100,8 @@ let next_offset = (s: string, i: int): int => {
    degrade to their lead byte. */
 let codepoint_at = (s: string, i: int): int => {
   let n = String.length(s);
-  let cont = j => Stdlib.Char.code(String.unsafe_get(s, j)) land 0x3F;
-  let b0 = Stdlib.Char.code(String.unsafe_get(s, i));
+  let cont = j => Char.to_int(String.unsafe_get(s, j)) land 0x3F;
+  let b0 = Char.to_int(String.unsafe_get(s, i));
   if (b0 < 0xC0) {
     b0;
   } else if (b0 < 0xE0) {
