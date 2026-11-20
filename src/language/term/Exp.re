@@ -287,6 +287,14 @@ let show_cls: cls => string =
   | Module => "Module expression"
   | ModuleExp => "Module definition";
 
+/* The ids e's statics info is stored under: a tuple also owns its
+   entries' `=` tiles, as it owns its commas */
+let info_ids = (e: t): list(Id.t) =>
+  switch (e.term) {
+  | Tuple(entries) => IdTagged.ids(e) @ TupleEntry.eq_ids(entries)
+  | _ => IdTagged.ids(e)
+  };
+
 /* The entry of tuple e named by the label l */
 let dot_entry = (e: t, l: TermBase.Label.t): option(t) =>
   switch (strip_wrappers(e).term, l.term) {
