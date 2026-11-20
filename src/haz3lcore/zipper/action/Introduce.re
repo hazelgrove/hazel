@@ -128,13 +128,12 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             |> (exp => (exp, List.hd_exn(exp.annotation.ids), false)),
           )
         | Prod([t, ...ts]) =>
-          let tuple_entry = (t: TermBase.Typ.t) => {
+          let tuple_entry = (t: TupleEntry.t(TermBase.Typ.t)) => {
             let hole = empty_hole();
             (
-              switch (t) {
-              | {term: TupLabel({term: Label(l), _}, _), _} =>
-                labeled(l, hole)
-              | _ => Unlabeled(hole)
+              switch (TupleEntry.label_name(t)) {
+              | Some(l) => labeled(l, hole)
+              | None => Unlabeled(hole)
               },
               List.hd_exn(hole.annotation.ids),
             );

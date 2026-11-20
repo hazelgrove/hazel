@@ -145,8 +145,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
       name,
       arg:
         Prod([
-          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
-          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+          Unlabeled(Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh),
+          Unlabeled(Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh),
         ]),
       ret: Atom(k3 |> Atom.cls_of_kind),
       imp:

@@ -215,9 +215,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | Arrow(_, _)
         | Sum(_)
         | Prod(_)
-        | ExplicitNonlabel
         | Label(_)
-        | TupLabel(_, _)
         | Parens(_)
         | Projector(_)
         | Rec(_, _)
