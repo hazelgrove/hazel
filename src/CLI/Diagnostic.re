@@ -114,8 +114,8 @@ let format_diagnostic_with_location =
    the nearest enclosing term that has one. */
 let located_id = (measured: Haz3lcore.Measured.t, info: Language.Info.t) =>
   List.find(
-    [Language.Info.id_of(info), ...Language.Info.ancestors_of(info)],
-    ~f=id => Option.is_some(Haz3lcore.Measured.find_opt_by_id(id, measured)),
+    [Language.Info.id_of(info), ...Language.Info.ancestors_of(info)], ~f=id =>
+    Option.is_some(Haz3lcore.Measured.find_opt_by_id(id, measured))
   )
   |> Option.value(~default=Language.Info.id_of(info));
 
