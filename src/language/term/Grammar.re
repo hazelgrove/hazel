@@ -407,7 +407,10 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | ProofOf(e) => ProofOf(map_exp_annotation(f, e))
         | Prod(l) =>
           Prod(
-            List.map(map_tuple_entry_annotation(f, map_typ_annotation), l),
+            List.map(
+              ~f=map_tuple_entry_annotation(f, map_typ_annotation),
+              l,
+            ),
           )
         | Label(l) => Label(l)
         | Sum(m) =>
@@ -1032,7 +1035,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     /* an unlabeled product */
     let prod = (~ann=?, ts): typ_t(DefaultAnnotation.t) => {
-      term: Prod(List.map(t => Unlabeled(t), ts)),
+      term: Prod(List.map(~f=t => Unlabeled(t), ts)),
       annotation: default_annotation(ann),
     };
     let prod_entries = (~ann=?, entries): typ_t(DefaultAnnotation.t) => {

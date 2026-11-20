@@ -1605,7 +1605,7 @@ let decide =
         ),
       )
     | Prod(entries) =>
-      let elements = List.map(TupleEntry.value, entries);
+      let elements = List.map(~f=TupleEntry.value, entries);
       let n = List.length(elements);
       let basic = group =>
         get_message(~explanation=TupleTyp.tuple_typ_explanation(~n), group);

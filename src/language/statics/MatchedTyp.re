@@ -88,7 +88,7 @@ let rec prod_strict:
     | Unknown(SynSwitch) => (
         es,
         Some(
-          List.init(List.length(es), _ =>
+          List.init(List.length(es), ~f=_ =>
             Grammar.Unlabeled(Unknown(SynSwitch) |> temp)
           ),
         ),
@@ -104,7 +104,7 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
     tys_opt
     |> Option.value(
          ~default=
-           List.init(List.length(es), _ =>
+           List.init(List.length(es), ~f=_ =>
              Grammar.Unlabeled(Unknown(Internal) |> temp)
            ),
        ),
@@ -128,10 +128,10 @@ let rec args = (ctx, ty, arity): result(list(Typ.t), int) => {
   switch (term_of(head(ctx, ty))) {
   | Parens(ty) => args(ctx, ty, arity)
   | Prod(tys) when List.length(tys) == arity =>
-    L(List.map(TupleEntry.value, tys))
-  | Prod(tys) => R(List.length(tys))
-  | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
-  | _ => R(1)
+    Ok(List.map(~f=TupleEntry.value, tys))
+  | Prod(tys) => Error(List.length(tys))
+  | _ when arity == 1 => Ok([ty])
+  | Unknown(_) => Ok(List.init(arity, ~f=_ => Unknown(Internal) |> temp))
+  | _ => Error(1)
   };
 };

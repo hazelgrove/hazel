@@ -127,7 +127,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
         ),
       )
     | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Prod(ts) => Prod(List.map(TupleEntry.map(pad_variant_anns), ts))
+    | Prod(ts) => Prod(List.map(~f=TupleEntry.map(pad_variant_anns), ts))
     | List(t) => List(pad_variant_anns(t))
     | Parens(t) => Parens(pad_variant_anns(t))
     | Rec(tp, t) => Rec(tp, pad_variant_anns(t))

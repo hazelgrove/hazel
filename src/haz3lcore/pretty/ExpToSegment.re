@@ -904,9 +904,10 @@ and parenthesize_typ =
       Prod(
         ts
         |> List.map(
-             TupleEntry.map(t =>
-               parenthesize_typ(t) |> paren_typ_at(Precedence.comma)
-             ),
+             ~f=
+               TupleEntry.map(t =>
+                 parenthesize_typ(t) |> paren_typ_at(Precedence.comma)
+               ),
            ),
       )
       |> rewrap;
@@ -2910,7 +2911,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let entry_to_pretty =
       tuple_entry_to_pretty(~settings, ~sort=Sort.Typ, ~go);
     let+ t = entry_to_pretty(t)
-    and+ ts = ts |> List.map(entry_to_pretty) |> all;
+    and+ ts = ts |> List.map(~f=entry_to_pretty) |> all;
     wrap(
       typ,
       t

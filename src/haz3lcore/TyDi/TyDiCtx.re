@@ -262,8 +262,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize(" )::"), exp_aps(ty))
-      @ List.map(restrategize("::"), exp_refs(ty))
+      List.map(~f=restrategize(" )::"), exp_aps(ty))
+      @ List.map(~f=restrategize("::"), exp_refs(ty))
     | Prod([entry, ...tys]) =>
       let ty = TupleEntry.value(entry);
       let commas =
@@ -289,8 +289,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize(" )::"), pat_aps(ty))
-      @ List.map(restrategize("::"), pat_refs(ty))
+      List.map(~f=restrategize(" )::"), pat_aps(ty))
+      @ List.map(~f=restrategize("::"), pat_refs(ty))
     | Prod([entry, ...tys]) =>
       let ty = TupleEntry.value(entry);
       let commas =

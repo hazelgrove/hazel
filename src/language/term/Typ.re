@@ -169,7 +169,8 @@ let rec has_fun = (typ: t) =>
         | _ => false,
       sm,
     )
-  | Prod(tys) => List.exists(entry => has_fun(TupleEntry.value(entry)), tys)
+  | Prod(tys) =>
+    List.exists(~f=entry => has_fun(TupleEntry.value(entry)), tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
   | Sig(_) => false
   };
@@ -267,7 +268,7 @@ let match_tup_label =
 let get_label =
     (entry: TupleEntry.t(t))
     : option((LabeledTuple.label, TupleEntry.t(t))) =>
-  match_tup_label(entry) |> Option.map(((name, _)) => (name, entry));
+  match_tup_label(entry) |> Option.map(~f=((name, _)) => (name, entry));
 /* The ids ty's statics info is stored under: a product also owns its
    entries' `=` tiles */
 let info_ids = (ty: t): list(Id.t) =>
@@ -286,7 +287,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Atom(_)
   | DrvQuoteTy(_)
   | Label(_) => []
-  | Var(v) => List.mem(v, bound) ? [] : [v]
+  | Var(v) => List.mem(bound, v, ~equal=String.equal) ? [] : [v]
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
@@ -295,7 +296,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) =>
     List.concat_map(
-      entry => free_vars(~bound, TupleEntry.value(entry)),
+      ~f=entry => free_vars(~bound, TupleEntry.value(entry)),
       tys,
     )
   | ProdProjection(t1, _) => free_vars(~bound, t1)
@@ -322,10 +323,8 @@ let rec count_unknowns = (ty: t): int =>
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
-    List.fold_left(
-      (acc, entry) => acc + count_unknowns(TupleEntry.value(entry)),
-      0,
-      tys,
+    List.fold(tys, ~init=0, ~f=(acc, entry) =>
+      acc + count_unknowns(TupleEntry.value(entry))
     )
   | Sum(sm) =>
     List.fold_left(
@@ -382,7 +381,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Arrow(ty1, ty2) =>
       Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
     | Prod(tys) =>
-      Prod(List.map(TupleEntry.map(subst(s, x)), tys)) |> rewrap
+      Prod(List.map(~f=TupleEntry.map(subst(s, x)), tys)) |> rewrap
     | Sum(sm) =>
       Sum(ConstructorMap.map(Option.map(~f=subst(s, x)), sm)) |> rewrap
     | Poly(tp2, ty)
@@ -494,7 +493,7 @@ let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(TupleEntry.t(t)), label: string): option(t) =>
   LabeledTuple.find_label(get_label, tys, label)
-  |> Option.map(TupleEntry.value);
+  |> Option.map(~f=TupleEntry.value);
 
 let product_extension =
     (tys1: list(TupleEntry.t(t)), tys2: list(TupleEntry.t(t))): term => {
@@ -505,8 +504,11 @@ let product_extension =
     entry,
   );
   Prod(
-    LabeledTuple.extension(List.map(keyed, tys1), List.map(keyed, tys2))
-    |> List.map(snd),
+    LabeledTuple.extension(
+      List.map(~f=keyed, tys1),
+      List.map(~f=keyed, tys2),
+    )
+    |> List.map(~f=snd),
   );
 };
 
@@ -528,17 +530,21 @@ let remove_duplicate_labels =
     )
     : list(TupleEntry.t(t)) => {
   let (_, rev_deduplicated) =
-    List.fold_left(
-      ((seen_duplicates, rev_deduplicated_types), ty) => {
+    List.fold(
+      tys,
+      ~init=([], []),
+      ~f=((seen_duplicates, rev_deduplicated_types), ty) => {
         let tup_label = match_tup_label(ty);
         switch (tup_label) {
         | Some((l, _))
             when
-              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
+              List.mem(duplicate_labels, l, ~equal=String.equal)
+              && List.mem(seen_duplicates, l, ~equal=String.equal) => (
             seen_duplicates,
             rev_deduplicated_types,
           )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
+        | Some((l, _))
+            when List.mem(duplicate_labels, l, ~equal=String.equal) => (
             [l, ...seen_duplicates],
             [
               labeled_entry(l, Unknown(Internal) |> temp),
@@ -549,8 +555,6 @@ let remove_duplicate_labels =
         | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
         };
       },
-      ([], []),
-      tys,
     );
   List.rev(rev_deduplicated);
 };
@@ -676,10 +680,11 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     /* an explicitly unlabeled entry is an unlabeled one */
     let ts =
       List.map(
-        fun
-        | Grammar.Labeled(_, {term: ExplicitNonlabel, _}, t) =>
-          Grammar.Unlabeled(normalize(ctx, t))
-        | entry => TupleEntry.map(normalize(ctx), entry),
+        ~f=
+          fun
+          | Grammar.Labeled(_, {term: ExplicitNonlabel, _}, t) =>
+            Grammar.Unlabeled(normalize(ctx, t))
+          | entry => TupleEntry.map(normalize(ctx), entry),
         ts,
       );
     let duplicate_labels = LabeledTuple.get_duplicate_labels(get_label, ts);
@@ -712,7 +717,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
                 let x : T => name="x", typ=T
                 let x     => name="x", typ=Unknown */
              sig_let_field(pat)
-             |> Option.map(((name, typ)) =>
+             |> Option.map(~f=((name, typ)) =>
                   labeled_entry(
                     name,
                     switch (typ) {
@@ -747,7 +752,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
            switch (item.term) {
            | SigLet(pat) =>
              sig_let_field(pat)
-             |> Option.map(((name, typ)) =>
+             |> Option.map(~f=((name, typ)) =>
                   labeled_entry(
                     name,
                     switch (typ) {
@@ -771,7 +776,7 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
   | Prod(ts) =>
-    Prod(List.map(TupleEntry.map(desugar_sig(ctx)), ts)) |> rewrap
+    Prod(List.map(~f=TupleEntry.map(desugar_sig(ctx)), ts)) |> rewrap
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
   | Sum(sm) =>
     Sum(ConstructorMap.map(Option.map(~f=desugar_sig(ctx)), sm)) |> rewrap
@@ -833,7 +838,7 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
           )
         | Prod(tys) =>
           List.exists(
-            entry => go(~depth=depth + 1, ctx, TupleEntry.value(entry)),
+            ~f=entry => go(~depth=depth + 1, ctx, TupleEntry.value(entry)),
             tys,
           )
         | ProdExtension(t1, t2) =>
@@ -879,16 +884,13 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
         go(ctx, x1, x2) && go(ctx, y1, y2)
       | (Prod(xs), Prod(ys)) =>
         List.length(xs) == List.length(ys)
-        && List.for_all2(
-             (x, y) =>
-               Option.equal(
-                 String.equal,
-                 TupleEntry.label_name(x),
-                 TupleEntry.label_name(y),
-               )
-               && go(ctx, TupleEntry.value(x), TupleEntry.value(y)),
-             xs,
-             ys,
+        && List.for_all2_exn(xs, ys, ~f=(x, y) =>
+             Option.equal(
+               String.equal,
+               TupleEntry.label_name(x),
+               TupleEntry.label_name(y),
+             )
+             && go(ctx, TupleEntry.value(x), TupleEntry.value(y))
            )
       | (Sum(xs), Sum(ys)) => ConstructorMap.equal(go(ctx), xs, ys)
       | (Rec(tp1, x), Rec(tp2, y))
@@ -1169,7 +1171,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
       | (Unlabeled(_), Labeled(_))
       | (Labeled(_), Unlabeled(_)) => e1
       };
-    Prod(List.map2(match_entry, tys1, tys2)) |> rewrap1;
+    Prod(List.map2_exn(tys1, tys2, ~f=match_entry)) |> rewrap1;
   | (Prod(_), _) => t1
   | (Sum(sm1), Sum(sm2)) =>
     let sm' =
@@ -1376,10 +1378,8 @@ let rec pretty_print = (ty: t): string =>
   | Prod([]) => "()"
   | Prod([t0, ...ts]) =>
     "("
-    ++ List.fold_left(
-         (acc, t) => acc ++ ", " ++ pretty_print_entry(t),
-         pretty_print_entry(t0),
-         ts,
+    ++ List.fold(ts, ~init=pretty_print_entry(t0), ~f=(acc, t) =>
+         acc ++ ", " ++ pretty_print_entry(t)
        )
     ++ ")"
   | ProdProjection(t, label) =>
@@ -1494,12 +1494,13 @@ let all_ids = (ty: t): list(Id.t) => {
     | Poly(_, t) => collect_ann_ids(t)
     | Prod(ts) =>
       List.iter(
-        fun
-        | Grammar.Labeled(_, l, t) => {
-            ids := Label.ids(l) @ ids^;
-            collect_ann_ids(t);
-          }
-        | Unlabeled(t) => collect_ann_ids(t),
+        ~f=
+          fun
+          | Grammar.Labeled(_, l, t) => {
+              ids := Label.ids(l) @ ids^;
+              collect_ann_ids(t);
+            }
+          | Unlabeled(t) => collect_ann_ids(t),
         ts,
       )
     | Unknown(_)
@@ -1572,7 +1573,7 @@ let rec diff =
   | (DrvQuoteTy(_), _) => get_ids()
   | (Label(l1), Label(l2)) when String.equal(l1, l2) => []
   | (Label(_), _) => get_ids()
-  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(v1), Var(v2)) when String.equal(v1, v2) => []
   | (Var(name), _) =>
     switch (expand(name)) {
     | Some(expanded) =>
@@ -1614,8 +1615,10 @@ let rec diff =
     diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
   | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    List.map2(
-      (e1, e2) => {
+    List.map2_exn(
+      tys1,
+      tys2,
+      ~f=(e1, e2) => {
         let label_ids =
           switch (e2) {
           | Grammar.Labeled(_, l, _)
@@ -1632,8 +1635,6 @@ let rec diff =
           };
         label_ids @ diff(~ctx?, TupleEntry.value(e1), TupleEntry.value(e2));
       },
-      tys1,
-      tys2,
     )
     |> List.concat
   | (Prod(_), _) => get_ids()

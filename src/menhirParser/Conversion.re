@@ -513,7 +513,7 @@ and Typ: {
     | TupleType([TupLabelType(_) as tl]) =>
       prod_entries([entry_of_menhir_ast(tl)])
     | TupleType([t]) => of_menhir_ast(t)
-    | TupleType(ts) => prod_entries(List.map(entry_of_menhir_ast, ts))
+    | TupleType(ts) => prod_entries(List.map(~f=entry_of_menhir_ast, ts))
     | LabelType(s) => label(s)
     /* a lone `_` is an invalid type, as MakeTerm reads it */
     | ExplicitNonlabel => unknown(Hole(Invalid("_")))
@@ -589,7 +589,7 @@ and Typ: {
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
-    | Prod(ts) => TupleType(List.map(entry_of_core, ts))
+    | Prod(ts) => TupleType(List.map(~f=entry_of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))

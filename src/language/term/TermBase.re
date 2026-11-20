@@ -786,9 +786,11 @@ and Typ: {
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
         | Unknown(Hole(MultiHole(things))) =>
-          Unknown(Hole(MultiHole(List.map(any_map_term, things))))
+          Unknown(Hole(MultiHole(List.map(~f=any_map_term, things))))
         | Prod(xs) =>
-          Prod(List.map(map_tuple_entry(label_map_term, typ_map_term), xs))
+          Prod(
+            List.map(~f=map_tuple_entry(label_map_term, typ_map_term), xs),
+          )
         | Parens(e) => Parens(typ_map_term(e))
         | Projector(data, t) => Projector(data, typ_map_term(t))
         | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))

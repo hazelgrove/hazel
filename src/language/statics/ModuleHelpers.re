@@ -203,7 +203,7 @@ let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
       exports,
     )
     |> snd;
-  Prod(deduped |> List.map(((name, ty)) => Typ.labeled_entry(name, ty)))
+  Prod(deduped |> List.map(~f=((name, ty)) => Typ.labeled_entry(name, ty)))
   |> Typ.temp;
 };
 

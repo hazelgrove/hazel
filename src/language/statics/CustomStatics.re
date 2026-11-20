@@ -349,17 +349,14 @@ let select_labels_statics =
     ~compute_result_type=
       (labeled_tup_info, labels) => {
         let val_types =
-          List.map(
-            (optional_lab: option(string)) => {
-              Util.OptUtil.map2(
-                (a, b) => Typ.labeled_entry(b, get_tuple_label(a, b)),
-                labeled_tup_info,
-                optional_lab,
-              )
-              |> Option.value(~default=Grammar.Unlabeled(unknown))
-            },
-            labels,
-          );
+          List.map(labels, ~f=(optional_lab: option(string)) => {
+            Util.OptUtil.map2(
+              (a, b) => Typ.labeled_entry(b, get_tuple_label(a, b)),
+              labeled_tup_info,
+              optional_lab,
+            )
+            |> Option.value(~default=Grammar.Unlabeled(unknown))
+          });
         Prod(val_types) |> Typ.temp;
       },
     m,
@@ -390,25 +387,22 @@ let omit_labels_statics =
         | None => unknown
         | Some(labeled_tup_info) =>
           let tys =
-            List.filter_map(
-              entry => {
-                switch (entry) {
-                | Unlabeled(typ) => Some(Grammar.Unlabeled(typ))
-                | Labeled(None, typ) =>
-                  Some(
-                    Grammar.Labeled(
-                      IdTagged.IdTag.temp(),
-                      Label.temp(EmptyHole),
-                      typ,
-                    ),
-                  )
-                | Labeled(Some(lab), typ) =>
-                  List.mem(lab, labels_to_drop)
-                    ? None : Some(Typ.labeled_entry(lab, typ))
-                }
-              },
-              labeled_tup_info,
-            );
+            List.filter_map(labeled_tup_info, ~f=entry => {
+              switch (entry) {
+              | Unlabeled(typ) => Some(Grammar.Unlabeled(typ))
+              | Labeled(None, typ) =>
+                Some(
+                  Grammar.Labeled(
+                    IdTagged.IdTag.temp(),
+                    Label.temp(EmptyHole),
+                    typ,
+                  ),
+                )
+              | Labeled(Some(lab), typ) =>
+                List.mem(labels_to_drop, lab, ~equal=String.equal)
+                  ? None : Some(Typ.labeled_entry(lab, typ))
+              }
+            });
           Prod(tys) |> Typ.temp;
         };
       },
@@ -620,7 +614,7 @@ let omit_all_labels_statics =
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
-      let entries = List.map(TupleEntry.value, entries);
+      let entries = List.map(~f=TupleEntry.value, entries);
 
       add(
         ~elab_term=mk_builtin_ap_elab(~annotation, fn_info, arg.elab_term),

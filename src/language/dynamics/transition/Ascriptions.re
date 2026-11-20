@@ -76,14 +76,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       // TODO Figure out what to do if the labels don't match
       let es' =
-        List.map2(
-          (entry, ty) =>
-            TupleEntry.map(
-              v => recur(Asc(v, TupleEntry.value(ty)) |> DHExp.fresh),
-              entry,
-            ),
-          es,
-          tys,
+        List.map2_exn(es, tys, ~f=(entry, ty) =>
+          TupleEntry.map(
+            v => recur(Asc(v, TupleEntry.value(ty)) |> DHExp.fresh),
+            entry,
+          )
         );
       unchanged(
         List.map(~f=TupleEntry.value, es),
