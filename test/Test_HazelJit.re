@@ -2202,6 +2202,14 @@ let pinball_aot =
       "\n(start = Pinball.start, step = Pinball.step, board = Pinball.board)",
     ~mark="PINBALL",
   );
+let mahjong_solitaire_aot =
+  game_aot(
+    ~dir="mahjong-solitaire",
+    ~modules=["MahjongSolitaire"],
+    ~tail=
+      "\n(deal = MahjongSolitaire.deal, take = MahjongSolitaire.take, frees = MahjongSolitaire.free_places, pairs = MahjongSolitaire.pairs, best = MahjongSolitaire.best, shuffle = MahjongSolitaire.shuffle, places = MahjongSolitaire.layout, won = MahjongSolitaire.won)",
+    ~mark="MAHJONG-SOLITAIRE",
+  );
 
 let astrology_aot = () =>
   switch (
@@ -2812,6 +2820,11 @@ let tests = (
       "pinball (hazeljs-examples), the rules compiled whole, their JS in a file",
       `Quick,
       pinball_aot,
+    ),
+    test_case(
+      "mahjong solitaire (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      mahjong_solitaire_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),
