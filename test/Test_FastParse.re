@@ -99,6 +99,15 @@ let rejected = (name, txt) =>
     )
   });
 
+/* The stepper writes `$e` metavariables into focus selectors. */
+let metavariable_selector = {|let rev = fun xs -> case xs | [] => [] | x :: t => rev(t) @ [x] end in
+
+theorem rev_nil = rev([]) == [] proof
+  from $e([]) do step end;
+  rewrite refl end
+in
+rev_nil|};
+
 let tests = (
   "FastParse",
   [
@@ -189,6 +198,8 @@ let tests = (
     ),
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
+    verbatim("focus selector with a metavariable", metavariable_selector),
+    semantic("focus selector with a metavariable", metavariable_selector),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),
     test_case("projector trigger materializes", `Quick, () => {
       switch (

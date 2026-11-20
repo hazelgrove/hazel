@@ -1,0 +1,24 @@
+# THE STEPPER #
+
+# A proof is a chain of goals. It starts at the statement, and each #
+# step replaces the goal with one that is enough to prove it, until #
+# the goal is true. The stepper draws the chain, one row per goal, #
+# and underlines the part of each goal that the next step acts on. #
+
+# The stepper and the proof text are two views of one proof: editing #
+# either changes the other. You can write a proof in the stepper and #
+# only read the text it writes. #
+
+# An unfinished proof ends in a write box. Click the box in the #
+# stepper for try_it below, then: #
+#   Tab     takes the next evaluation step, shown in grey #
+#   type    the goal you want next, such as 21 == 21, and press #
+#           Enter: a search finds the steps that get there #
+#   select  part of the goal, such as 3 + 4, to work on just that #
+#           part #
+# The tabs above the box offer more: Step marks each part of the #
+# goal that can be evaluated, and Strategy writes the structured #
+# steps of the later slides. #
+
+theorem try_it = (1 + 2) * (3 + 4) == 21 proof ¿ in
+¿
