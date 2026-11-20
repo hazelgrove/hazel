@@ -1106,7 +1106,11 @@ module View = {
       ),
       sidebar,
       bottom_bar,
-      ContextInspector.view(~globals, cursor.info),
+      ContextInspector.view(
+        ~globals,
+        ~proof_map=cursor.proof_map,
+        cursor.info,
+      ),
       HoverRuleSpec.view(~globals),
     ];
   };

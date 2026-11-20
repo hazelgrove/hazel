@@ -67,7 +67,7 @@ let rec sp_exposure =
     | (Let(_, _, b), Util.Direction.Right)
     | (TyAlias(_, _, b), Util.Direction.Right)
     | (Use(_, b), Util.Direction.Right)
-    | (Theorem(_, _, b), Util.Direction.Right)
+    | (Theorem(_, _, _, b), Util.Direction.Right)
     | (Fun(_, b, _, _), Util.Direction.Right)
     | (TypFun(_, b, _), Util.Direction.Right)
     | (FixF(_, b, _), Util.Direction.Right)
@@ -238,7 +238,7 @@ let sp_bounds = (~side: Util.Direction.t, path: list(Exp.t)): list(sp_bound) => 
         | (Use(_, b), _)
         | (Filter(_, b), _) =>
           is(b) ? side == Left ? `Delim : `Fringe : `Delim
-        | (Theorem(_, d, b), _) =>
+        | (Theorem(_, d, _, b), _) =>
           if (is(d)) {
             `Delim;
           } else if (is(b)) {

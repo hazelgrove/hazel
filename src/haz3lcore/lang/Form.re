@@ -100,6 +100,7 @@ let rows_of: family => list(row) =
       mk_infix(Exp, P.semi),
       mk_infix(Mod, P.mod_seq),
       mk_infix(Sig, P.mod_seq),
+      mk_infix(Proof, P.semi),
     ]
   | Plus => [
       mk_infix(Exp, P.plus),
@@ -200,6 +201,7 @@ let rows_of: family => list(row) =
       mk_parens(Drv(Exp)),
       mk_parens(Drv(Pat)),
       mk_parens(Drv(Typ)),
+      mk_parens(Proof),
     ]
   | ApEmpty => [
       mk_post_c(LT, P.ap, Exp, []),
@@ -216,8 +218,6 @@ let rows_of: family => list(row) =
   | ApExpTyp => [mk_post_c(L, P.ap, Exp, [Typ])]
   | Case => [mk_op_c(L, Exp, [Rul]), mk_op_c(L, Drv(Exp), [Drv(Exp)])]
   | Test => [mk_op_c(L, Exp, [Exp])]
-  | ProofOf => [mk_op_c(L, Typ, [Exp])]
-  | ProofObject => [mk_op_c(L, Exp, [Exp])]
   | HintedTest => [mk_op_c(L, Exp, [Exp, Exp])]
   | Fun => [
       mk_pre_c(L, P.fun_, Exp, [Pat]),
@@ -246,6 +246,7 @@ let rows_of: family => list(row) =
           Drv(Exp),
         ),
       ),
+      mk(L, Mold.mk_bin'(P.rule_sep, PRul, Exp, [Pat], Proof)),
     ]
   | Pipeline => [mk_infix(Exp, P.eqs)] // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   | FilterHide => [mk_pre_c(L, P.let_, Exp, [Exp])]
@@ -284,7 +285,7 @@ let rows_of: family => list(row) =
   | Valid => [mk_op_c(L, Drv(Exp), [Drv(Typ)])]
   | Syn => [mk(L, Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))]
   | And => [mk_infix(Drv(Exp), P.and_)]
-  | Impl => [mk_infix(Drv(Exp), P.impl)]
+  | Impl => [mk_infix(Drv(Exp), P.impl), mk_infix(Exp, P.impl)]
   | If => [
       mk_pre_c(L, P.if_, Drv(Exp), [Drv(Exp), Drv(Exp)]),
       mk_pre_c(L, P.if_, Exp, [Exp, Exp]),
@@ -293,7 +294,7 @@ let rows_of: family => list(row) =
       mk_pre_c(L, P.let_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
       mk_pre_c(L, P.let_, Exp, [Pat, Exp]),
     ]
-  | Theorem => [mk_pre_c(L, P.let_, Exp, [Pat, Exp])]
+  | Theorem => [mk_pre_c(L, P.let_, Exp, [Pat, Exp, Proof])]
   | TypeAlias => [mk_pre_c(L, P.let_, Exp, [TPat, Typ])]
   | ModBody => [mk_op_c(LT, Exp, [Mod]), mk_op_c(LT, Typ, [Sig])]
   | ModLet => [mk_pre_c'(L, P.let_, Mod, [Pat], Exp)]
@@ -303,7 +304,33 @@ let rows_of: family => list(row) =
     ]
   | ModuleExp => [mk_pre_c'(L, P.let_, Exp, [MPat, Exp], Exp)]
   | ModuleMod => [mk_pre_c'(L, P.let_, Mod, [MPat], Exp)]
-  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)];
+  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)]
+  | ProofForall => [mk_pre_c(L, P.fun_, Proof, [Pat])]
+  | ProofFunext => [mk_pre_c(L, P.fun_, Proof, [Pat])]
+  | ProofAssume => [mk_pre_c(L, P.fun_, Proof, [Exp])]
+  | ProofGeneralize => [mk_pre_c(L, P.fun_, Proof, [Exp])]
+  | ProofRevert => [mk_pre_c(L, P.fun_, Proof, [Exp])]
+  | ProofAxiom => [mk_op_c(L, Proof, [Exp])]
+  | ProofRevertWith => [mk_pre_c(L, P.fun_, Proof, [Exp, Exp, Exp])]
+  | ProofAxiomWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  /* `rewriteleft h end` applies `h` right to left. */
+  | ProofAxiomRev => [mk_op_c(L, Proof, [Exp])]
+  | ProofAxiomRevWith => [mk_op_c(L, Proof, [Exp, Exp, Exp])]
+  | ProofAlgebrite => [mk_op_c(L, Proof, [Exp])]
+  | ProofEval => [mk_op_c(L, Proof, [])]
+  | ProofCases
+  | ProofInduction => [mk_op_c(L, Proof, [PRul])]
+  /* `have <exp> proof <subproof> => <body>` */
+  | ProofHave => [mk_pre_c(L, P.fun_, Proof, [Exp, Proof])]
+  /* The named forms put the fact's name first, as `alias` does:
+     `have <name> = <exp> proof ...`, `assume <name> = <exp> => ...`. */
+  | ProofHaveNamed => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp, Proof])]
+  | ProofAssumeNamed => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp])]
+  /* `alias <name> = <fact> => <proof>` */
+  | ProofAlias => [mk_pre_c(L, P.fun_, Proof, [Pat, Exp])]
+  | ProofFocus => [mk_op_c(L, Proof, [Exp, Proof])]
+  /* `from <selector> at <n> do <proof> end`, the nth occurrence. */
+  | ProofFocusAt => [mk_op_c(L, Proof, [Exp, Exp, Proof])];
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
@@ -383,8 +410,13 @@ let is_annoying_delim = t =>
  * delimiter */
 let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(~f=((_, form: def)) => {
+  |> List.filter_map(~f=((fam, form: def)) => {
        switch ((form.mold.nibs |> snd).shape) {
+       /* The prover's delimiters (`at`, `do`, `with`, `proof`) would
+          make common short variables (`a`, `d`, `w`, `p`) mold as
+          operators in broken buffers outside proofs. */
+       | _ when form.mold.out == Proof || form.mold.out == PRul => None
+       | _ when fam == Theorem => None
        /* Only NON-leading delimiters contribute prefixes. A
           non-leading delimiter (the `in` of a let) is typed in infix
           position, where the backup infix mold smooths entry. A
@@ -492,13 +524,16 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
     )
   | ExplicitHole => (
       Token.is_explicit_hole,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ)), op(Proof)],
     )
   | ImplicitHoleMarker => (
       Token.is_implicit_hole_marker,
-      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ)), op(Proof)],
     )
-  | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
+  | LLMHole => (
+      Token.is_llm_hole,
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Proof)],
+    )
   | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
   | String => (Token.is_string, [op(Exp), op(Pat)])
   | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
@@ -596,9 +631,11 @@ module Expansion = {
 
   /* Get expansion for a token in a specific sort context.
      Returns monotile if no expansion exists for this sort.
-     Exception: Rul context is permissive - falls back to any expansion.
-     This is because Rul (case rules) contains Exp/Pat operands but has no
-     direct forms for things like parens. Other sorts remain strict. */
+     Exception: Rul and PRul contexts are permissive - they fall back to any
+     expansion, because rules contain operands of other sorts but have no
+     direct forms for things like parens. Proof words expand only in a
+     proof's rules, so in a case's rules they stay names. Other sorts remain
+     strict. */
   let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
     let matching =
       sorted_expansions
@@ -607,12 +644,14 @@ module Expansion = {
     | Some((_, _, lbl, dir)) => (lbl, dir)
     | None =>
       switch (sort) {
-      | Rul =>
-        /* Rul context: fall back to any expansion since rules contain
-           Exp/Pat operands but have no direct operand forms. */
+      | Rul
+      | PRul =>
         let any_match =
           sorted_expansions
-          |> List.find(~f=((tok, _, _, _)) => String.equal(tok, t));
+          |> List.find(~f=((tok, s, _, _)) =>
+               String.equal(tok, t)
+               && (sort == PRul || s != Proof && s != PRul)
+             );
         switch (any_match) {
         | Some((_, _, lbl, dir)) => (lbl, dir)
         | None => ([t], Right)
@@ -837,7 +876,7 @@ let classify_label = (sort: Sort.t, label: Label.t): (t, Sort.t) => {
  * segment (Segment.parenthesize). classify_label can't be used for
  * this: parenthesization must always produce the Parens form, and at
  * Drv(Exp)/Drv(Pat) classify_label finds the Ap form first (see
- * same_label_rank). Sorts with no registered paren row (Rul, Mod,
+ * same_label_rank). Sorts with no registered paren row (Rul, PRul, Mod,
  * Sig, MPat, Any, remaining Drv) do fall back to classify_label:
  * (Parens, Any) with the op fallback mold. */
 let parens_form = (sort: Sort.t): (t, Sort.t) =>
@@ -849,7 +888,8 @@ let parens_form = (sort: Sort.t): (t, Sort.t) =>
   | Drv(Prop)
   | Drv(Exp)
   | Drv(Pat)
-  | Drv(Typ) => (Compound(Parens), sort)
+  | Drv(Typ)
+  | Proof => (Compound(Parens), sort)
   | _ => classify_label(sort, Token.tuple_lbl)
   };
 

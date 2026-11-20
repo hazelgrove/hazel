@@ -180,6 +180,32 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 
+/* find_p, for a piece that may not be laid out in `map`. Raising and
+ * catching is slow in the browser, and callers like the stepper's
+ * decorations ask for many such pieces on every render. */
+let find_p_opt = (p: Piece.t, map): option(measurement) =>
+  switch (p) {
+  | Secondary(w) => Id.Map.find_opt(w.id, map.secondary)
+  | Grout(g) => Id.Map.find_opt(g.id, map.grout)
+  | Projector(p) => Id.Map.find_opt(p.id, map.projectors)
+  | Tile(t) =>
+    switch (Id.Map.find_opt(t.id, map.tiles)) {
+    | Some(shards) =>
+      switch (
+        List.Assoc.find(shards, Tile.l_shard(t), ~equal=Int.equal),
+        List.Assoc.find(shards, Tile.r_shard(t), ~equal=Int.equal),
+      ) {
+      | (Some(first), Some(last)) =>
+        Some({
+          origin: first.origin,
+          last: last.last,
+        })
+      | _ => None
+      }
+    | None => None
+    }
+  };
+
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
   | Some(m) => Some(m)

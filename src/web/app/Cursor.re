@@ -21,6 +21,10 @@ type cursor('update) = {
    * palette opens (refactoring gating walks the syntax). */
   contextual_actions: list(ContextualAction.t),
   contextual_actions_lazy: unit => list(ContextualAction.t),
+  /* Proof check results, keyed by proof sub-term id. Used by the cursor
+   * inspector to show incoming/outgoing expressions for proof terms.
+   * Defaults to empty when no evaluation has been run yet. */
+  proof_map: Language.ProofMap.t,
 };
 
 let map = (f: 'a => 'b, cursor) => {
@@ -55,6 +59,7 @@ let empty = {
   error_ids: [],
   contextual_actions: [],
   contextual_actions_lazy: () => [],
+  proof_map: Language.ProofMap.empty,
 };
 
 let with_actions = (actions: list(ContextualAction.t), cursor) => {
@@ -65,6 +70,11 @@ let with_actions = (actions: list(ContextualAction.t), cursor) => {
 let with_lazy_actions = (actions: unit => list(ContextualAction.t), cursor) => {
   ...cursor,
   contextual_actions_lazy: () => cursor.contextual_actions_lazy() @ actions(),
+};
+
+let with_proof_map = (proof_map: Language.ProofMap.t, cursor) => {
+  ...cursor,
+  proof_map,
 };
 
 let (let+) = (cursor, f) => map(f, cursor);

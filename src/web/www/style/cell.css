@@ -25,7 +25,7 @@
 
 :is(#main.Scratch,
 #main.Documentation,
-#main.Configuration):not(.Derivations) > * > .code-editor {
+#main.Configuration):not(.Derivations) > * > .code-scroll {
   background-color: var(--cell-active);
 }
 
@@ -33,8 +33,18 @@
 #main.Documentation,
 #main.Configuration):not(.Derivations) .cell {
   flex-grow: 1;
-  /* stretch background under probe overlays; --main-scroll-width set by ScrollWidth */
-  width: var(--main-scroll-width, max-content);
+  /* The pane's width, whatever the cell holds: its code scrolls in
+   * .code-scroll, and a result too wide for the pane overflows the cell. */
+  width: 100%;
+}
+
+/* The result row (not a stepper, which is a .cell-result too) grows with a
+ * value that can't wrap to the pane, keeping its background under the value
+ * and its toggle beyond it. */
+:is(#main.Scratch,
+#main.Documentation,
+#main.Configuration):not(.Derivations) .cell > .cell-result:not(.stepper) {
+  min-width: max-content;
 }
 
 #main.Tutorial,
@@ -87,9 +97,34 @@
   flex-direction: column;
 }
 
-.cell > * {
+.cell > *,
+.code-scroll > * {
   padding: 1em;
   padding-left: 1.2em;
+}
+
+/* The cell's code scrolls sideways in this box, so that a long line widens
+ * neither the cell nor the views below the code. A box that scrolls one way
+ * clips the other, so whatever has to show past the code's top or bottom
+ * edge is position: fixed (see FloatingElement.re). */
+.cell > .code-scroll {
+  /* the editor inside takes the padding, to scroll with the code */
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* keeps the code's width out of the cell's own max-content width */
+  contain: inline-size;
+  scrollbar-width: thin;
+}
+
+/* At least as wide as the box, so the whole visible row takes clicks. */
+.cell > .code-scroll > .code-editor {
+  width: max-content;
+  min-width: 100%;
+  /* Clipped here, vertical overflow adds no scrollable height to the box.
+   * With any, JsUtil.find_scroll_container would take the box for the
+   * code's vertical scroller. */
+  overflow-y: clip;
 }
 
 .cell-item {
@@ -376,12 +411,14 @@
   border-left: 1px solid transparent;
 }
 
-.cell .cell-item:first-child {
+.cell .cell-item:first-child,
+.cell > .code-scroll:first-child {
   border-top-left-radius: 0.4em;
   border-top-right-radius: 0.4em;
 }
 
-.cell .cell-item:last-child {
+.cell .cell-item:last-child,
+.cell > .code-scroll:last-child {
   border-bottom-left-radius: 0.4em;
   border-bottom-right-radius: 0.4em;
 }

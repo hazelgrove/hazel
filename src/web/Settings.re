@@ -74,6 +74,7 @@ module Model = {
         show_settings: false,
         show_hidden_steps: false,
         enable_proof: false,
+        write_out_steps: false,
         project_tables: false,
       },
     },
@@ -171,6 +172,7 @@ module Update = {
     | ShowRecord
     | ForceShowRecord
     | EnableProof
+    | WriteOutSteps
     | ShowCaseClauses
     | ShowFnBodies
     | ShowAscriptionSteps
@@ -368,6 +370,10 @@ module Update = {
           | EnableProof => {
               ...evaluation,
               enable_proof: !evaluation.enable_proof,
+            }
+          | WriteOutSteps => {
+              ...evaluation,
+              write_out_steps: !evaluation.write_out_steps,
             }
           | ProjectTables => {
               ...evaluation,

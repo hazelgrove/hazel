@@ -74,24 +74,26 @@ let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
   derived;
 };
 
+let perform_one = (~settings=default_settings, a: Action.t, z: Zipper.t) =>
+  Perform.go(
+    ~settings,
+    ~statics=Lazy.force(derive(~settings, z).statics),
+    ~syntax=CachedSyntax.init(z),
+    a,
+    {
+      zipper: z,
+      col_target: None,
+    },
+    ~root=Exp,
+  );
+
 let perform =
     (~settings=default_settings, zip: Zipper.t, actions: list(Action.t))
-    : Zipper.t => {
-  let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go(
-      ~settings,
-      ~statics=Lazy.force(derive(~settings, z).statics),
-      ~syntax=CachedSyntax.init(z),
-      a,
-      {
-        zipper: z,
-        col_target: None,
-      },
-    );
+    : Zipper.t =>
   List.fold_left(
     ~f=
       (z: Zipper.t, a: Action.t) =>
-        switch (perform(a, z, ~root=Exp)) {
+        switch (perform_one(~settings, a, z)) {
         | Ok(z) =>
           /* Term construction must be total on every reachable editor state
            * (statics/display consume it after every action). Checking here
@@ -116,7 +118,6 @@ let perform =
     ~init=zip,
     actions,
   );
-};
 
 let string_to_ltr_actions = (s: string): list(Action.t) =>
   s |> Token.to_list |> List.map(~f=c => Action.Insert(c));
@@ -6103,7 +6104,127 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+let fold = Action.Project(SetIndicated(Specific(Fold)));
+
+let has_fold = (z: Zipper.t): bool =>
+  List.exists(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Projector(pr) => Poly.equal(pr.kind, Fold)
+        | Tile(_)
+        | Grout(_)
+        | Secondary(_) => false
+        },
+    Zipper.unselect_and_zip(z),
+  );
+
+let fold_tests = [
+  /* A projector stands for a whole term, and a header has no body for
+     the `in` to take. */
+  test_case(
+    "A let header without its body doesn't fold",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\n§let y = 2 in¦\nx + y");
+      check(
+        bool,
+        "fold refused",
+        true,
+        switch (perform_one(fold, z)) {
+        | Error(Cant_project) => true
+        | Ok(_)
+        | Error(_) => false
+        },
+      );
+    },
+  ),
+  test_case(
+    "A whole selected term folds",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\nlet y = 2 in\n§x + y¦");
+      check(bool, "folded", true, has_fold(perform(z, [fold])));
+    },
+  ),
+  test_case(
+    "The let at the caret folds",
+    `Quick,
+    () => {
+      let z = parse_zipper("let x = 1 in\n¦let y = 2 in\nx + y");
+      check(bool, "folded", true, has_fold(perform(z, [fold])));
+    },
+  ),
+];
+
+/* Proof words are keywords only in proof syntax: in an expression they are
+ * names, even in a case's rules, where typing falls back to forms of any
+ * sort. */
+let proof_word_tests = {
+  let sorts_of = (word: string, z: Zipper.t): list(string) =>
+    tile_sorts_of_zip(z)
+    |> List.filter_map(~f=((tok, sort)) =>
+         String.equal(tok, word) ? Some(Sort.show(sort)) : None
+       );
+  let typed_at = (init: string, word: string): list(string) =>
+    perform(parse_with_caret(init), string_to_ltr_actions(word))
+    |> sorts_of(word);
+  let in_case_rule = word =>
+    test_case("`" ++ word ++ "` typed in a case's rule is a name", `Quick, () =>
+      check(
+        list(string),
+        word,
+        ["Exp"],
+        typed_at("case 0 | _ => 1 | _ => ¦ end", word),
+      )
+    );
+  /* The rewrite step a theorem's typed proof is: its direction, and
+   * whether it has a `with` clause. */
+  let typed_rewrite = (proof: string): option((string, bool)) => {
+    let z =
+      mk("theorem t = 1 == 1 proof " ++ proof ++ " in t¦")
+      |> perform(Zipper.init());
+    switch (MakeTerm.from_zip_for_sem(z, ~root=Exp).term.term) {
+    | Theorem(_, _, {term: AxiomStep({direction, instantiation, _}), _}, _) =>
+      Some((Direction.show(direction), Option.is_some(instantiation)))
+    | _ => None
+    };
+  };
+  let rewrite_test = (proof, expected) =>
+    test_case(proof, `Quick, () =>
+      check(
+        option(pair(string, bool)),
+        proof,
+        Some(expected),
+        typed_rewrite(proof),
+      )
+    );
+  [
+    in_case_rule("from"),
+    in_case_rule("rewrite"),
+    in_case_rule("rewriteleft"),
+    in_case_rule("assume"),
+    rewrite_test("rewrite h end", ("Right", false)),
+    rewrite_test("rewriteleft h end", ("Left", false)),
+    rewrite_test("rewrite h with n = 1 end", ("Right", true)),
+    rewrite_test("rewriteleft h with n = 1 end", ("Left", true)),
+    test_case(
+      "`from` typed in an induction's rule is a proof step", `Quick, () =>
+      check(
+        list(string),
+        "from",
+        ["Proof"],
+        typed_at(
+          "theorem t = 1 == 1 proof induction n | 0 => ¦ end in t",
+          "from",
+        ),
+      )
+    ),
+  ];
+};
+
 let tests = [
+  ("Editing.Fold", fold_tests),
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),
@@ -6140,4 +6261,5 @@ let tests = [
   ("Editing.CrossBoundary", cross_boundary_tests),
   ("Editing.InnerDestruct", inner_destruct_tests),
   ("Editing.Grapheme", grapheme_tests),
+  ("Editing.ProofWords", proof_word_tests),
 ];

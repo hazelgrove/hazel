@@ -810,7 +810,8 @@ let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
          switch (w) {
          | Pat(UnusedVar(_)) => true
          | TPat(_)
-         | Typ(_) => false
+         | Typ(_)
+         | Exp(_) => false
          }
        )
   | _ => false
