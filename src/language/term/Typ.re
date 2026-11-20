@@ -1016,7 +1016,7 @@ let rec meet =
      heads that matched (Amadio and Cardelli), and the recursive type is its
      meet. */
   let assumed = (ty_rec: t, ty: t): bool =>
-    List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen);
+    List.exists(~f=((r, o)) => equal(r, ty_rec) && equal(o, ty), seen);
   /* [ty_rec] against [ty] through [ty_rec]'s unrolling, which [meet_unrolled]
      meets in [ty_rec]'s position. The result is [ty_rec] itself when the meet
      is exactly its unrolling. */
