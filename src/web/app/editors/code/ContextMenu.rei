@@ -8,6 +8,9 @@ type command =
   | Perform(Haz3lcore.Action.t)
   | PasteFromClipboard;
 
+/** The "Put down" row, offered exactly when the backpack can be dropped. */
+let put_down_data: Haz3lcore.ZipperBase.t => list(Util.Menu.item(command));
+
 module WithContext: {
   let update:
     (
