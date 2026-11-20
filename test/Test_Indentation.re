@@ -1151,6 +1151,24 @@ let indent_ux_tests = [
       @ [Action.Insert("+")],
     ~expected="fun q ->\n  ?+x",
   ),
+  /* Word movement (Alt/Ctrl+Arrow, ByToken) obeys the same rule: it
+     used to rest inside the indentation */
+  ux_case(
+    ~name="word-left from first-content lands at previous line end",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ mv_l(1)
+      @ [Action.Move(Local(Left, ByToken)), Action.Insert("2")],
+    ~expected="fun q ->2 \n  x",
+  ),
+  ux_case(
+    ~name="word-right from line end skips indentation to first content",
+    ~acts=
+      string_to_ltr_actions("fun q ->\nx")
+      @ mv_l(2)
+      @ [Action.Move(Local(Right, ByToken)), Action.Insert("+")],
+    ~expected="fun q ->\n  ?+x",
+  ),
   ux_case(
     ~name="blank lines keep one reachable position (their end)",
     ~acts=

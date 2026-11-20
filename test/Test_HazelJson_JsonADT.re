@@ -19,9 +19,35 @@ let test_round_trip = (~name, ~json: Yojson.Safe.t) =>
     },
   );
 
+/* Unevaluated source spells a negative literal as a unary minus on a
+   positive one: both the Int and Float arms must accept it. */
+let test_source = (~name, ~source, ~json: Yojson.Safe.t) =>
+  test_case(name, `Quick, () =>
+    switch (Parser.to_term(source, ~root=Exp)) {
+    | Some(exp) =>
+      check(
+        yojson_result_testable,
+        name,
+        Ok(json),
+        HazelJson.JsonADT.exp_to_yojson(exp),
+      )
+    | None => fail("failed to parse: " ++ source)
+    }
+  );
+
 let tests = (
   "HazelJson.JsonADT",
   [
+    test_source(
+      ~name="source_int_negative",
+      ~source="Int(-7)",
+      ~json=`Int(-7),
+    ),
+    test_source(
+      ~name="source_float_negative",
+      ~source="Float(-2.5)",
+      ~json=`Float(-2.5),
+    ),
     /* Null */
     test_round_trip(~name="null", ~json=`Null),
     /* Bool */
