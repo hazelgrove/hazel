@@ -1,0 +1,62 @@
+@title
+Recursive Fibonacci
+
+@flags
+id=12f5e34d-d211-4332-91e2-815e9e183885 required_tests=5 provided_tests=0
+
+@points
+test_validation=1 mutation_testing=1 impl_grading=2
+
+@prompt
+Write test cases for, and then implement, a function that recursively determines the nth Fibonacci number.
+
+`fib(n)` is equivalent to the `n`th Fibonacci number, assuming `n >= 0`.
+
+@prelude
+¿
+
+@code
+let fib: Int -> Int =
+  fun n ->
+    ¿
+in ¿
+
+@your-tests
+¿
+
+@solution
+let fib: Int -> Int =
+  fun x ->
+    if x < 2 then 1
+    else fib(x - 1) + fib(x - 2)
+in ¿
+
+@bug incorrect base cases
+let fib: Int -> Int =
+  fun x ->
+    if x < 1 then 0
+    else if x < 2 then 1
+    else fib(x - 1) + fib(x - 2)
+in ¿
+
+@bug incorrect recursion
+let fib: Int -> Int =
+  fun x ->
+    if x < 2 then 1
+    else fib(x - 2) + fib(x - 2)
+in ¿
+
+@test
+test fib(0) == 1 end;
+test fib(1) == 1 end;
+test fib(2) == 2 end;
+test fib(3) == 3 end;
+test fib(4) == 5 end;
+test fib(5) == 8 end;
+test fib(6) == 13 end;
+test fib(7) == 21 end;
+test fib(8) == 34 end;
+¿
+
+@syntax fib is recursive
+(IsRecursive fib)

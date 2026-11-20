@@ -20,6 +20,11 @@
 
 (copy_files ../../hazel-programs/config/*.hz)
 
+; The bundled code and theorem exercises are committed .hzt text too,
+; embedded by ExerciseSettings_base and parsed by ExerciseText at startup.
+
+(copy_files ../../hazel-programs/exercises/*.hzt)
+
 (library
  (name workerServer)
  (flags
@@ -79,7 +84,8 @@
    ppx_blob
    bonsai.ppx_bonsai))
  (preprocessor_deps
-  (glob_files_rec *.hz)))
+  (glob_files_rec *.hz)
+  (glob_files *.hzt)))
 
 (executable
  (name main)

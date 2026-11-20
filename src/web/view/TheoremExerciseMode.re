@@ -102,12 +102,6 @@ module Model = {
     };
   };
 
-  let export_module = (model: t): string => {
-    let prefix = "let exercise : Exercise.t = Theorem\n";
-    let spec = spec_of_t(model);
-    prefix ++ TheoremExercise.show_spec(spec) ++ "\n";
-  };
-
   /* Editors whose problems should appear in the Problems sidebar. All three
      cells are always rendered (Prelude read-only, Theorem prove-only) and
      all are jumpable, so all are listed. */

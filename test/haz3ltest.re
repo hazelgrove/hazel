@@ -109,6 +109,7 @@ let (suite, exit_with_test_status) =
     @ [Test_WorkerClient.tests]
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
+    @ Test_ExerciseText.tests
     @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests

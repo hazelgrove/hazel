@@ -131,26 +131,57 @@ module Model = {
     | Theorem(e) => e.module_name
     };
 
-  let export_exercise_module = (e: exercise): string =>
-    switch (e) {
-    | Code(e) => CodeExercise.export_module({eds: e.editors})
-    | Derivation(e) => DerivationExercise.export_module({eds: e.editors})
-    | Theorem(t) => TheoremExerciseMode.Model.export_module(t)
-    };
+  let module_name_or_default = (e: exercise): string =>
+    StringUtil.isEmptyOrWhitespace(get_exercise_module_name(e))
+      ? "UnnamedExerciseModule" : get_exercise_module_name(e);
 
-  let export_transitionary_module = (e: exercise): string =>
+  /* (filename, contents) of "Export Exercise Module": a code or theorem
+     exercise's .hzt source, for hazel-programs/exercises/ (see
+     ExerciseText); a derivation exercise's OCaml module. */
+  let export_exercise_file = (e: exercise): (string, string) => {
+    let module_name = module_name_or_default(e);
     switch (e) {
-    | Code(e) =>
-      CodeExercise.export_transitionary_module(
-        e.editors.module_name,
-        {eds: e.editors},
+    | Code(c) => (
+        ExerciseText.filename_of(module_name),
+        ExerciseText.code_to_text(
+          CodeExercise.map(
+            {
+              ...c.editors,
+              module_name,
+            },
+            ed => ed.state.zipper,
+            ed => ed.state.zipper,
+          ),
+        ),
       )
-    | Derivation(e) =>
-      DerivationExercise.export_transitionary_module(
-        e.spec.module_name,
-        {eds: e.editors},
+    | Theorem(t) => (
+        ExerciseText.filename_of(module_name),
+        ExerciseText.theorem_to_text({
+          ...TheoremExerciseMode.Model.spec_of_t(t),
+          module_name,
+        }),
       )
-    | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
+    | Derivation(d) => (
+        module_name ++ ".ml",
+        DerivationExercise.export_module({eds: d.editors}),
+      )
+    };
+  };
+
+  /* "Export Transitionary Exercise Module": a derivation exercise as
+     program strings, to carry it across a Zipper.t change. Code and
+     theorem exercises are text already, so they export as above. */
+  let export_transitionary_file = (e: exercise): (string, string) =>
+    switch (e) {
+    | Derivation(d) => (
+        module_name_or_default(e) ++ ".ml",
+        DerivationExercise.export_transitionary_module(
+          d.spec.module_name,
+          {eds: d.editors},
+        ),
+      )
+    | Code(_)
+    | Theorem(_) => export_exercise_file(e)
     };
 
   // Used for the assistant or something
@@ -325,16 +356,13 @@ module Update = {
     | ExportSubmission
     | ExportTransitionary;
   let export_exercise_module = (exercises: Model.t): unit => {
-    let exercise = Model.get_current(exercises);
-    let module_name =
-      StringUtil.isEmptyOrWhitespace(
-        exercise |> Model.get_exercise_module_name,
-      )
-        ? "UnnamedExerciseModule" : exercise |> Model.get_exercise_module_name;
-    let filename = module_name ++ ".ml";
-    let content_type = "text/plain";
-    let contents = Model.export_exercise_module(exercise);
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
+    let (filename, contents) =
+      Model.export_exercise_file(Model.get_current(exercises));
+    JsUtil.download_string_file(
+      ~filename,
+      ~content_type="text/plain",
+      ~contents,
+    );
   };
 
   let export_submission = (~globals: Globals.t) =>
@@ -349,17 +377,13 @@ module Update = {
     });
 
   let export_transitionary = (exercises: Model.t) => {
-    let exercise = Model.get_current(exercises);
-    let module_name =
-      StringUtil.isEmptyOrWhitespace(
-        exercise |> Model.get_exercise_module_name,
-      )
-        ? "UnnamedExerciseModule" : exercise |> Model.get_exercise_module_name;
-    // .ml files because show uses OCaml syntax (dune handles seamlessly)
-    let filename = module_name ++ ".ml";
-    let content_type = "text/plain";
-    let contents = Model.export_transitionary_module(exercise);
-    JsUtil.download_string_file(~filename, ~content_type, ~contents);
+    let (filename, contents) =
+      Model.export_transitionary_file(Model.get_current(exercises));
+    JsUtil.download_string_file(
+      ~filename,
+      ~content_type="text/plain",
+      ~contents,
+    );
   };
 
   let update =

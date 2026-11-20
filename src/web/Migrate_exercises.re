@@ -1,5 +1,6 @@
 /* Dev tool (nothing at runtime depends on this file): regenerates the
- * example exercise modules' shipped form. Each registered module is
+ * derivation exercise modules' shipped form (code and theorem exercises
+ * are .hzt text, hazel-programs/exercises/). Each registered module is
  * reprinted with every editor as a PersistentZipper.t literal
  * ({zipper: "<Zipper sexp>", backup_text: "<program text>"}) decoded via
  * *.of_persistent at load time: sexp decode is ~free at startup, and a
@@ -45,8 +46,8 @@ open Web;
 
 let reindent = Array.mem(Sys.get_argv(), "--reindent", ~equal=String.equal);
 
-/* Reset non-persistable refractor state before serialization, mirroring
- * CodeExercise.editor_pp (keeps manuals, resets multis/sample_focus). */
+/* Reset non-persistable refractor state before serialization (keeps
+ * manuals, resets multis/sample_focus). */
 let persist_zipper = (z: Zipper.t): PersistentZipper.t =>
   (reindent ? Perform.reindent_zipper(z) : z)
   |> Zipper.update_refractors(_, Refractors.for_serialization)
@@ -58,9 +59,7 @@ let persistent_pp = (fmt, z: Zipper.t) =>
 
 /* One top-level `let` in an output file. The string is the value name. */
 type item =
-  | CodeEx(string, CodeExercise.spec) /* let <name> : Exercise.t = Code(...) */
   | DrvEx(string, DerivationExercise.spec) /* let <name> : Exercise.t = Derivation(...) */
-  | ThmEx(string, TheoremExercise.spec) /* let <name> : Exercise.t = Theorem(...) */
   | DrvSpec(string, DerivationExercise.spec); /* let <name> : DerivationExercise.spec = ... */
 
 type file = {
@@ -68,41 +67,17 @@ type file = {
   items: list(item),
 };
 
-let code_spec = (e: Exercise.t): CodeExercise.spec =>
-  switch (e) {
-  | Code(s) => s
-  | _ => failwith("Migrate_exercises: expected Code exercise")
-  };
-
 let drv_spec = (e: Exercise.t): DerivationExercise.spec =>
   switch (e) {
   | Derivation(s) => s
   | _ => failwith("Migrate_exercises: expected Derivation exercise")
   };
 
-let thm_spec = (e: Exercise.t): TheoremExercise.spec =>
-  switch (e) {
-  | Theorem(s) => s
-  | _ => failwith("Migrate_exercises: expected Theorem exercise")
-  };
-
 /* The migration targets: every registered module that embeds zipper
  * literals. Feature branches with custom exercises: extend this table
- * (and only this table) with your own modules. Blank*Exercise.ml are
- * templates built from blank_spec (no zipper literals) — nothing to do. */
+ * (and only this table) with your own modules. BlankDerivationExercise.ml
+ * is a template built from blank_spec (no zipper literals) — nothing to do. */
 let files: list(file) = [
-  {
-    path: "src/web/exercises/examples/Ex_OddlyRecursive.ml",
-    items: [CodeEx("exercise", code_spec(Ex_OddlyRecursive.exercise))],
-  },
-  {
-    path: "src/web/exercises/examples/Ex_RecursiveFibonacci.ml",
-    items: [CodeEx("exercise", code_spec(Ex_RecursiveFibonacci.exercise))],
-  },
-  {
-    path: "src/web/exercises/examples/Ex_ReverseReverse.ml",
-    items: [ThmEx("exercise", thm_spec(Ex_ReverseReverse.exercise))],
-  },
   {
     path: "src/web/exercises/examples/Ex_EvaluationDerivation.ml",
     items: [DrvEx("exercise", drv_spec(Ex_EvaluationDerivation.exercise))],
@@ -133,34 +108,12 @@ let files: list(file) = [
 
 let emit_item = (item: item): string =>
   switch (item) {
-  | CodeEx(name, spec) =>
-    "let "
-    ++ name
-    ++ " : Exercise.t =\n  Code\n    (CodeExercise.of_persistent\n       "
-    ++ CodeExercise.show_p(persistent_pp, spec)
-    ++ ")\n"
   | DrvEx(name, spec) =>
     "let "
     ++ name
     ++ " : Exercise.t =\n  Derivation\n    (DerivationExercise.of_persistent\n       "
     ++ DerivationExercise.show_p(persistent_pp, spec)
     ++ ")\n"
-  | ThmEx(name, spec) =>
-    let ps: TheoremExercise.persistent_spec = {
-      id: spec.id,
-      title: spec.title,
-      module_name: spec.module_name,
-      prompt: spec.prompt,
-      max_points: spec.max_points,
-      prelude: persist_zipper(spec.prelude),
-      lemmas: persist_zipper(spec.lemmas),
-      theorem: persist_zipper(spec.theorem),
-    };
-    "let "
-    ++ name
-    ++ " : Exercise.t =\n  Theorem\n    (TheoremExercise.of_persistent\n       "
-    ++ TheoremExercise.show_persistent_spec(ps)
-    ++ ")\n";
   | DrvSpec(name, spec) =>
     "let "
     ++ name
@@ -209,27 +162,6 @@ type field = {
   zipper: Zipper.t,
 };
 
-let code_fields = (name, s: CodeExercise.spec): list(field) => {
-  let f = (label, zipper) => {
-    label: name ++ "." ++ label,
-    root: Sort.Exp,
-    zipper,
-  };
-  [
-    f("prelude", s.prelude),
-    f("correct_impl", s.correct_impl),
-    f("your_tests.tests", s.your_tests.tests),
-    f("your_impl", s.your_impl),
-  ]
-  @ List.mapi(
-      ~f=
-        (i, wi: CodeExercise.wrong_impl(Zipper.t)) =>
-          f("hidden_bugs[" ++ string_of_int(i) ++ "].impl", wi.impl),
-      s.hidden_bugs,
-    )
-  @ [f("hidden_tests.tests", s.hidden_tests.tests)];
-};
-
 let drv_fields = (name, s: DerivationExercise.spec): list(field) => {
   let acc = ref([]);
   let _: DerivationExercise.p(Zipper.t) =
@@ -251,25 +183,10 @@ let drv_fields = (name, s: DerivationExercise.spec): list(field) => {
   List.rev(acc^);
 };
 
-let thm_fields = (name, s: TheoremExercise.spec): list(field) => {
-  let f = (label, zipper) => {
-    label: name ++ "." ++ label,
-    root: Sort.Exp,
-    zipper,
-  };
-  [
-    f("prelude", s.prelude),
-    f("lemmas", s.lemmas),
-    f("theorem", s.theorem),
-  ];
-};
-
 let fields_of_item = (item: item): list(field) =>
   switch (item) {
-  | CodeEx(name, s) => code_fields(name, s)
   | DrvEx(name, s)
   | DrvSpec(name, s) => drv_fields(name, s)
-  | ThmEx(name, s) => thm_fields(name, s)
   };
 
 let seg_of_zipper = (z: Zipper.t): Base.segment =>
@@ -335,10 +252,8 @@ let registry_warnings = (): list(string) => {
     |> List.map(
          ~f=
            fun
-           | CodeEx(_, s) => s.id
            | DrvEx(_, s)
-           | DrvSpec(_, s) => s.id
-           | ThmEx(_, s) => s.id,
+           | DrvSpec(_, s) => s.id,
        );
   let missing = (kind, title, id) =>
     List.mem(covered_ids, id, ~equal=Id.equal)
@@ -349,11 +264,16 @@ let registry_warnings = (): list(string) => {
           ++ " not covered by Migrate_exercises table: "
           ++ title,
         );
-  /* Tutorial lessons are .hzt text (no zipper literals) — nothing to migrate. */
+  /* Tutorial lessons and code/theorem exercises are .hzt text (no zipper
+     literals) — nothing to migrate. */
   List.filter_map(
     ~f=
       (e: Exercise.t) =>
-        missing("exercise", Exercise.title_of(e), Exercise.id_of(e)),
+        switch (e) {
+        | Derivation(s) => missing("exercise", s.title, s.id)
+        | Code(_)
+        | Theorem(_) => None
+        },
     ExerciseSettings_base.exercises,
   )
   @ List.filter_map(

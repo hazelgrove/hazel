@@ -5,11 +5,11 @@ type in `src/web/exercises/Exercise.re`. Logic common to all exercise kinds
 lives in `Exercise.re`; logic specific to each kind lives in its own
 `<Kind>Exercise*.re` / `<Kind>ExerciseMode.re` / `<Kind>Grading.re` modules:
 
-| Constructor  | Kind              | Spec module           | Editor/View module        | Template file                                               |
-| ------------ | ----------------- | --------------------- | ------------------------- | ----------------------------------------------------------- |
-| `Code`       | Programming       | `CodeExercise`        | `CodeExerciseMode`        | `src/web/exercises/examples/BlankCodeExercise.ml`           |
-| `Derivation` | Derivations       | `DerivationExercise`  | `DerivationExerciseMode`  | `src/web/exercises/examples/BlankDerivationExercise.ml`     |
-| `Theorem`    | Proofs            | `TheoremExercise`     | `TheoremExerciseMode`     | `src/web/exercises/examples/BlankTheoremExercise.ml`        |
+| Constructor  | Kind         | Spec module          | Editor/View module       | Source                                                   |
+| ------------ | ------------ | -------------------- | ------------------------ | -------------------------------------------------------- |
+| `Code`       | Programming  | `CodeExercise`       | `CodeExerciseMode`       | `.hzt` text in `hazel-programs/exercises/`               |
+| `Theorem`    | Proofs       | `TheoremExercise`    | `TheoremExerciseMode`    | `.hzt` text in `hazel-programs/exercises/`               |
+| `Derivation` | Derivations  | `DerivationExercise` | `DerivationExerciseMode` | `src/web/exercises/examples/BlankDerivationExercise.ml`  |
 
 Shared grading primitives (`score`, `percentage`, `score_view`, ...) live in
 `src/web/exercises/Grading.re`; code-exercise-specific grading (test
@@ -18,26 +18,53 @@ validation, mutation testing, syntax checks, impl grading) lives in
 CLI (`src/CLI/Grade.re`), which dispatches over each exercise kind and
 is invoked by the `grade-json` / `grade-report` subcommands.
 
-## Generic workflow
+## Code and theorem exercises
 
-The cycle for creating an exercise of any kind is the same:
+These are plain text: one `.hzt` file per exercise in
+`hazel-programs/exercises/`, with marker sections for the title, prompt,
+prelude, starter code, solution, hidden bugs, hidden tests and so on. The
+format is documented, with an example, in
+`hazel-programs/exercises/README.md`.
 
-1. Copy the appropriate template file from `src/web/exercises/examples/` (or any other subdirectory of your choosing under `src/web/exercises`) and
-   rename it to match your exercise module name, e.g. `Ex_MyNewExercise`. Use the `.ml` extension
-   (for technical reasons). Make sure the `module_name` field in the file matches your
-   exercise module name (without the extension).
+1. Write `hazel-programs/exercises/my-new-exercise.hzt`, starting from the
+   README's example or a copy of an existing exercise. Give it a fresh
+   `id=` (`uuidgen | tr A-Z a-z`): students' saved progress is keyed on it.
+
+2. Add it to the `sources` list in
+   `src/web/exercises/settings/ExerciseSettings_base.re`:
+   ```reason
+   ("my-new-exercise.hzt", [%blob "../../my-new-exercise.hzt"]),
+   ```
+
+3. Compile and load Hazel (`make serve`). To edit the exercise in the app
+   instead, turn on Instructor Mode (graduation-cap toggle in the top bar),
+   make your changes, and click "Export Exercise Module" in the File menu:
+   it downloads the exercise as a `.hzt` file to drop in over yours.
+
+4. `make test` loads every bundled exercise and checks that its solution
+   earns every point and its hidden tests catch every hidden bug.
+
+## Derivation exercises
+
+Derivation exercises are still OCaml modules: their proof trees have no
+text form yet.
+
+1. Copy `src/web/exercises/examples/BlankDerivationExercise.ml` and rename
+   it to match your exercise module name, e.g. `Ex_MyNewExercise`. Use the
+   `.ml` extension (for technical reasons). Make sure the `module_name`
+   field in the file matches your exercise module name (without the
+   extension).
 
 2. Add your exercise to the `exercises` list in
    `src/web/exercises/settings/ExerciseSettings_base.re`, e.g.
    ```reason
-   let exercises: list(Exercise.t) = [
+   let exercises: list(Exercise.t) =
      ...
-     Ex_MyNewExercise.exercise,
-   ];
+     @ [Ex_EvaluationDerivation.exercise, Ex_MyNewExercise.exercise];
    ```
 
 3. Compile and load Hazel (`make serve`), select your exercise, and make sure
-   Instructor Mode is on (graduation-cap toggle in the top bar).
+   Instructor Mode is on.
 
 4. When satisfied, click the "Export Exercise Module" button in the File
    menu. This downloads a replacement for your `.ml` file that you can drop
@@ -47,7 +74,7 @@ The cycle for creating an exercise of any kind is the same:
    Keep iterating until the exercise is ready.
 
 The exported module is a plain `Zipper.t` literal, so it is tied to the
-current zipper datatype; the shipped examples are instead stored as
+current zipper datatype; the shipped derivations are instead stored as
 `PersistentZipper` literals (sexp plus backup text) that survive datatype
 changes. See `src/web/exercises/examples/A-Guide-To-Zipper-Transitions.md`
 for converting between the two.

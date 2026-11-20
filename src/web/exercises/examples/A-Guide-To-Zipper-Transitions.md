@@ -1,6 +1,10 @@
 # Zipper transitions
 
-The shipped example modules (`src/web/exercises/examples/Ex_*.ml`,
+Code and theorem exercises are `.hzt` text
+(`hazel-programs/exercises/`), so a `Zipper.t` change does not touch
+them. This guide is for the derivation exercises.
+
+The shipped derivation modules (`src/web/exercises/examples/Ex_*.ml`,
 `src/web/derivation/examples/Ex_*.ml`) store each editor as a
 `PersistentZipper.t` literal — `{zipper = "<Zipper sexp>"; backup_text =
 "<program text>"}` — and load it through `<Kind>Exercise.of_persistent`.
