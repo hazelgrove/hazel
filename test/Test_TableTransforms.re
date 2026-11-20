@@ -299,7 +299,7 @@ let sort_tests = [
 
 let mk_list_ty = (cols: list((string, Typ.t))) =>
   IdTagged.FreshGrammar.Typ.(
-    list(prod_entries(List.map(((l, t)) => labeled(l, t), cols)))
+    list(prod_entries(List.map(~f=((l, t)) => labeled(l, t), cols)))
   );
 
 let type_utility_tests = {

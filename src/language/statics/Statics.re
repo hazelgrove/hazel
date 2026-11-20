@@ -1690,7 +1690,7 @@ and uexp_to_info_map =
           switch (norm |> Typ.term_of) {
           | Prod(syns) when List.length(syns) == num_vars =>
             syns
-            |> List.for_all(entry => arrow_like(TupleEntry.value(entry)))
+            |> List.for_all(~f=entry => arrow_like(TupleEntry.value(entry)))
           | _ when arrow_like(norm) => num_vars == 1
           | _ => false
           };
@@ -1774,18 +1774,18 @@ and uexp_to_info_map =
             ) {
             | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
               let tys =
-                List.map2(
-                  ((fn1, fn2), ty_p) =>
-                    TupleEntry.map(
-                      ty_p =>
-                        ana_ty_fn(
-                          (TupleEntry.value(fn1), TupleEntry.value(fn2)),
-                          ty_p,
-                        ),
-                      ty_p,
-                    ),
-                  List.combine(ty_fns1, ty_fns2),
+                List.map2_exn(
+                  List.zip_exn(ty_fns1, ty_fns2),
                   ty_ps,
+                  ~f=((fn1, fn2), ty_p) =>
+                  TupleEntry.map(
+                    ty_p =>
+                      ana_ty_fn(
+                        (TupleEntry.value(fn1), TupleEntry.value(fn2)),
+                        ty_p,
+                      ),
+                    ty_p,
+                  )
                 );
               Prod(tys) |> Typ.temp;
             | ((_, _), _) =>
@@ -2454,7 +2454,7 @@ and uexp_to_info_map =
     let (e, _, m) = go(~ana=syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-    | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
+    | Prod([Labeled(_, {term: Label(l2), _}, _)]) when String.equal(l1, l2) =>
       default_case()
     | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
@@ -3109,7 +3109,8 @@ and upat_to_info_map =
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
-      | Prod([Labeled(_, {term: Label(l2), _}, _)]) when l1 == l2 =>
+      | Prod([Labeled(_, {term: Label(l2), _}, _)])
+          when String.equal(l1, l2) =>
         default_case()
       | Unknown(_) =>
         /* Unknown type could be a singleton labeled tuple. Only elaborate
@@ -3309,14 +3310,17 @@ and utyp_to_info_map =
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.get_label, ts);
     let m =
-      List.fold_left(
-        (m, entry: TupleEntry.t(Typ.t)) => {
+      List.fold(
+        ts,
+        ~init=m,
+        ~f=(m, entry: TupleEntry.t(Typ.t)) => {
           let m =
             switch (entry) {
             | Labeled(_, l, _) =>
               let marks =
                 switch (Label.name(l)) {
-                | Some(name) when List.mem(name, duplicate_labels) => [
+                | Some(name)
+                    when List.mem(duplicate_labels, name, ~equal=String.equal) => [
                     Mark.DuplicateLabel(name, Label(name) |> Typ.temp),
                   ]
                 | _ => []
@@ -3333,20 +3337,21 @@ and utyp_to_info_map =
             };
           go(TupleEntry.value(entry), m) |> snd;
         },
-        m,
-        ts,
       );
     add(m);
   | ProdProjection(t, label) =>
     let labels =
       switch (Typ.weak_head_normalize(ctx, t).term) {
       | Prod(ts) =>
-        Some(List.filter_map(Typ.match_tup_label, ts) |> List.map(fst))
+        Some(
+          List.filter_map(~f=Typ.match_tup_label, ts) |> List.map(~f=fst),
+        )
       | _ => None
       };
     let marks =
       switch (labels, label.term) {
-      | (Some(labels), Label(name)) when !List.mem(name, labels) => [
+      | (Some(labels), Label(name))
+          when !List.mem(labels, name, ~equal=String.equal) => [
           Mark.InvalidLabel(name, labels),
         ]
       | _ => []

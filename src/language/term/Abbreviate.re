@@ -1726,12 +1726,18 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           available := available^ - 2; // "()"
           let ts' =
             List.map(
-              fun
-              | Grammar.Unlabeled(t) => Grammar.Unlabeled(abbreviate_typ(t))
-              | Labeled(eq, l, t) => {
-                  available := available^ - 1; /* "=" */
-                  Labeled(eq, abbreviate_label_term(l), abbreviate_typ(t));
-                },
+              ~f=
+                fun
+                | Grammar.Unlabeled(t) =>
+                  Grammar.Unlabeled(abbreviate_typ(t))
+                | Labeled(eq, l, t) => {
+                    available := available^ - 1; /* "=" */
+                    Labeled(
+                      eq,
+                      abbreviate_label_term(l),
+                      abbreviate_typ(t),
+                    );
+                  },
               ts,
             );
           Prod(ts');

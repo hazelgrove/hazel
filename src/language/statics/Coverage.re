@@ -133,7 +133,7 @@ module Ctr = {
       Finite(
         Map.singleton(
           tuple_ctr(List.length(elts)),
-          List.map(TupleEntry.value, elts),
+          List.map(~f=TupleEntry.value, elts),
         ),
       )
     | ProofOf(_) => Infinite
@@ -344,16 +344,13 @@ module UnseenPatternList: UnseenPatternList = {
       let first_n = List.rev(first_n);
       let entries =
         List.length(fields) == List.length(first_n)
-          ? List.map2(
-              (field, p) =>
-                switch (Typ.match_tup_label(field)) {
-                | Some((name, _)) => labeled(name, p)
-                | None => Grammar.Unlabeled(p)
-                },
-              fields,
-              first_n,
+          ? List.map2_exn(fields, first_n, ~f=(field, p) =>
+              switch (Typ.match_tup_label(field)) {
+              | Some((name, _)) => labeled(name, p)
+              | None => Grammar.Unlabeled(p)
+              }
             )
-          : List.map(p => Grammar.Unlabeled(p), first_n);
+          : List.map(~f=p => Grammar.Unlabeled(p), first_n);
       cons_pat_t(tuple_entries(entries), {pat: tl});
     | List(_) =>
       switch (ctr.ctr) {

@@ -24,7 +24,7 @@ let check_label =
       )
     | _ =>
       let marks =
-        List.mem(name, duplicate_labels)
+        List.mem(duplicate_labels, name, ~equal=String.equal)
           ? [Mark.DuplicateLabel(name, Label(name) |> Typ.temp)] : [];
       (marks, Some(Label.temp(Label(name))));
     }

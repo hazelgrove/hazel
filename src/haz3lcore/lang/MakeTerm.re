@@ -1464,7 +1464,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Typ.t) =>
+        |> List.map(~f=(child: Typ.t) =>
              switch (child) {
              /* as in exp_term */
              | {term: Prod([Labeled(_, l, v)]), annotation} =>

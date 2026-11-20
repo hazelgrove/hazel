@@ -65,17 +65,15 @@ let source = {
 let expected_type = {
   IdTagged.FreshGrammar.Typ.(
     prod_entries(
-      List.map(
-        s =>
-          labeled(
-            A.section_label(s),
-            prod_entries(
-              List.map(
-                a => labeled(A.label(a), var("Shortcut")),
-                A.in_section(s),
-              ),
+      List.map(A.populated_sections, ~f=s =>
+        labeled(
+          A.section_label(s),
+          prod_entries(
+            List.map(A.in_section(s), ~f=a =>
+              labeled(A.label(a), var("Shortcut"))
             ),
-        A.populated_sections,
+          ),
+        )
       ),
     )
   );
