@@ -1,0 +1,5 @@
+# Minesweeper's vocabulary, which every module sees #
+# A cell: a mine or not, how many of its eight neighbours are mines, and whether it is open, or flagged #
+type Cell = (mine = Bool, near = Int, open = Bool, flag = Bool) in
+# A game: its size and its mines; the cells, row by row; how many safe cells are still closed; and whether it is over, won, and where the mine that ended it was (its row * cols + col, or -1) #
+type Game = (rows = Int, cols = Int, mines = Int, grid = [[Cell]], left = Int, over = Bool, won = Bool, boom = Int) in

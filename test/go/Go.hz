@@ -1,0 +1,229 @@
+# Go: the board (its points, a group of stones and its liberties), a move (its captures, never suicide, the ko), the score, and the opponent. One module: in hazeljs a call into another module costs the build seconds #
+# ---- The board ---- #
+# The board: its points, the stone at a point, the points beside it, and a group of stones with its liberties #
+let row_of : Int -> [Int] = fun k -> if k <= 0 then [] else 0 :: row_of(k - 1);
+let rows_of : (Int, Int) -> [[Int]] = fun (k, n) -> if k <= 0 then [] else row_of(n) :: rows_of(k - 1, n);
+let row_at : ([[Int]], Int) -> [Int] = fun (b, r) ->
+  case b | [] => [] | row :: rest => if r == 0 then row else row_at(rest, r - 1) end;
+let in_row : ([Int], Int) -> Int = fun (row, c) ->
+  case row | [] => 3 | x :: rest => if c == 0 then x else in_row(rest, c - 1) end;
+# the stone at point p: 0 none, 1 black, 2 white #
+let stone : ([[Int]], Int, Int) -> Int = fun (b, n, p) -> in_row(row_at(b, p / n), p - (p / n) * n);
+let set_in_row : ([Int], Int, Int) -> [Int] = fun (row, c, v) ->
+  case row | [] => [] | x :: rest => if c == 0 then v :: rest else x :: set_in_row(rest, c - 1, v) end;
+let set_rows : ([[Int]], Int, Int, Int) -> [[Int]] = fun (b, r, c, v) ->
+  case b | [] => [] | row :: rest => if r == 0 then set_in_row(row, c, v) :: rest else row :: set_rows(rest, r - 1, c, v) end;
+let put : ([[Int]], Int, Int, Int) -> [[Int]] = fun (b, n, p, v) -> set_rows(b, p / n, p - (p / n) * n, v);
+# the points beside p, above, below, left and right, that are on the board #
+let beside : (Int, Int) -> [Int] = fun (n, p) ->
+  let c = p - (p / n) * n in
+  let a = if c < n - 1 then [p + 1] else [] in
+  let b = if c > 0 then (p - 1) :: a else a in
+  let d = if p + n < n * n then (p + n) :: b else b in
+  if p >= n then (p - n) :: d else d;
+let mem : (Int, [Int]) -> Bool = fun (x, xs) ->
+  case xs | [] => false | y :: rest => y == x || mem(x, rest) end;
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+# one step of a group's growth: each point beside one of its stones is a stone of its colour (one more to grow from), an empty point (a liberty), or neither #
+let look : ([[Int]], Int, Int, [Int], [Int], [Int], [Int]) -> ([Int], [Int], [Int]) = fun (b, n, colour, qs, todo, group, libs) ->
+  case qs
+  | [] => (todo, group, libs)
+  | q :: rest =>
+    let s = stone(b, n, q) in
+    if s == colour then (if mem(q, group) then look(b, n, colour, rest, todo, group, libs) else look(b, n, colour, rest, q :: todo, q :: group, libs))
+    else if s == 0 then (if mem(q, libs) then look(b, n, colour, rest, todo, group, libs) else look(b, n, colour, rest, todo, group, q :: libs))
+    else look(b, n, colour, rest, todo, group, libs)
+  end;
+let grow : ([[Int]], Int, Int, [Int], [Int], [Int]) -> ([Int], [Int]) = fun (b, n, colour, todo, group, libs) ->
+  case todo
+  | [] => (group, libs)
+  | p :: rest =>
+    let (todo2, group2, libs2) = look(b, n, colour, beside(n, p), rest, group, libs) in
+    grow(b, n, colour, todo2, group2, libs2)
+  end;
+# the stones joined to the stone at p, and their liberties: the empty points beside them #
+let group : ([[Int]], Int, Int) -> ([Int], [Int]) = fun (b, n, p) -> grow(b, n, stone(b, n, p), [p], [p], []);
+let clear : ([[Int]], Int, [Int]) -> [[Int]] = fun (b, n, ps) ->
+  case ps | [] => b | p :: rest => clear(put(b, n, p, 0), n, rest) end;
+# a new game on an empty board, n by n, black to play #
+let fresh : Int -> Game = fun n ->
+  (size = n, board = rows_of(n, n), turn = 1, ko = 0 - 1, passes = 0, black_took = 0, white_took = 0, last = 0 - 2, over = false);
+# ---- A move, a pass, and the score ---- #
+# A move: a stone placed, and the stones of the other colour it leaves without a liberty taken; never a move that leaves its own stones without one, nor one onto the point a ko forbids. A pass; two in a row end the game. The score #
+let take : ([[Int]], Int, Int, [Int], Int, Int) -> ([[Int]], Int, Int) = fun (b, n, other, qs, took, at) ->
+  case qs
+  | [] => (b, took, at)
+  | q :: rest =>
+    if stone(b, n, q) == other then
+      (let (stones, libs) = group(b, n, q) in
+       case libs
+       | [] => take(clear(b, n, stones), n, other, rest, took + len(stones), q)
+       | _ => take(b, n, other, rest, took, at)
+       end)
+    else take(b, n, other, rest, took, at)
+  end;
+# the stone of whoever's turn it is, at p; the game as it was when the move is not allowed #
+let play : (Game, Int) -> Game = fun (g, p) ->
+  let n = g.size in
+  if g.over || p < 0 || p >= n * n || p == g.ko || !(stone(g.board, n, p) == 0) then g else
+  let me = g.turn in
+  let (b, took, at) = take(put(g.board, n, p, me), n, 3 - me, beside(n, p), 0, 0 - 1) in
+  let (mine, libs) = group(b, n, p) in
+  case libs
+  | [] => g
+  | _ =>
+    (size = n, board = b, turn = 3 - me,
+     ko = (if took == 1 && len(mine) == 1 && len(libs) == 1 then at else 0 - 1),
+     passes = 0,
+     black_took = (if me == 1 then g.black_took + took else g.black_took),
+     white_took = (if me == 2 then g.white_took + took else g.white_took),
+     last = p, over = false)
+  end;
+let pass : Game -> Game = fun g ->
+  if g.over then g else
+  (size = g.size, board = g.board, turn = 3 - g.turn, ko = 0 - 1, passes = g.passes + 1,
+   black_took = g.black_took, white_took = g.white_took, last = 0 - 1, over = g.passes + 1 >= 2);
+# an empty region's growth: the empty points joined to it, and whether it reaches a black stone, a white one #
+let edge : ([[Int]], Int, [Int], [Int], [Int], Bool, Bool) -> ([Int], [Int], Bool, Bool) = fun (b, n, qs, todo, seen, bl, wh) ->
+  case qs
+  | [] => (todo, seen, bl, wh)
+  | q :: rest =>
+    let s = stone(b, n, q) in
+    if s == 0 then (if mem(q, seen) then edge(b, n, rest, todo, seen, bl, wh) else edge(b, n, rest, q :: todo, q :: seen, bl, wh))
+    else edge(b, n, rest, todo, seen, bl || s == 1, wh || s == 2)
+  end;
+let reach : ([[Int]], Int, [Int], [Int], Bool, Bool) -> ([Int], Bool, Bool) = fun (b, n, todo, seen, bl, wh) ->
+  case todo
+  | [] => (seen, bl, wh)
+  | p :: rest =>
+    let (todo2, seen2, bl2, wh2) = edge(b, n, beside(n, p), rest, seen, bl, wh) in
+    reach(b, n, todo2, seen2, bl2, wh2)
+  end;
+let owner_in : (Int, [([Int], Int)]) -> Int = fun (p, rs) ->
+  case rs | [] => 0 - 1 | (ps, o) :: rest => if mem(p, ps) then o else owner_in(p, rest) end;
+# who owns each point, from p on: its stone's colour, or the colour of the only stones its empty region reaches (0 when it reaches both, or none) #
+let owners_from : ([[Int]], Int, Int, [([Int], Int)]) -> [Int] = fun (b, n, p, rs) ->
+  if p >= n * n then [] else
+  let s = stone(b, n, p) in
+  if s > 0 then s :: owners_from(b, n, p + 1, rs) else
+  let known = owner_in(p, rs) in
+  if known >= 0 then known :: owners_from(b, n, p + 1, rs) else
+  let (ps, bl, wh) = reach(b, n, [p], [p], false, false) in
+  let o = (if bl && !wh then 1 else if wh && !bl then 2 else 0) in
+  o :: owners_from(b, n, p + 1, (ps, o) :: rs);
+let count : ([Int], Int) -> Int = fun (xs, v) ->
+  case xs | [] => 0 | x :: rest => (if x == v then 1 else 0) + count(rest, v) end;
+# Tromp and Taylor's area score: every stone counts as alive, so take the dead ones before passing; komi 7 (9 on the small board) #
+let score : Game -> Score = fun g ->
+  let owners = owners_from(g.board, g.size, 0, []) in
+  (black = count(owners, 1), white = count(owners, 2), komi = (if g.size <= 7 then 9 else 7), owners = owners);
+# ---- The opponent ---- #
+# The opponent: every empty point tried as its move, each worth what it takes, saves, threatens and risks, and where it is, plus a little chance (the page's numbers, 0 to 19); the best one played, or a pass when none is worth playing, or when the other side has passed and it is ahead #
+# how far p is from the nearest edge: 0 on the edge #
+let line : (Int, Int) -> Int = fun (n, p) ->
+  let r = p / n in
+  let c = p - r * n in
+  let a = (if r < c then r else c) in
+  let b = (if n - 1 - r < n - 1 - c then n - 1 - r else n - 1 - c) in
+  if a < b then a else b;
+# p is one of my own eyes: every point beside it is my stone #
+let eye : ([[Int]], Int, Int, [Int]) -> Bool = fun (b, n, me, qs) ->
+  case qs | [] => true | q :: rest => stone(b, n, q) == me && eye(b, n, me, rest) end;
+# the board's groups, each (its stones, its liberties), traced once for the whole turn, from point p on #
+let in_groups : (Int, [([Int], [Int])]) -> Bool = fun (p, gs) ->
+  case gs | [] => false | (s, _) :: rest => mem(p, s) || in_groups(p, rest) end;
+let groups_from : ([[Int]], Int, Int, [([Int], [Int])]) -> [([Int], [Int])] = fun (b, n, p, gs) ->
+  if p >= n * n then gs else
+  if stone(b, n, p) == 0 || in_groups(p, gs) then groups_from(b, n, p + 1, gs) else
+  groups_from(b, n, p + 1, group(b, n, p) :: gs);
+# the group of the stone at p #
+let group_in : (Int, [([Int], [Int])]) -> ([Int], [Int]) = fun (p, gs) ->
+  case gs | [] => ([], []) | (s, l) :: rest => if mem(p, s) then (s, l) else group_in(p, rest) end;
+# the stones of colour's groups beside p with k liberties, a group counted each time it is beside p #
+let with_libs : ([[Int]], Int, Int, [Int], [([Int], [Int])], Int) -> Int = fun (b, n, colour, qs, gs, k) ->
+  case qs
+  | [] => 0
+  | q :: rest =>
+    if stone(b, n, q) == colour then
+      (let (s, l) = group_in(q, gs) in (if len(l) == k then len(s) else 0) + with_libs(b, n, colour, rest, gs, k))
+    else with_libs(b, n, colour, rest, gs, k)
+  end;
+# whether a move at p takes a stone: a group of colour beside it whose only liberty is p #
+let takes : ([[Int]], Int, Int, [Int], [([Int], [Int])]) -> Bool = fun (b, n, colour, qs, gs) ->
+  case qs
+  | [] => false
+  | q :: rest =>
+    if stone(b, n, q) == colour then (let (_, l) = group_in(q, gs) in len(l) == 1 || takes(b, n, colour, rest, gs))
+    else takes(b, n, colour, rest, gs)
+  end;
+let without : (Int, [Int]) -> [Int] = fun (x, xs) ->
+  case xs | [] => [] | y :: rest => if y == x then without(x, rest) else y :: without(x, rest) end;
+let add_new : ([Int], [Int]) -> [Int] = fun (xs, acc) ->
+  case xs | [] => acc | x :: rest => if mem(x, acc) then add_new(rest, acc) else add_new(rest, x :: acc) end;
+# my stone at p joined to my groups beside it, when it takes nothing: their stones, and their liberties less p, with the empty points beside p #
+let joined : ([[Int]], Int, Int, Int, [Int], [([Int], [Int])], [Int], [Int]) -> ([Int], [Int]) = fun (b, n, me, p, qs, gs, stones, libs) ->
+  case qs
+  | [] => (stones, libs)
+  | q :: rest =>
+    let s = stone(b, n, q) in
+    if s == 0 then joined(b, n, me, p, rest, gs, stones, (if mem(q, libs) then libs else q :: libs))
+    else if s == me && !mem(q, stones) then
+      (let (gs1, gl) = group_in(q, gs) in joined(b, n, me, p, rest, gs, add_new(gs1, stones), add_new(without(p, gl), libs)))
+    else joined(b, n, me, p, rest, gs, stones, libs)
+  end;
+# the stones of colour's groups beside p that have one liberty left (on a board after a capture: traced afresh) #
+let in_atari : ([[Int]], Int, Int, [Int]) -> Int = fun (b, n, colour, qs) ->
+  case qs
+  | [] => 0
+  | q :: rest =>
+    if stone(b, n, q) == colour then
+      (let (s, l) = group(b, n, q) in (if len(l) == 1 then len(s) else 0) + in_atari(b, n, colour, rest))
+    else in_atari(b, n, colour, rest)
+  end;
+# every point in qs is empty #
+let empty_all : ([[Int]], Int, [Int]) -> Bool = fun (b, n, qs) ->
+  case qs | [] => true | q :: rest => stone(b, n, q) == 0 && empty_all(b, n, rest) end;
+# what a move at p is worth to whoever's turn it is, in tenths of a point: what it takes, saves, threatens and risks, its liberties, and where it is; far below zero when it is not allowed, or fills an eye. gs: the board's groups #
+let worth : (Game, [([Int], [Int])], Int) -> Int = fun (g, gs, p) ->
+  let n = g.size in
+  let me = g.turn in
+  let qs = beside(n, p) in
+  if !(stone(g.board, n, p) == 0) || p == g.ko || eye(g.board, n, me, qs) then 0 - 100000 else
+  let d = line(n, p) in
+  let place = (if d == 0 then 0 - 4 else if d == 1 then 0 - 1 else if d == 2 then 2 else if d == 3 then 1 else 0) in
+  # (with no stone beside it, a move takes nothing, saves nothing, threatens nothing and risks nothing: its liberties are the points beside it) #
+  if empty_all(g.board, n, qs) then 10 * ((if len(qs) > 4 then 4 else len(qs)) + place) else
+  if takes(g.board, n, 3 - me, qs, gs) then
+    # (a capture: the move played, and the board after it read afresh) #
+    (let g2 = play(g, p) in
+     let took = g2.black_took + g2.white_took - g.black_took - g.white_took in
+     let (mine, libs) = group(g2.board, n, p) in
+     let l = len(libs) in
+     let saved = (if l >= 2 then with_libs(g.board, n, me, qs, gs, 1) else 0) in
+     let threat = in_atari(g2.board, n, 3 - me, qs) in
+     10 * (20 * took + 15 * saved + 6 * threat + (if l > 4 then 4 else l) + place))
+  else
+  # (no capture: the groups beside it, as they are, say it all) #
+  let (mine, libs) = joined(g.board, n, me, p, qs, gs, [p], []) in
+  let l = len(libs) in
+  if l == 0 then 0 - 100000 else
+  let saved = (if l >= 2 then with_libs(g.board, n, me, qs, gs, 1) else 0) in
+  let threat = with_libs(g.board, n, 3 - me, qs, gs, 2) in
+  let risk = (if l == 1 then len(mine) else 0) in
+  10 * (15 * saved + 6 * threat - 12 * risk + (if l > 4 then 4 else l) + place);
+# a move at p's worth on its own (the board's groups traced for it) #
+let worth_at : (Game, Int) -> Int = fun (g, p) -> worth(g, groups_from(g.board, g.size, 0, []), p);
+let try_from : (Game, [([Int], [Int])], Int, [Int], Int, Int) -> (Int, Int) = fun (g, gs, p, rs, at, best) ->
+  if p >= g.size * g.size then (at, best) else
+  let (r, more) = (case rs | [] => (0, []) | x :: xs => (x, xs) end) in
+  let v = worth(g, gs, p) + r in
+  if v > best then try_from(g, gs, p + 1, more, p, v) else try_from(g, gs, p + 1, more, at, best);
+let ahead : Game -> Bool = fun g ->
+  let s = score(g) in
+  if g.turn == 2 then s.white + s.komi > s.black else s.black > s.white + s.komi;
+# the opponent's move: a point, or -1 to pass #
+let choose : (Game, [Int]) -> Int = fun (g, rs) ->
+  if g.over then 0 - 1 else
+  if g.passes >= 1 && ahead(g) then 0 - 1 else
+  let (at, v) = try_from(g, groups_from(g.board, g.size, 0, []), 0, rs, 0 - 1, 0 - 30) in
+  at

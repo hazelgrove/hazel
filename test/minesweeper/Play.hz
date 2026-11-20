@@ -1,0 +1,84 @@
+# Play: a cell opened (and the empty cells around it, as far as they go), a flag set or taken off, and a number's neighbours opened at once #
+let row_at : ([[Cell]], Int) -> [Cell] = fun (g, r) ->
+  case g | [] => [] | row :: rest => if r == 0 then row else row_at(rest, r - 1) end;
+let in_row : ([Cell], Int) -> Cell = fun (row, c) ->
+  case row | [] => Board.closed(false) | x :: rest => if c == 0 then x else in_row(rest, c - 1) end;
+let cell_at : (Game, Int, Int) -> Cell = fun (g, r, c) ->
+  if r < 0 || c < 0 || r >= g.rows || c >= g.cols then Board.closed(false) else in_row(row_at(g.grid, r), c);
+let set_in_row : ([Cell], Int, Cell) -> [Cell] = fun (row, c, x) ->
+  case row | [] => [] | y :: rest => if c == 0 then x :: rest else y :: set_in_row(rest, c - 1, x) end;
+let set_cell : ([[Cell]], Int, Int, Cell) -> [[Cell]] = fun (g, r, c, x) ->
+  case g | [] => [] | row :: rest => if r == 0 then set_in_row(row, c, x) :: rest else row :: set_cell(rest, r - 1, c, x) end;
+let opened : Cell -> Cell = fun x -> (mine = x.mine, near = x.near, open = true, flag = x.flag);
+# an open cell with no mine near: the cells around it open too #
+let zero : [Cell] -> Bool = fun cs -> case cs | [] => false | c :: _ => c.open && !c.mine && c.near == 0 end;
+# one sweep along a row: a closed, unflagged cell beside an open zero (in this row or those above and below) opens; how many did #
+let spread_row : ([Cell], [Cell], [Cell], Bool) -> ([Cell], Int) = fun (a, r, b, prev) ->
+  case r
+  | [] => ([], 0)
+  | c :: rest =>
+    let here = zero(a) || zero(b) in
+    let next = zero(Board.tl(a)) || zero(rest) || zero(Board.tl(b)) in
+    let opens = !c.open && !c.mine && !c.flag && (prev || here || next) in
+    let c2 = if opens then opened(c) else c in
+    let (more, n) = spread_row(Board.tl(a), rest, Board.tl(b), here || zero([c2])) in
+    (c2 :: more, if opens then n + 1 else n)
+  end;
+let spread_rows : ([Cell], [[Cell]]) -> ([[Cell]], Int) = fun (above, rows) ->
+  case rows
+  | [] => ([], 0)
+  | r :: rest =>
+    let below = (case rest | [] => [] | b :: _ => b end) in
+    let (r2, n) = spread_row(above, r, below, false) in
+    let (rest2, m) = spread_rows(r2, rest) in
+    (r2 :: rest2, n + m)
+  end;
+let rev_cells : ([Cell], [Cell]) -> [Cell] = fun (xs, acc) -> case xs | [] => acc | x :: rest => rev_cells(rest, x :: acc) end;
+let rev_rows : ([[Cell]], [[Cell]]) -> [[Cell]] = fun (xs, acc) -> case xs | [] => acc | x :: rest => rev_rows(rest, rev_cells(x, []) :: acc) end;
+# sweeps, turning the board round between them, until none opens a cell; the board as it was, and how many opened #
+let flood : ([[Cell]], Int, Bool) -> ([[Cell]], Int) = fun (g, total, turned) ->
+  let (g2, n) = spread_rows([], g) in
+  if n == 0 then (if turned then rev_rows(g2, []) else g2, total)
+  else flood(rev_rows(g2, []), total + n, !turned);
+let open_mines : [Cell] -> [Cell] = fun cs ->
+  case cs | [] => [] | x :: more => (if x.mine then opened(x) else x) :: open_mines(more) end;
+let mines_open : [[Cell]] -> [[Cell]] = fun g ->
+  case g | [] => [] | row :: rest => open_mines(row) :: mines_open(rest) end;
+let mark_mines : [Cell] -> [Cell] = fun cs ->
+  case cs | [] => [] | x :: more => (if x.mine then (mine = true, near = x.near, open = false, flag = true) else x) :: mark_mines(more) end;
+let flag_mines : [[Cell]] -> [[Cell]] = fun g ->
+  case g | [] => [] | row :: rest => mark_mines(row) :: flag_mines(rest) end;
+let with_grid : (Game, [[Cell]], Int) -> Game = fun (g, grid, left) ->
+  if left <= 0 then (rows = g.rows, cols = g.cols, mines = g.mines, grid = flag_mines(grid), left = 0, over = true, won = true, boom = 0 - 1)
+  else (rows = g.rows, cols = g.cols, mines = g.mines, grid = grid, left = left, over = false, won = false, boom = 0 - 1);
+# A cell opened: a mine ends the game (every mine shown); a number opens alone; an empty cell opens the empty region around it and its edge #
+let reveal : (Game, Int, Int) -> Game = fun (g, r, c) ->
+  let x = cell_at(g, r, c) in
+  if g.over || x.open || x.flag || r < 0 || c < 0 || r >= g.rows || c >= g.cols then g else
+  if x.mine then (rows = g.rows, cols = g.cols, mines = g.mines, grid = mines_open(g.grid), left = g.left, over = true, won = false, boom = r * g.cols + c) else
+  let grid = set_cell(g.grid, r, c, opened(x)) in
+  if x.near > 0 then with_grid(g, grid, g.left - 1) else
+  let (grid2, n) = flood(grid, 0, false) in
+  with_grid(g, grid2, g.left - 1 - n);
+# A flag set on a closed cell, or taken off #
+let flag : (Game, Int, Int) -> Game = fun (g, r, c) ->
+  let x = cell_at(g, r, c) in
+  if g.over || x.open || r < 0 || c < 0 || r >= g.rows || c >= g.cols then g else
+  (rows = g.rows, cols = g.cols, mines = g.mines, grid = set_cell(g.grid, r, c, (mine = x.mine, near = x.near, open = false, flag = !x.flag)), left = g.left, over = false, won = false, boom = 0 - 1);
+# the eight neighbours, k from 0 to 8 going round the 3 by 3 (k = 4 is the cell itself): row r + k / 3 - 1, column c + k % 3 - 1 #
+let flags_from : (Game, Int, Int, Int) -> Int = fun (g, r, c, k) ->
+  if k > 8 then 0 else
+  (if k != 4 && cell_at(g, r + k / 3 - 1, c + (k - (k / 3) * 3) - 1).flag then 1 else 0) + flags_from(g, r, c, k + 1);
+let reveal_from : (Game, Int, Int, Int) -> Game = fun (g, r, c, k) ->
+  if k > 8 then g else
+  reveal_from(if k == 4 then g else reveal(g, r + k / 3 - 1, c + (k - (k / 3) * 3) - 1), r, c, k + 1);
+# A number's neighbours opened at once, when as many flags are around it as its number (a wrong flag loses) #
+let chord : (Game, Int, Int) -> Game = fun (g, r, c) ->
+  let x = cell_at(g, r, c) in
+  if g.over || !x.open || x.near == 0 || flags_from(g, r, c, 0) != x.near then g else reveal_from(g, r, c, 0);
+let row_flags : [Cell] -> Int = fun cs ->
+  case cs | [] => 0 | x :: more => (if x.flag then 1 else 0) + row_flags(more) end;
+let grid_flags : [[Cell]] -> Int = fun rs ->
+  case rs | [] => 0 | row :: more => row_flags(row) + grid_flags(more) end;
+# Every flag on the board #
+let flags : Game -> Int = fun g -> grid_flags(g.grid)

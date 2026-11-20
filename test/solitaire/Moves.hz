@@ -1,0 +1,163 @@
+# The moves: which are legal in a game, what each does, and when the game is won #
+let nth_pile : ([Pile], Int) -> Pile = fun (ps, i) ->
+  case ps | [] => (down = [], up = []) | p :: rest => if i == 0 then p else nth_pile(rest, i - 1) end;
+let set_pile : ([Pile], Int, Pile) -> [Pile] = fun (ps, i, q) ->
+  case ps | [] => [] | p :: rest => if i == 0 then q :: rest else p :: set_pile(rest, i - 1, q) end;
+let nth_found : ([[Card]], Int) -> [Card] = fun (fs, i) ->
+  case fs | [] => [] | f :: rest => if i == 0 then f else nth_found(rest, i - 1) end;
+let set_found : ([[Card]], Int, [Card]) -> [[Card]] = fun (fs, i, f) ->
+  case fs | [] => [] | g :: rest => if i == 0 then f :: rest else g :: set_found(rest, i - 1, f) end;
+# a pile turns its top face-down card up once its run is gone #
+let turn_up : Pile -> Pile = fun p ->
+  case (p.up, p.down) | ([], d :: rest) => (down = rest, up = [d]) | _ => p end;
+let turn_all : [Pile] -> [Pile] = fun ps ->
+  case ps | [] => [] | p :: rest => turn_up(p) :: turn_all(rest) end;
+# a card goes on a pile: a King on an empty pile, or else one rank below the pile's top card, in the other colour #
+let fits_pile : (Card, Pile) -> Bool = fun (c, p) ->
+  case p.up
+  | [] => (case p.down | [] => c.rank == 13 | _ => false end)
+  | t :: _ => Cards.red(t.suit) == !Cards.red(c.suit) && c.rank == t.rank - 1
+  end;
+# a card goes to its suit's foundation: an Ace on an empty one, or else one rank above its top card #
+let fits_found : (Card, [Card]) -> Bool = fun (c, f) ->
+  case f | [] => c.rank == 1 | t :: _ => c.rank == t.rank + 1 end;
+let cat_moves : ([Move], [Move]) -> [Move] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: cat_moves(rest, ys) end;
+# the piles a card fits, as moves from where it is (j counts the piles from 0; skip is the pile it comes from) #
+let to_piles : (From, Card, [Pile], Int, Int) -> [Move] = fun (from, c, ps, j, skip) ->
+  case ps
+  | [] => []
+  | p :: rest =>
+    let more = to_piles(from, c, rest, j + 1, skip) in
+    if j != skip && fits_pile(c, p) then Shift(from = from, to = ToPile(j)) :: more else more
+  end;
+let to_found : (From, Card, Game) -> [Move] = fun (from, c, g) ->
+  if fits_found(c, nth_found(g.foundations, Cards.index(c.suit))) then [Shift(from = from, to = ToFoundation)] else [];
+# a pile's runs: its top k face-up cards, k from 1 to the whole run; each run goes where its bottom card fits, and a lone top card to its foundation too (a King that is all of its pile does not move to an empty one) #
+let runs_from : (Game, Pile, Int, [Card], Int) -> [Move] = fun (g, p, i, up, k) ->
+  case up
+  | [] => []
+  | c :: rest =>
+    let whole = Cards.is_empty(rest) && Cards.is_empty(p.down) in
+    let piles = if whole && c.rank == 13 then [] else to_piles(FromPile(pile = i, count = k), c, g.piles, 0, i) in
+    let found = if k == 1 then to_found(FromPile(pile = i, count = 1), c, g) else [] in
+    cat_moves(found, cat_moves(piles, runs_from(g, p, i, rest, k + 1)))
+  end;
+let pile_moves : (Game, [Pile], Int) -> [Move] = fun (g, ps, i) ->
+  case ps | [] => [] | p :: rest => cat_moves(runs_from(g, p, i, p.up, 1), pile_moves(g, rest, i + 1)) end;
+let found_moves : (Game, [[Card]], Int) -> [Move] = fun (g, fs, i) ->
+  case fs
+  | [] => []
+  | f :: rest =>
+    let here = (case f | [] => [] | c :: _ => to_piles(FromFoundation(i), c, g.piles, 0, 0 - 1) end) in
+    cat_moves(here, found_moves(g, rest, i + 1))
+  end;
+# Every legal move: turn over the stock (or the waste back into it), then the waste's top card, the piles' runs, and the foundations' top cards #
+let moves : Game -> [Move] = fun g ->
+  let stock = (case (g.stock, g.waste) | ([], []) => [] | ([], _) => [Redeal] | _ => [Draw] end) in
+  let waste = (case g.waste | [] => [] | c :: _ => cat_moves(to_found(FromWaste, c, g), to_piles(FromWaste, c, g.piles, 0, 0 - 1)) end) in
+  cat_moves(stock, cat_moves(waste, cat_moves(pile_moves(g, g.piles, 0), found_moves(g, g.foundations, 0))));
+let draw_from : ([Card], [Card], Int) -> ([Card], [Card]) = fun (stock, waste, n) ->
+  if n <= 0 then (stock, waste) else
+  case stock | [] => (stock, waste) | c :: rest => draw_from(rest, c :: waste, n - 1) end;
+# the cards a move takes up, and the game without them #
+let lift : (Game, From) -> ([Card], Game) = fun (g, from) ->
+  case from
+  | FromWaste =>
+    (case g.waste
+     | [] => ([], g)
+     | c :: rest => ([c], (stock = g.stock, waste = rest, foundations = g.foundations, piles = g.piles, draw = g.draw))
+     end)
+  | FromPile(r) =>
+    let p = nth_pile(g.piles, r.pile) in
+    let (run, left) = Cards.split(p.up, r.count) in
+    (run, (stock = g.stock, waste = g.waste, foundations = g.foundations, piles = set_pile(g.piles, r.pile, (down = p.down, up = left)), draw = g.draw))
+  | FromFoundation(i) =>
+    (case nth_found(g.foundations, i)
+     | [] => ([], g)
+     | c :: rest => ([c], (stock = g.stock, waste = g.waste, foundations = set_found(g.foundations, i, rest), piles = g.piles, draw = g.draw))
+     end)
+  end;
+# the game with the cards put down where the move goes #
+let drop : (Game, [Card], To) -> Game = fun (g, run, to) ->
+  case to
+  | ToPile(j) =>
+    let p = nth_pile(g.piles, j) in
+    (stock = g.stock, waste = g.waste, foundations = g.foundations, piles = set_pile(g.piles, j, (down = p.down, up = Cards.cat(run, p.up))), draw = g.draw)
+  | ToFoundation =>
+    (case run
+     | [] => g
+     | c :: _ =>
+       let i = Cards.index(c.suit) in
+       (stock = g.stock, waste = g.waste, foundations = set_found(g.foundations, i, c :: nth_found(g.foundations, i)), piles = g.piles, draw = g.draw)
+     end)
+  end;
+# two moves the same (each part compared: == does not compare constructors' arguments) #
+let same_from : (From, From) -> Bool = fun (a, b) ->
+  case (a, b)
+  | (FromWaste, FromWaste) => true
+  | (FromPile(r), FromPile(q)) => r.pile == q.pile && r.count == q.count
+  | (FromFoundation(i), FromFoundation(j)) => i == j
+  | _ => false
+  end;
+let same_to : (To, To) -> Bool = fun (a, b) ->
+  case (a, b) | (ToPile(i), ToPile(j)) => i == j | (ToFoundation, ToFoundation) => true | _ => false end;
+let same : (Move, Move) -> Bool = fun (a, b) ->
+  case (a, b)
+  | (Draw, Draw) => true
+  | (Redeal, Redeal) => true
+  | (Shift(s), Shift(s2)) => same_from(s.from, s2.from) && same_to(s.to, s2.to)
+  | _ => false
+  end;
+let legal : (Move, [Move]) -> Bool = fun (m, ms) ->
+  case ms | [] => false | x :: rest => same(x, m) || legal(m, rest) end;
+# The moves from one place: where its card or run fits, its foundation first (for a tap: cheaper than every move) #
+let moves_from : (Game, From) -> [Move] = fun (g, from) ->
+  let (run, _) = lift(g, from) in
+  case run
+  | [] => []
+  | _ =>
+    let c = Cards.last(run) in
+    let skip = (case from | FromPile(r) => r.pile | _ => 0 - 1 end) in
+    let found = (case from | FromFoundation(_) => [] | _ => if Cards.size(run) == 1 then to_found(from, c, g) else [] end) in
+    cat_moves(found, to_piles(from, c, g.piles, 0, skip))
+  end;
+# whether a move is legal, checked by itself, without finding every move #
+let can : (Game, Move) -> Bool = fun (g, m) ->
+  case m
+  | Draw => !Cards.is_empty(g.stock)
+  | Redeal => Cards.is_empty(g.stock) && !Cards.is_empty(g.waste)
+  | Shift(s) =>
+    let (run, _) = lift(g, s.from) in
+    let ok_from = (case s.from
+      | FromPile(r) => r.count >= 1 && r.count <= Cards.size(nth_pile(g.piles, r.pile).up) && r.pile >= 0 && r.pile <= 6
+      | FromFoundation(i) => i >= 0 && i <= 3
+      | FromWaste => true
+      end) in
+    let bottom = Cards.last(run) in
+    ok_from && !Cards.is_empty(run) &&
+    (case s.to
+     | ToPile(j) =>
+       j >= 0 && j <= 6 &&
+       (case s.from | FromPile(r) => r.pile != j | _ => true end) &&
+       fits_pile(bottom, nth_pile(g.piles, j))
+     | ToFoundation => Cards.size(run) == 1 && fits_found(bottom, nth_found(g.foundations, Cards.index(bottom.suit)))
+     end)
+  end;
+# A move made: the game after it. A move that is not legal leaves the game as it was #
+let apply : (Game, Move) -> Game = fun (g, m) ->
+  if !can(g, m) then g else
+  case m
+  | Draw =>
+    let (stock, waste) = draw_from(g.stock, g.waste, g.draw) in
+    (stock = stock, waste = waste, foundations = g.foundations, piles = g.piles, draw = g.draw)
+  | Redeal => (stock = Cards.reverse_onto(g.waste, []), waste = [], foundations = g.foundations, piles = g.piles, draw = g.draw)
+  | Shift(s) =>
+    let (run, lifted) = lift(g, s.from) in
+    let after = drop(lifted, run, s.to) in
+    (stock = after.stock, waste = after.waste, foundations = after.foundations, piles = turn_all(after.piles), draw = after.draw)
+  end;
+let total : [[Card]] -> Int = fun fs ->
+  case fs | [] => 0 | f :: rest => Cards.size(f) + total(rest) end;
+# Won: all 52 cards on the foundations #
+let won : Game -> Bool = fun g -> total(g.foundations) == 52

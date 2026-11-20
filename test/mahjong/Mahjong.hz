@@ -1,0 +1,300 @@
+# Mahjong, Hong Kong rules, you against three Hazel players: the tiles and the deal, a turn (a draw and a discard), the claims on a discard (a chow, a pung, a kong, a win) and which comes first, a winning hand and its faan, the points, and what each Hazel player discards and claims. One module: in hazeljs a call into another module costs the build seconds. A helper used by one function lives inside it: each top-level definition deepens the build's stack, and a browser's is short #
+# ---- Tiles and lists ---- #
+let rank : Int -> Int = fun t -> t - (t / 9) * 9;
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+let count : (Int, [Int]) -> Int = fun (x, xs) -> case xs | [] => 0 | y :: rest => (if y == x then 1 else 0) + count(x, rest) end;
+let mem : (Int, [Int]) -> Bool = fun (x, xs) -> case xs | [] => false | y :: rest => y == x || mem(x, rest) end;
+let remove : (Int, [Int]) -> [Int] = fun (x, xs) -> case xs | [] => [] | y :: rest => if y == x then rest else y :: remove(x, rest) end;
+let insert : (Int, [Int]) -> [Int] = fun (x, xs) -> case xs | [] => [x] | y :: rest => if x <= y then x :: xs else y :: insert(x, rest) end;
+let join : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join(rest, ys) end;
+# the kinds in a sorted list, each once #
+let distinct : [Int] -> [Int] = fun xs ->
+  case xs | [] => [] | x :: rest => (case rest | [] => [x] | y :: _ => if x == y then distinct(rest) else x :: distinct(rest) end) end;
+let nxt : Int -> Int = fun s -> if s == 3 then 0 else s + 1;
+# ---- The deal ---- #
+# a hand dealt: the tiles shuffled (each given one of the page's random numbers as its key, and sorted by the keys), thirteen to each seat, a fourteenth to the dealer, who plays first #
+let deal : (Int, Int, Int, [Int], [Int]) -> Game = fun (dealer, wind, hand_no, points, rs) ->
+  let all_tiles : Int -> [Int] = fun k -> if k >= 136 then [] else (k / 4) :: all_tiles(k + 1) in
+  let keyed : ([Int], [Int]) -> [(Int, Int)] = fun (ts, rs) ->
+    case ts | [] => [] | t :: rest => (case rs | [] => (0, t) :: keyed(rest, []) | r :: more => (r, t) :: keyed(rest, more) end) end in
+  let merge : ([(Int, Int)], [(Int, Int)]) -> [(Int, Int)] = fun (xs, ys) ->
+    case xs
+    | [] => ys
+    | (a, x) :: xr => (case ys | [] => xs | (b, y) :: yr => if a <= b then (a, x) :: merge(xr, ys) else (b, y) :: merge(xs, yr) end)
+    end in
+  let halves : ([(Int, Int)], [(Int, Int)], [(Int, Int)]) -> ([(Int, Int)], [(Int, Int)]) = fun (xs, l, r) ->
+    case xs | [] => (l, r) | x :: rest => halves(rest, r, x :: l) end in
+  let msort : [(Int, Int)] -> [(Int, Int)] = fun xs ->
+    case xs | [] => [] | x :: rest => (case rest | [] => [x] | _ :: _ => (let (l, r) = halves(xs, [], []) in merge(msort(l), msort(r))) end) end in
+  let untag : [(Int, Int)] -> [Int] = fun xs -> case xs | [] => [] | (_, t) :: rest => t :: untag(rest) end in
+  let take : ([Int], Int) -> ([Int], [Int]) = fun (xs, k) ->
+    if k <= 0 then ([], xs) else case xs | [] => ([], []) | x :: rest => (let (a, b) = take(rest, k - 1) in (x :: a, b)) end in
+  let sort : [Int] -> [Int] = fun xs -> case xs | [] => [] | x :: rest => insert(x, sort(rest)) end in
+  let int_at : ([Int], Int) -> Int = fun (xs, i) -> case xs | [] => 0 | x :: rest => if i == 0 then x else int_at(rest, i - 1) end in
+  let seat_new : (Int, [Int], [Int]) -> Seat = fun (i, e, h) ->
+    (hand = sort(if i == dealer then join(e, h) else h), melds = [], river = [], points = int_at(points, i)) in
+  let w0 = untag(msort(keyed(all_tiles(0), rs))) in
+  let (a, w1) = take(w0, 13) in
+  let (b, w2) = take(w1, 13) in
+  let (c, w3) = take(w2, 13) in
+  let (d, w4) = take(w3, 13) in
+  let (e, w5) = take(w4, 1) in
+  (wall = w5, seats = [seat_new(0, e, a), seat_new(1, e, b), seat_new(2, e, c), seat_new(3, e, d)],
+   turn = dealer, phase = 1, tile = 0 - 1, from = 0 - 1, drawn = int_at(e, 0), dealer = dealer, wind = wind, hand_no = hand_no,
+   winner = 0 - 1, items = [], pays = [0, 0, 0, 0], events = []);
+# the first hand: you are east, the dealer #
+let start : [Int] -> Game = fun rs -> deal(0, 0, 1, [0, 0, 0, 0], rs);
+# ---- Seats ---- #
+let seat_at : ([Seat], Int) -> Seat = fun (ss, i) ->
+  case ss | [] => (hand = [], melds = [], river = [], points = 0) | s :: rest => if i == 0 then s else seat_at(rest, i - 1) end;
+let set_seat : ([Seat], Int, Seat) -> [Seat] = fun (ss, i, x) ->
+  case ss | [] => [] | s :: rest => if i == 0 then x :: rest else s :: set_seat(rest, i - 1, x) end;
+let seat_with : (Seat, [Int], [Meld], [Int]) -> Seat = fun (s, h, ms, rv) -> (hand = h, melds = ms, river = rv, points = s.points);
+# what happened, added to the newest 24 #
+let noted : (Game, Int, Int, Int) -> [Event] = fun (g, who, what, t) ->
+  let firsts : ([Event], Int) -> [Event] = fun (es, k) -> if k <= 0 then [] else case es | [] => [] | e :: rest => e :: firsts(rest, k - 1) end in
+  firsts((who = who, what = what, tile = t) :: g.events, 24);
+# the game, with a new wall, seats, turn, phase, discard, drawn tile and events #
+let mk : (Game, [Int], [Seat], Int, Int, Int, Int, Int, [Event]) -> Game = fun (g, wall, seats, turn, phase, tile, from, drawn, events) ->
+  (wall = wall, seats = seats, turn = turn, phase = phase, tile = tile, from = from, drawn = drawn,
+   dealer = g.dealer, wind = g.wind, hand_no = g.hand_no, winner = g.winner, items = g.items, pays = g.pays, events = events);
+let seat_wind : (Game, Int) -> Int = fun (g, s) -> 27 + (if s - g.dealer < 0 then s - g.dealer + 4 else s - g.dealer);
+let total : [Item] -> Int = fun is -> case is | [] => 0 | i :: rest => i.faan + total(rest) end;
+let join_i : ([Item], [Item]) -> [Item] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join_i(rest, ys) end;
+# ---- Winning hands ---- #
+# every way the tiles in hand make a pair and sets (pungs and chows): each way (the pair, the sets) #
+let arrangements : [Int] -> [(Int, [Meld])] = fun ts ->
+  let add_set : (Meld, [[Meld]]) -> [[Meld]] = fun (m, ways) -> case ways | [] => [] | w :: rest => (m :: w) :: add_set(m, rest) end in
+  let join_ways : ([[Meld]], [[Meld]]) -> [[Meld]] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join_ways(rest, ys) end in
+  # (the ways a sorted list is all sets; none ([]) when it cannot be; one way with no sets ([[]]) when it is empty) #
+  let splits : [Int] -> [[Meld]] = fun ts ->
+    case ts
+    | [] => [[]]
+    | t :: rest =>
+      let pungs = (if count(t, rest) >= 2 then add_set((kind = 2, tile = t, shown = false), splits(remove(t, remove(t, rest)))) else []) in
+      let chows = (if t < 27 && rank(t) <= 6 && mem(t + 1, rest) && mem(t + 2, rest) then add_set((kind = 1, tile = t, shown = false), splits(remove(t + 1, remove(t + 2, rest)))) else []) in
+      join_ways(pungs, chows)
+    end in
+  let with_pair : (Int, [[Meld]], [(Int, [Meld])]) -> [(Int, [Meld])] = fun (p, ways, acc) ->
+    case ways | [] => acc | w :: rest => with_pair(p, rest, (p, w) :: acc) end in
+  let from_pairs : ([Int], [(Int, [Meld])]) -> [(Int, [Meld])] = fun (ps, acc) ->
+    case ps | [] => acc | p :: rest => from_pairs(rest, (if count(p, ts) >= 2 then with_pair(p, splits(remove(p, remove(p, ts))), acc) else acc)) end in
+  from_pairs(distinct(ts), []);
+# thirteen orphans: a one and a nine of each suit, each wind and each dragon, and one more of any of them #
+let thirteen : [Int] -> Bool = fun ts ->
+  let all_orphans : [Int] -> Bool = fun xs -> case xs | [] => true | t :: rest => (t >= 27 || rank(t) == 0 || rank(t) == 8) && all_orphans(rest) end in
+  let all_in : [Int] -> Bool = fun xs -> case xs | [] => true | x :: rest => mem(x, ts) && all_in(rest) end in
+  len(ts) == 14 && all_orphans(ts) && all_in([0, 8, 9, 17, 18, 26, 27, 28, 29, 30, 31, 32, 33]);
+# whether seat s wins with these tiles in hand (its sets shown aside), drawn by itself or not, and the faan, from the arrangement worth the most #
+let win_of : (Game, Int, [Int], Bool) -> (Bool, [Item]) = fun (g, s, tiles, self) ->
+  let st = seat_at(g.seats, s) in
+  let all_hidden : [Meld] -> Bool = fun ms -> case ms | [] => true | m :: rest => !m.shown && all_hidden(rest) end in
+  let none_shown : [Meld] -> Bool = fun ms -> case ms | [] => true | _ :: _ => false end in
+  let join_m : ([Meld], [Meld]) -> [Meld] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: join_m(rest, ys) end in
+  let chows_in : [Meld] -> Int = fun ms -> case ms | [] => 0 | m :: rest => (if m.kind == 1 then 1 else 0) + chows_in(rest) end in
+  let dragon_pungs : [Meld] -> Int = fun ms -> case ms | [] => 0 | m :: rest => (if m.kind >= 2 && m.tile >= 31 then 1 else 0) + dragon_pungs(rest) end in
+  let pung_of : ([Meld], Int) -> Bool = fun (ms, t) -> case ms | [] => false | m :: rest => (m.kind >= 2 && m.tile == t) || pung_of(rest, t) end in
+  let leads : [Meld] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => m.tile :: leads(rest) end in
+  # (the suit of the first suited tile, 0, 1 or 2, or -1 when there is none) #
+  let first_suit : [Int] -> Int = fun ts -> case ts | [] => 0 - 1 | t :: rest => if t < 27 then t / 9 else first_suit(rest) end in
+  let one_suit : ([Int], Int) -> Bool = fun (ts, su) -> case ts | [] => true | t :: rest => (t >= 27 || t / 9 == su) && one_suit(rest, su) end in
+  let any_honour : [Int] -> Bool = fun ts -> case ts | [] => false | t :: rest => t >= 27 || any_honour(rest) end in
+  let hidden = all_hidden(st.melds) in
+  # (the faan of four sets and a pair) #
+  let items_of : ([Meld], Int) -> [Item] = fun (sets, pair) ->
+    let ch = chows_in(sets) in
+    let ts = pair :: leads(sets) in
+    let su = first_suit(ts) in
+    let dr = dragon_pungs(sets) in
+    let i1 = (if self then [(code = 1, faan = 1)] else []) in
+    let i2 = (if hidden && !self then [(code = 2, faan = 1)] else []) in
+    let i3 = (if ch == 4 then [(code = 3, faan = 1)] else []) in
+    let i4 = (if ch == 0 then [(code = 4, faan = 3)] else []) in
+    let i5 = (if su < 0 then [(code = 12, faan = 10)] else if one_suit(ts, su) && any_honour(ts) then [(code = 5, faan = 3)] else if one_suit(ts, su) then [(code = 6, faan = 7)] else []) in
+    let i7 = (if dr > 0 then [(code = 7, faan = dr)] else []) in
+    let i8 = (if pung_of(sets, seat_wind(g, s)) then [(code = 8, faan = 1)] else []) in
+    let i9 = (if pung_of(sets, 27 + g.wind) then [(code = 9, faan = 1)] else []) in
+    let i10 = (if dr == 3 then [(code = 11, faan = 5)] else if dr == 2 && pair >= 31 then [(code = 10, faan = 3)] else []) in
+    let i14 = (if len(g.wall) == 0 then [(code = 14, faan = 1)] else []) in
+    join_i(i1, join_i(i2, join_i(i3, join_i(i4, join_i(i5, join_i(i7, join_i(i8, join_i(i9, join_i(i10, i14))))))))) in
+  let best : ([(Int, [Meld])], [Item], Int) -> [Item] = fun (arrs, b, bf) ->
+    case arrs
+    | [] => b
+    | (p, way) :: rest => (let is = items_of(join_m(st.melds, way), p) in let f = total(is) in if f > bf then best(rest, is, f) else best(rest, b, bf))
+    end in
+  if none_shown(st.melds) && thirteen(tiles) then (true, join_i((if self then [(code = 1, faan = 1)] else []), [(code = 13, faan = 13)])) else
+  case arrangements(tiles)
+  | [] => (false, [])
+  | arrs => (true, best(arrs, [], 0 - 1))
+  end;
+let wins : (Game, Int, [Int], Bool) -> Bool = fun (g, s, tiles, self) -> (let (ok, _) = win_of(g, s, tiles, self) in ok);
+# ---- A turn ---- #
+# the kongs a seat may declare after its draw: four of a tile in hand, or the fourth of a pung it has shown #
+let kong_tiles : Seat -> [Int] = fun st ->
+  let fours : [Int] -> [Int] = fun ds -> case ds | [] => [] | d :: rest => if count(d, st.hand) == 4 then d :: fours(rest) else fours(rest) end in
+  let added : [Meld] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => if m.kind == 2 && mem(m.tile, st.hand) then m.tile :: added(rest) else added(rest) end in
+  join(fours(distinct(st.hand)), added(st.melds));
+let discard : (Game, Int, Int) -> Game = fun (g, s, t) ->
+  let st = seat_at(g.seats, s) in
+  mk(g, g.wall, set_seat(g.seats, s, seat_with(st, remove(t, st.hand), st.melds, t :: st.river)), s, 2, t, s, 0 - 1, noted(g, s, 2, t));
+let wall_empty : Game -> Game = fun g ->
+  (wall = g.wall, seats = g.seats, turn = g.turn, phase = 3, tile = g.tile, from = g.from, drawn = 0 - 1, dealer = g.dealer, wind = g.wind,
+   hand_no = g.hand_no, winner = 0 - 1, items = [], pays = [0, 0, 0, 0], events = noted(g, 0 - 1, 9, 0 - 1));
+# seat s takes the wall's next tile into its hand, and has its turn #
+let draw_into : (Game, [Seat], Int, [Event]) -> Game = fun (g, seats, s, events) ->
+  case g.wall
+  | [] => wall_empty(g)
+  | d :: rest => (let st = seat_at(seats, s) in mk(g, rest, set_seat(seats, s, seat_with(st, insert(d, st.hand), st.melds, st.river)), s, 1, 0 - 1, 0 - 1, d, events))
+  end;
+let kong_self : (Game, Int, Int) -> Game = fun (g, s, k) ->
+  let grow : [Meld] -> [Meld] = fun ms ->
+    case ms | [] => [] | m :: rest => if m.kind == 2 && m.tile == k then (kind = 3, tile = k, shown = m.shown) :: rest else m :: grow(rest) end in
+  let st = seat_at(g.seats, s) in
+  let four = count(k, st.hand) == 4 in
+  let h = (if four then remove(k, remove(k, remove(k, remove(k, st.hand)))) else remove(k, st.hand)) in
+  let ms = (if four then (kind = 3, tile = k, shown = false) :: st.melds else grow(st.melds)) in
+  draw_into(g, set_seat(g.seats, s, seat_with(st, h, ms, st.river)), s, noted(g, s, 6, k));
+# ---- The end of a hand ---- #
+# the points: P = 2 to the faan (to 10; the faan to 13); won on a discard, its thrower pays 2P and the others P; won by drawing, each pays 2P #
+let finish : (Game, Int, Int, [Item], Bool, [Seat], [Event]) -> Game = fun (g, w, from, items, self, seats, events) ->
+  let pow2 : Int -> Int = fun k -> if k <= 0 then 1 else 2 * pow2(k - 1) in
+  let pays_of : (Int, Int) -> [Int] = fun (p, i) ->
+    if i > 3 then [] else (if i == w then (if self then 6 * p else 4 * p) else if self || i == from then 0 - 2 * p else 0 - p) :: pays_of(p, i + 1) in
+  let paid : ([Seat], [Int]) -> [Seat] = fun (ss, ps) ->
+    case ss | [] => [] | s :: rest => (case ps | [] => ss | p :: more => (hand = s.hand, melds = s.melds, river = s.river, points = s.points + p) :: paid(rest, more) end) end in
+  let f = total(items) in
+  let pays = pays_of(pow2(if f > 10 then 10 else f), 0) in
+  (wall = g.wall, seats = paid(seats, pays), turn = w, phase = 3, tile = g.tile, from = from, drawn = g.drawn, dealer = g.dealer, wind = g.wind,
+   hand_no = g.hand_no, winner = w, items = items, pays = pays, events = events);
+let win_self : (Game, Int) -> Game = fun (g, s) ->
+  let st = seat_at(g.seats, s) in
+  let (_, items) = win_of(g, s, st.hand, true) in
+  finish(g, s, s, items, true, g.seats, noted(g, s, 7, g.drawn));
+# the discard taken from its thrower's discards #
+let unthrown : (Game, [Seat]) -> [Seat] = fun (g, seats) ->
+  let d = seat_at(seats, g.from) in
+  set_seat(seats, g.from, seat_with(d, d.hand, d.melds, (case d.river | [] => [] | _ :: rest => rest end)));
+let win_discard : (Game, Int) -> Game = fun (g, s) ->
+  let st = seat_at(g.seats, s) in
+  let h = insert(g.tile, st.hand) in
+  let (_, items) = win_of(g, s, h, false) in
+  finish(g, s, g.from, items, false, unthrown(g, set_seat(g.seats, s, seat_with(st, h, st.melds, st.river))), noted(g, s, 8, g.tile));
+# ---- Claims ---- #
+# a pung, or a kong, of the discard: the claimer shows it, and has its turn (after a kong, with a tile from the wall) #
+let claim_pung : (Game, Int, Bool) -> Game = fun (g, s, kong) ->
+  let t = g.tile in
+  let st = seat_at(g.seats, s) in
+  let h1 = remove(t, remove(t, st.hand)) in
+  let h = (if kong then remove(t, h1) else h1) in
+  let seats = unthrown(g, set_seat(g.seats, s, seat_with(st, h, (kind = (if kong then 3 else 2), tile = t, shown = true) :: st.melds, st.river))) in
+  let events = noted(g, s, (if kong then 5 else 4), t) in
+  if kong then draw_into(g, seats, s, events) else mk(g, g.wall, seats, s, 1, 0 - 1, 0 - 1, 0 - 1, events);
+# a chow of the discard, its lowest tile c: only the next seat may #
+let claim_chow : (Game, Int, Int) -> Game = fun (g, s, c) ->
+  let t = g.tile in
+  let drop_if : (Int, [Int]) -> [Int] = fun (x, h) -> if x == t then h else remove(x, h) in
+  let st = seat_at(g.seats, s) in
+  let h = drop_if(c, drop_if(c + 1, drop_if(c + 2, st.hand))) in
+  mk(g, g.wall, unthrown(g, set_seat(g.seats, s, seat_with(st, h, (kind = 1, tile = c, shown = true) :: st.melds, st.river))), s, 1, 0 - 1, 0 - 1, 0 - 1, noted(g, s, 3, c));
+# the chows the discard t makes with a hand, each by its lowest tile #
+let chows_for : ([Int], Int) -> [Int] = fun (h, t) ->
+  if t >= 27 then [] else
+  let r = rank(t) in
+  let a = (if r >= 2 && mem(t - 2, h) && mem(t - 1, h) then [t - 2] else []) in
+  let b = (if r >= 1 && r <= 7 && mem(t - 1, h) && mem(t + 1, h) then [t - 1] else []) in
+  let c = (if r <= 6 && mem(t + 1, h) && mem(t + 2, h) then [t] else []) in
+  join(a, join(b, c));
+let legal : (Game, Int, Act) -> Bool = fun (g, s, a) ->
+  let st = seat_at(g.seats, s) in
+  let t = g.tile in
+  if a.kind == 8 then wins(g, s, insert(t, st.hand), false)
+  else if a.kind == 7 then count(t, st.hand) >= 3 && len(g.wall) > 0
+  else if a.kind == 6 then count(t, st.hand) >= 2
+  else if a.kind == 5 then s == nxt(g.from) && mem(a.tile, chows_for(st.hand, t))
+  else false;
+# ---- The Hazel players ---- #
+# a suited tile's neighbours in a hand: 3 for each one away, 2 for each two away #
+let near : ([Int], Int) -> Int = fun (h, t) ->
+  if t >= 27 then 0 else
+  (if rank(t) >= 1 && mem(t - 1, h) then 3 else 0) + (if rank(t) <= 7 && mem(t + 1, h) then 3 else 0) +
+  (if rank(t) >= 2 && mem(t - 2, h) then 2 else 0) + (if rank(t) <= 6 && mem(t + 2, h) then 2 else 0);
+# the tile in hand that helps least, to discard. How much a tile helps: its other copies, and (for a suit) its neighbours, and a little for the middle of the suit; an honour, a little more if it scores (a dragon, the seat's wind or the round's). Honours are looked at first, so of two alike an honour goes #
+let worst : (Game, Int, [Int]) -> Int = fun (g, s, h) ->
+  let sw = seat_wind(g, s) in
+  let rw = 27 + g.wind in
+  let helps : Int -> Int = fun t ->
+    let c = count(t, h) in
+    if t >= 27 then 6 * (c - 1) + (if t >= 31 || t == sw || t == rw then 1 else 0)
+    else 5 * (c - 1) + near(h, t) + (if rank(t) >= 2 && rank(t) <= 6 then 1 else 0) in
+  let rev : ([Int], [Int]) -> [Int] = fun (xs, acc) -> case xs | [] => acc | x :: rest => rev(rest, x :: acc) end in
+  let least : ([Int], Int, Int) -> Int = fun (ds, b, bu) ->
+    case ds | [] => b | d :: rest => (let u = helps(d) in if u < bu then least(rest, d, u) else least(rest, b, bu)) end in
+  least(rev(distinct(h), []), 0 - 1, 1000000);
+# a Hazel player's turn: win if it can, declare a kong if it has one, else discard the tile that helps least #
+let bot_turn : Game -> Game = fun g ->
+  let s = g.turn in
+  let st = seat_at(g.seats, s) in
+  if g.drawn >= 0 && wins(g, s, st.hand, true) then win_self(g, s) else
+  case (if g.drawn >= 0 && len(g.wall) > 0 then kong_tiles(st) else [])
+  | k :: _ => kong_self(g, s, k)
+  | [] => discard(g, s, worst(g, s, st.hand))
+  end;
+# a Hazel player's claim on a discard: a win if it makes one; a kong of three; a pung of a pair that is an honour or has few neighbours; the next seat, a chow that breaks no pair #
+let bot_claim : (Game, Int) -> Act = fun (g, s) ->
+  let st = seat_at(g.seats, s) in
+  let t = g.tile in
+  let c = count(t, st.hand) in
+  let one : Int -> Bool = fun x -> x == t || count(x, st.hand) == 1 in
+  let singles : [Int] -> [Int] = fun cs -> case cs | [] => [] | x :: rest => if one(x) && one(x + 1) && one(x + 2) then x :: singles(rest) else singles(rest) end in
+  if wins(g, s, insert(t, st.hand), false) then (kind = 8, tile = t)
+  else if c >= 3 && len(g.wall) > 0 then (kind = 7, tile = t)
+  else if c == 2 && (t >= 27 || near(st.hand, t) <= 3) then (kind = 6, tile = t)
+  else if s == nxt(g.from) then (case singles(chows_for(st.hand, t)) | [] => (kind = 4, tile = 0 - 1) | k :: _ => (kind = 5, tile = k) end)
+  else (kind = 4, tile = 0 - 1);
+# the claims on a discard, in their order: a win first (the nearest seat after the thrower), then a pung or kong, then the next seat's chow; with none, the next seat draws. mine: your claim, if you may make one #
+let resolve : (Game, Act) -> Game = fun (g, mine) ->
+  let claim_by : Int -> Act = fun s -> if s == 0 then (if legal(g, 0, mine) then mine else (kind = 4, tile = 0 - 1)) else bot_claim(g, s) in
+  let s1 = nxt(g.from) in
+  let s2 = nxt(s1) in
+  let s3 = nxt(s2) in
+  let a1 = claim_by(s1) in
+  let a2 = claim_by(s2) in
+  let a3 = claim_by(s3) in
+  if a1.kind == 8 then win_discard(g, s1) else if a2.kind == 8 then win_discard(g, s2) else if a3.kind == 8 then win_discard(g, s3)
+  else if a1.kind == 6 || a1.kind == 7 then claim_pung(g, s1, a1.kind == 7)
+  else if a2.kind == 6 || a2.kind == 7 then claim_pung(g, s2, a2.kind == 7)
+  else if a3.kind == 6 || a3.kind == 7 then claim_pung(g, s3, a3.kind == 7)
+  else if a1.kind == 5 then claim_chow(g, s1, a1.tile)
+  else draw_into(g, g.seats, s1, g.events);
+# ---- You ---- #
+# what you may do now: discard (and maybe win, or declare a kong) on your turn; on another's discard, the claims you could make #
+let options : Game -> Opts = fun g ->
+  let st = seat_at(g.seats, 0) in
+  if g.phase == 1 && g.turn == 0 then
+    (discard = true, win = g.drawn >= 0 && wins(g, 0, st.hand, true), kongs = (if g.drawn >= 0 && len(g.wall) > 0 then kong_tiles(st) else []), pung = false, kong = false, chows = [])
+  else if g.phase == 2 && !(g.from == 0) then
+    (discard = false, win = wins(g, 0, insert(g.tile, st.hand), false), kongs = [], pung = count(g.tile, st.hand) >= 2,
+     kong = count(g.tile, st.hand) >= 3 && len(g.wall) > 0, chows = (if nxt(g.from) == 0 then chows_for(st.hand, g.tile) else []))
+  else (discard = false, win = false, kongs = [], pung = false, kong = false, chows = []);
+# one step of the table: your move when it is yours to make (the game as it was, if none is given), else the next Hazel player's, or the claims on a discard #
+let step : (Game, Act) -> Game = fun (g, a) ->
+  if g.phase == 3 then g
+  else if g.phase == 1 then
+    (if !(g.turn == 0) then bot_turn(g) else
+     let st = seat_at(g.seats, 0) in
+     if a.kind == 1 && mem(a.tile, st.hand) then discard(g, 0, a.tile)
+     else if a.kind == 2 && g.drawn >= 0 && wins(g, 0, st.hand, true) then win_self(g, 0)
+     else if a.kind == 3 && g.drawn >= 0 && len(g.wall) > 0 && mem(a.tile, kong_tiles(st)) then kong_self(g, 0, a.tile)
+     else g)
+  else
+    (let o = options(g) in
+     let asked = !(g.from == 0) && (o.win || o.pung || o.kong || !(len(o.chows) == 0)) in
+     if !asked then resolve(g, (kind = 4, tile = 0 - 1))
+     else if a.kind >= 4 then resolve(g, a)
+     else g);
+# the next hand: the dealer stays after winning or a wall run out, else the next seat deals; when the deal comes back to you, the round's wind moves on #
+let next_hand : (Game, [Int]) -> Game = fun (g, rs) ->
+  let stay = g.winner == g.dealer || g.winner < 0 in
+  let dealer = (if stay then g.dealer else nxt(g.dealer)) in
+  let wind = (if !stay && dealer == 0 then nxt(g.wind) else g.wind) in
+  deal(dealer, wind, g.hand_no + 1, [(seat_at(g.seats, 0)).points, (seat_at(g.seats, 1)).points, (seat_at(g.seats, 2)).points, (seat_at(g.seats, 3)).points], rs)

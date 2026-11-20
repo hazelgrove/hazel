@@ -15,7 +15,11 @@
   (glob_files petri/*.hz)
   (glob_files iching/*.hz)
   (glob_files astrology/*.hz)
-  (glob_files checkers/*.hz))
+  (glob_files checkers/*.hz)
+  (glob_files go/*.hz)
+  (glob_files minesweeper/*.hz)
+  (glob_files mahjong/*.hz)
+  (glob_files solitaire/*.hz))
  (action
   (setenv
    IDB_STUB
@@ -33,7 +37,11 @@
   (glob_files petri/*.hz)
   (glob_files iching/*.hz)
   (glob_files astrology/*.hz)
-  (glob_files checkers/*.hz))
+  (glob_files checkers/*.hz)
+  (glob_files go/*.hz)
+  (glob_files minesweeper/*.hz)
+  (glob_files mahjong/*.hz)
+  (glob_files solitaire/*.hz))
  (action
   (setenv
    IDB_STUB

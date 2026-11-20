@@ -1,0 +1,72 @@
+# A hint: a sure move, worked out only from what the board shows, the open cells' numbers; never from the mines under the closed cells, nor from the flags, which may be wrong. A number whose closed cells, less those already known to be mines, are as many as its mines not yet known: those cells are mines. A number with all its mines known: its other closed cells are safe #
+# Each cell is named by its place, row * cols + col. The board is read once, down the rows: each open cell with closed cells around it becomes a number to reason from, (at = its place, near = its number, cells = its closed neighbours, each (place, flagged)) #
+let tl : [Cell] -> [Cell] = fun xs -> case xs | [] => [] | _ :: rest => rest end;
+# the first cell of xs, at place p, added to acc if it is closed #
+let closed_at : ([Cell], Int, [(Int, Bool)]) -> [(Int, Bool)] = fun (xs, p, acc) ->
+  case xs | [] => acc | x :: _ => if x.open then acc else (p, x.flag) :: acc end;
+# the closed cells of one column of the 3 by 3 around a cell: a, h, b the rows above, here and below from that column on, p its place; the middle one only when mid #
+let column : ([Cell], [Cell], [Cell], Int, Int, Bool) -> [(Int, Bool)] = fun (a, h, b, p, cols, mid) ->
+  closed_at(a, p - cols, closed_at(b, p + cols, (if mid then closed_at(h, p, []) else [])));
+let join : ([(Int, Bool)], [(Int, Bool)]) -> [(Int, Bool)] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: join(rest, ys) end;
+# along one row: left, the closed cells of the column before; a, h, b, the rows above, here and below from place p on #
+let along : (Int, [(Int, Bool)], [Cell], [Cell], [Cell], Int, [(at = Int, near = Int, cells = [(Int, Bool)])]) -> [(at = Int, near = Int, cells = [(Int, Bool)])] = fun (cols, left, a, h, b, p, acc) ->
+  case h
+  | [] => acc
+  | x :: hrest =>
+    let cs = join(left, join(column(a, h, b, p, cols, false), column(tl(a), hrest, tl(b), p + 1, cols, true))) in
+    let acc2 = (case cs | [] => acc | _ :: _ => if x.open then (at = p, near = x.near, cells = cs) :: acc else acc end) in
+    along(cols, column(a, h, b, p, cols, true), tl(a), hrest, tl(b), p + 1, acc2)
+  end;
+let down : (Int, [Cell], [[Cell]], Int, [(at = Int, near = Int, cells = [(Int, Bool)])]) -> [(at = Int, near = Int, cells = [(Int, Bool)])] = fun (cols, above, rs, p, acc) ->
+  case rs
+  | [] => acc
+  | h :: rest => down(cols, h, rest, p + cols, along(cols, [], above, h, (case rest | [] => [] | b :: _ => b end), p, acc))
+  end;
+let back : ([(at = Int, near = Int, cells = [(Int, Bool)])], [(at = Int, near = Int, cells = [(Int, Bool)])]) -> [(at = Int, near = Int, cells = [(Int, Bool)])] = fun (xs, acc) ->
+  case xs | [] => acc | x :: rest => back(rest, x :: acc) end;
+# the numbers to reason from, top to bottom, left to right #
+let numbers : Game -> [(at = Int, near = Int, cells = [(Int, Bool)])] = fun g -> back(down(g.cols, [], g.grid, 0, []), []);
+# the mines known so far: each (place, flagged, the number that showed it) #
+let known : (Int, [(Int, Bool, Int)]) -> Bool = fun (p, ms) ->
+  case ms | [] => false | (m, _, _) :: rest => m == p || known(p, rest) end;
+let unknown : ([(Int, Bool)], [(Int, Bool, Int)]) -> [(Int, Bool)] = fun (cs, ms) ->
+  case cs | [] => [] | (p, f) :: rest => if known(p, ms) then unknown(rest, ms) else (p, f) :: unknown(rest, ms) end;
+let size : [(Int, Bool)] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + size(rest) end;
+let mark : ([(Int, Bool)], Int, [(Int, Bool, Int)]) -> [(Int, Bool, Int)] = fun (cs, why, ms) ->
+  case cs | [] => ms | (p, f) :: rest => mark(rest, why, (p, f, why) :: ms) end;
+# one pass over the numbers: each whose unknown closed cells must all be mines adds them, itself the reason #
+let mines_from : ([(at = Int, near = Int, cells = [(Int, Bool)])], [(Int, Bool, Int)]) -> [(Int, Bool, Int)] = fun (ns, ms) ->
+  case ns
+  | [] => ms
+  | n :: rest =>
+    let u = unknown(n.cells, ms) in
+    let left = n.near - (size(n.cells) - size(u)) in
+    if left > 0 && left == size(u) then mines_from(rest, mark(u, n.at, ms)) else mines_from(rest, ms)
+  end;
+# the first of cs that is flagged (flagged = true), or not; -1 if none #
+let first_flagged : ([(Int, Bool)], Bool) -> Int = fun (cs, flagged) ->
+  case cs | [] => 0 - 1 | (p, f) :: rest => if f == flagged then p else first_flagged(rest, flagged) end;
+# a number with all its mines known, and a safe closed cell around it: one not flagged (kind 1), or, looking for wrong flags, one flagged (kind 3) #
+let safe_from : ([(at = Int, near = Int, cells = [(Int, Bool)])], [(Int, Bool, Int)], Bool) -> (kind = Int, at = Int, why = Int) = fun (ns, ms, wrong) ->
+  case ns
+  | [] => (kind = 0, at = 0 - 1, why = 0 - 1)
+  | n :: rest =>
+    let u = unknown(n.cells, ms) in
+    let q = (if size(n.cells) - size(u) == n.near then first_flagged(u, wrong) else 0 - 1) in
+    if q >= 0 then (kind = (if wrong then 3 else 1), at = q, why = n.at) else safe_from(rest, ms, wrong)
+  end;
+let unflagged_mine : [(Int, Bool, Int)] -> (kind = Int, at = Int, why = Int) = fun ms ->
+  case ms
+  | [] => (kind = 0, at = 0 - 1, why = 0 - 1)
+  | (m, f, why) :: rest => if f then unflagged_mine(rest) else (kind = 2, at = m, why = why)
+  end;
+# The sure move (the hint's own name is taken by Hazel): kind 1, a safe cell to open; 3, a flag on a safe cell; 2, a mine not yet flagged; 0, no sure move. at: that cell's place; why: the place of the number that shows it #
+let sure : Game -> (kind = Int, at = Int, why = Int) = fun g ->
+  if g.over then (kind = 0, at = 0 - 1, why = 0 - 1) else
+  let ns = numbers(g) in
+  let ms = mines_from(ns, mines_from(ns, [])) in
+  let s = safe_from(ns, ms, false) in
+  if s.kind > 0 then s else
+  let w = safe_from(ns, ms, true) in
+  if w.kind > 0 then w else unflagged_mine(ms)

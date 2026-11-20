@@ -1,0 +1,6 @@
+# Go's vocabulary, which every module sees #
+# A point of the board is its row * size + its column; a stone is 0 for none, 1 black, 2 white #
+# A game: the board's size; its stones, row by row; whose turn it is; the point a ko forbids this turn (or -1); passes in a row; the stones each side has taken; the last move (its point, -1 a pass, -2 none yet); whether it is over (two passes in a row) #
+type Game = (size = Int, board = [[Int]], turn = Int, ko = Int, passes = Int, black_took = Int, white_took = Int, last = Int, over = Bool) in
+# A score, by Tromp and Taylor's rules: each side's stones and the empty points that reach only its stones, white's komi, and who owns each point (0 for neither) #
+type Score = (black = Int, white = Int, komi = Int, owners = [Int]) in

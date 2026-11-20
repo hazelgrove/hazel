@@ -1,0 +1,35 @@
+# The 52 cards, and what the rules ask of a card #
+let red : Suit -> Bool = fun s ->
+  case s | Hearts => true | Diamonds => true | Spades => false | Clubs => false end;
+# a suit's foundation: 0 Spades, 1 Hearts, 2 Diamonds, 3 Clubs #
+let index : Suit -> Int = fun s ->
+  case s | Spades => 0 | Hearts => 1 | Diamonds => 2 | Clubs => 3 end;
+let suit_name : Suit -> String = fun s ->
+  case s | Spades => "Spades" | Hearts => "Hearts" | Diamonds => "Diamonds" | Clubs => "Clubs" end;
+let ranks : [String] = ["Ace", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Jack", "Queen", "King"];
+let nth_name : ([String], Int) -> String = fun (xs, i) ->
+  case xs | [] => "" | x :: rest => if i == 0 then x else nth_name(rest, i - 1) end;
+let name : Card -> String = fun c -> nth_name(ranks, c.rank - 1) ++ " of " ++ suit_name(c.suit);
+let suit_from : (Suit, Int) -> [Card] = fun (s, r) ->
+  if r > 13 then [] else (suit = s, rank = r) :: suit_from(s, r + 1);
+let cat : ([Card], [Card]) -> [Card] = fun (xs, ys) ->
+  case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+# The deck, by suit, each from the Ace to the King #
+let deck : [Card] =
+  cat(suit_from(Spades, 1), cat(suit_from(Hearts, 1), cat(suit_from(Diamonds, 1), suit_from(Clubs, 1))));
+let is_empty : [Card] -> Bool = fun cs ->
+  case cs | [] => true | _ => false end;
+let size : [Card] -> Int = fun cs ->
+  case cs | [] => 0 | _ :: rest => 1 + size(rest) end;
+# the last card (an Ace of Spades for no card: never asked of an empty run) #
+let last : [Card] -> Card = fun cs ->
+  case cs | [] => (suit = Spades, rank = 1) | [c] => c | _ :: rest => last(rest) end;
+let reverse_onto : ([Card], [Card]) -> [Card] = fun (xs, acc) ->
+  case xs | [] => acc | x :: rest => reverse_onto(rest, x :: acc) end;
+# the first k cards, and the rest #
+let split : ([Card], Int) -> ([Card], [Card]) = fun (cs, k) ->
+  if k <= 0 then ([], cs) else
+  case cs
+  | [] => ([], [])
+  | c :: rest => let (front, back) = split(rest, k - 1) in (c :: front, back)
+  end

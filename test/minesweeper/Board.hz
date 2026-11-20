@@ -1,0 +1,51 @@
+# The board: a cell's neighbourhood, the mines laid after the first tap (never in its 3 by 3), and each cell's count #
+let closed : Bool -> Cell = fun b -> (mine = b, near = 0, open = false, flag = false);
+let tl : [Cell] -> [Cell] = fun cs -> case cs | [] => [] | _ :: rest => rest end;
+let is_mine : [Cell] -> Int = fun cs -> case cs | [] => 0 | c :: _ => if c.mine then 1 else 0 end;
+# a row's counts: each cell's mines in the columns left of it, under and over it, and right of it (prev: the left column's three) #
+let count_row : ([Cell], [Cell], [Cell], Int) -> [Cell] = fun (a, r, b, prev) ->
+  case r
+  | [] => []
+  | c :: rest =>
+    let here = is_mine(a) + is_mine(b) in
+    let next = is_mine(tl(a)) + is_mine(rest) + is_mine(tl(b)) in
+    (mine = c.mine, near = prev + here + next, open = c.open, flag = c.flag) :: count_row(tl(a), rest, tl(b), here + is_mine(r))
+  end;
+let count_rows : ([Cell], [[Cell]]) -> [[Cell]] = fun (above, rows) ->
+  case rows
+  | [] => []
+  | r :: rest =>
+    let below = (case rest | [] => [] | b :: _ => b end) in
+    count_row(above, r, below, 0) :: count_rows(r, rest)
+  end;
+let safe : (Int, Int, Int, Int) -> Bool = fun (i, cols, r0, c0) ->
+  let r = i / cols in
+  let c = i - r * cols in
+  r >= r0 - 1 && r <= r0 + 1 && c >= c0 - 1 && c <= c0 + 1;
+let safe_count : (Int, Int, Int, Int, Int) -> Int = fun (i, n, cols, r0, c0) ->
+  if i >= n then 0 else (if safe(i, cols, r0, c0) then 1 else 0) + safe_count(i + 1, n, cols, r0, c0);
+# cell by cell, a mine with chance (mines left) / (cells left), Knuth's selection sampling: exactly the mines asked, each place as likely #
+let lay : (Int, Int, Int, Int, Int, Int, Int, [Float]) -> [Bool] = fun (i, n, cols, r0, c0, left, free, us) ->
+  if i >= n then [] else
+  if safe(i, cols, r0, c0) then false :: lay(i + 1, n, cols, r0, c0, left, free, us) else
+  case us
+  | [] => false :: lay(i + 1, n, cols, r0, c0, left, free - 1, [])
+  | u :: more =>
+    if u *. float_of_int(free) <. float_of_int(left)
+    then true :: lay(i + 1, n, cols, r0, c0, left - 1, free - 1, more)
+    else false :: lay(i + 1, n, cols, r0, c0, left, free - 1, more)
+  end;
+let take_row : ([Bool], Int) -> ([Cell], [Bool]) = fun (bs, k) ->
+  if k <= 0 then ([], bs) else
+  case bs | [] => ([], []) | b :: rest => let (row, more) = take_row(rest, k - 1) in (closed(b) :: row, more) end;
+let rows_of : ([Bool], Int) -> [[Cell]] = fun (bs, cols) ->
+  case bs | [] => [] | _ => let (row, rest) = take_row(bs, cols) in row :: rows_of(rest, cols) end;
+let falses : Int -> [Bool] = fun n -> if n <= 0 then [] else false :: falses(n - 1);
+# A board before its first tap: every cell closed, no mine laid yet #
+let fresh : (Int, Int, Int) -> Game = fun (rows, cols, mines) ->
+  (rows = rows, cols = cols, mines = mines, grid = rows_of(falses(rows * cols), cols), left = rows * cols - mines, over = false, won = false, boom = 0 - 1);
+# The mines laid for a first tap at (r0, c0): one random number a cell, each at least 0 and less than 1 #
+let lay_mines : (Int, Int, Int, [Float], Int, Int) -> Game = fun (rows, cols, mines, us, r0, c0) ->
+  let n = rows * cols in
+  let grid = count_rows([], rows_of(lay(0, n, cols, r0, c0, mines, n - safe_count(0, n, cols, r0, c0), us), cols)) in
+  (rows = rows, cols = cols, mines = mines, grid = grid, left = n - mines, over = false, won = false, boom = 0 - 1)

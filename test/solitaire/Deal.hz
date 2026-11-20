@@ -1,0 +1,29 @@
+# The deal: the deck shuffled, by random numbers from the page, into seven piles and the stock #
+# the k-th card, and the cards without it, in one walk #
+let take : ([Card], Int) -> (Card, [Card]) = fun (cs, k) ->
+  case cs
+  | [] => ((suit = Spades, rank = 1), [])
+  | c :: rest =>
+    if k == 0 then (c, rest)
+    else let (d, left) = take(rest, k - 1) in (d, c :: left)
+  end;
+# the cards in a random order: each next card is taken from those left, where a random number falls (n is how many are left) #
+let shuffle : ([Card], Int, [Float]) -> [Card] = fun (cs, n, us) ->
+  case us
+  | [] => cs
+  | u :: more =>
+    if n <= 0 then [] else
+    let (c, left) = take(cs, int_of_float(u *. float_of_int(n))) in
+    c :: shuffle(left, n - 1, more)
+  end;
+# pile i (0 to 6) takes i + 1 cards, the last face up; the rest are the stock #
+let piles_from : ([Card], Int) -> ([Pile], [Card]) = fun (cs, i) ->
+  if i > 6 then ([], cs) else
+  let (cards, rest) = Cards.split(cs, i + 1) in
+  let (top, under) = Cards.split(cards, 1) in
+  let (more, stock) = piles_from(rest, i + 1) in
+  ((down = under, up = top) :: more, stock);
+# A new game: 52 random numbers, each at least 0 and less than 1, and how many cards a draw turns over #
+let deal : ([Float], Int) -> Game = fun (us, draw) ->
+  let (piles, stock) = piles_from(shuffle(Cards.deck, 52, us), 0) in
+  (stock = stock, waste = [], foundations = [[], [], [], []], piles = piles, draw = draw)

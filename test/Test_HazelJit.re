@@ -2162,6 +2162,38 @@ let checkers_aot =
       "\n(start = Checkers.start, moves = Checkers.moves, apply = Checkers.apply, choose = Checkers.choose)",
     ~mark="CHECKERS",
   );
+let go_aot =
+  game_aot(
+    ~dir="go",
+    ~modules=["Go"],
+    ~tail=
+      "\n(fresh = Go.fresh, play = Go.play, pass = Go.pass, score = Go.score, choose = Go.choose)",
+    ~mark="GO",
+  );
+let minesweeper_aot =
+  game_aot(
+    ~dir="minesweeper",
+    ~modules=["Board", "Play", "Hint"],
+    ~tail=
+      "\n(fresh = Board.fresh, lay = Board.lay_mines, reveal = Play.reveal, flag = Play.flag, chord = Play.chord, flags = Play.flags, sure = Hint.sure)",
+    ~mark="MINESWEEPER",
+  );
+let mahjong_aot =
+  game_aot(
+    ~dir="mahjong",
+    ~modules=["Mahjong"],
+    ~tail=
+      "\n(start = Mahjong.start, step = Mahjong.step, options = Mahjong.options, next_hand = Mahjong.next_hand)",
+    ~mark="MAHJONG",
+  );
+let solitaire_aot =
+  game_aot(
+    ~dir="solitaire",
+    ~modules=["Cards", "Deal", "Moves"],
+    ~tail=
+      "\n(deal = Deal.deal, moves = Moves.moves, moves_from = Moves.moves_from, apply = Moves.apply, won = Moves.won)",
+    ~mark="SOLITAIRE",
+  );
 
 let astrology_aot = () =>
   switch (
@@ -2747,6 +2779,26 @@ let tests = (
       "checkers (hazeljs-examples), the rules compiled whole, their JS printed after the run",
       `Quick,
       checkers_aot,
+    ),
+    test_case(
+      "go (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      go_aot,
+    ),
+    test_case(
+      "minesweeper (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      minesweeper_aot,
+    ),
+    test_case(
+      "mahjong (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      mahjong_aot,
+    ),
+    test_case(
+      "solitaire (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      solitaire_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

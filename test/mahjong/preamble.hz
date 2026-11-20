@@ -1,0 +1,16 @@
+# Mahjong's vocabulary, which the module sees #
+# A tile is a number, 0 to 33: dots 1 to 9 are 0 to 8, bamboo 9 to 17, characters 18 to 26; the winds east, south, west, north 27 to 30; the dragons red, green, white 31 to 33. Four of each: 136 #
+# A set shown or declared: a chow (kind 1, tile its lowest), a pung (2) or a kong (3); shown when it was made from a discard (or added to one that was) #
+type Meld = (kind = Int, tile = Int, shown = Bool) in
+# A seat: the tiles in hand, its sets, its discards (the newest first), its points. Seat 0 is you; 1, 2 and 3 are Hazel, in turn order #
+type Seat = (hand = [Int], melds = [Meld], river = [Int], points = Int) in
+# A faan of a winning hand: which (its code) and how many #
+type Item = (code = Int, faan = Int) in
+# What happened: who; what (2 a discard, 3 a chow, 4 a pung, 5 a kong on a discard, 6 a kong of one's own, 7 a win by drawing, 8 a win on a discard, 9 the wall empty); the tile #
+type Event = (who = Int, what = Int, tile = Int) in
+# A hand of the game: the wall; the seats; whose turn; the phase (1 a turn: draw done, a discard to make; 2 a discard, open to claims; 3 over); the tile discarded and by whom; the tile just drawn (or -1); the dealer; the round's wind (0 east to 3 north); which hand; at the end the winner (-1 none), its faan and each seat's points won or paid; what happened, the newest first #
+type Game = (wall = [Int], seats = [Seat], turn = Int, phase = Int, tile = Int, from = Int, drawn = Int, dealer = Int, wind = Int, hand_no = Int, winner = Int, items = [Item], pays = [Int], events = [Event]) in
+# Your move: kind 0 none (the table goes on), 1 discard the tile, 2 win, 3 a kong of the tile, 4 pass, 5 chow (the tile its lowest), 6 pung, 7 kong, on a discard #
+type Act = (kind = Int, tile = Int) in
+# What you may do now #
+type Opts = (discard = Bool, win = Bool, kongs = [Int], pung = Bool, kong = Bool, chows = [Int]) in

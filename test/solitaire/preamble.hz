@@ -1,0 +1,17 @@
+# Klondike solitaire's vocabulary, which every module sees #
+# A suit; Hearts and Diamonds are red, Spades and Clubs black #
+type Suit = + Spades + Hearts + Diamonds + Clubs in
+# A card: its suit and its rank, 1 (the Ace) to 13 (the King) #
+type Card = (suit = Suit, rank = Int) in
+# A pile of the tableau: its face-down cards and its face-up run, each with its top card first #
+type Pile = (down = [Card], up = [Card]) in
+# A game: the stock and the waste, each top first; the four foundations, one a suit (Spades, Hearts, Diamonds, Clubs), each top first; the seven piles; and how many cards a draw turns over, 1 or 3 #
+type Game = (stock = [Card], waste = [Card], foundations = [[Card]], piles = [Pile], draw = Int) in
+# Where cards move from: the waste's top card; a pile's top cards, how many of them; a foundation's top card (constructors take one argument, or a labeled tuple, so that a move crosses from JavaScript whole) #
+type Run = (pile = Int, count = Int) in
+type From = + FromWaste + FromPile(Run) + FromFoundation(Int) in
+# Where they move to: a pile; the foundation of the card's suit #
+type To = + ToPile(Int) + ToFoundation in
+# A move: turn over cards from the stock; turn the waste back into the stock; move cards #
+type Step = (from = From, to = To) in
+type Move = + Draw + Redeal + Shift(Step) in
