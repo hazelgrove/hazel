@@ -76,11 +76,11 @@ let test_two_step_case_passes = () =>
 
 /* --- Non-structural recursion is left to prove ---------------------- */
 
-/* `n - 1` is arithmetic, not a subterm. */
+/* `n - 1` with no lower bound: on an Int, `n != 0` isn't one. */
 let test_arithmetic_recursion_unknown = () =>
   expect_unknown(
     "f(1)",
-    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|},
+    {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|},
   );
 
 /* `f(e)` passes the parameter itself, which is not strict. */
@@ -112,6 +112,107 @@ let test_shadowed_subterm_unknown = () =>
     "s([1])",
     {|let s = fun l -> case l | [] => 0 | h :: t => let t = [] in s(t) end in theorem t = s([1]) == s([1]) proof from s([1]) == s([1]) do rewrite same end end in t|},
   );
+
+/* --- Recursion on a number, guarded ----------------------------------- */
+
+/* `name` defined as `f`, cited at `call`. */
+let recursion = (~nat=false, f: string, call: string): string =>
+  (nat ? "use Nat in " : "")
+  ++ "let f = "
+  ++ f
+  ++ " in theorem t = "
+  ++ call
+  ++ " == "
+  ++ call
+  ++ " proof from "
+  ++ call
+  ++ " == "
+  ++ call
+  ++ " do rewrite same end end in t";
+
+let guarded_standard = [
+  (
+    "on an Int above a bound",
+    false,
+    "fun n -> if n <= 0 then 1 else n * f(n - 1)",
+  ),
+  (
+    "with the literal first",
+    false,
+    "fun n -> if 0 >= n then 1 else n * f(n - 1)",
+  ),
+  ("through `!`", false, "fun n -> if !(n > 0) then 1 else n * f(n - 1)"),
+  (
+    "under `&&` where it holds",
+    false,
+    "fun n -> if n > 0 && n < 100 then f(n - 2) else 0",
+  ),
+  (
+    "under `||` where it fails",
+    false,
+    "fun n -> if n <= 0 || n > 100 then 0 else f(n - 1)",
+  ),
+  (
+    "on a Nat past 0",
+    true,
+    "fun n -> if n == 0 then 1 else n * f(monus(n, 1))",
+  ),
+  (
+    "on a Nat past a case's literal",
+    true,
+    "fun n -> case n | 0 => 1 | m => m * f(monus(m, 1)) end",
+  ),
+];
+
+let guarded_unknown = [
+  ("going up", false, "fun n -> if n <= 0 then 1 else f(n + 1)"),
+  ("by 0", false, "fun n -> if n <= 0 then 1 else f(n - 0)"),
+  (
+    "guarded on another variable",
+    false,
+    "fun n -> fun m -> if m <= 0 then 0 else f(n - 1)(m)",
+  ),
+  (
+    "rebound after the guard",
+    false,
+    "fun n -> if n <= 0 then 0 else let n = n + 5 in f(n - 1)",
+  ),
+  (
+    "in the branch the guard doesn't cover",
+    false,
+    "fun n -> if n <= 0 then f(n - 1) else 0",
+  ),
+  ("halving", false, "fun n -> if n <= 0 then 0 else f(n / 2)"),
+  ("through a helper", false, "fun n -> if n <= 0 then 0 else f(dec(n))"),
+  ("on a Nat with no guard", true, "fun n -> f(monus(n, 1))"),
+];
+
+let guarded_tests =
+  List.map(
+    ~f=
+      ((what, nat, f)) =>
+        test_case("standard: " ++ what, `Quick, () =>
+          expect_standard(recursion(~nat, f, "f(3)"))
+        ),
+    guarded_standard,
+  )
+  @ List.map(
+      ~f=
+        ((what, nat, f)) =>
+          test_case("left to prove: " ++ what, `Quick, () =>
+            expect_unknown(
+              String.is_substring(f, ~substring="fun m") ? "f(3)(1)" : "f(3)",
+              (nat ? "" : "let dec = fun (x : Int) -> x - 1 in ")
+              ++ recursion(
+                   ~nat,
+                   f,
+                   String.is_substring(f, ~substring="fun m")
+                     ? "f(3)(1)" : "f(3)",
+                 ),
+            )
+          ),
+      guarded_unknown,
+    );
 
 let tests = (
   "Evaluator.StructuralRecursion",
@@ -162,5 +263,6 @@ let tests = (
       `Quick,
       test_shadowed_subterm_unknown,
     ),
-  ],
+  ]
+  @ guarded_tests,
 );

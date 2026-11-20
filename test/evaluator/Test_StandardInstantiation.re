@@ -63,7 +63,7 @@ let test_inv_unknown = () =>
 let test_nonstructural_recursion_unknown = () =>
   expect_unknown(
     "f(1)",
-    {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|},
+    {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|},
   );
 
 let omega = "let omega = fun (x: Int) -> omega(x) in ";

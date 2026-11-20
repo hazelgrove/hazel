@@ -101,7 +101,7 @@ let test_instantiation_exemption_total_ops = () => {
 let test_divergent_instantiation_left_to_prove = () => {
   let src =
     refl_lemma
-    ++ {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|};
+    ++ {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|};
   let (pm, proof, obs) = obligations_named("t", src);
   check_mark_free("nothing is refused", pm, proof);
   Alcotest.check(
@@ -115,7 +115,7 @@ let test_divergent_instantiation_left_to_prove = () => {
 /* The same recursive call inside an eval step is fine: eval steps
  * preserve denotation and have no gates. */
 let test_recursive_call_in_eval_step_ungated = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == 0 proof from f(1) do step end in t|};
+  let src = {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == 0 proof from f(1) do step end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("eval step incurs no obligations", 0, obs);
   check_mark_free("no mark on an eval step", pm, proof);
@@ -157,7 +157,7 @@ let test_split_computed_scrutinee_emits_condition = () => {
 /* A computed scrutinee that calls a non-structural recursive function
  * leaves its standardness to prove. */
 let test_split_divergent_scrutinee_left_to_prove = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = forall x -> x == x proof induction f(1) == 0 | true => ? | false => ? end in t|};
+  let src = {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = forall x -> x == x proof induction f(1) == 0 | true => ? | false => ? end in t|};
   let (pm, proof, obs) = obligations(src);
   check_mark_free("nothing is refused", pm, proof);
   Alcotest.check(

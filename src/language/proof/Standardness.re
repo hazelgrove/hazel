@@ -22,7 +22,10 @@ open Util;
  *     `Axioms.standard_primitives`, `!!(a / b) == (b != 0)`: the rule a
  *     proof cites, its condition left as the routine's;
  *   - `if`, `let`, and a `case` that covers its scrutinee's type, whose
- *     parts are standard;
+ *     parts are standard. A branch's conditions are needed only under
+ *     its guard: those the guard implies are dropped (`Bounds`), so
+ *     `if b == 0 then 0 else a / b` needs nothing, and the rest are
+ *     conditional on it;
  *   - a lambda whose body is standard for every standard argument with no
  *     condition on that argument: `fun x -> 1 / x` isn't standard;
  *   - an application of a standard function to a standard argument. A
@@ -86,10 +89,12 @@ let total_builtins = [
 ];
 
 /* What the walk knows about the names bound inside `e`: each is standard,
- * and some have a known type. */
+ * and some have a known type. `guards` is what the guards of the
+ * enclosing branches say about numbers. */
 type scope = {
   bound: list(Var.t),
   types: list((Var.t, Typ.t)),
+  guards: Bounds.t,
 };
 
 let check =
@@ -159,6 +164,18 @@ let check =
          Typ.normalize(ctx, entry.typ)
        )
     |> Option.bind(~f=known);
+  /* A builtin's type, which a proof's context doesn't hold. */
+  let builtin_type = (name: string): option(Typ.t) =>
+    switch (ctx_type(name)) {
+    | Some(_) as t => t
+    | None =>
+      let builtins = Builtins.ctx_init(None);
+      Ctx.lookup_var(builtins, name)
+      |> Option.map(~f=(entry: Ctx.var_entry) =>
+           Typ.normalize(builtins, entry.typ)
+         )
+      |> Option.bind(~f=known);
+    };
   let within = (scope: scope, names: list(Var.t), types) => {
     bound: names @ scope.bound,
     types:
@@ -167,6 +184,7 @@ let check =
           ~f=((x, _)) => !List.mem(names, x, ~equal=String.equal),
           scope.types,
         ),
+    guards: Bounds.forget(scope.guards, names),
   };
   /* The types a pattern's variables get from matching a value of type
    * `t`, where the routine can see them. */
@@ -265,6 +283,7 @@ let check =
   let empty = {
     bound: [],
     types: [],
+    guards: Bounds.empty,
   };
   /* The scope of a recursive function's body, applied to an argument of
    * type `at`, with result type `cod`. */
@@ -332,6 +351,7 @@ let check =
       agreed([(a, type_of(scope, a)), (b, type_of(scope, b))])
     | Match(scrut, rules) => agreed(arm_types(scope, scrut, rules))
     | Constructor(_, Some(Some(t))) => known(t)
+    | BuiltinFun(name) => builtin_type(name)
     | Fun(p, body, t, _) =>
       switch (domain(p, t)) {
       | Some(dom) =>
@@ -708,6 +728,25 @@ let check =
         ~init=Ok([]),
         es,
       );
+    /* A branch's conditions, needed only where its guard `guard` holds:
+     * dropped where `guards`, what is known there, implies them, and
+     * otherwise conditional on `guard`. */
+    let guarded = (~guards, guard: Exp.t, conditions) => {
+      let is_nat = x =>
+        switch (
+          Option.map(~f=Typ.term_of, type_of(scope, Exp.fresh(Var(x))))
+        ) {
+        | Some(Atom(Nat)) => true
+        | _ => false
+        };
+      List.filter_map(
+        ~f=
+          c =>
+            Bounds.implies(~nat=is_nat, guards, c)
+              ? None : Some(Exp.fresh(BinOp(Bool(Implies), guard, c))),
+        conditions,
+      );
+    };
     let operands = (cls, a, b) =>
       is_atom(cls, scope, a) && is_atom(cls, scope, b)
         ? all([a, b])
@@ -794,27 +833,112 @@ let check =
     | UnOp(Bool(Not), a) =>
       is_atom(Bool, scope, a) ? go(scope, a) : Error("`!` on a non-Bool")
     | If(c, a, b) =>
-      is_atom(Bool, scope, c)
-        ? all([c, a, b]) : Error("an `if` on a non-Bool")
+      let branch = (holds, e) => {
+        let guards = Bounds.assume(scope.guards, c, holds);
+        let+ cs =
+          go(
+            {
+              ...scope,
+              guards,
+            },
+            e,
+          );
+        guarded(~guards, holds ? c : Exp.fresh(UnOp(Bool(Not), c)), cs);
+      };
+      if (is_atom(Bool, scope, c)) {
+        let* c_cs = go(scope, c);
+        let* a_cs = branch(true, a);
+        let+ b_cs = branch(false, b);
+        c_cs @ a_cs @ b_cs;
+      } else {
+        Error("an `if` on a non-Bool");
+      };
     | Match(scrut, rules) =>
       if (!covers(scope, scrut, List.map(~f=fst, rules))) {
         Error("a `case` that may not cover its scrutinee");
       } else {
         let* cs = go(scope, scrut);
         let scrut_ty = type_of(scope, scrut);
-        List.fold_left(
-          ~f=
-            (acc, (p, rhs)) => {
-              let* acc = acc;
-              let names = Pat.bound_vars(p);
-              let* rhs_cs =
-                go(within(scope, names, pattern_types(p, scrut_ty)), rhs);
-              let+ rhs_cs = lift(names, rhs_cs);
-              acc @ rhs_cs;
-            },
-          ~init=Ok(cs),
-          rules,
-        );
+        /* On a number, a rule is reached only past the literals of the
+         * rules before it, and a variable pattern is the scrutinee, so
+         * its conditions are about the scrutinee. */
+        let rec unwrapped = (p: Pat.t) =>
+          switch (Pat.term_of(p)) {
+          | Parens(p)
+          | Asc(p, _) => unwrapped(p)
+          | _ => p
+          };
+        let is_literal = (p: Pat.t) =>
+          switch (Pat.term_of(unwrapped(p))) {
+          | Atom(Int(_) | Nat(_)) => true
+          | _ => false
+          };
+        let compared = (op, p) =>
+          Exp.fresh(BinOp(Poly(op), scrut, Exp.of_pat(unwrapped(p))));
+        let+ (cs, _) =
+          List.fold_left(
+            ~f=
+              (acc, (p, rhs)) => {
+                let* (acc, past) = acc;
+                let names = Pat.bound_vars(p);
+                let guard =
+                  switch (
+                    past @ (is_literal(p) ? [compared(Equals, p)] : [])
+                  ) {
+                  | [] => None
+                  | [g, ...gs] =>
+                    Some(
+                      List.fold_left(
+                        ~f=(g, g') => Exp.fresh(BinOp(Bool(And), g, g')),
+                        ~init=g,
+                        gs,
+                      ),
+                    )
+                  };
+                let guards =
+                  Option.value_map(guard, ~default=scope.guards, ~f=g =>
+                    Bounds.assume(scope.guards, g, true)
+                  );
+                let rhs_scope =
+                  within(
+                    {
+                      ...scope,
+                      guards,
+                    },
+                    names,
+                    pattern_types(p, scrut_ty),
+                  );
+                let rhs_scope =
+                  switch (
+                    Pat.term_of(unwrapped(p)),
+                    Bounds.variable(scrut),
+                  ) {
+                  | (Var(m), Some(x)) => {
+                      ...rhs_scope,
+                      guards: Bounds.alias(rhs_scope.guards, m, x),
+                    }
+                  | _ => rhs_scope
+                  };
+                let* rhs_cs = go(rhs_scope, rhs);
+                let rhs_cs =
+                  switch (Pat.term_of(unwrapped(p))) {
+                  | Var(m) => instantiate(m, scrut, rhs_cs)
+                  | _ => rhs_cs
+                  };
+                let* rhs_cs = lift(names, rhs_cs);
+                let rhs_cs =
+                  switch (guard) {
+                  | Some(g) => guarded(~guards, g, rhs_cs)
+                  | None => rhs_cs
+                  };
+                let past =
+                  is_literal(p) ? past @ [compared(NotEquals, p)] : past;
+                Ok((acc @ rhs_cs, past));
+              },
+            ~init=Ok((cs, [])),
+            rules,
+          );
+        cs;
       }
     | Let(p, def, body) =>
       switch (ProofSyntax.pat_to_name(p)) {
@@ -915,7 +1039,7 @@ let check =
           ? go(scope, f) : outside_domain("the function")
       }
     | BuiltinFun(name) =>
-      if (!fits(scope, ctx_type(name), arg)) {
+      if (!fits(scope, builtin_type(name), arg)) {
         outside_domain(name);
       } else if (List.mem(total_builtins, name, ~equal=String.equal)) {
         Ok([]);
@@ -963,7 +1087,7 @@ let check =
       let cod = fix_result(~declared, ~at, self, param, body);
       go(
         {
-          bound: [],
+          ...empty,
           types:
             List.filter(
               ~f=
@@ -996,7 +1120,7 @@ let check =
           };
         go(
           {
-            bound: [],
+            ...empty,
             types: self_types,
           },
           value,
@@ -1014,15 +1138,7 @@ let check =
       verdict;
     };
   };
-  switch (
-    go(
-      {
-        bound: [],
-        types: [],
-      },
-      e,
-    )
-  ) {
+  switch (go(empty, e)) {
   | Ok(conditions) => Standard(DomainConditions.dedup(conditions))
   | Error(reason) => Unknown(reason)
   };
