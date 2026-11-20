@@ -661,7 +661,7 @@ let view =
     )
     : Node.t => {
   let items = get_all_items(~can_shrink, ~info_map, ~elaborated, z);
-  if (items == []) {
+  if (List.is_empty(items)) {
     div([]);
   } else if (JsUtil.coarse_pointer()) {
     ActionSheet.view(

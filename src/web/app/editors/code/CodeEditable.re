@@ -744,7 +744,7 @@ module View = {
             ~info_map=model.statics.info_map,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
-            ~can_shrink=model.expansions != [],
+            ~can_shrink=!List.is_empty(model.expansions),
             ~dispatch_menu=a => inject(ContextMenu(a)),
             ~dispatch_action=perform_from_menu,
             model.context_menu,
@@ -793,7 +793,7 @@ module View = {
                   ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~model=model.context_menu,
-                  ~can_shrink=model.expansions != [],
+                  ~can_shrink=!List.is_empty(model.expansions),
                   model.editor.state.zipper,
                 ),
               ]
