@@ -5105,6 +5105,7 @@ and proof_to_info_map =
 let initial_theorems: list(Ctx.theorem_entry) =
   [
     "refl",
+    "standard",
     "impl_def",
     "and_comm",
     "or_comm",
