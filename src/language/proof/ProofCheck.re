@@ -591,20 +591,30 @@ module Axiom = {
  * ** over variables known to be Nat the same way: such an expression has
  * the value of the same polynomial over Int, and polynomials equal on
  * every Nat are equal. Nat subtraction truncates, so it stays out.
- * Definitions are substituted first,
- * so one whose value is a literal counts as that literal, and one whose
- * value is an error or a function leaves the fragment. A step the CAS
- * finds wrong is refused. Any other step incurs its equation as an
- * obligation. */
+ * A definition whose value is in the fragment, such as a literal, counts
+ * as that value.
+ *
+ * Any other subterm, a call `sum(m + 1)` or a division, is an unknown
+ * if the standardness routine types it Int or Nat; the same term is the
+ * same unknown. The equation then holds for every value of the unknowns,
+ * which is enough only where each unknown is a value: the step incurs
+ * `!!t` for each unknown `t`, as an instantiation does. Without that,
+ * `h : loop(0) == loop(0) + 1`, which `step` and `refl` give for
+ * `loop = fun x -> loop(x) + 1`, would let `0 == loop(0) - loop(0)` and
+ * `loop(0) - (loop(0) + 1) == -1` prove `0 == -1`.
+ *
+ * A step the CAS finds wrong with no unknowns is refused. Any other step
+ * incurs its equation as an obligation. */
 module Algebrite = {
   type verdict =
     | Equal
     | Differ
     | Unverified;
 
+  /* The verdict, and the unknowns the equation was verified for. */
   let verify =
       (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, goal, replacement)
-      : verdict => {
+      : (verdict, list(Exp.t)) => {
     /* By the statics at this occurrence, or else by the checker's binder
      * for it: the statics type a proof's `forall x =>` binder `Unknown`,
      * where the checker binds it at the goal's type. */
@@ -631,6 +641,25 @@ module Algebrite = {
         names := [(name, renamed), ...names^];
         renamed;
       };
+    let env = SemanticCtx.get_env(ctx);
+    let routine =
+      Standardness.in_context(
+        ~ctx=SemanticCtx.get_ctx(ctx), ~env, ~is_standard=_ =>
+        false
+      );
+    let unknowns: ref(list((Exp.t, string))) = ref([]);
+    let unknown = (cls: Atom.cls, e: Exp.t): option(string) =>
+      switch (Option.map(~f=Typ.term_of, routine.type_of(e))) {
+      | Some(Atom(c)) when Atom.equal_cls(c, cls) =>
+        switch (ListUtil.assoc_opt_by(Equality.semantic.exp, e, unknowns^)) {
+        | Some(name) => Some(name)
+        | None =>
+          let name = "hzu" ++ string_of_int(List.length(unknowns^));
+          unknowns := [(e, name), ...unknowns^];
+          Some(name);
+        }
+      | _ => None
+      };
     /* `cls` is Int or Nat. Every operator and operand has to be of it: a
      * Nat variable under an Int `+` is ill-typed and doesn't evaluate. */
     let rec print = (cls: Atom.cls, e: Exp.t): option(string) => {
@@ -643,6 +672,11 @@ module Algebrite = {
       switch (cls, Exp.term_of(e)) {
       | (Int, Atom(Int(n)))
       | (Nat, Atom(Nat(n))) => Some("(" ++ Bigint.to_string(n) ++ ")")
+      | (_, Var(x)) when Definitions.is_definition(env, x) =>
+        switch (Option.bind(Definitions.unfold(env, x), ~f=print(cls))) {
+        | Some(_) as value => value
+        | None => unknown(cls, e)
+        }
       | (_, Var(x)) when has_cls(cls, e, x) => Some(rename(x))
       | (_, Parens(e) | Asc(e, _)) => print(cls, e)
       | (Int, UnOp(Int(Minus), e)) =>
@@ -657,28 +691,28 @@ module Algebrite = {
         binary(a, "^", b)
       | (Nat, BinOp(Nat(Power), a, {term: Atom(Nat(_)), _} as b)) =>
         binary(a, "^", b)
-      | _ => None
+      | _ => unknown(cls, e)
       };
     };
-    let substituted = Substitution.in_exp(SemanticCtx.get_env(ctx));
-    let printed = (cls: Atom.cls) =>
-      OptUtil.zip(
-        print(cls, substituted(goal)),
-        print(cls, substituted(replacement)),
-      );
+    let printed = (cls: Atom.cls) => {
+      unknowns := [];
+      OptUtil.zip(print(cls, goal), print(cls, replacement));
+    };
     let sides =
       switch (printed(Int)) {
       | Some(_) as sides => sides
       | None => printed(Nat)
       };
+    let found = List.rev_map(~f=fst, unknowns^);
     switch (sides) {
     | Some((l, r)) =>
       switch (Cas.run^("simplify((" ++ l ++ ")-(" ++ r ++ "))")) {
-      | Some("0") => Equal
-      | Some(_) => Differ
-      | None => Unverified
+      | Some("0") => (Equal, found)
+      | Some(_) when List.is_empty(found) => (Differ, [])
+      | Some(_)
+      | None => (Unverified, [])
       }
-    | _ => Unverified
+    | _ => (Unverified, [])
     };
   };
 
@@ -716,23 +750,36 @@ module Algebrite = {
       };
     };
     let obligation = Discharge.obligation(~step, ~ctx, ~origin);
-    let domain_conditions = () =>
-      DomainConditions.dedup(
-        DomainConditions.scan(goal) @ DomainConditions.scan(replacement),
-      )
-      |> List.map(~f=obligation(~kind=Definedness));
+    /* The sides' domain conditions, and what the unknowns need to be
+     * standard. */
+    let conditions = unknowns => {
+      let (standard, goals) = Gate.standard(~ctx, unknowns);
+      Gate.obligations(
+        ~step,
+        ~ctx,
+        ~origin,
+        (
+          DomainConditions.dedup(
+            DomainConditions.scan(goal)
+            @ DomainConditions.scan(replacement)
+            @ standard,
+          ),
+          goals,
+        ),
+      );
+    };
     let rewritten = rewritten(Exp.replace_all_ids(replacement));
     if (is_float(goal) || is_float(replacement)) {
       Error(ProofMark.FloatAlgebrite);
     } else {
       switch (verify(~statics, ~ctx, goal, replacement)) {
-      | Equal => Ok((rewritten, domain_conditions()))
-      | Differ => Error(ProofMark.AlgebraDiffers)
-      | Unverified =>
+      | (Equal, unknowns) => Ok((rewritten, conditions(unknowns)))
+      | (Differ, _) => Error(ProofMark.AlgebraDiffers)
+      | (Unverified, _) =>
         let equation =
           Exp.fresh(BinOp(Poly(Equals), goal, replacement))
           |> obligation(~kind=Algebra);
-        Ok((rewritten, domain_conditions() @ [equation]));
+        Ok((rewritten, conditions([]) @ [equation]));
       };
     };
   };
