@@ -205,6 +205,10 @@ let routine_in = (definitions: string, goal: string): option(list(string)) => {
   };
 };
 
+let term_size =
+  "type Term = + Var(Int) + Lam(Term) + Ap(Term, Term) in "
+  ++ "let size = fun e -> case e | Var(n) => 1 | Lam(b) => 1 + size(b) | Ap(e1, e2) => 1 + size(e1) + size(e2) end in";
+
 /* A library or user function is judged by its code, at its argument's
  * type: structural recursion shows in the patterns it splits on. */
 let code_tests = [
@@ -252,6 +256,50 @@ let code_tests = [
       routine_in(
         "let count = fun n -> if n <= 0 then 0 else count(n - 1) in",
         "count(3)",
+      ),
+    )
+  ),
+  test_case("a recursion on a datatype's payloads", `Quick, () =>
+    check(
+      option(list(string)),
+      "size",
+      Some([]),
+      routine_in(term_size, "(fun (x : Term) -> size(x))"),
+    )
+  ),
+  test_case("the same recursion written with `fix`", `Quick, () =>
+    check(
+      option(list(string)),
+      "size",
+      Some([]),
+      routine_in(
+        "type Term = + Var(Int) + Lam(Term) + Ap(Term, Term) in "
+        ++ "let size = fix f -> fun e -> case e | Var(n) => 1 | Lam(b) => 1 + f(b) | Ap(e1, e2) => 1 + f(e1) + f(e2) end in",
+        "(fun (x : Term) -> size(x))",
+      ),
+    )
+  ),
+  test_case("a tuple parameter typed by the argument", `Quick, () =>
+    check(
+      option(list(string)),
+      "foldl",
+      Some([]),
+      routine_in(
+        "let foldl = fun (xs : [Bool], f, acc : Bool) -> case xs | [] => acc | x :: rest => foldl(rest, f, f(acc, x)) end in "
+        ++ "let conj = fun (acc : Bool, x : Bool) -> acc && x in",
+        "(fun (xs : [Bool]) -> foldl(xs, conj, true))",
+      ),
+    )
+  ),
+  test_case("a case that misses a constructor", `Quick, () =>
+    check(
+      option(list(string)),
+      "size",
+      None,
+      routine_in(
+        "type Term = + Var(Int) + Lam(Term) + Ap(Term, Term) in "
+        ++ "let size = fun e -> case e | Var(n) => 1 | Lam(b) => 1 + size(b) end in",
+        "(fun (x : Term) -> size(x))",
       ),
     )
   ),
