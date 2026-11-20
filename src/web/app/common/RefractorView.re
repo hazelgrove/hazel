@@ -106,6 +106,8 @@ let mk_data =
              ~indicated,
              ~selection_ids,
              ~info,
+             ~error=
+               Option.exists(info.statics, ~f=Language.Info.is_error),
              ~id,
            ),
          statics_map: statics,

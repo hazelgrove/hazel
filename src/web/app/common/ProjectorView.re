@@ -171,14 +171,13 @@ module Model = {
         ~indicated: option(Indicated.piece),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
+        ~error: bool,
         ~id: Id.t,
         ~sort: Sort.t,
       )
       : status => {
     sort,
-    error:
-      Option.map(~f=Language.Info.is_error, info.statics)
-      |> Option.value(~default=false),
+    error,
     warning:
       Option.map(~f=Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
@@ -226,6 +225,13 @@ module Model = {
                 ~indicated,
                 ~selection_ids,
                 ~info,
+                /* A projector hides its syntax, so it shows an error
+                   anywhere in it, not only on the term it replaces. */
+                ~error=
+                  List.exists(Segment.ids(info.syntax), ~f=id =>
+                    Language.Statics.Map.lookup(id, statics)
+                    |> Option.exists(~f=Language.Info.is_error)
+                  ),
                 ~id,
               ),
             statics_map: statics,

@@ -427,24 +427,6 @@ let tests = (
           Exp.(
             asc(
               parens(
-                ~ann=
-                  Some(
-                    Marks([
-                      TupleLabelError({
-                        malformed_labels: [],
-                        duplicate_labels: [],
-                        invalid_labels: ["z"],
-                        typ:
-                          FTemp.Typ.(
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), float()),
-                              tup_label(label("z"), string()),
-                            ])
-                          ),
-                      }),
-                    ]),
-                  ),
                 tuple(
                   ~ann=
                     Some(
@@ -543,7 +525,6 @@ let tests = (
           FIError.(
             Exp.(
               parens(
-                ~ann=duplicate_a_tuple_exp_ann,
                 tuple(
                   ~ann=duplicate_a_tuple_exp_ann,
                   [
@@ -596,24 +577,6 @@ let tests = (
         FIError.(
           Exp.(
             parens(
-              ~ann=
-                Some(
-                  FTemp.(
-                    Marks([
-                      TupleLabelError({
-                        malformed_labels: [
-                          Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                        ],
-                        duplicate_labels: [],
-                        invalid_labels: [],
-                        typ:
-                          Typ.(
-                            prod([tup_label(unknown(Internal), string())])
-                          ),
-                      }),
-                    ])
-                  ),
-                ),
               tuple(
                 ~ann=
                   Some(
@@ -691,27 +654,6 @@ let tests = (
         FIError.(
           Exp.(
             parens(
-              ~ann=
-                Some(
-                  FTemp.(
-                    Marks([
-                      TupleLabelError({
-                        malformed_labels: [
-                          Exp.(Exp(multi_hole([Exp(int(1))]))),
-                        ],
-                        duplicate_labels: [],
-                        invalid_labels: [],
-                        typ:
-                          Typ.(
-                            prod([
-                              tup_label(unknown(Internal), string()),
-                              tup_label(label("a"), int()),
-                            ])
-                          ),
-                      }),
-                    ])
-                  ),
-                ),
               tuple(
                 ~ann=
                   Some(
@@ -793,23 +735,6 @@ let tests = (
                 )
               ),
               parens(
-                ~ann=
-                  Some(
-                    Marks([
-                      TupleLabelError({
-                        malformed_labels: [],
-                        duplicate_labels: [],
-                        invalid_labels: ["c"],
-                        typ:
-                          FTemp.Typ.(
-                            prod([
-                              tup_label(label("c"), int()),
-                              tup_label(label("a"), string()),
-                            ])
-                          ),
-                      }),
-                    ]),
-                  ),
                 tuple(
                   ~ann=
                     Some(
@@ -868,21 +793,6 @@ let tests = (
           Exp.(
             asc(
               parens(
-                ~ann=
-                  Some(
-                    Marks([
-                      ExpectationMismatch({
-                        ana: FTemp.Typ.int(),
-                        syn:
-                          FTemp.Typ.(
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), int()),
-                            ])
-                          ),
-                      }),
-                    ]),
-                  ),
                 tuple(
                   ~ann=
                     Some(

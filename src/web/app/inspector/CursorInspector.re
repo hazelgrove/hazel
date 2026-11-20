@@ -11,6 +11,14 @@ let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
 let div_warn = div(~attrs=[clss(["status", warnc])]);
+/* Unmarked, but what is written does not fit what is expected: the error is
+   marked further down. */
+let div_ok_or_neutral = (ok: Message.ok_common) =>
+  switch (ok) {
+  | Ana(Inconsistent(_)) => div(~attrs=[clss(["status", "neutral"])])
+  | Syn(_)
+  | Ana(Consistent(_) | InternallyInconsistent(_)) => div_ok
+  };
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 /* When true, prefixes type displays with ":" (e.g. ": Int").
@@ -314,6 +322,7 @@ let common_warn_view = (~globals, warning: Warning.list_item): list(Node.t) =>
 let warn_or_ok_view =
     (
       ~globals: Globals.t,
+      ~ok_div=div_ok,
       warnings: list(Warning.list_item),
       ok: list(Node.t),
     )
@@ -321,7 +330,7 @@ let warn_or_ok_view =
   switch (warnings) {
   | [_, ..._] when globals.settings.core.display_warnings =>
     div_warn(List.concat_map(warnings, ~f=common_warn_view(~globals)))
-  | _ => div_ok(ok)
+  | _ => ok_div(ok)
   };
 let common_ok_view =
     (
@@ -438,6 +447,13 @@ let common_ok_view =
         | true => [text(" after reordering by labels ")]
         }
       )
+    | (_, Ana(Inconsistent({ana, syn}))) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn),
+        text("inconsistent with expected type"),
+        view_type(ana),
+      ]
     | (_, Ana(InternallyInconsistent({ana, nomeet: tys}))) =>
       [
         text(elements_noun(cls) ++ " have inconsistent types:"),
@@ -834,13 +850,14 @@ let exp_view =
           ~inferred_label,
           ~label_sort=info.label_sort,
           cls,
-          Message.Syn(info.elab_syn_ty),
+          Message.Syn(info.syn_ty),
         ),
       )
     | Exp(AnaDeferralConsistent(ana)) =>
       div_ok([text("Expecting type"), view_type(~globals, ana)])
     | Exp(Common(ok)) =>
-      div_ok(
+      div_ok_or_neutral(
+        ok,
         common_ok_view(
           ~globals,
           ~show_type_colon,
@@ -967,7 +984,7 @@ let pat_view =
     : {
       let ok =
         switch (message) {
-        | Pat(Default) => Message.Syn(info.elab_syn_ty)
+        | Pat(Default) => Message.Syn(info.syn_ty)
         | Pat(Common(ok)) => ok
         | Exp(_)
         | TypOk(_)
@@ -990,7 +1007,12 @@ let pat_view =
           cls,
           ok,
         );
-      warn_or_ok_view(~globals, info.warnings, ok_view);
+      warn_or_ok_view(
+        ~globals,
+        ~ok_div=div_ok_or_neutral(ok),
+        info.warnings,
+        ok_view,
+      );
     };
 };
 
@@ -1126,7 +1148,7 @@ let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
       ? Lazy.force(cursor.implied_hole) : None
   ) {
   | Some(_) as info => info
-  | None => cursor.info
+  | None => cursor.inspected
   };
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {

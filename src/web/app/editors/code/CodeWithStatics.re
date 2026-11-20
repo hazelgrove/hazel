@@ -59,6 +59,11 @@ module Model = {
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
     info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    inspected:
+      Indicated.presented_ci(
+        model.editor.state.zipper,
+        model.statics.info_map,
+      ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)

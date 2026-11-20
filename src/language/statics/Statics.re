@@ -237,8 +237,7 @@ and uexp_to_info_map =
         () =>
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+          | _ => Message.Exp(Common(syn_ana_ok_common(ctx, ana, syn_ty)))
           },
         message,
       );
@@ -781,7 +780,7 @@ and uexp_to_info_map =
         ~elab_term=Parens(e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
         ~syn_ty=e.syn_ty,
-        ~marks=e.marks,
+        ~marks=[],
         ~co_ctx=e.co_ctx,
         ~probe_targets=e.probe_targets,
         m,
@@ -792,7 +791,7 @@ and uexp_to_info_map =
         ~elab_term=Projector(data, e_elab) |> rewrap,
         ~elab_syn_ty=e.elab_syn_ty,
         ~syn_ty=e.syn_ty,
-        ~marks=e.marks,
+        ~marks=[],
         ~co_ctx=e.co_ctx,
         ~probe_targets=e.probe_targets,
         m,
@@ -2936,7 +2935,7 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
+            | _ => Message.Common(syn_ana_ok_common(ctx, ana, syn_ty))
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));

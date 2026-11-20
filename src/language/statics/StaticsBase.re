@@ -330,18 +330,24 @@ let should_emit_nomeet_mark =
   };
 
 let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
+    (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
-  | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
+  | Unknown(SynSwitch) => Message.Syn(syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
-    | None => Message.Syn(elab_syn_ty)
+    switch (Typ.meet(ctx, ana, syn_ty)) {
+    | None =>
+      Message.Ana(
+        Message.Inconsistent({
+          ana,
+          syn: syn_ty,
+        }),
+      )
     | Some(meet) =>
       Message.Ana(
         Message.Consistent({
           ana,
-          syn: elab_syn_ty,
+          syn: syn_ty,
           meet,
         }),
       )

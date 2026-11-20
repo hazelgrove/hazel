@@ -110,6 +110,15 @@ let format_diagnostic_with_location =
   };
 };
 
+/* Syntax a projector folds away has no position of its own: report it at
+   the nearest enclosing term that has one. */
+let located_id = (measured: Haz3lcore.Measured.t, info: Language.Info.t) =>
+  List.find(
+    [Language.Info.id_of(info), ...Language.Info.ancestors_of(info)],
+    ~f=id => Option.is_some(Haz3lcore.Measured.find_opt_by_id(id, measured)),
+  )
+  |> Option.value(~default=Language.Info.id_of(info));
+
 let format_error_with_location =
     (
       ~source: string,
@@ -132,7 +141,7 @@ let format_error_with_location =
           ~source,
           ~path,
           measured,
-          Info.id_of(info),
+          located_id(measured, info),
         ),
       );
     }
@@ -159,7 +168,7 @@ let format_warning_with_location =
           ~source,
           ~path,
           measured,
-          Info.id_of(info),
+          located_id(measured, info),
         ),
       );
     }
