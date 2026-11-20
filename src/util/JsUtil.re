@@ -737,8 +737,8 @@ let columns_fitting = (~col_width: float, el: Js.t(Dom_html.element)): int => {
   let rec clip = (a: Js.t(Dom_html.element), inset: float) =>
     switch (
       Js.Opt.to_option(a##.parentNode)
-      |> Option.map(Dom_html.CoerceTo.element)
-      |> Option.bind(_, Js.Opt.to_option)
+      |> Option.map(~f=Dom_html.CoerceTo.element)
+      |> Option.bind(_, ~f=Js.Opt.to_option)
     ) {
     | Some(p) when scrolls_sideways(p) => (
         Some(p),
