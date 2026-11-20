@@ -87,6 +87,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Parens => parens(empty_hole())
       | Cons => cons(empty_hole(), empty_hole())
       | UnOp(op) => un_op(op, empty_hole())
+      | Standard => standard(empty_hole())
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
       | BuiltinFun => builtin_fun("string_compare")
       | Match => match(empty_hole(), [])
@@ -131,6 +132,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | ApCons => ap(constructor("A", None), empty_hole())
       | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
+      | Standard => standard(var("x"), var("h"))
       | Wild => wild()
       | ExplicitNonlabel => explicit_non_label()
       | Projector =>

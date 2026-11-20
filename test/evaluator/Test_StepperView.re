@@ -1335,13 +1335,38 @@ module Picking = {
       () => {
         let goal =
           root_goal(
-            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ? in t",
+            "theorem t = (fun x: Int -> x + 1) == (fun x: Int -> 1 + x) proof ? in t",
           );
         check(
           string,
           "funext",
           "funext ? => ?",
           writes(Picker.Strategies.intros(goal), "Funext"),
+        );
+      },
+    ),
+    test_case(
+      "no Funext for functions whose argument isn't data",
+      `Quick,
+      () => {
+        let offered = src =>
+          Picker.Strategies.intros(root_goal(src))
+          |> List.exists(~f=(s: Picker.Strategies.strategy) =>
+               String.equal(s.label, "Funext")
+             );
+        check(
+          bool,
+          "function argument",
+          false,
+          offered(
+            "theorem t = (fun h: (Int -> Int) -> 0) == (fun h: (Int -> Int) -> 0) proof ? in t",
+          ),
+        );
+        check(
+          bool,
+          "unknown argument type",
+          false,
+          offered("theorem t = (fun x -> x) == (fun x -> x) proof ? in t"),
         );
       },
     ),
@@ -1956,7 +1981,7 @@ module Insertion = {
 /* Goals as rows show them: as written, naming the program's
  * definitions. */
 module Display = {
-  let sum = {|let sum(xs) = case xs
+  let sum = {|let sum(xs: [Int]) = case xs
 | [] => 0
 | x::xs => x + sum(xs)
 end
@@ -2397,7 +2422,16 @@ module Structure = {
           "a division the instantiation brings in",
           ["Definedness"],
           kinds_at(
-            "theorem t = forall z -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t",
+            "theorem t = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in t",
+            first,
+          ),
+        );
+        check(
+          list(string),
+          "a term with no value the step needs standard",
+          ["Standardness"],
+          kinds_at(
+            "let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t",
             first,
           ),
         );

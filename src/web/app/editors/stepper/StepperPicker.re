@@ -824,23 +824,31 @@ module Strategies = {
           },
         ]
         : [];
-    /* Exactly when the goal is `f == g` at an arrow type, by the checker's
-     * own detector, so it never writes a step that would mark. */
+    /* Exactly when the checker's own tests accept the goal, so it never
+     * writes a step that would mark. */
     let funext =
-      ProofCheck.Funext.goal(
-        ~statics=ProofStatics.of_info_map(Goal.info_map(goal)),
-        ~env=Goal.env(goal),
-        written,
-      )
-      == None
-        ? []
-        : [
+      switch (
+        ProofCheck.Funext.goal(
+          ~statics=ProofStatics.of_info_map(Goal.info_map(goal)),
+          ~env=Goal.env(goal),
+          written,
+        )
+      ) {
+      | Some((_, _, domain))
+          when
+            ProofCheck.Funext.first_order(
+              SemanticCtx.get_ctx(goal.ctx),
+              domain,
+            ) => [
           {
             label: "Funext",
             tooltip: "Writes `funext x =>`: proves the functions equal at any argument x",
             writes: Terms.funext(),
           },
-        ];
+        ]
+      | Some(_)
+      | None => []
+      };
     let assume =
       ProofRule.implication(written) == None
         ? []

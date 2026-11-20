@@ -70,6 +70,10 @@ and exp_term('a) =
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
+  /* `!!e`, "e is standard": e evaluates to a value whose parts are
+   * standard, and a function is standard when it gives a standard result
+   * on every standard argument. A Bool whatever e's type; never `false`. */
+  | Standard(exp_t('a))
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
@@ -96,6 +100,9 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+  /* `p !! h`: in a proof's `forall` step, the binder `p` with `h` naming
+   * the fact that it is standard, `!!p`. */
+  | Standard(pat_t('a), pat_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -368,6 +375,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | ListConcat(e1, e2) =>
           ListConcat(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | UnOp(op, e) => UnOp(op, map_exp_annotation(f, e))
+        | Standard(e) => Standard(map_exp_annotation(f, e))
         | BinOp(op, e1, e2) =>
           BinOp(op, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | BuiltinFun(s) => BuiltinFun(s)
@@ -517,6 +525,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Asc(p, t) =>
           Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | Standard(p, h) =>
+          Standard(map_pat_annotation(f, p), map_pat_annotation(f, h))
         },
       annotation: new_annotation,
     };
@@ -939,6 +949,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: UnOp(op, e),
       annotation: default_annotation(ann),
     };
+    let standard = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Standard(e),
+      annotation: default_annotation(ann),
+    };
     let bin_op = (~ann=?, op, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: BinOp(op, e1, e2),
       annotation: default_annotation(ann),
@@ -1058,6 +1072,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
     let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
       term: Asc(p, t),
+      annotation: default_annotation(ann),
+    };
+    let standard = (~ann=?, p, h): pat_t(DefaultAnnotation.t) => {
+      term: Standard(p, h),
       annotation: default_annotation(ann),
     };
   };

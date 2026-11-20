@@ -84,6 +84,8 @@ type family =
   | Dot
   | TupleExtension
   | Not
+  | Standard
+  | StandardFact
   | SumSingle
   | UnaryMinus
   | Comma
@@ -222,6 +224,8 @@ let label_of_family: family => Label.t =
   | Dot => ["."]
   | TupleExtension => ["..."]
   | Not => ["!"]
+  | Standard => ["!!"]
+  | StandardFact => ["!!"]
   | SumSingle => ["+"]
   | UnaryMinus => ["-"]
   | Comma => [","]

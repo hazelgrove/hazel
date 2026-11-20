@@ -1,19 +1,20 @@
 # SIDE CONDITIONS #
 
-# Some steps hold only under a condition: 8 / z needs z != 0. The #
-# checker records each condition, and discharges it from the facts #
-# in scope or by evaluation. One it can't discharge stays open: the #
+# Some steps hold only under a condition. A rule's variables stand #
+# for values, so or_true at 8 / z > 0 needs z != 0. The checker #
+# records each condition, and discharges it from the facts in #
+# scope or by evaluation. One it can't discharge stays open: the #
 # theorem reads incomplete, 1 open, and the step's row has a red #
 # circle. Click the circle to see the condition and ways to add it. #
-theorem div_open = forall z: Int -> 8 / z == 8 / z proof rewrite refl end in
+theorem div_open = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in
 
 # For a statement P ==> Q, assume h = P => makes P a fact named h #
 # for the rest of the proof. have h = P proof ... => proves a fact #
 # on the way, here with the builtin rule nonzero_of_pos. Without a #
 # name, the facts are called assume and have. #
-theorem div_ok = forall z: Int -> z > 0 ==> 8 / z == 8 / z proof
+theorem div_ok = forall z: Int -> z > 0 ==> 8 / z > 0 || true proof
   assume pos = z > 0 =>
   have nz = z != 0 proof rewrite nonzero_of_pos end =>
-  rewrite refl end
+  rewrite or_true end
 in
 ¿

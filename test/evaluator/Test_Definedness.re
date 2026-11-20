@@ -4,32 +4,30 @@ open Test_Evaluator_Prelude;
 open Test_ProofMap.Harness;
 open Poly;
 
-/* Definedness gates.
+/* Definedness conditions.
  *
- * Structural totality (Totality.re) refuses possibly-divergent
- * instantiations/scrutinees with marks; the domain scan
- * (DomainConditions.re) turns partial-primitive applications into
- * ordinary boolean obligations. */
+ * A cited rule's instantiations and a split's computed scrutinee have
+ * to be standard. The standardness routine reduces that to the domain
+ * conditions of the partial primitives in them, ordinary boolean
+ * obligations, or else leaves `!!e` to prove. The built-in `refl` needs
+ * only the domain conditions (DomainConditions.re). */
 
 let check_count = (msg, expected, obs) =>
   Alcotest.check(Alcotest.int, msg, expected, List.length(obs));
-
-let is_divergent_scrutinee: ProofMark.t => bool =
-  fun
-  | ProofMark.PossiblyDivergentScrutinee => true
-  | _ => false;
 
 let is_float_algebrite: ProofMark.t => bool =
   fun
   | ProofMark.FloatAlgebrite => true
   | _ => false;
 
-/* An open instantiation containing division: `x := y / z` scans to the
- * denominator condition `z != 0`, which stays Pending (open goals are
- * never evaluated). */
+/* An open instantiation containing division: citing a rule at `y / z`
+ * needs the denominator condition `z != 0`, which stays Pending (open
+ * goals are never evaluated). The built-in `refl` would need nothing. */
 let test_open_division_instantiation_pending = () => {
-  let src = {|theorem u = forall y -> forall z -> y / z == y / z proof from y / z == y / z do rewrite refl end end in u|};
-  let (pm, proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem u = forall y: Int -> forall z: Int -> y / z == y / z proof from y / z == y / z do rewrite same end end in u|};
+  let (pm, proof, obs) = obligations_named("u", src);
   check_count("one scanned obligation", 1, obs);
   switch (obs) {
   | [ob] =>
@@ -78,12 +76,6 @@ let test_instantiation_exemption_var = () => {
   check_count("x := x emits zero obligations", 0, obs);
   Alcotest.check(
     Alcotest.bool,
-    "no divergence mark",
-    false,
-    has_mark_kind(pm, proof, is_divergent_instantiation),
-  );
-  Alcotest.check(
-    Alcotest.bool,
     "fully Proven",
     true,
     ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
@@ -102,65 +94,50 @@ let test_instantiation_exemption_total_ops = () => {
   );
 };
 
-/* --- Totality refusal -------------------------------------------------- */
+/* --- Standardness left to prove ---------------------------------------- */
 
-/* Instantiating at a call of a general-recursive function is refused:
- * divergence is never an obligation. */
-let test_divergent_instantiation_refused = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite refl end end in t|};
-  let (pm, proof, obs) = obligations(src);
+/* Instantiating at a call of a general-recursive function leaves its
+ * standardness to prove. */
+let test_divergent_instantiation_left_to_prove = () => {
+  let src =
+    refl_lemma
+    ++ {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == f(1) proof from f(1) == f(1) do rewrite same end end in t|};
+  let (pm, proof, obs) = obligations_named("t", src);
+  check_mark_free("nothing is refused", pm, proof);
   Alcotest.check(
-    Alcotest.bool,
-    "PossiblyDivergentInstantiation mark is emitted",
-    true,
-    has_mark_kind(pm, proof, is_divergent_instantiation),
-  );
-  check_count("a refused step incurs no obligations", 0, obs);
-  Alcotest.check(
-    Alcotest.option(bool),
-    "the refused proof is not proven",
-    None,
-    ProofMap.status_of_proof(pm, proof),
+    Alcotest.list(Alcotest.string),
+    "f(1)'s standardness is left to prove",
+    ["!! f(1)"],
+    standardness_goals(obs),
   );
 };
 
 /* The same recursive call inside an eval step is fine: eval steps
  * preserve denotation and have no gates. */
 let test_recursive_call_in_eval_step_ungated = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = f(1) == 0 proof from f(1) do step end in t|};
+  let src = {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = f(1) == 0 proof from f(1) do step end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("eval step incurs no obligations", 0, obs);
-  Alcotest.check(
-    Alcotest.bool,
-    "no divergence mark on an eval step",
-    false,
-    has_mark_kind(pm, proof, is_divergent_instantiation),
-  );
+  check_mark_free("no mark on an eval step", pm, proof);
 };
 
 /* --- Split / induction gate -------------------------------------------- */
 
 /* Structural induction on a bare quantified variable emits nothing. The
- * binder is annotated so this tests the divergence gate alone: an
- * unannotated binder is refused separately, for having an unknown
- * scrutinee type (tests below). */
+ * binder is annotated: an unannotated binder is refused separately, for
+ * having an unknown scrutinee type (tests below). */
 let test_induction_bare_variable_no_gate = () => {
   let src = {|theorem t = forall b: Bool -> b == b proof induction b | true => from true == true do rewrite refl end end | false => from false == false do rewrite refl end end end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("bare-variable induction emits zero obligations", 0, obs);
-  Alcotest.check(
-    Alcotest.bool,
-    "no PossiblyDivergentScrutinee mark",
-    false,
-    has_mark_kind(pm, proof, is_divergent_scrutinee),
-  );
+  check_mark_free("no marks", pm, proof);
 };
 
-/* A computed bool scrutinee (split) is domain-scanned: splitting on
+/* A computed bool scrutinee has to be standard: splitting on
  * `x / y == 1` emits `y != 0` on the induction node, path-insensitively,
  * before any branch is entered. */
 let test_split_computed_scrutinee_emits_condition = () => {
-  let src = {|theorem t = forall x -> forall y -> x / y == x / y proof induction x / y == 1 | true => ? | false => ? end in t|};
+  let src = {|theorem t = forall x: Int -> forall y: Int -> x / y == x / y proof induction x / y == 1 | true => ? | false => ? end in t|};
   let (pm, proof, obs) = obligations(src);
   check_count("split emits the denominator condition", 1, obs);
   switch (obs) {
@@ -174,23 +151,20 @@ let test_split_computed_scrutinee_emits_condition = () => {
     );
   | _ => ()
   };
-  Alcotest.check(
-    Alcotest.bool,
-    "a total computed scrutinee is not refused",
-    false,
-    has_mark_kind(pm, proof, is_divergent_scrutinee),
-  );
+  check_mark_free("nothing is refused", pm, proof);
 };
 
-/* A computed scrutinee that calls a recursive function is refused. */
-let test_split_divergent_scrutinee_refused = () => {
-  let src = {|let f = fun n -> if n > 0 then f(n - 1) else 0 in theorem t = forall x -> x == x proof induction f(1) == 0 | true => ? | false => ? end in t|};
-  let (pm, proof, _obs) = obligations(src);
+/* A computed scrutinee that calls a non-structural recursive function
+ * leaves its standardness to prove. */
+let test_split_divergent_scrutinee_left_to_prove = () => {
+  let src = {|let f = fun n -> if n == 0 then 0 else f(n - 1) in theorem t = forall x -> x == x proof induction f(1) == 0 | true => ? | false => ? end in t|};
+  let (pm, proof, obs) = obligations(src);
+  check_mark_free("nothing is refused", pm, proof);
   Alcotest.check(
-    Alcotest.bool,
-    "PossiblyDivergentScrutinee mark is emitted",
-    true,
-    has_mark_kind(pm, proof, is_divergent_scrutinee),
+    Alcotest.list(Alcotest.string),
+    "the scrutinee's standardness is left to prove",
+    ["!! (f(1) == 0)"],
+    standardness_goals(obs),
   );
 };
 
@@ -415,12 +389,6 @@ let test_float_division_is_total = () => {
   check_count("float division emits zero obligations", 0, obs);
   Alcotest.check(
     Alcotest.bool,
-    "no divergence mark",
-    false,
-    has_mark_kind(pm, proof, is_divergent_instantiation),
-  );
-  Alcotest.check(
-    Alcotest.bool,
     "fully Proven",
     true,
     ProofMap.full_status_of_proof(pm, proof) == ProofMap.Proven,
@@ -445,8 +413,10 @@ let test_eval_step_division_no_gate = () => {
 
 /* `int_mod(a, b)` emits `b != 0`. */
 let test_mod_builtin_condition = () => {
-  let src = {|theorem t = forall a -> forall b -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do rewrite refl end end in t|};
-  let (_pm, _proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = forall a: Int -> forall b: Int -> int_mod(a, b) == int_mod(a, b) proof from int_mod(a, b) == int_mod(a, b) do rewrite same end end in t|};
+  let (_pm, _proof, obs) = obligations_named("t", src);
   check_count("one mod obligation", 1, obs);
   switch (obs) {
   | [ob] => check_exp("the condition is b != 0", "b != 0", ob.goal)
@@ -457,8 +427,10 @@ let test_mod_builtin_condition = () => {
 /* Int power with a variable exponent emits `y >= 0` (NegativeExponent
  * is the error; Nat power would be total). */
 let test_power_exponent_condition = () => {
-  let src = {|theorem t = forall x -> forall y -> x ** y == x ** y proof from x ** y == x ** y do rewrite refl end end in t|};
-  let (_pm, _proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = forall x: Int -> forall y: Int -> x ** y == x ** y proof from x ** y == x ** y do rewrite same end end in t|};
+  let (_pm, _proof, obs) = obligations_named("t", src);
   check_count("one exponent obligation", 1, obs);
   switch (obs) {
   | [ob] => check_exp("the condition is y >= 0", "y >= 0", ob.goal)
@@ -469,8 +441,10 @@ let test_power_exponent_condition = () => {
 /* `int_of_float` at a closed finite float: the `is_finite` condition is
  * emitted and discharges by closed evaluation. */
 let test_of_float_is_finite_condition = () => {
-  let src = {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do rewrite refl end end in t|};
-  let (pm, proof, obs) = obligations(src);
+  let src =
+    refl_lemma
+    ++ {|theorem t = int_of_float(2.5) == int_of_float(2.5) proof from int_of_float(2.5) == int_of_float(2.5) do rewrite same end end in t|};
+  let (pm, proof, obs) = obligations_named("t", src);
   check_count("one is_finite obligation", 1, obs);
   Alcotest.check(
     Alcotest.bool,
@@ -570,9 +544,9 @@ let tests = (
       test_instantiation_exemption_total_ops,
     ),
     test_case(
-      "recursive-call instantiation is refused",
+      "a recursive-call instantiation is left to prove",
       `Quick,
-      test_divergent_instantiation_refused,
+      test_divergent_instantiation_left_to_prove,
     ),
     test_case(
       "recursive call inside an eval step is ungated",
@@ -590,9 +564,9 @@ let tests = (
       test_split_computed_scrutinee_emits_condition,
     ),
     test_case(
-      "bool split on a divergent scrutinee is refused",
+      "a bool split on a divergent scrutinee is left to prove",
       `Quick,
-      test_split_divergent_scrutinee_refused,
+      test_split_divergent_scrutinee_left_to_prove,
     ),
     test_case(
       "induction on a comparison missing the false case does not certify",

@@ -876,6 +876,10 @@ let decide =
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
       | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
+      | Standard(_) =>
+        Prose(
+          "Standardness: `!!e` holds when `e` evaluates to a value whose parts are standard. A function is standard when it gives a standard result on every standard argument.",
+        )
       | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
       | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
@@ -1047,7 +1051,8 @@ let decide =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
-        | Asc(_) => NoDoc // Shouldn't get hit?
+        | Asc(_)
+        | Standard(_) => NoDoc // Shouldn't get hit?
         };
       | Label(name) => get_message(LabelTerm.labels(name))
       | TupLabel(l, e) =>
@@ -1234,7 +1239,8 @@ let decide =
         | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
         | Projector(_)
-        | Asc(_) => NoDoc // Shouldn't get hit?
+        | Asc(_)
+        | Standard(_) => NoDoc // Shouldn't get hit?
         };
       | Theorem(pat, thm, pf, body) =>
         let pat_id = IdTagged.rep_id(pat);
@@ -1527,6 +1533,10 @@ let decide =
       let typ_id = IdTagged.rep_id(typ);
       get_message(TypAnnPat.typann(~pat_id, ~typ_id));
     | Invalid(_) => Prose("Not a valid pattern")
+    | Standard(_) =>
+      Prose(
+        "In a proof's `forall` step, `x !! h` introduces `x` and names `h` the fact that it is standard, `!!x`.",
+      )
     | Parens(_)
     | Projector(_) =>
       // Shouldn't be hit?

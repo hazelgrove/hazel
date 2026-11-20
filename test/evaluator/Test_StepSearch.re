@@ -269,14 +269,14 @@ let tests = (
       },
     ),
     test_case(
-      "a rule that only wraps a part, as `rewrite <- not_not` turns b into !!b, isn't tried",
+      "a rule that only wraps a part, as `rewrite <- not_not` turns b into !(!b), isn't tried",
       `Quick,
       () =>
       check(
         steps,
         "steps",
         None,
-        found(search(goal(arithmetic), "!!((1 + 1) * 2 == 4)")),
+        found(search(goal(arithmetic), "!(!((1 + 1) * 2 == 4))")),
       )
     ),
     test_case(
@@ -527,6 +527,26 @@ let tests = (
       },
     ),
     test_case(
+      "typing stand completes to the rule closing !! goals",
+      `Quick,
+      () => {
+        let g =
+          goal("theorem t = forall (x : Int) -> !!(x + 1) proof ? in t");
+        check(
+          bool,
+          "standard is offered",
+          true,
+          Search.items(g, ~typed_name=Some("stand"), None)
+          |> List.exists(~f=(item: Search.item) =>
+               switch (item) {
+               | Complete(name) => String.equal(name, "standard")
+               | Use(_) => false
+               }
+             ),
+        );
+      },
+    ),
+    test_case(
       "typing nat_ completes to the Nat rules",
       `Quick,
       () => {
@@ -537,7 +557,12 @@ let tests = (
         check(
           list(string),
           "completions",
-          ["nat_add_sub", "nat_succ_ne_zero"],
+          [
+            "nat_mod_standard",
+            "nat_div_standard",
+            "nat_add_sub",
+            "nat_succ_ne_zero",
+          ],
           Search.items(g, ~typed_name=Some("nat_"), None)
           |> List.filter_map(~f=(item: Search.item) =>
                switch (item) {

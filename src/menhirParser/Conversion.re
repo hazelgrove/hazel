@@ -342,6 +342,7 @@ module rec Exp: {
     | TypAp(e, ty) => typ_ap(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       un_op(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
+    | Standard(e) => standard(of_menhir_ast(e))
     | DynamicErrorHole(e, s) =>
       dynamic_error_hole(
         of_menhir_ast(e),
@@ -407,6 +408,7 @@ module rec Exp: {
       Filter(FilterAction.of_core(act), of_core(pat), of_core(body))
     | TypAp(e, ty) => TypAp(of_core(e), Typ.of_core(ty))
     | UnOp(op, e) => UnOp(Operators.of_core_op_un(op), of_core(e))
+    | Standard(e) => Standard(of_core(e))
     | DynamicErrorHole(e, s) =>
       DynamicErrorHole(
         of_core(e),
@@ -770,6 +772,7 @@ and Pat: {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
+    | StandardPat(p, h) => standard(of_menhir_ast(p), of_menhir_ast(h))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(~f=Option.map(~f=Typ.of_menhir_ast), ty))
@@ -805,6 +808,7 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
+    | Standard(p, h) => StandardPat(of_core(p), of_core(h))
     | Parens(p) => ParenPat(of_core(p))
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel

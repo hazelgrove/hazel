@@ -45,9 +45,9 @@ let str_check = (msg, expected, actual) =>
  *   z != 0   Pending    (open; nothing in scope covers it)
  *   2 != 0   Evaluated  (ground; closed evaluation, channel 2)
  */
-let repro = {|let f = fun x -> 100 / x in
-theorem t = forall y -> forall z -> f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z
-proof from f(y) + 4 / 2 + 8 / z == f(y) + 4 / 2 + 8 / z do rewrite refl end end
+let repro = {|let f = fun x -> x + 1 in
+theorem t = forall y: Int -> forall z: Int -> f(y) + 4 / 2 + 8 / z > 0 || true
+proof rewrite or_true end
 in t|};
 
 /* --- status mapping ----------------------------------------------- */
@@ -88,7 +88,7 @@ let test_status = () => {
     "an open condition",
     "incomplete · 1 open",
     status(
-      {|theorem t = forall z: Int -> 8 / z == 8 / z proof rewrite refl end in t|},
+      {|theorem t = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in t|},
     ),
   );
   str_check(
@@ -172,7 +172,7 @@ let test_status_proven_and_incomplete = () => {
 let test_remote_fact_is_the_covering_fact = () => {
   let (pm, proof) =
     run(
-      {|theorem t = forall y -> y != 0 ==> 8 / y == 8 / y proof assume y != 0 => from 8 / y == 8 / y do rewrite refl end end in t|},
+      {|theorem t = forall y: Int -> y != 0 ==> 8 / y > 0 || true proof assume y != 0 => rewrite or_true end in t|},
     );
   let obs = ProofMap.obligations_of_proof(pm, proof);
   List.iter(
@@ -256,8 +256,8 @@ let one_pending = (msg, pm, proof): Obligation.t =>
 
 /* The obligation arises inside an induction case and mentions that
  * case's own binder. */
-let case_scoped_src = {|theorem t = forall n: Int -> 8 / n == 8 / n
-proof induction n | 0 => ? | m => from 8 / m == 8 / m do rewrite refl end end end
+let case_scoped_src = {|theorem t = forall n: Int -> 8 / n > 0 || true
+proof induction n | 0 => ? | m => rewrite or_true end end
 in t|};
 
 let test_exits_at_case_binder = () => {
@@ -374,9 +374,34 @@ let test_split_disabled_when_it_breaks_a_step = () => {
   };
 };
 
+/* `!!e` is never `false`, so a `!!` condition offers no split. */
+let test_standardness_exits = () => {
+  let (pm, proof, ctx) =
+    run_with_ctx(
+      {|let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t|},
+    );
+  let ob = one_pending("loop", pm, proof);
+  bool_check(
+    "a !! condition",
+    true,
+    Poly.equal(ob.kind, Obligation.Standardness),
+  );
+  check(
+    list(string),
+    "only prove here",
+    ["Prove here"],
+    List.map(~f=(e: Exits.t) => e.label, Exits.for_step(~ctx, ob)),
+  );
+};
+
 let tests = (
   "Obligations",
   [
+    test_case(
+      "a !! condition offers no split",
+      `Quick,
+      test_standardness_exits,
+    ),
     test_case(
       "an exit that would break a step is disabled, with a reason",
       `Quick,

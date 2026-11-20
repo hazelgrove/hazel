@@ -79,7 +79,7 @@ let test_captured_hypothesis_not_citable = () => {
  * the generalize, since lookup can't see the removed fact; the same
  * program without `generalize` discharges it Remote. */
 let test_captured_fact_does_not_discharge = () => {
-  let src = {|theorem t = forall x -> x != 0 ==> x == x proof assume x != 0 => generalize x => forall x => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
+  let src = {|theorem t = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => generalize x => forall x => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   let obs = ProofMap.obligations_of_proof(pm, proof);
   Alcotest.check(Alcotest.int, "the have's obligation", 1, List.length(obs));
@@ -91,7 +91,7 @@ let test_captured_fact_does_not_discharge = () => {
   );
   /* Control: without the generalize, the have's obligation discharges
    * against the assumption by lookup (Remote). */
-  let control = {|theorem t = forall x -> x != 0 ==> x == x proof assume x != 0 => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
+  let control = {|theorem t = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => have x != 0 proof ? => from x == x do rewrite refl end end in t|};
   let (pm', proof') = run(control);
   let obs' = ProofMap.obligations_of_proof(pm', proof');
   Alcotest.check(
@@ -116,7 +116,7 @@ let test_captured_fact_does_not_discharge = () => {
  * `x :: ys`, a different instantiation from the peeled ys, which the
  * unquantified IH can't give and `generalize ys` does. Helper equations are supplied as hole-proof lemmas (the test
  * targets the generalize/IH machinery, not list algebra). */
-let quantified_ih_src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_nil = forall zs -> ra([])(zs) == zs proof ? in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem len_nil = len([]) == 0 proof ? in theorem len_cons = forall h -> forall t -> len(h :: t) == 1 + len(t) proof ? in theorem shuffle = forall a -> forall b -> a + (1 + b) == (1 + a) + b proof ? in theorem zero_add = forall n -> 0 + n == n proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof generalize ys => induction xs | [] => forall ys => from ra([])(ys) do rewrite ra_nil end end; from len([]) do rewrite len_nil end end; from 0 + len(ys) do rewrite zero_add end end; from len(ys) == len(ys) do rewrite refl end end | x :: xs' => forall ys => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end; from len(x :: ys) do rewrite len_cons end end; from len(x :: xs') do rewrite len_cons end end; from len(xs') + (1 + len(ys)) do rewrite shuffle end end; from (1 + len(xs')) + len(ys) == (1 + len(xs')) + len(ys) do rewrite refl end end end in u|};
+let quantified_ih_src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_nil = forall zs -> ra([])(zs) == zs proof ? in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem len_nil = len([]) == 0 proof ? in theorem len_cons = forall h -> forall t -> len(h :: t) == 1 + len(t) proof ? in theorem shuffle = forall a -> forall b -> a + (1 + b) == (1 + a) + b proof ? in theorem zero_add = forall n -> 0 + n == n proof ? in theorem u = forall xs: [Int] -> forall ys: [Int] -> len(ra(xs)(ys)) == len(xs) + len(ys) proof generalize ys => induction xs | [] => forall ys => from ra([])(ys) do rewrite ra_nil end end; from len([]) do rewrite len_nil end end; from 0 + len(ys) do rewrite zero_add end end; from len(ys) == len(ys) do rewrite refl end end | x :: xs' => forall ys => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end; from len(x :: ys) do rewrite len_cons end end; from len(x :: xs') do rewrite len_cons end end; from len(xs') + (1 + len(ys)) do rewrite shuffle end end; from (1 + len(xs')) + len(ys) == (1 + len(xs')) + len(ys) do rewrite refl end end end in u|};
 
 let test_quantified_ih_proves = () => {
   let (pm, proof) = run_named("u", quantified_ih_src);
@@ -142,7 +142,7 @@ let test_quantified_ih_proves = () => {
  * equation at the peeled ys, and citing it at `x :: ys` fails
  * (RuleDoesNotApply). */
 let test_unquantified_ih_too_weak = () => {
-  let src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem u = forall xs: [Int] -> forall ys -> len(ra(xs)(ys)) == len(xs) + len(ys) proof induction xs | [] => ? | x :: xs' => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end end in u|};
+  let src = {|let ra = fun xs -> fun ys -> case xs | [] => ys | h :: t => ra(t)(h :: ys) end in let len = fun l -> case l | [] => 0 | h :: t => 1 + len(t) end in theorem ra_cons = forall h -> forall t -> forall zs -> ra(h :: t)(zs) == ra(t)(h :: zs) proof ? in theorem u = forall xs: [Int] -> forall ys: [Int] -> len(ra(xs)(ys)) == len(xs) + len(ys) proof induction xs | [] => ? | x :: xs' => from ra(x :: xs')(ys) do rewrite ra_cons end end; from len(ra(xs')(x :: ys)) do rewrite ih_xs' end end end in u|};
   let (pm, proof) = run_named("u", src);
   Alcotest.check(
     Alcotest.bool,

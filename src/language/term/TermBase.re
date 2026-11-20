@@ -503,6 +503,7 @@ and Exp: {
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
         | UnOp(op, e) => UnOp(op, exp_map_term(e))
+        | Standard(e) => Standard(exp_map_term(e))
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | BuiltinFun(str) => BuiltinFun(str)
@@ -647,6 +648,7 @@ and Pat: {
         | Parens(e) => Parens(pat_map_term(e))
         | Projector(data, p) => Projector(data, pat_map_term(p))
         | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
+        | Standard(p, h) => Standard(pat_map_term(p), pat_map_term(h))
         },
     };
     x |> f_pat(rec_call);

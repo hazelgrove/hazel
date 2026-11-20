@@ -115,6 +115,31 @@ let snoc_citing = (~split="induction", fact) =>
 let tests = (
   "Statics.Proof",
   [
+    expects_no_mark(
+      "!! of a function is a Bool",
+      {|let b : Bool = !!(fun (x : Int) -> 1 / x) in b|},
+      is_expectation_mismatch,
+    ),
+    expects_mark(
+      "!! is not an Int",
+      {|let n : Int = !!3 in n|},
+      is_expectation_mismatch,
+    ),
+    expects_mark(
+      "a binder names its standardness fact only in a proof's forall",
+      {|let (x !! h) = 1 in x|},
+      fun
+      | Mark.StandardFactOutsideForall => true
+      | _ => false,
+    ),
+    expects_no_mark(
+      "a proof's forall names its binder's standardness fact",
+      {|theorem t = forall x : Bool -> !!x proof generalize x => forall (x : Bool !! h) => rewrite h end in t|},
+      fun
+      | Mark.StandardFactOutsideForall
+      | Mark.FreeHypothesis(_) => true
+      | _ => false,
+    ),
     /* Built-in axiom `refl` is a hypothesis, so an axiom step
        referring to it should not produce a FreeHypothesis mark. */
     expects_no_mark(

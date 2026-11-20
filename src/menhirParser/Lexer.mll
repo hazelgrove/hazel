@@ -191,6 +191,7 @@ rule token =
     (* Bool ops *)
     | "&&" { L_AND }
     | "||" { L_OR }
+    | "!!" { STANDARD }
     | "!" { L_NOT }
     | "|" { TURNSTILE }
     | "," { COMMA }

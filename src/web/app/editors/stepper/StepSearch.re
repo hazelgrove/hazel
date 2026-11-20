@@ -21,7 +21,7 @@ open Poly;
  * Moves act only inside the smallest part of the goal that differs from
  * the typed goal: a step elsewhere would change something already right.
  * A rule can rewrite most goals somehow (`rewrite <- not_not` turns any
- * boolean `b` into `!!b`), so a rule's step is kept only if it shrinks
+ * boolean `b` into `!(!b)`), so a rule's step is kept only if it shrinks
  * that part; a `step`, which may unfold a definition first, is kept
  * either way.
  *

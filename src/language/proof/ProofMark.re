@@ -45,14 +45,6 @@ type t =
   /* Revert: a `with` clause was supplied but the in-scope fact has no
    * `forall` to eliminate. */
   | RevertFactNotQuantified({var: string})
-  /* Axiom / revert: a metavariable instantiation could not be shown
-   * structurally total (Totality.check). Divergence is ⊥, which no
-   * boolean obligation can rule out. `var` is the rule metavariable whose
-   * instantiation failed. */
-  | PossiblyDivergentInstantiation({
-      equality: string,
-      var: string,
-    })
   /* Algebrite: Float-typed rewrites are refused, because the CAS's field
    * laws are false for IEEE floats. */
   | FloatAlgebrite
@@ -77,6 +69,9 @@ type t =
   /* Funext: the binder is not a pattern that can be added to the semantic
      context (so the pointwise goal would have a free/unbindable name). */
   | MalformedFunext
+  /* Funext: the functions' argument type isn't data: it has a function
+     type or an unknown type in it (`ProofCheck.check_funext` says why). */
+  | FunextNotFirstOrder({domain: Typ.t})
   /* Funext / induction: a variable the binder or case pattern binds is
    * also free in the goal it would be put around, so it would capture
    * that use. */
@@ -101,11 +96,6 @@ type t =
    * `InductionNotExhaustive` because the remedy is to annotate the
    * binder, not to add a case. */
   | InductionScrutineeUntyped
-  /* Induction/split: a computed scrutinee (bool split) could not be
-   * shown structurally total, as for `PossiblyDivergentInstantiation`.
-   * Structural induction on a bare quantified variable never carries
-   * this mark. */
-  | PossiblyDivergentScrutinee
   /* Induction: a case pattern contains a wildcard, which has no
    * expression to put in the scrutinee's place, so no case of the split
    * is checked. */

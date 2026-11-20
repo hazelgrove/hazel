@@ -55,26 +55,60 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
     //[text("Γ")],
   );
 
-/* Whether the expression at the cursor is total, by the proof checker's
- * own test, `Totality.check`. It is computed for the cursor only, since
- * statics doesn't track totality. The elaborated term is checked, where
- * a recursive `let` is the `FixF` the test looks for. A bare `Var` reads
- * as total: the checker treats variables as quantified binders. */
-let totality_badge = (ci: Info.t): list(Node.t) =>
+/* Whether the expression at the cursor is standard, by the proof
+ * checker's own routine, `Standardness.check`. It is computed for the
+ * cursor only, since statics doesn't track standardness. The elaborated
+ * term is checked, where a recursive `let` is the `FixF` the routine
+ * looks for. A variable other than a builtin reads as standard: the
+ * checker treats variables as quantified binders. */
+let standardness_badge = (ci: Info.t): list(Node.t) =>
   switch (ci) {
   | InfoExp(info) =>
     let (cls, icon, tooltip) =
       switch (
-        Totality.check(
-          ~statics=ProofStatics.empty,
+        Standardness.check(
           ~ctx=info.ctx,
+          ~env=Builtins.env_init,
+          ~is_standard=
+            x => Option.is_none(Environment.lookup(Builtins.env_init, x)),
           info.elab_term,
         )
       ) {
-      | Ok () => ("total", Icons.circle_with_check, "total")
-      | Error(reason) => ("not-total", Icons.circle_with_no_check, reason)
+      | Standard([]) => ("standard", Icons.circle_with_check, "standard")
+      | Standard(conditions) => (
+          "standard",
+          Icons.circle_with_check,
+          "standard where "
+          ++ String.concat(
+               ~sep=", ",
+               List.map(
+                 ~f=
+                   c =>
+                     Haz3lcore.ExpToSegment.exp_to_segment(
+                       ~settings=
+                         Haz3lcore.ExpToSegment.Settings.of_core(
+                           ~inline=true,
+                           CoreSettings.off,
+                         ),
+                       c,
+                     )
+                     |> Haz3lcore.Printer.of_segment(~holes="?"),
+                 conditions,
+               ),
+             ),
+        )
+      | Unknown(reason) => (
+          "not-standard",
+          Icons.circle_with_no_check,
+          reason,
+        )
       };
-    [div(~attrs=[clss(["totality", cls]), Attr.title(tooltip)], [icon])];
+    [
+      div(
+        ~attrs=[clss(["standardness", cls]), Attr.title(tooltip)],
+        [icon],
+      ),
+    ];
   | _ => []
   };
 
@@ -121,7 +155,7 @@ let term_view =
       ),
     ],
     [ctx_toggle(~globals)]
-    @ totality_badge(ci)
+    @ standardness_badge(ci)
     @ [
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
       div(~attrs=[clss(["divider"])], [text("/")]),
@@ -317,6 +351,11 @@ let core_mark_err_view =
       ]
     | AxiomSlotNotHypothesis(_) => [
         text("Axiom slot must be a hypothesis name"),
+      ]
+    | StandardFactOutsideForall => [
+        text(
+          "Only a proof's `forall` step can name its binder's standardness fact",
+        ),
       ]
     }
   )
@@ -837,6 +876,12 @@ let exp_mark_err_view =
     div_err([code(name), text(" is not a hypothesis in scope")])
   | AxiomSlotNotHypothesis(_) =>
     div_err([text("Axiom slot must be a hypothesis name")])
+  | StandardFactOutsideForall =>
+    div_err([
+      text(
+        "Only a proof's `forall` step can name its binder's standardness fact",
+      ),
+    ])
   };
 };
 

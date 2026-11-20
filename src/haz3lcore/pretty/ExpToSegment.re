@@ -273,7 +273,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Ap(Forward, _, _)
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
-  | UnOp(Bool(Not), _) => Precedence.not_
+  | UnOp(Bool(Not), _)
+  | Standard(_) => Precedence.not_
   | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), _) => Precedence.neg
   | Cons(_) => Precedence.cons
   | Ap(Reverse, _, _) => Precedence.eqs
@@ -325,6 +326,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
+  | Standard(_) => Precedence.eqs
   | Tuple([]) => Precedence.max // the atomic () token (#2296)
   | Tuple(_) => Precedence.comma
 
@@ -750,6 +752,8 @@ let rec parenthesize =
     |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
+  | Standard(e) =>
+    Standard(parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
   | UnOp(Float(Minus), e) =>
     /* Rewrite float negation as 0.0 -. e so that the segment round-trips
        correctly through MakeTerm (which parses unary - as Int(Minus)) */
@@ -902,6 +906,12 @@ and parenthesize_pat =
     )
     |> rewrap
   | Asc(p, _) => parenthesize_pat(p) // skip ascription if not showing
+  | Standard(p, h) =>
+    Standard(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.eqs),
+      parenthesize_pat(h) |> paren_pat_at(Precedence.eqs),
+    )
+    |> rewrap
   };
 }
 
@@ -2585,6 +2595,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
+  | Standard(e) =>
+    let id = exp |> Exp.rep_id;
+    let+ e = go(e);
+    wrap(exp, [mk_form(Standard, id, [])] @ e);
   | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
@@ -2996,6 +3010,11 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
     wrap(pat, p @ [mk_form(TypeAsc, id, [])] @ t);
+  | Standard(p, h) =>
+    let id = pat |> Pat.rep_id;
+    let+ p = go(p)
+    and+ h = go(h);
+    wrap(pat, p @ [mk_form(StandardFact, id, [])] @ h);
   };
 }
 and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {

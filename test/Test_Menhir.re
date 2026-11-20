@@ -1196,6 +1196,23 @@ let ex5 = list_of_mylist(x) in
         ),
         "forall n : Int -> n == 0 ==> n == 1",
       ),
+      /* --- `!!` --------------------------------------------------------- */
+      full_parser_test("Standard", standard(var("x")), "!!x"),
+      full_parser_test(
+        "Standard binds like not",
+        bin_op(Bool(And), standard(var("a")), var("b")),
+        "!!a && b",
+      ),
+      full_parser_test(
+        "Standard of a tuple",
+        standard(tuple([int(1), list_lit([int(2)])])),
+        "!!(1, [2])",
+      ),
+      full_parser_test(
+        "Double negation is not standard",
+        un_op(Bool(Not), un_op(Bool(Not), var("b"))),
+        "!(!b)",
+      ),
       /* --- proof prefix forms ------------------------------------------ */
       menhir_maketerm_equivalent_test(
         "Theorem with an empty-hole proof",
@@ -1212,6 +1229,10 @@ let ex5 = list_of_mylist(x) in
       menhir_maketerm_equivalent_test(
         "Proof generalize",
         "theorem t = forall n : Int -> n == n proof forall n => generalize n => ? in t",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Proof forall naming the binder's standardness fact",
+        "theorem t = forall x : Bool -> !!x proof generalize x => forall (x : Bool !! h) => rewrite h end in t",
       ),
       /* `assume e => a; b` puts the whole sequence in the body: the prefix
          forms sit at fun_ (37), looser than the proof `;` at semi (35). */

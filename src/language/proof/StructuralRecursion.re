@@ -1,5 +1,5 @@
-/* Structural-recursion detection, the part of the divergence gate
- * (Totality) that accepts recursive definitions.
+/* Structural-recursion detection, the part of the standardness routine
+ * (`Standardness`) that accepts recursive definitions.
  *
  * `check` conservatively decides whether a `FixF(self_pat, body, _)` is
  * structurally recursive: every recursive call to the self-name inside
@@ -11,8 +11,12 @@
  * literal patterns, or constructor patterns directly in a `fun` binder).
  * When this holds, every recursive-call chain descends strictly in the
  * well-founded subterm order on position i, so — provided everything
- * else in the body terminates, which Totality.re verifies separately —
- * evaluation terminates.
+ * else in the body terminates, which the standardness routine judges
+ * separately — evaluation terminates.
+ *
+ * A call may instead pass the parameter made smaller as a number, where
+ * the guards of the branch it is in bound the parameter below
+ * (`decreased`): `if n <= 0 then 1 else n * f(n - 1)`.
  *
  * What is tracked (per lexical scope):
  *   - a status map: variable -> (param index, optional tuple component,
@@ -45,8 +49,9 @@
  *     to the outer self with the inner binders shadowed);
  *   - any expression form the walk does not positively understand.
  *
- * Like Totality.check, the input is expected to be environment-
- * substituted (Substitution.in_exp): other definitions are inlined
+ * The input is expected to be environment-substituted
+ * (Substitution.in_exp), as a definition's value is when the
+ * standardness routine judges it: other definitions are inlined
  * (recursive ones surfacing their own FixF spine, handled as nested
  * fixes), and only the self-name refers back to this fixpoint. */
 
@@ -152,48 +157,93 @@ let uncurry = (e: Exp.t): (Exp.t, list(Exp.t)) => {
   go(e, []);
 };
 
+/* The variable `arg` makes smaller as a number, in the branch the
+ * guards `guards` describe: `x - k` on an Int with a lower bound, or
+ * `monus(x, k)` on a Nat known to be at least 1, `k` a positive literal.
+ * Called with smaller and smaller `x`, a function stops recurring: `x`
+ * minus the lowest of those bounds shrinks and stays non-negative. */
+let decreased = (~guards: Bounds.t, arg: Exp.t): option(Var.t) => {
+  open OptUtil.Syntax;
+  let positive = (k: Exp.t) =>
+    Option.exists(Bounds.literal(k), ~f=k => Bigint.(k > zero));
+  switch (ProofSyntax.unwrap(arg) |> Exp.term_of) {
+  | BinOp(Int(Minus), x, k) when positive(k) =>
+    let* x = Bounds.variable(x);
+    let+ _ = Bounds.lower(guards, x);
+    x;
+  | Ap(_, f, args) =>
+    let is_monus =
+      switch (ProofSyntax.unwrap(f) |> Exp.term_of) {
+      | Var("monus")
+      | BuiltinFun("monus") => true
+      | _ => false
+      };
+    switch (ProofSyntax.unwrap(args) |> Exp.term_of) {
+    | Tuple([x, k]) when is_monus && positive(k) =>
+      let* x = Bounds.variable(x);
+      let* lo = Bounds.lower(~nat=true, guards, x);
+      Bigint.(lo >= one) ? Some(x) : None;
+    | _ => None
+    };
+  | _ => None
+  };
+};
+
 /* The decreasing positions witnessed by one call's argument list:
  * position k is valid when its actual argument is a variable strict in
- * parameter k (or, for tuple arguments, has a component j that is a
- * variable strict in (k, Some j)). */
-let valid_positions = (env: env, args: list(Exp.t)): list(pos) =>
+ * parameter k, or parameter k itself `decreased` as a number; for a
+ * tuple argument, (k, Some j) is valid when component j is either. */
+let valid_positions =
+    (~guards: Bounds.t, env: env, args: list(Exp.t)): list(pos) => {
+  let descends = (x: Var.t, ~strict, origin: origin) =>
+    switch (List.Assoc.find(env, x, ~equal=String.equal)) {
+    | Some(status) =>
+      status.origin.param == origin.param
+      && Option.equal(Int.equal, status.origin.comp, origin.comp)
+      && Bool.equal(status.strict, strict)
+    | None => false
+    };
+  let at = (origin: origin, arg: Exp.t) =>
+    switch (ProofSyntax.unwrap(arg) |> Exp.term_of, decreased(~guards, arg)) {
+    | (Var(x), _) => descends(x, ~strict=true, origin)
+    | (_, Some(x)) => descends(x, ~strict=false, origin)
+    | _ => false
+    };
   List.concat(
     List.mapi(
       ~f=
         (k, arg) =>
           switch (ProofSyntax.unwrap(arg) |> Exp.term_of) {
-          | Var(x) =>
-            switch (List.Assoc.find(env, x, ~equal=String.equal)) {
-            | Some({origin: {param, comp: None}, strict: true})
-                when param == k => [
-                (k, None),
-              ]
-            | _ => []
-            }
           | Tuple(comps) =>
             List.concat(
               List.mapi(
                 ~f=
                   (j, c) =>
-                    switch (ProofSyntax.unwrap(c) |> Exp.term_of) {
-                    | Var(x) =>
-                      switch (List.Assoc.find(env, x, ~equal=String.equal)) {
-                      | Some({origin: {param, comp: Some(j')}, strict: true})
-                          when param == k && j' == j => [
-                          (k, Some(j)),
-                        ]
-                      | _ => []
-                      }
-                    | _ => []
-                    },
+                    at(
+                      {
+                        param: k,
+                        comp: Some(j),
+                      },
+                      c,
+                    )
+                      ? [(k, Some(j))] : [],
                 comps,
               ),
             )
-          | _ => []
+          | _ =>
+            at(
+              {
+                param: k,
+                comp: None,
+              },
+              arg,
+            )
+              ? [(k, None)] : []
           },
       args,
     ),
   );
+};
 
 /* Walk the body accumulating, per recursive call, its set of valid
  * decreasing positions. Errors are conservative refusals. */
@@ -202,7 +252,7 @@ let rec check = (fix: Exp.t): result(unit, reason) =>
   | FixF(self_pat, body, _) =>
     switch (self_pat |> Pat.bound_vars) {
     /* `fix () -> ...`, `fix _ -> ...`: no self-name, so nothing can
-     * recur. Totality walks the body itself. */
+     * recur. The standardness routine judges the body itself. */
     | [] => Ok()
     | [self] =>
       let* possets = chain(~self, ~index=0, ~env=[], body);
@@ -260,17 +310,20 @@ and chain =
         @ shadow(env, bound);
       chain(~self, ~index=index + 1, ~env=env', body);
     };
-  | _ => go(~self, ~env, e)
+  | _ => go(~self, ~env, ~guards=Bounds.empty, e)
   }
 
+/* `guards` is what the guards of the enclosing branches say about
+ * numbers (`Bounds`). */
 and go =
-    (~self: Var.t, ~env: env, e: Exp.t): result(list(list(pos)), reason) => {
+    (~self: Var.t, ~env: env, ~guards: Bounds.t, e: Exp.t)
+    : result(list(list(pos)), reason) => {
   let go_all = (es: list(Exp.t)): result(list(list(pos)), reason) =>
     List.fold_left(
       ~f=
         (acc, e) => {
           let* xs = acc;
-          let* ys = go(~self, ~env, e);
+          let* ys = go(~self, ~env, ~guards, e);
           Ok(xs @ ys);
         },
       ~init=Ok([]),
@@ -279,7 +332,13 @@ and go =
   /* Enter a subscope under pattern `p`, optionally seeding statuses for
    * its bindings from the matched scrutinee's status. */
   let under =
-      (~seed: option(status), p: Pat.t, e: Exp.t)
+      (
+        ~guards=guards,
+        ~bind=(guards: Bounds.t) => guards,
+        ~seed: option(status),
+        p: Pat.t,
+        e: Exp.t,
+      )
       : result(list(list(pos)), reason) => {
     let bound = Pat.bound_vars(p);
     if (List.mem(bound, self, ~equal=String.equal)) {
@@ -294,7 +353,12 @@ and go =
           pat_bind(~origin, ~strict, p)
         | None => []
         };
-      go(~self, ~env=seeded @ shadow(env, bound), e);
+      go(
+        ~self,
+        ~env=seeded @ shadow(env, bound),
+        ~guards=bind(Bounds.forget(guards, bound)),
+        e,
+      );
     };
   };
   switch (e |> Exp.term_of) {
@@ -321,7 +385,7 @@ and go =
   | TyAlias(_, _, e1)
   | Use(_, e1)
   | TypAp(e1, _)
-  | Test(e1) => go(~self, ~env, e1)
+  | Test(e1) => go(~self, ~env, ~guards, e1)
   | ListLit(es)
   | Tuple(es) => go_all(es)
   | TupLabel(e1, e2)
@@ -332,32 +396,66 @@ and go =
   | Seq(e1, e2)
   | HintedTest(e1, e2) => go_all([e1, e2])
   | BinOp(_, e1, e2) => go_all([e1, e2])
-  | UnOp(_, e1) => go(~self, ~env, e1)
-  | If(e1, e2, e3) => go_all([e1, e2, e3])
+  | UnOp(_, e1)
+  | Standard(e1) => go(~self, ~env, ~guards, e1)
+  | If(c, a, b) =>
+    let* rc = go(~self, ~env, ~guards, c);
+    let* ra = go(~self, ~env, ~guards=Bounds.assume(guards, c, true), a);
+    let* rb = go(~self, ~env, ~guards=Bounds.assume(guards, c, false), b);
+    Ok(rc @ ra @ rb);
   | DeferredAp(fn, args) => go_all([fn, ...args])
   | Fun(p, body, _, _) => under(~seed=None, p, body)
-  | TypFun(_, body, _) => go(~self, ~env, body)
+  | TypFun(_, body, _) => go(~self, ~env, ~guards, body)
   | Let(p, e1, e2) =>
-    let* r1 = go(~self, ~env, e1);
+    let* r1 = go(~self, ~env, ~guards, e1);
     let* r2 = under(~seed=var_status(env, e1), p, e2);
     Ok(r1 @ r2);
+  /* A rule on a number is reached only past the literals of the rules
+   * before it, and a variable pattern is the scrutinee. */
   | Match(scrut, rules) =>
-    let* r0 = go(~self, ~env, scrut);
+    let* r0 = go(~self, ~env, ~guards, scrut);
     let seed = var_status(env, scrut);
-    List.fold_left(
-      ~f=
-        (acc, (p, rhs)) => {
-          let* xs = acc;
-          let* ys = under(~seed, p, rhs);
-          Ok(xs @ ys);
-        },
-      ~init=Ok(r0),
-      rules,
-    );
+    let scrut_var = Bounds.variable(scrut);
+    let rec literal = (p: Pat.t) =>
+      switch (Pat.term_of(p)) {
+      | Parens(p)
+      | Asc(p, _) => literal(p)
+      | Atom(Int(n) | Nat(n)) => Some(n)
+      | _ => None
+      };
+    let rec bare = (p: Pat.t) =>
+      switch (Pat.term_of(p)) {
+      | Parens(p)
+      | Asc(p, _) => bare(p)
+      | Var(x) => Some(x)
+      | _ => None
+      };
+    let+ (rs, _) =
+      List.fold_left(
+        ~f=
+          (acc, (p, rhs)) => {
+            let* (xs, past) = acc;
+            let bind = guards =>
+              switch (scrut_var, bare(p)) {
+              | (Some(x), Some(m)) => Bounds.alias(guards, m, x)
+              | _ => guards
+              };
+            let* ys = under(~guards=past, ~bind, ~seed, p, rhs);
+            let past =
+              switch (scrut_var, literal(p)) {
+              | (Some(x), Some(k)) => Bounds.add(past, (x, Bounds.Ne, k))
+              | _ => past
+              };
+            Ok((xs @ ys, past));
+          },
+        ~init=Ok((r0, guards)),
+        rules,
+      );
+    rs;
   /* A nested fixpoint must itself be structurally recursive; its body
    * is then still walked for calls to the outer self, with the inner
-   * binder shadowing. Totality re-checks the inner fix too, but this
-   * check must stand on its own. */
+   * binder shadowing. The standardness routine judges the inner fix
+   * too, but this check must stand on its own. */
   | FixF(p, body, _) =>
     let* _ =
       switch (check(e)) {
@@ -368,7 +466,12 @@ and go =
     if (List.mem(bound, self, ~equal=String.equal)) {
       Ok([]);
     } else {
-      go(~self, ~env=shadow(env, bound), body);
+      go(
+        ~self,
+        ~env=shadow(env, bound),
+        ~guards=Bounds.forget(guards, bound),
+        body,
+      );
     };
   | Ap(_) =>
     let (head, args) = uncurry(e);
@@ -376,7 +479,7 @@ and go =
     | Var(f) when String.equal(f, self) =>
       /* Arguments may themselves contain recursive calls. */
       let* inner = go_all(args);
-      let posset = valid_positions(env, args);
+      let posset = valid_positions(~guards, env, args);
       if (List.is_empty(posset)) {
         Error(
           "a recursive call to `"
@@ -387,12 +490,12 @@ and go =
         Ok(inner @ [posset]);
       };
     | _ =>
-      let* rh = go(~self, ~env, head);
+      let* rh = go(~self, ~env, ~guards, head);
       let* ra = go_all(args);
       Ok(rh @ ra);
     };
-  /* Holes, modules, theorems, quantifiers, invalid text, ... (Totality
-   * refuses them independently). */
+  /* Holes, modules, theorems, quantifiers, invalid text, ... (the
+   * standardness routine doesn't judge them standard either). */
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)

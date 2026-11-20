@@ -264,6 +264,8 @@ let rec match_exp =
   | (UnOp(op1, e1), UnOp(op2, e2)) when op1 == op2 =>
     match_exp(alphas, ctx, e1, e2)
   | (UnOp(_, _), _) => None
+  | (Standard(e1), Standard(e2)) => match_exp(alphas, ctx, e1, e2)
+  | (Standard(_), _) => None
   | (BinOp(op1, e1, e2), BinOp(op2, e3, e4)) when op1 == op2 =>
     let* ctx = match_exp(alphas, ctx, e1, e3);
     match_exp(alphas, ctx, e2, e4);
@@ -317,8 +319,10 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
   | (Projector(_, p1), _) => match_pat(p1, pat)
   | (_, Parens(p2))
   | (_, Projector(_, p2)) => match_pat(pat_r, p2)
-  | (Asc(p1, _), _) => match_pat(p1, pat)
-  | (_, Asc(p2, _)) => match_pat(pat_r, p2)
+  | (Asc(p1, _), _)
+  | (Standard(p1, _), _) => match_pat(p1, pat)
+  | (_, Asc(p2, _))
+  | (_, Standard(p2, _)) => match_pat(pat_r, p2)
   | (Invalid(x), Invalid(y)) when String.equal(x, y) => Some([])
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some([])

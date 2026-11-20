@@ -1201,6 +1201,7 @@ module View = {
       | Premise => ("⇒", "premise")
       | Citation => ("↗", "unfinished theorem")
       | Algebra => ("=", "algebra")
+      | Standardness => ("!!", "standardness")
       };
 
     let dot = (~toggle: Ui_effect.t(unit), ob: Obligation.t) => {
@@ -1211,7 +1212,15 @@ module View = {
           Attr.classes(
             ["condition-dot"]
             @ (unproven ? ["unproven"] : [])
-            @ (ob.kind == Citation ? ["citation"] : []),
+            @ (
+              switch (ob.kind) {
+              | Citation => ["citation"]
+              | Standardness => ["standardness"]
+              | Definedness
+              | Premise
+              | Algebra => []
+              }
+            ),
           ),
           Attr.title(
             "Side condition, "
@@ -1274,8 +1283,19 @@ module View = {
             @ [Attr.title(e.title)],
           [Node.text(e.label)],
         );
+      /* A `!!` closed by a quantified fact holds as an instance of it. */
+      let is_quantified = (fact: Exp.t) =>
+        switch (Exp.term_of(ProofSyntax.unwrap(fact))) {
+        | Forall(_) => true
+        | _ => false
+        };
       let rows =
         switch (ob.discharge, Obligation.remote_fact(ob)) {
+        | (Remote(_), Some((name, fact)))
+            when
+              Poly.equal(ob.kind, Obligation.Standardness)
+              && is_quantified(fact) =>
+          closed("an instance of " ++ name)
         | (Remote(_), Some((name, _))) => closed(name)
         | (Remote(_), None) => closed("a fact in scope")
         | (Evaluated, _) => closed("by evaluation")

@@ -957,6 +957,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           set_lexeme("<-");
           hole(tm);
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
+        | (F(Compound(Standard)), []) => Standard(r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
         | (F(Compound(Forall)), [Pat(pat)]) => Forall(pat, r)
         | (F(Compound(Fix)), [Pat(pat)]) => FixF(pat, r, None)
@@ -1357,6 +1358,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
+      | ([(_id, (F(Compound(StandardFact)), []))], []) =>
+        ret(Standard(l, r))
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));

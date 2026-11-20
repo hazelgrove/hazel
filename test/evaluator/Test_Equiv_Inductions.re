@@ -44,15 +44,6 @@ let has_nothing_to_step = (pm, proof) =>
     | _ => false,
   );
 
-let has_possibly_divergent = (pm, proof) =>
-  has_mark_kind(
-    pm,
-    proof,
-    fun
-    | ProofMark.PossiblyDivergentInstantiation(_) => true
-    | _ => false,
-  );
-
 let has_unknown_equality = (pm, proof) =>
   has_mark_kind(
     pm,
@@ -140,21 +131,14 @@ let test_generalized_accumulator_proves = () => {
  * rewriting `(acc + 1) + len(xs')` into `fold_left(xs', add1, acc + 1)`,
  * so the residual goal is
  * `fold_left(xs', add1, acc + 1) == fold_left(xs', add1, acc + 1)` and
- * the closing move is a plain `rewrite refl`. That passes the
- * instantiation gate although `fold_left` applies its abstract function
- * parameter, because a quantified `f` is a total map. */
+ * the closing move is a plain `rewrite refl`, which holds at every
+ * term. */
 let thm_a_fwd = {|theorem lenfoldf = forall xs: [Int] -> forall acc: Int -> acc + len(xs) == fold_left(xs, add1, acc) proof generalize acc => induction xs | [] => forall acc => from len([]) do rewrite len_nil end end; from fold_left([], add1, acc) do rewrite fold_nil end end; from acc + 0 do algebra acc end end; from acc == acc do rewrite refl end end | x :: xs' => forall acc => from len(x :: xs') do rewrite len_cons end end; from fold_left(x :: xs', add1, acc) do rewrite fold_cons end end; from acc + (1 + len(xs')) do rewrite shuffle end end; from (acc + 1) + len(xs') do rewrite ih_xs' end end; from $e == $e do rewrite refl end end end in |};
 
 let test_forward_ih_accumulator_proves = () => {
   let (pm, proof) =
     run_named("lenfoldf", prelude_a ++ lemmas_a ++ thm_a_fwd ++ "lenfoldf");
   check_mark_free("the forward-IH len/fold proof is mark-free", pm, proof);
-  Alcotest.check(
-    Alcotest.bool,
-    "closing refl on a residual fold_left == fold_left is not refused",
-    false,
-    has_possibly_divergent(pm, proof),
-  );
   check_obligation_count("no obligations", 0, pm, proof);
   check_proven(
     "forward-IH version closes on refl at fold_left == fold_left",
@@ -183,12 +167,6 @@ let test_fold_cons_proves_by_eval = () => {
     "eval DOES step fold_left on a cons -- this was never a stuck-step pin",
     false,
     has_nothing_to_step(pm, proof),
-  );
-  Alcotest.check(
-    Alcotest.bool,
-    "and the closing refl is not refused as divergent",
-    false,
-    has_possibly_divergent(pm, proof),
   );
   check_mark_free("fold_cons by eval is mark-free", pm, proof);
   check_proven(
@@ -230,24 +208,14 @@ let test_naive_accumulator_is_incomplete = () => {
   check_incomplete("the naive induction does not close", pm, proof);
 };
 
-/* `refl` is `forall x -> (x == x) == true`, and the instantiation
- * gate refuses any instantiation Totality.check can't show total. The
- * `fold_left` fix applies its function parameter `f`, an abstract
- * variable, but a quantified function parameter is a total map, so
+/* `refl` is `forall x -> (x == x) == true`, and holds at every term, so
  * `fold_left(t, add1, 0) == fold_left(t, add1, 0)` is Proven, like the
- * `len` control. (A divergent instantiation such as `omega == omega` is
- * still refused; see Test_FunctionTotality.) */
+ * `len` control. */
 let test_refl_eq_proves_on_fold_left_expression = () => {
   let src =
     prelude_a
     ++ {|theorem w = forall t: [Int] -> fold_left(t, add1, 0) == fold_left(t, add1, 0) proof from fold_left(t, add1, 0) == fold_left(t, add1, 0) do rewrite refl end end in w|};
   let (pm, proof) = run_named("w", src);
-  Alcotest.check(
-    Alcotest.bool,
-    "refl at a fold_left expression is not refused as divergent",
-    false,
-    has_possibly_divergent(pm, proof),
-  );
   check_mark_free("and it leaves no marks", pm, proof);
   check_proven("so X == X over fold_left closes", pm, proof);
   /* Control: the same shape over `len` is Proven. */

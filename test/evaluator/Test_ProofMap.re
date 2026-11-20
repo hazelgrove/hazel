@@ -179,10 +179,10 @@ module Harness = {
     | None => false
     };
 
-  let is_divergent_instantiation: ProofMark.t => bool =
-    fun
-    | ProofMark.PossiblyDivergentInstantiation(_) => true
-    | _ => false;
+  /* A lemma that does what `refl` does, for citing where the citation
+   * should need its instantiation standard: the built-in `refl` holds at
+   * every term, so it doesn't. */
+  let refl_lemma = {|theorem same = forall y -> (y == y) == true proof from y == y do rewrite refl end end; rewrite refl end in |};
 
   /* Runs `src`, returning the proof map and its first theorem's proof. */
   let run = (src: string): (ProofMap.t, Proof.t) => {
@@ -198,6 +198,12 @@ module Harness = {
   /* `run`, with the obligations recorded in the proof. */
   let obligations = (src: string): (ProofMap.t, Proof.t, list(Obligation.t)) => {
     let (pm, proof) = run(src);
+    (pm, proof, ProofMap.obligations_of_proof(pm, proof));
+  };
+
+  let obligations_named =
+      (name: string, src: string): (ProofMap.t, Proof.t, list(Obligation.t)) => {
+    let (pm, proof) = run_named(name, src);
     (pm, proof, ProofMap.obligations_of_proof(pm, proof));
   };
 
@@ -228,6 +234,12 @@ module Harness = {
     ++ " ["
     ++ Obligation.show_discharge(ob.discharge)
     ++ "]";
+
+  /* The `!!e` goals among `obs`, printed. */
+  let standardness_goals = (obs: list(Obligation.t)): list(string) =>
+    obs
+    |> List.filter(~f=(ob: Obligation.t) => ob.kind == Standardness)
+    |> List.map(~f=(ob: Obligation.t) => print_exp(ob.goal));
 
   /* Each step of `proof` with its incoming and outgoing goals, marks and
    * obligations, indented by nesting, for failure messages. */
@@ -936,7 +948,7 @@ let countdown = "let r = fun (n : Int) -> if n == 0 then 0 else r(n - 1) in ";
  * rewrites the goal with the assumed equation, so the theorem is
  * ProvenModulo its single pending obligation. */
 let test_assume_hypothesis_used = () => {
-  let src = {|theorem t = forall x -> x == 1 ==> x == 1 proof assume x == 1 => from x do rewrite assume end end; from 1 == 1 do rewrite refl end end in t|};
+  let src = {|theorem t = forall x: Int -> x == 1 ==> x == 1 proof assume x == 1 => from x do rewrite assume end end; from 1 == 1 do rewrite refl end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1023,7 +1035,7 @@ let test_implies_parse_and_roundtrip = () => {
  * is B) and no obligation is incurred. A complete proof goes through with
  * full status Proven and zero obligations. */
 let test_impl_intro_via_assume = () => {
-  let src = {|theorem t = forall x -> x == 2 ==> x + 1 == 3 proof assume x == 2 => from x do rewrite assume end end; from 2 + 1 do step end; from 3 == 3 do rewrite refl end end in t|};
+  let src = {|theorem t = forall x: Int -> x == 2 ==> x + 1 == 3 proof assume x == 2 => from x do rewrite assume end end; from 2 + 1 do step end; from 3 == 3 do rewrite refl end end in t|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let proof = proof_of(elab);
@@ -1086,7 +1098,7 @@ let test_assume_needs_an_implication = () => {
  * instantiation incurs the instantiated antecedent, which closed evaluation
  * discharges (`Evaluated`), so full status is Proven. */
 let test_conditional_rule_closed_discharges = () => {
-  let src = {|theorem inv = forall x -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = 2 == 2 proof from 2 do rewrite inv end end; from 2 == 2 do rewrite refl end end in u|};
+  let src = {|theorem inv = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = 2 == 2 proof from 2 do rewrite inv end end; from 2 == 2 do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1120,7 +1132,7 @@ let test_conditional_rule_closed_discharges = () => {
  * evaluated (open goals never are) and nothing in scope covers it, so it
  * is Pending and the use is ProvenModulo. */
 let test_conditional_rule_open_pending = () => {
-  let src = {|theorem inv = forall x -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = forall y -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|};
+  let src = {|theorem inv = forall x: Int -> x != 0 ==> x == x proof assume x != 0 => from x == x do rewrite refl end end in theorem u = forall y: Int -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|};
   let (state, _, elab) = src |> parse_exp |> eval_with_proof;
   let pm = EvaluatorState.get_proof_map(state);
   let use_proof = proof_of_named("u", elab);
@@ -1546,7 +1558,7 @@ let test_implication_through_parens = () => {
   let (pm, proof) =
     run_named(
       "u",
-      {|theorem inv = forall x -> (x != 0 ==> x == x) proof assume x != 0 => from x == x do rewrite refl end end in theorem u = forall y -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|},
+      {|theorem inv = forall x: Int -> (x != 0 ==> x == x) proof assume x != 0 => from x == x do rewrite refl end end in theorem u = forall y: Int -> y == y proof from y do rewrite inv end end; from y == y do rewrite refl end end in u|},
     );
   switch (ProofMap.full_status_of_proof(pm, proof)) {
   | ProvenModulo([ob]) =>
@@ -1571,29 +1583,22 @@ let test_refl_at_nan = () => {
 };
 
 /* A split whose scrutinee is still a hole, as the Strategy tab writes
- * it, is unfinished, not marked as possibly divergent. */
-let test_hole_scrutinee_unmarked = () =>
+ * it, is unfinished, and needs nothing of the hole. */
+let test_hole_scrutinee_needs_nothing = () =>
   List.iter(
     ~f=
       split => {
-        let (pm, _) =
-          run(
+        let (_, _, obs) =
+          obligations(
             "theorem t = forall xs: [Int] -> xs == xs proof "
             ++ split
             ++ " ? end in t",
           );
         Alcotest.check(
-          Alcotest.bool,
+          Alcotest.list(Alcotest.string),
           split ++ " ?",
-          false,
-          List.mem(
-            List.concat_map(
-              ~f=((_, entry: ProofMap.entry)) => entry.marks,
-              Id.Map.bindings(pm),
-            ),
-            ProofMark.PossiblyDivergentScrutinee,
-            ~equal=Poly.equal,
-          ),
+          [],
+          List.map(~f=show_obligation, obs),
         );
       },
     ["induction", "cases"],
@@ -1603,9 +1608,9 @@ let tests = (
   "Evaluator.ProofMap",
   [
     test_case(
-      "a split on a hole isn't possibly divergent",
+      "a split on a hole needs nothing of it",
       `Quick,
-      test_hole_scrutinee_unmarked,
+      test_hole_scrutinee_needs_nothing,
     ),
     test_case(
       "a forall step renames the goal's binder",

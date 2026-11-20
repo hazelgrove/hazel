@@ -243,6 +243,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TupleExtension(_) |
         Dot(_) |
         UnOp(_) |
+        Standard(_) |
         BinOp(_) |
         LivelitName(_) |
         Match(_) |

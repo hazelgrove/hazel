@@ -81,7 +81,7 @@ let axiom = (~name_id: Id.t): Simple.t => {
     abstract: ([mk_axiom([slot(nm)])], [(Piece.id(nm), name_id)]),
     explanation:
       sprintf(
-        "Uses the [*fact*](%s) — a theorem, a builtin rule, or a fact in scope such as `assume`, `case_eq`, `ih_t` or `have` — as a rule: on a goal that matches its left side, replaces the goal with its right side; inside a `from`, rewrites just the focused part. A fact that is a proposition `P` rather than an equation reads as `P == true`, so it rewrites `P` to `true`. A name means the nearest fact with that name; `alias` reaches one that a nearer fact hides. A rule with `==>` conditions adds them as side conditions of this step. Add `with x = e` when matching can't determine one of the rule's variables.",
+        "Uses the [*fact*](%s) — a theorem, a builtin rule, or a fact in scope such as `assume`, `case_eq`, `ih_t` or `have` — as a rule: on a goal that matches its left side, replaces the goal with its right side; inside a `from`, rewrites just the focused part. A fact that is a proposition `P` rather than an equation reads as `P == true`, so it rewrites `P` to `true`. A name means the nearest fact with that name; `alias` reaches one that a nearer fact hides. A rule with `==>` conditions adds them as side conditions of this step. So does the value each of the rule's variables is set to: it must be standard (`!!e`: it has a value, and a function among its parts gives one on every standard argument). That usually needs nothing, and otherwise adds what it needs, such as `b != 0` for `a / b`, or `!!e` itself. The builtin `refl` holds at every term and needs nothing. Add `with x = e` when matching can't determine one of the rule's variables.",
         name_id |> Id.to_string,
       ),
     examples: [
@@ -112,7 +112,7 @@ let axiom_with = (~name_id: Id.t, ~var_id: Id.t, ~inst_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Uses the [*fact*](%s) as `rewrite` does, with its [*variable*](%s) set to the [*value*](%s) before matching. Write it when the variable appears only in the rule's conditions, so matching the goal can't determine it. The value must visibly terminate, and its own side conditions, such as `e != 0` for a divisor, are added to this step.",
+        "Uses the [*fact*](%s) as `rewrite` does, with its [*variable*](%s) set to the [*value*](%s) before matching. Write it when the variable appears only in the rule's conditions, so matching the goal can't determine it. The value must be standard, as for `rewrite`: what that needs, such as `e != 0` for a divisor, is added to this step.",
         name_id |> Id.to_string,
         var_id |> Id.to_string,
         inst_id |> Id.to_string,
@@ -209,7 +209,7 @@ let algebra = (~with_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Replaces the goal, or the focused part inside a `from`, with the [*replacement*](%s), and checks with computer algebra that the two are equal. The algebra treats numbers as a field, so every division or power the rewrite moves across adds a side condition (a divisor `e != 0`, an exponent `i >= 0`). On Float terms the step is refused: the field laws don't hold for floating point.",
+        "Replaces the goal, or the focused part inside a `from`, with the [*replacement*](%s), and checks with computer algebra that the two are equal. The algebra treats numbers as a field, so every division or power the rewrite moves across adds a side condition (a divisor `e != 0`, an exponent `i >= 0`). A part that isn't arithmetic, such as a call `f(x)`, is an unknown, and must be standard: the step adds what that needs. On Float terms the step is refused: the field laws don't hold for floating point.",
         with_id |> Id.to_string,
       ),
     examples: [
@@ -229,7 +229,7 @@ let eval_step: Simple.t = {
   group_id: ProofEvalStep,
   form_id: ProofEvalStep,
   abstract: ([mk_eval_step([])], []),
-  explanation: "Takes one evaluation step at the root of the goal, or of the focused part inside a `from`: unfolds a definition, applies a function, or takes a branch. A function or `let` there takes its argument as it is, value or not, so `(fun x -> x + 1)(2 + 3)` becomes `2 + 3 + 1`. Otherwise, if the root can't step yet, usually because its parts aren't values, the step is refused: focus on a part that can. The step adds no side condition.",
+  explanation: "Takes one evaluation step at the root of the goal, or of the focused part inside a `from`: unfolds a definition, applies a function, or takes a branch. A function or `let` there takes its argument as it is, value or not, so `(fun x -> x + 1)(2 + 3)` becomes `2 + 3 + 1`. An argument that isn't a value must then be standard, a side condition of the step, which `2 + 3` meets with nothing to prove and `1 / 0` doesn't. Otherwise, if the root can't step yet, usually because its parts aren't values, the step is refused: focus on a part that can.",
   examples: [
     {
       sub_id: ProofEval1,
@@ -287,7 +287,7 @@ let cases = (~scrut_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Splits the goal into one case per pattern of the [*expression*](%s), which can be any expression. In each case the expression is replaced by the pattern in the goal, and the fact `case_eq` states `expression == pattern`. The patterns must cover the expression's type, its type must be known, and a computed expression must visibly terminate; a split with no cases covers only a type with no values. Cases give no `ih_` facts: for those, use `induction`. A nested split's `case_eq` hides the outer one: write `alias h = case_eq =>` at the top of a case to keep its equation available as `h` in splits nested inside.",
+        "Splits the goal into one case per pattern of the [*expression*](%s), which can be any expression. In each case the expression is replaced by the pattern in the goal, and the fact `case_eq` states `expression == pattern`. The patterns must cover the expression's type, its type must be known, and a computed expression must be standard, a side condition of this step; a split with no cases covers only a type with no values. Cases give no `ih_` facts: for those, use `induction`. A nested split's `case_eq` hides the outer one: write `alias h = case_eq =>` at the top of a case to keep its equation available as `h` in splits nested inside.",
         scrut_id |> Id.to_string,
       ),
     examples: [
@@ -318,7 +318,7 @@ let induction = (~scrut_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Splits the goal into one case per pattern of the [*expression*](%s), as `cases` does, and in each case adds a fact for every variable of the expression's own type, named after it: `ih_t` for a tail `t`. That fact is the goal with the variable in place of the expression. The patterns must cover the type. A computed expression is first replaced by a fresh variable, so there is no `case_eq`, and facts that mention the expression leave scope in the cases: `revert` a fact before the induction to keep it. Write `generalize` first to get `ih_` facts that are `forall`s, which can be used at other values. An `ih_` fact hides an outer one of the same name; `alias` keeps the outer one.",
+        "Splits the goal into one case per pattern of the [*expression*](%s), as `cases` does, and in each case adds a fact for every variable of the expression's own type, named after it: `ih_t` for a tail `t`. That fact is the goal with the variable in place of the expression. The patterns must cover the type, and a computed expression must be standard. It is first replaced by a fresh variable, so there is no `case_eq`, and facts that mention the expression leave scope in the cases: `revert` a fact before the induction to keep it. Write `generalize` first to get `ih_` facts that are `forall`s, which can be used at other values. An `ih_` fact hides an outer one of the same name; `alias` keeps the outer one.",
         scrut_id |> Id.to_string,
       ),
     examples: [
@@ -347,7 +347,7 @@ let forall_step = (~pat_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Names the [*variable*](%s) of a `forall` goal; the [*rest of the proof*](%s) proves the body for it, an unknown value. A theorem's outer `forall`s are named for you, so this is for a `forall` a later goal starts with, such as after `assume` or `generalize`.",
+        "Names the [*variable*](%s) of a `forall` goal; the [*rest of the proof*](%s) proves the body for it, an unknown value. A theorem's outer `forall`s are named for you, so this is for a `forall` a later goal starts with, such as after `assume` or `generalize`. The variable ranges over standard values; write `forall (x : T !! h) =>` to have that as a fact named `h`, `!!x`.",
         pat_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -406,7 +406,7 @@ let assume = (~exp_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "On a goal `P ==> Q` whose `P` is the [*proposition*](%s), removes `P` from the goal and makes it a fact, named `assume`, for the [*rest of the proof*](%s), which proves `Q`. On any other goal the step is refused; `have` adds a fact to any goal. A nested `assume` takes the name `assume` again and hides this one: write `assume <name> = <e>` to keep both available.",
+        "On a goal `P ==> Q` whose `P` is the [*proposition*](%s), removes `P` from the goal and makes it a fact, named `assume`, for the [*rest of the proof*](%s), which proves `Q`. `P` must be standard, a side condition of this step that the proof can leave for later; for a comparison of typed values it usually needs nothing. On any other goal the step is refused; `have` adds a fact to any goal. A nested `assume` takes the name `assume` again and hides this one: write `assume <name> = <e>` to keep both available.",
         exp_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -498,7 +498,7 @@ let revert_with =
     ),
     explanation:
       sprintf(
-        "Moves one instance of the [*fact*](%s) into the goal: the fact must be a `forall` over the [*variable*](%s), which is set to the [*value*](%s), and the [*rest of the proof*](%s) gets that instance as an antecedent. The value must visibly terminate, and its side conditions are added here. This is how a `forall` fact, such as an `ih_` fact after `generalize`, is used at a value other than its own.",
+        "Moves one instance of the [*fact*](%s) into the goal: the fact must be a `forall` over the [*variable*](%s), which is set to the [*value*](%s), and the [*rest of the proof*](%s) gets that instance as an antecedent. The value must be standard, and what that needs is added here. This is how a `forall` fact, such as an `ih_` fact after `generalize`, is used at a value other than its own.",
         exp_id |> Id.to_string,
         var_id |> Id.to_string,
         inst_id |> Id.to_string,

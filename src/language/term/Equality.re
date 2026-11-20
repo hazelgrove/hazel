@@ -396,6 +396,8 @@ let equality =
     | (TupleExtension(_), _) => false
     | (UnOp(op1, e1), UnOp(op2, e2)) => op1 == op2 && exp'(e1, e2)
     | (UnOp(_, _), _) => false
+    | (Standard(e1), Standard(e2)) => exp'(e1, e2)
+    | (Standard(_), _) => false
     | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
       op1 == op2 && exp'(e11, e21) && exp'(e12, e22)
     | (BinOp(_, _, _), _) => false
@@ -621,6 +623,12 @@ let equality =
       let* alphas2 = pat'(p2, p4);
       Some(Alphas.combine(alphas1, alphas2));
     | (Ap(_, _), _) => None
+    | (Standard(p1, h1), Standard(p2, h2)) =>
+      open OptUtil.Syntax;
+      let* alphas1 = pat'(p1, p2);
+      let* alphas2 = pat'(h1, h2);
+      Some(Alphas.combine(alphas1, alphas2));
+    | (Standard(_, _), _) => None
     };
   }
   and typ =

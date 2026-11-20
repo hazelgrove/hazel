@@ -1895,14 +1895,15 @@ let clippable_guard_tests = {
         "coverage",
         /* If this drifts, re-make the `clippable_sort` decision (pinned
            by the next test) rather than bumping the number. An Exp
-           frontier is vacuous (69 of 105 labels carry an Exp mold),
+           frontier is vacuous (70 of 106 labels carry an Exp mold),
            while Pat, Typ and TPat stay narrow. Pat counts negative
-           literal patterns; Typ and TPat count the
+           literal patterns and a binder's `!!` fact name; Typ and TPat
+           count the
            symbolic delimiter-prefix backup molds
            (Form.symbolic_delim_prefixes = `-`, `=`), which mold at all
            four sorts. All four also count the proof's one-token `step`,
            which as a bare word takes the atomic molds. */
-        "Exp 69/105 | Pat 10/105 | Typ 15/105 | TPat 5/105 | Rul 1/105",
+        "Exp 70/106 | Pat 11/106 | Typ 15/106 | TPat 5/106 | Rul 1/106",
         table,
       )
     ),
