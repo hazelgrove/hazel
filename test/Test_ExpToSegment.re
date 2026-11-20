@@ -1704,6 +1704,23 @@ let pad_ids_tests = (
       },
     ),
     Alcotest.test_case(
+      "padding ids are derived in position order",
+      `Quick,
+      () => {
+        let base = Id.mk();
+        let salted = k => Id.derive(~salt="pad" ++ Int.to_string(k), base);
+        Alcotest.(check(bool))(
+          "pad1, pad2, pad3",
+          true,
+          List.equal(
+            Id.equal,
+            PadIds.pad_ids(~base, 3, []),
+            [salted(1), salted(2), salted(3)],
+          ),
+        );
+      },
+    ),
+    Alcotest.test_case(
       "duplicate replacement is deterministic and distinct",
       `Quick,
       () => {

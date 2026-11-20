@@ -51,9 +51,18 @@ let pad_ids =
       forbidden_set := Id.Set.add(id, forbidden_set^);
       id;
     };
+  /* First position first: each id takes the next salt. Not `List.init`,
+     which calls its function from the last index. */
+  let rec padding = k =>
+    if (k <= 0) {
+      [];
+    } else {
+      let id = derived();
+      [id, ...padding(k - 1)];
+    };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), ~f=_ => derived());
+      ids @ padding(n - List.length(ids));
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
