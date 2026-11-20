@@ -377,7 +377,13 @@ let in_context =
     | ListLit([]) => Some(Typ.temp(List(Typ.temp(Unknown(Internal)))))
     | ListConcat(a, b) =>
       switch (type_of(scope, a), type_of(scope, b)) {
-      | (Some(t), Some(t')) => Typ.fast_equal(t, t') ? Some(t) : None
+      | (Some(t), Some(t')) =>
+        switch (Typ.fast_equal(t, t'), is_nil(a), is_nil(b)) {
+        | (true, _, _)
+        | (false, false, true) => Some(t)
+        | (false, true, false) => Some(t')
+        | (false, _, _) => None
+        }
       | (Some(t), None)
       | (None, Some(t)) =>
         switch (Typ.term_of(t)) {
