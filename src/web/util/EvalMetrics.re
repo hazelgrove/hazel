@@ -41,11 +41,12 @@ let incr_restarts = (): unit => when_enabled(() => incr(restarts));
 /* Success only if every cell of the batch evaluated without error. */
 let status_of_response = (response: WorkerServer.Response.t): status =>
   List.for_all(
-    ((_, v: WorkerServer.Response.value)) =>
-      switch (v) {
-      | Ok(_) => true
-      | Error(_) => false
-      },
+    ~f=
+      ((_, v: WorkerServer.Response.value)) =>
+        switch (v) {
+        | Ok(_) => true
+        | Error(_) => false
+        },
     response,
   )
     ? Success : Failure;
@@ -58,7 +59,7 @@ let record_sent =
     (~request: WorkerServer.Request.t, ~encoded: WorkerServer.Active.request)
     : unit =>
   when_enabled(() =>
-    if (!List.exists((r: record) => r.id == request.request_id, history^)) {
+    if (!List.exists(~f=(r: record) => r.id == request.request_id, history^)) {
       push({
         id: request.request_id,
         entries: List.length(request.batch),
