@@ -70,19 +70,13 @@ let chips_at_caret =
            && List.mem(sides, ins.side, ~equal=Direction.equal)
            && (adjacent || !is_witness(ins))
          );
-    let is_content = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_) => false
-      | _ => true
-      };
     /* adjacent = this piece touches the caret (first step of the left
        walk only: witnesses anchor on their token's right side) */
     let rec probe = (ps: list(Piece.t), ~facing: Direction.t, ~adjacent) =>
       switch (ps) {
       | [] => []
       | [p, ...rest] =>
-        is_content(p)
+        Piece.is_content(p)
           ? matching(~adjacent, Piece.id(p), [facing])
           : matching(
               ~adjacent,
@@ -129,7 +123,7 @@ let chips_at_caret =
         j == k
         || j < k
         && List.for_all(
-             ~f=i => !List.exists(~f=is_content, parts[i]),
+             ~f=i => !List.exists(~f=Piece.is_content, parts[i]),
              List.init(k - j, ~f=i => j + 1 + i),
            )
       | _ => false
