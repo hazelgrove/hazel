@@ -258,16 +258,14 @@ let colors_source = ((_, slides): Model.persistent): PersistentZipper.t =>
 let theme_key = (persistent: Model.persistent): string =>
   Printf.sprintf(
     "%d:%d",
-    Stdlib.Hashtbl.hash(colors_source(persistent).backup_text),
+    Hashtbl.hash(colors_source(persistent).backup_text),
     /* Joined into one string on purpose: `Hashtbl.hash` samples only the
        first few nodes of a list, so a name added at the end of the
        contract would not change the hash. */
     /* The OUTPUT contract, not the slide's field names: a field can be
        re-pointed at different properties without its name changing, and the
        cache has to notice. */
-    Stdlib.Hashtbl.hash(
-      String.concat(~sep=",", ColorConfiguration.all_targets),
-    ),
+    Hashtbl.hash(String.concat(~sep=",", ColorConfiguration.all_targets)),
   );
 
 let apply_colors = (vars: list((string, string))): unit =>

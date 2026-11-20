@@ -134,12 +134,7 @@ let mk =
     : t => {
   /* content-derived id; cheap discriminators first so hash_param's bounded
    * traversal can't collide deep stacks sharing a prefix */
-  id:
-    Stdlib.Hashtbl.hash_param(
-      64,
-      256,
-      (List.length(stack), syntax_id, stack),
-    ),
+  id: Hashtbl.hash_param(64, 256, (List.length(stack), syntax_id, stack)),
   syntax_id,
   value,
   env: Env.filter(env, spec.refs),

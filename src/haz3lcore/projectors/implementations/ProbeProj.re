@@ -193,7 +193,7 @@ module Settings = {
       }
     };
 
-  let offset = Stdlib.Hashtbl.create(100);
+  let offset = Hashtbl.create(~size=100, (module Id.Key));
 
   let s = ref(init);
   let version = ref(0);
@@ -220,7 +220,7 @@ module Settings = {
   };
 
   let reset_mode = () => {
-    Stdlib.Hashtbl.clear(offset);
+    Hashtbl.clear(offset);
     s := init;
     open_dropdown := None;
     sticky := false;
@@ -262,12 +262,12 @@ type probe_ctx = {
 
 module WindowState = {
   let get_offset = (k: Id.t): int =>
-    switch (Stdlib.Hashtbl.find_opt(offset, k)) {
+    switch (Hashtbl.find(offset, k)) {
     | Some(v) => v
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Stdlib.Hashtbl.replace(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Hashtbl.set(offset, ~key=k, ~data=v);
 
   let reform =
       (
@@ -291,21 +291,21 @@ module WindowState = {
 };
 
 module SampleLength = {
-  let lengths: Stdlib.Hashtbl.t(int, int) = Stdlib.Hashtbl.create(100);
+  let lengths: Hashtbl.t(int, int) = Hashtbl.create(~size=100, (module Int));
 
   let reset = () => {
-    Stdlib.Hashtbl.clear(lengths);
+    Hashtbl.clear(lengths);
   };
 
   let is_explicit = (sample: Sample.t): bool =>
-    Stdlib.Hashtbl.mem(lengths, sample.id);
+    Hashtbl.mem(lengths, sample.id);
 
   let get = (window: Sample.Window.mode, sample: Sample.t): int =>
-    Stdlib.Hashtbl.find_opt(lengths, sample.id)
+    Hashtbl.find(lengths, sample.id)
     |> Option.value(~default=window == Single ? 150 : 12);
 
   let set = (id: int, length: int): unit =>
-    Stdlib.Hashtbl.replace(lengths, id, length);
+    Hashtbl.set(lengths, ~key=id, ~data=length);
 };
 
 let select_samples =
@@ -377,7 +377,7 @@ module DrawerHeight = {
 
   let sample_rows = (utility: utility, sample: Sample.t): int => {
     let width =
-      Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
+      Hashtbl.find(SampleLength.lengths, sample.id)
       |> Option.value(~default=Settings.s^.drawer.width);
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
   };
@@ -699,7 +699,7 @@ let value_view =
       (seg, [length_cls(length)]);
     | Block =>
       let width =
-        Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        Hashtbl.find(SampleLength.lengths, sample.id)
         |> Option.value(~default=settings.drawer.width);
       (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
