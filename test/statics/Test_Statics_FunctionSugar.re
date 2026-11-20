@@ -55,7 +55,7 @@ let info_map_preserves_ids = (name, src) =>
    `Ap(Var(f), args)` wrapper. */
 let binder_wrapper_ids = (exp: Exp.t): (option(Id.t), Id.t) =>
   switch (IdTagged.term_of(exp)) {
-  | Let(p, _, _) =>
+  | Let(_, p, _, _) =>
     switch (IdTagged.term_of(p)) {
     | Asc(inner, _) => (Some(IdTagged.rep_id(p)), IdTagged.rep_id(inner))
     | _ => (None, IdTagged.rep_id(p))

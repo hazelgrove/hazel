@@ -293,6 +293,7 @@ let rows_of: family => list(row) =
       mk_pre_c(L, P.let_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
       mk_pre_c(L, P.let_, Exp, [Pat, Exp]),
     ]
+  | Where => [mk(L, Mold.mk_bin'(P.where_, Exp, Exp, [Pat], Exp))]
   | Theorem => [mk_pre_c(L, P.let_, Exp, [Pat, Exp])]
   | TypeAlias => [mk_pre_c(L, P.let_, Exp, [TPat, Typ])]
   | ModBody => [mk_op_c(LT, Exp, [Mod]), mk_op_c(LT, Typ, [Sig])]
@@ -376,32 +377,33 @@ let is_annoying_delim = t =>
   List.mem(annoying_delims, t, ~equal=String.equal);
 
 /* Returns a list of all strings which are proper prefixes of
- * a non-leading alphanumeric concave delimiter of a compount form.
- * These are assigned a special backup infix-op mode, so that
+ * an alphanumeric delimiter of a compound form that is typed in infix
+ * position. These are assigned a special backup infix-op mode, so that
  * when you're entering e.g. the `in` in a let, you don't get
  * disruptive switching between a convex variable and concaved
  * delimiter */
 let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(~f=((_, form: def)) => {
-       switch ((form.mold.nibs |> snd).shape) {
-       /* Only NON-leading delimiters contribute prefixes. A
-          non-leading delimiter (the `in` of a let) is typed in infix
-          position, where the backup infix mold smooths entry. A
-          leading delimiter (`let`, `case`) is typed in operand
-          position, where an infix mold can't help — and including
-          its prefixes made ordinary short variables that happen to
-          prefix a keyword (`l`, `c`) mold as operators in broken
-          buffers. Leading-delimiter prefixes are handled by
-          CanonicalCompletion instead (its leading witnesses, gated
-          on the context expecting the delimiter). */
-       | _ when List.length(form.label) >= 2 => List.tl(form.label)
-       | _ => None
-       }
-     })
-  |> List.concat
+  |> List.concat_map(~f=((_, form: def))
+       /* Non-leading delimiters (the `in` of a let) are typed in infix
+          position, and so is the leading delimiter of a form that is
+          concave on the left (`where`); there the backup infix mold
+          smooths entry. Other leading delimiters (`let`, `case`) are
+          typed in operand position, where an infix mold can't help —
+          and including their prefixes made ordinary short variables
+          that happen to prefix a keyword (`l`, `c`) mold as operators
+          in broken buffers. Those prefixes are handled by
+          CanonicalCompletion instead (its leading witnesses, gated on
+          the context expecting the delimiter). */
+       =>
+         switch ((form.mold.nibs |> fst).shape, form.label) {
+         | (Concave(_), label) => label
+         | (Convex, [_, ...non_leading]) => non_leading
+         | (Convex, []) => []
+         }
+       )
   |> List.filter(~f=Token.is_potential_operand)
-  |> List.dedup_and_sort(~compare=Poly.compare)
+  |> List.dedup_and_sort(~compare)
   |> List.map(~f=Token.prefixes)
   |> List.concat;
 

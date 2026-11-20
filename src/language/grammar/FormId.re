@@ -133,6 +133,7 @@ type family =
   | Impl
   | If
   | Let
+  | Where
   | Theorem
   | TypeAlias
   | ModBody
@@ -250,6 +251,7 @@ let label_of_family: family => Label.t =
   | Impl => ["==>"]
   | If => ["if", "then", "else"]
   | Let => ["let", "=", "in"]
+  | Where => ["where", "="]
   | Theorem => ["theorem", "=", "in"]
   | TypeAlias => ["type", "=", "in"]
   | ModBody => Token.mod_lbl

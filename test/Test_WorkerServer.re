@@ -184,9 +184,9 @@ let run = (~prev=?, exp: Exp.t) => {
 let set_addend = (n: int, exp: Exp.t): Exp.t => {
   let rec go = (e: Exp.t): Exp.t =>
     switch (e.term) {
-    | Let(p, def, body) => {
+    | Let(dir, p, def, body) => {
         ...e,
-        term: Let(p, def, go(body)),
+        term: Let(dir, p, def, go(body)),
       }
     | BinOp(op, lhs, {term: Atom(Int(_)), _} as rhs) => {
         ...e,

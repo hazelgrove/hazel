@@ -35,7 +35,7 @@ let is_top_level_leaf = (info_map: StaticsBase.Map.t, id: Id.t, info: Info.t) =>
       switch (Id.Map.find_opt(parent_id, info_map)) {
       | Some(Info.InfoExp({user_term: parent, _})) =>
         switch (Exp.term_of(parent)) {
-        | Let(_, def, body) =>
+        | Let(_, _, def, body) =>
           Id.equal(id, Exp.rep_id(def))
           || Id.equal(id, Exp.rep_id(body))
           && !is_chain(user_term)

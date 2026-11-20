@@ -38,6 +38,35 @@ let tests =
       test_case("Let Expression", `Quick, () =>
         exp_check(let_(Pat.var("x"), int(1), var("x")), "let x = 1 in x")
       ),
+      test_case("Where Expression", `Quick, () =>
+        exp_check(where(var("x"), Pat.var("x"), int(1)), "x where x = 1")
+      ),
+      test_case("Where scopes over a let to its left", `Quick, () =>
+        exp_check(
+          where(
+            let_(Pat.var("y"), var("x"), var("y")),
+            Pat.var("x"),
+            int(1),
+          ),
+          "let y = x in y where x = 1",
+        )
+      ),
+      test_case("Where is left associative", `Quick, () =>
+        exp_check(
+          where(
+            where(var("x"), Pat.var("x"), var("y")),
+            Pat.var("y"),
+            int(1),
+          ),
+          "x where x = y where y = 1",
+        )
+      ),
+      test_case("Where's definition takes a tuple", `Quick, () =>
+        exp_check(
+          where(var("p"), Pat.var("p"), tuple([int(1), int(2)])),
+          "p where p = 1, 2",
+        )
+      ),
       test_case("Function Application", `Quick, () =>
         exp_check(ap(Forward, var("f"), var("x")), "f(x)")
       ),

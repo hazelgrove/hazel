@@ -239,6 +239,7 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
 
   let wrapped_user_impl =
     Let(
+      Forward,
       Var("answer") |> Language.Pat.fresh,
       user_impl_term,
       EmptyHole |> Language.Exp.fresh,
