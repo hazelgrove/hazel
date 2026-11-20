@@ -124,7 +124,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
       | Quote(v) => Quote(v)
       | Var(v) => Var(v)
       | Parens(e) => Parens(map_exp_annotation(f, e))
-      | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
+      | Tuple(l) => Tuple(List.map(~f=x => map_exp_annotation(f, x), l))
       | Val(e) => Val(map_exp_annotation(f, e))
       | Eval(e1, e2) =>
         Eval(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
@@ -138,7 +138,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         MatchedProd(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
       | MatchedSum(t1, t2) =>
         MatchedSum(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
-      | Ctx(l) => Ctx(List.map(x => map_exp_annotation(f, x), l))
+      | Ctx(l) => Ctx(List.map(~f=x => map_exp_annotation(f, x), l))
       | Cons(e1, e2) =>
         Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
       | Concat(e1, e2) =>
@@ -284,7 +284,8 @@ and map_type_hole_annotation:
     | AbbrNotDrvTerm => AbbrNotDrvTerm
     | Invalid(s) => Invalid(s)
     | EmptyHole => EmptyHole
-    | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
+    | MultiHole(l) =>
+      MultiHole(List.map(~f=x => map_any_annotation(f, x), l))
     };
   }
 

@@ -39,10 +39,10 @@ let color = () => var("ColorValue");
 
 /* Every record in the contract is a labeled tuple. */
 let record = (fields: list((string, Typ.t))): Typ.t =>
-  prod(List.map(((n, t)) => tup_label(label(n), t), fields));
+  prod(List.map(~f=((n, t)) => tup_label(label(n), t), fields));
 
 let colors = (names: list(string)): Typ.t =>
-  record(List.map(n => (n, color()), names));
+  record(List.map(~f=n => (n, color()), names));
 
 /* ── What a scheme states ──────────────────────────────────────────────── */
 
@@ -253,7 +253,7 @@ let type_aliases: list((string, Typ.t)) = [
   (
     "ColorRoles",
     record(
-      List.map(((g, members)) => (g, colors(members)), role_groups),
+      List.map(~f=((g, members)) => (g, colors(members)), role_groups),
     ),
   ),
   ("ColorScheme", record(scheme)),

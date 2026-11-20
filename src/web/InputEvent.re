@@ -29,12 +29,12 @@ let actions_of_input = (~composed: string, value: string): list(Action.t) => {
   let new_ = Unicode.graphemes(value);
   let k = common_prefix_length(old, new_);
   let deletes =
-    List.init(Array.length(old) - k, _ =>
+    List.init(Array.length(old) - k, ~f=_ =>
       Action.Destruct(Local(Left, ByChar))
     );
   let inserts =
-    Array.sub(new_, k, Array.length(new_) - k)
+    Array.sub(new_, ~pos=k, ~len=Array.length(new_) - k)
     |> Array.to_list
-    |> List.filter_map(action_of_grapheme);
+    |> List.filter_map(~f=action_of_grapheme);
   deletes @ inserts;
 };
