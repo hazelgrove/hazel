@@ -33,7 +33,7 @@ let work =
       info_map,
     );
   let ((result, state), steps) =
-    Evaluator.evaluate_counting_work(
+    Evaluator.evaluate_counting_trampoline_steps(
       ~prev,
       ~eval_info,
       ~env=Builtins.env_init,

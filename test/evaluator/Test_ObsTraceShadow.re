@@ -101,7 +101,7 @@ in ^^probe(f(5))|}),
 in fact(4)|},
     ),
     parity(
-      "cast-distributed call (delegated span)",
+      "call through an arrow cast",
       {|let add = fun (a, b) -> a + b in
 let mk: Int -> (Int -> Int) = fun a -> add(a, _) in
 let apply = fun (f, x) -> ^^probe(f(x)) in

@@ -106,13 +106,10 @@ type step_kind =
   | RecordTheorem
   | WrapClosure
   | FixUnwrap
-  | FixClosure
   | UpdateTest
   | TypFunAp
   | FunAp
   | DeferredAp
-  | AscriptionTypAp
-  | AscriptionAp
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
@@ -131,61 +128,6 @@ type step_kind =
   | RemoveTypeAlias
   | RemoveUse
   | RemoveParens;
-
-/* Whether a step interprets the user's program (Proper) or performs
-   implementation bookkeeping that the surface semantics treats as
-   invisible (Administrative). Administrative steps with `may_delegate`
-   can rebuild a redex under its own id (rewrap here; fast_copy in
-   Ascriptions), re-evaluating user syntax as a CONTINUATION of its
-   enclosing observation span rather than a fresh event (at most one
-   open span per (id, call-stack) key — see
-   Evaluator.eval_3_record_probe_sample).
-
-   Distinct from should_hide_step_kind below: that is a display
-   preference (e.g. Conditional is hideable but Proper); provenance is
-   semantics. Kind granularity: a kind can cover several rules, so
-   may_delegate marks kinds ANY of whose rules can produce same-id
-   re-evaluation. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type provenance =
-  | Proper
-  | Administrative({may_delegate: bool});
-
-let provenance_of_kind: step_kind => provenance =
-  fun
-  | InvalidStep
-  | VarLookup
-  | Seq
-  | LetBind(_)
-  | TheoremBind
-  | UpdateTest
-  | TypFunAp
-  | FunAp
-  | DeferredAp
-  | BuiltinAp(_)
-  | UnOp(_)
-  | BinOp(_)
-  | Dot
-  | Conditional(_)
-  | Projection
-  | TupleExtension
-  | ListCons
-  | ListConcat
-  | CaseApply
-  | FixUnwrap
-  | RemoveTypeAlias
-  | RemoveUse => Proper
-  | WrapClosure
-  | FixClosure
-  | CompleteClosure
-  | CompleteFilter
-  | BuiltinWrap
-  | MarkIncomparable
-  | RecordTheorem
-  | RemoveParens => Administrative({may_delegate: false})
-  | Ascription
-  | AscriptionTypAp
-  | AscriptionAp => Administrative({may_delegate: true});
 
 type rule =
   | Step({
@@ -615,16 +557,17 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
-    | FixF(dp, d1, None) when Poly.equal(mode, `Environment) =>
-      let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
-      Step({
-        expr: FixF(dp, d1, Some(env)) |> rewrap,
-        side_effects: [],
-        kind: FixClosure,
-        is_value: false,
-      });
     | FixF(dp, d1, fix_env) =>
       let. _ = otherwise(env, d);
+      /* In Environment mode the fixpoint closes over the environment it is
+         reached in, as it unwraps: closing over it as a step of its own
+         rebuilt the fixpoint under its own id, so the evaluator met it
+         twice. */
+      let fix_env =
+        switch (fix_env, mode) {
+        | (None, `Environment) => Some(env)
+        | (_, _) => fix_env
+        };
       let env' =
         switch (Pat.is_var(dp)) {
         | Some(v) => [(v, FixF(dp, d1, fix_env) |> rewrap)]
@@ -751,31 +694,42 @@ module Transition = (EV: EV_MODE) => {
       and. d1' = req_final(req(env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
-      switch (d1'.term) {
-      | Asc(d1'', {term: Arrow(t1, t2), _}) =>
-        Step({
-          /* inner Ap reuses this redex's id (rewrap, not fresh) so the call
-             keeps identity through the cast — probes/step-into still resolve */
-          expr:
-            generated(
-              Asc(
-                Ap(Forward, d1'', generated(Asc(d2', t1))) |> rewrap,
-                t2,
+      /* A function under arrow casts is applied through them in this one
+         step: `(f : A -> B)(x)` calls f on `x : A` and casts the result to
+         B. This redex is the call, so its frame is this node's, and no
+         other node stands in for it. `casts` runs innermost first. */
+      let rec peel = (f: DHExp.t, casts) =>
+        switch (f.term) {
+        | Asc(f, {term: Arrow(t1, t2), _}) =>
+          peel(f, [(t1, t2), ...casts])
+        | _ => (f, casts)
+        };
+      let (fn, casts) = peel(d1', []);
+      let arg =
+        List.is_empty(casts)
+          ? d2'
+          : Ascriptions.transition_multiple(
+              List.fold_right(
+                ~f=((t1, _), arg) => generated(Asc(arg, t1)),
+                casts,
+                ~init=d2',
               ),
-            ),
-          side_effects: [],
-          kind: Ascription,
-          is_value: false,
-        })
-      | _ =>
+            );
+      let cast_result = result =>
+        List.fold(
+          ~f=(result, (_, t2)) => generated(Asc(result, t2)),
+          ~init=result,
+          casts,
+        );
+      let applied: rule = {
         /* Extract function name and def ID before unboxing (unboxing discards them) */
-        let fn_name = get_fn_name_from_expr(d1');
-        let fn_def_id = get_fn_def_id_from_expr(d1');
-        let-unbox unboxed_fun = (Fun, d1');
+        let fn_name = get_fn_name_from_expr(fn);
+        let fn_def_id = get_fn_def_id_from_expr(fn);
+        let-unbox unboxed_fun = (Fun, fn);
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
         | FunEnv(dp, d3, replacement_env) =>
-          let matches = matches(targets, dp, d2');
+          let matches = matches(targets, dp, arg);
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -787,7 +741,7 @@ module Transition = (EV: EV_MODE) => {
                 env'',
                 d3,
                 [
-                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  RecordStackFrame(fn_name, Some(arg), fn_def_id),
                   /* Use pre-req_final `d2` so dirty propagation walks the
                    * source tree's stable ids (cache entries live at those). */
                   RecordPatMatch({
@@ -805,7 +759,7 @@ module Transition = (EV: EV_MODE) => {
             });
           };
         | FunNoEnv(dp, d3) when Poly.equal(mode, `Substitution) =>
-          let matches = matches(targets, dp, d2');
+          let matches = matches(targets, dp, arg);
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
@@ -817,7 +771,7 @@ module Transition = (EV: EV_MODE) => {
                 env,
                 d3,
                 [
-                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
+                  RecordStackFrame(fn_name, Some(arg), fn_def_id),
                   RecordPatMatch({
                     pat: dp,
                     rhs: d2,
@@ -839,8 +793,8 @@ module Transition = (EV: EV_MODE) => {
             Step({
               expr: tuple([]),
               side_effects: [
-                RecordStackFrame(Some(ident), Some(d2'), None),
-                RecordPrint(d2'),
+                RecordStackFrame(Some(ident), Some(arg), None),
+                RecordPrint(arg),
               ],
               kind: BuiltinAp(ident),
               is_value: true,
@@ -856,12 +810,12 @@ module Transition = (EV: EV_MODE) => {
                      EvaluatorError.Exception(InvalidBuiltin(ident)),
                    )
                  });
-            switch (builtin(d2')) {
+            switch (builtin(arg)) {
             | Some(expr) =>
               Step({
                 expr,
                 side_effects: [
-                  RecordStackFrame(Some(ident), Some(d2'), None),
+                  RecordStackFrame(Some(ident), Some(arg), None),
                 ],
                 kind: BuiltinAp(ident),
                 is_value: false,
@@ -881,9 +835,9 @@ module Transition = (EV: EV_MODE) => {
             );
           let-unboxed args =
             if (n_args == 1) {
-              Matches([d2']);
+              Matches([arg]);
             } else {
-              Unboxing.unbox(Tuple(n_args), d2');
+              Unboxing.unbox(Tuple(n_args), arg);
             };
           let new_args = {
             let rec go = (deferred, args) =>
@@ -910,11 +864,32 @@ module Transition = (EV: EV_MODE) => {
               ),
             /* record a call frame (carries fn_def_id) so a probe on a
                partial-app call still gets args/step-into/jump-to-def */
-            side_effects: [RecordStackFrame(fn_name, Some(d2'), fn_def_id)],
+            side_effects: [RecordStackFrame(fn_name, Some(arg), fn_def_id)],
             kind: DeferredAp,
             is_value: false,
           });
         };
+      };
+      switch (casts, applied) {
+      | ([], _) => applied
+      | (_, Step(step)) =>
+        Step({
+          ...step,
+          expr: cast_result(step.expr),
+          is_value: false,
+        })
+      | (_, Constructor | Indet | Value) =>
+        /* Stuck or a constructor: the application is final, with its result
+           casts pushed in as far as they go. */
+        Step({
+          expr:
+            Ascriptions.transition_multiple(
+              cast_result(Ap(Forward, fn, arg) |> rewrap),
+            ),
+          side_effects: [],
+          kind: Ascription,
+          is_value: true,
+        })
       };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
@@ -1289,36 +1264,26 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = (env, DynamicErrorHole(inner', err) |> rewrap);
       Indet;
     | Asc(d', t) =>
-      switch (Ascriptions.transition(d)) {
-      | Some(d') =>
-        let. _ = otherwise(env, d);
+      /* The ascribed term is evaluated first, as the program has it, and the
+         cast is pushed into the finished result. Pushing it in beforehand
+         rebuilt the term under its own id, so the evaluator met that id a
+         second time, on a term the program doesn't have. A stuck result
+         still sheds or absorbs its casts here, so they don't pile up on
+         holes (#1874). */
+      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+      and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
+      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
+      | Some(_) =>
+        /* All the cast's layers resolve in this one step, and the result is
+           final: d' is already evaluated, so nothing in it runs again. */
         Step({
-          expr: d',
+          expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
           side_effects: [],
           kind: Ascription,
-          is_value: false,
-        });
-      | None =>
-        let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
-        and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(_) =>
-          /* Use transition_multiple to fully resolve all Asc layers in one
-           * step, and is_value: true to prevent re-evaluation. This is critical
-           * because d' was already fully evaluated by req_final above — probes
-           * inside d' have already fired. Without this, the distributed Asc
-           * wrappers would cause sub-expressions to be re-evaluated, hitting
-           * probe targets a second time with a different (shorter) call_stack,
-           * producing duplicate samples that bypass dedup. */
-          Step({
-            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
-            side_effects: [],
-            kind: Ascription,
-            is_value: true,
-          })
-        | None => Constructor
-        };
-      }
+          is_value: true,
+        })
+      | None => Constructor
+      };
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
@@ -1399,15 +1364,12 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | RemoveUse
   | InvalidStep
   | VarLookup => false
-  | AscriptionTypAp
-  | AscriptionAp
   | Ascription => !settings.show_ascription_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter
   | BuiltinWrap
   | WrapClosure
-  | FixClosure
   | MarkIncomparable
   | RecordTheorem
   | RemoveParens => true;
@@ -1450,10 +1412,7 @@ let stepper_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
-  | AscriptionTypAp
-  | AscriptionAp
   | Ascription => "ascription transition"
-  | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
   | WrapClosure => "wrap closure"

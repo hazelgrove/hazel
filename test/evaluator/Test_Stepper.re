@@ -51,13 +51,13 @@ let tests = (
         );
       },
     ),
+    /* The list is evaluated before its cast is pushed in, and a value that
+       already has the type sheds the cast in one step. */
     test_case("Single step ascription of list", `Quick, () => {
       check(
         option(dhexp_typ),
-        "let x  =[1,2,3,4] : [Int] in x -> let x = [1 : Int, 2 : Int, 3 : Int, 4 : Int] in x",
-        Some(
-          parse_exp({|let x = [1 : Int, 2 : Int, 3 : Int, 4 : Int] in x|}),
-        ),
+        "let x  =[1,2,3,4] : [Int] in x -> let x = [1, 2, 3, 4] in x",
+        Some(parse_exp({|let x = [1, 2, 3, 4] in x|})),
         single_step(
           elaborate(parse_exp({|let x  =[1,2,3,4] : [Int] in x|})),
         ),

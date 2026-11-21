@@ -136,7 +136,7 @@ module DirectEncoding: ENCODING = {
            var seen = new Set(), stack = [root], total = 0;
            while (stack.length) {
              var v = stack.pop();
-             if (v === null || v === undefined) continue;
+             if (phys_equal(v, null) || phys_equal(v, undefined)) continue;
              var t = typeof v;
              if (t === 'number') { total += 8; }
              else if (t === 'string') { total += v.length; }
@@ -248,7 +248,7 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
 };
 
 type evaluation_start =
-  | Yielding(Language.Evaluator.yielding_evaluation)
+  | Yielding(Language.Evaluator.Yielding.t)
   | CompletedImmediately(Response.value);
 
 type running = {
@@ -256,7 +256,7 @@ type running = {
   key,
   remaining: Request.batch,
   completed: Response.t,
-  evaluation: Language.Evaluator.yielding_evaluation,
+  evaluation: Language.Evaluator.Yielding.t,
 };
 
 type runtime =
@@ -369,7 +369,7 @@ let start_evaluation = (req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
   let planned = take_planned_reuse(expr);
   switch (
-    Language.Evaluator.start_yielding_evaluation(
+    Language.Evaluator.Yielding.start(
       ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
@@ -430,7 +430,7 @@ let post_stream_update =
   };
 
 let flush_stream_update = (model, request_id, key, evaluation) => {
-  let update = Language.Evaluator.drain_streaming_outbox(evaluation);
+  let update = Language.Evaluator.Yielding.drain_outbox(evaluation);
   post_stream_update(model, request_id, key, update);
 };
 
@@ -530,7 +530,7 @@ and run_scheduled_slice = model => {
   | Running(running) =>
     switch (
       timed_eval(() =>
-        Language.Evaluator.run_yielding_slice(
+        Language.Evaluator.Yielding.run_slice(
           ~step_budget=slice_step_budget,
           running.evaluation,
         )
@@ -548,7 +548,7 @@ and run_scheduled_slice = model => {
       finish_current_item(model, running, Ok(value));
     | EvaluationYielded(evaluation) =>
       flush_stream_update(model, running.request_id, running.key, evaluation);
-      if (Language.Evaluator.yielding_step_count(evaluation)
+      if (Language.Evaluator.Yielding.step_count(evaluation)
           >= total_step_limit) {
         finish_current_item(
           model,
