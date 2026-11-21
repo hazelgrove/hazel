@@ -1,20 +1,20 @@
 # Pinball's vocabulary, which the module sees #
-# A board is 600 units wide and 1000 tall, y down. Across the page's boundary every number is an Int (a Float that is a whole number is cut short going in: hazeljs 0.0.4); inside, the physics is in Floats #
+# A board is 600 units wide and 1000 tall, y down. Its pieces are each on a level: 0 the table, 1 a mezzanine (a glass deck over the back half, on some boards); a ball meets only the pieces of its own level. Across the page's boundary every number is an Int (a Float that is a whole number is cut short going in: hazeljs 0.0.4); inside, the physics is in Floats #
 # A wall: a straight piece from (ax, ay) to (bx, by), how bouncy it is (in hundredths), and its kick (a slingshot's or a kicker's push, in tenths of a unit a step; 0 for none) #
-type Wall = (ax = Int, ay = Int, bx = Int, by = Int, bounce = Int, kick = Int) in
+type Wall = (ax = Int, ay = Int, bx = Int, by = Int, bounce = Int, kick = Int, level = Int) in
 # A bumper: a round post at (x, y), its radius, and its points; it kicks the ball away. One on a track (its number; -1 for none) rides it, starting phase thousandths of the way round, and kicks harder as it moves into the ball #
-type Bumper = (x = Int, y = Int, r = Int, points = Int, track = Int, phase = Int) in
+type Bumper = (x = Int, y = Int, r = Int, points = Int, track = Int, phase = Int, level = Int) in
 # A track, as if a machine behind the board drove it: an oval round (cx, cy), rx across and ry down (one of them 0, a straight stroke, as a crank drives), once round in period steps #
 type Track = (cx = Int, cy = Int, rx = Int, ry = Int, period = Int) in
 # A flipper: its pivot (x, y), its length, and its side (1 a left one, pointing right; -1 a right one, pointing left); every left flipper moves with the left button, every right one with the right #
-type Flipper = (x = Int, y = Int, len = Int, side = Int) in
-# A portal: a round hole at (x, y), its radius, that holds the ball a moment and sends it on to (tx, ty), its speed kept #
-type Portal = (x = Int, y = Int, r = Int, tx = Int, ty = Int) in
+type Flipper = (x = Int, y = Int, len = Int, side = Int, level = Int) in
+# A link: a round mouth at (x, y), its radius, on level `from`, that holds the ball a moment and sends it on to (tx, ty) on level `to`. Its kind: 0 a portal (the ball's speed kept, most of it), 1 a wire ramp (up to the mezzanine or down from it), 2 a lift, 3 a hole (down a tunnel); one taken only by a ball moving up faster than need (in tenths of a unit a step; 0: any ball); the steps it holds the ball (the page shows the trip along its path, x and y in turn), and the speed it sends it on with (ex, ey, in tenths), a portal's aside #
+type Portal = (x = Int, y = Int, r = Int, tx = Int, ty = Int, from = Int, to = Int, kind = Int, need = Int, hold = Int, ex = Int, ey = Int, path = [Int]) in
 # A lamp: a light at (x, y) in a row of lamps (its group), lit as the ball passes; the page's, the rules never look at it #
-type Light = (x = Int, y = Int, group = Int) in
-# A board: its name, its colours and the pattern under it, its walls, bumpers and their tracks, flippers, portals and lamps; where a ball starts and the push it starts with; and its gravity (thousandths of a unit a step, squared) #
-type Board = (name = String, bg = String, ink = String, glow = String, pattern = String, walls = [Wall], bumpers = [Bumper], tracks = [Track], flippers = [Flipper], portals = [Portal], lights = [Light], sx = Int, sy = Int, svx = Int, svy = Int, gravity = Int) in
-# A game: the ball's place and speed (thousandths of a unit, and a step), each flipper's angle (thousandths of a radian), the score, the balls left, whether it is over, what the ball hit this step (a bumper's number; 1000 and a kicking wall's number; 2000 a ball saved), the steps left in a portal and which portal (or -1), the ball save (steps left; 0 ready for the next launch; -1 spent on this ball), and the steps since the game began (the tracks' clock) #
-type Game = (x = Int, y = Int, vx = Int, vy = Int, flips = [Int], score = Int, balls = Int, over = Bool, hits = [Int], warp = Int, gate = Int, save = Int, t = Int) in
+type Light = (x = Int, y = Int, group = Int, level = Int) in
+# A board: its name, its colours and the pattern under it, its walls, bumpers and their tracks, flippers, links and lamps, the outline of its mezzanine's glass (x and y in turn; none for no mezzanine); where a ball starts and the push it starts with; and its gravity (thousandths of a unit a step, squared) #
+type Board = (name = String, bg = String, ink = String, glow = String, pattern = String, walls = [Wall], bumpers = [Bumper], tracks = [Track], flippers = [Flipper], portals = [Portal], lights = [Light], glass = [Int], sx = Int, sy = Int, svx = Int, svy = Int, gravity = Int) in
+# A game: the ball's place and speed (thousandths of a unit, and a step), each flipper's angle (thousandths of a radian), the score, the balls left, whether it is over, what the ball hit this step (a bumper's number; 1000 and a kicking wall's number; 2000 a ball saved), the steps left in a portal and which portal (or -1), the ball save (steps left; 0 ready for the next launch; -1 spent on this ball), the steps since the game began (the tracks' clock), and the level the ball is on #
+type Game = (x = Int, y = Int, vx = Int, vy = Int, flips = [Int], score = Int, balls = Int, over = Bool, hits = [Int], warp = Int, gate = Int, save = Int, t = Int, lv = Int) in
 # The ball inside a step, in Floats: its place and its speed (units a step) #
 type Ball = (x = Float, y = Float, vx = Float, vy = Float) in
