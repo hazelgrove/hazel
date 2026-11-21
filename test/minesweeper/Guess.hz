@@ -1,7 +1,7 @@
 # Guess: when no number alone shows a sure move, the odds of a mine in each closed cell, worked out from what the board shows (the open cells' numbers, and the flags, taken as mines), never from the mines under the closed cells; and the cell least likely to be one #
-# How: the numbers' closed cells (the frontier) fall into groups that share no cell. In each group, every way of putting mines in its cells that meets all its numbers is counted, by how many mines it uses (at most cap tries a group). The groups' counts are put together, each way weighted by how many ways the mines left over can lie in the closed cells that no number touches (the interior). A cell's odds: the weight of the ways with a mine there, over the weight of all. The interior's: the mines expected there, over its cells #
+# How: the numbers' closed cells (the frontier) fall into groups that share no cell. In each group, every way of putting mines in its cells that meets all its numbers is counted, by how many mines it uses (at most cap tries a group, a try each cell given a value). The groups' counts are put together, each way weighted by how many ways the mines left over can lie in the closed cells that no number touches (the interior). A cell's odds: the weight of the ways with a mine there, over the weight of all. The interior's: the mines expected there, over its cells #
 # A group with too many ways to count: each cell's odds are then its numbers' worst share (their mines left over their closed cells) #
-let cap : Int = 5000;
+let cap : Int = 20000;
 let has : ([Int], Int) -> Bool = fun (xs, v) -> case xs | [] => false | x :: rest => x == v || has(rest, v) end;
 let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
 let cat : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
