@@ -2173,9 +2173,9 @@ let go_aot =
 let minesweeper_aot =
   game_aot(
     ~dir="minesweeper",
-    ~modules=["Board", "Play", "Hint"],
+    ~modules=["Board", "Play", "Hint", "Guess"],
     ~tail=
-      "\n(fresh = Board.fresh, lay = Board.lay_mines, reveal = Play.reveal, flag = Play.flag, chord = Play.chord, flags = Play.flags, sure = Hint.sure)",
+      "\n(fresh = Board.fresh, lay = Board.lay_mines, reveal = Play.reveal, flag = Play.flag, chord = Play.chord, flags = Play.flags, sure = Hint.sure, pick = Guess.pick)",
     ~mark="MINESWEEPER",
   );
 let mahjong_aot =

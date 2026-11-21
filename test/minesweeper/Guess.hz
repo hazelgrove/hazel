@@ -1,0 +1,147 @@
+# Guess: when no number alone shows a sure move, the odds of a mine in each closed cell, worked out from what the board shows (the open cells' numbers, and the flags, taken as mines), never from the mines under the closed cells; and the cell least likely to be one #
+# How: the numbers' closed cells (the frontier) fall into groups that share no cell. In each group, every way of putting mines in its cells that meets all its numbers is counted, by how many mines it uses (at most cap tries a group). The groups' counts are put together, each way weighted by how many ways the mines left over can lie in the closed cells that no number touches (the interior). A cell's odds: the weight of the ways with a mine there, over the weight of all. The interior's: the mines expected there, over its cells #
+# A group with too many ways to count: each cell's odds are then its numbers' worst share (their mines left over their closed cells) #
+let cap : Int = 5000;
+let has : ([Int], Int) -> Bool = fun (xs, v) -> case xs | [] => false | x :: rest => x == v || has(rest, v) end;
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+let cat : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+let cat_c : ([Con], [Con]) -> [Con] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat_c(rest, ys) end;
+let uniq : [Int] -> [Int] = fun xs ->
+  let go : ([Int], [Int]) -> [Int] = fun (ys, seen) -> case ys | [] => [] | y :: rest => if has(seen, y) then go(rest, seen) else y :: go(rest, y :: seen) end in
+  go(xs, []);
+# the numbers to reason from: each one's closed cells not flagged, and how many mines among them are not flagged yet #
+let cons : Game -> [Con] = fun g ->
+  let unflagged : [(Int, Bool)] -> [Int] = fun cs -> case cs | [] => [] | (p, f) :: more => if f then unflagged(more) else p :: unflagged(more) end in
+  let go : [(at = Int, near = Int, cells = [(Int, Bool)])] -> [Con] = fun ns ->
+    case ns
+    | [] => []
+    | n :: rest => (let us = unflagged(n.cells) in case us | [] => go(rest) | _ => (cells = us, need = n.near - (Hint.size(n.cells) - len(us))) :: go(rest) end)
+    end in
+  go(Hint.numbers(g));
+let cells_of : [Con] -> [Int] = fun cs -> case cs | [] => [] | c :: rest => cat(c.cells, cells_of(rest)) end;
+let shares : ([Int], [Int]) -> Bool = fun (xs, ys) -> case xs | [] => false | x :: rest => has(ys, x) || shares(rest, ys) end;
+# the numbers in groups that share no cell: each number joins every group it shares a cell with, and they become one #
+let groups : [Con] -> [[Con]] = fun cs ->
+  let add : ([[Con]], Con, [Con]) -> [[Con]] = fun (gs, c, merged) ->
+    case gs
+    | [] => [c :: merged]
+    | grp :: rest => if shares(c.cells, cells_of(grp)) then add(rest, c, cat_c(grp, merged)) else grp :: add(rest, c, merged)
+    end in
+  let go : ([Con], [[Con]]) -> [[Con]] = fun (xs, gs) -> case xs | [] => gs | c :: rest => go(rest, add(gs, c, [])) end in
+  go(cs, []);
+# a group's numbers with their cells named by their places in xs (0, 1, 2 ...) #
+let local : ([Con], [Int]) -> [Con] = fun (cs, xs) ->
+  let index_of : ([Int], Int, Int) -> Int = fun (ys, v, i) -> case ys | [] => 0 - 1 | y :: rest => if y == v then i else index_of(rest, v, i + 1) end in
+  let each : [Int] -> [Int] = fun ps -> case ps | [] => [] | p :: rest => index_of(xs, p, 0) :: each(rest) end in
+  case cs | [] => [] | c :: rest => (cells = each(c.cells), need = c.need) :: local(rest, xs) end;
+# cell k given v (1 a mine, 0 not): each number's (mines so far, cells not yet given) brought up to date, and whether every number can still be met #
+let assign : ([Con], [(Int, Int)], Int, Int) -> ([(Int, Int)], Bool) = fun (cs, st, k, v) ->
+  case cs
+  | [] => ([], true)
+  | c :: rest =>
+    (case st
+     | [] => ([], true)
+     | (m, u) :: more =>
+       let here = has(c.cells, k) in
+       let m2 = (if here then m + v else m) in
+       let u2 = (if here then u - 1 else u) in
+       let (st2, ok) = assign(rest, more, k, v) in
+       ((m2, u2) :: st2, ok && m2 <= c.need && m2 + u2 >= c.need)
+     end)
+  end;
+# a way found (vals, the latest cell first) counted with the others that use as many mines #
+let add_way : ([Ways], [Int]) -> [Ways] = fun (ws, vals) ->
+  let sum : [Int] -> Int = fun vs -> case vs | [] => 0 | v :: rest => v + sum(rest) end in
+  let m = sum(vals) in
+  let fresh : [Int] -> [Float] = fun vs -> case vs | [] => [] | v :: rest => float_of_int(v) :: fresh(rest) end in
+  let plus : ([Float], [Int]) -> [Float] = fun (hs, vs) -> case hs | [] => [] | h :: hr => (case vs | [] => [] | v :: vr => (h +. float_of_int(v)) :: plus(hr, vr) end) end in
+  let go : [Ways] -> [Ways] = fun xs ->
+    case xs
+    | [] => [(k = m, n = 1.0, hits = fresh(vals))]
+    | w :: rest => if w.k == m then (k = m, n = w.n +. 1.0, hits = plus(w.hits, vals)) :: rest else w :: go(rest)
+    end in
+  go(ws);
+# every way to put mines in a group's n cells (its numbers lc, local), and how many tries it took (past cap: stopped) #
+let ways : ([Con], Int) -> ([Ways], Int) = fun (lc, n) ->
+  let init : [Con] -> [(Int, Int)] = fun cs -> case cs | [] => [] | c :: rest => (0, len(c.cells)) :: init(rest) end in
+  let go : (Int, [(Int, Int)], [Int], [Ways], Int) -> ([Ways], Int) = fun (k, st, vals, out, steps) ->
+    if steps > cap then (out, steps) else
+    if k == n then (add_way(out, vals), steps + 1) else
+    let (s0, ok0) = assign(lc, st, k, 0) in
+    let (out1, t1) = (if ok0 then go(k + 1, s0, 0 :: vals, out, steps + 1) else (out, steps + 1)) in
+    let (s1, ok1) = assign(lc, st, k, 1) in
+    if ok1 then go(k + 1, s1, 1 :: vals, out1, t1 + 1) else (out1, t1 + 1) in
+  go(0, init(lc), [], [], 0);
+# groups' ways put together: for each total of mines, how many ways (acc, so far; ws, one more group's) #
+let conv : ([(Int, Float)], [Ways]) -> [(Int, Float)] = fun (acc, ws) ->
+  let bump : ([(Int, Float)], Int, Float) -> [(Int, Float)] = fun (xs, k, w) ->
+    case xs | [] => [(k, w)] | (k2, w2) :: rest => if k2 == k then (k, w2 +. w) :: rest else (k2, w2) :: bump(rest, k, w) end in
+  let inner : (Int, Float, [Ways], [(Int, Float)]) -> [(Int, Float)] = fun (k, x, ws2, out) ->
+    case ws2 | [] => out | w :: rest => inner(k, x, rest, bump(out, k + w.k, x *. w.n)) end in
+  let outer : ([(Int, Float)], [(Int, Float)]) -> [(Int, Float)] = fun (xs, out) ->
+    case xs | [] => out | (k, x) :: rest => outer(rest, inner(k, x, ws, out)) end in
+  outer(acc, []);
+# the closed cells not flagged, by place; and how many flags #
+let closed : Game -> [Int] = fun g ->
+  let row : ([Cell], Int) -> [Int] = fun (xs, p) -> case xs | [] => [] | x :: rest => if x.open || x.flag then row(rest, p + 1) else p :: row(rest, p + 1) end in
+  let rows : ([[Cell]], Int) -> [Int] = fun (rs, p) -> case rs | [] => [] | r :: rest => cat(row(r, p), rows(rest, p + g.cols)) end in
+  rows(g.grid, 0);
+let flagged : Game -> Int = fun g ->
+  let row : [Cell] -> Int = fun xs -> case xs | [] => 0 | x :: rest => (if x.flag then 1 else 0) + row(rest) end in
+  let rows : [[Cell]] -> Int = fun rs -> case rs | [] => 0 | r :: rest => row(r) + rows(rest) end in
+  rows(g.grid);
+# log n!, by Stirling's series (close enough for odds: the weights are only compared) #
+let lf : Int -> Float = fun n -> if n < 2 then 0.0 else (let x = float_of_int(n) in x *. log(x) -. x +. 0.5 *. log(6.283185 *. x) +. 1.0 /. (12.0 *. x));
+let cat_p : ([(Int, Float)], [(Int, Float)]) -> [(Int, Float)] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat_p(rest, ys) end;
+# The odds: each frontier cell with its chance of a mine, and the interior's chance a cell (cs, the numbers; inner, how many interior cells; ml, the mines not flagged). An empty list when a group had too many ways to count #
+let odds : ([Con], Int, Int) -> ([(Int, Float)], Float) = fun (cs, inner, ml) ->
+  let gs = groups(cs) in
+  let solve : [[Con]] -> [([Int], [Ways], Int)] = fun xs ->
+    case xs | [] => [] | grp :: rest => (let cells = uniq(cells_of(grp)) in let (ws, steps) = ways(local(grp, cells), len(cells)) in (cells, ws, steps) :: solve(rest)) end in
+  let sol = solve(gs) in
+  let big : [([Int], [Ways], Int)] -> Bool = fun xs -> case xs | [] => false | (_, ws, steps) :: rest => steps > cap || (case ws | [] => true | _ => false end) || big(rest) end in
+  if big(sol) then ([], 0.0) else
+  let all_but : ([([Int], [Ways], Int)], Int, Int) -> [(Int, Float)] = fun (xs, skip, i) ->
+    case xs | [] => [(0, 1.0)] | (_, ws, _) :: rest => (let r = all_but(rest, skip, i + 1) in if i == skip then r else conv(r, ws)) end in
+  let total_conv = all_but(sol, 0 - 1, 0) in
+  let impossible = 0.0 -. 1000000.0 in
+  let lw : Int -> Float = fun k -> (let m = ml - k in if m < 0 || m > inner then impossible else lf(inner) -. lf(m) -. lf(inner - m)) in
+  let top : ([(Int, Float)], Float) -> Float = fun (xs, mx) -> case xs | [] => mx | (k, _) :: rest => (let v = lw(k) in top(rest, if v >. mx then v else mx)) end in
+  let mx = top(total_conv, impossible) in
+  let wt : Int -> Float = fun k -> exp(lw(k) -. mx) in
+  let tot : ([(Int, Float)], Int) -> Float = fun (xs, shift) -> case xs | [] => 0.0 | (k, x) :: rest => x *. wt(k + shift) +. tot(rest, shift) end in
+  let total = tot(total_conv, 0) in
+  let mean : [(Int, Float)] -> Float = fun xs -> case xs | [] => 0.0 | (k, x) :: rest => float_of_int(k) *. x *. wt(k) +. mean(rest) end in
+  let in_odds = (if inner > 0 then (float_of_int(ml) -. mean(total_conv) /. total) /. float_of_int(inner) else 1.0) in
+  let scale : ([Float], Float) -> [Float] = fun (hs, s) -> case hs | [] => [] | h :: rest => (h *. s) :: scale(rest, s) end in
+  let addf : ([Float], [Float]) -> [Float] = fun (xs, ys) -> case xs | [] => ys | x :: xr => (case ys | [] => xs | y :: yr => (x +. y) :: addf(xr, yr) end) end in
+  let cell_wts : ([Ways], [(Int, Float)]) -> [Float] = fun (ws, others) ->
+    case ws | [] => [] | w :: rest => addf(scale(w.hits, tot(others, w.k)), cell_wts(rest, others)) end in
+  let rev : ([Int], [Int]) -> [Int] = fun (xs, acc) -> case xs | [] => acc | x :: rest => rev(rest, x :: acc) end in
+  let pair : ([Int], [Float]) -> [(Int, Float)] = fun (ps, fs) -> case ps | [] => [] | p :: pr => (case fs | [] => [] | f :: fr => (p, f /. total) :: pair(pr, fr) end) end in
+  let each : ([([Int], [Ways], Int)], Int) -> [(Int, Float)] = fun (xs, i) ->
+    case xs
+    | [] => []
+    | (cells, ws, _) :: rest => cat_p(pair(rev(cells, []), cell_wts(ws, all_but(sol, i, 0))), each(rest, i + 1))
+    end in
+  if total <=. 0.0 then ([], 0.0) else (each(sol, 0), in_odds);
+# The pick: the closed cell least likely to be a mine, and its chance in thousandths (0: sure to be safe). An interior cell when the interior is as good or better: a corner first, then an edge #
+let pick : Game -> (at = Int, risk = Int) = fun g ->
+  let cs = cons(g) in
+  let fr = uniq(cells_of(cs)) in
+  let rest : [Int] -> [Int] = fun ps -> case ps | [] => [] | p :: more => if has(fr, p) then rest(more) else p :: rest(more) end in
+  let inner = rest(closed(g)) in
+  let ni = len(inner) in
+  let ml = g.mines - flagged(g) in
+  let (o, in_odds) = odds(cs, ni, ml) in
+  let worst : Int -> Float = fun p -> (let go : [Con] -> Float = fun xs -> case xs | [] => 0.0 | c :: more => (let v = (if has(c.cells, p) then float_of_int(c.need) /. float_of_int(len(c.cells)) else 0.0) in let w = go(more) in if v >. w then v else w) end in go(cs)) in
+  let needs : [Con] -> Int = fun xs -> case xs | [] => 0 | c :: more => c.need + needs(more) end in
+  let rough = (case o | [] => true | _ => false end) in
+  let fo = (if rough then (let go : [Int] -> [(Int, Float)] = fun ps -> case ps | [] => [] | p :: more => (p, worst(p)) :: go(more) end in go(fr)) else o) in
+  let io = (if rough then (if ni > 0 then (let left = float_of_int(ml) -. float_of_int(needs(cs)) /. 2.0 in (if left <. 0.0 then 0.0 else left) /. float_of_int(ni)) else 1.0) else in_odds) in
+  let least : ([(Int, Float)], Int, Float) -> (Int, Float) = fun (xs, bp, bv) -> case xs | [] => (bp, bv) | (p, v) :: more => if v <. bv -. 0.000001 then least(more, p, v) else least(more, bp, bv) end in
+  let (bp, bv) = least(fo, 0 - 1, 2.0) in
+  let edge : Int -> Int = fun p -> (let r = p / g.cols in let c = p - r * g.cols in (if r == 0 || r == g.rows - 1 then 1 else 0) + (if c == 0 || c == g.cols - 1 then 1 else 0)) in
+  let corner : ([Int], Int, Int) -> Int = fun (ps, bq, be) -> case ps | [] => bq | p :: more => (let e = edge(p) in if e > be then corner(more, p, e) else corner(more, bq, be)) end in
+  let thousandths : Float -> Int = fun v -> int_of_float(v *. 1000.0 +. 0.5) in
+  if ni > 0 && (bp < 0 || io <. bv -. 0.000001) then (at = corner(inner, 0 - 1, 0 - 1), risk = thousandths(io)) else (at = bp, risk = thousandths(bv))

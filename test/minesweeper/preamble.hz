@@ -3,3 +3,7 @@
 type Cell = (mine = Bool, near = Int, open = Bool, flag = Bool) in
 # A game: its size and its mines; the cells, row by row; how many safe cells are still closed; and whether it is over, won, and where the mine that ended it was (its row * cols + col, or -1) #
 type Game = (rows = Int, cols = Int, mines = Int, grid = [[Cell]], left = Int, over = Bool, won = Bool, boom = Int) in
+# (Guess) a number to reason from: its closed cells not flagged, and how many of its mines are not flagged yet #
+type Con = (cells = [Int], need = Int) in
+# (Guess) the ways a group's cells can hold mines, k mines in all: how many ways (n), and for each cell, the latest first, how many of them put a mine there #
+type Ways = (k = Int, n = Float, hits = [Float]) in
