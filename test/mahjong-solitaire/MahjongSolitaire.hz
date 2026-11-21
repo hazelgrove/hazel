@@ -93,45 +93,61 @@ let cat_i : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: 
 # ---- Dealing so that a game can be won: play the places from full, two free places at a time (picked by chance), and give each pair taken the next pair of faces; taking those pairs in that order then wins. A play from full can stick (one tile free, on another): then it starts again on the next numbers #
 # the faces as pairs: given faces sorted like by like, the pairs (by number) in a random order #
 let pair_faces : ([Int], [Int]) -> [Int] = fun (fs, order) -> case order | [] => [] | p :: rest => at(fs, 2 * p) :: at(fs, 2 * p + 1) :: pair_faces(fs, rest) end;
-# play from the slots ss, two free places at a time, the faces given to those places into out; [] if it stuck #
-let unplay : ([Slot], [Near], [Int], [Int], Int) -> [Int] = fun (ss, near, faces, out, r) ->
+# play from the slots ss, two free places at a time, the faces given to those places into out, and the pairs taken, newest first, into done; ([], []) if it stuck #
+let unplay : ([Slot], [Near], [Int], [Int], [Pair], Int) -> ([Int], [Pair]) = fun (ss, near, faces, out, done, r) ->
   case faces
-  | [] => out
+  | [] => (out, done)
   | f1 :: frest =>
     (case frest
-     | [] => []
+     | [] => ([], [])
      | f2 :: fs =>
        let free = frees(ss) in
        let m = len(free) in
-       if m < 2 then [] else
+       if m < 2 then ([], []) else
        let r1 = next(r) in
        let r2 = next(r1) in
        let a = at(free, modulo(r1, m)) in
        let b = at(drop(free, a), modulo(r2, m - 1)) in
-       unplay(lift2(ss, near, a, b), near, fs, set(set(out, a, f1), b, f2), r2)
+       unplay(lift2(ss, near, a, b), near, fs, set(set(out, a, f1), b, f2), (a = a, b = b) :: done, r2)
      end)
   end;
-# deal the faces fs (sorted like by like) to the places of ss that have a tile, trying up to 40 times; at the last, the faces in order (a game that may not come out) #
-let redeal : ([Slot], [Near], [Int], Int, Int) -> [Int] = fun (ss, near, fs, seed, k) ->
+# deal the faces fs (sorted like by like) to the places of ss that have a tile, trying up to 40 times, and the plan it was made by (the pairs in the order taken); at the last, the faces in order and no plan (a game that may not come out) #
+let redeal : ([Slot], [Near], [Int], Int, Int) -> ([Int], [Pair]) = fun (ss, near, fs, seed, k) ->
+  let rev : ([Pair], [Pair]) -> [Pair] = fun (xs, acc) -> case xs | [] => acc | x :: rest => rev(rest, x :: acc) end in
   let none : [Slot] -> [Int] = fun xs -> case xs | [] => [] | _ :: rest => (0 - 1) :: none(rest) end in
   let fill : ([Slot], [Int]) -> [Int] = fun (xs, gs) -> case xs | [] => [] | x :: rest => (if x.face == 0 - 1 then (0 - 1) :: fill(rest, gs) else (case gs | [] => (0 - 1) :: fill(rest, []) | g :: more => g :: fill(rest, more) end)) end in
   let faces = pair_faces(fs, shuffled(count_to(len(fs) / 2), seed)) in
-  let out = unplay(ss, near, faces, none(ss), next(next(seed))) in
-  case out | [] => (if k >= 40 then fill(ss, faces) else redeal(ss, near, fs, next(seed + 7919), k + 1)) | _ => out end;
+  let (out, done) = unplay(ss, near, faces, none(ss), [], next(next(seed))) in
+  case out | [] => (if k >= 40 then (fill(ss, faces), []) else redeal(ss, near, fs, next(seed + 7919), k + 1)) | _ => (out, rev(done, [])) end;
 # a new game on layout k from a seed: every face, like by like, dealt so that it can be won #
 let deal : (Int, Int) -> Game = fun (k, seed) ->
   let near = nears(layout(k)) in
   let ss = fresh(near) in
   let fs : Int -> [Int] = fun i -> if i >= 144 then [] else (if i < 136 then i / 4 else 34 + (i - 136)) :: fs(i + 1) in
-  (layout = k, slots = with_faces(ss, redeal(ss, near, fs(0), seed, 0)), near = near);
+  let (out, plan) = redeal(ss, near, fs(0), seed, 0) in
+  (layout = k, slots = with_faces(ss, out), near = near, plan = plan);
 # ---- Playing #
 let faces_of : [Slot] -> [Int] = fun ss -> case ss | [] => [] | x :: rest => x.face :: faces_of(rest) end;
+# the plan after a and b are taken. A pair of the plan: dropped. Two tiles of two pairs (they match, so their partners match each other): both pairs dropped, and the partners made a pair where the later of the two was (each was free by then, and taking tiles only frees others, so the plan still clears the table) #
+let replan : ([Pair], Int, Int) -> [Pair] = fun (plan, a, b) ->
+  let partner : ([Pair], Int) -> Int = fun (ps, x) -> case ps | [] => 0 - 1 | p :: rest => if p.a == x then p.b else if p.b == x then p.a else partner(rest, x) end in
+  let pa = partner(plan, a) in
+  let pb = partner(plan, b) in
+  let go : ([Pair], Int) -> [Pair] = fun (ps, seen) ->
+    case ps
+    | [] => []
+    | p :: rest =>
+      if !(p.a == a || p.b == a || p.a == b || p.b == b) then p :: go(rest, seen)
+      else if pa == b || seen == 1 then (if pa == b || pa < 0 || pb < 0 then rest else (a = pa, b = pb) :: rest)
+      else go(rest, 1)
+    end in
+  go(plan, 0);
 # take the tiles at places a and b, if both are free and they match; else the game as it was #
 let take : (Game, Int, Int) -> Game = fun (g, a, b) ->
   let sa = slot_at(g.slots, a) in
   let sb = slot_at(g.slots, b) in
   if !(a == b) && is_free(sa) && is_free(sb) && sa.face >= 0 && sb.face >= 0 && key(sa.face) == key(sb.face)
-  then (layout = g.layout, slots = lift2(g.slots, g.near, a, b), near = g.near) else g;
+  then (layout = g.layout, slots = lift2(g.slots, g.near, a, b), near = g.near, plan = replan(g.plan, a, b)) else g;
 let free_places : Game -> [Int] = fun g -> frees(g.slots);
 let pairs : Game -> [Pair] = fun g -> pairs_of(g.slots);
 let won : Game -> Bool = fun g -> case drop(faces_of(g.slots), 0 - 1) | [] => true | _ => false end;
@@ -140,9 +156,13 @@ let shuffle : (Game, Int) -> Game = fun (g, seed) ->
   let left = drop(faces_of(g.slots), 0 - 1) in
   let only : ([Int], Int) -> [Int] = fun (fs, k) -> case fs | [] => [] | f :: rest => if key(f) == k then f :: only(rest, k) else only(rest, k) end in
   let sorted : [Int] -> [Int] = fun ks -> case ks | [] => [] | k :: rest => cat_i(only(left, k), sorted(rest)) end in
-  (layout = g.layout, slots = with_faces(g.slots, redeal(g.slots, g.near, sorted(cat_i(count_to(34), [34, 38])), seed, 0)), near = g.near);
-# Hazel's choice of a pair, for a clue or for playing: of the pairs free to take, the one that leaves the most free places and pairs after it, and takes from a stack (a pair that wins, first; one that leaves none, last); none (a = -1) when no pair is free #
+  let (out, plan) = redeal(g.slots, g.near, sorted(cat_i(count_to(34), [34, 38])), seed, 0) in
+  (layout = g.layout, slots = with_faces(g.slots, out), near = g.near, plan = plan);
+# Hazel's choice of a pair, for a clue or for playing: the plan's next pair, which keeps the game one that can be won; failing that (no plan), of the pairs free to take, the one that leaves the most free places and pairs after it, and takes from a stack (a pair that wins, first; one that leaves none, last); none (a = -1) when no pair is free #
 let best : Game -> Pair = fun g ->
+  let planned = (case g.plan | [] => (a = 0 - 1, b = 0 - 1) | p :: _ => (let sa = slot_at(g.slots, p.a) in let sb = slot_at(g.slots, p.b) in
+    if is_free(sa) && is_free(sb) && sa.face >= 0 && sb.face >= 0 && key(sa.face) == key(sb.face) then p else (a = 0 - 1, b = 0 - 1)) end) in
+  if planned.a >= 0 then planned else
   let len_pr : [Pair] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len_pr(rest) end in
   let worth : Pair -> Int = fun p ->
     let s2 = lift2(g.slots, g.near, p.a, p.b) in
