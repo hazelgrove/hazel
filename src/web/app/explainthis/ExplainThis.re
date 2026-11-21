@@ -441,7 +441,7 @@ let example_view =
       ~examples: list(ExplainThisForm.example),
       ~model: ExplainThisModel.t,
     ) => {
-  examples == []
+  List.is_empty(examples)
     ? []
     : [
       div(
@@ -785,7 +785,7 @@ let decide =
       /* A form carries its own colorings; `~colorings` overrides them for the
          least specific form of a group, which is shared across a family of
          groups and so is not built for this particular call site. */
-      let colorings = colorings == [] ? doc.colorings : colorings;
+      let colorings = List.is_empty(colorings) ? doc.colorings : colorings;
       Doc({
         group,
         form: doc,
@@ -880,7 +880,7 @@ let decide =
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
       | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
-      | ListLit(terms) =>
+      | ListLit((terms, _)) =>
         get_message(ListExp.listlits(~n=List.length(terms)))
       | TypFun(tpat, body, _) =>
         let tpat_id = IdTagged.rep_id(tpat);
@@ -1864,7 +1864,7 @@ let view =
       ),
     ]
     @ (
-      example == []
+      List.is_empty(example)
         ? []
         : [section(~section_clss="examples", ~title="Examples", example)]
     ),

@@ -27,13 +27,9 @@ let match_pattern =
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
-  | Wild => Matches([])
-  | ExplicitNonlabel =>
-    raise(
-      Failure(
-        "PatternMatch ExplicitNonlabel should not show up since these are removed during elaboration",
-      ),
-    )
+  | Wild
+  /* Elab rewrites bare pat ExplicitNonlabel to Wild; treat leftovers the same. */
+  | ExplicitNonlabel => Matches([])
   | Atom(c) =>
     let V(value, kind) = Atom.unpack(c);
     let* d' = Unboxing.unbox(Atom(kind), d);
@@ -64,6 +60,9 @@ let match_pattern =
   | TupLabel(_, x) =>
     let* x' = Unboxing.unbox(TupLabel(dp), d);
     recur(x, x');
+  | Tuple([{term: TupLabel({term: Label(l), _}, p), _}])
+      when Ascriptions.lifts_into(l, d) =>
+    recur(p, d)
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
     List.map2_exn(ps, ds, ~f=recur)

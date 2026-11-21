@@ -1123,6 +1123,7 @@ let rec meet =
   | (ProofOf(_), _) => None
   // We would prefer for this to be a sort difference and never appear in a meet.
   // These get marked in statics but that does not remove them from the utyp's propagated on parents.
+  | (ExplicitNonlabel, ExplicitNonlabel) => Some(ty1)
   | (ExplicitNonlabel, _) => None
   | (Sig(_), _) => None
   };
@@ -1185,11 +1186,19 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   Option.is_some(meet(ctx, ty1, ty2));
 
 /**
-   * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
-   *
-   * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
-   */
+ * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
+ *
+ * Both are normalized first. `meet` resolves aliases, projections and
+ * wrapper noise as it goes, so the type it hands back is in normalized form;
+ * comparing that against a raw `ty1` made semantically identical types look
+ * different (`(x=Int)` against an alias for it, a `ProdProjection`, a
+ * parenthesized form), reporting a more precise type as not more precise.
+ *
+ * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
+ */
 let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
+  let ty1 = normalize(ctx, ty1);
+  let ty2 = normalize(ctx, ty2);
   let met = meet(ctx, ty1, ty2);
   switch (met) {
   | None => false

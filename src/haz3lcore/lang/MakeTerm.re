@@ -218,10 +218,98 @@ let kids_of_tiles = (tiles: tiles) =>
   |> Aba.map_a(kids_of_tile)
   |> Aba.join(Fn.id, kid => [kid])
   |> List.concat;
+/* Shard provenance from canonical completion: tile id -> shard mask
+ * (physically present indices + partially-typed prefixes). Empty
+ * unless parsing a canonically completed segment. OWNERSHIP: only
+ * go_impl / from_zip_for_sem may write it (set before the descent,
+ * reset after); everything else reads via get_incomplete. Not
+ * exception-safe: a raise mid-descent leaks the mask into the next
+ * parse, like the file's other accumulator refs. */
+let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
+  ref(Id.Map.empty);
+
+/* The subset of this term's tiles that were completed, with their
+ * originally-present shards, for the annotation. */
+let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
+  Id.Map.is_empty(shard_masks^)
+    ? []
+    : ids
+      |> List.filter_map(~f=id =>
+           Id.Map.find_opt(id, shard_masks^)
+           |> Option.map(~f=mask => (id, mask))
+         );
+
+/* The parens a hole keeps for a postfix `(…)` (`a(b)`, `A(Int)` outside a
+   sum) take an id of their own, derived from the paren tile's, so it is the
+   same on every parse but distinct from the hole's, which statics keys its
+   info by. They print as the paren tile, under its id, so they carry its
+   incomplete mask under that id, and a `)` not yet typed isn't printed. */
+let hole_parens_id = (paren_tile_id: Id.t): Id.t =>
+  Id.derive(~salt="hole-parens", paren_tile_id);
+
+let hole_parens_annotation = (id: Id.t): IdTagged.IdTag.t => {
+  ...IdTagged.IdTag.mk_internal([hole_parens_id(id)]),
+  incomplete: get_incomplete([id]),
+};
+
+/* A one-argument application that falls back to a hole keeps its parens
+   as a Parens node around the argument: the bare kids alone would print as
+   `b c`, losing the `( )` tile (`x:a b(c) + 1` strands the type `b(c)` in
+   expression position, where it has no form). */
+let paren_kid = (id: Id.t, kid: Any.t): Any.t => {
+  let annotation = hole_parens_annotation(id);
+  switch (kid) {
+  | Exp(e) =>
+    Exp({
+      annotation,
+      term: Parens(e),
+    })
+  | Pat(p) =>
+    Pat({
+      annotation,
+      term: Parens(p),
+    })
+  | Typ(t) =>
+    Typ({
+      annotation,
+      term: Parens(t),
+    })
+  | _ => kid
+  };
+};
 let kids_of_unsorted =
   fun
   | Op(tiles) => kids_of_tiles(tiles)
   | Pre(tiles, r) => kids_of_tiles(tiles) @ [r]
+  | Post(l, ([(id, (F(Compound(Parens | Ap)), [kid]))], [])) => [
+      l,
+      paren_kid(id, kid),
+    ]
+  /* `f()` falling back to a hole: the `()` has no kid, so keep it as a unit
+     in the head's sort (`?:1() l]` would otherwise print as `?:1 l]`). */
+  | Post(l, ([(id, (F(f), []))], [])) when is_empty_tuple_form(f) => {
+      let annotation = hole_parens_annotation(id);
+      [
+        l,
+        switch (l) {
+        | Pat(_) =>
+          Pat({
+            annotation,
+            term: Tuple([]),
+          })
+        | Typ(_) =>
+          Typ({
+            annotation,
+            term: Prod([]),
+          })
+        | _ =>
+          Exp({
+            annotation,
+            term: Tuple([]),
+          })
+        },
+      ];
+    }
   | Post(l, tiles) => [l] @ kids_of_tiles(tiles)
   | Bin(l, tiles, r) => [l] @ kids_of_tiles(tiles) @ [r];
 
@@ -259,27 +347,6 @@ let get_secondary = (ids: list(Id.t)): IdTagged.IdTag.secondary_runs =>
     }
   | [] => IdTagged.IdTag.empty_secondary
   };
-
-/* Shard provenance from canonical completion: tile id -> shard mask
- * (physically present indices + partially-typed prefixes). Empty
- * unless parsing a canonically completed segment. OWNERSHIP: only
- * go_impl / from_zip_for_sem may write it (set before the descent,
- * reset after); everything else reads via get_incomplete. Not
- * exception-safe: a raise mid-descent leaks the mask into the next
- * parse, like the file's other accumulator refs. */
-let shard_masks: ref(Id.Map.t(IdTagged.IdTag.incomplete_mask)) =
-  ref(Id.Map.empty);
-
-/* The subset of this term's tiles that were completed, with their
- * originally-present shards, for the annotation. */
-let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
-  Id.Map.is_empty(shard_masks^)
-    ? []
-    : ids
-      |> List.filter_map(~f=id =>
-           Id.Map.find_opt(id, shard_masks^)
-           |> Option.map(~f=mask => (id, mask))
-         );
 
 /* Surface spelling of the token a *_term branch just parsed, when its
  * canonical print differs (int/float spellings, hole tokens). Set only
@@ -384,21 +451,29 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
                 term: Var(ctr),
                 annotation: {ids: ids_ctr, secondary: (inner_before, _), _},
               }),
-              Typ(u),
+              Typ({term: Parens(u), annotation: {incomplete, _}}),
             ]),
           ),
         ),
       annotation: {ids: ids_ap, secondary: (_, outer_after), _},
     } =>
     /* For constructor applications, use the inner before (constructor's leading space)
-       and outer after (trailing space on the whole application) for round-tripping */
+       and outer after (trailing space on the whole application) for round-tripping.
+       An argument whose `)` is still to be typed carries the parens' mask, so
+       the application prints without one. */
     Variant(
       ctr,
       {
         ids: ids_ctr @ ids_ap,
         secondary: (inner_before, outer_after),
       },
-      Some(u),
+      Some({
+        ...u,
+        annotation: {
+          ...u.annotation,
+          incomplete: u.annotation.incomplete @ incomplete,
+        },
+      }),
     )
   | t => BadEntry(t);
 
@@ -407,7 +482,7 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
    defined operator stranded at a foreign sort (a Compound) counts too. */
 let op_lexeme = (f: Form.t): option(Token.t) =>
   switch (Form.label_of(f)) {
-  | [t] when t != " " => Some(t)
+  | [t] when !String.equal(t, " ") => Some(t)
   | _ => None
   };
 
@@ -462,13 +537,6 @@ let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
   | [] => false
   | heads => List.for_all(~f=is_exp_only_head(~host), heads)
   };
-
-/* Is this kid a constructor-named type variable? (the head of a
-   potential sum-type constructor application) */
-let is_ctr_headed: Any.t => bool =
-  fun
-  | Typ({term: Var(name), _}) => Token.is_ctr(name)
-  | _ => false;
 
 let is_exp_kid: Any.t => bool =
   fun
@@ -787,7 +855,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       switch (t) {
       | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
       | (F(Tok(t)), []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
-      | (F(Tok(t)), []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | (F(Tok(t)), []) when Token.is_empty_list(t) =>
+        ret(ListLit(([], None)))
       | (F(Tok(t)), []) when Token.is_empty_module(t) => ret(Module([]))
       | (F(Tok(t)), []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
@@ -831,7 +900,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (ProjWrap, [Exp(body)]) => ret(body.term)
       | (F(Compound(ListLit)), [kid]) when !is_exp_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(ListLit([IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))]))
+        ret(
+          ListLit((
+            [IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))],
+            None,
+          )),
+        )
       | (F(Compound(ListLit)), [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -844,16 +918,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
              printer's singleton-unwrap restores the id (adopting its
              ids as comma ids would strand them: a one-element list
              has no commas) */
-          ret(ListLit([body]))
+          ret(ListLit(([body], None)))
         | {term: Tuple([]), _} =>
           /* Unit literal body: [()] is a one-element list of unit, not
              an empty element list (#1792) */
-          ret(ListLit([body]))
+          ret(ListLit(([body], None)))
         | {annotation: {ids, _}, term: Tuple(es)} =>
           adopted_ids := ids @ adopted_ids^;
           // Addresses tup_labels in lists like: [l=32, 1]
           (
-            ListLit(
+            ListLit((
               List.map(
                 ~f=
                   (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
@@ -866,10 +940,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   },
                 es,
               ),
-            ),
+              None,
+            )),
             ids,
           );
-        | term => ret(ListLit([term]))
+        | term => ret(ListLit(([term], None)))
         }
       | (F(Compound(Test)), [Exp(test)]) => ret(Test(test))
       | (F(Compound(ProofObject)), [Exp(proof)]) =>
@@ -1134,7 +1209,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | F(Compound(Pipeline)) => Ap(Reverse, r, l)
           | F(Compound(ListConcat)) => ListConcat(l, r)
-          | F(f) when op_lexeme(f) != None =>
+          | F(f) when Option.is_some(op_lexeme(f)) =>
             /* Unknown infix operator: kids survive as a MultiHole and
                the operator token as its lexeme (printed back by
                ExpToSegment; elaborated as a stuck application). The
@@ -1150,7 +1225,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1158,7 +1234,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
@@ -1264,7 +1341,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Unknown infix operator (see the exp Bin fallthrough) */
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
@@ -1321,7 +1398,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
@@ -1349,14 +1426,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         set_lexeme("-");
         ret(hole(tm));
       }
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1364,7 +1442,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
@@ -1442,13 +1521,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
-    | ([(id, (F(Compound(Parens | Ap)), [kid]))], [])
-        when get_incomplete([id]) != [] || !is_ctr_headed(l) =>
-      /* Keep the parens tile as a juxtaposed kid so it reprints
-         (hole() would drop it) — except for constructor-headed
-         post-parens (`A(Int)`), which must fall through bare: sum-type
-         parsing reads the MultiHole shape for ctor aps, and a Parens
-         node there prints as A((Int)). */
+    | ([(id, (F(Compound(Parens | Ap)), [kid]))], []) =>
+      /* Keep the parens tile as a juxtaposed kid so it reprints (hole()
+         would drop it, and `A(y)` would print as `A y`). parse_sum_term
+         reads `A(Int)` in a sum from this shape. */
       let t =
         switch (l) {
         | Typ(t) => t
@@ -1466,10 +1542,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
             MultiHole([
               Typ(t),
               Typ({
-                annotation: {
-                  ...IdTagged.IdTag.mk_internal([id]),
-                  incomplete: get_incomplete([id]),
-                },
+                annotation: hole_parens_annotation(id),
                 term: Parens(arg),
               }),
             ]),
@@ -1485,7 +1558,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+  /* `Void` is the empty sum as an atom, not a `+ A + B` tail to splice:
+     `+ Void` is one bad entry, as Menhir reads it. */
+  | Pre(tiles, Typ({term: Sum([_, ..._] as t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (F(Compound(SumSingle)), []))], []) =>
@@ -1499,7 +1574,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm
+      when Option.is_some(is_typ_bsum(tiles)) =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
       ret(Sum(List.map(~f=parse_sum_term, [t1] @ between_kids @ [t2])))
@@ -1553,14 +1629,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
@@ -1568,7 +1645,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
       Option.iter(~f=set_lexeme, op_lexeme(f));
@@ -1615,6 +1693,27 @@ and mod_ = unsorted => {
 and mod_term: unsorted => TermBase.Mod.term = {
   let ret = (term: TermBase.Mod.term) => term;
   let hole = unsorted => Mod.hole(kids_of_unsorted(unsorted));
+  let as_mod_exp = (tm: unsorted): TermBase.Mod.term => {
+    let e = exp(tm);
+    switch (e.term) {
+    | EmptyHole => hole(tm)
+    /* An operator the expression grammar doesn't know (`x !!! y`) gives a
+       MultiHole holding the operator: keep it as the item's expression, or
+       the operator would leave the term with no error on it. */
+    | MultiHole(_) =>
+      switch (tm) {
+      | Bin(_)
+      | Pre(_)
+      | Post(_) => ModExp(e)
+      | _ => hole(tm)
+      }
+    /* Keep face/invalid tiles: kids_of_unsorted is empty for a leaf
+       invalid, so Mod.hole would erase the token and `{ o^o }` would
+       disagree with Menhir. */
+    | Invalid(s) => Invalid(s)
+    | _ => ModExp(e)
+    };
+  };
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -1623,15 +1722,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
       | (F(Tok(t)), []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
-      | _ =>
-        /* Try parsing as expression and wrap as ModExp */
-        let e = exp(Op(tiles));
-        switch (e.term) {
-        | EmptyHole
-        | MultiHole(_)
-        | Invalid(_) => ret(hole(tm))
-        | _ => ret(ModExp(e))
-        };
+      | _ => ret(as_mod_exp(tm))
       }
     | _ => ret(hole(tm))
     }
@@ -1656,11 +1747,10 @@ and mod_term: unsorted => TermBase.Mod.term = {
   /* ModType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(ModType(tp, ty))
-  /* Expression-level structures (binary ops, prefix, postfix) - wrap as ModExp */
-  | Bin(Exp(_), _, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Pre(_, Exp(_)) as tm => ret(ModExp(exp(tm)))
-  | Post(Exp(_), _) as tm => ret(ModExp(exp(tm)))
-  | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
+  /* Wrap as ModExp whenever `exp` can form a real term (including
+     `e:T` = Bin(Exp, Typ)); only true leftovers become a hole, which
+     flatten_mod would split into separate items. */
+  | (Bin(_) | Pre(_) | Post(_)) as tm => ret(as_mod_exp(tm));
 }
 and sig_ = unsorted => {
   let term = sig_term(unsorted);

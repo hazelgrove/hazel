@@ -2,6 +2,13 @@ module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
 open BuiltinsUtil;
 open Util;
+/* The pair `to_lvs` returns. A function, so each use mints its own ids. */
+let lv_typ = () =>
+  prod([
+    tup_label(label("label"), string()),
+    tup_label(label("value"), unknown(Internal)),
+  ]);
+
 let builtins: list(BuiltinsUtil.fn) = [
   {
     name: "group_by_label",
@@ -11,7 +18,7 @@ let builtins: list(BuiltinsUtil.fn) = [
       binary((d: DHExp.t, lab: DHExp.t) => {
         switch (lab.term) {
         | Label(name) =>
-          let-unbox l = (ListLit, d);
+          let-unbox (l, _) = (ListLit, d);
           let unboxed:
             option(list((LabeledTuple.label, list(TermBase.exp_t)))) =
             List.map(
@@ -45,13 +52,7 @@ let builtins: list(BuiltinsUtil.fn) = [
   {
     name: "to_lvs",
     arg: Unknown(Internal),
-    ret:
-      List(
-        prod([
-          tup_label(label("label"), string()),
-          tup_label(label("value"), unknown(Internal)),
-        ]),
-      ),
+    ret: List(lv_typ()),
     imp: (e: DHExp.t) => {
       open OptUtil.Syntax;
       let-unbox entries:
@@ -80,7 +81,9 @@ let builtins: list(BuiltinsUtil.fn) = [
               ),
           entries,
         );
-      Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
+      Some(
+        IdTagged.FreshGrammar.Exp.list_lit(~ty=lv_typ(), unpivoted_entries),
+      );
     },
     custom_statics: Some(Ctx.ToLvs),
   },
@@ -96,7 +99,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret: Unknown(Internal),
     imp: (e: DHExp.t) => {
       open OptUtil.Syntax;
-      let-unbox elems: list(Exp.t) = (ListLit, e);
+      let-unbox (elems: list(Exp.t), _) = (ListLit, e);
       let* tuple_entries =
         OptUtil.traverse(
           elem => {

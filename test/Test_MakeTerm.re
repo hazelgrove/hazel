@@ -406,5 +406,87 @@ let tests =
           ();
         },
       ),
+      /* A one-argument application or `()` that falls back to a hole keeps
+         its parens as a node of its own, which must not share the hole's
+         id. */
+      test_case("A hole's parens kid has its own id", `Quick, () =>
+        List.iter(
+          ~f=
+            (s: string) => {
+              let ids = ref([]);
+              let _ =
+                Language.Grammar.map_exp_annotation(
+                  (a: Language.IdTagged.IdTag.t) => {
+                    ids := a.ids @ ids^;
+                    a;
+                  },
+                  parse_exp(s),
+                );
+              check(
+                Alcotest.int,
+                "ids shared between nodes in " ++ s,
+                0,
+                List.length(ids^)
+                - List.length(
+                    List.dedup_and_sort(~compare=Language.Id.compare, ids^),
+                  ),
+              );
+            },
+          ["x:a b(c) + 1", "x:a b() + 1"],
+        )
+      ),
+      /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
+         Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
+      /* An unknown operator joining a module item's operands stays one
+         item, an expression holding the operator, so it prints. */
+      test_case(
+        "Unknown operator in a module item",
+        `Quick,
+        () => {
+          let one_item = (e: Language.Exp.t) =>
+            switch (e.term) {
+            | Module([{term: ModExp(_), _}]) => ()
+            | _ =>
+              Alcotest.fail(
+                "expected one expression item: " ++ Language.Exp.show(e),
+              )
+            };
+          let e = parse_exp("{ x !!! y }");
+          one_item(e);
+          let printed =
+            Haz3lcore.(
+              ExpToSegment.exp_to_segment(
+                ~settings=ExpToSegment.Settings.editable(~inline=true),
+                e,
+              )
+              |> Printer.of_segment(~holes="?", _)
+            );
+          check(Alcotest.string, "printed", "{ x !!! y }", printed);
+          one_item(parse_exp(printed));
+        },
+      ),
+      ...List.map(
+           ~f=
+             (tok: string) =>
+               test_case(
+                 "Invalid token: " ++ tok,
+                 `Quick,
+                 () => {
+                   exp_check(invalid(tok), tok);
+                   /* Term → text → term keeps the same invalid payload. */
+                   let printed =
+                     Haz3lcore.(
+                       ExpToSegment.exp_to_segment(
+                         ~settings=
+                           ExpToSegment.Settings.editable(~inline=true),
+                         invalid(tok),
+                       )
+                       |> Printer.of_segment(~holes="?", _)
+                     );
+                   exp_check(invalid(tok), printed);
+                 },
+               ),
+           MenhirParser.AST.invalid_token_examples,
+         ),
     ],
   );

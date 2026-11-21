@@ -599,6 +599,43 @@ let test_qualified_type_nested_alias_with_sibling =
     Some(int()),
   );
 
+/* One item binding a name twice exports it twice; every node of the
+   elaboration still needs its own id. */
+let test_duplicate_binder_export_ids =
+  Alcotest.test_case(
+    "Export fields of a doubly bound name get distinct ids",
+    `Quick,
+    () => {
+      let e = parse_exp({|{ let (x, x) = (1, 2) }|});
+      let m = statics(e);
+      switch (Language.Statics.Map.lookup_exp(Language.Exp.rep_id(e), m)) {
+      | None => Alcotest.fail("no info for the module")
+      | Some(info) =>
+        let seen = Stdlib.Hashtbl.create(64);
+        let twice = ref([]);
+        let _ =
+          Language.Exp.map_term(
+            ~f_exp=
+              (continue, e: Language.Exp.t) => {
+                List.iter(
+                  ~f=
+                    id => {
+                      if (Stdlib.Hashtbl.mem(seen, id)) {
+                        twice := [Language.Id.to_string(id), ...twice^];
+                      };
+                      Stdlib.Hashtbl.replace(seen, id, ());
+                    },
+                  Language.IdTagged.ids(e),
+                );
+                continue(e);
+              },
+            info.elab_term,
+          );
+        Alcotest.(check(list(string)))("ids used twice", [], twice^);
+      };
+    },
+  );
+
 /* Type alias shadowing: nested modules should be able to shadow outer type aliases */
 let test_type_alias_shadowing_in_nested_module =
   fully_consistent_typecheck(
@@ -679,9 +716,137 @@ let test_sig_parenthesized_ascription =
     Some(int()),
   );
 
+/* A bare expression item shares its ids with its expression, so the item's
+   lowered `let` must not record its info there: the expression keeps the
+   type and errors it has outside a module. */
+let bare_item_info_matches_standalone = (name, item_src) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let module_e = parse_exp("{ " ++ item_src ++ " }");
+      let e =
+        switch (module_e.term) {
+        | Module([{term: ModExp(e), _}]) => e
+        | _ => Alcotest.fail("expected a module with one expression item")
+        };
+      let standalone = parse_exp(item_src);
+      let in_module = statics(module_e);
+      let alone = statics(standalone);
+      let info_at = (m, e) =>
+        switch (Language.Statics.Map.lookup(Language.Exp.rep_id(e), m)) {
+        | Some(info) => info
+        | None => Alcotest.fail("no info for the expression")
+        };
+      Alcotest.check(
+        testable_issue,
+        "same errors as outside a module",
+        Marks(Language.Info.marks_of(info_at(alone, standalone))),
+        Marks(Language.Info.marks_of(info_at(in_module, e))),
+      );
+      Alcotest.check(
+        testable_typ,
+        "same type as outside a module",
+        Option.value_exn(
+          Language.Statics.Map.ty_of(Language.Exp.rep_id(standalone), alone),
+        ),
+        Option.value_exn(
+          Language.Statics.Map.ty_of(Language.Exp.rep_id(e), in_module),
+        ),
+      );
+    },
+  );
+
+let test_bare_item_unbound_var =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its unbound-variable error",
+    "x",
+  );
+
+let test_bare_item_bad_ascription =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its ascription error",
+    "1 : Bool",
+  );
+
+let test_bare_item_ok =
+  bare_item_info_matches_standalone(
+    "Bare expression item keeps its own type",
+    "1 + 1",
+  );
+
+/* Lowering a module adds patterns of its own (a `_` for an expression or
+   hole item, a signature's ascription); like the rest of an elaboration,
+   their ids are the same on every statics run. */
+let test_lowering_ids_persist =
+  Alcotest.test_case(
+    "Module lowering gives the same ids on every run", `Quick, () =>
+    List.iter(
+      ~f=
+        src => {
+          let e =
+            switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
+            | Some(e) => e
+            | None => Alcotest.fail("Failed to parse " ++ src)
+            };
+          /* Statics.mk is memoized, so run the uncached analysis. */
+          let info_ids = () => {
+            let (_, _, m) =
+              Language.Statics.uexp_to_info_map(
+                ~ctx=Language.Builtins.ctx_init(Some(Int)),
+                ~ancestors=[],
+                e,
+                Language.Id.Map.empty,
+              );
+            Language.Id.Map.bindings(m) |> List.map(~f=fst);
+          };
+          Alcotest.check(
+            Alcotest.bool,
+            src,
+            true,
+            List.equal(Util.Id.equal, info_ids(), info_ids()),
+          );
+        },
+      [
+        "{ 1; let x = 2 }",
+        "{ ?; let y = 1 }",
+        "let m : {let x : Int} = { let x = 1 } in m",
+      ],
+    )
+  );
+
+/* A name bound to a value takes the value's type alias. An occurrence of
+   the name inside that alias means what it meant where the alias was
+   written, not the new binding: read as the binding, these made `x` an
+   alias of itself and normalization never finished. Each is an error. */
+let test_inherited_alias_mentioning_its_name =
+  Alcotest.test_case("An inherited alias that mentions the name", `Quick, () =>
+    List.iter(
+      ~f=
+        src =>
+          Alcotest.check(
+            Alcotest.bool,
+            src ++ " reports an error",
+            true,
+            !List.is_empty(errors(statics(parse_exp(src)))),
+          ),
+      [
+        "{ type y = x; module x = y; type z = x }",
+        "{ type y = _ ... x; module x = y; type ? = x }",
+        "{ type y = ? ... x; module x = y; type z = x }",
+        "type y = ? ... x in let x = y in type z = x in ?",
+        "type x = Int in type y = x in let x = y in type z = x in (1 : z)",
+      ],
+    )
+  );
+
 let tests = (
   "Statics.Modules",
   [
+    test_lowering_ids_persist,
+    test_bare_item_unbound_var,
+    test_bare_item_bad_ascription,
+    test_bare_item_ok,
     /* Well-typed tests (Sections A, B) */
     test_empty_module,
     test_single_binding,
@@ -774,5 +939,7 @@ let tests = (
     test_sig_parenthesized_var,
     test_sig_folded_var,
     test_sig_parenthesized_ascription,
+    test_duplicate_binder_export_ids,
+    test_inherited_alias_mentioning_its_name,
   ],
 );

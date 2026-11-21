@@ -1033,13 +1033,16 @@ let c = {
 let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
   let exp = parse_exp("let (()) = (a=B, a=false) in 0");
   let (_, elab) = statics_and_elab(exp);
+  /* The RHS keeps the parentheses the user wrote, so peel them. */
+  let rec tuple_elts = (e: Exp.t) =>
+    switch (e.term) {
+    | Parens(inner) => tuple_elts(inner)
+    | Tuple(elts) => elts
+    | _ => []
+    };
   let rhs_tuple_elts =
     switch (elab.term) {
-    | Let(_, rhs, _) =>
-      switch (rhs.term) {
-      | Tuple(elts) => elts
-      | _ => []
-      }
+    | Let(_, rhs, _) => tuple_elts(rhs)
     | _ => []
     };
   let ids = List.map(~f=Exp.rep_id, rhs_tuple_elts);
@@ -1753,10 +1756,47 @@ let lexeme_edit_test =
     },
   );
 
+/* Changes the `Int`s in a program's types to `String`, keeping every id: an
+   edit to an annotation alone. */
+let retype_int_to_string = (exp: Exp.t): Exp.t =>
+  TermBase.Exp.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) =>
+        switch (t.term) {
+        | Atom(Int) => {
+            ...t,
+            term: Atom(String),
+          }
+        | _ => continue(t)
+        },
+    exp,
+  );
+
+/* Only the annotation changes, so the `[]` keeps its id while its
+   elaboration carries a new element type. */
+let test_list_annotation_edit = () => {
+  let exp = parse_exp("let xs : [Int] = [] in xs");
+  let (_, _, incr) = eval_incr(exp);
+  let (result, _, _) = eval_incr(~prev=incr, retype_int_to_string(exp));
+  let (statics, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(None), result);
+  check(
+    option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
+    "the result's type",
+    Some(List(Atom(String) |> Typ.fresh) |> Typ.fresh),
+    Statics.Map.ty_of(Exp.rep_id(result), statics),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
     lexeme_edit_test,
+    test_case(
+      "Editing a list's annotation re-evaluates the list it types",
+      `Quick,
+      test_list_annotation_edit,
+    ),
     test_case(
       "Top-level cast call: incremental reuse preserves result",
       `Quick,

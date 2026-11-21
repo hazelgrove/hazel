@@ -213,18 +213,49 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     };
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
+  /* A kid is revisited when its expected sort changes, and also when it
+     carries a mold left over from another context: the Any fallback (a
+     `| =>` rule inside `{ case … end }`), or a module/signature separator
+     where neither belongs (the `;` of `{ (9; 8) }`, molded while typing
+     inside the braces). Remolding every kid instead costs ~4x in the
+     editor parser; these two are what goes stale. */
+  let has_stale_mold = (expected: Sort.t, child: t) =>
+    List.exists(
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(kid) =>
+            kid.sort == Sort.Any
+            || (kid.sort == Mod || kid.sort == Sig)
+            && expected != Mod
+            && expected != Sig
+          | _ => false
+          },
+      child,
+    );
   let children =
     List.fold_right(
       ~f=
         ((l, child, r), children) => {
+          /* nth: a stale fallback mold can have fewer `in_` sorts than
+             the tile has kids (the Any mold of `| =>` has none). */
           let child =
-            if (l
-                + 1 == r
-                && List.nth_exn(remolded_mold.in_, l)
-                != List.nth_exn(orig_mold.in_, l)) {
-              remold(child, List.nth_exn(remolded_mold.in_, l));
-            } else {
-              child;
+            switch (List.nth(remolded_mold.in_, l)) {
+            | Some(expected)
+                when
+                  l
+                  + 1 == r
+                  && (
+                    !
+                      Option.equal(
+                        Sort.equal,
+                        List.nth(orig_mold.in_, l),
+                        Some(expected),
+                      )
+                    || has_stale_mold(expected, child)
+                  ) =>
+              remold(child, expected)
+            | _ => child
             };
           [child, ...children];
         },
@@ -609,7 +640,11 @@ and remold_rul = (shape, seg: t): t =>
         let (remolded, shape, rest) =
           remold_exp_uni(shape, [hd, ...tl], []);
         switch (remolded) {
-        | [] => [Piece.Tile(t), ...remold_rul(shape, tl)]
+        | [] =>
+          /* Keep the unremoldable tile and continue from its right nib:
+             the incoming shape made `()` after an operand mold as Parens
+             rather than Ap. */
+          [Piece.Tile(t), ...remold_rul(snd(Tile.shapes(t)), tl)]
         | [_, ..._] => remolded @ remold_rul(shape, rest)
         };
       }

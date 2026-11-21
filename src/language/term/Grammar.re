@@ -12,6 +12,34 @@ type deferral_position_t =
   | InAp
   | OutsideAp;
 
+/* A list literal's elements and element type. Saved data (a stepper's
+   state holds terms) predates the type, so an untyped list's sexp is its
+   elements alone, as it was, and a typed one is tagged `typed`. */
+module ListLitArgs = {
+  [@deriving (show({with_path: false}), yojson, eq)]
+  type t('e, 't) = (list('e), option('t));
+
+  let sexp_of_t = (sexp_of_elem, sexp_of_ty, (es, ty): t('e, 't)) =>
+    switch (ty) {
+    | None => Sexplib.Std.sexp_of_list(sexp_of_elem, es)
+    | Some(ty) =>
+      Sexplib.Sexp.List([
+        Atom("typed"),
+        Sexplib.Std.sexp_of_list(sexp_of_elem, es),
+        sexp_of_ty(ty),
+      ])
+    };
+
+  let t_of_sexp = (elem_of_sexp, ty_of_sexp, sexp): t('e, 't) =>
+    switch (sexp) {
+    | Sexplib.Sexp.List([Atom("typed"), es, ty]) => (
+        Sexplib.Std.list_of_sexp(elem_of_sexp, es),
+        Some(ty_of_sexp(ty)),
+      )
+    | _ => (Sexplib.Std.list_of_sexp(elem_of_sexp, sexp), None)
+    };
+};
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
@@ -33,7 +61,28 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
-  | ListLit(list(exp_t('a)))
+  /* The type is the element type of a list built at runtime, so a list with
+     no elements still has one. It is `None` in a term a user wrote, which
+     statics types by its elements. Elaboration sets it, and every step that
+     builds a list sets it on the result:
+     - a literal gets the element type statics found for it, which is the
+       expected one when it is checked against a list type, and pushing a
+       cast to `[t]` into a literal gives it `t`;
+     - `x :: l`, and the tail taken from it by matching a cons, keep `l`'s;
+     - `a @ b` gets the meet of `a`'s and `b`'s, as statics types it;
+     - projecting `.a` from a list of tuples gives the type of field `a`;
+     - a builtin implemented in OCaml gives the element type it declares,
+       and a builtin defined in Hazel carries its declared element type on
+       the empty list it returns.
+     Statics meets it with the elements' types, so `[]` of `[t]` has type
+     `[t]`. Printing, Canonicalize, value equality (`==`) and semantic
+     equality ignore it, as does asking whether two terms are the same term
+     (Exp.fast_equal_ignoring_list_types): equal lists reached along
+     different paths carry different types. Change detection sees it
+     (Exp.fast_equal): an edit to a list's annotation changes only the type,
+     and the incremental cache and the result view must not reuse the old
+     elaboration. */
+  | ListLit(ListLitArgs.t(exp_t('a), typ_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
@@ -186,8 +235,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Atom(c) => Atom(c)
         | DrvQuote(d, s) => DrvQuote(DrvGrammar.map_any_annotation(f, d), s)
         | LivelitName(s) => LivelitName(s)
-        | ListLit(l) =>
-          ListLit(List.map(~f=x => map_exp_annotation(f, x), l))
+        | ListLit((l, t)) =>
+          ListLit((
+            List.map(~f=x => map_exp_annotation(f, x), l),
+            Option.map(~f=map_typ_annotation(f), t),
+          ))
         | Constructor(s, t) =>
           Constructor(
             s,
@@ -624,8 +676,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: DrvQuote(d, s),
       annotation: default_annotation(ann),
     };
-    let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
-      term: ListLit(l),
+    let list_lit = (~ann=?, ~ty=?, l): exp_t(DefaultAnnotation.t) => {
+      term: ListLit((l, ty)),
       annotation: default_annotation(ann),
     };
     let constructor = (~ann=?, s, t): exp_t(DefaultAnnotation.t) => {

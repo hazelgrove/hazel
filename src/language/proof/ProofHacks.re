@@ -86,7 +86,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   /* `_` in expression position parses as a deferral */
   | Deferral(_) => rewrap(Wild)
   | Atom(a) => rewrap(Atom(a))
-  | ListLit(xs) => rewrap(ListLit(List.map(~f=exp_to_pat, xs)))
+  | ListLit((xs, _)) => rewrap(ListLit(List.map(~f=exp_to_pat, xs)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
@@ -144,7 +144,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | MultiHole(xs) => rewrap(MultiHole(xs))
   | Wild => rewrap(Atom(Bool(true)))
   | Atom(a) => rewrap(Atom(a))
-  | ListLit(xs) => rewrap(ListLit(List.map(~f=pat_to_exp, xs)))
+  | ListLit(xs) => rewrap(ListLit((List.map(~f=pat_to_exp, xs), None)))
   | Constructor(c, t) => rewrap(Constructor(c, t))
   | Cons(e1, e2) => rewrap(Cons(pat_to_exp(e1), pat_to_exp(e2)))
   | Var(x) => rewrap(Var(x))

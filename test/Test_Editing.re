@@ -953,6 +953,125 @@ let insertion_tests = [
     ~acts=string_to_ltr_actions("(le=)") @ mv_l(3) @ [Insert("t")],
     ~goal={|(let¦?=?)|},
   ),
+  /* Retyping a deleted leading delimiter reconnects it to the shards it
+     left behind, even with another incomplete form around them: only `|`
+     and leading expanders such as `test` are matched at the top of the
+     missing-shard stack alone. */
+  test(
+    ~name="Retype a deleted ( under a let missing its in",
+    ~acts=
+      mk("let a = f(x) in¦ a")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(3)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="let a = f(¦x) ~ a",
+  ),
+  test(
+    ~name="Retype a deleted ( under a case missing its end",
+    ~acts=
+      mk("case 1 | _ => f(x) end¦")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(3)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="case 1 | _ => f(¦x) ",
+  ),
+  test(
+    ~name="Retype a deleted inner ( under an orphaned outer )",
+    ~acts=
+      mk("(¦1 + f(x))")
+      @ [Destruct(Local(Left, ByChar))]
+      @ mv_r(6)
+      @ [Destruct(Local(Left, ByChar)), Insert("(")],
+    ~goal="1 + f(¦x))",
+  ),
+  test(
+    ~name="Retype a deleted let under a case missing its end",
+    ~acts=
+      mk("case 1 | _ => let a = 1 in a end¦")
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(12)
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+      ],
+    ~goal="case 1 | _ => let¦ a = 1 in a ",
+  ),
+  test(
+    ~name="Retype a deleted let whose in is gone",
+    ~acts=
+      mk("let a = f(x) in a¦")
+      @ mv_l(2)
+      @ [Destruct(Local(Left, ByToken))]
+      @ mv_l(10)
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+      ],
+    ~goal="let¦ a = f(x) ~ a",
+  ),
+  /* `=>` is also a leading expander (`e => t` in derivations), so it is
+     matched at the top of the missing-shard stack only. Typed left to right,
+     a rule's `=>` joins its `|` past a closed paren in the pattern, and stays
+     apart past an unclosed one, as when any missing shard could match. */
+  test_case(
+    "Type a case rule's => past a paren in its pattern",
+    `Quick,
+    () => {
+      let rule_shards = (typed: string): list(int) => {
+        let z =
+          mk("¦")
+          @ List.map(
+              ~f=c => Action.Insert(String.make(1, c)),
+              String.to_list(typed),
+            )
+          |> perform(Zipper.init());
+        Zipper.zip(z)
+        |> List.find_map(~f=(p: Piece.t) =>
+             switch (p) {
+             | Tile(t)
+                 when
+                   Option.equal(
+                     String.equal,
+                     List.hd(Tile.label(t)),
+                     Some("|"),
+                   ) =>
+               Some(t.shards)
+             | _ => None
+             }
+           )
+        |> Option.value(~default=[]);
+      };
+      check(
+        list(int),
+        "closed paren",
+        [0, 1],
+        rule_shards("case 1 | (a) =>"),
+      );
+      check(
+        list(int),
+        "unclosed paren",
+        [0],
+        rule_shards("case 1 | (a =>"),
+      );
+    },
+  ),
+  test(
+    ~name="Retype a deleted test inside parens",
+    ~acts=
+      mk("let a = (1 + test¦ 2 end) in a")
+      @ [
+        Destruct(Local(Left, ByToken)),
+        Insert("t"),
+        Insert("e"),
+        Insert("s"),
+        Insert("t"),
+      ],
+    ~goal="let a = (1 + test¦ 2 end) in a",
+  ),
 ];
 
 let destruct_tests = [
@@ -6007,6 +6126,85 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* The parens a hole keeps for a postfix `(…)` take an id of their own,
+   derived from the paren tile's, and carry that tile's incomplete mask
+   under it: the term's ids stay distinct (statics keys its info by id),
+   and a `)` not yet typed isn't printed. */
+let hole_parens_tests = {
+  let all_ids = (e: Language.Exp.t): list(Id.t) => {
+    let ids = ref([]);
+    let note = (ann: Language.IdTagged.IdTag.t) => ids := ann.ids @ ids^;
+    let _ =
+      Language.Exp.map_term(
+        ~f_exp=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_pat=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_typ=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        ~f_tpat=
+          (continue, x) => {
+            note(x.annotation);
+            continue(x);
+          },
+        e,
+      );
+    ids^;
+  };
+  let term_of = acts =>
+    MakeTerm.from_zip_for_sem(perform(Zipper.init(), acts), ~root=Exp).term;
+  let distinct_ids = text =>
+    test_case(
+      "Distinct ids: " ++ text,
+      `Quick,
+      () => {
+        let ids = all_ids(term_of(mk(text ++ "¦")));
+        check(
+          int,
+          "distinct ids",
+          List.length(ids),
+          List.length(List.dedup_and_sort(ids, ~compare=Id.compare)),
+        );
+      },
+    );
+  [
+    distinct_ids("1:A(Int)"),
+    distinct_ids("1:a(b)"),
+    distinct_ids("x:a b(c"),
+    test_case(
+      "A `)` not yet typed isn't printed",
+      `Quick,
+      () => {
+        let term =
+          term_of(mk("x:a b(c)¦") @ [Destruct(Local(Left, ByChar))]);
+        let printed =
+          ExpToSegment.exp_to_segment(
+            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            term,
+          )
+          |> Printer.of_segment(~holes="?", ~refractors=[]);
+        /* Parens printing adds come in pairs; `x:a b(c` has one open. */
+        check(
+          int,
+          "unclosed parens in " ++ printed,
+          1,
+          String.count(printed, ~f=Char.equal('('))
+          - String.count(printed, ~f=Char.equal(')')),
+        );
+      },
+    ),
+  ];
+};
+
 let tests = [
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
@@ -6044,4 +6242,5 @@ let tests = [
   ("Editing.CrossBoundary", cross_boundary_tests),
   ("Editing.InnerDestruct", inner_destruct_tests),
   ("Editing.Grapheme", grapheme_tests),
+  ("Editing.HoleParens", hole_parens_tests),
 ];

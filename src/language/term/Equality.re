@@ -62,6 +62,9 @@ module Alphas = {
       | [(_, _), ...rest] => are_alpha_equiv(x, y, rest)
       };
 
+  /* Concatenate; `are_alpha_equiv` is first-match, so the left list wins on
+     conflict. Call sites walking patterns left-to-right pass the later
+     binders on the left, so later binders shadow earlier ones. */
   let combine: (t, t) => t = (@);
 };
 
@@ -78,8 +81,11 @@ type settings = {
   ignore_dynamic_errors: bool,
   ignore_function_types: bool,
   ignore_constructor_types: bool,
+  /* A list literal's element type, which only an elaborated or evaluated
+     list carries. */
+  ignore_list_types: bool,
   ignore_function_names: bool,
-  ignore_explicit_unlabelling: bool,
+  ignore_explicit_unlabelling: bool, // TupLabel(ExplicitNonlabel, e) ≈ e
   closures_by_id: bool, /* Currently "false" option is not implemented.
                            compares closures by their IDs to save time
                            traversing through massive closures */
@@ -106,6 +112,7 @@ let equality =
         ignore_dynamic_errors,
         ignore_function_types,
         ignore_constructor_types,
+        ignore_list_types,
         ignore_function_names,
         ignore_explicit_unlabelling,
         closures_by_id,
@@ -358,8 +365,10 @@ let equality =
     | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
     | (Tuple(_), _) => false
-    | (ListLit(xs1), ListLit(xs2)) when List.length(xs1) == List.length(xs2) =>
+    | (ListLit((xs1, t1)), ListLit((xs2, t2)))
+        when List.length(xs1) == List.length(xs2) =>
       List.equal(exp', xs1, xs2)
+      && (ignore_list_types || Option.equal(typ', t1, t2))
     | (ListLit(_), _) => false
     | (Use(t1, e1), Use(t2, e2)) => typ'(t1, t2) && exp'(e1, e2)
     | (Use(_, _), _) => false
@@ -449,14 +458,30 @@ let equality =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t): bool => {
     let pne = pat_names_equal(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
     switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     | (Parens(x), _) when ignore_parens => pne(x, p2)
     | (_, Parens(x)) when ignore_parens => pne(p1, x)
+    | (Projector(_, x), _) when ignore_projectors => pne(x, p2)
+    | (_, Projector(_, x)) when ignore_projectors => pne(p1, x)
     | (Var(x), Var(y)) => String.equal(x, y)
     | (Wild, Wild) => true
+    | (ExplicitNonlabel, ExplicitNonlabel) => true
     | (EmptyHole, EmptyHole) => true
+    | (
+        EmptyHole | MultiHole(_) | Invalid(_),
+        EmptyHole | MultiHole(_) | Invalid(_),
+      )
+        when ignore_unknown_provenance =>
+      true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(~f=any', xs1, xs2)
     | (Parens(x), Parens(y)) => pne(x, y)
+    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
+    | (Label(l1), Label(l2)) => l1 == l2
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2)
       && List.for_all2_exn(ps1, ps2, ~f=pne)
@@ -605,13 +630,14 @@ let equality =
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);
       let* alphas2 = pat'(p2, p4);
-      Some(Alphas.combine(alphas1, alphas2));
+      /* Later sub-pattern binders shadow earlier ones. */
+      Some(Alphas.combine(alphas2, alphas1));
     | (Cons(_, _), _) => None
     | (TupLabel(label1, d1'), TupLabel(label2, d2')) =>
       open OptUtil.Syntax;
       let* alphas1 = pat'(label1, label2);
       let* alphas2 = pat'(d1', d2');
-      Some(Alphas.combine(alphas1, alphas2));
+      Some(Alphas.combine(alphas2, alphas1));
     | (TupLabel(_, _), _) => None
     | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
     | (ExplicitNonlabel, _) => None
@@ -619,7 +645,8 @@ let equality =
       open OptUtil.Syntax;
       let* alphas1 = pat'(p1, p3);
       let* alphas2 = pat'(p2, p4);
-      Some(Alphas.combine(alphas1, alphas2));
+      /* Arg binders shadow head binders, so `x(x)` ≈ `x(x')` in the body. */
+      Some(Alphas.combine(alphas2, alphas1));
     | (Ap(_, _), _) => None
     };
   }
@@ -921,6 +948,7 @@ let syntactic_settings = {
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
+  ignore_list_types: false,
   ignore_function_names: false,
   ignore_explicit_unlabelling: false,
   closures_by_id: true,
@@ -944,6 +972,7 @@ let semantic_settings = {
   ignore_ascriptions: false,
   ignore_function_types: false,
   ignore_constructor_types: false,
+  ignore_list_types: true,
   ignore_function_names: true,
   ignore_explicit_unlabelling: true,
   closures_by_id: true, // Ideally substitute all closures before using semantic equality

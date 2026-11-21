@@ -106,8 +106,9 @@ total + k|},
 let cold_test = () => {
   let (result, _, steps) = work(parse_exp(program(~rounds=3, ~fib=10)));
   check(dhexp_typ, "the program's value", parse_exp("6085"), result);
-  /* 206,834 steps on 2026-10-12 */
-  within_budget("cold run", ~budget=227_000, steps);
+  /* 206,834 steps on 2026-10-12; 169,748 on 2026-11-03, once a body was
+     evaluated under its environment instead of stepped into as a Closure */
+  within_budget("cold run", ~budget=187_000, steps);
 };
 
 /* An edit after all the work, to a literal nothing else reads: the
@@ -121,8 +122,8 @@ let edit_test = () => {
   let edited = replace_int_lit(~from=1000, ~to_=2000, exp);
   let (result, _, steps) = work(~prev, edited);
   check(dhexp_typ, "the edited program's value", parse_exp("7085"), result);
-  /* 378 steps on 2026-10-12: `total` reused */
-  within_budget("re-run after an edit", ~budget=420, steps);
+  /* 378 steps on 2026-10-12: `total` reused; 226 on 2026-11-03 */
+  within_budget("re-run after an edit", ~budget=248, steps);
   /* whatever the budgets, an edit like this costs a small part of a run */
   check(
     bool,
