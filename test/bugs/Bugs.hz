@@ -19,8 +19,8 @@ let scatter : (Int, Int, [Bud]) -> ([Bud], Int) = fun (n, seed, bs) ->
   if bud_at(bs, c, r) then scatter(n, s1, bs) else scatter(n - 1, s1, (c = c, r = r, hp = 3) :: bs);
 # a caterpillar n segments long along row 0, its head at the right going right #
 let bug : (Int, Int) -> [Seg] = fun (n, i) -> if i >= n then [] else (c = n - 1 - i, r = 0, d = 1, v = 1) :: bug(n, i + 1);
-# wave w: a caterpillar 10 long, two more a wave, up to 18, moving every 7 steps, one fewer a wave, down to 3; and 16 buds, two more a wave, up to 26 #
-let pace_of : Int -> Int = fun w -> (let p = 7 - w in if p < 3 then 3 else p);
+# wave w: a caterpillar 10 long, two more a wave, up to 18, moving every 7 steps, one fewer a wave, down to 4 (0.0.62: never faster, so every garden can be cleared); and 16 buds, two more a wave, up to 26 #
+let pace_of : Int -> Int = fun w -> (let p = 7 - w in if p < 4 then 4 else p);
 let len_of : Int -> Int = fun w -> (let n = 10 + 2 * w in if n > 18 then 18 else n);
 let buds_of : Int -> Int = fun w -> (let n = 16 + 2 * w in if n > 26 then 26 else n);
 let garden : (Int, Int, Int, Int, Int, Int, Int, Int, Int) -> Game = fun (w, seed, px, py, lives, score, freed, t, hit) ->
@@ -54,12 +54,15 @@ let hatch : ([Bud], [Bud], Int) -> ([Bud], [Bud], Int) = fun (cs, bs, n) ->
     (let (bc, br) = nearest_bud(bs, k.c, k.r, 0 - 1, 0 - 1, 100000) in hatch(rest, (if bc >= 0 then open_at(bs, bc, br) else bs), n + 1))
   end;
 # ---- One step ---- #
-# mx, my: the can's move (5 units a step each way, inside its rows); fire: a drop of nectar, if none is in the air (up 18 a step; it passes flowers and cocoons). A drop on a segment feeds it (10 points; 100 for a head, a segment with none just ahead of it): a cocoon there for 90 steps, then its butterfly out, opening the nearest bud (5 points). A drop on a bud brings it nearer opening (open, 5 points). The caterpillars move every pace steps. A segment in the can's cell is a bump: the can waits 60 steps at the middle of the bottom, a try gone; the last ends the game. Every segment fed, a new caterpillar; every bud open, the garden in full bloom: 500 points, and the next wave, a new garden #
+# the can's place after k steps of a move (7 units a step each way, inside its rows: 0.0.62, quicker, so it can keep out of the caterpillars' way) #
+let can_x : (Int, Int, Int) -> Int = fun (px, mx, k) -> (let x = px + 7 * mx * k in if x < 12 then 12 else if x > 588 then 588 else x);
+let can_y : (Int, Int, Int) -> Int = fun (py, my, k) -> (let y = py + 7 * my * k in if y < 662 then 662 else if y > 788 then 788 else y);
+# mx, my: the can's move (7 units a step each way, inside its rows); fire: a drop of nectar, if none is in the air (up 18 a step; it passes flowers and cocoons). A drop on a segment feeds it (10 points; 100 for a head, a segment with none just ahead of it): a cocoon there for 90 steps, then its butterfly out, opening the nearest bud (5 points). A drop on a bud brings it nearer opening (open, 5 points). The caterpillars move every pace steps. A segment in the can's cell is a bump: the can waits 60 steps at the middle of the bottom, a try gone; the last ends the game. Every segment fed, a new caterpillar; every bud open, the garden in full bloom: 500 points, and the next wave, a new garden #
 let step : (Game, Int, Int, Bool) -> Game = fun (g, mx, my, fire) ->
   if g.over then g else
   let ready = g.wait <= 0 in
-  let px = (if ready then (let x = g.px + 5 * mx in if x < 12 then 12 else if x > 588 then 588 else x) else g.px) in
-  let py = (if ready then (let y = g.py + 5 * my in if y < 662 then 662 else if y > 788 then 788 else y) else g.py) in
+  let px = (if ready then can_x(g.px, mx, 1) else g.px) in
+  let py = (if ready then can_y(g.py, my, 1) else g.py) in
   let firing = ready && fire && g.sy < 0 in
   let sx = (if firing then px else g.sx) in
   let sy = (if firing then py - 14 else if g.sy >= 0 then g.sy - 18 else 0 - 1) in
@@ -87,19 +90,37 @@ let step : (Game, Int, Int, Bool) -> Game = fun (g, mx, my, fire) ->
    tick = (if more then g.pace else tick), pace = g.pace, wait = (if caught then 60 else if g.wait > 0 then g.wait - 1 else 0), over = lives <= 0,
    hit = (if caught then 2 else if fed then 1 else if out > 0 then 5 else if opened then 4 else if more then 6 else 0), t = g.t + 1);
 # ---- The robot (🤖 Hazel plays) ---- #
-# the segment nearest the can (across, then down): its cell, or (-1, -1) #
-let nearest : ([Seg], Int, Int, Int, Int) -> (Int, Int) = fun (gs, pc, bc, br, bd) ->
-  case gs | [] => (bc, br) | s :: rest => (let d = absi(s.c - pc) * 4 + (31 - s.r) in if d < bd then nearest(rest, pc, s.c, s.r, d) else nearest(rest, pc, bc, br, bd)) end;
-# a segment within two cells of the can, coming: which side it is on (-1 left, 1 right), or 0 #
-let danger : ([Seg], Int, Int) -> Int = fun (gs, pc, pr) ->
-  case gs | [] => 0 | s :: rest => (if absi(s.c - pc) <= 2 && absi(s.r - pr) <= 2 then (if s.c <= pc then 0 - 1 else 1) else danger(rest, pc, pr)) end;
-# the robot's choice: away from a segment close by (across, and up the rows); else down at the bottom row, under the nearest segment (where it will be when the drop gets there), sending a drop when under it #
+# (0.0.62: a robot that looks ahead, so that it clears every garden) the nearest segment up on the lawn (across, then down): its cell, or (-1, -1) #
+let nearest_lawn : ([Seg], Int, Int, Int, Int) -> (Int, Int) = fun (gs, pc, bc, br, bd) ->
+  case gs | [] => (bc, br) | s :: rest => (let d = absi(s.c - pc) * 4 + (31 - s.r) in if s.r <= 25 && d < bd then nearest_lawn(rest, pc, s.c, s.r, d) else nearest_lawn(rest, pc, bc, br, bd)) end;
+# the nearest bud not yet open, to water when no caterpillar is up on the lawn #
+let nearest_closed : ([Bud], Int, Int, Int, Int) -> (Int, Int) = fun (bs, pc, bc, br, bd) ->
+  case bs | [] => (bc, br) | b :: rest => (let d = absi(b.c - pc) * 4 + (31 - b.r) in if b.hp > 0 && d < bd then nearest_closed(rest, pc, b.c, b.r, d) else nearest_closed(rest, pc, bc, br, bd)) end;
+let has : ([Int], Int) -> Bool = fun (l, v) -> case l | [] => false | x :: more => x == v || has(more, v) end;
+let cells_of : ([Seg], [Int]) -> [Int] = fun (gs, acc) -> case gs | [] => acc | s :: rest => cells_of(rest, (s.c * 100 + s.r) :: acc) end;
+# the cells the caterpillars are in, and will be in after each of their next two moves (as the rules move them) #
+let ahead : Game -> [Int] = fun g ->
+  let s1 = move_all(g.buds, g.cocoons, g.segs) in let s2 = move_all(g.buds, g.cocoons, s1) in
+  cells_of(g.segs, cells_of(s1, cells_of(s2, [])));
+# of the steps 0 to k of a move, how many put the can in one of those cells #
+let risk : ([Int], Int, Int, Int, Int, Int) -> Int = fun (d, px, py, mx, my, k) ->
+  if k < 0 then 0 else (let x = can_x(px, mx, k) in let y = can_y(py, my, k) in (if has(d, (x / 25) * 100 + y / 25) then 1 else 0) + risk(d, px, py, mx, my, k - 1));
+# the nine moves, numbered: across 0, -1, 1 (by threes), and up or down 1, 0, -1 #
+let mx_of : Int -> Int = fun i -> (let a = i / 3 in if a == 0 then 0 else if a == 1 then 0 - 1 else 1);
+let my_of : Int -> Int = fun i -> (let b = md(i, 3) in if b == 0 then 1 else if b == 1 then 0 else 0 - 1);
+# the move whose steps meet the caterpillars least, and of those the one ending nearest under x #
+let choose : (Game, [Int], Int, Int, Int, Int, Int) -> Int = fun (g, d, tx, steps, i, best, bs) ->
+  if i > 8 then best else
+  (let sc = risk(d, g.px, g.py, mx_of(i), my_of(i), steps) * 1000 + absi(tx - can_x(g.px, mx_of(i), steps)) in
+   if sc < bs then choose(g, d, tx, steps, i + 1, i, sc) else choose(g, d, tx, steps, i + 1, best, bs));
+let seg_above : ([Seg], Int, Int) -> Bool = fun (gs, pc, pr) -> case gs | [] => false | s :: rest => (s.c == pc && s.r < pr) || seg_above(rest, pc, pr) end;
+# the robot's choice: of the nine ways the can can go over the time of the caterpillars' next two moves, the one that meets them least (where they are and where the rules will move them), and of those the one ending nearest under its target: the nearest segment up on the lawn, or, none there, the nearest bud not yet open; a drop sent when it is under its target, or under a segment #
 let robot : Game -> Choice = fun g ->
   if g.over || g.wait > 0 then (mx = 0, my = 0, fire = false) else
   let pc = g.px / 25 in let pr = g.py / 25 in
-  let dz = danger(g.segs, pc, pr) in
-  if dz != 0 then (mx = (if dz < 0 then (if g.px < 580 then 1 else 0 - 1) else (if g.px > 20 then 0 - 1 else 1)), my = (if pr >= 30 then 0 - 1 else 1), fire = g.sy < 0) else
-  let (tc, tr) = nearest(g.segs, pc, 0 - 1, 0 - 1, 100000) in
-  if tc < 0 then (mx = 0, my = 1, fire = false) else
-  let x = tc * 25 + 12 in
-  (mx = (if x > g.px + 3 then 1 else if x < g.px - 3 then 0 - 1 else 0), my = (if g.py < 780 then 1 else 0), fire = g.sy < 0 && absi(x - g.px) <= 12)
+  let (lc, lr) = nearest_lawn(g.segs, pc, 0 - 1, 0 - 1, 100000) in
+  let (tc, tr) = (if lc >= 0 then (lc, lr) else nearest_closed(g.buds, pc, 0 - 1, 0 - 1, 100000)) in
+  let tx = (if tc < 0 then g.px else tc * 25 + 12) in
+  let steps = (let k = g.tick + g.pace in if k > 12 then 12 else k) in
+  let i = choose(g, ahead(g), tx, steps, 0, 0, 1000000000) in
+  (mx = mx_of(i), my = my_of(i), fire = g.sy < 0 && (seg_above(g.segs, pc, pr) || absi(tx - g.px) <= 12))
