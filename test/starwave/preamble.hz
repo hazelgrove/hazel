@@ -1,8 +1,8 @@
 # Star wave's vocabulary, which the module sees #
-# The field: 600 units wide and 800 tall, y down; the cannon on its line at 740; the shields' tops at 640. The invaders: 5 rows of 9, numbered row by row, each 32 by 24, 48 apart across and 40 down from the formation's corner #
-# A bomb, falling: where it is #
-type Bomb = (x = Int, y = Int) in
-# A game: the cannon's middle; your shot (its y -1 when there is none); the bombs; each invader (0 gone, else its kind: 3 the top row, 30 points; 2, 20; 1, 10); the formation's corner and which way it marches (1 right, -1 left), and the steps to its next march; each shield block (4 shields of 8 by 4 blocks, each 8 units square: 1 standing, 0 gone); the lives, the points, the wave; the stream's seed; steps the cannon still waits after a hit; whether the game is over; what happened this step (0 nothing, 1 an invader hit, 2 the cannon hit, 3 a wave cleared, 4 the invaders landed); and the steps #
-type Game = (cx = Int, sx = Int, sy = Int, bombs = [Bomb], aliens = [Int], fx = Int, fy = Int, fdir = Int, march = Int, shields = [Int], lives = Int, score = Int, wave = Int, seed = Int, wait = Int, over = Bool, hit = Int, t = Int) in
-# The robot's choice for a step: which way to move the cannon (-1, 0, 1), and whether to fire #
+# The field: 600 units wide and 800 tall, y down, the ground at 762; your heart launcher on its line at 740. The visitors: up to 5 rows of 9, numbered row by row, each 32 by 24, 48 apart across and 40 down from the formation's corner. The town: 4 buildings on the ground, of 5, 7, 6 and 4 floors, each floor 18 tall #
+# A rainbow drop, falling: where it is #
+type Drop = (x = Int, y = Int) in
+# A game: the launcher's middle; your heart (its y -1 when none is in the air); the rainbow drops; each visitor (0 gone, else its kind, 1 to 3); the formation's corner, which way it marches (1 right, -1 left), and the steps to its next march; each building's floors turned rainbow, from the top down; once the whole town is rainbow, the steps left to send the last heart (0 before); the tries left, the hearts connected, the waves just right, the wave; the stream's seed; the steps of the pause after a wave ends; how it ended; whether the game is over; what happened this step (0 nothing, 1 a heart connected, 3 just right, 4 too late: the visitors landed, 5 too soon, 6 too late: the rainbow town waited too long, 7 a wave began); and the steps #
+type Game = (cx = Int, hx = Int, hy = Int, drops = [Drop], aliens = [Int], fx = Int, fy = Int, fdir = Int, march = Int, town = [Int], glow = Int, tries = Int, hearts = Int, wins = Int, wave = Int, seed = Int, wait = Int, verdict = Int, over = Bool, hit = Int, t = Int) in
+# The robot's choice for a step: which way to move the launcher (-1, 0, 1), and whether to send a heart #
 type Choice = (move = Int, fire = Bool) in
