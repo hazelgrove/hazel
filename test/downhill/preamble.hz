@@ -1,0 +1,8 @@
+# Downhill's vocabulary, which the module sees #
+# The slope: x across it (0 its middle; the course runs from -800 to 800, open snow beyond, a fence at 1000 each side), y down the hill; 50 units a metre #
+# A thing on the slope: its kind (0 a tree, 1 a rock, 2 a ramp, 3 bumps, 4 a gate: two flags w apart), where it stands, and its size (a gate's width, the bumps' reach) #
+type Thing = (kind = Int, x = Int, y = Int, w = Int) in
+# A run: the skier's place and speed (hundredths of a unit, and of a unit a step), heading (-3 to 3: 0 straight down the hill, 3 across it to the right, -3 to the left), height in the air and how fast rising (hundredths), steps still lying in the snow after a fall, the points (gates and jumps), the gates and the jumps, the snowball's place and size (hundredths) once it rolls, whether a run is over (the snowball caught them), what happened this step (0 nothing, 1 a fall on a tree, 2 a fall on a rock, 3 a jump, 4 a gate, 5 caught, 6 bumps), the course's seed, the steps run, and whether a snowball comes #
+type Run = (x = Int, y = Int, speed = Int, heading = Int, air = Int, rise = Int, down = Int, score = Int, gates = Int, jumps = Int, bx = Int, by = Int, br = Int, rolling = Bool, over = Bool, hit = Int, seed = Int, t = Int, chase = Bool) in
+# The robot's choice for a step: a turn (-1 left, 0 none, 1 right) and whether to crouch #
+type Choice = (turn = Int, tuck = Bool) in

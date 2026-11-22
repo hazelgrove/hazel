@@ -1,0 +1,165 @@
+# Downhill: a course down an endless slope, made from its seed a stretch at a time, and a run down it, one step (1/60 of a second) at a time: the skier's heading and crouch, the snow's pull and its drag, trees and rocks to fall on, ramps to jump from, bumps that slow, gates to ski through, and, far enough down, a snowball rolling after the skier; and a robot that skis it, for 🤖 Hazel plays #
+# ---- The course ---- #
+# a stream of numbers from a seed (Park and Miller's; md, the remainder, for numbers 0 and up), and one for each place in each stretch of the course #
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
+let mix : (Int, Int, Int) -> Int = fun (seed, k, i) -> next(next(next(seed + 1 + k * 7919) + i * 104729) + 17);
+# a stretch is 600 units down the hill; the course 1600 across #
+let stretch : Int = 600;
+let half : Int = 800;
+# the things in stretch k, from the i-th of n: each one's kind by chance (trees the most), its place, and its size #
+let things_from : (Int, Int, Int, Int) -> [Thing] = fun (seed, k, i, n) ->
+  if i >= n then [] else
+  let r = mix(seed, k, i) in
+  let roll = md(r, 100) in
+  let kind = (if roll < 52 then 0 else if roll < 66 then 1 else if roll < 74 then 2 else if roll < 86 then 3 else 4) in
+  let x = md(r / 100, 2 * half) - half in
+  let y = k * stretch + md(r / 300000, stretch) in
+  let w = (if kind == 4 then 150 + md(r / 7, 120) else if kind == 3 then 40 + md(r / 11, 40) else 0) in
+  (kind = kind, x = x, y = y, w = w) :: things_from(seed, k, i + 1, n);
+# the course's stretch k: the first two clear, for the start; then more things the further down, up to 14 a stretch #
+let course : (Int, Int) -> [Thing] = fun (seed, k) ->
+  if k < 2 then [] else things_from(seed, k, 0, (let d = 5 + k / 6 in if d > 14 then 14 else d));
+let cat : ([Thing], [Thing]) -> [Thing] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: cat(rest, ys) end;
+# the things near a place down the hill: its stretch, and the ones above and below it #
+let around : (Int, Float) -> [Thing] = fun (seed, y) ->
+  let k = int_of_float(y) / stretch in cat(course(seed, k - 1), cat(course(seed, k), course(seed, k + 1)));
+# ---- A run ---- #
+# a heading's angle from straight down the hill (radians): 0, about 24 degrees, about 50, and across #
+let angle : Int -> Float = fun h ->
+  let a = (if h == 0 then 0.0 else if h == 1 || h == 0 - 1 then 0.42 else if h == 2 || h == 0 - 2 then 0.87 else 1.5708) in
+  if h < 0 then 0.0 -. a else a;
+let none : Thing = (kind = 9, x = 0, y = 0, w = 0);
+let near : (Thing, Float, Float, Float) -> Bool = fun (th, x, y, r) ->
+  let dx = float_of_int(th.x) -. x in let dy = float_of_int(th.y) -. y in dx *. dx +. dy *. dy <. r *. r;
+# what a skier going from (x0, y0) to (x1, y1) runs into, by the middle of the way and its end: a tree, a rock, a ramp or bumps (a gate is not in the way); none for nothing #
+let meets : ([Thing], Float, Float, Float, Float) -> Thing = fun (ts, x0, y0, x1, y1) ->
+  case ts
+  | [] => none
+  | th :: rest =>
+    let xm = (x0 +. x1) /. 2.0 in
+    let ym = (y0 +. y1) /. 2.0 in
+    let r = (if th.kind == 0 then 16.0 else if th.kind == 1 then 13.0 else if th.kind == 2 then 24.0 else if th.kind == 3 then float_of_int(th.w) else 0.0) in
+    if th.kind != 4 && (near(th, x1, y1, r) || near(th, xm, ym, r)) then th else meets(rest, x0, y0, x1, y1)
+  end;
+# whether that way goes between a gate's two flags #
+let through : ([Thing], Float, Float, Float, Float) -> Bool = fun (ts, x0, y0, x1, y1) ->
+  case ts
+  | [] => false
+  | th :: rest =>
+    (th.kind == 4 && y0 <. float_of_int(th.y) && y1 >=. float_of_int(th.y)
+      && (let xm = (x0 +. x1) /. 2.0 in xm >. float_of_int(th.x - th.w / 2) && xm <. float_of_int(th.x + th.w / 2)))
+    || through(rest, x0, y0, x1, y1)
+  end;
+# a run at the top of the course from a seed, with a snowball or without #
+let start : (Int, Bool) -> Run = fun (seed, chase) ->
+  (x = 0, y = 0, speed = 0, heading = 0, air = 0, rise = 0, down = 0, score = 0, gates = 0, jumps = 0, bx = 0, by = 0, br = 0, rolling = false, over = false, hit = 0, seed = seed, t = 0, chase = chase);
+# ---- The snowball ---- #
+# 1500 m down, a snowball starts rolling from 26 m above the skier: down the hill a little faster the further it has come (8.6 units a step, up to 12.4), toward the skier across it, and bigger as it rolls; never more than 36 m behind. It catches a skier who falls, or dawdles. Its place, its size, whether it rolls, and whether it has caught them #
+let roll : (Run, Float, Float) -> (Float, Float, Float, Bool, Bool) = fun (g, x, y) ->
+  let bx0 = float_of_int(g.bx) /. 100.0 in
+  let by0 = float_of_int(g.by) /. 100.0 in
+  let br0 = float_of_int(g.br) /. 100.0 in
+  if !g.chase then (0.0, 0.0, 0.0, false, false) else
+  if !g.rolling then (if y >. 75000.0 then (x, y -. 1300.0, 34.0, true, false) else (0.0, 0.0, 0.0, false, false)) else
+  let vb = (let v = 8.6 +. (y -. 75000.0) /. 60000.0 in if v >. 12.4 then 12.4 else v) in
+  let bya = by0 +. vb in
+  let by1 = (if bya <. y -. 1800.0 then y -. 1800.0 else bya) in
+  let dx = x -. bx0 in
+  let bx1 = bx0 +. (if dx >. 2.6 then 2.6 else if dx <. 0.0 -. 2.6 then 0.0 -. 2.6 else dx) in
+  let br1 = (if br0 <. 88.0 then br0 +. 0.012 else br0) in
+  let ex = x -. bx1 in
+  let ey = y -. by1 in
+  (bx1, by1, br1, true, ex *. ex +. ey *. ey <. (br1 +. 8.0) *. (br1 +. 8.0));
+# ---- One step ---- #
+# turn: -1, 0 or 1 (a press of left or right, this step), tuck: crouching. The heading turns one place a press (not in the air, nor lying in the snow); the snow pulls the skier down the hill as much as the heading points down it (most straight down, none across) against its drag (half, crouching on a heading within one of straight down) and a little friction (much more across, so a skier stops); in the air the speed holds and the skier rises and falls; a tree (below 40 up) or a rock (on the ground) is a fall, 50 steps lying in the snow just below it, then up, pointing down the hill; a ramp sends the skier up, the faster the higher; bumps slow; a gate passed is 50 points, a jump 25 #
+let step : (Run, Int, Bool) -> Run = fun (g, turn, tuck) ->
+  if g.over then g else
+  let hu : Float -> Int = fun f -> int_of_float(floor(f *. 100.0 +. 0.5)) in
+  let x0 = float_of_int(g.x) /. 100.0 in
+  let y0 = float_of_int(g.y) /. 100.0 in
+  let v0 = float_of_int(g.speed) /. 100.0 in
+  let z0 = float_of_int(g.air) /. 100.0 in
+  let w0 = float_of_int(g.rise) /. 100.0 in
+  let flying = z0 >. 0.0 || w0 >. 0.0 in
+  let lying = g.down > 0 in
+  let h1 = (if lying || flying then g.heading else (let h = g.heading + turn in if h > 3 then 3 else if h < 0 - 3 then 0 - 3 else h)) in
+  let a = angle(h1) in
+  let low = h1 >= 0 - 1 && h1 <= 1 in
+  let drag = (if tuck && low then 0.00045 else 0.0009) in
+  let across = h1 == 3 || h1 == 0 - 3 in
+  let v1 = (if lying then 0.0 else if flying then v0 else v0 +. 0.09 *. cos(a) -. drag *. v0 *. v0 -. (if across then 0.12 else 0.004)) in
+  let v2 = (if v1 <. 0.0 then 0.0 else v1) in
+  let xa = x0 +. v2 *. sin(a) in
+  let x1 = (if xa >. 1000.0 then 1000.0 else if xa <. 0.0 -. 1000.0 then 0.0 -. 1000.0 else xa) in
+  let y1 = y0 +. v2 *. cos(a) in
+  let z1 = (if flying then z0 +. w0 else 0.0) in
+  let landed = flying && z1 <=. 0.0 in
+  let z2 = (if landed then 0.0 else z1) in
+  let w1 = (if flying && !landed then w0 -. 0.22 else 0.0) in
+  let ts = around(g.seed, y1) in
+  let th = (if lying || z2 >. 6.0 then none else meets(ts, x0, y0, x1, y1)) in
+  let k = th.kind in
+  let fall = (k == 0 && z2 <. 40.0) || (k == 1 && z2 <=. 0.0) in
+  let jump = k == 2 && !flying in
+  let bumps = k == 3 && !flying in
+  let gate = !lying && through(ts, x0, y0, x1, y1) in
+  let v3 = (if fall then 0.0 else if bumps then v2 *. 0.93 else v2) in
+  let y3 = (if fall then float_of_int(th.y) +. 26.0 else y1) in
+  let rise = (if jump then 3.2 +. v2 *. 0.32 else w1) in
+  let down = (if fall then 50 else if lying then g.down - 1 else 0) in
+  let h3 = (if fall then 0 else h1) in
+  let bonus = (if gate then 50 else 0) + (if jump then 25 else 0) in
+  let hit = (if fall then (if k == 0 then 1 else 2) else if jump then 3 else if gate then 4 else if bumps then 6 else 0) in
+  let (bx, by, br, rolling, caught) = roll(g, x1, y3) in
+  (x = hu(x1), y = hu(y3), speed = hu(v3), heading = h3, air = hu(z2), rise = hu(rise), down = down, score = g.score + bonus,
+   gates = g.gates + (if gate then 1 else 0), jumps = g.jumps + (if jump then 1 else 0), bx = hu(bx), by = hu(by), br = hu(br), rolling = rolling,
+   over = caught, hit = (if caught then 5 else hit), seed = g.seed, t = g.t + 1, chase = g.chase);
+# ---- The robot (🤖 Hazel plays) ---- #
+# how far a skier can go from (x, y) the way (dx, dy) (a unit's length) before a tree or a rock in its path (30 either side), looking 320 ahead #
+let clear : ([Thing], Float, Float, Float, Float) -> Float = fun (ts, x, y, dx, dy) ->
+  case ts
+  | [] => 320.0
+  | th :: rest =>
+    let c = clear(rest, x, y, dx, dy) in
+    if th.kind == 0 || th.kind == 1 then
+      (let px = float_of_int(th.x) -. x in let py = float_of_int(th.y) -. y in
+       let along = px *. dx +. py *. dy in
+       let off = px *. dy -. py *. dx in
+       let offa = (if off <. 0.0 then 0.0 -. off else off) in
+       if along >. 0.0 && along <. c && offa <. 30.0 then along else c)
+    else c
+  end;
+# what that way is worth beyond being clear: a gate it goes between (90) or a ramp it goes over (40), within 260 ahead #
+let bonus : ([Thing], Float, Float, Float, Float) -> Float = fun (ts, x, y, dx, dy) ->
+  case ts
+  | [] => 0.0
+  | th :: rest =>
+    let b = (if th.kind == 4 || th.kind == 2 then
+      (let px = float_of_int(th.x) -. x in let py = float_of_int(th.y) -. y in
+       let along = px *. dx +. py *. dy in
+       let off = px *. dy -. py *. dx in
+       let offa = (if off <. 0.0 then 0.0 -. off else off) in
+       let room = (if th.kind == 4 then float_of_int(th.w) /. 2.0 -. 12.0 else 14.0) in
+       if along >. 0.0 && along <. 260.0 && offa <. room then (if th.kind == 4 then 90.0 else 40.0) else 0.0)
+      else 0.0) in
+    b +. bonus(rest, x, y, dx, dy)
+  end;
+# the robot's choice: of the headings from 2 left to 2 right, the one worth most (twice how far it is clear, its gates and ramps, less for leaning away from straight down and for turning from the heading now, much less toward the course's edge), and a turn toward it; crouching on a clear straight run #
+let robot : Run -> Choice = fun g ->
+  if g.over || g.down > 0 || g.air > 0 || g.rise > 0 then (turn = 0, tuck = false) else
+  let x = float_of_int(g.x) /. 100.0 in
+  let y = float_of_int(g.y) /. 100.0 in
+  let ts = around(g.seed, y +. 300.0) in
+  let worth : Int -> Float = fun h ->
+    (let a = angle(h) in let dx = sin(a) in let dy = cos(a) in
+     let c = clear(ts, x, y, dx, dy) in
+     let ahead = x +. dx *. 200.0 in
+     let edge = (if ahead >. 760.0 || ahead <. 0.0 -. 760.0 then 300.0 else 0.0) in
+     let lean = (if h < 0 then 0 - h else h) in
+     let swing = (let d = h - g.heading in if d < 0 then 0 - d else d) in
+     c *. 2.0 +. bonus(ts, x, y, dx, dy) -. float_of_int(lean * 25) -. float_of_int(swing * 15) -. edge) in
+  let best : (Int, Int, Float) -> Int = fun (h, bh, bw) ->
+    if h > 2 then bh else (let w = worth(h) in if w >. bw then best(h + 1, h, w) else best(h + 1, bh, bw)) in
+  let h = best(0 - 2, 0, 0.0 -. 100000.0) in
+  (turn = (if h > g.heading then 1 else if h < g.heading then 0 - 1 else 0), tuck = h == 0 && clear(ts, x, y, 0.0, 1.0) >. 250.0)
