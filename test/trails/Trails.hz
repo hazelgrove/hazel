@@ -51,9 +51,10 @@ let flood : ([Int], [Int], Int, Int) -> Int = fun (seen, frontier, count, want) 
     flood(s3, f3, c3, want)
   end;
 let absi : Int -> Int = fun v -> if v < 0 then 0 - v else v;
-# a rider's choice (who: 1 yours, 2 Hazel's), looking `care` cells ahead (more is wiser): of the three ways not straight back, one not lit; the one with the most room, a flood from its cell (the other rider's next cells counted lit, as it may take them); a cell beside the other's head is risky (they may move into it); straight on when as good #
-let robot : (Round, Int, Int) -> Int = fun (g, who, care) ->
+# a rider's choice (who: 1 yours, 2 Hazel's), looking `care` cells ahead, and slipping `slip` times in a hundred (luck, a number 0 to 99 the page draws each step: below slip, a slip, a turn left, none or a turn right by chance, without looking; a beginner's mistake, which may run it into a wall or a trail). Otherwise, of the three ways not straight back, one not lit; the one with the most room, a flood from its cell (the other rider's next cells counted lit, as it may take them); a cell beside the other's head is risky (they may move into it); straight on when as good #
+let robot : (Round, Int, Int, Int, Int) -> Int = fun (g, who, care, slip, luck) ->
   if g.over then 0 - 1 else
+  if luck < slip then (let d0 = (if who == 1 then g.ad else g.bd) in md(d0 + 3 + md(luck, 3), 4)) else
   let x = (if who == 1 then g.ax else g.bx) in
   let y = (if who == 1 then g.ay else g.by) in
   let d0 = (if who == 1 then g.ad else g.bd) in
