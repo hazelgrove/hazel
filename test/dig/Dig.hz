@@ -114,22 +114,27 @@ let settle : ([Animal], [Animal], [Int], [Rock]) -> [Animal] = fun (ans, all, cs
         (kind = a.kind, c = a.c + d, r = a.r, fall = 0 - 1, walk = 20))) :: settle(rest, all, cs, rs)
   end;
 # ---- The monsters ---- #
-# a monster's move: of the four ways, the dug cells (no boulder) nearer you; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem or an animal; a stunned one waits #
-let toward : (Mon, [Int], [Rock], [Animal], Int, Int, Int) -> (Mon, [Int]) = fun (m, cs, rs, ans, px, py, luck) ->
-  if m.stun > 0 then (m, cs) else
+# a monster's move: of the four ways, the dug cells (no boulder) nearer you, (0.0.70; Matthew: "let's have the ghosts run away from sunlight too", "or burn in it") but never into the sunlight; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem or an animal; a stunned one waits. One caught in the sunlight (the ground dug open round it) runs from it, to the cell in the shade nearest you; with none, or stunned, it burns up (true) #
+let toward : (Mon, [Int], [Rock], [Animal], Int, Int, Int) -> (Mon, [Int], Bool) = fun (m, cs, rs, ans, px, py, luck) ->
   let dist : Int -> Int = fun d -> (let c = m.c + dx(d) in let r = m.r + dy(d) in absi(c - px) + absi(r - py)) in
   let free : Int -> Bool = fun d -> (let c = m.c + dx(d) in let r = m.r + dy(d) in inside(c, r) && cell(cs, c, r) == 0 && !rock_at(rs, c, r)) in
-  let best : (Int, Int, Int) -> Int = fun (d, bd, bv) -> if d > 3 then bd else (let v = dist(d) in if free(d) && v < bv then best(d + 1, d, v) else best(d + 1, bd, bv)) in
+  let shade : Int -> Bool = fun d -> free(d) && !sunlit(cs, rs, m.c + dx(d), m.r + dy(d)) in
+  let best : (Int, Int, Int) -> Int = fun (d, bd, bv) -> if d > 3 then bd else (let v = dist(d) in if shade(d) && v < bv then best(d + 1, d, v) else best(d + 1, bd, bv)) in
+  if sunlit(cs, rs, m.c, m.r) then
+    (let d1 = best(0, 0 - 1, 1000) in
+     if m.stun <= 0 && d1 >= 0 then ((c = m.c + dx(d1), r = m.r + dy(d1), stun = 0), cs, false) else (m, cs, true)) else
+  if m.stun > 0 then (m, cs, false) else
   let now = absi(m.c - px) + absi(m.r - py) in
   let d = best(0, 0 - 1, now + (if md(luck, 3) == 0 then 1 else 0)) in
-  if d >= 0 then ((c = m.c + dx(d), r = m.r + dy(d), stun = 0), cs) else
+  if d >= 0 then ((c = m.c + dx(d), r = m.r + dy(d), stun = 0), cs, false) else
   if md(luck / 3, 8) == 0 then
     (let dd = (if absi(m.c - px) > absi(m.r - py) then (if px > m.c then 1 else 3) else (if py > m.r then 2 else 0)) in
      let c = m.c + dx(dd) in let r = m.r + dy(dd) in
-     if inside(c, r) && !rock_at(rs, c, r) && r > 0 && cell(cs, c, r) != 2 && !animal_at(ans, c, r) then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, 0)) else (m, cs))
-  else (m, cs);
-let move_mons : ([Mon], [Int], [Rock], [Animal], Int, Int, Int) -> ([Mon], [Int]) = fun (ms, cs, rs, ans, px, py, seed) ->
-  case ms | [] => ([], cs) | m :: rest => (let (m2, cs2) = toward(m, cs, rs, ans, px, py, md(seed / 11, 1000)) in let (more, cs3) = move_mons(rest, cs2, rs, ans, px, py, next(seed)) in (m2 :: more, cs3)) end;
+     if inside(c, r) && !rock_at(rs, c, r) && r > 0 && cell(cs, c, r) != 2 && !animal_at(ans, c, r) then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, 0), false) else (m, cs, false))
+  else (m, cs, false);
+# (the monsters, each a move; those burnt up gone, and how many) #
+let move_mons : ([Mon], [Int], [Rock], [Animal], Int, Int, Int) -> ([Mon], [Int], Int) = fun (ms, cs, rs, ans, px, py, seed) ->
+  case ms | [] => ([], cs, 0) | m :: rest => (let (m2, cs2, burnt) = toward(m, cs, rs, ans, px, py, md(seed / 11, 1000)) in let (more, cs3, n) = move_mons(rest, cs2, rs, ans, px, py, next(seed)) in ((if burnt then more else m2 :: more), cs3, n + (if burnt then 1 else 0))) end;
 let tick_stun : [Mon] -> [Mon] = fun ms -> case ms | [] => [] | m :: rest => (c = m.c, r = m.r, stun = (if m.stun > 0 then m.stun - 1 else 0)) :: tick_stun(rest) end;
 # the lantern's flash: every monster within three cells of you (across and down together), whatever is between, stunned for 180 steps #
 let reach : (Mon, Int, Int) -> Int = fun (m, px, py) -> absi(m.c - px) + absi(m.r - py);
@@ -138,7 +143,7 @@ let stun_near : ([Mon], Int, Int) -> [Mon] = fun (ms, px, py) ->
 let catch_at : ([Mon], Int, Int) -> [Mon] = fun (ms, c, r) -> case ms | [] => [] | m :: rest => if m.c == c && m.r == r && m.stun > 0 then rest else m :: catch_at(rest, c, r) end;
 let mcount : [Mon] -> Int = fun ms -> case ms | [] => 0 | _ :: rest => 1 + mcount(rest) end;
 # ---- One step ---- #
-# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. Every gem taken: the next level, 300 points #
+# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. (0.0.70) A monster burnt up in the sunlight: 150 points. Every gem taken: the next level, 300 points #
 let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   if g.over then g else
   if g.dead > 0 then
@@ -163,7 +168,8 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let ans = settle(g.animals, g.animals, cs0, rs) in
   let moving = g.mwait <= 1 in
   let s1 = next(g.seed) in
-  let (ms3, cs1) = (if moving then move_mons(ms2, cs0, rs, ans, px, py, s1) else (ms2, cs0)) in
+  let (ms3, cs1, burnt) = (if moving then move_mons(ms2, cs0, rs, ans, px, py, s1) else (ms2, cs0, 0)) in
+  let sc2 = sc1 + 150 * burnt in
   let got = g.gear >= 0 && py * w + px == g.gear in
   let diving = g.diving || got in
   let wet = py >= g.wt && !diving in
@@ -173,12 +179,12 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let lost = rev == 8 in
   let gems = count_gems(cs1) in
   let lives = (if caught || lost then g.lives - 1 else g.lives) in
-  if lost && lives > 0 then level_of(g.level, s1, sc1, lives, g.t + 1, 8) else
-  if gems == 0 && !caught && !lost then level_of(g.level + 1, s1, sc1 + 300, lives, g.t + 1, 3) else
-  (px = px, py = py, pd = pd, pwait = pwait, cells = cs1, rocks = rs, mons = ms3, gems = gems, score = sc1, lives = lives, level = g.level, seed = s1,
+  if lost && lives > 0 then level_of(g.level, s1, sc2, lives, g.t + 1, 8) else
+  if gems == 0 && !caught && !lost then level_of(g.level + 1, s1, sc2 + 300, lives, g.t + 1, 3) else
+  (px = px, py = py, pd = pd, pwait = pwait, cells = cs1, rocks = rs, mons = ms3, gems = gems, score = sc2, lives = lives, level = g.level, seed = s1,
    flash = (if flashing then 60 else if g.flash > 0 then g.flash - 1 else 0), mwait = (if moving then g.mpace else g.mwait - 1), mpace = g.mpace,
    dead = (if caught then 90 else 0), over = lives <= 0,
-   hit = (if lost then 8 else if mon_caught then 2 else if caught then 9 else if rev == 5 then 5 else if got then 10 else if caught_mon then 4 else if gem then 1 else if flashing then 7 else rev), t = g.t + 1,
+   hit = (if lost then 8 else if mon_caught then 2 else if caught then 9 else if rev == 5 then 5 else if burnt > 0 then 11 else if got then 10 else if caught_mon then 4 else if gem then 1 else if flashing then 7 else rev), t = g.t + 1,
    animals = ans, wt = g.wt, gear = (if got then 0 - 1 else g.gear), diving = diving, air = air);
 # ---- The robot (🤖 Hazel plays) ---- #
 # an awake monster within k cells of a cell #
