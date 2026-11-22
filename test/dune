@@ -22,6 +22,7 @@
   (glob_files solitaire/*.hz)
   (glob_files pinball/*.hz)
   (glob_files downhill/*.hz)
+  (glob_files bricks/*.hz)
   (glob_files mahjong-solitaire/*.hz))
  (action
   (setenv
@@ -47,6 +48,7 @@
   (glob_files solitaire/*.hz)
   (glob_files pinball/*.hz)
   (glob_files downhill/*.hz)
+  (glob_files bricks/*.hz)
   (glob_files mahjong-solitaire/*.hz))
  (action
   (setenv

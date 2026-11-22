@@ -1,0 +1,123 @@
+# Bricks: six levels' bricks as data, and one step of the game (1/60 of a second): the paddle moved toward where you point, the ball in four small steps off the walls, the paddle and the bricks; a ball lost, a level cleared; and a robot that plays it, for 🤖 Hazel plays #
+# ---- The levels ---- #
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let absi : Int -> Int = fun n -> if n < 0 then 0 - n else n;
+let cols : Int = 10;
+let rows : Int = 8;
+# a brick's hits at level l (six layouts, then round again), row r and column c: 0 none, 1 or 2 hits, 9 one that never breaks. 0 rows; 1 a pyramid; 2 a checkerboard; 3 a diamond between two posts; 4 a shelf of posts over rows; 5 a frame with a stair inside #
+let cell : (Int, Int, Int) -> Int = fun (l, r, c) ->
+  let k = md(l, 6) in
+  if k == 0 then (if r >= 1 && r <= 5 then (if r == 1 then 2 else 1) else 0)
+  else if k == 1 then (if r <= 6 && absi(2 * c - 9) <= 2 * r + 1 then (if r == 0 then 2 else 1) else 0)
+  else if k == 2 then (if r <= 6 && md(r + c, 2) == 0 then (if r <= 1 then 2 else 1) else 0)
+  else if k == 3 then (if r == 3 && (c == 0 || c == 9) then 9 else if r <= 6 && absi(2 * c - 9) + 2 * absi(2 * r - 6) <= 9 then (if r == 3 then 2 else 1) else 0)
+  else if k == 4 then (if r == 2 && c >= 2 && c <= 7 && md(c, 2) == 0 then 9 else if r <= 6 && r != 2 then (if r == 0 || r == 6 then 2 else 1) else 0)
+  else (if r <= 6 && (c <= 1 || c >= 8 || r == 0 || r == 6 || c == r + 1) then (if c == r + 1 then 2 else 1) else 0);
+let layout_from : (Int, Int) -> [Int] = fun (l, i) -> if i >= rows * cols then [] else cell(l, i / cols, md(i, cols)) :: layout_from(l, i + 1);
+let layout : Int -> [Int] = fun l -> layout_from(l, 0);
+let left_to_break : [Int] -> Int = fun bs -> case bs | [] => 0 | b :: rest => (if b > 0 && b != 9 then 1 else 0) + left_to_break(rest) end;
+let at : ([Int], Int) -> Int = fun (bs, i) -> case bs | [] => 0 | b :: rest => if i <= 0 then b else at(rest, i - 1) end;
+let set_at : ([Int], Int, Int) -> [Int] = fun (bs, i, v) -> case bs | [] => [] | b :: rest => if i <= 0 then v :: rest else b :: set_at(rest, i - 1, v) end;
+# the brick a point is in (a brick of column c and row r is 56 by 22, from (2 + 60 c, 80 + 26 r)): its place in the list, or -1 for none #
+let brick_at : ([Int], Float, Float) -> Int = fun (bs, x, y) ->
+  if x <. 2.0 || y <. 80.0 then 0 - 1 else
+  let c = int_of_float(floor((x -. 2.0) /. 60.0)) in
+  let r = int_of_float(floor((y -. 80.0) /. 26.0)) in
+  if c < 0 || c >= cols || r < 0 || r >= rows then 0 - 1 else
+  let i = r * cols + c in
+  if x -. 2.0 -. float_of_int(c * 60) <=. 56.0 && y -. 80.0 -. float_of_int(r * 26) <=. 22.0 && at(bs, i) > 0 then i else 0 - 1;
+# ---- A game ---- #
+# a game at level l: the ball waiting on the paddle in the middle; a wide paddle (140) for a new player, else 96 #
+let start : (Int, Bool) -> Game = fun (l, wide) ->
+  (bx = 300000, by = 731000, vx = 0, vy = 0, px = 300, pw = (if wide then 140 else 96), bricks = layout(l), balls = 3, score = 0, level = l, held = true, over = false, hit = 0, t = 0);
+# the ball's speed off the paddle at a level: 6 units a step, half a unit more each level, up to 9 #
+let speed : Int -> Float = fun l -> (let v = 6.0 +. float_of_int(l) *. 0.5 in if v >. 9.0 then 9.0 else v);
+let maxi : (Int, Int) -> Int = fun (a, b) -> if a > b then a else b;
+# n small steps of the ball, each a quarter of its speed: off the side walls and the top; onto the paddle's top, off it at an angle by where it hit (up to 60 degrees from straight up, its speed at most 13); into a brick, by the first of its top, bottom, left and right points to be in one, turned back that way (a hit, 5 points; broken, 10; a little faster), the brick a hit less; what happened, the most of it (4 a brick broken, 3 a brick hit, 2 the paddle, 1 a wall) #
+let subs : (Int, Ball, Float, Float, [Int], Int, Int) -> (Ball, [Int], Int, Int) = fun (n, b, px, pw, bs, score, hit) ->
+  if n <= 0 then (b, bs, score, hit) else
+  let r = 8.0 in
+  let x = b.x +. b.vx /. 4.0 in
+  let y = b.y +. b.vy /. 4.0 in
+  let wl = x <. r in
+  let wr = x >. 600.0 -. r in
+  let wt = y <. r in
+  let x1 = (if wl then r +. (r -. x) else if wr then (600.0 -. r) -. (x -. (600.0 -. r)) else x) in
+  let vx1 = (if wl || wr then 0.0 -. b.vx else b.vx) in
+  let y1 = (if wt then r +. (r -. y) else y) in
+  let vy1 = (if wt then 0.0 -. b.vy else b.vy) in
+  let h0 = (if wl || wr || wt then maxi(hit, 1) else hit) in
+  let d = x1 -. px in
+  let onp = vy1 >. 0.0 && b.y +. r <=. 740.0 && y1 +. r >=. 740.0 && d <=. pw /. 2.0 +. r && d >=. 0.0 -. pw /. 2.0 -. r in
+  if onp then
+    (let u0 = d /. (pw /. 2.0) in
+     let u = (if u0 >. 1.0 then 1.0 else if u0 <. 0.0 -. 1.0 then 0.0 -. 1.0 else u0) in
+     let s0 = sqrt(vx1 *. vx1 +. vy1 *. vy1) in
+     let s = (if s0 >. 13.0 then 13.0 else s0) in
+     let a = u *. 1.05 in
+     subs(n - 1, (x = x1, y = 740.0 -. r, vx = s *. sin(a), vy = 0.0 -. s *. cos(a)), px, pw, bs, score, maxi(h0, 2)))
+  else
+  let top = brick_at(bs, x1, y1 -. r) in
+  let bot = brick_at(bs, x1, y1 +. r) in
+  let lef = brick_at(bs, x1 -. r, y1) in
+  let rig = brick_at(bs, x1 +. r, y1) in
+  let i = (if top >= 0 then top else if bot >= 0 then bot else if lef >= 0 then lef else rig) in
+  let flipy = top >= 0 || bot >= 0 in
+  if i >= 0 then
+    (let k = at(bs, i) in
+     let k2 = (if k == 9 then 9 else k - 1) in
+     let sp = (if k == 9 then 1.0 else 1.006) in
+     let nb = (if flipy then (x = x1, y = b.y, vx = vx1 *. sp, vy = 0.0 -. vy1 *. sp) else (x = b.x, y = y1, vx = 0.0 -. vx1 *. sp, vy = vy1 *. sp)) in
+     subs(n - 1, nb, px, pw, set_at(bs, i, k2), score + (if k == 9 then 0 else if k2 == 0 then 10 else 5), maxi(h0, (if k2 == 0 then 4 else 3))))
+  else subs(n - 1, (x = x1, y = y1, vx = vx1, vy = vy1), px, pw, bs, score, h0);
+# ---- One step ---- #
+# target: where to move the paddle's middle (16 units a step at most, inside the field); launch: send off a ball waiting on the paddle, up and a little right. A ball below the field is lost (the next waits on the paddle; the last ends the game); every brick that can break broken is the next level, 100 points #
+let step : (Game, Int, Bool) -> Game = fun (g, target, launch) ->
+  if g.over then g else
+  let pwf = float_of_int(g.pw) in
+  let tgt = (let t = float_of_int(target) in let lo = pwf /. 2.0 in let hi = 600.0 -. pwf /. 2.0 in if t <. lo then lo else if t >. hi then hi else t) in
+  let p0 = float_of_int(g.px) in
+  let dp = tgt -. p0 in
+  let px = p0 +. (if dp >. 16.0 then 16.0 else if dp <. 0.0 -. 16.0 then 0.0 -. 16.0 else dp) in
+  let ipx = int_of_float(floor(px +. 0.5)) in
+  let ml : Float -> Int = fun f -> int_of_float(floor(f *. 1000.0 +. 0.5)) in
+  if g.held then
+    (let s = speed(g.level) in
+     (bx = ipx * 1000, by = 731000, vx = (if launch then ml(s *. 0.45) else 0), vy = (if launch then 0 - ml(s *. 0.89) else 0), px = ipx, pw = g.pw,
+      bricks = g.bricks, balls = g.balls, score = g.score, level = g.level, held = !launch, over = false, hit = 0, t = g.t + 1))
+  else
+  let b0 = (x = float_of_int(g.bx) /. 1000.0, y = float_of_int(g.by) /. 1000.0, vx = float_of_int(g.vx) /. 1000.0, vy = float_of_int(g.vy) /. 1000.0) in
+  let (b, bs, score, hit) = subs(4, b0, px, pwf, g.bricks, g.score, 0) in
+  if b.y >. 830.0 then
+    (bx = ipx * 1000, by = 731000, vx = 0, vy = 0, px = ipx, pw = g.pw, bricks = bs, balls = g.balls - 1, score = score, level = g.level,
+     held = true, over = g.balls <= 1, hit = 5, t = g.t + 1)
+  else if left_to_break(bs) == 0 then
+    (bx = ipx * 1000, by = 731000, vx = 0, vy = 0, px = ipx, pw = g.pw, bricks = layout(g.level + 1), balls = g.balls, score = score + 100, level = g.level + 1,
+     held = true, over = false, hit = 6, t = g.t + 1)
+  else
+    (bx = ml(b.x), by = ml(b.y), vx = ml(b.vx), vy = ml(b.vy), px = ipx, pw = g.pw, bricks = bs, balls = g.balls, score = score, level = g.level,
+     held = false, over = false, hit = hit, t = g.t + 1);
+# ---- The robot (🤖 Hazel plays) ---- #
+# where the ball will cross the paddle's line: its path unfolded off the side walls (coming down; going up, by way of the top wall), the bricks left out #
+let land : (Float, Float, Float, Float) -> Float = fun (x, y, vx, vy) ->
+  let r = 8.0 in
+  let svy = (if vy <. 0.0 then 0.0 -. vy else vy) in
+  if svy <. 0.01 then x else
+  let dist = (if vy >. 0.0 then (740.0 -. r) -. y else (y -. r) +. (740.0 -. 2.0 *. r)) in
+  let w = 600.0 -. 2.0 *. r in
+  let raw = x -. r +. vx *. dist /. svy in
+  let m = raw -. 2.0 *. w *. floor(raw /. (2.0 *. w)) in
+  r +. (if m >. w then 2.0 *. w -. m else m);
+let col_count : ([Int], Int, Int) -> Int = fun (bs, c, i) -> case bs | [] => 0 | b :: rest => (if md(i, cols) == c && b > 0 && b != 9 then 1 else 0) + col_count(rest, c, i + 1) end;
+let best_col : ([Int], Int, Int, Int) -> Int = fun (bs, c, bc, bn) ->
+  if c >= cols then bc else (let n = col_count(bs, c, 0) in if n > bn then best_col(bs, c + 1, c, n) else best_col(bs, c + 1, bc, bn));
+# the robot's choice: a waiting ball sent off from the middle; else the paddle where the ball will come down, set to one side of it so the ball goes off toward the column with the most bricks left #
+let robot : Game -> Choice = fun g ->
+  if g.over then (target = g.px, launch = false) else
+  if g.held then (target = 300, launch = g.px >= 290 && g.px <= 310) else
+  let lx = land(float_of_int(g.bx) /. 1000.0, float_of_int(g.by) /. 1000.0, float_of_int(g.vx) /. 1000.0, float_of_int(g.vy) /. 1000.0) in
+  let c = best_col(g.bricks, 0, 4, 0 - 1) in
+  let tcx = float_of_int(2 + c * 60 + 28) in
+  let u0 = (tcx -. lx) /. 400.0 in
+  let u = (if u0 >. 0.7 then 0.7 else if u0 <. 0.0 -. 0.7 then 0.0 -. 0.7 else u0) in
+  (target = int_of_float(floor(lx -. u *. float_of_int(g.pw) /. 2.0 *. 0.9 +. 0.5)), launch = false)

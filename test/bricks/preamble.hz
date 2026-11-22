@@ -1,0 +1,8 @@
+# Bricks' vocabulary, which the module sees #
+# The field: 600 units wide and 800 tall, y down; the paddle's top at 740; ten columns of bricks, each 56 by 22 with a gap of 4, from 80 down #
+# A game: the ball's place and speed (thousandths of a unit, and a step), the paddle's middle and width, each brick's hits left (by row, then column: 0 gone, 1 or 2 hits, 9 a brick that never breaks), the balls left, the points, the level, whether the ball waits on the paddle, whether the game is over, what happened this step (0 nothing, 1 a wall, 2 the paddle, 3 a brick hit, 4 a brick broken, 5 a ball lost, 6 a level cleared), and the steps #
+type Game = (bx = Int, by = Int, vx = Int, vy = Int, px = Int, pw = Int, bricks = [Int], balls = Int, score = Int, level = Int, held = Bool, over = Bool, hit = Int, t = Int) in
+# The ball inside a step, in Floats: its place and its speed (units a step) #
+type Ball = (x = Float, y = Float, vx = Float, vy = Float) in
+# The robot's choice for a step: where to move the paddle's middle, and whether to send the ball off #
+type Choice = (target = Int, launch = Bool) in
