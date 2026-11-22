@@ -2202,6 +2202,13 @@ let pinball_aot =
       "\n(start = Pinball.start, step = Pinball.step, board = Pinball.board)",
     ~mark="PINBALL",
   );
+let snake_aot =
+  game_aot(
+    ~dir="snake",
+    ~modules=["Snake"],
+    ~tail="\n(start = Snake.start, step = Snake.step, robot = Snake.robot)",
+    ~mark="SNAKE",
+  );
 let bricks_aot =
   game_aot(
     ~dir="bricks",
@@ -2851,6 +2858,11 @@ let tests = (
       "bricks (hazeljs-examples), the rules compiled whole, their JS in a file",
       `Quick,
       bricks_aot,
+    ),
+    test_case(
+      "snake (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      snake_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

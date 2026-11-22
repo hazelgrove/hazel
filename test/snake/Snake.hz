@@ -1,0 +1,73 @@
+# Snake: one step of the game (the snake moved a cell its way, unless turned straight back on itself; a meal grows it by three; a wall, unless the walls wrap, or its own body ends the game; the next meal on a free cell, by chance), and a robot that plays it, for 🤖 Hazel plays: the shortest way to the food, if the snake will still have room there #
+let n : Int = 20;
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
+let mem : (Int, [Int]) -> Bool = fun (v, xs) -> case xs | [] => false | x :: rest => x == v || mem(v, rest) end;
+let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end;
+let drop_last : [Int] -> [Int] = fun xs -> case xs | [] => [] | x :: rest => (case rest | [] => [] | _ :: _ => x :: drop_last(rest) end) end;
+# the cell a step from cell k going direction d: -1 off the board (where the walls do not wrap) #
+let toward : (Int, Int, Bool) -> Int = fun (k, d, wrap) ->
+  let r = k / n in
+  let c = md(k, n) in
+  let r1 = (if d == 0 then r - 1 else if d == 2 then r + 1 else r) in
+  let c1 = (if d == 1 then c + 1 else if d == 3 then c - 1 else c) in
+  if r1 >= 0 && r1 < n && c1 >= 0 && c1 < n then r1 * n + c1
+  else if wrap then md(r1 + n, n) * n + md(c1 + n, n) else 0 - 1;
+# the next meal: a cell by chance from the seed, or the next free one after it #
+let free_from : (Int, [Int], Int) -> Int = fun (k, body, tries) ->
+  if tries >= n * n then 0 - 1 else if mem(k, body) then free_from(md(k + 1, n * n), body, tries + 1) else k;
+let place : (Int, [Int]) -> Int = fun (seed, body) -> free_from(md(seed, n * n), body, 0);
+let start : (Int, Bool) -> Game = fun (seed, wrap) ->
+  let body = [10 * n + 8, 10 * n + 7, 10 * n + 6] in
+  let s = next(seed + 1) in
+  (body = body, dir = 1, grow = 0, food = place(s, body), seed = s, wrap = wrap, score = 0, over = false, hit = 0, t = 0);
+# ---- One step ---- #
+# want: a direction to turn to, or -1 to go on; turning straight back is not a turn. The head moves a cell; the tail follows unless the snake is growing; a meal is 10 points and three cells to grow #
+let step : (Game, Int) -> Game = fun (g, want) ->
+  if g.over then g else
+  let dir = (if want >= 0 && want <= 3 && want != md(g.dir + 2, 4) then want else g.dir) in
+  let head = (case g.body | [] => 0 | h :: _ => h end) in
+  let nh = toward(head, dir, g.wrap) in
+  let kept = (if g.grow > 0 then g.body else drop_last(g.body)) in
+  if nh < 0 || mem(nh, kept) then
+    (body = g.body, dir = dir, grow = g.grow, food = g.food, seed = g.seed, wrap = g.wrap, score = g.score, over = true, hit = 2, t = g.t + 1)
+  else
+  let body = nh :: kept in
+  let ate = nh == g.food in
+  let s = (if ate then next(g.seed) else g.seed) in
+  (body = body, dir = dir, grow = (if g.grow > 0 then g.grow - 1 else 0) + (if ate then 3 else 0), food = (if ate then place(s, body) else g.food), seed = s,
+   wrap = g.wrap, score = g.score + (if ate then 10 else 0), over = false, hit = (if ate then 1 else 0), t = g.t + 1);
+# ---- The robot (🤖 Hazel plays) ---- #
+# how much room there is from a cell: a flood over the cells not in the snake, counting until it has found `want` of them, or no more #
+let flood : (Bool, [Int], [Int], [Int], Int, Int) -> Int = fun (wrap, body, frontier, seen, count, want) ->
+  if count >= want then count else
+  case frontier
+  | [] => count
+  | k :: rest =>
+    let add : ([Int], [Int], Int, Int) -> ([Int], [Int], Int) = fun (fr, sn, c, d) ->
+      (let m = toward(k, d, wrap) in if m < 0 || mem(m, sn) || mem(m, body) then (fr, sn, c) else (m :: fr, m :: sn, c + 1)) in
+    let (f0, s0, c0) = add(rest, seen, count, 0) in
+    let (f1, s1, c1) = add(f0, s0, c0, 1) in
+    let (f2, s2, c2) = add(f1, s1, c1, 2) in
+    let (f3, s3, c3) = add(f2, s2, c2, 3) in
+    flood(wrap, body, f3, s3, c3, want)
+  end;
+let absi : Int -> Int = fun v -> if v < 0 then 0 - v else v;
+# how far a cell is from the food, rows plus columns (the short way round, where the walls wrap) #
+let gap : (Int, Int, Bool) -> Int = fun (a, b, wrap) ->
+  let dr = absi(a / n - b / n) in
+  let dc = absi(md(a, n) - md(b, n)) in
+  (if wrap && n - dr < dr then n - dr else dr) + (if wrap && n - dc < dc then n - dc else dc);
+# the robot's choice: of the three directions not straight back, a cell it can move to that leaves room (more than its length, by a flood from there with the snake's body as it will be), the one nearest the food, straight on when as near; else the one with the most room; -1 to go on if none can move #
+let robot : Game -> Int = fun g ->
+  if g.over then 0 - 1 else
+  let head = (case g.body | [] => 0 | h :: _ => h end) in
+  let body = drop_last(g.body) in
+  let long = len(g.body) + g.grow + 2 in
+  let worth : Int -> Int = fun d ->
+    (let m = toward(head, d, g.wrap) in
+     if d == md(g.dir + 2, 4) || m < 0 || mem(m, body) then 0 - 100000 else
+     let space = flood(g.wrap, body, [m], [m], 1, long) in
+     (if space < long then 0 - 50000 + space * 10 else 0) - 10 * gap(m, g.food, g.wrap) + (if d == g.dir then 1 else 0)) in
+  let pick : (Int, Int, Int) -> Int = fun (d, bd, bw) -> if d > 3 then bd else (let w = worth(d) in if w > bw then pick(d + 1, d, w) else pick(d + 1, bd, bw)) in
+  pick(0, 0 - 1, 0 - 100000)
