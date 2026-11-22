@@ -4,8 +4,8 @@
 type Rock = (c = Int, r = Int, wob = Int, falling = Bool) in
 # A monster: its cell, and the steps it is still stunned #
 type Mon = (c = Int, r = Int, stun = Int) in
-# (0.0.68) An animal in the ground: its kind (as in the scene: 15 the mole, 17 the rabbit, 19 the badger), its cell, and the steps to its next drop as it falls (-1 resting) #
-type Animal = (kind = Int, c = Int, r = Int, fall = Int) in
+# (0.0.68) An animal in the ground: its kind (as in the scene: 15 the mole, 17 the rabbit, 19 the badger), its cell, the steps to its next drop as it falls (-1 resting), and (0.0.69) the steps to its next move away from the sunlight in a hole (-1 none) #
+type Animal = (kind = Int, c = Int, r = Int, fall = Int, walk = Int) in
 # A game: you (your cell, the way you face, the steps to your next move), the ground, the boulders, the monsters, the gems left, the points, the lives, the level, the stream's seed, the steps until the lantern flashes again, the steps to the monsters' next move and how many between their moves, the steps you still wait after being caught, whether the game is over, what happened this step (0 nothing, 1 a gem, 2 you caught, 3 a level cleared, 4 a monster caught, 5 a monster squashed, 6 a boulder landed, 7 a flash; 0.0.68: 8 a boulder fell on an animal, the level lost, 9 out of breath under the water, 10 the diving gear found), and the steps; (0.0.68) the animals, the row the ground water starts at (16 none), the diving gear's cell (-1 none, or taken), whether you have it, and your breath (100 steps of it) #
 type Game = (px = Int, py = Int, pd = Int, pwait = Int, cells = [Int], rocks = [Rock], mons = [Mon], gems = Int, score = Int, lives = Int, level = Int, seed = Int, flash = Int, mwait = Int, mpace = Int, dead = Int, over = Bool, hit = Int, t = Int, animals = [Animal], wt = Int, gear = Int, diving = Bool, air = Int) in
 # The robot's choice for a step: a way to go (-1 none), and whether to flash the lantern #
