@@ -1,10 +1,10 @@
-# Bug run's vocabulary, which the module sees #
-# The field: 24 columns by 32 rows of cells 25 units square (600 by 800), row 0 at the top; your shooter moves in the bottom six rows (from 650 down) #
-# A segment of the bug: its cell, which way it goes across (1 right, -1 left) and up or down (1 down, -1 up) #
+# Butterfly garden's vocabulary, which the module sees #
+# The garden: 24 columns by 32 rows of cells 25 units square (600 by 800), row 0 at the top; your watering can moves in the bottom six rows (from 650 down) #
+# A segment of a caterpillar: its cell, which way it goes across (1 right, -1 left) and up or down (1 down, -1 up) #
 type Seg = (c = Int, r = Int, d = Int, v = Int) in
-# A pebble: its cell, and the shots it still takes (3 new) #
-type Stone = (c = Int, r = Int, hp = Int) in
-# A game: the shooter's middle, your shot (its y -1 when there is none), the bug's segments, the pebbles, the lives, the points, the wave, the stream's seed, the steps to the bug's next move and how many between its moves, the steps the shooter still waits after a hit, whether the game is over, what happened this step (0 nothing, 1 a segment hit, 2 the shooter hit, 3 a wave cleared, 4 a pebble broken), and the steps #
-type Game = (px = Int, py = Int, sx = Int, sy = Int, segs = [Seg], stones = [Stone], lives = Int, score = Int, wave = Int, seed = Int, tick = Int, pace = Int, wait = Int, over = Bool, hit = Int, t = Int) in
-# The robot's choice for a step: which way to move (each -1, 0 or 1, across and up or down), and whether to fire #
+# A bud: its cell, and the drops of nectar it still wants before it opens (3 new; 0 a flower, open); a cocoon: its cell, and the steps until its butterfly comes out #
+type Bud = (c = Int, r = Int, hp = Int) in
+# A game: the watering can's middle, your drop of nectar (its y -1 when there is none), the caterpillars' segments, the buds and flowers, the cocoons, the tries, the points, the butterflies set free, the wave, the stream's seed, the steps to the caterpillars' next move and how many between their moves, the steps the can still waits after a bump, whether the game is over, what happened this step (0 nothing, 1 a caterpillar fed, 2 a bump, 3 the garden in full bloom, 4 a bud opened by nectar, 5 a butterfly out, opening a bud, 6 a new caterpillar), and the steps #
+type Game = (px = Int, py = Int, sx = Int, sy = Int, segs = [Seg], buds = [Bud], cocoons = [Bud], lives = Int, score = Int, freed = Int, wave = Int, seed = Int, tick = Int, pace = Int, wait = Int, over = Bool, hit = Int, t = Int) in
+# The robot's choice for a step: which way to move (each -1, 0 or 1, across and up or down), and whether to send a drop #
 type Choice = (mx = Int, my = Int, fire = Bool) in

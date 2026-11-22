@@ -1,41 +1,60 @@
-# Bug run: one step of the game (1/60 of a second): your shooter moved in its six rows, your shot up, the bug moving a cell every few steps (each segment across its row until a pebble or the edge, then a row down and back; from the bottom, up again into your rows and down), a segment hit turned to a pebble (the bug split there), a pebble worn away, the shooter caught by the bug; and a robot that plays it, for 🤖 Hazel plays #
+# Butterfly garden (Bug run, reimagined in 0.0.61; Matthew: "let's reimagine 'bug run' into a more positive theme somehow"): caterpillars wind down through a garden of buds, each across its row until a bud or the edge turns it a row down. A drop of nectar sent up to a segment feeds it: it curls into a cocoon there (the caterpillar parts at it, each piece going its own way), and a moment later a butterfly comes out and flies to the nearest bud and opens it. Three drops open a bud too. The whole garden in bloom, the wave is won. One step of the game (1/60 of a second), and a robot that plays it, for 🤖 Hazel plays #
 let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
 let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
 let absi : Int -> Int = fun v -> if v < 0 then 0 - v else v;
 let cols : Int = 24;
 let rows : Int = 32;
-# ---- The field ---- #
-let stone_at : ([Stone], Int, Int) -> Bool = fun (ss, c, r) -> case ss | [] => false | s :: rest => (s.c == c && s.r == r) || stone_at(rest, c, r) end;
+# ---- The garden ---- #
+let bud_at : ([Bud], Int, Int) -> Bool = fun (bs, c, r) -> case bs | [] => false | b :: rest => (b.c == c && b.r == r) || bud_at(rest, c, r) end;
+# a bud not yet open there (a flower, open, is in no one's way) #
+let closed_at : ([Bud], Int, Int) -> Bool = fun (bs, c, r) -> case bs | [] => false | b :: rest => (b.c == c && b.r == r && b.hp > 0) || closed_at(rest, c, r) end;
 let seg_at : ([Seg], Int, Int) -> Bool = fun (gs, c, r) -> case gs | [] => false | s :: rest => (s.c == c && s.r == r) || seg_at(rest, c, r) end;
-# n pebbles by chance in rows 2 to 25, none twice in a cell; and the seed after them #
-let scatter : (Int, Int, [Stone]) -> ([Stone], Int) = fun (n, seed, ss) ->
-  if n <= 0 then (ss, seed) else
+let closed : [Bud] -> Int = fun bs -> case bs | [] => 0 | b :: rest => (if b.hp > 0 then 1 else 0) + closed(rest) end;
+let count : [Seg] -> Int = fun gs -> case gs | [] => 0 | _ :: rest => 1 + count(rest) end;
+# n buds by chance in rows 2 to 25, none twice in a cell; and the seed after them #
+let scatter : (Int, Int, [Bud]) -> ([Bud], Int) = fun (n, seed, bs) ->
+  if n <= 0 then (bs, seed) else
   let s1 = next(seed) in
   let c = md(s1 / 7, cols) in let r = 2 + md(s1 / 1000, 24) in
-  if stone_at(ss, c, r) then scatter(n, s1, ss) else scatter(n - 1, s1, (c = c, r = r, hp = 3) :: ss);
-# a bug n segments long along row 0, its head at the right going right #
+  if bud_at(bs, c, r) then scatter(n, s1, bs) else scatter(n - 1, s1, (c = c, r = r, hp = 3) :: bs);
+# a caterpillar n segments long along row 0, its head at the right going right #
 let bug : (Int, Int) -> [Seg] = fun (n, i) -> if i >= n then [] else (c = n - 1 - i, r = 0, d = 1, v = 1) :: bug(n, i + 1);
+# wave w: a caterpillar 10 long, two more a wave, up to 18, moving every 7 steps, one fewer a wave, down to 3; and 16 buds, two more a wave, up to 26 #
 let pace_of : Int -> Int = fun w -> (let p = 7 - w in if p < 3 then 3 else p);
 let len_of : Int -> Int = fun w -> (let n = 10 + 2 * w in if n > 18 then 18 else n);
-let start : Int -> Game = fun seed ->
-  let (stones, s1) = scatter(34, next(seed + 1), []) in
-  (px = 300, py = 770, sx = 0 - 1, sy = 0 - 1, segs = bug(len_of(0), 0), stones = stones, lives = 3, score = 0, wave = 0, seed = s1,
-   tick = pace_of(0), pace = pace_of(0), wait = 0, over = false, hit = 0, t = 0);
-# ---- The bug ---- #
-# a segment's next cell: across its way, unless that is off the field or a pebble: then a row down (or up, climbing) and turned; at the bottom it climbs, back in the top of your rows it goes down again #
-let move_seg : ([Stone], Seg) -> Seg = fun (ss, s) ->
+let buds_of : Int -> Int = fun w -> (let n = 16 + 2 * w in if n > 26 then 26 else n);
+let garden : (Int, Int, Int, Int, Int, Int, Int, Int, Int) -> Game = fun (w, seed, px, py, lives, score, freed, t, hit) ->
+  let (buds, s1) = scatter(buds_of(w), next(seed + 1), []) in
+  (px = px, py = py, sx = 0 - 1, sy = 0 - 1, segs = bug(len_of(w), 0), buds = buds, cocoons = [], lives = lives, score = score, freed = freed, wave = w, seed = s1,
+   tick = pace_of(w), pace = pace_of(w), wait = (if w > 0 then 30 else 0), over = false, hit = hit, t = t);
+let start : Int -> Game = fun seed -> garden(0, seed, 300, 770, 3, 0, 0, 0, 0);
+# ---- The caterpillars ---- #
+# a segment's next cell: across its way, unless that is off the garden, a bud or a cocoon: then a row down (or up, climbing) and turned; at the bottom it climbs, back in the top of your rows it goes down again #
+let move_seg : ([Bud], [Bud], Seg) -> Seg = fun (bs, cs, s) ->
   let nc = s.c + s.d in
-  if nc >= 0 && nc < cols && !stone_at(ss, nc, s.r) then (c = nc, r = s.r, d = s.d, v = s.v) else
+  if nc >= 0 && nc < cols && !closed_at(bs, nc, s.r) && !bud_at(cs, nc, s.r) then (c = nc, r = s.r, d = s.d, v = s.v) else
   let v = (if s.r >= rows - 1 then 0 - 1 else if s.v < 0 && s.r <= 26 then 1 else s.v) in
   (c = s.c, r = s.r + v, d = 0 - s.d, v = v);
-let move_all : ([Stone], [Seg]) -> [Seg] = fun (ss, gs) -> case gs | [] => [] | s :: rest => move_seg(ss, s) :: move_all(ss, rest) end;
+let move_all : ([Bud], [Bud], [Seg]) -> [Seg] = fun (bs, cs, gs) -> case gs | [] => [] | s :: rest => move_seg(bs, cs, s) :: move_all(bs, cs, rest) end;
 let drop_seg : ([Seg], Int, Int) -> [Seg] = fun (gs, c, r) -> case gs | [] => [] | s :: rest => if s.c == c && s.r == r then rest else s :: drop_seg(rest, c, r) end;
-# a pebble a shot weaker (gone at 0) #
-let chip : ([Stone], Int, Int) -> [Stone] = fun (ss, c, r) ->
-  case ss | [] => [] | s :: rest => if s.c == c && s.r == r then (if s.hp <= 1 then rest else (c = s.c, r = s.r, hp = s.hp - 1) :: rest) else s :: chip(rest, c, r) end;
-let count : [Seg] -> Int = fun gs -> case gs | [] => 0 | _ :: rest => 1 + count(rest) end;
+# ---- The buds and the butterflies ---- #
+# a bud a drop of nectar nearer opening (open at 0) #
+let water : ([Bud], Int, Int) -> [Bud] = fun (bs, c, r) ->
+  case bs | [] => [] | b :: rest => if b.c == c && b.r == r && b.hp > 0 then (c = b.c, r = b.r, hp = b.hp - 1) :: rest else b :: water(rest, c, r) end;
+# the bud not yet open nearest a cell: its cell, or (-1, -1) #
+let nearest_bud : ([Bud], Int, Int, Int, Int, Int) -> (Int, Int) = fun (bs, c, r, bc, br, bd) ->
+  case bs | [] => (bc, br) | b :: rest => (let d = absi(b.c - c) + absi(b.r - r) in if b.hp > 0 && d < bd then nearest_bud(rest, c, r, b.c, b.r, d) else nearest_bud(rest, c, r, bc, br, bd)) end;
+let open_at : ([Bud], Int, Int) -> [Bud] = fun (bs, c, r) -> case bs | [] => [] | b :: rest => if b.c == c && b.r == r then (c = b.c, r = b.r, hp = 0) :: rest else b :: open_at(rest, c, r) end;
+# the cocoons a step on: each a step nearer its butterfly; a butterfly out flies to the nearest bud and opens it. The cocoons left, the buds, how many butterflies came out #
+let hatch : ([Bud], [Bud], Int) -> ([Bud], [Bud], Int) = fun (cs, bs, n) ->
+  case cs
+  | [] => ([], bs, n)
+  | k :: rest =>
+    if k.hp > 1 then (let (more, bs2, n2) = hatch(rest, bs, n) in ((c = k.c, r = k.r, hp = k.hp - 1) :: more, bs2, n2)) else
+    (let (bc, br) = nearest_bud(bs, k.c, k.r, 0 - 1, 0 - 1, 100000) in hatch(rest, (if bc >= 0 then open_at(bs, bc, br) else bs), n + 1))
+  end;
 # ---- One step ---- #
-# mx, my: the shooter's move (5 units a step each way, inside its rows); fire: a shot, if none is in the air (up 18 a step). A shot in a segment takes it (10 points; 100 for a head, a segment with none just ahead of it) and leaves a pebble there; in a pebble, wears it (broken, 1 point). The bug moves every pace steps. A segment in the shooter's cell is a hit: the shooter waits 60 steps at the middle of the bottom, a life gone; the last ends the game. Every segment taken: the next wave, a longer, faster bug, 500 points #
+# mx, my: the can's move (5 units a step each way, inside its rows); fire: a drop of nectar, if none is in the air (up 18 a step; it passes flowers and cocoons). A drop on a segment feeds it (10 points; 100 for a head, a segment with none just ahead of it): a cocoon there for 90 steps, then its butterfly out, opening the nearest bud (5 points). A drop on a bud brings it nearer opening (open, 5 points). The caterpillars move every pace steps. A segment in the can's cell is a bump: the can waits 60 steps at the middle of the bottom, a try gone; the last ends the game. Every segment fed, a new caterpillar; every bud open, the garden in full bloom: 500 points, and the next wave, a new garden #
 let step : (Game, Int, Int, Bool) -> Game = fun (g, mx, my, fire) ->
   if g.over then g else
   let ready = g.wait <= 0 in
@@ -45,42 +64,42 @@ let step : (Game, Int, Int, Bool) -> Game = fun (g, mx, my, fire) ->
   let sx = (if firing then px else g.sx) in
   let sy = (if firing then py - 14 else if g.sy >= 0 then g.sy - 18 else 0 - 1) in
   let sc = sx / 25 in let sr = (if sy >= 0 then sy / 25 else 0 - 1) in
-  let segHit = sy >= 0 && seg_at(g.segs, sc, sr) in
-  let stoneHit = sy >= 0 && !segHit && stone_at(g.stones, sc, sr) in
+  let fed = sy >= 0 && seg_at(g.segs, sc, sr) in
+  let watered = sy >= 0 && !fed && closed_at(g.buds, sc, sr) in
   let headOf : [Seg] -> Bool = fun gs -> case gs | [] => true | s :: rest => (if s.c == sc && s.r == sr then !seg_at(g.segs, sc + s.d, sr) else headOf(rest)) end in
-  let points = (if segHit then (if headOf(g.segs) then 100 else 10) else 0) in
-  let segs0 = (if segHit then drop_seg(g.segs, sc, sr) else g.segs) in
-  let stones0 = (if segHit && !stone_at(g.stones, sc, sr) then (c = sc, r = sr, hp = 3) :: g.stones else if stoneHit then chip(g.stones, sc, sr) else g.stones) in
-  let broke = stoneHit && !stone_at(stones0, sc, sr) in
+  let segs0 = (if fed then drop_seg(g.segs, sc, sr) else g.segs) in
+  let buds0 = (if watered then water(g.buds, sc, sr) else g.buds) in
+  let opened = watered && !closed_at(buds0, sc, sr) in
+  let (cocoons, buds1, out) = hatch(g.cocoons, buds0, 0) in
+  let cocoons1 = (if fed then (c = sc, r = sr, hp = 90) :: cocoons else cocoons) in
   let moving = g.tick <= 1 in
-  let segs = (if moving then move_all(stones0, segs0) else segs0) in
+  let segs = (if moving then move_all(buds1, cocoons1, segs0) else segs0) in
   let tick = (if moving then g.pace else g.tick - 1) in
   let caught = ready && seg_at(segs, px / 25, py / 25) in
   let lives = (if caught then g.lives - 1 else g.lives) in
-  let shot_on = sy >= 0 && !segHit && !stoneHit in
-  let score = g.score + points + (if broke then 1 else 0) in
-  if count(segs) == 0 then
-    (px = px, py = py, sx = 0 - 1, sy = 0 - 1, segs = bug(len_of(g.wave + 1), 0), stones = stones0, lives = lives, score = score + 500, wave = g.wave + 1,
-     seed = g.seed, tick = pace_of(g.wave + 1), pace = pace_of(g.wave + 1), wait = 30, over = false, hit = 3, t = g.t + 1)
-  else
-    (px = (if caught then 300 else px), py = (if caught then 770 else py), sx = (if shot_on then sx else 0 - 1), sy = (if shot_on then sy else 0 - 1),
-     segs = segs, stones = stones0, lives = lives, score = score, wave = g.wave, seed = g.seed, tick = tick, pace = g.pace,
-     wait = (if caught then 60 else if g.wait > 0 then g.wait - 1 else 0), over = lives <= 0,
-     hit = (if caught then 2 else if segHit then 1 else if broke then 4 else 0), t = g.t + 1);
+  let drop_on = sy >= 0 && !fed && !watered in
+  let score = g.score + (if fed then (if headOf(g.segs) then 100 else 10) else 0) + (if opened then 5 else 0) + 5 * out in
+  let freed = g.freed + out in
+  if closed(buds1) == 0 && !caught then garden(g.wave + 1, g.seed, px, py, lives, score + 500, freed, g.t + 1, 3) else
+  let more = count(segs) == 0 in
+  (px = (if caught then 300 else px), py = (if caught then 770 else py), sx = (if drop_on then sx else 0 - 1), sy = (if drop_on then sy else 0 - 1),
+   segs = (if more then bug(len_of(g.wave), 0) else segs), buds = buds1, cocoons = cocoons1, lives = lives, score = score, freed = freed, wave = g.wave, seed = g.seed,
+   tick = (if more then g.pace else tick), pace = g.pace, wait = (if caught then 60 else if g.wait > 0 then g.wait - 1 else 0), over = lives <= 0,
+   hit = (if caught then 2 else if fed then 1 else if out > 0 then 5 else if opened then 4 else if more then 6 else 0), t = g.t + 1);
 # ---- The robot (🤖 Hazel plays) ---- #
-# the segment nearest the shooter (across, then down): its cell, or (-1, -1) #
-let nearest : ([Seg], Int, Int, Int, Int, Int) -> (Int, Int) = fun (gs, pc, bc, br, bd, _r) ->
-  case gs | [] => (bc, br) | s :: rest => (let d = absi(s.c - pc) * 4 + (31 - s.r) in if d < bd then nearest(rest, pc, s.c, s.r, d, 0) else nearest(rest, pc, bc, br, bd, 0)) end;
-# a segment within two cells of the shooter, coming: which side it is on (-1 left, 1 right), or 0 #
+# the segment nearest the can (across, then down): its cell, or (-1, -1) #
+let nearest : ([Seg], Int, Int, Int, Int) -> (Int, Int) = fun (gs, pc, bc, br, bd) ->
+  case gs | [] => (bc, br) | s :: rest => (let d = absi(s.c - pc) * 4 + (31 - s.r) in if d < bd then nearest(rest, pc, s.c, s.r, d) else nearest(rest, pc, bc, br, bd)) end;
+# a segment within two cells of the can, coming: which side it is on (-1 left, 1 right), or 0 #
 let danger : ([Seg], Int, Int) -> Int = fun (gs, pc, pr) ->
   case gs | [] => 0 | s :: rest => (if absi(s.c - pc) <= 2 && absi(s.r - pr) <= 2 then (if s.c <= pc then 0 - 1 else 1) else danger(rest, pc, pr)) end;
-# the robot's choice: away from a segment close by (across, and up the rows); else down at the bottom row, under the nearest segment (where it will be when the shot gets there), firing when under it #
+# the robot's choice: away from a segment close by (across, and up the rows); else down at the bottom row, under the nearest segment (where it will be when the drop gets there), sending a drop when under it #
 let robot : Game -> Choice = fun g ->
   if g.over || g.wait > 0 then (mx = 0, my = 0, fire = false) else
   let pc = g.px / 25 in let pr = g.py / 25 in
   let dz = danger(g.segs, pc, pr) in
   if dz != 0 then (mx = (if dz < 0 then (if g.px < 580 then 1 else 0 - 1) else (if g.px > 20 then 0 - 1 else 1)), my = (if pr >= 30 then 0 - 1 else 1), fire = g.sy < 0) else
-  let (tc, tr) = nearest(g.segs, pc, 0 - 1, 0 - 1, 100000, 0) in
+  let (tc, tr) = nearest(g.segs, pc, 0 - 1, 0 - 1, 100000) in
   if tc < 0 then (mx = 0, my = 1, fire = false) else
   let x = tc * 25 + 12 in
   (mx = (if x > g.px + 3 then 1 else if x < g.px - 3 then 0 - 1 else 0), my = (if g.py < 780 then 1 else 0), fire = g.sy < 0 && absi(x - g.px) <= 12)
