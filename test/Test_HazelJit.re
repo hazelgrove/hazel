@@ -2212,8 +2212,8 @@ let bugs_aot =
 let dig_aot =
   game_aot(
     ~dir="dig",
-    ~modules=["Dig"],
-    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot)",
+    ~modules=["Dig", "Scene"],
+    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot, scene = Scene.scene)",
     ~mark="DIG",
   );
 let starwave_aot =

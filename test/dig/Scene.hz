@@ -1,0 +1,110 @@
+# Gnome dig's scene (0.0.63; Matthew: "let's add trees and other veg on top. Let's add lots of realistic tree roots as background. let's generate that geometry for roots with more Hazel code. also add mushrooms and myclieum, and underground ants, and other burrowing inspects. also add burrowing animals"): a level's trees, bushes, plants and mushrooms on top; and below, each tree's roots, the mycelium spreading out from each mushroom, an ant nest, a rabbit's burrow, a mole's run, a badger's sett, and the worms, grubs and beetles in the earth; all from the level's seed. The page draws it behind the game; the game's rules (Dig) never see it #
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
+let at : ([Int], Int) -> Int = fun (xs, i) -> case xs | [] => 0 | x :: rest => if i <= 0 then x else at(rest, i - 1) end;
+# ---- Directions, every 10 degrees: 0 to the right, 9 straight down, 18 to the left (y grows downward); their cosines and sines, in thousandths ---- #
+let cosines : [Int] = [1000, 985, 940, 866, 766, 643, 500, 342, 174, 0, 0 - 174, 0 - 342, 0 - 500, 0 - 643, 0 - 766, 0 - 866, 0 - 940, 0 - 985, 0 - 1000, 0 - 985, 0 - 940, 0 - 866, 0 - 766, 0 - 643, 0 - 500, 0 - 342, 0 - 174, 0, 174, 342, 500, 643, 766, 866, 940, 985];
+let cosd : Int -> Int = fun a -> at(cosines, md(md(a, 36) + 36, 36));
+let sind : Int -> Int = fun a -> cosd(a - 9);
+# ---- Growing a root, or a thread of mycelium, a segment at a time ---- #
+# from x, y heading a, segments len long and w wide, n more of them; the lines onto acc. A root (kind 0) wanders a little, is drawn downward a third of the time, grows thinner and shorter, and 30 segments in 100 put out a side root, 30 to 50 degrees off, thinner; a thread (kind 1) wanders more, stays as fine all along, and 30 in 100 branch. Either stops at the edges, at the surface and at the bottom #
+let grow : (Int, Int, Int, Int, Int, Int, Int, Int, [Line]) -> [Line] = fun (x, y, a, len, w, n, seed, kind, acc) ->
+  if n <= 0 || w < 2 || y > 1595 || y < 100 || x < 0 || x > 1400 then acc else
+  let s1 = next(seed) in
+  let wander = (if kind == 0 then md(s1 / 11, 3) - 1 else md(s1 / 11, 5) - 2) in
+  let pull = (if kind == 0 && md(s1 / 13, 3) == 0 then (if a < 9 then 1 else if a > 9 then 0 - 1 else 0) else 0) in
+  let a1 = (let b = a + wander + pull in if b < 1 then 1 else if b > 17 then 17 else b) in
+  let x1 = x + cosd(a1) * len / 1000 in let y1 = y + sind(a1) * len / 1000 in
+  let line = (x0 = x, y0 = y, x1 = x1, y1 = y1, w = w) in
+  let side = (if md(s1 / 211, 2) == 0 then 1 else 0 - 1) in
+  let acc1 = (if n > 2 && md(s1 / 101, 100) < 30
+              then grow(x1, y1, a1 + side * (3 + md(s1 / 307, 3)), len * 8 / 10, (if kind == 0 then w * 6 / 10 else w), n / 2, next(s1 + 7), kind, line :: acc)
+              else line :: acc) in
+  grow(x1, y1, a1, len * (if kind == 0 then 96 else 97) / 100, (if kind == 0 then w * 93 / 100 else w), n - 1, s1, kind, acc1);
+# a tree's roots: a taproot straight down from the foot of its trunk, deep, and six side roots spreading out and down from it, 10, 20 and 40 degrees below level either way; a bigger tree's thicker and longer #
+let tree_roots : ([Thing], Int, [Line]) -> [Line] = fun (ts, seed, acc) ->
+  case ts
+  | [] => acc
+  | t :: rest =>
+    let k = t.size in
+    let side : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(t.x, 100, a, 55 * k / 100, 15 * k / 100, 16, s, 0, l) in
+    let s1 = next(seed + t.x) in
+    let l0 = grow(t.x, 100, 9, 52 * k / 100, 22 * k / 100, 24, s1, 0, acc) in
+    let l1 = side(1, next(s1 + 1), side(17, next(s1 + 2), l0)) in
+    let l2 = side(2, next(s1 + 3), side(16, next(s1 + 4), l1)) in
+    tree_roots(rest, next(s1 + 9), side(4, next(s1 + 5), side(14, next(s1 + 6), l2)))
+  end;
+# a mushroom's mycelium: seven fine threads spreading out under it, from straight across to straight down #
+let mycelium : ([Thing], Int, [Line]) -> [Line] = fun (ms, seed, acc) ->
+  case ms
+  | [] => acc
+  | m :: rest =>
+    let one : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(m.x, 104, a, 24, 3, 14, s, 1, l) in
+    let s1 = next(seed + m.x) in
+    mycelium(rest, next(s1 + 9), one(1, next(s1 + 1), one(4, next(s1 + 2), one(7, next(s1 + 3), one(9, next(s1 + 4), one(11, next(s1 + 5), one(14, next(s1 + 6), one(17, next(s1 + 7), acc))))))))
+  end;
+# ---- Things by chance ---- #
+let append_things : ([Thing], [Thing]) -> [Thing] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: append_things(rest, ys) end;
+# n things of a kind, x from x0 up to x1 and y from y0 up to y1, sizes from 70 to 130; and the seed after them #
+let scatter : (Int, Int, Int, Int, Int, Int, Int, [Thing]) -> ([Thing], Int) = fun (n, kind, x0, x1, y0, y1, seed, acc) ->
+  if n <= 0 then (acc, seed) else
+  let s1 = next(seed) in
+  scatter(n - 1, kind, x0, x1, y0, y1, s1, (kind = kind, x = x0 + md(s1 / 7, x1 - x0), y = y0 + md(s1 / 1000, y1 - y0), size = 70 + md(s1 / 31, 61), v = md(s1 / 97, 1000)) :: acc);
+# the trees: of the places along the surface (none over the shaft in the middle), each one in two, an oak, a pine or a birch; at least two #
+let trees : ([Int], Int, [Thing]) -> ([Thing], Int) = fun (xs, seed, acc) ->
+  case xs
+  | [] => (acc, seed)
+  | x :: rest =>
+    let s1 = next(seed) in
+    let have = (case acc | [] => 0 | _ :: more => (case more | [] => 1 | _ :: _ => 2 end) end) in
+    if md(s1 / 7, 2) == 0 || (have < 2 && (case rest | [] => true | _ :: more => (case more | [] => true | _ :: _ => false end) end))
+    then trees(rest, s1, (kind = md(s1 / 13, 3), x = x + md(s1 / 101, 60) - 30, y = 100, size = 80 + md(s1 / 31, 40), v = md(s1 / 97, 1000)) :: acc)
+    else trees(rest, s1, acc)
+  end;
+# ---- The burrows ---- #
+# a tunnel from x, y heading a, n segments len long and w wide, wandering by up to a step either way within lo and hi; its lines onto acc, and where it ends #
+let tunnel : (Int, Int, Int, Int, Int, Int, Int, Int, Int, [Line]) -> ([Line], Int, Int) = fun (x, y, a, lo, hi, len, w, n, seed, acc) ->
+  if n <= 0 then (acc, x, y) else
+  let s1 = next(seed) in
+  let a1 = (let b = a + md(s1 / 11, 3) - 1 in if b < lo then lo else if b > hi then hi else b) in
+  let x1 = (let v = x + cosd(a1) * len / 1000 in if v < 40 then 40 else if v > 1360 then 1360 else v) in
+  let y1 = y + sind(a1) * len / 1000 in
+  tunnel(x1, y1, a1, lo, hi, len, w, n - 1, s1, (x0 = x, y0 = y, x1 = x1, y1 = y1, w = w) :: acc);
+# the ants' nest: a gallery down from the anthill at x, a chamber off it every other segment, to one side and the other #
+let nest : (Int, Int, Int, Int, Int, [Line], [Thing]) -> ([Line], [Thing]) = fun (x, y, k, n, seed, lines, rooms) ->
+  if k >= n then (lines, rooms) else
+  let s1 = next(seed) in
+  let (l1, x1, y1) = tunnel(x, y, 9, 7, 11, 60, 9, 1, s1, lines) in
+  if md(k, 2) == 1 then
+    (let dir = (if md(k, 4) == 1 then 1 else 0 - 1) in
+     let (l2, cx, cy) = tunnel(x1, y1, (if dir > 0 then 2 else 16), (if dir > 0 then 0 else 14), (if dir > 0 then 4 else 18), 45, 7, 2, next(s1 + 3), l1) in
+     nest(x1, y1, k + 1, n, s1, l2, (kind = 11, x = cx, y = cy, size = 60 + md(s1 / 31, 30), v = md(s1 / 97, 1000)) :: rooms))
+  else nest(x1, y1, k + 1, n, s1, l1, rooms);
+# ---- The scene ---- #
+# a level's scene from its seed: the trees, the bushes, grass, flowers, ferns and mushrooms on top; the anthill and its nest on one side, the rabbit's burrow on the other; the mole's run, deeper, across the middle; the badger's sett near the bottom; the trees' roots and the mushrooms' mycelium; worms, grubs and beetles here and there #
+let scene : (Int, Int) -> Scene = fun (seed, level) ->
+  let s0 = next(seed + 17 + level * 101) in
+  let left = md(s0 / 7, 2) == 0 in
+  let ax = (if left then 160 + md(s0 / 11, 200) else 1040 + md(s0 / 11, 200)) in
+  let rx = (if left then 1000 + md(s0 / 13, 220) else 180 + md(s0 / 13, 220)) in
+  let (ts, s1) = trees([70, 230, 390, 530, 970, 1120, 1300], next(s0 + 1), []) in
+  let (bushes, s2) = scatter(2, 3, 40, 1360, 100, 101, s1, []) in
+  let (grass, s3) = scatter(22, 4, 10, 1390, 100, 101, s2, []) in
+  let (flowers, s4) = scatter(8, 5, 20, 1380, 100, 101, s3, []) in
+  let (ferns, s5) = scatter(3, 6, 30, 1370, 100, 101, s4, []) in
+  let (reds, s6) = scatter(2, 7, 40, 620, 100, 101, s5, []) in
+  let (browns, s7) = scatter(2, 8, 880, 1360, 100, 101, s6, []) in
+  let anthill = (kind = 9, x = ax, y = 100, size = 100, v = 0) in
+  let (ant_lines, chambers) = nest(ax, 100, 0, 6, next(s7 + 3), [], []) in
+  let (rab_lines, rcx, rcy) = tunnel(rx, 100, (if left then 4 else 14), (if left then 3 else 12), (if left then 6 else 15), 70, 40, 3, next(s7 + 5), []) in
+  let mx = 300 + md(s7 / 17, 700) in let my = 520 + md(s7 / 29, 300) in
+  let (run_lines, ex, ey) = tunnel(mx, my, (if md(s7 / 37, 2) == 0 then 0 else 18), (if md(s7 / 37, 2) == 0 then 0 - 1 else 17), (if md(s7 / 37, 2) == 0 then 1 else 19), 60, 30, 8, next(s7 + 7), []) in
+  let bx = 250 + md(s7 / 41, 900) in let by = 1260 + md(s7 / 43, 160) in
+  let (sett_lines, sx, sy) = tunnel(bx, by, (if bx < 700 then 0 else 18), (if bx < 700 then 0 - 1 else 17), (if bx < 700 then 1 else 19), 70, 46, 3, next(s7 + 9), rab_lines) in
+  let (worms, s8) = scatter(9, 12, 60, 1340, 230, 1560, next(s7 + 11), []) in
+  let (grubs, s9) = scatter(5, 13, 60, 1340, 300, 1500, s8, worms) in
+  let (beetles, s10) = scatter(4, 14, 60, 1340, 260, 1520, s9, grubs) in
+  let shrooms = (case reds | [] => browns | r :: more => r :: (case more | [] => browns | r2 :: _ => r2 :: browns end) end) in
+  (above = anthill :: append_things(ts, append_things(bushes, append_things(ferns, append_things(shrooms, append_things(flowers, grass))))), roots = tree_roots(ts, next(s10 + 1), []), threads = mycelium(shrooms, next(s10 + 2), []), burrows = sett_lines, ants = ant_lines, run = run_lines,
+   below = (kind = 16, x = mx, y = my, size = 100, v = 0) :: (kind = 15, x = mx, y = my, size = 100, v = md(s10 / 7, 1000)) :: (kind = 18, x = rcx, y = rcy, size = 100, v = 0) :: (kind = 17, x = rcx, y = rcy, size = 100, v = md(s10 / 11, 1000))
+     :: (kind = 20, x = sx, y = sy, size = 100, v = 0) :: (kind = 19, x = sx, y = sy, size = 100, v = md(s10 / 13, 1000)) :: append_things(chambers, beetles))

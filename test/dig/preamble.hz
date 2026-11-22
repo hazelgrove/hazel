@@ -8,3 +8,9 @@ type Mon = (c = Int, r = Int, stun = Int) in
 type Game = (px = Int, py = Int, pd = Int, pwait = Int, cells = [Int], rocks = [Rock], mons = [Mon], gems = Int, score = Int, lives = Int, level = Int, seed = Int, flash = Int, mwait = Int, mpace = Int, dead = Int, over = Bool, hit = Int, t = Int) in
 # The robot's choice for a step: a way to go (-1 none), and whether to flash the lantern #
 type Choice = (dir = Int, flash = Bool) in
+# (0.0.63) The scene the page draws behind the game, which the rules do not see (module Scene). A line of it (a root, a thread of mycelium, a tunnel of a burrow): from x0, y0 to x1, y1, and its width, all in hundredths of a cell (x 0 to 1400 across; y 100 the ground's surface, 1600 the bottom, the sky above 100) #
+type Line = (x0 = Int, y0 = Int, x1 = Int, y1 = Int, w = Int) in
+# A thing in it: its kind (on top, 0 an oak, 1 a pine, 2 a birch, 3 a bush, 4 grass, 5 a flower, 6 a fern, 7 a red-capped mushroom, 8 a brown one, 9 an anthill; below, 11 an ants' chamber, 12 a worm, 13 a grub, 14 a beetle, 15 a mole, 16 its chamber, 17 a rabbit, 18 its chamber, 19 a badger, 20 its sett's chamber), where it is, its size, and a number to vary it by #
+type Thing = (kind = Int, x = Int, y = Int, size = Int, v = Int) in
+# A level's scene: the things on top; the roots, the threads of mycelium, the burrows' tunnels, the ants' tunnels, the mole's run; the things below #
+type Scene = (above = [Thing], roots = [Line], threads = [Line], burrows = [Line], ants = [Line], run = [Line], below = [Thing]) in
