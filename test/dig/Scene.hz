@@ -81,12 +81,13 @@ let nest : (Int, Int, Int, Int, Int, [Line], [Thing]) -> ([Line], [Thing]) = fun
      nest(x1, y1, k + 1, n, s1, l2, (kind = 11, x = cx, y = cy, size = 60 + md(s1 / 31, 30), v = md(s1 / 97, 1000)) :: rooms))
   else nest(x1, y1, k + 1, n, s1, l1, rooms);
 # ---- The scene ---- #
-# a level's scene from its seed: the trees, the bushes, grass, flowers, ferns and mushrooms on top; the anthill and its nest on one side, the rabbit's burrow on the other; the mole's run, deeper, across the middle; the badger's sett near the bottom; the trees' roots and the mushrooms' mycelium; worms, grubs and beetles here and there #
-let scene : (Int, Int) -> Scene = fun (seed, level) ->
+# (0.0.68) where an animal of a kind is, in the scene's units (the middle of its cell, a little low), from the game's animals #
+let spot : ([Animal], Int) -> (Int, Int) = fun (ans, k) -> case ans | [] => (700, 600) | a :: rest => if a.kind == k then (a.c * 100 + 50, a.r * 100 + 55) else spot(rest, k) end;
+# a level's scene from its seed: the trees, the bushes, grass, flowers, ferns and mushrooms on top; the anthill and its nest; (0.0.68) the rabbit's burrow up from its chamber to the surface, the mole's run across from its chamber and the badger's sett from its, these three where the game's animals are (ans; the page draws the animals themselves, where the rules have them); the trees' roots and the mushrooms' mycelium; worms, grubs and beetles here and there #
+let scene : (Int, Int, [Animal]) -> Scene = fun (seed, level, ans) ->
   let s0 = next(seed + 17 + level * 101) in
   let left = md(s0 / 7, 2) == 0 in
   let ax = (if left then 160 + md(s0 / 11, 200) else 1040 + md(s0 / 11, 200)) in
-  let rx = (if left then 1000 + md(s0 / 13, 220) else 180 + md(s0 / 13, 220)) in
   let (ts, s1) = trees([70, 230, 390, 530, 970, 1120, 1300], next(s0 + 1), []) in
   let (bushes, s2) = scatter(2, 3, 40, 1360, 100, 101, s1, []) in
   let (grass, s3) = scatter(22, 4, 10, 1390, 100, 101, s2, []) in
@@ -96,18 +97,19 @@ let scene : (Int, Int) -> Scene = fun (seed, level) ->
   let (browns, s7) = scatter(2, 8, 880, 1360, 100, 101, s6, []) in
   let anthill = (kind = 9, x = ax, y = 100, size = 100, v = 0) in
   let (ant_lines, chambers) = nest(ax, 100, 0, 6, next(s7 + 3), [], []) in
-  let (rab_lines, rcx, rcy) = tunnel(rx, 100, (if left then 4 else 14), (if left then 3 else 12), (if left then 6 else 15), 70, 40, 3, next(s7 + 5), []) in
-  let mx = 300 + md(s7 / 17, 700) in let my = 520 + md(s7 / 29, 300) in
+  let (rcx, rcy) = spot(ans, 17) in
+  let (rab0, ex0, ey0) = tunnel(rcx, rcy, (if rcx < 700 then 30 else 24), (if rcx < 700 then 29 else 22), (if rcx < 700 then 32 else 25), 70, 40, (let n = (rcy - 130) / 60 in if n < 1 then 1 else n), next(s7 + 5), []) in
+  let rab_lines = (if ey0 > 100 then (x0 = ex0, y0 = ey0, x1 = ex0, y1 = 100, w = 40) :: rab0 else rab0) in
+  let (mx, my) = spot(ans, 15) in
   let (run_lines, ex, ey) = tunnel(mx, my, (if md(s7 / 37, 2) == 0 then 0 else 18), (if md(s7 / 37, 2) == 0 then 0 - 1 else 17), (if md(s7 / 37, 2) == 0 then 1 else 19), 60, 30, 8, next(s7 + 7), []) in
-  let bx = 250 + md(s7 / 41, 900) in let by = 1260 + md(s7 / 43, 160) in
+  let (bx, by) = spot(ans, 19) in
   let (sett_lines, sx, sy) = tunnel(bx, by, (if bx < 700 then 0 else 18), (if bx < 700 then 0 - 1 else 17), (if bx < 700 then 1 else 19), 70, 46, 3, next(s7 + 9), rab_lines) in
   let (worms, s8) = scatter(9, 12, 60, 1340, 230, 1560, next(s7 + 11), []) in
   let (grubs, s9) = scatter(5, 13, 60, 1340, 300, 1500, s8, worms) in
   let (beetles, s10) = scatter(4, 14, 60, 1340, 260, 1520, s9, grubs) in
   let shrooms = (case reds | [] => browns | r :: more => r :: (case more | [] => browns | r2 :: _ => r2 :: browns end) end) in
   (above = anthill :: append_things(ts, append_things(bushes, append_things(ferns, append_things(shrooms, append_things(flowers, grass))))), roots = tree_roots(ts, next(s10 + 1), []), threads = mycelium(shrooms, next(s10 + 2), []), burrows = sett_lines, ants = ant_lines, run = run_lines,
-   below = (kind = 16, x = mx, y = my, size = 100, v = 0) :: (kind = 15, x = mx, y = my, size = 100, v = md(s10 / 7, 1000)) :: (kind = 18, x = rcx, y = rcy, size = 100, v = 0) :: (kind = 17, x = rcx, y = rcy, size = 100, v = md(s10 / 11, 1000))
-     :: (kind = 20, x = sx, y = sy, size = 100, v = 0) :: (kind = 19, x = sx, y = sy, size = 100, v = md(s10 / 13, 1000)) :: append_things(chambers, beetles));
+   below = (kind = 16, x = mx, y = my, size = 100, v = 0) :: (kind = 18, x = rcx, y = rcy, size = 100, v = 0) :: (kind = 20, x = bx, y = by, size = 100, v = 0) :: append_things(chambers, beetles));
 # ---- Where things fall (0.0.67; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") ---- #
 # the first n of a list, and the rest after them #
 let take : ([Int], Int) -> [Int] = fun (xs, n) -> if n <= 0 then [] else case xs | [] => [] | x :: rest => x :: take(rest, n - 1) end;
