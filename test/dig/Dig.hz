@@ -1,4 +1,4 @@
-# Deep dig: a level's ground made by chance (earth, gems, boulders, monsters in their pockets), and one step of the game (1/60 of a second): you dig a cell at a time; a boulder dug under wobbles, then falls, squashing what it lands on; the monsters follow the tunnels toward you, now and then burrowing; your lantern's flash stuns the monsters ahead, and a stunned one is caught by walking into it; and a robot that plays it, for 🤖 Hazel plays #
+# Deep dig: a level's ground made by chance (earth, gems, boulders, monsters in their pockets), and one step of the game (1/60 of a second): you dig a cell at a time; a boulder dug under wobbles, then falls, squashing what it lands on; the monsters follow the tunnels toward you, now and then burrowing (never into a gem); your lantern's flash stuns every monster within three cells of you, and a stunned one is caught by walking into it; and a robot that plays it, for 🤖 Hazel plays. (0.0.60, Matthew: "if the AI cannot clear every level, that implies that the levels that are too challenging to clear need a redesign to be clearable": the lantern all around you, at most four monsters, never faster than you dig, burrowing half as often; the robot clears every level of 200 grounds each, the first twelve) #
 let w : Int = 14;
 let h : Int = 16;
 let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
@@ -37,14 +37,14 @@ let rocks_in : (Int, Int, [Int], [Rock]) -> ([Int], [Rock], Int) = fun (n, seed,
   if cell(cs, c, r) != 1 || cell(cs, c, r + 1) != 1 || rock_at(rs, c, r) then rocks_in(n, s1, cs, rs) else
   rocks_in(n - 1, s1, set_at(cs, r * w + c, 0), (c = c, r = r, wob = 0 - 1, falling = false) :: rs);
 let mini : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b;
-# a level: the surface open, a shaft down from the middle, then monsters (2, one more a level, up to 5), gems (10, two more a level, up to 18) and boulders (5, one more a level, up to 8) #
+# a level: the surface open, a shaft down from the middle, then monsters (2, one more every other level, up to 4), gems (10, two more a level, up to 18) and boulders (5, one more a level, up to 8); the monsters move a cell every 14 steps on the first level, 13 on the second, then 12 (as long as you take to dig a cell) #
 let level_of : (Int, Int, Int, Int, Int) -> Game = fun (lv, seed, score, lives, t) ->
   let cs0 = set_at(set_at(ground_from(0), w + 7, 0), 2 * w + 7, 0) in
-  let (cs1, ms, s1) = pockets(mini(2 + lv, 5), next(seed + 1), cs0, []) in
+  let (cs1, ms, s1) = pockets(mini(2 + lv / 2, 4), next(seed + 1), cs0, []) in
   let (cs2, s2) = gems_in(mini(10 + 2 * lv, 18), s1, cs1) in
   let (cs3, rs, s3) = rocks_in(mini(5 + lv, 8), s2, cs2, []) in
   (px = 7, py = 0, pd = 2, pwait = 0, cells = cs3, rocks = rs, mons = ms, gems = count_gems(cs3), score = score, lives = lives, level = lv, seed = s3,
-   flash = 0, mwait = 30, mpace = (let p = 14 - lv in if p < 8 then 8 else p), dead = 0, over = false, hit = (if lv > 0 then 3 else 0), t = t);
+   flash = 0, mwait = 30, mpace = (let p = 14 - lv in if p < 12 then 12 else p), dead = 0, over = false, hit = (if lv > 0 then 3 else 0), t = t);
 let start : Int -> Game = fun seed -> level_of(0, seed, 0, 3, 0);
 # ---- The boulders ---- #
 # each boulder a step on: resting over a dug cell (no boulder there), it wobbles 40 steps, then falls a cell every 4 steps; a monster it lands on is squashed (200 points); on you, you are caught; where it cannot fall further it crumbles. The boulders, the monsters left, the points, whether you were caught, whether one squashed or landed #
@@ -67,7 +67,7 @@ let roll : ([Rock], [Rock], [Int], [Mon], Int, Int, Int, Bool, Int) -> ([Rock], 
        roll(rest, (c = x.c, r = r1, wob = 4, falling = true) :: kept, cs, ms2, px, py, score + (if squash then 200 else 0), hurt || (px == x.c && py == r1), (if squash then 5 else ev)))
   end;
 # ---- The monsters ---- #
-# a monster's move: of the four ways, the dug cells (no boulder) nearer you; now and then (a quarter of its moves, by chance) it burrows a cell through the earth toward you, digging it; a stunned one waits #
+# a monster's move: of the four ways, the dug cells (no boulder) nearer you; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem; a stunned one waits #
 let toward : (Mon, [Int], [Rock], Int, Int, Int) -> (Mon, [Int]) = fun (m, cs, rs, px, py, luck) ->
   if m.stun > 0 then (m, cs) else
   let dist : Int -> Int = fun d -> (let c = m.c + dx(d) in let r = m.r + dy(d) in absi(c - px) + absi(r - py)) in
@@ -76,24 +76,22 @@ let toward : (Mon, [Int], [Rock], Int, Int, Int) -> (Mon, [Int]) = fun (m, cs, r
   let now = absi(m.c - px) + absi(m.r - py) in
   let d = best(0, 0 - 1, now + (if md(luck, 3) == 0 then 1 else 0)) in
   if d >= 0 then ((c = m.c + dx(d), r = m.r + dy(d), stun = 0), cs) else
-  if md(luck / 3, 4) == 0 then
+  if md(luck / 3, 8) == 0 then
     (let dd = (if absi(m.c - px) > absi(m.r - py) then (if px > m.c then 1 else 3) else (if py > m.r then 2 else 0)) in
      let c = m.c + dx(dd) in let r = m.r + dy(dd) in
-     if inside(c, r) && !rock_at(rs, c, r) && r > 0 then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, (if cell(cs, c, r) == 2 then 2 else 0))) else (m, cs))
+     if inside(c, r) && !rock_at(rs, c, r) && r > 0 && cell(cs, c, r) != 2 then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, 0)) else (m, cs))
   else (m, cs);
 let move_mons : ([Mon], [Int], [Rock], Int, Int, Int) -> ([Mon], [Int]) = fun (ms, cs, rs, px, py, seed) ->
   case ms | [] => ([], cs) | m :: rest => (let (m2, cs2) = toward(m, cs, rs, px, py, md(seed / 11, 1000)) in let (more, cs3) = move_mons(rest, cs2, rs, px, py, next(seed)) in (m2 :: more, cs3)) end;
 let tick_stun : [Mon] -> [Mon] = fun ms -> case ms | [] => [] | m :: rest => (c = m.c, r = m.r, stun = (if m.stun > 0 then m.stun - 1 else 0)) :: tick_stun(rest) end;
-# the lantern's flash: the monsters in the next three cells ahead of you, along dug cells, stunned for 150 steps #
-let lit : (Int, Int, Int, Int, [Int]) -> [Int] = fun (c, r, d, k, cs) ->
-  if k <= 0 then [] else (let c1 = c + dx(d) in let r1 = r + dy(d) in if inside(c1, r1) && cell(cs, c1, r1) == 0 then (r1 * w + c1) :: lit(c1, r1, d, k - 1, cs) else []);
-let stun_in : ([Mon], [Int]) -> [Mon] = fun (ms, cells) ->
-  let has : ([Int], Int) -> Bool = fun (l, v) -> case l | [] => false | x :: more => x == v || has(more, v) end in
-  case ms | [] => [] | m :: rest => (c = m.c, r = m.r, stun = (if has(cells, m.r * w + m.c) then 150 else m.stun)) :: stun_in(rest, cells) end;
+# the lantern's flash: every monster within three cells of you (across and down together), whatever is between, stunned for 180 steps #
+let reach : (Mon, Int, Int) -> Int = fun (m, px, py) -> absi(m.c - px) + absi(m.r - py);
+let stun_near : ([Mon], Int, Int) -> [Mon] = fun (ms, px, py) ->
+  case ms | [] => [] | m :: rest => (let d = reach(m, px, py) in (c = m.c, r = m.r, stun = (if d >= 1 && d <= 3 then 180 else m.stun))) :: stun_near(rest, px, py) end;
 let catch_at : ([Mon], Int, Int) -> [Mon] = fun (ms, c, r) -> case ms | [] => [] | m :: rest => if m.c == c && m.r == r && m.stun > 0 then rest else m :: catch_at(rest, c, r) end;
 let mcount : [Mon] -> Int = fun ms -> case ms | [] => 0 | _ :: rest => 1 + mcount(rest) end;
 # ---- One step ---- #
-# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder. A stunned monster walked into is caught (100 points). flash: the lantern, every 90 steps. Then the boulders, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. Every gem taken: the next level, 300 points #
+# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps. Then the boulders, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. Every gem taken: the next level, 300 points #
 let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   if g.over then g else
   if g.dead > 0 then
@@ -112,7 +110,7 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let ms0 = (if caught_mon then catch_at(g.mons, px, py) else g.mons) in
   let pwait = (if can then (if kind != 0 then 12 else 8) else if g.pwait > 0 then g.pwait - 1 else 0) in
   let flashing = flash && g.flash <= 0 in
-  let ms1 = tick_stun(if flashing then stun_in(ms0, lit(px, py, pd, 3, cs0)) else ms0) in
+  let ms1 = tick_stun(if flashing then stun_near(ms0, px, py) else ms0) in
   let (rs, ms2, sc1, squashed_me, rev) = roll(g.rocks, [], cs0, ms1, px, py, g.score + (if gem then 50 else 0) + (if caught_mon then 100 else 0), false, 0) in
   let moving = g.mwait <= 1 in
   let s1 = next(g.seed) in
@@ -122,42 +120,54 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let lives = (if caught then g.lives - 1 else g.lives) in
   if gems == 0 && !caught then level_of(g.level + 1, s1, sc1 + 300, lives, g.t + 1) else
   (px = px, py = py, pd = pd, pwait = pwait, cells = cs1, rocks = rs, mons = ms3, gems = gems, score = sc1, lives = lives, level = g.level, seed = s1,
-   flash = (if flashing then 90 else if g.flash > 0 then g.flash - 1 else 0), mwait = (if moving then g.mpace else g.mwait - 1), mpace = g.mpace,
+   flash = (if flashing then 60 else if g.flash > 0 then g.flash - 1 else 0), mwait = (if moving then g.mpace else g.mwait - 1), mpace = g.mpace,
    dead = (if caught then 90 else 0), over = lives <= 0,
    hit = (if caught then 2 else if rev == 5 then 5 else if caught_mon then 4 else if gem then 1 else if flashing then 7 else rev), t = g.t + 1);
 # ---- The robot (🤖 Hazel plays) ---- #
-# a cell the robot will not go into: off the ground, a boulder, an awake monster or beside one, under a loose or falling boulder (the three cells below it) #
+# an awake monster within k cells of a cell #
+let awake_near : ([Mon], Int, Int, Int) -> Bool = fun (ms, c, r, k) -> case ms | [] => false | m :: more => (m.stun <= 0 && absi(m.c - c) + absi(m.r - r) <= k) || awake_near(more, c, r, k) end;
+# a cell under a loose or falling boulder (the three cells below it) #
+let under_loose : (Game, Int, Int) -> Bool = fun (g, c, r) ->
+  let under : [Rock] -> Bool = fun rs -> case rs | [] => false | x :: more => (x.c == c && r > x.r && r <= x.r + 3 && (x.falling || x.wob >= 0)) || under(more) end in under(g.rocks);
+# a cell the robot will not go into: off the ground, a boulder, under a loose or falling boulder; an awake monster or beside one; while the lantern is still charging, within two cells of an awake monster #
 let risky : (Game, Int, Int) -> Bool = fun (g, c, r) ->
-  !inside(c, r) || rock_at(g.rocks, c, r) || awake_at(g.mons, c, r) || awake_at(g.mons, c + 1, r) || awake_at(g.mons, c - 1, r) || awake_at(g.mons, c, r + 1) || awake_at(g.mons, c, r - 1)
-  || (let under : [Rock] -> Bool = fun rs -> case rs | [] => false | x :: more => (x.c == c && r > x.r && r <= x.r + 3 && (x.falling || x.wob >= 0)) || under(more) end in under(g.rocks));
+  !inside(c, r) || rock_at(g.rocks, c, r) || under_loose(g, c, r) || awake_near(g.mons, c, r, (if g.flash > 0 then 2 else 1));
 let has : ([Int], Int) -> Bool = fun (l, v) -> case l | [] => false | x :: more => x == v || has(more, v) end;
-let gem_cells : ([Int], Int) -> [Int] = fun (cs, i) -> case cs | [] => [] | x :: rest => if x == 2 then i :: gem_cells(rest, i + 1) else gem_cells(rest, i + 1) end;
-# a search spreading out from every gem at once, a layer at a time, until it reaches your cell: the cell it came from, the next cell on the shortest way to the nearest gem; -1 if none can be reached #
-let spread : (Game, [Int], [Int], [Int]) -> Int = fun (g, frontier, seen, out) ->
+# the gems not beside an awake monster #
+let gem_cells : (Game, [Int], Int) -> [Int] = fun (g, cs, i) -> case cs | [] => [] | x :: rest => if x == 2 && !risky(g, md(i, w), i / w) then i :: gem_cells(g, rest, i + 1) else gem_cells(g, rest, i + 1) end;
+# a search spreading out from every cell of the frontier at once (the gems, or the monsters), a layer at a time, until it reaches your cell: the cell it came from, the next cell on the shortest way; -1 if none can be reached. It goes round the risky cells, or, plain, only round the boulders and under the loose ones #
+let spread : (Game, [Int], [Int], [Int], Bool) -> Int = fun (g, frontier, seen, out, plain) ->
   case frontier
-  | [] => (case out | [] => 0 - 1 | _ :: _ => spread(g, out, seen, []) end)
+  | [] => (case out | [] => 0 - 1 | _ :: _ => spread(g, out, seen, [], plain) end)
   | x :: rest =>
     let c = md(x, w) in let r = x / w in
     let near : Int -> Bool = fun d -> (c + dx(d) == g.px && r + dy(d) == g.py) in
     if near(0) || near(1) || near(2) || near(3) then x else
     let add : ([Int], [Int], Int) -> ([Int], [Int]) = fun (sn, o, d) ->
-      (let c1 = c + dx(d) in let r1 = r + dy(d) in let k = r1 * w + c1 in if !inside(c1, r1) || has(sn, k) || risky(g, c1, r1) then (sn, o) else (k :: sn, k :: o)) in
+      (let c1 = c + dx(d) in let r1 = r + dy(d) in let k = r1 * w + c1 in
+       if !inside(c1, r1) || has(sn, k) || (if plain then rock_at(g.rocks, c1, r1) || under_loose(g, c1, r1) else risky(g, c1, r1)) then (sn, o) else (k :: sn, k :: o)) in
     let (s0, o0) = add(seen, out, 0) in let (s1, o1) = add(s0, o0, 1) in let (s2, o2) = add(s1, o1, 2) in let (s3, o3) = add(s2, o2, 3) in
-    spread(g, rest, s3, o3)
+    spread(g, rest, s3, o3, plain)
   end;
-# the robot's choice: a flash when an awake monster is in the three cells ahead; a stunned monster beside you, caught; else a step toward the nearest gem it can reach without risk; else away from the nearest awake monster #
+let way : (Game, Int) -> Int = fun (g, x) -> (let c = md(x, w) in let r = x / w in if c > g.px then 1 else if c < g.px then 3 else if r > g.py then 2 else 0);
+let awake_cells : [Mon] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => if m.stun <= 0 then (m.r * w + m.c) :: awake_cells(rest) else awake_cells(rest) end;
+# the robot's choice: a flash when an awake monster is within three cells; a stunned monster beside you, caught; else a step toward the nearest gem it can reach without risk (and, turning straight back, now and then on ahead instead, where that is safe: no going round in circles); else, the lantern charged, toward the nearest awake monster, to stun it; else away from the nearest awake monster #
 let robot : Game -> Choice = fun g ->
   if g.over || g.dead > 0 then (dir = 0 - 1, flash = false) else
-  let ahead = lit(g.px, g.py, g.pd, 3, g.cells) in
-  let threat : [Mon] -> Bool = fun ms -> case ms | [] => false | m :: more => (m.stun <= 0 && has(ahead, m.r * w + m.c)) || threat(more) end in
+  let threat : [Mon] -> Bool = fun ms -> case ms | [] => false | m :: more => (m.stun <= 0 && reach(m, g.px, g.py) >= 1 && reach(m, g.px, g.py) <= 3) || threat(more) end in
   let fl = g.flash <= 0 && threat(g.mons) in
   let stunned_dir : Int -> Int = fun d -> if d > 3 then 0 - 1 else (if mon_at(g.mons, g.px + dx(d), g.py + dy(d)) && !awake_at(g.mons, g.px + dx(d), g.py + dy(d)) then d else stunned_dir(d + 1)) in
   let sd = stunned_dir(0) in
   if sd >= 0 then (dir = sd, flash = fl) else
   if g.pwait > 0 then (dir = 0 - 1, flash = fl) else
-  let gs = gem_cells(g.cells, 0) in
-  let x = spread(g, gs, gs, []) in
-  if x >= 0 then (let c = md(x, w) in let r = x / w in (dir = (if c > g.px then 1 else if c < g.px then 3 else if r > g.py then 2 else 0), flash = fl)) else
+  let gs = gem_cells(g, g.cells, 0) in
+  let x = spread(g, gs, gs, [], false) in
+  if x >= 0 then
+    (let d0 = way(g, x) in
+     if d0 == md(g.pd + 2, 4) && md(g.seed / 7, 3) == 0 && !risky(g, g.px + dx(g.pd), g.py + dy(g.pd)) then (dir = g.pd, flash = fl) else (dir = d0, flash = fl)) else
+  let am = awake_cells(g.mons) in
+  let y = (if g.flash <= 0 then (case am | [] => 0 - 1 | _ :: _ => spread(g, am, am, [], true) end) else 0 - 1) in
+  if y >= 0 && !has(am, y) then (dir = way(g, y), flash = fl) else
   let far : Int -> Int = fun d -> (let c = g.px + dx(d) in let r = g.py + dy(d) in if !inside(c, r) || rock_at(g.rocks, c, r) || awake_at(g.mons, c, r) then 0 - 1 else
     (let nearest : [Mon] -> Int = fun ms -> case ms | [] => 100 | m :: more => (let v = (if m.stun > 0 then 100 else absi(m.c - c) + absi(m.r - r)) in let u = nearest(more) in if v < u then v else u) end in nearest(g.mons))) in
   let pick : (Int, Int, Int) -> Int = fun (d, bd, bv) -> if d > 3 then bd else (let v = far(d) in if v > bv then pick(d + 1, d, v) else pick(d + 1, bd, bv)) in
