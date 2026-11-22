@@ -7,29 +7,29 @@ let cosines : [Int] = [1000, 985, 940, 866, 766, 643, 500, 342, 174, 0, 0 - 174,
 let cosd : Int -> Int = fun a -> at(cosines, md(md(a, 36) + 36, 36));
 let sind : Int -> Int = fun a -> cosd(a - 9);
 # ---- Growing a root, or a thread of mycelium, a segment at a time ---- #
-# from x, y heading a, segments len long and w wide, n more of them; the lines onto acc. A root (kind 0) wanders a little, is drawn downward a third of the time, grows thinner and shorter, and 30 segments in 100 put out a side root, 30 to 50 degrees off, thinner; a thread (kind 1) wanders more, stays as fine all along, and 30 in 100 branch. Either stops at the edges, at the surface and at the bottom #
+# from x, y heading a, segments len long and w wide (these two in hundredths of the scene's units, so that taking a little off each segment, in whole numbers, does not take off a whole unit: 0.0.65), n more of them; the lines onto acc. A root (kind 0) wanders a little, is drawn downward a third of the time, grows thinner and shorter, and 30 segments in 100 put out a side root, 30 to 50 degrees off, thinner; a taproot (kind 2) the same, but drawn downward two times in three, so it goes deep (0.0.65, Matthew: "the roots should go as deep as the screen"), its side roots ordinary roots; a thread (kind 1) wanders more, stays as fine all along, and 30 in 100 branch. Either stops at the edges, at the surface and at the bottom #
 let grow : (Int, Int, Int, Int, Int, Int, Int, Int, [Line]) -> [Line] = fun (x, y, a, len, w, n, seed, kind, acc) ->
-  if n <= 0 || w < 2 || y > 1595 || y < 100 || x < 0 || x > 1400 then acc else
+  if n <= 0 || w < 200 || y > 1595 || y < 100 || x < 0 || x > 1400 then acc else
   let s1 = next(seed) in
-  let wander = (if kind == 0 then md(s1 / 11, 3) - 1 else md(s1 / 11, 5) - 2) in
-  let pull = (if kind == 0 && md(s1 / 13, 3) == 0 then (if a < 9 then 1 else if a > 9 then 0 - 1 else 0) else 0) in
+  let wander = (if kind == 1 then md(s1 / 11, 5) - 2 else md(s1 / 11, 3) - 1) in
+  let pull = (if (kind == 0 && md(s1 / 13, 3) == 0) || (kind == 2 && md(s1 / 13, 3) != 0) then (if a < 9 then 1 else if a > 9 then 0 - 1 else 0) else 0) in
   let a1 = (let b = a + wander + pull in if b < 1 then 1 else if b > 17 then 17 else b) in
-  let x1 = x + cosd(a1) * len / 1000 in let y1 = y + sind(a1) * len / 1000 in
-  let line = (x0 = x, y0 = y, x1 = x1, y1 = y1, w = w) in
+  let x1 = x + cosd(a1) * len / 100000 in let y1 = y + sind(a1) * len / 100000 in
+  let line = (x0 = x, y0 = y, x1 = x1, y1 = y1, w = w / 100) in
   let side = (if md(s1 / 211, 2) == 0 then 1 else 0 - 1) in
   let acc1 = (if n > 2 && md(s1 / 101, 100) < 30
-              then grow(x1, y1, a1 + side * (3 + md(s1 / 307, 3)), len * 8 / 10, (if kind == 0 then w * 6 / 10 else w), n / 2, next(s1 + 7), kind, line :: acc)
+              then grow(x1, y1, a1 + side * (3 + md(s1 / 307, 3)), len * 8 / 10, (if kind == 1 then w else w * 6 / 10), n / 2, next(s1 + 7), (if kind == 2 then 0 else kind), line :: acc)
               else line :: acc) in
-  grow(x1, y1, a1, len * (if kind == 0 then 96 else 97) / 100, (if kind == 0 then w * 93 / 100 else w), n - 1, s1, kind, acc1);
-# a tree's roots: a taproot straight down from the foot of its trunk, deep, and six side roots spreading out and down from it, 10, 20 and 40 degrees below level either way; a bigger tree's thicker and longer #
+  grow(x1, y1, a1, len * (if kind == 1 then 970 else 985) / 1000, (if kind == 1 then w else w * 965 / 1000), n - 1, s1, kind, acc1);
+# a tree's roots: a taproot straight down from the foot of its trunk, as deep as the ground goes, and six side roots spreading out and down from it, 10, 20 and 40 degrees below level either way; a bigger tree's thicker and longer #
 let tree_roots : ([Thing], Int, [Line]) -> [Line] = fun (ts, seed, acc) ->
   case ts
   | [] => acc
   | t :: rest =>
     let k = t.size in
-    let side : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(t.x, 100, a, 55 * k / 100, 15 * k / 100, 16, s, 0, l) in
+    let side : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(t.x, 100, a, 55 * k, 15 * k, 30, s, 0, l) in
     let s1 = next(seed + t.x) in
-    let l0 = grow(t.x, 100, 9, 52 * k / 100, 22 * k / 100, 24, s1, 0, acc) in
+    let l0 = grow(t.x, 100, 9, 58 * k, 22 * k, 60, s1, 2, acc) in
     let l1 = side(1, next(s1 + 1), side(17, next(s1 + 2), l0)) in
     let l2 = side(2, next(s1 + 3), side(16, next(s1 + 4), l1)) in
     tree_roots(rest, next(s1 + 9), side(4, next(s1 + 5), side(14, next(s1 + 6), l2)))
@@ -39,7 +39,7 @@ let mycelium : ([Thing], Int, [Line]) -> [Line] = fun (ms, seed, acc) ->
   case ms
   | [] => acc
   | m :: rest =>
-    let one : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(m.x, 104, a, 24, 3, 14, s, 1, l) in
+    let one : (Int, Int, [Line]) -> [Line] = fun (a, s, l) -> grow(m.x, 104, a, 2400, 300, 14, s, 1, l) in
     let s1 = next(seed + m.x) in
     mycelium(rest, next(s1 + 9), one(1, next(s1 + 1), one(4, next(s1 + 2), one(7, next(s1 + 3), one(9, next(s1 + 4), one(11, next(s1 + 5), one(14, next(s1 + 6), one(17, next(s1 + 7), acc))))))))
   end;
