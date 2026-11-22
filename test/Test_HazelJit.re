@@ -2202,6 +2202,20 @@ let pinball_aot =
       "\n(start = Pinball.start, step = Pinball.step, board = Pinball.board)",
     ~mark="PINBALL",
   );
+let bugs_aot =
+  game_aot(
+    ~dir="bugs",
+    ~modules=["Bugs"],
+    ~tail="\n(start = Bugs.start, step = Bugs.step, robot = Bugs.robot)",
+    ~mark="BUGS",
+  );
+let dig_aot =
+  game_aot(
+    ~dir="dig",
+    ~modules=["Dig"],
+    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot)",
+    ~mark="DIG",
+  );
 let starwave_aot =
   game_aot(
     ~dir="starwave",
@@ -2887,6 +2901,16 @@ let tests = (
       "star wave (hazeljs-examples), the rules compiled whole, their JS in a file",
       `Quick,
       starwave_aot,
+    ),
+    test_case(
+      "bug run (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      bugs_aot,
+    ),
+    test_case(
+      "deep dig (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      dig_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

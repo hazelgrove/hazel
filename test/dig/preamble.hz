@@ -1,0 +1,10 @@
+# Deep dig's vocabulary, which the module sees #
+# The ground: 14 cells across and 16 down, row 0 the surface (open sky), a cell numbered row by row (row times 14 plus column); each cell 0 dug out, 1 earth, 2 a gem in the earth. A direction: 0 up, 1 right, 2 down, 3 left #
+# A boulder: its cell; the steps until it falls (-1 resting), and whether it is falling (then the steps to its next drop) #
+type Rock = (c = Int, r = Int, wob = Int, falling = Bool) in
+# A monster: its cell, and the steps it is still stunned #
+type Mon = (c = Int, r = Int, stun = Int) in
+# A game: you (your cell, the way you face, the steps to your next move), the ground, the boulders, the monsters, the gems left, the points, the lives, the level, the stream's seed, the steps until the lantern flashes again, the steps to the monsters' next move and how many between their moves, the steps you still wait after being caught, whether the game is over, what happened this step (0 nothing, 1 a gem, 2 you caught, 3 a level cleared, 4 a monster caught, 5 a monster squashed, 6 a boulder landed, 7 a flash), and the steps #
+type Game = (px = Int, py = Int, pd = Int, pwait = Int, cells = [Int], rocks = [Rock], mons = [Mon], gems = Int, score = Int, lives = Int, level = Int, seed = Int, flash = Int, mwait = Int, mpace = Int, dead = Int, over = Bool, hit = Int, t = Int) in
+# The robot's choice for a step: a way to go (-1 none), and whether to flash the lantern #
+type Choice = (dir = Int, flash = Bool) in
