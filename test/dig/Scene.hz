@@ -107,4 +107,33 @@ let scene : (Int, Int) -> Scene = fun (seed, level) ->
   let shrooms = (case reds | [] => browns | r :: more => r :: (case more | [] => browns | r2 :: _ => r2 :: browns end) end) in
   (above = anthill :: append_things(ts, append_things(bushes, append_things(ferns, append_things(shrooms, append_things(flowers, grass))))), roots = tree_roots(ts, next(s10 + 1), []), threads = mycelium(shrooms, next(s10 + 2), []), burrows = sett_lines, ants = ant_lines, run = run_lines,
    below = (kind = 16, x = mx, y = my, size = 100, v = 0) :: (kind = 15, x = mx, y = my, size = 100, v = md(s10 / 7, 1000)) :: (kind = 18, x = rcx, y = rcy, size = 100, v = 0) :: (kind = 17, x = rcx, y = rcy, size = 100, v = md(s10 / 11, 1000))
-     :: (kind = 20, x = sx, y = sy, size = 100, v = 0) :: (kind = 19, x = sx, y = sy, size = 100, v = md(s10 / 13, 1000)) :: append_things(chambers, beetles))
+     :: (kind = 20, x = sx, y = sy, size = 100, v = 0) :: (kind = 19, x = sx, y = sy, size = 100, v = md(s10 / 13, 1000)) :: append_things(chambers, beetles));
+# ---- Where things fall (0.0.67; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") ---- #
+# the first n of a list, and the rest after them #
+let take : ([Int], Int) -> [Int] = fun (xs, n) -> if n <= 0 then [] else case xs | [] => [] | x :: rest => x :: take(rest, n - 1) end;
+let drop : ([Int], Int) -> [Int] = fun (xs, n) -> if n <= 0 then xs else case xs | [] => [] | _ :: rest => drop(rest, n - 1) end;
+let append_ints : ([Int], [Int]) -> [Int] = fun (xs, ys) -> case xs | [] => ys | x :: rest => x :: append_ints(rest, ys) end;
+# one row's landings, r its number, from its cells, the cells of the row below and that row's landings: a cell of earth or a gem (or a boulder, as the page passes it) holds a thing in it where it is (-1); a dug cell lets it drop, to rest on its own floor if the cell below is solid, or on down to where a thing dropped in the cell below comes to rest #
+let land_row : (Int, [Int], [Int], [Int]) -> [Int] = fun (r, row, under, lands) ->
+  case row
+  | [] => []
+  | v :: rest =>
+    case under
+    | [] => []
+    | u :: urest =>
+      case lands
+      | [] => []
+      | l :: lrest => (if v != 0 then 0 - 1 else if u != 0 then r else l) :: land_row(r, rest, urest, lrest)
+      end
+    end
+  end;
+# below the bottom row, solid #
+let solid : [Int] = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+# the landings of rows r to the bottom, from their cells, worked out from the bottom row up #
+let land_from : ([Int], Int) -> [Int] = fun (cs, r) ->
+  if r > 15 then [] else
+  let rest = drop(cs, 14) in
+  let below = land_from(rest, r + 1) in
+  append_ints(land_row(r, take(cs, 14), (if r == 15 then solid else take(rest, 14)), (if r == 15 then solid else take(below, 14))), below);
+# the ground's landings: for each of its cells (14 by 16, row by row, as Dig's cells; 0 dug out), the row a thing let go in it comes to rest in, on that row's floor, or -1 if the earth there holds it. The page drops the creatures with these, as the gnome digs #
+let landing : [Int] -> [Int] = fun cells -> land_from(cells, 0)

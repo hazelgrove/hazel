@@ -2213,7 +2213,7 @@ let dig_aot =
   game_aot(
     ~dir="dig",
     ~modules=["Dig", "Scene"],
-    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot, scene = Scene.scene)",
+    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot, scene = Scene.scene, landing = Scene.landing)",
     ~mark="DIG",
   );
 let starwave_aot =
