@@ -2202,6 +2202,13 @@ let pinball_aot =
       "\n(start = Pinball.start, step = Pinball.step, board = Pinball.board)",
     ~mark="PINBALL",
   );
+let starwave_aot =
+  game_aot(
+    ~dir="starwave",
+    ~modules=["StarWave"],
+    ~tail="\n(start = StarWave.start, step = StarWave.step, robot = StarWave.robot)",
+    ~mark="STARWAVE",
+  );
 let trails_aot =
   game_aot(
     ~dir="trails",
@@ -2875,6 +2882,11 @@ let tests = (
       "light trails (hazeljs-examples), the rules compiled whole, their JS in a file",
       `Quick,
       trails_aot,
+    ),
+    test_case(
+      "star wave (hazeljs-examples), the rules compiled whole, their JS in a file",
+      `Quick,
+      starwave_aot,
     ),
     /* (quick on this branch, to see where it parts within the quick tests' 20 minutes) */
     test_case("mixed measured: astrology", `Quick, astrology_mixed),

@@ -1,0 +1,8 @@
+# Star wave's vocabulary, which the module sees #
+# The field: 600 units wide and 800 tall, y down; the cannon on its line at 740; the shields' tops at 640. The invaders: 5 rows of 9, numbered row by row, each 32 by 24, 48 apart across and 40 down from the formation's corner #
+# A bomb, falling: where it is #
+type Bomb = (x = Int, y = Int) in
+# A game: the cannon's middle; your shot (its y -1 when there is none); the bombs; each invader (0 gone, else its kind: 3 the top row, 30 points; 2, 20; 1, 10); the formation's corner and which way it marches (1 right, -1 left), and the steps to its next march; each shield block (4 shields of 8 by 4 blocks, each 8 units square: 1 standing, 0 gone); the lives, the points, the wave; the stream's seed; steps the cannon still waits after a hit; whether the game is over; what happened this step (0 nothing, 1 an invader hit, 2 the cannon hit, 3 a wave cleared, 4 the invaders landed); and the steps #
+type Game = (cx = Int, sx = Int, sy = Int, bombs = [Bomb], aliens = [Int], fx = Int, fy = Int, fdir = Int, march = Int, shields = [Int], lives = Int, score = Int, wave = Int, seed = Int, wait = Int, over = Bool, hit = Int, t = Int) in
+# The robot's choice for a step: which way to move the cannon (-1, 0, 1), and whether to fire #
+type Choice = (move = Int, fire = Bool) in

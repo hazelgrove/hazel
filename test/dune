@@ -25,6 +25,7 @@
   (glob_files bricks/*.hz)
   (glob_files snake/*.hz)
   (glob_files trails/*.hz)
+  (glob_files starwave/*.hz)
   (glob_files mahjong-solitaire/*.hz))
  (action
   (setenv
@@ -53,6 +54,7 @@
   (glob_files bricks/*.hz)
   (glob_files snake/*.hz)
   (glob_files trails/*.hz)
+  (glob_files starwave/*.hz)
   (glob_files mahjong-solitaire/*.hz))
  (action
   (setenv

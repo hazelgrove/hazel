@@ -1,0 +1,109 @@
+# Star wave: one step of the game (1/60 of a second): the cannon moved, your shot up, the formation marching across and down, faster as it thins, its bombs falling, the shields worn away by both; a hit, a lost life, a wave cleared, the invaders landing; and a robot that plays it, for 🤖 Hazel plays: dodging what falls on it, shooting at the nearest invader #
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
+let absi : Int -> Int = fun v -> if v < 0 then 0 - v else v;
+let at : ([Int], Int) -> Int = fun (xs, i) -> case xs | [] => 0 | x :: rest => if i <= 0 then x else at(rest, i - 1) end;
+let set_at : ([Int], Int, Int) -> [Int] = fun (xs, i, v) -> case xs | [] => [] | x :: rest => if i <= 0 then v :: rest else x :: set_at(rest, i - 1, v) end;
+let alive : [Int] -> Int = fun xs -> case xs | [] => 0 | x :: rest => (if x > 0 then 1 else 0) + alive(rest) end;
+let rows_from : Int -> [Int] = fun i -> if i >= 45 then [] else (let r = i / 9 in if r == 0 then 3 else if r <= 2 then 2 else 1) :: rows_from(i + 1);
+let ones : Int -> [Int] = fun k -> if k <= 0 then [] else 1 :: ones(k - 1);
+# where wave w's formation starts: lower each wave, up to five waves down #
+let top_of : Int -> Int = fun w -> 110 + 20 * (if w > 5 then 5 else w);
+let start : Int -> Game = fun seed ->
+  (cx = 300, sx = 0 - 1, sy = 0 - 1, bombs = [], aliens = rows_from(0), fx = 92, fy = top_of(0), fdir = 1, march = 24, shields = ones(128),
+   lives = 3, score = 0, wave = 0, seed = next(seed + 1), wait = 0, over = false, hit = 0, t = 0);
+# ---- What is where ---- #
+# the invader a point is in: its number, or -1 #
+let alien_at : ([Int], Int, Int, Int, Int) -> Int = fun (aliens, fx, fy, x, y) ->
+  if x < fx || y < fy then 0 - 1 else
+  let c = (x - fx) / 48 in let r = (y - fy) / 40 in
+  if c > 8 || r > 4 || x - fx - c * 48 >= 32 || y - fy - r * 40 >= 24 then 0 - 1 else
+  (let i = r * 9 + c in if at(aliens, i) > 0 then i else 0 - 1);
+# the shield block a point is in (shield s from 58 + 140 s, 64 wide; its blocks 8 square, 8 across and 4 down from 640): its number, or -1 #
+let block_at : ([Int], Int, Int) -> Int = fun (shields, x, y) ->
+  if y < 640 || y >= 672 || x < 58 then 0 - 1 else
+  let s = (x - 58) / 140 in
+  let bx = x - 58 - 140 * s in
+  if s > 3 || bx >= 64 then 0 - 1 else
+  (let i = s * 32 + ((y - 640) / 8) * 8 + bx / 8 in if at(shields, i) == 1 then i else 0 - 1);
+# the columns with an invader left: the first and the last; a column's lowest invader's bottom, or -1 #
+let col_has : ([Int], Int) -> Bool = fun (aliens, c) -> at(aliens, c) > 0 || at(aliens, 9 + c) > 0 || at(aliens, 18 + c) > 0 || at(aliens, 27 + c) > 0 || at(aliens, 36 + c) > 0;
+let first_col : ([Int], Int) -> Int = fun (aliens, c) -> if c > 8 then 0 else if col_has(aliens, c) then c else first_col(aliens, c + 1);
+let last_col : ([Int], Int) -> Int = fun (aliens, c) -> if c < 0 then 8 else if col_has(aliens, c) then c else last_col(aliens, c - 1);
+let lowest : ([Int], Int, Int) -> Int = fun (aliens, c, r) -> if r < 0 then 0 - 1 else if at(aliens, r * 9 + c) > 0 then r else lowest(aliens, c, r - 1);
+let bottom : ([Int], Int, Int) -> Int = fun (aliens, fy, r) -> if r < 0 then 0 - 1 else if at(aliens, r * 9) > 0 || at(aliens, r * 9 + 1) > 0 || at(aliens, r * 9 + 2) > 0 || at(aliens, r * 9 + 3) > 0 || at(aliens, r * 9 + 4) > 0 || at(aliens, r * 9 + 5) > 0 || at(aliens, r * 9 + 6) > 0 || at(aliens, r * 9 + 7) > 0 || at(aliens, r * 9 + 8) > 0 then fy + r * 40 + 24 else bottom(aliens, fy, r - 1);
+# the bombs a step on: each 5 down; one in a shield takes its block; one on the cannon (20 either side of its middle, from 728 to 756) is a hit; one past the bottom is gone #
+let fall : ([Bomb], [Int], Int, Bool) -> ([Bomb], [Int], Bool) = fun (bs, shields, cx, hurt) ->
+  case bs
+  | [] => ([], shields, hurt)
+  | b :: rest =>
+    let y = b.y + 5 in
+    let k = block_at(shields, b.x, y) in
+    let onme = absi(b.x - cx) <= 20 && y >= 728 && y <= 756 in
+    let (more, sh, hu) = fall(rest, (if k >= 0 then set_at(shields, k, 0) else shields), cx, hurt || onme) in
+    (if k >= 0 || onme || y > 800 then (more, sh, hu) else ((x = b.x, y = y) :: more, sh, hu))
+  end;
+let count : [Bomb] -> Int = fun bs -> case bs | [] => 0 | _ :: rest => 1 + count(rest) end;
+# ---- One step ---- #
+# move: -1, 0 or 1 (6 units a step, the cannon kept on the field); fire: a shot from the cannon, if none is in the air. A shot goes up 12 a step; one in an invader takes it (its kind times 10 points); one in a shield takes its block. Every march (the steps between, 2 plus half the invaders left) the formation moves 8 its way, or, at the edge, 20 down and turns. A bomb now and then (more each wave) from the lowest invader of a column by chance. Hit, the cannon waits 70 steps and the bombs clear; the last life lost, or the invaders down to 700, ends the game; every invader taken, the next wave (lower, 100 points times the wave) #
+let step : (Game, Int, Bool) -> Game = fun (g, move, fire) ->
+  if g.over then g else
+  let ready = g.wait <= 0 in
+  let cx = (if ready then (let x = g.cx + 6 * move in if x < 30 then 30 else if x > 570 then 570 else x) else g.cx) in
+  let firing = ready && fire && g.sy < 0 in
+  let sx0 = (if firing then cx else g.sx) in
+  let sy0 = (if firing then 724 else g.sy) in
+  let sy1 = (if sy0 >= 0 then sy0 - 12 else 0 - 1) in
+  let hitA = (if sy1 >= 0 then (let a = alien_at(g.aliens, g.fx, g.fy, sx0, sy1) in if a >= 0 then a else alien_at(g.aliens, g.fx, g.fy, sx0, sy1 + 6)) else 0 - 1) in
+  let hitS = (if sy1 >= 0 && hitA < 0 then (let k = block_at(g.shields, sx0, sy1) in if k >= 0 then k else block_at(g.shields, sx0, sy1 + 6)) else 0 - 1) in
+  let points = (if hitA >= 0 then 10 * at(g.aliens, hitA) else 0) in
+  let aliens = (if hitA >= 0 then set_at(g.aliens, hitA, 0) else g.aliens) in
+  let shields0 = (if hitS >= 0 then set_at(g.shields, hitS, 0) else g.shields) in
+  let shot_on = sy1 >= 0 && hitA < 0 && hitS < 0 in
+  let left = alive(aliens) in
+  let marching = g.march <= 1 in
+  let edge = (if g.fdir > 0 then g.fx + last_col(aliens, 8) * 48 + 32 + 8 > 592 else g.fx + first_col(aliens, 0) * 48 - 8 < 8) in
+  let fx = (if marching && !edge then g.fx + 8 * g.fdir else g.fx) in
+  let fy = (if marching && edge then g.fy + 20 else g.fy) in
+  let fdir = (if marching && edge then 0 - g.fdir else g.fdir) in
+  let march = (if marching then 2 + left / 2 else g.march - 1) in
+  let (bombs0, shields1, hurt) = fall(g.bombs, shields0, cx, false) in
+  let s1 = next(g.seed) in
+  let c = md(s1 / 100, 9) in
+  let lr = lowest(aliens, c, 4) in
+  let drop = ready && left > 0 && md(s1, 100) < 2 + g.wave && count(bombs0) < 3 + g.wave / 2 && lr >= 0 in
+  let bombs1 = (if drop then (x = fx + c * 48 + 16, y = fy + lr * 40 + 24) :: bombs0 else bombs0) in
+  let hurt2 = ready && hurt in
+  let lives = (if hurt2 then g.lives - 1 else g.lives) in
+  let landed = left > 0 && bottom(aliens, fy, 4) >= 700 in
+  let cleared = left == 0 in
+  if cleared then
+    (cx = cx, sx = 0 - 1, sy = 0 - 1, bombs = [], aliens = rows_from(0), fx = 92, fy = top_of(g.wave + 1), fdir = 1, march = 24, shields = shields1,
+     lives = lives, score = g.score + points + 100 * (g.wave + 1), wave = g.wave + 1, seed = s1, wait = 60, over = false, hit = 3, t = g.t + 1)
+  else
+    (cx = cx, sx = (if shot_on then sx0 else 0 - 1), sy = (if shot_on then sy1 else 0 - 1), bombs = (if hurt2 then [] else bombs1), aliens = aliens,
+     fx = fx, fy = fy, fdir = fdir, march = march, shields = shields1, lives = lives, score = g.score + points, wave = g.wave, seed = s1,
+     wait = (if hurt2 then 70 else if g.wait > 0 then g.wait - 1 else 0), over = lives <= 0 || landed,
+     hit = (if landed then 4 else if hurt2 then 2 else if hitA >= 0 then 1 else 0), t = g.t + 1);
+# ---- The robot (🤖 Hazel plays) ---- #
+# the nearest bomb over the cannon's reach (26 either side, coming down from 480): its x, or -1 #
+let threat : ([Bomb], Int) -> Int = fun (bs, cx) ->
+  case bs | [] => 0 - 1 | b :: rest => if absi(b.x - cx) < 26 && b.y > 480 && b.y < 740 then b.x else threat(rest, cx) end;
+# the column of invaders nearest the cannon, and where it will be when a shot gets there (the formation's drift while the shot rises) #
+let aim : (Game, Int, Int, Int) -> Int = fun (g, c, best, bd) ->
+  if c > 8 then best else
+  if !col_has(g.aliens, c) then aim(g, c + 1, best, bd) else
+  let r = lowest(g.aliens, c, 4) in
+  let rise = (740 - (g.fy + r * 40 + 12)) / 12 in
+  let drift = (rise / (2 + alive(g.aliens) / 2)) * 8 * g.fdir in
+  let x = g.fx + c * 48 + 16 + drift in
+  let d = absi(x - g.cx) in
+  if d < bd then aim(g, c + 1, x, d) else aim(g, c + 1, best, bd);
+# the robot's choice: out from under a bomb coming down; else under the nearest column, firing when under it #
+let robot : Game -> Choice = fun g ->
+  if g.over || g.wait > 0 then (move = 0, fire = false) else
+  let b = threat(g.bombs, g.cx) in
+  if b >= 0 then (move = (if b <= g.cx && g.cx < 566 then 1 else if g.cx > 34 then 0 - 1 else 1), fire = false) else
+  let x = aim(g, 0, g.cx, 100000) in
+  let move = (if x > g.cx + 3 then 1 else if x < g.cx - 3 then 0 - 1 else 0) in
+  (move = move, fire = g.sy < 0 && absi(x - g.cx) <= 10)
