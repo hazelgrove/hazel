@@ -1,0 +1,70 @@
+# Light trails: one step of a round (both riders moved a cell their way, each turning when asked, unless straight back; a rider leaving the arena or running into a lit cell crashes; both crashing, or meeting in one cell, is a draw), and a robot that rides, for Hazel's rider and for 🤖 Hazel plays: the way with the most room ahead #
+let w : Int = 40;
+let h : Int = 30;
+let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
+let pow2 : Int -> Int = fun b -> if b <= 0 then 1 else 2 * pow2(b - 1);
+let at : ([Int], Int) -> Int = fun (xs, i) -> case xs | [] => 0 | x :: rest => if i <= 0 then x else at(rest, i - 1) end;
+let set_at : ([Int], Int, Int) -> [Int] = fun (xs, i, v) -> case xs | [] => [] | x :: rest => if i <= 0 then v :: rest else x :: set_at(rest, i - 1, v) end;
+let zeros : Int -> [Int] = fun k -> if k <= 0 then [] else 0 :: zeros(k - 1);
+# whether cell (x, y) is lit (off the arena counts as lit), and the cells with it lit #
+let lit_at : ([Int], Int, Int) -> Bool = fun (g, x, y) ->
+  if x < 0 || x >= w || y < 0 || y >= h then true else md(at(g, 2 * y + x / 20) / pow2(md(x, 20)), 2) == 1;
+let light : ([Int], Int, Int) -> [Int] = fun (g, x, y) ->
+  if lit_at(g, x, y) then g else (let i = 2 * y + x / 20 in set_at(g, i, at(g, i) + pow2(md(x, 20))));
+let dx : Int -> Int = fun d -> if d == 1 then 1 else if d == 3 then 0 - 1 else 0;
+let dy : Int -> Int = fun d -> if d == 0 then 0 - 1 else if d == 2 then 1 else 0;
+# a round: your rider at the left heading right, Hazel's at the right heading left, their first cells lit #
+let start : Int -> Round = fun _seed ->
+  let g = light(light(zeros(2 * h), 6, h / 2), w - 7, h / 2) in
+  (ax = 6, ay = h / 2, ad = 1, bx = w - 7, by = h / 2, bd = 3, lit = g, over = false, winner = 0, t = 0);
+# ---- One step ---- #
+# wa, wb: the way each rider asks to turn to (-1 to go on; straight back is not a turn). Both move a cell; a rider whose cell is off the arena or lit crashes; both moving into one cell crash; one crashing loses the round, both a draw #
+let step : (Round, Int, Int) -> Round = fun (g, wa, wb) ->
+  if g.over then g else
+  let ad = (if wa >= 0 && wa <= 3 && wa != md(g.ad + 2, 4) then wa else g.ad) in
+  let bd = (if wb >= 0 && wb <= 3 && wb != md(g.bd + 2, 4) then wb else g.bd) in
+  let ax = g.ax + dx(ad) in let ay = g.ay + dy(ad) in
+  let bx = g.bx + dx(bd) in let by = g.by + dy(bd) in
+  let meet = ax == bx && ay == by in
+  let acrash = meet || lit_at(g.lit, ax, ay) in
+  let bcrash = meet || lit_at(g.lit, bx, by) in
+  let over = acrash || bcrash in
+  let lit = (if acrash then g.lit else light(g.lit, ax, ay)) in
+  let lit2 = (if bcrash then lit else light(lit, bx, by)) in
+  (ax = ax, ay = ay, ad = ad, bx = bx, by = by, bd = bd, lit = lit2, over = over,
+   winner = (if acrash && bcrash then 0 else if acrash then 2 else if bcrash then 1 else 0), t = g.t + 1);
+# ---- The robot ---- #
+# how much room there is from a cell: a flood over cells not lit, counting until it has found `want` of them, or no more (seen: the cells it has reached, lit as it goes) #
+let flood : ([Int], [Int], Int, Int) -> Int = fun (seen, frontier, count, want) ->
+  if count >= want then count else
+  case frontier
+  | [] => count
+  | k :: rest =>
+    let x = md(k, w) in
+    let y = k / w in
+    let add : ([Int], [Int], Int, Int) -> ([Int], [Int], Int) = fun (sn, fr, c, d) ->
+      (let nx = x + dx(d) in let ny = y + dy(d) in if lit_at(sn, nx, ny) then (sn, fr, c) else (light(sn, nx, ny), (ny * w + nx) :: fr, c + 1)) in
+    let (s0, f0, c0) = add(seen, rest, count, 0) in
+    let (s1, f1, c1) = add(s0, f0, c0, 1) in
+    let (s2, f2, c2) = add(s1, f1, c1, 2) in
+    let (s3, f3, c3) = add(s2, f2, c2, 3) in
+    flood(s3, f3, c3, want)
+  end;
+let absi : Int -> Int = fun v -> if v < 0 then 0 - v else v;
+# a rider's choice (who: 1 yours, 2 Hazel's), looking `care` cells ahead (more is wiser): of the three ways not straight back, one not lit; the one with the most room, a flood from its cell (the other rider's next cells counted lit, as it may take them); a cell beside the other's head is risky (they may move into it); straight on when as good #
+let robot : (Round, Int, Int) -> Int = fun (g, who, care) ->
+  if g.over then 0 - 1 else
+  let x = (if who == 1 then g.ax else g.bx) in
+  let y = (if who == 1 then g.ay else g.by) in
+  let d0 = (if who == 1 then g.ad else g.bd) in
+  let ox = (if who == 1 then g.bx else g.ax) in
+  let oy = (if who == 1 then g.by else g.ay) in
+  let worth : Int -> Int = fun d ->
+    (let nx = x + dx(d) in let ny = y + dy(d) in
+     if d == md(d0 + 2, 4) || lit_at(g.lit, nx, ny) then 0 - 100000 else
+     let near = absi(nx - ox) + absi(ny - oy) <= 1 in
+     let seen = light(g.lit, nx, ny) in
+     let room = flood(seen, [ny * w + nx], 1, care) in
+     room * 10 - (if near then 40 else 0) + (if d == d0 then 3 else 0)) in
+  let pick : (Int, Int, Int) -> Int = fun (d, bd, bw) -> if d > 3 then bd else (let v = worth(d) in if v > bw then pick(d + 1, d, v) else pick(d + 1, bd, bw)) in
+  pick(0, d0, 0 - 1000000)

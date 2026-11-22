@@ -1,0 +1,4 @@
+# Light trails' vocabulary, which the module sees #
+# The arena: 40 cells across and 30 down, row 0 at the top. A direction: 0 up, 1 right, 2 down, 3 left. The trails: each row as two numbers, a bit for each of its cells, 20 to a number (row r's cells 0 to 19 in place 2r of the list, 20 to 39 in place 2r + 1) #
+# A round: your rider (a: blue) and Hazel's (b: orange), each where its head is and its direction, the cells lit so far, whether the round is over, who won it (0 a draw, 1 you, 2 Hazel), and the steps #
+type Round = (ax = Int, ay = Int, ad = Int, bx = Int, by = Int, bd = Int, lit = [Int], over = Bool, winner = Int, t = Int) in
