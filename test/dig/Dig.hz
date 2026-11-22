@@ -49,20 +49,46 @@ let animals_in : ([Int], Int, [Int], Int, Int, [Animal]) -> ([Animal], Int) = fu
     if cell(cs, c, r) != 1 || c == gc || animal_at(acc, c, r) then animals_in(kinds, s1, cs, wt, gc, acc)
     else animals_in(rest, s1, cs, wt, gc, (kind = k, c = c, r = r, fall = 0 - 1, walk = 0 - 1) :: acc)
   end;
-let mini : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b;
-# a level: the surface open, a shaft down from the middle, then monsters (2, one more every other level, up to 4), gems (10, two more a level, up to 18) and boulders (5, one more a level, up to 8); the monsters move a cell every 14 steps on the first level, 13 on the second, then 12 (as long as you take to dig a cell). (0.0.68; Matthew: "let's include a ground-water element on some levels -- not all of them. the ground water forces the gnome to need diving equipment that's set in that level, at place where the gnome can get it before drowning, by expert play") From the second level on, half the levels by chance have ground water from row 10 or 11 down: every dug cell there is under water. Their diving gear lies three or four cells under the water, in a column no boulder is in, so that from the cell above the water, digging straight down to it takes 36 or 48 steps of your 100 steps of breath. Then the animals. (0.0.71; Matthew: "let's also have a love shooter --- another item in some levels") From the second level on, half the levels by chance have a love shooter, in a cell of earth in rows 3 to 8 (not an animal's, not the gear's column). hit: what to show as the level starts #
+# (0.0.72; Matthew: "let's also add, for more challenging levels (more so in later levels), some squares of 'bedrock' that cannot be dug --- preventing sunlight from reaching ghosts under them") a level's bedrock (cells of 3), over earth only: from the second level on, over each monster's pocket, by chance, a run of it in the row above, five long, as likely as the level is high in tens (on the tenth level and after, always); and then k runs more by chance, 2 to 4 long, in rows 3 to 14. Nothing digs it, the light does not pass it. A run is left out where it would touch bedrock already laid, even at a corner, so that no runs join into a wall that would cut some of the ground off #
+let bedrock : ([Int], [Mon], Int, Int, Int) -> ([Int], Int) = fun (cs, ms, k, lv, seed) ->
+  let lay : ([Int], Int, Int, Int) -> [Int] = fun (l, c, r, n) -> if n <= 0 then l else lay((if inside(c, r) && cell(l, c, r) == 1 then set_at(l, r * w + c, 3) else l), c + 1, r, n - 1) in
+  let near : ([Int], Int, Int, Int) -> Bool = fun (l, c, r, n) -> if n < 0 - 1 then false else (cell(l, c + n, r - 1) == 3 || cell(l, c + n, r) == 3 || cell(l, c + n, r + 1) == 3 || near(l, c, r, n - 1)) in
+  let slab : ([Int], Int, Int, Int) -> [Int] = fun (l, c, r, n) -> if near(l, c, r, n) then l else lay(l, c, r, n) in
+  case ms
+  | m :: rest => (let s1 = next(seed) in bedrock((if lv >= 1 && md(s1 / 7, 10) < lv then slab(cs, m.c - 2, m.r - 1, 5) else cs), rest, k, lv, s1))
+  | [] => if k <= 0 then (cs, seed) else (let s1 = next(seed) in bedrock(slab(cs, md(s1 / 7, w), 3 + md(s1 / 1000, 12), 2 + md(s1 / 31, 3)), [], k - 1, lv, s1))
+  end;
+# (0.0.72) the cells you can get to from the top (cell 7, row 0), round the bedrock and the boulders: a list as long as the ground, 1 for each, spreading from the frontier #
+let reach : ([Int], [Rock], [Int], [Int]) -> [Int] = fun (cs, rs, frontier, got) ->
+  case frontier
+  | [] => got
+  | i :: rest =>
+    let c = md(i, w) in let r = i / w in
+    let add : ([Int], [Int], Int) -> ([Int], [Int]) = fun (f, gt, d) -> (let c1 = c + dx(d) in let r1 = r + dy(d) in let k = r1 * w + c1 in
+      if inside(c1, r1) && at(gt, k) == 0 && cell(cs, c1, r1) != 3 && !rock_at(rs, c1, r1) then (k :: f, set_at(gt, k, 1)) else (f, gt)) in
+    let (f0, g0) = add(rest, got, 0) in let (f1, g1) = add(f0, g0, 1) in let (f2, g2) = add(f1, g1, 2) in let (f3, g3) = add(f2, g2, 3) in
+    reach(cs, rs, f3, g3)
+  end;
+# a level: the surface open, a shaft down from the middle, then monsters (2, one more every other level, up to 4), gems (10, two more a level, up to 18) and boulders (5, one more a level, up to 8); the monsters move a cell every 14 steps on the first level, 13 on the second, then 12 (as long as you take to dig a cell). (0.0.68; Matthew: "let's include a ground-water element on some levels -- not all of them. the ground water forces the gnome to need diving equipment that's set in that level, at place where the gnome can get it before drowning, by expert play") From the second level on, half the levels by chance have ground water from row 10 or 11 down: every dug cell there is under water. Their diving gear lies three or four cells under the water, in a column no boulder is in (and no bedrock: any there is earth again), so that from the cell above the water, digging straight down to it takes 36 or 48 steps of your 100 steps of breath. (0.0.72) A gem that cannot be got to from the top, round the bedrock and the boulders, is earth again. Then the animals. (0.0.71; Matthew: "let's also have a love shooter --- another item in some levels") From the second level on, half the levels by chance have a love shooter, in a cell of earth in rows 3 to 8 (not an animal's, not the gear's column). hit: what to show as the level starts #
 let level_of : (Int, Int, Int, Int, Int, Int) -> Game = fun (lv, seed, score, lives, t, hit) ->
+  let mini : (Int, Int) -> Int = fun (a, b) -> if a < b then a else b in
   let cs0 = set_at(set_at(ground_from(0), w + 7, 0), 2 * w + 7, 0) in
   let (cs1, ms, s1) = pockets(mini(2 + lv / 2, 4), next(seed + 1), cs0, []) in
-  let (cs2, s2) = gems_in(mini(10 + 2 * lv, 18), s1, cs1) in
-  let (cs3, rs, s3) = rocks_in(mini(5 + lv, 8), s2, cs2, []) in
+  let (csb, sb) = bedrock(cs1, ms, mini(lv / 2, 6), lv, s1) in
+  let (cs2, s2) = gems_in(mini(10 + 2 * lv, 18), sb, csb) in
+  let (cs3a, rs, s3) = rocks_in(mini(5 + lv, 8), s2, cs2, []) in
+  let zeros : Int -> [Int] = fun i -> if i >= w * h then [] else 0 :: zeros(i + 1) in
+  let prune : ([Int], [Int]) -> [Int] = fun (l, o) -> case l | [] => [] | v :: rest => (case o | [] => [] | x :: orest => (if v == 2 && x == 0 then 1 else v) :: prune(rest, orest) end) end in
+  let cs3 = (if lv >= 1 then prune(cs3a, reach(cs3a, rs, [7], set_at(zeros(0), 7, 1))) else cs3a) in
   let wt = (if lv >= 1 && md(s3 / 13, 2) == 0 then 10 + md(s3 / 17, 2) else h) in
   let free_col : Int -> Int = fun c -> (let rocky : [Rock] -> Bool = fun l -> case l | [] => false | x :: more => x.c == md(c, w) || rocky(more) end in if rocky(rs) then free_col(c + 1) else md(c, w)) in
   let gc = (if wt < h then free_col(md(s3 / 19, w)) else 0 - 1) in
-  let (ans, s4) = animals_in([17, 15, 19], next(s3 + 5), cs3, wt, gc, []) in
+  let unstone : ([Int], Int) -> [Int] = fun (l, r) -> if r >= h then l else unstone((if cell(l, gc, r) == 3 then set_at(l, r * w + gc, 1) else l), r + 1) in
+  let cs4 = (if gc >= 0 then unstone(cs3, 0) else cs3) in
+  let (ans, s4) = animals_in([17, 15, 19], next(s3 + 5), cs4, wt, gc, []) in
   let spot : Int -> Int = fun s -> (let s1 = next(s) in let c = md(s1 / 7, w) in let r = 3 + md(s1 / 1000, 6) in
-    if cell(cs3, c, r) == 1 && !animal_at(ans, c, r) && c != gc then r * w + c else spot(s1)) in
-  (px = 7, py = 0, pd = 2, pwait = 0, cells = cs3, rocks = rs, mons = ms, gems = count_gems(cs3), score = score, lives = lives, level = lv, seed = s4,
+    if cell(cs4, c, r) == 1 && !animal_at(ans, c, r) && c != gc then r * w + c else spot(s1)) in
+  (px = 7, py = 0, pd = 2, pwait = 0, cells = cs4, rocks = rs, mons = ms, gems = count_gems(cs4), score = score, lives = lives, level = lv, seed = s4,
    flash = 0, mwait = 30, mpace = (let p = 14 - lv in if p < 12 then 12 else p), dead = 0, over = false, hit = hit, t = t,
    animals = ans, wt = wt, gear = (if wt < h then (wt + 2 + md(s3 / 23, 2)) * w + gc else 0 - 1), diving = false, air = 100,
    lover = (if lv >= 1 && md(s3 / 29, 2) == 0 then spot(s3 + 11) else 0 - 1), loves = false);
@@ -98,7 +124,7 @@ let sunlit : ([Int], [Rock], Int, Int) -> Bool = fun (cs, rs, c, r) ->
      if qy < 100 then true else if qx < 0 || qx >= 1400 then false else
      if cell(cs, qx / 100, qy / 100) != 0 || rock_at(rs, qx / 100, qy / 100) then false else go(i + 1)) in
   go(1);
-# (0.0.68; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") the animals a step on: one whose own cell is dug out, over a dug cell (no boulder, no animal in it), drops into it, then a cell every 4 steps. (0.0.69) One lying in a hole in the sunlight gets up and, every 20 steps, walks a cell along to the side: to a dug cell in the shade, the one away from the sun first, or else, none in the shade, away from the sun; in the shade, or held by the earth, it rests #
+# (0.0.68; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") the animals a step on: one whose own cell is dug out, over a dug cell (no boulder, no animal in it), drops into it, then a cell every 4 steps. (0.0.69) One lying in a hole in the sunlight gets up and, every 20 steps, walks a cell along to the side (0.0.72: never under a loose or falling boulder): to a dug cell in the shade, the one away from the sun first, or else, none in the shade, away from the sun; in the shade, or held by the earth, it rests #
 let settle : ([Animal], [Animal], [Int], [Rock]) -> [Animal] = fun (ans, all, cs, rs) ->
   case ans
   | [] => []
@@ -110,14 +136,15 @@ let settle : ([Animal], [Animal], [Int], [Rock]) -> [Animal] = fun (ans, all, cs
      else if a.walk > 1 then still(a.walk - 1)
      else if a.walk < 0 then still(20)
      else
-       (let free : Int -> Bool = fun d -> (let k = a.c + d in inside(k, a.r) && cell(cs, k, a.r) == 0 && !rock_at(rs, k, a.r) && !animal_at(all, k, a.r)) in
+       (let loose : ([Rock], Int) -> Bool = fun (l, k) -> case l | [] => false | x :: more => (x.c == k && x.r < a.r && (x.falling || x.wob >= 0)) || loose(more, k) end in
+        let free : Int -> Bool = fun d -> (let k = a.c + d in inside(k, a.r) && cell(cs, k, a.r) == 0 && !rock_at(rs, k, a.r) && !animal_at(all, k, a.r) && !loose(rs, k)) in
         let shade : Int -> Bool = fun d -> free(d) && !sunlit(cs, rs, a.c + d, a.r) in
         let back = (if a.c * 100 + 50 < 1220 then 0 - 1 else 1) in
         let d = (if shade(back) then back else if shade(0 - back) then 0 - back else if free(back) then back else if free(0 - back) then 0 - back else 0) in
         (kind = a.kind, c = a.c + d, r = a.r, fall = 0 - 1, walk = 20))) :: settle(rest, all, cs, rs)
   end;
 # ---- The monsters ---- #
-# a monster's move: of the four ways, the dug cells (no boulder) nearer you, (0.0.70; Matthew: "let's have the ghosts run away from sunlight too", "or burn in it") but never into the sunlight, and (0.0.71; Matthew: "when the gnome has it, they automatically shoot love at the ghosts when they are nearby and they run away like sunlight") with your love shooter, within three cells of you, away from you, to the shaded cell farthest; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem or an animal; a stunned one waits. One caught in the sunlight (the ground dug open round it) runs from it, to the cell in the shade nearest you; with none, or stunned, it burns up (true) #
+# a monster's move: of the four ways, the dug cells (no boulder) nearer you, (0.0.70; Matthew: "let's have the ghosts run away from sunlight too", "or burn in it") but never into the sunlight, and (0.0.71; Matthew: "when the gnome has it, they automatically shoot love at the ghosts when they are nearby and they run away like sunlight") with your love shooter, within three cells of you, away from you, to the shaded cell farthest; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem, bedrock or an animal; a stunned one waits. One caught in the sunlight (the ground dug open round it) runs from it, to the cell in the shade nearest you; with none, or stunned, it burns up (true) #
 let toward : (Mon, [Int], [Rock], [Animal], Int, Int, Int, Bool) -> (Mon, [Int], Bool) = fun (m, cs, rs, ans, px, py, luck, loves) ->
   let dist : Int -> Int = fun d -> (let c = m.c + dx(d) in let r = m.r + dy(d) in absi(c - px) + absi(r - py)) in
   let free : Int -> Bool = fun d -> (let c = m.c + dx(d) in let r = m.r + dy(d) in inside(c, r) && cell(cs, c, r) == 0 && !rock_at(rs, c, r)) in
@@ -137,7 +164,7 @@ let toward : (Mon, [Int], [Rock], [Animal], Int, Int, Int, Bool) -> (Mon, [Int],
   if md(luck / 3, 8) == 0 then
     (let dd = (if absi(m.c - px) > absi(m.r - py) then (if px > m.c then 1 else 3) else (if py > m.r then 2 else 0)) in
      let c = m.c + dx(dd) in let r = m.r + dy(dd) in
-     if inside(c, r) && !rock_at(rs, c, r) && r > 0 && cell(cs, c, r) != 2 && !animal_at(ans, c, r) then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, 0), false) else (m, cs, false))
+     if inside(c, r) && !rock_at(rs, c, r) && r > 0 && cell(cs, c, r) <= 1 && !animal_at(ans, c, r) then ((c = c, r = r, stun = 0), set_at(cs, r * w + c, 0), false) else (m, cs, false))
   else (m, cs, false);
 # (the monsters, each a move; those burnt up gone, and how many) #
 let move_mons : ([Mon], [Int], [Rock], [Animal], Int, Int, Int, Bool) -> ([Mon], [Int], Int) = fun (ms, cs, rs, ans, px, py, seed, loves) ->
@@ -150,7 +177,7 @@ let stun_near : ([Mon], Int, Int) -> [Mon] = fun (ms, px, py) ->
 let catch_at : ([Mon], Int, Int) -> [Mon] = fun (ms, c, r) -> case ms | [] => [] | m :: rest => if m.c == c && m.r == r && m.stun > 0 then rest else m :: catch_at(rest, c, r) end;
 let mcount : [Mon] -> Int = fun ms -> case ms | [] => 0 | _ :: rest => 1 + mcount(rest) end;
 # ---- One step ---- #
-# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. (0.0.70) A monster burnt up in the sunlight: 150 points. (0.0.71) Walking into the love shooter's cell, you have it for the rest of the level, with the diving gear too. Every gem taken: the next level, 300 points #
+# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder or bedrock. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. (0.0.70) A monster burnt up in the sunlight: 150 points. (0.0.71) Walking into the love shooter's cell, you have it for the rest of the level, with the diving gear too. Every gem taken: the next level, 300 points #
 let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   if g.over then g else
   if g.dead > 0 then
@@ -161,7 +188,7 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let pd = (if want >= 0 && want <= 3 then want else g.pd) in
   let go = g.pwait <= 0 && want >= 0 && want <= 3 in
   let nc = g.px + dx(pd) in let nr = g.py + dy(pd) in
-  let can = go && inside(nc, nr) && !rock_at(g.rocks, nc, nr) in
+  let can = go && inside(nc, nr) && !rock_at(g.rocks, nc, nr) && cell(g.cells, nc, nr) != 3 in
   let kind = (if can then cell(g.cells, nc, nr) else 0) in
   let px = (if can then nc else g.px) in let py = (if can then nr else g.py) in
   let cs0 = (if can && kind != 0 then set_at(g.cells, nr * w + nc, 0) else g.cells) in
@@ -201,11 +228,11 @@ let awake_near : ([Mon], Int, Int, Int) -> Bool = fun (ms, c, r, k) -> case ms |
 # a cell under a loose or falling boulder (the three cells below it) #
 let under_loose : (Game, Int, Int) -> Bool = fun (g, c, r) ->
   let under : [Rock] -> Bool = fun rs -> case rs | [] => false | x :: more => (x.c == c && r > x.r && r <= x.r + 3 && (x.falling || x.wob >= 0)) || under(more) end in under(g.rocks);
-# (0.0.68) a cell the robot keeps out of, whatever the monsters: off the ground, a boulder, under a loose or falling boulder; an animal's cell of earth (digging it would let the animal go); a cell under a resting boulder whose digging would let the boulder fall onto an animal; and, without the diving gear, the ground water, but for the gear's own column, down to the gear #
+# (0.0.68) a cell the robot keeps out of, whatever the monsters: off the ground, a boulder, under a loose or falling boulder; an animal's cell of earth with a boulder anywhere above it (digging it would let the animal go, and the boulder might come down on it; 0.0.72: with none above, the robot may dig through); a cell under a resting boulder whose digging would let the boulder fall onto an animal; and, without the diving gear, the ground water, but for the gear's own column, down to the gear #
 let blocked : (Game, Int, Int) -> Bool = fun (g, c, r) ->
   let down : Int -> Bool = fun k -> if k >= h || (k > r && cell(g.cells, c, k) != 0) then false else animal_at(g.animals, c, k) || down(k + 1) in
-  !inside(c, r) || rock_at(g.rocks, c, r) || under_loose(g, c, r)
-  || (animal_at(g.animals, c, r) && cell(g.cells, c, r) != 0)
+  !inside(c, r) || rock_at(g.rocks, c, r) || under_loose(g, c, r) || cell(g.cells, c, r) == 3
+  || (animal_at(g.animals, c, r) && cell(g.cells, c, r) != 0 && (let above : [Rock] -> Bool = fun l -> case l | [] => false | x :: more => (x.c == c && x.r < r) || above(more) end in above(g.rocks)))
   || (rock_at(g.rocks, c, r - 1) && cell(g.cells, c, r) != 0 && down(r))
   || (!g.diving && r >= g.wt && !(g.gear >= 0 && c == md(g.gear, w) && r <= g.gear / w));
 # a cell the robot will not go into: a blocked one; an awake monster or beside one; while the lantern is still charging, within two cells of an awake monster #
@@ -227,7 +254,7 @@ let spread : (Game, [Int], [Int], [Int], Bool) -> Int = fun (g, frontier, seen, 
     let (s0, o0) = add(seen, out, 0) in let (s1, o1) = add(s0, o0, 1) in let (s2, o2) = add(s1, o1, 2) in let (s3, o3) = add(s2, o2, 3) in
     spread(g, rest, s3, o3, plain)
   end;
-# the robot's choice: a flash when an awake monster is within three cells; a stunned monster beside you, caught; (0.0.68) under the water without the gear and short of the breath to dig on down to it, up; else a step toward the nearest gem it can reach without risk (or, 0.0.71, the love shooter, as if a gem) (and, turning straight back, now and then on ahead instead, where that is safe: no going round in circles); else toward the diving gear; else, the lantern charged, toward the nearest awake monster, to stun it; else away from the nearest awake monster #
+# the robot's choice: a flash when an awake monster is within three cells; a stunned monster beside you, caught; (0.0.72) for one stretch of 300 steps in every 1800, the lantern charged, first toward the nearest awake monster, to stun it and catch it (a monster guarding the last gems, as it can behind bedrock, would else keep the robot going to and fro for ever); (0.0.68) under the water without the gear and short of the breath to dig on down to it, up; else a step toward the nearest gem it can reach without risk (or, 0.0.71, the love shooter, as if a gem) (and, turning straight back, now and then on ahead instead, where that is safe: no going round in circles); else toward the diving gear; (0.0.72) else toward a stunned monster, to catch it; else, the lantern charged, toward the nearest awake monster, to stun it; else away from the nearest awake monster #
 let robot : Game -> Choice = fun g ->
   if g.over || g.dead > 0 then (dir = 0 - 1, flash = false) else
   let way : (Game, Int) -> Int = fun (g, x) -> (let c = md(x, w) in let r = x / w in if c > g.px then 1 else if c < g.px then 3 else if r > g.py then 2 else 0) in
@@ -239,6 +266,9 @@ let robot : Game -> Choice = fun g ->
   if sd >= 0 then (dir = sd, flash = fl) else
   if g.pwait > 0 then (dir = 0 - 1, flash = fl) else
   if !g.diving && g.py >= g.wt && g.air < 12 * (g.gear / w - g.py + 1) + 16 && !rock_at(g.rocks, g.px, g.py - 1) then (dir = 0, flash = fl) else
+  let am = awake_cells(g.mons) in
+  let y0 = (if md(g.t / 300, 6) == 5 && g.flash <= 0 then (case am | [] => 0 - 1 | _ :: _ => spread(g, am, am, [], true) end) else 0 - 1) in
+  if y0 >= 0 && !has(am, y0) then (dir = way(g, y0), flash = fl) else
   let gs = (let gs0 = gem_cells(g, g.cells, 0) in if g.lover >= 0 && !g.loves && !risky(g, md(g.lover, w), g.lover / w) then g.lover :: gs0 else gs0) in
   let x = spread(g, gs, gs, [], false) in
   if x >= 0 then
@@ -246,7 +276,10 @@ let robot : Game -> Choice = fun g ->
      if d0 == md(g.pd + 2, 4) && md(g.seed / 7, 3) == 0 && !risky(g, g.px + dx(g.pd), g.py + dy(g.pd)) then (dir = g.pd, flash = fl) else (dir = d0, flash = fl)) else
   let xg = (if g.gear >= 0 && !g.diving then spread(g, [g.gear], [g.gear], [], false) else 0 - 1) in
   if xg >= 0 then (dir = way(g, xg), flash = fl) else
-  let am = awake_cells(g.mons) in
+  let stunned_cells : [Mon] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => if m.stun > 0 then (m.r * w + m.c) :: stunned_cells(rest) else stunned_cells(rest) end in
+  let sm = stunned_cells(g.mons) in
+  let z = (case sm | [] => 0 - 1 | _ :: _ => spread(g, sm, sm, [], false) end) in
+  if z >= 0 then (dir = way(g, z), flash = fl) else
   let y = (if g.flash <= 0 then (case am | [] => 0 - 1 | _ :: _ => spread(g, am, am, [], true) end) else 0 - 1) in
   if y >= 0 && !has(am, y) then (dir = way(g, y), flash = fl) else
   let far : Int -> Int = fun d -> (let c = g.px + dx(d) in let r = g.py + dy(d) in if blocked(g, c, r) || awake_at(g.mons, c, r) then 0 - 1 else

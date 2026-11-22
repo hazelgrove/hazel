@@ -1,5 +1,5 @@
 # Gnome dig's vocabulary, which the module sees #
-# The ground: 14 cells across and 16 down, row 0 the surface (open sky), a cell numbered row by row (row times 14 plus column); each cell 0 dug out, 1 earth, 2 a gem in the earth. A direction: 0 up, 1 right, 2 down, 3 left #
+# The ground: 14 cells across and 16 down, row 0 the surface (open sky), a cell numbered row by row (row times 14 plus column); each cell 0 dug out, 1 earth, 2 a gem in the earth, (0.0.72) 3 bedrock, which nothing digs. A direction: 0 up, 1 right, 2 down, 3 left #
 # A boulder: its cell; the steps until it falls (-1 resting), and whether it is falling (then the steps to its next drop) #
 type Rock = (c = Int, r = Int, wob = Int, falling = Bool) in
 # A monster: its cell, and the steps it is still stunned #
