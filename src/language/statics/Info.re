@@ -68,7 +68,6 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -354,7 +353,6 @@ let is_label = (info: t): bool =>
   | InfoTyp({user_term: {term: Label(_), _}, _})
   | InfoExp({user_term: {term: Label(_), _}, _})
   | InfoPat({user_term: {term: Label(_), _}, _})
-  | InfoPat({label_sort: true, _})
   | InfoLabel(_) => true
   | _ => false
   };

@@ -236,12 +236,15 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   switch (pat.term) {
   | Var(name) => [name]
   | Ap(pat1, pat2)
-  | TupLabel(pat1, pat2)
   | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
   | Parens(pat)
   | Asc(pat, _) => var_names_of_pat(pat)
-  | ListLit(pats)
-  | Tuple(pats) => List.concat_map(~f=var_names_of_pat, pats)
+  | ListLit(pats) => List.concat_map(~f=var_names_of_pat, pats)
+  | Tuple(entries) =>
+    List.concat_map(
+      ~f=entry => var_names_of_pat(TupleEntry.value(entry)),
+      entries,
+    )
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -249,8 +252,7 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Atom(_)
   | Constructor(_, _)
   | Label(_)
-  | Projector(_, _)
-  | ExplicitNonlabel => []
+  | Projector(_, _) => []
   };
 };
 
