@@ -687,6 +687,8 @@ module Direct = {
     mutable defs: list(string),
     mutable named: list((string, string)),
     mutable n: int,
+    /* the types met, each with its pair of memos (K[i]) */
+    mutable keys: list(string),
   };
   let fresh = (st: st, base: string): string => {
     st.n = st.n + 1;
@@ -737,6 +739,96 @@ module Direct = {
       | ConstructorMap.BadEntry(_) => raise(No)
       }
     );
+  /* (Matthew, 2026-11-23: "notice that we've arrived at a node in the value tree where all subnodes are converted")
+     The converted-closed invariant: a value in a type's memo was converted together with everything below it, so a
+     converter that meets it returns its other side at once and does not descend. A node goes into the memo only after
+     its whole subtree is converted, both ways at once (page to compiled and compiled to page), so a value handed back
+     (the state a page got from one call, given to the next) or a part shared with one converted before costs one
+     lookup. Hazel's values are never changed, so a memo stays right as long as a page does not change an object it
+     gave or got (the rule for a page). The memos are weak, by type, and shared by every compiled function on the page.
+     A node with no converted form (a hole, a mark: not yet) would be a leaf here, held whole, converted-closed by
+     itself. */
+  let rec tkey = (recs: list((string, string)), t: Typ.t): string =>
+    switch (Typ.term_of(t)) {
+    | Parens(t) => tkey(recs, t)
+    | Atom(Int) => "I"
+    | Atom(Nat) => "N"
+    | Atom(SInt) => "S"
+    | Atom(Float) => "F"
+    | Atom(Bool) => "B"
+    | Atom(String) => "T"
+    | List(t) => "[" ++ tkey(recs, t) ++ "]"
+    | Prod(ts) =>
+      "("
+      ++ String.concat(
+           ~sep=",",
+           List.map(ts, ~f=(t: Typ.t) =>
+             switch (Typ.term_of(t)) {
+             | TupLabel({term: Label(l), _}, t) => l ++ "=" ++ tkey(recs, t)
+             | _ => tkey(recs, t)
+             }
+           ),
+         )
+      ++ ")"
+    | Sum(vs) =>
+      "<"
+      ++ String.concat(
+           ~sep="|",
+           List.map(variants(vs), ~f=((c, t)) =>
+             switch (t) {
+             | None => c
+             | Some(t) => c ++ ":" ++ tkey(recs, t)
+             }
+           ),
+         )
+      ++ ">"
+    | Rec(tp, body) =>
+      switch (tp.term) {
+      | Var(name) =>
+        "rec " ++ name ++ "." ++ tkey([(name, name), ...recs], body)
+      | _ => raise(No)
+      }
+    | Var(name) =>
+      List.Assoc.mem(recs, ~equal=String.equal, name)
+        ? "'" ++ name : "alias " ++ name
+    | _ => raise(No)
+    };
+  /* the type's memo pair, K[i] in the JavaScript */
+  let memo = (st: st, recs: list((string, string)), t: Typ.t): string => {
+    let k = tkey(recs, t);
+    let ks = List.rev(st.keys);
+    let i =
+      switch (List.findi(ks, ~f=(_, x) => String.equal(x, k))) {
+      | Some((i, _)) => i
+      | None =>
+        st.keys = [k, ...st.keys];
+        List.length(ks);
+      };
+    "K[" ++ string_of_int(i) ++ "]";
+  };
+  /* a compound node through its memo: way "$mi" (in) or "$mo" (out); build makes the node from v, its own name */
+  let through =
+      (
+        st: st,
+        recs,
+        t: Typ.t,
+        way: string,
+        x: string,
+        build: string => string,
+      )
+      : string => {
+    let v = fresh(st, "v");
+    way
+    ++ "("
+    ++ memo(st, recs, t)
+    ++ ", "
+    ++ x
+    ++ ", "
+    ++ v
+    ++ " => "
+    ++ build(v)
+    ++ ")";
+  };
   /* a page's value x (a JS expression) as compiled code's, of type t; recs: the recursive types' names in scope, each
      with its converter's key */
   let rec inn =
@@ -750,115 +842,121 @@ module Direct = {
     | Atom(Float) => "$F(" ++ x ++ ")"
     | Atom(Bool) => "$B(" ++ x ++ ")"
     | Atom(String) => "$T(" ++ x ++ ")"
-    | List(t) =>
-      let e = fresh(st, "e");
-      "$Lin(" ++ x ++ ", " ++ e ++ " => " ++ inn(st, recs, t, e) ++ ")";
+    | List(el) =>
+      through(
+        st,
+        recs,
+        t,
+        "$mi",
+        x,
+        v => {
+          let e = fresh(st, "e");
+          "$Lin(" ++ v ++ ", " ++ e ++ " => " ++ inn(st, recs, el, e) ++ ")";
+        },
+      )
     | Prod([]) => "$Uin(" ++ x ++ ")"
     | Prod(ts) =>
-      let v = fresh(st, "p");
       switch (labeled(ts)) {
       | Some(fields) =>
-        let vals =
-          List.map(fields, ~f=((l, t)) =>
-            inn(st, recs, t, v ++ "[" ++ q(l) ++ "]")
-          );
-        let keys =
-          List.mapi(fields, ~f=(i, (l, _)) =>
-            "a["
-            ++ q(HazelJit.label_key(l))
-            ++ "] = a["
-            ++ string_of_int(i)
+        through(
+          st,
+          recs,
+          t,
+          "$mi",
+          x,
+          v => {
+            let vals =
+              List.map(fields, ~f=((l, t)) =>
+                inn(st, recs, t, v ++ "[" ++ q(l) ++ "]")
+              );
+            let keys =
+              List.mapi(fields, ~f=(i, (l, _)) =>
+                "a["
+                ++ q(HazelJit.label_key(l))
+                ++ "] = a["
+                ++ string_of_int(i)
+                ++ "]; "
+              );
+            "{ if ("
+            ++ v
+            ++ " === null || typeof "
+            ++ v
+            ++ " !== \"object\" || Array.isArray("
+            ++ v
+            ++ ")) fail(); const a = ["
+            ++ String.concat(~sep=", ", vals)
             ++ "]; "
-          );
-        "("
-        ++ v
-        ++ " => { if ("
-        ++ v
-        ++ " === null || typeof "
-        ++ v
-        ++ " !== \"object\" || Array.isArray("
-        ++ v
-        ++ ")) fail(); const a = ["
-        ++ String.concat(~sep=", ", vals)
-        ++ "]; "
-        ++ String.concat(keys)
-        ++ "return a; })("
-        ++ x
-        ++ ")";
+            ++ String.concat(keys)
+            ++ "return a; }";
+          },
+        )
       | None =>
-        let n = List.length(ts);
-        let vals =
-          List.mapi(ts, ~f=(i, t) =>
-            inn(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
-          );
-        "("
-        ++ v
-        ++ " => Array.isArray("
-        ++ v
-        ++ ") && "
-        ++ v
-        ++ ".length === "
-        ++ string_of_int(n)
-        ++ " ? ["
-        ++ String.concat(~sep=", ", vals)
-        ++ "] : fail())("
-        ++ x
-        ++ ")";
-      };
+        through(
+          st,
+          recs,
+          t,
+          "$mi",
+          x,
+          v => {
+            let vals =
+              List.mapi(ts, ~f=(i, t) =>
+                inn(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+              );
+            "Array.isArray("
+            ++ v
+            ++ ") && "
+            ++ v
+            ++ ".length === "
+            ++ string_of_int(List.length(ts))
+            ++ " ? ["
+            ++ String.concat(~sep=", ", vals)
+            ++ "] : fail()";
+          },
+        )
+      }
     | Sum(vs) =>
-      let v = fresh(st, "s");
-      let arms =
-        List.map(variants(vs), ~f=((c, t)) =>
-          "case "
-          ++ q(c)
-          ++ ": return "
-          ++ (
-            switch (t) {
-            | None => "{c: " ++ q(c) ++ "}"
-            | Some(t) =>
-              "{c: "
+      through(
+        st,
+        recs,
+        t,
+        "$mi",
+        x,
+        v => {
+          let arms =
+            List.map(variants(vs), ~f=((c, t)) =>
+              "case "
               ++ q(c)
-              ++ ", v: "
-              ++ inn(st, recs, t, v ++ ".value")
-              ++ "}"
-            }
-          )
-          ++ "; "
-        );
-      "("
-      ++ v
-      ++ " => { if ("
-      ++ v
-      ++ " === null || typeof "
-      ++ v
-      ++ " !== \"object\") fail(); switch ("
-      ++ v
-      ++ ".tag) { "
-      ++ String.concat(arms)
-      ++ "default: fail(); } })("
-      ++ x
-      ++ ")";
+              ++ ": return "
+              ++ (
+                switch (t) {
+                | None => "{c: " ++ q(c) ++ "}"
+                | Some(t) =>
+                  "{c: "
+                  ++ q(c)
+                  ++ ", v: "
+                  ++ inn(st, recs, t, v ++ ".value")
+                  ++ "}"
+                }
+              )
+              ++ "; "
+            );
+          "{ if ("
+          ++ v
+          ++ " === null || typeof "
+          ++ v
+          ++ " !== \"object\") fail(); switch ("
+          ++ v
+          ++ ".tag) { "
+          ++ String.concat(arms)
+          ++ "default: fail(); } }";
+        },
+      )
     | Rec(tp, body) =>
       switch (tp.term) {
       | Var(name) =>
-        named(
-          st,
-          "in rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
-          x,
-          v =>
-          inn(
-            st,
-            [
-              (
-                name,
-                "in rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
-              ),
-              ...recs,
-            ],
-            body,
-            v,
-          )
-        )
+        let key =
+          "in rec " ++ name ++ " " ++ string_of_int(List.length(recs));
+        named(st, key, x, v => inn(st, [(name, key), ...recs], body, v));
       | _ => raise(No)
       }
     | Var(name) =>
@@ -883,109 +981,116 @@ module Direct = {
     | Atom(SInt | Float) => "$F(" ++ y ++ ")"
     | Atom(Bool) => "$B(" ++ y ++ ")"
     | Atom(String) => "$T(" ++ y ++ ")"
-    | List(t) =>
-      let e = fresh(st, "e");
-      "$Lout(" ++ y ++ ", " ++ e ++ " => " ++ out(st, recs, t, e) ++ ")";
+    | List(el) =>
+      through(
+        st,
+        recs,
+        t,
+        "$mo",
+        y,
+        v => {
+          let e = fresh(st, "e");
+          "$Lout(" ++ v ++ ", " ++ e ++ " => " ++ out(st, recs, el, e) ++ ")";
+        },
+      )
     | Prod([]) => "$Uout(" ++ y ++ ")"
     | Prod(ts) =>
-      let v = fresh(st, "p");
       let n = string_of_int(List.length(ts));
       switch (labeled(ts)) {
       | Some(fields) =>
-        let fs =
-          List.mapi(fields, ~f=(i, (l, t)) =>
-            q(l)
-            ++ ": "
-            ++ out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
-          );
-        "("
-        ++ v
-        ++ " => Array.isArray("
-        ++ v
-        ++ ") && "
-        ++ v
-        ++ ".length === "
-        ++ n
-        ++ " ? {"
-        ++ String.concat(~sep=", ", fs)
-        ++ "} : fail())("
-        ++ y
-        ++ ")";
+        through(
+          st,
+          recs,
+          t,
+          "$mo",
+          y,
+          v => {
+            let fs =
+              List.mapi(fields, ~f=(i, (l, t)) =>
+                q(l)
+                ++ ": "
+                ++ out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+              );
+            "Array.isArray("
+            ++ v
+            ++ ") && "
+            ++ v
+            ++ ".length === "
+            ++ n
+            ++ " ? {"
+            ++ String.concat(~sep=", ", fs)
+            ++ "} : fail()";
+          },
+        )
       | None =>
-        let vals =
-          List.mapi(ts, ~f=(i, t) =>
-            out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
-          );
-        "("
-        ++ v
-        ++ " => Array.isArray("
-        ++ v
-        ++ ") && "
-        ++ v
-        ++ ".length === "
-        ++ n
-        ++ " ? ["
-        ++ String.concat(~sep=", ", vals)
-        ++ "] : fail())("
-        ++ y
-        ++ ")";
+        through(
+          st,
+          recs,
+          t,
+          "$mo",
+          y,
+          v => {
+            let vals =
+              List.mapi(ts, ~f=(i, t) =>
+                out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+              );
+            "Array.isArray("
+            ++ v
+            ++ ") && "
+            ++ v
+            ++ ".length === "
+            ++ n
+            ++ " ? ["
+            ++ String.concat(~sep=", ", vals)
+            ++ "] : fail()";
+          },
+        )
       };
     | Sum(vs) =>
-      let v = fresh(st, "s");
-      let arms =
-        List.map(variants(vs), ~f=((c, t)) =>
-          "case "
-          ++ q(c)
-          ++ ": return "
-          ++ (
-            switch (t) {
-            | None => "{tag: " ++ q(c) ++ "}"
-            | Some(t) =>
-              "{tag: "
+      through(
+        st,
+        recs,
+        t,
+        "$mo",
+        y,
+        v => {
+          let arms =
+            List.map(variants(vs), ~f=((c, t)) =>
+              "case "
               ++ q(c)
-              ++ ", value: "
-              ++ out(st, recs, t, v ++ ".v")
-              ++ "}"
-            }
-          )
-          ++ "; "
-        );
-      "("
-      ++ v
-      ++ " => { if ("
-      ++ v
-      ++ " === null || typeof "
-      ++ v
-      ++ " !== \"object\" || typeof "
-      ++ v
-      ++ ".c !== \"string\") fail(); switch ("
-      ++ v
-      ++ ".c) { "
-      ++ String.concat(arms)
-      ++ "default: fail(); } })("
-      ++ y
-      ++ ")";
+              ++ ": return "
+              ++ (
+                switch (t) {
+                | None => "{tag: " ++ q(c) ++ "}"
+                | Some(t) =>
+                  "{tag: "
+                  ++ q(c)
+                  ++ ", value: "
+                  ++ out(st, recs, t, v ++ ".v")
+                  ++ "}"
+                }
+              )
+              ++ "; "
+            );
+          "{ if ("
+          ++ v
+          ++ " === null || typeof "
+          ++ v
+          ++ " !== \"object\" || typeof "
+          ++ v
+          ++ ".c !== \"string\") fail(); switch ("
+          ++ v
+          ++ ".c) { "
+          ++ String.concat(arms)
+          ++ "default: fail(); } }";
+        },
+      )
     | Rec(tp, body) =>
       switch (tp.term) {
       | Var(name) =>
-        named(
-          st,
-          "out rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
-          y,
-          v =>
-          out(
-            st,
-            [
-              (
-                name,
-                "out rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
-              ),
-              ...recs,
-            ],
-            body,
-            v,
-          )
-        )
+        let key =
+          "out rec " ++ name ++ " " ++ string_of_int(List.length(recs));
+        named(st, key, y, v => out(st, [(name, key), ...recs], body, v));
       | _ => raise(No)
       }
     | Var(name) =>
@@ -1013,6 +1118,12 @@ module Direct = {
   const $Uout = v => Array.isArray(v) && v.length === 0 ? null : fail();
   const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { h: f(v[i]), t: r }; return r; };
   const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.t) { if (typeof p !== "object" || !("h" in p)) fail(); a.push(f(p.h)); } return a; };
+  const REG = globalThis.$hazelJitMemo || (globalThis.$hazelJitMemo = new Map());
+  const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { i: new WeakMap(), o: new WeakMap() }); return m; };
+  const $mi = (m, x, build) => { if (x === null || typeof x !== "object") return build(x); const c = m.i.get(x); if (c !== undefined) return c;
+    const r = build(x); m.i.set(x, r); if (r !== null && typeof r === "object") m.o.set(r, x); return r; };
+  const $mo = (m, y, build) => { if (y === null || typeof y !== "object") return build(y); const p = m.o.get(y); if (p !== undefined) return p;
+    const r = build(y); m.o.set(y, r); if (r !== null && typeof r === "object") m.i.set(r, y); return r; };
 |};
   /* the factory: given the compiled function and the old way (slow), the function a page calls; None when the types
      give nothing to go by */
@@ -1026,6 +1137,7 @@ module Direct = {
         defs: [],
         named: [],
         n: 0,
+        keys: [],
       };
       switch (
         {
@@ -1055,6 +1167,12 @@ module Direct = {
         Some(
           "(function (f, slow) { \"use strict\";"
           ++ helpers
+          ++ "\n  const K = ["
+          ++ String.concat(
+               ~sep=", ",
+               List.map(List.rev(st.keys), ~f=k => "$wm(" ++ q(k) ++ ")"),
+             )
+          ++ "];\n"
           ++ String.concat(~sep="\n", List.rev(st.defs))
           ++ "\n  const IN = args => args.length === 0 ? [] : args.length === 1 ? "
           ++ one

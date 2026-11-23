@@ -825,6 +825,34 @@ total|};
       },
     ),
     test_case(
+      "jit: converted-closed: a value handed back crosses with no descent, the page's own object back",
+      `Quick,
+      () => {
+        /* (Matthew, 2026-11-23) a node met again, in a type's memo, was converted with everything below it: the
+           converter stops there. A list of records into the compiled identity and out again is the page's own
+           array, not a copy; and so again on the next call */
+        let same =
+          field(
+            HazelLibCore.jit(
+              "let same : [(x = Int, y = Int)] -> [(x = Int, y = Int)] = fun ps -> ps in same",
+            ),
+            "value",
+          );
+        let ps = as_js({|[{"x": 1, "y": 2}, {"x": 3, "y": 4}]|});
+        let is = (a, b) =>
+          Js.to_bool(
+            Js.Unsafe.fun_call(Js.Unsafe.js_expr("Object.is"), [|a, b|]),
+          );
+        check(
+          bool,
+          "the page's own array back",
+          true,
+          is(call(same, [ps]), ps),
+        );
+        check(bool, "and again", true, is(call(same, [ps]), ps));
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {
