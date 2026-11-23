@@ -363,7 +363,7 @@ let start = default_model => {
 };
 
 CoverageExport.install();
-CasJs.install();
+Z3Js.Page.install(~script="z3.js");
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()

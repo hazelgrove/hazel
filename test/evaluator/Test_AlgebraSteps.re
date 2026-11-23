@@ -2,7 +2,7 @@ open Alcotest;
 open Language;
 open Test_ProofMap.Harness;
 
-/* `algebra` steps, verified by Algebrite. It verifies Int arithmetic
+/* `algebra` steps, verified by Z3. It verifies Int arithmetic
  * (literals, +, −, ×, unary −, ** with a literal exponent) over variables
  * known to be Int, and Nat arithmetic (literals, +, ×, **) over variables
  * known to be Nat, and refuses a step it finds wrong. Any other step's
@@ -33,7 +33,7 @@ let differs = (name, src) => {
     pm,
     proof,
     fun
-    | ProofMark.AlgebraDiffers => true
+    | ProofMark.AlgebraDiffers(_) => true
     | _ => false,
   );
 };
@@ -99,6 +99,47 @@ let tests = (
           "theorem t = forall x: Int -> x + x == 3 * x proof from x + x do algebra 3 * x end end in t",
         ),
       )
+    ),
+    test_case(
+      "a wrong step names values at which the sides differ",
+      `Quick,
+      () => {
+        let (pm, proof) =
+          run_named(
+            "t",
+            "theorem t = forall x: Int -> forall y: Int -> x * y == x + y proof from x * y do algebra x + y end end in t",
+          );
+        let point =
+          find_marked_sub(pm, proof)
+          |> Option.bind(~f=((_, marks)) =>
+               List.find_map(
+                 marks,
+                 ~f=
+                   fun
+                   | ProofMark.AlgebraDiffers(point) => Some(point)
+                   | _ => None,
+               )
+             )
+          |> Option.value(~default=[]);
+        let value = name =>
+          List.Assoc.find(point, name, ~equal=String.equal)
+          |> Option.map(~f=Test_ProofMap.print_exp)
+          |> Option.bind(~f=Int.of_string_opt);
+        switch (value("x"), value("y")) {
+        | (Some(x), Some(y)) =>
+          check(bool, "the sides differ there", true, x * y != x + y)
+        | _ =>
+          fail(
+            "no value for x or for y among: "
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(point, ~f=((x, v)) =>
+                   x ++ " = " ++ Test_ProofMap.print_exp(v)
+                 ),
+               ),
+          )
+        };
+      },
     ),
     test_case("`i` is a variable, not the imaginary unit", `Quick, () =>
       check(

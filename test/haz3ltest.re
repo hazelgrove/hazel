@@ -1,6 +1,6 @@
 open Junit_alcotest;
 
-CasJs.install();
+Z3Js.install();
 
 Stdlib.Printexc.register_printer(exn => {
   switch (exn) {

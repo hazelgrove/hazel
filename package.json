@@ -10,7 +10,7 @@
   },
   "homepage": "https://hazel.org",
   "dependencies": {
-    "algebrite": "^1.4.0",
+    "hazel-z3": "file:../../z3-wasm-trial/hazel-z3-5.4.1-hazel.1.tgz",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2"
   },

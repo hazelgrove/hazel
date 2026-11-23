@@ -626,7 +626,7 @@ module Update = {
           when generation == box.generation && Model.running(box) =>
         let deadline = JsUtil.precise_timestamp() +. slice_ms;
         let continue_ = () => JsUtil.precise_timestamp() < deadline;
-        set_box({
+        let ran = {
           ...box,
           search:
             Option.map(
@@ -647,6 +647,12 @@ module Update = {
               ~f=StepSearch.Suggestions.run(~continue_, local.goal),
               box.suggestions,
             ),
+        };
+        /* While Z3 is loading, an algebra check has no answer, so a slice
+         * may have passed over steps it would find with one. Its work is
+         * dropped, and the slice runs again. */
+        set_box({
+          ...Z3Js.Page.loading() ? box : ran,
           generation: generation + 1,
         })
         |> return_quiet;

@@ -1,3 +1,3 @@
 /* Web worker thread */
-CasJs.install(~script="worker-algebrite.js", ());
+Z3Js.install(~script="z3-sync.js", ());
 WorkerServer.install_message_handler();

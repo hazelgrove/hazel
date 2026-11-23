@@ -74,7 +74,7 @@ let len_cons = {|theorem len_cons = forall h: Int -> forall t: [Int] -> len(h ::
 let fold_nil = {|theorem fold_nil = forall a: Int -> fold_left([], add1, a) == a proof from fold_left([], add1, a) do step end; from a == a do rewrite refl end end in |};
 let add1_step = {|theorem add1_step = forall a: Int -> forall b: Int -> add1((a, b)) == a + 1 proof from add1((a, b)) do step end; from a + 1 == a + 1 do rewrite refl end end in |};
 
-/* `shuffle` is pure arithmetic and closes by the Algebrite rewrite. */
+/* `shuffle` is pure arithmetic and closes by the `algebra` rewrite. */
 let shuffle = {|theorem shuffle = forall a: Int -> forall b: Int -> a + (1 + b) == (a + 1) + b proof from a + (1 + b) do algebra (a + 1) + b end end; from (a + 1) + b == (a + 1) + b do rewrite refl end end in |};
 
 /* `fold_cons` closes because:
@@ -424,7 +424,7 @@ let test_to_int_and_of_int_equations = () => {
   check_proven("of_int(0) == Z closes in three eval steps", pm, proof);
 };
 
-/* The Algebrite `rewrite` step locates its target up to the environment,
+/* The `algebra` step locates its target up to the environment,
  * like axiom steps, so it finds `1 + to_int(m) - 1` after an earlier axiom
  * step has left the environment-substituted `to_int` in the goal. */
 let test_rewrite_matches_through_the_environment = () => {

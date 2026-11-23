@@ -127,7 +127,12 @@ let message = (~globals, m: ProofMark.t): list(Node.t) => {
   | FloatAlgebrite => [
       text("Algebraic rewrites are refused on float-typed expressions."),
     ]
-  | AlgebraDiffers => [text("Algebra finds these are not equal.")]
+  | AlgebraDiffers([]) => [text("Algebra finds these are not equal.")]
+  | AlgebraDiffers(point) =>
+    [text("Algebra finds these are not equal when ")]
+    @ List.concat_mapi(point, ~f=(i, (x, value)) =>
+        [text((i == 0 ? "" : " and ") ++ x ++ " is "), view_exp_box(value)]
+      )
   | PatternNotFound({selector, ordinal: 1}) => [
       text("Could not find "),
       view_exp_box(selector),

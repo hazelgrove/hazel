@@ -2,8 +2,6 @@
 // This file is bundled into bundle.js as part of the build process.
 import {NinjaKeys} from 'ninja-keys';
 import hotkeys from 'hotkeys-js'
-import Algebrite from 'algebrite';
-window.Algebrite = Algebrite;
 
 // ninja-keys leaves focus nowhere when it closes: hand it back to whatever
 // had it when the palette opened, unless the chosen action moved it.

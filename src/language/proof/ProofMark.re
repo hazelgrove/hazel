@@ -60,11 +60,12 @@ type t =
       equality: string,
       var: string,
     })
-  /* Algebrite: Float-typed rewrites are refused, because the CAS's field
-   * laws are false for IEEE floats. */
+  /* Algebra: Float-typed rewrites are refused, because Z3's arithmetic
+   * isn't IEEE arithmetic. */
   | FloatAlgebrite
-  /* Algebrite: the CAS finds the goal and the replacement different. */
-  | AlgebraDiffers
+  /* Algebra: Z3 finds the goal and the replacement different, at these
+   * values of their variables. */
+  | AlgebraDiffers(list((Var.t, Exp.t)))
   /* Focus: the goal has fewer than `ordinal` matches of `selector`. */
   | PatternNotFound({
       selector: Exp.t,

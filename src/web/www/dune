@@ -14,12 +14,16 @@
    --bundle
    --outfile=bundled.js)))
 
+; Z3, which the proof checker verifies algebra steps with. The page and
+; the worker fetch these at the first such step, so they are served beside
+; the scripts that load them. z3.js starts Z3 through a promise, for the
+; page; z3-sync.js starts it synchronously, for the worker.
+
 (rule
- (targets worker-algebrite.js)
- (deps workerprelude.js)
- (action
-  (run
-   %{project_root}/node_modules/esbuild/bin/esbuild
-   workerprelude.js
-   --bundle
-   --outfile=worker-algebrite.js)))
+ (copy %{project_root}/node_modules/hazel-z3/z3.js z3.js))
+
+(rule
+ (copy %{project_root}/node_modules/hazel-z3/z3-sync.js z3-sync.js))
+
+(rule
+ (copy %{project_root}/node_modules/hazel-z3/z3.wasm z3.wasm))

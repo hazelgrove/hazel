@@ -642,5 +642,40 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "the algebra check that the stepper asks Z3",
+      `Quick,
+      () => {
+        let g =
+          goal("theorem t = forall (x : Int) -> x + x == 2 * x proof ? in t");
+        let equal = (a, b) =>
+          Web.RewriteChecker.check_rewrite(typed(g, a), typed(g, b));
+        check(
+          bool,
+          "a polynomial identity",
+          true,
+          equal("x * (x + 1)", "x * x + x"),
+        );
+        check(bool, "unequal polynomials", false, equal("x + 1", "x"));
+        check(
+          bool,
+          "where the divisor is nonzero",
+          true,
+          equal("x / x", "1"),
+        );
+        check(
+          steps,
+          "its step is found",
+          Some(["from x + x do algebra 2 * x end end"]),
+          found(
+            search(
+              ~algebra=Web.RewriteChecker.check_rewrite,
+              g,
+              "2 * x == 2 * x",
+            ),
+          ),
+        );
+      },
+    ),
   ],
 );

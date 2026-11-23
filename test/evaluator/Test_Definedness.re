@@ -368,12 +368,12 @@ let test_unknown_element_type_still_proven = () => {
   );
 };
 
-/* --- Algebrite gate ----------------------------------------------------- */
+/* --- Algebra gate ------------------------------------------------------- */
 
 /* A rewrite whose sides contain division emits the denominator
  * obligation (deduplicated across the two sides). Division is outside
- * what the CAS verifies, so the step's equation is an obligation too. */
-let test_algebrite_division_obligation = () => {
+ * what Z3 verifies, so the step's equation is an obligation too. */
+let test_algebra_division_obligation = () => {
   let src = {|theorem t = forall a -> forall b -> a / b == a / b proof from a / b do algebra a / b end end in t|};
   let (pm, proof, obs) = obligations(src);
   let obs =
@@ -391,9 +391,9 @@ let test_algebrite_division_obligation = () => {
   );
 };
 
-/* Float-typed Algebrite rewrites are refused: CAS field laws are false
- * for IEEE floats. */
-let test_algebrite_float_refused = () => {
+/* Float-typed algebra rewrites are refused: Z3's arithmetic isn't IEEE
+ * arithmetic. */
+let test_algebra_float_refused = () => {
   let src = {|theorem t = forall x -> x +. 1. ==. x +. 1. proof from x +. 1. do algebra 1. +. x end end in t|};
   let (pm, proof, obs) = obligations(src);
   Alcotest.check(
@@ -640,14 +640,14 @@ let tests = (
       test_unknown_element_type_still_proven,
     ),
     test_case(
-      "algebrite rewrite emits denominator obligations",
+      "algebra rewrite emits denominator obligations",
       `Quick,
-      test_algebrite_division_obligation,
+      test_algebra_division_obligation,
     ),
     test_case(
-      "float-typed algebrite rewrite is refused",
+      "float-typed algebra rewrite is refused",
       `Quick,
-      test_algebrite_float_refused,
+      test_algebra_float_refused,
     ),
     test_case(
       "float division is IEEE-total: no obligation, no refusal",

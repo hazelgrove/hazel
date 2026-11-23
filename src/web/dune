@@ -24,7 +24,7 @@
  (name workerServer)
  (flags
   (:standard -open Core))
- (modules WorkerServer CoverageHook CasJs)
+ (modules WorkerServer CoverageHook Z3Js)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
@@ -50,7 +50,7 @@
   Worker
   WorkerServer
   CoverageHook
-  CasJs
+  Z3Js
   Migrate_exercises)
  (libraries
   core

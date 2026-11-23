@@ -1,88 +1,86 @@
 open Util;
 open Language;
-open Js_of_ocaml;
 
-let name_other = (): (Exp.t => string) => {
-  let names: ref(list((Exp.t, string))) = ref([]);
-  (exp: Exp.t) => (
-    {
-      switch (ListUtil.assoc_opt_by(Equality.semantic.exp, exp, names^)) {
-      | Some(name) => name
-      | None =>
-        let new_name =
-          "unknown_" ++ string_of_int(Stdlib.Hashtbl.hash(exp) mod 100000);
-        names := [(exp, new_name)] @ names^;
-        new_name;
-      };
-    }: string
-    // If we don't know how to print the expression, we can use a hash to create a unique string
-    // Modulo keeps it short
-  );
-};
+/* What Z3 may spend on one comparison, in its own units of work. */
+let work_limit = 200000;
 
-let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
-  switch (exp.term) {
-  | Atom(Int(value)) => Bigint.to_string(value)
-  | Atom(Nat(value)) => Bigint.to_string(value)
-  | Atom(Float(value)) => string_of_float(value)
-  | Atom(Bool(value)) => string_of_bool(value)
-  // We have to manually map ** (power) to ^ in Algebrite.
-  | BinOp(Int(Power), exp_left, exp_right) =>
-    "("
-    ++ print_exp_for_algebrite(~name_other, exp_left)
-    ++ " ^ "
-    ++ print_exp_for_algebrite(~name_other, exp_right)
-    ++ ")"
-  // The other operators should work fine as-is.
-  | BinOp(op, exp_left, exp_right) =>
-    "("
-    ++ print_exp_for_algebrite(~name_other, exp_left)
-    ++ " "
-    ++ FormId.bin_op_to_string(op)
-    ++ " "
-    ++ print_exp_for_algebrite(~name_other, exp_right)
-    ++ ")"
-  | UnOp(Int(Minus), exp) =>
-    "(" ++ "-" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
-  | Parens(exp) => "(" ++ print_exp_for_algebrite(~name_other, exp) ++ ")"
-  | Var(value) => value
-  // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
-  | Asc(exp, _) => print_exp_for_algebrite(~name_other, exp)
-  | _ => name_other(exp)
-  };
-
-/* The page loads Algebrite. Where it isn't loaded, nothing is equal by
- * algebra. */
-let checkEquality = (expr1, expr2): bool => {
-  let algebrite = Js.Unsafe.global##.Algebrite;
-  if (String.equal(Js.to_string(Js.typeof(algebrite)), "undefined")) {
-    false;
-  } else {
-    let diffExpr = sprintf("simplify((%s)-(%s))", expr1, expr2);
-    let algebrite_result = algebrite##run(Js.string(diffExpr));
-    switch (Js.to_string(algebrite_result)) {
-    | "0" => true
-    | _ => false
+/* Whether Z3 finds two arithmetic expressions equal wherever their
+ * divisors are nonzero, reading numbers as reals and a part it can't
+ * translate as an unknown number, the same unknown for equal parts. The
+ * stepper's search asks this before it tries an `algebra` step, which the
+ * checker then checks by its own, stricter rules. */
+let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
+  let unknowns: ref(list((Exp.t, string))) = ref([]);
+  let unknown = (e: Exp.t): string =>
+    switch (ListUtil.assoc_opt_by(Equality.semantic.exp, e, unknowns^)) {
+    | Some(symbol) => symbol
+    | None =>
+      let symbol = "x" ++ string_of_int(List.length(unknowns^));
+      unknowns := [(e, symbol), ...unknowns^];
+      symbol;
+    };
+  let divisors = ref([]);
+  let rec term = (e: Exp.t): string => {
+    let apply = (op, a, b) =>
+      "(" ++ op ++ " " ++ term(a) ++ " " ++ term(b) ++ ")";
+    switch (Exp.term_of(e)) {
+    | Atom(Int(n) | Nat(n)) when Bigint.(n >= zero) =>
+      Bigint.to_string(n) ++ ".0"
+    | Parens(e)
+    | Asc(e, _) => term(e)
+    | UnOp(Int(Minus), e) => "(- " ++ term(e) ++ ")"
+    | BinOp(Int(Plus) | Nat(Plus), a, b) => apply("+", a, b)
+    | BinOp(Int(Minus) | Nat(Minus), a, b) => apply("-", a, b)
+    | BinOp(Int(Times) | Nat(Times), a, b) => apply("*", a, b)
+    | BinOp(Int(Divide) | Nat(Divide), a, b) =>
+      divisors := [term(b), ...divisors^];
+      apply("/", a, b);
+    | BinOp(Int(Power) | Nat(Power), a, {term: Atom(Int(n) | Nat(n)), _})
+        when Bigint.(n >= one && n <= of_int(16)) =>
+      "(* "
+      ++ String.concat(
+           ~sep=" ",
+           List.init(Bigint.to_int_exn(n), ~f=_ => term(a)),
+         )
+      ++ ")"
+    | _ => unknown(e)
     };
   };
-};
-
-// underscores indicate unused arguments
-let check_rewrite = (from_: Exp.t, to_: Exp.t): bool => {
-  // TODO maybe type-check a bit here so that we don't have to handle
-  // differing types on the Algebrite side
-  // Or maybe the stepper itself will guarantee _from and _to always have the same type
-  // perhaps some Cast
-
-  // TODO return Some(bool) instead of bool in case we encounter a case we can't handle?
-  let name_other = name_other();
-  let from_ = DHExp.strip_ascriptions(from_);
-  let to_ = DHExp.strip_ascriptions(to_);
-  let left_str = print_exp_for_algebrite(~name_other, from_);
-  let right_str = print_exp_for_algebrite(~name_other, to_);
-  if (String.equal(left_str, "Unknown") || String.equal(right_str, "Unknown")) {
-    false;
-  } else {
-    checkEquality(left_str, right_str);
+  let from_ = term(DHExp.strip_ascriptions(from_));
+  let to_ = term(DHExp.strip_ascriptions(to_));
+  let declarations =
+    List.map(unknowns^, ~f=((_, x)) => "(declare-const " ++ x ++ " Real)")
+    |> String.concat;
+  let nonzero =
+    List.map(divisors^, ~f=d => "(assert (not (= " ++ d ++ " 0.0)))")
+    |> String.concat;
+  /* Z3's simplifier settles an identity between polynomials much faster
+   * than its solver does. */
+  let simplified =
+    Z3.eval^(
+      declarations ++ "(simplify (- " ++ from_ ++ " " ++ to_ ++ ") :som true)",
+    );
+  switch (Option.map(~f=String.strip, simplified)) {
+  | None => false
+  | Some("0.0") => true
+  | Some(_) =>
+    let answer =
+      Z3.eval^(
+        "(set-option :rlimit "
+        ++ string_of_int(work_limit)
+        ++ ")"
+        ++ declarations
+        ++ nonzero
+        ++ "(assert (not (= "
+        ++ from_
+        ++ " "
+        ++ to_
+        ++ ")))(check-sat)",
+      );
+    switch (Option.map(~f=String.strip, answer)) {
+    | Some("unsat") => true
+    | Some(_)
+    | None => false
+    };
   };
 };

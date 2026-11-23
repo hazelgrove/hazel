@@ -107,9 +107,9 @@ let theorem = (name: string, stmt: string, proof: string): string =>
  *     `| 0 => | n =>` (a literal and a catch-all,
  *     `test_pin_no_numeric_induction_hypothesis`), so the catch-all
  *     branch reproduces the original goal with no inductive hypothesis.
- *   - Algebrite doesn't close it: a boolean comparison isn't arithmetic
- *     the CAS verifies, so the step's equation is left open
- *     (`test_algebrite_leaves_the_lemma_open`). */
+ *   - `algebra` doesn't close it: a boolean comparison isn't arithmetic
+ *     Z3 verifies, so the step's equation is left open
+ *     (`test_algebra_leaves_the_lemma_open`). */
 let partial_proof = (antecedents: list(string), predicate: string): string =>
   List.fold_right(
     ~f=(a, rest) => "assume " ++ a ++ " => " ++ rest,
@@ -342,11 +342,11 @@ let test_pin_no_numeric_induction_hypothesis = () => {
   };
 };
 
-/* (C3) Algebrite can't prove a closure lemma. `algebra true` on
- * `a1 != 0` is a boolean comparison, not Int arithmetic the CAS
+/* `algebra` can't prove a closure lemma. `algebra true` on
+ * `a1 != 0` is a boolean comparison, not Int arithmetic Z3
  * verifies, so its equation is left open and the lemma isn't plain
  * Proven. */
-let test_algebrite_leaves_the_lemma_open = () => {
+let test_algebra_leaves_the_lemma_open = () => {
   let (pm, proof) =
     run_named(
       "t",
@@ -358,7 +358,7 @@ let test_algebrite_leaves_the_lemma_open = () => {
     );
   Alcotest.check(
     Alcotest.bool,
-    "an unverified Algebrite rewrite leaves the lemma open",
+    "an unverified algebra rewrite leaves the lemma open",
     true,
     switch (ProofMap.full_status_of_proof(pm, proof)) {
     | ProvenModulo([{kind: Algebra, _}]) => true
@@ -616,9 +616,9 @@ let tests = (
       test_pin_no_numeric_induction_hypothesis,
     ),
     test_case(
-      "an unverified Algebrite rewrite leaves the lemma open",
+      "an unverified algebra rewrite leaves the lemma open",
       `Quick,
-      test_algebrite_leaves_the_lemma_open,
+      test_algebra_leaves_the_lemma_open,
     ),
     test_case(
       "a nested antecedent in parentheses is introduced",

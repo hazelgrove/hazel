@@ -640,27 +640,32 @@ module Axiom = {
   };
 };
 
-/* `algebra <replacement> end`: replace the goal with an expression the
- * CAS finds equal to it. The CAS's field laws are false for IEEE floats,
- * so a Float-typed rewrite is refused. It reasons in a field, so both
- * sides' domain conditions are its obligations.
+/* `algebra <replacement> end`: replace the goal with an expression Z3
+ * finds equal to it. Z3's arithmetic isn't IEEE arithmetic, so a
+ * Float-typed rewrite is refused. Both sides' domain conditions are the
+ * step's obligations.
  *
- * The CAS verifies the equation only for Int arithmetic it is right
- * about: Int literals, +, −, ×, unary −, and ** with a literal exponent
- * ≥ 0, over variables known to be Int. It verifies Nat literals, +, × and
- * ** over variables known to be Nat the same way: such an expression has
- * the value of the same polynomial over Int, and polynomials equal on
- * every Nat are equal. Nat subtraction truncates, so it stays out.
- * Definitions are substituted first,
- * so one whose value is a literal counts as that literal, and one whose
- * value is an error or a function leaves the fragment. A step the CAS
- * finds wrong is refused. Any other step incurs its equation as an
- * obligation. */
-module Algebrite = {
+ * Z3 verifies the equation for Int arithmetic: Int literals, +, −, ×,
+ * unary −, and ** with a literal exponent ≥ 0, over variables known to be
+ * Int. It verifies Nat literals, +, × and ** over variables known to be
+ * Nat the same way. Nat subtraction truncates, so it stays out.
+ * Definitions are substituted first, so one whose value is a literal
+ * counts as that literal, and one whose value is an error or a function
+ * leaves the fragment. A step Z3 finds wrong is refused. Any other step
+ * incurs its equation as an obligation. */
+module Algebra = {
   type verdict =
     | Equal
-    | Differ
+    /* A value for each variable at which the two sides differ. */
+    | Differ(list((Var.t, Exp.t)))
     | Unverified;
+
+  /* A literal exponent is written out as a product, up to this size. */
+  let max_exponent = 64;
+
+  /* What Z3 may spend on one step, in its own units of work. A limit on
+   * work and not on time gives a step the same verdict on every machine. */
+  let work_limit = 1000000;
 
   let verify =
       (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, goal, replacement)
@@ -680,65 +685,153 @@ module Algebrite = {
       | Some(ty) => Poly.equal(ty, Atom(cls))
       };
     };
-    /* Variables are renamed, since Algebrite reads `i` as the imaginary
-     * unit and `e` as Euler's number. */
-    let names = ref([]);
-    let rename = name =>
-      switch (List.Assoc.find(names^, name, ~equal=String.equal)) {
-      | Some(renamed) => renamed
+    /* Each variable's name in the script: a Hazel name needn't be an
+     * SMT-LIB symbol. */
+    let symbols = ref([]);
+    let symbol = name =>
+      switch (List.Assoc.find(symbols^, name, ~equal=String.equal)) {
+      | Some(symbol) => symbol
       | None =>
-        let renamed = "hzv" ++ string_of_int(List.length(names^));
-        names := [(name, renamed), ...names^];
-        renamed;
+        let symbol = "x" ++ string_of_int(List.length(symbols^));
+        symbols := [(name, symbol), ...symbols^];
+        symbol;
       };
     /* `cls` is Int or Nat. Every operator and operand has to be of it: a
      * Nat variable under an Int `+` is ill-typed and doesn't evaluate. */
-    let rec print = (cls: Atom.cls, e: Exp.t): option(string) => {
+    let rec term = (cls: Atom.cls, e: Exp.t): option(string) => {
       open OptUtil.Syntax;
-      let binary = (a, op, b) => {
-        let* a = print(cls, a);
-        let+ b = print(cls, b);
-        "(" ++ a ++ ")" ++ op ++ "(" ++ b ++ ")";
+      let apply = (op, a, b) => {
+        let* a = term(cls, a);
+        let+ b = term(cls, b);
+        "(" ++ op ++ " " ++ a ++ " " ++ b ++ ")";
+      };
+      let power = (a, n: Bigint.t) => {
+        let* n = Bigint.to_int(n);
+        let+ a = n >= 0 && n <= max_exponent ? term(cls, a) : None;
+        switch (n) {
+        | 0 => "1"
+        | 1 => a
+        | _ =>
+          "(* " ++ String.concat(~sep=" ", List.init(n, ~f=_ => a)) ++ ")"
+        };
       };
       switch (cls, Exp.term_of(e)) {
-      | (Int, Atom(Int(n)))
-      | (Nat, Atom(Nat(n))) => Some("(" ++ Bigint.to_string(n) ++ ")")
-      | (_, Var(x)) when has_cls(cls, e, x) => Some(rename(x))
-      | (_, Parens(e) | Asc(e, _)) => print(cls, e)
+      | (Int, Atom(Int(n))) =>
+        Some(
+          Bigint.(n >= zero)
+            ? Bigint.to_string(n)
+            : "(- " ++ Bigint.to_string(Bigint.neg(n)) ++ ")",
+        )
+      | (Nat, Atom(Nat(n))) => Some(Bigint.to_string(n))
+      | (_, Var(x)) when has_cls(cls, e, x) => Some(symbol(x))
+      | (_, Parens(e) | Asc(e, _)) => term(cls, e)
       | (Int, UnOp(Int(Minus), e)) =>
-        print(cls, e) |> Option.map(~f=e => "-(" ++ e ++ ")")
+        term(cls, e) |> Option.map(~f=e => "(- " ++ e ++ ")")
       | (Int, BinOp(Int(Plus), a, b))
-      | (Nat, BinOp(Nat(Plus), a, b)) => binary(a, "+", b)
-      | (Int, BinOp(Int(Minus), a, b)) => binary(a, "-", b)
+      | (Nat, BinOp(Nat(Plus), a, b)) => apply("+", a, b)
+      | (Int, BinOp(Int(Minus), a, b)) => apply("-", a, b)
       | (Int, BinOp(Int(Times), a, b))
-      | (Nat, BinOp(Nat(Times), a, b)) => binary(a, "*", b)
-      | (Int, BinOp(Int(Power), a, {term: Atom(Int(n)), _} as b))
-          when Bigint.(>=)(n, Bigint.zero) =>
-        binary(a, "^", b)
-      | (Nat, BinOp(Nat(Power), a, {term: Atom(Nat(_)), _} as b)) =>
-        binary(a, "^", b)
+      | (Nat, BinOp(Nat(Times), a, b)) => apply("*", a, b)
+      | (Int, BinOp(Int(Power), a, {term: Atom(Int(n)), _}))
+      | (Nat, BinOp(Nat(Power), a, {term: Atom(Nat(n)), _})) =>
+        power(a, n)
       | _ => None
       };
     };
     let substituted = Substitution.in_exp(SemanticCtx.get_env(ctx));
-    let printed = (cls: Atom.cls) =>
+    let sides = (cls: Atom.cls) =>
       OptUtil.zip(
-        print(cls, substituted(goal)),
-        print(cls, substituted(replacement)),
-      );
-    let sides =
-      switch (printed(Int)) {
-      | Some(_) as sides => sides
-      | None => printed(Nat)
+        term(cls, substituted(goal)),
+        term(cls, substituted(replacement)),
+      )
+      |> Option.map(~f=sides => (cls, sides));
+    /* The values Z3 printed for the variables, `((x0 2) (x1 (- 3)))`, as
+     * Hazel literals. */
+    let point = (cls: Atom.cls, values: string): list((Var.t, Exp.t)) => {
+      let literal = (n: string): Exp.t =>
+        Exp.fresh(
+          Atom(
+            Poly.equal(cls, Atom.Nat)
+              ? Nat(Bigint.of_string(n)) : Int(Bigint.of_string(n)),
+          ),
+        );
+      let value = (v: Sexp.t): option(Exp.t) =>
+        switch (v) {
+        | Atom(n) => Some(literal(n))
+        | List([Atom("-"), Atom(n)]) => Some(literal("-" ++ n))
+        | List(_) => None
+        };
+      switch (Parsexp.Single.parse_string(values)) {
+      | Ok(List(bindings)) =>
+        List.filter_map(bindings, ~f=binding =>
+          switch (binding) {
+          | List([Atom(symbol), v]) =>
+            OptUtil.zip(
+              List.Assoc.find(
+                List.Assoc.inverse(symbols^),
+                symbol,
+                ~equal=String.equal,
+              ),
+              value(v),
+            )
+          | Atom(_)
+          | List(_) => None
+          }
+        )
+      | Ok(Atom(_))
+      | Error(_) => []
       };
-    switch (sides) {
-    | Some((l, r)) =>
-      switch (Cas.run^("simplify((" ++ l ++ ")-(" ++ r ++ "))")) {
-      | Some("0") => Equal
-      | Some(_) => Differ
+    };
+    switch (Option.first_some(sides(Int), sides(Nat))) {
+    | None => Unverified
+    | Some((cls, (l, r))) =>
+      let variables = List.rev_map(symbols^, ~f=snd);
+      let declarations =
+        variables
+        |> List.map(~f=x =>
+             "(declare-const "
+             ++ x
+             ++ " Int)"
+             ++ (
+               Poly.equal(cls, Atom.Nat) ? "(assert (>= " ++ x ++ " 0))" : ""
+             )
+           )
+        |> String.concat;
+      /* Z3's simplifier settles an identity between polynomials much
+       * faster than its solver does. */
+      let simplified =
+        Z3.eval^(
+          declarations ++ "(simplify (- " ++ l ++ " " ++ r ++ ") :som true)",
+        );
+      switch (Option.map(~f=String.strip, simplified)) {
       | None => Unverified
-      }
-    | _ => Unverified
+      | Some("0") => Equal
+      | Some(_) =>
+        let values =
+          List.is_empty(variables)
+            ? ""
+            : "(get-value (" ++ String.concat(~sep=" ", variables) ++ "))";
+        let answer =
+          Z3.eval^(
+            "(set-option :rlimit "
+            ++ string_of_int(work_limit)
+            ++ ")"
+            ++ declarations
+            ++ "(assert (not (= "
+            ++ l
+            ++ " "
+            ++ r
+            ++ ")))(check-sat)"
+            ++ values,
+          );
+        switch (Option.map(~f=String.split_lines, answer)) {
+        | Some(["unsat", ..._]) => Equal
+        | Some(["sat", ...values]) =>
+          Differ(point(cls, String.concat(values)))
+        | Some(_)
+        | None => Unverified
+        };
+      };
     };
   };
 
@@ -787,7 +880,7 @@ module Algebrite = {
     } else {
       switch (verify(~statics, ~ctx, goal, replacement)) {
       | Equal => Ok((rewritten, domain_conditions()))
-      | Differ => Error(ProofMark.AlgebraDiffers)
+      | Differ(point) => Error(ProofMark.AlgebraDiffers(point))
       | Unverified =>
         let equation =
           Exp.fresh(BinOp(Poly(Equals), goal, replacement))
@@ -1022,7 +1115,7 @@ module Funext = {
 
 // The walk
 
-/* An axiom, algebrite or eval step rewrites the goal at its root. With no
+/* An axiom, algebra or eval step rewrites the goal at its root. With no
  * goal there is nothing to rewrite; a step that doesn't apply is marked
  * and passes the goal through. */
 let check_rewrite =
@@ -1141,7 +1234,7 @@ let rec check =
       ~ctx,
       ~id,
       incoming,
-      Algebrite.check(~step, ~statics, ~ctx, ~origin=id, ~replacement),
+      Algebra.check(~step, ~statics, ~ctx, ~origin=id, ~replacement),
     )
   | EvalStep =>
     check_rewrite(

@@ -179,8 +179,8 @@ and proof_term('a) =
       equality: exp_t('a),
       instantiation: option((exp_t('a), exp_t('a))),
     })
-  /* `algebra <replacement> end`: replace the goal with an expression the
-   * CAS finds equal to it. */
+  /* `algebra <replacement> end`: replace the goal with an expression Z3
+   * finds equal to it. */
   | AlgebriteStep(exp_t('a))
   /* `step`: one evaluation step at the root, a rewrite whose replacement
    * is computed. The checker takes the step function as a parameter. */

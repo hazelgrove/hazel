@@ -32,7 +32,7 @@ type kind =
   /* A cited theorem whose proof isn't finished: the step rests on its
    * statement. */
   | Citation
-  /* An `algebra` step the CAS can't verify: the goal equals what it is
+  /* An `algebra` step Z3 can't verify: the goal equals what it is
    * rewritten to. */
   | Algebra;
 
