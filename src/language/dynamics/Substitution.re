@@ -8,12 +8,26 @@
 
 
 
- This file defines capture-avoiding substitution of EXPRESSIONS into every sort.
+ This file defines capture-avoiding substitution of expressions into every sort.
  It follows the rules at the top of FreeVars.re.
 
  POSTCONDITIONS:
   - The resulting expression never contains closures (so this can be used to remove closures after evaluation)
  */
+
+/* The names free in the values `env` puts in for `names` (except those in
+   `skip`), added to `init`. */
+let brought_in = (~memo, ~skip=[], env, names, init) =>
+  FreeVars.Names.fold(
+    (y, acc) =>
+      switch (FreeVars.replacement(env, y)) {
+      | Some(value) when !List.mem(skip, y, ~equal=String.equal) =>
+        FreeVars.Names.union(FreeVars.all(FreeVars.exp(~memo, value)), acc)
+      | _ => acc
+      },
+    names,
+    init,
+  );
 
 /* `danger` holds every name a binder in `exp` could capture: the names sealed
    in it, those free in the values `env` inserts, and those renamed binders
@@ -41,7 +55,9 @@ let rec go =
 
         // A closure is a scope barrier: only its own environment applies.
         | Closure(env, e) => go(memo, ~danger, env, e)
-        | FixF(p, e, Some(env)) =>
+        /* A fixpoint's own environment is a scope barrier too. */
+        | FixF(p, e, fix_env) =>
+          let env = Option.value(fix_env, ~default=env);
           let (env', p', danger') = bind(memo, ~danger, env, p, e);
           FixF(p', go(memo, ~danger=danger', env', e), None) |> rewrap;
 
@@ -72,9 +88,6 @@ let rec go =
                }),
           )
           |> rewrap
-        | FixF(p, e, None) =>
-          let (env', p', danger') = bind(memo, ~danger, env, p, e);
-          FixF(p', go(memo, ~danger=danger', env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
           let (env', p', danger') = bind(memo, ~danger, env, p, e2);
           Theorem(
@@ -157,19 +170,7 @@ and bind =
     let bound = Pat.bound_vars(p);
     let beneath = FreeVars.exp(~memo, body);
     let inserted =
-      FreeVars.Names.fold(
-        (y, acc) =>
-          switch (FreeVars.replacement(env, y)) {
-          | Some(value) when !List.mem(bound, y, ~equal=String.equal) =>
-            FreeVars.Names.union(
-              FreeVars.all(FreeVars.exp(~memo, value)),
-              acc,
-            )
-          | _ => acc
-          },
-        beneath.vars,
-        FreeVars.Names.empty,
-      );
+      brought_in(~memo, ~skip=bound, env, beneath.vars, FreeVars.Names.empty);
     let captured = FreeVars.Names.union(inserted, beneath.sealed);
     let taken =
       ref(
@@ -349,20 +350,7 @@ and in_exp = (env: Environment.t(Exp.t), exp: Exp.t): Exp.t => {
   } else {
     let memo = FreeVars.Memo.create(16);
     let names = FreeVars.exp(~memo, exp);
-    let danger =
-      FreeVars.Names.fold(
-        (y, acc) =>
-          switch (FreeVars.replacement(env, y)) {
-          | Some(value) =>
-            FreeVars.Names.union(
-              FreeVars.all(FreeVars.exp(~memo, value)),
-              acc,
-            )
-          | None => acc
-          },
-        names.vars,
-        names.sealed,
-      );
+    let danger = brought_in(~memo, env, names.vars, names.sealed);
     go(memo, ~danger, env, exp);
   };
 };
