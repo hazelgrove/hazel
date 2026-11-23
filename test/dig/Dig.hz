@@ -96,27 +96,27 @@ let level_of : (Int, Int, Int, Int, Int, Int) -> Game = fun (lv, seed, score, li
    flash = 0, mwait = 30, mpace = (let p = 14 - lv in if p < 12 then 12 else p), dead = 0, over = false, hit = hit, t = t,
    animals = ans, wt = wt, gear = (if wt < h then (wt + 2 + md(s3 / 23, 2)) * w + gc else 0 - 1), diving = false, air = 100,
    lover = love, loves = false,
-   lamp = (if lv < 3 then 0 - 1 else (let l = lamp_spot(s3 + 13, 0) in if l == love then lamp_spot(s3 + 17, 0) else l)), lantern = lv < 3);
+   lamp = (if lv < 3 then 0 - 1 else (let l = lamp_spot(s3 + 13, 0) in if l == love then lamp_spot(s3 + 17, 0) else l)), lantern = lv < 3, blast = 0, beam = 0 - 1);
 let start : Int -> Game = fun seed -> level_of(0, seed, 0, 3, 0, 0);
 # ---- The boulders ---- #
-# each boulder a step on: resting over a dug cell (no boulder there), it wobbles 40 steps, then falls a cell every 4 steps; a monster it lands on is squashed (200 points); on you, you are caught; on an animal (0.0.68), the level is lost; where it cannot fall further it crumbles. The boulders, the monsters left, the points, whether you were caught, whether one squashed (5), landed (6) or fell on an animal (8) #
-let roll : ([Rock], [Rock], [Int], [Mon], [Animal], Int, Int, Int, Bool, Int) -> ([Rock], [Mon], Int, Bool, Int) = fun (rs, kept, cs, ms, ans, px, py, score, hurt, ev) ->
+# each boulder a step on: resting over a dug cell (no boulder there), it wobbles 40 steps, then falls a cell every 4 steps ((0.0.74; Matthew: "things like rocks and creatures should fall slower in water") every 10 under the ground water, row wt and down); a monster it lands on is squashed (200 points); on you, you are caught; on an animal (0.0.68), the level is lost; where it cannot fall further it crumbles. The boulders, the monsters left, the points, whether you were caught, whether one squashed (5), landed (6) or fell on an animal (8) #
+let roll : ([Rock], [Rock], [Int], [Mon], [Animal], Int, Int, Int, Int, Bool, Int) -> ([Rock], [Mon], Int, Bool, Int) = fun (rs, kept, cs, ms, ans, wt, px, py, score, hurt, ev) ->
   case rs
   | [] => (kept, ms, score, hurt, ev)
   | x :: rest =>
     let open = cell(cs, x.c, x.r + 1) == 0 && !rock_at(rest, x.c, x.r + 1) && !rock_at(kept, x.c, x.r + 1) in
     if !x.falling then
-      (if !open then roll(rest, (c = x.c, r = x.r, wob = 0 - 1, falling = false) :: kept, cs, ms, ans, px, py, score, hurt, ev)
-       else if x.wob < 0 then roll(rest, (c = x.c, r = x.r, wob = 40, falling = false) :: kept, cs, ms, ans, px, py, score, hurt, ev)
-       else if x.wob <= 1 then roll(rest, (c = x.c, r = x.r, wob = 4, falling = true) :: kept, cs, ms, ans, px, py, score, hurt, ev)
-       else roll(rest, (c = x.c, r = x.r, wob = x.wob - 1, falling = false) :: kept, cs, ms, ans, px, py, score, hurt, ev))
-    else if x.wob > 1 then roll(rest, (c = x.c, r = x.r, wob = x.wob - 1, falling = true) :: kept, cs, ms, ans, px, py, score, hurt, ev)
-    else if !open then roll(rest, kept, cs, ms, ans, px, py, score, hurt, (if ev == 0 then 6 else ev))
+      (if !open then roll(rest, (c = x.c, r = x.r, wob = 0 - 1, falling = false) :: kept, cs, ms, ans, wt, px, py, score, hurt, ev)
+       else if x.wob < 0 then roll(rest, (c = x.c, r = x.r, wob = 40, falling = false) :: kept, cs, ms, ans, wt, px, py, score, hurt, ev)
+       else if x.wob <= 1 then roll(rest, (c = x.c, r = x.r, wob = (if x.r >= wt then 10 else 4), falling = true) :: kept, cs, ms, ans, wt, px, py, score, hurt, ev)
+       else roll(rest, (c = x.c, r = x.r, wob = x.wob - 1, falling = false) :: kept, cs, ms, ans, wt, px, py, score, hurt, ev))
+    else if x.wob > 1 then roll(rest, (c = x.c, r = x.r, wob = x.wob - 1, falling = true) :: kept, cs, ms, ans, wt, px, py, score, hurt, ev)
+    else if !open then roll(rest, kept, cs, ms, ans, wt, px, py, score, hurt, (if ev == 0 then 6 else ev))
     else
       (let r1 = x.r + 1 in
        let squash = mon_at(ms, x.c, r1) in
        let ms2 = (if squash then (let drop : [Mon] -> [Mon] = fun l -> case l | [] => [] | m :: more => if m.c == x.c && m.r == r1 then drop(more) else m :: drop(more) end in drop(ms)) else ms) in
-       roll(rest, (c = x.c, r = r1, wob = 4, falling = true) :: kept, cs, ms2, ans, px, py, score + (if squash then 200 else 0), hurt || (px == x.c && py == r1),
+       roll(rest, (c = x.c, r = r1, wob = (if r1 >= wt then 10 else 4), falling = true) :: kept, cs, ms2, ans, wt, px, py, score + (if squash then 200 else 0), hurt || (px == x.c && py == r1),
             (if ev == 8 || animal_at(ans, x.c, r1) then 8 else if squash then 5 else ev)))
   end;
 # (0.0.69; Matthew: "can we make shafts of light that come into the holes, from the actual position of the sun", "the animals move away from the light in the hole") whether the sun shines into a cell: a straight line from its middle to the sun (as the page draws it, 1220 across and 210 above the ground, in hundredths of a cell), in steps of a sixth of a cell or so, passing through nothing but dug cells with no boulder, until it is above the ground #
@@ -129,14 +129,14 @@ let sunlit : ([Int], [Rock], Int, Int) -> Bool = fun (cs, rs, c, r) ->
      if qy < 100 then true else if qx < 0 || qx >= 1400 then false else
      if cell(cs, qx / 100, qy / 100) != 0 || rock_at(rs, qx / 100, qy / 100) then false else go(i + 1)) in
   go(1);
-# (0.0.68; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") the animals a step on: one whose own cell is dug out, over a dug cell (no boulder, no animal in it), drops into it, then a cell every 4 steps. (0.0.69) One lying in a hole in the sunlight gets up and, every 20 steps, walks a cell along to the side (0.0.72: never under a loose or falling boulder): to a dug cell in the shade, the one away from the sun first, or else, none in the shade, away from the sun; in the shade, or held by the earth, it rests #
-let settle : ([Animal], [Animal], [Int], [Rock]) -> [Animal] = fun (ans, all, cs, rs) ->
+# (0.0.68; Matthew: "when the dirt is removed, the worms and moles, etc, should drop down") the animals a step on: one whose own cell is dug out, over a dug cell (no boulder, no animal in it), drops into it, then a cell every 4 steps (0.0.74: every 10 under the ground water). (0.0.69) One lying in a hole in the sunlight gets up and, every 20 steps, walks a cell along to the side (0.0.72: never under a loose or falling boulder): to a dug cell in the shade, the one away from the sun first, or else, none in the shade, away from the sun; in the shade, or held by the earth, it rests #
+let settle : ([Animal], [Animal], [Int], [Rock], Int) -> [Animal] = fun (ans, all, cs, rs, wt) ->
   case ans
   | [] => []
   | a :: rest =>
     let open = cell(cs, a.c, a.r) == 0 && cell(cs, a.c, a.r + 1) == 0 && !rock_at(rs, a.c, a.r + 1) && !animal_at(all, a.c, a.r + 1) in
     let still : Int -> Animal = fun wk -> (kind = a.kind, c = a.c, r = a.r, fall = 0 - 1, walk = wk) in
-    (if open then (if a.fall > 1 then (kind = a.kind, c = a.c, r = a.r, fall = a.fall - 1, walk = 0 - 1) else (kind = a.kind, c = a.c, r = a.r + 1, fall = 4, walk = 0 - 1))
+    (if open then (if a.fall > 1 then (kind = a.kind, c = a.c, r = a.r, fall = a.fall - 1, walk = 0 - 1) else (kind = a.kind, c = a.c, r = a.r + 1, fall = (if a.r + 1 >= wt then 10 else 4), walk = 0 - 1))
      else if cell(cs, a.c, a.r) != 0 || !sunlit(cs, rs, a.c, a.r) then still(0 - 1)
      else if a.walk > 1 then still(a.walk - 1)
      else if a.walk < 0 then still(20)
@@ -146,7 +146,7 @@ let settle : ([Animal], [Animal], [Int], [Rock]) -> [Animal] = fun (ans, all, cs
         let shade : Int -> Bool = fun d -> free(d) && !sunlit(cs, rs, a.c + d, a.r) in
         let back = (if a.c * 100 + 50 < 1220 then 0 - 1 else 1) in
         let d = (if shade(back) then back else if shade(0 - back) then 0 - back else if free(back) then back else if free(0 - back) then 0 - back else 0) in
-        (kind = a.kind, c = a.c + d, r = a.r, fall = 0 - 1, walk = 20))) :: settle(rest, all, cs, rs)
+        (kind = a.kind, c = a.c + d, r = a.r, fall = 0 - 1, walk = 20))) :: settle(rest, all, cs, rs, wt)
   end;
 # ---- The monsters ---- #
 # a monster's move: of the four ways, the dug cells (no boulder) nearer you, (0.0.70; Matthew: "let's have the ghosts run away from sunlight too", "or burn in it") but never into the sunlight, and (0.0.71; Matthew: "when the gnome has it, they automatically shoot love at the ghosts when they are nearby and they run away like sunlight") with your love shooter, within three cells of you, away from you, to the shaded cell farthest; now and then (an eighth of its moves, by chance) it burrows a cell through the earth toward you, digging it, but never into a gem, bedrock or an animal; a stunned one waits. One caught in the sunlight (the ground dug open round it) runs from it, to the cell in the shade nearest you; with none, or stunned, it burns up (true) #
@@ -180,15 +180,18 @@ let reach : (Mon, Int, Int) -> Int = fun (m, px, py) -> absi(m.c - px) + absi(m.
 let stun_near : ([Mon], Int, Int) -> [Mon] = fun (ms, px, py) ->
   case ms | [] => [] | m :: rest => (let d = reach(m, px, py) in (c = m.c, r = m.r, stun = (if d >= 1 && d <= 3 then 180 else m.stun))) :: stun_near(rest, px, py) end;
 let catch_at : ([Mon], Int, Int) -> [Mon] = fun (ms, c, r) -> case ms | [] => [] | m :: rest => if m.c == c && m.r == r && m.stun > 0 then rest else m :: catch_at(rest, c, r) end;
-let mcount : [Mon] -> Int = fun ms -> case ms | [] => 0 | _ :: rest => 1 + mcount(rest) end;
+# (0.0.74; Matthew, on making the love shooter "more powerful" than the lantern: yes to a blast) how far the love blast's hearts fly from cell (c, r) the way d: the dug cells, with no boulder, straight on from it, until earth, bedrock, a boulder or the edge #
+let ray : ([Int], [Rock], Int, Int, Int) -> Int = fun (cs, rs, c, r, d) ->
+  let c1 = c + dx(d) in let r1 = r + dy(d) in
+  if inside(c1, r1) && cell(cs, c1, r1) == 0 && !rock_at(rs, c1, r1) then 1 + ray(cs, rs, c1, r1, d) else 0;
 # ---- One step ---- #
-# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder or bedrock. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps, (0.0.73) once you have it. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. (0.0.70) A monster burnt up in the sunlight: 150 points. (0.0.71) Walking into the love shooter's cell, you have it for the rest of the level, with the diving gear too. Every gem taken: the next level, 300 points #
-let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
+# want: a way to go (-1 none): you turn to it, and every 8 steps move a cell, digging earth (12 steps) and taking a gem (50 points); not into a boulder or bedrock. A stunned monster walked into is caught (100 points). flash: the lantern, every 60 steps, (0.0.73) once you have it. Then the boulders, the animals, then the monsters (every mpace steps); an awake monster in your cell catches you: a life gone, 90 steps waiting, then back at the top; the last life ends the game. (0.0.68) Under the ground water without the diving gear you hold your breath, 100 steps of it, back again as soon as you are out; out of breath, you are caught as by a monster. Walking into the gear's cell, you have it for the rest of the level. A boulder falling on an animal loses the level: a life gone, and the level begins again, new. (0.0.70) A monster burnt up in the sunlight: 150 points. (0.0.71) Walking into the love shooter's cell, you have it for the rest of the level, with the diving gear too. (0.0.74) blast: with the love shooter, every 120 steps, a stream of hearts from your cell straight on the way you face, as far as the dug cells go (ray); every monster in them, stunned or not, is won over and leaves the level, 200 points each. Every gem taken: the next level, 300 points #
+let step : (Game, Int, Bool, Bool) -> Game = fun (g, want, flash, blast) ->
   if g.over then g else
   if g.dead > 0 then
     (px = (if g.dead == 1 then 7 else g.px), py = (if g.dead == 1 then 0 else g.py), pd = g.pd, pwait = 0, cells = g.cells, rocks = g.rocks, mons = g.mons, gems = g.gems,
      score = g.score, lives = g.lives, level = g.level, seed = g.seed, flash = g.flash, mwait = g.mwait, mpace = g.mpace, dead = g.dead - 1, over = false, hit = 0, t = g.t + 1,
-     animals = settle(g.animals, g.animals, g.cells, g.rocks), wt = g.wt, gear = g.gear, diving = g.diving, air = 100, lover = g.lover, loves = g.loves, lamp = g.lamp, lantern = g.lantern)
+     animals = settle(g.animals, g.animals, g.cells, g.rocks, g.wt), wt = g.wt, gear = g.gear, diving = g.diving, air = 100, lover = g.lover, loves = g.loves, lamp = g.lamp, lantern = g.lantern, blast = g.blast, beam = 0 - 1)
   else
   let pd = (if want >= 0 && want <= 3 then want else g.pd) in
   let go = g.pwait <= 0 && want >= 0 && want <= 3 in
@@ -204,9 +207,14 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   let got_lamp = g.lamp >= 0 && py * w + px == g.lamp in
   let lantern = g.lantern || got_lamp in
   let flashing = flash && g.flash <= 0 && lantern in
-  let ms1 = tick_stun(if flashing then stun_near(ms0, px, py) else ms0) in
-  let (rs, ms2, sc1, squashed_me, rev) = roll(g.rocks, [], cs0, ms1, g.animals, px, py, g.score + (if gem then 50 else 0) + (if caught_mon then 100 else 0), false, 0) in
-  let ans = settle(g.animals, g.animals, cs0, rs) in
+  let firing = blast && g.loves && g.blast <= 0 in
+  let beam = (if firing then ray(cs0, g.rocks, px, py, pd) else 0 - 1) in
+  let struck : Mon -> Bool = fun m -> (let k = (m.c - px) * dx(pd) + (m.r - py) * dy(pd) in k >= 1 && k <= beam && (if dx(pd) == 0 then m.c == px else m.r == py)) in
+  let sift : [Mon] -> ([Mon], Int) = fun l -> case l | [] => ([], 0) | m :: more => (let (kept, n) = sift(more) in if struck(m) then (kept, n + 1) else (m :: kept, n)) end in
+  let (msw, won) = (if firing then sift(ms0) else (ms0, 0)) in
+  let ms1 = tick_stun(if flashing then stun_near(msw, px, py) else msw) in
+  let (rs, ms2, sc1, squashed_me, rev) = roll(g.rocks, [], cs0, ms1, g.animals, g.wt, px, py, g.score + (if gem then 50 else 0) + (if caught_mon then 100 else 0) + 200 * won, false, 0) in
+  let ans = settle(g.animals, g.animals, cs0, rs, g.wt) in
   let moving = g.mwait <= 1 in
   let s1 = next(g.seed) in
   let got_love = g.lover >= 0 && py * w + px == g.lover in
@@ -227,8 +235,9 @@ let step : (Game, Int, Bool) -> Game = fun (g, want, flash) ->
   (px = px, py = py, pd = pd, pwait = pwait, cells = cs1, rocks = rs, mons = ms3, gems = gems, score = sc2, lives = lives, level = g.level, seed = s1,
    flash = (if flashing then 60 else if g.flash > 0 then g.flash - 1 else 0), mwait = (if moving then g.mpace else g.mwait - 1), mpace = g.mpace,
    dead = (if caught then 90 else 0), over = lives <= 0,
-   hit = (if lost then 8 else if mon_caught then 2 else if caught then 9 else if rev == 5 then 5 else if burnt > 0 then 11 else if got then 10 else if got_love then 12 else if got_lamp then 13 else if caught_mon then 4 else if gem then 1 else if flashing then 7 else rev), t = g.t + 1,
-   animals = ans, wt = g.wt, gear = (if got then 0 - 1 else g.gear), diving = diving, air = air, lover = (if got_love then 0 - 1 else g.lover), loves = loves, lamp = (if got_lamp then 0 - 1 else g.lamp), lantern = lantern);
+   hit = (if lost then 8 else if mon_caught then 2 else if caught then 9 else if rev == 5 then 5 else if won > 0 then 14 else if burnt > 0 then 11 else if got then 10 else if got_love then 12 else if got_lamp then 13 else if caught_mon then 4 else if gem then 1 else if flashing then 7 else rev), t = g.t + 1,
+   animals = ans, wt = g.wt, gear = (if got then 0 - 1 else g.gear), diving = diving, air = air, lover = (if got_love then 0 - 1 else g.lover), loves = loves, lamp = (if got_lamp then 0 - 1 else g.lamp), lantern = lantern,
+   blast = (if firing then 120 else if g.blast > 0 then g.blast - 1 else 0), beam = beam);
 # ---- The robot (🤖 Hazel plays) ---- #
 let has : ([Int], Int) -> Bool = fun (l, v) -> case l | [] => false | x :: more => x == v || has(more, v) end;
 # (0.0.73) the robot's danger: the cells an awake monster could get to in k moves, going round the bedrock and the boulders (digging through earth as it might), from every awake monster; k 2 while the lantern charges or with no lantern yet, else 1. (Counting cells straight across, a monster under a slab of bedrock seemed near to cells it could not come to, and the robot went to and fro for ever) #
@@ -269,9 +278,9 @@ let spread : (Game, [Int], [Int], [Int], [Int], Bool) -> Int = fun (g, dz, front
     let (s0, o0) = add(seen, out, 0) in let (s1, o1) = add(s0, o0, 1) in let (s2, o2) = add(s1, o1, 2) in let (s3, o3) = add(s2, o2, 3) in
     spread(g, dz, rest, s3, o3, plain)
   end;
-# the robot's choice: (0.0.73) with no lantern, first toward it (in the hunting stretch, past the monsters if it must), and no flash till then; a flash when an awake monster is within three cells; a stunned monster beside you, caught; (0.0.72) for one stretch of 300 steps in every 1800, the lantern charged, first toward the nearest awake monster, to stun it and catch it (a monster guarding the last gems, as it can behind bedrock, would else keep the robot going to and fro for ever); (0.0.68) under the water without the gear and short of the breath to dig on down to it, up; else a step toward the nearest gem it can reach without risk (or, 0.0.71, the love shooter, as if a gem) (and, turning straight back, now and then on ahead instead, where that is safe: no going round in circles); else toward the diving gear; (0.0.72) else toward a stunned monster, to catch it; else, the lantern charged, toward the nearest awake monster, to stun it; else away from the nearest awake monster #
+# the robot's choice: (0.0.74) with the love shooter and the blast ready, while it waits to move, turning to fire it along a straight tunnel with a monster in it; (0.0.73) with no lantern, first toward it (in the hunting stretch, past the monsters if it must), and no flash till then; a flash when an awake monster is within three cells; a stunned monster beside you, caught; (0.0.72) for one stretch of 300 steps in every 1800, the lantern charged, first toward the nearest awake monster, to stun it and catch it (a monster guarding the last gems, as it can behind bedrock, would else keep the robot going to and fro for ever); (0.0.68) under the water without the gear and short of the breath to dig on down to it, up; else a step toward the nearest gem it can reach without risk (or, 0.0.71, the love shooter, as if a gem) (and, turning straight back, now and then on ahead instead, where that is safe: no going round in circles); else toward the diving gear; (0.0.72) else toward a stunned monster, to catch it; else, the lantern charged, toward the nearest awake monster, to stun it; else away from the nearest awake monster #
 let robot : Game -> Choice = fun g ->
-  if g.over || g.dead > 0 then (dir = 0 - 1, flash = false) else
+  if g.over || g.dead > 0 then (dir = 0 - 1, flash = false, blast = false) else
   let way : (Game, Int) -> Int = fun (g, x) -> (let c = md(x, w) in let r = x / w in if c > g.px then 1 else if c < g.px then 3 else if r > g.py then 2 else 0) in
   let awake_cells : [Mon] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => if m.stun <= 0 then (m.r * w + m.c) :: awake_cells(rest) else awake_cells(rest) end in
   let dz = danger(g, g.mons, (if g.flash > 0 || !g.lantern then 2 else 1)) in
@@ -279,28 +288,32 @@ let robot : Game -> Choice = fun g ->
   let fl = g.lantern && g.flash <= 0 && threat(g.mons) in
   let stunned_dir : Int -> Int = fun d -> if d > 3 then 0 - 1 else (if mon_at(g.mons, g.px + dx(d), g.py + dy(d)) && !awake_at(g.mons, g.px + dx(d), g.py + dy(d)) && !blocked(g, g.px + dx(d), g.py + dy(d)) then d else stunned_dir(d + 1)) in
   let sd = stunned_dir(0) in
-  if sd >= 0 then (dir = sd, flash = fl) else
-  if g.pwait > 0 then (dir = 0 - 1, flash = fl) else
-  if !g.diving && g.py >= g.wt && g.air < 12 * (g.gear / w - g.py + 1) + 16 && !rock_at(g.rocks, g.px, g.py - 1) then (dir = 0, flash = fl) else
+  if sd >= 0 then (dir = sd, flash = fl, blast = false) else
+  let lined : (Int, Int) -> Bool = fun (d, n) -> (let on : [Mon] -> Bool = fun ms -> case ms | [] => false | m :: more => (let k = (m.c - g.px) * dx(d) + (m.r - g.py) * dy(d) in k >= 1 && k <= n && (if dx(d) == 0 then m.c == g.px else m.r == g.py)) || on(more) end in on(g.mons)) in
+  let aim : Int -> Int = fun d -> if d > 3 then 0 - 1 else (if lined(d, ray(g.cells, g.rocks, g.px, g.py, d)) then d else aim(d + 1)) in
+  let bd = (if g.loves && g.blast <= 0 && g.pwait > 0 then aim(0) else 0 - 1) in
+  if bd >= 0 then (dir = bd, flash = fl, blast = true) else
+  if g.pwait > 0 then (dir = 0 - 1, flash = fl, blast = false) else
+  if !g.diving && g.py >= g.wt && g.air < 12 * (g.gear / w - g.py + 1) + 16 && !rock_at(g.rocks, g.px, g.py - 1) then (dir = 0, flash = fl, blast = false) else
   let am = awake_cells(g.mons) in
   let y0 = (if md(g.t / 300, 6) == 5 && g.lantern && g.flash <= 0 then (case am | [] => 0 - 1 | _ :: _ => spread(g, dz, am, am, [], true) end) else 0 - 1) in
-  if y0 >= 0 && !has(am, y0) then (dir = way(g, y0), flash = fl) else
+  if y0 >= 0 && !has(am, y0) then (dir = way(g, y0), flash = fl, blast = false) else
   let xl = (if g.lamp >= 0 && !g.lantern then (let a = spread(g, dz, [g.lamp], [g.lamp], [], false) in if a >= 0 || md(g.t / 300, 6) != 5 then a else spread(g, dz, [g.lamp], [g.lamp], [], true)) else 0 - 1) in
-  if xl >= 0 then (dir = way(g, xl), flash = fl) else
+  if xl >= 0 then (dir = way(g, xl), flash = fl, blast = false) else
   let gs = (let gs0 = gem_cells(g, dz, g.cells, 0) in if g.lover >= 0 && !g.loves && !risky(g, dz, md(g.lover, w), g.lover / w) then g.lover :: gs0 else gs0) in
   let x = spread(g, dz, gs, gs, [], false) in
   if x >= 0 then
     (let d0 = way(g, x) in
-     if d0 == md(g.pd + 2, 4) && md(g.seed / 7, 3) == 0 && !risky(g, dz, g.px + dx(g.pd), g.py + dy(g.pd)) then (dir = g.pd, flash = fl) else (dir = d0, flash = fl)) else
+     if d0 == md(g.pd + 2, 4) && md(g.seed / 7, 3) == 0 && !risky(g, dz, g.px + dx(g.pd), g.py + dy(g.pd)) then (dir = g.pd, flash = fl, blast = false) else (dir = d0, flash = fl, blast = false)) else
   let xg = (if g.gear >= 0 && !g.diving then spread(g, dz, [g.gear], [g.gear], [], false) else 0 - 1) in
-  if xg >= 0 then (dir = way(g, xg), flash = fl) else
+  if xg >= 0 then (dir = way(g, xg), flash = fl, blast = false) else
   let stunned_cells : [Mon] -> [Int] = fun ms -> case ms | [] => [] | m :: rest => if m.stun > 0 then (m.r * w + m.c) :: stunned_cells(rest) else stunned_cells(rest) end in
   let sm = stunned_cells(g.mons) in
   let z = (case sm | [] => 0 - 1 | _ :: _ => spread(g, dz, sm, sm, [], false) end) in
-  if z >= 0 then (dir = way(g, z), flash = fl) else
+  if z >= 0 then (dir = way(g, z), flash = fl, blast = false) else
   let y = (if g.lantern && g.flash <= 0 then (case am | [] => 0 - 1 | _ :: _ => spread(g, dz, am, am, [], true) end) else 0 - 1) in
-  if y >= 0 && !has(am, y) then (dir = way(g, y), flash = fl) else
+  if y >= 0 && !has(am, y) then (dir = way(g, y), flash = fl, blast = false) else
   let far : Int -> Int = fun d -> (let c = g.px + dx(d) in let r = g.py + dy(d) in if blocked(g, c, r) || awake_at(g.mons, c, r) then 0 - 1 else
     (let nearest : [Mon] -> Int = fun ms -> case ms | [] => 100 | m :: more => (let v = (if m.stun > 0 then 100 else absi(m.c - c) + absi(m.r - r)) in let u = nearest(more) in if v < u then v else u) end in nearest(g.mons))) in
   let pick : (Int, Int, Int) -> Int = fun (d, bd, bv) -> if d > 3 then bd else (let v = far(d) in if v > bv then pick(d + 1, d, v) else pick(d + 1, bd, bv)) in
-  (dir = pick(0, 0 - 1, 0 - 1), flash = fl)
+  (dir = pick(0, 0 - 1, 0 - 1), flash = fl, blast = false)
