@@ -445,7 +445,9 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
              String.is_empty(k) || !String.for_all(k, ~f=Char.is_digit)
            );
       let used = ref([]);
-      List.init(n, ~f=i =>
+      /* in index order, since each match uses its key up (Core's List.init
+         calls f from the last index down) */
+      List.map(List.range(0, n), ~f=i =>
         switch (
           List.find(keys, ~f=k =>
             !List.mem(used^, k, ~equal=String.equal)

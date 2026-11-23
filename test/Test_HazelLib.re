@@ -772,6 +772,29 @@ let tests = (
       },
     ),
     test_case(
+      "jit: labels where JS's == would mix up fields (0 and false)",
+      `Quick,
+      () => {
+        /* A compiled tuple's labels are found by the value at each index,
+           each label used up once found. Found from the last index first
+           (Core's List.init calls f that way), 0 took false's label. */
+        let src = "(b = false, a = 0, c = 5)";
+        check(
+          string,
+          "a tuple",
+          json(value(src)),
+          json(field(HazelLibCore.jit(src), "value")),
+        );
+        let f = "let f : Int -> (a = Int, b = Bool, c = Int) = fun n -> (a = 0, b = false, c = n) in f";
+        check(
+          string,
+          "a compiled function's answer",
+          json(call(value(f), [num(5.)])),
+          json(call(field(HazelLibCore.jit(f), "value"), [num(5.)])),
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {

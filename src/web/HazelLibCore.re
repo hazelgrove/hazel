@@ -703,7 +703,9 @@ and jit_tuple =
     | _ =>
       let keys = List.filter(js_keys(v), ~f=k => !is_index(k));
       let used = ref([]);
-      List.init(n, ~f=i =>
+      /* in index order, since each match uses its key up (Core's List.init
+         calls f from the last index down) */
+      List.map(List.range(0, n), ~f=i =>
         switch (
           List.find(keys, ~f=k =>
             !List.mem(used^, k, ~equal=String.equal)
