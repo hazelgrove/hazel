@@ -1,0 +1,1356 @@
+/* hazel-jit (^ticket(694); Matthew, 2026-11-05 and 06: "Reason code (hazel-jit let's call this component and code for it)
+   compile some hazel ast into a mostly-equivalent JS code and call that instead"): an elaborated Hazel term compiled to the
+   source text of a JavaScript function, for the best case of how much faster JS could run some Hazel code. Its numbers are
+   Hazel's (^ticket(756)): Int and Nat exact, SInt 32 bits with each result checked, Float a double. A form it does not compile raises
+   Unsupported(reason), and the caller runs the term on the interpreter as before.
+
+   Values in JS:
+     Int, Nat               exact, as the interpreter's Bigint (^ticket(757)): a JS number while it is a safe integer
+                            (|n| <= 2^53 - 1), a BigInt past that, every result normalized, so === still compares
+     SInt                   a JS number within 32 bits, each result checked (^ticket(758)): outside, IntegerOverflow
+     Float                  a JS number
+     Bool, String           a JS boolean, a JS string
+     a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
+     a list                 null for [], {h, t} for a cons, so :: is O(1)
+     a constructor          {c: name} or {c: name, v: payload}
+     a function             a JS function of one argument (a tuple argument is an array)
+
+   The code is expressions all the way down: a let's (or a match's) bindings are assigned, in a comma expression, to
+   variables declared at the top of the enclosing JS function, so no closure is made for a let. Every binding gets a JS
+   name of its own (x$12), so shadowing and the hoisting cannot clash. A free variable is the builtins' (the environment
+   given): an OCaml builtin is the runtime's JS version of it, by name; a builtin written in Hazel (List.map, say) is
+   compiled once, as a definition before the program's code. */
+
+/* (^ticket(760); Matthew and Cyrus, 2026-11-13: "for the output of hazel-jit, we should continue to avoid translating code
+   with holes, and we should exclude "stepper functions"") What hazel-jit leaves to the interpreter, by rule, not by gap:
+     - code with a hole: an empty hole, a multihole, a dynamic error hole, invalid text (Unsupported "a hole"); the
+       interpreter evaluates around holes, and its indeterminate results are the point of them; and a type with a hole
+       written in it, ? (Unsupported "a type hole"; no_type_hole, below);
+     - the stepper's filters, hide/eval/pause/debug P in e, which say which steps the stepper shows (Unsupported "a stepper
+       filter"), and anything the stepper shows: the stepper evaluates by the interpreter's own steps (StepperView), and a
+       livelit in a probe drawer's stepper over one of its samples is drawn by the interpreter, never from a compiled
+       run's answer (LivelitProj.draw_answer ~stepping);
+     - an operation the interpreter stops at with an error (Runtime.invalid, ^ticket(759)), undefined where a run reaches
+       it (Runtime.indet, ^ticket(761)), and a run past its budget (Runtime.out, ^ticket(763)): the compiled run stops,
+       and the interpreter's run is the answer.
+   The rest of what it does not compile yet is a limit to overcome (^ticket(761)), each one Unsupported(reason) below. */
+exception Unsupported(string);
+
+let unsupported = reason => raise(Unsupported(reason));
+
+/* (^ticket(760), found by ^ticket(756)'s sweep) A type with a hole written in it, ?, is a hole too: a cast through it
+   can fail at run time with no static error, where the interpreter stops at the failed cast and compiled code, its
+   types erased, runs on (Evaluator.Function's "Ascription around deferral": f([1.0, 2.0] : ?), f taking [Int], is
+   [1.0 : Int, 2.0 : Int] to the interpreter; a Float and an Int are both a JS number here, so no check could tell). */
+let no_type_hole = (t: Typ.t): unit => {
+  let found = ref(false);
+  let _ =
+    Typ.map_term(
+      ~f_typ=
+        (cont, t) => {
+          switch (Typ.term_of(t)) {
+          | Unknown(Hole(_)) => found := true
+          | _ => ()
+          };
+          cont(t);
+        },
+      t,
+    );
+  if (found^) {
+    unsupported("a type hole");
+  };
+};
+
+/* What a compiled term needs at run time, passed to the compiled function as $R (Runtime.source is its JS text). */
+module Runtime = {
+  let source = {|{
+  append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
+    let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
+  tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; return vs; },
+  /* (^ticket(761); the slides' check, CI run 44184122601) e.k, as Transition's Dot: a tuple's component; through a list,
+     each element's (a table's column, t.get_acne in the b2t2 examples), so a list of rows gives a list; anything else, the
+     interpreter's projection is stuck */
+  dot(t, k) {
+    if (Array.isArray(t)) return t[k];
+    if (t === null) return null;
+    if (typeof t === "object" && "h" in t) { const xs = []; for (let p = t; p !== null; p = p.t) xs.push(this.dot(p.h, k));
+      let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; }
+    this.indet("a projection by " + k);
+  },
+  /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
+     property that is not an index labels the first unlabeled index holding the very same value */
+  labels(t) {
+    const ls = t.map(() => null);
+    for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue;
+      const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
+    return ls;
+  },
+  /* (^ticket(761)) a tuple extended, e1 ... e2, as LabeledTuple.extension: e1's components in order, a label e2 also has
+     taking e2's value; then e2's unlabeled components and its labels e1 lacks. Not tuples: the interpreter's is stuck. */
+  ext(a, b) {
+    if (!Array.isArray(a) || !Array.isArray(b)) this.indet("a tuple extension of something not a tuple");
+    const la = this.labels(a), lb = this.labels(b), by = new Map(), vs = [], ls = [];
+    lb.forEach((l, i) => { if (l !== null) by.set(l, b[i]); });
+    la.forEach((l, i) => { vs.push(l !== null && by.has(l) ? by.get(l) : a[i]); ls.push(l); });
+    lb.forEach((l, i) => { if (l === null || !la.includes(l)) { vs.push(b[i]); ls.push(l); } });
+    return this.tup(vs, ls);
+  },
+  eq(a, b) {
+    if (a === b) return true;
+    if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+    if (Array.isArray(a)) { if (!Array.isArray(b) || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) if (!this.eq(a[i], b[i])) return false; return true; }
+    if ("c" in a) return ("c" in b) && a.c === b.c && this.eq(a.v, b.v);
+    let p = a, q = b;
+    while (p !== null && q !== null) { if (!this.eq(p.h, q.h)) return false; p = p.t; q = q.t; }
+    return p === q;
+  },
+  nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
+  /* (^ticket(757)) Int and Nat, exact as the interpreter's Bigint: a JS number while it is a safe integer, a BigInt past
+     that; each result normalized (inorm), so equal values are one value and === compares them. Measured in Node against
+     plain numbers: fib x1.6, list walks x0.7-0.9, arithmetic-heavy updates x3.7 (plain BigInt: x4.1, x1.5, x9.6) */
+  inorm(r) { return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+  iadd(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a + b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) + BigInt(b)); },
+  isub(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a - b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) - BigInt(b)); },
+  imul(a, b) { if (typeof a === "number" && typeof b === "number") { const r = a * b; if (r <= 9007199254740991 && r >= -9007199254740991) return r; } return this.inorm(BigInt(a) * BigInt(b)); },
+  ineg(a) { return typeof a === "number" ? (a === 0 ? 0 : -a) : this.inorm(-a); },
+  /* toward zero, as Bigint's and BigInt's; (a - a % b) / b is exact where Math.trunc(a / b) rounds */
+  idiv(a, b) { if (b === 0 || b === 0n) this.invalid("DivideByZero"); if (typeof a === "number" && typeof b === "number") return (a - a % b) / b; return this.inorm(BigInt(a) / BigInt(b)); },
+  ipow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.inorm(BigInt(a) ** BigInt(b)); },
+  /* An operation the interpreter stops at with an error (Error: Divide by Zero, a stuck term): the compiled run stops
+     too, and its caller falls back to the interpreter, which makes the stuck term (^ticket(759)) */
+  invalid(err) { const e = new Error("hazel-jit: invalid operation: " + err); e.$invalid = err; throw e; },
+  /* (^ticket(761)) undefined, reached: the interpreter's result is indeterminate there, so the compiled run stops and its
+     caller falls back to the interpreter, as for an invalid operation. Not reached (List.head's empty case, on a list
+     with a head), it costs nothing. */
+  indet(what) { const e = new Error("hazel-jit: indeterminate: " + what); e.$indet = what; throw e; },
+  /* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") An SInt has 32 bits, as in the interpreter (Atom.sint_fits): a
+     result outside [-2^31, 2^31 - 1] stops the run at IntegerOverflow, where the interpreter's run is stuck at it. Exact for
+     32-bit operands' sums; a product past 2^53 is not exact, but surely outside. (-0 is 0, as an int has no -0.) */
+  s32(r) { if (r > 2147483647 || r < -2147483648) this.invalid("IntegerOverflow"); return r === 0 ? 0 : r; },
+  sadd(a, b) { return this.s32(a + b); }, ssub(a, b) { return this.s32(a - b); },
+  smul(a, b) { return this.s32(a * b); }, sneg(a) { return this.s32(-a); },
+  /* (^ticket(759)) SInt's division and power, with the interpreter's errors; the least SInt by -1 overflows */
+  sdiv(a, b) { if (b === 0) this.invalid("DivideByZero"); return this.s32(Math.trunc(a / b)); },
+  spow(a, b) { if (b < 0) this.invalid("NegativeExponent"); return this.s32(a ** b); },
+  /* (^ticket(763); Cyrus, 2026-11-13: "We need a way to limit compiled hazel functions that diverge --- we need a step
+     limit. esp if we continue to optimize by including certain jit-compiled hazel functions into the main thread") Each
+     compiled function counts its call (fuel, exact) and every 16384 calls reads the clock (deadline): a run past either
+     throws, and its caller falls back to the interpreter. None by default; a caller sets a budget for one run (limit) and
+     takes it off after (unlimit). (Endless recursion overflows JS's stack first, a RangeError, also thrown; what the budget
+     catches is a run that is finite but long, fib(45), as the interpreter's own timer does.) */
+  fuel: Number.MAX_SAFE_INTEGER,
+  deadline: Infinity,
+  limit(fuel, ms) { this.fuel = fuel; this.deadline = ms === null ? Infinity : performance.now() + ms; },
+  unlimit() { this.fuel = Number.MAX_SAFE_INTEGER; this.deadline = Infinity; },
+  out() { const e = new Error(this.fuel < 0 ? "hazel-jit: step limit (the run's calls)" : "hazel-jit: step limit (the run's time)"); e.$limit = true; throw e; },
+  /* (^ticket(722)) a slide's run with its livelits' models as parameters: params, when set, maps a model's id to its
+     value, in place of the literal the program holds; samples, when set, gets each livelit use's view answer, by its
+     projector's id, as the interpreter samples it */
+  params: null,
+  samples: null,
+  param(id, v) { const p = this.params; return p !== null && Object.prototype.hasOwnProperty.call(p, id) ? p[id] : v; },
+  sample(id, v) { if (this.samples !== null) this.samples[id] = v; return v; },
+  reach(why) { throw new Error("hazel-jit: not compiled, and reached: " + why); },
+  missing(why) { const f = () => { throw new Error("hazel-jit: not compiled: " + why); }; f.$missing = why; return f; },
+  fn(f, k, e) { f.$k = k; f.$e = e; return f; },
+  b: {
+    /* (^ticket(722)) %splice_value((model, id)): the value inside the model's SpliceRef((id, v)), found as the
+       interpreter's BuiltinsADT.splice_value finds it, first in a walk from the root, left to right */
+    "%splice_value": ([model, id]) => {
+      const find = x => {
+        if (x === null || typeof x !== "object") return undefined;
+        if (Array.isArray(x)) { for (const y of x) { const r = find(y); if (r !== undefined) return r; } return undefined; }
+        if ("c" in x) {
+          if (x.c === "SpliceRef" && Array.isArray(x.v) && x.v[0] === id) return x.v[1];
+          return "v" in x ? find(x.v) : undefined;
+        }
+        if ("h" in x) { for (let p = x; p !== null; p = p.t) { const r = find(p.h); if (r !== undefined) return r; } }
+        return undefined;
+      };
+      const r = find(model);
+      if (r === undefined) throw new Error("hazel-jit: %splice_value: no ref " + id);
+      return r;
+    },
+    string_of_int: n => String(n), string_of_sint: n => String(n), string_of_nat: n => String(n),
+    string_of_bool: b => String(b),
+    float_of_int: n => Number(n), float_of_sint: n => n, float_of_nat: n => Number(n),
+    int_of_float: f => { if (!Number.isFinite(f)) throw new Error("hazel-jit: invalid operation: int_of_float"); const t = Math.trunc(f); return Number.isSafeInteger(t) ? t : BigInt(t); },
+    /* (^ticket(758)) into an SInt only what fits in 32 bits, as Atom.convert: else IntegerTooBig */
+    sint_of_float: f => { const t = Math.trunc(f); if (!(t >= -2147483648 && t <= 2147483647)) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return t === 0 ? 0 : t; },
+    int_of_sint: n => n,
+    sint_of_int: n => { if (n > 2147483647 || n < -2147483648) { const e = new Error("hazel-jit: invalid operation: IntegerTooBig"); e.$invalid = "IntegerTooBig"; throw e; } return Number(n); },
+    int_of_string: s => { let r; try { if (s.trim() === "") throw 0; r = BigInt(s); } catch (_) { const e = new Error("hazel-jit: invalid operation: InvalidOfString"); e.$invalid = "InvalidOfString"; throw e; }
+      return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+    float_of_string: s => Number(s),
+    /* (^ticket(761), found 11-16: s.length counted UTF-16 units, so string_length("\u{1F44B}") was 2 here and 1 in
+       Hazel) a string's length, and string_sub's offsets, in graphemes, as HazelString has them (Intl.Segmenter, its
+       reference); an ASCII string without a carriage return is its own graphemes, Unicode.length's fast path */
+    string_length: s => /^[\x00-\x0c\x0e-\x7f]*$/.test(s) ? s.length : Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s)).length,
+    string_sub: ([s, i, n]) => { const g = Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s), x => x.segment);
+      if (typeof i === "bigint" || typeof n === "bigint" || i < 0 || n < 0 || i > g.length || n > g.length - i) { const e = new Error("hazel-jit: invalid operation: IndexOutOfBounds"); e.$invalid = "IndexOutOfBounds"; throw e; }
+      return g.slice(i, i + n).join(""); },
+    /* a literal separator; the empty one splits into graphemes */
+    string_split: ([sep, s]) => { const p = sep === "" ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s), x => x.segment) : s.split(sep);
+      let r = null; for (let i = p.length - 1; i >= 0; i--) r = { h: p[i], t: r }; return r; },
+    string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
+    string_trim: s => s.trim(),
+    /* (^ticket(761), the sweep's most frequent missing builtins) as HazelString has them: a pattern a JS RegExp with the
+       u flag (without it where u will not compile), global; a string's offsets in grapheme clusters, by Intl.Segmenter */
+    string_match: ([p, s]) => { const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = 0; return re.test(s); },
+    string_replace: ([p, s, by]) => s.replace((q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p), by.split("$").join("$$")),
+    string_search: ([p, s, start]) => {
+      if (typeof start === "bigint" || start > 2147483647 || start < -2147483648) return -1;
+      const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s), n = g.length, k = start < 0 ? 0 : start > n ? n : start;
+      let u = 0; for (let i = 0; i < k; i++) u += g[i].length;
+      const re = (q => { try { return new RegExp(q, "gu"); } catch (e) { return new RegExp(q, "g"); } })(p); re.lastIndex = u; const m = re.exec(s);
+      if (m === null) return -1;
+      if (m.index <= 0) return 0;
+      let acc = 0; for (let i = 0; i < n; i++) { acc += g[i].length; if (acc > m.index) return i; } return n;
+    },
+    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.t) a.push(p.h); return a.join(sep); },
+    string_escaped: s => {
+      let out = "";
+      for (const c of s) {
+        const k = c.charCodeAt(0);
+        out += c === "\\" ? "\\\\" : c === "\"" ? "\\\"" : c === "\n" ? "\\n" : c === "\t" ? "\\t" : c === "\r" ? "\\r" : c === "\b" ? "\\b"
+          : (k < 0x20 || k === 0x7f) ? "\\" + String(k).padStart(3, "0") : c;
+      }
+      return out;
+    },
+    string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
+    string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
+    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
+    /* (^ticket(761)) BuiltinsTupleOperations' label builtins: a tuple, then label literals ({lab: name}); a label the
+       tuple lacks stops the run (the interpreter's projection is stuck there), as an invalid operation's does */
+    project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
+    select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
+      ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); return vs; },
+    /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
+       (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
+    from_lvs: l => { const vs = [], ks = [];
+      for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
+        ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
+      ks.forEach((k, i) => { vs[k] = vs[i]; }); return vs; },
+    /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
+       value = v), in order (BuiltinsTupleOperations); an unlabeled entry, or not a tuple, and the interpreter's is stuck */
+    to_lvs: t => {
+      const stuck = () => { const e = new Error("hazel-jit: indeterminate: to_lvs"); e.$indet = "to_lvs"; throw e; };
+      if (!Array.isArray(t)) stuck();
+      const ls = t.map(() => null);
+      for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
+      if (ls.some(l => l === null)) stuck();
+      let r = null;
+      for (let i = t.length - 1; i >= 0; i--) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
+        const e = [name, t[i]]; e.label = name; e.value = t[i]; r = { h: e, t: r }; }
+      return r; },
+    omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
+      for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
+      t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
+      out.forEach((l, i) => { if (l !== null) vs[l] = vs[i]; }); return vs; },
+    /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
+       value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
+       every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
+    int_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    sint_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    nat_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    float_compare: ([a, b]) => { const x = a !== a, y = b !== b;
+      return { c: x ? (y ? "Eq" : "Lt") : y ? "Gt" : a < b ? "Lt" : a > b ? "Gt" : "Eq" }; },
+    string_compare: ([a, b]) => { const x = Array.from(a, ch => ch.codePointAt(0)), y = Array.from(b, ch => ch.codePointAt(0));
+      for (let i = 0; i < x.length && i < y.length; i++) if (x[i] !== y[i]) return { c: x[i] < y[i] ? "Lt" : "Gt" };
+      return { c: x.length < y.length ? "Lt" : x.length > y.length ? "Gt" : "Eq" }; },
+    invert_ord: o => o.c === "Lt" ? { c: "Gt" } : o.c === "Gt" ? { c: "Lt" } : o,
+    abs: n => typeof n === "number" ? Math.abs(n) : (n < 0n ? -n : n), abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
+    sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
+    sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
+    atan2: ([y, x]) => Math.atan2(y, x),
+    float_min: ([a, b]) => Math.min(a, b), float_max: ([a, b]) => Math.max(a, b),
+    int_mod: ([a, b]) => { if (b === 0 || b === 0n) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; }
+      if (typeof a === "number" && typeof b === "number") return a % b; const r = BigInt(a) % BigInt(b); return r <= 9007199254740991n && r >= -9007199254740991n ? Number(r) : r; },
+    sint_mod: ([a, b]) => { if (b === 0) { const e = new Error("hazel-jit: invalid operation: DivideByZero"); e.$invalid = "DivideByZero"; throw e; } return a % b; },
+    float_mod: ([a, b]) => a % b,
+    to_fixed: ([x, n]) => x.toFixed(Math.min(Math.max(Number(n), 0), 20)),
+    fst: p => p[0], snd: p => p[1],
+    is_nan: Number.isNaN, is_finite: Number.isFinite,
+    pi: Math.PI, infinity: Infinity, neg_infinity: -Infinity, nan: NaN
+  }
+}|};
+  /* the builtins Runtime.source has, by name */
+  let builtins = [
+    "%splice_value",
+    "string_of_int",
+    "string_of_sint",
+    "string_of_nat",
+    "string_of_bool",
+    "float_of_int",
+    "float_of_sint",
+    "float_of_nat",
+    "int_of_float",
+    "sint_of_float",
+    "int_of_sint",
+    "sint_of_int",
+    "int_of_string",
+    "float_of_string",
+    "string_length",
+    "string_uppercase",
+    "string_lowercase",
+    "string_trim",
+    "string_match",
+    "string_replace",
+    "string_search",
+    "string_join",
+    "string_escaped",
+    "string_capitalize",
+    "string_uncapitalize",
+    "omit_all_labels",
+    "string_sub",
+    "string_split",
+    "project_labels",
+    "from_lvs",
+    "to_lvs",
+    "select_labels",
+    "omit_labels",
+    "int_compare",
+    "sint_compare",
+    "nat_compare",
+    "float_compare",
+    "string_compare",
+    "invert_ord",
+    "abs",
+    "abs_float",
+    "ceil",
+    "floor",
+    "round",
+    "sqrt",
+    "exp",
+    "log",
+    "log10",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "atan2",
+    "float_min",
+    "float_max",
+    "int_mod",
+    "sint_mod",
+    "float_mod",
+    "to_fixed",
+    "fst",
+    "snd",
+    "is_nan",
+    "is_finite",
+  ];
+  /* constants, not functions: what the builtins' environment binds them to is their value */
+  let constants = ["pi", "infinity", "neg_infinity", "nan"];
+};
+
+/* A JS string literal: quotes, backslashes and control characters escaped (bytes from 0x80 up are UTF-8, kept) */
+let js_string = (s: string): string => {
+  let b = Buffer.create(String.length(s) + 2);
+  Buffer.add_char(b, '"');
+  String.iter(s, ~f=c =>
+    switch (c) {
+    | '"' => Buffer.add_string(b, "\\\"")
+    | '\\' => Buffer.add_string(b, "\\\\")
+    | '\n' => Buffer.add_string(b, "\\n")
+    | c when Char.to_int(c) < 0x20 =>
+      Buffer.add_string(b, Printf.sprintf("\\u%04x", Char.to_int(c)))
+    | c => Buffer.add_char(b, c)
+    }
+  );
+  Buffer.add_char(b, '"');
+  Buffer.contents(b);
+};
+
+/* A JS number literal, in parentheses when negative */
+let js_float = (f: float): string =>
+  if (Float.is_nan(f)) {
+    "NaN";
+  } else if (Float.equal(f, Float.infinity)) {
+    "Infinity";
+  } else if (Float.equal(f, Float.neg_infinity)) {
+    "(-Infinity)";
+  } else {
+    let s = Printf.sprintf("%.17g", f);
+    Float.(f < 0.) ? "(" ++ s ++ ")" : s;
+  };
+let js_bigint = (n: Bigint.t): string => {
+  let s = Bigint.to_string(n);
+  String.is_prefix(s, ~prefix="-") ? "(" ++ s ++ ")" : s;
+};
+/* (^ticket(757)) an Int or a Nat as the compiled code holds it: a JS number while it is a safe integer, a BigInt literal
+   past that (Runtime's iadd and the rest keep it so) */
+let max_safe = Bigint.of_string("9007199254740991");
+let safe_int = (n: Bigint.t): bool =>
+  Bigint.compare(Bigint.abs(n), max_safe) <= 0;
+let js_int = (n: Bigint.t): string =>
+  safe_int(n)
+    ? js_bigint(n)
+    : {
+      let s = Bigint.to_string(n) ++ "n";
+      String.is_prefix(s, ~prefix="-") ? "(" ++ s ++ ")" : s;
+    };
+
+/* An identifier made from a Hazel name: letters, digits and _ kept, the rest as _ */
+let sanitize = (name: string): string =>
+  String.map(name, ~f=c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_' => c
+    | _ => '_'
+    }
+  );
+
+/* The compiler's state for one term: the builtins' environment (for free variables), a counter for fresh names, and the
+   definitions compiled before the program's code (the Hazel-written builtins it uses), in the order they must run. */
+type state = {
+  env: Environment.t(Exp.t),
+  mutable counter: int,
+  mutable globals: list(string), /* newest first */
+  global_names: Stdlib.Hashtbl.t(string, string),
+  /* (slice 3, the way back) each constructor the code builds, by name: its type as elaboration gave it, the same for
+     every use of the name; None when the name has no type, or two (two sum types that share a constructor's name) */
+  ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
+  /* the type aliases the term defines (type T = ... in, and a module's type members), so the way back can see through
+     a constructor's argument type when it names one */
+  aliases: Stdlib.Hashtbl.t(string, Typ.t),
+  /* (slice 3, functions back) each JS function the code makes, by its index: the Hazel function it compiles (its Fun
+     term), and the Hazel names it captures, in the order of the values it carries ($R.fn(f, k, [values])); and the
+     functions being compiled, innermost first: how many bindings were in scope where each began, and what it captures */
+  funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
+  mutable frames: list((int, ref(list((string, string))))),
+};
+
+let note_alias = (st: state, tp: TPat.t, ty: Typ.t): unit =>
+  switch (tp.term) {
+  | Var(x) => Stdlib.Hashtbl.replace(st.aliases, x, ty)
+  | _ => ()
+  };
+
+let note_ctor = (st: state, name: string, t: option(option(Typ.t))): unit => {
+  let t =
+    switch (t) {
+    | Some(Some(t)) => Some(t)
+    | _ => None
+    };
+  switch (Stdlib.Hashtbl.find_opt(st.ctors, name)) {
+  | None => Stdlib.Hashtbl.replace(st.ctors, name, t)
+  | Some(Some(t0)) =>
+    switch (t) {
+    | Some(t) when Typ.fast_equal(t0, t) => ()
+    | _ => Stdlib.Hashtbl.replace(st.ctors, name, None)
+    }
+  | Some(None) => ()
+  };
+};
+
+/* The variables declared at the top of the JS function being compiled */
+type scope = {mutable decls: list(string)};
+
+let fresh = (st: state, scope: scope, base: string): string => {
+  st.counter = st.counter + 1;
+  let name = sanitize(base) ++ "$" ++ string_of_int(st.counter);
+  scope.decls = [name, ...scope.decls];
+  name;
+};
+
+/* A function's body: its declarations, then its value */
+/* (^ticket(763)) the step a compiled function counts, first in its body: the runtime's fuel and deadline (Runtime.limit) */
+let step = "if (--$R.fuel < 0 || (($R.fuel & 16383) === 0 && performance.now() > $R.deadline)) $R.out(); ";
+
+let body_with_decls = (scope: scope, expr: string): string =>
+  switch (scope.decls) {
+  | [] => "return " ++ expr ++ ";"
+  | ds =>
+    "let "
+    ++ String.concat(~sep=", ", List.rev(ds))
+    ++ "; return "
+    ++ expr
+    ++ ";"
+  };
+
+/* (^ticket(765), found compiling hazeljs-oracles' I Ching, whose module Lines has a member named length) A label is a
+   property of its tuple's JS array, as is a module's member. A label an array already has a use for, length (which holds
+   only a number: a function there threw "Invalid array length") and __proto__ (its prototype), is kept under the key
+   "$" ++ label instead, and so is any label beginning with $, to keep keys and labels one to one. Every place a label
+   meets JS uses these: the compile here, HazelJitValue both ways, the agreement harness. */
+/* an operator's builtin (Operators.builtins: int_plus, float_lt, string_concat ...) as the Hazel function it is,
+   fun (a, b) -> a op b */
+let op_fun = (name: string): option(Exp.t) =>
+  List.find(Operators.all_of_op_bin, ~f=(op: Operators.op_bin) =>
+    String.equal(Operators.op_name(op), name)
+  )
+  |> Option.map(~f=(op: Operators.op_bin) => {
+       let (a, b) = ("op$a", "op$b");
+       Exp.fresh(
+         Fun(
+           Pat.fresh(Tuple([Pat.fresh(Var(a)), Pat.fresh(Var(b))])),
+           Exp.fresh(BinOp(op, Exp.fresh(Var(a)), Exp.fresh(Var(b)))),
+           None,
+           None,
+         ),
+       );
+     });
+let label_key = (l: string): string =>
+  String.equal(l, "length")
+  || String.equal(l, "__proto__")
+  || String.is_prefix(l, ~prefix="$")
+    ? "$" ++ l : l;
+let label_of_key = (k: string): string =>
+  String.length(k) > 1 && Char.equal(k.[0], '$')
+    ? String.sub(k, ~pos=1, ~len=String.length(k) - 1) : k;
+
+let label_of = (e: Exp.t): option(string) =>
+  switch (Exp.term_of(e)) {
+  | Label(name) => Some(name)
+  | _ => None
+  };
+let rec pat_label_of = (p: Pat.t): option(string) =>
+  switch (Pat.term_of(p)) {
+  | Label(name) => Some(name)
+  | Parens(p) => pat_label_of(p)
+  | _ => None
+  };
+/* (^ticket(761)) an explicitly unlabeled entry, (_=e): to the interpreter a value form, TupLabel(ExplicitNonlabel, e),
+   which a pattern (_=p) matches as an unlabeled entry (Unboxing: no label on either side). Here it is the entry
+   itself: an unlabeled component of a tuple, and alone a tuple of one, a JS array of one, as project_labels makes */
+/* a label that is a hole, (?=1, 2): a hole, as the rule has it, not a limit */
+let label_hole = (l: Exp.t): unit =>
+  switch (Exp.term_of(l)) {
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => unsupported("a hole")
+  | _ => ()
+  };
+let is_nonlabel = (l: Exp.t): bool =>
+  switch (Exp.term_of(l)) {
+  | ExplicitNonlabel => true
+  | _ => false
+  };
+let pat_is_nonlabel = (l: Pat.t): bool =>
+  switch (Pat.term_of(l)) {
+  | ExplicitNonlabel => true
+  | _ => false
+  };
+
+/* A pattern, matched against the JS value at the expression `v`: a JS test (true when it matches), and the assignments
+   that bind its variables, each to a fresh variable of the scope, and the lexical environment with them. The test only
+   reads `v`, so the bindings can come after it. */
+let rec pat =
+        (
+          st: state,
+          scope: scope,
+          lex: list((string, string)),
+          p: Pat.t,
+          v: string,
+        )
+        : (list(string), list(string), list((string, string))) =>
+  switch (Pat.term_of(p)) {
+  | Wild => ([], [], lex)
+  | Var(x) =>
+    let j = fresh(st, scope, x);
+    ([], [j ++ " = " ++ v], [(x, j), ...lex]);
+  | Parens(p) => pat(st, scope, lex, p, v)
+  | Asc(p, t) =>
+    no_type_hole(t);
+    pat(st, scope, lex, p, v);
+  | Atom(Int(n))
+  | Atom(Nat(n)) => ([v ++ " === " ++ js_int(n)], [], lex)
+  | Atom(SInt(n)) => ([v ++ " === " ++ string_of_int(n)], [], lex)
+  | Atom(Float(f)) => ([v ++ " === " ++ js_float(f)], [], lex)
+  | Atom(Bool(b)) => ([v ++ " === " ++ string_of_bool(b)], [], lex)
+  | Atom(String(s)) => ([v ++ " === " ++ js_string(s)], [], lex)
+  | ListLit(ps) =>
+    let rec go = (ps, v, (tests, binds, lex)) =>
+      switch (ps) {
+      | [] => (tests @ [v ++ " === null"], binds, lex)
+      | [p, ...rest] =>
+        let (t, b, lex) = pat(st, scope, lex, p, v ++ ".h");
+        go(
+          rest,
+          v ++ ".t",
+          (tests @ [v ++ " !== null"] @ t, binds @ b, lex),
+        );
+      };
+    go(ps, v, ([], [], lex));
+  | Cons(ph, pt) =>
+    let (t1, b1, lex) = pat(st, scope, lex, ph, v ++ ".h");
+    let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".t");
+    ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
+  | Tuple(ps) =>
+    List.fold_left(
+      ps,
+      ~init=([], [], lex, 0),
+      ~f=((tests, binds, lex, i), p: Pat.t) => {
+        let (key, p) =
+          switch (Pat.term_of(p)) {
+          | TupLabel(l, p') when pat_is_nonlabel(l) => (
+              v ++ "[" ++ string_of_int(i) ++ "]",
+              p',
+            )
+          | TupLabel(l, p') =>
+            switch (pat_label_of(l)) {
+            | Some(name) => (
+                v ++ "[" ++ js_string(label_key(name)) ++ "]",
+                p',
+              )
+            | None => unsupported("a tuple label that is not a name")
+            }
+          | _ => (v ++ "[" ++ string_of_int(i) ++ "]", p)
+          };
+        let (t, b, lex) = pat(st, scope, lex, p, key);
+        (tests @ t, binds @ b, lex, i + 1);
+      },
+    )
+    |> (((t, b, lex, _)) => (t, b, lex))
+  | TupLabel(l, p') when pat_is_nonlabel(l) =>
+    pat(st, scope, lex, p', v ++ "[0]")
+  | TupLabel(l, p') =>
+    switch (pat_label_of(l)) {
+    | Some(name) =>
+      pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
+    | None => unsupported("a tuple label that is not a name")
+    }
+  | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
+  | Ap(c, arg) =>
+    switch (Pat.term_of(c)) {
+    | Constructor(name, _) =>
+      let (t, b, lex) = pat(st, scope, lex, arg, v ++ ".v");
+      ([v ++ ".c === " ++ js_string(name)] @ t, b, lex);
+    | _ => unsupported("an applied pattern that is not a constructor")
+    }
+  | EmptyHole
+  | MultiHole(_)
+  | Invalid(_) => unsupported("a hole in a pattern")
+  | ExplicitNonlabel
+  | Label(_)
+  | Projector(_) => unsupported("this kind of pattern")
+  };
+
+let conj = (tests: list(string)): string =>
+  switch (tests) {
+  | [] => "true"
+  | ts => String.concat(~sep=" && ", List.map(ts, ~f=t => "(" ++ t ++ ")"))
+  };
+
+/* A term as a JS expression, in a scope (the enclosing JS function's declarations) and a lexical environment (Hazel
+   names to JS names) */
+/* (^ticket(722)) a survey of a whole program: when [survey] holds a table, a form hazel-jit does not compile is counted
+   there by its reason and compiled as $R.reach(reason), which throws if the run evaluates it, instead of failing
+   the whole term. Off (None) everywhere but the CLI's [jit] command. */
+let survey: ref(option(Stdlib.Hashtbl.t(string, int))) = ref(None);
+
+/* (^ticket(722)) when on, a livelit use's model (UserLivelit.instrument_view's %model) that is a literal compiles as
+   $R.param(its id, the literal), so a run can be given a new model without new code; and the use's view call as
+   $R.sample(the projector's id, the answer). Off but for a slide's compiled run. */
+let params_on: ref(bool) = ref(false);
+/* and, as it compiles, each livelit use's projector id with its model's parameter (both as Id.to_string), for the caller
+   to give a projector's new model to the right parameter; a use whose model is not a literal has none */
+let param_of_projector: Stdlib.Hashtbl.t(string, string) =
+  Stdlib.Hashtbl.create(64);
+let last_param: ref(option(string)) = ref(None);
+
+let rec model_literal = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Atom(_)
+  | Label(_)
+  | Constructor(_) => true
+  | ListLit(es)
+  | Tuple(es) => List.for_all(es, ~f=model_literal)
+  | TupLabel(a, b) => model_literal(a) && model_literal(b)
+  | Ap(Forward, {term: Constructor(_), _}, arg) => model_literal(arg)
+  | Parens(e)
+  | Asc(e, _) => model_literal(e)
+  | _ => false
+  };
+
+let rec pat_is = (x: string, p: Pat.t): bool =>
+  switch (Pat.term_of(p)) {
+  | Var(y) => String.equal(x, y)
+  | Parens(p)
+  | Asc(p, _) => pat_is(x, p)
+  | _ => false
+  };
+/* and, for each reason, the first term that gave it (Exp.show, cut short), for the CLI to print */
+let survey_examples: Stdlib.Hashtbl.t(string, string) =
+  Stdlib.Hashtbl.create(8);
+
+let rec exp =
+        (st: state, scope: scope, lex: list((string, string)), e: Exp.t)
+        : string =>
+  switch (survey^) {
+  | None => exp_inner(st, scope, lex, e)
+  | Some(tbl) =>
+    switch (exp_inner(st, scope, lex, e)) {
+    | src => src
+    | exception (Unsupported(why)) =>
+      Stdlib.Hashtbl.replace(
+        tbl,
+        why,
+        1 + Option.value(Stdlib.Hashtbl.find_opt(tbl, why), ~default=0),
+      );
+      if (!Stdlib.Hashtbl.mem(survey_examples, why)) {
+        let shown = Exp.show(e);
+        Stdlib.Hashtbl.replace(
+          survey_examples,
+          why,
+          String.sub(shown, ~pos=0, ~len=min(String.length(shown), 700)),
+        );
+      };
+      "$R.reach(" ++ js_string(why) ++ ")";
+    }
+  }
+and exp_inner =
+    (st: state, scope: scope, lex: list((string, string)), e: Exp.t): string => {
+  let go = exp(st, scope, lex);
+  switch (Exp.term_of(e)) {
+  | Atom(Int(n))
+  | Atom(Nat(n)) => js_int(n)
+  | Atom(SInt(n)) =>
+    n < 0 ? "(" ++ string_of_int(n) ++ ")" : string_of_int(n)
+  | Atom(Float(f)) => js_float(f)
+  | Atom(Bool(b)) => string_of_bool(b)
+  | Atom(String(s)) => js_string(s)
+  | TyAlias(tp, ty, e) =>
+    note_alias(st, tp, ty);
+    go(e);
+  | Asc(e, t)
+  | TypAp(e, t) =>
+    no_type_hole(t);
+    go(e);
+  | Parens(e)
+  | TypFun(_, e, _)
+  | Use(_, e) => go(e)
+  | Var(x) =>
+    let rec find = (i, l) =>
+      switch (l) {
+      | [] => None
+      | [(y, j), ..._] when String.equal(y, x) =>
+        Some((j, List.length(lex) - i))
+      | [_, ...rest] => find(i + 1, rest)
+      };
+    switch (find(0, lex)) {
+    | Some((j, depth)) =>
+      /* the binding, counted from the oldest: a function that began after it captures it */
+      List.iter(st.frames, ~f=((entry, caps)) =>
+        if (depth <= entry && !List.Assoc.mem(caps^, ~equal=String.equal, x)) {
+          caps := caps^ @ [(x, j)];
+        }
+      );
+      j;
+    | None => global(st, x)
+    };
+  | ListLit(es) =>
+    List.fold_right(
+      es,
+      ~f=(e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
+      ~init="null",
+    )
+  | Cons(h, t) => "{h: " ++ go(h) ++ ", t: " ++ go(t) ++ "}"
+  | ListConcat(a, b) => "$R.append(" ++ go(a) ++ ", " ++ go(b) ++ ")"
+  | Tuple(es) =>
+    let parts =
+      List.map(es, ~f=(e: Exp.t) =>
+        switch (Exp.term_of(e)) {
+        | TupLabel(l, e') when is_nonlabel(l) => (None, go(e'))
+        | TupLabel(l, e') =>
+          label_hole(l);
+          switch (label_of(l)) {
+          | Some(name) => (Some(name), go(e'))
+          | None => unsupported("a tuple label that is not a name")
+          };
+        | _ => (None, go(e))
+        }
+      );
+    let arr =
+      "[" ++ String.concat(~sep=", ", List.map(parts, ~f=snd)) ++ "]";
+    List.exists(parts, ~f=((l, _)) => Option.is_some(l))
+      ? "$R.tup("
+        ++ arr
+        ++ ", ["
+        ++ String.concat(
+             ~sep=", ",
+             List.map(parts, ~f=((l, _)) =>
+               switch (l) {
+               | Some(name) => js_string(label_key(name))
+               | None => "null"
+               }
+             ),
+           )
+        ++ "])"
+      : arr;
+  | TupLabel(l, e') when is_nonlabel(l) => "[" ++ go(e') ++ "]"
+  | TupLabel(l, e') =>
+    switch (label_of(l)) {
+    | Some(name) =>
+      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(label_key(name)) ++ "])"
+    | None => unsupported("a tuple label that is not a name")
+    }
+  | Dot(e1, l) =>
+    switch (label_of(l)) {
+    | Some(name) =>
+      "$R.dot(" ++ go(e1) ++ ", " ++ js_string(label_key(name)) ++ ")"
+    | None => unsupported("a projection by something other than a label")
+    }
+  | Constructor(name, t) =>
+    note_ctor(st, name, t);
+    "{c: " ++ js_string(name) ++ "}";
+  /* (^ticket(761)) x |> f is Ap(Reverse, f, x) (MakeTerm), stepped as f(x) is (Transition's Ap(dir, ...)): only how it
+     is written differs */
+  | Ap(Forward | Reverse, f, arg) =>
+    switch (Exp.term_of(f), Exp.term_of(arg)) {
+    | (Constructor(name, t), _) =>
+      note_ctor(st, name, t);
+      "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
+    | (Dot(_, l), Var("%model"))
+        when
+          params_on^
+          && Option.equal(String.equal, label_of(l), Some("view")) =>
+      let pid = Id.to_string(Exp.rep_id(e));
+      switch (last_param^) {
+      | Some(mid) => Stdlib.Hashtbl.replace(param_of_projector, pid, mid)
+      | None => ()
+      };
+      last_param := None;
+      "$R.sample("
+      ++ js_string(Id.to_string(Exp.rep_id(e)))
+      ++ ", ("
+      ++ go(f)
+      ++ ")("
+      ++ go(arg)
+      ++ "))";
+    | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
+    }
+  | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
+  | FixF(p, body, _) =>
+    let rec name_of = (p: Pat.t): option(string) =>
+      switch (Pat.term_of(p)) {
+      | Var(x) => Some(x)
+      | Parens(p)
+      | Asc(p, _) => name_of(p)
+      | _ => None
+      };
+    /* (even, odd): a tuple of names, each a plain name */
+    let rec names_of = (p: Pat.t): option(list(string)) =>
+      switch (Pat.term_of(p)) {
+      | Parens(p)
+      | Asc(p, _) => names_of(p)
+      | Tuple(ps) =>
+        let xs = List.filter_map(ps, ~f=name_of);
+        List.length(xs) == List.length(ps) ? Some(xs) : None;
+      | _ => None
+      };
+    let rec parts_of = (e: Exp.t): option(list(Exp.t)) =>
+      switch (Exp.term_of(e)) {
+      | Parens(e)
+      | Asc(e, _) => parts_of(e)
+      | Tuple(es) => Some(es)
+      | _ => None
+      };
+    let rec is_fun = (e: Exp.t): bool =>
+      switch (Exp.term_of(e)) {
+      | Fun(_) => true
+      | Parens(e)
+      | Asc(e, _)
+      | TypFun(_, e, _) => is_fun(e)
+      | _ => false
+      };
+    switch (name_of(p)) {
+    | Some(x) =>
+      let inner = {decls: []};
+      let j = fresh(st, inner, x);
+      let body = exp(st, inner, [(x, j), ...lex], body);
+      "(() => { "
+      ++ body_with_decls(
+           inner,
+           "(" ++ j ++ " = " ++ body ++ ", " ++ j ++ ")",
+         )
+      ++ " })()";
+    | None =>
+      /* Mutual recursion. The interpreter binds each name to the fixpoint
+         unrolled and projected, each time it is used; here each name is
+         assigned once, in order, then the tuple of them returned. The same
+         when every part is a function: a name is read only when a function
+         runs, after every name has its value. */
+      /* (^ticket(761)) a part that is not a function joins in when it names none of them: it reads no name, so its
+         value is the same assigned in order. One that does is evaluated by the interpreter with the whole
+         definition unrolled again inside it, every time, so it does not end; it stays with the interpreter. */
+      let names_any = (xs, e: Exp.t): bool => {
+        let found = ref(false);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) => {
+                switch (Exp.term_of(e)) {
+                | Var(x) when List.mem(xs, x, ~equal=String.equal) =>
+                  found := true
+                | _ => ()
+                };
+                cont(e);
+              },
+            e,
+          );
+        found^;
+      };
+      switch (names_of(p), parts_of(body)) {
+      | (Some(xs), Some(es))
+          when
+            List.length(xs) == List.length(es)
+            && List.for_all(es, ~f=e => is_fun(e) || !names_any(xs, e)) =>
+        let inner = {decls: []};
+        let js = List.map(xs, ~f=x => fresh(st, inner, x));
+        let lex' =
+          List.fold2_exn(xs, js, ~init=lex, ~f=(lex, x, j) =>
+            [(x, j), ...lex]
+          );
+        let assigns =
+          List.map2_exn(js, es, ~f=(j, e) =>
+            j ++ " = " ++ exp(st, inner, lex', e)
+          );
+        "(() => { "
+        ++ body_with_decls(
+             inner,
+             "("
+             ++ String.concat(~sep=", ", assigns)
+             ++ ", ["
+             ++ String.concat(~sep=", ", js)
+             ++ "])",
+           )
+        ++ " })()";
+      | (Some(_), _) =>
+        unsupported(
+          "a recursive definition of more than one name whose part that is not a function names one of them",
+        )
+      | (None, _) =>
+        unsupported(
+          "a recursive definition by a pattern that is not a name or a tuple of names",
+        )
+      };
+    };
+  | Let(p, e1, e2) =>
+    let tmp = fresh(st, scope, "let");
+    let v1 =
+      switch (params_on^ && pat_is("%model", p), model_literal(e1)) {
+      | (true, true) =>
+        let mid = Id.to_string(Exp.rep_id(e1));
+        let v = "$R.param(" ++ js_string(mid) ++ ", " ++ go(e1) ++ ")";
+        last_param := Some(mid);
+        v;
+      | (true, false) =>
+        last_param := None;
+        go(e1);
+      | (false, _) => go(e1)
+      };
+    let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+    let check =
+      List.is_empty(tests)
+        ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
+    "("
+    ++ String.concat(
+         ~sep=", ",
+         [tmp ++ " = " ++ v1] @ check @ binds @ [exp(st, scope, lex', e2)],
+       )
+    ++ ")";
+  | If(c, a, b) => "(" ++ go(c) ++ " ? " ++ go(a) ++ " : " ++ go(b) ++ ")"
+  | Seq(a, b) => "(" ++ go(a) ++ ", " ++ go(b) ++ ")"
+  | Match(scrut, rules) =>
+    let tmp = fresh(st, scope, "m");
+    let arms =
+      List.fold_right(
+        rules,
+        ~f=
+          ((p, body), rest) => {
+            let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+            let then_ =
+              "("
+              ++ String.concat(
+                   ~sep=", ",
+                   binds @ [exp(st, scope, lex', body)],
+                 )
+              ++ ")";
+            List.is_empty(tests)
+              ? then_
+              : "(" ++ conj(tests) ++ " ? " ++ then_ ++ " : " ++ rest ++ ")";
+          },
+        ~init="$R.nomatch(\"case\")",
+      );
+    "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
+  | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
+  | UnOp(SInt(Minus), e) => "$R.sneg(" ++ go(e) ++ ")"
+  | UnOp(Float(Minus), e) => "(-(" ++ go(e) ++ "))"
+  | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
+  | BinOp(op, a, b) =>
+    let (a, b) = (go(a), go(b));
+    let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
+    switch (op) {
+    /* (^ticket(757)) exact, through the runtime; a number and a BigInt compare correctly as they are */
+    | Int(op)
+    | Nat(op) =>
+      let call = f => "$R." ++ f ++ "(" ++ a ++ ", " ++ b ++ ")";
+      switch (op) {
+      | Plus => call("iadd")
+      | Minus => call("isub")
+      | Times => call("imul")
+      | Power => call("ipow")
+      | Divide => call("idiv")
+      | LessThan => infix("<")
+      | LessThanOrEqual => infix("<=")
+      | GreaterThan => infix(">")
+      | GreaterThanOrEqual => infix(">=")
+      };
+    | SInt(op) =>
+      switch (op) {
+      | Plus => "$R.sadd(" ++ a ++ ", " ++ b ++ ")"
+      | Minus => "$R.ssub(" ++ a ++ ", " ++ b ++ ")"
+      | Times => "$R.smul(" ++ a ++ ", " ++ b ++ ")"
+      | Power => "$R.spow(" ++ a ++ ", " ++ b ++ ")"
+      | Divide => "$R.sdiv(" ++ a ++ ", " ++ b ++ ")"
+      | LessThan => infix("<")
+      | LessThanOrEqual => infix("<=")
+      | GreaterThan => infix(">")
+      | GreaterThanOrEqual => infix(">=")
+      }
+    | Float(op) =>
+      switch (op) {
+      | Plus => infix("+")
+      | Minus => infix("-")
+      | Times => infix("*")
+      | Power => infix("**")
+      | Divide => infix("/")
+      | LessThan => infix("<")
+      | LessThanOrEqual => infix("<=")
+      | GreaterThan => infix(">")
+      | GreaterThanOrEqual => infix(">=")
+      | Equals => infix("===")
+      | NotEquals => infix("!==")
+      }
+    | Bool(And) => infix("&&")
+    | Bool(Or) => infix("||")
+    | String(Concat) => infix("+")
+    | Poly(Equals) => "$R.eq(" ++ a ++ ", " ++ b ++ ")"
+    | Poly(NotEquals) => "(!$R.eq(" ++ a ++ ", " ++ b ++ "))"
+    };
+  | BuiltinFun(name) => builtin(name)
+  | Closure(env, e) when List.is_empty(Environment.to_list(env)) => go(e)
+  | Closure(_) => unsupported("a closure with its own environment")
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_) => unsupported("a hole")
+  | Test(_)
+  | HintedTest(_) => unsupported("a test")
+  | Filter(_) => unsupported("a stepper filter")
+  /* (^ticket(722)) a projector is transparent to the run, as in the interpreter (Transition: it steps to what it
+     holds) */
+  | Projector(_, d) => go(d)
+  | Module(items) => module_(st, lex, items)
+  | ModuleExp(mp, e1, e2) =>
+    /* `module M = e1 in e2`, its name bound as a let's would be */
+    let rec name_of = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(x) => x
+      | Asc(mp, _) => name_of(mp)
+      | _ => unsupported("a module bound by a pattern that is not a name")
+      };
+    let x = name_of(mp);
+    let j = fresh(st, scope, x);
+    "("
+    ++ j
+    ++ " = "
+    ++ go(e1)
+    ++ ", "
+    ++ exp(st, scope, [(x, j), ...lex], e2)
+    ++ ")";
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | DrvQuote(_) => unsupported("this kind of term")
+  | Deferral(_) => unsupported("a partial application's _ outside one")
+  /* (^ticket(761), the sweep's 8 partial applications) f(a, _, c): f and the arguments given evaluated now, in order, as
+     Transition's DeferredAp is a value once they are; then a function of the deferred ones, filled in order (one deferred:
+     the argument itself; several: a tuple of them), applying f to all of them, one alone as itself */
+  | DeferredAp(f, args) =>
+    let ftmp = fresh(st, scope, "pf");
+    let slots =
+      List.map(args, ~f=(a: Exp.t) =>
+        switch (Exp.term_of(a)) {
+        | Deferral(_) => None
+        | TupLabel(_) =>
+          unsupported("a partial application with a labeled argument")
+        | _ => Some((fresh(st, scope, "pa"), go(a)))
+        }
+      );
+    let deferred = List.length(List.filter(slots, ~f=Option.is_none));
+    st.counter = st.counter + 1;
+    let x = "d$" ++ string_of_int(st.counter);
+    let next = ref(0);
+    let elems =
+      List.map(slots, ~f=slot =>
+        switch (slot) {
+        | Some((tmp, _)) => tmp
+        | None =>
+          let k = next^;
+          next := k + 1;
+          deferred == 1 ? x : x ++ "[" ++ string_of_int(k) ++ "]";
+        }
+      );
+    let given =
+      List.filter_map(slots, ~f=slot =>
+        Option.map(slot, ~f=((tmp, code)) => tmp ++ " = " ++ code)
+      );
+    "("
+    ++ String.concat(
+         ~sep=", ",
+         [ftmp ++ " = " ++ go(f), ...given]
+         @ [
+           "(("
+           ++ x
+           ++ ") => "
+           ++ ftmp
+           ++ "("
+           ++ (
+             List.length(elems) == 1
+               ? List.hd_exn(elems)
+               : "[" ++ String.concat(~sep=", ", elems) ++ "]"
+           )
+           ++ "))",
+         ],
+       )
+    ++ ")";
+  | Undefined => "$R.indet(\"undefined\")"
+  /* (^ticket(761)) a label as a value, which the label builtins take: {lab: name} */
+  | Label(name) => "({lab: " ++ js_string(label_key(name)) ++ "})"
+  | TupleExtension(e1, e2) => "$R.ext(" ++ go(e1) ++ ", " ++ go(e2) ++ ")"
+  | ExplicitNonlabel
+  | LivelitName(_) => unsupported("this kind of term")
+  };
+}
+/* A function: its own JS function, its parameter matched against its pattern */
+and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
+  let inner = {decls: []};
+  st.counter = st.counter + 1;
+  let arg = "a$" ++ string_of_int(st.counter);
+  let caps = ref([]);
+  st.frames = [(List.length(lex), caps), ...st.frames];
+  let (tests, binds, lex') = pat(st, inner, lex, p, arg);
+  let check =
+    List.is_empty(tests)
+      ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
+  let b =
+    try(exp(st, inner, lex', body)) {
+    | exn =>
+      st.frames = List.tl_exn(st.frames);
+      raise(exn);
+    };
+  st.frames = List.tl_exn(st.frames);
+  let value =
+    List.is_empty(check) && List.is_empty(binds)
+      ? b : "(" ++ String.concat(~sep=", ", check @ binds @ [b]) ++ ")";
+  /* tagged with its term and its captured values, so the way back can make it a Hazel closure (HazelJitValue) */
+  let k = Stdlib.Hashtbl.length(st.funs);
+  Stdlib.Hashtbl.replace(st.funs, k, (term, List.map(caps^, ~f=fst)));
+  "$R.fn(("
+  ++ arg
+  ++ ") => { "
+  ++ step
+  ++ body_with_decls(inner, value)
+  ++ " }, "
+  ++ string_of_int(k)
+  ++ ", "
+  ++ (
+    List.is_empty(caps^)
+      ? "null"
+      : "[" ++ String.concat(~sep=", ", List.map(caps^, ~f=snd)) ++ "]"
+  )
+  ++ ")";
+}
+/* A module: its members, in order, each seeing the ones before it, gathered into one value whose properties are their
+   names (as a labeled tuple's), so `M.x` is a property read. Types are erased. A name defined twice is its last. */
+and module_ = (st: state, lex, items: list(Mod.t)): string => {
+  let inner = {decls: []};
+  let name_of_mpat = (mp: MPat.t) => {
+    let rec go = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(x) => x
+      | Asc(mp, _) => go(mp)
+      | _ => unsupported("a module bound by a pattern that is not a name")
+      };
+    go(mp);
+  };
+  /* steps: the JS assignments, in order; exports: each member's name and its JS variable, newest first */
+  let (steps, exports, _) =
+    List.fold_left(
+      items, ~init=([], [], lex), ~f=((steps, exports, lex), item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(p, e) =>
+        let tmp = fresh(st, inner, "def");
+        /* a member with a form hazel-jit does not compile is a stub that says why if it is called: a view uses
+           some of its module's members, not all (a livelit's expand, say, may be a quotation) */
+        let v =
+          try(exp(st, inner, lex, e)) {
+          | Unsupported(why) => "$R.missing(" ++ js_string(why) ++ ")"
+          };
+        let (tests, binds, lex') = pat(st, inner, lex, p, tmp);
+        let check =
+          List.is_empty(tests)
+            ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"module\")"];
+        /* the names this member binds: the front of lex' that lex does not have */
+        let n = List.length(lex') - List.length(lex);
+        let bound = List.filteri(lex', ~f=(i, _) => i < n);
+        (steps @ [tmp ++ " = " ++ v] @ check @ binds, bound @ exports, lex');
+      | ModuleMod(mp, e) =>
+        let x = name_of_mpat(mp);
+        let j = fresh(st, inner, x);
+        (
+          steps @ [j ++ " = " ++ exp(st, inner, lex, e)],
+          [(x, j), ...exports],
+          [(x, j), ...lex],
+        );
+      | ModType(tp, ty) =>
+        note_alias(st, tp, ty);
+        (steps, exports, lex);
+      /* (^ticket(761)) an expression as a member is evaluated and its value dropped, as the elaborated module's
+         let _ = e in ... (ModuleHelpers) */
+      | ModExp(e) =>
+        let tmp = fresh(st, inner, "exp");
+        (steps @ [tmp ++ " = " ++ exp(st, inner, lex, e)], exports, lex);
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => unsupported("a hole in a module")
+      }
+    );
+  /* each name once, at its newest definition, in the order first defined */
+  let names =
+    List.fold_left(exports, ~init=[], ~f=(acc, (x, _)) =>
+      List.mem(acc, x, ~equal=String.equal) ? acc : [x, ...acc]
+    );
+  let value =
+    "$R.tup(["
+    ++ String.concat(
+         ~sep=", ",
+         List.map(names, ~f=x =>
+           List.Assoc.find_exn(exports, ~equal=String.equal, x)
+         ),
+       )
+    ++ "], ["
+    ++ String.concat(
+         ~sep=", ",
+         List.map(names, ~f=x => js_string(label_key(x))),
+       )
+    ++ "])";
+  "(() => { "
+  ++ body_with_decls(
+       inner,
+       "(" ++ String.concat(~sep=", ", steps @ [value]) ++ ")",
+     )
+  ++ " })()";
+}
+/* A free variable: the builtins' */
+and global = (st: state, x: string): string =>
+  switch (Stdlib.Hashtbl.find_opt(st.global_names, x)) {
+  | Some(j) => j
+  | None =>
+    switch (Environment.lookup(st.env, x)) {
+    | None => unsupported("the free variable " ++ x)
+    | Some(d) =>
+      /* (^ticket(761), found by the slides' check) an operator as a builtin, int_plus and the rest: compiled as a
+         function of a pair whose body is the operator, so it is the operator's own code */
+      let d =
+        switch (Exp.term_of(d)) {
+        | BuiltinFun(name)
+            when !List.mem(Runtime.builtins, name, ~equal=String.equal) =>
+          switch (op_fun(name)) {
+          | Some(f) => f
+          | None => d
+          }
+        | _ => d
+        };
+      switch (Exp.term_of(d)) {
+      | BuiltinFun(name) => builtin(name)
+      | _ when List.mem(Runtime.constants, x, ~equal=String.equal) =>
+        "$R.b." ++ x
+      | _ =>
+        /* a builtin written in Hazel: compiled once, before the program's code; its name is known before its body is
+           compiled, so a body that refers to it finds it */
+        let j = "g$" ++ sanitize(x);
+        Stdlib.Hashtbl.add(st.global_names, x, j);
+        let scope = {decls: []};
+        /* a global is compiled on its own: the functions being compiled where it is first used do not capture its
+           variables */
+        let frames = st.frames;
+        st.frames = [];
+        let v =
+          try(exp(st, scope, [], d)) {
+          | Unsupported(_) as exn =>
+            st.frames = frames;
+            Stdlib.Hashtbl.remove(st.global_names, x);
+            raise(exn);
+          };
+        st.frames = frames;
+        st.globals = [
+          "const "
+          ++ j
+          ++ " = (() => { "
+          ++ body_with_decls(scope, v)
+          ++ " })();",
+          ...st.globals,
+        ];
+        j;
+      };
+    }
+  }
+and builtin = (name: string): string =>
+  List.mem(Runtime.builtins, name, ~equal=String.equal)
+    ? "$R.b[" ++ js_string(name) ++ "]" : unsupported("the builtin " ++ name);
+
+/* An elaborated term as the source of a JS function's body, run as new Function("$R", source)(runtime): the builtins it
+   uses first, then its value. Raises Unsupported when it holds a form hazel-jit does not compile. */
+/* What compiling a term gives: the JS source, and what the way back needs (HazelJitValue.of_js): the constructors'
+   types and the type aliases */
+type compiled = {
+  src: string,
+  ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
+  aliases: Stdlib.Hashtbl.t(string, Typ.t),
+  funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
+};
+
+let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
+  let st = {
+    env,
+    counter: 0,
+    globals: [],
+    global_names: Stdlib.Hashtbl.create(8),
+    ctors: Stdlib.Hashtbl.create(16),
+    aliases: Stdlib.Hashtbl.create(8),
+    funs: Stdlib.Hashtbl.create(16),
+    frames: [],
+  };
+  let scope = {decls: []};
+  let v = exp(st, scope, [], e);
+  {
+    src:
+      "\"use strict\"; "
+      ++ String.concat(~sep=" ", List.rev(st.globals))
+      ++ " "
+      ++ body_with_decls(scope, v),
+    ctors: st.ctors,
+    aliases: st.aliases,
+    funs: st.funs,
+  };
+};
+
+let compile = (~env: Environment.t(Exp.t), e: Exp.t): string =>
+  compile_full(~env, e).src;
+
+/* The same, or the reason it is not compiled */
+let try_compile =
+    (~env: Environment.t(Exp.t), e: Exp.t): result(string, string) =>
+  switch (compile(~env, e)) {
+  | src => Ok(src)
+  | exception (Unsupported(reason)) => Error(reason)
+  };
