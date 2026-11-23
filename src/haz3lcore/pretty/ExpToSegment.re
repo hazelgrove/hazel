@@ -626,14 +626,17 @@ let rec parenthesize =
   let paren_typ_at = paren_typ_at(~parenthesization);
   /* For tuples: with Structural, don't auto-wrap in parens */
   let should_auto_wrap_tuple = parenthesization == Defensive;
-  /* A field that prints as `lab=e`, perhaps under a hidden cast. Inside a
-     tuple's or an application's `(…)` it needs no parens of its own. */
-  let rec prints_as_tup_label = (e: Exp.t) =>
+  /* Menhir reads a tuple or a labeled field (`a=1`) only inside parens, so
+     one takes its own unless a parent (a tuple, parens, an application's
+     arguments) already encloses it. */
+  let enclosed = inner =>
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Exp.fresh;
+  /* A field `lab=e` inside a tuple's or an application's `(…)` needs no
+     parens of its own. */
+  let prints_as_tup_label = (e: Exp.t) =>
     switch (e.term) {
     | TupLabel(_) => true
-    | Asc(e, _) => !show_ascriptions && prints_as_tup_label(e)
-    | DynamicErrorHole(e, _)
-    | Filter(Residue(_), e) => prints_as_tup_label(e)
     | _ => false
     };
   let (term, rewrap) = Exp.unwrap(exp);
@@ -653,10 +656,7 @@ let rec parenthesize =
   | Label(_)
   | Undefined => exp
 
-  /* Forms stripped before outputting. They print as their child, so they must
-     not change its parenthesization: dropping `already_paren` here wrapped an
-     ap argument's tuple, turning `f(_, _)` into `f((_, _))` — a plain Ap
-     rather than a DeferredAp. */
+  /* any_to_segment removes these before parenthesizing. */
   | Closure(_, x)
   | DynamicErrorHole(x, _) => parenthesize(~already_paren, x)
   | Filter(Filter({pat, act}), x) =>
@@ -702,11 +702,7 @@ let rec parenthesize =
       )
       |> rewrap;
 
-    if (already_paren || !should_auto_wrap_tuple) {
-      inner;
-    } else {
-      Parens(inner) |> Exp.fresh;
-    };
+    enclosed(inner);
   | Tuple(es) =>
     /* Fields are already inside `(…)` when we auto-wrap, so a labeled field
        doesn't become `((a=1), (b=2))`. A field that is itself a tuple still
@@ -721,11 +717,7 @@ let rec parenthesize =
       )
       |> rewrap;
 
-    if (already_paren || !should_auto_wrap_tuple) {
-      inner;
-    } else {
-      Parens(inner) |> Exp.fresh;
-    };
+    enclosed(inner);
   | TupLabel(l, e) =>
     let inner =
       TupLabel(
@@ -733,8 +725,7 @@ let rec parenthesize =
         parenthesize(e) |> paren_at(Precedence.comma),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Exp.fresh;
+    enclosed(inner);
   | Dot(e, l) =>
     /* After `.` a name is a projection and `?` a hole. Anything else reads
        as a hole of one piece, which prints in parens unless it is enclosed
@@ -1058,10 +1049,13 @@ and parenthesize_pat =
   let paren_pat_assoc_at = paren_pat_assoc_at(~parenthesization);
   let paren_typ_at = paren_typ_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
-  let rec prints_as_tup_label = (p: Pat.t) =>
+  /* As for expressions. */
+  let enclosed = inner =>
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Pat.fresh;
+  let prints_as_tup_label = (p: Pat.t) =>
     switch (p.term) {
     | TupLabel(_) => true
-    | Asc(p, _) => !show_ascriptions && prints_as_tup_label(p)
     | _ => false
     };
   let (term, rewrap) = Pat.unwrap(pat);
@@ -1095,8 +1089,7 @@ and parenthesize_pat =
         parenthesize_pat(p) |> paren_pat_at(Precedence.comma),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Pat.fresh;
+    enclosed(inner);
   | Tuple(ps) =>
     let inner =
       Tuple(
@@ -1107,15 +1100,13 @@ and parenthesize_pat =
         |> List.map(~f=paren_pat_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Pat.fresh;
+    enclosed(inner);
   | Label(_) => pat
   | TupLabel(l, p) =>
     let inner =
       TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Pat.fresh;
+    enclosed(inner);
   | ListLit(ps) =>
     ListLit(
       ps
@@ -1175,6 +1166,10 @@ and parenthesize_typ =
   let paren_typ_assoc_at = paren_typ_assoc_at(~parenthesization);
   let paren_at = paren_at(~parenthesization);
   let should_auto_wrap_tuple = parenthesization == Defensive;
+  /* As for expressions. */
+  let enclosed = inner =>
+    already_paren || !should_auto_wrap_tuple
+      ? inner : Parens(inner) |> Typ.fresh;
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   /* An invalid face is an Exp-sorted tile: bare in a type it drags the
@@ -1222,11 +1217,7 @@ and parenthesize_typ =
       )
       |> rewrap;
 
-    if (already_paren || !should_auto_wrap_tuple) {
-      inner;
-    } else {
-      Parens(inner) |> Typ.fresh;
-    };
+    enclosed(inner);
   | Prod([{term: TupLabel(_), _} as field]) =>
     /* A labeled singleton prints as its field alone, so no tile would carry
        the Prod's ids. Print it as the parenthesized field MakeTerm parses
@@ -1253,16 +1244,14 @@ and parenthesize_typ =
         |> List.map(~f=paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Typ.fresh;
+    enclosed(inner);
   | ExplicitNonlabel => typ
   | Label(_) => typ
   | TupLabel(l, t) =>
     let inner =
       TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.type_prod))
       |> rewrap;
-    already_paren || !should_auto_wrap_tuple
-      ? inner : Parens(inner) |> Typ.fresh;
+    enclosed(inner);
   | ProdProjection(t1, t2) =>
     /* The two parsers order `.` and `->` oppositely, so parenthesize both
        sides at type_arrow and an arrow gets parens either way. */
@@ -4190,27 +4179,32 @@ let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
   go_seg(seg);
 };
 
-let exp_to_segment =
-    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
-  let exp =
-    exp
-    |> parenthesize(
-         ~parenthesization=settings.parenthesization,
-         ~already_paren,
-         ~show_filters=settings.show_filters,
-         ~show_ascriptions=settings.show_ascriptions,
-       );
-  let p = exp_to_pretty(~settings, exp);
-  p
-  |> PrettySegment.select
-  |> strip_if_incomplete(Exp(exp))
-  |> uniquify_repeated_tiles;
-};
-
 let any_to_segment =
     (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
+  /* Forms evaluation adds that print as their child (a closure, a dynamic
+     error hole, a filter's residue, and an ascription when ascriptions are
+     hidden) go first, so no paren rule has to look through them. */
+  let hidden_asc = !settings.show_ascriptions;
+  let f_exp = (continue: Exp.t => Exp.t, e: Exp.t) => {
+    let e = continue(e);
+    switch (e.term) {
+    | Closure(_, x)
+    | DynamicErrorHole(x, _)
+    | Filter(Residue(_), x) => x
+    | Asc(x, _) when hidden_asc => x
+    | _ => e
+    };
+  };
+  let f_pat = (continue: Pat.t => Pat.t, p: Pat.t) => {
+    let p = continue(p);
+    switch (p.term) {
+    | Asc(x, _) when hidden_asc => x
+    | _ => p
+    };
+  };
   let any =
     any
+    |> Any.map_term(~f_exp, ~f_pat)
     |> parenthesize_any(
          ~parenthesization=settings.parenthesization,
          ~already_paren,
@@ -4223,3 +4217,7 @@ let any_to_segment =
   |> strip_if_incomplete(any)
   |> uniquify_repeated_tiles;
 };
+
+let exp_to_segment =
+    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t =>
+  any_to_segment(~already_paren, ~settings, Exp(exp));

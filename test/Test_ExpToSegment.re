@@ -2825,6 +2825,27 @@ let defensive_print_stable_tests = (
         },
       )
     ),
+    test_case(
+      "A labeled field in a closure prints as a field",
+      `Quick,
+      () => {
+        let field = (l, n) =>
+          Exp.fresh(
+            TupLabel(
+              Exp.fresh(Label(l)),
+              Exp.fresh(Atom(Int(Bigint.of_int(n)))),
+            ),
+          );
+        let tuple =
+          Exp.fresh(
+            Tuple([
+              Exp.fresh(Closure(Environment.empty, field("x", 1))),
+              field("b", 2),
+            ]),
+          );
+        check(string, "printed", "(x=1, b=2)", defensive_print(tuple));
+      },
+    ),
     test_case("An elaborated module binding reads back", `Quick, () =>
       List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
         List.iter(
