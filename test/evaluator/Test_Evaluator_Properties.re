@@ -129,13 +129,8 @@ let qcheck_stepper_confluence =
   QCheck.Test.make(
     ~name="Evaluator and stepper are consistent",
     ~count=1000,
-    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     uexp => {
-      /* A semantic property, so judge terms a user can write (see
-         Preservation): a bare `a=_` pattern, which no parse returns, matched
-         against a scrutinee that steps to a proof_object made the two
-         disagree. */
-      let uexp = Canonicalize.exp(uexp);
       check_evaluator_stepper_consistent(
         ~step_limit=100,
         ~testable=testable_core_exp_up_to_proofs,
@@ -180,15 +175,10 @@ let qcheck_pattern_equivalence_test =
     ~name="Pattern equivalence",
     ~count=1000,
     QCheck.pair(
-      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
-      QCheck_Util.arb_typ_full(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
+      QCheck_Util.arb_typ_canonical(~minimal_idents=true, 5),
     ),
     ((uexp, typ)) => {
-      /* Judge terms a user can write (see Canonicalize): this property is
-         about ascription, where bare labeled fields and one-element tuples
-         decide whether the labeled-singleton rules apply. */
-      let uexp = Canonicalize.exp(uexp);
-      let typ = Canonicalize.typ(typ);
       open IdTagged.FreshGrammar;
       open Exp;
       let first = asc(uexp, typ);
@@ -298,66 +288,61 @@ let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
     ~count=1000,
-    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     uexp => {
-      /* A semantic property, so judge terms a user can write: the generator
-         also emits shapes no parse returns, like a bare `x=e` as a tuple field's
-         value (`_=(x=e)` always parses with `(x=e)` as a singleton tuple). */
-      let uexp = Canonicalize.exp(uexp);
+    switch (
       switch (
-        switch (
-          {
-            let (elab, ty) =
-              QCheck_Util.skip_alias_loop(() => {
-                let (statics, elab) =
-                  Statics.mk(
-                    CoreSettings.on,
-                    Builtins.ctx_init(Some(Int)),
-                    uexp,
-                  );
-                (elab, elaborated_type(statics, uexp));
-              });
-            QCheck.assume(!has_rec_with_unused_binder(ty));
-            let stepped = single_step(elab);
-            (stepped, ty);
-          }
-        ) {
-        | (Some(next), orig_ty) =>
-          /* `next` is already elaborated: re-check with no ambient
-             mode, as CachedStatics does, or `Operators.replace_*` turns
-             a Float negation back into an Int one. */
-          switch (
-            {
-              let (statics, _) =
-                Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
-              Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
-            }
-          ) {
-          | Some(ty) =>
-            Typ.is_more_precise(
-              Ctx.empty,
-              QCheck_Util.erase_proof_props(ty),
-              QCheck_Util.erase_proof_props(orig_ty),
-            )
-              ? true
-              : Alcotest.fail(
-                  "Preservation failed: original type "
-                  ++ Typ.show(orig_ty)
-                  ++ " is not more precise than stepped type "
-                  ++ Typ.show(ty),
-                )
-          | _ =>
-            Alcotest.fail("No type information found for stepped expression")
-          }
-        | (None, _) => true // If we can't take a step, we don't have to check preservation
+        {
+          let (elab, ty) =
+            QCheck_Util.skip_alias_loop(() => {
+              let (statics, elab) =
+                Statics.mk(
+                  CoreSettings.on,
+                  Builtins.ctx_init(Some(Int)),
+                  uexp,
+                );
+              (elab, elaborated_type(statics, uexp));
+            });
+          QCheck.assume(!has_rec_with_unused_binder(ty));
+          let stepped = single_step(elab);
+          (stepped, ty);
         }
       ) {
-      | ret => ret
-      | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
-      | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
-      };
-    },
-  );
+      | (Some(next), orig_ty) =>
+        /* `next` is already elaborated: re-check with no ambient
+           mode, as CachedStatics does, or `Operators.replace_*` turns
+           a Float negation back into an Int one. */
+        switch (
+          {
+            let (statics, _) =
+              Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
+            Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
+          }
+        ) {
+        | Some(ty) =>
+          Typ.is_more_precise(
+            Ctx.empty,
+            QCheck_Util.erase_proof_props(ty),
+            QCheck_Util.erase_proof_props(orig_ty),
+          )
+            ? true
+            : Alcotest.fail(
+                "Preservation failed: original type "
+                ++ Typ.show(orig_ty)
+                ++ " is not more precise than stepped type "
+                ++ Typ.show(ty),
+              )
+        | _ =>
+          Alcotest.fail("No type information found for stepped expression")
+        }
+      | (None, _) => true // If we can't take a step, we don't have to check preservation
+      }
+    ) {
+    | ret => ret
+    | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
+    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
+    }
+  });
 
 /* Incremental evaluator correctness:
  *
@@ -761,11 +746,10 @@ let qcheck_gradual_guarantee =
     ~name="Annotating bindings with ? keeps the value",
     ~count=1000,
     QCheck.pair(
-      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+      QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
       QCheck.small_nat,
     ),
-    ((uexp, seed)) =>
-    gradual_guarantee_holds((Canonicalize.exp(uexp), seed))
+    gradual_guarantee_holds,
   );
 
 /* Generated programs rarely give a one-field labeled type a value to lift,
@@ -1251,7 +1235,7 @@ let repro_explicit_nonlabel_incremental =
 /* Preservation as the property checks it: one step, the stepped term
    re-checked with no ambient mode, its type at least as precise. */
 let one_step_preserves = (src: string) => {
-  let uexp = Canonicalize.exp(parse_exp(src));
+  let uexp = parse_exp(src);
   let (statics, elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
   let orig_ty = elaborated_type(statics, uexp);
@@ -1284,7 +1268,7 @@ let stepper_agrees = (~testable=testable_core_exp, src: string) =>
     ~testable,
     ~msg=src ++ ": small step and big step agree",
     ~require_comparison=true,
-    Canonicalize.exp(parse_exp(src)),
+    parse_exp(src),
   );
 
 let evaluates_to_type = (src: string, expected: Typ.term) => {
@@ -1684,7 +1668,7 @@ module ListTypes = {
 
   /* Each step's type is at least as precise as the program's. */
   let unpreserved = (src: string): option(string) => {
-    let uexp = Canonicalize.exp(parse_exp(src));
+    let uexp = parse_exp(src);
     let (statics, elab) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
     if (!List.is_empty(Statics.Map.error_ids(statics))) {

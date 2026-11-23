@@ -88,7 +88,7 @@ let menhir_parse = (s: string): option(Exp.t) =>
   };
 
 let equal_terms = (e1: Exp.t, e2: Exp.t): bool =>
-  Canonicalize.roundtrip_eq.exp(Canonicalize.exp(e1), Canonicalize.exp(e2));
+  Canonicalize.roundtrip_eq.exp(e1, e2);
 
 let arb_fuzzed = {
   open QCheck;

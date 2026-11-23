@@ -25,19 +25,13 @@ let strip_wrap =
     _,
   );
 
-/* Both parsers are compared after Canonicalize, which absorbs the print
-   aliases they legitimately disagree on (BuiltinFun vs Var, Int/Nat/SInt
-   digits, `_`, bare TupLabel, dynamic-error holes). Parens come off first:
-   Canonicalize's deferral rule is paren-sensitive on purpose (`f((_))` is not
-   a DeferredAp), so both sides must agree on parens before it runs. */
-let canon_equal = (e1: Exp.t, e2: Exp.t): bool =>
-  Canonicalize.roundtrip_eq.exp(
-    Canonicalize.exp(strip_wrap(e1)),
-    Canonicalize.exp(strip_wrap(e2)),
-  );
+/* Two parses, or two conversions, compared as they are: neither side is
+   rewritten, so where the parsers disagree, this does too. */
+let same_term = (e1: Exp.t, e2: Exp.t): bool =>
+  Canonicalize.roundtrip_eq.exp(strip_wrap(e1), strip_wrap(e2));
 
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(canon_equal) |> Alcotest.check;
+  (testable(Fmt.using(Exp.show, Fmt.string)))(same_term) |> Alcotest.check;
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
@@ -228,7 +222,7 @@ let qcheck_menhir_maketerm_equivalent_test =
           let menhir_parsed = Interface.parse_program(serialized);
           let menhir_parsed_converted =
             Conversion.Exp.of_menhir_ast(menhir_parsed);
-          canon_equal(
+          same_term(
             make_term_parsed,
             Grammar.map_exp_annotation(
               _ => IdTagged.IdTag.fresh(),
@@ -272,7 +266,8 @@ let qcheck_menhir_serialized_equivalent_test =
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
+        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp)
+        |> Canonicalize.exp;
       QCheck.assume(!is_carved_out(core_exp));
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
@@ -294,9 +289,6 @@ let qcheck_menhir_serialized_equivalent_test =
           core_exp,
         );
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
-      /* Canonicalize print-invisible generator ghosts (BuiltinFun, Nat/SInt,
-         bare TupLabel, …) so we compare against what parse can return.
-         Crash PBTs still use the raw generator. */
       switch (
         {
           let menhir_parsed = Interface.parse_program(serialized);
@@ -305,10 +297,7 @@ let qcheck_menhir_serialized_equivalent_test =
               _ => IdTagged.IdTag.fresh(),
               Conversion.Exp.of_menhir_ast(menhir_parsed),
             );
-          Canonicalize.roundtrip_eq.exp(
-            Canonicalize.exp(core_exp),
-            menhir_core,
-          );
+          Canonicalize.roundtrip_eq.exp(core_exp, menhir_core);
         }
       ) {
       | true => true
@@ -341,7 +330,7 @@ let menhir_ast_roundtrip_test = (name: string, exp: AST.exp) =>
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(e),
         );
-      let core = to_core(exp);
+      let core = Canonicalize.exp(to_core(exp));
       let serialized =
         Haz3lcore.Printer.of_segment(
           ~holes="?",
@@ -365,13 +354,12 @@ let menhir_ast_roundtrip_test = (name: string, exp: AST.exp) =>
           ),
         );
       let parsed_core = to_core(Interface.parse_program(serialized));
-      let canon = Canonicalize.exp(core);
-      if (!Canonicalize.roundtrip_eq.exp(canon, parsed_core)) {
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
         Alcotest.fail(
           "round-trip mismatch on `"
           ++ serialized
-          ++ "`\ncanonicalized generated:\n"
-          ++ Exp.show(canon)
+          ++ "`\ngenerated:\n"
+          ++ Exp.show(core)
           ++ "\nreparsed:\n"
           ++ Exp.show(parsed_core),
         );
@@ -1239,7 +1227,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(e),
         );
-      let core = to_core(exp);
+      let core = Canonicalize.exp(to_core(exp));
       let serialized =
         Haz3lcore.Printer.of_segment(
           ~holes="?",
@@ -1249,7 +1237,7 @@ let found_shapes = [
           ),
         );
       let parsed_core = to_core(Interface.parse_program(serialized));
-      if (!Canonicalize.roundtrip_eq.exp(Canonicalize.exp(core), parsed_core)) {
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
         Alcotest.fail("unequal after print/parse; serialized=" ++ serialized);
       };
     },
@@ -1293,7 +1281,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(e),
         );
-      let core = to_core(exp);
+      let core = Canonicalize.exp(to_core(exp));
       let serialized =
         Haz3lcore.Printer.of_segment(
           ~holes="?",
@@ -1303,7 +1291,7 @@ let found_shapes = [
           ),
         );
       let parsed_core = to_core(Interface.parse_program(serialized));
-      if (!Canonicalize.roundtrip_eq.exp(Canonicalize.exp(core), parsed_core)) {
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
         Alcotest.fail(
           "left-nested ProdExtension lost; serialized=" ++ serialized,
         );
@@ -1341,7 +1329,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(e),
         );
-      let core = to_core(exp);
+      let core = Canonicalize.exp(to_core(exp));
       let serialized =
         Haz3lcore.Printer.of_segment(
           ~holes="?",
@@ -1351,7 +1339,7 @@ let found_shapes = [
           ),
         );
       let parsed_core = to_core(Interface.parse_program(serialized));
-      if (!Canonicalize.roundtrip_eq.exp(Canonicalize.exp(core), parsed_core)) {
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
         Alcotest.fail(
           "ProdProjection of Arrow lost; serialized=" ++ serialized,
         );
@@ -1451,7 +1439,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(TypAp(Undefined, t)),
         );
-      if (!canon_equal(to_core(wrapped), to_core(bare))) {
+      if (!same_term(to_core(wrapped), to_core(bare))) {
         Alcotest.fail("TupleType([TypVar]) under projection should be Label");
       };
     },
@@ -1473,7 +1461,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(Dot(TupleExp([]), Label("x"))),
         );
-      if (!canon_equal(core, expected)) {
+      if (!same_term(core, expected)) {
         Alcotest.fail("Dot TupleExp([Label]) should convert like Dot Label");
       };
     },
@@ -1499,7 +1487,7 @@ let found_shapes = [
           _ => IdTagged.IdTag.fresh(),
           Conversion.Exp.of_menhir_ast(e),
         );
-      let core = to_core(exp);
+      let core = Canonicalize.exp(to_core(exp));
       let serialized =
         Haz3lcore.Printer.of_segment(
           ~holes="?",
@@ -1523,7 +1511,7 @@ let found_shapes = [
           ),
         );
       let parsed_core = to_core(Interface.parse_program(serialized));
-      if (!Canonicalize.roundtrip_eq.exp(Canonicalize.exp(core), parsed_core)) {
+      if (!Canonicalize.roundtrip_eq.exp(core, parsed_core)) {
         Alcotest.fail(
           "bare TupLabel unequal after print/parse; serialized=" ++ serialized,
         );

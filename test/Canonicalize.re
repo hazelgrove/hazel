@@ -234,42 +234,13 @@ let f_exp = (continue: Exp.t => Exp.t, e: Exp.t): Exp.t => {
       term: Atom(atom(a)),
     }
   | DynamicErrorHole(inner, _) => inner
-  /* Elaboration turns `module M = e in body` into a `let` of the variable
-     `M`, which prints as the `module` it came from. It also reads the
-     module's uses as variables, but they're written as constructors. */
-  | Let({term: Var(name), _} as p, def, body) when Token.is_ctr(name) => {
-      ...e,
-      term:
-        ModuleExp(
-          {
-            ...p,
-            term: Var(name),
-          },
-          def,
-          body,
-        ),
-    }
-  | Var(name) when Token.is_ctr(name) => {
-      ...e,
-      term: Constructor(name, None),
-    }
   | ExplicitNonlabel => {
       ...e,
       term: Deferral(OutsideAp),
     }
-  /* The printer shows a function's elaborated type as an ascription. */
-  | Fun(p, body, t, _) => {
+  | Fun(p, body, _, _) => {
       ...e,
-      term:
-        Fun(
-          switch (t) {
-          | None => p
-          | Some(t) => Pat.fresh(Asc(p, t))
-          },
-          body,
-          None,
-          None,
-        ),
+      term: Fun(p, body, None, None),
     }
   | TypFun(tp, body, _) => {
       ...e,
@@ -398,16 +369,6 @@ let f_pat = (continue: Pat.t => Pat.t, p: Pat.t): Pat.t => {
 let f_typ = (continue: Typ.t => Typ.t, t: Typ.t): Typ.t => {
   let t = continue(t);
   switch (t.term) {
-  /* Elaboration's unknown types print as `?`, which reads as a hole. */
-  | Unknown(SynSwitch | Internal) => {
-      ...t,
-      term: Unknown(Hole(EmptyHole)),
-    }
-  /* Elaboration makes an unbound type variable a hole of its name. */
-  | Unknown(Hole(Invalid(name))) when Token.is_typ_var(name) => {
-      ...t,
-      term: Var(name),
-    }
   | Prod(ts) => {
       ...t,
       term: Prod(List.map(~f=unwrap_labeled_singleton_typ, ts)),
@@ -443,8 +404,90 @@ let pat = (p: Pat.t): Pat.t =>
 let typ = (t: Typ.t): Typ.t =>
   TermBase.Typ.map_term(~f_exp, ~f_pat, ~f_typ, t);
 
-/* Round-trip compare: canonicalize the generated term, ignore parens
-   (Menhir drops `(e)`). */
+/* An elaborated or evaluated term in the shape its print reads back as.
+   Elaboration writes in types (a function's argument type, which prints as
+   an ascription, and a constructor's); turns `module M = e in body` into a
+   `let` of the variable `M`, and the module's uses into variables, all
+   written as constructors; unwraps the hole a non-name after `.` reads as;
+   and makes `?` and unbound type variables into holes of other kinds. */
+let elaborated = (e: Exp.t): Exp.t => {
+  let f_exp = (continue: Exp.t => Exp.t, e: Exp.t): Exp.t => {
+    let e = continue(e);
+    switch (e.term) {
+    | BuiltinFun(name) => {
+        ...e,
+        term: Var(name),
+      }
+    | DynamicErrorHole(inner, _) => inner
+    | Fun(p, body, t, _) => {
+        ...e,
+        term:
+          Fun(
+            switch (t) {
+            | Some(t) => Pat.fresh(Asc(p, t))
+            | None => p
+            },
+            body,
+            None,
+            None,
+          ),
+      }
+    | Let({term: Var(name), _} as p, def, body) when Token.is_ctr(name) => {
+        ...e,
+        term:
+          ModuleExp(
+            {
+              ...p,
+              term: Var(name),
+            },
+            def,
+            body,
+          ),
+      }
+    | Var(name) when Token.is_ctr(name) => {
+        ...e,
+        term: Constructor(name, None),
+      }
+    | Constructor(name, Some(_)) => {
+        ...e,
+        term: Constructor(name, None),
+      }
+    | Dot(_, {term: Label(_) | Var(_) | Constructor(_) | EmptyHole, _}) => e
+    | Dot(l, r) => {
+        ...e,
+        term: Dot(l, Exp.fresh(MultiHole([Exp(r)]))),
+      }
+    | _ => e
+    };
+  };
+  let f_typ = (continue: Typ.t => Typ.t, t: Typ.t): Typ.t => {
+    let t = continue(t);
+    switch (t.term) {
+    | Unknown(SynSwitch | Internal) => {
+        ...t,
+        term: Unknown(Hole(EmptyHole)),
+      }
+    | Unknown(Hole(Invalid(name))) when Token.is_typ_var(name) => {
+        ...t,
+        term: Var(name),
+      }
+    | _ => t
+    };
+  };
+  let f_pat = (continue: Pat.t => Pat.t, p: Pat.t): Pat.t => {
+    let p = continue(p);
+    switch (p.term) {
+    | Constructor(name, Some(_)) => {
+        ...p,
+        term: Constructor(name, None),
+      }
+    | _ => p
+    };
+  };
+  TermBase.Exp.map_term(~f_exp, ~f_pat, ~f_typ, e);
+};
+
+/* Round-trip compare: ignore parens (Menhir drops `(e)`). */
 let roundtrip_eq =
   Equality.(
     equality({

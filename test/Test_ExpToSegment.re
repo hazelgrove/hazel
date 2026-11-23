@@ -2340,8 +2340,10 @@ let rec paren_after_hole_piece = (seg: Segment.t): bool =>
 let paren_pieces_read_back = false;
 
 /* Evaluation drops the marks of missing shards, so a term evaluated from an
-   incomplete parse says `~from_incomplete`. */
-let print_reads_back = (~from_incomplete=false, term: Exp.t): bool => {
+   incomplete parse says `~from_incomplete`. An elaborated term is compared
+   in the shape it is written in (`~as_written=Canonicalize.elaborated`). */
+let print_reads_back =
+    (~from_incomplete=false, ~as_written=(e: Exp.t) => e, term: Exp.t): bool => {
   let text = defensive_print(term);
   switch (Typed.read(text)) {
   | None => true
@@ -2363,8 +2365,8 @@ let print_reads_back = (~from_incomplete=false, term: Exp.t): bool => {
     } else {
       let same_term =
         Canonicalize.roundtrip_eq.exp(
-          holes_as_text(Canonicalize.exp(term)),
-          holes_as_text(Canonicalize.exp(reread)),
+          holes_as_text(as_written(term)),
+          holes_as_text(reread),
         );
       String.equal(text, text')
       && same_term
@@ -2414,7 +2416,11 @@ let arb_evaluated_invalid_forms =
     | Some(typed) =>
       List.for_all(
         Evaluated.terms(seed, typed),
-        ~f=print_reads_back(~from_incomplete=is_incomplete(typed)),
+        ~f=
+          print_reads_back(
+            ~from_incomplete=is_incomplete(typed),
+            ~as_written=Canonicalize.elaborated,
+          ),
       )
     }
   );
@@ -2694,10 +2700,8 @@ let defensive_print_stable_tests = (
               text ++ " reprinted as " ++ printed,
               true,
               Canonicalize.roundtrip_eq.exp(
-                Canonicalize.exp(term),
-                Canonicalize.exp(
-                  Option.value_exn(Parser.to_term(printed, ~root=Exp)),
-                ),
+                term,
+                Option.value_exn(Parser.to_term(printed, ~root=Exp)),
               ),
             );
           },
@@ -2825,7 +2829,25 @@ let defensive_print_stable_tests = (
       List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
         List.iter(
           Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
-          check(bool, defensive_print(term), true, print_reads_back(term))
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
+    test_case("An elaborated constructor pattern reads back", `Quick, () =>
+      List.iter(["case () | A => () end", "forall B -> 1"], ~f=text =>
+        List.iter(
+          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
         )
       )
     ),

@@ -119,6 +119,20 @@ let arb_typ_full = (~minimal_idents=false, ~size=?, depth: int) => {
   set_print(show_core_typ, mapped);
 };
 
+/* A generated term in the shape a parse gives (see Canonicalize), for the
+   properties that print, parse or judge it. Crash and id properties take
+   the raw arb_exp_full. */
+let canonical = (canon: 'a => 'a, arb: arbitrary('a)): arbitrary('a) =>
+  arb
+  |> set_gen(Gen.map(canon, arb.gen))
+  |> set_shrink(x =>
+       Option.value(arb.shrink, ~default=Shrink.nil, x) |> Iter.map(canon)
+     );
+let arb_exp_canonical = (~minimal_idents=false, ~size=?, depth: int) =>
+  canonical(Canonicalize.exp, arb_exp_full(~minimal_idents, ~size?, depth));
+let arb_typ_canonical = (~minimal_idents=false, ~size=?, depth: int) =>
+  canonical(Canonicalize.typ, arb_typ_full(~minimal_idents, ~size?, depth));
+
 /* Statics doesn't finish on a name whose type alias reaches back to it
    through another binding (`{ type y = x; module x = y; type z = x }`,
    #2570): normalizing hits its cap, or a name in a signature type

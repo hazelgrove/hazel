@@ -119,12 +119,9 @@ let qcheck_elaboration_preserves_type =
   QCheck.Test.make(
     ~name="Elaboration preserves type",
     ~count=1000,
-    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     exp => {
-      /* Judge terms a user can write (see Canonicalize): `SInt` literals
-         outside a `use SInt`, bare labeled fields and one-element tuples
-         take paths no parse does. */
-      check_elaboration_preserves_type(Canonicalize.exp(exp));
+      check_elaboration_preserves_type(exp);
       true;
     },
   );
@@ -236,13 +233,8 @@ let qcheck_subexp_synthesis_agrees =
   QCheck.Test.make(
     ~name="Sub-expression synthesis agrees with a fresh run",
     ~count=1000,
-    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     exp => {
-      /* Judge terms a user can write. The generator also emits `SInt`
-         literals outside a `use SInt`, which no parse returns: under Int
-         analysis `- 81` (SInt 81) records Int while a fresh run, peeking the
-         operand, picks SInt negation. */
-      let exp = Canonicalize.exp(exp);
       check_no_violations(
         ~violations=differing_subs,
         ~show=show_syn_disagreement,
@@ -470,31 +462,26 @@ let qcheck_elab_nested_ids_persist =
     ~count=2000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-      /* Judge terms a user can write: a generated constructor can carry a
-         type payload, which no parse returns and which statics turns into
-         a hole with a fresh id when it names an unbound type. */
-      let exp = Canonicalize.exp(exp);
-      has_internal_syntax(exp)
-        ? true
-        : (
-          switch (safe_statics(exp)) {
-          | `Skip => true
-          | `Ok(info_map, _)
-              when !List.is_empty(Statics.Map.error_ids(info_map)) =>
-            true
-          | `Ok(_) =>
-            switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
-            | [] => true
-            | violations =>
-              Alcotest.fail(
-                "Elaboration ids drift between runs:\n"
-                ++ String.concat(~sep="\n", violations),
-              )
-            }
+    has_internal_syntax(exp)
+      ? true
+      : (
+        switch (safe_statics(exp)) {
+        | `Skip => true
+        | `Ok(info_map, _)
+            when !List.is_empty(Statics.Map.error_ids(info_map)) =>
+          true
+        | `Ok(_) =>
+          switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
+          | [] => true
+          | violations =>
+            Alcotest.fail(
+              "Elaboration ids drift between runs:\n"
+              ++ String.concat(~sep="\n", violations),
+            )
           }
-        );
-    },
-  );
+        }
+      )
+  });
 
 /* The user aliases an elaborated term's types mention. The runtime reads
    those types with no context, so there should be none. A node's context
@@ -546,24 +533,22 @@ let qcheck_elab_carries_no_user_alias =
   QCheck.Test.make(
     ~name="An elaborated term carries no user alias",
     ~count=2000,
-    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     exp => {
-      let exp = Canonicalize.exp(exp);
-      switch (safe_statics(exp)) {
-      | `Skip => true
-      | `Ok(info_map, elab) =>
-        switch (elab_user_aliases(info_map, elab)) {
-        | [] => true
-        | aliases =>
-          QCheck.Test.fail_reportf(
-            "user aliases %s in %s",
-            String.concat(~sep=", ", aliases),
-            QCheck_Util.show_core_exp(elab),
-          )
-        }
-      };
-    },
-  );
+    switch (safe_statics(exp)) {
+    | `Skip => true
+    | `Ok(info_map, elab) =>
+      switch (elab_user_aliases(info_map, elab)) {
+      | [] => true
+      | aliases =>
+        QCheck.Test.fail_reportf(
+          "user aliases %s in %s",
+          String.concat(~sep=", ", aliases),
+          QCheck_Util.show_core_exp(elab),
+        )
+      }
+    }
+  });
 
 let parse = (src: string): Language.Exp.t =>
   switch (Haz3lcore.Parser.to_term(src, ~root=Exp)) {
