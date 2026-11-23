@@ -46,6 +46,45 @@ let has_unknown_expectation = (ci: Info.t): bool =>
   | _ => false
   };
 
+/* `label=` for a tuple entry being typed where a label is expected: the
+   label statics inferred for an unlabeled entry, or the labels of the
+   product an expression or pattern is expected to be. A label that needs
+   backticks cannot extend a bare prefix, so it is not offered. */
+let suggest_entry_labels = (ci: Info.t): list(t) => {
+  let labels = (ctx, ana, inferred_label) =>
+    switch (inferred_label) {
+    | Some(label) => [label]
+    | None =>
+      LabeledTupleStaticsHelpers.expected_labels_of_ana(ctx, ana)
+      |> Option.value(~default=[])
+    };
+  let entries = (labels, strategy) =>
+    labels
+    |> List.filter(~f=label =>
+         String.equal(Token.quote_label_when_necessary(label), label)
+       )
+    |> List.map(~f=label =>
+         {
+           content: label ++ "=",
+           strategy,
+         }
+       );
+  switch (ci) {
+  | InfoExp({ctx, ana, inferred_label, _}) =>
+    entries(labels(ctx, ana, inferred_label), Exp(Common(NewForm(ana))))
+  | InfoPat({ctx, ana, inferred_label, _}) =>
+    entries(labels(ctx, ana, inferred_label), Pat(Common(NewForm(ana))))
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | InfoDrv(_)
+  | InfoLabel(_)
+  | Secondary(_) => []
+  };
+};
+
 let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
@@ -82,12 +121,23 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
     let operators =
       TyDiForms.suggest_operator(ci)
       |> List.sort(~compare=TyDiSuggestion.compare);
+    /* An expected label is the most specific signal there is */
+    let entry_labels =
+      suggest_entry_labels(ci) |> List.sort(~compare=TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_witnesses(z) @ forms @ ctx_suggestions @ operators;
+      suggest_witnesses(z)
+      @ entry_labels
+      @ forms
+      @ ctx_suggestions
+      @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_witnesses(z) @ ctx_suggestions @ forms @ operators;
+      suggest_witnesses(z)
+      @ entry_labels
+      @ ctx_suggestions
+      @ forms
+      @ operators;
     };
   };
 };
@@ -127,6 +177,27 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
       ~len=String.length(candidate) - String.length(current),
     );
   String.equal(candidate_suffix, "") ? None : Some(candidate_suffix);
+};
+
+/* Completing a label that needs backticks, e.g. `a b` from the typed `a`,
+   cannot extend the typed token: the whole quoted label replaces it */
+let quoted_label_completion =
+    (~ci: option(Info.t), z: Zipper.t, completion: Token.t): option(Token.t) => {
+  let* tok_to_left = token_to_left(z);
+  switch (ci) {
+  | Some(InfoLabel(_)) =>
+    let label = tok_to_left ++ completion;
+    let quoted = Token.quote_label_when_necessary(label);
+    String.equal(quoted, label) ? None : Some(quoted);
+  | Some(
+      InfoExp(_) | InfoPat(_) | InfoTyp(_) | InfoTPat(_) | InfoMod(_) |
+      InfoSig(_) |
+      InfoMPat(_) |
+      InfoDrv(_) |
+      Secondary(_),
+    )
+  | None => None
+  };
 };
 
 /* Returns the text content of the suggestion buffer */

@@ -120,6 +120,7 @@ let bound_constructor_aps =
  * qualified suggestions where field types are wrapped in List(...). */
 let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
+    ctx.entries,
     ~f=
       fun
       | Ctx.VarEntry({typ, name, _}) =>
@@ -132,7 +133,8 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
                 | Some((label, field_ty))
                     when Typ.is_consistent(ctx, ty_expect, field_ty) =>
                   Some({
-                    content: name ++ "." ++ label,
+                    content:
+                      name ++ "." ++ Token.quote_label_when_necessary(label),
                     strategy: Exp(Common(FromCtx(field_ty))),
                   })
                 | _ => None
@@ -142,7 +144,6 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
         | _ => []
         }
       | _ => [],
-    ctx.entries,
   );
 
 /* Like bound_qualified but for arrow-typed fields: suggest Name.label(
@@ -152,6 +153,7 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
 let bound_qualified_aps =
     (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
+    ctx.entries,
     ~f=
       fun
       | Ctx.VarEntry({typ, name, _}) =>
@@ -166,7 +168,11 @@ let bound_qualified_aps =
                       Typ.is_consistent(ctx, ty_expect, ty_out)
                       && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
                   Some({
-                    content: name ++ "." ++ label ++ "(",
+                    content:
+                      name
+                      ++ "."
+                      ++ Token.quote_label_when_necessary(label)
+                      ++ "(",
                     strategy: Exp(Common(FromCtxAp(ty_out))),
                   })
                 | _ => None
@@ -176,7 +182,6 @@ let bound_qualified_aps =
         | _ => []
         }
       | _ => [],
-    ctx.entries,
   );
 
 /* Suggest bound type aliases in type annotations or definitions */
