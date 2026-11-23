@@ -1131,9 +1131,10 @@ and parenthesize_pat =
     )
     |> rewrap
   | Asc(p, t) when show_ascriptions =>
-    /* Always paren the type, to get the arrows right. `paren_typ_at(max)`
-       wraps anything, even a `Parens`, so one that already has them is left
-       alone: a module item's pattern comes through here twice. */
+    /* Always paren the type: Menhir's fast parse reads a function
+       parameter's ascription only in parens (`fun x : (Void) ->`). A type
+       already in parens, from the source or from fun_pat ascribing a
+       parameter that has been through here, keeps the parens it has. */
     let t = parenthesize_typ(t);
     Asc(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
