@@ -116,8 +116,7 @@ let find_scratch_slide = (name: string): option(CellEditor.Model.persistent) =>
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);
 
-let default_scratch_slide_name =
-    (name: string): CellEditor.Model.persistent =>
+let default_scratch_slide_name = (name: string): CellEditor.Model.persistent =>
   OptUtil.get(
     () => empty_cell_editor_persistent(~root=Exp),
     find_scratch_slide(name),
@@ -126,7 +125,8 @@ let default_scratch_slide_name =
 let default_slide_name =
     (prefix: string, name: string): CellEditor.Model.persistent =>
   prefix == "scratch"
-    ? default_scratch_slide_name(name) : default_documentation_slide_name(name);
+    ? default_scratch_slide_name(name)
+    : default_documentation_slide_name(name);
 
 let slide_is_blank = (slide: CellEditor.Model.persistent): bool =>
   String.trim(slide.editor.zipper.backup_text) == "";

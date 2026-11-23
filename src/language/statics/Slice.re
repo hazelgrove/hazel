@@ -14,7 +14,10 @@ type result = {
   ana: Typ.t,
 };
 
-type direction = [ | `Syn | `Ana];
+type direction = [
+  | `Syn
+  | `Ana
+];
 
 let nothing = (~psi=gap, ~ana=gap, ()): result => {
   omitted: Id.Set.empty,

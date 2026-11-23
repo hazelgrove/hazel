@@ -37,7 +37,8 @@ let bad_nodes = (e: Exp.t): list(string) => {
 };
 
 let root_type = (e: Exp.t): Typ.t => {
-  let (m, _) = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), e);
+  let (m, _) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), e);
   switch (Statics.Map.lookup_exp(Exp.rep_id(e), m)) {
   | Some({ty, _}) => ty
   | None => Alcotest.failf("example root missing from the info map")
@@ -50,8 +51,18 @@ let example_case = ((name, src): (string, string)) =>
     `Quick,
     () => {
       let e = parse(src);
-      check(list(string), name ++ ": no holes or invalid nodes", [], bad_nodes(e));
-      check(bool, name ++ ": root type is not a gap", false, Typ.is_gap(root_type(e)));
+      check(
+        list(string),
+        name ++ ": no holes or invalid nodes",
+        [],
+        bad_nodes(e),
+      );
+      check(
+        bool,
+        name ++ ": root type is not a gap",
+        false,
+        Typ.is_gap(root_type(e)),
+      );
     },
   );
 
@@ -61,7 +72,12 @@ let slide_case = ((name, slide): (string, CellEditor.Model.persistent)) =>
     `Quick,
     () => {
       let text = slide.editor.zipper.backup_text;
-      check(bool, name ++ ": slide is not empty", true, String.trim(text) != "");
+      check(
+        bool,
+        name ++ ": slide is not empty",
+        true,
+        String.trim(text) != "",
+      );
       let e = parse(text);
       check(
         list(string),
@@ -76,10 +92,10 @@ let tests = (
   "SlicingExamples",
   List.map(example_case, SlicingExamples.all)
   @ List.map(
-    slide_case,
-    List.filteri(
-      (i, _) => i < List.length(SlicingExamples.all),
-      snd(Init.startup.scratch),
+      slide_case,
+      List.filteri(
+        (i, _) => i < List.length(SlicingExamples.all),
+        snd(Init.startup.scratch),
+      ),
     ),
-  ),
 );

@@ -461,10 +461,7 @@ module Persist = {
       | Some(meta) => (
           meta.current,
           meta.names
-          @ List.filter(
-              name => !List.mem(name, meta.names),
-              default_names,
-            ),
+          @ List.filter(name => !List.mem(name, meta.names), default_names),
         )
       | None => (default_current, default_names)
       };

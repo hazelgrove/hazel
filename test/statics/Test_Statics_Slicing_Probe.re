@@ -80,7 +80,8 @@ let probe =
               ++ show_gamma(result.gamma)
               ++ "}",
             )
-          | exception exn => print_endline("  @ " ++ q ++ "  ->  " ++ exn_text(exn))
+          | exception exn =>
+            print_endline("  @ " ++ q ++ "  ->  " ++ exn_text(exn))
           },
         queries,
       );
@@ -117,17 +118,10 @@ let validate = (name: string, src: string): Alcotest.test_case(unit) =>
       | None => print_endline("  no root info")
       };
       let marks =
-        Id.Map.fold(
-          (_, info, acc) => acc @ Info.marks_of(info),
-          m,
-          [],
-        );
+        Id.Map.fold((_, info, acc) => acc @ Info.marks_of(info), m, []);
       print_endline(
         "  marks = "
-        ++ String.concat(
-             "; ",
-             List.map(mark => Mark.show(mark), marks),
-           ),
+        ++ String.concat("; ", List.map(mark => Mark.show(mark), marks)),
       );
     },
   );

@@ -791,13 +791,13 @@ module ProgramFolds = {
         List.exists(is_folded_piece, rest)
         || (
           switch (head) {
-          | Piece.Tile(t) => List.exists(List.exists(is_folded_piece), t.children)
+          | Piece.Tile(t) =>
+            List.exists(List.exists(is_folded_piece), t.children)
           | _ => false
           }
         );
       children_folded && all_folded(rest) && folds_in_group;
     };
-
 
   let split_into_groups =
       (starts_group: Piece.t => bool, seg: Segment.t)
@@ -824,8 +824,7 @@ module ProgramFolds = {
     let rec go = (i, start) =>
       switch (i) {
       | _ when i < 0 => start
-      | _ =>
-        List.nth(groups, i) |> group_is_folded ? go(i - 1, i) : start
+      | _ => List.nth(groups, i) |> group_is_folded ? go(i - 1, i) : start
       };
     go(total - 1, total);
   };

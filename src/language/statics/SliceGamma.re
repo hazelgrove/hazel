@@ -61,7 +61,10 @@ let rec merge_binder = (left: TPat.t, right: TPat.t): TPat.t => {
       ...left,
       term: Tuple(List.map2(merge_binder, lefts, rights)),
     }
-  | (Parens(inner), _) => {...left, term: Parens(merge_binder(inner, right))}
+  | (Parens(inner), _) => {
+      ...left,
+      term: Parens(merge_binder(inner, right)),
+    }
   | (_, Parens(inner)) => merge_binder(left, inner)
   | (_, _) => named(left) ? left : right
   };
@@ -82,14 +85,23 @@ let rec merge_definition = (ctx: Ctx.t, left: Typ.t, right: Typ.t): Typ.t =>
 let combine = (ctx: Ctx.t, left: Ctx.entry, right: Ctx.entry): Ctx.entry =>
   switch (left, right) {
   | (VarEntry(l), VarEntry(r)) =>
-    VarEntry({...l, typ: Typ.meet_gap(ctx, l.typ, r.typ)})
+    VarEntry({
+      ...l,
+      typ: Typ.meet_gap(ctx, l.typ, r.typ),
+    })
   | (ConstructorEntry(l), ConstructorEntry(r)) =>
-    ConstructorEntry({...l, typ: Typ.meet_gap(ctx, l.typ, r.typ)})
+    ConstructorEntry({
+      ...l,
+      typ: Typ.meet_gap(ctx, l.typ, r.typ),
+    })
   | (
       TVarEntry({kind: Singleton(l_ty), _} as l),
       TVarEntry({kind: Singleton(r_ty), _}),
     ) =>
-    TVarEntry({...l, kind: Singleton(merge_definition(ctx, l_ty, r_ty))})
+    TVarEntry({
+      ...l,
+      kind: Singleton(merge_definition(ctx, l_ty, r_ty)),
+    })
   | (_, _) => left
   };
 
@@ -98,7 +110,10 @@ let join = (ctx: Ctx.t, left: Ctx.t, right: Ctx.t): Ctx.t =>
     (acc: Ctx.t, entry) => {
       let k = key_of(entry);
       switch (List.partition(e => key_of(e) == k, acc.entries)) {
-      | ([], rest) => {...acc, entries: [entry, ...rest]}
+      | ([], rest) => {
+          ...acc,
+          entries: [entry, ...rest],
+        }
       | ([held, ...spare], rest) => {
           ...acc,
           entries: [combine(ctx, held, entry), ...spare @ rest],

@@ -212,13 +212,11 @@ let validity_check = (~direction, ~ty_of: Info.exp => Typ.t, (e, k, j)): bool =>
                   render_any(Typ(query)),
                   show_exp_src(sliced),
                   render_any(Typ(ty_of(sliced_info))),
-                  (
-                    switch (Typ.meet(ctx, ty_of(sliced_info), query)) {
-                    | Some(met) => render_any(Typ(met))
-                    | None => "<inconsistent>"
-                    | exception _ => "<exception>"
-                    }
-                  ),
+                  switch (Typ.meet(ctx, ty_of(sliced_info), query)) {
+                  | Some(met) => render_any(Typ(met))
+                  | None => "<inconsistent>"
+                  | exception _ => "<exception>"
+                  },
                 )
           }
         };
@@ -309,8 +307,7 @@ let monotonicity =
 
 let tests = (
   "Statics.Slicing.Properties",
-  [
-  ]
+  []
   @ List.map(
       QCheck_alcotest.to_alcotest,
       [

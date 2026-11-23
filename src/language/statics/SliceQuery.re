@@ -72,7 +72,8 @@ let labelled = (ctx: Ctx.t, query: Typ.t, name: string): Typ.t => {
     | _ => None
     };
   switch (Typ.term_of(whnf(ctx, query))) {
-  | Prod(items) => List.find_map(of_item, items) |> Option.value(~default=gap)
+  | Prod(items) =>
+    List.find_map(of_item, items) |> Option.value(~default=gap)
   | _ => of_item(query) |> Option.value(~default=gap)
   };
 };
@@ -128,8 +129,7 @@ let rec omit_typ = (ctx: Ctx.t, query: Typ.t, ty: Typ.t): Id.Set.t => {
       | TupLabel(_, inner) => inner
       | _ => query
       };
-    is_gap(asked)
-      ? note(Typ.rep_id(value)) : omit_typ(ctx, asked, value);
+    is_gap(asked) ? note(Typ.rep_id(value)) : omit_typ(ctx, asked, value);
   | _ when is_gap(query) => note(Typ.rep_id(ty))
   | _ =>
     switch (Typ.children(ty), Typ.children(query)) {
@@ -151,8 +151,7 @@ and omit_sig = (ctx: Ctx.t, query: Typ.t, desugared: Typ.t): Id.Set.t => {
     switch (Typ.term_of(item)) {
     | TupLabel({term: Label(name), _}, value) =>
       let asked = labelled(ctx, query, name);
-      is_gap(asked)
-        ? note(Typ.rep_id(item)) : omit_typ(ctx, asked, value);
+      is_gap(asked) ? note(Typ.rep_id(item)) : omit_typ(ctx, asked, value);
     | _ => Id.Set.empty
     };
   switch (Typ.term_of(desugared)) {

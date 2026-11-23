@@ -131,8 +131,10 @@ let binder_demand =
      )
   |> Typ.meet_gap_all(ctx);
 
-
-let gap_tpat_one = (binder: TPat.t): TPat.t => {...binder, term: EmptyHole};
+let gap_tpat_one = (binder: TPat.t): TPat.t => {
+  ...binder,
+  term: EmptyHole,
+};
 
 let tpat_omissions = (binder: TPat.t): Id.Set.t =>
   switch (binder.term) {
@@ -147,8 +149,14 @@ let tpat_omissions = (binder: TPat.t): Id.Set.t =>
 
 let rec gap_tpat = (binder: TPat.t): TPat.t =>
   switch (binder.term) {
-  | Tuple(binders) => {...binder, term: Tuple(List.map(gap_tpat_one, binders))}
-  | Parens(inner) => {...binder, term: Parens(gap_tpat(inner))}
+  | Tuple(binders) => {
+      ...binder,
+      term: Tuple(List.map(gap_tpat_one, binders)),
+    }
+  | Parens(inner) => {
+      ...binder,
+      term: Parens(gap_tpat(inner)),
+    }
   | _ => gap_tpat_one(binder)
   };
 
@@ -162,7 +170,10 @@ let masked_binder =
     | None => b
     };
   switch (binder.term) {
-  | Tuple(binders) => {...binder, term: Tuple(List.map(mask, binders))}
+  | Tuple(binders) => {
+      ...binder,
+      term: Tuple(List.map(mask, binders)),
+    }
   | _ => mask(binder)
   };
 };
@@ -200,10 +211,17 @@ let mask_definition =
         body;
       } else {
         let masked =
-          List.map2((b, kept) => kept ? b : gap_tpat_one(b), binders, demanded);
+          List.map2(
+            (b, kept) => kept ? b : gap_tpat_one(b),
+            binders,
+            demanded,
+          );
         let binder: TPat.t =
           switch (binder.term) {
-          | Tuple(_) => {...binder, term: Tuple(masked)}
+          | Tuple(_) => {
+              ...binder,
+              term: Tuple(masked),
+            }
           | _ =>
             switch (masked) {
             | [only] => only
@@ -217,8 +235,7 @@ let mask_definition =
   };
 };
 
-let rec variant_shape =
-        (ctx: Ctx.t, definition: Typ.t, name: string): Typ.t => {
+let rec variant_shape = (ctx: Ctx.t, definition: Typ.t, name: string): Typ.t => {
   let (term, rewrap) = Typ.unwrap(definition);
   switch (term) {
   | TypFun(binder, body) =>
@@ -240,7 +257,7 @@ let rec variant_shape =
 }
 
 and variant_only =
-        (ctx: Ctx.t, definition: Typ.t, name: string, payload: Typ.t): Typ.t => {
+    (ctx: Ctx.t, definition: Typ.t, name: string, payload: Typ.t): Typ.t => {
   let (term, rewrap) = Typ.unwrap(definition);
   switch (term) {
   | TypFun(binder, body) =>
@@ -291,7 +308,13 @@ let variant_payload = (sum: Typ.t, name: string): Typ.t =>
   };
 
 let applied_alias =
-    (ctx: Ctx.t, alias: string, definition: Typ.t, name: string, payload: Typ.t)
+    (
+      ctx: Ctx.t,
+      alias: string,
+      definition: Typ.t,
+      name: string,
+      payload: Typ.t,
+    )
     : Typ.t => {
   let head = Typ.temp(Var(alias));
   let (binders, body) = peel_typfun(definition);
@@ -387,7 +410,6 @@ let ctr_demands =
   };
 };
 
-
 let definition_shape = (definition: Typ.t): Typ.t => {
   let rec shape = (definition: Typ.t): Typ.t => {
     let (term, rewrap) = Typ.unwrap(definition);
@@ -480,11 +502,17 @@ let rec syn = (env: env, e: Exp.t, query: Typ.t): t => {
     | If(cond, then_, else_) => syn_if(env, e, cond, then_, else_, query)
     | Seq(left, right) =>
       let r = syn(env, right, query);
-      {...r, omitted: union(r.omitted, omit_exp(left))};
+      {
+        ...r,
+        omitted: union(r.omitted, omit_exp(left)),
+      };
     | Asc(inner, ann) => syn_asc(env, e, inner, ann, query)
     | Use(_, body) =>
       let r = syn(env, body, query);
-      {...r, kept: true};
+      {
+        ...r,
+        kept: true,
+      };
     | Test(body) => {
         ...keep(ty_at(env, e)),
         omitted: omit_exp(body),
@@ -525,7 +553,10 @@ let rec syn = (env: env, e: Exp.t, query: Typ.t): t => {
     | Closure(_, _)
     | DrvQuote(_, _) =>
       let psi = ty_at(env, e);
-      {...keep(psi), gamma: alias_shapes(ctx, psi)};
+      {
+        ...keep(psi),
+        gamma: alias_shapes(ctx, psi),
+      };
     | Forall(p, body) => {
         ...keep(ty_at(env, e)),
         omitted: union(omit_pat(p), omit_exp(body)),
@@ -619,7 +650,13 @@ and syn_known_ctor = (env: env, e: Exp.t, name: string, query: Typ.t): t => {
     kept: true,
     omitted: Id.Set.empty,
     gamma:
-      ctr_demands(~keep_payload=instantiated_explicitly, ctx, name, asked, result),
+      ctr_demands(
+        ~keep_payload=instantiated_explicitly,
+        ctx,
+        name,
+        asked,
+        result,
+      ),
     psi:
       switch (binder) {
       | Some(binder) => SliceQuery.mk_poly(binder, body)
@@ -643,7 +680,13 @@ and syn_ap = (env: env, e: Exp.t, fn: Exp.t, arg: Exp.t, query: Typ.t): t => {
     | ([], _) => demand
     | (bound, schema) =>
       let (inlined, _) =
-        Typ.collect_constraints(~replace_bound=true, ctx, bound, schema, demand);
+        Typ.collect_constraints(
+          ~replace_bound=true,
+          ctx,
+          bound,
+          schema,
+          demand,
+        );
       switch (Typ.term_of(SliceQuery.whnf(ctx, fn_ty))) {
       | Poly(binder, _) => SliceQuery.mk_poly(gap_tpat(binder), inlined)
       | _ => inlined
@@ -698,12 +741,12 @@ and syn_typ_ap = (env: env, e: Exp.t, fn: Exp.t, arg: Typ.t, query: Typ.t): t =>
       ? f.psi
       : List.length(binders) == List.length(written)
         && List.length(binders) == List.length(demands)
-      ? Typ.subst_many(
-          List.map2((w, d) => Typ.overlap(ctx, d, w), written, demands),
-          binders,
-          f_body,
-        )
-      : inlined;
+          ? Typ.subst_many(
+              List.map2((w, d) => Typ.overlap(ctx, d, w), written, demands),
+              binders,
+              f_body,
+            )
+          : inlined;
   {
     kept: f.kept,
     omitted: union(f.omitted, SliceQuery.omit_typ(ctx, arg_query, arg)),
@@ -783,8 +826,7 @@ and syn_tlam =
        );
   {
     kept: true,
-    omitted:
-      union(b.omitted, used ? Id.Set.empty : tpat_omissions(binder)),
+    omitted: union(b.omitted, used ? Id.Set.empty : tpat_omissions(binder)),
     gamma: SliceGamma.without_tvars(b.gamma, names),
     psi: SliceQuery.mk_poly(used ? binder : gap_tpat(binder), b.psi),
   };
@@ -822,7 +864,7 @@ and tuple_demands =
       | TupLabel({term: Label(name), _}, _) =>
         let labelled = SliceQuery.labelled(ctx, query, name);
         SliceQuery.is_gap(labelled)
-          ? demand : SliceQuery.mk_tup_label(name, labelled)
+          ? demand : SliceQuery.mk_tup_label(name, labelled);
       | _ => demand
       },
     items,
@@ -927,14 +969,26 @@ and explains = (ctx: Ctx.t, query: Typ.t, psi: Typ.t): bool =>
   !SliceQuery.is_empty(Typ.overlap(ctx, query, psi))
 
 and syn_if =
-    (env: env, e: Exp.t, cond: Exp.t, then_: Exp.t, else_: Exp.t, query: Typ.t)
+    (
+      env: env,
+      e: Exp.t,
+      cond: Exp.t,
+      then_: Exp.t,
+      else_: Exp.t,
+      query: Typ.t,
+    )
     : t => {
   let ctx = ctx_at(env, e);
   let branch = (b: Exp.t, q: Typ.t): t => {
     let r = syn(env, b, q);
     explains(ctx, q, r.psi)
       ? r
-      : {kept: false, omitted: omit_exp(b), gamma: SliceGamma.empty, psi: gap};
+      : {
+        kept: false,
+        omitted: omit_exp(b),
+        gamma: SliceGamma.empty,
+        psi: gap,
+      };
   };
   let t_ = branch(then_, query);
   let residual = t_.kept ? SliceQuery.residual(ctx, query, t_.psi) : query;
@@ -996,7 +1050,10 @@ and syn_ty_alias =
           note(TPat.rep_id(binder)),
           note(Typ.rep_id(definition)),
         ])
-      : union(b.omitted, alias_omissions(ctx, ~gamma=b.gamma, demand, binder, definition));
+      : union(
+          b.omitted,
+          alias_omissions(ctx, ~gamma=b.gamma, demand, binder, definition),
+        );
   {
     kept: b.kept,
     omitted,
@@ -1036,24 +1093,24 @@ and syn_match =
               scrut_demand,
             );
           } else {
-          let ps = slice_pat(env, p, ~query=gap, ~demands=b.gamma);
-          (
-            unions([omitted, ps.omitted, b.omitted]),
-            SliceGamma.join_all(
-              ctx,
-              [
-                gamma,
-                ps.gamma,
-                SliceGamma.without(b.gamma, Pat.bound_vars(p)),
-              ],
-            ),
-            Typ.meet_gap(ctx, psi, b.psi),
-            Typ.meet_gap(
-              ctx,
-              scrut_demand,
-              SliceQuery.residual(ctx, ps.phi, ps.supplied),
-            ),
-          );
+            let ps = slice_pat(env, p, ~query=gap, ~demands=b.gamma);
+            (
+              unions([omitted, ps.omitted, b.omitted]),
+              SliceGamma.join_all(
+                ctx,
+                [
+                  gamma,
+                  ps.gamma,
+                  SliceGamma.without(b.gamma, Pat.bound_vars(p)),
+                ],
+              ),
+              Typ.meet_gap(ctx, psi, b.psi),
+              Typ.meet_gap(
+                ctx,
+                scrut_demand,
+                SliceQuery.residual(ctx, ps.phi, ps.supplied),
+              ),
+            );
           };
         };
       },
@@ -1164,7 +1221,14 @@ and slice_pat =
   let ctx = pat_ctx_at(env, p);
   let composite = (~omitted, ~gamma, ~phi, ~supplied) =>
     pat_keep(~query, ~phi)
-      ? {kept: true, omitted, gamma, phi, supplied} : nothing_pat(p);
+      ? {
+        kept: true,
+        omitted,
+        gamma,
+        phi,
+        supplied,
+      }
+      : nothing_pat(p);
   let plain = (~supplied=gap, ()) =>
     SliceQuery.is_gap(query)
       ? nothing_pat(p)
@@ -1251,7 +1315,10 @@ and slice_pat =
   | ListLit(items) =>
     let element = SliceQuery.list_elem(ctx, query);
     let results =
-      List.map(item => slice_pat(env, item, ~query=element, ~demands), items);
+      List.map(
+        item => slice_pat(env, item, ~query=element, ~demands),
+        items,
+      );
     composite(
       ~omitted=unions(List.map((r: pat_slice) => r.omitted, results)),
       ~gamma=
@@ -1279,7 +1346,8 @@ and slice_pat =
       ~omitted=union(h.omitted, t.omitted),
       ~gamma=SliceGamma.join(ctx, h.gamma, t.gamma),
       ~phi=Typ.meet_gap(ctx, SliceQuery.mk_list(h.phi), t.phi),
-      ~supplied=Typ.meet_gap(ctx, SliceQuery.mk_list(h.supplied), t.supplied),
+      ~supplied=
+        Typ.meet_gap(ctx, SliceQuery.mk_list(h.supplied), t.supplied),
     );
   | Asc({term: Ap(head, arg), _}, ann)
       when
@@ -1345,7 +1413,8 @@ and slice_pat =
           Typ.meet_gap(ctx, r.supplied, Typ.overlap(ctx, ann_query, ann)),
       };
     };
-  | Constructor(name, _) => slice_ctor_pat(env, p, name, None, ~query, ~demands)
+  | Constructor(name, _) =>
+    slice_ctor_pat(env, p, name, None, ~query, ~demands)
   | Ap(head, arg) =>
     switch (Pat.term_of(head)) {
     | Constructor(name, _) =>
@@ -1393,8 +1462,9 @@ and alias_named_by =
   | Some(name) =>
     switch (Ctx.lookup_alias(ctx, name)) {
     | Some(definition)
-        when SliceQuery.variant(ctx, definition, ctor) != None
-             || variant_payload(definition, ctor) != gap =>
+        when
+          SliceQuery.variant(ctx, definition, ctor) != None
+          || variant_payload(definition, ctor) != gap =>
       Some((name, definition))
     | _ => None
     }
@@ -1586,10 +1656,7 @@ and alias_kept_params =
     };
   switch (TPat.alias_head(binder)) {
   | Some((alias, params)) =>
-    let mentioned = [
-      body(demand),
-      ...ctr_result_types(ctx, gamma, alias),
-    ];
+    let mentioned = [body(demand), ...ctr_result_types(ctx, gamma, alias)];
     List.filter_map(
       param =>
         switch (TPat.tyvar_of_utpat(param)) {
@@ -1624,7 +1691,8 @@ and alias_omissions =
 }
 
 and alias_binder_omissions =
-    (~gamma=Ctx.empty, ~ctx=Ctx.empty, demand: Typ.t, binder: TPat.t): Id.Set.t => {
+    (~gamma=Ctx.empty, ~ctx=Ctx.empty, demand: Typ.t, binder: TPat.t)
+    : Id.Set.t => {
   let kept = alias_kept_params(~gamma, ~ctx, demand, binder);
   switch (TPat.alias_head(binder)) {
   | Some((_, params)) when params != [] =>
@@ -1665,7 +1733,8 @@ and focused = (env: env, e: Exp.t, descent: list(Id.t), query: Typ.t): t =>
   | [next, ...rest] =>
     switch (List.find_opt(c => Exp.rep_id(c) == next, exp_children(e))) {
     | None => focused(env, e, rest, query)
-    | Some(child) => discharge(env, e, child, focused(env, child, rest, query))
+    | Some(child) =>
+      discharge(env, e, child, focused(env, child, rest, query))
     }
   }
 
@@ -1702,11 +1771,18 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
       gamma:
         SliceGamma.join_all(
           ctx,
-          [ps.gamma, d.gamma, SliceGamma.without(inner.gamma, Pat.bound_vars(p))],
+          [
+            ps.gamma,
+            d.gamma,
+            SliceGamma.without(inner.gamma, Pat.bound_vars(p)),
+          ],
         ),
       psi: inner.psi,
     };
-  | Let(p, _, _) => {...base, omitted: union(base.omitted, omit_pat(p))}
+  | Let(p, _, _) => {
+      ...base,
+      omitted: union(base.omitted, omit_pat(p)),
+    }
   | ModuleExp(mp, def, body) when is_child(body) =>
     let p = ExpandModule.mpat_to_pat(mp);
     let ps = slice_pat(env, p, ~query=gap, ~demands=inner.gamma);
@@ -1742,10 +1818,7 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
     {
       ...base,
       omitted:
-        union(
-          base.omitted,
-          used ? Id.Set.empty : tpat_omissions(binder),
-        ),
+        union(base.omitted, used ? Id.Set.empty : tpat_omissions(binder)),
       gamma: SliceGamma.without_tvars(inner.gamma, names),
     };
   | TyAlias(binder, definition, _) =>
@@ -1762,11 +1835,18 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
             ])
           : union(
               base.omitted,
-              alias_omissions(ctx, ~gamma=inner.gamma, demand, binder, definition),
+              alias_omissions(
+                ctx,
+                ~gamma=inner.gamma,
+                demand,
+                binder,
+                definition,
+              ),
             ),
       gamma: SliceGamma.without_tvars(inner.gamma, [name]),
     };
-  | Match(_, rules) when List.for_all(((_, body)) => !is_child(body), rules) => {
+  | Match(_, rules)
+      when List.for_all(((_, body)) => !is_child(body), rules) => {
       ...base,
       omitted:
         List.fold_left(
@@ -1795,7 +1875,11 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
         gamma:
           SliceGamma.join_all(
             ctx,
-            [ps.gamma, s.gamma, SliceGamma.without(inner.gamma, Pat.bound_vars(p))],
+            [
+              ps.gamma,
+              s.gamma,
+              SliceGamma.without(inner.gamma, Pat.bound_vars(p)),
+            ],
           ),
         psi: inner.psi,
       };
@@ -1809,7 +1893,10 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
       List.fold_left(
         ((index, found), arg) =>
           Exp.is_deferral(arg)
-            ? (index + 1, Exp.rep_id(arg) == Exp.rep_id(child) ? index : found)
+            ? (
+              index + 1,
+              Exp.rep_id(arg) == Exp.rep_id(child) ? index : found,
+            )
             : (index, found),
         (0, 0),
         args,
@@ -1825,7 +1912,8 @@ and discharge = (env: env, e: Exp.t, child: Exp.t, inner: t): t => {
       kept: true,
       omitted:
         List.fold_left(
-          (acc, arg) => Exp.is_deferral(arg) ? acc : union(acc, omit_exp(arg)),
+          (acc, arg) =>
+            Exp.is_deferral(arg) ? acc : union(acc, omit_exp(arg)),
           union(inner.omitted, f.omitted),
           args,
         ),
@@ -1948,7 +2036,8 @@ and index_of = (children: list(Exp.t), child: Exp.t): int => {
   let rec go = (index, children) =>
     switch (children) {
     | [] => 0
-    | [c, ...rest] => Exp.rep_id(c) == Exp.rep_id(child) ? index : go(index + 1, rest)
+    | [c, ...rest] =>
+      Exp.rep_id(c) == Exp.rep_id(child) ? index : go(index + 1, rest)
     };
   go(0, children);
 }
@@ -1978,8 +2067,7 @@ and ana_pat_at =
   switch (pattern_of(e)) {
   | None => (nothing(e), gap)
   | Some(p) =>
-    let lifted =
-      pat_lift(p, pat_focus, query) |> Option.value(~default=gap);
+    let lifted = pat_lift(p, pat_focus, query) |> Option.value(~default=gap);
     let demands =
       switch (pat_focus_var) {
       | None => SliceGamma.empty
@@ -2068,9 +2156,7 @@ and pat_lift = (p: Pat.t, focus: Id.t, query: Typ.t): option(Typ.t) =>
           switch (sub(item)) {
           | Some(q) =>
             Some(
-              SliceQuery.mk_prod(
-                List.init(arity, j => j == index ? q : gap),
-              ),
+              SliceQuery.mk_prod(List.init(arity, j => j == index ? q : gap)),
             )
           | None => go(index + 1, rest)
           }
@@ -2271,7 +2357,10 @@ and ana_step =
         items,
       );
     (
-      {...shell, omitted: union(shell.omitted, siblings)},
+      {
+        ...shell,
+        omitted: union(shell.omitted, siblings),
+      },
       SliceQuery.mk_prod(
         List.filter_map(
           (item: Mod.t) =>
@@ -2288,7 +2377,10 @@ and ana_step =
       ),
     );
   | ListLit(_) => (shell, SliceQuery.mk_list(demand))
-  | Cons(head, _) when is_child(head) => (shell, SliceQuery.mk_list(demand))
+  | Cons(head, _) when is_child(head) => (
+      shell,
+      SliceQuery.mk_list(demand),
+    )
   | Cons(head, _) =>
     let h = syn(env, head, SliceQuery.list_elem(ctx, demand));
     (

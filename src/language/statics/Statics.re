@@ -2390,8 +2390,7 @@ and uexp_to_info_map =
           ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
         ]);
       /* Build elaboration with ascriptions on branch bodies */
-      let result_ty =
-        fixed_typ(ctx, ana, syn_ty_match) |> Typ.all_ids_temp;
+      let result_ty = fixed_typ(ctx, ana, syn_ty_match) |> Typ.all_ids_temp;
       let e_tys = List.map(Info.exp_ty, es);
       let es_elabs =
         List.map2(
