@@ -237,7 +237,7 @@ let align_to_indicated_probe =
 let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
   SampleFocusPerform.update_pinned_call(z, p =>
     switch (p) {
-    | Some(stack) when !Id.Map.is_empty(dynamics) =>
+    | Some(stack) when !Id.Map.is_empty(dynamics.samples) =>
       let pinned_ids = CallStack.ids_of_stack(stack);
       let (head_id, tail_ids) =
         switch (pinned_ids) {
@@ -252,7 +252,7 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
       };
       Id.Map.exists(
         (_, samples) => List.exists(~f=alive, samples),
-        dynamics,
+        dynamics.samples,
       )
         ? Some(stack) : None;
     | x => x

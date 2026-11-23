@@ -143,7 +143,7 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
 };
 
 let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Language.Dynamics.Map.empty);
 
 let mark_old: t => t =
   old => {

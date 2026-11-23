@@ -37,7 +37,7 @@ module View = {
   let deco =
       (
         ~syntax: CachedSyntax.t,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected_id: option(Id.t),
         signal: event => Ui_effect.t(unit),
@@ -54,7 +54,7 @@ module View = {
              "step-next",
              Arms.term(
                ~attr=[Attr.on_mousedown(_ => inject(i))],
-               ~font_metrics,
+               ~grid,
                ~syntax,
                t,
              ),
@@ -64,9 +64,7 @@ module View = {
     let taken_steps = (taken_steps: list(Id.t)) =>
       taken_steps
       |> List.filter_map(~f=TermData.root_tile(_, syntax.term_data))
-      |> List.map(~f=t =>
-           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
-         );
+      |> List.map(~f=t => div_c("step-taken", Arms.term(~grid, ~syntax, t)));
 
     let refl_steps =
         (refl_steps: list(Id.t), ~inject: int => Ui_effect.t(unit)) =>
@@ -77,7 +75,7 @@ module View = {
              "step-refl",
              Arms.term(
                ~attr=[Attr.on_mousedown(_ => inject(i))],
-               ~font_metrics,
+               ~grid,
                ~syntax,
                t,
              ),
@@ -149,7 +147,7 @@ module View = {
         overlays
         @ deco(
             ~syntax=model.editor.editor.syntax,
-            ~font_metrics=globals.font_metrics,
+            ~grid=CodeWithStatics.layout(~globals, model.editor).grid,
             ~inject,
             ~selected_id,
             signal,
