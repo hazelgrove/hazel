@@ -46,15 +46,10 @@ let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
 let rec lifts_into = (l: LabeledTuple.label, d: DHExp.t): bool =>
   switch (DHExp.term_of(d)) {
   | Closure(_, d) => lifts_into(l, d)
-  | Tuple([entry]) =>
-    switch (Exp.match_tup_label(entry)) {
-    | Some((existing, _)) => !String.equal(existing, l)
-    | None => false
-    }
+  | Tuple(es) => !LabeledTuple.is_singleton_of(Exp.match_tup_label, es, l)
   | Constructor(c, _) => !String.is_prefix(c, ~prefix="$")
   | Ap(_, {term: Constructor(c, _), _}, _) =>
     !String.is_prefix(c, ~prefix="$")
-  | Tuple(_)
   | Atom(_)
   | Fun(_)
   | TypFun(_)

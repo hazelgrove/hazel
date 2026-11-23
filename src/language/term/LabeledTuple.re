@@ -208,6 +208,21 @@ let rearrange:
       );
     };
 
+/* Whether a tuple of these entries is the one-field record `(label=…)`,
+   or one the tuple case relabels into it: a single entry, labeled `label`
+   or unlabeled. Anything else expected at that type is lifted into it. */
+let is_singleton_of =
+    (match_label: 'a => option((label, 'a)), entries: list('a), label)
+    : bool =>
+  switch (entries) {
+  | [entry] =>
+    switch (match_label(entry)) {
+    | Some((existing, _)) => String.equal(existing, label)
+    | None => true
+    }
+  | _ => false
+  };
+
 let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
   (filt, es, label) => {
     List.find(

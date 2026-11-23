@@ -312,78 +312,49 @@ and uexp_to_info_map =
   /* Analyze an expression in label position. Adds info for the label
      directly (like TupLabel does for its children) and returns
      the label name if valid. Used by CustomStatics for builtin label args. */
-  // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map.
+  /* Lifts a value into a one-field labeled tuple: `1` at `(a=Int)` is
+     `(a=1)`. The value is analyzed once, against the field's type, at its
+     own ids; its entry then records the tuple's type and elaboration, so
+     the inspector prints the type as "lifted to", while the marks and the
+     message stay the value's. The field and label nodes exist only in the
+     elaboration, with ids derived from the value's. */
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
-    let (term, rewrap) = Exp.unwrap(uexp);
-    /* The lifted value and its field are recorded in the info map, so their
-       ids are derived from the value's own: the same on every run, so the
-       incremental cache can hit them. */
+    let (value, value_elab, m) = go(~ana=inner_ty, uexp, m);
     let derived = (salt, term: Exp.term): Exp.t =>
       IdTagged.derived(~salt="autolabel:" ++ salt, Exp.rep_id(uexp), term);
-    let original_expression = derived("value", term);
-    let (inner_info, _, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana=inner_ty,
-        ~is_in_filter,
-        ~ancestors=ancestors_inclusive,
-        original_expression,
-        m,
-      );
-    /* SynSwitch pre-pass on uexp misses expectation errors; inner_ty analysis
-       is on a fresh copy — mirror it onto source ids for cursor/tests.
-       This snapshot has no label_inference, so ExplainThis can unwrap to it
-       without looping. */
-    let pre_labeled = {
-      ...inner_info,
-      user_term: uexp,
-    };
-
-    let elaborated_exp =
+    let labeled = (ty: Typ.t): Typ.t =>
+      Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
+    let (_, rewrap) = Exp.unwrap(uexp);
+    let elab_term =
       rewrap(
         Tuple([
           derived(
             "field",
-            TupLabel(derived("label", Label(l)), original_expression),
+            TupLabel(
+              derived("label", Label(l)),
+              {
+                ...value_elab,
+                annotation: derived("value", value_elab.term).annotation,
+              },
+            ),
           ),
         ]),
       );
-
-    let (info, tuple_elab, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana,
-        ~ancestors=ancestors_inclusive,
-        elaborated_exp,
-        m,
-      );
-    let label_inference =
-      Some(
-        Info.SingletonLabelInference({
-          label: l,
-          pre_labeled_info: pre_labeled,
-        }),
-      );
-    let info = {
-      ...info,
-      message: inner_info.message,
-      label_inference,
+    let info: Info.exp = {
+      ...value,
+      ty: labeled(value.ty),
+      elab_term,
+      elab_syn_ty: labeled(value.elab_syn_ty),
+      label_inference:
+        Some(
+          Info.SingletonLabelInference({
+            label: l,
+            pre_labeled_info: value,
+          }),
+        ),
     };
-    /* The program has the tuple at this id, so the entry records the
-       tuple's elaboration and its type. The inspector prints that type as
-       "lifted to". Marks and the message stay the value's: the message says
-       what the value itself is, and the label phrase says what was wrapped
-       around it. label_inference points at the pre-lift snapshot so
-       ExplainThis can still unwrap. */
-    let cursor_info = {
-      ...pre_labeled,
-      ty: info.ty,
-      elab_term: tuple_elab,
-      elab_syn_ty: info.elab_syn_ty,
-      label_inference,
-    };
-    let m = add_info(IdTagged.ids(uexp), InfoExp(cursor_info), m);
-    (info, tuple_elab, m);
+    let m = add_info(IdTagged.ids(uexp), InfoExp(info), m);
+    (info, elab_term, m);
   };
 
   // HACK: we use the co-context to check for unused variables in surrounding
@@ -2973,11 +2944,8 @@ and uexp_to_info_map =
   let rec tuple_case_owns = (e: Exp.t, label) =>
     switch (e.term) {
     | Parens(inner) => tuple_case_owns(inner, label)
-    | Tuple([entry]) =>
-      switch (Exp.match_tup_label(entry)) {
-      | Some((existing, _)) => String.equal(existing, label)
-      | None => true
-      }
+    | Tuple(es) =>
+      LabeledTuple.is_singleton_of(Exp.match_tup_label, es, label)
     | _ => false
     };
 
@@ -3182,43 +3150,47 @@ and upat_to_info_map =
   };
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
 
-  let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
-    LabeledTupleHelpers.autolabel_singleton_pat(
-      ~analyze_original=
-        (~ana, pat, m) =>
-          upat_to_info_map(
-            ~ctx,
-            ~co_ctx,
-            ~is_synswitch,
-            ~ancestors=ancestors_inclusive,
-            ~ana,
-            ~probe_ids,
-            ~warn_unused,
-            pat,
-            m,
+  /* As for an expression (autolabel_singleton_tuple): the pattern is
+     analyzed once, against the field's type, and its entry records the
+     tuple's type, elaboration and coverage constraint. */
+  let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
+    let (value, value_elab, m) = go(~ana=inner_ty, upat, m);
+    let derived = (salt, term: Pat.term): Pat.t =>
+      IdTagged.derived(~salt="autolabel:" ++ salt, Pat.rep_id(upat), term);
+    let labeled = (ty: Typ.t): Typ.t =>
+      Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
+    let (_, rewrap) = Pat.unwrap(upat);
+    let elab_term =
+      rewrap(
+        Tuple([
+          derived(
+            "field",
+            TupLabel(
+              derived("label", Label(l)),
+              {
+                ...value_elab,
+                annotation: derived("value", value_elab.term).annotation,
+              },
+            ),
           ),
-      ~analyze_elaborated=
-        (~ana, pat, m) =>
-          upat_to_info_map(
-            ~ctx,
-            ~co_ctx,
-            ~is_synswitch,
-            ~ancestors=ancestors_inclusive,
-            ~ana,
-            ~probe_ids,
-            ~warn_unused,
-            pat,
-            m,
-          ),
-      ~store_info=
-        (elaborated_pat, info, m) =>
-          add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m),
-      upat,
-      ~inner_ty,
-      ~ana,
-      ~label=l,
-      m,
-    );
+        ]),
+      );
+    let info: Info.pat = {
+      ...value,
+      ty: labeled(value.ty),
+      elab_term,
+      elab_syn_ty: labeled(value.elab_syn_ty),
+      constraint_: Coverage.Constraint.Tuple([value.constraint_]),
+      label_inference:
+        Some(
+          Info.SingletonLabelInference({
+            label: l,
+            pre_labeled_info: value,
+          }),
+        ),
+    };
+    (info, elab_term, add_info(IdTagged.ids(upat), InfoPat(info), m));
+  };
 
   let default_case = () =>
     switch (term) {
@@ -3971,11 +3943,8 @@ and upat_to_info_map =
   let rec tuple_case_owns = (p: Pat.t, label) =>
     switch (p.term) {
     | Parens(inner) => tuple_case_owns(inner, label)
-    | Tuple([entry]) =>
-      switch (Pat.match_tup_label(entry)) {
-      | Some((existing, _)) => String.equal(existing, label)
-      | None => true
-      }
+    | Tuple(ps) =>
+      LabeledTuple.is_singleton_of(Pat.match_tup_label, ps, label)
     | _ => false
     };
   if (under_ascription) {
