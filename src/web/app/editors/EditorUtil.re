@@ -33,7 +33,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | FixF(_)
   | Forall(_)
   | Tuple(_)
-  | Label(_)
+  | LabelLit(_)
   | Dot(_)
   | Var(_)
   | Ap(_)

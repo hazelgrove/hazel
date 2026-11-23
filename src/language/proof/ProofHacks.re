@@ -91,7 +91,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Cons(e1, e2) => rewrap(Cons(exp_to_pat(e1), exp_to_pat(e2)))
   | Var(x) => rewrap(Var(x))
   | Tuple(xs) => rewrap(Tuple(List.map(~f=TupleEntry.map(exp_to_pat), xs)))
-  | Label(l) => rewrap(Label(l))
+  | LabelLit(l) => rewrap(Label(l))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Projector(data, e) => rewrap(Projector(data, exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
@@ -151,7 +151,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Projector(data, e) => rewrap(Projector(data, pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
   | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
-  | Label(l) => rewrap(Label(l))
+  | Label(l) => rewrap(LabelLit(l))
   };
 };
 
@@ -463,7 +463,7 @@ let rec replace_exp =
         | TypFun(_)
         | Tuple(_)
         | TupleExtension(_)
-        | Label(_)
+        | LabelLit(_)
         | Dot(_, _)
         | LivelitName(_)
         | TyAlias(_)
