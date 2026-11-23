@@ -257,6 +257,53 @@ their binder masks positionally (keep a parameter named if either side names
 it), not take one side's binder, or a join of `typfun A, ? -> …` and
 `typfun ?, B -> …` loses a parameter.
 
+## Nominal types
+
+`Test_Statics_Slicing_NewType.re`. A nominal type is an alias whose body is a
+single variant named like the alias (`type T(Ā) = + T(τ)`). `Typ.is_nominal`
+recognises it; `weak_head_normalize`, `normalize` and `meet` leave `T(σ̄)`
+rigid, and constructor lookup, coverage and elaboration unfold it. The slicer
+needed no new rules: a nominal declaration is an ordinary `TyAlias` binder, so
+every entry below is the existing alias rule applied to a rigid head. The
+expectations were recorded from the engine and checked against that reading.
+
+Queries are asked at a focus inside the alias scope. At the root the type has
+escaped the binder (`Typ.subst(ty_def, T, ty_body)`), so a query written as
+`T(...)` is not in `⌊τ⌋` there and the engine raises `Incompatible_query`,
+exactly as for a structural alias.
+
+### nominal-wrap
+
+`CustomerId(3)` at query `CustomerId`. The constructor's schema justifies the
+result head on its own, so the payload is not demanded: γ needs the declaration
+head and its single tag, `+ CustomerId(?)`, and the argument is a gap. This is
+rigidity seen from the slice: the identity of a nominal value never depends on
+its representation.
+
+### nominal-unwrap-payload
+
+`case CustomerId(3) | CustomerId(n) => n end` at `Int`. The branch result is
+`n`, whose type is the payload position of the declaration, so the declaration
+is kept with `Int`; the scrutinee is a gap, since any `CustomerId` would do.
+
+### nominal-phantom-full, nominal-phantom-arg-query, nominal-phantom-head-query
+
+`total : Col(Orders, Float)`, a phantom-indexed column. The full query keeps
+the annotation and the `Orders` binder, whose body is a gap (only its name
+matters to a rigid argument). Querying `Col(?, Float)` drops `Orders` entirely,
+and `Col(?, ?)` keeps only the head. The ladder is monotone, and the arguments
+are justified positionally by the annotation, never by the definition's body,
+because a phantom parameter does not occur in it.
+
+### nominal-brand-hk-query, nominal-brand-only
+
+`three@<Eval>` with `three : poly F -> App(F, Int)`, the lightweight
+higher-kinded encoding. `App(?, Int)` is the higher-kinded query `⬜(Int)`: the
+slice keeps the `Int` of the annotation and gaps the type argument `@<?>`.
+`App(Eval, ?)` is the converse: it keeps `@<Eval>` and the binder `F` it
+instantiates, and gaps `Int`. Both are rooted prefixes of `App(Eval, Int)`, so
+the query lattice is unchanged.
+
 ## Property-harness corrections
 
 The three QCheck properties (`Test_Statics_Slicing_Properties.re`) are now run

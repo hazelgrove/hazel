@@ -9,6 +9,7 @@ let tests =
     Test_Statics_ParameterizedTypes.tests,
     Test_Statics_Types.tests,
     Test_Statics_Modules.tests,
+    Test_Statics_NewType.tests,
   ]
   @ Test_Statics_BuiltinsTupleOperations.tests
   @ [
@@ -22,4 +23,5 @@ let tests =
     Test_Statics_Slicing_ExtendedExamples.tests,
     Test_Statics_Slicing_Properties.tests,
     Test_Statics_Slicing_Probe.tests,
+    Test_Statics_Slicing_NewType.tests,
   ];

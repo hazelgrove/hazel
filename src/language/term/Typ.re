@@ -687,6 +687,30 @@ let unfold_one = (ty: t): t =>
 let fast_equal = Equality.semantic.typ;
 let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
+let rec is_newtype_body = (name: string, ty: t): bool =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | TypFun(_, inner)
+  | Rec(_, inner) => is_newtype_body(name, inner)
+  | Sum([Variant(ctr, _, _)]) => ctr == name
+  | _ => false
+  };
+
+let is_nominal = (ctx: Ctx.t, name: string): bool =>
+  switch (Ctx.lookup_alias(ctx, name)) {
+  | Some(definition) => is_newtype_body(name, definition)
+  | None => false
+  };
+
+let rec nominal_head = (ctx: Ctx.t, ty: t): option(string) =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner)
+  | TypParamAp(inner, _) => nominal_head(ctx, inner)
+  | Var(name) when is_nominal(ctx, name) => Some(name)
+  | _ => None
+  };
+
 let project_type = (tys: list(t), label: string): option(t) =>
   switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
   | Some({term: TupLabel(_, ty), _}) => Some(ty)
@@ -761,11 +785,13 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Parens(t)
   | Projector(_, t) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
+  | Var(x) when is_nominal(ctx, x) => ty
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
+  | TypParamAp(_) when nominal_head(ctx, ty) != None => ty
   | TypParamAp(fn, arg) =>
     let (_, rewrap) = unwrap(ty);
     let fn_whnf = weak_head_normalize(~rec_counter=rec_counter + 1, ctx, fn);
@@ -860,6 +886,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   let normalize = normalize(~rec_counter=rec_counter + 1);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
+  | Var(x) when is_nominal(ctx, x) => ty
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
@@ -1024,6 +1051,31 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
+  | _ when nominal_head(ctx, ty1) != None || nominal_head(ctx, ty2) != None =>
+    switch (nominal_head(ctx, ty1), nominal_head(ctx, ty2)) {
+    | (Some(n1), Some(n2)) when n1 == n2 =>
+      let rec strip = (ty: t): t =>
+        switch (term_of(ty)) {
+        | Parens(inner)
+        | Projector(_, inner) => strip(inner)
+        | _ => ty
+        };
+      switch (term_of(strip(ty1)), term_of(strip(ty2))) {
+      | (Var(_), Var(_)) => Some(ty1)
+      | (TypParamAp(f1, a1), TypParamAp(f2, a2)) =>
+        let* f = meet'(f1, f2);
+        let+ a = meet'(a1, a2);
+        TypParamAp(f, a) |> temp;
+      | _ => None
+      };
+    | (Some(_), Some(_)) => None
+    | (Some(_), None) =>
+      let ty2' = weak_head_normalize(ctx, ty2);
+      equal(ty2', ty2) ? None : meet'(ty1, ty2');
+    | (None, _) =>
+      let ty1' = weak_head_normalize(ctx, ty1);
+      equal(ty1', ty1) ? None : meet'(ty1', ty2);
+    }
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(ty1);
@@ -1834,12 +1886,58 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   };
 };
 
+let rec unfold_nominal = (ctx: Ctx.t, ty: t): t =>
+  switch (term_of(ty)) {
+  | Parens(inner)
+  | Projector(_, inner) => unfold_nominal(ctx, inner)
+  | Var(name) when is_nominal(ctx, name) =>
+    Ctx.lookup_alias(ctx, name) |> Option.value(~default=ty)
+  | TypParamAp({term: Var(name), _}, arg) when is_nominal(ctx, name) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(definition) =>
+      weak_head_normalize(ctx, TypParamAp(definition, arg) |> temp)
+    | None => ty
+    }
+  | _ => ty
+  };
+
+let rec unfold_nominals = (~seen=[], ctx: Ctx.t, ty: t): t =>
+  map_term(
+    ~f_typ=
+      (continue, ty) =>
+        switch (nominal_head(ctx, ty), term_of(ty)) {
+        | (Some(name), _) when !List.mem(name, seen) =>
+          unfold_nominals(
+            ~seen=[name, ...seen],
+            ctx,
+            normalize(ctx, unfold_nominal(ctx, ty)),
+          )
+        | (_, Sum(variants)) =>
+          let variant: ConstructorMap.variant(t) => ConstructorMap.variant(t) = (
+            fun
+            | Variant(c, ann, payload) =>
+              Variant(
+                c,
+                ann,
+                Option.map(unfold_nominals(~seen, ctx), payload),
+              )
+            | BadEntry(t) => BadEntry(unfold_nominals(~seen, ctx, t))
+          );
+          {
+            ...ty,
+            term: Sum(List.map(variant, variants)),
+          };
+        | _ => continue(ty)
+        },
+    ty,
+  );
+
 let rec get_sum_constructors =
         (~rec_counter=0, ctx: Ctx.t, ty: t): option(sum_map) =>
   if (rec_counter > 1000) {
     None;
   } else {
-    let ty = weak_head_normalize(ctx, ty);
+    let ty = unfold_nominal(ctx, weak_head_normalize(ctx, ty));
     switch (term_of(ty)) {
     | Parens(ty) =>
       get_sum_constructors(~rec_counter=rec_counter + 1, ctx, ty)

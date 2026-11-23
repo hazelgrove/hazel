@@ -125,6 +125,35 @@ let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
   };
 };
 
+let unfold_nominals_in_elab = (ctx: Ctx.t, name: string, e: Exp.t): Exp.t =>
+  if (Typ.is_nominal(ctx, name)) {
+    let unfold = Typ.unfold_nominals(ctx);
+    Exp.map_term(
+      ~f_typ=(_, t) => unfold(t),
+      ~f_exp=
+        (continue, e: Exp.t) =>
+          switch (e.term) {
+          | Constructor(c, Some(Some(t))) => {
+              ...e,
+              term: Constructor(c, Some(Some(unfold(t)))),
+            }
+          | _ => continue(e)
+          },
+      ~f_pat=
+        (continue, p: Pat.t) =>
+          switch (p.term) {
+          | Constructor(c, Some(Some(t))) => {
+              ...p,
+              term: Constructor(c, Some(Some(unfold(t)))),
+            }
+          | _ => continue(p)
+          },
+      e,
+    );
+  } else {
+    e;
+  };
+
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t)
         : (CoCtx.t, Any.t, Map.t) =>
@@ -1871,7 +1900,10 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       let syn_ty_fun = Arrow(p.ty, e.elab_syn_ty) |> Typ.temp;
       let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
+        Coverage.check(
+          [Info.pat_constraint(p)],
+          Typ.normalize(ctx, p.ty) |> Typ.unfold_nominals(ctx),
+        );
       let marks_fun =
         switch (exhaustiveness) {
         | Exhaustive => []
@@ -2124,7 +2156,7 @@ and uexp_to_info_map =
       let Coverage.CheckMatrix.{exhaustiveness, _} =
         Coverage.check(
           [Info.pat_constraint(p_ana)],
-          Typ.normalize(ctx, p_ana.ty),
+          Typ.normalize(ctx, p_ana.ty) |> Typ.unfold_nominals(ctx),
         );
       let marks_let =
         switch (exhaustiveness) {
@@ -2356,7 +2388,8 @@ and uexp_to_info_map =
 
       let constraints = List.rev(constraints);
 
-      let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
+      let normalized_scrut_ty =
+        Typ.normalize(ctx, scrut.ty) |> Typ.unfold_nominals(ctx);
       let Coverage.CheckMatrix.{exhaustiveness, redundant_rows} =
         Coverage.check(constraints, normalized_scrut_ty);
 
@@ -2702,7 +2735,7 @@ and uexp_to_info_map =
             utyp,
           );
         add(
-          ~elab_term=body_elab,
+          ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
           ~elab_syn_ty=ty_escape,
           ~marks=[],
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
@@ -2775,7 +2808,7 @@ and uexp_to_info_map =
             utyp,
           );
         add(
-          ~elab_term=body_elab,
+          ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
           ~elab_syn_ty=ty_escape,
           ~marks=[],
           ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
