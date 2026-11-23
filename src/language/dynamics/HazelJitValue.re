@@ -545,8 +545,8 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
       if (same(a, b)) break;
       if (a === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({a: b}); break; }
       if (b === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({cut: 1}); break; }
-      if (b.a === undefined && same(b.t, a)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.h}); b = b.t; continue; }
-      if (a.a === undefined && same(a.t, b)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.t; continue; }
+      if (same(T(b), a)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: H(b)}); b = T(b); continue; }
+      if (same(T(a), b)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = T(a); continue; }
       var de = diff(H(a), H(b));
       if (de === null) keep++;
       else { if (keep) ops.push({k: keep}); keep = 0; ops.push({e: de}); }
