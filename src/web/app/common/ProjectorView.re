@@ -202,7 +202,7 @@ module Model = {
     List.filter_map(
       ~f=
         ((id, _)) => {
-          let* p = Id.Map.find_opt(id, projectors);
+          let* p = Id.Map.find(projectors, id);
           let+ measurement = Measured.find_pr_opt(p, measured);
           let info =
             ProjectorInfo.mk_info(
@@ -234,7 +234,7 @@ module Model = {
             elaborated,
           };
         },
-      Id.Map.bindings(projectors),
+      Id.Map.to_alist(projectors),
     );
   };
 };

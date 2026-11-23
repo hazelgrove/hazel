@@ -14,12 +14,12 @@ let structure_share_sexp_of_t = (key_f, sexp_of_t, thing: 'a): Sexplib.Sexp.t =>
   switch (structure_share_map^) {
   | Some(m) =>
     let key = key_f(thing);
-    if (Id.Map.mem(key, m)) {
+    if (Id.Map.mem(m, key)) {
       ();
     } else {
       let sexp = sexp_of_t(thing);
       let m = structure_share_map^ |> Option.value_exn;
-      structure_share_map := Some(Id.Map.update(key, _ => Some(sexp), m));
+      structure_share_map := Some(Id.Map.change(m, key, ~f=_ => Some(sexp)));
     };
     Id.sexp_of_t(key);
   | None => sexp_of_t(thing)
@@ -31,22 +31,20 @@ let structure_share_t_of_sexp = (t_of_sexp, sexp: Sexplib.Sexp.t): 'a => {
   | Some(m) =>
     let id = Id.t_of_sexp(sexp);
     switch (
-      Id.Map.find_opt(
-        id,
+      Id.Map.find(
         pre_deserialized_map^ |> Option.value(~default=Id.Map.empty),
+        id,
       )
     ) {
     | Some(x) => Obj.obj(x)
     | None =>
-      switch (Id.Map.find_opt(id, m)) {
+      switch (Id.Map.find(m, id)) {
       | Some(t) =>
         let v = t_of_sexp(t);
         pre_deserialized_map :=
           Some(
-            Id.Map.update(
-              id,
-              _ => Some(Obj.repr(v)),
-              pre_deserialized_map^ |> Option.value_exn,
+            Id.Map.change(pre_deserialized_map^ |> Option.value_exn, id, ~f=_ =>
+              Some(Obj.repr(v))
             ),
           );
         v;

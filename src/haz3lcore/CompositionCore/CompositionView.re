@@ -114,8 +114,7 @@ module Local = {
 
     let collapse_definitions =
         (~z: Zipper.t, ~ids: list(Id.t), ~info_map: Id.Map.t(Info.t), ~root) => {
-      let infos =
-        List.map(~f=(id: Id.t) => Id.Map.find_opt(id, info_map), ids);
+      let infos = List.map(~f=(id: Id.t) => Id.Map.find(info_map, id), ids);
       let def_ids =
         List.filter_map(
           ~f=
@@ -169,7 +168,7 @@ module Local = {
       | None => z
       | Some(node_map) =>
         let all_top_level_ids =
-          Id.Map.bindings(node_map) |> List.map(~f=fst);
+          Id.Map.to_alist(node_map) |> List.map(~f=fst);
         let expanded_ids =
           List.filter_map(
             ~f=(path: string) => path_to_id_opt(node_map, path),

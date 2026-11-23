@@ -94,21 +94,17 @@ module Persistent = {
       : ChatSystem.Model.t => {
     ...cs,
     chat_map:
-      Id.Map.map(
-        (chat: Chat.Model.t) =>
-          {
-            ...chat,
-            message_map:
-              Id.Map.map(
-                (msg: Message.Model.t) =>
-                  switch (msg.role) {
-                  | System(Prompt) => f(msg)
-                  | _ => msg
-                  },
-                chat.message_map,
-              ),
-          },
-        cs.chat_map,
+      Id.Map.map(cs.chat_map, ~f=(chat: Chat.Model.t) =>
+        {
+          ...chat,
+          message_map:
+            Id.Map.map(chat.message_map, ~f=(msg: Message.Model.t) =>
+              switch (msg.role) {
+              | System(Prompt) => f(msg)
+              | _ => msg
+              }
+            ),
+        }
       ),
   };
 

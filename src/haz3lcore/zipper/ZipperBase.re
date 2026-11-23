@@ -77,7 +77,7 @@ let update_refractor =
     : t =>
   z
   |> update_manuals(map => ListUtil.assoc_update(id, f, map))
-  |> update_ephemerals(map => Id.Map.update(id, f, map));
+  |> update_ephemerals(map => Id.Map.change(map, id, ~f));
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,

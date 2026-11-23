@@ -152,7 +152,7 @@ module M: Projector = {
                against itself, so nothing is coloured. */
             ~dynamic_typ=dynamic |> Option.value(~default=static),
           );
-        ((id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : []), seg);
+        ((id => Id.Set.mem(dynamic_ids, id) ? ["dynamic"] : []), seg);
       | OfTyp(typ) => (
           (_ => []),
           utility.term_to_seg(~inline=true, Typ(typ)),

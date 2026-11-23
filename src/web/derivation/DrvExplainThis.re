@@ -88,10 +88,14 @@ let copy_color_map_of_specceds =
     List.fold_left(
       ~f=
         (new_map, (spec, syntax)) =>
-          switch (Haz3lcore.Id.Map.find_opt(Drv.Any.rep_id(syntax), map)) {
+          switch (Haz3lcore.Id.Map.find(map, Drv.Any.rep_id(syntax))) {
           | None => new_map
           | Some(color) =>
-            Haz3lcore.Id.Map.add(Drv.Any.rep_id(spec), color, new_map)
+            Haz3lcore.Id.Map.set(
+              new_map,
+              ~key=Drv.Any.rep_id(spec),
+              ~data=color,
+            )
           },
       ~init=Haz3lcore.Id.Map.empty,
       terms,

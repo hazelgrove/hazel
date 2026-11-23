@@ -234,7 +234,7 @@ let ci_of =
    * create a 'virtual' info map entry for the secondary notation,
    * borrowing semantic context from a nearby 'proxy' term. */
   switch (for_decoration(z)) {
-  | Some({piece, _}) => Id.Map.find_opt(Piece.id(piece), info_map)
+  | Some({piece, _}) => Id.Map.find(info_map, Piece.id(piece))
   | None =>
     let sibs = ZipperBase.sibs_with_sel(z);
     let* cls =
@@ -256,7 +256,7 @@ let ci_of =
       | (Some(p), _) => Some(Piece.id(p))
       | _ => None
       };
-    let+ ci = Id.Map.find_opt(proxy_id, info_map);
+    let+ ci = Id.Map.find(info_map, proxy_id);
     Language.Statics.Info.Secondary({
       id: proxy_id,
       cls: Secondary(cls),
@@ -273,7 +273,7 @@ let ci_for_completion =
     : option(Language.Statics.Info.t) =>
   switch (Siblings.neighbor(Left, z.relatives.siblings)) {
   | Some(p) when !Piece.is_secondary(p) && !Piece.is_grout(p) =>
-    switch (Id.Map.find_opt(Piece.id(p), info_map)) {
+    switch (Id.Map.find(info_map, Piece.id(p))) {
     | Some(_) as ci => ci
     /* completion may have consumed the neighbor token (witness
        prefix), leaving no info at its id — fall back to indication */

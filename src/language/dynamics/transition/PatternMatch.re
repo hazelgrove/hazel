@@ -114,7 +114,7 @@ let rec matches_inner =
         : match_result => {
   let d = Ascriptions.transition_multiple(d);
   let pat_id = Pat.rep_id(dp);
-  let maybe_spec = Id.Map.find_opt(pat_id, targets);
+  let maybe_spec = Id.Map.find(targets, pat_id);
   let recur = matches_inner(targets, sample_closures);
 
   let result = match_pattern(recur, dp, d);
