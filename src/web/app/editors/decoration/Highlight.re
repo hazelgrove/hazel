@@ -629,48 +629,38 @@ let selection =
   );
 };
 
-// Expands selection to make it a subtree of the exp
+/* The selection, over the part of the term it names (SelectedPart). */
 let selection_expanded =
     (
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
+      ~term: Language.Exp.t,
       z: Zipper.t,
     ) =>
   div_c(
     "selects",
-    switch (
-      TermData.get_root_id_using_ranges(
-        z.selection.content,
-        term_data,
-        measured,
-      )
-    ) {
+    switch (SelectedPart.expanded(~measured, ~term_data, ~term, z)) {
     | None => []
-    | Some(id) =>
-      let seg = TermData.segment(id, term_data);
-      switch (seg) {
-      | None => []
-      | Some(seg) =>
-        of_segment(
+    | Some(seg) =>
+      of_segment(
+        ~measured,
+        ~shape_map,
+        ~font_metrics,
+        ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
+        seg,
+      )
+      @ of_segment(
+          ~trim_ws=true,
           ~measured,
           ~shape_map,
           ~font_metrics,
           ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-          ~clss=["selected-expanded", Selection.buffer_cls(z.selection)],
-          seg,
+          ~clss=["selected", Selection.buffer_cls(z.selection)],
+          z.selection.content,
         )
-        @ of_segment(
-            ~trim_ws=true,
-            ~measured,
-            ~shape_map,
-            ~font_metrics,
-            ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
-            ~clss=["selected", Selection.buffer_cls(z.selection)],
-            z.selection.content,
-          )
-      };
     },
   );
 

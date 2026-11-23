@@ -299,6 +299,192 @@ let test_contraction_drops_an_argument_with_no_value = () => {
   );
 };
 
+/* Runs: a selector can name consecutive operands of an associative
+ * operator, which the parser's grouping leaves without a node. */
+
+let focus_outgoing = (theorem: string): string => {
+  let (pm, proof) = run_named("t", theorem);
+  outgoing(pm, head(proof));
+};
+
+let is_not_found =
+  fun
+  | ProofMark.PatternNotFound(_) => true
+  | _ => false;
+
+let test_a_run_is_focused = () =>
+  check(
+    string,
+    "`2 + 3` is a run of `(1 + 2) + 3`",
+    "1 + 5 == 6",
+    focus_outgoing(
+      "theorem t = 1 + 2 + 3 == 6 proof from 2 + 3 do step end; ? in t",
+    ),
+  );
+
+let test_a_run_is_put_back_as_parsed = () =>
+  check(
+    string,
+    "the chain reads as typed, without parentheses",
+    "1 + 5 + 4 == 10",
+    focus_outgoing(
+      "theorem t = 1 + 2 + 3 + 4 == 10 proof from 2 + 3 do step end; ? in t",
+    ),
+  );
+
+let test_a_chain_result_joins_the_chain = () =>
+  check(
+    string,
+    "the result's operands become the chain's",
+    "a + c + b + d == a + c + b + d",
+    focus_outgoing(
+      "theorem t = forall a: Int -> forall b: Int -> forall c: Int -> forall d: Int -> a + b + c + d == a + c + b + d proof from b + c do algebra c + b end end; ? in t",
+    ),
+  );
+
+let test_a_parenthesized_chain_keeps_its_grouping = () =>
+  check(
+    string,
+    "the chain is still the left operand of `*`",
+    "(1 + 5) * 2 == 12",
+    focus_outgoing(
+      "theorem t = (1 + 2 + 3) * 2 == 12 proof from 2 + 3 do step end; ? in t",
+    ),
+  );
+
+let test_a_selector_regroups_a_whole_chain = () =>
+  check(
+    string,
+    "`1 + (2 + 3)` names all of `(1 + 2) + 3`",
+    "1 + 5 == 6",
+    focus_outgoing(
+      "theorem t = 1 + 2 + 3 == 6 proof from 1 + (2 + 3) do from 2 + 3 do step end end; ? in t",
+    ),
+  );
+
+let test_a_run_with_a_metavariable = () =>
+  check(
+    string,
+    "`2 + $e` names `2 + 3`",
+    "1 + 5 == 6",
+    focus_outgoing(
+      "theorem t = 1 + 2 + 3 == 6 proof from 2 + $e do step end; ? in t",
+    ),
+  );
+
+let test_runs_are_numbered_after_subterms = () => {
+  let at = n =>
+    focus_outgoing(
+      "theorem t = 1 + 1 + 1 + 1 == 4 proof from 1 + 1 at "
+      ++ n
+      ++ " do step end; ? in t",
+    );
+  check(string, "the subterm first", "2 + 1 + 1 == 4", at("1"));
+  check(string, "then the runs, left to right", "1 + 2 + 1 == 4", at("2"));
+  check(string, "overlapping runs count", "1 + 1 + 2 == 4", at("3"));
+  let (pm, proof) =
+    run_named(
+      "t",
+      "theorem t = 1 + 1 + 1 + 1 == 4 proof from 1 + 1 at 4 do step end in t",
+    );
+  check(
+    bool,
+    "the subterm isn't counted again as a run",
+    true,
+    has(is_not_found, pm, proof),
+  );
+};
+
+let test_runs_across_a_minus = () => {
+  check(
+    string,
+    "`3 - 1` is a run of `(5 + 3) - 1`, and `5 + (3 - 1)` is equal",
+    "5 + 2 == 7",
+    focus_outgoing(
+      "theorem t = 5 + 3 - 1 == 7 proof from 3 - 1 do step end; ? in t",
+    ),
+  );
+  List.iter(
+    ~f=
+      ((theorem, why)) => {
+        let (pm, proof) = run_named("t", theorem);
+        check(bool, why, true, has(is_not_found, pm, proof));
+      },
+    [
+      (
+        "theorem t = 8 - 4 - 2 == 2 proof from 4 - 2 do step end in t",
+        "`4 - 2` would be added, though `8 - 4 - 2` subtracts the 4",
+      ),
+      (
+        "theorem t = 5 + 3 + 1 == 9 proof from 3 - 1 do step end in t",
+        "`3 - 1` subtracts what `5 + 3 + 1` adds",
+      ),
+    ],
+  );
+};
+
+let test_runs_of_right_grouped_operators = () => {
+  check(
+    string,
+    "`&&` groups to the right",
+    "false && true == false",
+    focus_outgoing(
+      "theorem t = true && false && true == false proof from true && false do step end; ? in t",
+    ),
+  );
+  check(
+    string,
+    "and so does `@`",
+    "[1, 2] @ [3] == [1, 2, 3]",
+    focus_outgoing(
+      "theorem t = [1] @ [2] @ [3] == [1, 2, 3] proof from [1] @ [2] do step end; ? in t",
+    ),
+  );
+};
+
+let test_no_run_of_a_non_associative_chain = () =>
+  List.iter(
+    ~f=
+      ((theorem, why)) => {
+        let (pm, proof) = run_named("t", theorem);
+        check(bool, why, true, has(is_not_found, pm, proof));
+      },
+    [
+      (
+        "theorem t = 1. +. 2. +. 3. == 6. proof from 2. +. 3. do step end in t",
+        "float addition rounds differently when regrouped",
+      ),
+      (
+        "theorem t = 1 - 2 + 3 == 2 proof from 2 + 3 do step end in t",
+        "`2 + 3` isn't a run of `(1 - 2) + 3`",
+      ),
+      (
+        "theorem t = 2 * 3 + 4 == 10 proof from 3 + 4 do step end in t",
+        "`3 + 4` isn't a run of `(2 * 3) + 4`",
+      ),
+    ],
+  );
+
+let test_a_run_under_a_binder = () => {
+  let (pm, proof) =
+    run_named(
+      "t",
+      "theorem t = (fun x: Int -> x + 1 + 2) == (fun x: Int -> x + 3) proof from 1 + 2 do step end; rewrite refl end in t",
+    );
+  check_mark_free("a closed run in a lambda body steps", pm, proof);
+  check_proven("and the lambdas are then equal", pm, proof);
+};
+
+let test_a_run_proves_a_theorem = () => {
+  let (pm, proof) =
+    run_named(
+      "t",
+      "theorem t = forall x: Int -> x + 2 + 3 == x + 5 proof from 2 + 3 do step end; rewrite refl end in t",
+    );
+  check_mark_free("no marks", pm, proof);
+  check_proven("proven", pm, proof);
+};
+
 let tests = (
   "Evaluator.Focus",
   [
@@ -363,5 +549,49 @@ let tests = (
       `Quick,
       test_selector_naming_a_definition,
     ),
+    test_case("a run is focused", `Quick, test_a_run_is_focused),
+    test_case(
+      "a run is put back as parsed",
+      `Quick,
+      test_a_run_is_put_back_as_parsed,
+    ),
+    test_case(
+      "a chain result joins the chain",
+      `Quick,
+      test_a_chain_result_joins_the_chain,
+    ),
+    test_case(
+      "a parenthesized chain keeps its grouping",
+      `Quick,
+      test_a_parenthesized_chain_keeps_its_grouping,
+    ),
+    test_case(
+      "a selector regroups a whole chain",
+      `Quick,
+      test_a_selector_regroups_a_whole_chain,
+    ),
+    test_case(
+      "a run with a metavariable",
+      `Quick,
+      test_a_run_with_a_metavariable,
+    ),
+    test_case(
+      "runs are numbered after subterms",
+      `Quick,
+      test_runs_are_numbered_after_subterms,
+    ),
+    test_case("runs across a minus", `Quick, test_runs_across_a_minus),
+    test_case(
+      "runs of right-grouped operators",
+      `Quick,
+      test_runs_of_right_grouped_operators,
+    ),
+    test_case(
+      "no run of a non-associative chain",
+      `Quick,
+      test_no_run_of_a_non_associative_chain,
+    ),
+    test_case("a run under a binder", `Quick, test_a_run_under_a_binder),
+    test_case("a run proves a theorem", `Quick, test_a_run_proves_a_theorem),
   ],
 );

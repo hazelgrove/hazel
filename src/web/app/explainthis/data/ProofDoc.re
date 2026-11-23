@@ -244,7 +244,7 @@ let focus = (~selector_id: Id.t, ~body_id: Id.t): Simple.t => {
     ),
     explanation:
       sprintf(
-        "Focuses on the first part of the goal that matches the [*selector*](%s), or the nth with `at n`, counting from 1 left to right, and runs the [*steps*](%s) on that part alone. Their result goes back into the goal in its place. In the selector, `$e` matches any expression, `$v` any value and `$x` any variable. It can match under a `fun`, a `forall`, a `let` body or a case arm; there the variables bound around it are fixed, unknown values, as under `forall x =>`, so facts about an outer variable of the same name don't apply. The steps' side conditions are their own.",
+        "Focuses on the first part of the goal that matches the [*selector*](%s), or the nth with `at n`, counting from 1 left to right, and runs the [*steps*](%s) on that part alone. Their result goes back into the goal in its place. In the selector, `$e` matches any expression, `$v` any value and `$x` any variable. It can match under a `fun`, a `forall`, a `let` body or a case arm; there the variables bound around it are fixed, unknown values, as under `forall x =>`, so facts about an outer variable of the same name don't apply. A selector that is a chain of `+`, `*`, `&&`, `||`, `++` or `@` also matches a run of consecutive operands of such a chain, though the parser groups `a + b + c` as `(a + b) + c`: the steps start from the run, and the chain goes back together as typed. A run of a sum may subtract, as `b - c` in `a + b - c` does, but can't start just after a `-`. Runs are counted after the other matches. The steps' side conditions are their own.",
         selector_id |> Id.to_string,
         body_id |> Id.to_string,
       ),
@@ -256,6 +256,14 @@ let focus = (~selector_id: Id.t, ~body_id: Id.t): Simple.t => {
             "theorem t = (1 + 2) + (3 + 4) == 10 proof from $v + $v at 2 do step end; from $v + $v do step end; from 3 + 7 do step end; step in 0",
           ),
         message: "`$v + $v` matches an addition of two values. `at 2` picks the second, so the first focus evaluates `3 + 4`, leaving `(1 + 2) + 7 == 10`; the second evaluates `1 + 2`. Then `3 + 7` evaluates to `10`, and `10 == 10` to `true`.",
+      },
+      {
+        sub_id: ProofFocus2,
+        term:
+          mk_example(
+            "theorem t = 1 + 2 + 3 == 6 proof from 2 + 3 do step end; from 1 + 5 do step end; step in 0",
+          ),
+        message: "`1 + 2 + 3` is grouped as `(1 + 2) + 3`, so `2 + 3` is not a subterm of it, but it is a run of its operands. The first focus evaluates the run to `5`, leaving `1 + 5 == 6`.",
       },
     ],
   };

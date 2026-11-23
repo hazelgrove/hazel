@@ -308,13 +308,20 @@ module Update = {
     };
 
   /* The part of the goal selected, when it is less than all of it. */
-  let selected_part = (goal: Picker.Goal.t): option(Exp.t) =>
+  let selected_part = (goal: Picker.Goal.t): option(Occurrence.t) =>
     switch (Picker.Goal.selected(goal)) {
-    | Some(part) when !Id.equal(Exp.rep_id(part), Exp.rep_id(goal.written)) =>
-      Some(part)
-    | Some(_)
+    | Some(Node(node))
+        when Id.equal(Exp.rep_id(node), Exp.rep_id(goal.written)) =>
+      None
+    | Some(part) => Some(part)
     | None => None
     };
+
+  /* A part as the goal editor marks it. */
+  let ends = (part: Occurrence.t): StepperEditor.Deco.part => {
+    let (first, last) = Occurrence.ends(part);
+    (Exp.rep_id(first), Exp.rep_id(last));
+  };
 
   /* What the box's text asks for against `goal`: a search for it as a
    * goal and the uses of every rule, or, when it names a rule, that
@@ -325,24 +332,29 @@ module Update = {
   let search =
       (~new_goal=false, goal: Picker.Goal.t, box: Model.box): Model.box => {
     let part = selected_part(goal);
-    let wanted =
+    let start = typed =>
       switch (part) {
-      | Some(part) =>
-        Option.map(
-          ~f=
-            typed =>
-              Exp.map_term(
-                ~f_exp=
-                  (cont, e) =>
-                    Id.equal(Exp.rep_id(e), Exp.rep_id(part))
-                      ? typed : cont(e),
-                goal.written,
-              ),
-          wanted(box.editor),
+      | Some(Node(node)) =>
+        Some(
+          StepSearch.start(
+            goal,
+            ~wanted=Occurrence.replace(Node(node), goal.written, typed),
+          ),
         )
-      | None => wanted(box.editor)
+      | Some(Run(_) as run) =>
+        Picker.Goal.target(goal, run)
+        |> Option.map(~f=at =>
+             StepSearch.start_within(goal, at, ~wanted=typed)
+           )
+      | None => Some(StepSearch.start(goal, ~wanted=typed))
       };
-    let at = Option.map(~f=Exp.rep_id, part);
+    let same_part = (a, b) =>
+      switch (a, b) {
+      | (Some(a), Some(b)) => Occurrence.same(a, b)
+      | (None, None) => true
+      | (Some(_), None)
+      | (None, Some(_)) => false
+      };
     let rule =
       switch (typed_name(box.editor)) {
       | Some(name)
@@ -355,9 +367,7 @@ module Update = {
     {
       ...box,
       search:
-        rule == None
-          ? Option.map(~f=wanted => StepSearch.start(goal, ~wanted), wanted)
-          : None,
+        rule == None ? Option.bind(wanted(box.editor), ~f=start) : None,
       suggestions:
         switch (box.suggestions) {
         | _ when Model.is_empty(box) => None
@@ -365,10 +375,13 @@ module Update = {
          * the next step. */
         | _ when goal.settings.evaluation.write_out_steps => None
         | Some(suggestions)
-            when suggestions.rule == rule && suggestions.at == at && !new_goal =>
+            when
+              suggestions.rule == rule
+              && same_part(suggestions.at, part)
+              && !new_goal =>
           Some(suggestions)
         | Some(_)
-        | None => Some(StepSearch.Suggestions.start(~rule, ~at))
+        | None => Some(StepSearch.Suggestions.start(~rule, ~at=part))
         },
       chosen: None,
       generation: box.generation + 1,
@@ -458,7 +471,7 @@ module Update = {
       switch (Option.map(~f=listing(goal), local.box)) {
       | Some((items, Some(i))) =>
         switch (List.nth(items, i)) {
-        | Some(Use(use)) => Some(Exp.rep_id(use.part))
+        | Some(Use(use)) => Some(ends(Node(use.part)))
         | Some(Complete(_))
         | None => None
         }
@@ -473,7 +486,7 @@ module Update = {
           next_steps: offers ? Picker.Goal.step_ids(goal) : [],
           refls: offers ? List.map(~f=Exp.rep_id, goal.refls) : [],
           acts_on,
-          selected: Option.map(~f=Exp.rep_id, selected_part(goal)),
+          selected: Option.map(~f=ends, selected_part(goal)),
           previewing,
         },
         local.deco,
@@ -522,7 +535,7 @@ module Update = {
           ...local.goal,
           editor,
         };
-        let part = goal => Option.map(~f=Exp.rep_id, selected_part(goal));
+        let part = goal => Option.map(~f=ends, selected_part(goal));
         set({
           ...local,
           goal,
