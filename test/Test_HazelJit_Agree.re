@@ -421,15 +421,15 @@ let timings: ref(list(timing)) = ref([]);
    it after the tests, pass or fail (checks.yml) */
 let trail = (line: string): unit =>
   switch (
-    open_out_gen(
+    Stdlib.open_out_gen(
       [Open_append, Open_creat, Open_text],
       0o644,
       "hazel-jit-trail.txt",
     )
   ) {
   | oc =>
-    output_string(oc, line ++ "\n");
-    close_out(oc);
+    Stdlib.output_string(oc, line ++ "\n");
+    Stdlib.close_out(oc);
   | exception _ => ()
   };
 /* the quick tests run with -q; the full tests keep the sweep's check and skip its timing, which repeats each program's
@@ -727,6 +727,6 @@ let report = () =>
     |> List.iter(~f=((n, r)) => p("  mixed, fell back, %d: %s\n", n, r));
     each("MIXED DIFFERS", mixed_differs^);
     each("MIXED FAILED", mixed_failed^);
-    flush(stdout);
+    Stdlib.flush(Stdlib.stdout);
   };
 let () = at_exit(report);

@@ -685,7 +685,7 @@ let mixed_measured = (~parse=parse_exp, name, src) =>
       };
       at_exit(() => {
         print_string(line ++ parted);
-        flush(stdout);
+        Stdlib.flush(Stdlib.stdout);
       });
       check(
         bool,
