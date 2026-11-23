@@ -70,7 +70,7 @@ let indicator_select =
            // programmatic (arrow/keyboard) slide change
            Attr.string_property("value", selected),
            // Signal the selected slide index when the dropdown value changes
-           Attr.on_change((_, name) =>
+           Attr.on_change_js_of_ocaml((_, name) =>
              switch (
                List.find(~f=((_, n)) => String.equal(n, name), options)
              ) {

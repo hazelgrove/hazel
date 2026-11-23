@@ -199,7 +199,7 @@ module M: Projector = {
               Attr.id(Id.cls(info.id)),
               Attr.tabindex(0),
               Attr.classes(["offside"]),
-              Attr.on_double_click(_ => local(ToggleDisplay)),
+              Attr.on_double_click_js_of_ocaml(_ => local(ToggleDisplay)),
             ],
             switch (info.statics) {
             | None => [unavailable_view()]

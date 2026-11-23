@@ -1,0 +1,64 @@
+--- a/src/blocking_mutex.h
++++ b/src/blocking_mutex.h
+@@ -11,7 +11,12 @@
+ #include <pthread.h>
+ 
+ #ifdef __APPLE__
++/* OCaml's caml/misc.h (under CAML_INTERNALS) defines a [fallthrough] macro that
++   breaks the [__has_attribute(fallthrough)] checks in the macOS SDK headers. */
++#pragma push_macro("fallthrough")
++#undef fallthrough
+ #include <dispatch/dispatch.h>
++#pragma pop_macro("fallthrough")
+ #define platform_sem_t dispatch_semaphore_t
+ #else
+ #include <semaphore.h>
+--- a/src/stdlib_shim.ml
++++ b/src/stdlib_shim.ml
+@@ -195,7 +195,32 @@
+ 
+   type 'a t = (module S with type a = 'a)
+ 
+-  let make (type a) () : a t =
++  (* js_of_ocaml and wasm_of_ocaml only support effect handlers when every
++     library is compiled with --effects=cps or double-translation, which costs
++     code size and speed (and double translation defeats some tail calls).
++     Their programs have one domain and, without effects, no fibers, so a
++     plain stack of bindings has the same meaning there. *)
++  let make_without_effects (type a) () : a t =
++    (module struct
++      type nonrec a = a
++
++      let stack : a list ref = ref []
++
++      let get () =
++        match !stack with
++        | a :: _ -> Or_null_shim.this a
++        | [] -> Or_null_shim.null
++      ;;
++
++      let with_temporarily (a : a) ~f =
++        let saved = !stack in
++        stack := a :: saved;
++        Fun.protect ~finally:(fun () -> stack := saved) f
++      ;;
++    end)
++  ;;
++
++  let make_with_effects (type a) () : a t =
+     (module struct
+       type nonrec a = a
+       type _ Effect.t += Get : a Effect.t
+@@ -222,6 +247,12 @@
+     end)
+   ;;
+ 
++  let make (type a) () : a t =
++    match Sys.backend_type with
++    | Native | Bytecode -> make_with_effects ()
++    | Other _ -> make_without_effects ()
++  ;;
++
+   let get (type a) (t : a t) =
+     let module T = (val t) in
+     T.get ()

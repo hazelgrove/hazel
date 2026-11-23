@@ -267,7 +267,7 @@ let legend_view = (~globals as _: Globals.t, ~explain_this_inject) => {
           div(
             ~attrs=[
               clss(["segment"] @ (color_scheme == mode ? ["active"] : [])),
-              Attr.on_pointerdown(_ => {
+              Attr.on_pointerdown_js_of_ocaml(_ => {
                 let target = color_scheme == mode ? next_mode : mode;
                 ProbeProj.Settings.go(SetSampleBase(target));
                 explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
@@ -320,7 +320,7 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
           div(
             ~attrs=[
               clss(["segment"] @ (active ? ["active"] : [])),
-              Attr.on_pointerdown(_ => {
+              Attr.on_pointerdown_js_of_ocaml(_ => {
                 ProbeProj.Settings.go(ToggleAutoRichDefault);
                 /* piggyback an app action so the toggle repaints (the
                    settings ref alone doesn't re-render) */
@@ -488,7 +488,7 @@ let mode_title = (~explain_this_inject) => {
       span(
         ~attrs=
           [clss(["mode-label"] @ (is_probes ? ["active"] : ["inactive"]))]
-          @ (is_probes ? [] : [Attr.on_pointerdown(switch_mode)]),
+          @ (is_probes ? [] : [Attr.on_pointerdown_js_of_ocaml(switch_mode)]),
         [text("Probearium")],
       ),
       span(
@@ -498,7 +498,7 @@ let mode_title = (~explain_this_inject) => {
       span(
         ~attrs=
           [clss(["mode-label"] @ (is_probes ? ["inactive"] : ["active"]))]
-          @ (is_probes ? [Attr.on_pointerdown(switch_mode)] : []),
+          @ (is_probes ? [Attr.on_pointerdown_js_of_ocaml(switch_mode)] : []),
         [text("Printarium")],
       ),
     ],
@@ -511,7 +511,7 @@ let run_button = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     ~attrs=[
       clss(["run-button"]),
       Attr.title("Run and refresh print output"),
-      Attr.on_click(_ => {
+      Attr.on_click_js_of_ocaml(_ => {
         let entries = collect_print_entries(editor.dynamics, measured);
         cached_print_entries := List.is_empty(entries) ? None : Some(entries);
         explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));

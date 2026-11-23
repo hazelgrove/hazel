@@ -162,7 +162,7 @@ let view =
                   Attr.placeholder("Enter your OpenRouter API key"),
                   Attr.type_("password"),
                   Attr.property("autocomplete", Js.Unsafe.inject("off")),
-                  Attr.on_focus(_ => {
+                  Attr.on_focus_js_of_ocaml(_ => {
                     Effect.Many([
                       signal(
                         Editors.View.MakeActive(Editors.Selection.Assistant),
@@ -170,10 +170,10 @@ let view =
                       Effect.Stop_propagation,
                     ])
                   }),
-                  Attr.on_keydown(handle_api_key_keydown),
-                  Attr.on_copy(_ => Effect.Stop_propagation),
-                  Attr.on_paste(_ => Effect.Stop_propagation),
-                  Attr.on_cut(_ => Effect.Stop_propagation),
+                  Attr.on_keydown_js_of_ocaml(handle_api_key_keydown),
+                  Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
+                  Attr.on_paste_js_of_ocaml(_ => Effect.Stop_propagation),
+                  Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
                   Attr.create(
                     "value",
                     switch (agent_globals.api_key) {
@@ -187,7 +187,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["named-menu-item"]),
-                  Attr.on_click(submit_api_key),
+                  Attr.on_click_js_of_ocaml(submit_api_key),
                   Attr.create("data-testid", "update-api-key-btn"),
                 ],
                 [button(None, _ => Effect.Ignore), div([text("Enter")])],
@@ -275,7 +275,7 @@ let view =
               div(
                 ~attrs=[
                   clss(classes),
-                  Attr.on_click(_ => set_active_llm(llm)),
+                  Attr.on_click_js_of_ocaml(_ => set_active_llm(llm)),
                 ],
                 children,
               );
@@ -383,7 +383,7 @@ let view =
                             Js.Unsafe.inject("off"),
                           ),
                           Attr.value(agent_globals.model_filter),
-                          Attr.on_focus(_ =>
+                          Attr.on_focus_js_of_ocaml(_ =>
                             Effect.Many([
                               signal(
                                 Editors.View.MakeActive(
@@ -393,10 +393,18 @@ let view =
                               Effect.Stop_propagation,
                             ])
                           ),
-                          Attr.on_input((_, v) => set_model_filter(v)),
-                          Attr.on_copy(_ => Effect.Stop_propagation),
-                          Attr.on_paste(_ => Effect.Stop_propagation),
-                          Attr.on_cut(_ => Effect.Stop_propagation),
+                          Attr.on_input_js_of_ocaml((_, v) =>
+                            set_model_filter(v)
+                          ),
+                          Attr.on_copy_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
+                          Attr.on_paste_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
+                          Attr.on_cut_js_of_ocaml(_ =>
+                            Effect.Stop_propagation
+                          ),
                         ],
                         (),
                       ),
@@ -488,7 +496,7 @@ let view =
           div(
             ~attrs=[
               clss(["confirm-settings-button"]),
-              Attr.on_click(switch_to_chat),
+              Attr.on_click_js_of_ocaml(switch_to_chat),
             ],
             [text("Confirm Settings")],
           ),

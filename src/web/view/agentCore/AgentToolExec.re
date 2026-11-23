@@ -9,12 +9,12 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
   Js_of_ocaml.(
     switch (Js_error.of_exn(exn)) {
     | Some(e) =>
-      Firebug.console##error_2(
+      Console.console##error_2(
         Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
         Js.string(Option.value(~default="", Js_error.stack(e))),
       )
     | None =>
-      Firebug.console##error(
+      Console.console##error(
         Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
       )
     }

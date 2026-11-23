@@ -10,6 +10,7 @@
   (backend bisect_ppx))
  (preprocess
   (pps
+   ppx_fuse_fun
    ppx_yojson_conv
    ppx_sexp_conv
    ppx_enumerate

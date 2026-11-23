@@ -671,7 +671,7 @@ module View = {
                 Node.div(
                   ~attrs=[
                     Attr.classes(["context-menu-backdrop"]),
-                    Attr.on_wheel(_ =>
+                    Attr.on_wheel_js_of_ocaml(_ =>
                       inject(ContextMenu(ContextMenu.Model.Close))
                     ),
                   ],
@@ -960,6 +960,7 @@ module View = {
                   pixel_loc,
                 );
               Bonsai.Effect.Expert.handle(
+                ~on_exn=raise,
                 inject(
                   Perform(Select(Resize(Point(goal, chunk_override)))),
                 ),
@@ -1124,20 +1125,20 @@ module View = {
            (see JsUtil.active_cell_id / FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
-        Attr.on_contextmenu(evt =>
+        Attr.on_contextmenu_js_of_ocaml(evt =>
           switch (Pointer.Event.mk(evt)) {
           | {button: Right, ctrl: Up, _} =>
             Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
           | _ => Effect.Ignore
           }
         ),
-        Attr.on_pointerdown(evt =>
+        Attr.on_pointerdown_js_of_ocaml(evt =>
           move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_pointerup(evt =>
+        Attr.on_pointerup_js_of_ocaml(evt =>
           toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
         ),
-        Attr.on_mousemove(evt =>
+        Attr.on_mousemove_js_of_ocaml(evt =>
           drag_select_or_hover(Pointer.Event.mk(evt))
         ),
       ],

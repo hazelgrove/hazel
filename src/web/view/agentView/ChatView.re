@@ -138,7 +138,9 @@ let view =
                               ["chat-view-button"]
                               @ (is_chat_view_active ? ["active"] : []),
                             ),
-                            Attr.on_click(switch_to_chat_messages),
+                            Attr.on_click_js_of_ocaml(
+                              switch_to_chat_messages,
+                            ),
                           ],
                           [text("Chat")],
                         ),
@@ -148,7 +150,7 @@ let view =
                               ["chat-view-button"]
                               @ (is_workbench_active ? ["active"] : []),
                             ),
-                            Attr.on_click(switch_to_workbench),
+                            Attr.on_click_js_of_ocaml(switch_to_workbench),
                           ],
                           [text("Workbench")],
                         ),
@@ -167,7 +169,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["chat-view-header-icon-button"]),
-                  Attr.on_click(new_chat),
+                  Attr.on_click_js_of_ocaml(new_chat),
                   Attr.title("New Chat"),
                 ],
                 [add],
@@ -181,7 +183,7 @@ let view =
                         ? ["active"] : []
                     ),
                   ),
-                  Attr.on_click(_ =>
+                  Attr.on_click_js_of_ocaml(_ =>
                     toggle_history(
                       switch (chat_system.ui.active_screen) {
                       | ChatSystem.Model.History => ChatSystem.Model.Chat
@@ -196,7 +198,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["chat-view-header-button"]),
-                  Attr.on_click(switch_to_settings),
+                  Attr.on_click_js_of_ocaml(switch_to_settings),
                 ],
                 [text("Settings")],
               ),
@@ -286,7 +288,7 @@ let view =
                 div(
                   ~attrs=[
                     clss(["history-exit-button"]),
-                    Attr.on_click(switch_to_chat),
+                    Attr.on_click_js_of_ocaml(switch_to_chat),
                   ],
                   [text("Return to Chat")],
                 ),
@@ -323,7 +325,7 @@ let view =
                     div(
                       ~attrs=[
                         clss(classes),
-                        Attr.on_click(switch_to_this_chat),
+                        Attr.on_click_js_of_ocaml(switch_to_this_chat),
                       ],
                       [
                         div(

@@ -4,6 +4,30 @@
 (rule
  (copy ../worker.bc.js worker.js))
 
+; The wasm_of_ocaml build of the evaluator worker, which the page uses when
+; its URL has `?wasm` (WorkerClient.name). Opt-in, since it needs Binaryen:
+;   dune build @src/web/www/wasm-worker --profile release
+; then serve _build/default/src/web/www as usual.
+
+(rule
+ (enabled_if %{bin-available:wasm_of_ocaml})
+ (action
+  (copy ../worker.bc.wasm.js worker.bc.wasm.js)))
+
+(rule
+ (enabled_if %{bin-available:wasm_of_ocaml})
+ (targets
+  (dir worker.bc.wasm.assets))
+ (deps ../worker.bc.wasm.js)
+ (action
+  (bash
+   "mkdir worker.bc.wasm.assets && cp ../worker.bc.wasm.assets/*.wasm worker.bc.wasm.assets/")))
+
+(alias
+ (name wasm-worker)
+ (enabled_if %{bin-available:wasm_of_ocaml})
+ (deps worker.bc.wasm.js worker.bc.wasm.assets))
+
 (rule
  (targets bundled.js)
  (deps prebundle.js)

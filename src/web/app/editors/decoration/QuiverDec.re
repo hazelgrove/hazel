@@ -169,7 +169,7 @@ let delimiter_nodes =
        let apply_attrs =
          switch (on_apply, d.of_shard) {
          | (Some(f), Some((tid, _))) => [
-             Attr.on_pointerdown(evt =>
+             Attr.on_pointerdown_js_of_ocaml(evt =>
                Js_of_ocaml.Js.to_bool(evt##.metaKey)
                || Js_of_ocaml.Js.to_bool(evt##.ctrlKey)
                  ? Effect.Many([

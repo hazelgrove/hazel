@@ -674,7 +674,7 @@ module View = {
         [
           select(
             ~attrs=[
-              Attr.on_change(_ =>
+              Attr.on_change_js_of_ocaml(_ =>
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))

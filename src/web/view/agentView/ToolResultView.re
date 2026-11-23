@@ -189,7 +189,7 @@ let view =
       div(
         ~attrs=[
           clss(["tool-call-header", tool_result.expanded ? "expanded" : ""]),
-          Attr.on_click(on_header_click),
+          Attr.on_click_js_of_ocaml(on_header_click),
         ],
         [
           category_node,

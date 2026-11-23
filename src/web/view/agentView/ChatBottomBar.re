@@ -404,7 +404,7 @@ let view =
     div(
       ~attrs=[
         clss(["change-model-button"]),
-        Attr.on_click(switch_to_main_menu),
+        Attr.on_click_js_of_ocaml(switch_to_main_menu),
         Attr.title("Choose a different model"),
       ],
       [text("change model")],
@@ -508,7 +508,7 @@ let view =
         div(
           ~attrs=[
             clss(["reasoning-effort-menu-item"] @ selected),
-            Attr.on_mousedown(set_effort(e)),
+            Attr.on_mousedown_js_of_ocaml(set_effort(e)),
           ],
           [text(label)],
         );
@@ -558,7 +558,7 @@ let view =
     div(
       ~attrs=[
         clss(["top-bar-collapse-toggle"]),
-        Attr.on_click(toggle_top_bar),
+        Attr.on_click_js_of_ocaml(toggle_top_bar),
         Attr.title(
           top_bar_collapsed
             ? "Show context meter and chat tools"
@@ -587,7 +587,7 @@ let view =
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),
-                        Attr.on_click(switch_to_prompt),
+                        Attr.on_click_js_of_ocaml(switch_to_prompt),
                         Attr.title("View System Prompt"),
                       ],
                       [Icons.prompt],
@@ -599,7 +599,7 @@ let view =
                   div(
                     ~attrs=[
                       clss(["chat-action-button", "icon"]),
-                      Attr.on_click(switch_to_tools),
+                      Attr.on_click_js_of_ocaml(switch_to_tools),
                       Attr.title("Configure Agent Tools"),
                     ],
                     [Icons.wrench],
@@ -609,7 +609,7 @@ let view =
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),
-                        Attr.on_click(switch_to_context_view),
+                        Attr.on_click_js_of_ocaml(switch_to_context_view),
                         Attr.title("View Agent Context"),
                       ],
                       [Icons.agent_view],
@@ -627,7 +627,7 @@ let view =
                   div(
                     ~attrs=[
                       clss(["chat-action-button", "icon"]),
-                      Attr.on_click(export_chat),
+                      Attr.on_click_js_of_ocaml(export_chat),
                       Attr.title("Export Messages (JSON)"),
                     ],
                     [Icons.export],
@@ -635,7 +635,7 @@ let view =
                   div(
                     ~attrs=[
                       clss(["chat-action-button", "icon"]),
-                      Attr.on_click(copy_chat),
+                      Attr.on_click_js_of_ocaml(copy_chat),
                       Attr.title("Copy Chat (Human-readable)"),
                     ],
                     [Icons.copy],
@@ -712,7 +712,7 @@ let view =
                 span(
                   ~attrs=[
                     clss(["session-mode-toggle", mode_class]),
-                    Attr.on_click(cycle),
+                    Attr.on_click_js_of_ocaml(cycle),
                     Attr.title(
                       "Click to cycle session mode (edit → converse → plan)",
                     ),
@@ -749,7 +749,7 @@ let view =
                           ["chat-slash-menu-item"]
                           @ (sm.selected_index == i ? ["selected"] : []),
                         ),
-                        Attr.on_mousedown(_ =>
+                        Attr.on_mousedown_js_of_ocaml(_ =>
                           Effect.Many([
                             effect_run_slash_command(name),
                             Effect.Prevent_default,
@@ -783,7 +783,7 @@ let view =
                       : "Type your message...",
               ),
               Attr.property("autocomplete", Js.Unsafe.inject("off")),
-              Attr.on_focus(_ => {
+              Attr.on_focus_js_of_ocaml(_ => {
                 Js.Opt.iter(
                   Dom_html.document##getElementById(
                     Js.string("chat-message-input"),
@@ -803,14 +803,14 @@ let view =
                   Effect.Stop_propagation,
                 ]);
               }),
-              Attr.on_blur(_ => {
+              Attr.on_blur_js_of_ocaml(_ => {
                 JsUtil.delay(0.0, () =>
                   autosize_textarea("chat-message-input")
                 );
                 Effect.Stop_propagation;
               }),
-              Attr.on_input(handle_textarea_input),
-              Attr.on_keydown(event => {
+              Attr.on_input_js_of_ocaml(handle_textarea_input),
+              Attr.on_keydown_js_of_ocaml(event => {
                 let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
                 let shift_pressed = Key.shift_held(event);
                 switch (key) {
@@ -916,14 +916,14 @@ let view =
                 | _ => Effect.Stop_propagation
                 };
               }),
-              Attr.on_copy(_ => Effect.Stop_propagation),
-              Attr.on_paste(_ => {
+              Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
+              Attr.on_paste_js_of_ocaml(_ => {
                 JsUtil.delay(0.0, () =>
                   autosize_textarea("chat-message-input")
                 );
                 Effect.Stop_propagation;
               }),
-              Attr.on_cut(_ => Effect.Stop_propagation),
+              Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
               Attr.string_property("value", current_text),
             ],
             [text(current_text)],
@@ -939,7 +939,7 @@ let view =
                       "icon",
                       "chat-message-queue-send-button",
                     ]),
-                    Attr.on_click(send_message),
+                    Attr.on_click_js_of_ocaml(send_message),
                     Attr.title("Add to queue (same as Enter)"),
                   ],
                   [Icons.send],
@@ -952,7 +952,7 @@ let view =
                 div(
                   ~attrs=[
                     clss(["send-button", "icon", "chat-message-stop-button"]),
-                    Attr.on_click(stop_agent),
+                    Attr.on_click_js_of_ocaml(stop_agent),
                     Attr.title(
                       "Stop — ignore the in-flight response (click only; no keyboard shortcut)",
                     ),
@@ -963,7 +963,7 @@ let view =
                 div(
                   ~attrs=[
                     clss(["send-button", "icon", "chat-message-send-button"]),
-                    Attr.on_click(send_message),
+                    Attr.on_click_js_of_ocaml(send_message),
                     Attr.title("Send Message"),
                   ],
                   [Icons.send],

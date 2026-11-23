@@ -124,7 +124,9 @@ module TestValidationReport = {
                               Attr.id("point-max-input"),
                               Attr.create("min", "0"),
                               Attr.value(string_of_int(max_points)),
-                              Attr.on_focus(_ => signal_textbox_active),
+                              Attr.on_focus_js_of_ocaml(_ =>
+                                signal_textbox_active
+                              ),
                             ],
                             (),
                           ),
@@ -141,7 +143,9 @@ module TestValidationReport = {
                               Attr.id("test-required-input"),
                               Attr.create("min", "0"),
                               Attr.value(string_of_int(max_tests)),
-                              Attr.on_focus(_ => signal_textbox_active),
+                              Attr.on_focus_js_of_ocaml(_ =>
+                                signal_textbox_active
+                              ),
                             ],
                             (),
                           ),
@@ -353,7 +357,7 @@ module MutationTestingReport = {
                       Attr.id("point-max-input"),
                       Attr.value(string_of_int(max_points)),
                       Attr.create("min", "0"),
-                      Attr.on_focus(_ => select_textbox),
+                      Attr.on_focus_js_of_ocaml(_ => select_textbox),
                     ],
                     (),
                   ),
@@ -517,7 +521,7 @@ module MutationTestingReport = {
               Attr.id("hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
               Attr.create("min", "0"),
-              Attr.on_focus(_ => select_textbox),
+              Attr.on_focus_js_of_ocaml(_ => select_textbox),
             ],
             (),
           ),
@@ -676,7 +680,7 @@ module SyntaxReport = {
               Attr.id("syntax-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
               Attr.create("min", "0"),
-              Attr.on_focus(_ => select_textbox),
+              Attr.on_focus_js_of_ocaml(_ => select_textbox),
             ],
             (),
           ),
@@ -940,7 +944,7 @@ module ImplGradingReport = {
       div(
         ~attrs=[
           Attr.classes(["test-report"]),
-          Attr.on_click(_ => signal_jump(id)),
+          Attr.on_click_js_of_ocaml(_ => signal_jump(id)),
         ],
         [
           div(
@@ -962,7 +966,7 @@ module ImplGradingReport = {
               Attr.id("impl-hint-input-" ++ string_of_int(i)),
               Attr.value(hint),
               Attr.create("min", "0"),
-              Attr.on_focus(_ => select_textbox),
+              Attr.on_focus_js_of_ocaml(_ => select_textbox),
             ],
             (),
           ),
@@ -972,7 +976,7 @@ module ImplGradingReport = {
       div(
         ~attrs=[
           Attr.classes(["test-report"]),
-          Attr.on_click(_ => signal_jump(id)),
+          Attr.on_click_js_of_ocaml(_ => signal_jump(id)),
         ],
         [
           div(
@@ -1093,7 +1097,9 @@ module ImplGradingReport = {
                                     Attr.id("point-max-input"),
                                     Attr.value(string_of_int(max_points)),
                                     Attr.create("min", "0"),
-                                    Attr.on_focus(_ => select_textbox),
+                                    Attr.on_focus_js_of_ocaml(_ =>
+                                      select_textbox
+                                    ),
                                   ],
                                   (),
                                 ),

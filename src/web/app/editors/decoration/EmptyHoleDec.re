@@ -9,7 +9,9 @@ let path_of_mold = (shape: Grout.shape): list(SvgUtil.Path.cmd) =>
   };
 
 let view =
-  Core.Memo.general((font_metrics: FontMetrics.t, shape: Grout.shape) =>
+  Core.Memo.general(
+    ~hashable=Core.Hashtbl.Hashable.poly,
+    (font_metrics: FontMetrics.t, shape: Grout.shape) =>
     Node.create_svg(
       "svg",
       ~attrs=[

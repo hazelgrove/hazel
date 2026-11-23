@@ -7,7 +7,7 @@ open Util.WebUtil;
    descriptions */
 
 /* clicks act without taking focus from the editor */
-let keep_focus = Attr.on_mousedown(_ => Effect.Prevent_default);
+let keep_focus = Attr.on_mousedown_js_of_ocaml(_ => Effect.Prevent_default);
 
 let colors_and_keys =
     (~editors_inject: Editors.Update.t => Effect.t(unit)): NutMenu.section => {
@@ -78,7 +78,7 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
         Attr.create("role", "switch"),
         Attr.create("aria-checked", string_of_bool(active)),
         keep_focus,
-        Attr.on_click(_ => globals.inject_global(Set(setting))),
+        Attr.on_click_js_of_ocaml(_ => globals.inject_global(Set(setting))),
       ],
       [
         span(~attrs=[clss(["settings-name"])], [Node.text(name)]),
@@ -110,7 +110,7 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
                     Attr.create("aria-pressed", string_of_bool(c.c_active)),
                     Attr.title(c.c_tooltip),
                     keep_focus,
-                    Attr.on_click(_ => c.c_set),
+                    Attr.on_click_js_of_ocaml(_ => c.c_set),
                   ],
                   [Node.text(c.c_label)],
                 ),
@@ -129,7 +129,7 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
             Attr.create("type", "button"),
             clss(["settings-button"]),
             keep_focus,
-            Attr.on_click(_ => effect),
+            Attr.on_click_js_of_ocaml(_ => effect),
           ],
           [Node.text(label)],
         ),
@@ -162,7 +162,7 @@ let section_view =
                 clss(["settings-section-header"]),
                 Attr.create("aria-expanded", string_of_bool(!folded)),
                 keep_focus,
-                Attr.on_click(_ =>
+                Attr.on_click_js_of_ocaml(_ =>
                   filtering
                     ? Effect.Ignore
                     : globals.inject_global(
@@ -210,7 +210,7 @@ let view =
       Attr.id("settings-panel"),
       /* the page pulls bubbled focus to its clipboard shim; keep it on
          the filter and the panel's buttons */
-      Attr.on_focus(_ => Effect.Stop_propagation),
+      Attr.on_focus_js_of_ocaml(_ => Effect.Stop_propagation),
     ],
     [
       div(
@@ -227,14 +227,14 @@ let view =
                 Js_of_ocaml.Js.Unsafe.inject("off"),
               ),
               Attr.value(globals.settings_filter),
-              Attr.on_input((_, v) =>
+              Attr.on_input_js_of_ocaml((_, v) =>
                 globals.inject_global(SetSettingsFilter(v))
               ),
               /* its own keys (undo, copy, paste) stay in the field */
-              Attr.on_keydown(_ => Effect.Stop_propagation),
-              Attr.on_copy(_ => Effect.Stop_propagation),
-              Attr.on_paste(_ => Effect.Stop_propagation),
-              Attr.on_cut(_ => Effect.Stop_propagation),
+              Attr.on_keydown_js_of_ocaml(_ => Effect.Stop_propagation),
+              Attr.on_copy_js_of_ocaml(_ => Effect.Stop_propagation),
+              Attr.on_paste_js_of_ocaml(_ => Effect.Stop_propagation),
+              Attr.on_cut_js_of_ocaml(_ => Effect.Stop_propagation),
             ],
             (),
           ),

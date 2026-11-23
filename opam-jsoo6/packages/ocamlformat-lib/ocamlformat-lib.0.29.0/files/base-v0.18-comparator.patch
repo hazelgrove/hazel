@@ -1,0 +1,11 @@
+--- a/lib/Non_overlapping_interval_tree.ml
++++ b/lib/Non_overlapping_interval_tree.ml
+@@ -102,7 +102,7 @@
+         (list roots cut_break (fun root ->
+              let children = children tree root in
+              vbox 1
+-               ( str (Sexp.to_string_hum (Itv.comparator.sexp_of_t root))
++               ( str (Sexp.to_string_hum (Comparator.sexp_of_t Itv.comparator root))
+                $ wrap_if
+                    (not (List.is_empty children))
+                    (cut_break $ str "{")

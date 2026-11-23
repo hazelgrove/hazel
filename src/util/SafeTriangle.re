@@ -386,18 +386,18 @@ let deactivate = (): unit => {
 
 /* Extract point from mouse event */
 let point_of_mouse_event = (evt: Js.t(Dom_html.mouseEvent)): point => {
-  x: float_of_int(evt##.clientX),
-  y: float_of_int(evt##.clientY),
+  x: float_of_int(int_of_float(Js.to_float(evt##.clientX))),
+  y: float_of_int(int_of_float(Js.to_float(evt##.clientY))),
 };
 
 /* Extract rect from DOM element */
 let rect_of_element = (elem: Js.t(Dom_html.element)): rect => {
   let r = elem##getBoundingClientRect;
   {
-    top: r##.top,
-    left: r##.left,
-    bottom: r##.bottom,
-    right: r##.right,
+    top: Js.to_float(r##.top),
+    left: Js.to_float(r##.left),
+    bottom: Js.to_float(r##.bottom),
+    right: Js.to_float(r##.right),
   };
 };
 
@@ -520,7 +520,7 @@ module Handlers = {
               state.on_hide();
             }
           ),
-          2000.0 /* 2 second timeout as fallback */
+          Js.float(2000.0 /* 2 second timeout as fallback */),
         ),
       );
   };
@@ -543,7 +543,7 @@ module Handlers = {
       };
     };
     [
-      Attr.on_mouseenter(_ => {
+      Attr.on_mouseenter_js_of_ocaml(_ => {
         state.is_over_trigger = true;
         clear_timeout(state);
         clear_show_timeout(state);
@@ -558,13 +558,13 @@ module Handlers = {
                     do_show();
                   }
                 ),
-                state.show_delay,
+                Js.float(state.show_delay),
               ),
             );
         };
         Effect.Ignore;
       }),
-      Attr.on_mouseleave(evt => {
+      Attr.on_mouseleave_js_of_ocaml(evt => {
         state.is_over_trigger = false;
         clear_show_timeout(state);
         let exit_point = point_of_mouse_event(evt);
@@ -586,7 +586,7 @@ module Handlers = {
                     state.on_hide();
                   }
                 ),
-                100.0,
+                Js.float(100.0),
               ),
             )
         };
@@ -600,13 +600,13 @@ module Handlers = {
   let menu_attrs =
       (state: instance_state, ~menu_elem_id: string): list(Attr.t) => [
     Attr.id(menu_elem_id),
-    Attr.on_mouseenter(_ => {
+    Attr.on_mouseenter_js_of_ocaml(_ => {
       state.is_over_menu = true;
       clear_timeout(state);
       deactivate(); /* No longer need triangle tracking */
       Effect.Ignore;
     }),
-    Attr.on_mouseleave(_ => {
+    Attr.on_mouseleave_js_of_ocaml(_ => {
       state.is_over_menu = false;
       if (!state.is_over_trigger) {
         state.on_hide();

@@ -24,16 +24,16 @@ let perform = (action: action): unit => {
   Js_of_ocaml.Dom_html.window##.location##reload;
 };
 
-let btn = (caption, action) => {
+let btn = (btn_caption, action) => {
   Node.(
     button(
       ~attrs=[
-        Attr.on_click(_ => {
+        Attr.on_click_js_of_ocaml(_ => {
           perform(action);
           Ui_effect.Ignore;
         }),
       ],
-      [text(caption)],
+      [text(btn_caption)],
     )
   );
 };
@@ -49,6 +49,6 @@ let view = {
 
 let go = () =>
   Bonsai_web.Start.start(
-    Bonsai.Computation.return(view),
+    Bonsai_web_proc.Bonsai.const(view),
     ~bind_to_element_with_id="container",
   );

@@ -58,7 +58,9 @@ module M: Projector = {
         ~attrs=
           [
             Attr.create("type", "checkbox"),
-            Attr.on_input((_, _) => parent(SetSyntax(toggle(info)))),
+            Attr.on_input_js_of_ocaml((_, _) =>
+              parent(SetSyntax(toggle(info)))
+            ),
           ]
           @ (info |> get ? [Attr.checked] : []),
         (),

@@ -151,7 +151,7 @@ let view =
     div(
       ~attrs=[
         clss(item_classes),
-        Attr.on_click(_ => expand_subtask(subtask.title)),
+        Attr.on_click_js_of_ocaml(_ => expand_subtask(subtask.title)),
       ],
       [
         div(
@@ -386,7 +386,7 @@ let view =
           div(
             ~attrs=[
               clss(["wb-archive-backdrop"]),
-              Attr.on_click(toggle_archive),
+              Attr.on_click_js_of_ocaml(toggle_archive),
             ],
             [],
           ),
@@ -400,7 +400,7 @@ let view =
                   div(
                     ~attrs=[
                       clss(["wb-archive-close", "icon"]),
-                      Attr.on_click(toggle_archive),
+                      Attr.on_click_js_of_ocaml(toggle_archive),
                     ],
                     [Icons.cancel],
                   ),
@@ -445,7 +445,7 @@ let view =
                             @ (is_displayed ? ["selected"] : [])
                             @ (is_active ? ["active"] : []),
                           ),
-                          Attr.on_click(switch_to_task),
+                          Attr.on_click_js_of_ocaml(switch_to_task),
                         ],
                         [
                           div(
@@ -502,7 +502,7 @@ let view =
           div(
             ~attrs=[
               clss(["wb-toolbar-btn", "icon"]),
-              Attr.on_click(toggle_archive),
+              Attr.on_click_js_of_ocaml(toggle_archive),
               Attr.title("Task Archive"),
             ],
             [Icons.library],
@@ -514,7 +514,7 @@ let view =
               div(
                 ~attrs=[
                   clss(["wb-active-task-pill"]),
-                  Attr.on_click(set_active_as_displayed),
+                  Attr.on_click_js_of_ocaml(set_active_as_displayed),
                   Attr.title("Jump to active task"),
                 ],
                 [
