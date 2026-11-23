@@ -77,6 +77,12 @@ let term_of = (text: string): option(Exp.t) =>
   | Some(seg) => Some(MakeTerm.go(seg).term)
   };
 
+/* (^report(54)) a program's type, as the statics give it: what its value is read back at, so a compiled function in it
+   has its parameter's and its result's types for the converters */
+let program_type = (map: Statics.Map.t, term: Exp.t): option(Typ.t) =>
+  Statics.Map.lookup_exp(Exp.rep_id(term), map)
+  |> Option.map(~f=Info.exp_ty);
+
 let analyze_term = (term: Exp.t): (list(string), Exp.t) => {
   let (map, elab) = Statics.mk(CoreSettings.on, ctx(), term);
   (ErrorPrint.all(map), elab);
@@ -480,6 +486,8 @@ type program_analysis = {
   incomplete: list((string, int)),
   program_incomplete: int,
   elab: Exp.t,
+  /* the program's type, from the statics */
+  ty: option(Typ.t),
 };
 
 /* The parts the last program was read from, so a page that calls again
@@ -504,6 +512,7 @@ let analyze_program_spec = (spec: program_spec): program_analysis => {
     incomplete,
     program_incomplete,
     elab,
+    ty: program_type(map, program.term),
   };
 };
 
@@ -1071,7 +1080,7 @@ let rec of_jit =
         : Js.Unsafe.any =>
   if (String.equal(HazelJitValue.typeof(v), "function")
       && HazelJitValue.has(v, "$k")) {
-    jit_function(ts, v);
+    jit_function(~ty?, ts, v);
   } else if (HazelJitValue.is_array(v) && holds_function(v)) {
     jit_tuple(ts, ty, v);
   } else {
@@ -1134,15 +1143,35 @@ and jit_tuple =
     : js_array(values);
 }
 /* a function the compiled code made, as a JS function that runs it */
-and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any => {
+and jit_function =
+    (~ty: option(Typ.t)=?, ts: HazelJitValue.types, f: Js.Unsafe.any)
+    : Js.Unsafe.any => {
   let k: int =
     int_of_float(
       Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(f, "$k"))),
     );
   let term =
     Option.map(Stdlib.Hashtbl.find_opt(ts.HazelJitValue.funs, k), ~f=fst);
-  let param = Option.bind(term, ~f=param_type);
-  let result = Option.bind(term, ~f=result_type);
+  /* (^report(54)) the types it is read at, an arrow (seen through aliases), else its own term's: dev's elaborated Fun
+     keeps only its parameter's type, and a recursive function's declared type is its binding's, not its term's */
+  let declared =
+    switch (
+      Option.bind(ty, ~f=HazelJitValue.shape(ts, 0))
+      |> Option.map(~f=(t: Typ.t) => Typ.term_of(t))
+    ) {
+    | Some(Arrow(a, b)) => Some((a, b))
+    | _ => None
+    };
+  let param =
+    switch (declared) {
+    | Some((a, _)) => Some(a)
+    | None => Option.bind(term, ~f=param_type)
+    };
+  let result =
+    switch (declared) {
+    | Some((_, b)) => Some(b)
+    | None => Option.bind(term, ~f=result_type)
+    };
   /* the old way: through Hazel's values, and to the interpreter if the compiled code stops */
   let slow =
     Js.Unsafe.callback_with_arguments(args => {
@@ -1155,14 +1184,18 @@ and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any =>
         )
       ) {
       | v => v
-      | exception _ =>
-        to_js(
-          evaluate(
-            Exp.fresh(
-              Ap(Operators.Forward, HazelJitValue.of_js(ts, None, f), arg),
-            ),
-          ),
-        )
+      | exception stopped =>
+        switch (HazelJitValue.of_js(ts, None, f)) {
+        | g => to_js(evaluate(Exp.fresh(Ap(Operators.Forward, g, arg))))
+        | exception not_made =>
+          failwith(
+            "hazel-jit: the compiled call stopped ("
+            ++ HazelJitValue.message(stopped)
+            ++ "), and the interpreter could not be given its function ("
+            ++ HazelJitValue.message(not_made)
+            ++ ")",
+          )
+        }
       };
     });
   /* (^report(54)) the converters by type, where the types say enough; the old way for any call they cannot take */
@@ -1192,7 +1225,11 @@ let compiled_fields =
 
 /* the value of a program compiled, or the interpreter's with why not */
 let jit_value =
-    (elab: Exp.t, c: result(HazelJit.compiled, string))
+    (
+      ~ty: option(Typ.t)=?,
+      elab: Exp.t,
+      c: result(HazelJit.compiled, string),
+    )
     : list((string, Js.Unsafe.any)) => {
   let interpreted = why => [
     ("compiled", Js.Unsafe.inject(Js.bool(false))),
@@ -1205,7 +1242,7 @@ let jit_value =
     switch (
       of_jit(
         HazelJitValue.types_of(c),
-        None,
+        ty,
         HazelJitValue.instantiate(c.HazelJit.src),
       )
     ) {
@@ -1253,10 +1290,10 @@ let jit = (text: string): Js.Unsafe.any => {
   switch (term_of(text)) {
   | None => not_parsed(~value=true, t0)
   | Some(term) =>
-    let (errs, elab) = analyze_term(term);
+    let (map, elab) = Statics.mk(CoreSettings.on, ctx(), term);
     js_object(
-      [("errors", errors_js(errs))]
-      @ jit_value(elab, compile_elab(elab))
+      [("errors", errors_js(ErrorPrint.all(map)))]
+      @ jit_value(~ty=?program_type(map, term), elab, compile_elab(elab))
       @ [ms_field(t0)],
     );
   };
@@ -1272,6 +1309,6 @@ let compile_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
 let jit_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
   let t0 = now();
   let a = analyze_program_spec(program_spec_of_js(spec));
-  let fields = jit_value(a.elab, compile_elab(a.elab));
+  let fields = jit_value(~ty=?a.ty, a.elab, compile_elab(a.elab));
   js_object(program_fields(a, ~ms=now() -. t0) @ fields);
 };
