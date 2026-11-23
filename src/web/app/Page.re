@@ -928,9 +928,6 @@ module View = {
           let tail = globals.settings.tail_probe;
           Some(
             EvalResult.View.dynamics(
-              ~inject=
-                a =>
-                  inject(Editors(Scratch(CellAction(ResultAction(a))))),
               ~tail,
               ~stopped=
                 tail
