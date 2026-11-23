@@ -641,24 +641,47 @@ module Axiom = {
 };
 
 /* `algebra <replacement> end`: replace the goal with an expression Z3
- * finds equal to it. Z3's arithmetic isn't IEEE arithmetic, so a
- * Float-typed rewrite is refused. Both sides' domain conditions are the
- * step's obligations.
+ * finds equal to it. Both sides' domain conditions are the step's
+ * obligations, and Z3 judges the step where they hold: `x / x` rewrites
+ * to `1` under the obligation `x != 0`.
  *
- * Z3 verifies the equation for Int arithmetic: Int literals, +, −, ×,
- * unary −, and ** with a literal exponent ≥ 0, over variables known to be
- * Int. It verifies Nat literals, +, × and ** over variables known to be
- * Nat the same way. Nat subtraction truncates, so it stays out.
- * Definitions are substituted first, so one whose value is a literal
- * counts as that literal, and one whose value is an error or a function
- * leaves the fragment. A step Z3 finds wrong is refused. Any other step
- * incurs its equation as an obligation. */
+ * Z3 reads a side built from:
+ *   - Int, Nat, Bool and String literals, and variables known to be of
+ *     one of those types;
+ *   - Int +, −, ×, /, unary − and ** with a literal exponent ≥ 0, and Nat
+ *     +, ×, / and ** likewise;
+ *   - the comparisons of Int and of Nat, and == and != between two of the
+ *     same type;
+ *   - &&, ||, ==>, ! and `if`;
+ *   - string ++;
+ *   - the builtins `abs`, `monus`, `int_mod`, `nat_mod`, `fst`, `snd`, the
+ *     conversions among Int, Nat and Bool, and the operators under their
+ *     function names (`int_plus`).
+ * Every such expression has a value wherever its domain conditions hold,
+ * so Z3's answer is about values. Definitions are substituted first, so
+ * one whose value is a literal counts as that literal, and one whose
+ * value is an error or a function leaves the fragment.
+ *
+ * Left out: Float, because Z3's arithmetic isn't IEEE arithmetic (a
+ * Float-typed rewrite is refused), SInt, whose overflow depends on the
+ * machine, and `string_length`, which counts graphemes where Z3 counts
+ * characters.
+ *
+ * A step Z3 finds wrong is refused. Any other step incurs its equation as
+ * an obligation. */
 module Algebra = {
   type verdict =
     | Equal
     /* A value for each variable at which the two sides differ. */
     | Differ(list((Var.t, Exp.t)))
     | Unverified;
+
+  /* How Z3 reads a Hazel value. A Nat is a Z3 Int that is never negative. */
+  type sort =
+    | ZInt
+    | ZNat
+    | ZBool
+    | ZString;
 
   /* A literal exponent is written out as a product, up to this size. */
   let max_exponent = 64;
@@ -667,171 +690,382 @@ module Algebra = {
    * work and not on time gives a step the same verdict on every machine. */
   let work_limit = 1000000;
 
+  /* Hazel operations that SMT-LIB has no name for. Int division rounds
+   * toward zero. `div` rounds so that the remainder is never negative,
+   * which is the same thing when the dividend isn't negative. `int_mod`
+   * gives that never-negative remainder, so it is `mod`. */
+  let quotient = "(define-fun quotient ((a Int) (b Int)) Int (ite (>= a 0) (div a b) (- (div (- a) b))))";
+  let monus = "(define-fun monus ((a Int) (b Int)) Int (ite (<= a b) 0 (- a b)))";
+  let equal = (a: string, b: string): string => "(= " ++ a ++ " " ++ b ++ ")";
+  let nonzero = (a: string): string => "(not " ++ equal(a, "0") ++ ")";
+
+  /* Printable ASCII only: Z3 reads `\u{...}` inside a literal as an
+   * escape, and prints other characters that way. */
+  let string_literal = (s: string): option(string) => {
+    let printable = c => Char.to_int(c) >= 32 && Char.to_int(c) < 127;
+    let escaped =
+      String.concat_map(
+        s,
+        ~f=
+          fun
+          | '"' => "\"\""
+          | '\\' => "\\u{5c}"
+          | c => String.of_char(c),
+      );
+    String.for_all(s, ~f=printable) ? Some("\"" ++ escaped ++ "\"") : None;
+  };
+
+  let declaration = ((x, sort): (string, sort)): string => {
+    let declare = sort => "(declare-const " ++ x ++ " " ++ sort ++ ")";
+    switch (sort) {
+    | ZInt => declare("Int")
+    | ZNat => declare("Int") ++ "(assert (>= " ++ x ++ " 0))"
+    | ZBool => declare("Bool")
+    | ZString => declare("String")
+    };
+  };
+
+  /* The values Z3 printed for the variables,
+   * `((x0 2) (x1 (- 3)) (x2 true))`, as Hazel literals. A value this
+   * can't read is left out. */
+  let point =
+      (variables: list((Var.t, (string, sort))), values: string)
+      : list((Var.t, Exp.t)) => {
+    let literal = (sort: sort, value: Sexp.t): option(Atom.t) =>
+      switch (sort, value) {
+      | (ZInt, Atom(n)) =>
+        Bigint.of_string_opt(n) |> Option.map(~f=n => Atom.Int(n))
+      | (ZInt, List([Atom("-"), Atom(n)])) =>
+        Bigint.of_string_opt("-" ++ n) |> Option.map(~f=n => Atom.Int(n))
+      | (ZNat, Atom(n)) =>
+        Bigint.of_string_opt(n) |> Option.map(~f=n => Atom.Nat(n))
+      | (ZBool, Atom("true")) => Some(Bool(true))
+      | (ZBool, Atom("false")) => Some(Bool(false))
+      | (ZString, Atom(s)) when !String.contains(s, '\\') =>
+        Some(String(s))
+      | _ => None
+      };
+    switch (Parsexp.Single.parse_string(values)) {
+    | Ok(List(bindings)) =>
+      List.filter_map(bindings, ~f=binding =>
+        switch (binding) {
+        | List([Atom(symbol), value]) =>
+          List.find_map(variables, ~f=((name, (symbol', sort))) =>
+            String.equal(symbol, symbol')
+              ? literal(sort, value)
+                |> Option.map(~f=atom => (name, Exp.fresh(Atom(atom))))
+              : None
+          )
+        | Atom(_)
+        | List(_) => None
+        }
+      )
+    | Ok(Atom(_))
+    | Error(_) => []
+    };
+  };
+
   let verify =
       (~statics: ProofStatics.t, ~ctx: SemanticCtx.t, goal, replacement)
       : verdict => {
+    let sort_of_typ = (ty: Typ.t): option(sort) =>
+      switch (Typ.term_of(ty)) {
+      | Atom(Int) => Some(ZInt)
+      | Atom(Nat) => Some(ZNat)
+      | Atom(Bool) => Some(ZBool)
+      | Atom(String) => Some(ZString)
+      | _ => None
+      };
     /* By the statics at this occurrence, or else by the checker's binder
      * for it: the statics type a proof's `forall x =>` binder `Unknown`,
      * where the checker binds it at the goal's type. */
-    let has_cls = (cls: Atom.cls, x: Exp.t, name: Var.t): bool => {
-      let binder_typ = () =>
-        Ctx.lookup_var(SemanticCtx.get_ctx(ctx), name)
-        |> Option.map(~f=(entry: Ctx.var_entry) =>
-             Typ.term_of(Typ.normalize(Ctx.empty, entry.typ))
-           );
-      switch (Option.map(~f=Typ.term_of, statics.typ(Exp.rep_id(x)))) {
+    let sort_of_var = (x: Exp.t, name: Var.t): option(sort) => {
+      let ty = statics.typ(Exp.rep_id(x));
+      switch (Option.map(~f=Typ.term_of, ty)) {
       | Some(Unknown(_))
-      | None => Poly.equal(binder_typ(), Some(Atom(cls)))
-      | Some(ty) => Poly.equal(ty, Atom(cls))
+      | None =>
+        Ctx.lookup_var(SemanticCtx.get_ctx(ctx), name)
+        |> Option.bind(~f=(entry: Ctx.var_entry) =>
+             sort_of_typ(Typ.normalize(Ctx.empty, entry.typ))
+           )
+      | Some(_) => Option.bind(ty, ~f=sort_of_typ)
       };
     };
     /* Each variable's name in the script: a Hazel name needn't be an
      * SMT-LIB symbol. */
-    let symbols = ref([]);
-    let symbol = name =>
+    let symbols: ref(list((Var.t, (string, sort)))) = ref([]);
+    let symbol = (name: Var.t, sort: sort): option(string) =>
       switch (List.Assoc.find(symbols^, name, ~equal=String.equal)) {
-      | Some(symbol) => symbol
+      | Some((symbol, sort')) =>
+        Poly.equal(sort, sort') ? Some(symbol) : None
       | None =>
         let symbol = "x" ++ string_of_int(List.length(symbols^));
-        symbols := [(name, symbol), ...symbols^];
-        symbol;
+        symbols := [(name, (symbol, sort)), ...symbols^];
+        Some(symbol);
       };
-    /* `cls` is Int or Nat. Every operator and operand has to be of it: a
-     * Nat variable under an Int `+` is ill-typed and doesn't evaluate. */
-    let rec term = (cls: Atom.cls, e: Exp.t): option(string) => {
+    let definitions = ref([]);
+    let define = (definition: string): unit =>
+      if (!List.mem(definitions^, definition, ~equal=String.equal)) {
+        definitions := [definition, ...definitions^];
+      };
+    /* The conditions under which the operations translated so far have
+     * values. */
+    let needed = ref([]);
+    let need = (condition: string): unit =>
+      needed := [condition, ...needed^];
+    let rec term = (e: Exp.t): option((sort, string)) => {
       open OptUtil.Syntax;
-      let apply = (op, a, b) => {
-        let* a = term(cls, a);
-        let+ b = term(cls, b);
-        "(" ++ op ++ " " ++ a ++ " " ++ b ++ ")";
+      /* Every operator's operands have to be of its own type: a Nat
+       * variable under an Int `+` is ill-typed and doesn't evaluate. */
+      let operand = (sort: sort, e: Exp.t): option(string) => {
+        let* (sort', e) = term(e);
+        Poly.equal(sort, sort') ? Some(e) : None;
       };
-      let power = (a, n: Bigint.t) => {
-        let* n = Bigint.to_int(n);
-        let+ a = n >= 0 && n <= max_exponent ? term(cls, a) : None;
-        switch (n) {
-        | 0 => "1"
-        | 1 => a
-        | _ =>
-          "(* " ++ String.concat(~sep=" ", List.init(n, ~f=_ => a)) ++ ")"
+      let apply = (~result: sort, op: string, sort: sort, operands) => {
+        let+ operands =
+          operands |> List.map(~f=operand(sort)) |> OptUtil.sequence;
+        (
+          result,
+          "(" ++ op ++ " " ++ String.concat(~sep=" ", operands) ++ ")",
+        );
+      };
+      let power = (sort: sort, a: Exp.t, exponent: Exp.t) => {
+        let* n =
+          switch (sort, Exp.term_of(ProofSyntax.unwrap(exponent))) {
+          | (ZInt, Atom(Int(n)))
+          | (ZNat, Atom(Nat(n))) => Bigint.to_int(n)
+          | _ => None
+          };
+        let+ a = n >= 0 && n <= max_exponent ? operand(sort, a) : None;
+        let product =
+          switch (n) {
+          | 0 => "1"
+          | 1 => a
+          | _ =>
+            "(* " ++ String.concat(~sep=" ", List.init(n, ~f=_ => a)) ++ ")"
+          };
+        (sort, product);
+      };
+      let numeric = (sort: sort, op: Operators.op_bin_num, a: Exp.t, b: Exp.t) =>
+        switch (op, sort) {
+        | (Plus, _) => apply(~result=sort, "+", sort, [a, b])
+        | (Times, _) => apply(~result=sort, "*", sort, [a, b])
+        | (Minus, ZInt) => apply(~result=sort, "-", sort, [a, b])
+        /* Nat has no subtraction operator: `monus` is a builtin. */
+        | (Minus, _) => None
+        | (Power, _) => power(sort, a, b)
+        | (Divide, _) =>
+          let* a = operand(sort, a);
+          let+ b = operand(sort, b);
+          need(nonzero(b));
+          switch (sort) {
+          | ZInt =>
+            define(quotient);
+            (sort, "(quotient " ++ a ++ " " ++ b ++ ")");
+          | _ => (sort, "(div " ++ a ++ " " ++ b ++ ")")
+          };
+        | (LessThan, _) => apply(~result=ZBool, "<", sort, [a, b])
+        | (LessThanOrEqual, _) => apply(~result=ZBool, "<=", sort, [a, b])
+        | (GreaterThan, _) => apply(~result=ZBool, ">", sort, [a, b])
+        | (GreaterThanOrEqual, _) =>
+          apply(~result=ZBool, ">=", sort, [a, b])
         };
-      };
-      switch (cls, Exp.term_of(e)) {
-      | (Int, Atom(Int(n))) =>
-        Some(
+      let binary = (op: Operators.op_bin, a: Exp.t, b: Exp.t) =>
+        switch (op) {
+        | Int(op) => numeric(ZInt, op, a, b)
+        | Nat(op) => numeric(ZNat, op, a, b)
+        /* `&&`, `||` and `==>` skip their right operand when the left one
+         * decides them, which changes a value only where the right
+         * operand has none. */
+        | Bool(And) => apply(~result=ZBool, "and", ZBool, [a, b])
+        | Bool(Or) => apply(~result=ZBool, "or", ZBool, [a, b])
+        | Bool(Implies) => apply(~result=ZBool, "=>", ZBool, [a, b])
+        | String(Concat) =>
+          apply(~result=ZString, "str.++", ZString, [a, b])
+        | Poly(op) =>
+          let* (sort, a) = term(a);
+          let+ b = operand(sort, b);
+          let equal = equal(a, b);
+          (
+            ZBool,
+            switch (op) {
+            | Equals => equal
+            | NotEquals => "(not " ++ equal ++ ")"
+            },
+          );
+        | SInt(_)
+        | Float(_) => None
+        };
+      let convert = (~from: sort, ~to_: sort, a: Exp.t, f: string => string) =>
+        operand(from, a) |> Option.map(~f=a => (to_, f(a)));
+      let builtin = (name: string, arguments: list(Exp.t)) =>
+        switch (name, arguments) {
+        | ("abs", [a]) => apply(~result=ZInt, "abs", ZInt, [a])
+        | ("monus", [_, _]) =>
+          define(monus);
+          apply(~result=ZNat, "monus", ZNat, arguments);
+        | ("int_mod", [a, b]) =>
+          let* a = operand(ZInt, a);
+          let+ b = operand(ZInt, b);
+          need(nonzero(b));
+          (ZInt, "(mod " ++ a ++ " " ++ b ++ ")");
+        | ("nat_mod", [a, b]) =>
+          let* a = operand(ZNat, a);
+          let+ b = operand(ZNat, b);
+          need(nonzero(b));
+          (ZNat, "(mod " ++ a ++ " " ++ b ++ ")");
+        | ("int_of_nat", [a]) => convert(~from=ZNat, ~to_=ZInt, a, Fn.id)
+        | ("nat_of_int", [a]) =>
+          let+ a = operand(ZInt, a);
+          need("(>= " ++ a ++ " 0)");
+          (ZNat, a);
+        | ("int_of_bool", [a]) =>
+          convert(~from=ZBool, ~to_=ZInt, a, a => "(ite " ++ a ++ " 1 0)")
+        | ("nat_of_bool", [a]) =>
+          convert(~from=ZBool, ~to_=ZNat, a, a => "(ite " ++ a ++ " 1 0)")
+        | ("bool_of_int", [a]) =>
+          convert(~from=ZInt, ~to_=ZBool, a, nonzero)
+        | ("bool_of_nat", [a]) =>
+          convert(~from=ZNat, ~to_=ZBool, a, nonzero)
+        /* The other component is evaluated too, so it has to be in the
+         * fragment as well. */
+        | ("fst", [a, b]) =>
+          let* a = term(a);
+          let+ _ = term(b);
+          a;
+        | ("snd", [a, b]) =>
+          let* _ = term(a);
+          term(b);
+        | (_, [a, b]) =>
+          let* op =
+            List.find(Operators.all_of_op_bin, ~f=op =>
+              String.equal(Operators.op_name(op), name)
+            );
+          binary(op, a, b);
+        | _ => None
+        };
+      switch (Exp.term_of(e)) {
+      | Atom(Int(n)) =>
+        Some((
+          ZInt,
           Bigint.(n >= zero)
             ? Bigint.to_string(n)
             : "(- " ++ Bigint.to_string(Bigint.neg(n)) ++ ")",
-        )
-      | (Nat, Atom(Nat(n))) => Some(Bigint.to_string(n))
-      | (_, Var(x)) when has_cls(cls, e, x) => Some(symbol(x))
-      | (_, Parens(e) | Asc(e, _)) => term(cls, e)
-      | (Int, UnOp(Int(Minus), e)) =>
-        term(cls, e) |> Option.map(~f=e => "(- " ++ e ++ ")")
-      | (Int, BinOp(Int(Plus), a, b))
-      | (Nat, BinOp(Nat(Plus), a, b)) => apply("+", a, b)
-      | (Int, BinOp(Int(Minus), a, b)) => apply("-", a, b)
-      | (Int, BinOp(Int(Times), a, b))
-      | (Nat, BinOp(Nat(Times), a, b)) => apply("*", a, b)
-      | (Int, BinOp(Int(Power), a, {term: Atom(Int(n)), _}))
-      | (Nat, BinOp(Nat(Power), a, {term: Atom(Nat(n)), _})) =>
-        power(a, n)
+        ))
+      | Atom(Nat(n)) => Some((ZNat, Bigint.to_string(n)))
+      | Atom(Bool(b)) => Some((ZBool, Bool.to_string(b)))
+      | Atom(String(s)) =>
+        string_literal(s) |> Option.map(~f=s => (ZString, s))
+      | Var(x) =>
+        let* sort = sort_of_var(e, x);
+        let+ symbol = symbol(x, sort);
+        (sort, symbol);
+      | Parens(e)
+      | Projector(_, e)
+      | Asc(e, _) => term(e)
+      | UnOp(Int(Minus), e) => apply(~result=ZInt, "-", ZInt, [e])
+      | UnOp(Bool(Not), e) => apply(~result=ZBool, "not", ZBool, [e])
+      | BinOp(op, a, b) => binary(op, a, b)
+      | If(c, a, b) =>
+        let* c = operand(ZBool, c);
+        let* (sort, a) = term(a);
+        let+ b = operand(sort, b);
+        (sort, "(ite " ++ c ++ " " ++ a ++ " " ++ b ++ ")");
+      | Ap(_, f, argument) =>
+        switch (
+          Exp.term_of(ProofSyntax.unwrap(f)),
+          Exp.term_of(ProofSyntax.unwrap(argument)),
+        ) {
+        | (BuiltinFun(name), Tuple(arguments)) => builtin(name, arguments)
+        | (BuiltinFun(name), _) => builtin(name, [argument])
+        | _ => None
+        }
       | _ => None
       };
     };
     let substituted = Substitution.in_exp(SemanticCtx.get_env(ctx));
-    let sides = (cls: Atom.cls) =>
-      OptUtil.zip(
-        term(cls, substituted(goal)),
-        term(cls, substituted(replacement)),
-      )
-      |> Option.map(~f=sides => (cls, sides));
-    /* The values Z3 printed for the variables, `((x0 2) (x1 (- 3)))`, as
-     * Hazel literals. */
-    let point = (cls: Atom.cls, values: string): list((Var.t, Exp.t)) => {
-      let literal = (n: string): Exp.t =>
-        Exp.fresh(
-          Atom(
-            Poly.equal(cls, Atom.Nat)
-              ? Nat(Bigint.of_string(n)) : Int(Bigint.of_string(n)),
-          ),
-        );
-      let value = (v: Sexp.t): option(Exp.t) =>
-        switch (v) {
-        | Atom(n) => Some(literal(n))
-        | List([Atom("-"), Atom(n)]) => Some(literal("-" ++ n))
-        | List(_) => None
-        };
-      switch (Parsexp.Single.parse_string(values)) {
-      | Ok(List(bindings)) =>
-        List.filter_map(bindings, ~f=binding =>
-          switch (binding) {
-          | List([Atom(symbol), v]) =>
-            OptUtil.zip(
-              List.Assoc.find(
-                List.Assoc.inverse(symbols^),
-                symbol,
-                ~equal=String.equal,
-              ),
-              value(v),
-            )
-          | Atom(_)
-          | List(_) => None
-          }
-        )
-      | Ok(Atom(_))
-      | Error(_) => []
-      };
-    };
-    switch (Option.first_some(sides(Int), sides(Nat))) {
-    | None => Unverified
-    | Some((cls, (l, r))) =>
-      let variables = List.rev_map(symbols^, ~f=snd);
-      let declarations =
-        variables
-        |> List.map(~f=x =>
-             "(declare-const "
-             ++ x
-             ++ " Int)"
-             ++ (
-               Poly.equal(cls, Atom.Nat) ? "(assert (>= " ++ x ++ " 0))" : ""
-             )
+    switch (
+      OptUtil.zip(term(substituted(goal)), term(substituted(replacement)))
+    ) {
+    | Some(((sort, l), (sort', r))) when Poly.equal(sort, sort') =>
+      /* Z3 assumes the domain conditions that the step incurs as
+       * obligations, and nothing else. An operation whose condition isn't
+       * among them (`int_divide(a, b)`, which the domain scan doesn't
+       * cover) can't be judged. */
+      let assumed =
+        DomainConditions.scan(goal)
+        @ DomainConditions.scan(replacement)
+        |> List.filter_map(~f=condition =>
+             switch (term(substituted(condition))) {
+             | Some((ZBool, condition)) => Some(condition)
+             | Some(_)
+             | None => None
+             }
+           );
+      let variables = List.rev(symbols^);
+      let preamble =
+        String.concat(List.rev(definitions^))
+        ++ String.concat(
+             List.map(variables, ~f=((_, variable)) =>
+               declaration(variable)
+             ),
            )
-        |> String.concat;
+        ++ String.concat(
+             List.map(assumed, ~f=condition => "(assert " ++ condition ++ ")"),
+           );
       /* Z3's simplifier settles an identity between polynomials much
        * faster than its solver does. */
-      let simplified =
-        Z3.eval^(
-          declarations ++ "(simplify (- " ++ l ++ " " ++ r ++ ") :som true)",
-        );
-      switch (Option.map(~f=String.strip, simplified)) {
-      | None => Unverified
-      | Some("0") => Equal
-      | Some(_) =>
+      let is_identity = () =>
+        switch (sort) {
+        | ZInt
+        | ZNat =>
+          Z3.eval^(
+            preamble ++ "(simplify (- " ++ l ++ " " ++ r ++ ") :som true)",
+          )
+          |> Option.exists(~f=difference =>
+               String.equal(String.strip(difference), "0")
+             )
+        | ZBool
+        | ZString => false
+        };
+      let solve = () => {
         let values =
           List.is_empty(variables)
             ? ""
-            : "(get-value (" ++ String.concat(~sep=" ", variables) ++ "))";
+            : "(get-value ("
+              ++ String.concat(
+                   ~sep=" ",
+                   List.map(variables, ~f=((_, (x, _))) => x),
+                 )
+              ++ "))";
         let answer =
           Z3.eval^(
             "(set-option :rlimit "
             ++ string_of_int(work_limit)
             ++ ")"
-            ++ declarations
-            ++ "(assert (not (= "
-            ++ l
-            ++ " "
-            ++ r
-            ++ ")))(check-sat)"
+            ++ preamble
+            ++ "(assert (not "
+            ++ equal(l, r)
+            ++ "))(check-sat)"
             ++ values,
           );
         switch (Option.map(~f=String.split_lines, answer)) {
         | Some(["unsat", ..._]) => Equal
         | Some(["sat", ...values]) =>
-          Differ(point(cls, String.concat(values)))
+          Differ(point(variables, String.concat(~sep=" ", values)))
         | Some(_)
         | None => Unverified
         };
       };
+      if (!List.for_all(needed^, ~f=List.mem(assumed, ~equal=String.equal))) {
+        Unverified;
+      } else if (is_identity()) {
+        Equal;
+      } else {
+        solve();
+      };
+    | Some(_)
+    | None => Unverified
     };
   };
 

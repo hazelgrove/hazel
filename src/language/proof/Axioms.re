@@ -143,11 +143,10 @@ let axioms: list((string, Exp.t)) = [
   ),
   /* --- Nat -------------------------------------------------------------
    *
-   * What `algebra` can't check about Nat. It reasons over Int, where
-   * `m + 1 == 0` has a solution, and `monus` truncates, so it isn't a
-   * polynomial. The binders range over Nats, so both sides are defined.
-   * They are stated with Nat operators, so they don't match Int goals,
-   * where the first is false. */
+   * Two facts about Nat as rewrites to cite; `algebra` checks them too.
+   * The binders range over Nats, so both sides are defined. They are
+   * stated with Nat operators, so they don't match Int goals, where the
+   * first is false. */
   (
     "nat_succ_ne_zero",
     forall_nat("m", eq(eq(nat_add(var("m"), nat(1)), nat(0)), ff)),

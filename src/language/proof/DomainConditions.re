@@ -24,6 +24,7 @@ open Util;
  *     literal.
  *   - `int_of_float` / `sint_of_float` / `nat_of_float` →
  *     `is_finite(arg)` (they error on nan and inf).
+ *   - `nat_of_int` → `arg >= 0` (it errors on a negative).
  *
  * The scan doesn't descend into `Fun` bodies: a lambda's body doesn't
  * run until applied, and its conditions are phrased in the lambda's own
@@ -33,9 +34,9 @@ open Util;
  *   - the `int_of_string` family: the language has no boolean predicate
  *     for parseability.
  *   - `string_sub` / `string_search` index bounds.
- *   - `nat_of_float` negativity (`arg >= 0.0`) and `Int → SInt/Nat`
- *     conversion errors (IntegerTooBig / NegativeNat): only finiteness
- *     is emitted.
+ *   - `nat_of_float` negativity (`arg >= 0.0`), and the `Int → SInt`,
+ *     `Nat → SInt` and `SInt → Nat` conversion errors (IntegerTooBig /
+ *     NegativeNat).
  *   - mod/conversion builtins applied to a computed (non-literal)
  *     tuple: the denominator can't be named.
  *
@@ -102,6 +103,7 @@ let builtin_conditions = (name: string, arg: Exp.t): list(Exp.t) => {
   | "int_of_float"
   | "sint_of_float"
   | "nat_of_float" => [is_finite(arg)]
+  | "nat_of_int" => [geq_zero_int(arg)]
   | _ => []
   };
 };
