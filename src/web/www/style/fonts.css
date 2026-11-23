@@ -37,3 +37,15 @@
   font-stretch: normal;
   src: url("fonts/SourceCodePro-Black.otf.woff2") format("woff2");
 }
+
+/* Material Icons, the command palette's icons (ninja-keys draws each one
+   from its name, e.g. "undo"), shipped with Hazel rather than loaded from
+   Google Fonts, so they work offline. Apache License 2.0
+   (licenses/LICENSE.MaterialIcons). */
+@font-face {
+  font-family: "Material Icons";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/MaterialIcons-Regular.woff2") format("woff2");
+}
