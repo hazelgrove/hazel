@@ -209,6 +209,42 @@ let to_literal = (e: t): string =>
   | Int(i) => i |> Bigint.to_string
   | Nat(i) => i |> Bigint.to_string
   | SInt(i) => i |> string_of_int
+  | Float(f) when Float.is_finite(f) =>
+    /* The fewest significant digits that read back as `f` (17 always
+       do), written out in full: the lexer reads no exponent. */
+    let shortest =
+      List.find_exn([15, 16, 17], ~f=p =>
+        Float.equal(float_of_string(sprintf("%.*g", p, f)), f)
+      )
+      |> (p => sprintf("%.*g", p, f));
+    let (sign, unsigned) =
+      String.is_prefix(shortest, ~prefix="-")
+        ? ("-", String.drop_prefix(shortest, 1)) : ("", shortest);
+    let (mantissa, exponent) =
+      switch (String.lsplit2(unsigned, ~on='e')) {
+      | Some((m, e)) => (m, int_of_string(e))
+      | None => (unsigned, 0)
+      };
+    let (whole, fraction) =
+      switch (String.lsplit2(mantissa, ~on='.')) {
+      | Some((w, f)) => (w, f)
+      | None => (mantissa, "")
+      };
+    let digits = whole ++ fraction;
+    let point = String.length(whole) + exponent;
+    let zeros = n => String.make(n, '0');
+    sign
+    ++ (
+      if (point <= 0) {
+        "0." ++ zeros(- point) ++ digits;
+      } else if (point >= String.length(digits)) {
+        digits ++ zeros(point - String.length(digits)) ++ ".0";
+      } else {
+        String.prefix(digits, point)
+        ++ "."
+        ++ String.drop_prefix(digits, point);
+      }
+    );
   | Float(f) => sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""

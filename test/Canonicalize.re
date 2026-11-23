@@ -22,11 +22,6 @@ let atom = (a: Atom.t): Atom.t =>
   switch (a) {
   | Nat(n) => Int(n)
   | SInt(n) => Int(Bigint.of_int(n))
-  | Float(f) =>
-    switch (float_of_string_opt(Atom.to_literal(Float(f)))) {
-    | Some(f') => Float(f')
-    | None => Float(f)
-    }
   | a => a
   };
 

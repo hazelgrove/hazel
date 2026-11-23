@@ -455,12 +455,7 @@ let tests = (
             IdTagged.FreshGrammar.Exp.(un_op(Float(Minus), float(3.14))),
           );
         let serialized = print_seg(seg);
-        check(
-          string,
-          "Float negation text",
-          "0.000000 -. 3.140000",
-          serialized,
-        );
+        check(string, "Float negation text", "0.0 -. 3.14", serialized);
         /* Verify round-trip: segment → term → segment preserves float minus */
         switch (MakeTerm.for_projection(seg)) {
         | Some(Exp({term: BinOp(Float(Minus), _, _), _})) => ()
@@ -473,7 +468,7 @@ let tests = (
       check(
         string,
         "",
-        {|1.230000 . 4.560000|},
+        {|1.23 . 4.56|},
         print_seg(
           exp_to_segment(
             IdTagged.FreshGrammar.Exp.(dot(float(1.23), float(4.56))),
