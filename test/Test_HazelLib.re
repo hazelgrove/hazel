@@ -795,6 +795,36 @@ let tests = (
       },
     ),
     test_case(
+      "jit: converters by declared type give run's answers, and fall back where a value does not fit",
+      `Quick,
+      () => {
+        /* (^report(54)) a function whose types are declared: its argument and answer converted straight between the
+           page's values and compiled code's, no Hazel value between */
+        let f = {|type Shape = + Circle(Float) + Rect((w = Float, h = Float)) in
+let area : Shape -> Float = fun s -> case s | Circle(r) => 3.0 *. r *. r | Rect(d) => d.w *. d.h end in
+let total : [Shape] -> (sum = Float, count = Int) = fun shapes -> case shapes | [] => (sum = 0.0, count = 0) | s :: rest => let t = total(rest) in (sum = area(s) +. t.sum, count = t.count + 1) end in
+total|};
+        let shapes =
+          as_js(
+            {|[{"tag": "Circle", "value": 1}, {"tag": "Rect", "value": {"w": 2, "h": 3}}]|},
+          );
+        check(
+          string,
+          "a list of constructors and records",
+          json(call(value(f), [shapes])),
+          json(call(field(HazelLibCore.jit(f), "value"), [shapes])),
+        );
+        /* a tag the sum does not have: the converters give the call to the old way, which answers as run does */
+        let odd = as_js({|[{"tag": "Square", "value": 2}]|});
+        check(
+          string,
+          "a tag the sum does not have",
+          json(call(value(f), [odd])),
+          json(call(field(HazelLibCore.jit(f), "value"), [odd])),
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {

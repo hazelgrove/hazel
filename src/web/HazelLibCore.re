@@ -660,6 +660,411 @@ let compile_elab = (elab: Exp.t): result(HazelJit.compiled, string) =>
   | exception (HazelJit.Unsupported(why)) => Error(why)
   };
 
+/* (^report(54): converters by declared type) A compiled function's arguments and answer converted straight between a
+   page's values and compiled code's shapes, by the function's declared types, in JavaScript made once for the
+   function: no Hazel value made on the way (the old way, through Hazel's values, cost most of the jit's time on 34 of
+   report 063's 45 operations, and about seventy times cells for a large list). The shapes are the old way's, exactly:
+   a page's number, boolean and string are compiled code's; a list an array one way and cells the other; a labeled
+   tuple an object one way and an array carrying its labels the other; an unlabeled tuple an array both ways; a
+   constructor {tag, value} one way and {c, v} the other; the empty tuple null and []. Where a type gives nothing to go
+   by (?, a function type, a type variable, a tuple both labeled and not), there are no converters, and every call goes
+   the old way; where a value does not fit its type at run time (a number that is not whole for an Int, a tag the sum
+   does not have), or the compiled code stops (an invalid operation, something indeterminate), that call goes the old
+   way, which falls back to the interpreter as before. */
+module Direct = {
+  exception No;
+  type st = {
+    ts: HazelJitValue.types,
+    mutable defs: list(string),
+    mutable named: list((string, string)),
+    mutable n: int,
+  };
+  let fresh = (st: st, base: string): string => {
+    st.n = st.n + 1;
+    base ++ string_of_int(st.n);
+  };
+  let q = HazelJit.js_string;
+  /* a named converter, made once: recursive types and type aliases call it by name, so it is registered before its
+     body is made */
+  let named = (st: st, key: string, x: string, body: string => string): string => {
+    switch (List.Assoc.find(st.named, ~equal=String.equal, key)) {
+    | Some(f) => f ++ "(" ++ x ++ ")"
+    | None =>
+      let f = fresh(st, "c");
+      st.named = [(key, f), ...st.named];
+      let b = body("v");
+      st.defs = [
+        "function " ++ f ++ "(v) { return " ++ b ++ "; }",
+        ...st.defs,
+      ];
+      f ++ "(" ++ x ++ ")";
+    };
+  };
+  let labeled = (ts: list(Typ.t)): option(list((string, Typ.t))) => {
+    let ls =
+      List.map(ts, ~f=(t: Typ.t) =>
+        switch (Typ.term_of(t)) {
+        | TupLabel(l, t) =>
+          switch (Typ.term_of(l)) {
+          | Label(name) => Some((name, t))
+          | _ => None
+          }
+        | _ => None
+        }
+      );
+    if (List.for_all(ls, ~f=Option.is_some)) {
+      Some(List.filter_opt(ls));
+    } else if (List.for_all(ls, ~f=Option.is_none)) {
+      None;
+    } else {
+      raise(No);
+    };
+  };
+  let variants =
+      (vs: ConstructorMap.t(Typ.t)): list((string, option(Typ.t))) =>
+    List.map(vs, ~f=v =>
+      switch (v) {
+      | ConstructorMap.Variant(c, _, t) => (c, t)
+      | ConstructorMap.BadEntry(_) => raise(No)
+      }
+    );
+  /* a page's value x (a JS expression) as compiled code's, of type t; recs: the recursive types' names in scope, each
+     with its converter's key */
+  let rec inn =
+          (st: st, recs: list((string, string)), t: Typ.t, x: string)
+          : string =>
+    switch (Typ.term_of(t)) {
+    | Parens(t) => inn(st, recs, t, x)
+    | Atom(Int) => "$I(" ++ x ++ ")"
+    | Atom(Nat) => "$N(" ++ x ++ ")"
+    | Atom(SInt) => "$S(" ++ x ++ ")"
+    | Atom(Float) => "$F(" ++ x ++ ")"
+    | Atom(Bool) => "$B(" ++ x ++ ")"
+    | Atom(String) => "$T(" ++ x ++ ")"
+    | List(t) =>
+      let e = fresh(st, "e");
+      "$Lin(" ++ x ++ ", " ++ e ++ " => " ++ inn(st, recs, t, e) ++ ")";
+    | Prod([]) => "$Uin(" ++ x ++ ")"
+    | Prod(ts) =>
+      let v = fresh(st, "p");
+      switch (labeled(ts)) {
+      | Some(fields) =>
+        let vals =
+          List.map(fields, ~f=((l, t)) =>
+            inn(st, recs, t, v ++ "[" ++ q(l) ++ "]")
+          );
+        let keys =
+          List.mapi(fields, ~f=(i, (l, _)) =>
+            "a["
+            ++ q(HazelJit.label_key(l))
+            ++ "] = a["
+            ++ string_of_int(i)
+            ++ "]; "
+          );
+        "("
+        ++ v
+        ++ " => { if ("
+        ++ v
+        ++ " === null || typeof "
+        ++ v
+        ++ " !== \"object\" || Array.isArray("
+        ++ v
+        ++ ")) fail(); const a = ["
+        ++ String.concat(~sep=", ", vals)
+        ++ "]; "
+        ++ String.concat(keys)
+        ++ "return a; })("
+        ++ x
+        ++ ")";
+      | None =>
+        let n = List.length(ts);
+        let vals =
+          List.mapi(ts, ~f=(i, t) =>
+            inn(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+          );
+        "("
+        ++ v
+        ++ " => Array.isArray("
+        ++ v
+        ++ ") && "
+        ++ v
+        ++ ".length === "
+        ++ string_of_int(n)
+        ++ " ? ["
+        ++ String.concat(~sep=", ", vals)
+        ++ "] : fail())("
+        ++ x
+        ++ ")";
+      };
+    | Sum(vs) =>
+      let v = fresh(st, "s");
+      let arms =
+        List.map(variants(vs), ~f=((c, t)) =>
+          "case "
+          ++ q(c)
+          ++ ": return "
+          ++ (
+            switch (t) {
+            | None => "{c: " ++ q(c) ++ "}"
+            | Some(t) =>
+              "{c: "
+              ++ q(c)
+              ++ ", v: "
+              ++ inn(st, recs, t, v ++ ".value")
+              ++ "}"
+            }
+          )
+          ++ "; "
+        );
+      "("
+      ++ v
+      ++ " => { if ("
+      ++ v
+      ++ " === null || typeof "
+      ++ v
+      ++ " !== \"object\") fail(); switch ("
+      ++ v
+      ++ ".tag) { "
+      ++ String.concat(arms)
+      ++ "default: fail(); } })("
+      ++ x
+      ++ ")";
+    | Rec(tp, body) =>
+      switch (tp.term) {
+      | Var(name) =>
+        named(
+          st,
+          "in rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
+          x,
+          v =>
+          inn(
+            st,
+            [
+              (
+                name,
+                "in rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
+              ),
+              ...recs,
+            ],
+            body,
+            v,
+          )
+        )
+      | _ => raise(No)
+      }
+    | Var(name) =>
+      switch (List.Assoc.find(recs, ~equal=String.equal, name)) {
+      | Some(key) => named(st, key, x, _ => raise(No))
+      | None =>
+        switch (Stdlib.Hashtbl.find_opt(st.ts.aliases, name)) {
+        | Some(t) =>
+          named(st, "in alias " ++ name, x, v => inn(st, recs, t, v))
+        | None => raise(No)
+        }
+      }
+    | _ => raise(No)
+    };
+  /* compiled code's value y as a page's, of type t */
+  let rec out =
+          (st: st, recs: list((string, string)), t: Typ.t, y: string)
+          : string =>
+    switch (Typ.term_of(t)) {
+    | Parens(t) => out(st, recs, t, y)
+    | Atom(Int | Nat) => "$oI(" ++ y ++ ")"
+    | Atom(SInt | Float) => "$F(" ++ y ++ ")"
+    | Atom(Bool) => "$B(" ++ y ++ ")"
+    | Atom(String) => "$T(" ++ y ++ ")"
+    | List(t) =>
+      let e = fresh(st, "e");
+      "$Lout(" ++ y ++ ", " ++ e ++ " => " ++ out(st, recs, t, e) ++ ")";
+    | Prod([]) => "$Uout(" ++ y ++ ")"
+    | Prod(ts) =>
+      let v = fresh(st, "p");
+      let n = string_of_int(List.length(ts));
+      switch (labeled(ts)) {
+      | Some(fields) =>
+        let fs =
+          List.mapi(fields, ~f=(i, (l, t)) =>
+            q(l)
+            ++ ": "
+            ++ out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+          );
+        "("
+        ++ v
+        ++ " => Array.isArray("
+        ++ v
+        ++ ") && "
+        ++ v
+        ++ ".length === "
+        ++ n
+        ++ " ? {"
+        ++ String.concat(~sep=", ", fs)
+        ++ "} : fail())("
+        ++ y
+        ++ ")";
+      | None =>
+        let vals =
+          List.mapi(ts, ~f=(i, t) =>
+            out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
+          );
+        "("
+        ++ v
+        ++ " => Array.isArray("
+        ++ v
+        ++ ") && "
+        ++ v
+        ++ ".length === "
+        ++ n
+        ++ " ? ["
+        ++ String.concat(~sep=", ", vals)
+        ++ "] : fail())("
+        ++ y
+        ++ ")";
+      };
+    | Sum(vs) =>
+      let v = fresh(st, "s");
+      let arms =
+        List.map(variants(vs), ~f=((c, t)) =>
+          "case "
+          ++ q(c)
+          ++ ": return "
+          ++ (
+            switch (t) {
+            | None => "{tag: " ++ q(c) ++ "}"
+            | Some(t) =>
+              "{tag: "
+              ++ q(c)
+              ++ ", value: "
+              ++ out(st, recs, t, v ++ ".v")
+              ++ "}"
+            }
+          )
+          ++ "; "
+        );
+      "("
+      ++ v
+      ++ " => { if ("
+      ++ v
+      ++ " === null || typeof "
+      ++ v
+      ++ " !== \"object\" || typeof "
+      ++ v
+      ++ ".c !== \"string\") fail(); switch ("
+      ++ v
+      ++ ".c) { "
+      ++ String.concat(arms)
+      ++ "default: fail(); } })("
+      ++ y
+      ++ ")";
+    | Rec(tp, body) =>
+      switch (tp.term) {
+      | Var(name) =>
+        named(
+          st,
+          "out rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
+          y,
+          v =>
+          out(
+            st,
+            [
+              (
+                name,
+                "out rec " ++ name ++ " " ++ string_of_int(List.length(recs)),
+              ),
+              ...recs,
+            ],
+            body,
+            v,
+          )
+        )
+      | _ => raise(No)
+      }
+    | Var(name) =>
+      switch (List.Assoc.find(recs, ~equal=String.equal, name)) {
+      | Some(key) => named(st, key, y, _ => raise(No))
+      | None =>
+        switch (Stdlib.Hashtbl.find_opt(st.ts.aliases, name)) {
+        | Some(t) =>
+          named(st, "out alias " ++ name, y, v => out(st, recs, t, v))
+        | None => raise(No)
+        }
+      }
+    | _ => raise(No)
+    };
+  let helpers = {|
+  const FAIL = {}; const fail = () => { throw FAIL; };
+  const $I = v => Number.isSafeInteger(v) ? v : fail();
+  const $N = v => Number.isSafeInteger(v) && v >= 0 ? v : fail();
+  const $S = v => typeof v === "number" && (v | 0) === v ? v : fail();
+  const $F = v => typeof v === "number" ? v : fail();
+  const $B = v => typeof v === "boolean" ? v : fail();
+  const $T = v => typeof v === "string" ? v : fail();
+  const $oI = v => typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : fail();
+  const $Uin = v => v == null || (Array.isArray(v) && v.length === 0) ? [] : fail();
+  const $Uout = v => Array.isArray(v) && v.length === 0 ? null : fail();
+  const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { h: f(v[i]), t: r }; return r; };
+  const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.t) { if (typeof p !== "object" || !("h" in p)) fail(); a.push(f(p.h)); } return a; };
+|};
+  /* the factory: given the compiled function and the old way (slow), the function a page calls; None when the types
+     give nothing to go by */
+  let source =
+      (ts: HazelJitValue.types, param: option(Typ.t), result: option(Typ.t))
+      : option(string) =>
+    switch (param, result) {
+    | (Some(param), Some(result)) =>
+      let st = {
+        ts,
+        defs: [],
+        named: [],
+        n: 0,
+      };
+      switch (
+        {
+          let one = inn(st, [], param, "args[0]");
+          let many =
+            switch (Typ.term_of(param)) {
+            | Prod(ts)
+                when List.length(ts) > 1 && Option.is_none(labeled(ts)) =>
+              "args.length === "
+              ++ string_of_int(List.length(ts))
+              ++ " ? ["
+              ++ String.concat(
+                   ~sep=", ",
+                   List.mapi(ts, ~f=(i, t) =>
+                     inn(st, [], t, "args[" ++ string_of_int(i) ++ "]")
+                   ),
+                 )
+              ++ "] : fail()"
+            | _ => "fail()"
+            };
+          let back = out(st, [], result, "r");
+          (one, many, back);
+        }
+      ) {
+      | exception No => None
+      | (one, many, back) =>
+        Some(
+          "(function (f, slow) { \"use strict\";"
+          ++ helpers
+          ++ String.concat(~sep="\n", List.rev(st.defs))
+          ++ "\n  const IN = args => args.length === 0 ? [] : args.length === 1 ? "
+          ++ one
+          ++ " : "
+          ++ many
+          ++ ";"
+          ++ "\n  const OUT = r => "
+          ++ back
+          ++ ";"
+          ++ "\n  return function (...args) { let a, r;"
+          ++ "\n    try { a = IN(args); } catch (e) { if (e === FAIL) return slow(...args); throw e; }"
+          ++ "\n    try { r = f(a); } catch (e) { return slow(...args); }"
+          ++ "\n    try { return OUT(r); } catch (e) { if (e === FAIL) return slow(...args); throw e; } }; })",
+        )
+      };
+    | _ => None
+    };
+};
+
 /* A compiled value as this library's JS value */
 let rec of_jit =
         (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
@@ -738,7 +1143,8 @@ and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any =>
     Option.map(Stdlib.Hashtbl.find_opt(ts.HazelJitValue.funs, k), ~f=fst);
   let param = Option.bind(term, ~f=param_type);
   let result = Option.bind(term, ~f=result_type);
-  Js.Unsafe.inject(
+  /* the old way: through Hazel's values, and to the interpreter if the compiled code stops */
+  let slow =
     Js.Unsafe.callback_with_arguments(args => {
       let arg = arg_of_js(param, args);
       switch (
@@ -758,8 +1164,16 @@ and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any =>
           ),
         )
       };
-    }),
-  );
+    });
+  /* (^report(54)) the converters by type, where the types say enough; the old way for any call they cannot take */
+  switch (Direct.source(ts, param, result)) {
+  | Some(src) =>
+    Js.Unsafe.fun_call(
+      Js.Unsafe.eval_string(src),
+      [|f, Js.Unsafe.inject(slow)|],
+    )
+  | None => Js.Unsafe.inject(slow)
+  };
 };
 
 let compiled_fields =
