@@ -215,7 +215,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     List.fold_left(items, ~init=None, ~f=(acc, item: Mod.t) =>
       switch (acc, item.term) {
       | (Some(_), _) => acc
-      | (None, ModVal(x, v)) => agree(v, get(js, x))
+      | (None, ModLet({term: Var(x), _}, v)) =>
+        agree(v, get(js, HazelJit.label_key(x)))
       | (None, _) => None
       }
     )
