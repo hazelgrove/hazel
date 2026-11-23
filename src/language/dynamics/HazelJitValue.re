@@ -183,6 +183,27 @@ let has = (v: Js.Unsafe.any, k: string): bool =>
   );
 let get = (v: Js.Unsafe.any, k: string): Js.Unsafe.any =>
   Js.Unsafe.get(v, k);
+/* (^report(54)) a list's elements: its cells' heads, then its segment's elements, if it ends in a segment {a, i} */
+let elements = (v: Js.Unsafe.any): list(Js.Unsafe.any) => {
+  let int = (x: Js.Unsafe.any) =>
+    int_of_float(Js.float_of_number(Js.Unsafe.coerce(x)));
+  let rec go = (v, acc) =>
+    if (is_null(v)) {
+      List.rev(acc);
+    } else if (has(v, "a")) {
+      let a = get(v, "a");
+      List.rev_append(
+        acc,
+        List.map(
+          List.range(int(get(v, "i")), int(get(a, "length"))), ~f=k =>
+          Js.Unsafe.get(a, k)
+        ),
+      );
+    } else {
+      go(get(v, "t"), [get(v, "h"), ...acc]);
+    };
+  go(v, []);
+};
 
 /* ---- into JS */
 
@@ -217,12 +238,13 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
             );
   | Atom(Bool(b)) => inject(Js.bool(b))
   | Atom(String(s)) => jstr(s)
+  /* (^report(54)) a list literal as a segment of an array, {a, i}, as compiled code makes one */
+  | ListLit([]) => inject(Js.null)
   | ListLit(vs) =>
-    List.fold_right(
-      vs,
-      ~f=(v, t) => cons(to_js(v), t),
-      ~init=inject(Js.null),
-    )
+    Js.Unsafe.obj([|
+      ("a", inject(Js.array(Array.of_list(List.map(vs, ~f=to_js))))),
+      ("i", number(0.)),
+    |])
   | Cons(h, t) => cons(to_js(h), to_js(t))
   | Tuple(vs) => tuple(vs)
   | TupLabel(_) => tuple([v])
@@ -399,17 +421,13 @@ let rec of_js =
     } else {
       G.Exp.constructor(name, ann);
     };
-  | "object" when has(v, "h") =>
+  | "object" when has(v, "h") || has(v, "a") && has(v, "i") =>
     let elt =
       switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
       | Some(List(t)) => Some(t)
       | _ => None
       };
-    let rec walk = (v, acc) =>
-      is_null(v)
-        ? List.rev(acc)
-        : walk(get(v, "t"), [of_js(~seen, ts, elt, get(v, "h")), ...acc]);
-    G.Exp.list_lit(walk(v, []));
+    G.Exp.list_lit(List.map(elements(v), ~f=x => of_js(~seen, ts, elt, x)));
   | t => unsupported("a JS " ++ t ++ " in the answer")
   };
 }
@@ -514,19 +532,25 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
     var dc = diff(a.v, b.v);
     return dc === null ? null : {c: dc};
   }
-  if (Object.hasOwn(a, "h")) {
-    if (!Object.hasOwn(b, "h")) return {n: b};
+  /* (^report(54)) a list is a cell {h, t} or a segment {a, i} of an array, walked alike: a segment's tail is the
+     segment from i + 1, and the same array from the same index is the same list */
+  var isList = x => Object.hasOwn(x, "h") || (Object.hasOwn(x, "a") && Object.hasOwn(x, "i"));
+  var H = x => x.a === undefined ? x.h : x.a[x.i];
+  var T = x => x.a === undefined ? x.t : (x.i + 1 < x.a.length ? {a: x.a, i: x.i + 1} : null);
+  var same = (x, y) => x === y || (x !== null && y !== null && x.a !== undefined && x.a === y.a && x.i === y.i);
+  if (isList(a)) {
+    if (!isList(b)) return {n: b};
     var ops = [], keep = 0;
     for (;;) {
-      if (a === b) break;
+      if (same(a, b)) break;
       if (a === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({a: b}); break; }
       if (b === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({cut: 1}); break; }
-      if (b.t === a) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.h}); b = b.t; continue; }
-      if (a.t === b) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.t; continue; }
-      var de = diff(a.h, b.h);
+      if (b.a === undefined && same(b.t, a)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.h}); b = b.t; continue; }
+      if (a.a === undefined && same(a.t, b)) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.t; continue; }
+      var de = diff(H(a), H(b));
       if (de === null) keep++;
       else { if (keep) ops.push({k: keep}); keep = 0; ops.push({e: de}); }
-      a = a.t; b = b.t;
+      a = T(a); b = T(b);
     }
     return ops.length ? {l: ops} : null;
   }
@@ -617,10 +641,10 @@ let rec patch =
           | Some(List(t)) => Some(t)
           | _ => None
           };
-        let rec walk_js = (v, acc) =>
-          is_null(v)
-            ? acc
-            : walk_js(get(v, "t"), [of_js(ts, elt, get(v, "h")), ...acc]);
+        let walk_js = (v, acc) =>
+          List.fold_left(elements(v), ~init=acc, ~f=(acc, x) =>
+            [of_js(ts, elt, x), ...acc]
+          );
         /* acc: the new list's elements so far, reversed; xs: what is left of the old list */
         let rec go = (ops, xs, acc) =>
           switch (ops) {
