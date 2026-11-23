@@ -544,7 +544,7 @@ let printarium_body = (~explain_this_inject, ~editor: CodeEditable.Model.t) => {
     switch (eval_mode_ref^) {
     | Auto =>
       let es = collect_print_entries(editor.dynamics, measured);
-      List.is_empty(es) ? Stdlib.Option.none : Some(es);
+      Option.some_if(!List.is_empty(es), es);
     | Manual => cached_print_entries^
     };
   [

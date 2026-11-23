@@ -149,8 +149,7 @@ let fuzz_roundtrip =
    shrunk int list instead. */
 let type_string = (s: string): Zipper.t =>
   s
-  |> Stdlib.String.to_seq
-  |> Stdlib.List.of_seq
+  |> String.to_list
   |> List.map(~f=c => Action.Insert(String.make(1, c)))
   |> List.fold_left(~f=apply, ~init=Zipper.init());
 

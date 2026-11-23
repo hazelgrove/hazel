@@ -590,7 +590,7 @@ module NinjaKeys = {
   // Wrap a function (to be called by Js setInterval) in a loop call.
   // Clear the interval if the function returns true, or after max_tries calls.
   let loop = (~max_tries=50, f: unit => bool, interval: float) => {
-    let id_ref = ref(Stdlib.Option.None);
+    let id_ref = ref(None: option(_));
     let tries = ref(0);
     id_ref :=
       Some(
