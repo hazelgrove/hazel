@@ -913,7 +913,26 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        switch (List.nth(m.scratchpads, m.current)) {
+        | Some({kind: Code({editor, _}), dormant: false, _}) =>
+          Some(
+            EvalResult.View.dynamics(
+              ~inject=
+                a =>
+                  inject(Editors(Scratch(CellAction(ResultAction(a))))),
+              editor.result,
+            ),
+          )
+        | _ => None
+        }
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>

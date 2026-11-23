@@ -30,6 +30,9 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
+    /* the last finished run (Some(None): it ran, Some(Some(e)): it
+       failed), which the status line keeps while the next one runs */
+    settled: option(option(ProgramResult.error)),
     display,
     theorems: Theorems.Model.t,
   };
@@ -51,9 +54,24 @@ module Model = {
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
+    settled: None,
     display: Evaluation(Calc.Pending),
     theorems: Theorems.Model.init,
   };
+
+  /* what a run's result leaves for the status line: a finished run
+     replaces the last one, a pending one keeps it */
+  let settle =
+      (
+        settled: option(option(ProgramResult.error)),
+        r: ProgramResult.t('a),
+      )
+      : option(option(ProgramResult.error)) =>
+    switch (r) {
+    | ResultOk(_) => Some(None)
+    | ResultFail(err) => Some(Some(err))
+    | ResultPending(_) => settled
+    };
 
   let persist = (model: t): persistent => {
     stepper:
@@ -78,6 +96,7 @@ module Model = {
         streaming_outbox: Calc.Pending,
         streaming_state: Calc.Pending,
         pending_eval_ids: [],
+        settled: None,
         display: Stepper(StepperView.Model.unpersist(stepper)),
         theorems,
       }
@@ -258,6 +277,7 @@ module Update = {
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
+          settled,
           display,
           theorems,
         }: Model.t,
@@ -513,6 +533,7 @@ module Update = {
         streaming_outbox: streaming_outbox |> Calc.save,
         streaming_state: streaming_state |> Calc.save,
         pending_eval_ids,
+        settled: Model.settle(settled, Calc.get_value(result)),
         display,
         theorems,
       }: Model.t
@@ -660,6 +681,80 @@ module View = {
     );
   };
 
+  /* the program's dynamics, at the cursor inspector's right end:
+     whether it ran, the error if not, the stepper (it steps from the
+     elaboration, so a failed run can still be stepped) and, after a
+     finished run, the proofs. A run under way keeps the last finished
+     one, dimmed */
+  let dynamics = (~inject, model: Model.t): Node.t => {
+    let result = Calc.get_value(model.result);
+    let (mark, msg, outcome) =
+      switch (Model.settle(model.settled, result)) {
+      | None => ("", {js|Running…|js}, "pending")
+      | Some(None) => ({js|✓|js}, "Ran", "ok")
+      | Some(Some(err)) => ({js|✗|js}, error_msg(err), "fail")
+      };
+    let running =
+      switch (result) {
+      | ResultPending(_) => ["running"]
+      | _ => []
+      };
+    let stepping =
+      switch (model.display) {
+      | Stepper(_) => ["on"]
+      | Evaluation(_) => []
+      };
+    let proofs =
+      switch (outcome, Theorems.Model.proof_count(model.theorems)) {
+      | ("fail", _)
+      | (_, (_, 0)) => []
+      | (_, (proven, all)) => [
+          div(
+            ~attrs=[
+              Attr.classes(["dyn-chip"]),
+              Attr.title("Theorems proven, of all the program's theorems"),
+            ],
+            [text(Printf.sprintf("Proofs %d of %d", proven, all))],
+          ),
+        ]
+      };
+    div(
+      ~attrs=[Attr.id("dynamics"), Attr.classes([outcome] @ running)],
+      [
+        div(
+          ~attrs=[
+            Attr.classes(["dyn-glyph"]),
+            Attr.title("Dynamics: how the program ran"),
+          ],
+          [text({js|⇓|js})],
+        ),
+        div(
+          ~attrs=[Attr.classes(["status"] @ status_classes_of(result))],
+          [
+            div(~attrs=[Attr.classes(["spinner"])], []),
+            div(~attrs=[Attr.classes(["eq"])], [text(mark)]),
+          ],
+        ),
+        div(
+          ~attrs=[Attr.classes(["dyn-msg"]), Attr.title(msg)],
+          [text(msg)],
+        ),
+      ]
+      @ proofs
+      @ [
+        div(
+          ~attrs=[
+            Attr.classes(["dyn-chip", "dyn-step"] @ stepping),
+            Attr.title("Step through the evaluation"),
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+            Attr.on_click(_ => inject(Update.ToggleStepper)),
+          ],
+          [text("Step")],
+        ),
+      ],
+    );
+  };
+
   let footer =
       (
         ~globals: Globals.t,
@@ -667,10 +762,14 @@ module View = {
         ~inject,
         ~selected: option(Selection.t),
         ~locked,
+        ~status=false,
         model: Model.t,
       ) =>
     switch (model.display) {
     | _ when !globals.settings.core.dynamics => []
+    /* the status is the inspector's (dynamics); the stepper still opens
+       here */
+    | Evaluation(_) when status => []
     | Evaluation(editor) => [
         live_eval(
           ~globals,
@@ -742,6 +841,9 @@ module View = {
            | `TestSigilsOnly
            | `TestResults
            | `EvalResults
+           /* the decks' results: the status in the inspector, no value
+              row; the stepper and proofs below */
+           | `StatusLine
            | `NoTheorems
            | `JustTheorems
            | `Custom(Node.t)
@@ -752,11 +854,21 @@ module View = {
     switch (result_kind) {
     // Normal case:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems when globals.settings.core.dynamics =>
       let result =
         result_kind == `JustTheorems
-          ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
+          ? []
+          : footer(
+              ~globals,
+              ~signal,
+              ~inject,
+              ~selected,
+              ~locked,
+              ~status=result_kind == `StatusLine,
+              model,
+            );
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
@@ -789,6 +901,7 @@ module View = {
 
     // Just showing elaboration because evaluation is off:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems when globals.settings.core.elaborate =>
       let result = [
         text("Evaluation disabled, showing elaboration:"),
@@ -825,6 +938,7 @@ module View = {
 
     // Not showing any results:
     | `EvalResults
+    | `StatusLine
     | `NoTheorems
     | `JustTheorems
     | `TestSigilsOnly

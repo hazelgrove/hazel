@@ -1205,6 +1205,7 @@ module View = {
             },
           ~locked=false,
           ~lines=true,
+          ~result_kind=`StatusLine,
           editor,
         ),
       ]

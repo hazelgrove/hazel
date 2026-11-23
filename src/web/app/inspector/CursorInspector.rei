@@ -43,7 +43,11 @@ let tpat_view:
   Virtual_dom.Vdom.Node.t;
 
 let view:
-  (~globals: Globals.t, Cursor.cursor(Editors.Update.t)) =>
+  (
+    ~globals: Globals.t,
+    ~dynamics: Virtual_dom.Vdom.Node.t=?,
+    Cursor.cursor(Editors.Update.t)
+  ) =>
   Virtual_dom.Vdom.Node.t;
 
 /** The info the bar describes: the implied hole's when quiver is on, else
