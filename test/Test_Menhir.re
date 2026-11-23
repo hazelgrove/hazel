@@ -56,9 +56,22 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
 let menhir_only_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(name, `Quick, () => {menhir_matches(exp, actual)});
 
-let skip_menhir_maketerm_equivalent_test =
-    (~speed_level=`Quick, name: string, _actual: string) =>
-  test_case(name, speed_level, () => {Alcotest.skip()});
+/* A known disagreement between the parsers: goes red once they agree. */
+let parsers_disagree_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () =>
+    check(
+      bool,
+      "the parsers agree",
+      false,
+      same_term(
+        make_term_parse(actual),
+        Grammar.map_exp_annotation(
+          _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+          Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
+        ),
+      ),
+    )
+  );
 
 let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
@@ -235,10 +248,6 @@ let qcheck_menhir_maketerm_equivalent_test =
       | false =>
         print_endline("Mismatch on: " ++ serialized);
         false;
-      | exception (Failure(msg)) =>
-        print_endline("Error: " ++ msg);
-        print_endline("Serialized: " ++ serialized);
-        String.equal(msg, "Sum type has non-unique constructors");
       | exception e =>
         QCheck.Test.fail_reportf("%s on: %s", Exn.to_string(e), serialized)
       };
@@ -305,11 +314,6 @@ let qcheck_menhir_serialized_equivalent_test =
         print_endline("Mismatch on: " ++ serialized);
         Out_channel.flush(stdout);
         false;
-      | exception (Failure(msg)) =>
-        print_endline("Error: " ++ msg);
-        print_endline("Serialized: " ++ serialized);
-        Out_channel.flush(stdout);
-        String.equal(msg, "Sum type has non-unique constructors");
       | exception _ =>
         print_endline("Parse error on: " ++ serialized);
         Out_channel.flush(stdout);
@@ -1581,18 +1585,18 @@ let found_shapes = [
     "REPRO Menhir85 case as module item",
     {|{ case _ | _ => 1 end }|},
   ),
-  /* Skipped: the `…-in` binder forms disagree as bare module items (#2754;
-     see is_unsupported_mod_item). */
-  skip_menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 let-in as module item",
+  /* The `…-in` binder forms read differently as bare module items (see
+     is_unsupported_mod_item). */
+  parsers_disagree_test(
+    "Known bug (#2754): a let-in as a module item",
     {|{ let y = 1 in y }|},
   ),
-  skip_menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 module-in as module item",
+  parsers_disagree_test(
+    "Known bug (#2754): a module-in as a module item",
     {|{ module v = ? in 1 }|},
   ),
-  skip_menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 tyalias-in as module item",
+  parsers_disagree_test(
+    "Known bug (#2754): a type-in as a module item",
     {|{ type t = Int in 1 }|},
   ),
   /* The `;` inside parens is a sequence in both parsers, not a module

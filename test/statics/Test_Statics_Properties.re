@@ -416,20 +416,13 @@ let elab_nested_ids_drifting =
   @ List.map(~f=id => "only in second run: " ++ Id.to_string(id), extra);
 };
 
-/* The generator emits the whole internal grammar, including constructors no
-   user can write. Those reach statics by paths the editor never takes, so
-   this property assumes them away rather than asking them to be
-   deterministic. Walks the entire term, not just the top. */
+/* Forms no parse returns, which reach statics by paths the editor never
+   takes, so this property doesn't ask them to be deterministic. */
 let has_internal_syntax = (e: Language.Exp.t): bool => {
   let found = ref(false);
   let check = (cont, term) => {
     switch ((IdTagged.term_of(term): Exp.term)) {
-    | LivelitName(_)
-    | Deferral(_)
-    | DeferredAp(_)
-    | Projector(_)
     | Closure(_)
-    | ProofObject(_)
     | DrvQuote(_)
     | BuiltinFun(_) => found := true
     | _ => ()
@@ -462,26 +455,24 @@ let qcheck_elab_nested_ids_persist =
     ~count=2000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-    has_internal_syntax(exp)
-      ? true
-      : (
-        switch (safe_statics(exp)) {
-        | `Skip => true
-        | `Ok(info_map, _)
-            when !List.is_empty(Statics.Map.error_ids(info_map)) =>
-          true
-        | `Ok(_) =>
-          switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
-          | [] => true
-          | violations =>
-            Alcotest.fail(
-              "Elaboration ids drift between runs:\n"
-              ++ String.concat(~sep="\n", violations),
-            )
-          }
+      QCheck.assume(!has_internal_syntax(exp));
+      switch (safe_statics(exp)) {
+      | `Skip => QCheck.assume_fail()
+      | `Ok(info_map, _)
+          when !List.is_empty(Statics.Map.error_ids(info_map)) =>
+        QCheck.assume_fail()
+      | `Ok(_) =>
+        switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
+        | [] => true
+        | violations =>
+          Alcotest.fail(
+            "Elaboration ids drift between runs:\n"
+            ++ String.concat(~sep="\n", violations),
+          )
         }
-      )
-  });
+      };
+    },
+  );
 
 /* The user aliases an elaborated term's types mention. The runtime reads
    those types with no context, so there should be none. A node's context
