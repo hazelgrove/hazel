@@ -118,7 +118,7 @@ let copy_color_map =
     | FailTest(map, test) =>
       test
       |> RuleFormula.get_symbols
-      |> List.map(~f=RuleVerify.Map.find_opt(_, map))
+      |> List.map(~f=Map.find(map, _))
       |> List.filter_map(~f=Fn.id)
     };
   copy_color_map_of_specceds(terms, color_map);
