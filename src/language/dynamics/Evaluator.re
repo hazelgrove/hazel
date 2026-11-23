@@ -191,7 +191,11 @@ let rec evaluate =
           (env, effect) =>
             switch (effect) {
             | EvaluatorState.SetEnv(env) => env
-            | _ => env
+            | RecordTest(_)
+            | RecordStackFrame(_)
+            | RecordPatMatch(_)
+            | RecordTheorem(_)
+            | RecordPrint(_) => env
             },
         ~init=env,
         effects,

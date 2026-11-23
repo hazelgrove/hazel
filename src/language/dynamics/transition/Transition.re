@@ -774,13 +774,20 @@ module Transition = (EV: EV_MODE) => {
         let-unbox unboxed_fun = (Fun, d1');
         switch (unboxed_fun) {
         | Constructor(_) => Constructor
-        | FunEnv(dp, d3, replacement_env) =>
+        /* In environment mode a function arrives in its closure; a bare
+           one has lost the environment its body needs. */
+        | Fun(_, _, None) when Poly.equal(mode, `Environment) => Indet
+        | Fun(dp, d3, closure_env) =>
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(added_env) =>
-            let env'' = Environment.add_bindings(replacement_env, added_env);
+            let env'' =
+              Environment.add_bindings(
+                Option.value(closure_env, ~default=Environment.empty),
+                added_env,
+              );
             let (expr, side_effects) =
               under_env(
                 env'',
@@ -804,35 +811,6 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
             });
           };
-        | FunNoEnv(dp, d3) when Poly.equal(mode, `Substitution) =>
-          let matches = matches(targets, dp, d2');
-          switch (matches.matches) {
-          | IndetMatch
-          | DoesNotMatch => Indet
-          | Matches(added_env) =>
-            let env = Environment.of_bindings(added_env);
-            let (expr, side_effects) =
-              under_env(
-                env,
-                env,
-                d3,
-                [
-                  RecordStackFrame(fn_name, Some(d2'), fn_def_id),
-                  RecordPatMatch({
-                    pat: dp,
-                    rhs: d2,
-                    samples: matches.samples,
-                  }),
-                ],
-              );
-            Step({
-              expr,
-              side_effects,
-              kind: FunAp,
-              is_value: false,
-            });
-          };
-        | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
           if (String.equal(ident, "print")) {
             /* Println for probes study */

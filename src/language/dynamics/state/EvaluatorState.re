@@ -58,8 +58,9 @@ type effect =
     })
   | RecordTheorem(Id.t, string, Environment.t(Exp.t), Exp.t)
   | RecordPrint(DHExp.t) /* Println for probes study */
-  /* Environment for the stepped-to expression. Evaluation control, not a log:
-   * `Evaluator.eval_1_effects` reads it and discards it here. */
+  /* Environment for the stepped-to expression: evaluation control, not a
+     log. `Evaluator.eval_1_effects` evaluates the next expression under it;
+     the state and the reuse map have nothing to record for it. */
   | SetEnv(Environment.t(Exp.t));
 
 let empty: t = {

@@ -27,8 +27,8 @@ type unboxed_tfun =
 [@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, [@show.opaque] Environment.t(Exp.t))
-  | FunNoEnv(Pat.t, Exp.t)
+  /* With the environment of the closure it came in, if any. */
+  | Fun(Pat.t, Exp.t, [@show.opaque] option(Environment.t(Exp.t)))
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
 
@@ -174,8 +174,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
-      Matches(FunEnv(dp, d3, env'))
-    | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
+      Matches(Fun(dp, d3, Some(env')))
+    | (Fun, Fun(dp, d3, _, _)) => Matches(Fun(dp, d3, None))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
