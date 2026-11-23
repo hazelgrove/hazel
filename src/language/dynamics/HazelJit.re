@@ -64,7 +64,16 @@ let no_type_hole = (t: Typ.t): unit => {
 /* What a compiled term needs at run time, passed to the compiled function as $R (Runtime.source is its JS text). */
 module Runtime = {
   let source = {|{
-  append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
+  /* (^report(54), lists as JavaScript arrays) A list is null, a cell {h, t}, or a segment {a, i}: the elements of the
+     array a from index i on, never empty, shared and never changed. A list literal, and an array from a page, is a
+     segment, made with no copy; x :: xs is a cell, as before. A cell's tail is any list, a segment included. */
+  seg(a) { return a.length === 0 ? null : {a, i: 0}; },
+  hd(l) { return l.a === undefined ? l.h : l.a[l.i]; },
+  tl(l) { if (l.a === undefined) return l.t; const j = l.i + 1; return j < l.a.length ? {a: l.a, i: j} : null; },
+  /* a list's elements as an array, to read and not to change: a whole segment is its own array */
+  arr(l) { const xs = []; for (let p = l; p !== null;) { if (p.a !== undefined) { if (p.i === 0 && xs.length === 0) return p.a;
+      for (let i = p.i; i < p.a.length; i++) xs.push(p.a[i]); return xs; } xs.push(p.h); p = p.t; } return xs; },
+  append(a, b) { if (a === null) return b; if (b === null) return a; const xs = this.arr(a);
     let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
   tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; return vs; },
   /* (^ticket(761); the slides' check, CI run 44184122601) e.k, as Transition's Dot: a tuple's component; through a list,
@@ -73,8 +82,7 @@ module Runtime = {
   dot(t, k) {
     if (Array.isArray(t)) return t[k];
     if (t === null) return null;
-    if (typeof t === "object" && "h" in t) { const xs = []; for (let p = t; p !== null; p = p.t) xs.push(this.dot(p.h, k));
-      let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; }
+    if (typeof t === "object" && ("h" in t || ("a" in t && "i" in t))) return this.seg(this.arr(t).map(x => this.dot(x, k)));
     this.indet("a projection by " + k);
   },
   /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
@@ -101,9 +109,10 @@ module Runtime = {
     if (Array.isArray(a)) { if (!Array.isArray(b) || a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (!this.eq(a[i], b[i])) return false; return true; }
     if ("c" in a) return ("c" in b) && a.c === b.c && this.eq(a.v, b.v);
-    let p = a, q = b;
-    while (p !== null && q !== null) { if (!this.eq(p.h, q.h)) return false; p = p.t; q = q.t; }
-    return p === q;
+    const xs = this.arr(a), ys = this.arr(b);
+    if (xs.length !== ys.length) return false;
+    for (let i = 0; i < xs.length; i++) if (!this.eq(xs[i], ys[i])) return false;
+    return true;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
   /* (^ticket(757)) Int and Nat, exact as the interpreter's Bigint: a JS number while it is a safe integer, a BigInt past
@@ -165,7 +174,9 @@ module Runtime = {
           if (x.c === "SpliceRef" && Array.isArray(x.v) && x.v[0] === id) return x.v[1];
           return "v" in x ? find(x.v) : undefined;
         }
-        if ("h" in x) { for (let p = x; p !== null; p = p.t) { const r = find(p.h); if (r !== undefined) return r; } }
+        if ("h" in x || ("a" in x && "i" in x)) for (let p = x; p !== null;) {
+          if (p.a !== undefined) { for (let i = p.i; i < p.a.length; i++) { const r = find(p.a[i]); if (r !== undefined) return r; } break; }
+          const r = find(p.h); if (r !== undefined) return r; p = p.t; }
         return undefined;
       };
       const r = find(model);
@@ -192,7 +203,7 @@ module Runtime = {
       return g.slice(i, i + n).join(""); },
     /* a literal separator; the empty one splits into graphemes */
     string_split: ([sep, s]) => { const p = sep === "" ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s), x => x.segment) : s.split(sep);
-      let r = null; for (let i = p.length - 1; i >= 0; i--) r = { h: p[i], t: r }; return r; },
+      return p.length === 0 ? null : { a: p, i: 0 }; },
     string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
     string_trim: s => s.trim(),
     /* (^ticket(761), the sweep's most frequent missing builtins) as HazelString has them: a pattern a JS RegExp with the
@@ -208,7 +219,7 @@ module Runtime = {
       if (m.index <= 0) return 0;
       let acc = 0; for (let i = 0; i < n; i++) { acc += g[i].length; if (acc > m.index) return i; } return n;
     },
-    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.t) a.push(p.h); return a.join(sep); },
+    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null;) { if (p.a !== undefined) { for (let i = p.i; i < p.a.length; i++) a.push(p.a[i]); break; } a.push(p.h); p = p.t; } return a.join(sep); },
     string_escaped: s => {
       let out = "";
       for (const c of s) {
@@ -229,7 +240,8 @@ module Runtime = {
     /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
        (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
     from_lvs: l => { const vs = [], ks = [];
-      for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
+      const es = []; for (let p = l; p !== null;) { if (p.a !== undefined) { for (let i = p.i; i < p.a.length; i++) es.push(p.a[i]); break; } es.push(p.h); p = p.t; }
+      for (const e of es) { const k = e.label; vs.push(e.value);
         ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
       ks.forEach((k, i) => { vs[k] = vs[i]; }); return vs; },
     /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
@@ -240,10 +252,10 @@ module Runtime = {
       const ls = t.map(() => null);
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
       if (ls.some(l => l === null)) stuck();
-      let r = null;
-      for (let i = t.length - 1; i >= 0; i--) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
-        const e = [name, t[i]]; e.label = name; e.value = t[i]; r = { h: e, t: r }; }
-      return r; },
+      const es = [];
+      for (let i = 0; i < t.length; i++) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
+        const e = [name, t[i]]; e.label = name; e.value = t[i]; es.push(e); }
+      return es.length === 0 ? null : { a: es, i: 0 }; },
     omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
       t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
@@ -570,17 +582,17 @@ let rec pat =
       switch (ps) {
       | [] => (tests @ [v ++ " === null"], binds, lex)
       | [p, ...rest] =>
-        let (t, b, lex) = pat(st, scope, lex, p, v ++ ".h");
+        let (t, b, lex) = pat(st, scope, lex, p, "$R.hd(" ++ v ++ ")");
         go(
           rest,
-          v ++ ".t",
+          "$R.tl(" ++ v ++ ")",
           (tests @ [v ++ " !== null"] @ t, binds @ b, lex),
         );
       };
     go(ps, v, ([], [], lex));
   | Cons(ph, pt) =>
-    let (t1, b1, lex) = pat(st, scope, lex, ph, v ++ ".h");
-    let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".t");
+    let (t1, b1, lex) = pat(st, scope, lex, ph, "$R.hd(" ++ v ++ ")");
+    let (t2, b2, lex) = pat(st, scope, lex, pt, "$R.tl(" ++ v ++ ")");
     ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
   | Tuple(ps) =>
     List.fold_left(
@@ -745,12 +757,10 @@ and exp_inner =
       j;
     | None => global(st, x)
     };
+  /* (^report(54)) a list literal is a segment of an array: no cells made, and length and nth take constant time */
+  | ListLit([]) => "null"
   | ListLit(es) =>
-    List.fold_right(
-      es,
-      ~f=(e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
-      ~init="null",
-    )
+    "$R.seg([" ++ String.concat(~sep=", ", List.map(es, ~f=go)) ++ "])"
   | Cons(h, t) => "{h: " ++ go(h) ++ ", t: " ++ go(t) ++ "}"
   | ListConcat(a, b) => "$R.append(" ++ go(a) ++ ", " ++ go(b) ++ ")"
   | Tuple(es) =>

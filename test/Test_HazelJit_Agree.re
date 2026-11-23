@@ -86,8 +86,27 @@ let typeof = (v: Js.Unsafe.any): string =>
 let get = (v: Js.Unsafe.any, k: string): Js.Unsafe.any =>
   Js.Unsafe.get(v, k);
 let is_null = (v: Js.Unsafe.any): bool => Js.Unsafe.equals(v, Js.null);
+/* (^report(54)) a list's head and tail: a cell {h, t}, or a segment {a, i}, the elements of an array from index i on */
+let is_seg = (v: Js.Unsafe.any): bool =>
+  Js.to_string(Js.typeof(Js.Unsafe.get(v, "a"))) != "undefined";
 let num = (v: Js.Unsafe.any): float =>
   Js.float_of_number(Js.Unsafe.coerce(v));
+let hd = (v: Js.Unsafe.any): Js.Unsafe.any =>
+  is_seg(v)
+    ? Js.Unsafe.get(get(v, "a"), int_of_float(num(get(v, "i"))))
+    : get(v, "h");
+let tl = (v: Js.Unsafe.any): Js.Unsafe.any =>
+  if (is_seg(v)) {
+    let i = num(get(v, "i")) +. 1.;
+    i < num(get(get(v, "a"), "length"))
+      ? Js.Unsafe.obj([|
+          ("a", get(v, "a")),
+          ("i", Js.Unsafe.inject(Js.number_of_float(i))),
+        |])
+      : Js.Unsafe.inject(Js.null);
+  } else {
+    get(v, "t");
+  };
 
 /* None when the JS value is the interpreter's value, else what differs */
 let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
@@ -149,8 +168,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
         is_null(v)
           ? Some("a list shorter than " ++ Exp.show(e))
           : (
-            switch (agree(e, get(v, "h"))) {
-            | None => walk(rest, get(v, "t"))
+            switch (agree(e, hd(v))) {
+            | None => walk(rest, tl(v))
             | d => d
             }
           )
@@ -160,8 +179,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     is_null(js)
       ? Some("[] for a cons")
       : (
-        switch (agree(h, get(js, "h"))) {
-        | None => agree(t, get(js, "t"))
+        switch (agree(h, hd(js))) {
+        | None => agree(t, tl(js))
         | d => d
         }
       )
