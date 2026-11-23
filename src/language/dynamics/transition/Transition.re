@@ -1262,11 +1262,17 @@ module Transition = (EV: EV_MODE) => {
         let.wrap_closure _ = (env, Match(d1', rules) |> rewrap);
         Indet;
       };
-    | Closure(_) =>
-      /* A closure packages an environment with a finished term (a function
-       * value, or a stuck result). It is not a redex. */
+    | Closure(_, body) =>
+      /* A closure packages an environment with a finished term: a function,
+         which is a value, or a result the rule that wrapped it found stuck
+         (an unbound variable, or a `let`, `if`, `case` or hole it couldn't
+         go past). It is not a redex. */
       let. _ = otherwise(env, d);
-      Constructor;
+      switch (DHExp.term_of(body)) {
+      | Fun(_)
+      | TypFun(_) => Value
+      | _ => Indet
+      };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);

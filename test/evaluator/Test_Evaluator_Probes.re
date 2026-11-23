@@ -679,6 +679,21 @@ let value_styling_tests = [
     {|^^probe([fun x -> x, fun y -> y])|},
     [(0, true)],
   ),
+  probe_value_styling_test(
+    "a recursive function is a value",
+    {|let f = fun x -> f(x) in ^^probe(f)|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a type function is a value",
+    {|^^probe(typfun a -> 1)|},
+    [(0, true)],
+  ),
+  probe_value_styling_test(
+    "a stuck if under a let is not a value",
+    {|let y = 1 in ^^probe(if ? then y else 2)|},
+    [(0, false)],
+  ),
 ];
 
 let recursion_tests = [
