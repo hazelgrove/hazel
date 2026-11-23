@@ -320,13 +320,6 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Let(_)
   | Theorem(_) => Precedence.let_
 
-  /* A parenthesized term, `()` or a literal after `.` parses as a
-     multihole of just that, so parens around it would nest a pair deeper on
-     each reprint. A name or a hole there reads otherwise (`$_$ .A` is a
-     projection), so its hole keeps them. With an operator (a stranded
-     prefix one) it prints as `-(x)`, which isn't. */
-  | MultiHole([Exp({term: Parens(_) | Tuple([]) | Atom(_), _})])
-      when Option.is_none(op_lexeme(exp.annotation)) => Precedence.max
   | MultiHole(_) => hole_precedence(Sort.Exp, exp.annotation)
   | ModuleExp(_) => Precedence.let_
   };
@@ -728,11 +721,14 @@ let rec parenthesize =
     enclosed(inner);
   | Dot(e, l) =>
     /* After `.` a name is a projection and `?` a hole. Anything else reads
-       as a hole of one piece, which prints in parens unless it is enclosed
-       or a literal (see external_precedence). */
+       as a hole of one piece. That hole prints bare when its piece is
+       enclosed or a literal, as the piece reads the same way again; any
+       other piece takes parens, or each reprint would add a pair. */
     let l = parenthesize(l);
     let l =
       switch (l.term) {
+      | MultiHole([Exp({term: Parens(_) | Tuple([]) | Atom(_), _})])
+          when Option.is_none(op_lexeme(l.annotation)) => l
       | Label(_)
       | Var(_)
       | BuiltinFun(_)
