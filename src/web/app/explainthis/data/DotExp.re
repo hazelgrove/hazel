@@ -16,10 +16,11 @@ let dot_example_2 = {
 };
 
 let tup = Var("e") |> Exp.fresh;
-let lab = Label("label") |> Exp.fresh;
+let lab: TermBase.Label.t =
+  IdTagged.fresh(Grammar.Label("label"): TermBase.label_term);
 
 let dot_coloring_ids = (~tup_id: Id.t, ~lab_id: Id.t): list((Id.t, Id.t)) => {
-  [(Exp.rep_id(tup), tup_id), (Exp.rep_id(lab), lab_id)];
+  [(Exp.rep_id(tup), tup_id), (Label.rep_id(lab), lab_id)];
 };
 let syntactic_form: Exp.t = Dot(tup, lab) |> Exp.fresh;
 

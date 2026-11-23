@@ -39,7 +39,7 @@ let rec exp_to_card = (term: Exp.t): option(card) =>
   switch (term.term) {
   | Parens(inner) => exp_to_card(inner)
   | Tuple([t1, t2]) =>
-    switch (t1.term, t2.term) {
+    switch (TupleEntry.value(t1).term, TupleEntry.value(t2).term) {
     | (Constructor(suit, _), Constructor(rank, _)) =>
       switch (string_to_suit(suit), string_to_rank(rank)) {
       | (Some(s), Some(r)) => Some((s, r))

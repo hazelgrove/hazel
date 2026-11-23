@@ -1078,7 +1078,7 @@ let ex5 = list_of_mylist(x) in
       /* H.2 fix: capitalized name on RHS of dot converts to label */
       menhir_only_test(
         "Capitalized name in dot RHS",
-        Fresh.Exp.(dot(var("m"), label("X"))),
+        Fresh.Exp.(dot(var("m"), Label.label("X"))),
         {|m.X|},
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),

@@ -241,6 +241,7 @@ let corpus = [
      form itself, where a dropped ~colorings argument regresses silently. */
   ("tuplabel-exp", "(x=1)"),
   ("dot", "(x=1, y=2).x"),
+  ("tuple4-exp", "(1, 2, 3, 4)"),
   ("tyalias", "type T = Int in 1"),
   /* The list *expression* forms. Without these the pattern-side cons docs are
      covered but the expression-side ones are not, so a coloring pointing at the
@@ -540,22 +541,27 @@ y => VarPat colorings=[]|},
   ),
   (
     "tuplabel-exp",
-    {|(x=1) => TupleExp colorings=[]
+    {|(x=1) => LabeledExp colorings=[1,x]
 1 => IntExp colorings=[]
-`x` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]|},
+x => Label colorings=[]|},
   ),
   (
     "dot",
-    {|(x=1, y=2) => Tuple2Exp colorings=[x=1,y=2]
+    {|(x=1, y=2) => Tuple2Exp colorings=[1,2]
 (x=1, y=2) => TupleExp colorings=[]
-(x=1, y=2).x => DotExp colorings=[(x=1, y=2),`x`]
+(x=1, y=2).x => DotExp colorings=[(x=1, y=2),x]
 1 => IntExp colorings=[]
 2 => IntExp colorings=[]
-`x` => Label colorings=[]
-`y` => Label colorings=[]
-x=1 => LabeledExp colorings=[1,`x`]
-y=2 => LabeledExp colorings=[2,`y`]|},
+x => Label colorings=[]
+y => Label colorings=[]|},
+  ),
+  (
+    "tuple4-exp",
+    {|(1, 2, 3, 4) => TupleExp colorings=[]
+1 => IntExp colorings=[]
+2 => IntExp colorings=[]
+3 => IntExp colorings=[]
+4 => IntExp colorings=[]|},
   ),
   (
     "cons-exp",
