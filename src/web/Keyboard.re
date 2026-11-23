@@ -85,7 +85,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Line(Right))))
     | "ArrowUp" => now(Select(Resize(Start)))
     | "ArrowDown" => now(Select(Resize(End)))
-    | "s" => now(Format(Pretty))
+    | "s" => now(Format(Action.pretty_at_default_width))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up, _} =>
@@ -97,7 +97,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "Home" => now(Select(Resize(Start)))
     | "End" => now(Select(Resize(End)))
     | "e" => now(Probe(ToggleAuto))
-    | "s" => now(Format(Pretty))
+    | "s" => now(Format(Action.pretty_at_default_width))
     | "Backspace" => now(Destruct(Line(Left)))
     | _ => None
     }

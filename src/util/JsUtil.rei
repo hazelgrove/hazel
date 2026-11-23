@@ -72,6 +72,13 @@ let on_dpr_change: (unit => unit) => unit;
 let can_hover: unit => bool;
 /** Whether the primary pointer is a finger: true on a phone or tablet. */
 let coarse_pointer: unit => bool;
+
+/** How many columns `col_width` pixels wide fit between the element's left
+    edge and the right edge of what clips it (the nearest ancestor that
+    scrolls sideways, else the viewport), less the right padding, border and
+    margin in between, however far that is scrolled. */
+let columns_fitting:
+  (~col_width: float, Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element)) => int;
 /** Track the visual viewport, which an on-screen keyboard shrinks. */
 let follow_visual_viewport: unit => unit;
 module QueryParams: {

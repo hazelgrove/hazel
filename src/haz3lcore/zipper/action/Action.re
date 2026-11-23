@@ -153,7 +153,8 @@ type format =
   | Indent
   /* re-indent + canonicalize within-line spacing */
   | Spacing
-  | Pretty
+  /* lay out to fit `width` columns */
+  | Pretty({width: int})
   /* the cmd+S binding: resolved by CoreSettings.format_shortcut */
   | Preferred;
 
@@ -211,6 +212,10 @@ module Result = {
   include Result;
   type t('success) = Result.t('success, Failure.t);
 };
+
+/* Pretty-printing wherever no width has been measured. */
+let pretty_at_default_width: format =
+  Pretty({width: PrettySegment.default_settings.width});
 
 let is_edit: t => bool =
   fun
