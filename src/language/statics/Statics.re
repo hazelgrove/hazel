@@ -444,6 +444,8 @@ and uexp_to_info_map =
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
       add(
+        /* Not elab_typ: the cast reads the type at runtime, in no context,
+           where a compact builtin alias would act as `?`. */
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~elab_syn_ty=t_ty,
         ~marks=[],
@@ -1683,7 +1685,7 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let ctor_ty = fixed_typ(ctx, ana, syn_res) |> Typ.normalize(ctx);
+        let ctor_ty = elab_typ(ctx, fixed_typ(ctx, ana, syn_res));
         let elab_term = Constructor(ctr, Some(Some(ctor_ty))) |> rewrap;
         /* Manually emit ExpectationMismatch based on the clean syn_res
            (not ctor_ty), since ctor_ty has already been reconciled with ana
@@ -1846,7 +1848,7 @@ and uexp_to_info_map =
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
-      let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
+      let elab_term = TypAp(fn_elab, elab_typ(ctx, utyp)) |> rewrap;
       let (option_name, ty_body) = MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
@@ -3814,16 +3816,16 @@ and upat_to_info_map =
          still fill, not a resolution to nothing. */
       let elab_ty =
         switch (ty) {
-        | Some(Some(ann_ty)) => Some(Typ.normalize(ctx, ann_ty))
+        | Some(Some(ann_ty)) => Some(elab_typ(ctx, ann_ty))
         | Some(None)
         | None =>
           switch (
             ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),
             Ctx.lookup_ctr(ctx, ctr),
           ) {
-          | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+          | (Some(ana_ty), _) => Some(elab_typ(ctx, ana_ty))
           | (_, Some({typ: elab_syn_ty, _})) =>
-            Some(Typ.normalize(ctx, elab_syn_ty))
+            Some(elab_typ(ctx, elab_syn_ty))
           | _ => None
           }
         };
@@ -3875,6 +3877,7 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
+        /* Not elab_typ, as for an expression's ascription. */
         ~elab_term=
           ModuleHelpers.is_signature_ascription(~inner=p.user_term, upat)
             ? p_elab
