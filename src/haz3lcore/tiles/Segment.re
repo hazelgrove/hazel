@@ -239,25 +239,14 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     List.fold_right(
       ~f=
         ((l, child, r), children) => {
-          /* nth: a stale fallback mold can have fewer `in_` sorts than
-             the tile has kids (the Any mold of `| =>` has none). */
           let child =
-            switch (List.nth(remolded_mold.in_, l)) {
-            | Some(expected)
-                when
-                  l
-                  + 1 == r
-                  && (
-                    !
-                      Option.equal(
-                        Sort.equal,
-                        List.nth(orig_mold.in_, l),
-                        Some(expected),
-                      )
-                    || has_stale_mold(expected, child)
-                  ) =>
-              remold(child, expected)
-            | _ => child
+            if (l + 1 == r) {
+              let expected = List.nth_exn(remolded_mold.in_, l);
+              Sort.equal(List.nth_exn(orig_mold.in_, l), expected)
+              && !has_stale_mold(expected, child)
+                ? child : remold(child, expected);
+            } else {
+              child;
             };
           [child, ...children];
         },
