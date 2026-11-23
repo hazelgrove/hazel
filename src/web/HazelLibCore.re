@@ -1192,13 +1192,19 @@ module Direct = {
     };
 };
 
-/* A compiled value as this library's JS value */
+/* A compiled value as this library's JS value. interp: the interpreter's value of the same program, for a function's
+   fallback (jit_function) */
 let rec of_jit =
-        (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
+        (
+          ~interp: option(Lazy.t(Exp.t))=?,
+          ts: HazelJitValue.types,
+          ty: option(Typ.t),
+          v: Js.Unsafe.any,
+        )
         : Js.Unsafe.any =>
   if (String.equal(HazelJitValue.typeof(v), "function")
       && HazelJitValue.has(v, "$k")) {
-    jit_function(~ty?, ts, v);
+    jit_function(~ty?, ~interp?, ts, v);
   } else if (HazelJitValue.is_array(v) && holds_function(v)) {
     jit_tuple(ts, ty, v);
   } else {
@@ -1260,9 +1266,18 @@ and jit_tuple =
       )
     : js_array(values);
 }
-/* a function the compiled code made, as a JS function that runs it */
+/* a function the compiled code made, as a JS function that runs it. interp, when this is the program's own value: the
+   interpreter's value of the program, which a call the compiled code cannot finish is applied to, so the answer is
+   run's exactly. (A function rebuilt from the compiled one loses the ascription the interpreter keeps on a function
+   bound by an annotated let, `let area : Shape -> Float = ...`, and with it the Asc that applying it puts on its
+   argument, which a stuck answer shows.) */
 and jit_function =
-    (~ty: option(Typ.t)=?, ts: HazelJitValue.types, f: Js.Unsafe.any)
+    (
+      ~ty: option(Typ.t)=?,
+      ~interp: option(Lazy.t(Exp.t))=?,
+      ts: HazelJitValue.types,
+      f: Js.Unsafe.any,
+    )
     : Js.Unsafe.any => {
   let k: int =
     int_of_float(
@@ -1302,6 +1317,9 @@ and jit_function =
         )
       ) {
       | v => v
+      | exception _ when Option.is_some(interp) =>
+        let g = Lazy.force(Option.value_exn(interp));
+        to_js(evaluate(Exp.fresh(Ap(Operators.Forward, g, arg))));
       | exception stopped =>
         switch (HazelJitValue.of_js(ts, None, f)) {
         | g => to_js(evaluate(Exp.fresh(Ap(Operators.Forward, g, arg))))
@@ -1349,16 +1367,19 @@ let jit_value =
       c: result(HazelJit.compiled, string),
     )
     : list((string, Js.Unsafe.any)) => {
+  /* the interpreter's value of the program, made once, when first needed */
+  let interp = lazy(evaluate(elab));
   let interpreted = why => [
     ("compiled", Js.Unsafe.inject(Js.bool(false))),
     ("reason", js_string(why)),
-    ("value", to_js(evaluate(elab))),
+    ("value", to_js(Lazy.force(interp))),
   ];
   switch (c) {
   | Error(why) => interpreted(why)
   | Ok(c) =>
     switch (
       of_jit(
+        ~interp,
         HazelJitValue.types_of(c),
         ty,
         HazelJitValue.instantiate(c.HazelJit.src),
