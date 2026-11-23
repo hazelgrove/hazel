@@ -503,3 +503,5 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   | None => 0
   | Some(row) => row.max_col
   };
+
+let num_rows = (m: t): int => max(1, Rows.cardinal(m.rows));

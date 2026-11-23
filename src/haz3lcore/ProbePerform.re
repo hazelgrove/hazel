@@ -687,6 +687,14 @@ let remove_statics_at =
   );
 };
 
+let hide_steps = (z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      stepping: None,
+    }
+  );
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -760,6 +768,38 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
+    |> hide_steps
+  | ShowSteps(span) =>
+    DrawerFit.forget(span.probe_id);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping:
+          Some({
+            span,
+            rows: 1,
+          }),
+      }
+    );
+  | HideSteps => hide_steps(z)
+  };
+
+/* an edit to the program closes a stepping drawer, as does losing its
+   probe; probe actions on other probes leave it open */
+let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.stepping) {
+  | Some(st)
+      when
+        !has_probe(st.span.probe_id, z)
+        || Action.is_edit(a)
+        && (
+          switch (a) {
+          | Probe(_) => false
+          | _ => true
+          }
+        ) =>
+    hide_steps(z)
+  | _ => z
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {

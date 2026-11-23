@@ -56,6 +56,9 @@ let compute_targets =
       ~settings: CoreSettings.t,
       ~info_map: Statics.Map.t,
       ~probe_ids: Id.Map.t(unit),
+      /* probes whose drawer steps a sample: they keep function values */
+      ~full_ids: Id.Map.t(unit)=Id.Map.empty,
+      (),
     )
     : Sample.targets => {
   let effective_probe_ids =
@@ -79,7 +82,10 @@ let compute_targets =
           | None => []
           }
         };
-      let spec: Sample.capture_spec = {refs: refs};
+      let spec: Sample.capture_spec = {
+        refs,
+        full: Id.Map.mem(id, full_ids),
+      };
       Id.Map.add(id, spec, acc);
     },
     effective_probe_ids,
@@ -95,6 +101,12 @@ let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
     Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
     Id.Map.map(_ => (), z.refractors.multis.ephemerals),
   );
+
+let full_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
+  switch (z.refractors.stepping) {
+  | Some(st) => Id.Map.singleton(st.span.probe_id, ())
+  | None => Id.Map.empty
+  };
 
 let init_from_term =
     (
@@ -122,7 +134,7 @@ let init_from_term =
       dh_err("Dynamics & Elaboration disabled")
     | _ => elaborated
     };
-  let targets = compute_targets(~settings, ~info_map, ~probe_ids);
+  let targets = compute_targets(~settings, ~info_map, ~probe_ids, ());
   {
     term,
     elaborated,
@@ -140,7 +152,14 @@ let init_from_term =
  * effects (collision cleanup, auto-probe regen), without redoing statics. */
 let with_targets = (~settings: CoreSettings.t, z: Zipper.t, s: t): t => {
   let probe_ids = probe_ids_of_zipper(z);
-  let targets = compute_targets(~settings, ~info_map=s.info_map, ~probe_ids);
+  let targets =
+    compute_targets(
+      ~settings,
+      ~info_map=s.info_map,
+      ~probe_ids,
+      ~full_ids=full_ids_of_zipper(z),
+      (),
+    );
   {
     ...s,
     targets,

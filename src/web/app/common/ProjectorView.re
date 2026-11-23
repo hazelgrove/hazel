@@ -21,6 +21,7 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    stepping: option(ProjectorBase.stepping),
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
@@ -36,6 +37,7 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -48,6 +50,7 @@ module ViewCache = {
           phys_equal(e.statics_map, statics_map)
           && phys_equal(e.dynamics_map, dynamics_map)
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && e.stepping == stepping
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && Poly.equal(e.core_settings, core_settings)
           && e.settings_version == ProbeProj.Settings.version^
@@ -63,6 +66,7 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -76,6 +80,7 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        stepping,
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
@@ -491,6 +496,7 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
       ~elaborated,
       ~core_settings,
       ~status,
@@ -554,6 +560,7 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
       ~elaborated,
       ~core_settings,
       ~status,

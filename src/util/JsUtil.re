@@ -482,6 +482,29 @@ let set_main_scroll_top = (top: float) =>
   | Assert_failure(_) => ()
   };
 
+/* scroll #main the least that shows the last element matching sel, its
+   top first if it's taller than the view; vertical only */
+let reveal_last = (sel: string): unit =>
+  try({
+    let main = get_elem_by_id("main");
+    let nodes = Dom_html.document##querySelectorAll(Js.string(sel));
+    switch (Js.Opt.to_option(nodes##item(nodes##.length - 1))) {
+    | None => ()
+    | Some(el) =>
+      let r = el##getBoundingClientRect;
+      let m = main##getBoundingClientRect;
+      let below = r##.bottom -. m##.bottom;
+      let above = r##.top -. m##.top;
+      let by = Float.(below > 0. ? min(below, above) : min(above, 0.));
+      if (Float.(by != 0.)) {
+        main##.scrollTop :=
+           main##.scrollTop + int_of_float(Float.round_up(by));
+      };
+    };
+  }) {
+  | Assert_failure(_) => ()
+  };
+
 module Fragment = {
   let get_current = () => {
     let fragment_of_url = (url: Url.url): string =>
@@ -853,4 +876,46 @@ let navigate_probes =
 let connected = (el: Js.t(Dom_html.element)): bool =>
   try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
   | _ => false
+  };
+
+/* Drawers print values at the editor's visible width: once #main exists,
+   report its width in columns (from the main code's left edge, less a
+   two-column margin) whenever it resizes, sidebars included. */
+let width_observed = ref(false);
+let observe_drawer_width = (~report: int => unit): unit =>
+  if (! width_observed^) {
+    switch (
+      Js.Opt.to_option(Dom_html.document##getElementById(Js.string("main")))
+    ) {
+    | None => ()
+    | Some(main) =>
+      width_observed := true;
+      let rect = (el, prop): float =>
+        Js.Unsafe.get(
+          Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+          prop,
+        );
+      let callback =
+        Js.wrap_callback(_entries =>
+          switch (
+            Js.Opt.to_option(
+              Dom_html.document##querySelector(Js.string(".code-container")),
+            )
+          ) {
+          | None => ()
+          | Some(code) =>
+            let (col_width, _) = font_metrics_from_specimen();
+            if (Float.(col_width > 0.)) {
+              let px = rect(main, "right") -. rect(code, "left");
+              report(max(20, int_of_float(px /. col_width) - 2));
+            };
+          }
+        );
+      let observer =
+        Js.Unsafe.new_obj(
+          Js.Unsafe.global##._ResizeObserver,
+          [|Js.Unsafe.inject(callback)|],
+        );
+      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(main)|]);
+    };
   };

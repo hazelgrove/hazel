@@ -82,3 +82,12 @@ let navigate_probes:
     ]
   ) =>
   option(Id.t);
+
+/* attached to the document: a stale node's reads are meaningless */
+let connected: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) => bool;
+
+/* reports the editor's visible width in columns, which drawers print at */
+let observe_drawer_width: (~report: int => unit) => unit;
+
+/* scrolls #main the least that shows the last element matching a selector */
+let reveal_last: string => unit;
