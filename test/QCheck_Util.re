@@ -70,9 +70,12 @@ let show_core_typ = typ =>
   |> Printer.of_segment(~holes="?", _);
 
 /* Full-syntax variants: every Menhir AST constructor. `depth` is fuel,
- * halved at each level; ~6 is the safe ceiling, beyond which construction
- * OOMs. `size` (default AST.default_ppx_size) bounds the list-like elements
- * of the whole term, so lists can be long without the term exploding. */
+ * halved at each level and spent at 0, so only the number of halvings
+ * counts: fuels 4 to 7 give the same generator, three compound levels over
+ * a leaf, and 8 adds a level. The generator is built eagerly, so much more
+ * fuel runs out of memory. `size` (default AST.default_ppx_size) bounds the
+ * list-like elements of the whole term, so lists can be long without the
+ * term exploding. */
 let arb_exp_full = (~minimal_idents=false, ~size=?, depth: int) => {
   let menhir_arb = AST.arb_exp_full(~size?, depth);
   let menhir_arb =

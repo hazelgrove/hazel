@@ -1189,7 +1189,8 @@ let with_ppx_size = (size: int, gen: QCheck.Gen.t('a)): QCheck.Gen.t('a) =>
     };
   };
 
-/* `depth` is fuel, halved at each recursive step; `size` is the most
+/* `depth` is fuel, halved at each recursive step, so fuels 4 to 7 give
+   the same terms (see QCheck_Util.arb_exp_full); `size` is the most
    list-like elements the term may have (see gen_ppx_list). */
 let arb_typ_full = (~size=default_ppx_size, depth) =>
   QCheck.make(
