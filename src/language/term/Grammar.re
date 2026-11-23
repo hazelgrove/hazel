@@ -61,27 +61,11 @@ and exp_term('a) =
   | Undefined
   | Atom(Atom.t)
   | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
-  /* The type is the element type of a list built at runtime, so a list with
-     no elements still has one. It is `None` in a term a user wrote, which
-     statics types by its elements. Elaboration sets it, and every step that
-     builds a list sets it on the result:
-     - a literal gets the element type statics found for it, which is the
-       expected one when it is checked against a list type, and pushing a
-       cast to `[t]` into a literal gives it `t`;
-     - `x :: l`, and the tail taken from it by matching a cons, keep `l`'s;
-     - `a @ b` gets the meet of `a`'s and `b`'s, as statics types it;
-     - projecting `.a` from a list of tuples gives the type of field `a`;
-     - a builtin implemented in OCaml gives the element type it declares,
-       and a builtin defined in Hazel carries its declared element type on
-       the empty list it returns.
-     Statics meets it with the elements' types, so `[]` of `[t]` has type
-     `[t]`. Printing, Canonicalize, value equality (`==`) and semantic
-     equality ignore it, as does asking whether two terms are the same term
-     (Exp.fast_equal_ignoring_list_types): equal lists reached along
-     different paths carry different types. Change detection sees it
-     (Exp.fast_equal): an edit to a list's annotation changes only the type,
-     and the incremental cache and the result view must not reuse the old
-     elaboration. */
+  /* The element type of a list built at runtime, so `[]` has one too. A
+     list the user wrote has `None`; elaboration, and every step or builtin
+     that builds a list, sets it. Statics starts the elements' meet from it.
+     Only change detection (Exp.fast_equal) compares it: equal lists reached
+     along different paths carry different types. */
   | ListLit(ListLitArgs.t(exp_t('a), typ_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
