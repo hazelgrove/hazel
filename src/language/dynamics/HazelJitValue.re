@@ -338,16 +338,38 @@ let rec of_js =
     | None => unsupported("a function the compiled code did not make")
     | Some((term, names)) =>
       let caps = get(v, "$e");
+      /* (a recursive function captures itself before it is made: its own capture is still undefined, so it is the
+         function itself, bound again by a FixF around its term, as the interpreter's recursive functions are) */
+      let unmade = i =>
+        String.equal(typeof(Js.Unsafe.get(caps, i)), "undefined");
+      let selves =
+        is_null(caps) ? [] : List.filteri(names, ~f=(i, _) => unmade(i));
       let values =
         is_null(caps)
           ? []
-          : List.mapi(names, ~f=(i, x) =>
-              (
-                x,
-                of_js(~seen=[v, ...seen], ts, None, Js.Unsafe.get(caps, i)),
-              )
+          : List.filter_mapi(names, ~f=(i, x) =>
+              unmade(i)
+                ? None
+                : Some((
+                    x,
+                    of_js(
+                      ~seen=[v, ...seen],
+                      ts,
+                      None,
+                      Js.Unsafe.get(caps, i),
+                    ),
+                  ))
             );
-      G.Exp.closure(Environment.of_bindings(values), term);
+      let env = Environment.of_bindings(values);
+      switch (selves) {
+      | [] => G.Exp.closure(env, term)
+      | [self] =>
+        G.Exp.closure(env, G.Exp.fix_f(G.Pat.var(self), term, None))
+      | _ =>
+        unsupported(
+          "functions that call each other, captured before they were made",
+        )
+      };
     };
   | "function" =>
     unsupported(
