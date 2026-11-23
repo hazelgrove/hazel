@@ -38,6 +38,8 @@ let (suite, exit_with_test_status) =
       Test_Menhir.tests,
       Test_ResultLine.tests,
       Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
+      Test_ProofDrawers.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_TutorialReferencePanel.tests,

@@ -1003,6 +1003,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe=false,
         ~schedule_action,
         ~is_edited,
         model: Model.t,
@@ -1027,6 +1028,9 @@ module Update = {
         CellEditor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          /* each theorem's proof in a drawer under it */
+          ~proofs=Theorems,
           ~is_edited,
           ~statics_mode,
           ~queue_worker,
@@ -1207,6 +1211,18 @@ module View = {
           ~lines=true,
           ~result_kind=`StatusLine,
           editor,
+        ),
+        /* room past the end, so the last line can scroll to the top;
+           with ⇓ on, the program's drawer runs on into it. The same
+           height either way, so toggling ⇓ leaves the view in place */
+        Virtual_dom.Vdom.Node.div(
+          ~attrs=[
+            Virtual_dom.Vdom.Attr.classes(
+              ["tail-slack"]
+              @ (globals.settings.tail_probe ? ["drawer"] : []),
+            ),
+          ],
+          [],
         ),
       ]
     | Drv(m) =>

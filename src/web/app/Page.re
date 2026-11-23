@@ -494,6 +494,7 @@ module Update = {
                 dynamics: false,
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -924,14 +925,27 @@ module View = {
       | Documentation(m) when globals.settings.core.dynamics =>
         switch (List.nth(m.scratchpads, m.current)) {
         | Some({kind: Code({editor, _}), dormant: false, _}) =>
+          let tail = globals.settings.tail_probe;
           Some(
             EvalResult.View.dynamics(
               ~inject=
                 a =>
                   inject(Editors(Scratch(CellAction(ResultAction(a))))),
+              ~tail,
+              ~stopped=
+                tail
+                && Option.is_some(
+                     EvalResult.Model.stopped(
+                       ~tail=
+                         editor.editor.editor.state.zipper.refractors.
+                           tail_target,
+                       editor.result,
+                     ),
+                   ),
+              ~toggle_tail=inject(Globals(Set(TailProbe))),
               editor.result,
             ),
-          )
+          );
         | _ => None
         }
       | _ => None

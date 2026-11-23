@@ -91,3 +91,8 @@ let observe_drawer_width: (~report: int => unit) => unit;
 
 /* scrolls #main the least that shows the last element matching a selector */
 let reveal_last: string => unit;
+
+/* a text selection within the focused element (a drawer's text, say) */
+let selection_in_focus: unit => bool;
+
+let clear_page_selection: unit => unit;

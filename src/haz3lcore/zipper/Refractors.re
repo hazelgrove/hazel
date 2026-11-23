@@ -13,6 +13,8 @@ open Util;
  * | Auto probe target| Refractors.autoprobe_target    | Per-editor | No         |
  * | Sample focus    | Refractors.sample_focus       | Per-editor | No         |
  * | Stepping drawer  | Refractors.stepping            | Per-editor | No         |
+ * | Tail probe anchor| Refractors.tail_target         | Per-editor | No         |
+ * | Proof drawers    | Refractors.proofs              | Per-editor | No         |
  * | Display settings | ProbeProj.Settings.s           | Global     | No         |
  * | Window offsets   | ProbeProj.Settings.offset      | Per-probe  | No         |
  * | Sample lengths   | ProbeProj.SampleLength.lengths | Per-sample | No         |
@@ -74,7 +76,15 @@ type t = {
      to the first sample of the first probe that has samples. */
   pending_probe_cursor: option(list(Id.t)),
   /* the one probe drawer showing a stepper, if any */
+  [@default None]
   stepping: option(ProjectorBase.stepping),
+  /* the ⇓ toggle's probe: an ephemeral on the program's last expression,
+     re-anchored as that expression changes */
+  [@default None]
+  tail_target: option(Id.t),
+  /* theorems' proof drawers, by theorem id */
+  [@default Id.Map.empty]
+  proofs: Map.t,
 };
 
 let init = {
@@ -84,6 +94,8 @@ let init = {
   autoprobe_target: [],
   pending_probe_cursor: None,
   stepping: None,
+  tail_target: None,
+  proofs: Id.Map.empty,
 };
 
 let persist = (refractors: t): string =>

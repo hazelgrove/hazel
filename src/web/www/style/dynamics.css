@@ -156,6 +156,17 @@
   background-color: var(--ci-dynamics-bkg);
   color: var(--ci-status-text);
   border-left: 0.6px solid var(--border-default);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* on: the program's value shows in a drawer below its last line */
+#dynamics .dyn-glyph.on {
+  background-color: color-mix(
+    in oklch,
+    var(--ci-dynamics-bkg),
+    var(--ci-status-text) 18%
+  );
 }
 
 #dynamics .status {
@@ -166,6 +177,12 @@
 
 #dynamics.ok .eq {
   color: var(--test-pass);
+}
+
+/* the run ended before the program's last line */
+#dynamics.stuck .eq {
+  color: var(--ci-status-warning-text);
+  font-weight: 600;
 }
 
 #dynamics .dyn-msg {

@@ -155,6 +155,8 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~queue_worker,
@@ -168,6 +170,8 @@ module Update = {
       CodeEditable.Update.calculate(
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe,
+        ~proofs,
         ~is_edited,
         ~statics_mode,
         ~stitch,
@@ -192,6 +196,9 @@ module Update = {
         result,
       );
     let (editor, steps_resized) = fit_steps(~settings, result, editor);
+    let proofs_resized =
+      !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
+      && Theorems.fit(~settings, result.theorems);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);
@@ -215,13 +222,16 @@ module Update = {
       has_pending_focus
       || has_pending_cursor
       || dynamics_changed
-      || steps_resized;
+      || steps_resized
+      || proofs_resized;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~ana?,
@@ -362,6 +372,27 @@ module View = {
           | _ => None
           }
       );
+    /* the ⇓ drawer, when the program stopped before its last line */
+    let tail = model.editor.editor.state.zipper.refractors.tail_target;
+    let stop = EvalResult.Model.stopped(~tail, steps_result);
+    Option.iter(tail, ~f=id => EvalResult.Model.note_stop(id, stop));
+    Haz3lcore.ProbeProj.Settings.value_fallback :=
+      (
+        id =>
+          tail == Some(id)
+            ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
+            : None
+      );
+    Haz3lcore.ProofProj.Settings.view :=
+      (
+        id =>
+          Theorems.View.view_one(
+            ~globals,
+            ~inject=a => steps_inject(TheoremsAction(a)),
+            steps_result.theorems,
+            id,
+          )
+      );
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
@@ -382,6 +413,14 @@ module View = {
                           steps_inject(ProbeStepperFocus(None)),
                         ]
                       | _ => []
+                      }
+                    )
+                    @ (
+                      switch (steps_result.theorems.focus) {
+                      | Some(_) => [
+                          steps_inject(TheoremsAction(TheoremFocus(None))),
+                        ]
+                      | None => []
                       }
                     ),
                   ),

@@ -262,6 +262,13 @@ let add_ids_from_multi_term =
           && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
+  /* the ⇓ toggle's probe outlives the rebuild; a manual probe on the
+     same term wins */
+  let tail =
+    switch (z.refractors.tail_target) {
+    | Some(id) when !List.mem(manual_ids, id, ~equal=Id.equal) => [id]
+    | _ => []
+    };
   let manual_end_rows =
     List.filter_map(
       ~f=
@@ -287,6 +294,8 @@ let add_ids_from_multi_term =
           },
       ids,
     );
+  let ids =
+    ids @ List.filter(tail, ~f=id => !List.mem(ids, id, ~equal=Id.equal));
   let old_ephemerals = z.refractors.multis.ephemerals;
   /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
@@ -295,7 +304,12 @@ let add_ids_from_multi_term =
         (map, id) =>
           switch (Id.Map.find_opt(id, old_ephemerals)) {
           | Some(existing) => Id.Map.add(id, existing, map)
-          | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+          | None =>
+            /* the ⇓ probe opens as a drawer */
+            let model =
+              List.mem(tail, id, ~equal=Id.equal)
+                ? Some(ProbeProj.tail_model) : None;
+            Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
           },
       ~init=Id.Map.empty,
       ids,
@@ -311,8 +325,12 @@ let add_ids_from_multi_term =
     } else {
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
-  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
-  let new_ids = List.filter(~f=id => !Id.Map.mem(id, old_ephemerals), ids);
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new
+     ephemerals; the tail probe never takes the focus. */
+  let new_ids =
+    List.filter(ids, ~f=id =>
+      !Id.Map.mem(id, old_ephemerals) && !List.mem(tail, id, ~equal=Id.equal)
+    );
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z

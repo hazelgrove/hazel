@@ -701,18 +701,14 @@ module View = {
         ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
-        ~refractors=
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.multis.ephemerals,
-          ),
+        ~refractors=CachedSyntax.refractor_entries(zipper.refractors),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~stepping=zipper.refractors.stepping,
+        ~tail=zipper.refractors.tail_target,
         ~editor_active=selected,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
@@ -726,12 +722,14 @@ module View = {
         ~core_settings=globals.settings.core,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
+        ~term_data=model.editor.syntax.term_data,
         refractor_data,
         List.map(~f=fst, zipper.refractors.manuals)
         @ List.map(
             ~f=fst,
             Id.Map.to_list(zipper.refractors.multis.ephemerals),
-          ),
+          )
+        @ List.map(~f=fst, Id.Map.to_list(zipper.refractors.proofs)),
       );
     let projectors =
       ProjectorView.all(
@@ -983,9 +981,22 @@ module View = {
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
+        /* a key the editor takes ends a selection made in its drawers,
+           but for Cmd+C, which copies it (below) */
+        let keeps_selection = (key: Key.t) =>
+          switch (key) {
+          | {key: U(_), _}
+          | {key: D("Shift" | "Alt" | "Meta" | "Control" | "CapsLock"), _}
+          | {key: D("c" | "C"), meta: Down, _}
+          | {key: D("c" | "C"), ctrl: Down, _} => true
+          | _ => false
+          };
         /* Key.listener (not Key.handler): handler adds its own tabindex(0),
            duplicating this div's tabindex — vdom warns every render */
         Key.listener(~f=key => {
+          if (!keeps_selection(key) && JsUtil.selection_in_focus()) {
+            JsUtil.clear_page_selection();
+          };
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -1039,11 +1050,14 @@ module View = {
               alt: Up,
               _,
             } =>
-            Effect.Many([
-              copy_selection(),
-              Effect.Prevent_default,
-              Effect.Stop_propagation,
-            ])
+            /* text selected in a drawer: the browser copies it */
+            JsUtil.selection_in_focus()
+              ? Effect.Stop_propagation
+              : Effect.Many([
+                  copy_selection(),
+                  Effect.Prevent_default,
+                  Effect.Stop_propagation,
+                ])
           | {
               key: D("x" | "X"),
               sys: Mac,
@@ -1103,7 +1117,7 @@ module View = {
               ])
             | None => Effect.Ignore
             }
-          }
+          };
         });
       };
     Node.div(

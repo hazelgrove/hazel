@@ -505,3 +505,6 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   };
 
 let num_rows = (m: t): int => max(1, Rows.cardinal(m.rows));
+
+let find_shards_by_id = (id: Id.t, m: t): option(Shards.t) =>
+  Id.Map.find_opt(id, m.tiles);

@@ -24,6 +24,10 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* made by the ⇓ toggle: marks its probe through a pin, step-into or
+     reload (ProjectorInfo.is_program_value) */
+  [@default false]
+  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -32,7 +36,18 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  bare: false,
 };
+
+/* the ⇓ probe: an open drawer, marked bare */
+let tail_model: string =
+  {
+    ...init_probe_model,
+    drawer_mode: true,
+    bare: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
 
 /* Any deserialization failure resets to defaults (transient UI state). */
 let probe_model_of_sexp = sexp =>
@@ -45,6 +60,13 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
+  };
+
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
@@ -212,10 +234,11 @@ module Settings = {
   let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
-  /* Bumped when drawers must re-lay out (their print width or a
-   * measured height changed): CachedSyntax recomputes drawer rows when
-   * it moves. */
-  let layout = DrawerFit.layout;
+  /* Set by the web layer each render: for the ⇓ probe, what its drawer
+   * shows when the program stopped before reaching it (no value of its
+   * own), or None. */
+  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
 
   /* drawers print values at the editor's visible width */
   let set_drawer_width = (width: int) =>
@@ -228,7 +251,7 @@ module Settings = {
           },
         };
       version := version^ + 1;
-      layout := layout^ + 1;
+      DrawerFit.layout := DrawerFit.layout^ + 1;
     };
 
   let set_sticky = (b: bool) => {
@@ -744,6 +767,12 @@ let value_view =
       Attr.on_double_click(_ =>
         ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
+      /* a drawer's value is selectable: a double click is still the
+         toggle above, not a word's selection */
+      Attr.on_mousedown(evt => {
+        let clicks: int = Js.Unsafe.coerce(evt)##.detail;
+        clicks > 1 ? Effect.Prevent_default : Effect.Ignore;
+      }),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
         Key.ctrl_held(evt)
@@ -1748,7 +1777,7 @@ let key_handler =
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when ctx.p_info.stepping != None =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
-  | D("Escape") when drawer_mode_active =>
+  | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1842,6 +1871,12 @@ let key_handler =
   | D("/") =>
     /* Toggle sticky mode (web/Settings owns it). */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  /* text selected in the value: the browser copies it */
+  | D("c" | "C")
+      when
+        (Key.meta_held(evt) || Key.ctrl_held(evt))
+        && JsUtil.selection_in_focus() =>
+    Stop_propagation
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>
@@ -2084,7 +2119,8 @@ let live_offside_view =
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
-    @ (scrollable ? ["drawer-overflow"] : []);
+    @ (scrollable ? ["drawer-overflow"] : [])
+    @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -2398,13 +2434,9 @@ module M: Projector = {
 
   let placeholder = (model: model, info: info) =>
     switch (info.stepping) {
-    | Some(st) =>
-      /* uncapped: steps are worked through, so the drawer opens to the
-         whole trace instead of scrolling inside itself */
-      ProjectorCore.Shape.{
-        horizontal: 0,
-        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
-      }
+    /* uncapped: steps are worked through, so the drawer opens to the
+       whole trace instead of scrolling inside itself */
+    | Some(st) => DrawerFit.shape(info.id, st.rows)
     | None => placeholder_samples(model, info)
     };
 
@@ -2563,6 +2595,7 @@ module M: Projector = {
     let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
+      | (_, true) when info.program_value => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
@@ -2642,6 +2675,11 @@ module M: Projector = {
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
+        /* the program stopped short of the ⇓ probe: how far it got */
+        | (_, true)
+            when
+              info.program_value && Settings.value_fallback^(info.id) != None =>
+          Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(
             live_offside_view(

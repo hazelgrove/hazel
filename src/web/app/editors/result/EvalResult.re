@@ -130,6 +130,49 @@ module Model = {
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
 
+  /* a finished run that never reached the program's last line: the ⇓
+     probe ([tail]) got no value, so its drawer shows how far the program
+     got instead (a stuck expression, or the error) */
+  type stop =
+    | Stuck(Exp.t)
+    | Failed(ProgramResult.error);
+
+  let stopped = (~tail: option(Id.t), model: t): option(stop) =>
+    switch (tail, Calc.get_value(model.result)) {
+    | (None, _)
+    | (_, ResultPending(_)) => None
+    | (Some(id), result) =>
+      switch (Dynamics.Map.lookup(id, dynamics(model)), result) {
+      | (Some([_, ..._]), _)
+      | (_, ResultPending(_)) => None
+      | (_, ResultOk({result: exp, _})) => Some(Stuck(exp))
+      | (_, ResultFail(err)) => Some(Failed(err))
+      }
+    };
+
+  /* the drawer's view cache keys on the probe's samples, which a stopped
+     run never changes: the stop, as last drawn for the ⇓ probe, redraws
+     probe views when it changes */
+  let drawn_stop: ref(option((Id.t, option(stop)))) = ref(None);
+  let note_stop = (id: Id.t, stop: option(stop)) => {
+    let same =
+      switch (drawn_stop^) {
+      | Some((id', stop')) when id' == id =>
+        switch (stop', stop) {
+        | (None, None) => true
+        | (Some(Stuck(a)), Some(Stuck(b))) => phys_equal(a, b)
+        | (Some(Failed(a)), Some(Failed(b))) => a == b
+        | _ => false
+        }
+      | _ => false
+      };
+    if (!same) {
+      drawn_stop := Some((id, stop));
+      Haz3lcore.ProbeProj.Settings.version :=
+        Haz3lcore.ProbeProj.Settings.version^ + 1;
+    };
+  };
+
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
     | ProgramResult.ResultPending(_) => true
@@ -716,16 +759,68 @@ module View = {
     );
   };
 
-  /* the program's dynamics, at the cursor inspector's right end:
-     whether it ran, the error if not, the stepper (it steps from the
-     elaboration, so a failed run can still be stepped) and, after a
-     finished run, the proofs. A run under way keeps the last finished
-     one, dimmed */
-  let dynamics = (~inject, model: Model.t): Node.t => {
+  /* the ⇓ drawer when the program stopped before its last line: how far
+     it got, marked as such */
+  let stopped_view = (~globals: Globals.t, stop: Model.stop): Node.t =>
+    div(
+      ~attrs=[Attr.classes(["value-stopped", "program-value"])],
+      [
+        span(
+          ~attrs=[
+            Attr.classes(["value-stopped-label"]),
+            Attr.title(
+              "The program stopped before its last line: this is how far it got",
+            ),
+          ],
+          [text("Stopped")],
+        ),
+        switch (stop) {
+        | Stuck(exp) =>
+          div(
+            ~attrs=[Attr.classes(["value-stopped-code"])],
+            [
+              CodeViewable.view_any(
+                ~globals,
+                ~settings=
+                  Haz3lcore.ExpToSegment.Settings.of_core(
+                    ~inline=false,
+                    ~fold_fn_bodies=`Text,
+                    globals.settings.core,
+                  ),
+                Exp(exp),
+              ),
+            ],
+          )
+        | Failed(err) =>
+          div(
+            ~attrs=[Attr.classes(["value-stopped-error"])],
+            [text(error_msg(err))],
+          )
+        },
+      ],
+    );
+
+  /* the program's dynamics, at the cursor inspector's right end: the ⇓
+     toggle (the value in a drawer below the last line), whether it ran,
+     the error if not, the stepper (it steps from the elaboration, so a
+     failed run can still be stepped) and, after a finished run, the
+     proofs. A run under way keeps the last finished one, dimmed */
+  let dynamics =
+      (
+        ~inject,
+        /* the ⇓ toggle: the last expression's value in a drawer below it */
+        ~tail=false,
+        ~toggle_tail=Effect.Ignore,
+        /* the run ended before the program's last line */
+        ~stopped=false,
+        model: Model.t,
+      )
+      : Node.t => {
     let result = Calc.get_value(model.result);
     let (mark, msg, outcome) =
       switch (Model.settle(model.settled, result)) {
       | None => ("", {js|Running…|js}, "pending")
+      | Some(None) when stopped => ("!", "Stopped early", "stuck")
       | Some(None) => ({js|✓|js}, "Ran", "ok")
       | Some(Some(err)) => ({js|✗|js}, error_msg(err), "fail")
       };
@@ -758,8 +853,14 @@ module View = {
       [
         div(
           ~attrs=[
-            Attr.classes(["dyn-glyph"]),
-            Attr.title("Dynamics: how the program ran"),
+            Attr.classes(["dyn-glyph"] @ (tail ? ["on"] : [])),
+            Attr.title(
+              tail
+                ? "Hide the program's value"
+                : "Show the program's value below its last line",
+            ),
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+            Attr.on_click(_ => toggle_tail),
           ],
           [text({js|⇓|js})],
         ),
@@ -915,8 +1016,9 @@ module View = {
           ]
         | None => []
         };
+      /* the decks' proofs live in drawers under their theorems */
       let theorems =
-        result_kind == `NoTheorems
+        result_kind == `NoTheorems || result_kind == `StatusLine
           ? []
           : Theorems.View.view(
               ~globals,
