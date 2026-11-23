@@ -127,6 +127,17 @@ let hole = (tms: list(TermBase.Any.t)): term =>
   };
 
 let rep_id: t => Id.t = IdTagged.rep_id;
+
+/* A labeled field `label=value` that elaboration makes up. */
+let labeled_field = (~salt, ~source: Id.t, label: string, value: t): t =>
+  IdTagged.derived(
+    ~salt,
+    source,
+    TupLabel(
+      IdTagged.derived(~salt=salt ++ ":label", source, Label(label): term),
+      value,
+    ): term,
+  );
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
 

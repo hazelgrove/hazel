@@ -320,22 +320,20 @@ and uexp_to_info_map =
      elaboration, with ids derived from the value's. */
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     let (value, value_elab, m) = go(~ana=inner_ty, uexp, m);
-    let derived = (salt, term: Exp.term): Exp.t =>
-      IdTagged.derived(~salt="autolabel:" ++ salt, Exp.rep_id(uexp), term);
     let labeled = (ty: Typ.t): Typ.t =>
       Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
     let (_, rewrap) = Exp.unwrap(uexp);
     let elab_term =
       rewrap(
         Tuple([
-          derived(
-            "field",
-            TupLabel(
-              derived("label", Label(l)),
-              {
-                ...value_elab,
-                annotation: derived("value", value_elab.term).annotation,
-              },
+          Exp.labeled_field(
+            ~salt="autolabel:field",
+            ~source=Exp.rep_id(uexp),
+            l,
+            IdTagged.derived(
+              ~salt="autolabel:value",
+              Exp.rep_id(uexp),
+              value_elab.term,
             ),
           ),
         ]),
@@ -971,17 +969,6 @@ and uexp_to_info_map =
       let original_labels =
         List.map(~f=e => Exp.match_tup_label(e) |> Option.map(~f=fst), es);
 
-      /* Filling a label in from the expectation synthesizes syntax the user
-         did not write. Its ids are derived from the labelled value's own, so
-         they are the same on every run and the incremental cache can hit
-         them (see the same reasoning in `autolabel_singleton_tuple`). */
-      let autolabel = (salt, e: Exp.t, term: Exp.term): Exp.t =>
-        IdTagged.derived(
-          ~salt="inferred-label:" ++ salt,
-          Exp.rep_id(e),
-          term,
-        );
-
       let (inferred_es, ana_tys) =
         MatchedTyp.prod(
           ctx,
@@ -996,10 +983,11 @@ and uexp_to_info_map =
           (name, (_, e)) =>
             (
               Some(name),
-              autolabel(
-                "field",
+              Exp.labeled_field(
+                ~salt="inferred-label:field",
+                ~source=Exp.rep_id(e),
+                name,
                 e,
-                TupLabel(autolabel("label", e, Label(name)), e),
               ),
             ),
         );
@@ -1181,17 +1169,13 @@ and uexp_to_info_map =
               Exp.match_tup_label,
               ts,
               es_elab,
-              /* Reordering fills in labels the expectation supplied; those
-                 wrappers are recorded, so derive their ids from the element
-                 they wrap (see the tuple case above). */
+              /* Reordering fills in labels the expectation supplied. */
               (label, body) =>
-              autolabel(
-                "rearrange",
+              Exp.labeled_field(
+                ~salt="inferred-label:rearrange",
+                ~source=Exp.rep_id(body),
+                label,
                 body,
-                TupLabel(
-                  autolabel("rearrange-label", body, Label(label)),
-                  body,
-                ),
               )
             ),
           )
@@ -3104,22 +3088,20 @@ and upat_to_info_map =
      tuple's type, elaboration and coverage constraint. */
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
     let (value, value_elab, m) = go(~ana=inner_ty, upat, m);
-    let derived = (salt, term: Pat.term): Pat.t =>
-      IdTagged.derived(~salt="autolabel:" ++ salt, Pat.rep_id(upat), term);
     let labeled = (ty: Typ.t): Typ.t =>
       Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
     let (_, rewrap) = Pat.unwrap(upat);
     let elab_term =
       rewrap(
         Tuple([
-          derived(
-            "field",
-            TupLabel(
-              derived("label", Label(l)),
-              {
-                ...value_elab,
-                annotation: derived("value", value_elab.term).annotation,
-              },
+          Pat.labeled_field(
+            ~salt="autolabel:field",
+            ~source=Pat.rep_id(upat),
+            l,
+            IdTagged.derived(
+              ~salt="autolabel:value",
+              Pat.rep_id(upat),
+              value_elab.term,
             ),
           ),
         ]),
@@ -3512,17 +3494,11 @@ and upat_to_info_map =
           (name, (_, p)) =>
             (
               Some(name),
-              IdTagged.derived(
+              Pat.labeled_field(
                 ~salt="inferred-label:field",
-                Pat.rep_id(p),
-                TupLabel(
-                  IdTagged.derived(
-                    ~salt="inferred-label:label",
-                    Pat.rep_id(p),
-                    Label(name): Pat.term,
-                  ),
-                  p,
-                ): Pat.term,
+                ~source=Pat.rep_id(p),
+                name,
+                p,
               ),
             ),
         );

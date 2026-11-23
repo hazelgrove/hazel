@@ -34,6 +34,17 @@ let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
 let fresh: term => t = IdTagged.fresh;
 
+/* A labeled field `label=value` that elaboration makes up. */
+let labeled_field = (~salt, ~source: Id.t, label: string, value: t): t =>
+  IdTagged.derived(
+    ~salt,
+    source,
+    TupLabel(
+      IdTagged.derived(~salt=salt ++ ":label", source, Label(label): term),
+      value,
+    ): term,
+  );
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
   switch (tms) {
   | [] => EmptyHole

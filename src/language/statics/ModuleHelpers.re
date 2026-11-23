@@ -166,13 +166,12 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
   go(items);
 };
 
-/* The export record has no source position, so its ids are derived from
-   the module's: the same on every statics run, so the incremental cache
-   can hit them, and distinct from the module's own id (module_body_with_id
-   gives the elaboration's record the module's id afterwards). A later item's
-   binding of a name shadows the earlier export, but one item can bind a
-   name twice (`let (x, x) = …`), so each field's ids carry its position
-   as well as its name. */
+/* The export record has no source position, so its ids derive from the
+   module's, distinct from the module's own (module_body_with_id gives the
+   elaboration's record that one afterwards). A later item's binding of a
+   name shadows the earlier export, but one item can bind a name twice
+   (`let (x, x) = …`), so each field's ids carry its position as well as
+   its name. */
 let labeled_tuple_exp =
     (~module_id: Id.t, exports: list(value_export)): Exp.t => {
   let mk = (salt, term: Exp.term): Exp.t =>
@@ -181,12 +180,11 @@ let labeled_tuple_exp =
     exports
     |> List.mapi(~f=(i, {name, _}) => {
          let at = string_of_int(i) ++ ":" ++ name;
-         mk(
-           "field:" ++ at,
-           TupLabel(
-             mk("label:" ++ at, Label(name)),
-             mk("var:" ++ at, Var(name)),
-           ),
+         Exp.labeled_field(
+           ~salt="module-export:field:" ++ at,
+           ~source=module_id,
+           name,
+           mk("var:" ++ at, Var(name)),
          );
        });
   mk("record", Tuple(fields));
@@ -318,10 +316,10 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   };
 
 /* The id of the `let` an item lowers to. A binding item's wrapper takes the
-   item's id. An expression or hole item IS its expression, which already has
+   item's id. An expression or hole item is its expression, which already has
    the item's ids, so its wrapper takes an id derived from them instead: on
    the item's id, the wrapper's info would replace the expression's type and
-   errors. Derived, not fresh, so it is the same on every statics run. */
+   errors. */
 let wrapper_id = (item: Mod.t): Id.t =>
   switch (item.term) {
   | ModLet(_)
