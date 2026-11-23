@@ -147,6 +147,54 @@ go(Var("yo"))|},
         {|(if ? then ? else ?) : String : String|},
       )
     ),
+    /* A stuck result passed back through a recursive function's casts
+       carries one cast, not one per call (#1874). */
+    test_case(
+      "A hole returned through recursion keeps one ascription",
+      `Quick,
+      () => {
+        parse_and_evaluate_test(
+          {|? : Int|},
+          {|let f : Int -> Int = fun n -> if n == 0 then ? else f(n - 1) in f(5)|},
+        );
+        parse_and_evaluate_test(
+          {|? : String|},
+          {|let f : Int -> String = fun n -> if n == 0 then ? else f(n - 1) in f(5)|},
+        );
+        parse_and_evaluate_test(
+          {|? : Int|},
+          {|let f : ? -> ? = fun n -> if n == 0 then ? else (f(n - 1) : Int) in f(5)|},
+        );
+      },
+    ),
+    test_case(
+      "Stuck results built up through recursion keep one ascription per hole",
+      `Quick,
+      () => {
+        parse_and_evaluate_test(
+          {|1 + (1 + (1 + (1 + ?)))|},
+          {|let f : Int -> Int = fun n -> if n == 0 then ? else 1 + f(n - 1) in f(4)|},
+        );
+        parse_and_evaluate_test(
+          {|1 + ((? : Int) + 3)|},
+          {|let sum : [?] -> ? = fun xs ->
+              case xs
+              | [] => 0
+              | x :: xs => x + sum(xs)
+              end
+            in sum([1, ?, 3])|},
+        );
+        parse_and_evaluate_test(
+          {|1 + ((? : Int) + (3 + ((? : Int) + 5)))|},
+          {|let sum : [Int] -> Int = fun xs ->
+              case xs
+              | [] => 0
+              | x :: xs => x + sum(xs)
+              end
+            in sum([1, ?, 3, ?, 5])|},
+        );
+      },
+    ),
     test_case("Indet case passes ascriptions through", `Quick, () => {
       parse_and_evaluate_test(
         {|(case ?

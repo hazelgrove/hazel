@@ -504,10 +504,9 @@ in apply(add(_, 10), 5)|},
   ),
 ];
 
-/* Delegation law: an administrative same-id re-evaluation (cast
- * distribution rebuilding the probed Ap via rewrap) continues the open
- * observation span rather than opening a second one, so one source-level
- * call mints exactly one sample — with args and a navigable frame. */
+/* One source-level call mints exactly one sample, with args and a
+ * navigable frame, including a call through an arrow cast (which used to
+ * be rebuilt under the call's id and evaluated a second time). */
 let span_suppression_tests = [
   test_case(
     "Cast-distributed call mints a single fully-resolved sample",
@@ -528,6 +527,25 @@ apply(mk(1), 5)|},
         true,
         Option.is_some(frame_fn_def_id(s)),
       );
+    },
+  ),
+  /* A recursive function is a fixpoint carrying the function's id. It
+     closes over its environment as it unwraps, rather than in a step of
+     its own that rebuilt it under that id and minted a second sample. */
+  test_case(
+    "A probed recursive function mints a single sample",
+    `Quick,
+    () => {
+      let samples =
+        get_all_samples(
+          {|let f = ^^probe(fun n -> if n == 0 then 0 else f(n - 1)) in f(2)|},
+        );
+      check(int, "unannotated", 1, List.length(samples));
+      let samples =
+        get_all_samples(
+          {|let f : Int -> Int = ^^probe(fun n -> if n == 0 then 0 else f(n - 1)) in f(2)|},
+        );
+      check(int, "annotated", 1, List.length(samples));
     },
   ),
   test_case(

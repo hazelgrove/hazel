@@ -189,26 +189,6 @@ module Map = {
     );
 
   let finalize = (map: t): t => Id.Map.map(List.rev, map);
-
-  /* Ascription dominance: a non-empty call_stack sample is dominated by
-   * an existing empty call_stack sample for the same syntax_id. Guards
-   * against duplicates from Asc distribution through typed functions,
-   * where inner values get re-evaluated at deeper call stacks (the
-   * different-stack smear; the same-stack flavor is prevented at source
-   * by span suppression in Evaluator.eval_3). Shared by the inline
-   * minting path and the batch fold — both go through
-   * ObsTrace.fold_step. */
-  let dominated = (sample: sample, map: t): bool =>
-    switch (Id.Map.find_opt(sample.syntax_id, map)) {
-    | Some(existing) =>
-      List.exists(
-        ~f=
-          (s: sample) =>
-            !List.is_empty(sample.call_stack) && List.is_empty(s.call_stack),
-        existing,
-      )
-    | None => false
-    };
 };
 
 /* Display mode for probe samples */

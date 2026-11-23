@@ -913,6 +913,23 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
   );
 };
 
+/* The edit changes the list's element type, and so the cast on the `if`,
+ * but not the `if` itself: reusing the `if` must not bring back the old
+ * cast. */
+let test_cast_pushed_into_if_is_not_reused_stale = () => {
+  let exp1 = parse_exp("[proof_object 0 end, if ? then ? else ?]");
+  let exp2 = replace_int_lit(~from=0, ~to_=1, exp1);
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
 /* Cross-module incremental reuse / UI tinting: when we edit a literal
  * inside module `a`, the unrelated module `c` should be visibly frozen
  * — every surface tile inside `c` should appear in the editor's
@@ -1991,6 +2008,11 @@ let tests = (
       "Reuse provenance distinguishes pattern projection shapes",
       `Quick,
       test_reuse_provenance_distinguishes_pattern_shapes,
+    ),
+    test_case(
+      "CAST: a cast pushed into an `if` is not reused stale after an edit",
+      `Quick,
+      test_cast_pushed_into_if_is_not_reused_stale,
     ),
     test_case(
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
