@@ -2271,11 +2271,12 @@ and uexp_to_info_map =
            * introduced into the cached closure value. */
           let fun_id = Exp.rep_id(def_elab);
           let def_elab = IdTagged.fresh_deterministic(fun_id, def_elab.term);
-          /* `fix` types itself from its binder's annotation, so an
-             unannotated `let f = fun _ -> f` would elaborate to a fixpoint
-             that re-checks as `?`. Annotate the binder with the type the
-             name is bound at, as `let f : ? -> ? = …` already gets. */
-          let ty_fix = elab_typ(ctx, ty_p_ana);
+          /* `fix` types itself from its binder, so an unannotated
+             `let f = fun _ -> f` would elaborate to a fixpoint that
+             re-checks as `?`. Annotate the binder with the type the name is
+             bound at, as `let f : ? -> ? = …` already gets, and cast the
+             body as the FixF case does, so re-checking the fixpoint gives it
+             back unchanged. */
           let p_fix =
             switch (Pat.term_of(p_elab)) {
             | Asc(_) => p_elab
@@ -2298,21 +2299,11 @@ and uexp_to_info_map =
               IdTagged.derived(
                 ~salt="fixf-binder-ascription",
                 Pat.rep_id(p_elab),
-                Asc(p_elab, ty_fix): Pat.term,
+                Asc(p_elab, elab_typ(ctx, ty_p_ana)): Pat.term,
               )
             };
-          /* Ascribe the body as the FixF rule does when it differs from the
-             binder (`let x = fun y -> x`: `? -> (? -> ?)` against `? -> ?`),
-             so re-elaborating the fixpoint leaves it unchanged. */
           let def_elab =
-            Typ.fast_equal(def.elab_syn_ty, ty_p_ana)
-            || Typ.equal_up_to_aliases(ctx, def.elab_syn_ty, ty_p_ana)
-              ? def_elab
-              : IdTagged.derived(
-                  ~salt="fixf-body-ascription",
-                  Exp.rep_id(def_elab),
-                  Asc(def_elab, ty_fix): Exp.term,
-                );
+            fresh_ascription(ctx, def_elab, def.elab_syn_ty, Some(ty_p_ana));
           let fixf =
             IdTagged.mk_internal(
               [fun_id],
@@ -2453,21 +2444,8 @@ and uexp_to_info_map =
       let (p'', p_elab, m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      /* Ascribe only when it would change the body's type; wrapping
-         unconditionally added an `Asc` layer per elaboration pass.
-         `fast_equal` drops identity casts only, never a consistency cast
-         such as `?` => Int. The wrapper is recorded in the info map, so its
-         id derives from the body it wraps: the same on every run. */
-      let body_elab = {
-        let ty = elab_typ(ctx, p'.ty);
-        Typ.fast_equal(elab_typ(ctx, e'.elab_syn_ty), ty)
-          ? e_elab
-          : IdTagged.derived(
-              ~salt="fixf-body-ascription",
-              Exp.rep_id(e_elab),
-              Asc(e_elab, ty): Exp.term,
-            );
-      };
+      let body_elab =
+        fresh_ascription(ctx, e_elab, e'.elab_syn_ty, Some(p'.ty));
       let elab_term = FixF(p_elab, body_elab, env) |> rewrap;
       add(
         ~elab_term,
