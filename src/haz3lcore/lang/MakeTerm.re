@@ -1394,13 +1394,18 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
-          let (e_term, rewrap) = IdTagged.unwrap(l);
+          /* As in exp: the wrapper shares the pattern's ids, and the
+             pattern keeps its own annotation (an unknown operator's
+             lexeme among it). */
           ret(
             TupLabel(
-              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              {
+                annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(l)),
+                term: MultiHole([Pat(l)]),
+              },
               r,
             ),
-          );
+          )
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
       | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>

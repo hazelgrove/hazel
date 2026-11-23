@@ -2786,6 +2786,29 @@ let defensive_print_stable_tests = (
         reprint("x:(b || [1, 2])"),
       )
     ),
+    test_case(
+      "An unknown operator before a label's = stays between its operands",
+      `Quick,
+      () => {
+        let once = reprint("let (a w ? = _, b=1) = y in 2");
+        check(
+          bool,
+          Option.value(once, ~default="none"),
+          true,
+          Option.value_map(
+            once,
+            ~default=false,
+            ~f=String.is_substring(~substring="a w ?"),
+          ),
+        );
+        check(
+          option(string),
+          "a reprint holds still",
+          once,
+          Option.bind(~f=reprint, once),
+        );
+      },
+    ),
     test_case("An elaborated module binding reads back", `Quick, () =>
       List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
         List.iter(
