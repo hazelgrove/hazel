@@ -705,5 +705,123 @@ let tests = (
         );
       },
     ),
+    /* hazel-jit through the library: Hazel.compile and Hazel.jit */
+    test_case(
+      "jit: a function runs compiled, answering as run's",
+      `Quick,
+      () => {
+        let r = HazelLibCore.jit("fun x -> x + 1");
+        check(
+          bool,
+          "compiled",
+          true,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "compiled"))),
+        );
+        check(
+          string,
+          "called with 41",
+          "42",
+          json(call(field(r, "value"), [num(41.)])),
+        );
+      },
+    ),
+    test_case(
+      "jit: a labeled tuple of functions, an object of compiled functions",
+      `Quick,
+      () => {
+        let r =
+          HazelLibCore.jit(
+            "(inc = fun (x : Int) -> x + 1, both = fun (xs : [Int]) -> xs @ xs)",
+          );
+        check(
+          bool,
+          "compiled",
+          true,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "compiled"))),
+        );
+        let v = field(r, "value");
+        check(
+          string,
+          "inc",
+          "8",
+          json(call(field(v, "inc"), [num(7.)])),
+        );
+        check(
+          string,
+          "both",
+          "[1,2,1,2]",
+          json(call(field(v, "both"), [as_js("[1,2]")])),
+        );
+      },
+    ),
+    test_case(
+      "jit: data, as run gives it",
+      `Quick,
+      () => {
+        let src = "(a = [1, 2], b = (3, true), c = \"s\", d = 2.5)";
+        check(
+          string,
+          "the same value",
+          json(value(src)),
+          json(field(HazelLibCore.jit(src), "value")),
+        );
+      },
+    ),
+    test_case(
+      "jit: a call the compiled code cannot finish is the interpreter's",
+      `Quick,
+      () => {
+        let src = "fun (x : Int) -> 10 / x";
+        let f = field(HazelLibCore.jit(src), "value");
+        check(string, "10 / 5", "2", json(call(f, [num(5.)])));
+        check(
+          string,
+          "10 / 0, as run answers it",
+          json(call(value(src), [num(0.)])),
+          json(call(f, [num(0.)])),
+        );
+      },
+    ),
+    test_case(
+      "compile: the program's JS and its runtime, run apart from Hazel",
+      `Quick,
+      () => {
+        let r =
+          HazelLibCore.compile("let sq = fun (x : Int) -> x * x in sq(12)");
+        check(
+          bool,
+          "compiled",
+          true,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "compiled"))),
+        );
+        let v =
+          Js.Unsafe.fun_call(
+            Js.Unsafe.pure_js_expr(
+              "(function (js, rt) { return new Function('$R', js)(eval('(' + rt + ')')); })",
+            ),
+            [|field(r, "js"), field(r, "runtime")|],
+          );
+        check(string, "sq(12)", "144", json(v));
+      },
+    ),
+    test_case(
+      "jit: a form hazel-jit does not compile, run by the interpreter",
+      `Quick,
+      () => {
+        let r = HazelLibCore.jit("test 1 == 1 end");
+        check(
+          bool,
+          "compiled",
+          false,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "compiled"))),
+        );
+        check(
+          string,
+          "why",
+          "a test",
+          Js.to_string(Js.Unsafe.coerce(field(r, "reason"))),
+        );
+      },
+    ),
   ],
 );

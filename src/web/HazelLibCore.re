@@ -184,32 +184,36 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
 /* A Hazel function as a JS function: its arguments, one or a tuple of
    several, go to Hazel, and its result comes back as a JS value. */
 and function_of = (f: Exp.t): Js.Unsafe.any => {
-  /* (^ticket(736)) its arguments read by the type it declares, if any:
-     one argument by the whole type, several by the tuple's components */
   let param = param_type(f);
   Js.Unsafe.inject(
-    Js.Unsafe.callback_with_arguments(args => {
-      let args = Array.to_list(Js.to_array(Js.Unsafe.coerce(args)));
-      let arg =
-        switch (args, param) {
-        | ([], _) => Exp.fresh(Tuple([]))
-        | ([a], Some(t)) => of_js_at(~recs=[], t, a)
-        | ([a], None) => of_js(a)
-        | (many, Some(t)) =>
-          switch (prod_components(t)) {
-          | Some(ts) when List.length(ts) == List.length(many) =>
-            Exp.fresh(
-              Tuple(
-                List.map2((t, x) => of_js_at(~recs=[], t, x), ts, many),
-              ),
-            )
-          | _ => Exp.fresh(Tuple(List.map(of_js, many)))
-          }
-        | (many, None) => Exp.fresh(Tuple(List.map(of_js, many)))
-        };
-      to_js(evaluate(Exp.fresh(Ap(Operators.Forward, f, arg))));
-    }),
+    Js.Unsafe.callback_with_arguments(args =>
+      to_js(
+        evaluate(
+          Exp.fresh(Ap(Operators.Forward, f, arg_of_js(param, args))),
+        ),
+      )
+    ),
   );
+}
+/* (^ticket(736)) A JS call's arguments as one Hazel argument, read by the
+   type the function declares, if any: one argument by the whole type,
+   several by the tuple's components */
+and arg_of_js = (param: option(Typ.t), args: Js.Unsafe.any_js_array): Exp.t => {
+  let args = Array.to_list(Js.to_array(args));
+  switch (args, param) {
+  | ([], _) => Exp.fresh(Tuple([]))
+  | ([a], Some(t)) => of_js_at(~recs=[], t, a)
+  | ([a], None) => of_js(a)
+  | (many, Some(t)) =>
+    switch (prod_components(t)) {
+    | Some(ts) when List.length(ts) == List.length(many) =>
+      Exp.fresh(
+        Tuple(List.map2((t, x) => of_js_at(~recs=[], t, x), ts, many)),
+      )
+    | _ => Exp.fresh(Tuple(List.map(of_js, many)))
+    }
+  | (many, None) => Exp.fresh(Tuple(List.map(of_js, many)))
+  };
 }
 /* a product type's components, under its parentheses */
 and prod_components = (t: Typ.t): option(list(Typ.t)) =>
@@ -591,4 +595,273 @@ let run_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
   let a = analyze_program_spec(program_spec_of_js(spec));
   let value = to_js(evaluate(a.elab));
   js_object(program_fields(a, ~ms=now() -. t0) @ [("value", value)]);
+};
+
+/* ---- hazel-jit: a program compiled to JavaScript (Matthew, 2026-11-23:
+   "so that hazel code can be parsed and jitted from the npm package API as
+   well")
+
+     Hazel.compile(text)         -> { errors, compiled, js, runtime, reason,
+                                      ms }
+     Hazel.compileProgram(spec)  -> analyzeProgram's fields, and the same
+     Hazel.jit(text)             -> { errors, compiled, reason, value, ms }
+     Hazel.jitProgram(spec)      -> analyzeProgram's fields, and the same
+
+   compile gives hazel-jit's JavaScript for the program: js, the body of a
+   function of one argument, $R, and runtime, the source of the object to
+   pass as $R. new Function("$R", js)(eval("(" + runtime + ")")) is then
+   the program's value in hazel-jit's shapes (HazelJit.re says them: a list
+   is null or {h, t}, a constructor {c, v}, a tuple an array with its
+   labels as keys too). A page can keep the two strings in a file and skip
+   Hazel altogether, as hazeljs-examples' compiled.js files do.
+
+   jit compiles the program and runs it compiled, and gives its value in
+   this library's shapes, as run does. A function the compiled code made
+   stays compiled: calling it reads its arguments as a function from run
+   does, by the type it declares, and runs the compiled code. A call the
+   compiled code does not finish (an invalid operation, something
+   indeterminate, a form it does not compile) is run again by the
+   interpreter, whose answer it is.
+
+   compiled: whether the value runs compiled; when not, reason says why
+   (the first form hazel-jit does not compile: a hole, a test, ...) and
+   jit's value is the interpreter's, as run gives it. */
+
+let js_keys = (v: Js.Unsafe.any): list(string) =>
+  Js.to_array(
+    Js.Unsafe.meth_call(
+      Js.Unsafe.get(Js.Unsafe.global, "Object"),
+      "keys",
+      [|v|],
+    ),
+  )
+  |> Array.to_list
+  |> List.map(k => Js.to_string(k));
+
+let is_index = (k: string): bool =>
+  k != "" && String.for_all(c => c >= '0' && c <= '9', k);
+
+let rec arrow_codomain = (t: Typ.t): option(Typ.t) =>
+  switch (Typ.term_of(t)) {
+  | Parens(t) => arrow_codomain(t)
+  | Arrow(_, b) => Some(b)
+  | _ => None
+  };
+
+/* the type a function declares for its result, if any */
+let result_type = (f: Exp.t): option(Typ.t) =>
+  switch (f.term) {
+  | Fun(_, _, Some(t), _) => arrow_codomain(t)
+  | _ => None
+  };
+
+let compile_elab = (elab: Exp.t): result(HazelJit.compiled, string) =>
+  switch (HazelJit.compile_full(~env=Builtins.env_init, elab)) {
+  | c => Ok(c)
+  | exception (HazelJit.Unsupported(why)) => Error(why)
+  };
+
+/* A compiled value as this library's JS value */
+let rec of_jit =
+        (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
+        : Js.Unsafe.any =>
+  if (HazelJitValue.typeof(v) == "function" && HazelJitValue.has(v, "$k")) {
+    jit_function(ts, v);
+  } else if (HazelJitValue.is_array(v) && holds_function(v)) {
+    jit_tuple(ts, ty, v);
+  } else {
+    to_js(HazelJitValue.of_js(ts, ty, v));
+  }
+and holds_function = (v: Js.Unsafe.any): bool => {
+  let n = Js.Unsafe.get(v, "length");
+  List.exists(
+    i => HazelJitValue.typeof(Js.Unsafe.get(v, i)) == "function",
+    List.init(n, i => i),
+  );
+}
+/* a tuple holding a function: each component by its own type, the labels
+   by the expected product type, or else by the array's keys (a key whose
+   value is the very value at an index is that index's label) */
+and jit_tuple =
+    (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
+    : Js.Unsafe.any => {
+  let n: int = Js.Unsafe.get(v, "length");
+  let at = i => Js.Unsafe.get(v, i);
+  let fields: list((option(string), option(Typ.t))) =
+    switch (
+      Option.map(
+        (t: Typ.t) => t.term,
+        Option.bind(ty, HazelJitValue.shape(ts, 0)),
+      )
+    ) {
+    | Some(Prod(tys)) when List.length(tys) == n =>
+      List.map(
+        (t: Typ.t) =>
+          switch (Typ.match_tup_label(t)) {
+          | Some((l, t)) => (Some(l), Some(t))
+          | None => (None, Some(t))
+          },
+        tys,
+      )
+    | _ =>
+      let keys = List.filter(k => !is_index(k), js_keys(v));
+      let used = ref([]);
+      List.init(n, i =>
+        switch (
+          List.find_opt(
+            k =>
+              !List.mem(k, used^)
+              && Js.Unsafe.equals(Js.Unsafe.get(v, k), at(i)),
+            keys,
+          )
+        ) {
+        | Some(k) =>
+          used := [k, ...used^];
+          (Some(HazelJit.label_of_key(k)), None);
+        | None => (None, None)
+        }
+      );
+    };
+  let values = List.mapi((i, (_, t)) => of_jit(ts, t, at(i)), fields);
+  List.for_all(((l, _)) => l != None, fields)
+    ? js_object(
+        List.map2(
+          ((l, _), v) => (Option.value(l, ~default=""), v),
+          fields,
+          values,
+        ),
+      )
+    : js_array(values);
+}
+/* a function the compiled code made, as a JS function that runs it */
+and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any => {
+  let k: int =
+    int_of_float(
+      Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(f, "$k"))),
+    );
+  let term = Option.map(fst, Hashtbl.find_opt(ts.HazelJitValue.funs, k));
+  let param = Option.bind(term, param_type);
+  let result = Option.bind(term, result_type);
+  Js.Unsafe.inject(
+    Js.Unsafe.callback_with_arguments(args => {
+      let arg = arg_of_js(param, args);
+      switch (
+        of_jit(
+          ts,
+          result,
+          Js.Unsafe.fun_call(f, [|HazelJitValue.to_js(arg)|]),
+        )
+      ) {
+      | v => v
+      | exception _ =>
+        to_js(
+          evaluate(
+            Exp.fresh(
+              Ap(Operators.Forward, HazelJitValue.of_js(ts, None, f), arg),
+            ),
+          ),
+        )
+      };
+    }),
+  );
+};
+
+let compiled_fields =
+    (c: result(HazelJit.compiled, string)): list((string, Js.Unsafe.any)) =>
+  switch (c) {
+  | Ok(c) => [
+      ("compiled", Js.Unsafe.inject(Js.bool(true))),
+      ("js", js_string(c.HazelJit.src)),
+      ("runtime", js_string(HazelJit.Runtime.source)),
+    ]
+  | Error(why) => [
+      ("compiled", Js.Unsafe.inject(Js.bool(false))),
+      ("reason", js_string(why)),
+    ]
+  };
+
+/* the value of a program compiled, or the interpreter's with why not */
+let jit_value =
+    (elab: Exp.t, c: result(HazelJit.compiled, string))
+    : list((string, Js.Unsafe.any)) => {
+  let interpreted = why => [
+    ("compiled", Js.Unsafe.inject(Js.bool(false))),
+    ("reason", js_string(why)),
+    ("value", to_js(evaluate(elab))),
+  ];
+  switch (c) {
+  | Error(why) => interpreted(why)
+  | Ok(c) =>
+    switch (
+      of_jit(
+        HazelJitValue.types_of(c),
+        None,
+        HazelJitValue.instantiate(c.HazelJit.src),
+      )
+    ) {
+    | value => [
+        ("compiled", Js.Unsafe.inject(Js.bool(true))),
+        ("value", value),
+      ]
+    | exception e => interpreted(HazelJitValue.message(e))
+    }
+  };
+};
+
+let ms_field = (t0: float): (string, Js.Unsafe.any) => (
+  "ms",
+  Js.Unsafe.inject(Js.number_of_float(now() -. t0)),
+);
+
+let not_parsed = (~value: bool, t0: float): Js.Unsafe.any =>
+  js_object(
+    [
+      ("errors", errors_js(["the program does not parse"])),
+      ("compiled", Js.Unsafe.inject(Js.bool(false))),
+      ("reason", js_string("the program does not parse")),
+    ]
+    @ (value ? [("value", Js.Unsafe.inject(Js.undefined))] : [])
+    @ [ms_field(t0)],
+  );
+
+let compile = (text: string): Js.Unsafe.any => {
+  let t0 = now();
+  switch (term_of(text)) {
+  | None => not_parsed(~value=false, t0)
+  | Some(term) =>
+    let (errs, elab) = analyze_term(term);
+    js_object(
+      [("errors", errors_js(errs))]
+      @ compiled_fields(compile_elab(elab))
+      @ [ms_field(t0)],
+    );
+  };
+};
+
+let jit = (text: string): Js.Unsafe.any => {
+  let t0 = now();
+  switch (term_of(text)) {
+  | None => not_parsed(~value=true, t0)
+  | Some(term) =>
+    let (errs, elab) = analyze_term(term);
+    js_object(
+      [("errors", errors_js(errs))]
+      @ jit_value(elab, compile_elab(elab))
+      @ [ms_field(t0)],
+    );
+  };
+};
+
+let compile_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  let c = compile_elab(a.elab);
+  js_object(program_fields(a, ~ms=now() -. t0) @ compiled_fields(c));
+};
+
+let jit_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  let fields = jit_value(a.elab, compile_elab(a.elab));
+  js_object(program_fields(a, ~ms=now() -. t0) @ fields);
 };

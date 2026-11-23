@@ -23,5 +23,18 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
       ),
       ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      (
+        "compile",
+        Js.Unsafe.inject(Js.wrap_callback(t => compile(Js.to_string(t)))),
+      ),
+      (
+        "jit",
+        Js.Unsafe.inject(Js.wrap_callback(t => jit(Js.to_string(t)))),
+      ),
+      (
+        "compileProgram",
+        Js.Unsafe.inject(Js.wrap_callback(compile_program)),
+      ),
+      ("jitProgram", Js.Unsafe.inject(Js.wrap_callback(jit_program))),
     |]),
   );
