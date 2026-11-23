@@ -814,13 +814,26 @@ total|};
           json(call(value(f), [shapes])),
           json(call(field(HazelLibCore.jit(f), "value"), [shapes])),
         );
-        /* a tag the sum does not have: the converters give the call to the old way, which answers as run does */
+        /* a tag the sum does not have: the converters give the call to the old way, which answers as run does. The answer
+           is stuck, a Hazel term printed whole; run and jit each parse the program, minting their own ids, so the printed
+           ids are left out of the comparison */
         let odd = as_js({|[{"tag": "Square", "value": 2}]|});
+        let no_ids = (s: string): string =>
+          Js.to_string(
+            Js.Unsafe.meth_call(
+              Js.string(s),
+              "replace",
+              [|
+                Js.Unsafe.js_expr({|/Haz3lcore\.Id\.v\(\\"[^\\]*\\"\)/g|}),
+                Js.Unsafe.inject(Js.string("id")),
+              |],
+            ),
+          );
         check(
           string,
           "a tag the sum does not have",
-          json(call(value(f), [odd])),
-          json(call(field(HazelLibCore.jit(f), "value"), [odd])),
+          no_ids(json(call(value(f), [odd]))),
+          no_ids(json(call(field(HazelLibCore.jit(f), "value"), [odd]))),
         );
       },
     ),
