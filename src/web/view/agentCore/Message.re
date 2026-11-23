@@ -419,12 +419,8 @@ module Utils = {
   };
 
   let api_message_of_message =
-      (message: Model.t): option(OpenRouter.Message.Model.t) => {
-    switch (message.api_message) {
-    | Some(api_message) => Some(api_message)
-    | None => None
-    };
-  };
+      (message: Model.t): option(OpenRouter.Message.Model.t) =>
+    message.api_message;
 
   let json_of_message = (message: Model.t): Json.t =>
     `Assoc([

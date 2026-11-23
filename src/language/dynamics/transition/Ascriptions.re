@@ -31,10 +31,9 @@ let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
 /* Whether [ty_rec], unrolled, is consistent with [ty]. A self-loop has no
    unrolling and is consistent with nothing. */
 let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
-  switch (Typ.unroll(ty_rec)) {
-  | Some(ty_rec) => Typ.is_consistent(Ctx.empty, ty_rec, ty)
-  | None => false
-  };
+  Option.exists(Typ.unroll(ty_rec), ~f=ty_rec =>
+    Typ.is_consistent(Ctx.empty, ty_rec, ty)
+  );
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>

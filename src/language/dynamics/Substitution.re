@@ -162,28 +162,10 @@ and in_pat =
     let (env', p1') = in_pat(env_outer, env_acc, p1);
     (env', Projector(data, p1') |> Pat.fresh);
   | Tuple(l) =>
-    let (env', l') =
-      List.fold_left(
-        ~f=
-          ((env_acc, l_acc), p) => {
-            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-            (env_new, l_acc @ [p_new]);
-          },
-        ~init=(env_acc, []),
-        l,
-      );
+    let (env', l') = List.fold_map(l, ~init=env_acc, ~f=in_pat(env_outer));
     (env', Tuple(l') |> Pat.fresh);
   | ListLit(l) =>
-    let (env', l') =
-      List.fold_left(
-        ~f=
-          ((env_acc, l_acc), p) => {
-            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-            (env_new, l_acc @ [p_new]);
-          },
-        ~init=(env_acc, []),
-        l,
-      );
+    let (env', l') = List.fold_map(l, ~init=env_acc, ~f=in_pat(env_outer));
     (env', ListLit(l') |> Pat.fresh);
   | Cons(p1, p2) =>
     let (env', p1') = in_pat(env_outer, env_acc, p1);

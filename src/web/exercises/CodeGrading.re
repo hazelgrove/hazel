@@ -296,11 +296,9 @@ module MutationTestingReport = {
     let results = report.results;
     let num_wrong_impls = List.length(results);
     let num_passed =
-      results
-      |> List.filter(~f=((status, _)) =>
-           Poly.equal(status, TestStatus.Pass)
-         )
-      |> List.length;
+      List.count(results, ~f=((status, _)) =>
+        Poly.equal(status, TestStatus.Pass)
+      );
     switch (num_wrong_impls) {
     | 0 => 1.0
     | _ => float_of_int(num_passed) /. float_of_int(num_wrong_impls)
@@ -864,11 +862,10 @@ module ImplGradingReport = {
   };
 
   let total = (report: t) => List.length(report.hinted_results);
-  let num_passed = (report: t) => {
-    report.hinted_results
-    |> List.filter(~f=((status, _)) => Poly.equal(status, TestStatus.Pass))
-    |> List.length;
-  };
+  let num_passed = (report: t) =>
+    List.count(report.hinted_results, ~f=((status, _)) =>
+      Poly.equal(status, TestStatus.Pass)
+    );
 
   let percentage = (report: t, syntax_report: SyntaxReport.t): percentage => {
     syntax_report.percentage

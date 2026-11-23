@@ -319,8 +319,7 @@ let is_prefix_witness =
     : bool =>
   switch (p) {
   | Tile(t) =>
-    switch (Tile.single_token(t)) {
-    | Some(tok) =>
+    Option.exists(Tile.single_token(t), ~f=tok =>
       Token.length(tok) < Token.length(shard_text)
       && String.equal(
            String.sub(shard_text, ~pos=0, ~len=Token.length(tok)),
@@ -344,8 +343,7 @@ let is_prefix_witness =
                Form.base_molds([tok]),
              )
       )
-    | None => false
-    }
+    )
   | _ => false
   };
 
@@ -537,21 +535,9 @@ let rec skel_leftmost = (sk: Skel.t): int =>
 let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
   let in_root = (r: Skel.root) =>
     List.mem(Aba.get_as(r), idx, ~equal=Int.equal);
-  let first_some = opts =>
-    List.fold_left(
-      ~f=
-        (acc, o) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => o
-          },
-      ~init=None,
-      opts,
-    );
+  let first_some = opts => List.find_map(opts, ~f=Fn.id);
   let search_kids = (r: Skel.root) =>
-    Aba.get_bs(r)
-    |> List.map(~f=k => opener_insertion_index(k, idx))
-    |> first_some;
+    List.find_map(Aba.get_bs(r), ~f=k => opener_insertion_index(k, idx));
   switch (sk) {
   | Op(r) => in_root(r) ? None : search_kids(r)
   | Pre(r, k) =>
@@ -591,12 +577,8 @@ let opener_schedule =
      pass but must respect the others' presence */
   let leading_incomplete =
     incomplete
-    |> List.filter(~f=(t: Tile.t) => Tile.l_shard(t) > 0)
     |> List.filter(~f=(t: Tile.t) =>
-         switch (only) {
-         | None => true
-         | Some(id) => Id.equal(t.id, id)
-         }
+         Tile.l_shard(t) > 0 && Option.for_all(only, ~f=Id.equal(t.id))
        );
   if (List.is_empty(leading_incomplete)) {
     [];
@@ -1031,7 +1013,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                   switch (right) {
                   | [rp, ..._] => Some((Piece.id(rp), Direction.Left))
                   | [] =>
-                    ListUtil.last_opt(left)
+                    List.last(left)
                     |> Option.map(~f=p => (Piece.id(p), Direction.Right))
                   }
                 };
@@ -1061,7 +1043,7 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
               let k = Tile.child_index_before(t, m);
               switch (List.nth(t.children, k)) {
               | Some(child) =>
-                ListUtil.last_opt(child)
+                List.last(child)
                 |> Option.map(~f=p =>
                      {
                        adjacent_id: Piece.id(p),
@@ -2025,16 +2007,11 @@ let rec complete_segment =
              t,
            )
          )
-      |> List.fold_left(
-           ~f=
-             (best, cand) =>
-               switch (best) {
-               | None => Some(cand)
-               | Some((br, bp, _)) =>
-                 let (r, p, _) = cand;
-                 r < br || r == br && p > bp ? Some(cand) : best;
-               },
-           ~init=None,
+      |> List.min_elt(~compare=((r1, p1, _), (r2, p2, _)) =>
+           switch (Int.compare(r1, r2)) {
+           | 0 => Int.compare(p2, p1)
+           | c => c
+           }
          )
       |> Option.map(~f=((_, _, t)) => t);
     /* per partition: ONE tile (or the wraps) per pass; remaining
@@ -2112,7 +2089,7 @@ let rec complete_segment =
              @ wrap_ins;
            /* aggregate-append viz anchor: the partition's last piece (the
               trailing linebreak for blank-line partitions) */
-           let aggregate_anchor = ListUtil.last_opt(subseg);
+           let aggregate_anchor = List.last(subseg);
            let wrap_inserts =
              wraps
              |> List.concat_map(~f=((l_idx, r_idx, id)) => {
@@ -2255,15 +2232,14 @@ let rec complete_segment =
         let was_incomplete = Segment.incomplete_tiles_deep(seg);
         let all_ids = ids_deep(seg);
         let edge_ok = (~right: bool, id: Id.t) =>
-          switch (
-            List.find(~f=(t: Tile.t) => Id.equal(t.id, id), was_incomplete)
-          ) {
-          | None => true
-          | Some(t) =>
-            right
-              ? List.mem(t.shards, Tile.arity(t) - 1, ~equal=Int.equal)
-              : List.mem(t.shards, 0, ~equal=Int.equal)
-          };
+          List.find(~f=(t: Tile.t) => Id.equal(t.id, id), was_incomplete)
+          |> Option.for_all(~f=(t: Tile.t) =>
+               List.mem(
+                 t.shards,
+                 right ? Tile.arity(t) - 1 : 0,
+                 ~equal=Int.equal,
+               )
+             );
         let measurable = (~right: bool, id: Id.t) =>
           List.exists(~f=Id.equal(id), all_ids) && edge_ok(~right, id);
         /* a consumed witness token is the visible alias of the shard
@@ -2547,8 +2523,7 @@ let derive_insertions =
         let os = originals_of(t);
         let qualifies =
           right
-            ? !List.is_empty(os)
-              && i == List.nth_exn(os, List.length(os) - 1)
+            ? !List.is_empty(os) && i == List.last_exn(os)
             : !List.is_empty(os) && i == List.hd_exn(os);
         qualifies ? Some(t.id) : None;
       };

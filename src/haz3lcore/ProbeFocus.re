@@ -1,7 +1,6 @@
 /* Per-calculate probe upkeep (`editor_effects`, from Editor.calculate):
  * collision cleanup, dead-pin drop, ephemeral regeneration, and
  * sample-focus resolution/alignment against the latest dynamics. */
-open Util;
 open Language;
 
 let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
@@ -167,7 +166,7 @@ let resolve_pending_probe_cursor =
           id =>
             switch (Dynamics.Map.lookup(id, dynamics)) {
             | Some([_, ..._] as s) => Some((id, s))
-            | Some([]) => None
+            | Some([])
             | None => None
             },
         ids,
@@ -175,10 +174,10 @@ let resolve_pending_probe_cursor =
     switch (first_with_samples) {
     | Some((probe_id, samples)) =>
       let ap_id =
-        switch (Statics.Map.lookup(probe_id, info_map)) {
-        | Some(statics) => Sample.Focus.cur_var_ap(statics)
-        | None => None
-        };
+        Option.bind(
+          Statics.Map.lookup(probe_id, info_map),
+          ~f=Sample.Focus.cur_var_ap,
+        );
       let selected =
         Sample.Selection.most_aligned_sample(
           ~ap_id,
@@ -246,7 +245,7 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
         };
       let alive = (s: Sample.t) => {
         let s_ids = CallStack.ids_of_stack(s.call_stack);
-        ListUtil.is_suffix_of(pinned_ids, s_ids)
+        List.is_suffix(s_ids, ~suffix=pinned_ids, ~equal=Id.equal)
         || Option.equal(Id.equal, Some(s.syntax_id), head_id)
         && List.equal(Id.equal, s_ids, tail_ids);
       };

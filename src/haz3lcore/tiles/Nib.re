@@ -7,11 +7,7 @@ module Shape = {
     | Concave(Precedence.t);
 
   let concave = (~p=?, ()) => {
-    let p =
-      switch (p) {
-      | None => Precedence.min
-      | Some(p) => p
-      };
+    let p = Option.value(p, ~default=Precedence.min);
     Concave(p);
   };
 

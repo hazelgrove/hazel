@@ -16,14 +16,7 @@ let folder_of = (p: SlidePath.t): string =>
 
 /* Folders in first-appearance order. */
 let folders =
-  paths
-  |> List.map(~f=folder_of)
-  |> List.fold_left(
-       ~f=
-         (acc, f) =>
-           List.mem(acc, f, ~equal=String.equal) ? acc : acc @ [f],
-       ~init=[],
-     );
+  paths |> List.map(~f=folder_of) |> Util.ListUtil.dedup_f(String.equal);
 
 /* The hidden-test results of a lesson with `solution` in place of its @code,
    stitched to the tests the way TutorialMode.of_spec does. */
@@ -99,15 +92,7 @@ let tests = [
             folders,
             paths
             |> List.map(~f=folder_of)
-            |> List.fold_left(
-                 ~f=
-                   (acc, f) =>
-                     switch (List.rev(acc)) {
-                     | [last, ..._] when String.equal(last, f) => acc
-                     | _ => acc @ [f]
-                     },
-                 ~init=[],
-               ),
+            |> List.remove_consecutive_duplicates(~equal=String.equal),
           )
         ),
       test_case(
@@ -154,7 +139,7 @@ let tests = [
                         List.length(a) < List.length(b)
                         && List.equal(
                              String.equal,
-                             Util.ListUtil.take(List.length(a), b),
+                             List.take(b, List.length(a)),
                              a,
                            ),
                       ),

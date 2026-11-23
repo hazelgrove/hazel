@@ -90,7 +90,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
       let (clean_code, expected_comments) = extract_line_comments(code);
 
       /* Filter out lines with no expected probe and extract expected strings */
-      let expected_probes = expected_comments |> List.filter_map(~f=Fn.id);
+      let expected_probes = expected_comments |> List.filter_opt;
 
       /* Parse the clean code into a zipper */
       let zipper =
@@ -129,7 +129,7 @@ let test_probe_placement = (~name: string, ~code: string): test_case(_) => {
                   info_map,
                 )
               ) {
-              | Some(ids) => List.filter_map(~f=Fn.id, ids)
+              | Some(ids) => List.filter_opt(ids)
               | None => fail("MultiProbe returned None")
               },
           target_ids,

@@ -45,8 +45,8 @@ let test_text = (test_results: TestResults.t): Node.t =>
   );
 
 let test_summary = (~inject_jump, ~test_results: option(TestResults.t)) => {
-  div(
-    ~attrs=[clss(["test-summary"])],
+  div_c(
+    "test-summary",
     {
       switch (test_results) {
       | None => [Node.text("No test results available.")]

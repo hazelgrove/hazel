@@ -234,11 +234,7 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
    [go_spec]. Returns [None] if the test passes, [Some(failure)] otherwise. */
 let go_test = (map: map, test: test): option(failure) => {
   exception Failure(failure);
-  let lookup = s =>
-    switch (Map.find(map, s)) {
-    | Some(specced) => specced
-    | None => raise(Unreachable)
-    };
+  let lookup = s => Map.find(map, s) |> OptUtil.get_or_raise(Unreachable);
   let exp_of_specced: specced => Drv.Exp.t =
     fun
     | (_, Exp(syntax)) => syntax

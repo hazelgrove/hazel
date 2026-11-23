@@ -22,12 +22,10 @@ module Model = {
         ~f=TutorialMode.Model.unpersist(~settings, ~instructor_mode),
       );
     let current =
-      ListUtil.findi_opt(
-        (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
-        TutorialSettings.lessons,
+      List.findi(TutorialSettings.lessons, ~f=(_, spec: Tutorial.spec) =>
+        spec.id == persistent.cur_exercise
       )
-      |> Option.map(~f=fst)
-      |> Option.value(~default=0);
+      |> Option.value_map(~default=0, ~f=fst);
     {
       current,
       exercises,
@@ -47,7 +45,7 @@ module StoreTutorialKey =
     type t = Haz3lcore.Id.t;
     /* Lesson 0, so keep "Basics / Holes" first in Slides.re. */
     let default = () =>
-      List.nth_exn(TutorialSettings.lessons, 0) |> Tutorial.id_of;
+      List.hd_exn(TutorialSettings.lessons) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
@@ -134,9 +132,8 @@ module Store = {
       ~f=
         ((key, value)) => {
           let n =
-            ListUtil.findi_opt(
-              spec => Tutorial.id_of(spec) == key,
-              tutorial_specs,
+            List.findi(tutorial_specs, ~f=(_, spec) =>
+              Tutorial.id_of(spec) == key
             )
             |> Option.value_exn
             |> fst;

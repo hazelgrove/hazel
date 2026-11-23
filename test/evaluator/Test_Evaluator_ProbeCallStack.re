@@ -212,10 +212,10 @@ in ^^probe(f(5))|});
           app_sample.call_stack,
         );
         check(
-          bool,
+          int,
           "Inner probe should have one app_id in call_stack",
-          true,
-          List.length(inner_sample.call_stack) == 1,
+          1,
+          List.length(inner_sample.call_stack),
         );
       | _ =>
         fail(
@@ -385,7 +385,7 @@ let step_into_frame_tests = [
             }
           };
         let total = List.length(samples);
-        let ok = List.length(List.filter(~f=resolves, samples));
+        let ok = List.count(samples, ~f=resolves);
         check(int, label ++ ": resolved [" ++ dump ++ "]", total, ok);
       };
       /* annotated let-bound fn (like crop-plotter's setCell) via deferred */

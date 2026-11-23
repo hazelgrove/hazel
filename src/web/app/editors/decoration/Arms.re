@@ -45,10 +45,7 @@ let rep_tips = (tiles: tile_data) => {
 let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
   min(
     first.col,
-    Rows.min_content_start(
-      ListUtil.range(~lo=first.row, last.row + 1),
-      rows,
-    ),
+    Rows.min_content_start(List.range(first.row, last.row + 1), rows),
   );
 
 /* Truncate a term extent's right edge at a completion clip point
@@ -232,7 +229,7 @@ let paths =
         ~last=snd(List.hd_exn(shards)).origin,
       )
       |> Option.to_list,
-      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
+      r_path(~hx, ~min_col, ~first=snd(List.last_exn(shards)).last, ~last)
       |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
@@ -335,10 +332,9 @@ let term =
     };
   let is_semi = Tile.is_semi(tile);
   let is_not_semi_tile = ((tid, _, _)) =>
-    switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => !Tile.is_semi(t)
-    | None => true
-    };
+    Option.for_all(TermData.root_tile(tid, term_data), ~f=t =>
+      !Tile.is_semi(t)
+    );
 
   if (is_module && is_semi) {
     let msg = "Arms.term";
@@ -417,7 +413,7 @@ let completion_clip =
   if (Tile.is_complete(t)) {
     None;
   } else {
-    switch (ListUtil.last_opt(Tile.right_missing_shards(t))) {
+    switch (List.last(Tile.right_missing_shards(t))) {
     | None => None
     | Some(sh) =>
       let i = Tile.r_shard(sh);
@@ -709,8 +705,7 @@ module Indicated = {
         ? "indication-refractored" : "indication";
     let kind_cls =
       refractor_kind
-      |> Option.map(~f=ProjectorCore.Kind.name)
-      |> Option.value(~default="");
+      |> Option.value_map(~default="", ~f=ProjectorCore.Kind.name);
     let cls =
       String.equal(kind_cls, "") ? base_cls : base_cls ++ " " ++ kind_cls;
     /* Simplified style suppresses the shard hexagons: regular terms get just

@@ -12,13 +12,6 @@ let resolve = path =>
   )
   |> Option.value(~default=path);
 
-let read_file = path => {
-  let ic = Stdlib.open_in_bin(path);
-  let s = Stdlib.really_input_string(ic, Stdlib.in_channel_length(ic));
-  Stdlib.close_in(ic);
-  s;
-};
-
 let slides = (~limit=Int.max_value, dir) => {
   let dir = resolve(dir);
   Stdlib.Sys.readdir(dir)
@@ -26,7 +19,7 @@ let slides = (~limit=Int.max_value, dir) => {
   |> List.filter(~f=f => Filename.check_suffix(f, ".hz"))
   |> List.sort(~compare=String.compare)
   |> List.filteri(~f=(i, _) => i < limit)
-  |> List.map(~f=f => (f, read_file(Filename.concat(dir, f))));
+  |> List.map(~f=f => (f, In_channel.read_all(Filename.concat(dir, f))));
 };
 
 /* Every piece id, in document order, including inside projectors (whose
@@ -108,7 +101,7 @@ let slides_agree = (~limit=?, dir, ()) => {
   let before = Move.direct_jumps^;
   let checked =
     slides(~limit?, dir)
-    |> List.fold(~init=0, ~f=(acc, (name, text)) => acc + agree(name, text));
+    |> List.sum((module Int), ~f=((name, text)) => agree(name, text));
   check(bool, "some targets", true, checked > 0);
   /* The control: most jumps took the direct path, so the comparison is of
      it and not only of the walk against itself. */

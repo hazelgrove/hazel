@@ -45,10 +45,8 @@ let diagnose = (word: string): option(string) => {
   switch (diagnose_prog("let " ++ word ++ " = 1 in " ++ word ++ " + 1")) {
   | Some(why) => Some("let-form: " ++ why)
   | None =>
-    switch (diagnose_prog("(fun " ++ word ++ " -> " ++ word ++ " + 1)(1)")) {
-    | Some(why) => Some("fun-form: " ++ why)
-    | None => None
-    }
+    diagnose_prog("(fun " ++ word ++ " -> " ++ word ++ " + 1)(1)")
+    |> Option.map(~f=why => "fun-form: " ++ why)
   };
 };
 

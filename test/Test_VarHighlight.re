@@ -87,7 +87,7 @@ let test_let_ref_to_binding =
       let exp = parse_exp("let x = 1 in x");
       let info_map = statics(exp);
       let refs = find_var_refs(info_map, "x");
-      check(bool, "found x reference", true, List.length(refs) >= 1);
+      check(bool, "found x reference", true, !List.is_empty(refs));
       let (_, ref_info) = List.hd_exn(refs);
       let ids = highlight_ids(info_map, ref_info);
       /* Should include the binding site */
@@ -190,7 +190,7 @@ let test_match_ref_to_binding =
       let exp = parse_exp("case 1 | x => x end");
       let info_map = statics(exp);
       let refs = find_var_refs(info_map, "x");
-      check(bool, "found x reference", true, List.length(refs) >= 1);
+      check(bool, "found x reference", true, !List.is_empty(refs));
       let (_, ref_info) = List.hd_exn(refs);
       let ids = highlight_ids(info_map, ref_info);
       let (binding_id, _) =
@@ -208,7 +208,7 @@ let test_shadowing =
       let info_map = statics(exp);
       /* The reference x should resolve to the inner binding */
       let refs = find_var_refs(info_map, "x");
-      check(bool, "found x reference", true, List.length(refs) >= 1);
+      check(bool, "found x reference", true, !List.is_empty(refs));
       let (_, ref_info) = List.hd_exn(refs);
       let ids = highlight_ids(info_map, ref_info);
       /* Should highlight exactly 1 binding (the inner one) */
@@ -291,7 +291,7 @@ let test_tvar_ref_to_binding =
       let exp = parse_exp("type T = Int in let x : T = 1 in x");
       let info_map = statics(exp);
       let tvar_refs = find_tvar_refs(info_map, "T");
-      check(bool, "found T reference", true, List.length(tvar_refs) >= 1);
+      check(bool, "found T reference", true, !List.is_empty(tvar_refs));
       let (_, ref_info) = List.hd_exn(tvar_refs);
       let ids = highlight_ids(info_map, ref_info);
       let binding = find_tvar_binding(info_map, "T");
@@ -377,7 +377,7 @@ let test_ctr_ref_to_def =
       let exp = parse_exp("type T = A + B in let x : T = A in x");
       let info_map = statics(exp);
       let refs = find_ctr_refs(info_map, "A");
-      check(bool, "found A reference", true, List.length(refs) >= 1);
+      check(bool, "found A reference", true, !List.is_empty(refs));
       let (_, ref_info) = List.hd_exn(refs);
       let ids = highlight_ids(info_map, ref_info);
       /* Should highlight the constructor definition site */
@@ -398,8 +398,8 @@ let test_ctr_distinct_defs =
       let info_map = statics(exp);
       let a_refs = find_ctr_refs(info_map, "A");
       let b_refs = find_ctr_refs(info_map, "B");
-      check(bool, "found A ref", true, List.length(a_refs) >= 1);
-      check(bool, "found B ref", true, List.length(b_refs) >= 1);
+      check(bool, "found A ref", true, !List.is_empty(a_refs));
+      check(bool, "found B ref", true, !List.is_empty(b_refs));
       let (_, a_info) = List.hd_exn(a_refs);
       let (_, b_info) = List.hd_exn(b_refs);
       let a_ids = highlight_ids(info_map, a_info);
@@ -527,7 +527,7 @@ let test_ctr_pat_in_case =
               },
           all_refs,
         );
-      check(bool, "found expr A ref", true, List.length(expr_refs) >= 1);
+      check(bool, "found expr A ref", true, !List.is_empty(expr_refs));
       let (expr_ref_id, expr_ref_info) = List.hd_exn(expr_refs);
       let expr_ids = highlight_ids(info_map, expr_ref_info);
       List.iter(

@@ -53,7 +53,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want missing-shard suggestions to show up first */
   switch (ci) {
-  | InfoExp({dot_labels, _}) when dot_labels != [] =>
+  | InfoExp({dot_labels, _}) when !List.is_empty(dot_labels) =>
     List.map(
       ~f=
         label =>
@@ -67,7 +67,7 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
       expects: TypExpectation.LabelProjectionExpected(Some(labels)),
       _,
     })
-      when labels != [] =>
+      when !List.is_empty(labels) =>
     List.map(
       ~f=
         label =>
@@ -203,7 +203,7 @@ let set_buffer = (~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
       suggestions,
     );
   let* _ = has_exact_match ? None : Some();
-  let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
+  let* top_suggestion = suggestions |> List.hd;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);

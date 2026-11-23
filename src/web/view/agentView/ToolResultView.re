@@ -23,25 +23,22 @@ let render_text = (~globals: Globals.t, text: string): Node.t =>
 let render_pretty_args = (args: API.Json.t): Node.t => {
   let rec render_value = (json: API.Json.t): Node.t =>
     switch (json) {
-    | `String(s) => span(~attrs=[clss(["arg-string"])], [text(s)])
-    | `Int(i) =>
-      span(~attrs=[clss(["arg-number"])], [text(string_of_int(i))])
-    | `Float(f) =>
-      span(~attrs=[clss(["arg-number"])], [text(string_of_float(f))])
-    | `Bool(b) =>
-      span(~attrs=[clss(["arg-bool"])], [text(b ? "true" : "false")])
-    | `Null => span(~attrs=[clss(["arg-null"])], [text("null")])
+    | `String(s) => span_c("arg-string", [text(s)])
+    | `Int(i) => span_c("arg-number", [text(string_of_int(i))])
+    | `Float(f) => span_c("arg-number", [text(string_of_float(f))])
+    | `Bool(b) => span_c("arg-bool", [text(b ? "true" : "false")])
+    | `Null => span_c("arg-null", [text("null")])
     | `List(items) =>
-      div(
-        ~attrs=[clss(["arg-list"])],
+      div_c(
+        "arg-list",
         List.mapi(
           ~f=
             (i, item) =>
-              div(
-                ~attrs=[clss(["arg-list-item"])],
+              div_c(
+                "arg-list-item",
                 [
-                  span(
-                    ~attrs=[clss(["arg-list-index"])],
+                  span_c(
+                    "arg-list-index",
                     [text(string_of_int(i + 1) ++ ".")],
                   ),
                   render_value(item),
@@ -51,15 +48,15 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
         ),
       )
     | `Assoc(pairs) =>
-      div(
-        ~attrs=[clss(["arg-object"])],
+      div_c(
+        "arg-object",
         List.map(
           ~f=
             ((key, value)) =>
-              div(
-                ~attrs=[clss(["arg-field"])],
+              div_c(
+                "arg-field",
                 [
-                  span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                  span_c("arg-field-key", [text(key)]),
                   render_value(value),
                 ],
               ),
@@ -71,24 +68,21 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
 
   switch (args) {
   | `Assoc(pairs) =>
-    div(
-      ~attrs=[clss(["tool-call-args-pretty"])],
+    div_c(
+      "tool-call-args-pretty",
       List.map(
         ~f=
           ((key, value)) =>
-            div(
-              ~attrs=[clss(["arg-field"])],
-              [
-                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
-                render_value(value),
-              ],
+            div_c(
+              "arg-field",
+              [span_c("arg-field-key", [text(key)]), render_value(value)],
             ),
         pairs,
       ),
     )
   | _ =>
-    div(
-      ~attrs=[clss(["tool-call-args-value"])],
+    div_c(
+      "tool-call-args-value",
       [text(Yojson.Safe.pretty_to_string(args))],
     )
   };
@@ -110,14 +104,12 @@ let category_icon = (c: ToolCallSummary.category): Node.t =>
 let first_resolving_id =
     (~node_map: option(HighLevelNodeMap.t), jump_paths: list(string))
     : option(Id.t) =>
-  switch (node_map) {
-  | None => None
-  | Some(nm) =>
+  Option.bind(node_map, ~f=nm =>
     List.find_map(
       ~f=(p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
       jump_paths,
     )
-  };
+  );
 
 let view =
     (
@@ -166,7 +158,7 @@ let view =
   let signifier_node: Node.t =
     switch (summary_opt) {
     | Some({signifier: Some(s), _}) =>
-      span(~attrs=[clss(["tool-call-signifier"])], [text(s)])
+      span_c("tool-call-signifier", [text(s)])
     | _ => Node.none
     };
   let on_header_click = (evt): Effect.t(unit) => {
@@ -193,8 +185,8 @@ let view =
         ],
         [
           category_node,
-          div(
-            ~attrs=[clss(["tool-call-name"])],
+          div_c(
+            "tool-call-name",
             [text(ToolCallSummary.display_name_for(tool_result.tool_call))],
           ),
           signifier_node,
@@ -205,49 +197,40 @@ let view =
         ],
       ),
       if (tool_result.expanded) {
-        div(
-          ~attrs=[clss(["tool-call-content"])],
+        div_c(
+          "tool-call-content",
           [
-            div(
-              ~attrs=[clss(["tool-call-args"])],
+            div_c(
+              "tool-call-args",
               [
-                div(
-                  ~attrs=[clss(["tool-call-args-label"])],
-                  [text("Arguments:")],
-                ),
+                div_c("tool-call-args-label", [text("Arguments:")]),
                 render_pretty_args(tool_result.tool_call.args),
               ],
             ),
-            div(
-              ~attrs=[clss(["tool-call-result"])],
+            div_c(
+              "tool-call-result",
               [
-                div(
-                  ~attrs=[clss(["tool-call-result-label"])],
-                  [text("Result:")],
-                ),
-                div(
-                  ~attrs=[clss(["tool-call-result-value"])],
+                div_c("tool-call-result-label", [text("Result:")]),
+                div_c(
+                  "tool-call-result-value",
                   [text(tool_result.content)],
                 ),
               ],
             ),
             switch (tool_result.diff) {
             | Some(diff) =>
-              div(
-                ~attrs=[clss(["tool-call-diff-container"])],
+              div_c(
+                "tool-call-diff-container",
                 [
-                  div(
-                    ~attrs=[clss(["tool-call-diff-scrollable"])],
+                  div_c(
+                    "tool-call-diff-scrollable",
                     [
                       div(
                         ~attrs=[
                           clss(["tool-call-diff-segment", "old-segment"]),
                         ],
                         [
-                          div(
-                            ~attrs=[clss(["tool-call-diff-label"])],
-                            [text("Before:")],
-                          ),
+                          div_c("tool-call-diff-label", [text("Before:")]),
                           render_text(~globals, diff.old_text),
                         ],
                       ),
@@ -258,10 +241,7 @@ let view =
                             clss(["tool-call-diff-segment", "new-segment"]),
                           ],
                           [
-                            div(
-                              ~attrs=[clss(["tool-call-diff-label"])],
-                              [text("After:")],
-                            ),
+                            div_c("tool-call-diff-label", [text("After:")]),
                             render_text(~globals, new_text),
                           ],
                         )
@@ -272,10 +252,7 @@ let view =
                 ],
               )
             | None =>
-              div(
-                ~attrs=[clss(["tool-call-diff-empty"])],
-                [text("no diff to display")],
-              )
+              div_c("tool-call-diff-empty", [text("no diff to display")])
             },
           ],
         );

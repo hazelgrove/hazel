@@ -500,8 +500,7 @@ module Width = {
       };
       acc^;
     } else {
-      segmented(s)
-      |> Array.fold(~init=0, ~f=(acc, c) => acc + columns_of_cluster(c));
+      Array.sum((module Int), segmented(s), ~f=columns_of_cluster);
     };
 
   let max_columns = (lines: list(string)): int =>

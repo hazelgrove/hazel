@@ -69,18 +69,14 @@ let init: t = {
 
 let get_explanation_feedback =
     (group_id: group_id, form_id: form_id, model: t): option(feedback_option) => {
-  let forms =
-    List.filter(
-      ~f=(form: form_model) => form.group == group_id && form.form == form_id,
-      model.forms,
-    );
   /* A (group, form) pair should appear at most once, but this reads persisted
      state that a previous version wrote, so tolerate a duplicate rather than
      taking down the sidebar over a stale thumbs-up. */
-  switch (forms) {
-  | [] => None
-  | [form, ..._] => form.explanation_feedback
-  };
+  List.find(
+    ~f=(form: form_model) => form.group == group_id && form.form == form_id,
+    model.forms,
+  )
+  |> Option.bind(~f=(form: form_model) => form.explanation_feedback);
 };
 
 let get_example_feedback =
@@ -112,7 +108,7 @@ let get_example_feedback =
 let get_form_in_group = (form_id: form_id, group: group): option(form) =>
   switch (List.find(~f=(form: form) => form.id == form_id, group.forms)) {
   | Some(form) => Some(form)
-  | None => List.nth(group.forms, 0)
+  | None => List.hd(group.forms)
   };
 
 let get_selected_option = (group: group, model: t): option(form) => {
@@ -124,7 +120,7 @@ let get_selected_option = (group: group, model: t): option(form) => {
   switch (selected) {
   /* No recorded selection means the most specific form. A group should have at
      most one selection; if stale state carries more, honour the first. */
-  | [] => List.nth(group.forms, 0)
+  | [] => List.hd(group.forms)
   | [selected, ..._] => get_form_in_group(selected.selected, group)
   };
 };

@@ -69,10 +69,7 @@ let problem_status_view = (~globals, ci: Language.Info.t): Node.t =>
   | InfoMod({cls, _})
   | InfoSig({cls, _})
   | InfoMPat({cls, _}) =>
-    span(
-      ~attrs=[clss(["problem-description"])],
-      [text(Language.Cls.show(cls))],
-    )
+    span_c("problem-description", [text(Language.Cls.show(cls))])
   | Secondary(_) => div([])
   };
 
@@ -98,10 +95,7 @@ let line_num_view =
   | Some({origin, _}) =>
     switch (row_to_line(origin.row)) {
     | Some(line) =>
-      span(
-        ~attrs=[clss(["problem-line-num"])],
-        [text("L" ++ string_of_int(line))],
-      )
+      span_c("problem-line-num", [text("L" ++ string_of_int(line))])
     | None =>
       span(~attrs=[clss(["problem-line-num", "no-line"])], [text("L?")])
     }
@@ -169,8 +163,8 @@ let legend_view =
         ((cat, n)) =>
           n > 0
             ? Some(
-                span(
-                  ~attrs=[clss(["legend-item"])],
+                span_c(
+                  "legend-item",
                   [
                     span(
                       ~attrs=[
@@ -188,7 +182,7 @@ let legend_view =
             : None,
       counts,
     );
-  div(~attrs=[clss(["problem-legend"])], items);
+  div_c("problem-legend", items);
 };
 
 let section_view =
@@ -221,11 +215,10 @@ let problem_row =
   let cls = SidebarModel.Settings.category_row_cls(lp.problem.category);
   let content =
     switch (lp.problem.source) {
-    | Structural(desc) =>
-      span(~attrs=[clss(["problem-description"])], [text(desc)])
+    | Structural(desc) => span_c("problem-description", [text(desc)])
     | FromInfo(ci) => problem_status_view(~globals, ci)
     | FromProjector(_, {message}) =>
-      span(~attrs=[clss(["problem-description"])], [text(message)])
+      span_c("problem-description", [text(message)])
     };
   row_view(
     ~globals,
@@ -274,11 +267,7 @@ let view =
       ~collection: Haz3lcore.ProblemCollection.problem_collection,
     )
     : Node.t => {
-  let cursor_id =
-    switch (cursor.info) {
-    | Some(ci) => Some(Language.Info.id_of(ci))
-    | None => None
-    };
+  let cursor_id = Option.map(cursor.info, ~f=Language.Info.id_of);
   let problems_settings = globals.settings.sidebar.problems;
   let group_has_problems = (g: problem_group) =>
     List.exists(
@@ -288,8 +277,8 @@ let view =
   let has_any_problems =
     List.exists(~f=group_has_problems, collection.groups);
   let toggle_view =
-    div(
-      ~attrs=[clss(["problem-view-toggle"])],
+    div_c(
+      "problem-view-toggle",
       [
         span(
           ~attrs=[
@@ -321,8 +310,8 @@ let view =
           ],
           [text("Flat")],
         ),
-        div(
-          ~attrs=[clss(["problem-nav-buttons"])],
+        div_c(
+          "problem-nav-buttons",
           [
             nav_btn(
               ~globals,
@@ -410,18 +399,14 @@ let view =
         ~f=
           (g: problem_group) => {
             let label = Option.value(g.label, ~default="");
-            let total =
-              g.counts
-              |> Sequence.of_list
-              |> Sequence.map(~f=snd)
-              |> Sequence.fold(~init=0, ~f=(+));
+            let total = List.sum((module Int), g.counts, ~f=snd);
             let collapsed =
               SidebarModel.Settings.is_editor_collapsed(
                 label,
                 problems_settings,
               );
-            div(
-              ~attrs=[clss(["problem-editor-group"])],
+            div_c(
+              "problem-editor-group",
               [
                 div(
                   ~attrs=[
@@ -446,12 +431,10 @@ let view =
         gs,
       )
     };
-  div(
-    ~attrs=[clss(["problems-panel"])],
+  div_c(
+    "problems-panel",
     if (!has_any_problems) {
-      [
-        div(~attrs=[clss(["no-problems-message"])], [text("No problems")]),
-      ];
+      [div_c("no-problems-message", [text("No problems")])];
     } else {
       [legend_view(collection.counts), toggle_view] @ group_sections;
     },

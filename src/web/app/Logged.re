@@ -58,7 +58,7 @@ module Update = {
           Export.import_just_log(data)
           |> Sexplib.Sexp.of_string
           |> Log.Entry.s_of_sexp_opt
-          |> List.filter_map(~f=x => x);
+          |> List.filter_opt;
         let actions = data |> of_data |> Log.flatten_imports(~of_data);
         let current =
           History.Model.reset(

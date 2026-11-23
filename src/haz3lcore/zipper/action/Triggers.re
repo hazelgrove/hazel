@@ -14,7 +14,7 @@ open OptUtil.Syntax;
      "probe_table" / "nope" ==> None  (not a kind name) */
 let refractor_kind_of_name = (name: string): option(ProjectorCore.Kind.t) =>
   ProjectorCore.Kind.of_name_opt(name)
-  |> OptUtil.filter(ProjectorCore.Kind.is_refractor);
+  |> Option.filter(~f=ProjectorCore.Kind.is_refractor);
 
 /* Same, for a whole trigger token; None when it is not a trigger at all. */
 let refractor_kind_of_token = (s: string): option(ProjectorCore.Kind.t) =>
@@ -111,10 +111,10 @@ let expand_projector = (z: t): option(t) => {
      * [newest(parens), ^^refractor, ...rest] where rest is [third_newest, ..., oldest].
      * We want syntax in the newest position: [oldest, ..., third_newest, syntax...] */
     let (kind, model) =
-      switch (refractor_of_invoke_token(Tile.token(nt, 0))) {
-      | Some(km) => km
-      | None => (of_refractor_trigger(Tile.token(nt, 0)), None)
-      };
+      Option.value_or_thunk(
+        refractor_of_invoke_token(Tile.token(nt, 0)), ~default=() =>
+        (of_refractor_trigger(Tile.token(nt, 0)), None)
+      );
     Zipper.update_siblings(((_, r)) => (List.rev(rest) @ syntax, r), z)
     |> Zipper.add_manual(
          ~model?,
@@ -220,9 +220,11 @@ let expand_livelit = (~ctx, z: t): option(t) =>
  * be mutually exclusive; otherwise the order below is load-bearing. */
 let insert = (~ci: option(Language.Info.t), z: t): t => {
   let ctx =
-    ci
-    |> Option.map(~f=Language.Info.ctx_of)
-    |> Option.value(~default=Language.Ctx.empty);
+    Option.value_map(
+      ci,
+      ~default=Language.Ctx.empty,
+      ~f=Language.Info.ctx_of,
+    );
   let triggers = [expand_projector, expand_livelit(~ctx)];
   List.fold_left(
     ~f=(z, f) => Option.value(f(z), ~default=z),
@@ -233,7 +235,7 @@ let insert = (~ci: option(Language.Info.t), z: t): t => {
 
 /* These are just alternate conditional deletion logic. */
 let destruct = (z: t): option(t) =>
-  switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
+  switch (z.relatives.siblings |> fst |> List.last) {
   | Some(Projector({syntax, kind, _})) =>
     let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
     let last =
@@ -319,7 +321,7 @@ let refractor_seg_to_seg_with =
       | Pre(root, child) =>
         /* Prefix operator: root Aba comes before the trailing child */
         let root_indices = Aba.get_as(root);
-        let root_end = ListUtil.last(root_indices);
+        let root_end = List.last_exn(root_indices);
         let (child_start, _) = Skel.range(child);
 
         let (map, root_result) = go_aba(map, root);
@@ -346,7 +348,7 @@ let refractor_seg_to_seg_with =
         let (right_start, _) = Skel.range(right);
         let root_indices = Aba.get_as(root);
         let root_start = List.hd_exn(root_indices);
-        let root_end = ListUtil.last(root_indices);
+        let root_end = List.last_exn(root_indices);
 
         let (map, left_result) = go(map, left);
         let before_root = ListUtil.sublist((left_end + 1, root_start), seg);
@@ -364,7 +366,7 @@ let refractor_seg_to_seg_with =
     let root_id = Segment.root_id(skel, seg);
     switch (List.Assoc.find(map, root_id, ~equal=Poly.equal)) {
     | Some(entry) => (
-        ListUtil.remove_assoc(root_id, map),
+        List.Assoc.remove(map, root_id, ~equal=Id.equal),
         wrapper(entry, result),
       )
     | None => (map, result)

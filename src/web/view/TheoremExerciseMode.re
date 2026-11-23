@@ -385,7 +385,7 @@ module Update = {
       };
     EvalRequest.request(
       worker_request^,
-      ~pos_of_key=key => key,
+      ~pos_of_key=Fn.id,
       ~dispatch,
       ~on_timeout=
         List.iter(~f=((key, _)) =>

@@ -292,10 +292,8 @@ let hex_parses = () => {
   eq("white", "#ffffff", C.hex_of_oklch((100., 0., 0.)));
   eq("black", "#000000", C.hex_of_oklch((0., 0., 0.)));
   let hex = s =>
-    switch (C.oklch_of_css(s)) {
-    | Some(t) => C.hex_of_oklch(t)
-    | None => "unparsed"
-    };
+    C.oklch_of_css(s)
+    |> Option.value_map(~default="unparsed", ~f=C.hex_of_oklch);
   eq("#rrggbb", "#3366cc", hex("#3366cc"));
   eq("shorthand expands", "#3366cc", hex("#36c"));
   eq("no hash", "#3366cc", hex("3366cc"));

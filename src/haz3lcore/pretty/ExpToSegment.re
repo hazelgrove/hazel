@@ -215,20 +215,12 @@ let atom_lexeme =
       switch (c) {
       | Int(i) =>
         Token.is_int(l)
-        && (
-          switch (Bigint.of_string_opt(l)) {
-          | Some(v) => Bigint.to_string(v) == Bigint.to_string(i)
-          | None => false
-          }
-        )
+        && Option.exists(Bigint.of_string_opt(l), ~f=v =>
+             Bigint.to_string(v) == Bigint.to_string(i)
+           )
       | Float(f) =>
         Token.is_float(l)
-        && (
-          switch (float_of_string_opt(l)) {
-          | Some(v) => v == f
-          | None => false
-          }
-        )
+        && Option.exists(float_of_string_opt(l), ~f=v => v == f)
       | _ => false
       };
     valid ? l : canonical;
@@ -1286,7 +1278,7 @@ let mk_form =
     id,
     form: Form.Compound(fam),
     sort,
-    shards: List.init(List.length(children) + 1, ~f=n => n),
+    shards: List.range(0, List.length(children) + 1),
     children,
   });
 };
@@ -1742,12 +1734,16 @@ and drv_type_hole_to_pretty =
   | MultiHole(tm) =>
     let+ tm =
       tm |> List.map(~f=drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      tm,
+    List.concat(
+      List.intersperse(
+        tm,
+        ~sep=[
+          Grout({
+            id,
+            shape: Concave,
+          }),
+        ],
+      ),
     );
   };
 }
@@ -2039,12 +2035,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
@@ -2799,12 +2795,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
@@ -2874,7 +2870,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     | Variant(c, ann, None) => {
         let+ seg =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+            Option.value_or_thunk(List.hd(ann.ids), ~default=Id.mk),
             Sort.Typ,
             c,
           );
@@ -2885,7 +2881,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
            hd is the constructor tile, nth 1 the ap tile */
         let+ constructor =
           text_to_pretty(
-            OptUtil.get(() => Id.mk(), ListUtil.hd_opt(ann.ids)),
+            Option.value_or_thunk(List.hd(ann.ids), ~default=Id.mk),
             Sort.Typ,
             c,
           );
@@ -2895,7 +2891,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           @ [
             mk_form(
               Ap,
-              OptUtil.get(() => Id.mk(), List.nth(ann.ids, 1)),
+              Option.value_or_thunk(List.nth(ann.ids, 1), ~default=Id.mk),
               [go(x)],
             ),
           ],
@@ -2926,12 +2922,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([x])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([l, r])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
@@ -3376,7 +3374,7 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
   let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = mk_form(~secondary=settings.secondary, ~sort=Sort.Rul);
   let rep_id =
-    OptUtil.get(() => Id.mk(), ListUtil.hd_opt(IdTagged.ids(rul)));
+    Option.value_or_thunk(List.hd(IdTagged.ids(rul)), ~default=Id.mk);
   switch (rul |> IdTagged.term_of) {
   | Invalid(t) => wrap(rul, invalid_to_pretty(rep_id, Sort.Rul, t))
   | MultiHole(es) =>
@@ -3581,9 +3579,9 @@ let rec strip_synthesized_shards =
                   child(i) @ (i + 1 < b || end_tok ? tok(i + 1) : [])
                 );
            let first = List.hd_exn(orig);
-           let last = List.nth_exn(orig, List.length(orig) - 1);
+           let last = List.last_exn(orig);
            let before =
-             List.init(first, ~f=i => i)
+             List.range(0, first)
              |> List.concat_map(~f=i => tok(i) @ child(i));
            let after = span(~end_tok=true, last, List.length(children));
            let rec kept_slots = m =>

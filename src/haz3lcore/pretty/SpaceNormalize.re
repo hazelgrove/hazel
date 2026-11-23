@@ -121,11 +121,7 @@ let last_token = (p: Piece.t): option(Token.t) =>
   };
 let first_token = (p: Piece.t): option(Token.t) =>
   switch (p) {
-  | Tile(t) =>
-    switch (Tile.effective_label(t)) {
-    | [tok, ..._] => Some(tok)
-    | [] => None
-    }
+  | Tile(t) => List.hd(Tile.effective_label(t))
   | _ => None
   };
 

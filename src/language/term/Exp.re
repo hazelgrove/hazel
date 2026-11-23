@@ -375,11 +375,7 @@ let rec is_fun = (e: t) => {
   | Fun(_)
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
-  | Dot(e1, e2) =>
-    switch (dot_tuple_entry(e1, e2)) {
-    | Some(exp) => is_fun(exp)
-    | None => false
-    }
+  | Dot(e1, e2) => Option.exists(dot_tuple_entry(e1, e2), ~f=is_fun)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -432,10 +428,7 @@ let rec is_tuple_of_functions = (e: t) =>
     | TupLabel(_, e) => is_tuple_of_functions(e)
     | Tuple(es) => es |> List.for_all(~f=is_fun)
     | Dot(e1, e2) =>
-      switch (dot_tuple_entry(e1, e2)) {
-      | Some(exp) => is_tuple_of_functions(exp)
-      | None => false
-      }
+      Option.exists(dot_tuple_entry(e1, e2), ~f=is_tuple_of_functions)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)

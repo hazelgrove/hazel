@@ -34,12 +34,7 @@ let qcheck_statics_does_not_crash =
     }
   });
 
-let safe_statics = (~ctx=?, exp) => {
-  let ctx =
-    switch (ctx) {
-    | Some(c) => c
-    | None => Builtins.ctx_init(Some(Int))
-    };
+let safe_statics = (~ctx=Builtins.ctx_init(Some(Int)), exp) => {
   switch (Statics.mk(CoreSettings.on, ctx, exp)) {
   | result => `Ok(result)
   | exception Stack_overflow => `Skip

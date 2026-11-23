@@ -12,8 +12,6 @@ open Haz3lcore;
  *   let x = 1·    // in ?
  */
 
-let string_testable = testable(Fmt.string, String.equal);
-
 /* Parse a string to a segment */
 let must_parse = (s: string): Segment.t => {
   switch (Parser.to_zipper(~root=Exp, s)) {
@@ -273,7 +271,7 @@ let run_tests = (tests: list(viz_test)) =>
          `Quick,
          () => {
            let output = visualize(input);
-           check(string_testable, name, expected, output);
+           check(string, name, expected, output);
          },
        )
      );
