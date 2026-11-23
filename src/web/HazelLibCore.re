@@ -356,7 +356,7 @@ and of_js_at =
       ? Exp.fresh(Tuple(List.filter_map(fields, ~f=x => x))) : of_js(j);
   | Sum(variants)
       when
-        kind == "object"
+        String.equal(kind, "object")
         && !Js.Unsafe.equals(j, Js.null)
         && String.equal(js_kind(Js.Unsafe.get(j, "tag")), "string") =>
     let name = Js.to_string(Js.Unsafe.coerce(Js.Unsafe.get(j, "tag")));
