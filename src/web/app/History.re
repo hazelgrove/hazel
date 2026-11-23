@@ -13,7 +13,7 @@ module Model = {
     redo_stack: list(Updated.t(state)),
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let load = () => {
     current: Page.Store.load(),
@@ -41,12 +41,14 @@ module Update = {
   let keep_environment = (~from: Model.state, state: Model.state): Model.state => {
     let (f, g) = (from.globals, state.globals);
     let visible_rows =
-      Editors.Model.editor_key(from.editors)
-      == Editors.Model.editor_key(state.editors)
+      String.equal(
+        Editors.Model.editor_key(from.editors),
+        Editors.Model.editor_key(state.editors),
+      )
         ? f.visible_rows : None;
-    f.font_metrics == g.font_metrics
-    && f.meta_down == g.meta_down
-    && visible_rows == g.visible_rows
+    FontMetrics.equal(f.font_metrics, g.font_metrics)
+    && Bool.equal(f.meta_down, g.meta_down)
+    && Option.equal(Globals.VisibleRows.equal, visible_rows, g.visible_rows)
       ? state
       : {
         ...state,
@@ -132,7 +134,7 @@ module Update = {
         ];
         let undo_stack =
           if (model.current.globals.settings.cap_undo_stack) {
-            List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
+            List.filteri(~f=(i, _) => i < capped_undo_stack_size, new_stack);
           } else {
             new_stack;
           };

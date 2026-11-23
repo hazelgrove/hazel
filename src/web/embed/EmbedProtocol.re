@@ -34,8 +34,7 @@ let dev_hosts = ["localhost", "127.0.0.1"];
 
 let without_prefix = (prefix: string, s: string): option(string) => {
   let n = String.length(prefix);
-  String.length(s) >= n && String.sub(s, 0, n) == prefix
-    ? Some(String.sub(s, n, String.length(s) - n)) : None;
+  String.is_prefix(s, ~prefix) ? Some(String.drop_prefix(s, n)) : None;
 };
 
 let is_dev_origin = (origin: string): bool =>
@@ -48,24 +47,27 @@ let is_dev_origin = (origin: string): bool =>
   | None => false
   | Some(rest) =>
     let (host, port) =
-      switch (String.index_opt(rest, ':')) {
+      switch (String.index(rest, ':')) {
       | Some(i) => (
-          String.sub(rest, 0, i),
-          Some(String.sub(rest, i + 1, String.length(rest) - i - 1)),
+          String.sub(rest, ~pos=0, ~len=i),
+          Some(
+            String.sub(rest, ~pos=i + 1, ~len=String.length(rest) - i - 1),
+          ),
         )
       | None => (rest, None)
       };
-    List.mem(host, dev_hosts)
+    List.mem(dev_hosts, host, ~equal=String.equal)
     && (
       switch (port) {
       | None => true
       | Some(port) =>
-        port != ""
+        !String.is_empty(port)
         && String.for_all(
-             fun
-             | '0' .. '9' => true
-             | _ => false,
              port,
+             ~f=
+               fun
+               | '0' .. '9' => true
+               | _ => false,
            )
       }
     );
@@ -73,9 +75,11 @@ let is_dev_origin = (origin: string): bool =>
 
 /* own: the frame's own origin. An opaque origin ("null") is no page's. */
 let origin_allowed = (~own: string, origin: string): bool =>
-  origin != "null"
+  !String.equal(origin, "null")
   && (
-    origin == own || List.mem(origin, site_origins) || is_dev_origin(origin)
+    String.equal(origin, own)
+    || List.mem(site_origins, origin, ~equal=String.equal)
+    || is_dev_origin(origin)
   );
 
 type incoming =
@@ -100,7 +104,7 @@ type incoming =
 /* j[key] when it is a string */
 let string_field = (j: Js.Unsafe.any, key: string): option(string) =>
   HazelLibCore.js_is_object(j)
-  && Js.to_string(Js.typeof(Js.Unsafe.get(j, key))) == "string"
+  && String.equal(Js.to_string(Js.typeof(Js.Unsafe.get(j, key))), "string")
     ? Some(Js.to_string(Js.Unsafe.get(j, key))) : None;
 
 /* A message the frame acts on, or None for anything else (another
@@ -133,7 +137,10 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
   | Some("focus") => Some(Focus(string_field(data, "module")))
   | Some("font") =>
     let size =
-      Js.to_string(Js.typeof(Js.Unsafe.get(data, "size"))) == "number"
+      String.equal(
+        Js.to_string(Js.typeof(Js.Unsafe.get(data, "size"))),
+        "number",
+      )
         ? Some(Js.float_of_number(Js.Unsafe.get(data, "size"))) : None;
     Some(Font(size, string_field(data, "family")));
   | Some("reveal") =>
@@ -144,20 +151,29 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
   | Some("lines") =>
     Some(
       Lines(
-        Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        String.equal(
+          Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))),
+          "boolean",
+        )
         && Js.to_bool(Js.Unsafe.get(data, "on")),
       ),
     )
   | Some("theme") =>
     let flag = key =>
-      Js.to_string(Js.typeof(Js.Unsafe.get(data, key))) == "boolean"
+      String.equal(
+        Js.to_string(Js.typeof(Js.Unsafe.get(data, key))),
+        "boolean",
+      )
       && Js.to_bool(Js.Unsafe.get(data, key));
     Some(Theme(flag("dark"), flag("contrast")));
   | Some("editable") =>
     Some(
       Editable(
         HazelLibCore.js_is_object(data)
-        && Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        && String.equal(
+             Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))),
+             "boolean",
+           )
         && Js.to_bool(Js.Unsafe.get(data, "on")),
       ),
     )

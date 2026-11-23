@@ -135,7 +135,7 @@ let rec param_type = (f: Exp.t): option(Typ.t) =>
   | FixF(p, e, _) =>
     switch (param_type(e)) {
     | Some(t) => Some(t)
-    | None => Option.bind(pat_type(p), arrow_domain)
+    | None => Option.bind(pat_type(p), ~f=arrow_domain)
     }
   | _ => None
   }
@@ -155,20 +155,18 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Atom(Float(f)) => Js.Unsafe.inject(Js.number_of_float(f))
   | Atom(Bool(b)) => Js.Unsafe.inject(Js.bool(b))
   | Atom(String(s)) => js_string(s)
-  | ListLit(xs) => js_array(List.map(to_js, xs))
+  | ListLit(xs) => js_array(List.map(xs, ~f=to_js))
   | Tuple([]) => Js.Unsafe.inject(Js.null)
   | Tuple(xs) =>
     let labeled =
-      List.filter_map(
-        (x: Exp.t) =>
-          switch (x.term) {
-          | TupLabel({term: Label(l), _}, v) => Some((l, to_js(v)))
-          | _ => None
-          },
-        xs,
+      List.filter_map(xs, ~f=(x: Exp.t) =>
+        switch (x.term) {
+        | TupLabel({term: Label(l), _}, v) => Some((l, to_js(v)))
+        | _ => None
+        }
       );
     List.length(labeled) == List.length(xs)
-      ? js_object(labeled) : js_array(List.map(to_js, xs));
+      ? js_object(labeled) : js_array(List.map(xs, ~f=to_js));
   /* a labeled tuple of one field */
   | TupLabel({term: Label(l), _}, x) => js_object([(l, to_js(x))])
   | Constructor(name, _) => js_object([("tag", js_string(name))])
@@ -208,11 +206,13 @@ and arg_of_js = (param: option(Typ.t), args: Js.Unsafe.any_js_array): Exp.t => {
     switch (prod_components(t)) {
     | Some(ts) when List.length(ts) == List.length(many) =>
       Exp.fresh(
-        Tuple(List.map2((t, x) => of_js_at(~recs=[], t, x), ts, many)),
+        Tuple(
+          List.map2_exn(ts, many, ~f=(t, x) => of_js_at(~recs=[], t, x)),
+        ),
       )
-    | _ => Exp.fresh(Tuple(List.map(of_js, many)))
+    | _ => Exp.fresh(Tuple(List.map(many, ~f=of_js)))
     }
-  | (many, None) => Exp.fresh(Tuple(List.map(of_js, many)))
+  | (many, None) => Exp.fresh(Tuple(List.map(many, ~f=of_js)))
   };
 }
 /* a product type's components, under its parentheses */
@@ -228,7 +228,7 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
   switch (kind) {
   | "number" =>
     let f: float = Js.float_of_number(Js.Unsafe.coerce(j));
-    Float.is_integer(f) && Float.abs(f) < 1e15
+    Float.is_integer(f) && Float.(abs(f) < 1e15)
       ? Exp.fresh(Atom(Int(Bigint.of_int(int_of_float(f)))))
       : Exp.fresh(Atom(Float(f)));
   | "boolean" => Exp.fresh(Atom(Bool(Js.to_bool(Js.Unsafe.coerce(j)))))
@@ -242,12 +242,16 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
         ) =>
     Exp.fresh(
       ListLit(
-        Array.to_list(Js.to_array(Js.Unsafe.coerce(j))) |> List.map(of_js),
+        Array.to_list(Js.to_array(Js.Unsafe.coerce(j)))
+        |> List.map(~f=of_js),
       ),
     )
   | _ =>
     let tag = Js.Unsafe.get(j, "tag");
-    if (Js.to_string(Js.typeof(Js.Unsafe.coerce(tag))) == "string") {
+    if (String.equal(
+          Js.to_string(Js.typeof(Js.Unsafe.coerce(tag))),
+          "string",
+        )) {
       /* A constructor carries its type once elaborated, and a JS one has
          none to give, so it gets the unknown type: ?, or ? -> ? when
          applied. Not None, the unelaborated form: an ascription to a sum
@@ -260,21 +264,19 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
          finds no rule for it (or a wildcard's). */
       let name = Js.to_string(Js.Unsafe.coerce(tag));
       let value = Js.Unsafe.get(j, "value");
-      js_kind(value) == "undefined"
+      String.equal(js_kind(value), "undefined")
         ? constructor_of(name, None)
         : constructor_of(name, Some(of_js(value)));
     } else {
       let keys =
         Array.to_list(Js.to_array(Js.object_keys(Js.Unsafe.coerce(j))))
-        |> List.map(Js.to_string);
+        |> List.map(~f=Js.to_string);
       Exp.fresh(
         Tuple(
-          List.map(
-            k =>
-              Exp.fresh(
-                TupLabel(Exp.fresh(Label(k)), of_js(Js.Unsafe.get(j, k))),
-              ),
-            keys,
+          List.map(keys, ~f=k =>
+            Exp.fresh(
+              TupLabel(Exp.fresh(Label(k)), of_js(Js.Unsafe.get(j, k))),
+            )
           ),
         ),
       );
@@ -298,7 +300,8 @@ and of_js_at =
   let at = (t: Typ.t, x: Js.Unsafe.any): Exp.t => of_js_at(~recs, t, x);
   let kind = js_kind(j);
   let number = () => Js.float_of_number(Js.Unsafe.coerce(j));
-  let whole = () => kind == "number" && Float.is_integer(number());
+  let whole = () =>
+    String.equal(kind, "number") && Float.is_integer(number());
   switch (Typ.term_of(ty)) {
   | Parens(t) => at(t, j)
   | Rec(tp, t) =>
@@ -306,68 +309,68 @@ and of_js_at =
     | Var(name) => of_js_at(~recs=[(name, ty), ...recs], t, j)
     | _ => at(t, j)
     }
-  | Var(name) when List.mem_assoc(name, recs) =>
-    at(List.assoc(name, recs), j)
-  | Atom(Float) when kind == "number" => Exp.fresh(Atom(Float(number())))
+  | Var(name) when List.Assoc.mem(recs, ~equal=String.equal, name) =>
+    at(List.Assoc.find_exn(recs, ~equal=String.equal, name), j)
+  | Atom(Float) when String.equal(kind, "number") =>
+    Exp.fresh(Atom(Float(number())))
   | Atom(Int) when whole() =>
     Exp.fresh(
       Atom(Int(Bigint.of_string(Printf.sprintf("%.0f", number())))),
     )
-  | Atom(Nat) when whole() && number() >= 0. =>
+  | Atom(Nat) when whole() && Float.(number() >= 0.) =>
     Exp.fresh(
       Atom(Nat(Bigint.of_string(Printf.sprintf("%.0f", number())))),
     )
   | Atom(SInt) when whole() =>
     Exp.fresh(Atom(SInt(int_of_float(number()))))
   | List(t) when js_is_array(j) =>
-    Exp.fresh(ListLit(List.map(x => at(t, x), js_elements(j))))
+    Exp.fresh(ListLit(List.map(js_elements(j), ~f=x => at(t, x))))
   | Prod(ts)
       when js_is_array(j) && List.length(js_elements(j)) == List.length(ts) =>
-    Exp.fresh(Tuple(List.map2(at, ts, js_elements(j))))
-  | Prod(ts) when kind == "object" && !Js.Unsafe.equals(j, Js.null) =>
+    Exp.fresh(Tuple(List.map2_exn(ts, js_elements(j), ~f=at)))
+  | Prod(ts)
+      when String.equal(kind, "object") && !Js.Unsafe.equals(j, Js.null) =>
     /* a labeled tuple, every field there: in the type's order */
     let fields =
-      List.map(
-        (t: Typ.t) =>
-          switch (Typ.term_of(t)) {
-          | TupLabel(l, t) =>
-            switch (Typ.term_of(l)) {
-            | Label(name)
-                when js_kind(Js.Unsafe.get(j, name)) != "undefined" =>
-              Some(
-                Exp.fresh(
-                  TupLabel(
-                    Exp.fresh(Label(name)),
-                    at(t, Js.Unsafe.get(j, name)),
-                  ),
+      List.map(ts, ~f=(t: Typ.t) =>
+        switch (Typ.term_of(t)) {
+        | TupLabel(l, t) =>
+          switch (Typ.term_of(l)) {
+          | Label(name)
+              when
+                !String.equal(js_kind(Js.Unsafe.get(j, name)), "undefined") =>
+            Some(
+              Exp.fresh(
+                TupLabel(
+                  Exp.fresh(Label(name)),
+                  at(t, Js.Unsafe.get(j, name)),
                 ),
-              )
-            | _ => None
-            }
+              ),
+            )
           | _ => None
-          },
-        ts,
+          }
+        | _ => None
+        }
       );
-    List.for_all(Option.is_some, fields)
-      ? Exp.fresh(Tuple(List.filter_map(x => x, fields))) : of_js(j);
+    List.for_all(fields, ~f=Option.is_some)
+      ? Exp.fresh(Tuple(List.filter_map(fields, ~f=x => x))) : of_js(j);
   | Sum(variants)
       when
         kind == "object"
         && !Js.Unsafe.equals(j, Js.null)
-        && js_kind(Js.Unsafe.get(j, "tag")) == "string" =>
+        && String.equal(js_kind(Js.Unsafe.get(j, "tag")), "string") =>
     let name = Js.to_string(Js.Unsafe.coerce(Js.Unsafe.get(j, "tag")));
     let value = Js.Unsafe.get(j, "value");
     let arg =
-      List.find_map(
-        v =>
-          switch (v) {
-          | ConstructorMap.Variant(c, _, Some(t)) when c == name => Some(t)
-          | _ => None
-          },
-        variants,
+      List.find_map(variants, ~f=v =>
+        switch (v) {
+        | ConstructorMap.Variant(c, _, Some(t)) when String.equal(c, name) =>
+          Some(t)
+        | _ => None
+        }
       );
     switch (arg) {
-    | Some(t) when js_kind(value) != "undefined" =>
+    | Some(t) when !String.equal(js_kind(value), "undefined") =>
       constructor_of(name, Some(at(t, value)))
     | _ => of_js(j)
     };
@@ -398,7 +401,7 @@ and constructor_of = (name: string, value: option(Exp.t)): Exp.t => {
 };
 
 let errors_js = (errs: list(string)): Js.Unsafe.any =>
-  js_array(List.map(js_string, errs));
+  js_array(List.map(errs, ~f=js_string));
 
 let analyze = (text: string): Js.Unsafe.any =>
   switch (term_of(text)) {
@@ -432,14 +435,14 @@ type program_spec = {
 };
 
 let js_is_object = (j: Js.Unsafe.any): bool =>
-  Js.to_string(Js.typeof(Js.Unsafe.coerce(j))) == "object"
+  String.equal(Js.to_string(Js.typeof(Js.Unsafe.coerce(j))), "object")
   && !Js.Unsafe.equals(j, Js.null);
 
 /* j[key] when j is an object and that is a string, else default */
 let js_field_string = (j: Js.Unsafe.any, key: string, ~default: string) =>
   if (js_is_object(j)) {
     let v = Js.Unsafe.get(j, key);
-    Js.to_string(Js.typeof(Js.Unsafe.coerce(v))) == "string"
+    String.equal(Js.to_string(Js.typeof(Js.Unsafe.coerce(v))), "string")
       ? Js.to_string(Js.Unsafe.coerce(v)) : default;
   } else {
     default;
@@ -456,7 +459,7 @@ let program_spec_of_js = (j: Js.Unsafe.any): program_spec => {
       Js.Unsafe.fun_call(Js.Unsafe.js_expr("Array.isArray"), [|modules|]),
     )
       ? Array.to_list(Js.to_array(Js.Unsafe.coerce(modules)))
-        |> List.map(m =>
+        |> List.map(~f=m =>
              (
                js_field_string(m, "name", ~default=""),
                js_field_string(m, "text", ~default=""),
@@ -513,10 +516,8 @@ let now = (): float => Util.JsUtil.precise_timestamp();
 
 let counts_js = (counts: list((string, int))): Js.Unsafe.any =>
   js_object(
-    List.map(
-      ((name, n)) =>
-        (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n)))),
-      counts,
+    List.map(counts, ~f=((name, n)) =>
+      (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n))))
     ),
   );
 
@@ -535,9 +536,9 @@ let analysis_fields =
       ~program_incomplete: int,
     )
     : list((string, Js.Unsafe.any)) => {
-  let none = List.for_all(((_, n)) => n == 0);
+  let none = List.for_all(~f=((_, n)) => n == 0);
   let ok =
-    errors == []
+    List.is_empty(errors)
     && program_holes == 0
     && none(holes)
     && program_incomplete == 0
@@ -547,20 +548,18 @@ let analysis_fields =
     (
       "errors",
       js_array(
-        List.map(
-          (e: ModuleProgram.error) =>
-            js_object([
-              (
-                "module",
-                switch (e.module_) {
-                | Some(name) => js_string(name)
-                | None => Js.Unsafe.inject(Js.null)
-                },
-              ),
-              ("message", js_string(e.message)),
-              ("id", js_string(Id.to_string(e.id))),
-            ]),
-          errors,
+        List.map(errors, ~f=(e: ModuleProgram.error) =>
+          js_object([
+            (
+              "module",
+              switch (e.module_) {
+              | Some(name) => js_string(name)
+              | None => Js.Unsafe.inject(Js.null)
+              },
+            ),
+            ("message", js_string(e.message)),
+            ("id", js_string(Id.to_string(e.id))),
+          ])
         ),
       ),
     ),
@@ -636,10 +635,10 @@ let js_keys = (v: Js.Unsafe.any): list(string) =>
     ),
   )
   |> Array.to_list
-  |> List.map(k => Js.to_string(k));
+  |> List.map(~f=k => Js.to_string(k));
 
 let is_index = (k: string): bool =>
-  k != "" && String.for_all(c => c >= '0' && c <= '9', k);
+  !String.is_empty(k) && String.for_all(k, ~f=Char.is_digit);
 
 let rec arrow_codomain = (t: Typ.t): option(Typ.t) =>
   switch (Typ.term_of(t)) {
@@ -665,7 +664,8 @@ let compile_elab = (elab: Exp.t): result(HazelJit.compiled, string) =>
 let rec of_jit =
         (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
         : Js.Unsafe.any =>
-  if (HazelJitValue.typeof(v) == "function" && HazelJitValue.has(v, "$k")) {
+  if (String.equal(HazelJitValue.typeof(v), "function")
+      && HazelJitValue.has(v, "$k")) {
     jit_function(ts, v);
   } else if (HazelJitValue.is_array(v) && holds_function(v)) {
     jit_tuple(ts, ty, v);
@@ -674,9 +674,8 @@ let rec of_jit =
   }
 and holds_function = (v: Js.Unsafe.any): bool => {
   let n = Js.Unsafe.get(v, "length");
-  List.exists(
-    i => HazelJitValue.typeof(Js.Unsafe.get(v, i)) == "function",
-    List.init(n, i => i),
+  List.exists(List.init(n, ~f=i => i), ~f=i =>
+    String.equal(HazelJitValue.typeof(Js.Unsafe.get(v, i)), "function")
   );
 }
 /* a tuple holding a function: each component by its own type, the labels
@@ -690,29 +689,25 @@ and jit_tuple =
   let fields: list((option(string), option(Typ.t))) =
     switch (
       Option.map(
-        (t: Typ.t) => t.term,
-        Option.bind(ty, HazelJitValue.shape(ts, 0)),
+        Option.bind(ty, ~f=HazelJitValue.shape(ts, 0)), ~f=(t: Typ.t) =>
+        t.term
       )
     ) {
     | Some(Prod(tys)) when List.length(tys) == n =>
-      List.map(
-        (t: Typ.t) =>
-          switch (Typ.match_tup_label(t)) {
-          | Some((l, t)) => (Some(l), Some(t))
-          | None => (None, Some(t))
-          },
-        tys,
+      List.map(tys, ~f=(t: Typ.t) =>
+        switch (Typ.match_tup_label(t)) {
+        | Some((l, t)) => (Some(l), Some(t))
+        | None => (None, Some(t))
+        }
       )
     | _ =>
-      let keys = List.filter(k => !is_index(k), js_keys(v));
+      let keys = List.filter(js_keys(v), ~f=k => !is_index(k));
       let used = ref([]);
-      List.init(n, i =>
+      List.init(n, ~f=i =>
         switch (
-          List.find_opt(
-            k =>
-              !List.mem(k, used^)
-              && Js.Unsafe.equals(Js.Unsafe.get(v, k), at(i)),
-            keys,
+          List.find(keys, ~f=k =>
+            !List.mem(used^, k, ~equal=String.equal)
+            && Js.Unsafe.equals(Js.Unsafe.get(v, k), at(i))
           )
         ) {
         | Some(k) =>
@@ -722,13 +717,11 @@ and jit_tuple =
         }
       );
     };
-  let values = List.mapi((i, (_, t)) => of_jit(ts, t, at(i)), fields);
-  List.for_all(((l, _)) => l != None, fields)
+  let values = List.mapi(fields, ~f=(i, (_, t)) => of_jit(ts, t, at(i)));
+  List.for_all(fields, ~f=((l, _)) => Option.is_some(l))
     ? js_object(
-        List.map2(
-          ((l, _), v) => (Option.value(l, ~default=""), v),
-          fields,
-          values,
+        List.map2_exn(fields, values, ~f=((l, _), v) =>
+          (Option.value(l, ~default=""), v)
         ),
       )
     : js_array(values);
@@ -739,9 +732,10 @@ and jit_function = (ts: HazelJitValue.types, f: Js.Unsafe.any): Js.Unsafe.any =>
     int_of_float(
       Js.float_of_number(Js.Unsafe.coerce(Js.Unsafe.get(f, "$k"))),
     );
-  let term = Option.map(fst, Hashtbl.find_opt(ts.HazelJitValue.funs, k));
-  let param = Option.bind(term, param_type);
-  let result = Option.bind(term, result_type);
+  let term =
+    Option.map(Stdlib.Hashtbl.find_opt(ts.HazelJitValue.funs, k), ~f=fst);
+  let param = Option.bind(term, ~f=param_type);
+  let result = Option.bind(term, ~f=result_type);
   Js.Unsafe.inject(
     Js.Unsafe.callback_with_arguments(args => {
       let arg = arg_of_js(param, args);

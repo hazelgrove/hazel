@@ -65,7 +65,7 @@ let ready = (link: t): unit =>
   );
 
 let crash = (link: t, message: string): unit =>
-  if (!List.mem(message, link.crashes)) {
+  if (!List.mem(link.crashes, message, ~equal=String.equal)) {
     link.crashes = [message, ...link.crashes];
     try(
       send(
@@ -84,7 +84,7 @@ let crash = (link: t, message: string): unit =>
    page that missed them. Anything else is ignored. */
 let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
   let origin = Js.Unsafe.get(event, "origin");
-  if (Js.to_string(Js.typeof(origin)) == "string"
+  if (String.equal(Js.to_string(Js.typeof(origin)), "string")
       && Js.Unsafe.equals(Js.Unsafe.get(event, "source"), link.parent)
       && EmbedProtocol.origin_allowed(
            ~own=link.own_origin,
@@ -141,6 +141,6 @@ let report =
     let (messages, sent) =
       EmbedModel.Outbox.after_display(~caret?, ~height, model, link.sent);
     link.sent = sent;
-    List.iter(send(link, ~target), messages);
+    List.iter(messages, ~f=send(link, ~target));
   | None => ()
   };

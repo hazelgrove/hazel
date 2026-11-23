@@ -22,11 +22,13 @@
 
 (library
  (name workerServer)
+ (flags
+  (:standard -open Core))
  (modules WorkerServer CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries language)
+ (libraries core language)
  (js_of_ocaml)
  (preprocess
   (pps
@@ -38,6 +40,8 @@
 
 (library
  (name web)
+ (flags
+  (:standard -open Core))
  (instrumentation
   (backend bisect_ppx))
  (modules
@@ -51,6 +55,7 @@
   HazelLibCore
   BuildStamp)
  (libraries
+  core
   ezjs_min
   ezjs_idb
   workerServer
@@ -83,10 +88,12 @@
 
 (executable
  (name main)
+ (flags
+  (:standard -open Core))
  (modules Main)
  (instrumentation
   (backend bisect_ppx))
- (libraries ppx_yojson_conv.expander web)
+ (libraries core ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
   (pps
@@ -99,10 +106,12 @@
 
 (executable
  (name worker)
+ (flags
+  (:standard -open Core))
  (modules Worker)
  (instrumentation
   (backend bisect_ppx))
- (libraries workerServer)
+ (libraries core workerServer)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -121,7 +130,10 @@
 
 (library
  (name buildStamp)
+ (flags
+  (:standard -open Core))
  (modules BuildStamp)
+ (libraries core)
  (js_of_ocaml))
 
 ; Hazel as a JS library (a draft): window.Hazel, to analyze and run programs
@@ -129,16 +141,20 @@
 
 (library
  (name hazelLibCore)
+ (flags
+  (:standard -open Core))
  (modules HazelLibCore)
- (libraries haz3lcore language buildStamp)
+ (libraries core haz3lcore language buildStamp)
  (js_of_ocaml)
  (preprocess
   (pps js_of_ocaml-ppx)))
 
 (executable
  (name hazelLib)
+ (flags
+  (:standard -open Core))
  (modules HazelLib)
- (libraries hazelLibCore)
+ (libraries core hazelLibCore)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -149,8 +165,10 @@
 
 (executable
  (name migrate_exercises)
+ (flags
+  (:standard -open Core))
  (modules Migrate_exercises)
- (libraries ppx_yojson_conv.expander web)
+ (libraries core ppx_yojson_conv.expander web)
  (modes js)
  (preprocess
   (pps

@@ -58,8 +58,9 @@ let spec = (~common=Panel.common, ~trap=Panel.trap, ~tail=Panel.tail, ()) =>
 let script_body = (text: string): string => {
   let right = Str.global_replace(Str.regexp("[ \t\n\r]+$"), "", text);
   let n = String.length(right);
-  String.trim(
-    n > 0 && right.[n - 1] == ';' ? String.sub(right, 0, n - 1) : text,
+  String.strip(
+    n > 0 && Char.equal(right.[n - 1], ';')
+      ? String.sub(right, ~pos=0, ~len=n - 1) : text,
   );
 };
 
@@ -67,9 +68,9 @@ let script_body = (text: string): string => {
    kids-choice-games, dress-up/js/25-scripting.js): each body as
    script_body gives it, and a blank one in its module's place */
 let joined = (~common=Panel.common, ~trap=Panel.trap, ()) => {
-  let or_else = (default, body) => body == "" ? default : body;
+  let or_else = (default, body) => String.is_empty(body) ? default : body;
   String.concat(
-    "\n",
+    ~sep="\n",
     [
       Panel.preamble,
       "module Common = {\n"
@@ -107,7 +108,7 @@ let is_ok = (r: Js.Unsafe.any): bool =>
 /* each error's module, "(program)" for null */
 let error_modules = (r: Js.Unsafe.any): list(string) =>
   Array.to_list(Js.to_array(Js.Unsafe.coerce(field(r, "errors"))))
-  |> List.map(e => {
+  |> List.map(~f=e => {
        let m = field(e, "module");
        Js.Unsafe.equals(m, Js.null)
          ? "(program)" : Js.to_string(Js.Unsafe.coerce(m));
@@ -402,7 +403,29 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        ((what, trap, expected)) => {
+        [
+          (
+            "the shipped rule",
+            Panel.trap,
+            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Done\"}]}",
+          ),
+          (
+            "Common.flip2",
+            Panel.flip2_rule,
+            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Flip\",\"value\":[\"lever_R\",{\"tag\":\"Done\"}]}]}",
+          ),
+          (
+            "Say",
+            Panel.say_rule,
+            "{\"tag\":\"Say\",\"value\":[\"hello from Hazel\",{\"tag\":\"Done\"}]}",
+          ),
+          (
+            "Flip(1, Done), an error",
+            Panel.error_rule,
+            "{\"tag\":\"Flip\",\"value\":[1,{\"tag\":\"Done\"}]}",
+          ),
+        ],
+        ~f=((what, trap, expected)) => {
           let joined = HazelLibCore.run(joined(~trap, ()));
           let program = HazelLibCore.run_program(spec(~trap, ()));
           let n = (r, k) => Js.Unsafe.get(field(r, k), "length");
@@ -432,28 +455,6 @@ let tests = (
             pull_left(field(program, "value")),
           );
         },
-        [
-          (
-            "the shipped rule",
-            Panel.trap,
-            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Done\"}]}",
-          ),
-          (
-            "Common.flip2",
-            Panel.flip2_rule,
-            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Flip\",\"value\":[\"lever_R\",{\"tag\":\"Done\"}]}]}",
-          ),
-          (
-            "Say",
-            Panel.say_rule,
-            "{\"tag\":\"Say\",\"value\":[\"hello from Hazel\",{\"tag\":\"Done\"}]}",
-          ),
-          (
-            "Flip(1, Done), an error",
-            Panel.error_rule,
-            "{\"tag\":\"Flip\",\"value\":[1,{\"tag\":\"Done\"}]}",
-          ),
-        ],
       )
     ),
     test_case(
@@ -463,15 +464,13 @@ let tests = (
         let r = HazelLibCore.run_program(spec(~trap=Panel.error_rule, ()));
         let errors = Js.to_array(Js.Unsafe.coerce(field(r, "errors")));
         check(bool, "there is one", true, Array.length(errors) > 0);
-        Array.iter(
-          e =>
-            check(
-              string,
-              "its module",
-              "TrapRoom",
-              Js.to_string(Js.Unsafe.coerce(field(e, "module"))),
-            ),
-          errors,
+        Array.iter(errors, ~f=e =>
+          check(
+            string,
+            "its module",
+            "TrapRoom",
+            Js.to_string(Js.Unsafe.coerce(field(e, "module"))),
+          )
         );
       },
     ),
@@ -510,9 +509,14 @@ let tests = (
            the clock was read twice at the end */
         let ms = r => Js.float_of_number(Js.Unsafe.coerce(field(r, "ms")));
         let a = HazelLibCore.analyze_program(spec());
-        check(bool, "analyzeProgram's ms is above 0", true, ms(a) > 0.);
+        check(
+          bool,
+          "analyzeProgram's ms is above 0",
+          true,
+          Float.(ms(a) > 0.),
+        );
         let r = HazelLibCore.run_program(spec());
-        check(bool, "runProgram's ms is above 0", true, ms(r) > 0.);
+        check(bool, "runProgram's ms is above 0", true, Float.(ms(r) > 0.));
       },
     ),
     test_case(
@@ -586,22 +590,6 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        ((what, common, trap, expected)) => {
-          let r = HazelLibCore.analyze_program(spec(~common, ~trap, ()));
-          check(bool, what ++ ": ok", false, is_ok(r));
-          check(
-            string,
-            what ++ ": incomplete",
-            expected,
-            json(field(r, "incomplete")),
-          );
-          check(
-            string,
-            what ++ ": programIncomplete",
-            "0",
-            json(field(r, "programIncomplete")),
-          );
-        },
         [
           (
             "a stray } in Common",
@@ -622,6 +610,22 @@ let tests = (
             "{\"Common\":0,\"TrapRoom\":1}",
           ),
         ],
+        ~f=((what, common, trap, expected)) => {
+          let r = HazelLibCore.analyze_program(spec(~common, ~trap, ()));
+          check(bool, what ++ ": ok", false, is_ok(r));
+          check(
+            string,
+            what ++ ": incomplete",
+            expected,
+            json(field(r, "incomplete")),
+          );
+          check(
+            string,
+            what ++ ": programIncomplete",
+            "0",
+            json(field(r, "programIncomplete")),
+          );
+        },
       )
     ),
     test_case(
@@ -629,7 +633,17 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        ((what, spec, ok)) => {
+        [
+          ("no spec", Js.Unsafe.inject(Js.undefined), true),
+          ("null", Js.Unsafe.inject(Js.null), true),
+          ("modules null", as_js({|{"modules": null}|}), true),
+          (
+            "a module null, and one whose name is a number",
+            as_js({|{"modules": [null, {"name": 1}]}|}),
+            false,
+          ),
+        ],
+        ~f=((what, spec, ok)) => {
           let r = HazelLibCore.analyze_program(spec);
           let typeof = k =>
             Js.to_string(Js.typeof(Js.Unsafe.coerce(field(r, k))));
@@ -647,7 +661,6 @@ let tests = (
               "number",
             ],
             List.map(
-              typeof,
               [
                 "ok",
                 "errors",
@@ -657,6 +670,7 @@ let tests = (
                 "programIncomplete",
                 "ms",
               ],
+              ~f=typeof,
             ),
           );
           check(
@@ -671,16 +685,6 @@ let tests = (
             ),
           );
         },
-        [
-          ("no spec", Js.Unsafe.inject(Js.undefined), true),
-          ("null", Js.Unsafe.inject(Js.null), true),
-          ("modules null", as_js({|{"modules": null}|}), true),
-          (
-            "a module null, and one whose name is a number",
-            as_js({|{"modules": [null, {"name": 1}]}|}),
-            false,
-          ),
-        ],
       )
     ),
     test_case(

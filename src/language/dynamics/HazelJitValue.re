@@ -208,9 +208,9 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
      its run has a value (current = -1, found by the browser check on the Polygons slide) */
   | UnOp(Int(Minus) | Float(Minus), e) =>
     let v = to_js(e);
-    typeof(v) == "number"
+    String.equal(typeof(v), "number")
       ? number(-. Js.float_of_number(Js.Unsafe.coerce(v)))
-      : typeof(v) == "bigint"
+      : String.equal(typeof(v), "bigint")
           ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|v|])
           : unsupported(
               "a value hazel-jit does not carry into JS: a minus before a non-number",
@@ -218,7 +218,11 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Atom(Bool(b)) => inject(Js.bool(b))
   | Atom(String(s)) => jstr(s)
   | ListLit(vs) =>
-    List.fold_right((v, t) => cons(to_js(v), t), vs, inject(Js.null))
+    List.fold_right(
+      vs,
+      ~f=(v, t) => cons(to_js(v), t),
+      ~init=inject(Js.null),
+    )
   | Cons(h, t) => cons(to_js(h), to_js(t))
   | Tuple(vs) => tuple(vs)
   | TupLabel(_) => tuple([v])
@@ -229,32 +233,30 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
     let s = Exp.show(v);
     unsupported(
       "a value hazel-jit does not carry into JS: "
-      ++ (String.length(s) > 80 ? String.sub(s, 0, 80) ++ "..." : s),
+      ++ (
+        String.length(s) > 80 ? String.sub(s, ~pos=0, ~len=80) ++ "..." : s
+      ),
     );
   }
 and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
   let parts =
-    List.map(
-      (v: Exp.t) =>
-        switch (Exp.match_tup_label(v), Exp.term_of(v)) {
-        | (Some((l, v)), _) => (Some(l), to_js(v))
-        /* (^ticket(761)) an explicitly unlabeled entry, (_=v), is the entry itself (HazelJit.is_nonlabel) */
-        | (None, TupLabel(l, v)) when HazelJit.is_nonlabel(l) => (
-            None,
-            to_js(v),
-          )
-        | (None, _) => (None, to_js(v))
-        },
-      vs,
+    List.map(vs, ~f=(v: Exp.t) =>
+      switch (Exp.match_tup_label(v), Exp.term_of(v)) {
+      | (Some((l, v)), _) => (Some(l), to_js(v))
+      /* (^ticket(761)) an explicitly unlabeled entry, (_=v), is the entry itself (HazelJit.is_nonlabel) */
+      | (None, TupLabel(l, v)) when HazelJit.is_nonlabel(l) => (
+          None,
+          to_js(v),
+        )
+      | (None, _) => (None, to_js(v))
+      }
     );
-  let arr = Js.array(Array.of_list(List.map(snd, parts)));
-  List.iter(
-    ((l, js)) =>
-      switch (l) {
-      | Some(l) => Js.Unsafe.set(arr, Js.string(HazelJit.label_key(l)), js)
-      | None => ()
-      },
-    parts,
+  let arr = Js.array(Array.of_list(List.map(parts, ~f=snd)));
+  List.iter(parts, ~f=((l, js)) =>
+    switch (l) {
+    | Some(l) => Js.Unsafe.set(arr, Js.string(HazelJit.label_key(l)), js)
+    | None => ()
+    }
   );
   inject(arr);
 };
@@ -262,9 +264,9 @@ and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
 /* ---- back from JS */
 
 type types = {
-  ctors: Hashtbl.t(string, option(Typ.t)),
-  aliases: Hashtbl.t(string, Typ.t),
-  funs: Hashtbl.t(int, (Exp.t, list(string))),
+  ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
+  aliases: Stdlib.Hashtbl.t(string, Typ.t),
+  funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
 };
 
 let types_of = (c: HazelJit.compiled): types => {
@@ -279,7 +281,7 @@ let rec shape = (ts: types, depth: int, t: Typ.t): option(Typ.t) =>
   | Parens(t)
   | Rec(_, t) => shape(ts, depth, t)
   | Var(x) when depth < 8 =>
-    switch (Hashtbl.find_opt(ts.aliases, x)) {
+    switch (Stdlib.Hashtbl.find_opt(ts.aliases, x)) {
     | Some(t) => shape(ts, depth + 1, t)
     | None => None
     }
@@ -291,7 +293,7 @@ let rec shape = (ts: types, depth: int, t: Typ.t): option(Typ.t) =>
 /* (2026-11-07) a whole number that fits an int (31 bits under js_of_ocaml) directly; only a bigger one by its digits,
    through Printf and Bigint.of_string, which cost every number about 2 us */
 let whole = (f: float): Bigint.t =>
-  Float.abs(f) < 1073741824.0
+  Float.(abs(f) < 1073741824.0)
     ? Bigint.of_int(int_of_float(f))
     : Bigint.of_string(Printf.sprintf("%.0f", f));
 
@@ -299,11 +301,11 @@ let whole = (f: float): Bigint.t =>
    one that captures itself through another), which a Hazel closure cannot hold as a plain value */
 let rec of_js =
         (~seen=[], ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t => {
-  let ty = Option.bind(ty, shape(ts, 0));
+  let ty = Option.bind(ty, ~f=shape(ts, 0));
   switch (typeof(v)) {
   | "number" =>
     let f = Js.float_of_number(Js.Unsafe.coerce(v));
-    switch (Option.map((t: Typ.t) => t.term, ty)) {
+    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
     | Some(Atom(Float)) => G.Exp.float(f)
     | Some(Atom(SInt)) => G.Exp.sint(int_of_float(f))
     | Some(Atom(Nat)) => G.Exp.nat(whole(f))
@@ -318,7 +320,7 @@ let rec of_js =
           Js.Unsafe.fun_call(Js.Unsafe.js_expr("String"), [|v|]),
         ),
       );
-    switch (Option.map((t: Typ.t) => t.term, ty)) {
+    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
     | Some(Atom(Nat)) => G.Exp.nat(n)
     | _ => G.Exp.big_int(n)
     };
@@ -327,30 +329,23 @@ let rec of_js =
   | "function" when has(v, "$k") =>
     /* a function the compiled code made: its Hazel function, closed over the values it captured, each carried back
        (with no type to go by) */
-    if (List.exists(w => Js.Unsafe.equals(w, v), seen)) {
+    if (List.exists(seen, ~f=w => Js.Unsafe.equals(w, v))) {
       unsupported("a recursive function in the answer");
     };
     let k =
       int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "$k"))));
-    switch (Hashtbl.find_opt(ts.funs, k)) {
+    switch (Stdlib.Hashtbl.find_opt(ts.funs, k)) {
     | None => unsupported("a function the compiled code did not make")
     | Some((term, names)) =>
       let caps = get(v, "$e");
       let values =
         is_null(caps)
           ? []
-          : List.mapi(
-              (i, x) =>
-                (
-                  x,
-                  of_js(
-                    ~seen=[v, ...seen],
-                    ts,
-                    None,
-                    Js.Unsafe.get(caps, i),
-                  ),
-                ),
-              names,
+          : List.mapi(names, ~f=(i, x) =>
+              (
+                x,
+                of_js(~seen=[v, ...seen], ts, None, Js.Unsafe.get(caps, i)),
+              )
             );
       G.Exp.closure(Environment.of_bindings(values), term);
     };
@@ -368,19 +363,17 @@ let rec of_js =
        annotation. With none in the table, the sum it is expected at gives it, as the interpreter's value carries it:
        the sum itself, or for one with an argument, an arrow from the argument's type to the sum. */
     let t =
-      switch (Option.join(Hashtbl.find_opt(ts.ctors, name))) {
+      switch (Option.join(Stdlib.Hashtbl.find_opt(ts.ctors, name))) {
       | Some(t) => Some(t)
       | None =>
         switch (ty) {
         | Some({term: Sum(vs), _} as sum) =>
           switch (
-            List.find_opt(
-              (v: ConstructorMap.variant(Typ.t)) =>
-                switch (v) {
-                | ConstructorMap.Variant(c, _, _) => c == name
-                | ConstructorMap.BadEntry(_) => false
-                },
-              vs,
+            List.find(vs, ~f=(v: ConstructorMap.variant(Typ.t)) =>
+              switch (v) {
+              | ConstructorMap.Variant(c, _, _) => String.equal(c, name)
+              | ConstructorMap.BadEntry(_) => false
+              }
             )
           ) {
           | Some(ConstructorMap.Variant(_, _, None)) => Some(sum)
@@ -391,10 +384,10 @@ let rec of_js =
         | _ => None
         }
       };
-    let ann = Option.map(t => Some(t), t);
+    let ann = Option.map(t, ~f=t => Some(t));
     if (has(v, "v")) {
       let arg_ty =
-        switch (Option.bind(t, shape(ts, 0))) {
+        switch (Option.bind(t, ~f=shape(ts, 0))) {
         | Some({term: Arrow(a, _), _}) => Some(a)
         | _ => None
         };
@@ -408,7 +401,7 @@ let rec of_js =
     };
   | "object" when has(v, "h") =>
     let elt =
-      switch (Option.map((t: Typ.t) => t.term, ty)) {
+      switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
       | Some(List(t)) => Some(t)
       | _ => None
       };
@@ -427,15 +420,13 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
     int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "length"))));
   let at = i => Js.Unsafe.get(v, i);
   let fields: list((option(string), option(Typ.t))) =
-    switch (Option.map((t: Typ.t) => t.term, ty)) {
+    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
     | Some(Prod(tys)) when List.length(tys) == n =>
-      List.map(
-        (t: Typ.t) =>
-          switch (Typ.match_tup_label(t)) {
-          | Some((l, t)) => (Some(l), Some(t))
-          | None => (None, Some(t))
-          },
-        tys,
+      List.map(tys, ~f=(t: Typ.t) =>
+        switch (Typ.match_tup_label(t)) {
+        | Some((l, t)) => (Some(l), Some(t))
+        | None => (None, Some(t))
+        }
       )
     | _ =>
       let keys =
@@ -447,18 +438,18 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
           ),
         )
         |> Array.to_list
-        |> List.map(k => Js.to_string(k))
+        |> List.map(~f=k => Js.to_string(k))
         /* (2026-11-07) a label is a key that is not an index; int_of_string_opt said so by raising and catching an
            exception for every label, about 4 us each under js_of_ocaml */
-        |> List.filter(k =>
-             k == "" || !String.for_all(c => c >= '0' && c <= '9', k)
+        |> List.filter(~f=k =>
+             String.is_empty(k) || !String.for_all(k, ~f=Char.is_digit)
            );
       let used = ref([]);
-      List.init(n, i =>
+      List.init(n, ~f=i =>
         switch (
-          List.find_opt(
-            k => !List.mem(k, used^) && Js.Unsafe.equals(get(v, k), at(i)),
-            keys,
+          List.find(keys, ~f=k =>
+            !List.mem(used^, k, ~equal=String.equal)
+            && Js.Unsafe.equals(get(v, k), at(i))
           )
         ) {
         | Some(k) =>
@@ -470,14 +461,14 @@ and of_tuple = (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
     };
   let comps =
     List.mapi(
-      (i, (l, t)) => {
+      fields,
+      ~f=(i, (l, t)) => {
         let e = of_js(~seen, ts, t, at(i));
         switch (l) {
         | Some(l) => G.Exp.tup_label(G.Exp.label(l), e)
         | None => e
         };
       },
-      fields,
     );
   G.Exp.tuple(comps);
 };
@@ -547,7 +538,7 @@ let diff = (a: Js.Unsafe.any, b: Js.Unsafe.any): Js.Unsafe.any =>
 let js_list = (v: Js.Unsafe.any): list(Js.Unsafe.any) => {
   let n =
     int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "length"))));
-  List.init(n, i => Js.Unsafe.get(v, i));
+  List.init(n, ~f=i => Js.Unsafe.get(v, i));
 };
 let int_of = (v: Js.Unsafe.any): int =>
   int_of_float(Js.float_of_number(Js.Unsafe.coerce(v)));
@@ -559,7 +550,7 @@ let rec patch =
   if (is_null(d)) {
     old;
   } else {
-    let ty = Option.bind(ty, shape(ts, 0));
+    let ty = Option.bind(ty, ~f=shape(ts, 0));
     if (has(d, "n")) {
       let v = get(d, "n");
       /* (^ticket(715)) a number with no type to read it by, where a number was: read as that one was, so a whole Float
@@ -580,8 +571,8 @@ let rec patch =
         let arg_ty =
           switch (
             Option.bind(
-              Option.join(Hashtbl.find_opt(ts.ctors, name)),
-              shape(ts, 0),
+              Option.join(Stdlib.Hashtbl.find_opt(ts.ctors, name)),
+              ~f=shape(ts, 0),
             )
           ) {
           | Some({term: Arrow(a, _), _}) => Some(a)
@@ -591,40 +582,36 @@ let rec patch =
       | Tuple(items) when has(d, "t") =>
         let changes =
           js_list(get(d, "t"))
-          |> List.map(p =>
+          |> List.map(~f=p =>
                (int_of(Js.Unsafe.get(p, 0)), Js.Unsafe.get(p, 1))
              );
         let tys =
-          switch (Option.map((t: Typ.t) => t.term, ty)) {
+          switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
           | Some(Prod(tys)) when List.length(tys) == List.length(items) =>
-            List.map(
-              (t: Typ.t) =>
-                switch (Typ.match_tup_label(t)) {
-                | Some((_, t)) => Some(t)
-                | None => Some(t)
-                },
-              tys,
+            List.map(tys, ~f=(t: Typ.t) =>
+              switch (Typ.match_tup_label(t)) {
+              | Some((_, t)) => Some(t)
+              | None => Some(t)
+              }
             )
-          | _ => List.map(_ => None, items)
+          | _ => List.map(items, ~f=_ => None)
           };
         G.Exp.tuple(
-          List.mapi(
-            (i, (e: Exp.t, t)) =>
-              switch (List.assoc_opt(i, changes)) {
-              | None => e
-              | Some(di) =>
-                switch (Exp.term_of(e)) {
-                | TupLabel(l, inner) =>
-                  G.Exp.tup_label(l, patch(ts, t, inner, di))
-                | _ => patch(ts, t, e, di)
-                }
-              },
-            List.combine(items, tys),
+          List.mapi(List.zip_exn(items, tys), ~f=(i, (e: Exp.t, t)) =>
+            switch (List.Assoc.find(changes, ~equal=Int.equal, i)) {
+            | None => e
+            | Some(di) =>
+              switch (Exp.term_of(e)) {
+              | TupLabel(l, inner) =>
+                G.Exp.tup_label(l, patch(ts, t, inner, di))
+              | _ => patch(ts, t, e, di)
+              }
+            }
           ),
         );
       | ListLit(xs) when has(d, "l") =>
         let elt =
-          switch (Option.map((t: Typ.t) => t.term, ty)) {
+          switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
           | Some(List(t)) => Some(t)
           | _ => None
           };
@@ -695,7 +682,7 @@ let instantiate = (src: string): Js.Unsafe.any =>
 let message = (exn: exn): string =>
   switch (Js_error.of_exn(exn)) {
   | Some(e) => Js_error.message(e)
-  | None => Printexc.to_string(exn)
+  | None => Exn.to_string(exn)
   };
 
 /* A livelit's view, compiled: the definition (its elaborated module) compiled once and run, its view member kept, with
@@ -738,7 +725,7 @@ let compile_view =
         ~nodes=nodes_of(def),
       );
       let fn = get(m, "view");
-      if (typeof(fn) != "function") {
+      if (!String.equal(typeof(fn), "function")) {
         Error("the definition has no view member");
       } else if (has(fn, "$missing")) {
         Error(
@@ -760,21 +747,21 @@ let compile_view =
 /* Each definition compiled once (eval_view's): the last few definitions, by their term, each with its compiled view or
    why it has none. A view whose answer once failed to come back is not tried again. */
 let cache: ref(list((Exp.t, result(view, string)))) = ref([]);
-let same_def = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
+let same_def = (a: Exp.t, b: Exp.t): bool =>
+  phys_equal(a, b) || Exp.fast_equal(a, b);
 let view_of_def =
     (~env: Environment.t(Exp.t), def: Exp.t): result(view, string) =>
-  switch (List.find_opt(((d, _)) => same_def(d, def), cache^)) {
+  switch (List.find(cache^, ~f=((d, _)) => same_def(d, def))) {
   | Some((_, r)) => r
   | None =>
     let r = compile_view(~env, def);
-    cache := [(def, r), ...List.filteri((i, _) => i < 15, cache^)];
+    cache := [(def, r), ...List.filteri(cache^, ~f=(i, _) => i < 15)];
     r;
   };
 let give_up = (def: Exp.t, why: string): unit =>
   cache :=
-    List.map(
-      ((d, r)) => same_def(d, def) ? (d, Error(why)) : (d, r),
-      cache^,
+    List.map(cache^, ~f=((d, r)) =>
+      same_def(d, def) ? (d, Error(why)) : (d, r)
     );
 
 /* (^ticket(714)) The two halves of run_view, apart: the compiled view called on the model, its answer left in JS (to draw
@@ -818,7 +805,7 @@ let answer_of = (v: view, js: Js.Unsafe.any): result(Exp.t, string) =>
 let call_update =
     (v: view, model: Exp.t, action: Exp.t): result(Exp.t, string) => {
   let update = get(v.members, "update");
-  if (typeof(update) != "function") {
+  if (!String.equal(typeof(update), "function")) {
     Error("the definition has no update member");
   } else if (has(update, "$missing")) {
     Error(
@@ -834,15 +821,19 @@ let call_update =
             Js.Unsafe.fun_call(update, [|before|]),
             [|to_js(action)|],
           );
-        if (typeof(cmd) == "object"
+        if (String.equal(typeof(cmd), "object")
             && !is_null(cmd)
             && has(cmd, "c")
-            && Js.to_string(Js.Unsafe.coerce(get(cmd, "c"))) == "Pure"
+            && String.equal(
+                 Js.to_string(Js.Unsafe.coerce(get(cmd, "c"))),
+                 "Pure",
+               )
             && has(cmd, "v")) {
           let ty =
             Option.map(
-              (t: Typ.t) => t,
-              Hashtbl.find_opt(v.types.aliases, "Model"),
+              Stdlib.Hashtbl.find_opt(v.types.aliases, "Model"),
+              ~f=(t: Typ.t) =>
+              t
             );
           patch(v.types, ty, model, diff(before, get(cmd, "v")));
         } else {

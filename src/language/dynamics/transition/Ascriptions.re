@@ -26,7 +26,7 @@ open Util.OptUtil.Syntax;
    push (transition_multiple) can give a part back unchanged; a stepwise
    one wraps each part in a new ascription. */
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
-  List.for_all2((d, d') => d === d', ds, ds');
+  List.for_all2_exn(ds, ds', ~f=(d, d') => phys_equal(d, d'));
 
 /* Whether [ty_rec], unrolled, is consistent with [ty]. A self-loop has no
    unrolling and is consistent with nothing. */
@@ -68,17 +68,24 @@ let in_type_order =
     | _ => None
     };
   switch (
-    Util.OptUtil.sequence(List.map(exp_label, es)),
-    Util.OptUtil.sequence(List.map(typ_label, tys)),
+    Option.all(List.map(es, ~f=exp_label)),
+    Option.all(List.map(tys, ~f=typ_label)),
   ) {
   | (Some(els), Some(tls))
       when
-        els != tls
-        && List.sort_uniq(String.compare, els)
-        == List.sort(String.compare, els)
-        && List.sort(String.compare, els) == List.sort(String.compare, tls) =>
-    let by_label = List.combine(els, es);
-    Some(List.map(l => List.assoc(l, by_label), tls));
+        !List.equal(String.equal, els, tls)
+        && !List.contains_dup(els, ~compare=String.compare)
+        && List.equal(
+             String.equal,
+             List.sort(els, ~compare=String.compare),
+             List.sort(tls, ~compare=String.compare),
+           ) =>
+    let by_label = List.zip_exn(els, es);
+    Some(
+      List.map(tls, ~f=l =>
+        List.Assoc.find_exn(by_label, ~equal=String.equal, l)
+      ),
+    );
   | _ => None
   };
 };
@@ -110,7 +117,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
-      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+      |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
@@ -125,7 +132,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
       let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
-      inner' === inner
+      phys_equal(inner', inner)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -142,7 +149,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         | None => (es, false)
         };
       let es' =
-        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+        List.map2_exn(es, tys, ~f=(e, ty) =>
+          recur(Asc(e, ty) |> DHExp.fresh)
+        );
       !reordered && unchanged(es, es')
         ? Some(e)
         : Some(
@@ -165,7 +174,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      let ds' = List.map(~f=d => recur(Asc(d, ty) |> DHExp.fresh), ds);
       unchanged(ds, ds')
         ? Some(e)
         : Some(
@@ -177,7 +186,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(d1, d2), List(ty)) =>
       let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
       let d2' = recur(Asc(d2, t) |> DHExp.fresh);
-      d1' === d1 && d2' === d2
+      phys_equal(d1', d1) && phys_equal(d2', d2)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -221,7 +230,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
+              ~f=((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -241,7 +250,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (entry) {
       | Some(Some(t')) =>
         let payload' = recur(Asc(payload, t') |> DHExp.fresh);
-        payload' === payload
+        phys_equal(payload', payload)
           ? Some(e)
           : Some(
               IdTagged.fast_copy(

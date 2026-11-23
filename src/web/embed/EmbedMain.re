@@ -53,7 +53,7 @@ let update = (~link, action: EmbedModel.Update.t): unit =>
   Bonsai.Var.update(model, ~f=m =>
     try(EmbedModel.Update.update(action, m)) {
     | exn =>
-      crash(~link, Printexc.to_string(exn));
+      crash(~link, Exn.to_string(exn));
       m;
     }
   );
@@ -86,11 +86,11 @@ let set_soon = (~link, program: EmbedModel.Program.t): unit => {
    theme a page asks for: Hazel's own Colors slide, its dark_mode and
    high_contrast switches set as asked, evaluated as the app does at
    startup, its colors put on the frame's document. Once per choice. */
-let themes: Hashtbl.t((bool, bool), list((string, string))) =
-  Hashtbl.create(4);
+let themes: Stdlib.Hashtbl.t((bool, bool), list((string, string))) =
+  Stdlib.Hashtbl.create(4);
 let apply_theme = (~dark: bool, ~contrast: bool): unit => {
   let vars =
-    switch (Hashtbl.find_opt(themes, (dark, contrast))) {
+    switch (Stdlib.Hashtbl.find_opt(themes, (dark, contrast))) {
     | Some(vars) => vars
     | None =>
       let set = (name, on, text) =>
@@ -107,10 +107,10 @@ let apply_theme = (~dark: bool, ~contrast: bool): unit => {
         ColorConfiguration.vars_of_source(
           Haz3lcore.PersistentZipper.of_text(text),
         );
-      Hashtbl.replace(themes, (dark, contrast), vars);
+      Stdlib.Hashtbl.replace(themes, (dark, contrast), vars);
       vars;
     };
-  if (vars != []) {
+  if (!List.is_empty(vars)) {
     ConfigurationMode.apply_colors(vars);
   };
 };
@@ -136,7 +136,7 @@ let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
 let apply_font =
     (~link, ~size: option(float), ~family: option(string)): unit => {
   switch (size) {
-  | Some(px) when px >= 6. && px <= 48. =>
+  | Some(px) when Float.(px >= 6. && px <= 48.) =>
     JsUtil.set_css_custom_property(
       "--base-font-size",
       Printf.sprintf("%gpx", px),
@@ -195,7 +195,7 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
       };
     }
   ) {
-  | exn => crash(~link, Printexc.to_string(exn))
+  | exn => crash(~link, Exn.to_string(exn))
   };
 
 let listen = (name: string, f: Js.Unsafe.any => unit): unit =>
@@ -235,7 +235,7 @@ let report = (~link, model: EmbedModel.Model.t): unit =>
       };
     let height =
       int_of_float(
-        Float.ceil(
+        Float.round_up(
           Float.max(
             Js.float_of_number(Js.Unsafe.get(rect, "height")),
             menu_bottom,
@@ -344,7 +344,7 @@ let app = (~link, ~standalone: bool) => {
         Bonsai.Effect.of_sync_fun(
           () =>
             try(report(~link, model)) {
-            | exn => crash(~link, Printexc.to_string(exn))
+            | exn => crash(~link, Exn.to_string(exn))
             },
           (),
         );
@@ -353,7 +353,7 @@ let app = (~link, ~standalone: bool) => {
   let%arr model = Bonsai.Var.value(model);
   try(view(~link, ~standalone, model)) {
   | exn =>
-    crash(~link, Printexc.to_string(exn));
+    crash(~link, Exn.to_string(exn));
     page([Node.text("This program could not be shown.")]);
   };
 };
@@ -382,7 +382,7 @@ let go = () => {
         let flag = name => Js.to_bool(Js.Unsafe.get(e, name));
         let key =
           switch (Js.Optdef.to_option(Js.Unsafe.get(e, "key"))) {
-          | Some(k) => String.lowercase_ascii(Js.to_string(k))
+          | Some(k) => String.lowercase(Js.to_string(k))
           | None => ""
           };
         switch (link.editable, link.page_origin) {
@@ -390,13 +390,13 @@ let go = () => {
             when
               (flag("ctrlKey") || flag("metaKey"))
               && !flag("altKey")
-              && (key == "z" || key == "y") =>
+              && (String.equal(key, "z") || String.equal(key, "y")) =>
           ignore(Js.Unsafe.meth_call(e, "preventDefault", [||]));
           ignore(Js.Unsafe.meth_call(e, "stopPropagation", [||]));
           EmbedLink.send(
             link,
             ~target,
-            History(key == "y" || flag("shiftKey")),
+            History(String.equal(key, "y") || flag("shiftKey")),
           );
           Js._false;
         | _ => Js._true

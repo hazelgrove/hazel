@@ -2,7 +2,10 @@
 
 (executable
  (name haz3ltest)
+ (flags
+  (:standard -open Core))
  (libraries
+  core
   web
   hazelLibCore
   menhirParser

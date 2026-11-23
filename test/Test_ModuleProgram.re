@@ -49,10 +49,8 @@ let errors = (p: ModuleProgram.t): list(ModuleProgram.error) => {
 };
 
 let modules_of = (es: list(ModuleProgram.error)): list(string) =>
-  List.map(
-    (e: ModuleProgram.error) =>
-      Option.value(e.module_, ~default="(program)"),
-    es,
+  List.map(es, ~f=(e: ModuleProgram.error) =>
+    Option.value(e.module_, ~default="(program)")
   );
 
 let zipper = (~root, text) =>
@@ -65,18 +63,16 @@ let zipper = (~root, text) =>
 let items = (e: Exp.t): list(string) =>
   switch (e.term) {
   | Module(items) =>
-    List.map(
-      (m: Mod.t) =>
-        switch (m.term) {
-        | ModLet(_) => "ModLet"
-        | ModType(_) => "ModType"
-        | ModExp(_) => "ModExp"
-        | ModuleMod(_) => "ModuleMod"
-        | EmptyHole => "EmptyHole"
-        | MultiHole(_) => "MultiHole"
-        | Invalid(_) => "Invalid"
-        },
-      items,
+    List.map(items, ~f=(m: Mod.t) =>
+      switch (m.term) {
+      | ModLet(_) => "ModLet"
+      | ModType(_) => "ModType"
+      | ModExp(_) => "ModExp"
+      | ModuleMod(_) => "ModuleMod"
+      | EmptyHole => "EmptyHole"
+      | MultiHole(_) => "MultiHole"
+      | Invalid(_) => "Invalid"
+      }
     )
   | _ => ["not a module: " ++ Exp.show(e)]
   };
@@ -134,7 +130,12 @@ let tests = (
     ),
     test_case("the shipped Common and TrapRoom texts round-trip", `Quick, () =>
       List.iter(
-        ((name, text, kinds)) => {
+        [
+          ("Common", common, ["ModLet"]),
+          ("TrapRoom", trap, ["ModLet"]),
+          ("TrapRoom, the flip2 rule", flip2_rule, ["ModLet"]),
+        ],
+        ~f=((name, text, kinds)) => {
           let z = zipper(~root=Sort.Mod, text);
           let printed = PersistentZipper.to_string(z);
           check(string, name ++ ": text, zipper, text", text, printed);
@@ -153,11 +154,6 @@ let tests = (
             ),
           );
         },
-        [
-          ("Common", common, ["ModLet"]),
-          ("TrapRoom", trap, ["ModLet"]),
-          ("TrapRoom, the flip2 rule", flip2_rule, ["ModLet"]),
-        ],
       )
     ),
     test_case(
@@ -190,8 +186,9 @@ let tests = (
           "without it, TrapRoom has an error",
           true,
           List.mem(
-            "TrapRoom",
             modules_of(errors(program(~common="", ~trap=flip2_rule, ()))),
+            "TrapRoom",
+            ~equal=String.equal,
           ),
         );
       },
@@ -201,11 +198,11 @@ let tests = (
       `Quick,
       () => {
         let es = errors(program(~trap=error_rule, ()));
-        check(bool, "there is one", true, es != []);
+        check(bool, "there is one", true, !List.is_empty(es));
         check(
           list(string),
           "each in TrapRoom",
-          List.map(_ => "TrapRoom", es),
+          List.map(es, ~f=_ => "TrapRoom"),
           modules_of(es),
         );
       },
@@ -243,15 +240,13 @@ let tests = (
       "what a room's rule lacks shows in the tail, and is the room's",
       `Quick,
       () => {
-        List.iter(
-          trap =>
-            check(
-              list(string),
-              "TrapRoom [" ++ String.escaped(trap) ++ "] has no on_event",
-              ["TrapRoom"],
-              modules_of(errors(program(~trap, ()))),
-            ),
-          ["", "?", "1 + 2"],
+        List.iter(["", "?", "1 + 2"], ~f=trap =>
+          check(
+            list(string),
+            "TrapRoom [" ++ String.escaped(trap) ++ "] has no on_event",
+            ["TrapRoom"],
+            modules_of(errors(program(~trap, ()))),
+          )
         );
         check(
           list(string),
@@ -278,13 +273,6 @@ let tests = (
           incomplete(),
         );
         List.iter(
-          ((what, common, trap, expected)) =>
-            check(
-              pair(list(pair(string, int)), int),
-              what,
-              (expected, 0),
-              incomplete(~common, ~trap, ()),
-            ),
           [
             (
               "a stray } in Common",
@@ -305,6 +293,13 @@ let tests = (
               [("Common", 0), ("TrapRoom", 1)],
             ),
           ],
+          ~f=((what, common, trap, expected)) =>
+          check(
+            pair(list(pair(string, int)), int),
+            what,
+            (expected, 0),
+            incomplete(~common, ~trap, ()),
+          )
         );
         check(
           pair(list(pair(string, int)), int),
@@ -321,12 +316,19 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        ((text, printed)) => {
+        [
+          (common_stray_brace, common_stray_brace),
+          (common_missing_paren, common_missing_paren),
+          (trap_missing_end, trap_missing_end),
+          /* the editor closes a comment it opens */
+          ("let a = 1 # todo", "let a = 1 # todo#"),
+        ],
+        ~f=((text, printed)) => {
           check(
             bool,
             text ++ ": not read by the fast parser",
             true,
-            FastParse.of_text(~root=Sort.Mod, text) == None,
+            Option.is_none(FastParse.of_text(~root=Sort.Mod, text)),
           );
           let z = zipper(~root=Sort.Mod, text);
           check(
@@ -345,13 +347,6 @@ let tests = (
             },
           );
         },
-        [
-          (common_stray_brace, common_stray_brace),
-          (common_missing_paren, common_missing_paren),
-          (trap_missing_end, trap_missing_end),
-          /* the editor closes a comment it opens */
-          ("let a = 1 # todo", "let a = 1 # todo#"),
-        ],
       )
     ),
     test_case(
@@ -375,29 +370,38 @@ let tests = (
           bool,
           "Common, unchanged, is the term read before",
           true,
-          List.assoc("Common", first) === List.assoc("Common", second),
+          phys_equal(
+            List.Assoc.find_exn(first, ~equal=String.equal, "Common"),
+            List.Assoc.find_exn(second, ~equal=String.equal, "Common"),
+          ),
         );
         check(
           bool,
           "TrapRoom, changed, is read again",
           false,
-          List.assoc("TrapRoom", first) === List.assoc("TrapRoom", second),
+          phys_equal(
+            List.Assoc.find_exn(first, ~equal=String.equal, "TrapRoom"),
+            List.Assoc.find_exn(second, ~equal=String.equal, "TrapRoom"),
+          ),
         );
         check(
           bool,
           "a cached program has the same errors",
           true,
-          modules_of(
-            errors(
-              ModuleProgram.of_texts_cached(
-                cache,
-                ~preamble,
-                ~modules=[("Common", common), ("TrapRoom", error_rule)],
-                ~tail,
+          List.equal(
+            String.equal,
+            modules_of(
+              errors(
+                ModuleProgram.of_texts_cached(
+                  cache,
+                  ~preamble,
+                  ~modules=[("Common", common), ("TrapRoom", error_rule)],
+                  ~tail,
+                ),
               ),
             ),
-          )
-          == modules_of(errors(program(~trap=error_rule, ()))),
+            modules_of(errors(program(~trap=error_rule, ()))),
+          ),
         );
         let _ =
           ModuleProgram.of_texts_cached(
@@ -410,7 +414,7 @@ let tests = (
           int,
           "a module gone from the program is gone from the cache",
           3,
-          Hashtbl.length(cache),
+          Stdlib.Hashtbl.length(cache),
         );
       },
     ),
@@ -444,8 +448,8 @@ let tests = (
           bool,
           "a member being written in Common",
           true,
-          List.assoc("Common", holes) > 0
-          && List.assoc("TrapRoom", holes) == 0,
+          List.Assoc.find_exn(holes, ~equal=String.equal, "Common") > 0
+          && List.Assoc.find_exn(holes, ~equal=String.equal, "TrapRoom") == 0,
         );
       },
     ),
@@ -540,22 +544,24 @@ let tests = (
         );
         let tile_ids =
           Zipper.zip(z)
-          |> List.filter_map((piece: Piece.t) =>
+          |> List.filter_map(~f=(piece: Piece.t) =>
                switch (piece) {
                | Tile(t) => Some(t.id)
                | _ => None
                }
              );
-        check(bool, "the editor has tiles", true, tile_ids != []);
+        check(bool, "the editor has tiles", true, !List.is_empty(tile_ids));
         check(
           bool,
           "each has its statics, and is TrapRoom's",
           true,
-          List.for_all(
-            id =>
-              Id.Map.mem(id, statics.info_map)
-              && ModuleProgram.module_of(p, id) == Some("TrapRoom"),
-            tile_ids,
+          List.for_all(tile_ids, ~f=id =>
+            Id.Map.mem(id, statics.info_map)
+            && Option.equal(
+                 String.equal,
+                 ModuleProgram.module_of(p, id),
+                 Some("TrapRoom"),
+               )
           ),
         );
       },
@@ -565,7 +571,8 @@ let tests = (
       `Quick,
       () => {
         List.iter(
-          text => {
+          ["", "  \n", "# nothing yet #"],
+          ~f=text => {
             let p = program(~common=text, ());
             check(
               list(pair(string, int)),
@@ -575,7 +582,6 @@ let tests = (
             );
             check(list(string), "errors", [], modules_of(errors(p)));
           },
-          ["", "  \n", "# nothing yet #"],
         );
         check(
           list(string),
@@ -600,7 +606,11 @@ let tests = (
           | None => fail("the tail does not parse")
           };
         List.iter(
-          ((what, z)) => {
+          [
+            ("an empty editor", Zipper.init()),
+            ("comments only", zipper(~root=Sort.Mod, "# nothing yet #")),
+          ],
+          ~f=((what, z)) => {
             let stitched = ref(None);
             let _ =
               CachedStatics.init(
@@ -632,10 +642,6 @@ let tests = (
             | None => fail("not stitched")
             };
           },
-          [
-            ("an empty editor", Zipper.init()),
-            ("comments only", zipper(~root=Sort.Mod, "# nothing yet #")),
-          ],
         );
       },
     ),
@@ -644,13 +650,6 @@ let tests = (
       `Quick,
       () => {
         List.iter(
-          ((text, expected)) =>
-            check(
-              bool,
-              String.escaped(text),
-              expected,
-              ModuleProgram.nothing_written(text),
-            ),
           [
             ("", true),
             ("  \n", true),
@@ -660,6 +659,13 @@ let tests = (
             ("# todo\nflip #", false),
             ("# a # x", false),
           ],
+          ~f=((text, expected)) =>
+          check(
+            bool,
+            String.escaped(text),
+            expected,
+            ModuleProgram.nothing_written(text),
+          )
         );
         check(
           bool,
@@ -677,7 +683,7 @@ let tests = (
             )
           ) {
           | _ => true
-          | exception Not_found => false
+          | exception Stdlib.Not_found => false
           },
         );
       },

@@ -78,7 +78,8 @@ type deadline_check =
 /* What a deadline timer does when it fires [late_ms] after it was due,
    having already been postponed [postponed] times. */
 let check_deadline = (~late_ms: float, ~postponed: int): deadline_check =>
-  late_ms > late_slack_ms && postponed < max_postponements ? Postpone : Expire;
+  Float.(late_ms > late_slack_ms) && postponed < max_postponements
+    ? Postpone : Expire;
 
 let set_deadline = (timer_ref, ~delay_ms: int, on_expire: unit => unit) => {
   let rec arm = (~delay_ms, ~postponed) => {

@@ -35,13 +35,13 @@ let body_of_zipper = (z: Zipper.t): Exp.t =>
   term_of_zipper(~root=Sort.Mod, z);
 
 let body_of_text = (text: string): option(Exp.t) =>
-  String.trim(text) == ""
+  String.is_empty(String.strip(text))
     ? Some(Exp.fresh(Module([])))
-    : zipper_of_text(~root=Sort.Mod, text) |> Option.map(body_of_zipper);
+    : zipper_of_text(~root=Sort.Mod, text) |> Option.map(~f=body_of_zipper);
 
 let exp_of_text = (text: string): option(Exp.t) =>
   zipper_of_text(~root=Sort.Exp, text)
-  |> Option.map(term_of_zipper(~root=Sort.Exp));
+  |> Option.map(~f=term_of_zipper(~root=Sort.Exp));
 
 /* The preamble's definitions, with a hole after them for fill_tail */
 let preamble_of_text = (text: string): option(Exp.t) =>
@@ -186,16 +186,14 @@ let hole_ids = (e: Exp.t): list(Id.t) => {
    an opener for a closer that has none (a stray `}`), each once. The
    editor shows the shards it supplies as ghosts. */
 let incomplete_ids = (e: Exp.t): list(Id.t) => {
-  let seen = Hashtbl.create(8);
+  let seen = Stdlib.Hashtbl.create(8);
   let acc = ref([]);
   let note = (continue, x: IdTagged.t(_)) => {
-    List.iter(
-      ((id, _)) =>
-        if (!Hashtbl.mem(seen, id)) {
-          Hashtbl.add(seen, id, ());
-          acc := [id, ...acc^];
-        },
-      x.annotation.incomplete,
+    List.iter(x.annotation.incomplete, ~f=((id, _)) =>
+      if (!Stdlib.Hashtbl.mem(seen, id)) {
+        Stdlib.Hashtbl.add(seen, id, ());
+        acc := [id, ...acc^];
+      }
     );
     continue(x);
   };
@@ -244,29 +242,28 @@ let module_pat = (name: string): MPat.t =>
 let stitch =
     (~preamble: Exp.t, ~modules: list((string, Exp.t)), ~tail: Exp.t): t => {
   let modules =
-    List.map(((name, body)) => (name, module_pat(name), body), modules);
+    List.map(modules, ~f=((name, body)) => (name, module_pat(name), body));
   let chain =
     List.fold_right(
-      ((_, pat, body), rest) => Exp.fresh(ModuleExp(pat, body, rest)),
       modules,
-      tail,
+      ~f=((_, pat, body), rest) => Exp.fresh(ModuleExp(pat, body, rest)),
+      ~init=tail,
     );
   let owners =
     List.fold_left(
-      (owners, (name, pat: MPat.t, body)) =>
-        List.fold_left(
-          (owners, id) => Id.Map.add(id, name, owners),
-          owners,
-          IdTagged.ids(pat) @ ids_of(body),
-        ),
-      Id.Map.empty,
-      modules,
+      modules, ~init=Id.Map.empty, ~f=(owners, (name, pat: MPat.t, body)) =>
+      List.fold_left(
+        IdTagged.ids(pat) @ ids_of(body), ~init=owners, ~f=(owners, id) =>
+        Id.Map.add(id, name, owners)
+      )
     );
   /* statics reads a name that is not one as a module pattern with no
      error, and a second module of one name hides the first */
   let (_, problems) =
     List.fold_left(
-      ((seen, problems), (name, pat: MPat.t, _)) => {
+      modules,
+      ~init=([], []),
+      ~f=((seen, problems), (name, pat: MPat.t, _)) => {
         let problem = message => [
           {
             module_: Some(name),
@@ -282,17 +279,15 @@ let stitch =
               ? [] : problem("\"" ++ name ++ "\" is not a module's name")
           )
           @ (
-            List.mem(name, seen)
+            List.mem(seen, name, ~equal=String.equal)
               ? problem("another module is also named " ++ name) : []
           ),
         );
       },
-      ([], []),
-      modules,
     );
   {
     term: fill_tail(preamble, chain),
-    names: List.map(((name, _, _)) => name, modules),
+    names: List.map(modules, ~f=((name, _, _)) => name),
     owners,
     problems,
   };
@@ -308,9 +303,9 @@ type part =
   | Body(int, string)
   | Tail;
 
-type cache = Hashtbl.t(part, (string, option(Exp.t)));
+type cache = Stdlib.Hashtbl.t(part, (string, option(Exp.t)));
 
-let cache = (): cache => Hashtbl.create(8);
+let cache = (): cache => Stdlib.Hashtbl.create(8);
 
 let read_part =
     (cache: option(cache), part: part, read: string => option(Exp.t), text)
@@ -318,11 +313,11 @@ let read_part =
   switch (cache) {
   | None => read(text)
   | Some(cache) =>
-    switch (Hashtbl.find_opt(cache, part)) {
-    | Some((read_from, e)) when read_from == text => e
+    switch (Stdlib.Hashtbl.find_opt(cache, part)) {
+    | Some((read_from, e)) when String.equal(read_from, text) => e
     | _ =>
       let e = read(text);
-      Hashtbl.replace(cache, part, (text, e));
+      Stdlib.Hashtbl.replace(cache, part, (text, e));
       e;
     }
   };
@@ -359,15 +354,13 @@ let read_texts =
       Exp.fresh(EmptyHole);
     };
   let modules =
-    List.mapi(
-      (i, (name, text)) =>
-        switch (read_part(cache, Body(i, name), body_of_text, text)) {
-        | Some(body) => (name, body)
-        | None =>
-          problem(Some(name), "the module " ++ name);
-          (name, Exp.fresh(Module([])));
-        },
-      modules,
+    List.mapi(modules, ~f=(i, (name, text)) =>
+      switch (read_part(cache, Body(i, name), body_of_text, text)) {
+      | Some(body) => (name, body)
+      | None =>
+        problem(Some(name), "the module " ++ name);
+        (name, Exp.fresh(Module([])));
+      }
     );
   let tail =
     switch (read_part(cache, Tail, exp_of_text, tail)) {
@@ -377,22 +370,20 @@ let read_texts =
       Exp.fresh(EmptyHole);
     };
   /* the modules no longer in the program */
-  Option.iter(
-    cache =>
-      Hashtbl.filter_map_inplace(
-        (part, entry) =>
-          switch (part) {
-          | Body(i, name) =>
-            switch (List.nth_opt(modules, i)) {
-            | Some((still, _)) when still == name => Some(entry)
-            | _ => None
-            }
-          | Preamble
-          | Tail => Some(entry)
-          },
-        cache,
-      ),
-    cache,
+  Option.iter(cache, ~f=cache =>
+    Stdlib.Hashtbl.filter_map_inplace(
+      (part, entry) =>
+        switch (part) {
+        | Body(i, name) =>
+          switch (List.nth(modules, i)) {
+          | Some((still, _)) when String.equal(still, name) => Some(entry)
+          | _ => None
+          }
+        | Preamble
+        | Tail => Some(entry)
+        },
+      cache,
+    )
   );
   let p = stitch(~preamble, ~modules, ~tail);
   {
@@ -439,15 +430,13 @@ let text_of_parts =
     (~preamble: string, ~modules: list((string, string)), ~tail: string)
     : string =>
   String.concat(
-    "\n",
-    (String.trim(preamble) == "" ? [] : [preamble])
-    @ List.concat_map(
-        ((name, body)) =>
-          nothing_written(body)
-            ? (String.trim(body) == "" ? [] : [body])
-              @ ["module " ++ name ++ " = {} in"]
-            : ["module " ++ name ++ " = {\n" ++ body ++ "\n} in"],
-        modules,
+    ~sep="\n",
+    (String.is_empty(String.strip(preamble)) ? [] : [preamble])
+    @ List.concat_map(modules, ~f=((name, body)) =>
+        nothing_written(body)
+          ? (String.is_empty(String.strip(body)) ? [] : [body])
+            @ ["module " ++ name ++ " = {} in"]
+          : ["module " ++ name ++ " = {\n" ++ body ++ "\n} in"]
       )
     @ [tail],
   );
@@ -479,18 +468,15 @@ let zipper_of_parts =
       zipper_of_text(~root=Sort.Mod, text)
     );
   let written =
-    List.mapi((i, (name, text)) => (i, name, text), modules)
-    |> List.filter(((_, _, text)) => !nothing_written(text));
+    List.mapi(modules, ~f=(i, (name, text)) => (i, name, text))
+    |> List.filter(~f=((_, _, text)) => !nothing_written(text));
   let bodies =
-    List.map(
-      ((i, name, text)) => (body_mark(i), read_body(i, name, text)),
-      written,
+    List.map(written, ~f=((i, name, text)) =>
+      (body_mark(i), read_body(i, name, text))
     );
   let marked =
-    List.mapi(
-      (i, (name, text)) =>
-        (name, nothing_written(text) ? text : body_mark(i)),
-      modules,
+    List.mapi(modules, ~f=(i, (name, text)) =>
+      (name, nothing_written(text) ? text : body_mark(i))
     );
   switch (
     zipper_of_text(
@@ -499,42 +485,39 @@ let zipper_of_parts =
     )
   ) {
   | None => None
-  | Some(_) when List.exists(((_, body)) => Option.is_none(body), bodies) =>
+  | Some(_) when List.exists(bodies, ~f=((_, body)) => Option.is_none(body)) =>
     None
   | Some(layout) =>
     let bodies =
-      List.filter_map(
-        ((mark, body)) => Option.map(z => (mark, z), body),
-        bodies,
+      List.filter_map(bodies, ~f=((mark, body)) =>
+        Option.map(body, ~f=z => (mark, z))
       );
     let rec fill = (seg: Segment.t): Segment.t =>
-      List.concat_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            switch (Tile.label(t)) {
-            | [token] when List.mem_assoc(token, bodies) =>
-              Zipper.unselect_and_zip(
-                ~erase_buffer=true,
-                List.assoc(token, bodies),
-              )
-            | _ => [
-                Tile({
-                  ...t,
-                  children: List.map(fill, t.children),
-                }),
-              ]
-            }
-          | p => [p]
-          },
-        seg,
+      List.concat_map(seg, ~f=(p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          switch (Tile.label(t)) {
+          | [token] when List.Assoc.mem(bodies, ~equal=String.equal, token) =>
+            Zipper.unselect_and_zip(
+              ~erase_buffer=true,
+              List.Assoc.find_exn(bodies, ~equal=String.equal, token),
+            )
+          | _ => [
+              Tile({
+                ...t,
+                children: List.map(t.children, ~f=fill),
+              }),
+            ]
+          }
+        | p => [p]
+        }
       );
     let filled = fill(Zipper.unselect_and_zip(~erase_buffer=true, layout));
     /* the probes each part was read with */
     let manuals =
       List.concat_map(
-        (z: Zipper.t) => z.refractors.manuals,
-        [layout, ...List.map(snd, bodies)],
+        [layout, ...List.map(bodies, ~f=snd)], ~f=(z: Zipper.t) =>
+        z.refractors.manuals
       );
     Some(
       Zipper.unzip(~direction=Left, filled)
@@ -581,21 +564,15 @@ let of_term = (~names: option(list(string))=?, term: Exp.t): t => {
   let modules = chain(term, []);
   let owners =
     List.fold_left(
-      (owners, (name, mp: MPat.t, def)) =>
-        List.fold_left(
-          (owners, id) => Id.Map.add(id, name, owners),
-          owners,
-          IdTagged.ids(mp) @ ids_of(def),
-        ),
-      Id.Map.empty,
-      modules,
+      modules, ~init=Id.Map.empty, ~f=(owners, (name, mp: MPat.t, def)) =>
+      List.fold_left(
+        IdTagged.ids(mp) @ ids_of(def), ~init=owners, ~f=(owners, id) =>
+        Id.Map.add(id, name, owners)
+      )
     );
   let found =
-    List.fold_left(
-      (names, (name, _, _)) =>
-        List.mem(name, names) ? names : names @ [name],
-      [],
-      modules,
+    List.fold_left(modules, ~init=[], ~f=(names, (name, _, _)) =>
+      List.mem(names, name, ~equal=String.equal) ? names : names @ [name]
     );
   {
     term,
@@ -618,7 +595,8 @@ let member_uses = (p: t): Id.Map.t(string) => {
     | Dot(e, _)
     | Parens(e) => head(e)
     | Var(name)
-    | Constructor(name, _) when List.mem(name, p.names) => Some(name)
+    | Constructor(name, _) when List.mem(p.names, name, ~equal=String.equal) =>
+      Some(name)
     | _ => None
     };
   let uses = ref(Id.Map.empty);
@@ -630,12 +608,10 @@ let member_uses = (p: t): Id.Map.t(string) => {
           | Dot(_) =>
             switch (head(e)) {
             | Some(name) =>
-              List.iter(
-                id =>
-                  if (module_of(p, id) == None) {
-                    uses := Id.Map.add(id, name, uses^);
-                  },
-                ids_of(e),
+              List.iter(ids_of(e), ~f=id =>
+                if (Option.is_none(module_of(p, id))) {
+                  uses := Id.Map.add(id, name, uses^);
+                }
               )
             | None => ()
             }
@@ -655,44 +631,41 @@ let member_uses = (p: t): Id.Map.t(string) => {
 let errors = (p: t, info_map: Statics.Map.t): list(error) => {
   let uses = lazy(member_uses(p));
   p.problems
-  @ List.map(
-      ((id, message)) =>
-        {
-          module_:
-            switch (module_of(p, id)) {
-            | Some(name) => Some(name)
-            | None => Id.Map.find_opt(id, Lazy.force(uses))
-            },
-          id,
-          message,
-        },
-      ErrorPrint.all_with_ids(info_map),
+  @ List.map(ErrorPrint.all_with_ids(info_map), ~f=((id, message)) =>
+      {
+        module_:
+          switch (module_of(p, id)) {
+          | Some(name) => Some(name)
+          | None => Id.Map.find_opt(id, Lazy.force(uses))
+          },
+        id,
+        message,
+      }
     );
 };
 
 /* How many of ids each module has, by name in order, and how many are
    outside every module (in the preamble and the tail) */
 let per_module = (p: t, ids: list(Id.t)): (list((string, int)), int) => {
-  let counts = Hashtbl.create(8);
+  let counts = Stdlib.Hashtbl.create(8);
   let outside = ref(0);
-  List.iter(
-    id =>
-      switch (module_of(p, id)) {
-      | Some(name) =>
-        Hashtbl.replace(
-          counts,
-          name,
-          1 + Option.value(Hashtbl.find_opt(counts, name), ~default=0),
-        )
-      | None => incr(outside)
-      },
-    ids,
+  List.iter(ids, ~f=id =>
+    switch (module_of(p, id)) {
+    | Some(name) =>
+      Stdlib.Hashtbl.replace(
+        counts,
+        name,
+        1 + Option.value(Stdlib.Hashtbl.find_opt(counts, name), ~default=0),
+      )
+    | None => incr(outside)
+    }
   );
   (
-    List.map(
-      name =>
-        (name, Option.value(Hashtbl.find_opt(counts, name), ~default=0)),
-      p.names,
+    List.map(p.names, ~f=name =>
+      (
+        name,
+        Option.value(Stdlib.Hashtbl.find_opt(counts, name), ~default=0),
+      )
     ),
     outside^,
   );

@@ -45,24 +45,22 @@ let decode = (j: string) => EmbedProtocol.decode(as_js(j));
    stitched (ModuleProgram.text_of_parts) do not have; what these tests check
    is the stitching */
 let unindent = (s: string): string =>
-  String.split_on_char('\n', s)
-  |> List.map(Util.StringUtil.trim_leading)
-  |> String.concat("\n");
+  String.split(s, ~on='\n')
+  |> List.map(~f=Util.StringUtil.trim_leading)
+  |> String.concat(~sep="\n");
 
 let messages = (ms: list(EmbedModel.Outbox.message)): list(string) =>
-  List.map(
-    (m: EmbedModel.Outbox.message) =>
-      switch (m) {
-      | Ready(_) => "ready"
-      | Size(h) => "size " ++ string_of_int(h)
-      | Status(_) => "status"
-      | Caret(_) => "caret"
-      | Goto(_) => "goto"
-      | Edited(_) => "edited"
-      | History(_) => "history"
-      | Crash(_) => "crash"
-      },
-    ms,
+  List.map(ms, ~f=(m: EmbedModel.Outbox.message) =>
+    switch (m) {
+    | Ready(_) => "ready"
+    | Size(h) => "size " ++ string_of_int(h)
+    | Status(_) => "status"
+    | Caret(_) => "caret"
+    | Goto(_) => "goto"
+    | Edited(_) => "edited"
+    | History(_) => "history"
+    | Crash(_) => "crash"
+    }
   );
 
 let tests = (
@@ -79,7 +77,7 @@ let tests = (
           bool,
           "its tiles carry an error",
           true,
-          m.cell.statics.error_ids != [],
+          !List.is_empty(m.cell.statics.error_ids),
         );
         check(
           list(string),
@@ -124,28 +122,6 @@ let tests = (
     test_case(
       "the frame and analyzeProgram agree on the panel's rules", `Quick, () =>
       List.iter(
-        ((what, common, trap)) => {
-          let s = status(set(parts(~common, ~trap, ())));
-          let p = Panel.program(~common, ~trap, ());
-          check(
-            list(string),
-            what ++ ": the errors' modules",
-            Panel.modules_of(Panel.errors(p)),
-            Panel.modules_of(s.errors),
-          );
-          check(
-            list(pair(string, int)),
-            what ++ ": the holes",
-            fst(ModuleProgram.holes(p)),
-            s.holes,
-          );
-          check(
-            pair(list(pair(string, int)), int),
-            what ++ ": the incomplete tiles",
-            ModuleProgram.incomplete(p),
-            (s.incomplete, s.program_incomplete),
-          );
-        },
         [
           ("shipped", Panel.common, Panel.trap),
           ("Common.flip2", Panel.common, Panel.flip2_rule),
@@ -170,6 +146,28 @@ let tests = (
           ("TrapRoom missing its end", Panel.common, Panel.trap_missing_end),
           ("a blank TrapRoom", Panel.common, ""),
         ],
+        ~f=((what, common, trap)) => {
+          let s = status(set(parts(~common, ~trap, ())));
+          let p = Panel.program(~common, ~trap, ());
+          check(
+            list(string),
+            what ++ ": the errors' modules",
+            Panel.modules_of(Panel.errors(p)),
+            Panel.modules_of(s.errors),
+          );
+          check(
+            list(pair(string, int)),
+            what ++ ": the holes",
+            fst(ModuleProgram.holes(p)),
+            s.holes,
+          );
+          check(
+            pair(list(pair(string, int)), int),
+            what ++ ": the incomplete tiles",
+            ModuleProgram.incomplete(p),
+            (s.incomplete, s.program_incomplete),
+          );
+        },
       )
     ),
     test_case(
@@ -178,21 +176,19 @@ let tests = (
       () => {
         let m = set(parts(~trap=Panel.error_rule, ()));
         let errors = status(m).errors;
-        check(bool, "there is one", true, errors != []);
+        check(bool, "there is one", true, !List.is_empty(errors));
         check(
           list(string),
           "each TrapRoom's",
-          List.map(_ => "TrapRoom", errors),
+          List.map(errors, ~f=_ => "TrapRoom"),
           Panel.modules_of(errors),
         );
         check(
           bool,
           "each marked in the cell",
           true,
-          List.for_all(
-            (e: ModuleProgram.error) =>
-              List.mem(e.id, m.cell.statics.error_ids),
-            errors,
+          List.for_all(errors, ~f=(e: ModuleProgram.error) =>
+            List.mem(m.cell.statics.error_ids, e.id, ~equal=Id.equal)
           ),
         );
       },
@@ -235,7 +231,7 @@ let tests = (
             )
           ) {
           | _ => true
-          | exception Not_found => false
+          | exception Stdlib.Not_found => false
           },
         );
         check(
@@ -260,18 +256,21 @@ let tests = (
         let m' =
           EmbedModel.Update.update(Set(parts(~trap=Panel.say_rule, ())), m);
         let read = (m: EmbedModel.Model.t, name) =>
-          List.find((b: EmbedModel.body) => b.name == name, m.bodies).read;
+          List.find_exn(m.bodies, ~f=(b: EmbedModel.body) =>
+            String.equal(b.name, name)
+          ).
+            read;
         check(
           bool,
           "Common, unchanged, as it was read",
           true,
-          read(m, "Common") === read(m', "Common"),
+          phys_equal(read(m, "Common"), read(m', "Common")),
         );
         check(
           bool,
           "TrapRoom, changed, read again",
           false,
-          read(m, "TrapRoom") === read(m', "TrapRoom"),
+          phys_equal(read(m, "TrapRoom"), read(m', "TrapRoom")),
         );
         check(
           string,
@@ -299,7 +298,7 @@ let tests = (
           bool,
           "the same model",
           true,
-          EmbedModel.Update.update(Set(parts()), m) === m,
+          phys_equal(EmbedModel.Update.update(Set(parts()), m), m),
         );
         let m' =
           EmbedModel.Update.update(
@@ -313,7 +312,8 @@ let tests = (
           bool,
           "font metrics leave the cell be",
           true,
-          m'.cell === m.cell && m'.font_metrics.row_height == 20.,
+          phys_equal(m'.cell, m.cell)
+          && Float.equal(m'.font_metrics.row_height, 20.),
         );
       },
     ),
@@ -361,7 +361,7 @@ let tests = (
       `Quick,
       () => {
         let is = (what, expected, got) =>
-          check(bool, what, true, got == expected);
+          check(bool, what, true, Poly.equal(got, expected));
         is(
           "a text",
           Some(EmbedProtocol.Set(Text("1 + 2"))),
@@ -412,7 +412,6 @@ let tests = (
         );
         is("ping", Some(EmbedProtocol.Ping), decode({|{"type": "ping"}|}));
         List.iter(
-          j => is(j ++ " is not one", None, decode(j)),
           [
             {|{"type": "size", "height": 3}|},
             {|{"text": "1"}|},
@@ -420,6 +419,8 @@ let tests = (
             "null",
             "[]",
           ],
+          ~f=j =>
+          is(j ++ " is not one", None, decode(j))
         );
       },
     ),
@@ -429,13 +430,6 @@ let tests = (
       () => {
         let own = "https://hazel.org";
         List.iter(
-          ((origin, allowed)) =>
-            check(
-              bool,
-              origin,
-              allowed,
-              EmbedProtocol.origin_allowed(~own, origin),
-            ),
           [
             ("https://matthewhammer.org", true),
             ("https://www.matthewhammer.org", true),
@@ -453,6 +447,13 @@ let tests = (
             ("http://127.0.0.1@example.com", false),
             ("null", false),
           ],
+          ~f=((origin, allowed)) =>
+          check(
+            bool,
+            origin,
+            allowed,
+            EmbedProtocol.origin_allowed(~own, origin),
+          )
         );
         check(
           bool,
@@ -584,45 +585,50 @@ let tests = (
           bool,
           "a set from another window is ignored",
           true,
-          EmbedLink.receive(
-            link,
-            event(~source=as_js("{}"), ~origin=page, a_set),
+          Option.is_none(
+            EmbedLink.receive(
+              link,
+              event(~source=as_js("{}"), ~origin=page, a_set),
+            ),
           )
-          == None
-          && link.page_origin == None,
+          && Option.is_none(link.page_origin),
         );
         check(
           bool,
           "a set from an origin not allowed is ignored",
           true,
-          EmbedLink.receive(
-            link,
-            event(~origin="https://evil.example", a_set),
+          Option.is_none(
+            EmbedLink.receive(
+              link,
+              event(~origin="https://evil.example", a_set),
+            ),
           )
-          == None
-          && link.page_origin == None,
+          && Option.is_none(link.page_origin),
         );
         check(
           bool,
           "an origin that is not a string is ignored",
           true,
-          EmbedLink.receive(
-            link,
-            HazelLibCore.js_object([
-              ("origin", Js.Unsafe.inject(Js.null)),
-              ("source", parent),
-              ("data", as_js(a_set)),
-            ]),
-          )
-          == None,
+          Option.is_none(
+            EmbedLink.receive(
+              link,
+              HazelLibCore.js_object([
+                ("origin", Js.Unsafe.inject(Js.null)),
+                ("source", parent),
+                ("data", as_js(a_set)),
+              ]),
+            ),
+          ),
         );
         check(
           bool,
           "a set from the parent, from an allowed origin",
           true,
-          EmbedLink.receive(link, event(~origin=page, a_set))
-          == Some(Text("1 + 2"))
-          && link.page_origin == Some(page),
+          Poly.equal(
+            EmbedLink.receive(link, event(~origin=page, a_set)),
+            Some(Text("1 + 2")),
+          )
+          && Option.equal(String.equal, link.page_origin, Some(page)),
         );
         check(list(string), "nothing posted for a set", [], take());
         EmbedLink.report(link, ~height=40, model);
@@ -638,8 +644,12 @@ let tests = (
           bool,
           "a ping sets nothing",
           true,
-          EmbedLink.receive(link, event(~origin=page, {|{"type": "ping"}|}))
-          == None,
+          Option.is_none(
+            EmbedLink.receive(
+              link,
+              event(~origin=page, {|{"type": "ping"}|}),
+            ),
+          ),
         );
         check(
           list(string),

@@ -351,17 +351,15 @@ module Runtime = {
 let js_string = (s: string): string => {
   let b = Buffer.create(String.length(s) + 2);
   Buffer.add_char(b, '"');
-  String.iter(
-    c =>
-      switch (c) {
-      | '"' => Buffer.add_string(b, "\\\"")
-      | '\\' => Buffer.add_string(b, "\\\\")
-      | '\n' => Buffer.add_string(b, "\\n")
-      | c when Char.code(c) < 0x20 =>
-        Buffer.add_string(b, Printf.sprintf("\\u%04x", Char.code(c)))
-      | c => Buffer.add_char(b, c)
-      },
-    s,
+  String.iter(s, ~f=c =>
+    switch (c) {
+    | '"' => Buffer.add_string(b, "\\\"")
+    | '\\' => Buffer.add_string(b, "\\\\")
+    | '\n' => Buffer.add_string(b, "\\n")
+    | c when Char.to_int(c) < 0x20 =>
+      Buffer.add_string(b, Printf.sprintf("\\u%04x", Char.to_int(c)))
+    | c => Buffer.add_char(b, c)
+    }
   );
   Buffer.add_char(b, '"');
   Buffer.contents(b);
@@ -371,17 +369,17 @@ let js_string = (s: string): string => {
 let js_float = (f: float): string =>
   if (Float.is_nan(f)) {
     "NaN";
-  } else if (f == Float.infinity) {
+  } else if (Float.equal(f, Float.infinity)) {
     "Infinity";
-  } else if (f == Float.neg_infinity) {
+  } else if (Float.equal(f, Float.neg_infinity)) {
     "(-Infinity)";
   } else {
     let s = Printf.sprintf("%.17g", f);
-    f < 0. ? "(" ++ s ++ ")" : s;
+    Float.(f < 0.) ? "(" ++ s ++ ")" : s;
   };
 let js_bigint = (n: Bigint.t): string => {
   let s = Bigint.to_string(n);
-  String.length(s) > 0 && s.[0] == '-' ? "(" ++ s ++ ")" : s;
+  String.is_prefix(s, ~prefix="-") ? "(" ++ s ++ ")" : s;
 };
 /* (^ticket(757)) an Int or a Nat as the compiled code holds it: a JS number while it is a safe integer, a BigInt literal
    past that (Runtime's iadd and the rest keep it so) */
@@ -393,21 +391,19 @@ let js_int = (n: Bigint.t): string =>
     ? js_bigint(n)
     : {
       let s = Bigint.to_string(n) ++ "n";
-      String.length(s) > 0 && s.[0] == '-' ? "(" ++ s ++ ")" : s;
+      String.is_prefix(s, ~prefix="-") ? "(" ++ s ++ ")" : s;
     };
 
 /* An identifier made from a Hazel name: letters, digits and _ kept, the rest as _ */
 let sanitize = (name: string): string =>
-  String.map(
-    c =>
-      switch (c) {
-      | 'a' .. 'z'
-      | 'A' .. 'Z'
-      | '0' .. '9'
-      | '_' => c
-      | _ => '_'
-      },
-    name,
+  String.map(name, ~f=c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_' => c
+    | _ => '_'
+    }
   );
 
 /* The compiler's state for one term: the builtins' environment (for free variables), a counter for fresh names, and the
@@ -416,23 +412,23 @@ type state = {
   env: Environment.t(Exp.t),
   mutable counter: int,
   mutable globals: list(string), /* newest first */
-  global_names: Hashtbl.t(string, string),
+  global_names: Stdlib.Hashtbl.t(string, string),
   /* (slice 3, the way back) each constructor the code builds, by name: its type as elaboration gave it, the same for
      every use of the name; None when the name has no type, or two (two sum types that share a constructor's name) */
-  ctors: Hashtbl.t(string, option(Typ.t)),
+  ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
   /* the type aliases the term defines (type T = ... in, and a module's type members), so the way back can see through
      a constructor's argument type when it names one */
-  aliases: Hashtbl.t(string, Typ.t),
+  aliases: Stdlib.Hashtbl.t(string, Typ.t),
   /* (slice 3, functions back) each JS function the code makes, by its index: the Hazel function it compiles (its Fun
      term), and the Hazel names it captures, in the order of the values it carries ($R.fn(f, k, [values])); and the
      functions being compiled, innermost first: how many bindings were in scope where each began, and what it captures */
-  funs: Hashtbl.t(int, (Exp.t, list(string))),
+  funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
   mutable frames: list((int, ref(list((string, string))))),
 };
 
 let note_alias = (st: state, tp: TPat.t, ty: Typ.t): unit =>
   switch (tp.term) {
-  | Var(x) => Hashtbl.replace(st.aliases, x, ty)
+  | Var(x) => Stdlib.Hashtbl.replace(st.aliases, x, ty)
   | _ => ()
   };
 
@@ -442,12 +438,12 @@ let note_ctor = (st: state, name: string, t: option(option(Typ.t))): unit => {
     | Some(Some(t)) => Some(t)
     | _ => None
     };
-  switch (Hashtbl.find_opt(st.ctors, name)) {
-  | None => Hashtbl.replace(st.ctors, name, t)
+  switch (Stdlib.Hashtbl.find_opt(st.ctors, name)) {
+  | None => Stdlib.Hashtbl.replace(st.ctors, name, t)
   | Some(Some(t0)) =>
     switch (t) {
     | Some(t) when Typ.fast_equal(t0, t) => ()
-    | _ => Hashtbl.replace(st.ctors, name, None)
+    | _ => Stdlib.Hashtbl.replace(st.ctors, name, None)
     }
   | Some(None) => ()
   };
@@ -471,7 +467,11 @@ let body_with_decls = (scope: scope, expr: string): string =>
   switch (scope.decls) {
   | [] => "return " ++ expr ++ ";"
   | ds =>
-    "let " ++ String.concat(", ", List.rev(ds)) ++ "; return " ++ expr ++ ";"
+    "let "
+    ++ String.concat(~sep=", ", List.rev(ds))
+    ++ "; return "
+    ++ expr
+    ++ ";"
   };
 
 /* (^ticket(765), found compiling hazeljs-oracles' I Ching, whose module Lines has a member named length) A label is a
@@ -482,11 +482,10 @@ let body_with_decls = (scope: scope, expr: string): string =>
 /* an operator's builtin (Operators.builtins: int_plus, float_lt, string_concat ...) as the Hazel function it is,
    fun (a, b) -> a op b */
 let op_fun = (name: string): option(Exp.t) =>
-  List.find_opt(
-    (op: Operators.op_bin) => Operators.op_name(op) == name,
-    Operators.all_of_op_bin,
+  List.find(Operators.all_of_op_bin, ~f=(op: Operators.op_bin) =>
+    String.equal(Operators.op_name(op), name)
   )
-  |> Option.map((op: Operators.op_bin) => {
+  |> Option.map(~f=(op: Operators.op_bin) => {
        let (a, b) = ("op$a", "op$b");
        Exp.fresh(
          Fun(
@@ -498,11 +497,13 @@ let op_fun = (name: string): option(Exp.t) =>
        );
      });
 let label_key = (l: string): string =>
-  l == "length" || l == "__proto__" || String.length(l) > 0 && l.[0] == '$'
+  String.equal(l, "length")
+  || String.equal(l, "__proto__")
+  || String.is_prefix(l, ~prefix="$")
     ? "$" ++ l : l;
 let label_of_key = (k: string): string =>
-  String.length(k) > 1 && k.[0] == '$'
-    ? String.sub(k, 1, String.length(k) - 1) : k;
+  String.length(k) > 1 && Char.equal(k.[0], '$')
+    ? String.sub(k, ~pos=1, ~len=String.length(k) - 1) : k;
 
 let label_of = (e: Exp.t): option(string) =>
   switch (Exp.term_of(e)) {
@@ -583,7 +584,9 @@ let rec pat =
     ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
   | Tuple(ps) =>
     List.fold_left(
-      ((tests, binds, lex, i), p: Pat.t) => {
+      ps,
+      ~init=([], [], lex, 0),
+      ~f=((tests, binds, lex, i), p: Pat.t) => {
         let (key, p) =
           switch (Pat.term_of(p)) {
           | TupLabel(l, p') when pat_is_nonlabel(l) => (
@@ -603,8 +606,6 @@ let rec pat =
         let (t, b, lex) = pat(st, scope, lex, p, key);
         (tests @ t, binds @ b, lex, i + 1);
       },
-      ([], [], lex, 0),
-      ps,
     )
     |> (((t, b, lex, _)) => (t, b, lex))
   | TupLabel(l, p') when pat_is_nonlabel(l) =>
@@ -634,7 +635,7 @@ let rec pat =
 let conj = (tests: list(string)): string =>
   switch (tests) {
   | [] => "true"
-  | ts => String.concat(" && ", List.map(t => "(" ++ t ++ ")", ts))
+  | ts => String.concat(~sep=" && ", List.map(ts, ~f=t => "(" ++ t ++ ")"))
   };
 
 /* A term as a JS expression, in a scope (the enclosing JS function's declarations) and a lexical environment (Hazel
@@ -642,7 +643,7 @@ let conj = (tests: list(string)): string =>
 /* (^ticket(722)) a survey of a whole program: when [survey] holds a table, a form hazel-jit does not compile is counted
    there by its reason and compiled as $R.reach(reason), which throws if the run evaluates it, instead of failing
    the whole term. Off (None) everywhere but the CLI's [jit] command. */
-let survey: ref(option(Hashtbl.t(string, int))) = ref(None);
+let survey: ref(option(Stdlib.Hashtbl.t(string, int))) = ref(None);
 
 /* (^ticket(722)) when on, a livelit use's model (UserLivelit.instrument_view's %model) that is a literal compiles as
    $R.param(its id, the literal), so a run can be given a new model without new code; and the use's view call as
@@ -650,7 +651,8 @@ let survey: ref(option(Hashtbl.t(string, int))) = ref(None);
 let params_on: ref(bool) = ref(false);
 /* and, as it compiles, each livelit use's projector id with its model's parameter (both as Id.to_string), for the caller
    to give a projector's new model to the right parameter; a use whose model is not a literal has none */
-let param_of_projector: Hashtbl.t(string, string) = Hashtbl.create(64);
+let param_of_projector: Stdlib.Hashtbl.t(string, string) =
+  Stdlib.Hashtbl.create(64);
 let last_param: ref(option(string)) = ref(None);
 
 let rec model_literal = (e: Exp.t): bool =>
@@ -659,7 +661,7 @@ let rec model_literal = (e: Exp.t): bool =>
   | Label(_)
   | Constructor(_) => true
   | ListLit(es)
-  | Tuple(es) => List.for_all(model_literal, es)
+  | Tuple(es) => List.for_all(es, ~f=model_literal)
   | TupLabel(a, b) => model_literal(a) && model_literal(b)
   | Ap(Forward, {term: Constructor(_), _}, arg) => model_literal(arg)
   | Parens(e)
@@ -669,13 +671,14 @@ let rec model_literal = (e: Exp.t): bool =>
 
 let rec pat_is = (x: string, p: Pat.t): bool =>
   switch (Pat.term_of(p)) {
-  | Var(y) => x == y
+  | Var(y) => String.equal(x, y)
   | Parens(p)
   | Asc(p, _) => pat_is(x, p)
   | _ => false
   };
 /* and, for each reason, the first term that gave it (Exp.show, cut short), for the CLI to print */
-let survey_examples: Hashtbl.t(string, string) = Hashtbl.create(8);
+let survey_examples: Stdlib.Hashtbl.t(string, string) =
+  Stdlib.Hashtbl.create(8);
 
 let rec exp =
         (st: state, scope: scope, lex: list((string, string)), e: Exp.t)
@@ -686,17 +689,17 @@ let rec exp =
     switch (exp_inner(st, scope, lex, e)) {
     | src => src
     | exception (Unsupported(why)) =>
-      Hashtbl.replace(
+      Stdlib.Hashtbl.replace(
         tbl,
         why,
-        1 + Option.value(Hashtbl.find_opt(tbl, why), ~default=0),
+        1 + Option.value(Stdlib.Hashtbl.find_opt(tbl, why), ~default=0),
       );
-      if (!Hashtbl.mem(survey_examples, why)) {
+      if (!Stdlib.Hashtbl.mem(survey_examples, why)) {
         let shown = Exp.show(e);
-        Hashtbl.replace(
+        Stdlib.Hashtbl.replace(
           survey_examples,
           why,
-          String.sub(shown, 0, min(String.length(shown), 700)),
+          String.sub(shown, ~pos=0, ~len=min(String.length(shown), 700)),
         );
       };
       "$R.reach(" ++ js_string(why) ++ ")";
@@ -727,60 +730,56 @@ and exp_inner =
     let rec find = (i, l) =>
       switch (l) {
       | [] => None
-      | [(y, j), ..._] when y == x => Some((j, List.length(lex) - i))
+      | [(y, j), ..._] when String.equal(y, x) =>
+        Some((j, List.length(lex) - i))
       | [_, ...rest] => find(i + 1, rest)
       };
     switch (find(0, lex)) {
     | Some((j, depth)) =>
       /* the binding, counted from the oldest: a function that began after it captures it */
-      List.iter(
-        ((entry, caps)) =>
-          if (depth <= entry && !List.mem_assoc(x, caps^)) {
-            caps := caps^ @ [(x, j)];
-          },
-        st.frames,
+      List.iter(st.frames, ~f=((entry, caps)) =>
+        if (depth <= entry && !List.Assoc.mem(caps^, ~equal=String.equal, x)) {
+          caps := caps^ @ [(x, j)];
+        }
       );
       j;
     | None => global(st, x)
     };
   | ListLit(es) =>
     List.fold_right(
-      (e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
       es,
-      "null",
+      ~f=(e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
+      ~init="null",
     )
   | Cons(h, t) => "{h: " ++ go(h) ++ ", t: " ++ go(t) ++ "}"
   | ListConcat(a, b) => "$R.append(" ++ go(a) ++ ", " ++ go(b) ++ ")"
   | Tuple(es) =>
     let parts =
-      List.map(
-        (e: Exp.t) =>
-          switch (Exp.term_of(e)) {
-          | TupLabel(l, e') when is_nonlabel(l) => (None, go(e'))
-          | TupLabel(l, e') =>
-            label_hole(l);
-            switch (label_of(l)) {
-            | Some(name) => (Some(name), go(e'))
-            | None => unsupported("a tuple label that is not a name")
-            };
-          | _ => (None, go(e))
-          },
-        es,
+      List.map(es, ~f=(e: Exp.t) =>
+        switch (Exp.term_of(e)) {
+        | TupLabel(l, e') when is_nonlabel(l) => (None, go(e'))
+        | TupLabel(l, e') =>
+          label_hole(l);
+          switch (label_of(l)) {
+          | Some(name) => (Some(name), go(e'))
+          | None => unsupported("a tuple label that is not a name")
+          };
+        | _ => (None, go(e))
+        }
       );
-    let arr = "[" ++ String.concat(", ", List.map(snd, parts)) ++ "]";
-    List.exists(((l, _)) => l != None, parts)
+    let arr =
+      "[" ++ String.concat(~sep=", ", List.map(parts, ~f=snd)) ++ "]";
+    List.exists(parts, ~f=((l, _)) => Option.is_some(l))
       ? "$R.tup("
         ++ arr
         ++ ", ["
         ++ String.concat(
-             ", ",
-             List.map(
-               ((l, _)) =>
-                 switch (l) {
-                 | Some(name) => js_string(label_key(name))
-                 | None => "null"
-                 },
-               parts,
+             ~sep=", ",
+             List.map(parts, ~f=((l, _)) =>
+               switch (l) {
+               | Some(name) => js_string(label_key(name))
+               | None => "null"
+               }
              ),
            )
         ++ "])"
@@ -809,10 +808,12 @@ and exp_inner =
       note_ctor(st, name, t);
       "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
     | (Dot(_, l), Var("%model"))
-        when params_on^ && label_of(l) == Some("view") =>
+        when
+          params_on^
+          && Option.equal(String.equal, label_of(l), Some("view")) =>
       let pid = Id.to_string(Exp.rep_id(e));
       switch (last_param^) {
-      | Some(mid) => Hashtbl.replace(param_of_projector, pid, mid)
+      | Some(mid) => Stdlib.Hashtbl.replace(param_of_projector, pid, mid)
       | None => ()
       };
       last_param := None;
@@ -840,7 +841,7 @@ and exp_inner =
       | Parens(p)
       | Asc(p, _) => names_of(p)
       | Tuple(ps) =>
-        let xs = List.filter_map(name_of, ps);
+        let xs = List.filter_map(ps, ~f=name_of);
         List.length(xs) == List.length(ps) ? Some(xs) : None;
       | _ => None
       };
@@ -886,7 +887,8 @@ and exp_inner =
             ~f_exp=
               (cont, e: Exp.t) => {
                 switch (Exp.term_of(e)) {
-                | Var(x) when List.mem(x, xs) => found := true
+                | Var(x) when List.mem(xs, x, ~equal=String.equal) =>
+                  found := true
                 | _ => ()
                 };
                 cont(e);
@@ -899,24 +901,24 @@ and exp_inner =
       | (Some(xs), Some(es))
           when
             List.length(xs) == List.length(es)
-            && List.for_all(e => is_fun(e) || !names_any(xs, e), es) =>
+            && List.for_all(es, ~f=e => is_fun(e) || !names_any(xs, e)) =>
         let inner = {decls: []};
-        let js = List.map(x => fresh(st, inner, x), xs);
+        let js = List.map(xs, ~f=x => fresh(st, inner, x));
         let lex' =
-          List.fold_left2((lex, x, j) => [(x, j), ...lex], lex, xs, js);
+          List.fold2_exn(xs, js, ~init=lex, ~f=(lex, x, j) =>
+            [(x, j), ...lex]
+          );
         let assigns =
-          List.map2(
-            (j, e) => j ++ " = " ++ exp(st, inner, lex', e),
-            js,
-            es,
+          List.map2_exn(js, es, ~f=(j, e) =>
+            j ++ " = " ++ exp(st, inner, lex', e)
           );
         "(() => { "
         ++ body_with_decls(
              inner,
              "("
-             ++ String.concat(", ", assigns)
+             ++ String.concat(~sep=", ", assigns)
              ++ ", ["
-             ++ String.concat(", ", js)
+             ++ String.concat(~sep=", ", js)
              ++ "])",
            )
         ++ " })()";
@@ -946,10 +948,11 @@ and exp_inner =
       };
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
     let check =
-      tests == [] ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
+      List.is_empty(tests)
+        ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
     "("
     ++ String.concat(
-         ", ",
+         ~sep=", ",
          [tmp ++ " = " ++ v1] @ check @ binds @ [exp(st, scope, lex', e2)],
        )
     ++ ")";
@@ -959,18 +962,22 @@ and exp_inner =
     let tmp = fresh(st, scope, "m");
     let arms =
       List.fold_right(
-        ((p, body), rest) => {
-          let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
-          let then_ =
-            "("
-            ++ String.concat(", ", binds @ [exp(st, scope, lex', body)])
-            ++ ")";
-          tests == []
-            ? then_
-            : "(" ++ conj(tests) ++ " ? " ++ then_ ++ " : " ++ rest ++ ")";
-        },
         rules,
-        "$R.nomatch(\"case\")",
+        ~f=
+          ((p, body), rest) => {
+            let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+            let then_ =
+              "("
+              ++ String.concat(
+                   ~sep=", ",
+                   binds @ [exp(st, scope, lex', body)],
+                 )
+              ++ ")";
+            List.is_empty(tests)
+              ? then_
+              : "(" ++ conj(tests) ++ " ? " ++ then_ ++ " : " ++ rest ++ ")";
+          },
+        ~init="$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
   | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
@@ -1029,7 +1036,7 @@ and exp_inner =
     | Poly(NotEquals) => "(!$R.eq(" ++ a ++ ", " ++ b ++ "))"
     };
   | BuiltinFun(name) => builtin(name)
-  | Closure(env, e) when Environment.to_list(env) == [] => go(e)
+  | Closure(env, e) when List.is_empty(Environment.to_list(env)) => go(e)
   | Closure(_) => unsupported("a closure with its own environment")
   | Invalid(_)
   | EmptyHole
@@ -1070,40 +1077,35 @@ and exp_inner =
   | DeferredAp(f, args) =>
     let ftmp = fresh(st, scope, "pf");
     let slots =
-      List.map(
-        (a: Exp.t) =>
-          switch (Exp.term_of(a)) {
-          | Deferral(_) => None
-          | TupLabel(_) =>
-            unsupported("a partial application with a labeled argument")
-          | _ => Some((fresh(st, scope, "pa"), go(a)))
-          },
-        args,
+      List.map(args, ~f=(a: Exp.t) =>
+        switch (Exp.term_of(a)) {
+        | Deferral(_) => None
+        | TupLabel(_) =>
+          unsupported("a partial application with a labeled argument")
+        | _ => Some((fresh(st, scope, "pa"), go(a)))
+        }
       );
-    let deferred = List.length(List.filter(Option.is_none, slots));
+    let deferred = List.length(List.filter(slots, ~f=Option.is_none));
     st.counter = st.counter + 1;
     let x = "d$" ++ string_of_int(st.counter);
     let next = ref(0);
     let elems =
-      List.map(
-        slot =>
-          switch (slot) {
-          | Some((tmp, _)) => tmp
-          | None =>
-            let k = next^;
-            next := k + 1;
-            deferred == 1 ? x : x ++ "[" ++ string_of_int(k) ++ "]";
-          },
-        slots,
+      List.map(slots, ~f=slot =>
+        switch (slot) {
+        | Some((tmp, _)) => tmp
+        | None =>
+          let k = next^;
+          next := k + 1;
+          deferred == 1 ? x : x ++ "[" ++ string_of_int(k) ++ "]";
+        }
       );
     let given =
-      List.filter_map(
-        slot => Option.map(((tmp, code)) => tmp ++ " = " ++ code, slot),
-        slots,
+      List.filter_map(slots, ~f=slot =>
+        Option.map(slot, ~f=((tmp, code)) => tmp ++ " = " ++ code)
       );
     "("
     ++ String.concat(
-         ", ",
+         ~sep=", ",
          [ftmp ++ " = " ++ go(f), ...given]
          @ [
            "(("
@@ -1113,7 +1115,8 @@ and exp_inner =
            ++ "("
            ++ (
              List.length(elems) == 1
-               ? List.hd(elems) : "[" ++ String.concat(", ", elems) ++ "]"
+               ? List.hd_exn(elems)
+               : "[" ++ String.concat(~sep=", ", elems) ++ "]"
            )
            ++ "))",
          ],
@@ -1136,20 +1139,21 @@ and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
   st.frames = [(List.length(lex), caps), ...st.frames];
   let (tests, binds, lex') = pat(st, inner, lex, p, arg);
   let check =
-    tests == [] ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
+    List.is_empty(tests)
+      ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
   let b =
     try(exp(st, inner, lex', body)) {
     | exn =>
-      st.frames = List.tl(st.frames);
+      st.frames = List.tl_exn(st.frames);
       raise(exn);
     };
-  st.frames = List.tl(st.frames);
+  st.frames = List.tl_exn(st.frames);
   let value =
-    check == [] && binds == []
-      ? b : "(" ++ String.concat(", ", check @ binds @ [b]) ++ ")";
+    List.is_empty(check) && List.is_empty(binds)
+      ? b : "(" ++ String.concat(~sep=", ", check @ binds @ [b]) ++ ")";
   /* tagged with its term and its captured values, so the way back can make it a Hazel closure (HazelJitValue) */
-  let k = Hashtbl.length(st.funs);
-  Hashtbl.replace(st.funs, k, (term, List.map(fst, caps^)));
+  let k = Stdlib.Hashtbl.length(st.funs);
+  Stdlib.Hashtbl.replace(st.funs, k, (term, List.map(caps^, ~f=fst)));
   "$R.fn(("
   ++ arg
   ++ ") => { "
@@ -1159,8 +1163,9 @@ and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
   ++ string_of_int(k)
   ++ ", "
   ++ (
-    caps^ == []
-      ? "null" : "[" ++ String.concat(", ", List.map(snd, caps^)) ++ "]"
+    List.is_empty(caps^)
+      ? "null"
+      : "[" ++ String.concat(~sep=", ", List.map(caps^, ~f=snd)) ++ "]"
   )
   ++ ")";
 }
@@ -1180,74 +1185,74 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
   /* steps: the JS assignments, in order; exports: each member's name and its JS variable, newest first */
   let (steps, exports, _) =
     List.fold_left(
-      ((steps, exports, lex), item: Mod.t) =>
-        switch (item.term) {
-        | ModLet(p, e) =>
-          let tmp = fresh(st, inner, "def");
-          /* a member with a form hazel-jit does not compile is a stub that says why if it is called: a view uses
-             some of its module's members, not all (a livelit's expand, say, may be a quotation) */
-          let v =
-            try(exp(st, inner, lex, e)) {
-            | Unsupported(why) => "$R.missing(" ++ js_string(why) ++ ")"
-            };
-          let (tests, binds, lex') = pat(st, inner, lex, p, tmp);
-          let check =
-            tests == []
-              ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"module\")"];
-          /* the names this member binds: the front of lex' that lex does not have */
-          let n = List.length(lex') - List.length(lex);
-          let bound = List.filteri((i, _) => i < n, lex');
-          (
-            steps @ [tmp ++ " = " ++ v] @ check @ binds,
-            bound @ exports,
-            lex',
-          );
-        | ModuleMod(mp, e) =>
-          let x = name_of_mpat(mp);
-          let j = fresh(st, inner, x);
-          (
-            steps @ [j ++ " = " ++ exp(st, inner, lex, e)],
-            [(x, j), ...exports],
-            [(x, j), ...lex],
-          );
-        | ModType(tp, ty) =>
-          note_alias(st, tp, ty);
-          (steps, exports, lex);
-        /* (^ticket(761)) an expression as a member is evaluated and its value dropped, as the elaborated module's
-           let _ = e in ... (ModuleHelpers) */
-        | ModExp(e) =>
-          let tmp = fresh(st, inner, "exp");
-          (steps @ [tmp ++ " = " ++ exp(st, inner, lex, e)], exports, lex);
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => unsupported("a hole in a module")
-        },
-      ([], [], lex),
-      items,
+      items, ~init=([], [], lex), ~f=((steps, exports, lex), item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(p, e) =>
+        let tmp = fresh(st, inner, "def");
+        /* a member with a form hazel-jit does not compile is a stub that says why if it is called: a view uses
+           some of its module's members, not all (a livelit's expand, say, may be a quotation) */
+        let v =
+          try(exp(st, inner, lex, e)) {
+          | Unsupported(why) => "$R.missing(" ++ js_string(why) ++ ")"
+          };
+        let (tests, binds, lex') = pat(st, inner, lex, p, tmp);
+        let check =
+          List.is_empty(tests)
+            ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"module\")"];
+        /* the names this member binds: the front of lex' that lex does not have */
+        let n = List.length(lex') - List.length(lex);
+        let bound = List.filteri(lex', ~f=(i, _) => i < n);
+        (steps @ [tmp ++ " = " ++ v] @ check @ binds, bound @ exports, lex');
+      | ModuleMod(mp, e) =>
+        let x = name_of_mpat(mp);
+        let j = fresh(st, inner, x);
+        (
+          steps @ [j ++ " = " ++ exp(st, inner, lex, e)],
+          [(x, j), ...exports],
+          [(x, j), ...lex],
+        );
+      | ModType(tp, ty) =>
+        note_alias(st, tp, ty);
+        (steps, exports, lex);
+      /* (^ticket(761)) an expression as a member is evaluated and its value dropped, as the elaborated module's
+         let _ = e in ... (ModuleHelpers) */
+      | ModExp(e) =>
+        let tmp = fresh(st, inner, "exp");
+        (steps @ [tmp ++ " = " ++ exp(st, inner, lex, e)], exports, lex);
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => unsupported("a hole in a module")
+      }
     );
   /* each name once, at its newest definition, in the order first defined */
   let names =
-    List.fold_left(
-      (acc, (x, _)) => List.mem(x, acc) ? acc : [x, ...acc],
-      [],
-      exports,
+    List.fold_left(exports, ~init=[], ~f=(acc, (x, _)) =>
+      List.mem(acc, x, ~equal=String.equal) ? acc : [x, ...acc]
     );
   let value =
     "$R.tup(["
-    ++ String.concat(", ", List.map(x => List.assoc(x, exports), names))
+    ++ String.concat(
+         ~sep=", ",
+         List.map(names, ~f=x =>
+           List.Assoc.find_exn(exports, ~equal=String.equal, x)
+         ),
+       )
     ++ "], ["
-    ++ String.concat(", ", List.map(x => js_string(label_key(x)), names))
+    ++ String.concat(
+         ~sep=", ",
+         List.map(names, ~f=x => js_string(label_key(x))),
+       )
     ++ "])";
   "(() => { "
   ++ body_with_decls(
        inner,
-       "(" ++ String.concat(", ", steps @ [value]) ++ ")",
+       "(" ++ String.concat(~sep=", ", steps @ [value]) ++ ")",
      )
   ++ " })()";
 }
 /* A free variable: the builtins' */
 and global = (st: state, x: string): string =>
-  switch (Hashtbl.find_opt(st.global_names, x)) {
+  switch (Stdlib.Hashtbl.find_opt(st.global_names, x)) {
   | Some(j) => j
   | None =>
     switch (Environment.lookup(st.env, x)) {
@@ -1257,7 +1262,8 @@ and global = (st: state, x: string): string =>
          function of a pair whose body is the operator, so it is the operator's own code */
       let d =
         switch (Exp.term_of(d)) {
-        | BuiltinFun(name) when !List.mem(name, Runtime.builtins) =>
+        | BuiltinFun(name)
+            when !List.mem(Runtime.builtins, name, ~equal=String.equal) =>
           switch (op_fun(name)) {
           | Some(f) => f
           | None => d
@@ -1266,12 +1272,13 @@ and global = (st: state, x: string): string =>
         };
       switch (Exp.term_of(d)) {
       | BuiltinFun(name) => builtin(name)
-      | _ when List.mem(x, Runtime.constants) => "$R.b." ++ x
+      | _ when List.mem(Runtime.constants, x, ~equal=String.equal) =>
+        "$R.b." ++ x
       | _ =>
         /* a builtin written in Hazel: compiled once, before the program's code; its name is known before its body is
            compiled, so a body that refers to it finds it */
         let j = "g$" ++ sanitize(x);
-        Hashtbl.add(st.global_names, x, j);
+        Stdlib.Hashtbl.add(st.global_names, x, j);
         let scope = {decls: []};
         /* a global is compiled on its own: the functions being compiled where it is first used do not capture its
            variables */
@@ -1281,7 +1288,7 @@ and global = (st: state, x: string): string =>
           try(exp(st, scope, [], d)) {
           | Unsupported(_) as exn =>
             st.frames = frames;
-            Hashtbl.remove(st.global_names, x);
+            Stdlib.Hashtbl.remove(st.global_names, x);
             raise(exn);
           };
         st.frames = frames;
@@ -1298,7 +1305,7 @@ and global = (st: state, x: string): string =>
     }
   }
 and builtin = (name: string): string =>
-  List.mem(name, Runtime.builtins)
+  List.mem(Runtime.builtins, name, ~equal=String.equal)
     ? "$R.b[" ++ js_string(name) ++ "]" : unsupported("the builtin " ++ name);
 
 /* An elaborated term as the source of a JS function's body, run as new Function("$R", source)(runtime): the builtins it
@@ -1307,9 +1314,9 @@ and builtin = (name: string): string =>
    types and the type aliases */
 type compiled = {
   src: string,
-  ctors: Hashtbl.t(string, option(Typ.t)),
-  aliases: Hashtbl.t(string, Typ.t),
-  funs: Hashtbl.t(int, (Exp.t, list(string))),
+  ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
+  aliases: Stdlib.Hashtbl.t(string, Typ.t),
+  funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
 };
 
 let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
@@ -1317,10 +1324,10 @@ let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
     env,
     counter: 0,
     globals: [],
-    global_names: Hashtbl.create(8),
-    ctors: Hashtbl.create(16),
-    aliases: Hashtbl.create(8),
-    funs: Hashtbl.create(16),
+    global_names: Stdlib.Hashtbl.create(8),
+    ctors: Stdlib.Hashtbl.create(16),
+    aliases: Stdlib.Hashtbl.create(8),
+    funs: Stdlib.Hashtbl.create(16),
     frames: [],
   };
   let scope = {decls: []};
@@ -1328,7 +1335,7 @@ let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
   {
     src:
       "\"use strict\"; "
-      ++ String.concat(" ", List.rev(st.globals))
+      ++ String.concat(~sep=" ", List.rev(st.globals))
       ++ " "
       ++ body_with_decls(scope, v),
     ctors: st.ctors,

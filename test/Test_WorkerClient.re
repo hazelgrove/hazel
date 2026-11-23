@@ -11,7 +11,10 @@ let check = (name, ~late_ms, ~postponed, expected) =>
       bool,
       name,
       true,
-      WorkerClient.check_deadline(~late_ms, ~postponed) == expected,
+      Poly.equal(
+        WorkerClient.check_deadline(~late_ms, ~postponed),
+        expected,
+      ),
     )
   );
 

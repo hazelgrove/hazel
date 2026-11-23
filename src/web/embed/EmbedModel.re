@@ -34,7 +34,7 @@ module Program = {
   let names =
     fun
     | Text(_) => None
-    | Parts({modules, _}) => Some(List.map(fst, modules));
+    | Parts({modules, _}) => Some(List.map(modules, ~f=fst));
 };
 
 /* The program's errors, holes and incomplete tiles, each with its module
@@ -183,7 +183,7 @@ module Update = {
     |> CodeWithStatics.Update.calculate(
          ~settings=settings.core,
          ~is_edited=true,
-         ~stitch=Fun.id,
+         ~stitch=Fn.id,
          ~dynamics=Language.Dynamics.Map.empty,
          ~is_dynamic_term=false,
        );
@@ -197,30 +197,23 @@ module Update = {
   let reindent_body = (z: Zipper.t): Zipper.t => {
     let seg = Zipper.unselect_and_zip(z);
     let rec breaks = (seg: Segment.t): list(Id.t) =>
-      List.concat_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
-          | Tile(t) => List.concat_map(breaks, t.children)
-          | _ => []
-          },
-        seg,
+      List.concat_map(seg, ~f=(p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+        | Tile(t) => List.concat_map(t.children, ~f=breaks)
+        | _ => []
+        }
       );
     let (_, after) =
-      List.fold_left(
-        ((past, ids), p: Piece.t) =>
-          (
-            past || Indentation.is_module_semi(p),
-            past ? breaks([p]) @ ids : ids,
-          ),
-        (false, []),
-        seg,
+      List.fold_left(seg, ~init=(false, []), ~f=((past, ids), p: Piece.t) =>
+        (
+          past || Indentation.is_module_semi(p),
+          past ? breaks([p]) @ ids : ids,
+        )
       );
     let map =
-      List.fold_left(
-        (map, id) => Id.Map.update(id, Option.map(n => max(0, n - 2)), map),
-        Indentation.level_map(seg),
-        after,
+      List.fold_left(after, ~init=Indentation.level_map(seg), ~f=(map, id) =>
+        Id.Map.update(id, Option.map(~f=n => max(0, n - 2)), map)
       );
     ZipperBase.MapSegment.go(Indentation.fix_indentation_in_segment(map), z);
   };
@@ -259,10 +252,10 @@ module Update = {
       let read_body = (place, name, text) => {
         let body =
           switch (
-            List.find_opt(
-              (b: body) =>
-                b.place == place && b.name == name && b.text == text,
-              bodies,
+            List.find(bodies, ~f=(b: body) =>
+              b.place == place
+              && String.equal(b.name, name)
+              && String.equal(b.text, text)
             )
           ) {
           | Some(b) => b
@@ -286,9 +279,8 @@ module Update = {
           ~read_body,
           ~preamble=StringUtil.trim_leading(preamble),
           ~modules=
-            List.map(
-              ((name, text)) => (name, StringUtil.trim_leading(text)),
-              modules,
+            List.map(modules, ~f=((name, text)) =>
+              (name, StringUtil.trim_leading(text))
             ),
           ~tail=StringUtil.trim_leading(tail),
           (),
@@ -320,7 +312,11 @@ module Update = {
       | Filter(_, rest)
       | Seq(_, rest) => find(rest)
       | ModuleExp(mp, def, rest) =>
-        ModuleProgram.name_of_module_pat(mp) == Some(name)
+        Option.equal(
+          String.equal,
+          ModuleProgram.name_of_module_pat(mp),
+          Some(name),
+        )
           ? Some(def) : find(rest)
       | _ => None
       };
@@ -337,7 +333,7 @@ module Update = {
   let focus_body =
       (~bodies: list(body), ~full: CodeWithStatics.Model.t, name: string)
       : (Zipper.t, string, option(Language.Ctx.t)) =>
-    switch (List.find_opt((b: body) => b.name == name, bodies)) {
+    switch (List.find(bodies, ~f=(b: body) => String.equal(b.name, name))) {
     | Some({read: Some(z), text, _}) => (z, text, module_ctx(~full, name))
     | _ => (Zipper.init(), "", module_ctx(~full, name))
     };
@@ -351,16 +347,17 @@ module Update = {
          ~settings=settings.core,
          ~is_edited=true,
          ~ctx?,
-         ~stitch=Fun.id,
+         ~stitch=Fn.id,
          ~dynamics=Language.Dynamics.Map.empty,
          ~is_dynamic_term=false,
        );
 
   /* A body's text as the page keeps it: trimmed, without a last ";" */
   let body_key = (text: string): string => {
-    let t = String.trim(text);
+    let t = String.strip(text);
     let n = String.length(t);
-    n > 0 && t.[n - 1] == ';' ? String.trim(String.sub(t, 0, n - 1)) : t;
+    n > 0 && Char.equal(t.[n - 1], ';')
+      ? String.strip(String.sub(t, ~pos=0, ~len=n - 1)) : t;
   };
 
   /* A program set: the whole of it read, for the status (and, without a
@@ -379,7 +376,12 @@ module Update = {
     | Some(name) =>
       let (body, text, ctx) = focus_body(~bodies, ~full, name);
       let same =
-        !fresh && Option.map(body_key, model.edited) == Some(body_key(text));
+        !fresh
+        && Option.equal(
+             String.equal,
+             Option.map(model.edited, ~f=body_key),
+             Some(body_key(text)),
+           );
       let cell =
         same
           ? mod_cell(~ctx, model.cell.editor)
@@ -413,30 +415,27 @@ module Update = {
      of the pattern of a let or a type (its first child), found anywhere in
      the cell's tiles, first first */
   let rec defining = (name: string, seg: Segment.t): option(Id.t) =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let own =
-            switch (Tile.label(t), t.children) {
-            | (["let", ..._] | ["type", ..._], [pat, ..._]) =>
-              List.find_map(
-                (q: Piece.t) =>
-                  switch (q) {
-                  | Tile(u) when Tile.label(u) == [name] => Some(u.id)
-                  | _ => None
-                  },
-                pat,
-              )
-            | _ => None
-            };
-          switch (own) {
-          | Some(id) => Some(id)
-          | None => List.find_map(defining(name), t.children)
+    List.find_map(seg, ~f=(p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        let own =
+          switch (Tile.label(t), t.children) {
+          | (["let", ..._] | ["type", ..._], [pat, ..._]) =>
+            List.find_map(pat, ~f=(q: Piece.t) =>
+              switch (q) {
+              | Tile(u) when List.equal(String.equal, Tile.label(u), [name]) =>
+                Some(u.id)
+              | _ => None
+              }
+            )
+          | _ => None
           };
-        | _ => None
-        },
-      seg,
+        switch (own) {
+        | Some(id) => Some(id)
+        | None => List.find_map(t.children, ~f=defining(name))
+        };
+      | _ => None
+      }
     );
 
   /* The tokens of the tile the caret is on, joined (a name, or a dotted
@@ -455,7 +454,7 @@ module Update = {
       | Label(l) => Some(l)
       | Parens(e) => path(e)
       | Dot(e1, {term: Label(l), _}) =>
-        Option.map(p => p ++ "." ++ l, path(e1))
+        Option.map(path(e1), ~f=p => p ++ "." ++ l)
       | _ => None
       };
     switch (ci) {
@@ -471,22 +470,20 @@ module Update = {
     | None => None
     | Some(id) =>
       let rec find = (seg: Segment.t): option(string) =>
-        List.find_map(
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile(t) when t.id == id =>
-              Some(String.concat("", Tile.label(t)))
-            | Tile(t) => List.find_map(find, t.children)
-            | _ => None
-            },
-          seg,
+        List.find_map(seg, ~f=(p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Id.equal(t.id, id) =>
+            Some(String.concat(~sep="", Tile.label(t)))
+          | Tile(t) => List.find_map(t.children, ~f=find)
+          | _ => None
+          }
         );
       find(Zipper.unselect_and_zip(z));
     };
 
   let update = (action: t, model: Model.t): Model.t =>
     switch (action) {
-    | Set(program) when model.program == Some(program) => model
+    | Set(program) when Poly.equal(model.program, Some(program)) => model
     | Set(program) => set(~fresh=false, program, model)
     | SetFontMetrics(font_metrics) => {
         ...model,
@@ -542,7 +539,7 @@ module Update = {
           reveals: model.reveals + 1,
         };
       }
-    | SetFocus(focus) when focus == model.focus => model
+    | SetFocus(focus) when Option.equal(String.equal, focus, model.focus) => model
     | SetFocus(focus) =>
       let model = {
         ...model,
@@ -566,20 +563,22 @@ module Update = {
                 ~settings=settings.core,
                 ~is_edited=true,
                 ~ctx=?model.ctx,
-                ~stitch=Fun.id,
+                ~stitch=Fn.id,
                 ~dynamics=Language.Dynamics.Map.empty,
                 ~is_dynamic_term=false,
                 updated.model,
               )
             : updated.model;
-        let names = Option.bind(model.program, Program.names);
+        let names = Option.bind(model.program, ~f=Program.names);
         let text =
           Printer.of_zipper(
             ~holes="?",
             ~indent=" ",
             cell.editor.state.zipper,
           );
-        let changed = model.edited != Some(text) && updated.is_edit;
+        let changed =
+          !Option.equal(String.equal, model.edited, Some(text))
+          && updated.is_edit;
         {
           ...model,
           cell,
@@ -587,7 +586,7 @@ module Update = {
           /* (a focused body's status comes with the next program the page
              sends, read whole) */
           status:
-            model.focus == None
+            Option.is_none(model.focus)
               ? Some(Status.of_statics(~names?, cell.statics)) : model.status,
           edited: changed ? Some(text) : model.edited,
           edits: changed ? model.edits + 1 : model.edits,
@@ -696,10 +695,14 @@ module Outbox = {
   let after_display =
       (~caret: option(int)=?, ~height: int, model: Model.t, sent: sent)
       : (list(message), sent) => {
-    let size = sent.size == Some(height) ? [] : [Size(height)];
+    let size =
+      Option.equal(Int.equal, sent.size, Some(height))
+        ? [] : [Size(height)];
     let status =
       switch (model.status) {
-      | Some(status) when sent.status != Some(status) => [Status(status)]
+      | Some(status) when !Poly.equal(sent.status, Some(status)) => [
+          Status(status),
+        ]
       | _ => []
       };
     let edited =
