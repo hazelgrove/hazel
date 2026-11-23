@@ -49,6 +49,8 @@ module Update = {
       )
     | DebugConsole(_)
     | ContextMenu(_)
+    | ExpandSelection
+    | ShrinkSelection
     | TAB => None;
 
   let calculate = CodeEditable.Update.calculate;
