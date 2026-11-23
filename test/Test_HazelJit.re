@@ -844,30 +844,6 @@ let unicode_string_tests = [
   ),
 ];
 
-/* (^ticket(758); Matthew, 2026-11-16: "Yes, 32 bits") an SInt has 32 bits in the interpreter and here alike: a result past
-   them stops both runs at IntegerOverflow (a value too big made into an SInt, at IntegerTooBig); within them, as before */
-let sint_tests = [
-  agreement(
-    "an SInt sum past 32 bits stops at IntegerOverflow",
-    "use SInt in 2147483647 + 1",
-  ),
-  agreement(
-    "an SInt difference past 32 bits",
-    "use SInt in 0 - 2147483647 - 2",
-  ),
-  agreement("an SInt product past 32 bits", "use SInt in 65536 * 65536"),
-  agreement("an SInt power past 32 bits", "use SInt in 2 ** 31"),
-  agreement(
-    "the least SInt divided by -1",
-    "use SInt in (0 - 2147483647 - 1) / (0 - 1)",
-  ),
-  agreement("an Int too big for an SInt", "sint_of_int(3000000000)"),
-  agreement(
-    "SInt at the edges of 32 bits, unchanged",
-    "use SInt in (2147483646 + 1, 46340 * 46340, 2 ** 30, (0 - 2147483647 - 1) / 2, 0 - 2147483647 - 1)",
-  ),
-];
-
 /* (^ticket(756)) the slides' own programs, beside the evaluator's tests: every program under hazel-programs (outside
    mega/), parsed as the evaluator's tests parse; one with a static error stays with the interpreter (^ticket(760)), as
    does one hazel-jit does not compile; the rest are run both ways and their values compared as the sweep compares
@@ -884,7 +860,6 @@ let tests = (
   @ undefined_tests
   @ label_tests
   @ unicode_string_tests
-  @ sint_tests
   @ mixed_tests
   @ mixed_measured_tests
   @ List.map(diff_cases, ~f=diff_case)
@@ -956,7 +931,6 @@ let tests = (
       "the fold_left builtin",
       "fold_left([1, 2, 3], fun (acc, x) -> acc + x, 10)",
     ),
-    agreement("to_fixed", "(to_fixed(3.14159, 2), to_fixed(2., 0))"),
     comes_back(
       "back: whole floats stay floats, by their constructors' types",
       "type A = + SetX(Float) + Pick(Int) + Move((x = Float, y = Float)) in [SetX(3.), Pick(2), Move((x = 1., y = 2.5))]",

@@ -767,6 +767,14 @@ and exp_inner =
         | _ => (None, go(e))
         }
       );
+    /* (a tuple's labels are its array's keys, so a label given twice has one key: the interpreter keeps both entries,
+       Test_Evaluator_Labeled_Tuple's "Repeated label ascribed to a labeled tuple type", and so it runs that) */
+    if (List.contains_dup(
+          List.filter_map(parts, ~f=fst),
+          ~compare=String.compare,
+        )) {
+      unsupported("a tuple with a label given twice");
+    };
     let arr =
       "[" ++ String.concat(~sep=", ", List.map(parts, ~f=snd)) ++ "]";
     List.exists(parts, ~f=((l, _)) => Option.is_some(l))

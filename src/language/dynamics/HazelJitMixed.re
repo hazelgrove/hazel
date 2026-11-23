@@ -253,6 +253,11 @@ let rewrite = (program: Exp.t): Exp.t => {
     };
   let rec go = (e: Exp.t): Exp.t =>
     switch (Exp.term_of(e)) {
+    /* (dev: module M = { ... } in body is its own form) the module's members, then the rest */
+    | ModuleExp(mp, def, body) => {
+        ...e,
+        term: ModuleExp(mp, into(def), go(body)),
+      }
     | TyAlias(tp, t, body) =>
       chain := [(b => Exp.fresh(TyAlias(tp, t, b))), ...chain^];
       {
