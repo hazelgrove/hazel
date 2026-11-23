@@ -122,8 +122,13 @@ let apply =
       ),
     );
   };
-  if (updated.scroll_active) {
-    scroll_to_caret := true;
+  /* Runs before the re-render, so caret_in_view sees the layout the user is
+     looking at, not the one this action is about to make. */
+  switch (updated.scroll) {
+  | Updated.Always => scroll_to_caret := true
+  | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | IfCaretVisible
+  | Never => ()
   };
   /* When the tutorial slide changes, stash the outgoing slide's scroll
      position and queue a restore of the incoming slide's saved position
@@ -224,6 +229,10 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* Identify non-dev builds in the page title */
+    if (!BuildMeta.is_clean_dev) {
+      Dom_html.document##.title := Js.string("hazel · " ++ BuildMeta.label);
+    };
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
@@ -350,11 +359,23 @@ let start = default_model => {
   };
 };
 
+CoverageExport.install();
+
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 /* Hazel in another page's frame (src/web/embed) */
 | Some("embed") => EmbedMain.go()
 | _ =>
+  /* Start the eval worker now, while the page is idle waiting on
+     IndexedDB, not on first use. First use comes in the middle of a
+     calculation, and a worker created while the main thread is busy does
+     not start running until that task ends, in Chrome as in Firefox
+     (Firefox even loads the worker's script through the main thread). On
+     the Livelit Playground's largest slides, statics held Firefox's main
+     thread for 20+ s, so the worker never acknowledged, the page reported
+     "Evaluation timed out", and the slide never drew. Created here, it is
+     loaded and listening before the first request. */
+  ignore(WorkerClient.get_worker());
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
@@ -376,5 +397,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  })
+  });
 };

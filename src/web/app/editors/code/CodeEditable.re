@@ -49,11 +49,11 @@ module Update = {
             * new probe its bindings. */
            ~is_edit=Action.is_edit(action),
            ~recalculate=true,
-           ~scroll_active={
+           ~scroll={
              switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
+             | Move(Point(_)) => Updated.Never
+             | Select(All) => Never
+             | Select(Resize(Point(_))) => Never
              | Move(_)
              | Select(_)
              | Destruct(_)
@@ -69,17 +69,24 @@ module Update = {
              | Format(_)
              | AdjustIndent(_, _)
              | ApplyCompletion(_)
-             | ToggleLineComment => true
+             | ToggleLineComment => Always
              | Project(_)
              | Unselect(_)
              | Structural(_)
-             | Probe(_) => false
+             | Probe(_) => Never
              };
            },
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
+      /* Rapid input snaps instead of gliding: every qualifying action
+         starts a fresh 125ms caret translate, so under key repeat the
+         caret is perpetually mid-glide, visibly trailing the text.
+         Animate only when the previous glide has had time to finish —
+         discrete jumps keep the animation, bursts stay tight. */
+      settings.core.flip_animations
+      && Action.should_animate(action)
+      && Animation.caret_glide_available()
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);

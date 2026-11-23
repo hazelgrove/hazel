@@ -213,9 +213,7 @@ let introduce_data =
       }),
     )
       when
-        Introduce.can_introduce_exp_type(
-          Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
+        Introduce.can_introduce_exp_type(Language.MatchedTyp.head(ctx, ana)) => [
       action_item(
         ~shortcut=Shortcuts.introduce(),
         "Introduce",
@@ -231,9 +229,7 @@ let introduce_data =
       }),
     )
       when
-        Introduce.can_introduce_pat_type(
-          Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
+        Introduce.can_introduce_pat_type(Language.MatchedTyp.head(ctx, ana)) => [
       action_item(
         ~shortcut=Shortcuts.introduce(),
         "Introduce",
