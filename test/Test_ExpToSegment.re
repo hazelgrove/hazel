@@ -2809,6 +2809,23 @@ let defensive_print_stable_tests = (
         );
       },
     ),
+    test_case("A step inside a hole keeps its operator", `Quick, () =>
+      List.iter(
+        Evaluated.terms(
+          9,
+          Option.value_exn(Typed.read("((0 w (? >=. zz _))(use _ in y))")),
+        ),
+        ~f=term => {
+          let text = defensive_print(term);
+          check(
+            bool,
+            text,
+            true,
+            String.is_substring(text, ~substring=" w"),
+          );
+        },
+      )
+    ),
     test_case("An elaborated module binding reads back", `Quick, () =>
       List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
         List.iter(

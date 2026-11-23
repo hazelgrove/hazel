@@ -416,6 +416,9 @@ let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {
   let+ next_expr = take_step(step.env, step.d_loc);
+  /* The result takes the redex's place: its ids, with no layout. It keeps
+     its own lexeme, which belongs to its term (a hole stepped as a whole
+     keeps its unknown operator). */
   let next_expr = {
     ...next_expr,
     annotation:
@@ -423,7 +426,7 @@ let take_step = (step: EvalObj.t) => {
         ids: step.d_loc |> IdTagged.ids,
         secondary: empty_secondary,
         incomplete: [],
-        lexeme: None,
+        lexeme: next_expr.annotation.lexeme,
       },
   };
   let next_expr =
