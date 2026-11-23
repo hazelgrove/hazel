@@ -296,6 +296,14 @@ let rewrite = (program: Exp.t): Exp.t => {
         ...def,
         term: Module(items),
       };
+    /* (dev's statics lower a module's body to nested lets and type aliases ending in a labeled tuple of its members,
+       Statics.re's Module case) its members, walked as the program's own lets are; the chain as it was after it */
+    | Let(_)
+    | TyAlias(_) =>
+      let saved = chain^;
+      let def = go(def);
+      chain := saved;
+      def;
     | _ => def
     }
   and member = (item: Mod.t): Mod.t =>
