@@ -2279,11 +2279,13 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
 let join_hole_pieces =
     (
       ~secondary,
-      ids: list(Id.t),
+      term_ids: list(Id.t),
       pieces: list(Any.t),
       segs: list(Segment.t),
     )
     : Segment.t => {
+  /* One grout id between each pair of pieces, from the hole's own ids. */
+  let ids = PadIds.pad_ids(max(0, List.length(segs) - 1), term_ids);
   let (@) = concat_segment(~secondary);
   switch (pieces, segs) {
   | ([_, ...pieces], [first, ...segs]) =>
@@ -2523,13 +2525,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | MultiHole(pieces) =>
     // TODO: Add optional newlines
     let+ es = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas.
-       For N elements, we need N-1 grout pieces (one between each pair). */
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(exp) |> PadIds.pad_ids(num_grouts);
     wrap(
       exp,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, es),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(exp),
+        pieces,
+        segs,
+      ),
     );
   | Parens({term: Fun(p, e, t, _), _} as inner_exp) =>
     // TODO: Add optional newlines
@@ -3097,9 +3100,12 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
         List.map(pieces, ~f=piece =>
           PrettySegment.select(any_to_pretty(~settings, piece))
         );
-      let ids =
-        IdTagged.ids(mp) |> PadIds.pad_ids(max(0, List.length(pieces) - 1));
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs);
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(mp),
+        pieces,
+        segs,
+      );
     | EmptyHole => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, "?")
     };
   wrap(mp, content);
@@ -3281,12 +3287,14 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | MultiHole(pieces) =>
     let+ segs =
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(segs) - 1);
-    let ids = IdTagged.ids(pat) |> PadIds.pad_ids(num_grouts);
     wrap(
       pat,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(pat),
+        pieces,
+        segs,
+      ),
     );
   | Ap(p1, {term: Tuple([]), _} as arg)
       when Id.is_nullary_ap_flag(IdTagged.ids(arg)) =>
@@ -3397,12 +3405,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(MultiHole(pieces))) =>
     let+ segs =
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let ids =
-      IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     wrap(
       typ,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(typ),
+        pieces,
+        segs,
+      ),
     );
   | Var(v) => wrap(typ, text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v))
   | Atom(a) =>
@@ -3685,12 +3695,14 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | MultiHole(pieces) =>
     let+ segs =
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
-    /* Use IDs from the term for grout pieces, like Tuple uses for commas. */
-    let num_grouts = max(0, List.length(segs) - 1);
-    let ids = IdTagged.ids(tpat) |> PadIds.pad_ids(num_grouts);
     wrap(
       tpat,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(tpat),
+        pieces,
+        segs,
+      ),
     );
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   };
@@ -3737,11 +3749,14 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     )
   | MultiHole(pieces) =>
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
-    let ids =
-      IdTagged.ids(item) |> PadIds.pad_ids(max(0, List.length(pieces) - 1));
     wrap_item(
       item,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(item),
+        pieces,
+        segs,
+      ),
     );
   };
 }
@@ -3775,11 +3790,14 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     )
   | MultiHole(pieces) =>
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
-    let ids =
-      IdTagged.ids(item) |> PadIds.pad_ids(max(0, List.length(pieces) - 1));
     wrap_item(
       item,
-      join_hole_pieces(~secondary=settings.secondary, ids, pieces, segs),
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(item),
+        pieces,
+        segs,
+      ),
     );
   };
 }
@@ -3815,28 +3833,17 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
     OptUtil.get(() => Id.mk(), ListUtil.hd_opt(IdTagged.ids(rul)));
   switch (rul |> IdTagged.term_of) {
   | Invalid(t) => wrap(rul, invalid_to_pretty(rep_id, Sort.Rul, t))
-  | MultiHole(es) =>
-    let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
-    let num_grouts = max(0, List.length(es) - 1);
-    let ids = IdTagged.ids(rul) |> PadIds.pad_ids(num_grouts);
-    let seg =
-      switch (es) {
-      | [] => []
-      | [first, ...rest] =>
-        first
-        @ List.concat(
-            List.map2_exn(ids, rest, ~f=(id, e) =>
-              [
-                Grout({
-                  id,
-                  shape: Concave,
-                }),
-                ...e,
-              ]
-            ),
-          )
-      };
-    wrap(rul, seg);
+  | MultiHole(pieces) =>
+    let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
+    wrap(
+      rul,
+      join_hole_pieces(
+        ~secondary=settings.secondary,
+        IdTagged.ids(rul),
+        pieces,
+        segs,
+      ),
+    );
   | Rules(scrut, rules) =>
     /* A case-less rule chain (scrutinee followed by | p => e clauses),
        reachable as a MultiHole kid */
