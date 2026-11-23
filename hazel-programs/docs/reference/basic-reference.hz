@@ -50,6 +50,14 @@ let natural =
   1 + 2 * 5 
 in
 
+# "where" is a let written after its body, #
+# so the main expression can come first #
+let hypotenuse_squared =
+  a_squared + b_squared
+  where a_squared = 3 * 3
+  where b_squared = 4 * 4
+in
+
 # Strings #
 let string = "Hello, world!" in 
 let concatenation  = string ++ " Goodbye." in

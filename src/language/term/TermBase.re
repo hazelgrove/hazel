@@ -406,8 +406,8 @@ and Exp: {
         | TupleExtension(e1, e2) =>
           TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
-        | Let(p, e1, e2) =>
-          Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Let(dir, p, e1, e2) =>
+          Let(dir, pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e1, e2) =>
           Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | ProofObject(t) => ProofObject(exp_map_term(t))

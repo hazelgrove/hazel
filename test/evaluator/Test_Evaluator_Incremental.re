@@ -93,7 +93,7 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
   let rec go = (e: Exp.t): Exp.t => {
     let f_exp = (continue, e: Exp.t): Exp.t =>
       switch (e.term) {
-      | Let(_, def, body)
+      | Let(_, _, def, body)
           when
             switch (def.term) {
             | Atom(Int(n)) =>
@@ -962,8 +962,8 @@ let c = {
   /* Locate module c's RHS — the third top-level `let` (after fib, a). */
   let rec find_c_rhs = (depth, e: Exp.t): option(Exp.t) =>
     switch (e.term) {
-    | Let(_, rhs, _) when depth == 2 => Some(rhs)
-    | Let(_, _, body) => find_c_rhs(depth + 1, body)
+    | Let(_, _, rhs, _) when depth == 2 => Some(rhs)
+    | Let(_, _, _, body) => find_c_rhs(depth + 1, body)
     | _ => None
     };
   let c_rhs =
@@ -1035,7 +1035,7 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
   let (_, elab) = statics_and_elab(exp);
   let rhs_tuple_elts =
     switch (elab.term) {
-    | Let(_, rhs, _) =>
+    | Let(_, _, rhs, _) =>
       switch (rhs.term) {
       | Tuple(elts) => elts
       | _ => []
@@ -1111,7 +1111,7 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
   );
   let rec find_let_x_rhs = (e: Exp.t): option(Exp.t) =>
     switch (e.term) {
-    | Let(_, rhs, _) => Some(rhs)
+    | Let(_, _, rhs, _) => Some(rhs)
     | Parens(inner) => find_let_x_rhs(inner)
     | _ => None
     };

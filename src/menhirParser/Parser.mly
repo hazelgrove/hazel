@@ -39,6 +39,7 @@ open AST
 %token <Bigint.t> INT
 %token <float> FLOAT
 %token LET
+%token WHERE
 %token USE
 %token MODULE
 %token FUN
@@ -124,6 +125,7 @@ open AST
 
 
 /* Structural mixfix forms - loosest binding (bodies include flat sequences) */
+%left WHERE
 %nonassoc LET_EXP
 %right SUM_TYP
 %right DASH_ARROW
@@ -476,6 +478,7 @@ exp:
     | f = exp; UNIT { ApExp(f, TupleExp([])) }
     | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | body = exp; WHERE; p = pat; SINGLE_EQUAL; def = exp { WhereExp(body, p, def) } %prec WHERE
     | USE; t = typ; IN; e = exp { Use(t, e) } %prec LET_EXP
     (* Bare tuples at a let: `let a, b = e in` / `let x = e1, e2 in` *)
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP

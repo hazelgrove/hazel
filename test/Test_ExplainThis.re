@@ -217,6 +217,7 @@ let corpus = [
   ("tuple2", "(1, 2)"),
   ("arrow3", "let f : Int -> Bool -> Int = f in f"),
   ("pipeline", "1 |> fun x -> x"),
+  ("where", "x where x = 1"),
   ("test", "test true end"),
   ("seq", "1; 2"),
   /* Bypass shapes: an annotated pattern diverges between the specific and
@@ -414,6 +415,13 @@ fun x -> x => (FunctionExp Base) colorings=[x,x]
 fun x -> x => (FunctionExp Var) colorings=[x,x]
 x => VarExp colorings=[]
 x => VarPat colorings=[]|},
+  ),
+  (
+    "where",
+    {|1 => IntExp colorings=[]
+x => VarExp colorings=[]
+x => VarPat colorings=[]
+x where x = 1 => WhereExp colorings=[1,x,x]|},
   ),
   (
     "test",
@@ -667,6 +675,7 @@ let expected_groups = [
   "VarPat",
   "VarTPat",
   "VarTyp",
+  "WhereExp",
   "WildPat",
 ];
 

@@ -389,6 +389,15 @@ let tests =
         "let x = 5 in x",
       ),
       full_parser_test(
+        "Where",
+        where(var("x"), Fresh.Pat.var("x"), int(5)),
+        "x where x = 5",
+      ),
+      menhir_maketerm_equivalent_test(
+        "where scopes over a let to its left, left associative",
+        "let y = x in y where x = z where z = 1",
+      ),
+      full_parser_test(
         "Let with an accented name",
         let_(Fresh.Pat.var("caf\xc3\xa9"), int(5), var("caf\xc3\xa9")),
         "let caf\xc3\xa9 = 5 in caf\xc3\xa9",

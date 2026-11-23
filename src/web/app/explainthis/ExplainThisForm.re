@@ -137,6 +137,7 @@ type example_id =
   | CaseBool
   | VoidAbsurd
   | Pipeline1
+  | Where1
   | FilterStep
   | FilterEval
   | FilterHide
@@ -291,6 +292,7 @@ type form_id =
   | MultiHoleTPat
   | VarTPat
   | PipelineExp
+  | WhereExp
   | FilterPause
   | FilterEval
   | FilterDebug
