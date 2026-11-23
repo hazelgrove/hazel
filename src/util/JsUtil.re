@@ -848,3 +848,9 @@ let navigate_probes =
   | None => None
   };
 };
+
+/* attached to the document: a stale node's reads are meaningless */
+let connected = (el: Js.t(Dom_html.element)): bool =>
+  try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
+  | _ => false
+  };
