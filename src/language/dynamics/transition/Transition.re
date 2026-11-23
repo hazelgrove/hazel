@@ -435,7 +435,7 @@ module Transition = (EV: EV_MODE) => {
            | `Environment
          ],
         ~targets: Sample.targets=Sample.no_targets,
-        env: Environment.t(Exp.t), // Environment is empty in substitution mode
+        env: Environment.t(Exp.t), // In substitution mode, the bindings not yet written into the term
         d,
       )
       : EV.result => {

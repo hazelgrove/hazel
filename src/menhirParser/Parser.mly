@@ -502,10 +502,9 @@ ascTyp:
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | t = labeledSingletonTyp { ParenTyp(t) }
 
-(* NB fun bodies DO swallow `;` (Hazel: fun x -> 1; 2 is
-   Fun(x, Seq(1, 2))). Module member boundaries are safe regardless:
-   the lexer emits MOD_SEMI for member separators, which no exp
-   production consumes. *)
+(* A fun body takes in a following `;`, as in Hazel: `fun x -> 1; 2` is
+   Fun(x, Seq(1, 2)). Module members aren't affected: the lexer emits
+   MOD_SEMI between them, which no exp production consumes. *)
 funExp: 
     | FUN; p = funPat; DASH_ARROW; e1 = exp; { Fun (p, e1, None) }
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) }

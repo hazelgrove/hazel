@@ -56,7 +56,7 @@ module Settings = {
        used by FastParse so a source `?` lands as the tile the typing parser
        would make, keeping explicit `?` holes distinct from Grout
        (whose text serialization is the `¿` marker). A recorded hole
-       lexeme still wins: it IS the source spelling. */
+       lexeme still wins: it is the source spelling. */
     hole_tiles: bool,
   };
 
@@ -2524,7 +2524,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, l @ [op_tile(id, Sort.Exp, op)] @ r);
   | MultiHole(pieces) =>
     // TODO: Add optional newlines
-    let+ es = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
+    let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
     wrap(
       exp,
       join_hole_pieces(
@@ -3084,7 +3084,7 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
       inner_seg
       @ [
         Tile({
-          /* the Asc term's rep id IS the colon tile id from parsing;
+          /* the Asc term's rep id is the colon tile id from parsing;
              a fresh id here would churn identity on every print */
           id: MPat.rep_id(mp),
           form: Form.Compound(TypeAsc),

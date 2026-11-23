@@ -333,11 +333,8 @@ module Decompose = {
   };
 
   module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (env, exp) => {
-    switch (exp) {
-    | _ => Decomp.transition(decompose, ~mode=`Substitution, env, exp)
-    };
-  };
+  let rec decompose = (env, exp) =>
+    Decomp.transition(decompose, ~mode=`Substitution, env, exp);
 };
 
 module TakeStep = {

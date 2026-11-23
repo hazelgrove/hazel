@@ -464,7 +464,7 @@ let module_actual_type =
                | Some({typ, _}) => typ
                | None => ty
                };
-             /* Scope escape: only module-LOCAL aliases must be inlined
+             /* Scope escape: only module-local aliases must be inlined
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
              Typ.normalize(

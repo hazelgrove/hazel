@@ -1282,7 +1282,8 @@ let incremental_agrees = (~testable=testable_core_exp, ~literal_index, src) =>
     parse_exp(src),
   );
 
-let survey_tests = [
+/* One example of each cause the evaluator properties have found. */
+let found_cause_tests = [
   /* Negation's kind decided by the context, then re-decided by the operand
      once a step exposes it. */
   test_case("Preservation: - undefined:Float:?_?", `Quick, () =>
@@ -1753,5 +1754,5 @@ let tests = (
     preservation_rec_unused_binder_pin,
   ]
   @ incremental_recursive_lets_tests
-  @ survey_tests,
+  @ found_cause_tests,
 );

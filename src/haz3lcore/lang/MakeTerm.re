@@ -918,7 +918,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
            which expects List.hd = bracket, List.tl = commas. */
         switch (body) {
         | {term: Tuple([{term: TupLabel(_), _}]), _} =>
-          /* Single labeled element: body IS the synthesized singleton
+          /* Single labeled element: body is the synthesized singleton
              wrapper carrying the = tile's id — keep it whole so the
              printer's singleton-unwrap restores the id (adopting its
              ids as comma ids would strand them: a one-element list

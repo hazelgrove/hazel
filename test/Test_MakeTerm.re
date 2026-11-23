@@ -435,8 +435,6 @@ let tests =
           ["x:a b(c) + 1", "x:a b() + 1"],
         )
       ),
-      /* Invalid tokens: fixed junk examples (not a full invalid-string grammar).
-         Print Invalid(s) as bare `s`; MakeTerm rebuilds Invalid(s). */
       /* An unknown operator joining a module item's operands stays one
          item, an expression holding the operator, so it prints. */
       test_case(

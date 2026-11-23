@@ -2247,7 +2247,7 @@ and uexp_to_info_map =
           let def_elab =
             def_elab
             |> Exp.add_name(Option.map(~f=s => s ++ "+", Pat.get_var(p)));
-          /* Give the fixpoint the function's surface id (which IS in
+          /* Give the fixpoint the function's surface id (which is in
            * info_map, so it gets a cache entry), and give the inner Fun a
            * derived id (which isn't in info_map, but that's fine — the
            * FixF's cache entry subsumes it). This makes the function->closure
@@ -2879,7 +2879,51 @@ and uexp_to_info_map =
     | Parens(inner) => tuple_case_owns(inner, label)
     | Tuple(es) =>
       LabeledTuple.is_singleton_of(Exp.match_tup_label, es, label)
-    | _ => false
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | TupLabel(_)
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | TyAlias(_)
+    | Use(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Filter(_)
+    | Closure(_)
+    | Projector(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Asc(_)
+    | Module(_)
+    | ModuleExp(_) => false
     };
 
   /* A hole can still be filled by anything, including the label itself, so
@@ -3874,7 +3918,21 @@ and upat_to_info_map =
     | Parens(inner) => tuple_case_owns(inner, label)
     | Tuple(ps) =>
       LabeledTuple.is_singleton_of(Pat.match_tup_label, ps, label)
-    | _ => false
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Label(_)
+    | TupLabel(_)
+    | Projector(_)
+    | Ap(_)
+    | Asc(_) => false
     };
   if (under_ascription) {
     default_case();

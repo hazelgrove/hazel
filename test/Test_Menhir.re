@@ -163,18 +163,13 @@ let menhir_maketerm_print_equivalent_test = (name: string, exp: AST.exp) =>
     },
   );
 
-/**
- * QCheck Test to check the equivalence of the Menhir and MakeTerm parsing.
- * We generate an expression, convert it to the core representation, convert it to a segment,
- * serialize it, parse it with MakeTerm, and parse it with Menhir.
- */
 /* Module items the two parsers still disagree on: the `…-in` binder forms.
    Inside `{ }` the editor molds `let` as a module-item `let … =`, which has no
    `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
    `1 in y` (`in` left as an unknown infix), where Menhir reads an expression
    item. Which reading is intended is undecided (#2754). Parenthesizing the item
-   avoids it. Pinned by skipped tests below; generated terms containing one are
-   discarded rather than judged. */
+   avoids it. Pinned by known-bug tests below; generated terms containing one
+   are discarded rather than judged. */
 let is_unsupported_mod_item = (e: Exp.t): bool =>
   switch (Exp.term_of(e)) {
   | Let(_)
@@ -245,9 +240,7 @@ let qcheck_menhir_maketerm_equivalent_test =
         }
       ) {
       | true => true
-      | false =>
-        print_endline("Mismatch on: " ++ serialized);
-        false;
+      | false => QCheck.Test.fail_reportf("Mismatch on: %s", serialized)
       | exception e =>
         QCheck.Test.fail_reportf("%s on: %s", Exn.to_string(e), serialized)
       };
@@ -310,14 +303,9 @@ let qcheck_menhir_serialized_equivalent_test =
         }
       ) {
       | true => true
-      | false =>
-        print_endline("Mismatch on: " ++ serialized);
-        Out_channel.flush(stdout);
-        false;
-      | exception _ =>
-        print_endline("Parse error on: " ++ serialized);
-        Out_channel.flush(stdout);
-        false;
+      | false => QCheck.Test.fail_reportf("Mismatch on: %s", serialized)
+      | exception e =>
+        QCheck.Test.fail_reportf("%s on: %s", Exn.to_string(e), serialized)
       };
     },
   );
@@ -1582,7 +1570,7 @@ let found_shapes = [
   /* `case … end` has no Mod mold, so inside `{ }` its `| =>` carries the
      Any fallback mold until remolding revisits it. */
   menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 case as module item",
+    "Case as module item",
     {|{ case _ | _ => 1 end }|},
   ),
   /* The `…-in` binder forms read differently as bare module items (see
@@ -1602,22 +1590,22 @@ let found_shapes = [
   /* The `;` inside parens is a sequence in both parsers, not a module
      separator, though it was typed inside the braces. */
   menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 parenthesized sequence as module item",
+    "Parenthesized sequence as module item",
     {|{ (9; 8) }|},
   ),
   /* Nested singleton tuple patterns `(_=(_=p))` agree in both parsers. */
   menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 nested singleton tuple pattern in fun",
+    "Nested singleton tuple pattern in fun",
     {|fun (_=(_=?)) -> 1|},
   ),
   menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 nested singleton tuple pattern in case rule",
+    "Nested singleton tuple pattern in case rule",
     {|case _ | (_=(_=?)) => ? end|},
   ),
   /* `Void` is the empty sum, so this is a sum entry that is itself a sum:
      both parsers keep it as one bad entry. */
   menhir_maketerm_equivalent_test(
-    "REPRO Menhir85 Void as a bare sum entry",
+    "Void as a bare sum entry",
     {|1 : (+ Void)|},
   ),
   /* Other bare sum entries agree — these must keep passing. */

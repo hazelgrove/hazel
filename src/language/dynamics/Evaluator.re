@@ -190,7 +190,7 @@ let rec evaluate =
         ~f=
           (env, effect) =>
             switch (effect) {
-            | EvaluatorState.SetEnv(env) => env
+            | EvaluatorState.SetEnv(new_env) => new_env
             | RecordTest(_)
             | RecordStackFrame(_)
             | RecordPatMatch(_)
