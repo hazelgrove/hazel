@@ -199,7 +199,7 @@ and function_of = (f: Exp.t): Js.Unsafe.any => {
    type the function declares, if any: one argument by the whole type,
    several by the tuple's components */
 and arg_of_js = (param: option(Typ.t), args: Js.Unsafe.any_js_array): Exp.t => {
-  let args = Array.to_list(Js.to_array(args));
+  let args = Array.to_list(Js.to_array(Js.Unsafe.coerce(args)));
   switch (args, param) {
   | ([], _) => Exp.fresh(Tuple([]))
   | ([a], Some(t)) => of_js_at(~recs=[], t, a)
