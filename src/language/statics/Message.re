@@ -40,7 +40,7 @@ type underdetermined_typ =
   | ProdProjectionMissingLabel(LabeledTuple.label, list(LabeledTuple.label))
   | ProdProjectionBadArgs({
       product: option(Typ.t),
-      label: option(Typ.t),
+      label: option(Label.t),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -52,7 +52,6 @@ type ok_typ =
       whnormalized: Typ.t,
     })
   | Type(Typ.t)
-  | EmptyLabel
   | TypeUnderdetermined(underdetermined_typ);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

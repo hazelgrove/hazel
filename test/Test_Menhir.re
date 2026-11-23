@@ -1066,7 +1066,7 @@ let ex5 = list_of_mylist(x) in
             Fresh.Pat.(
               asc(
                 var("x"),
-                Fresh.Typ.(parens(prod([tup_label(label("a"), int())]))),
+                Fresh.Typ.(parens(prod_entries([labeled("a", int())]))),
               )
             ),
             int(1),

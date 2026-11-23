@@ -153,8 +153,6 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")
       | Prod => prod([])
-      | TupLabel =>
-        tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Parens => parens(unknown(Hole(EmptyHole)))
       | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
       | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
@@ -162,15 +160,11 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)
-      | ExplicitNonlabel => explicit_non_label()
       | Label => label("label")
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])
       | ProdProjection =>
-        prod_projection(
-          unknown(Hole(EmptyHole)),
-          unknown(Hole(EmptyHole)),
-        )
+        prod_projection(unknown(Hole(EmptyHole)), Label.empty_hole())
       | ProdExtension =>
         prod_extension(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Constructor => assert(false) // Excluded because there is no Typ constructor

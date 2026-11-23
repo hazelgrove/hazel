@@ -10,9 +10,9 @@ module ToLvsOperation = {
       "to_lvs((a=1, b=2, c=3, d=4))",
       Some(
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), int()),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", int()),
           ]),
         ),
       ),
@@ -23,9 +23,9 @@ module ToLvsOperation = {
         to_lvs(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
       Some(
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", unknown(Internal)),
           ]),
         ),
       ),
@@ -34,9 +34,9 @@ module ToLvsOperation = {
       annotated_tree_test(
         "to_lvs(1, 2)",
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", unknown(Internal)),
           ]),
         ),
         FIError.Exp.(
@@ -48,9 +48,9 @@ module ToLvsOperation = {
                     ToLvsMissingLabelsOnTuple(
                       Typ.(
                         list(
-                          prod([
-                            tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal)),
+                          prod_entries([
+                            labeled("label", string()),
+                            labeled("value", unknown(Internal)),
                           ]),
                         )
                       ),
@@ -69,9 +69,9 @@ module ToLvsOperation = {
       annotated_tree_test(
         "to_lvs(1)",
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", unknown(Internal)),
           ]),
         ),
         FIError.Exp.(
@@ -83,9 +83,9 @@ module ToLvsOperation = {
                     ToLvsMissingLabelsOnTuple(
                       Typ.(
                         list(
-                          prod([
-                            tup_label(label("label"), string()),
-                            tup_label(label("value"), unknown(Internal)),
+                          prod_entries([
+                            labeled("label", string()),
+                            labeled("value", unknown(Internal)),
                           ]),
                         )
                       ),
@@ -105,9 +105,9 @@ module ToLvsOperation = {
       annotated_tree_test(
         "to_lvs(?)",
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), unknown(Internal)),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", unknown(Internal)),
           ]),
         ),
         FIError.Exp.(ap(Forward, var("to_lvs"), empty_hole())),
@@ -118,9 +118,9 @@ module ToLvsOperation = {
       annotated_tree_test(
         "to_lvs((?, b=2))",
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), int()),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", int()),
           ]),
         ),
         FIError.Exp.(
@@ -136,9 +136,9 @@ module ToLvsOperation = {
       annotated_tree_test(
         "to_lvs((?=1, b=2, c=3))",
         list(
-          prod([
-            tup_label(label("label"), string()),
-            tup_label(label("value"), int()),
+          prod_entries([
+            labeled("label", string()),
+            labeled("value", int()),
           ]),
         ),
         FIError.Exp.(
@@ -411,10 +411,7 @@ module SelectLabels = {
     test_case("select_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1, b=true, c=3), `a`, `b`)|},
-        prod([
-          tup_label(label("a"), int()),
-          tup_label(label("b"), bool()),
-        ]),
+        prod_entries([labeled("a", int()), labeled("b", bool())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -435,10 +432,10 @@ module SelectLabels = {
     test_case("select_labels with more appropriate labels", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1,b=2,c=3), `c`, `a`, `c`)|},
-        prod([
-          tup_label(label("c"), int()),
-          tup_label(label("a"), int()),
-          tup_label(label("c"), int()),
+        prod_entries([
+          labeled("c", int()),
+          labeled("a", int()),
+          labeled("c", int()),
         ]),
         FIError.Exp.(
           ap(
@@ -461,10 +458,10 @@ module SelectLabels = {
     test_case("select_labels with non-label", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
-        prod([
-          tup_label(label("a"), int()),
-          unknown(Internal),
-          tup_label(label("c"), int()),
+        prod_entries([
+          labeled("a", int()),
+          Unlabeled(unknown(Internal)),
+          labeled("c", int()),
         ]),
         FIError.Exp.(
           ap(
@@ -487,10 +484,10 @@ module SelectLabels = {
     test_case("select_labels with holes for labels", `Quick, () =>
       annotated_tree_test(
         {|select_labels((a=1, b="", c=true), `a`, ?, `c`)|},
-        prod([
-          tup_label(label("a"), int()),
-          unknown(Internal),
-          tup_label(label("c"), bool()),
+        prod_entries([
+          labeled("a", int()),
+          Unlabeled(unknown(Internal)),
+          labeled("c", bool()),
         ]),
         FIError.Exp.(
           ap(
@@ -603,10 +600,7 @@ module SelectLabels = {
     test_case("select_labels with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         {|select_labels((?=1, b=true, c=3), `b`, `c`)|},
-        prod([
-          tup_label(label("b"), bool()),
-          tup_label(label("c"), int()),
-        ]),
+        prod_entries([labeled("b", bool()), labeled("c", int())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -639,10 +633,10 @@ module SelectLabels = {
     test_case("select_labels with deferral in subsequent args", `Quick, () => {
       annotated_tree_test(
         {|select_labels((a=1, b=true, c=3), `a`, _, `c`)|},
-        prod([
-          tup_label(label("a"), int()),
-          unknown(Internal),
-          tup_label(label("c"), int()),
+        prod_entries([
+          labeled("a", int()),
+          Unlabeled(unknown(Internal)),
+          labeled("c", int()),
         ]),
         FIError.Exp.(
           ap(
@@ -944,7 +938,7 @@ module OmitLabels = {
     test_case("omit_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), `a`, `b`)|},
-        prod([tup_label(label("c"), int())]),
+        prod_entries([labeled("c", int())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -965,7 +959,7 @@ module OmitLabels = {
     test_case("omit_labels with non-label", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
-        prod([tup_label(label("b"), bool())]),
+        prod_entries([labeled("b", bool())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -987,7 +981,7 @@ module OmitLabels = {
     test_case("omit_labels with holes for labels to omit", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b="", c=true), `a`, ?, `c`)|},
-        prod([tup_label(label("b"), string())]),
+        prod_entries([labeled("b", string())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -1009,10 +1003,10 @@ module OmitLabels = {
     test_case("omit_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), `d`)|},
-        prod([
-          tup_label(label("a"), int()),
-          tup_label(label("b"), bool()),
-          tup_label(label("c"), int()),
+        prod_entries([
+          labeled("a", int()),
+          labeled("b", bool()),
+          labeled("c", int()),
         ]),
         FIError.Exp.(
           ap(
@@ -1042,7 +1036,7 @@ module OmitLabels = {
     test_case("omit_labels with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((?=1, b=true, c=3), `b`, `c`)|},
-        prod([tup_label(empty_hole(), int())]),
+        prod_entries([labeled'(Label.empty_hole(), int())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -1161,7 +1155,7 @@ module OmitLabels = {
     test_case("omit_labels with deferral in subsequent args", `Quick, () => {
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), `a`, _, `c`)|},
-        prod([tup_label(label("b"), bool())]),
+        prod_entries([labeled("b", bool())]),
         FIError.Exp.(
           ap(
             Forward,

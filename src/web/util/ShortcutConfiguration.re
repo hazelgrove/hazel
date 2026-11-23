@@ -64,20 +64,16 @@ let source = {
    context, so the slide needs no type declarations of its own. */
 let expected_type = {
   IdTagged.FreshGrammar.Typ.(
-    prod(
-      List.map(
-        ~f=
-          s =>
-            tup_label(
-              label(A.section_label(s)),
-              prod(
-                List.map(
-                  ~f=a => tup_label(label(A.label(a)), var("Shortcut")),
-                  A.in_section(s),
-                ),
-              ),
+    prod_entries(
+      List.map(A.populated_sections, ~f=s =>
+        labeled(
+          A.section_label(s),
+          prod_entries(
+            List.map(A.in_section(s), ~f=a =>
+              labeled(A.label(a), var("Shortcut"))
             ),
-        A.populated_sections,
+          ),
+        )
       ),
     )
   );
