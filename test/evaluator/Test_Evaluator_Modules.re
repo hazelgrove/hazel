@@ -3,6 +3,15 @@ open Test_Evaluator_Prelude;
 
 /* Module dynamics tests - Phase 1 implementation */
 
+let test_nested_signature_module =
+  test_case(
+    "A signature-ascribed nested module isn't wrapped twice", `Quick, () =>
+    parse_and_evaluate_test(
+      "(y=2)",
+      {|module M = { module N : { let y : Int } = { let y = 2 } } in M.N|},
+    )
+  );
+
 /* Test empty module evaluates to empty tuple */
 let test_empty_module =
   test_case("Empty module evaluates to unit", `Quick, () => {
@@ -132,6 +141,7 @@ let tests = (
   "Evaluator.Modules",
   [
     test_empty_module,
+    test_nested_signature_module,
     test_single_binding,
     test_multiple_bindings,
     test_shadowing,

@@ -2833,35 +2833,6 @@ and uexp_to_info_map =
         ModuleHelpers.lower(~ctx, ~ana, ~module_id=Exp.rep_id(uexp), items);
       let (expanded_info, expanded_elab, m) = go(lowered.expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
-      /* Each item wrapper's recorded elab_term is a suffix of the module's
-         elaboration, which carries the module's id on its export record
-         (restore_module_body_id). Match it, or a trailing `type` item, whose
-         elab_term is just that record, stays rooted at the record's own id. */
-      let m =
-        List.fold(
-          ~f=
-            (m, item: Mod.t) =>
-              switch (
-                StaticsBase.Map.lookup_exp(ModuleHelpers.wrapper_id(item), m)
-              ) {
-              | Some(info) =>
-                StaticsBase.Map.add_info(
-                  ModuleHelpers.wrapper_ids(item),
-                  Info.InfoExp({
-                    ...info,
-                    elab_term:
-                      ModuleHelpers.restore_module_body_id(
-                        ~id=Exp.rep_id(uexp),
-                        info.elab_term,
-                      ),
-                  }),
-                  m,
-                )
-              | None => m
-              },
-          ~init=m,
-          items,
-        );
       /* Build actual Prod type from module's exported bindings, rather than
          using expanded_info.ty which masks width errors via fixed_typ. */
       let actual_ty =
@@ -2870,14 +2841,12 @@ and uexp_to_info_map =
           lowered.value_exports,
           m,
         );
-      let module_elab =
-        ModuleHelpers.module_elab(
-          ~module_exp_id=Exp.rep_id(uexp),
-          ~keep=ModuleHelpers.user_item_ascriptions(items),
-          expanded_elab,
-        );
       add(
-        ~elab_term=module_elab,
+        ~elab_term=
+          ModuleHelpers.module_body_with_id(
+            ~id=Exp.rep_id(uexp),
+            expanded_elab,
+          ),
         ~elab_syn_ty=actual_ty,
         ~marks=[],
         ~co_ctx=expanded_info.co_ctx,
@@ -2923,7 +2892,7 @@ and uexp_to_info_map =
         };
       let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
       let moduleexp_elab =
-        ModuleHelpers.moduleexp_elab(~mp, ~def_elab_direct, expanded_elab);
+        ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
         ~elab_term=moduleexp_elab,
         ~elab_syn_ty=expanded_info.elab_syn_ty,
@@ -3928,7 +3897,10 @@ and upat_to_info_map =
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
-        ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
+        ~elab_term=
+          ModuleHelpers.is_signature_ascription(~inner=p.user_term, upat)
+            ? p_elab
+            : Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~elab_syn_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,

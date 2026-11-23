@@ -168,7 +168,8 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
 
 /* The export record has no source position, so its ids are derived from
    the module's: the same on every statics run, so the incremental cache
-   can hit them, and distinct from the module's own id. A later item's
+   can hit them, and distinct from the module's own id (module_body_with_id
+   gives the elaboration's record the module's id afterwards). A later item's
    binding of a name shadows the earlier export, but one item can bind a
    name twice (`let (x, x) = …`), so each field's ids carry its position
    as well as its name. */
@@ -366,6 +367,17 @@ let wrap_item =
   };
 };
 
+/* Whether `pat` is an ascription modlet_pat added to `inner`. It checks the
+   item against the signature, but the module's elaboration leaves it out:
+   the user didn't write it. */
+let is_signature_ascription = (~inner: Pat.t, pat: Pat.t): bool =>
+  Id.equal(
+    Pat.rep_id(pat),
+    Id.derive(~salt="module-item-signature", Pat.rep_id(inner)),
+  );
+
+/* TODO: lowering goes away when modules-ii (#2493) gives modules real
+   values. */
 let lower =
     (
       ~ctx: Ctx.t,
@@ -392,82 +404,16 @@ let lower =
   };
 };
 
-/* Strip ascriptions from the patterns of a lowered module's item chain.
-   Lowering adds ascriptions from the module's signature and its module
-   patterns; `keep` names the ascriptions the user wrote on item patterns
-   (`{ let y : T = … }`), which stay, or the module elaborates to a different
-   type than the user's code has. An item's definition is left alone: a nested
-   module is stripped when it is lowered, and stripping the definition would
-   drop the user's own ascriptions (`{ let y = (let z : T = e in z) }`). */
-let rec strip_module_sig_pats = (~keep=Id.Set.empty, exp: Exp.t): Exp.t => {
+/* The module's elaboration, with the module's id on the export record it
+   evaluates to, so a probe or a cache keyed by the module's id finds it. */
+let rec module_body_with_id = (~id, exp: Exp.t): Exp.t => {
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   | Let(p, def, body) =>
-    Let(
-      strip_module_sig_pats_in_pat(~keep, p),
-      def,
-      strip_module_sig_pats(~keep, body),
-    )
-    |> rewrap
+    Let(p, def, module_body_with_id(~id, body)) |> rewrap
   | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, strip_module_sig_pats(~keep, body)) |> rewrap
-  | Parens(inner) => Parens(strip_module_sig_pats(~keep, inner)) |> rewrap
-  | _ => exp
-  };
-}
-and strip_module_sig_pats_in_pat = (~keep=Id.Set.empty, pat: Pat.t): Pat.t => {
-  let (term, rewrap) = Pat.unwrap(pat);
-  switch (term) {
-  | Asc(inner, t) when Id.Set.mem(Pat.rep_id(pat), keep) =>
-    Asc(strip_module_sig_pats_in_pat(~keep, inner), t) |> rewrap
-  | Asc(inner, _) => strip_module_sig_pats_in_pat(~keep, inner)
-  | Parens(inner) =>
-    Parens(strip_module_sig_pats_in_pat(~keep, inner)) |> rewrap
-  | _ => pat
-  };
-};
-
-/* Ids of the ascriptions the user wrote on a module binder (`module M : S`),
-   which mpat_to_pat gives the binder's own ids. */
-let rec mpat_ascriptions = (acc: Id.Set.t, mp: MPat.t): Id.Set.t =>
-  switch (mp.term) {
-  | Asc(inner, _) =>
-    mpat_ascriptions(Id.Set.add(MPat.rep_id(mp), acc), inner)
-  | _ => acc
-  };
-
-/* Ids of the ascriptions the user wrote on module items' binders: `let`
-   patterns and module binders. */
-let user_item_ascriptions = (items: list(Mod.t)): Id.Set.t => {
-  let rec go = (acc, p: Pat.t) =>
-    switch (Pat.term_of(p)) {
-    | Asc(inner, _) => go(Id.Set.add(Pat.rep_id(p), acc), inner)
-    | Parens(inner) => go(acc, inner)
-    | _ => acc
-    };
-  List.fold(
-    ~f=
-      (acc, item: Mod.t) =>
-        switch (item.term) {
-        | ModLet(pat, _) => go(acc, pat)
-        | ModuleMod(mp, _) => mpat_ascriptions(acc, mp)
-        | _ => acc
-        },
-    ~init=Id.Set.empty,
-    items,
-  );
-};
-
-/* Restores a module body's ID when it's been lost during tuple elaboration.
-   Walks nested Let/TyAlias/Parens until a Tuple is found, then copies the ID. */
-let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
-  let (term, rewrap) = Exp.unwrap(exp);
-  switch (term) {
-  | Let(p, def, body) =>
-    Let(p, def, restore_module_body_id(~id, body)) |> rewrap
-  | TyAlias(tpat, typ, body) =>
-    TyAlias(tpat, typ, restore_module_body_id(~id, body)) |> rewrap
-  | Parens(inner) => Parens(restore_module_body_id(~id, inner)) |> rewrap
+    TyAlias(tpat, typ, module_body_with_id(~id, body)) |> rewrap
+  | Parens(inner) => Parens(module_body_with_id(~id, inner)) |> rewrap
   | Tuple(_) => IdTagged.fast_copy(id, exp)
   | _ => exp
   };
@@ -535,27 +481,12 @@ let module_actual_type =
   Prod(fields) |> Typ.temp;
 };
 
-/* Post-process expanded module elaboration to hide expansion-only wrappers. */
-let module_elab =
-    (~module_exp_id: Id.t, ~keep=Id.Set.empty, expanded_elab: Exp.t): Exp.t =>
-  expanded_elab
-  |> strip_module_sig_pats(~keep)
-  |> restore_module_body_id(~id=module_exp_id);
-
-/* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
-   binder keeps the signature the user wrote (`module M : S = e in …`). */
-let moduleexp_elab =
-    (~mp: MPat.t, ~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
-  let keep = mpat_ascriptions(Id.Set.empty, mp);
+/* Rebuild ModuleExp elaboration with direct def elaboration preserved. */
+let moduleexp_elab = (~def_elab_direct: Exp.t, expanded_elab: Exp.t): Exp.t => {
   let (expanded_term, expanded_rewrap) = Exp.unwrap(expanded_elab);
   switch (expanded_term) {
   | Let(p_elab, _, body_elab) =>
-    Let(
-      strip_module_sig_pats_in_pat(~keep, p_elab),
-      def_elab_direct,
-      body_elab,
-    )
-    |> expanded_rewrap
-  | _ => strip_module_sig_pats(~keep, expanded_elab)
+    Let(p_elab, def_elab_direct, body_elab) |> expanded_rewrap
+  | _ => expanded_elab
   };
 };
