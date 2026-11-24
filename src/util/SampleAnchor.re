@@ -87,16 +87,16 @@ let scroll_horizontally = (el: Js.t(Dom_html.element)): unit => {
       let el_width = el_rect##.right -. el_rect##.left;
       let m = Float.max(pad, Float.min(lookahead, width -. el_width -. pad));
       let delta =
-        if (el_width > width -. 2. *. pad) {
+        if (Float.(el_width > width -. 2. *. pad)) {
           el_rect##.left -. (vp_left +. pad);
-        } else if (el_rect##.left < vp_left +. m) {
+        } else if (Float.(el_rect##.left < vp_left +. m)) {
           el_rect##.left -. (vp_left +. m);
-        } else if (el_rect##.right > vp_right -. m) {
+        } else if (Float.(el_rect##.right > vp_right -. m)) {
           el_rect##.right -. (vp_right -. m);
         } else {
           0.;
         };
-      if (delta != 0.0) {
+      if (Float.(delta != 0.0)) {
         let sl: float = Js.Unsafe.get(main, Js.string("scrollLeft"));
         Js.Unsafe.set(
           main,
@@ -118,7 +118,7 @@ let consume = (): unit =>
     | Some(el) =>
       let (new_top, _, _) = rect_of(el);
       let delta = new_top -. a.top;
-      if (delta != 0.0) {
+      if (Float.(delta != 0.0)) {
         let doc = Dom_html.document;
         Js.Opt.iter(
           doc##getElementById(Js.string("main")),

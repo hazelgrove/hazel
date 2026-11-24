@@ -92,7 +92,12 @@ let lexeme_trace = (e: t): list(option(string)) => {
    applications), so recompute/caching gates must use this variant or
    lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
-  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+  fast_equal(a, b)
+  && List.equal(
+       Option.equal(String.equal),
+       lexeme_trace(a),
+       lexeme_trace(b),
+     );
 
 let temp: term => t =
   term => {
@@ -121,6 +126,61 @@ let strip_projectors =
         },
     _,
   );
+
+/* Parens and Projector are transparent: elaboration keeps both, so code
+   that inspects the head or shape of an expression must look through them.
+   Asc is NOT stripped here; whether an ascription is transparent depends on
+   the call site. */
+let rec strip_wrappers = (e: t): t =>
+  switch (e.term) {
+  | Parens(e)
+  | Projector(_, e) => strip_wrappers(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => e
+  };
 
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
@@ -237,20 +297,71 @@ let show_cls: cls => string =
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
     switch (e.term) {
-    | Parens(e) => match_tup_label(e)
+    | Parens(e)
+    | Projector(_, e)
+    | Asc(e, _) => match_tup_label(e)
     | TupLabel(elab, e') =>
-      switch (elab.term) {
+      switch (strip_wrappers(elab).term) {
       | Label(name) => Some((name, e'))
       | _ => None
       }
-    | Asc(e, _) => match_tup_label(e)
-    | _ => None
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Tuple(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | TyAlias(_)
+    | Use(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Filter(_)
+    | Closure(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Module(_)
+    | ModuleExp(_) => None
     };
   };
 };
 
+/* The entry that `e1.e2` selects when `e1` is a tuple literal. */
+let dot_tuple_entry = (e1: t, e2: t): option(t) =>
+  switch (strip_wrappers(e1).term, strip_wrappers(e2).term) {
+  | (Tuple(ts), Label(name)) =>
+    LabeledTuple.find_label(match_tup_label, ts, name)
+  | _ => None
+  };
+
 let get_label: t => option(LabeledTuple.label) = {
-  e => match_tup_label(e) |> Option.map(fst);
+  e => match_tup_label(e) |> Option.map(~f=fst);
 };
 
 // Typfun should be treated as a function here as this is only used to
@@ -265,21 +376,10 @@ let rec is_fun = (e: t) => {
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
   | Dot(e1, e2) =>
-    let rec check_tuple = (e1: t, e2: t) =>
-      switch (e1.term) {
-      | Parens(e) => check_tuple(e, e2)
-      | Tuple(ts) =>
-        switch (e2.term) {
-        | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-        | _ => None
-        }
-      | _ => None
-      };
-    let element: option(t) = check_tuple(e1, e2);
-    switch (element) {
+    switch (dot_tuple_entry(e1, e2)) {
     | Some(exp) => is_fun(exp)
     | None => false
-    };
+    }
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -330,23 +430,12 @@ let rec is_tuple_of_functions = (e: t) =>
     | Parens(e)
     | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(is_fun)
+    | Tuple(es) => es |> List.for_all(~f=is_fun)
     | Dot(e1, e2) =>
-      let rec check_tuple = (e1: t, e2: t) =>
-        switch (e1.term) {
-        | Parens(e) => check_tuple(e, e2)
-        | Tuple(ts) =>
-          switch (e2.term) {
-          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-          | _ => None
-          }
-        | _ => None
-        };
-      let element: option(t) = check_tuple(e1, e2);
-      switch (element) {
+      switch (dot_tuple_entry(e1, e2)) {
       | Some(exp) => is_tuple_of_functions(exp)
       | None => false
-      };
+      }
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -391,10 +480,55 @@ let rec is_tuple_of_functions = (e: t) =>
     }
   );
 
-let ctr_name = (e: t): option(Constructor.t) =>
+let rec ctr_name = (e: t): option(Constructor.t) =>
   switch (e.term) {
   | Constructor(name, _) => Some(name)
-  | _ => None
+  | Parens(e)
+  | Projector(_, e) => ctr_name(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => None
   };
 
 let is_deferral = (e: t) => {
@@ -498,10 +632,108 @@ let unfix = (e: t, p: Pat.t) => {
 let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
-  | FixF(_, e, _) => get_fn_name(e)
-  | Parens(e) => get_fn_name(e)
   | TypFun(_, _, n) => n
-  | _ => None
+  | FixF(_, e, _)
+  | Parens(e)
+  | Projector(_, e)
+  | Asc(e, _) => get_fn_name(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
+};
+
+/* Rewrite the name of the Fun or TypFun that `e` denotes, looking through
+   FixF, Parens, Projector and Asc (as get_fn_name does), so that
+   `let f = (fun x -> x) in ...` names its function too. */
+let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
+  let (term, rewrap) = unwrap(e);
+  switch (term) {
+  | Fun(p, body, t, name) => Fun(p, body, t, f(name)) |> rewrap
+  | TypFun(tpat, body, name) => TypFun(tpat, body, f(name)) |> rewrap
+  | Parens(e) => Parens(map_fn_name(f, e)) |> rewrap
+  | Projector(pr, e) => Projector(pr, map_fn_name(f, e)) |> rewrap
+  | Asc(e, ty) => Asc(map_fn_name(f, e), ty) |> rewrap
+  | FixF(p, e, env) => FixF(p, map_fn_name(f, e), env) |> rewrap
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => e
   };
 };
 
@@ -527,7 +759,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
     map_term(
       ~f_exp=
         (cont, exp) =>
-          if (rep_id(exp) == id) {
+          if (Id.equal(rep_id(exp), id)) {
             raise(M.Found(exp));
           } else {
             cont(exp);
@@ -542,10 +774,5 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
 
 /* Inject a function name into a Fun or TypFun expression. */
 let add_name = (name: option(string), exp: t): t => {
-  let (term, rewrap) = unwrap(exp);
-  switch (term) {
-  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
-  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
-  | _ => exp
-  };
+  map_fn_name(_ => name, exp);
 };
