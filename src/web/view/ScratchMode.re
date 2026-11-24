@@ -1003,6 +1003,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~measured_drawers=Id.Map.empty,
         ~tail_probe=false,
         ~schedule_action,
         ~is_edited,
@@ -1028,6 +1029,7 @@ module Update = {
         CellEditor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~measured_drawers,
           ~tail_probe,
           /* each theorem's proof in a drawer under it */
           ~proofs=Theorems,

@@ -788,13 +788,14 @@ let go =
     |> SampleFocusPerform.reset
     |> hide_steps
   | ShowSteps(span) =>
-    DrawerFit.forget(span.probe_id);
     Zipper.update_refractors(z, r =>
       {
         ...r,
         stepping: Some(span),
+        /* a new stepper starts from its own count */
+        drawer_rows: Id.Map.remove(span.probe_id, r.drawer_rows),
       }
-    );
+    )
   | HideSteps => hide_steps(z)
   };
 

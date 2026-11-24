@@ -340,9 +340,10 @@ let start = default_model => {
         );
         DrawerRows.update(
           ~row_height=font_metrics.row_height,
-          ~relayout=
-            () =>
-              app_inject(Page.Update.Globals(RelayoutDrawers))
+          ~known=model.model.current.current.globals.drawer_rows,
+          ~report=
+            rows =>
+              app_inject(Page.Update.Globals(SetDrawerRows(rows)))
               |> Bonsai.Effect.Expert.handle,
           /* a step taken: once the drawer has its rows, show the new step */
           ~reveal=

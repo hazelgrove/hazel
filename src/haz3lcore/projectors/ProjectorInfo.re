@@ -81,6 +81,7 @@ let mk_info =
     (
       ~stepping: option(Sample.span_ref)=None,
       ~tail: option(Id.t)=None,
+      ~drawer_rows: Id.Map.t(int)=Id.Map.empty,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -131,6 +132,7 @@ let mk_info =
     | _ => None
     },
   program_value: is_program_value(~tail, p.id, p.kind, p.model),
+  drawer_rows,
   utility,
 };
 

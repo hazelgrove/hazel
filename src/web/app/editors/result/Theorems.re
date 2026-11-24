@@ -327,27 +327,16 @@ module Focus = {
   };
 };
 
-/* a proof drawer: its header row, then the proof's trace */
-let rows = (~settings: CoreSettings.t, model: Model.t, id: Id.t): option(int) =>
-  Id.Map.find_opt(id, model.thm_map)
-  |> Option.map(~f=(thm: Model.theorem) =>
-       1
-       + ProbeSteps.stepper_rows(
-           ~settings=proof_core(settings),
-           thm.stepper_view,
-         )
-     );
-
-/* fit every theorem's proof drawer; true when one changed */
-let fit = (~settings: CoreSettings.t, model: Model.t): bool =>
-  Id.Map.fold(
-    (id, _, changed) =>
-      switch (rows(~settings, model, id)) {
-      | Some(n) => Haz3lcore.DrawerFit.set_computed(id, n) || changed
-      | None => changed
-      },
+/* each theorem's proof drawer: its header row, then the proof's trace */
+let rows = (~settings: CoreSettings.t, model: Model.t): Id.Map.t(int) =>
+  Id.Map.map(
+    (thm: Model.theorem) =>
+      1
+      + ProbeSteps.stepper_rows(
+          ~settings=proof_core(settings),
+          thm.stepper_view,
+        ),
     model.thm_map,
-    false,
   );
 
 module View = {

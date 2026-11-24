@@ -96,28 +96,57 @@ module Update = {
   };
 
   /* the stepping drawer and the proof drawers take the rows their
-     steppers need; true when that changed, which the layout must pick up */
+     steppers need, or have measured; true when that changed, which the
+     layout must pick up */
   let fit_drawers =
-      (~settings, result: EvalResult.Model.t, editor: CodeEditable.Model.t)
-      : bool => {
+      (
+        ~settings,
+        ~measured: Id.Map.t(int),
+        result: EvalResult.Model.t,
+        editor: CodeEditable.Model.t,
+      )
+      : (CodeEditable.Model.t, bool) => {
     let z = editor.editor.state.zipper;
-    let steps =
-      switch (z.refractors.stepping, result.probe_steps) {
-      | (Some(span), Some(ps))
-          when Language.Sample.equal_span_ref(ps.span, span) =>
-        Haz3lcore.DrawerFit.set_computed(
-          span.probe_id,
-          ProbeSteps.rows(~settings, ps),
-        )
-      | _ => false
-      };
     let proofs =
-      !Id.Map.is_empty(z.refractors.proofs)
-      && Theorems.fit(~settings, result.theorems);
-    if (steps || proofs) {
+      Id.Map.is_empty(z.refractors.proofs)
+        ? Id.Map.empty : Theorems.rows(~settings, result.theorems);
+    let counted =
+      switch (z.refractors.stepping) {
+      | Some(span) =>
+        let rows =
+          switch (result.probe_steps) {
+          | Some(ps) when Language.Sample.equal_span_ref(ps.span, span) =>
+            ProbeSteps.rows(~settings, ps)
+          | _ => 1
+          };
+        Id.Map.add(span.probe_id, rows, proofs);
+      | None => proofs
+      };
+    let drawer_rows = Haz3lcore.DrawerFit.fit(~counted, ~measured);
+    if (Id.Map.equal(Int.equal, drawer_rows, z.refractors.drawer_rows)) {
+      (editor, false);
+    } else {
       Haz3lcore.ProbeProj.Settings.redraw();
+      (
+        {
+          ...editor,
+          editor: {
+            ...editor.editor,
+            state: {
+              ...editor.editor.state,
+              zipper:
+                Zipper.update_refractors(z, r =>
+                  {
+                    ...r,
+                    drawer_rows,
+                  }
+                ),
+            },
+          },
+        },
+        true,
+      );
     };
-    steps || proofs;
   };
 
   let calculate =
@@ -126,6 +155,8 @@ module Update = {
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~tail_probe=false,
         ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
+        /* drawers' rows as rendered (Globals.drawer_rows) */
+        ~measured_drawers=Id.Map.empty,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~queue_worker,
@@ -168,7 +199,8 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    let drawers_resized = fit_drawers(~settings, result, editor);
+    let (editor, drawers_resized) =
+      fit_drawers(~settings, ~measured=measured_drawers, result, editor);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);

@@ -34,8 +34,9 @@ type t = {
   /* the ⇓ probe's term: its drawer reserves no rows */
   cached_tail: option(Id.t),
   cached_stepping: option(Language.Sample.span_ref),
-  /* DrawerFit.layout when the rows were computed */
-  cached_layout: int,
+  cached_drawer_rows: Id.Map.t(int),
+  /* the width drawers print at, which their rows depend on */
+  cached_drawer_width: int,
   cached_proofs: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
@@ -142,6 +143,7 @@ let mk_refractor_rows =
           ~elaborated,
           ~stepping=z.refractors.stepping,
           ~tail,
+          ~drawer_rows=z.refractors.drawer_rows,
         );
       let (module P) = ProjectorInit.to_module(entry.kind);
       let shape = P.placeholder(entry.model, info);
@@ -188,7 +190,8 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
-    cached_layout: DrawerFit.layout^,
+    cached_drawer_rows: z.refractors.drawer_rows,
+    cached_drawer_width: ProbeProj.Settings.s^.drawer.width,
     cached_proofs: z.refractors.proofs,
     projector_errors,
     missing_shards: Segment.global_missing_shards(segment),
@@ -235,7 +238,8 @@ let refresh_shapes =
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
-    cached_layout: DrawerFit.layout^,
+    cached_drawer_rows: z.refractors.drawer_rows,
+    cached_drawer_width: ProbeProj.Settings.s^.drawer.width,
     cached_proofs: z.refractors.proofs,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
@@ -264,7 +268,8 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
            z.refractors.stepping,
            old.cached_stepping,
          )
-    || DrawerFit.layout^ != old.cached_layout
+    || !phys_equal(z.refractors.drawer_rows, old.cached_drawer_rows)
+    || ProbeProj.Settings.s^.drawer.width != old.cached_drawer_width
     || !phys_equal(z.refractors.proofs, old.cached_proofs);
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);

@@ -1,8 +1,9 @@
 /* Steppers and proofs reserve at least the rows they rendered, which
    catches what a count misses: no drawer runs into the code. A drawer's
    height is read once it first shows and again when AfterLayout's observer
-   reports it changed; every frame applies the rows known, so a count reset
-   on a new stepper (DrawerFit.forget) gets them back. */
+   reports it changed; the rows of every drawer on the page go to the
+   model (Globals.drawer_rows) whenever they differ from what it has. What
+   stays here is the DOM bookkeeping: the elements watched. */
 
 open Js_of_ocaml;
 open Util;
@@ -12,18 +13,37 @@ let seen:
   ref(list((Js.t(Dom_html.element), option((Haz3lcore.Id.t, int))))) =
   ref([]);
 let row_height = ref(0.);
-let relayout: ref(unit => unit) = ref(() => ());
+/* the model's rows as of the last frame, and how to send it new ones */
+let known: ref(Haz3lcore.Id.Map.t(int)) = ref(Haz3lcore.Id.Map.empty);
+let report: ref(Haz3lcore.Id.Map.t(int) => unit) = ref(_ => ());
 /* a drawer's rows changed in this frame */
 let resized = ref(false);
 
-/* true when one changed */
-let apply = (): bool =>
-  List.fold(seen^, ~init=false, ~f=(changed, (_, rows)) =>
+let current = (): Haz3lcore.Id.Map.t(int) =>
+  List.fold(seen^, ~init=Haz3lcore.Id.Map.empty, ~f=(acc, (_, rows)) =>
     switch (rows) {
-    | Some((id, n)) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
-    | None => changed
+    | Some((id, n)) =>
+      Haz3lcore.Id.Map.update(
+        id,
+        fun
+        | Some(m) => Some(max(m, n))
+        | None => Some(n),
+        acc,
+      )
+    | None => acc
     }
   );
+
+/* the rows to send, when they differ from the model's */
+let changed = (): option(Haz3lcore.Id.Map.t(int)) => {
+  let rows = current();
+  Haz3lcore.Id.Map.equal(Int.equal, rows, known^)
+    ? None
+    : {
+      known := rows;
+      Some(rows);
+    };
+};
 
 /* a read: the rows [el] takes as rendered */
 let rows_of = (el: Js.t(Dom_html.element)): option((Haz3lcore.Id.t, int)) =>
@@ -47,12 +67,9 @@ let measure = (els: list(Js.t(Dom_html.element))): AfterLayout.write => {
         ];
     }
   );
-  let changed = apply();
-  resized := resized^ || changed;
-  () =>
-    if (changed) {
-      relayout^();
-    };
+  let rows = changed();
+  resized := resized^ || Option.is_some(rows);
+  () => Option.iter(rows, ~f=report^);
 };
 
 let watcher = lazy(AfterLayout.watcher(measure));
@@ -107,14 +124,16 @@ let watch_width = (~report: int => unit): unit =>
 let update =
     (
       ~row_height as rh: float,
-      ~relayout as r: unit => unit,
+      ~known as k: Haz3lcore.Id.Map.t(int),
+      ~report as r: Haz3lcore.Id.Map.t(int) => unit,
       ~reveal: option(unit => unit),
     )
     : unit => {
   /* rows count in rows of the font: a new size re-reads every drawer */
   let remeasure = Float.(rh != row_height^);
   row_height := rh;
-  relayout := r;
+  known := k;
+  report := r;
   resized := false;
   seen :=
     List.filter(seen^, ~f=((el, _)) =>
@@ -124,10 +143,14 @@ let update =
         false;
       }
     );
-  if (apply()) {
-    resized := true;
-    r();
-  };
+  /* a drawer gone takes its rows with it */
+  Option.iter(
+    changed(),
+    ~f=rows => {
+      resized := true;
+      r(rows);
+    },
+  );
   let nodes =
     Dom_html.document##querySelectorAll(Js.string("[data-drawer-id]"));
   let fresh: list(Js.t(Dom_html.element)) =

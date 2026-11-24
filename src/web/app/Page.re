@@ -252,7 +252,15 @@ module Update = {
     | UpdateDrawerWidth(cols) =>
       Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
       model |> Updated.return_quiet(~recalculate=true);
-    | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
+    | SetDrawerRows(drawer_rows) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          drawer_rows,
+        },
+      }
+      |> Updated.return_quiet(~recalculate=true)
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -495,6 +503,7 @@ module Update = {
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
           ~tail_probe=model.globals.settings.tail_probe,
+          ~measured_drawers=model.globals.drawer_rows,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,

@@ -286,6 +286,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~measured_drawers=Id.Map.empty,
         ~is_edited,
         ~schedule_action,
         model: Model.t,
@@ -343,6 +344,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~autoprobe_mode,
+               ~measured_drawers,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("prelude")),
@@ -354,6 +356,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~autoprobe_mode,
+               ~measured_drawers,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("lemmas")),
@@ -365,6 +368,7 @@ module Update = {
           |> CellEditor.Update.calculate(
                ~settings,
                ~autoprobe_mode,
+               ~measured_drawers,
                ~is_edited,
                ~statics_mode,
                ~queue_worker=Some(queue_worker("theorem")),

@@ -3,7 +3,7 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 
 /* A theorem's proof, in a drawer below the theorem. The web layer renders
-   the proof (View.drawers) and counts its rows (DrawerFit.set_computed).
+   the proof (View.drawers) and fits the drawer to it (DrawerFit).
    Placed only by AutoProbePerform.update_proofs. */
 
 /* the theorem whose proof this drawer shows: its own anchor, unless the
@@ -31,7 +31,7 @@ module M: Projector = {
   let elaborate_syntax = false;
 
   let placeholder = (m: model, info: info) =>
-    DrawerFit.shape(theorem_of(m, info));
+    DrawerFit.shape(info.drawer_rows, theorem_of(m, info));
   let update = (m, _, ()) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 

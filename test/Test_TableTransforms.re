@@ -489,6 +489,7 @@ let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
   elaborated,
   stepping: None,
   program_value: false,
+  drawer_rows: Id.Map.empty,
   utility: ProjectorInfo.utility,
 };
 

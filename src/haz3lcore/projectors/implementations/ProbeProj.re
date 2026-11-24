@@ -243,7 +243,6 @@ module Settings = {
           },
         };
       redraw();
-      DrawerFit.relayout();
     };
 
   let set_sticky = (b: bool) => {
@@ -2428,7 +2427,7 @@ module M: Projector = {
     switch (info.stepping) {
     /* uncapped: steps are worked through, so the drawer opens to the
        whole trace instead of scrolling inside itself */
-    | Some(_) => DrawerFit.shape(info.id)
+    | Some(_) => DrawerFit.shape(info.drawer_rows, info.id)
     | None => placeholder_samples(model, info)
     };
 

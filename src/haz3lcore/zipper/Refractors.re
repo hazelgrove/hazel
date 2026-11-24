@@ -85,6 +85,9 @@ type t = {
   /* theorems' proof drawers, by theorem id */
   [@default Id.Map.empty]
   proofs: Map.t,
+  /* the rows each drawer the web layer fills reserves (DrawerFit) */
+  [@default Id.Map.empty]
+  drawer_rows: Id.Map.t(int),
 };
 
 let init = {
@@ -96,6 +99,7 @@ let init = {
   stepping: None,
   tail_target: None,
   proofs: Id.Map.empty,
+  drawer_rows: Id.Map.empty,
 };
 
 let persist = (refractors: t): string =>

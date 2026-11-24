@@ -447,6 +447,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~measured_drawers=Id.Map.empty,
         ~is_edited,
         ~schedule_action,
         model: Model.t,
@@ -460,6 +461,7 @@ module Update = {
           CodeExerciseMode.Update.calculate(
             ~settings,
             ~autoprobe_mode,
+            ~measured_drawers,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
             ex,
@@ -480,6 +482,7 @@ module Update = {
           TheoremExerciseMode.Update.calculate(
             ~settings,
             ~autoprobe_mode,
+            ~measured_drawers,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
             ex,

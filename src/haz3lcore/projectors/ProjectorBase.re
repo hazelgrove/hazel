@@ -107,6 +107,8 @@ type info = {
   /* Set on the ⇓ toggle's probe: its drawer shows the program's value,
      after the program */
   program_value: bool,
+  /* the rows each drawer the web layer fills reserves (DrawerFit) */
+  drawer_rows: Id.Map.t(int),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,
