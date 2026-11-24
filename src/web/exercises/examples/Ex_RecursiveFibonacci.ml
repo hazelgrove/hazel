@@ -23,7 +23,7 @@ let exercise : Exercise.t =
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                 -1)(pinned_stack())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-             backup_text = "";
+             backup_text = "\194\191\n";
            };
          correct_impl =
            {
@@ -49,9 +49,11 @@ let exercise : Exercise.t =
                 Int))(sort Typ)))(Secondary((id \
                 36ff5dc6-e835-4e69-a575-90ac23bb90ff)(content(Whitespace\" \
                 \")))))((Secondary((id \
-                a4c70f8c-23c8-4191-a9f9-d71cbc6977e6)(content(Whitespace\" \
+                482b8028-8848-4338-b972-4f9ce61e36e2)(content(Whitespace\"\\n\"))))(Secondary((id \
+                cb120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                 \"))))(Secondary((id \
-                482b8028-8848-4338-b972-4f9ce61e36e2)(content(Whitespace\"\\n\"))))(Tile((id \
+                cc120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Tile((id \
                 45c380c8-dfd0-46ca-9919-037a040b4999)(form(Compound \
                 Fun))(shards(0 1))(children(((Secondary((id \
                 3ff47d28-1cf3-40c8-848f-0da4148cdd60)(content(Whitespace\" \
@@ -59,9 +61,15 @@ let exercise : Exercise.t =
                 x))(sort Pat)))(Secondary((id \
                 6bbbcc67-0ae5-4d48-85e2-6543f00113bb)(content(Whitespace\" \
                 \")))))))))(Secondary((id \
-                09c4a903-498f-482c-8424-fa7abf6289bb)(content(Whitespace\" \
+                0db2875f-0c06-4c5a-84f1-b39cdb518a9c)(content(Whitespace\"\\n\"))))(Secondary((id \
+                cd120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                 \"))))(Secondary((id \
-                0db2875f-0c06-4c5a-84f1-b39cdb518a9c)(content(Whitespace\"\\n\"))))(Tile((id \
+                ce120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Secondary((id \
+                cf120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Secondary((id \
+                d0120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Tile((id \
                 9bbf2c6b-53af-46a6-8551-f4961632851d)(form(Compound \
                 If))(shards(0 1 2))(children(((Secondary((id \
                 0f44f5de-7991-41b3-a8ae-3cf7a84e22e6)(content(Whitespace\" \
@@ -79,9 +87,15 @@ let exercise : Exercise.t =
                 ec646985-dd0b-4ce5-b82d-dfbc749f8efa)(content(Whitespace\" \
                 \"))))(Tile((id da319f12-c8d0-4cd0-b0df-c1cb83e6307d)(form(Tok \
                 1))))(Secondary((id \
-                42214a76-1b07-407c-8354-d1243877e1e0)(content(Whitespace\" \
+                69ecd84b-2014-46f0-a4a0-589e8c99e81a)(content(Whitespace\"\\n\"))))(Secondary((id \
+                d5120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                 \"))))(Secondary((id \
-                69ecd84b-2014-46f0-a4a0-589e8c99e81a)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+                d6120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Secondary((id \
+                d7120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Secondary((id \
+                d8120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \")))))))))(Secondary((id \
                 9c097983-d745-4a47-8b63-5943c484d387)(content(Whitespace\" \
                 \"))))(Tile((id fb8d06a0-e2f8-4b4f-bdfb-02164d34a39e)(form(Tok \
                 fib))))(Tile((id \
@@ -114,8 +128,6 @@ let exercise : Exercise.t =
                 665e263f-01f6-4ce5-a163-814c9e1fc5a6)(content(Whitespace\" \
                 \"))))(Tile((id abdcd4e5-9d94-4d09-8294-876a14126b53)(form(Tok \
                 2)))))))))(Secondary((id \
-                50b93566-f938-40cf-97dd-be6c21e8f642)(content(Whitespace\" \
-                \"))))(Secondary((id \
                 7e6bbab7-e654-46dc-a455-4e445eae6462)(content(Whitespace\"\\n\")))))))))(Secondary((id \
                 594e2462-c189-41c8-99a1-28f20098b356)(content(Whitespace\" \
                 \")))))((Grout((id acbb5393-7a49-429b-8ad3-0d5172b56c63)(shape \
@@ -124,11 +136,11 @@ let exercise : Exercise.t =
                 -1)(pinned_stack())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
-               "let fib: Int -> Int = \n\
-                fun x -> \n\
-                if x < 2 then 1 \n\
-                else fib(x - 1) + fib(x - 2) \n\
-                in ";
+               "let fib: Int -> Int =\n\
+               \  fun x ->\n\
+               \    if x < 2 then 1\n\
+               \    else fib(x - 1) + fib(x - 2)\n\
+                in \194\191\n";
            };
          your_tests =
            {
@@ -143,7 +155,7 @@ let exercise : Exercise.t =
                     Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                     -1)(pinned_stack())(indicated_call())(time())(seq \
                     0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                 backup_text = "";
+                 backup_text = "\194\191\n";
                };
              required = 5;
              provided = 0;
@@ -174,9 +186,11 @@ let exercise : Exercise.t =
                 Int))(sort Typ)))(Secondary((id \
                 95b817ac-62f2-4c16-92c6-8498fa9bfd01)(content(Whitespace\" \
                 \")))))((Secondary((id \
-                212bd2d0-dab5-4716-b0ac-862551bf9f45)(content(Whitespace\" \
+                ba301a3e-2311-40aa-8e05-80c8202fe021)(content(Whitespace\"\\n\"))))(Secondary((id \
+                db120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                 \"))))(Secondary((id \
-                ba301a3e-2311-40aa-8e05-80c8202fe021)(content(Whitespace\"\\n\"))))(Tile((id \
+                dc120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                \"))))(Tile((id \
                 a1eb2de3-f302-4438-af87-9a5e85a5c022)(form(Compound \
                 Fun))(shards(0 1))(children(((Secondary((id \
                 2243a934-ed68-4108-aca6-44f85b95b9a6)(content(Whitespace\" \
@@ -186,8 +200,6 @@ let exercise : Exercise.t =
                 \")))))))))(Grout((id \
                 2a36e02f-5b47-4f87-98f6-c27c3910b2c3)(shape \
                 Convex)))(Secondary((id \
-                fee6ece0-76a2-4589-8d93-5aec53d75723)(content(Whitespace\" \
-                \"))))(Secondary((id \
                 a7fd3784-835a-4867-b49b-855b1b184256)(content(Whitespace\"\\n\")))))))))(Secondary((id \
                 ad6ddecf-06bb-446d-bf59-35d9450629aa)(content(Whitespace\" \
                 \")))))((Grout((id 6612b274-1a79-4800-bca5-3d33604bcf33)(shape \
@@ -195,7 +207,8 @@ let exercise : Exercise.t =
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                 -1)(pinned_stack())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-             backup_text = "let fib : Int -> Int = \nfun n -> \nin ";
+             backup_text =
+               "let fib : Int -> Int =\n  fun n ->\194\191\nin \194\191\n";
            };
          hidden_bugs =
            [
@@ -228,9 +241,11 @@ let exercise : Exercise.t =
                       Int))(sort Typ)))(Secondary((id \
                       4c4416dc-00ab-4de1-bece-90e0909a5604)(content(Whitespace\" \
                       \")))))((Secondary((id \
-                      e1d5af16-dedf-4071-b336-101c0e43c8f1)(content(Whitespace\" \
+                      88527005-9e0a-41c0-a4a3-71698d8c5735)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      eb120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      88527005-9e0a-41c0-a4a3-71698d8c5735)(content(Whitespace\"\\n\"))))(Tile((id \
+                      ec120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Tile((id \
                       32cc45c6-6368-4dca-8cf2-8ac9f8bafd31)(form(Compound \
                       Fun))(shards(0 1))(children(((Secondary((id \
                       bcafc02d-b496-4f4a-8438-fea6d17705af)(content(Whitespace\" \
@@ -239,9 +254,15 @@ let exercise : Exercise.t =
                       Pat)))(Secondary((id \
                       99db2964-faa6-4158-a48f-2db2b4aa5d35)(content(Whitespace\" \
                       \")))))))))(Secondary((id \
-                      b139a293-f6dc-4074-a4cb-b7dc24bbe708)(content(Whitespace\" \
+                      11082931-6b3a-4c08-8978-b85b4446f6a4)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      ed120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      11082931-6b3a-4c08-8978-b85b4446f6a4)(content(Whitespace\"\\n\"))))(Tile((id \
+                      ee120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      ef120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      f0120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Tile((id \
                       a3a5876b-fb06-4123-84cd-d423de06dd66)(form(Compound \
                       If))(shards(0 1 2))(children(((Secondary((id \
                       0fc256d4-f29d-447b-8c47-13946a9369b7)(content(Whitespace\" \
@@ -262,9 +283,15 @@ let exercise : Exercise.t =
                       \"))))(Tile((id \
                       a5152233-3a6e-45c8-8e9d-f77046343e6f)(form(Tok \
                       0))))(Secondary((id \
-                      e3fb0c1c-6410-461e-a067-109c74203265)(content(Whitespace\" \
+                      24982656-d73d-4ef8-842e-f8baed76fe1f)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      f9120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      24982656-d73d-4ef8-842e-f8baed76fe1f)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+                      fa120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      fb120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      fc120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \")))))))))(Secondary((id \
                       a6dadc4c-ea30-45ba-a1e0-648c776f5c05)(content(Whitespace\" \
                       \"))))(Tile((id \
                       15e21fde-2ce9-4edd-b27e-871747dd499a)(form(Compound \
@@ -287,9 +314,15 @@ let exercise : Exercise.t =
                       \"))))(Tile((id \
                       016901dc-09c4-4e76-acde-6e974ba5d848)(form(Tok \
                       1))))(Secondary((id \
-                      48fbea4a-2068-435a-94fe-5390bba297a3)(content(Whitespace\" \
+                      6cc3f813-67f5-4ccd-b4ba-200c223855bb)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      fd120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      6cc3f813-67f5-4ccd-b4ba-200c223855bb)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+                      fe120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      ff120000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      00130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \")))))))))(Secondary((id \
                       f685d555-d868-4657-813a-21cd1b4c7227)(content(Whitespace\" \
                       \"))))(Tile((id \
                       821e356a-dece-4ae3-bc47-b32dd8408b04)(form(Tok \
@@ -326,10 +359,6 @@ let exercise : Exercise.t =
                       \"))))(Tile((id \
                       237b69ac-cf9b-420b-a476-cb445bc9a130)(form(Tok \
                       2)))))))))(Secondary((id \
-                      d74db662-bea8-4798-951b-3929e52f78fe)(content(Whitespace\" \
-                      \"))))(Secondary((id \
-                      bd21eb38-ea7e-4f46-91de-5a50ebd98c26)(content(Whitespace\" \
-                      \"))))(Secondary((id \
                       ddfd9130-8371-4a96-870a-44a75d19de86)(content(Whitespace\"\\n\")))))))))(Secondary((id \
                       3bc8a310-aa4c-4145-909e-7e708c760a97)(content(Whitespace\" \
                       \")))))((Grout((id \
@@ -339,12 +368,12 @@ let exercise : Exercise.t =
                       -1)(pinned_stack())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text =
-                     "let fib: Int -> Int = \n\
-                      fun x -> \n\
-                      if x < 1 then 0 \n\
-                      else if x < 2 then 1 \n\
-                      else fib(x - 1) + fib(x - 2)  \n\
-                      in ";
+                     "let fib: Int -> Int =\n\
+                     \  fun x ->\n\
+                     \    if x < 1 then 0\n\
+                     \    else if x < 2 then 1\n\
+                     \    else fib(x - 1) + fib(x - 2)\n\
+                      in \194\191\n";
                  };
                hint = "incorrect base cases";
              };
@@ -377,9 +406,11 @@ let exercise : Exercise.t =
                       Int))(sort Typ)))(Secondary((id \
                       3d95838b-9e08-46c4-bd6d-bcb8d95b2da4)(content(Whitespace\" \
                       \")))))((Secondary((id \
-                      07b7d517-c5a2-4498-aa61-df4b8af08d0c)(content(Whitespace\" \
+                      f528b48b-a9e8-46ee-87df-66a5d27100e6)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      0b130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      f528b48b-a9e8-46ee-87df-66a5d27100e6)(content(Whitespace\"\\n\"))))(Tile((id \
+                      0c130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Tile((id \
                       fa64d3d2-11d9-4020-bfce-e075f04dc87d)(form(Compound \
                       Fun))(shards(0 1))(children(((Secondary((id \
                       f3ec4914-f7dc-414b-8cad-92caaaabe6d8)(content(Whitespace\" \
@@ -388,9 +419,15 @@ let exercise : Exercise.t =
                       Pat)))(Secondary((id \
                       c3415376-92bc-4041-a9d7-a1b2023dcbfc)(content(Whitespace\" \
                       \")))))))))(Secondary((id \
-                      6a93e37f-8080-4250-8850-67cb12d1ba07)(content(Whitespace\" \
+                      1ef0a9fe-c5dd-4b58-9d63-4d469b2aa9da)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      0d130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      1ef0a9fe-c5dd-4b58-9d63-4d469b2aa9da)(content(Whitespace\"\\n\"))))(Tile((id \
+                      0e130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      0f130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      10130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Tile((id \
                       e8f96df8-4cc1-43ce-a75c-fb9c8c3a8dfa)(form(Compound \
                       If))(shards(0 1 2))(children(((Secondary((id \
                       9ab8594d-1205-4a68-8f97-c75f7d550d3c)(content(Whitespace\" \
@@ -411,11 +448,15 @@ let exercise : Exercise.t =
                       \"))))(Tile((id \
                       3a914443-433b-439e-a886-81cf366114d0)(form(Tok \
                       1))))(Secondary((id \
-                      1303fe89-000f-401e-8c43-acc87fcf7314)(content(Whitespace\" \
+                      779edf97-aa97-4b58-a55a-aecf2db8c3b2)(content(Whitespace\"\\n\"))))(Secondary((id \
+                      15130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      852f52d2-25f3-41d7-a896-6f01e5da6d99)(content(Whitespace\" \
+                      16130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
                       \"))))(Secondary((id \
-                      779edf97-aa97-4b58-a55a-aecf2db8c3b2)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+                      17130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \"))))(Secondary((id \
+                      18130000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+                      \")))))))))(Secondary((id \
                       27956a33-c682-4ccb-9f83-b40a0c7e3663)(content(Whitespace\" \
                       \"))))(Tile((id \
                       ba5a6cb9-b64e-47dd-8322-e6d6ab732b19)(form(Tok \
@@ -452,8 +493,6 @@ let exercise : Exercise.t =
                       \"))))(Tile((id \
                       93f93780-7914-441b-9d2c-3727d880f68e)(form(Tok \
                       2)))))))))(Secondary((id \
-                      1211b062-45ba-44fd-82c1-3a8ca3286699)(content(Whitespace\" \
-                      \"))))(Secondary((id \
                       7c30b777-a7ca-4bec-9a50-9bf849d99e63)(content(Whitespace\"\\n\")))))))))(Secondary((id \
                       35777fa2-52a2-46dd-b39e-4ab07077875e)(content(Whitespace\" \
                       \")))))((Grout((id \
@@ -463,11 +502,11 @@ let exercise : Exercise.t =
                       -1)(pinned_stack())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text =
-                     "let fib: Int -> Int = \n\
-                      fun x -> \n\
-                      if x < 2 then 1  \n\
-                      else fib(x - 2) + fib(x - 2) \n\
-                      in ";
+                     "let fib: Int -> Int =\n\
+                     \  fun x ->\n\
+                     \    if x < 2 then 1\n\
+                     \    else fib(x - 2) + fib(x - 2)\n\
+                      in \194\191\n";
                  };
                hint = "incorrect recursion";
              };
@@ -701,7 +740,8 @@ let exercise : Exercise.t =
                     test fib(5) == 8 end;\n\
                     test fib(6) == 13 end;\n\
                     test fib(7) == 21 end;\n\
-                    test fib(8) == 34 end;\n";
+                    test fib(8) == 34 end;\n\
+                    \194\191\n";
                };
              hints = [];
            };

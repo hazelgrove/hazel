@@ -220,7 +220,7 @@ module M: Projector = {
   /* Same form rewrites only the three leaves, so every id survives. Changing
      form replaces the constructor token too, and is the only thing that does. */
   let put = (info: info, l: literal): Base.segment => {
-    let same_form = form_of_info(info) == form_of_literal(l);
+    let same_form = Poly.equal(form_of_info(info), form_of_literal(l));
     let (v1, v2, v3) =
       switch (l) {
       | LOklch(l, c, h) => Language.Atom.(Float(l), Float(c), Float(h))
@@ -299,27 +299,29 @@ module M: Projector = {
      tabs change representation. Hex parses to bytes, so pasting one into an
      `Rgb` literal is exact. */
   let parse_text = (form: form, s: string): option(literal) => {
-    let s = String.trim(s);
+    let s = String.strip(s);
     let inside_oklch =
-      switch (String.index_opt(s, '('), String.rindex_opt(s, ')')) {
-      | (Some(i), Some(j)) when j > i && String.sub(s, 0, i) == "oklch" =>
-        Some(String.sub(s, i + 1, j - i - 1))
+      switch (String.index(s, '('), String.rindex(s, ')')) {
+      | (Some(i), Some(j))
+          when j > i && String.equal(String.sub(s, ~pos=0, ~len=i), "oklch") =>
+        Some(String.sub(s, ~pos=i + 1, ~len=j - i - 1))
       | _ => None
       };
     let parsed =
       switch (inside_oklch) {
       | Some(body) =>
         let num = t => {
-          let t = String.trim(t);
+          let t = String.strip(t);
           let t =
-            String.length(t) > 0 && t.[String.length(t) - 1] == '%'
-              ? String.sub(t, 0, String.length(t) - 1) : t;
-          float_of_string_opt(t);
+            String.length(t) > 0
+            && Char.equal(t.[String.length(t) - 1], '%')
+              ? String.sub(t, ~pos=0, ~len=String.length(t) - 1) : t;
+          Float.of_string_opt(t);
         };
         switch (
-          String.split_on_char(' ', body)
-          |> List.filter(t => String.trim(t) != "")
-          |> List.map(num)
+          String.split(body, ~on=' ')
+          |> List.filter(~f=t => !String.equal(String.strip(t), ""))
+          |> List.map(~f=num)
         ) {
         | [Some(l), Some(c), Some(h), ..._] => Some(LOklch(l, c, h))
         | _ => None
@@ -332,7 +334,7 @@ module M: Projector = {
       };
     switch (parsed) {
     | None => None
-    | Some(l) when form_of_literal(l) == form => Some(l)
+    | Some(l) when Poly.equal(form_of_literal(l), form) => Some(l)
     | Some(l) => Some(literal_of_components(form, components_of_literal(l)))
     };
   };
@@ -436,7 +438,7 @@ module M: Projector = {
          arrived; without that, clicking the plane did nothing. */
       let element = e =>
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("target"));
-      let mine = t => gesture^ == Some(t);
+      let mine = t => Poly.equal(gesture^, Some(t));
       let grab = (t, e: Js.t(Dom_html.pointerEvent)) =>
         if (!primary(e)) {
           Effect.Ignore;
@@ -481,7 +483,7 @@ module M: Projector = {
         );
       let gradient = stops =>
         "background: linear-gradient(to right, "
-        ++ String.concat(", ", stops)
+        ++ String.concat(~sep=", ", stops)
         ++ ")";
       let track = (~cls, ~style, ~t, ~at, children) =>
         Node.div(
@@ -523,7 +525,7 @@ module M: Projector = {
           [
             Node.div(
               ~attrs=[Attr.classes(["cp-plane"]), ...drag_attrs(Plane)],
-              List.init(strips, strip)
+              List.init(strips, ~f=strip)
               @ [
                 dot(
                   "left: "
@@ -537,7 +539,7 @@ module M: Projector = {
               ~cls="cp-hue",
               ~style=
                 gradient(
-                  List.init(13, i =>
+                  List.init(13, ~f=i =>
                     C.to_css(C.Oklch(70., 0.18, float_of_int(i) *. 30.))
                   ),
                 ),
@@ -571,7 +573,7 @@ module M: Projector = {
               ~cls="cp-hue",
               ~style=
                 gradient(
-                  List.init(13, i =>
+                  List.init(13, ~f=i =>
                     srgb(C.rgb_of_hsv((float_of_int(i) *. 30., 1., 1.)))
                   ),
                 ),
@@ -583,15 +585,15 @@ module M: Projector = {
         };
 
       let tab = (f, text) => {
-        let lossy = f == AsRgb && form == AsOklch;
+        let lossy = Poly.equal(f, AsRgb) && Poly.equal(form, AsOklch);
         Node.div(
           ~attrs=
             [
-              Attr.classes(["cp-tab", ...form == f ? ["on"] : []]),
+              Attr.classes(["cp-tab", ...Poly.equal(form, f) ? ["on"] : []]),
               Attr.on_pointerdown(e =>
                 if (!primary(e)) {
                   Effect.Ignore;
-                } else if (f == form) {
+                } else if (Poly.equal(f, form)) {
                   Effect.Stop_propagation;
                 } else {
                   Effect.Many([

@@ -3,12 +3,13 @@ open Node;
 open Haz3lcore;
 open Util;
 open Util.WebUtil;
+open Poly;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
 let is_ref = (token: string, sort: Sort.t) =>
-  sort != Pat
-  && sort != TPat
+  !Poly.equal(sort, Pat)
+  && !Poly.equal(sort, TPat)
   && !Token.is_keyword(token)
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
@@ -216,15 +217,16 @@ let view =
 
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
-    | Whitespace(str) when str == Token.linebreak =>
+    | Whitespace(str) when String.equal(str, Token.linebreak) =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       Node.text(lb_icon ++ token);
-    | Whitespace(str) when str == Token.space => Node.text(ws_icon)
+    | Whitespace(str) when String.equal(str, Token.space) =>
+      Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     /* a ghost-marked comment is a witness-remainder ghost (spliced
        by DisplayFork), styled like the retired suggestion buffer */
-    | Comment(str) when ghost_mark(secondary.id, Option.none) =>
+    | Comment(str) when ghost_mark(secondary.id, Stdlib.Option.none) =>
       comment_text(~font_metrics, "in-unparsed-buffer", str)
     | Comment(str) => comment_text(~font_metrics, "comment", str)
     };
@@ -249,31 +251,32 @@ let view =
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
     List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
-           * side effects fire in document order, matching Measured.of_segment */
-          let nodes =
-            Aba.fold_left(
-              i => [of_delim(t, i)],
-              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
-              Aba.mk(t.shards, t.children),
-            );
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_rows)) {
-            | Some(n) =>
-              DeferredLinebreaks.update(n) |> ignore;
-              ();
-            | None => ()
+      ~f=
+        fun
+        | Piece.Tile(t) => {
+            /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+             * side effects fire in document order, matching Measured.of_segment */
+            let nodes =
+              Aba.fold_left(
+                i => [of_delim(t, i)],
+                (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+                Aba.mk(t.shards, t.children),
+              );
+            let _ =
+              switch (Id.Map.find_opt(t.id, refractor_rows)) {
+              | Some(n) =>
+                DeferredLinebreaks.update(n) |> ignore;
+                ();
+              | None => ()
+              };
+            switch (classes(t.id)) {
+            | [] => nodes
+            | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
             };
-          switch (classes(t.id)) {
-          | [] => nodes
-          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
-          };
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
+          }
+        | Grout(g) => [of_grout(g)]
+        | Secondary(s) => [of_secondary(s)]
+        | Projector(pr) => [of_projector(pr)],
       seg,
     );
 

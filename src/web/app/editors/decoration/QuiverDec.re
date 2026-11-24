@@ -38,7 +38,7 @@ let matches_droppable =
   | None => false
   | Some((tid, k)) =>
     delimiters
-    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+    |> List.exists(~f=(d: CanonicalCompletion.delimiter_info) =>
          switch (d.of_shard) {
          | Some((tid', k')) => Id.equal(tid, tid') && k == k'
          | None => false
@@ -61,8 +61,8 @@ let padding_nodes =
     (~font_metrics: FontMetrics.t, ~shape=Grout.Convex, text: string)
     : list(Node.t) =>
   Token.to_list(text)
-  |> List.map(c =>
-       c == Token.implicit_hole_marker
+  |> List.map(~f=c =>
+       String.equal(c, Token.implicit_hole_marker)
          ? hole_glyph(~font_metrics, shape) : Node.text(c)
      );
 
@@ -93,7 +93,7 @@ let delimiter_nodes =
     )
     : list(Node.t) =>
   delimiters
-  |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
+  |> List.mapi(~f=(k, d: CanonicalCompletion.delimiter_info) => {
        let (before, after) =
          switch (k, head_padding) {
          | (0, Some(padding)) => padding
@@ -128,12 +128,18 @@ let delimiter_nodes =
          | Some(n) when n > 0 && n < String.length(d.text) => [
              Node.span(
                ~attrs=[Attr.classes(["chip-frac-typed"])],
-               [Node.text(String.sub(d.text, 0, n))],
+               [Node.text(String.sub(d.text, ~pos=0, ~len=n))],
              ),
              Node.span(
                ~attrs=[Attr.classes(["chip-frac-rest"])],
                [
-                 Node.text(String.sub(d.text, n, String.length(d.text) - n)),
+                 Node.text(
+                   String.sub(
+                     d.text,
+                     ~pos=n,
+                     ~len=String.length(d.text) - n,
+                   ),
+                 ),
                ],
              ),
            ]
@@ -335,7 +341,7 @@ let view =
   | bubbles =>
     let chips =
       bubbles
-      |> List.map(((ins: positioned_insertion, body_shift)) => {
+      |> List.map(~f=((ins: positioned_insertion, body_shift)) => {
            let body =
              delimiter_nodes(
                ~font_metrics,
@@ -360,7 +366,7 @@ let view =
                     one, else the chip holding Put_down's shard */
                  ~live=
                    ins.owned
-                   || owned == []
+                   || List.is_empty(owned)
                    && matches_droppable(droppable, ins.delimiters),
                  ~at_caret=ins.owned,
                  ~body_shift,

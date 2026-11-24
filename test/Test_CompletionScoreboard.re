@@ -1,6 +1,7 @@
 open Util;
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* === Deletion-inverse scoreboard ===
    (plans/completion-heuristics.md, "Scoreboard v2 spec")
@@ -50,21 +51,22 @@ let build = (text: string): Zipper.t =>
 /* Token stream, whitespace/grout-insensitive, shards in place */
 let rec tokens = (seg: Segment.t): list(string) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_)
-      | Projector(_) => []
-      | Tile(t) =>
-        let rec interleave = (ls, chs) =>
-          switch (ls, chs) {
-          | ([], _) => []
-          | ([l, ...ls], []) => [l, ...interleave(ls, [])]
-          | ([l, ...ls], [c, ...chs]) =>
-            [l, ...tokens(c)] @ interleave(ls, chs)
-          };
-        interleave(Tile.effective_label(t), t.children);
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(_)
+        | Grout(_)
+        | Projector(_) => []
+        | Tile(t) =>
+          let rec interleave = (ls, chs) =>
+            switch (ls, chs) {
+            | ([], _) => []
+            | ([l, ...ls], []) => [l, ...interleave(ls, [])]
+            | ([l, ...ls], [c, ...chs]) =>
+              [l, ...tokens(c)] @ interleave(ls, chs)
+            };
+          interleave(Tile.effective_label(t), t.children);
+        },
     seg,
   );
 
@@ -75,23 +77,25 @@ let targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.iter(walk, t.children);
-          if (Tile.arity(t) > 1) {
-            switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
-            | shards =>
-              List.iter(
-                ((i, m: Measured.measurement)) =>
-                  acc := [(Tile.token(t, i), m.last), ...acc^],
-                shards,
-              )
-            | exception _ => ()
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            List.iter(~f=walk, t.children);
+            if (Tile.arity(t) > 1) {
+              switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
+              | shards =>
+                List.iter(
+                  ~f=
+                    ((i, m: Measured.measurement)) =>
+                      acc := [(Tile.token(t, i), m.last), ...acc^],
+                  shards,
+                )
+              | exception _ => ()
+              };
             };
-          };
-        | _ => ()
-        },
+          | _ => ()
+          },
       sg,
     );
   walk(Zipper.unselect_and_zip(z));
@@ -123,7 +127,11 @@ let perform_soft = (z: Zipper.t, acts: list(Action.t)): option(Zipper.t) => {
     | exception _ => None
     };
   };
-  List.fold_left((z, a) => Option.bind(z, z => step(z, a)), Some(z), acts);
+  List.fold_left(
+    ~f=(z, a) => Option.bind(z, ~f=z => step(z, a)),
+    ~init=Some(z),
+    acts,
+  );
 };
 
 let completed_tokens = (z: Zipper.t): list(string) => {
@@ -168,77 +176,80 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
   let shards = targets(z0);
   let shards =
     prefix_only
-      ? List.filter(((tok, _)) => Token.length(tok) > 1, shards) : shards;
+      ? List.filter(~f=((tok, _)) => Token.length(tok) > 1, shards)
+      : shards;
   List.fold_left(
-    (acc, (tok, pt: Point.t)) => {
-      let k = prefix_only ? 1 : Token.length(tok);
-      let acts =
-        [Action.Move(Point(pt, None))]
-        @ List.init(k, _ => Action.Destruct(Local(Left, ByChar)));
-      switch (perform_soft(z0, acts)) {
-      | None =>
-        print_endline(
-          Printf.sprintf(
-            "[%s/%s] INAPPLICABLE %s at %d:%d",
-            name,
-            prefix_only ? "prefix" : "full",
-            tok,
-            pt.row,
-            pt.col,
-          ),
-        );
-        {
-          ...acc,
-          total: acc.total + 1,
-        };
-      | Some(z') =>
-        let mutated =
-          tokens(Zipper.unselect_and_zip(~erase_buffer=true, z'));
-        let replacement =
-          prefix_only
-            ? Some(String.sub(tok, 0, Token.length(tok) - 1)) : None;
-        if (!evidence_intact(~replacement, original, mutated, tok)) {
+    ~f=
+      (acc, (tok, pt: Point.t)) => {
+        let k = prefix_only ? 1 : Token.length(tok);
+        let acts =
+          [Action.Move(Point(pt, None))]
+          @ List.init(k, ~f=_ => Action.Destruct(Local(Left, ByChar)));
+        switch (perform_soft(z0, acts)) {
+        | None =>
           print_endline(
             Printf.sprintf(
-              "[%s/%s] DESTROYED %s at %d:%d -> %s",
+              "[%s/%s] INAPPLICABLE %s at %d:%d",
               name,
               prefix_only ? "prefix" : "full",
               tok,
               pt.row,
               pt.col,
-              String.concat(" ", mutated),
             ),
           );
           {
             ...acc,
-            destroyed: acc.destroyed + 1,
             total: acc.total + 1,
           };
-        } else {
-          let got = completed_tokens(z');
-          let ok = got == original;
-          if (!ok) {
+        | Some(z') =>
+          let mutated =
+            tokens(Zipper.unselect_and_zip(~erase_buffer=true, z'));
+          let replacement =
+            prefix_only
+              ? Some(String.sub(tok, ~pos=0, ~len=Token.length(tok) - 1))
+              : None;
+          if (!evidence_intact(~replacement, original, mutated, tok)) {
             print_endline(
               Printf.sprintf(
-                "[%s/%s] MISS %s at %d:%d -> %s",
+                "[%s/%s] DESTROYED %s at %d:%d -> %s",
                 name,
                 prefix_only ? "prefix" : "full",
                 tok,
                 pt.row,
                 pt.col,
-                String.concat(" ", got),
+                String.concat(~sep=" ", mutated),
               ),
             );
-          };
-          {
-            ...acc,
-            restored: acc.restored + (ok ? 1 : 0),
-            total: acc.total + 1,
+            {
+              ...acc,
+              destroyed: acc.destroyed + 1,
+              total: acc.total + 1,
+            };
+          } else {
+            let got = completed_tokens(z');
+            let ok = got == original;
+            if (!ok) {
+              print_endline(
+                Printf.sprintf(
+                  "[%s/%s] MISS %s at %d:%d -> %s",
+                  name,
+                  prefix_only ? "prefix" : "full",
+                  tok,
+                  pt.row,
+                  pt.col,
+                  String.concat(~sep=" ", got),
+                ),
+              );
+            };
+            {
+              ...acc,
+              restored: acc.restored + (ok ? 1 : 0),
+              total: acc.total + 1,
+            };
           };
         };
-      };
-    },
-    {
+      },
+    ~init={
       restored: 0,
       destroyed: 0,
       total: 0,
@@ -256,26 +267,28 @@ let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.iter(walk, t.children);
-          let n = Tile.arity(t);
-          if (n > 1) {
-            switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
-            | shards =>
-              List.iter(
-                ((i, m: Measured.measurement)) =>
-                  if (i == n - 1) {
-                    acc := [(Tile.token(t, i), m.last), ...acc^];
-                  },
-                shards,
-              )
-            | exception _ => ()
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            List.iter(~f=walk, t.children);
+            let n = Tile.arity(t);
+            if (n > 1) {
+              switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
+              | shards =>
+                List.iter(
+                  ~f=
+                    ((i, m: Measured.measurement)) =>
+                      if (i == n - 1) {
+                        acc := [(Tile.token(t, i), m.last), ...acc^];
+                      },
+                  shards,
+                )
+              | exception _ => ()
+              };
             };
-          };
-        | _ => ()
-        },
+          | _ => ()
+          },
       sg,
     );
   walk(Zipper.unselect_and_zip(z));
@@ -296,9 +309,9 @@ let run_pairs = (name: string, text: string): joint_outcome => {
     a.row < b.row || a.row == b.row && a.col < b.col;
   let pairs =
     closers
-    |> List.concat_map(((t1, p1)) =>
+    |> List.concat_map(~f=((t1, p1)) =>
          closers
-         |> List.filter_map(((t2, p2)) =>
+         |> List.filter_map(~f=((t2, p2)) =>
               lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
             )
        );
@@ -349,15 +362,59 @@ let run_pairs = (name: string, text: string): joint_outcome => {
               String.concat(" ", got),
             ),
           );
+        let acts =
+          [Action.Move(Point(pt_r, None))]
+          @ del(tok_r)
+          @ [Action.Move(Point(pt_l, None))]
+          @ del(tok_l);
+        let where =
+          Printf.sprintf(
+            "%s@%d:%d + %s@%d:%d",
+            tok_l,
+            pt_l.row,
+            pt_l.col,
+            tok_r,
+            pt_r.row,
+            pt_r.col,
+          );
+        switch (perform_soft(z0, acts)) {
+        | None =>
+          print_endline(
+            Printf.sprintf("[%s/pair] INAPPLICABLE %s", name, where),
+          );
+          {
+            ...acc,
+            j_total: acc.j_total + 1,
+          };
+        | Some(z') =>
+          let seg =
+            z'
+            |> Zipper.clear_unparsed_buffer
+            |> Zipper.unselect_and_zip(~erase_buffer=true);
+          let result = CanonicalCompletion.for_editor(seg);
+          let got = tokens(result.completed_seg);
+          let ok = got == original;
+          let inc =
+            Segment.incomplete_tiles_deep(result.completed_seg) |> List.length;
+          if (!ok || inc > 0) {
+            print_endline(
+              Printf.sprintf(
+                "[%s/pair] %s %s -> %s",
+                name,
+                inc > 0 ? "INCOMPLETE" : "MISS",
+                where,
+                String.concat(~sep=" ", got),
+              ),
+            );
+          };
+          {
+            j_restored: acc.j_restored + (ok ? 1 : 0),
+            j_incomplete: acc.j_incomplete + (inc > 0 ? 1 : 0),
+            j_total: acc.j_total + 1,
+          };
         };
-        {
-          j_restored: acc.j_restored + (ok ? 1 : 0),
-          j_incomplete: acc.j_incomplete + (inc > 0 ? 1 : 0),
-          j_total: acc.j_total + 1,
-        };
-      };
-    },
-    {
+      },
+    ~init={
       j_restored: 0,
       j_incomplete: 0,
       j_total: 0,
@@ -384,9 +441,9 @@ type accept_outcome = {
 let entries_of =
     (seg: Segment.t): list((Id.t, Util.Direction.t, string, Id.t)) =>
   CanonicalCompletion.for_editor(seg).insertions
-  |> List.concat_map((i: CanonicalCompletion.insertion) =>
+  |> List.concat_map(~f=(i: CanonicalCompletion.insertion) =>
        i.delimiters
-       |> List.filter_map((d: CanonicalCompletion.delimiter_info) =>
+       |> List.filter_map(~f=(d: CanonicalCompletion.delimiter_info) =>
             switch (d.of_shard) {
             | Some((tid, _)) => Some((i.adjacent_id, i.side, d.text, tid))
             | None => None
@@ -401,14 +458,14 @@ let run_accept = (name: string, text: string): accept_outcome => {
     a.row < b.row || a.row == b.row && a.col < b.col;
   let pairs =
     closers
-    |> List.concat_map(((t1, p1)) =>
+    |> List.concat_map(~f=((t1, p1)) =>
          closers
-         |> List.filter_map(((t2, p2)) =>
+         |> List.filter_map(~f=((t2, p2)) =>
               lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
             )
        );
   let del = tok =>
-    List.init(Token.length(tok), _ =>
+    List.init(Token.length(tok), ~f=_ =>
       Action.Destruct(Action.Local(Left, ByChar))
     );
   List.fold_left(
@@ -518,27 +575,10 @@ let run_accept = (name: string, text: string): accept_outcome => {
                 == joint
               | None => false
               };
-            if (!converged) {
-              print_endline(
-                Printf.sprintf(
-                  "[%s/accept] DIVERGED reverse-seq at %d:%d+%d:%d",
-                  name,
-                  pt_l.row,
-                  pt_l.col,
-                  pt_r.row,
-                  pt_r.col,
-                ),
-              );
             };
-            {
-              ...acc,
-              r_converged: acc.r_converged + (converged ? 1 : 0),
-              r_seqs: acc.r_seqs + 1,
-            };
-          };
-      };
-    },
-    {
+        };
+      },
+    ~init={
       a_stable: 0,
       a_shifted: 0,
       a_failed: 0,
@@ -574,12 +614,12 @@ let accept_pins = [
 
 let accept_tests =
   accept_pins
-  |> List.map(((name, pin)) =>
+  |> List.map(~f=((name, pin)) =>
        test_case(
          name ++ " accept",
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let o = run_accept(name, text);
            let shown =
              Printf.sprintf(
@@ -615,12 +655,12 @@ let pair_pins = [
 
 let pair_tests =
   pair_pins
-  |> List.map(((name, pin)) =>
+  |> List.map(~f=((name, pin)) =>
        test_case(
          name ++ " pairs",
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let o = run_pairs(name, text);
            let shown =
              Printf.sprintf(
@@ -654,12 +694,12 @@ let pins = [
 
 let scoreboard_tests =
   pins
-  |> List.map(((name, full_pin, prefix_pin)) =>
+  |> List.map(~f=((name, full_pin, prefix_pin)) =>
        test_case(
          name,
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let full = run_class(~prefix_only=false, name, text);
            let prefix = run_class(~prefix_only=true, name, text);
            let show = o =>

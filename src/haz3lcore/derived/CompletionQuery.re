@@ -20,13 +20,14 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
     switch (SpaceNormalize.last_token(p)) {
     | Some(token) =>
       List.mem(
-        token ++ text,
         [
           Token.empty_tuple,
           Token.empty_list,
           Token.empty_module,
           Token.empty_string,
         ],
+        token ++ text,
+        ~equal=String.equal,
       )
     | None => false
     }
@@ -377,14 +378,19 @@ let left_separated = (z: Zipper.t): bool =>
 let padding =
     (z: Zipper.t, d: CanonicalCompletion.delimiter_info): (string, string) => {
   let (l, r) = z.relatives.siblings;
-  let word = SpaceNormalize.spaced(d.text) || List.mem(d.text, ["=", "->"]);
+  let word =
+    SpaceNormalize.spaced(d.text)
+    || List.mem(["=", "->"], d.text, ~equal=String.equal);
   /* no space between the hole and a closer or separator: `(1, ?)`, not
      `(1, ? )` (the marker is not a token SpaceNormalize.needs_space can
      judge, so the tight-before list is consulted directly) */
   let hole =
     d.leading_hole
       ? Token.implicit_hole_marker
-        ++ (List.mem(d.text, SpaceNormalize.tight_before) ? "" : " ")
+        ++ (
+          List.mem(SpaceNormalize.tight_before, d.text, ~equal=String.equal)
+            ? "" : " "
+        )
       : "";
   let before =
     switch (List.rev(l)) {
@@ -393,7 +399,7 @@ let padding =
     | [p, ..._] =>
       switch (SpaceNormalize.last_token(p)) {
       | Some(t) =>
-        !List.mem(t, SpaceNormalize.tight_after)
+        !List.mem(SpaceNormalize.tight_after, t, ~equal=String.equal)
         && (word || SpaceNormalize.needs_space(t, d.text))
           ? " " : ""
       | None => word ? " " : ""
