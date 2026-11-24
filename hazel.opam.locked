@@ -10,7 +10,7 @@ homepage: "https://github.com/hazelgrove/hazel"
 bug-reports: "https://github.com/hazelgrove/hazel/issues"
 depends: [
   "abstract_algebra" {= "v0.16.0"}
-  "alcotest" {= "1.9.1"}
+  "alcotest" {= "1.10.2"}
   "angstrom" {= "0.16.1"}
   "astring" {= "0.8.5"}
   "async" {= "v0.16.0"}

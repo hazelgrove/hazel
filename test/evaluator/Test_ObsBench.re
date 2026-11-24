@@ -84,9 +84,9 @@ let eval_n = (~probe_all=false, ~reps: int, code: string): unit => {
 };
 
 let timed = (~reps: int, label: string, f: unit => unit): unit => {
-  let t0 = Sys.time();
+  let t0 = Stdlib.Sys.time();
   f();
-  let ms = (Sys.time() -. t0) *. 1000.;
+  let ms = (Stdlib.Sys.time() -. t0) *. 1000.;
   Printf.printf(
     "BENCH %s: %.1f ms (%.1f ms/eval; cases are NOT cross-comparable)\n",
     label,
