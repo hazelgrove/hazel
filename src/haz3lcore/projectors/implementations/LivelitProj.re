@@ -168,7 +168,10 @@ module M: Projector = {
     switch (info.dynamics) {
     | None => None
     | Some({samples, _}) =>
-      List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) => {
+      List.fold(
+        samples,
+        ~init=None,
+        ~f=(acc, s: Sample.t) => {
           let v = MvuShape.close_value(s.value);
           if (MvuShape.is_html(v)) {
             switch (acc) {
@@ -178,7 +181,8 @@ module M: Projector = {
           } else {
             acc;
           };
-        })
+        },
+      )
       |> Option.map(~f=snd)
     };
 
@@ -191,12 +195,13 @@ module M: Projector = {
     switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
     | Some(fs) =>
       switch (
-        List.find_map(~f=
-          f =>
-            switch (MvuShape.of_field(f)) {
-            | Some((l, v)) when String.equal(l, label) => Some(v)
-            | _ => None
-            },
+        List.find_map(
+          ~f=
+            f =>
+              switch (MvuShape.of_field(f)) {
+              | Some((l, v)) when String.equal(l, label) => Some(v)
+              | _ => None
+              },
           fs,
         )
       ) {
@@ -215,10 +220,11 @@ module M: Projector = {
   /* The latest sampled value at some id (e.g. the model argument) */
   let latest_value = (samples: list(Sample.t)): option(TermBase.Exp.t) =>
     List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) =>
-        switch (acc) {
-        | Some((best, _)) when best >= s.seq => acc
-        | _ => Some((s.seq, s.value))
-        })
+      switch (acc) {
+      | Some((best, _)) when best >= s.seq => acc
+      | _ => Some((s.seq, s.value))
+      }
+    )
     |> Option.map(~f=((_, v)) => MvuShape.close_value(v));
 
   /* An action from a handler. With the model's live value in hand, commit
@@ -268,11 +274,13 @@ module M: Projector = {
        external edits still drop it — inherent, nothing to restore from. */
     opt_ephemeral: bool,
   };
-  let optimistic: Stdlib.Hashtbl.t(Id.t, optimistic_entry) = Stdlib.Hashtbl.create(16);
+  let optimistic: Stdlib.Hashtbl.t(Id.t, optimistic_entry) =
+    Stdlib.Hashtbl.create(16);
 
   /* One console warning per projector id: an unserializable model is a
      standing property of the definition, not per-event news. */
-  let warned_ephemeral: Stdlib.Hashtbl.t(Id.t, unit) = Stdlib.Hashtbl.create(4);
+  let warned_ephemeral: Stdlib.Hashtbl.t(Id.t, unit) =
+    Stdlib.Hashtbl.create(4);
   let warn_ephemeral = (~id: Id.t, ~ll_name: string) =>
     if (!Stdlib.Hashtbl.mem(warned_ephemeral, id)) {
       Stdlib.Hashtbl.add(warned_ephemeral, id, ());
@@ -385,7 +393,8 @@ module M: Projector = {
                 | None => 0
                 },
               opt_dirty:
-                Option.is_none(committed) || Poly.equal(gesture, HazelDOM.Transient),
+                Option.is_none(committed)
+                || Poly.equal(gesture, HazelDOM.Transient),
               opt_ephemeral: Option.is_none(committed),
             },
           );
@@ -418,7 +427,8 @@ module M: Projector = {
             );
           switch (MvuShape.safe_evaluate(applied)) {
           | Error(e) => `Error("update error: " ++ e)
-          | Ok(new_model) when Poly.equal(commit_decision(new_model), `Ephemeral) =>
+          | Ok(new_model)
+              when Poly.equal(commit_decision(new_model), `Ephemeral) =>
             /* The model carries a closure, so it cannot live in the
                syntax tree. Degrade gracefully instead of wedging: keep
                the widget running off the optimistic entry and skip the
@@ -490,7 +500,8 @@ module M: Projector = {
      model, so letting clicks through could silently drop the in-flight
      edit). Display-only cache; entries overwrite on every successful
      render. */
-  let last_good_view: Stdlib.Hashtbl.t(Id.t, Node.t) = Stdlib.Hashtbl.create(16);
+  let last_good_view: Stdlib.Hashtbl.t(Id.t, Node.t) =
+    Stdlib.Hashtbl.create(16);
 
   let user_view =
       (
@@ -646,7 +657,10 @@ module M: Projector = {
             |> info.utility.term_to_seg(~inline=true)
             |> view_seg(~background=false, Exp);
           let model_value =
-            Option.bind(info.dynamics_at(Exp.rep_id(model)), ~f=latest_value);
+            Option.bind(
+              info.dynamics_at(Exp.rep_id(model)),
+              ~f=latest_value,
+            );
           Node.div(
             ~attrs=[
               Attr.classes([ll_name, "user-livelit"]),

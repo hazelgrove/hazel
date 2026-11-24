@@ -178,9 +178,10 @@ let shape = Tab(30, 5)
       Poly.equal(
         ll.shape,
         {
-           horizontal: 30,
-           vertical: Tab(4) /* 5 lines = 4 linebreaks */
-         }),
+          horizontal: 30,
+          vertical: Tab(4) /* 5 lines = 4 linebreaks */
+        },
+      ),
     );
   | Error(_) => fail("adapter rejected a well-formed module definition")
   };
@@ -320,9 +321,10 @@ let shape_field = () => {
       Poly.equal(
         ll.shape,
         {
-           horizontal: 30,
-           vertical: Block(4) /* 5 lines = 4 linebreaks */
-         }),
+          horizontal: 30,
+          vertical: Block(4) /* 5 lines = 4 linebreaks */
+        },
+      ),
     )
   | Error(_) => fail("adapter rejected a 5-field definition")
   };
@@ -417,14 +419,15 @@ let view_probes_fire = () => {
       (_, samples, acc) =>
         acc
         + List.length(
-            List.filter(~f=
-              (s: Sample.t) =>
-                switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
-                | Atom(Int(n)) =>
-                  Option.equal(Int.equal, Bigint.to_int(n), Some(63))
-                  || Option.equal(Int.equal, Bigint.to_int(n), Some(12))
-                | _ => false
-                },
+            List.filter(
+              ~f=
+                (s: Sample.t) =>
+                  switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
+                  | Atom(Int(n)) =>
+                    Option.equal(Int.equal, Bigint.to_int(n), Some(63))
+                    || Option.equal(Int.equal, Bigint.to_int(n), Some(12))
+                  | _ => false
+                  },
               samples,
             ),
           ),
@@ -445,11 +448,12 @@ let projector_gets_html_sample = () => {
           switch (Sample.Map.lookup(id, probes)) {
           | Some(samples) =>
             List.length(
-              List.filter(~f=
-                (s: Sample.t) =>
-                  Haz3lcore.MvuShape.is_html(
-                    Haz3lcore.MvuShape.strip_wrappers(s.value),
-                  ),
+              List.filter(
+                ~f=
+                  (s: Sample.t) =>
+                    Haz3lcore.MvuShape.is_html(
+                      Haz3lcore.MvuShape.strip_wrappers(s.value),
+                    ),
                 samples,
               ),
             )
@@ -495,17 +499,20 @@ let update_probe_fires_once = () => {
     probe_run(update_probe_def ++ "^^livelit(^dbl(^dbl.update(3, 9)))");
   let count_12 = ids =>
     List.fold(ids, ~init=0, ~f=(acc, id) =>
-        acc
-        + List.length(
-            List.filter(~f=
+      acc
+      + List.length(
+          List.filter(
+            ~f=
               (s: Sample.t) =>
                 switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
-                | Atom(Int(n)) => Option.equal(Int.equal, Bigint.to_int(n), Some(12))
+                | Atom(Int(n)) =>
+                  Option.equal(Int.equal, Bigint.to_int(n), Some(12))
                 | _ => false
                 },
-              Option.value(Sample.Map.lookup(id, probes), ~default=[]),
-            ),
-          ));
+            Option.value(Sample.Map.lookup(id, probes), ~default=[]),
+          ),
+        )
+    );
   check(int, "update probe sampled exactly once", 1, count_12(manuals));
   /* the model argument is also targeted — the commit path reads its value */
   let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
@@ -570,13 +577,15 @@ let expand = fun m -> m
         | Some(_) => acc
         | None =>
           Option.bind(Sample.Map.lookup(id, probes), ~f=samples =>
-            List.find_map(~f=
-              (s: Sample.t) => {
-                let v = Haz3lcore.MvuShape.close_value(s.value);
-                Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
-              },
+            List.find_map(
+              ~f=
+                (s: Sample.t) => {
+                  let v = Haz3lcore.MvuShape.close_value(s.value);
+                  Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
+                },
               samples,
-            ))
+            )
+          )
         },
       mtr.projectors,
       None,

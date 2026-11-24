@@ -107,7 +107,9 @@ let compute_targets =
           | None => [(id, {refs: []})]
           }
         };
-      List.fold(entries, ~init=acc, ~f=(acc, (id, spec)) => Id.Map.add(id, spec, acc));
+      List.fold(entries, ~init=acc, ~f=(acc, (id, spec)) =>
+        Id.Map.add(id, spec, acc)
+      );
     },
     effective_probe_ids,
     Id.Map.empty,

@@ -69,14 +69,18 @@ let required_members = ["init", "update", "view", "expand"];
 let module_members =
     (items: list(TermBase.Mod.t)): list((string, TermBase.Exp.t)) =>
   List.fold(items, ~init=[], ~f=(acc, item: TermBase.Mod.t) =>
-      switch (item.term) {
-      | ModLet(p, e) =>
-        switch (pat_name(p)) {
-        | Some(name) => [(name, e), ...List.Assoc.remove(acc, name, ~equal=String.equal)]
-        | None => acc
-        }
-      | _ => acc
-      });
+    switch (item.term) {
+    | ModLet(p, e) =>
+      switch (pat_name(p)) {
+      | Some(name) => [
+          (name, e),
+          ...List.Assoc.remove(acc, name, ~equal=String.equal),
+        ]
+      | None => acc
+      }
+    | _ => acc
+    }
+  );
 
 /* The definition record is the trailing module or tuple, looking through
    helper bindings: `let helper = ... in {...}`. */
@@ -86,7 +90,12 @@ let rec detect = (def: TermBase.Exp.t): result(shape, Mark.livelit_def_error) =>
   | TyAlias(_, _, body) => detect(body)
   | Module(items) =>
     let members = module_members(items);
-    switch (List.filter(~f=r => !List.Assoc.mem(members, r, ~equal=Poly.equal), required_members)) {
+    switch (
+      List.filter(
+        ~f=r => !List.Assoc.mem(members, r, ~equal=Poly.equal),
+        required_members,
+      )
+    ) {
     | [] => Ok(ModuleDef(members))
     | missing => Error(DefMissingMembers(missing))
     };
@@ -113,7 +122,8 @@ let slot_index = (fs: list(TermBase.Exp.t), ~label: string, ~index: int): int =>
   let rec find = (i, fs) =>
     switch (fs) {
     | [] => index
-    | [f, ..._] when Option.equal(String.equal, field_label(f), Some(label)) => i
+    | [f, ..._]
+        when Option.equal(String.equal, field_label(f), Some(label)) => i
     | [_, ...fs] => find(i + 1, fs)
     };
   find(0, fs);
@@ -165,12 +175,14 @@ let ty_member =
   switch (Typ.term_of(def_ty)) {
   | Prod(tys) =>
     let by_label =
-      List.find_map(~f=
-        ty =>
-          switch (Typ.term_of(ty)) {
-          | TupLabel({term: Label(l), _}, t) when String.equal(l, label) => Some(t)
-          | _ => None
-          },
+      List.find_map(
+        ~f=
+          ty =>
+            switch (Typ.term_of(ty)) {
+            | TupLabel({term: Label(l), _}, t) when String.equal(l, label) =>
+              Some(t)
+            | _ => None
+            },
         tys,
       );
     switch (by_label, index) {

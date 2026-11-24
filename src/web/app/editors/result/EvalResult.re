@@ -428,8 +428,8 @@ module Update = {
             let fresh_ids =
               List.map(~f=fst, fresh.Dynamics.test_results.test_map);
             let carried =
-              List.filter(~f=
-                ((id, _)) => !List.mem(fresh_ids, id, ~equal=Poly.equal),
+              List.filter(
+                ~f=((id, _)) => !List.mem(fresh_ids, id, ~equal=Poly.equal),
                 old.Dynamics.test_results.test_map,
               );
             Some({
