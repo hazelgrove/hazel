@@ -3,6 +3,7 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Js_of_ocaml;
 open Language;
+open Poly;
 
 module GraphData = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -119,7 +120,7 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
       let fallback_label = Printf.sprintf("Series %d", series_index + 1);
       let label =
         switch (string_of_value(label_exp)) {
-        | Some(text) when String.trim(text) != "" => text
+        | Some(text) when !String.equal(String.strip(text), "") => text
         | Some(_) =>
           warn(
             Printf.sprintf(
@@ -273,10 +274,8 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
       );
       let (min_x, max_x, min_y, max_y) =
         List.fold_left(
-          (bounds, series_entry: GraphData.series) =>
-            List.fold_left(update_bounds, bounds, series_entry.points),
-          initial,
-          series,
+          series, ~init=initial, ~f=(bounds, series_entry: GraphData.series) =>
+          List.fold_left(series_entry.points, ~init=bounds, ~f=update_bounds)
         );
 
       let normalize_range =
@@ -332,7 +331,7 @@ let warning_indicator = (warnings: list(string)): option(Node.t) =>
   switch (warnings) {
   | [] => None
   | _ =>
-    let tooltip = String.concat("\n", warnings);
+    let tooltip = String.concat(~sep="\n", warnings);
     Some(
       Node.div(
         ~attrs=
@@ -660,15 +659,15 @@ let resize_pointermove = (event: Js.t(Dom_html.pointerEvent)) => {
     let desired_height = start_height_f +. delta_y /. row_height();
     let new_width_blocks =
       if (desired_width >= start_width_f) {
-        int_of_float(Float.ceil(desired_width));
+        int_of_float(Float.round_up(desired_width));
       } else {
-        int_of_float(Float.floor(desired_width));
+        int_of_float(Float.round_down(desired_width));
       };
     let new_height_blocks =
       if (desired_height >= start_height_f) {
-        int_of_float(Float.ceil(desired_height));
+        int_of_float(Float.round_up(desired_height));
       } else {
-        int_of_float(Float.floor(desired_height));
+        int_of_float(Float.round_down(desired_height));
       };
     let clamped_width = clamp_width_blocks(new_width_blocks);
     let clamped_height = clamp_height_blocks(new_height_blocks);

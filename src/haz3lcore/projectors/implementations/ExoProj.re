@@ -29,7 +29,7 @@ module M = (ExoP: {
 
   let placeholder = (model: model, _): ProjectorCore.Shape.t => {
     let px_to_grid = (value: int, multiple: float): int =>
-      int_of_float(ceil(float_of_int(value) /. multiple));
+      int_of_float(Float.round_up(float_of_int(value) /. multiple));
     let m = Util.font_metrics^;
     {
       horizontal: px_to_grid(model.width, m.col_width) + 1,

@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Language;
+open Poly;
 
 /**
  * Types for communication protocol between external apps and Hazel
@@ -141,15 +142,21 @@ module JsonCodec = {
     let suffix_length: int = String.length(keyword_escape_suffix);
     let label_length: int = String.length(label);
     label_length >= suffix_length
-    && String.sub(label, label_length - suffix_length, suffix_length)
-    == keyword_escape_suffix;
+    && String.equal(
+         String.sub(
+           label,
+           ~pos=label_length - suffix_length,
+           ~len=suffix_length,
+         ),
+         keyword_escape_suffix,
+       );
   };
 
   let strip_keyword_escape_suffix = (label: string): option(string) =>
     if (has_keyword_escape_suffix(label)) {
       let prefix_length: int =
         String.length(label) - String.length(keyword_escape_suffix);
-      Some(String.sub(label, 0, prefix_length));
+      Some(String.sub(label, ~pos=0, ~len=prefix_length));
     } else {
       None;
     };
@@ -207,7 +214,7 @@ module JsonCodec = {
             switch (exp_to_yojson(value)) {
             | Ok(json_elem) =>
               let json_key: string = unescape_label_from_hazel(label);
-              if (List.mem(json_key, used_labels)) {
+              if (List.mem(used_labels, json_key, ~equal=String.equal)) {
                 Error(
                   "Duplicate labeled tuple key after keyword unsanitization: "
                   ++ json_key,
@@ -392,10 +399,10 @@ module JsonCodec = {
     | `Assoc(pairs) =>
       /* JSON object: could be ADT constructor or tuple */
       /* First check if it's an ADT constructor */
-      switch (List.assoc_opt("t", pairs)) {
+      switch (List.Assoc.find(pairs, "t", ~equal=String.equal)) {
       | Some(`String(constructor_name)) =>
         /* ADT Constructor */
-        switch (List.assoc_opt("v", pairs)) {
+        switch (List.Assoc.find(pairs, "v", ~equal=String.equal)) {
         | Some(json_value) =>
           /* Constructor with argument: {"t": "Some", "v": 42} */
           switch (yojson_to_exp(json_value)) {
@@ -443,26 +450,28 @@ module JsonCodec = {
         } else {
           let all_numeric =
             List.for_all(
-              ((key, _value)) =>
-                /* Check if all keys are numeric strings (0, 1, 2, ...) */
-                try({
-                  let index = int_of_string(key);
-                  index >= 0;
-                }) {
-                | _ => false
-                },
+              ~f=
+                ((key, _value)) =>
+                  /* Check if all keys are numeric strings (0, 1, 2, ...) */
+                  try({
+                    let index = int_of_string(key);
+                    index >= 0;
+                  }) {
+                  | _ => false
+                  },
               pairs,
             );
 
           let any_numeric =
             List.exists(
-              ((key, _value)) =>
-                try({
-                  let _ = int_of_string(key);
-                  true;
-                }) {
-                | _ => false
-                },
+              ~f=
+                ((key, _value)) =>
+                  try({
+                    let _ = int_of_string(key);
+                    true;
+                  }) {
+                  | _ => false
+                  },
               pairs,
             );
 
@@ -473,11 +482,12 @@ module JsonCodec = {
             /* Plain tuple: sort by numeric key and create Parens(Tuple(...)) */
             let sorted_pairs =
               List.sort(
-                ((k1, _), (k2, _)) => {
-                  let i1 = int_of_string(k1);
-                  let i2 = int_of_string(k2);
-                  compare(i1, i2);
-                },
+                ~compare=
+                  ((k1, _), (k2, _)) => {
+                    let i1 = int_of_string(k1);
+                    let i2 = int_of_string(k2);
+                    compare(i1, i2);
+                  },
                 pairs,
               );
             let rec convert_plain_elements = (acc, remaining) =>
@@ -512,7 +522,7 @@ module JsonCodec = {
               | [] => Ok(List.rev(acc))
               | [(key, value), ...tl] =>
                 let hazel_label: string = escape_label_for_hazel(key);
-                if (List.mem(hazel_label, used_labels)) {
+                if (List.mem(used_labels, hazel_label, ~equal=String.equal)) {
                   Error(
                     "Duplicate labeled tuple key after keyword sanitization: "
                     ++ hazel_label,

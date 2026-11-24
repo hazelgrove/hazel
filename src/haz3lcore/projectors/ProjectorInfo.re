@@ -38,7 +38,7 @@ let utility: ProjectorBase.utility = {
       /* When not inline (projector syntax rewrites like table operations),
          append a trailing newline so the expression doesn't extend to
          the edge of the screen, leaving room for probe values */
-      if (inline != Inline.Inline) {
+      if (!Poly.equal(inline, Inline.Inline)) {
         let newline: Base.piece =
           Secondary({
             content: Whitespace(Token.linebreak),

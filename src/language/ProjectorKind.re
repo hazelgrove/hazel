@@ -46,7 +46,7 @@ let livelit_projectors: list(t) =
     Keybinding,
     Color,
   ]
-  @ List.map(x => Exo(x), all_of_exo);
+  @ List.map(~f=x => Exo(x), all_of_exo);
 
 /* Note: Probe intentionally excluded - probes use separate action path */
 let projectors: list(t) = livelit_projectors @ [Fold, Graph, ObservablePlot];

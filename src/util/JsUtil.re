@@ -761,9 +761,9 @@ let add_message_listener = (handler: _ => _): unit =>
   | exn =>
     Printf.eprintf(
       "❌ addEventListener registration failed: %s\n",
-      Printexc.to_string(exn),
+      Exn.to_string(exn),
     );
-    flush_all();
+    Stdlib.flush_all();
   };
 
 let get_iframe = (iframe_id: string): option(Js.t(_)) => {

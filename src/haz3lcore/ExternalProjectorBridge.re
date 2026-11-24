@@ -213,19 +213,22 @@ let dispatch = (msg: HazelProtocol.to_hazel_message, entry: entry): unit =>
 /* Extract the origin (scheme://host:port) from a URL */
 let extract_origin = (url: string): string =>
   try({
-    let protocol_end = String.index(url, ':');
-    let protocol = String.sub(url, 0, protocol_end);
+    let protocol_end = String.index_exn(url, ':');
+    let protocol = String.sub(url, ~pos=0, ~len=protocol_end);
     if (String.length(url) > protocol_end
         + 2
-        && String.equal(String.sub(url, protocol_end, 3), "://")) {
+        && String.equal(String.sub(url, ~pos=protocol_end, ~len=3), "://")) {
       let after_protocol = protocol_end + 3;
       let remaining =
-        String.sub(url, after_protocol, String.length(url) - after_protocol);
+        String.sub(
+          url,
+          ~pos=after_protocol,
+          ~len=String.length(url) - after_protocol,
+        );
       let host_end =
-        try(String.index(remaining, '/')) {
-        | Not_found => String.length(remaining)
-        };
-      let host_part = String.sub(remaining, 0, host_end);
+        String.index(remaining, '/')
+        |> Option.value(~default=String.length(remaining));
+      let host_part = String.sub(remaining, ~pos=0, ~len=host_end);
       protocol ++ "://" ++ host_part;
     } else {
       url;
@@ -238,7 +241,7 @@ let registry_lookup = (id: Id.t, origin: string): option(entry) =>
   switch (Id.Map.find_opt(id, registry^)) {
   | Some(entry) =>
     let expected_origin = extract_origin(entry.target_origin);
-    if (origin != expected_origin) {
+    if (!String.equal(origin, expected_origin)) {
       prerr_endline(
         "registry_lookup: origin mismatch: "
         ++ origin
