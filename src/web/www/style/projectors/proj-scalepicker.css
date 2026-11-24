@@ -1,0 +1,61 @@
+/* Scale Picker Projector Styles */
+
+.scale-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.4em;
+  padding: 0.4em;
+  background: var(--surface-raised);
+  border-radius: 0.3em;
+  border: 1px solid var(--border-default);
+  transition: border-color 0.15s;
+  min-width: 12em;
+}
+
+.scale-picker:hover {
+  border-color: var(--border-strong);
+}
+
+.scale-picker .current-pattern {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--text-default);
+  padding: 0.3em 0.5em;
+  background: var(--surface-default);
+  border-radius: 0.2em;
+  border: 1px solid var(--border-default);
+  text-align: center;
+  min-height: 1.3em;
+  word-break: break-word;
+}
+
+.scale-picker .scale-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+  justify-content: center;
+}
+
+.scale-picker .scale-option {
+  font-family: var(--ui-font);
+  font-size: 0.7em;
+  padding: 0.25em 0.5em;
+  background: var(--surface-default);
+  border: 1px solid var(--border-default);
+  border-radius: 0.2em;
+  color: var(--text-default);
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+  white-space: nowrap;
+}
+
+.scale-picker .scale-option:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+
+.scale-picker .scale-option.selected {
+  background: var(--B1);
+  border-color: var(--B0);
+  color: white;
+}

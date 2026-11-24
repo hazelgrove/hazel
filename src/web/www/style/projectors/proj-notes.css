@@ -1,0 +1,99 @@
+/* Note Picker Projector Styles */
+
+.note-picker {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.3em;
+  background: var(--surface-raised);
+  border-radius: 0.3em;
+  border: 1px solid var(--border-default);
+  transition: border-color 0.15s;
+}
+
+.note-picker:hover {
+  border-color: var(--border-strong);
+}
+
+.note-picker .piano-keys {
+  display: flex;
+  position: relative;
+  height: 4.2em;
+  width: 11em;
+  /* Contain the absolutely positioned black keys */
+  overflow: hidden;
+  border-radius: 0 0 0.3em 0.3em;
+}
+
+.note-picker .note-key {
+  cursor: pointer;
+  transition: background-color 0.1s, transform 0.05s, box-shadow 0.1s;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 0.3em;
+  font-size: 0.7em;
+  font-family: var(--ui-font);
+  font-weight: 500;
+  user-select: none;
+}
+
+.note-picker .note-key.white {
+  flex: 1;
+  /* height: 100%; */
+  background: white;
+  border: 1px solid var(--border-strong);
+  border-radius: 0 0 0.35em 0.35em;
+  color: var(--text-strong);
+  z-index: 1;
+}
+
+.note-picker .note-key.white:not(:first-child) {
+  border-left: none;
+}
+
+.note-picker .note-key.white:hover {
+  background: var(--surface-default);
+  border-color: var(--border-default);
+}
+
+.note-picker .note-key.white.active {
+  background: var(--surface-success-soft);
+  color: white;
+  border-color: var(--border-success);
+  box-shadow: 0 0 4px oklch(from var(--shadow-success) l c h / 0.4);
+}
+
+.note-picker .note-key.black {
+  position: absolute;
+  width: 9%;
+  height: 58%;
+  background: var(--surface-accent-strong);
+  border: 1px solid var(--border-stronger);
+  border-radius: 0 0 0.2em 0.2em;
+  z-index: 2;
+  color: transparent; /* hide text on black keys */
+}
+
+.note-picker .note-key.black:hover {
+  background: var(--surface-accent);
+}
+
+.note-picker .note-key.black.active {
+  background: var(--surface-success);
+  border-color: var(--border-success);
+  box-shadow: 0 0 4px oklch(from var(--shadow-success) l c h / 0.5);
+}
+
+.note-picker .pattern-text {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  color: var(--text-default);
+  padding: 0.35em 0.5em;
+  background: var(--surface-default);
+  border-radius: 0.2em;
+  border: 1px solid var(--border-default);
+  text-align: center;
+  min-height: 1.5em;
+  word-break: break-word;
+}

@@ -70,6 +70,7 @@ let rec target_subterm_ids =
 type probe_status =
   | Manual(list(Id.t))
   | Statics(list(Id.t))
+  | Player(list(Id.t)) /* player refractor; ids are target IDs */
   | Multi
   | Ephemeral(list(Id.t))
   | Suppressed(list(Id.t))
@@ -93,7 +94,20 @@ let probe_status =
             ProjectorCore.Kind.equal(entry.kind, Statics),
         manual_entries,
       );
-    all_statics ? Statics(target_ids) : Manual(target_ids);
+    let all_player =
+      List.for_all(
+        ~f=
+          (entry: Refractors.entry) =>
+            ProjectorCore.Kind.equal(entry.kind, Player),
+        manual_entries,
+      );
+    if (all_statics) {
+      Statics(target_ids);
+    } else if (all_player) {
+      Player(target_ids);
+    } else {
+      Manual(target_ids);
+    };
   } else if (List.exists(
                ~f=id => Id.Map.mem(id, refractors.multis.ids),
                target_ids,
