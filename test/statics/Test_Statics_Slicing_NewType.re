@@ -103,5 +103,19 @@ let tests = (
       "Q(Db, (a = String, b = M(G)))",
       {|type M(?) = ? in type G = ? in type Q(?, ?) = ? in type Db = ? in let s:(poly D, R, S -> ? -> Q(D, S)) = ? in let m = s @< Db, ?, (a=String, b=M(G)) > (?) in m|},
     ),
+    synthesis_case(
+      ~focus=use_of("x"),
+      "record-field-focus-omits-siblings",
+      "let x = 1 in let r = (a = 2, b = x, c = true) in r",
+      "Int",
+      {|let x = 1 in let ? = (?, b=x, ?) in ?|},
+    ),
+    synthesis_case(
+      ~focus=use_of("r"),
+      "parameterised-alias-field-demand",
+      "type P(F) = (a = Int, b = F) in let r : P(Bool) = ? in r",
+      "(a = Int, b = ?)",
+      {|type P(?) = (a=Int, b=?) in let r:(P(Bool)) = ? in r|},
+    ),
   ],
 );
