@@ -24,6 +24,7 @@ let outbox_of = (entries: list((Id.t, IncrEval.entry(EvaluatorState.t)))) =>
   IncrEval.{
     completed: {
       entries: entries |> List.to_seq |> Id.Map.of_seq,
+      steps: 0,
     },
     current: None,
   };
