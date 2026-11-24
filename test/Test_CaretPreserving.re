@@ -12,7 +12,7 @@ let roundtrip = (~name, init) =>
     `Quick,
     () => {
       let z = Test_Editing.mk_zipper(init);
-      let z = CaretPreserving.transform(z, Fun.id);
+      let z = CaretPreserving.transform(z, Fn.id);
       check(string, name, init, Test_Editing.printer(z));
     },
   );
