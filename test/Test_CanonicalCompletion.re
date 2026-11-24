@@ -1458,7 +1458,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
     | None => "sug:NONE"
     | Some((head, n, tail)) =>
       "sug:"
-      ++ String.sub(head, n, String.length(head) - n)
+      ++ String.sub(head, ~pos=n, ~len=String.length(head) - n)
       ++ TyDiSuggestion.flat_of_tail(tail)
     };
   String.concat(~sep=" | ", [tok, ci_s, sug]);

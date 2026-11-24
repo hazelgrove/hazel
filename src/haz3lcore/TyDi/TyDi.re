@@ -123,7 +123,7 @@ let anchor_to_left = (z: Zipper.t): option((Id.t, string)) =>
   };
 
 let token_to_left = (z: Zipper.t): option(string) =>
-  anchor_to_left(z) |> Option.map(snd);
+  anchor_to_left(z) |> Option.map(~f=snd);
 
 /* The top type-directed suggestion at the caret, STRUCTURED: the
  * completed head token, the typed-prefix length, and any lookahead

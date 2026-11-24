@@ -248,7 +248,7 @@ let refresh_shapes =
    * assist off) */
   let assist =
     switch (obligations) {
-    | Some(obligations) when info_map !== old.shape_info_map =>
+    | Some(obligations) when !phys_equal(info_map, old.shape_info_map) =>
       TypeObligations.assist_stream(z, ~info_map, obligations)
     | Some(_) => old.assist
     | None => []

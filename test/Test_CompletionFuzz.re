@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Invariant fuzzer for the inline-completion display. Pins catch seen
    states; this asserts mechanical properties on random edit
@@ -40,7 +41,7 @@ let mv_l: Action.t = Move(Local(Left, ByChar));
 let mv_r: Action.t = Move(Local(Right, ByChar));
 
 let str = (s: string): list(Action.t) =>
-  Token.to_list(s) |> List.map(c => Action.Insert(c));
+  Token.to_list(s) |> List.map(~f=c => Action.Insert(c));
 
 /* keyword strings as multi-char entries so scripts actually form
    let/in/if/then/else/case/end/fun runs */
@@ -75,7 +76,7 @@ let alphabet: list((int, list(Action.t))) = [
   (3, [mv_r]),
 ];
 
-let total_weight = List.fold_left((a, (w, _)) => a + w, 0, alphabet);
+let total_weight = List.fold_left(alphabet, ~init=0, ~f=(a, (w, _)) => a + w);
 
 let pick = (r: int): list(Action.t) => {
   let rec go = (r, l) =>
@@ -95,7 +96,7 @@ let script_of_seed = (n: int, steps: int): list(Action.t) => {
       let s = lcg(s);
       build(s, [pick(s), ...acc], len + List.length(pick(s)));
     };
-  build(lcg(2 * n + 1), [], 0) |> List.filteri((i, _) => i < steps);
+  build(lcg(2 * n + 1), [], 0) |> List.filteri(~f=(i, _) => i < steps);
 };
 
 let label = (a: Action.t): string =>
@@ -135,22 +136,18 @@ let apply = (z: Zipper.t, a: Action.t): applied => {
   switch (go(a, z, ~root=Sort.Exp)) {
   | Ok(z) => Applied(z)
   | Error(_) => Rejected
-  | exception e => Raised(Printexc.to_string(e))
+  | exception e => Raised(Stdlib.Printexc.to_string(e))
   };
 };
 
 /* replay for repro/minimization: rejected actions skip, like the loop */
 let replay = (actions: list(Action.t)): Zipper.t =>
-  List.fold_left(
-    (z, a) =>
+  List.fold_left(actions, ~init=Zipper.init(), ~f=(z, a) =>
       switch (apply(z, a)) {
       | Applied(z) => z
       | Rejected
       | Raised(_) => z
-      },
-    Zipper.init(),
-    actions,
-  );
+      });
 
 /* ---------- render helpers ---------- */
 
@@ -178,16 +175,16 @@ let raw_pre_caret = (z: Zipper.t): string => {
       ~measured,
       seg,
     )
-    |> String.split_on_char('\n');
-  let before = List.filteri((i, _) => i < caret.row, rows);
+    |> String.split(~on='\n');
+  let before = List.filteri(rows, ~f=(i, _) => i < caret.row);
   let at =
-    switch (List.nth_opt(rows, caret.row)) {
+    switch (List.nth(rows, caret.row)) {
     | Some(r) => r
     | None => ""
     };
   let prefix =
-    caret.col <= String.length(at) ? String.sub(at, 0, caret.col) : at;
-  String.concat("\n", before @ [prefix]);
+    caret.col <= String.length(at) ? String.sub(at, ~pos=0, ~len=caret.col) : at;
+  String.concat(~sep="\n", before @ [prefix]);
 };
 
 let remove_all = (needle: string, s: string): string => {
@@ -212,11 +209,11 @@ let promised_in = (s: string): option((char, bool)) => {
   let rec go = (i, inside, seen) =>
     if (i >= sl) {
       None;
-    } else if (i + 3 <= sl && String.sub(s, i, 3) == "⟪") {
+    } else if (i + 3 <= sl && String.sub(s, ~pos=i, ~len=3) == "⟪") {
       go(i + 3, true, seen);
-    } else if (i + 3 <= sl && String.sub(s, i, 3) == "⟫") {
+    } else if (i + 3 <= sl && String.sub(s, ~pos=i, ~len=3) == "⟫") {
       go(i + 3, false, seen);
-    } else if (i + 2 <= sl && String.sub(s, i, 2) == "¦") {
+    } else if (i + 2 <= sl && String.sub(s, ~pos=i, ~len=2) == "¦") {
       go(i + 2, inside, true);
     } else if (seen) {
       Some((s.[i], inside));
@@ -239,9 +236,9 @@ let raw_promised = (z: Zipper.t): option(char) => {
       ~measured,
       seg,
     )
-    |> String.split_on_char('\n')
+    |> String.split(~on='\n')
     |> Printer.insert_string("¦", caret)
-    |> String.concat("\n");
+    |> String.concat(~sep="\n");
   switch (Test_CompletionDisplay.split_first("¦", s)) {
   | Some((_, r)) when r != "" => Some(r.[0])
   | _ => None
@@ -254,7 +251,7 @@ let find_all = (needle: string, s: string): list(int) => {
   let rec go = (i, acc) =>
     if (i + nl > sl) {
       List.rev(acc);
-    } else if (String.sub(s, i, nl) == needle) {
+    } else if (String.sub(s, ~pos=i, ~len=nl) == needle) {
       go(i + 1, [i, ...acc]);
     } else {
       go(i + 1, acc);
@@ -271,7 +268,7 @@ let check_invariants =
     (~prev: option((string, option(char))), ~action: Action.t, z: Zipper.t)
     : result((string, list(string)), string) =>
   switch (Test_CompletionDisplay.display_state(~chips=false, z)) {
-  | exception e => Error(Printexc.to_string(e))
+  | exception e => Error(Stdlib.Printexc.to_string(e))
   | cur =>
     let vs = ref([]);
     let add = name => vs := [name, ...vs^];
@@ -302,7 +299,7 @@ let check_invariants =
        asserts, over real measurements. */
     switch (find_all("¦", cur)) {
     | [ci, ..._] =>
-      if (List.exists(gi => gi < ci, find_all("⟪", cur))) {
+      if (List.exists(find_all("⟪", cur), ~f=gi => gi < ci)) {
         add("NO-PRE-CARET-GHOST");
       }
     | [] => ()
@@ -327,15 +324,12 @@ let check_invariants =
        TyDi buffer; raw/caret_after re-derived from the same zc) */
     switch (Test_CompletionDisplay.display_parts(z)) {
     | exception e =>
-      add("PAD-IDEMPOTENCE (parts raised: " ++ Printexc.to_string(e) ++ ")")
+      add("PAD-IDEMPOTENCE (parts raised: " ++ Stdlib.Printexc.to_string(e) ++ ")")
     | (seg, zc, marks, _, _, _, _) =>
       let sel_ids = Selection.selection_ids(zc.selection);
       let chip_marks =
-        List.filter(
-          ((id, _): (Id.t, option(int))) =>
-            !List.exists(Id.equal(id), sel_ids),
-          marks,
-        );
+        List.filter(marks, ~f=((id, _): (Id.t, option(int))) =>
+            !List.exists(sel_ids, ~f=Id.equal(id)));
       if (chip_marks != []) {
         switch (
           CanonicalCompletion.finish_display(
@@ -346,7 +340,7 @@ let check_invariants =
           )
         ) {
         | exception e =>
-          add("PAD-IDEMPOTENCE (raised: " ++ Printexc.to_string(e) ++ ")")
+          add("PAD-IDEMPOTENCE (raised: " ++ Stdlib.Printexc.to_string(e) ++ ")")
         | seg2 =>
           if (seg_text(seg) != seg_text(seg2)) {
             add(
@@ -404,8 +398,8 @@ let observe = (z: Zipper.t): option((string, option(char))) =>
    with rejected actions skipped, like the fuzz loop) */
 let violations_of = (actions: list(Action.t)): list(string) => {
   let n = List.length(actions);
-  let init = List.filteri((i, _) => i < n - 1, actions);
-  let last = List.nth(actions, n - 1);
+  let init = List.filteri(actions, ~f=(i, _) => i < n - 1);
+  let last = List.nth_exn(actions, n - 1);
   let z = replay(init);
   let prev = observe(z);
   switch (apply(z, last)) {
@@ -420,14 +414,11 @@ let violations_of = (actions: list(Action.t)): list(string) => {
 };
 
 let has_violation = (needle: string, actions: list(Action.t)): bool =>
-  List.exists(
-    v =>
+  List.exists(violations_of(actions), ~f=v =>
       switch (Test_CompletionDisplay.split_first(needle, v)) {
       | Some(_) => true
       | None => false
-      },
-    violations_of(actions),
-  );
+      });
 
 /* greedy: drop mid-script actions while the last step still fires the
    same invariant (trailing actions were already dropped by truncating
@@ -437,7 +428,7 @@ let minimize = (needle: string, actions: list(Action.t)): list(Action.t) => {
     if (i >= List.length(kept) - 1) {
       kept;
     } else {
-      let cand = List.filteri((j, _) => j != i, kept);
+      let cand = List.filteri(kept, ~f=(j, _) => j != i);
       has_violation(needle, cand) ? pass(cand, i) : pass(kept, i + 1);
     };
   pass(actions, 0);
@@ -446,7 +437,7 @@ let minimize = (needle: string, actions: list(Action.t)): list(Action.t) => {
 /* ---------- fuzz loop ---------- */
 
 let flat = (s: string): string =>
-  String.split_on_char('\n', s) |> String.concat(" ⏎ ");
+  String.split(s, ~on='\n') |> String.concat(~sep=" ⏎ ");
 
 /* KNOWN VIOLATION CLASSES, each pinned as a minimized repro in the
    known-violations group below; excluded here by (invariant prefix,
@@ -485,17 +476,14 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
       );
     let starts_with = (p, s) =>
       String.length(s) >= String.length(p)
-      && String.sub(s, 0, String.length(p)) == p;
+      && String.sub(s, ~pos=0, ~len=String.length(p)) == p;
     let known =
-      List.exists(
-        ((inv_prefix, sub)) =>
+      List.exists(known_classes, ~f=((inv_prefix, sub)) =>
           starts_with(inv_prefix, inv)
           && (
             sub == ""
             || Option.is_some(Test_CompletionDisplay.split_first(sub, line))
-          ),
-        known_classes,
-      );
+          ));
     if (!known) {
       Stdlib.Buffer.add_string(
         buf,
@@ -517,15 +505,14 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
     let z = ref(Zipper.init());
     let prev = ref(observe(z^));
     let aborted = ref(false);
-    List.iteri(
-      (k0, a) =>
+    List.iteri(script, ~f=(k0, a) =>
         if (! aborted^) {
           let k = k0 + 1;
           let prefix =
             script
-            |> List.filteri((i, _) => i <= k0)
-            |> List.map(label)
-            |> String.concat(" ");
+            |> List.filteri(~f=(i, _) => i <= k0)
+            |> List.map(~f=label)
+            |> String.concat(~sep=" ");
           let prev_disp =
             switch (prev^) {
             | Some((d, _)) => d
@@ -559,8 +546,7 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
               );
               aborted := true;
             | Ok((cur, vs)) =>
-              List.iter(
-                inv =>
+              List.iter(vs, ~f=inv =>
                   record(
                     ~seed,
                     ~step=k,
@@ -569,15 +555,11 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
                     ~prev=prev_disp,
                     ~cur,
                     ~prefix,
-                  ),
-                vs,
-              );
+                  ));
               prev := Some((cur, raw_promised(z')));
             };
           };
-        },
-      script,
-    );
+        });
   };
   Stdlib.Buffer.contents(buf);
 };
@@ -596,8 +578,7 @@ let run_parity_fuzz = (~seeds: int, ~steps: int): string => {
     let script = script_of_seed(seed, steps);
     let z = ref(Zipper.init());
     let aborted = ref(false);
-    List.iteri(
-      (k0, a) =>
+    List.iteri(script, ~f=(k0, a) =>
         if (! aborted^) {
           switch (apply(z^, a)) {
           | Rejected => ()
@@ -650,9 +631,7 @@ let run_parity_fuzz = (~seeds: int, ~steps: int): string => {
             | _ => ()
             };
           };
-        },
-      script,
-    );
+        });
   };
   Stdlib.Buffer.contents(buf);
 };
@@ -662,9 +641,9 @@ let run_parity_fuzz = (~seeds: int, ~steps: int): string => {
    BK backspace; L/R char moves */
 let acts = (spec: string): list(Action.t) =>
   spec
-  |> String.split_on_char(' ')
-  |> List.filter(s => s != "")
-  |> List.map(s =>
+  |> String.split(~on=' ')
+  |> List.filter(~f=s => s != "")
+  |> List.map(~f=s =>
        switch (s) {
        | "NL" => Action.Insert("\n")
        | "SP" => Action.Insert(" ")
@@ -672,8 +651,7 @@ let acts = (spec: string): list(Action.t) =>
        | "L" => mv_l
        | "R" => mv_r
        | s => Action.Insert(s)
-       }
-     );
+       });
 
 /* pinned known-jank: replay a minimized repro, pin the violations its
    last action fires (bisected from fuzz findings via `minimize`). If
@@ -684,7 +662,7 @@ let known_case = (name: string, script: string, expected: string) =>
       string_testable,
       name,
       expected,
-      String.concat(" | ", violations_of(acts(script))),
+      String.concat(~sep=" | ", violations_of(acts(script))),
     )
   );
 
@@ -731,10 +709,10 @@ let crash_stage_probe = {
           Printer.insert_string(
             "|",
             caret,
-            String.split_on_char('\n', text),
+            String.split(text, ~on='\n'),
           );
         stage := "done";
-        String.concat("/", rows);
+        String.concat(~sep="/", rows);
       }
     ) {
     | r => r

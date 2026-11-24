@@ -135,7 +135,9 @@ let perform_soft = (z: Zipper.t, acts: list(Action.t)): option(Zipper.t) => {
 };
 
 let completed_tokens = (z: Zipper.t): list(string) => {
-  let seg = z |> Zipper.unselect_and_zip(~erase_buffer=true);
+  let seg =
+    z
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
   let result = CanonicalCompletion.for_editor(seg);
   tokens(result.completed_seg);
 };
@@ -316,51 +318,11 @@ let run_pairs = (name: string, text: string): joint_outcome => {
             )
        );
   List.fold_left(
-    (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
-      let del = tok =>
-        List.init(Token.length(tok), _ =>
-          Action.Destruct(Action.Local(Left, ByChar))
-        );
-      let acts =
-        [Action.Move(Point(pt_r, None))]
-        @ del(tok_r)
-        @ [Action.Move(Point(pt_l, None))]
-        @ del(tok_l);
-      let where =
-        Printf.sprintf(
-          "%s@%d:%d + %s@%d:%d",
-          tok_l,
-          pt_l.row,
-          pt_l.col,
-          tok_r,
-          pt_r.row,
-          pt_r.col,
-        );
-      switch (perform_soft(z0, acts)) {
-      | None =>
-        print_endline(
-          Printf.sprintf("[%s/pair] INAPPLICABLE %s", name, where),
-        );
-        {
-          ...acc,
-          j_total: acc.j_total + 1,
-        };
-      | Some(z') =>
-        let seg = z' |> Zipper.unselect_and_zip(~erase_buffer=true);
-        let result = CanonicalCompletion.for_editor(seg);
-        let got = tokens(result.completed_seg);
-        let ok = got == original;
-        let inc =
-          Segment.incomplete_tiles_deep(result.completed_seg) |> List.length;
-        if (!ok || inc > 0) {
-          print_endline(
-            Printf.sprintf(
-              "[%s/pair] %s %s -> %s",
-              name,
-              inc > 0 ? "INCOMPLETE" : "MISS",
-              where,
-              String.concat(" ", got),
-            ),
+    ~f=
+      (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
+        let del = tok =>
+          List.init(Token.length(tok), ~f=_ =>
+            Action.Destruct(Action.Local(Left, ByChar))
           );
         let acts =
           [Action.Move(Point(pt_r, None))]
@@ -389,7 +351,6 @@ let run_pairs = (name: string, text: string): joint_outcome => {
         | Some(z') =>
           let seg =
             z'
-            |> Zipper.clear_unparsed_buffer
             |> Zipper.unselect_and_zip(~erase_buffer=true);
           let result = CanonicalCompletion.for_editor(seg);
           let got = tokens(result.completed_seg);
@@ -469,111 +430,146 @@ let run_accept = (name: string, text: string): accept_outcome => {
       Action.Destruct(Action.Local(Left, ByChar))
     );
   List.fold_left(
-    (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
-      let acts =
-        [Action.Move(Point(pt_r, None))]
-        @ del(tok_r)
-        @ [Action.Move(Point(pt_l, None))]
-        @ del(tok_l);
-      switch (perform_soft(z0, acts)) {
-      | None => acc
-      | Some(z') =>
-        let seg = z' |> Zipper.unselect_and_zip(~erase_buffer=true);
-        let entries = entries_of(seg);
-        let tiles =
-          entries
-          |> List.map(((_, _, _, tid)) => tid)
-          |> List.sort_uniq(compare);
-        List.length(tiles) < 2
-          ? acc
-          /* per-tile single acceptance */
-          : {
-            let acc =
-              List.fold_left(
-                (acc, tid) =>
-                  switch (
-                    perform_soft(z', [Action.ApplyCompletion(One(tid))])
-                  ) {
-                  | None => {
-                      ...acc,
-                      a_failed: acc.a_failed + 1,
-                      a_total: acc.a_total + 1,
-                    }
-                  | Some(z2) =>
-                    let entries2 =
-                      entries_of(
-                        z2 |> Zipper.unselect_and_zip(~erase_buffer=true),
-                      );
-                    let survivors =
-                      entries
-                      |> List.filter(((_, _, _, t)) => !Id.equal(t, tid));
-                    let ok =
-                      survivors
-                      |> List.for_all(((a, sd, tx, _)) =>
-                           entries2
-                           |> List.exists(((a', sd', tx', _)) =>
-                                Id.equal(a, a') && sd == sd' && tx == tx'
-                              )
-                         );
-                    if (!ok) {
-                      print_endline(
-                        Printf.sprintf(
-                          "[%s/accept] SHIFTED applying %s at %d:%d+%d:%d",
-                          name,
-                          Id.to_string(tid) |> String.sub(_, 0, 8),
-                          pt_l.row,
-                          pt_l.col,
-                          pt_r.row,
-                          pt_r.col,
-                        ),
-                      );
-                    };
-                    {
-                      ...acc,
-                      a_stable: acc.a_stable + (ok ? 1 : 0),
-                      a_shifted: acc.a_shifted + (ok ? 0 : 1),
-                      a_total: acc.a_total + 1,
-                    };
-                  },
-                acc,
-                tiles,
-              );
-            /* reverse-trace full sequence: accept in reverse insertion
-               order, compare against materialize-all */
-            let joint =
-              tokens(
-                CanonicalCompletion.materialize_all(~sort=Sort.Exp, seg),
-              );
-            let order =
-              entries
-              |> List.map(((_, _, _, tid)) => tid)
-              |> List.fold_left(
-                   (seen, t) => List.mem(t, seen) ? seen : seen @ [t],
-                   [],
-                 )
-              |> List.rev;
-            let final =
-              List.fold_left(
-                (zo, tid) =>
-                  switch (zo) {
-                  | None => None
-                  | Some(z) =>
-                    switch (
-                      perform_soft(z, [Action.ApplyCompletion(One(tid))])
-                    ) {
-                    | Some(z2) => Some(z2)
-                    | None => Some(z) /* already discharged en route */
-                    }
-                  },
-                Some(z'),
-                order,
-              );
-            let converged =
-              switch (final) {
-              | Some(zf) =>
-                tokens(Zipper.unselect_and_zip(~erase_buffer=true, zf))
-                == joint
-              | None => false
+    ~f=
+      (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
+        let acts =
+          [Action.Move(Point(pt_r, None))]
+          @ del(tok_r)
+          @ [Action.Move(Point(pt_l, None))]
+          @ del(tok_l);
+        switch (perform_soft(z0, acts)) {
+        | None => acc
+        | Some(z') =>
+          let seg =
+            z'
+            |> Zipper.unselect_and_zip(~erase_buffer=true);
+          let entries = entries_of(seg);
+          let tiles =
+            entries
+            |> List.map(~f=((_, _, _, tid)) => tid)
+            |> List.dedup_and_sort(~compare=Id.compare);
+          List.length(tiles) < 2
+            ? acc
+            /* per-tile single acceptance */
+            : {
+              let acc =
+                List.fold_left(
+                  ~f=
+                    (acc, tid) =>
+                      switch (
+                        perform_soft(
+                          z',
+                          [Action.ApplyCompletion(One(tid))],
+                        )
+                      ) {
+                      | None => {
+                          ...acc,
+                          a_failed: acc.a_failed + 1,
+                          a_total: acc.a_total + 1,
+                        }
+                      | Some(z2) =>
+                        let entries2 =
+                          entries_of(
+                            z2
+                            |> Zipper.unselect_and_zip(~erase_buffer=true),
+                          );
+                        let survivors =
+                          entries
+                          |> List.filter(~f=((_, _, _, t)) =>
+                               !Id.equal(t, tid)
+                             );
+                        let ok =
+                          survivors
+                          |> List.for_all(~f=((a, sd, tx, _)) =>
+                               entries2
+                               |> List.exists(~f=((a', sd', tx', _)) =>
+                                    Id.equal(a, a') && sd == sd' && tx == tx'
+                                  )
+                             );
+                        if (!ok) {
+                          print_endline(
+                            Printf.sprintf(
+                              "[%s/accept] SHIFTED applying %s at %d:%d+%d:%d",
+                              name,
+                              Id.to_string(tid)
+                              |> String.sub(_, ~pos=0, ~len=8),
+                              pt_l.row,
+                              pt_l.col,
+                              pt_r.row,
+                              pt_r.col,
+                            ),
+                          );
+                        };
+                        {
+                          ...acc,
+                          a_stable: acc.a_stable + (ok ? 1 : 0),
+                          a_shifted: acc.a_shifted + (ok ? 0 : 1),
+                          a_total: acc.a_total + 1,
+                        };
+                      },
+                  ~init=acc,
+                  tiles,
+                );
+              /* reverse-trace full sequence: accept in reverse insertion
+                 order, compare against materialize-all */
+              let joint =
+                tokens(
+                  CanonicalCompletion.materialize_all(~sort=Sort.Exp, seg),
+                );
+              let order =
+                entries
+                |> List.map(~f=((_, _, _, tid)) => tid)
+                |> List.fold_left(
+                     ~f=
+                       (seen, t) =>
+                         List.mem(seen, t, ~equal=Id.equal)
+                           ? seen : seen @ [t],
+                     ~init=[],
+                   )
+                |> List.rev;
+              let final =
+                List.fold_left(
+                  ~f=
+                    (zo, tid) =>
+                      switch (zo) {
+                      | None => None
+                      | Some(z) =>
+                        switch (
+                          perform_soft(
+                            z,
+                            [Action.ApplyCompletion(One(tid))],
+                          )
+                        ) {
+                        | Some(z2) => Some(z2)
+                        | None => Some(z) /* already discharged en route */
+                        }
+                      },
+                  ~init=Some(z'),
+                  order,
+                );
+              let converged =
+                switch (final) {
+                | Some(zf) =>
+                  tokens(Zipper.unselect_and_zip(~erase_buffer=true, zf))
+                  == joint
+                | None => false
+                };
+              if (!converged) {
+                print_endline(
+                  Printf.sprintf(
+                    "[%s/accept] DIVERGED reverse-seq at %d:%d+%d:%d",
+                    name,
+                    pt_l.row,
+                    pt_l.col,
+                    pt_r.row,
+                    pt_r.col,
+                  ),
+                );
+              };
+              {
+                ...acc,
+                r_converged: acc.r_converged + (converged ? 1 : 0),
+                r_seqs: acc.r_seqs + 1,
               };
             };
         };

@@ -195,7 +195,7 @@ module Update = {
        statics are DEBOUNCED during typing, so the frame with fresh
        assist data is the deferred refresh, not the edit frame. */
     let zipper = state.zipper;
-    let statics_refreshed = statics.info_map !== syntax.shape_info_map;
+    let statics_refreshed = !phys_equal(statics.info_map, syntax.shape_info_map);
     let armed = is_edited || syntax.ghost_armed;
     let obligations =
       settings.assist && settings.statics ? Some(statics.obligations) : None;

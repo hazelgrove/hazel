@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Poly;
 
 /* Type-forced structural obligations (T1): sites where the expected
    type forces tuple SHAPE the text doesn't yet have. Term-based and
@@ -52,12 +53,11 @@ let juxtaposed = (e: Exp.t): option(int) =>
   | MultiHole(things) =>
     let exps =
       things
-      |> List.filter((a: Any.t) =>
+      |> List.filter(~f=(a: Any.t) =>
            switch (a) {
            | Exp(_) => true
            | _ => false
-           }
-         );
+           });
     List.length(exps) == List.length(things) && things != []
       ? Some(List.length(exps)) : None;
   | _ => None
@@ -67,8 +67,7 @@ let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
   switch (Exp.term_of(inner)) {
   | Tuple(es) =>
     es
-    |> List.fold_left(
-         (acc, e) =>
+    |> List.fold_left(~init=Some(0), ~f=(acc, e) =>
            switch (acc) {
            | None => None
            | Some(k) =>
@@ -76,9 +75,7 @@ let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
              | Some(j) => Some(k + j)
              | None => Some(k + 1)
              }
-           },
-         Some(0),
-       )
+           })
   | MultiHole(_) => juxtaposed(inner)
   /* empty parens presume too: the common case IS the comma'd
      application, so the promise shows from `(` on; a tuple-typed
@@ -104,7 +101,7 @@ let juxtaposed_anywhere = (inner: Exp.t): bool => {
     | None => false
     };
   switch (Exp.term_of(inner)) {
-  | Tuple(es) => List.exists(is_juxt, es)
+  | Tuple(es) => List.exists(es, ~f=is_juxt)
   | _ => is_juxt(inner)
   };
 };
@@ -113,7 +110,7 @@ let mk = (~commas_at=None, ~junctions=false, site, ~present as k, tys): t => {
   site,
   present: k,
   expected: List.length(tys),
-  remaining_tys: List.filteri((i, _) => i >= k, tys),
+  remaining_tys: List.filteri(tys, ~f=(i, _) => i >= k),
   commas_at,
   junctions,
 };
@@ -142,7 +139,7 @@ let overfull_grouping =
     } else if (k - 1 - from < needed) {
       [];
     } else {
-      (choose(from + 1, needed - 1) |> List.map(rest => [from, ...rest]))
+      (choose(from + 1, needed - 1) |> List.map(~f=rest => [from, ...rest]))
       @ choose(from + 1, needed);
     };
   let score = (cut: list(int)): int => {
@@ -151,13 +148,13 @@ let overfull_grouping =
     let rec groups = (bs: list(int)) =>
       switch (bs) {
       | [a, b, ...rest] => [
-          List.filteri((i, _) => i > a && i <= b, items),
+          List.filteri(items, ~f=(i, _) => i > a && i <= b),
           ...groups([b, ...rest]),
         ]
       | _ => []
       };
-    List.combine(groups(bounds), tys)
-    |> List.filter(((group, ty)) =>
+    List.zip_exn(groups(bounds), tys)
+    |> List.filter(~f=((group, ty)) =>
          switch (group) {
          | [item] =>
            switch (syn_of(item, info_map)) {
@@ -169,14 +166,13 @@ let overfull_grouping =
            | None => false
            }
          | _ => false /* multi-item groups and empties are neutral */
-         }
-       )
+         })
     |> List.length;
   };
-  let scored = choose(0, n - 1) |> List.map(cut => (score(cut), cut));
+  let scored = choose(0, n - 1) |> List.map(~f=cut => (score(cut), cut));
   let best =
-    scored |> List.fold_left((acc, (sc, _)) => min(acc, sc), max_int);
-  switch (scored |> List.filter(((sc, _)) => sc == best)) {
+    scored |> List.fold_left(~init=Int.max_value, ~f=(acc, (sc, _)) => min(acc, sc));
+  switch (scored |> List.filter(~f=((sc, _)) => sc == best)) {
   | [(_, cut)] => Some(cut)
   | _ => None /* ambiguous: no presumption */
   };
@@ -187,12 +183,11 @@ let multihole_items = (inner: Exp.t): option(list(Exp.t)) =>
   | MultiHole(things) =>
     let exps =
       things
-      |> List.filter_map((a: Any.t) =>
+      |> List.filter_map(~f=(a: Any.t) =>
            switch (a) {
            | Exp(e) => Some(e)
            | _ => None
-           }
-         );
+           });
     List.length(exps) == List.length(things) && exps != []
       ? Some(exps) : None;
   | _ => None
@@ -215,15 +210,14 @@ let of_wrapper =
     switch (multihole_items(inner)) {
     | Some(items) when List.length(items) == k =>
       overfull_grouping(items, tys, info_map)
-      |> Option.map(cut =>
+      |> Option.map(~f=cut =>
            mk(
              ~commas_at=Some(cut),
              ~junctions=true,
              site,
              ~present=List.length(tys),
              tys,
-           )
-         )
+           ))
     | _ => None
     }
   | _ => None /* overfull-ambiguous or no presumption */
@@ -232,7 +226,7 @@ let of_wrapper =
 let ana_elements = (e: Exp.t, info_map): option((Ctx.t, list(Typ.t))) =>
   switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
   | Some(Info.InfoExp({ana, ctx, _})) =>
-    prod_elements(ctx, ana) |> Option.map(tys => (ctx, tys))
+    prod_elements(ctx, ana) |> Option.map(~f=tys => (ctx, tys))
   | _ => None
   };
 
@@ -255,7 +249,7 @@ let split_nested =
   | Some((ctx, tys)) =>
     let grouping =
       of_wrapper(Exp.rep_id(parens), inner, ~tys, info_map) |> Option.to_list;
-    switch (List.nth_opt(tys, 0)) {
+    switch (List.nth(tys, 0)) {
     | Some(ty0) =>
       switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty0))) {
       | Prod(inner_tys) when List.length(inner_tys) >= 2 =>
@@ -269,7 +263,7 @@ let split_nested =
           | None => None
           };
         let item = first_item(inner);
-        switch (fits(item, ty0), fits(item, List.nth(inner_tys, 0))) {
+        switch (fits(item, ty0), fits(item, List.nth_exn(inner_tys, 0))) {
         | (Some(false), Some(true) | None) =>
           /* first-element reading */
           (
@@ -352,34 +346,25 @@ let derive = (info_map: Statics.Map.t): list(t) =>
  * but deficient site gets a fresh chip at its inner right edge. */
 
 let comma_delims = (n: int): list(CanonicalCompletion.delimiter_info) =>
-  List.init(n, _ =>
+  List.init(n, ~f=_ =>
     CanonicalCompletion.{
       text: ",",
       leading_hole: false,
       trailing_hole: Some(Grout.Convex),
       typed_len: None,
       of_shard: None,
-    }
-  );
+    });
 
 let rec find_tile = (site: Id.t, ps: Segment.t): option(Tile.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
+  List.fold_left(ps, ~init=None, ~f=(acc, p: Piece.t) =>
       switch (acc, p) {
       | (Some(_), _) => acc
       | (None, Tile(t)) =>
         Id.equal(t.id, site)
           ? Some(t)
-          : List.fold_left(
-              (acc, child) => acc == None ? find_tile(site, child) : acc,
-              None,
-              t.children,
-            )
+          : List.fold_left(t.children, ~init=None, ~f=(acc, child) => acc == None ? find_tile(site, child) : acc)
       | (None, _) => None
-      },
-    None,
-    ps,
-  );
+      });
 
 /* the sibling list containing a piece, with its index there */
 let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
@@ -393,11 +378,7 @@ let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
         let deeper =
           switch ((p: Piece.t)) {
           | Tile(t) =>
-            List.fold_left(
-              (acc, ch) => acc == None ? sibling_ctx(ch, id) : acc,
-              None,
-              t.children,
-            )
+            List.fold_left(t.children, ~init=None, ~f=(acc, ch) => acc == None ? sibling_ctx(ch, id) : acc)
           | _ => None
           };
         deeper == None ? go(i + 1, tl) : deeper;
@@ -410,7 +391,7 @@ let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
 let chosen = (ob: t, grouts: list(Id.t)): list(Id.t) =>
   switch (ob.commas_at) {
   | None => grouts
-  | Some(idxs) => grouts |> List.filteri((i, _) => List.mem(i, idxs))
+  | Some(idxs) => grouts |> List.filteri(~f=(i, _) => List.mem(idxs, i, ~equal=Poly.equal))
   };
 
 /* junction sites: concave grout between the site's juxtaposed
@@ -421,12 +402,11 @@ let junction_grouts =
     (~upto: option(Id.t)=?, seg: Segment.t, site: Id.t): list(Id.t) => {
   let grouts = ps =>
     ps
-    |> List.filter_map((p: Piece.t) =>
+    |> List.filter_map(~f=(p: Piece.t) =>
          switch (p) {
          | Grout({id, shape: Concave}) => Some(id)
          | _ => None
-         }
-       );
+         });
   switch (find_tile(site, seg)) {
   | Some({children: [_, ..._] as children, _}) =>
     switch (Util.ListUtil.split_last_opt(children)) {
@@ -459,14 +439,13 @@ let anchor_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
     | [child, ..._] =>
       child
       |> List.rev
-      |> List.find_opt((p: Piece.t) =>
+      |> List.find(~f=(p: Piece.t) =>
            switch (p) {
            | Secondary(_)
            | Grout(_) => false
            | _ => true
-           }
-         )
-      |> Option.map(Piece.id)
+           })
+      |> Option.map(~f=Piece.id)
     | [] => None
     }
   | None => None
@@ -480,7 +459,7 @@ let splice_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
   switch (find_tile(site, seg)) {
   | Some(t) =>
     switch (List.rev(t.children)) {
-    | [child, ..._] => Util.ListUtil.last_opt(child) |> Option.map(Piece.id)
+    | [child, ..._] => Util.ListUtil.last_opt(child) |> Option.map(~f=Piece.id)
     | [] => None
     }
   | None => None
@@ -502,13 +481,12 @@ let present_now = (completed: Segment.t, site: Id.t): option(int) =>
     | Some((_, child)) =>
       let seps =
         child
-        |> List.filter((p: Piece.t) =>
+        |> List.filter(~f=(p: Piece.t) =>
              switch (p) {
              | Tile(t) when Tile.is_comma(t) => true
              | Grout({shape: Concave, _}) => true
              | _ => false
-             }
-           )
+             })
         |> List.length;
       Some(1 + seps);
     | None => None
@@ -526,22 +504,21 @@ let as_insertions =
     : list(CanonicalCompletion.insertion) => {
   let holds_site = (ins: CanonicalCompletion.insertion, site: Id.t) =>
     ins.delimiters
-    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+    |> List.exists(~f=(d: CanonicalCompletion.delimiter_info) =>
          switch (d.of_shard) {
          | Some((tid, _)) => Id.equal(tid, site)
          | None => false
-         }
-       );
+         });
   /* a junction owes its comma AT the junction (chip on the grout,
      no hole — both sides have content); only the trailing deficit
      adds elements at the end */
   let junction_chips = (ob: t) => {
     let upto =
       existing
-      |> List.find_opt(ins => holds_site(ins, ob.site))
-      |> Option.map((ins: CanonicalCompletion.insertion) => ins.adjacent_id);
+      |> List.find(~f=ins => holds_site(ins, ob.site))
+      |> Option.map(~f=(ins: CanonicalCompletion.insertion) => ins.adjacent_id);
     chosen(ob, junction_grouts(~upto?, seg, ob.site))
-    |> List.map(gid =>
+    |> List.map(~f=gid =>
          CanonicalCompletion.{
            adjacent_id: gid,
            side: Direction.Left,
@@ -555,8 +532,7 @@ let as_insertions =
                of_shard: None,
              },
            ],
-         }
-       );
+         });
   };
   /* deficit from the FRESH syntax: `expected` (type fact) minus this
      frame's element count — a typed comma discharges its owed chip
@@ -567,13 +543,12 @@ let as_insertions =
     | None => deficit(ob)
     };
   let (existing, fresh) =
-    List.fold_left(
-      ((existing, fresh), ob) => {
+    List.fold_left(obs, ~init=(existing, []), ~f=((existing, fresh), ob) => {
         let fresh = junction_chips(ob) @ fresh;
         let trailing = deficit_now(ob);
         if (trailing <= 0) {
           (existing, fresh);
-        } else if (List.exists(ins => holds_site(ins, ob.site), existing)) {
+        } else if (List.exists(existing, ~f=ins => holds_site(ins, ob.site))) {
           /* owed commas go immediately BEFORE the site's own closer:
              a merged chip lists delimiters inner-first, and material
              for the site's tuple belongs after any nested closer
@@ -595,14 +570,13 @@ let as_insertions =
             };
           (
             existing
-            |> List.map((ins: CanonicalCompletion.insertion) =>
+            |> List.map(~f=(ins: CanonicalCompletion.insertion) =>
                  holds_site(ins, ob.site)
                    ? {
                      ...ins,
                      delimiters: weave(ins.delimiters),
                    }
-                   : ins
-               ),
+                   : ins),
             fresh,
           );
         } else {
@@ -615,7 +589,7 @@ let as_insertions =
                   side: Direction.Right,
                   splice:
                     splice_of_site(seg, ob.site)
-                    |> Option.map(id => (id, None, Direction.Right)),
+                    |> Option.map(~f=id => (id, None, Direction.Right)),
                   delimiters: comma_delims(trailing),
                 },
                 ...fresh,
@@ -624,10 +598,7 @@ let as_insertions =
           | None => (existing, fresh)
           };
         };
-      },
-      (existing, []),
-      obs,
-    );
+      });
   existing @ fresh;
 };
 
@@ -642,7 +613,7 @@ let as_insertions =
    the same typing burst. */
 let synthesize_new_sites =
     (~info_map: Statics.Map.t, ~seg: Segment.t, obs: list(t)): list(t) => {
-  let known = obs |> List.map(ob => ob.site);
+  let known = obs |> List.map(~f=ob => ob.site);
   let arrow_arg_tys = (ctx: Ctx.t, ty: Typ.t): option(list(Typ.t)) =>
     switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
     | Arrow(lhs, _) => prod_elements(ctx, lhs)
@@ -681,7 +652,7 @@ let synthesize_new_sites =
       let acc =
         switch (p) {
         | Piece.Tile(t) =>
-          List.fold_left((a, c) => scan(c, a), acc, t.children)
+          List.fold_left(t.children, ~init=acc, ~f=(a, c) => scan(c, a))
         | _ => acc
         };
       let acc =
@@ -689,7 +660,7 @@ let synthesize_new_sites =
         | (Piece.Tile(fn), [Piece.Tile(ap), ..._])
             when
               Tile.is_paren_shaped(ap)
-              && !List.exists(Id.equal(ap.id), known)
+              && !List.exists(known, ~f=Id.equal(ap.id))
               && Id.Map.find_opt(ap.id, info_map) == None =>
           switch (fn_tys(fn)) {
           | Some(tys) => [mk(ap.id, ~present=1, tys), ...acc]
@@ -768,7 +739,7 @@ let assist_stream =
  * interior slots, so their chain is unused by syntactic completion. */
 let reify = (obs: list(t), seg: Segment.t): Segment.t => {
   let sites =
-    obs |> List.map(ob => (ob.site, ob)) |> List.to_seq |> Hashtbl.of_seq;
+    obs |> List.map(~f=ob => (ob.site, ob)) |> Stdlib.List.to_seq |> Stdlib.Hashtbl.of_seq;
   let owed_pieces = (site: Id.t, n: int): list(Piece.t) => {
     let seed = ref(site);
     let mint = () => {
@@ -776,9 +747,7 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
       seed^;
     };
     List.concat(
-      List.init(
-        n,
-        _ => {
+      List.init(n, ~f=_ => {
           let comma_id = mint();
           let hole_id = mint();
           [
@@ -794,8 +763,7 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
               shape: Convex,
             }),
           ];
-        },
-      ),
+        }),
     );
   };
   let comma_for = (gid: Id.t): Piece.t =>
@@ -808,14 +776,14 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
     });
   let rec go = (ps: Segment.t): Segment.t =>
     ps
-    |> List.map((p: Piece.t) =>
+    |> List.map(~f=(p: Piece.t) =>
          switch (p) {
          | Tile(t) =>
            let t = {
              ...t,
-             children: List.map(go, t.children),
+             children: List.map(t.children, ~f=go),
            };
-           switch (Hashtbl.find_opt(sites, t.id)) {
+           switch (Stdlib.Hashtbl.find_opt(sites, t.id)) {
            | Some(ob) =>
              switch (Util.ListUtil.split_last_opt(t.children)) {
              | Some((init, last)) =>
@@ -825,7 +793,7 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
                let jdx = ref(0);
                let last =
                  last
-                 |> List.map((q: Piece.t) =>
+                 |> List.map(~f=(q: Piece.t) =>
                       switch (q) {
                       | Grout({id, shape: Concave}) =>
                         let i = jdx^;
@@ -833,11 +801,10 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
                         switch (ob.commas_at) {
                         | None => comma_for(id)
                         | Some(idxs) =>
-                          List.mem(i, idxs) ? comma_for(id) : q
+                          List.mem(idxs, i, ~equal=Poly.equal) ? comma_for(id) : q
                         };
                       | q => q
-                      }
-                    );
+                      });
                let n = deficit(ob);
                Piece.Tile({
                  ...t,
@@ -849,8 +816,7 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
            | None => Piece.Tile(t)
            };
          | p => p
-         }
-       );
+         });
   go(seg);
 };
 
@@ -875,15 +841,13 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
     let anchor_of = (ob: t): option(Id.t) => {
       let merged =
         existing
-        |> List.find_opt((ins: CanonicalCompletion.insertion) =>
+        |> List.find(~f=(ins: CanonicalCompletion.insertion) =>
              ins.delimiters
-             |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+             |> List.exists(~f=(d: CanonicalCompletion.delimiter_info) =>
                   switch (d.of_shard) {
                   | Some((tid, _)) => Id.equal(tid, ob.site)
                   | None => false
-                  }
-                )
-           );
+                  }));
       switch (merged) {
       | Some(ins) => Some(ins.adjacent_id)
       | None => anchor_of_site(seg, ob.site)
@@ -892,28 +856,25 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
     let anchored =
       (
         obs
-        |> List.filter_map(ob =>
+        |> List.filter_map(~f=ob =>
              deficit(ob) > 0
-               ? anchor_of(ob) |> Option.map(a => (a, ", ")) : None
-           )
+               ? anchor_of(ob) |> Option.map(~f=a => (a, ", ")) : None)
       )
       @ (
         obs
-        |> List.concat_map(ob => {
+        |> List.concat_map(~f=ob => {
              let upto =
                existing
-               |> List.find_map((ins: CanonicalCompletion.insertion) =>
+               |> List.find_map(~f=(ins: CanonicalCompletion.insertion) =>
                     ins.delimiters
-                    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+                    |> List.exists(~f=(d: CanonicalCompletion.delimiter_info) =>
                          switch (d.of_shard) {
                          | Some((tid, _)) => Id.equal(tid, ob.site)
                          | None => false
-                         }
-                       )
-                      ? Some(ins.adjacent_id) : None
-                  );
+                         })
+                      ? Some(ins.adjacent_id) : None);
              chosen(ob, junction_grouts(~upto?, seg, ob.site))
-             |> List.map(gid => (gid, ","));
+             |> List.map(~f=gid => (gid, ","));
            })
       );
     let is_content = (p: Piece.t): bool =>
@@ -924,8 +885,8 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
       };
     let find = (id: Id.t): option(string) =>
       anchored
-      |> List.find_opt(((a, _)) => Id.equal(a, id))
-      |> Option.map(snd);
+      |> List.find(~f=((a, _)) => Id.equal(a, id))
+      |> Option.map(~f=snd);
     let rec probe = (ps: list(Piece.t)) =>
       switch (ps) {
       | [] => None
@@ -1001,12 +962,12 @@ let ghost_pieces =
               ? [
                 Piece.Secondary({
                   id: Id.mk(),
-                  content: Comment(String.sub(d.text, n, len - n)),
+                  content: Comment(String.sub(d.text, ~pos=n, ~len=len - n)),
                 }),
               ]
               : [],
           );
-        | None => piece_of(d) |> Option.map(p => [p])
+        | None => piece_of(d) |> Option.map(~f=p => [p])
         };
       /* engine witness shards keep their legacy no-hole render;
          hole-less material stays hole-less */

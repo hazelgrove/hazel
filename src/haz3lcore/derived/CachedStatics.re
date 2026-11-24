@@ -235,9 +235,8 @@ let init =
      statics pass for them */
   let needs_reify = (obs: list(TypeObligations.t)) =>
     obs
-    |> List.exists((ob: TypeObligations.t) =>
-         TypeObligations.deficit(ob) > 0 || ob.junctions
-       );
+    |> List.exists(~f=(ob: TypeObligations.t) =>
+         TypeObligations.deficit(ob) > 0 || ob.junctions);
   let st =
     switch (TypeObligations.derive(statics.info_map)) {
     | [] => with_obligations(statics, [])

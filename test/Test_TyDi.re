@@ -14,7 +14,7 @@ let tydi_suggest = (code: string): option(string) => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let ci = Indicated.ci_for_completion(z, info_map);
   let+ (head, n, tail) = TyDi.suggestion(~ci, z);
-  String.sub(head, n, String.length(head) - n)
+  String.sub(head, ~pos=n, ~len=String.length(head) - n)
   ++ TyDiSuggestion.flat_of_tail(tail);
 };
 

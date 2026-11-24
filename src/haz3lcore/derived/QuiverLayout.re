@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* QuiverLayout: the PURE placement layer for quiver chips — anchor
    resolution and bubble de-collision. Lives in core (no vdom) so
@@ -39,15 +40,11 @@ let rec find_piece_ctx =
         let deeper =
           switch ((p: Piece.t)) {
           | Tile(t) =>
-            List.fold_left(
-              (acc, ch) =>
+            List.fold_left(t.children, ~init=None, ~f=(acc, ch) =>
                 switch (acc) {
                 | Some(_) => acc
                 | None => find_piece_ctx(ch, id)
-                },
-              None,
-              t.children,
-            )
+                })
           | _ => None
           };
         switch (deeper) {
@@ -60,7 +57,7 @@ let rec find_piece_ctx =
 };
 
 let find_piece_deep = (sg: Segment.t, id: Id.t): option(Piece.t) =>
-  find_piece_ctx(sg, id) |> Option.map(((_, _, p)) => p);
+  find_piece_ctx(sg, id) |> Option.map(~f=((_, _, p)) => p);
 
 /* A record the caret does NOT own rests at the run's TRUE position
    (the splice ref — grout and whitespace included), not the content
@@ -88,7 +85,7 @@ let rest_position =
         ins.splice
         |> Util.OptUtil.and_then(((id, _, sside)) =>
              Measured.find_by_id(id, measured)
-             |> Option.map((sm: Measured.measurement) => point_of(sm, sside))
+             |> Option.map(~f=(sm: Measured.measurement) => point_of(sm, sside))
            )
       ) {
       | Some(p) => p
@@ -114,7 +111,7 @@ let rest_position =
         j <= 0
           ? None
           : (
-            switch (List.nth(sg, j - 1)) {
+            switch (List.nth_exn(sg, j - 1)) {
             | q when is_free(q) => prev_content(j - 1)
             | q => Some(q)
             }
@@ -122,11 +119,10 @@ let rest_position =
       let left_edge =
         is_free(p)
           ? prev_content(i)
-            |> Option.map(q => Measured.find_by_id(Piece.id(q), measured))
+            |> Option.map(~f=q => Measured.find_by_id(Piece.id(q), measured))
             |> Option.join
-            |> Option.map((qm: Measured.measurement) =>
-                 (qm.last.row, qm.last.col)
-               )
+            |> Option.map(~f=(qm: Measured.measurement) =>
+                 (qm.last.row, qm.last.col))
           : None;
       let (row, col) =
         switch (left_edge) {
@@ -168,10 +164,9 @@ let rest_position =
 let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
-  |> List.map((d: CanonicalCompletion.delimiter_info) =>
-       String.length(d.text) + (Option.is_some(d.trailing_hole) ? 2 : 0)
-     )
-  |> List.fold_left((+), 0)
+  |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
+       String.length(d.text) + (Option.is_some(d.trailing_hole) ? 2 : 0))
+  |> List.fold_left(~init=0, ~f=(+))
   |> (n => n + max(0, List.length(delimiters) - 1));
 
 /* Chips at the SAME point stack into one bubble — they insert at
@@ -198,8 +193,7 @@ let layout_overlaps =
       /* same-tile delimiters stack in shard order (= before in),
          whatever order their records arrived in */
       delimiters:
-        List.stable_sort(
-          (
+        List.stable_sort(first.delimiters @ second.delimiters, ~compare=(
             x: CanonicalCompletion.delimiter_info,
             y: CanonicalCompletion.delimiter_info,
           ) =>
@@ -207,9 +201,7 @@ let layout_overlaps =
             | (Some((t1, i1)), Some((t2, i2))) when Id.equal(t1, t2) =>
               compare(i1, i2)
             | _ => 0
-            },
-          first.delimiters @ second.delimiters,
-        ),
+            }),
     };
   };
   let rec merge_same = (acc, rest) =>
@@ -257,17 +249,14 @@ let layout =
   /* the owned list is drawn from this same stream (physical identity
      first; (anchor, side) as the structural fallback) */
   let is_owned = (ins: CanonicalCompletion.insertion) =>
-    List.exists(
-      (o: CanonicalCompletion.insertion) =>
-        o === ins
+    List.exists(owned, ~f=(o: CanonicalCompletion.insertion) =>
+        phys_equal(o, ins)
         || Id.equal(o.adjacent_id, ins.adjacent_id)
-        && o.side == ins.side,
-      owned,
-    );
+        && Direction.equal(o.side, ins.side));
   let resting =
     insertions
-    |> List.filter(ins => !is_owned(ins))
-    |> List.filter_map(rest_position(~seg, measured));
+    |> List.filter(~f=ins => !is_owned(ins))
+    |> List.filter_map(~f=rest_position(~seg, measured));
   let caret_bubble =
     switch (caret_pos, owned) {
     | (Some((row, col)), [_, ..._]) => [
@@ -277,19 +266,13 @@ let layout =
           shape: None,
           owned: true,
           delimiters:
-            List.concat_map(
-              (ins: CanonicalCompletion.insertion) => ins.delimiters,
-              owned,
-            ),
+            List.concat_map(owned, ~f=(ins: CanonicalCompletion.insertion) => ins.delimiters),
         },
       ]
     | _ => []
     };
   let sorted =
-    List.stable_sort(
-      (a: positioned_insertion, b: positioned_insertion) =>
-        compare((a.row, a.col), (b.row, b.col)),
-      caret_bubble @ resting,
-    );
+    List.stable_sort(caret_bubble @ resting, ~compare=(a: positioned_insertion, b: positioned_insertion) =>
+        compare((a.row, a.col), (b.row, b.col)));
   layout_overlaps(~col_width, sorted);
 };

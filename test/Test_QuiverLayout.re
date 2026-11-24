@@ -44,18 +44,17 @@ let pins = (~tydi=true, code: string): string => {
     ~seg,
     insertions,
   )
-  |> List.map(fst)
-  |> List.map((pi: QuiverLayout.positioned_insertion) =>
+  |> List.map(~f=fst)
+  |> List.map(~f=(pi: QuiverLayout.positioned_insertion) =>
        Printf.sprintf(
          "%s@%d:%d",
          pi.delimiters
-         |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
-         |> String.concat("+"),
+         |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
+         |> String.concat(~sep="+"),
          pi.row,
          pi.col,
-       )
-     )
-  |> String.concat(" | ");
+       ))
+  |> String.concat(~sep=" | ");
 };
 
 let pin_case = (~name, ~code, ~tydi=true, ~expected, ()) =>
@@ -130,13 +129,12 @@ let tests = [
             ++ "(Int, Boo -> [)+=+in@1:19]\n"
             ++ "(Int, Bool -> [)+=+in@1:20]",
             states
-            |> List.map(suf =>
+            |> List.map(~f=suf =>
                  suf
                  ++ " -> ["
                  ++ pins("let a = 2 in\nlet (_ ): " ++ suf ++ "¦")
-                 ++ "]"
-               )
-            |> String.concat("\n"),
+                 ++ "]")
+            |> String.concat(~sep="\n"),
           );
         },
       ),

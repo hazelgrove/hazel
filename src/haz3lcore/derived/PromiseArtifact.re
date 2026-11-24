@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* THE UNIFIED PROMISE ARTIFACT.
 
@@ -41,22 +42,19 @@ type t = {
      tiles + convex holes into deficient sites' children. */
   reified: Segment.t,
   /* ids present in the input segment (deep) — the provenance oracle */
-  orig_ids: Hashtbl.t(Id.t, unit),
+  orig_ids: Stdlib.Hashtbl.t(Id.t, unit),
 };
 
-let collect_ids = (seg: Segment.t): Hashtbl.t(Id.t, unit) => {
-  let tbl = Hashtbl.create(64);
+let collect_ids = (seg: Segment.t): Stdlib.Hashtbl.t(Id.t, unit) => {
+  let tbl = Stdlib.Hashtbl.create(64);
   let rec go = (sg: Segment.t) =>
-    List.iter(
-      (p: Piece.t) => {
-        Hashtbl.replace(tbl, Piece.id(p), ());
+    List.iter(sg, ~f=(p: Piece.t) => {
+        Stdlib.Hashtbl.replace(tbl, Piece.id(p), ());
         switch (p) {
-        | Tile(t) => List.iter(go, t.children)
+        | Tile(t) => List.iter(t.children, ~f=go)
         | _ => ()
         };
-      },
-      sg,
-    );
+      });
   go(seg);
   tbl;
 };
@@ -74,25 +72,22 @@ let mk = (~obligations: list(TypeObligations.t), seg: Segment.t): t => {
 };
 
 let record_of = (art: t, tid: Id.t): option(CanonicalCompletion.shard_record) =>
-  List.find_opt(
-    (r: CanonicalCompletion.shard_record) => Id.equal(r.tile_id, tid),
-    art.shard_records,
-  );
+  List.find(art.shard_records, ~f=(r: CanonicalCompletion.shard_record) => Id.equal(r.tile_id, tid));
 
 /* is a leaf USER material (present as-typed) vs SYSTEM material
    (synthesized by completion/reification)? */
 let shard_is_user = (art: t, t: Tile.t, i: int): bool =>
-  if (!Hashtbl.mem(art.orig_ids, t.id)) {
+  if (!Stdlib.Hashtbl.mem(art.orig_ids, t.id)) {
     false; /* whole tile synthesized (a reified comma) */
   } else {
     switch (record_of(art, t.id)) {
-    | Some(r) => List.mem(i, r.original_shards)
+    | Some(r) => List.mem(r.original_shards, i, ~equal=Poly.equal)
     | None => true /* untouched tile: every shard is the user's */
     };
   };
 
 let piece_is_user = (art: t, p: Piece.t): bool =>
-  Hashtbl.mem(art.orig_ids, Piece.id(p));
+  Stdlib.Hashtbl.mem(art.orig_ids, Piece.id(p));
 
 /* the shard_prefix record for a witness shard (typed-prefix length +
    the id of the user's partial token that the completed shard
@@ -101,10 +96,7 @@ let prefix_of =
     (art: t, tid: Id.t, i: int): option(IdTagged.IdTag.shard_prefix) =>
   switch (record_of(art, tid)) {
   | Some(r) =>
-    List.find_opt(
-      (sp: IdTagged.IdTag.shard_prefix) => sp.shard == i,
-      r.prefixes,
-    )
+    List.find(r.prefixes, ~f=(sp: IdTagged.IdTag.shard_prefix) => sp.shard == i)
   | None => None
   };
 
@@ -112,28 +104,20 @@ let prefix_of =
    many chars of the delimiter); None = fully synthesized */
 let typed_len_of = (art: t, tid: Id.t, i: int): option(int) =>
   prefix_of(art, tid, i)
-  |> Option.map((sp: IdTagged.IdTag.shard_prefix) => sp.len);
+  |> Option.map(~f=(sp: IdTagged.IdTag.shard_prefix) => sp.len);
 
 /* find a tile by id anywhere in the reified artifact */
 let find_reified = (art: t, id: Id.t): option(Tile.t) => {
   let rec go = (sg: Segment.t): option(Tile.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
+    List.fold_left(sg, ~init=None, ~f=(acc, p: Piece.t) =>
         switch (acc, p) {
         | (Some(_), _) => acc
         | (None, Tile(t)) =>
           Id.equal(t.id, id)
             ? Some(t)
-            : List.fold_left(
-                (a, c) => a == None ? go(c) : a,
-                None,
-                t.children,
-              )
+            : List.fold_left(t.children, ~init=None, ~f=(a, c) => a == None ? go(c) : a)
         | (None, _) => None
-        },
-      None,
-      sg,
-    );
+        });
   go(art.reified);
 };
 
@@ -147,14 +131,13 @@ let site_owed_pieces = (art: t, site: Id.t): list(Piece.t) =>
     switch (Util.ListUtil.split_last_opt(t.children)) {
     | Some((_, last)) =>
       last
-      |> List.filter((p: Piece.t) => !piece_is_user(art, p))
-      |> List.filter((p: Piece.t) =>
+      |> List.filter(~f=(p: Piece.t) => !piece_is_user(art, p))
+      |> List.filter(~f=(p: Piece.t) =>
            switch (p) {
            | Tile(t) when Tile.is_comma(t) => true
            | Grout({shape: Convex, _}) => true
            | _ => false
-           }
-         )
+           })
     | None => []
     }
   | None => []

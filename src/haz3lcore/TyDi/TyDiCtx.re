@@ -263,12 +263,11 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   };
   /* n separator commas, a hole between each pair */
   let commas = (n: int): list(TyDiSuggestion.tail_delim) =>
-    List.init(n, i =>
+    List.init(n, ~f=i =>
       TyDiSuggestion.{
         text: ",",
         hole_before: i > 0,
-      }
-    );
+      });
   /* an ap lookahead closes over a hole argument: "( )..." */
   let ap_close: TyDiSuggestion.tail_delim = {
     text: ")",

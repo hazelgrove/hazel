@@ -67,13 +67,13 @@ let caret_left_atom = (z: Zipper.t): option((Id.t, int)) => {
       | (Some(_), _) => ll
       | _ => rh
       };
-    host |> Option.map(of_piece);
+    host |> Option.map(~f=of_piece);
   | Outer =>
     /* selection content renders at the caret's left when focus is
        Right (e.g. a delimiter deletion leaving content selected) */
     switch (z.selection.content, z.selection.focus) {
     | ([_, ..._] as content, Direction.Right) =>
-      ListUtil.last_opt(content) |> Option.map(of_piece)
+      ListUtil.last_opt(content) |> Option.map(~f=of_piece)
     | _ =>
       switch (ListUtil.last_opt(fst(z.relatives.siblings))) {
       | Some(p) => Some(of_piece(p))
@@ -138,14 +138,13 @@ let is_partial_witness = (ins: insertion): bool =>
    immediate neighbors only; Tab declines (tab_action). */
 let zone_matches =
     (z: Zipper.t, insertions: list(insertion)): list((int, insertion)) => {
-  let indexed = List.mapi((i, ins) => (i, ins), insertions);
+  let indexed = List.mapi(insertions, ~f=(i, ins) => (i, ins));
   let find_all = (~adjacent: bool, id: Id.t, sides: list(Direction.t)) =>
     indexed
-    |> List.filter(((_, ins: insertion)) =>
+    |> List.filter(~f=((_, ins: insertion)) =>
          Id.equal(ins.adjacent_id, id)
-         && List.mem(ins.side, sides)
-         && (adjacent || !is_partial_witness(ins))
-       );
+         && List.mem(sides, ins.side, ~equal=Poly.equal)
+         && (adjacent || !is_partial_witness(ins)));
   let is_content = (p: Piece.t): bool =>
     switch (p) {
     | Secondary(_)
@@ -185,16 +184,13 @@ let zone_matches =
         };
       let parts =
         CanonicalCompletion.partition_segment(l @ r)
-        |> List.map(fst)
+        |> List.map(~f=fst)
         |> Array.of_list;
       let part_of = (id: Id.t): option(int) => {
         let rec go = k =>
           k >= Array.length(parts)
             ? None
-            : List.exists(
-                (q: Piece.t) => Id.equal(Piece.id(q), id),
-                parts[k],
-              )
+            : List.exists(parts[k], ~f=(q: Piece.t) => Id.equal(Piece.id(q), id))
                 ? Some(k) : go(k + 1);
         go(0);
       };
@@ -209,22 +205,15 @@ let zone_matches =
         | (Some(j), Some(k)) =>
           j == k
           || j < k
-          && List.for_all(
-               i => !List.exists(is_content, parts[i]),
-               List.init(k - j, i => j + 1 + i),
-             )
+          && List.for_all(List.init(k - j, ~f=i => j + 1 + i), ~f=i => !List.exists(parts[i], ~f=is_content))
         | _ => false
         };
       probe(List.rev(l), ~facing=Direction.Right, ~adjacent=true)
       @ probe(r, ~facing=Direction.Left, ~adjacent=false)
-      |> List.filter(((_, ins)) => same_reading(ins));
+      |> List.filter(~f=((_, ins)) => same_reading(ins));
     };
   /* dedupe: a record can match both walks */
-  List.fold_left(
-    (acc, (i, ins)) => List.mem_assoc(i, acc) ? acc : acc @ [(i, ins)],
-    [],
-    matches,
-  );
+  List.fold_left(matches, ~init=[], ~f=(acc, (i, ins)) => List.Assoc.mem(acc, i, ~equal=Poly.equal) ? acc : acc @ [(i, ins)]);
 };
 
 /* The holes at the OWNED run's two boundaries are decided against the
@@ -247,7 +236,7 @@ let with_boundary_holes =
         completed_seg
     );
   owned
-  |> List.mapi((k, ins: insertion) =>
+  |> List.mapi(~f=(k, ins: insertion) =>
        k != 0
          ? ins
          : (
@@ -255,7 +244,7 @@ let with_boundary_holes =
            | [] => ins
            | [d, ...rest] =>
              let left =
-               l |> List.rev |> List.find_opt(p => !Piece.is_secondary(p));
+               l |> List.rev |> List.find(~f=p => !Piece.is_secondary(p));
              let leading_hole =
                switch (left, d.of_shard, d.typed_len) {
                | (Some(p), Some((id, shard)), None) =>
@@ -284,47 +273,40 @@ let with_boundary_holes =
                ],
              };
            }
-         )
-     )
+         ))
   |> (
     owned => {
       /* The rightmost preview boundary meets the existing buffer even
          across spaces/newlines. A hole already there is not an insertion. */
       let right_hole =
-        switch (List.find_opt(p => !Piece.is_secondary(p), r)) {
+        switch (List.find(r, ~f=p => !Piece.is_secondary(p))) {
         | Some(Grout({shape, _})) => Some(shape)
         | Some(Tile(t)) when Tile.is_explicit_hole(t) => Some(Grout.Convex)
         | _ => None
         };
-      List.mapi(
-        (i, ins: insertion) =>
+      List.mapi(owned, ~f=(i, ins: insertion) =>
           Option.is_none(right_hole) || i != List.length(owned) - 1
             ? ins
             : {
               ...ins,
               delimiters:
-                List.mapi(
-                  (j, d: CanonicalCompletion.delimiter_info) =>
+                List.mapi(ins.delimiters, ~f=(j, d: CanonicalCompletion.delimiter_info) =>
                     j == List.length(ins.delimiters)
                     - 1
-                    && d.trailing_hole == right_hole
+                    && Option.equal(Grout.equal_shape, d.trailing_hole, right_hole)
                       ? {
                         ...d,
                         trailing_hole: None,
                       }
-                      : d,
-                  ins.delimiters,
-                ),
-            },
-        owned,
-      );
+                      : d),
+            });
     }
   );
 };
 
 let chips_among =
     (z: Zipper.t, insertions: list(insertion)): list(insertion) =>
-  zone_matches(z, insertions) |> List.map(snd);
+  zone_matches(z, insertions) |> List.map(~f=snd);
 
 /* The same set in TAB ORDER — what the bubble at the caret shows and
    what Tab applies: partial witnesses first (they anchor at the
@@ -337,15 +319,15 @@ let chips_owned =
     (z: Zipper.t, insertions: list(insertion)): list(insertion) => {
   let (witnesses, rest) =
     zone_matches(z, insertions)
-    |> List.partition(((_, ins)) => is_partial_witness(ins));
-  let by_idx = List.sort(((i, _), (j, _)) => Int.compare(i, j));
-  List.map(snd, by_idx(witnesses) @ by_idx(rest)) |> with_boundary_holes(z);
+    |> List.partition_tf(~f=((_, ins)) => is_partial_witness(ins));
+  let by_idx = List.sort(~compare=((i, _), (j, _)) => Int.compare(i, j));
+  List.map(by_idx(witnesses) @ by_idx(rest), ~f=snd) |> with_boundary_holes(z);
 };
 
 /* The record Tab dispatches: the first the caret owns */
 let chip_among =
     (z: Zipper.t, insertions: list(insertion)): option(insertion) =>
-  List.nth_opt(chips_owned(z, insertions), 0);
+  List.nth(chips_owned(z, insertions), 0);
 
 /* legacy name: Tab's chip IS the first owned record (witness first) */
 let tab_chip = chip_among;
@@ -355,7 +337,7 @@ let tab_chip = chip_among;
    the live deco and the test harness both call it. */
 let chips_displayed =
     (~ghosted: list(insertion), assist: list(insertion)): list(insertion) =>
-  assist |> List.filter(ins => !List.memq(ins, ghosted));
+  assist |> List.filter(~f=ins => !List.mem(ghosted, ins, ~equal=phys_equal));
 
 /* whether the caret's left neighborhood already provides separation
    (space, linebreak, line start, or an opener's inside edge) — a
@@ -430,12 +412,12 @@ let tab_text = (z: Zipper.t, ins: insertion): option(string) => {
     | [d, ...rest] =>
       switch (d.typed_len) {
       | Some(n) when n < String.length(d.text) =>
-        Some(String.sub(d.text, n, String.length(d.text) - n))
+        Some(String.sub(d.text, ~pos=n, ~len=String.length(d.text) - n))
       | Some(_) => go(rest) /* fully-typed witness: next chunk */
       /* engine promises take the shared padding (nib- and hole-aware);
          TyDi-synthesized material has no shard to read nibs from and
          keeps the F1 spacing rules it lands under */
-      | None when d.of_shard != None =>
+      | None when Option.is_some(d.of_shard) =>
         let (before, after) = padding(z, d);
         Some(before ++ d.text ++ after);
       | None =>
@@ -495,7 +477,7 @@ let tab_action = (z: Zipper.t, assist: list(insertion)): option(Action.t) =>
       })
         when !fuses_empty(fst(z.relatives.siblings), text) =>
       Some(Action.ApplyCompletion(Next))
-    | Some(ins) => tab_text(z, ins) |> Option.map(text => Action.Paste(text))
+    | Some(ins) => tab_text(z, ins) |> Option.map(~f=text => Action.Paste(text))
     }
   };
 
@@ -536,10 +518,9 @@ let accepts_right_hole = (z: Zipper.t): bool =>
 
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
   chip_at_caret(z)
-  |> Option.map((ins: insertion) =>
+  |> Option.map(~f=(ins: insertion) =>
        switch (ins.delimiters) {
        | [{of_shard: Some((tid, _)), _}, ..._] => Some(tid)
        | _ => None
-       }
-     )
+       })
   |> Option.join;

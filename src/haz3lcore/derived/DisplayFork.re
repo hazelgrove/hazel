@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* THE display fork: everything between a zipper and the displayed
    segment lives here, and ONLY here. The live editor (CachedSyntax)
@@ -62,7 +63,7 @@ let splice_precedes_caret =
       | None => (-1)
       },
     );
-    switch (Hashtbl.find_opt(rank, key), Hashtbl.find_opt(rank, caret_key)) {
+    switch (Stdlib.Hashtbl.find_opt(rank, key), Stdlib.Hashtbl.find_opt(rank, caret_key)) {
     | (Some(r), Some(cr)) =>
       switch (side) {
       | Util.Direction.Right => r < cr
@@ -100,21 +101,19 @@ let slide_to_caret =
         }
       );
     let all_spaces =
-      List.for_all((q: Piece.t) =>
+      List.for_all(~f=(q: Piece.t) =>
         switch (q) {
         | Secondary(_) => true
         | _ => false
-        }
-      );
+        });
     let rec go = (ps: list(Piece.t)) =>
       switch (ps) {
       | [] => None
       | [p, ...rest] when ref_ok(p) =>
         rest != [] && all_spaces(rest)
           ? Util.ListUtil.last_opt(rest)
-            |> Option.map(last =>
-                 (Piece.id(last), None, Util.Direction.Right)
-               )
+            |> Option.map(~f=last =>
+                 (Piece.id(last), None, Util.Direction.Right))
           : None
       | [_, ...rest] => go(rest)
       };
@@ -133,22 +132,15 @@ let restore_ghost_holes =
     (~marks: list((Id.t, option(int))), ~pre: Segment.t, post: Segment.t)
     : Segment.t => {
   let marked = (id: Id.t) =>
-    List.exists(
-      ((mid, sh): (Id.t, option(int))) => sh == None && Id.equal(mid, id),
-      marks,
-    );
+    List.exists(marks, ~f=((mid, sh): (Id.t, option(int))) => sh == None && Id.equal(mid, id));
   let rec ids = (acc, sg: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
+    List.fold_left(sg, ~init=acc, ~f=(acc, p: Piece.t) =>
         switch (p) {
-        | Tile(t) => List.fold_left(ids, [t.id, ...acc], t.children)
+        | Tile(t) => List.fold_left(t.children, ~init=[t.id, ...acc], ~f=ids)
         | p => [Piece.id(p), ...acc]
-        },
-      acc,
-      sg,
-    );
+        });
   let post_ids = ids([], post);
-  let present = (id: Id.t) => List.exists(Id.equal(id), post_ids);
+  let present = (id: Id.t) => List.exists(post_ids, ~f=Id.equal(id));
   /* (preceding sibling id, grout) for each dropped marked hole whose
      neighbor is a display comment — where a real delimiter precedes,
      regrout's verdict is structural truth and stands */
@@ -173,7 +165,7 @@ let restore_ghost_holes =
             ...acc,
           ]
         | (Piece.Tile(t), _) =>
-          List.fold_left((acc, c) => dropped(acc, None, c), acc, t.children)
+          List.fold_left(t.children, ~init=acc, ~f=(acc, c) => dropped(acc, None, c))
         | _ => acc
         };
       dropped(acc, Some(p), tl);
@@ -189,7 +181,7 @@ let restore_ghost_holes =
           | Tile(t) =>
             Piece.Tile({
               ...t,
-              children: List.map(c => insert_after(c, pid, g), t.children),
+              children: List.map(t.children, ~f=c => insert_after(c, pid, g)),
             })
           | p => p
           },
@@ -197,7 +189,7 @@ let restore_ghost_holes =
         ]
     };
   dropped([], None, pre)
-  |> List.fold_left((sg, (pid, g)) => insert_after(sg, pid, g), post);
+  |> List.fold_left(~init=post, ~f=(sg, (pid, g)) => insert_after(sg, pid, g));
 };
 
 /* degenerate fork: no assist machinery (settings off, init paths) */
@@ -232,12 +224,9 @@ let extend_t2 =
     : list(CanonicalCompletion.insertion) =>
   if (armed) {
     let engine_witness_at = (id: Id.t) =>
-      List.exists(
-        (ins: CanonicalCompletion.insertion) =>
+      List.exists(assist, ~f=(ins: CanonicalCompletion.insertion) =>
           CompletionQuery.is_pure_witness(ins)
-          && Id.equal(ins.adjacent_id, id),
-        assist,
-      );
+          && Id.equal(ins.adjacent_id, id));
     switch (TyDi.anchor_to_left(z)) {
     | Some((anchor_id, _)) when !engine_witness_at(anchor_id) =>
       switch (
@@ -249,17 +238,11 @@ let extend_t2 =
            lookahead's trailing commas would double-count — drop
            them (the ap part of the tail stays) */
         let t1_commas_here =
-          List.exists(
-            (ins: CanonicalCompletion.insertion) =>
+          List.exists(assist, ~f=(ins: CanonicalCompletion.insertion) =>
               Id.equal(ins.adjacent_id, anchor_id)
               && ins.side == Util.Direction.Right
-              && List.exists(
-                   (d: CanonicalCompletion.delimiter_info) =>
-                     d.text == "," && d.of_shard == None && d.typed_len == None,
-                   ins.delimiters,
-                 ),
-            assist,
-          );
+              && List.exists(ins.delimiters, ~f=(d: CanonicalCompletion.delimiter_info) =>
+                     d.text == "," && d.of_shard == None && d.typed_len == None));
         let rec drop_comma_suffix =
                 (ds: list(TyDiSuggestion.tail_delim))
                 : list(TyDiSuggestion.tail_delim) =>
@@ -292,7 +275,7 @@ let extend_t2 =
         /* tail hole-BEFORE flags become hole-AFTER (trailing_hole) on
            the preceding delimiter — ghost_pieces' convention */
         let hole_after = (i: int) =>
-          switch (List.nth_opt(tail, i + 1)) {
+          switch (List.nth(tail, i + 1)) {
           | Some(d: TyDiSuggestion.tail_delim) => d.hole_before
           | None => false
           };
@@ -311,7 +294,7 @@ let extend_t2 =
                 of_shard: None,
               },
               ...List.mapi(
-                   (i, d: TyDiSuggestion.tail_delim) =>
+                   ~f=(i, d: TyDiSuggestion.tail_delim) =>
                      CanonicalCompletion.{
                        text: d.text,
                        leading_hole: false,
@@ -355,20 +338,14 @@ let ghost_selection =
        engine witnesses precede T2) */
     let zone =
       CompletionQuery.chips_among(z, assist)
-      |> List.fold_left(
-           (acc, ins: CanonicalCompletion.insertion) =>
+      |> List.fold_left(~init=[], ~f=(acc, ins: CanonicalCompletion.insertion) =>
              CompletionQuery.is_pure_witness(ins)
-             && List.exists(
-                  (w: CanonicalCompletion.insertion) =>
+             && List.exists(acc, ~f=(w: CanonicalCompletion.insertion) =>
                     CompletionQuery.is_pure_witness(w)
-                    && Id.equal(w.adjacent_id, ins.adjacent_id),
-                  acc,
-                )
-               ? acc : acc @ [ins],
-           [],
-         );
+                    && Id.equal(w.adjacent_id, ins.adjacent_id))
+               ? acc : acc @ [ins]);
     zone
-    |> List.filter_map(orig => {
+    |> List.filter_map(~f=orig => {
          let ins = slide_to_caret(z, orig);
          splice_precedes_caret(z, ins) ? None : Some((orig, ins));
        });
@@ -394,7 +371,7 @@ let splice_sort:
       switch (ins.splice) {
       | Some((id, sh, _)) =>
         switch (
-          Hashtbl.find_opt(
+          Stdlib.Hashtbl.find_opt(
             rank,
             (
               id,
@@ -406,12 +383,12 @@ let splice_sort:
           )
         ) {
         | Some(r) => r
-        | None => max_int
+        | None => Int.max_value
         }
-      | None => max_int
+      | None => Int.max_value
       };
     let key = ((orig, ins, _)) => (rank_of(ins), rank_of(orig));
-    List.sort((a, b) => compare(key(b), key(a)), ghosts);
+    List.sort(ghosts, ~compare=(a, b) => compare(key(b), key(a)));
   };
 
 /* a splice can produce a tile violating the shards/children arity
@@ -419,18 +396,15 @@ let splice_sort:
    crashes on it (fuzzer: `case fun in |`). Validate before
    accepting a forked display. */
 let rec tiles_well_formed = (sg: Segment.t): bool =>
-  List.for_all(
-    (p: Piece.t) =>
+  List.for_all(sg, ~f=(p: Piece.t) =>
       switch (p) {
       | Tile(t) =>
         List.length(t.children) == List.length(t.shards)
         - 1
-        && List.for_all(i => i >= 0 && i < Tile.arity(t), t.shards)
-        && List.for_all(tiles_well_formed, t.children)
+        && List.for_all(t.shards, ~f=i => i >= 0 && i < Tile.arity(t))
+        && List.for_all(t.children, ~f=tiles_well_formed)
       | _ => true
-      },
-    sg,
-  );
+      });
 
 let mk_inner =
     (
@@ -445,10 +419,9 @@ let mk_inner =
     |> extend_t2(~info_map, ~armed, z);
   let ghosts =
     ghost_selection(~armed, z, assist)
-    |> List.filter_map(((orig, ins)) =>
+    |> List.filter_map(~f=((orig, ins)) =>
          TypeObligations.ghost_pieces(z, ins)
-         |> Option.map(pieces => (orig, ins, pieces))
-       );
+         |> Option.map(~f=pieces => (orig, ins, pieces)));
   let raw = Zipper.unselect_and_zip(z);
   /* FAIL OPEN around the WHOLE fork, not just the parse: the fork is
      display-only, so ANY exception in splice/normalize/pads (e.g. a
@@ -457,14 +430,11 @@ let mk_inner =
   let forked = () => {
     let (segment, ghost_marks) =
       splice_sort(raw, ghosts)
-      |> List.fold_left(
-           ((seg, marks), (_, ins, pieces)) =>
+      |> List.fold_left(~init=(raw, []), ~f=((seg, marks), (_, ins, pieces)) =>
              switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
              | Some((seg, more)) => (seg, marks @ more)
              | None => (seg, marks)
-             },
-           (raw, []),
-         );
+             });
     /* ghost shards may complete a tile whose shards were split
        across the segment — reassemble or the parser (Skel) sees an
        impossible all-present-unassembled run. Then the padding
@@ -497,7 +467,7 @@ let mk_inner =
     typed_lens: [],
     caret_witnesses: [],
     assist,
-    ghosted: ghost_marks == [] ? [] : List.map(((o, _, _)) => o, ghosts),
+    ghosted: ghost_marks == [] ? [] : List.map(ghosts, ~f=((o, _, _)) => o),
     parsed,
   };
 };

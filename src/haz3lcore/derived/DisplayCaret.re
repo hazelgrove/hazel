@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* THE display caret. The caret is computed against the DISPLAYED
    segment, not the raw zipper, because the display projects the
@@ -24,7 +25,7 @@ open Language;
 /* the id of the piece the caret is anchored on (left neighbor, else
    right) — the same choice Zipper.base_point makes */
 let representative_id = (z: Zipper.t): option(Id.t) =>
-  Zipper.representative_piece(z) |> Option.map(((p, _)) => Piece.id(p));
+  Zipper.representative_piece(z) |> Option.map(~f=((p, _)) => Piece.id(p));
 
 let point =
     (
@@ -37,14 +38,14 @@ let point =
     switch (representative_id(z)) {
     | None => None
     | Some(pid) =>
-      switch (List.assoc_opt(pid, caret_witnesses)) {
+      switch (List.Assoc.find(caret_witnesses, pid, ~equal=Poly.equal)) {
       | None => None
       | Some((tid, i, typed_len)) =>
         /* the reified shard stands where the partial token sat: land
            at its origin + typed_len (the typed/ghost boundary) */
         switch (Id.Map.find_opt(tid, measured.tiles)) {
         | Some(shards) =>
-          switch (List.assoc_opt(i, shards)) {
+          switch (List.Assoc.find(shards, i, ~equal=Poly.equal)) {
           | Some(m: Measured.measurement) =>
             Some(
               Util.Point.{
@@ -79,31 +80,22 @@ let no_ghost_before_caret =
     : bool => {
   let caret = point(~caret_witnesses, measured, z);
   let marked = (id, sh) =>
-    List.exists(
-      ((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh,
-      ghost_marks,
-    );
+    List.exists(ghost_marks, ~f=((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh);
   let before = (m: Measured.measurement) =>
     Util.Point.compare(m.last, caret) <= 0
     && Util.Point.compare(m.origin, caret) < 0;
   let rec ok = (sg: Segment.t): bool =>
-    List.for_all(
-      (p: Piece.t) =>
+    List.for_all(sg, ~f=(p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
           let shards = Measured.find_shards(~msg="DisplayCaret", t, measured);
-          List.for_all(
-            i => !marked(t.id, Some(i)) || !before(List.assoc(i, shards)),
-            t.shards,
-          )
-          && List.for_all(ok, t.children);
+          List.for_all(t.shards, ~f=i => !marked(t.id, Some(i)) || !before(List.Assoc.find_exn(shards, i, ~equal=Int.equal)))
+          && List.for_all(t.children, ~f=ok);
         | Grout(g) =>
           !marked(g.id, None) || !before(Measured.find_g(g, measured))
         | Secondary(w) =>
           !marked(w.id, None) || !before(Measured.find_w(w, measured))
         | Projector(_) => true
-        },
-      sg,
-    );
+        });
   ok(seg);
 };

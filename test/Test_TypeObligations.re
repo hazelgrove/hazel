@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* T1 semantic obligations: tuple-shape deficits derived from types.
    Derivation is term-based and caret-free — states are built by
@@ -18,23 +19,22 @@ let derive = (code: string): string => {
   | [] => "none"
   | obs =>
     obs
-    |> List.map((ob: TypeObligations.t) =>
+    |> List.map(~f=(ob: TypeObligations.t) =>
          Printf.sprintf(
            "%d/%d owes %s%s",
            ob.present,
            ob.expected,
            ob.remaining_tys
-           |> List.map(Typ.pretty_print)
-           |> String.concat(","),
+           |> List.map(~f=Typ.pretty_print)
+           |> String.concat(~sep=","),
            switch (ob.commas_at) {
            | None => ""
            | Some(idxs) =>
-             " @" ++ (idxs |> List.map(string_of_int) |> String.concat(","))
+             " @" ++ (idxs |> List.map(~f=string_of_int) |> String.concat(~sep=","))
            },
-         )
-       )
-    |> List.sort(compare)
-    |> String.concat(" | ")
+         ))
+    |> List.sort(~compare=compare)
+    |> String.concat(~sep=" | ")
   };
 };
 
@@ -100,14 +100,13 @@ let error_clses = (code, ~reify) =>
   |> (
     ((im, ids)) =>
       ids
-      |> List.map(id =>
+      |> List.map(~f=id =>
            switch (Id.Map.find_opt(id, im)) {
            | Some(info) => Info.cls_of(info) |> Cls.show
            | None => "?"
-           }
-         )
-      |> List.sort(compare)
-      |> String.concat(" | ")
+           })
+      |> List.sort(~compare=compare)
+      |> String.concat(~sep=" | ")
   );
 
 let reify_tests = [
@@ -285,12 +284,12 @@ let probe_chips = [
       let existing = CanonicalCompletion.for_editor(seg).insertions;
       let show = (ins: CanonicalCompletion.insertion) =>
         ins.delimiters
-        |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
-        |> String.concat("+");
+        |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
+        |> String.concat(~sep="+");
       let all =
         TypeObligations.assist_stream(z, ~info_map, obs)
-        |> List.map(show)
-        |> String.concat(" | ");
+        |> List.map(~f=show)
+        |> String.concat(~sep=" | ");
       let arg_shape =
         Id.Map.fold(
           (_, info: Info.t, acc) =>
@@ -322,12 +321,11 @@ let probe_chips = [
         Printf.sprintf(
           "obs=[%s] arg=%s existing=[%s] all=[%s]",
           obs
-          |> List.map((ob: TypeObligations.t) =>
-               Printf.sprintf("%d/%d", ob.present, ob.expected)
-             )
-          |> String.concat(","),
+          |> List.map(~f=(ob: TypeObligations.t) =>
+               Printf.sprintf("%d/%d", ob.present, ob.expected))
+          |> String.concat(~sep=","),
           arg_shape,
-          existing |> List.map(show) |> String.concat(" | "),
+          existing |> List.map(~f=show) |> String.concat(~sep=" | "),
           all,
         ),
       );
@@ -392,12 +390,11 @@ let ghost_case = (~name, ~code, ~expected) =>
 let stale_tests = {
   let show = ins =>
     ins
-    |> List.map((i: CanonicalCompletion.insertion) =>
+    |> List.map(~f=(i: CanonicalCompletion.insertion) =>
          i.delimiters
-         |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
-         |> String.concat("+")
-       )
-    |> String.concat(" | ");
+         |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
+         |> String.concat(~sep="+"))
+    |> String.concat(~sep=" | ");
   let statics_at = (code: string) => {
     let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));
     let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp);
@@ -414,7 +411,7 @@ let stale_tests = {
           Test_Editing.perform(
             Zipper.init(),
             Test_Editing.mk(stale)
-            @ (Token.to_list(typed) |> List.map(c => Action.Insert(c))),
+            @ (Token.to_list(typed) |> List.map(~f=c => Action.Insert(c))),
           );
         check(
           string_testable,
