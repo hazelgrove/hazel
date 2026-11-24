@@ -241,7 +241,8 @@ let rec go =
       List.rev_map2_exn(context, prev_is_lb, ~f=(ctx, lb) => (ctx, lb)),
     );
   /* a case's rules: a fresh last line goes to rule level, for the next `|` */
-  let has_case_rule = List.exists(complete_trimmed_seg, ~f=Piece.is_case_rule);
+  let has_case_rule =
+    List.exists(complete_trimmed_seg, ~f=Piece.is_case_rule);
   let (_, map) =
     List.fold2_exn(
       ~f=
