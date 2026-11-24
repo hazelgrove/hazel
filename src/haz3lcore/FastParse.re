@@ -488,7 +488,7 @@ let attempt =
       None;
     | ast =>
       let term =
-        Language.Grammar.map_exp_annotation(
+        Language.Grammar.map_exp_t(
           _ => Language.IdTagged.IdTag.fresh(),
           MenhirParser.Conversion.Exp.of_menhir_ast(ast),
         );

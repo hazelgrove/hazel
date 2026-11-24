@@ -1,4 +1,5 @@
-(* [@@deriving children] for a recursive group of syntax types.
+(* Two derivers for a recursive group of syntax types: [@@deriving map],
+   documented below, and [@@deriving children].
 
    The group's type declarations split into two kinds:
 
@@ -25,7 +26,20 @@
      fold_f : (('x, 'acc) => 'acc, c('x), 'acc) => 'acc.
 
    That error is the point: a new constructor or container can't silently
-   become a leaf. *)
+   become a leaf.
+
+   Why these are in-repo rather than ppx_deriving.map or visitors: types in
+   Grammar's group share constructor names (Invalid, EmptyHole, MultiHole,
+   Var, ...). OCaml resolves an unannotated constructor to the last type
+   that defines it, so a generated [function Invalid ... -> ...] for
+   exp_term is typed as the wrong type and the group fails to compile. Both
+   of those ppxs emit unannotated matches. Every function here is bound with
+   an explicit polymorphic type, which gives each match an expected type and
+   lets the compiler pick the right constructor.
+
+   Long term, making the constructors unique, or defining each sort's term
+   type in its own module, would remove the problem at the source; the
+   off-the-shelf derivers would then work. *)
 
 open Ppxlib
 module B = Ast_builder.Default
@@ -364,6 +378,147 @@ let generate ~ctxt (_rec_flag, tds) =
   ]
   |> fun items ->
   [ B.pstr_include ~loc (B.include_infos ~loc (B.pmod_structure ~loc items)) ]
+
+(* [@@deriving map] for a recursive group: for each type T with parameters
+   'a1 ... 'an, generates
+
+     map_T : ('a1 -> 'b1) -> ... -> ('an -> 'bn) -> ('a1, ...) T -> ('b1, ...) T
+
+   It has ppx_deriving.map's interface (an external M.t maps with M.map, M.foo
+   with M.map_foo; a type without parameters is left alone), but its
+   functions are annotated; see the top of this file for why. *)
+
+let mapper_of v = "__f_" ^ v
+let out_var v = v ^ "__out"
+let map_name n = if n = "t" then "map" else "map_" ^ n
+
+let map_name_of_lid ~loc lid =
+  match lid with
+  | Lident n -> Lident (map_name n)
+  | Ldot (m, n) -> Ldot (m, map_name n)
+  | Lapply _ -> Location.raise_errorf ~loc "ppx_children: unsupported type"
+
+let rec mentions_var te =
+  match te.ptyp_desc with
+  | Ptyp_var _ -> true
+  | Ptyp_constr (_, args) | Ptyp_tuple args -> List.exists mentions_var args
+  | _ -> false
+
+(* A function [te -> te'] where te' is te with every parameter renamed to its
+   output variable, or None when te mentions no parameter. *)
+let rec retype_expr te =
+  let loc = te.ptyp_loc in
+  if not (mentions_var te) then None
+  else
+    Some
+      (match te.ptyp_desc with
+      | Ptyp_var v -> evar ~loc (mapper_of v)
+      | Ptyp_constr ({ txt = Lident "list"; _ }, [ t ]) ->
+          [%expr Stdlib.List.map [%e retype_fn t]]
+      | Ptyp_constr ({ txt = Lident "option"; _ }, [ t ]) ->
+          [%expr Stdlib.Option.map [%e retype_fn t]]
+      | Ptyp_constr ({ txt = lid; _ }, args) ->
+          B.eapply ~loc
+            (B.pexp_ident ~loc { txt = map_name_of_lid ~loc lid; loc })
+            (List.map retype_fn args)
+      | Ptyp_tuple tes ->
+          let vars = fresh_vars ~loc "__t" tes in
+          B.pexp_fun ~loc Nolabel None
+            (B.ppat_tuple ~loc (List.map (fun (_, p, _) -> p) vars))
+            (B.pexp_tuple ~loc
+               (List.map2 (fun te (_, _, e) -> retype_arg te e) tes vars))
+      | _ -> Location.raise_errorf ~loc "ppx_children: unsupported type")
+
+and retype_fn te =
+  let loc = te.ptyp_loc in
+  match retype_expr te with Some f -> f | None -> [%expr fun __x -> __x]
+
+and retype_arg te e =
+  match retype_expr te with
+  | Some f -> B.eapply ~loc:e.pexp_loc f [ e ]
+  | None -> e
+
+let retype_body td =
+  let loc = td.ptype_loc in
+  match (td.ptype_kind, td.ptype_manifest) with
+  | Ptype_variant cds, _ ->
+      let case cd =
+        let loc = cd.pcd_loc in
+        let tes = constructor_args ~loc cd in
+        let vars = fresh_vars ~loc "__a" tes in
+        let args = List.map2 (fun te (_, _, e) -> retype_arg te e) tes vars in
+        B.case
+          ~lhs:
+            (construct_pattern ~loc cd.pcd_name.txt
+               (List.map (fun (_, p, _) -> p) vars))
+          ~guard:None
+          ~rhs:
+            (B.pexp_construct ~loc
+               { txt = Lident cd.pcd_name.txt; loc }
+               (match args with
+               | [] -> None
+               | [ a ] -> Some a
+               | args -> Some (B.pexp_tuple ~loc args)))
+      in
+      B.pexp_match ~loc [%expr __x] (List.map case cds)
+  | Ptype_record lds, _ ->
+      B.pexp_record ~loc
+        (List.map
+           (fun ld ->
+             let lid = { txt = Lident ld.pld_name.txt; loc } in
+             (lid, retype_arg ld.pld_type (B.pexp_field ~loc [%expr __x] lid)))
+           lds)
+        None
+  | Ptype_abstract, Some te -> retype_arg te [%expr __x]
+  | _ -> Location.raise_errorf ~loc "ppx_children: unsupported declaration"
+
+let generate_map ~ctxt (_rec_flag, tds) =
+  let loc = Expansion_context.Deriver.derived_item_loc ctxt in
+  let binding td =
+    let n = td.ptype_name.txt in
+    let params = params_of td in
+    let ty vars =
+      B.ptyp_constr ~loc { txt = Lident n; loc }
+        (List.map (B.ptyp_var ~loc) vars)
+    in
+    let outs = List.map out_var params in
+    let fn_ty =
+      List.fold_right2
+        (fun a b acc ->
+          [%type:
+            ([%t B.ptyp_var ~loc a] -> [%t B.ptyp_var ~loc b]) -> [%t acc]])
+        params outs [%type: [%t ty params] -> [%t ty outs]]
+    in
+    let body =
+      List.fold_right
+        (fun v acc ->
+          B.pexp_fun ~loc Nolabel None (B.pvar ~loc (mapper_of v)) acc)
+        params
+        [%expr fun __x -> [%e retype_body td]]
+    in
+    B.value_binding ~loc
+      ~pat:
+        (B.ppat_constraint ~loc
+           (B.pvar ~loc (map_name n))
+           (B.ptyp_poly ~loc
+              (List.map (fun v -> { txt = v; loc }) (params @ outs))
+              fn_ty))
+      ~expr:body
+  in
+  [
+    B.pstr_include ~loc
+      (B.include_infos ~loc
+         (B.pmod_structure ~loc
+            [
+              [%stri [@@@ocaml.warning "-26-27-39"]];
+              B.pstr_value ~loc Recursive (List.map binding tds);
+            ]));
+  ]
+
+let () =
+  Deriving.add "map"
+    ~str_type_decl:(Deriving.Generator.V2.make_noarg generate_map)
+  |> Deriving.ignore
 
 let () =
   Deriving.add "children"

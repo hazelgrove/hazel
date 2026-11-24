@@ -4406,7 +4406,7 @@ let mk =
          Ensure they all resolve to the same info entry for cursor features. */
       let m_ref = ref(m);
       let _ =
-        Grammar.map_exp_annotation(
+        Grammar.map_exp_t(
           ({ids, _}: IdTagged.IdTag.t) => {
             let info_opt =
               List.find_map(~f=id => Id.Map.find_opt(id, m_ref^), ids);

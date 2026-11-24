@@ -35,6 +35,7 @@ module M_Id = {
     DrvGrammar.M({
       [@deriving (show({with_path: false}), sexp, yojson, eq)]
       type t('a, 'b) = 'a;
+      let map = (f, _, x) => f(x);
     });
   include M_Id;
   [@deriving (show({with_path: false}), sexp, yojson, eq)]

@@ -51,7 +51,7 @@ let children_tests = [
 
 /* A random expression, with fresh ids like a parsed one. */
 let of_menhir = exp =>
-  Grammar.map_exp_annotation(
+  Grammar.map_exp_t(
     _ => IdTagged.IdTag.fresh(),
     MenhirParser.Conversion.Exp.of_menhir_ast(exp),
   );

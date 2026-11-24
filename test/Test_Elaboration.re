@@ -28,7 +28,7 @@ let assert_elab_ids_present = u => {
   let (info_map, elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
   let _ =
-    Grammar.map_exp_annotation(
+    Grammar.map_exp_t(
       ({ids, _}: IdTagged.IdTag.t) => {
         if (Id.equal(List.hd_exn(ids), Id.invalid)) {
           Alcotest.fail(
@@ -885,7 +885,7 @@ module MenhirElaborationTests = {
   let alco_check_menhir = (name: string, dhexp: string, uexp: Exp.t) =>
     alco_check(
       name,
-      Grammar.map_exp_annotation(
+      Grammar.map_exp_t(
         _ => IdTagged.IdTag.fresh(),
         MenhirParser.Conversion.Exp.of_menhir_ast(
           MenhirParser.Interface.parse_program(dhexp),

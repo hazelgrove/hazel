@@ -175,7 +175,7 @@ let parse_exp = (s: string) => {
 };
 
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
-  Grammar.map_exp_annotation(
+  Grammar.map_exp_t(
     ({ids, _}: IdTagged.IdTag.t) => {
       switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
       | Some(info) =>
@@ -206,7 +206,7 @@ let annotated_exp: testable(Grammar.exp_t(option(issue))) =
   );
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
-  Grammar.map_exp_annotation(
+  Grammar.map_exp_t(
     (_annotation): IdTagged.IdTag.t => IdTagged.IdTag.mk_internal([Id.mk()]),
     exp,
   );
@@ -234,7 +234,7 @@ let syntax_exp: testable(Grammar.exp_t(unit)) =
    parentheses included. */
 let annotated_tree_test =
     (~source=?, name, expected_type, expected_error_tree) => {
-  let syntax = Grammar.map_exp_annotation(_ => (), expected_error_tree);
+  let syntax = Grammar.map_exp_t(_ => (), expected_error_tree);
   let term =
     switch (source) {
     | Some(source) =>
@@ -243,7 +243,7 @@ let annotated_tree_test =
         syntax_exp,
         "Parse of " ++ source,
         syntax,
-        Grammar.map_exp_annotation(_ => (), term),
+        Grammar.map_exp_t(_ => (), term),
       );
       term;
     | None => fresh(syntax)

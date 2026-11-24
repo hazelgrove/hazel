@@ -8,14 +8,11 @@ let qcheck_map_annotation_test =
     exp => {
       let indicated_exp = MenhirParser.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
-        Grammar.map_exp_annotation(
-          _ => IdTagged.IdTag.fresh(),
-          indicated_exp,
-        );
+        Grammar.map_exp_t(_ => IdTagged.IdTag.fresh(), indicated_exp);
       let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
         Poly.equal,
-        Grammar.map_exp_annotation(Fn.id, core_exp),
+        Grammar.map_exp_t(Fn.id, core_exp),
         core_exp,
       );
     },

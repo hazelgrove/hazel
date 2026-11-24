@@ -961,7 +961,7 @@ and parenthesize_typ =
     |> rewrap
   | Sum(ts) =>
     Sum(
-      ConstructorMap.map(
+      ConstructorMap.map_variant_args(
         ts =>
           ts
           |> Option.map(~f=parenthesize_typ)

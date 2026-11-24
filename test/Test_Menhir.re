@@ -53,7 +53,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
   alco_check(
     "menhir matches expected parse",
     exp,
-    Grammar.map_exp_annotation(
+    Grammar.map_exp_t(
       _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
@@ -89,7 +89,7 @@ let print_exp = exp =>
     Haz3lcore.ExpToSegment.(
       exp_to_segment(
         ~settings=Settings.editable(~inline=true),
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), exp),
+        Grammar.map_exp_t(_ => IdTagged.IdTag.fresh(), exp),
       )
     ),
   );
@@ -117,7 +117,7 @@ let menhir_maketerm_equivalent_test =
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
-      Grammar.map_exp_annotation(
+      Grammar.map_exp_t(
         _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
@@ -158,7 +158,7 @@ let qcheck_menhir_maketerm_equivalent_test =
           ).
             exp(
             make_term_parsed,
-            Grammar.map_exp_annotation(
+            Grammar.map_exp_t(
               _ => IdTagged.IdTag.fresh(),
               menhir_parsed_converted,
             ),
@@ -202,8 +202,7 @@ let qcheck_menhir_serialized_equivalent_test =
     AST.arb_exp(7),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
-      let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
+      let core_exp = Grammar.map_exp_t(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
@@ -273,9 +272,9 @@ let qcheck_menhir_serialized_equivalent_test =
           );
         let normalize = exp =>
           Conversion.Exp.of_menhir_ast(exp)
-          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
+          |> Grammar.map_exp_t(_ => IdTagged.IdTag.temp())
           |> strip_parens
-          |> Grammar.map_exp_annotation(_ => false)
+          |> Grammar.map_exp_t(_ => false)
           |> Conversion.Exp.of_core;
         AST.equal_exp(normalize(menhir_parsed), normalize(exp));
       };

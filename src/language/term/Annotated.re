@@ -1,4 +1,4 @@
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson, eq, map)]
 type t('a, 'b) = {
   term: 'a,
   annotation: 'b,

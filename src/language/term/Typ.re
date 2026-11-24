@@ -388,7 +388,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Prod(tys) => Prod(List.map(~f=subst(s, x), tys)) |> rewrap
     | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
     | Sum(sm) =>
-      Sum(ConstructorMap.map(Option.map(~f=subst(s, x)), sm)) |> rewrap
+      Sum(ConstructorMap.map_variant_args(Option.map(~f=subst(s, x)), sm))
+      |> rewrap
     | Poly(tp2, ty)
         when
           Option.equal(
@@ -715,7 +716,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
-    Sum(ConstructorMap.map(Option.map(~f=normalize(ctx)), ts)) |> rewrap
+    Sum(ConstructorMap.map_variant_args(Option.map(~f=normalize(ctx)), ts))
+    |> rewrap
   | Rec(tpat, ty) =>
     /* NOTE: Dummy tvar added has fake id but shouldn't matter
        as in current implementation Recs do not occur in the
@@ -802,7 +804,10 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | TupLabel(label, ty) =>
     TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
   | Sum(sm) =>
-    Sum(ConstructorMap.map(Option.map(~f=desugar_sig(ctx)), sm)) |> rewrap
+    Sum(
+      ConstructorMap.map_variant_args(Option.map(~f=desugar_sig(ctx)), sm),
+    )
+    |> rewrap
   | Rec(tpat, t) => Rec(tpat, desugar_sig(ctx, t)) |> rewrap
   | Poly(tpat, t) => Poly(tpat, desugar_sig(ctx, t)) |> rewrap
   | ProdProjection(t, label) =>
@@ -1450,7 +1455,7 @@ let to_product = (tys: list(t)): t => TempGrammar.Typ.(prod(tys));
 let all_ids = (ty: t): list(Id.t) => {
   let ids = ref([]);
   let _ =
-    Grammar.map_typ_annotation(
+    Grammar.map_typ_t(
       (t: IdTagged.IdTag.t) => {
         ids := t.ids @ ids^;
         t;

@@ -79,7 +79,7 @@ let menhir_parse = (s: string): option(Exp.t) =>
   switch (MenhirParser.Interface.parse_program(s)) {
   | ast =>
     Some(
-      Grammar.map_exp_annotation(
+      Grammar.map_exp_t(
         _ => IdTagged.IdTag.fresh(),
         MenhirParser.Conversion.Exp.of_menhir_ast(ast),
       ),

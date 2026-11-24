@@ -440,7 +440,7 @@ module rec Exp: {
     // mutable array to gather indicated IDs when generating expressions
     let indicated_ids = Dynarray.create();
     let e =
-      Grammar.map_exp_annotation(
+      Grammar.map_exp_t(
         (indicated): IdTagged.IdTag.t => {
           let id = Id.mk();
           if (indicated) {

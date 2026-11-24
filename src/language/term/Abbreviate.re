@@ -1664,7 +1664,10 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           //TODO: abbreviate these like tuples
           available := available^ - 1; // "+"
           let ctors' =
-            ConstructorMap.map(t => Option.map(~f=abbreviate_typ, t), ctors);
+            ConstructorMap.map_variant_args(
+              t => Option.map(~f=abbreviate_typ, t),
+              ctors,
+            );
           Sum(ctors');
         }
       | Prod(ts) =>

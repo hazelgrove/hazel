@@ -199,7 +199,7 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   };
 };
 
-let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
+let map_variant_args = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(
     ~f=
       fun
@@ -209,7 +209,7 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   );
 };
 
-let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
+let map = (type a, type b, f: a => b, m: t(a)): t(b) => {
   List.map(
     ~f=
       fun
@@ -221,7 +221,7 @@ let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
   );
 };
 
-/* Folds over the payload types, in order, as map_preserving maps them. */
+/* Folds over the payload types, in order, as map maps them. */
 let fold = (f: ('a, 'acc) => 'acc, m: t('a), acc: 'acc): 'acc =>
   List.fold(m, ~init=acc, ~f=(acc, entry) =>
     switch (entry) {

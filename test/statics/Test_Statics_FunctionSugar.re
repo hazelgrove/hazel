@@ -22,7 +22,7 @@ let collect_ids = (exp: Exp.t): list(Id.t) => {
     acc := a.ids @ acc^;
     a;
   };
-  let _ = Grammar.map_exp_annotation(collect, exp);
+  let _ = Grammar.map_exp_t(collect, exp);
   acc^;
 };
 

@@ -102,7 +102,7 @@ let check_file = (path: string): unit => {
     switch (MenhirParser.Interface.parse_program(txt)) {
     | ast =>
       Ok(
-        Grammar.map_exp_annotation(
+        Grammar.map_exp_t(
           _ => IdTagged.IdTag.fresh(),
           MenhirParser.Conversion.Exp.of_menhir_ast(ast),
         ),
