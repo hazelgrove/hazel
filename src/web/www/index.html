@@ -8,6 +8,10 @@
 
     <title>hazel</title>
     <link rel="stylesheet" href="style.css">
+    <!-- the standard library, loaded at boot (StdlibServed): its download
+         starts now, beside the scripts' -->
+    <link rel="preload" href="stdlib.blob" as="fetch" crossorigin>
+    <link rel="preload" href="stdlib.hz" as="fetch" crossorigin>
 
     <!-- The saved color theme, applied before the first paint so the loading
          screen below is themed too (it consumes --ui-bkg, --nut-menu and

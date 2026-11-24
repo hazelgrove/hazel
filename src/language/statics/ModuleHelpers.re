@@ -16,9 +16,26 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> CoCtx.union;
 };
 
-/* The module variables the annotations in [pat] refer to. */
+/* The module a qualified constructor's path starts from (`M` of `M.N.A`) */
+let rec pat_path_head = (p: Pat.t): option((Var.t, Id.t)) =>
+  switch (p.term) {
+  | Var(name)
+  | Constructor(name, _) => Some((name, Pat.rep_id(p)))
+  | Parens(p)
+  | Dot(p, _) => pat_path_head(p)
+  | _ => None
+  };
+
+/* The module variables the annotations in [pat] and the paths of its
+   qualified constructors (`M.A`) refer to. */
 let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   switch (pat.term) {
+  | Dot(path, _) =>
+    switch (pat_path_head(path)) {
+    | Some((name, id)) when Option.is_some(Ctx.lookup_var(ctx, name)) =>
+      CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp)
+    | _ => CoCtx.empty
+    }
   | Asc(p, ann) =>
     CoCtx.union([
       collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
@@ -173,6 +190,7 @@ let rec expected_pat_type =
   | ExplicitNonlabel
   | Atom(_)
   | Constructor(_)
+  | Dot(_)
   | Label(_) => None
   };
 };
@@ -227,24 +245,6 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
         },
     items,
   );
-
-/* Members the module exports that the analyzed signature does not declare;
-   none when a hole item in the signature could declare them. */
-let extra_members =
-    (~ana_items: list(Sig.t), have: list(Sig.t)): list(Var.t) =>
-  if (Sig.has_hole_item(ana_items)) {
-    [];
-  } else {
-    let have = Sig.members(have);
-    let want = Sig.members(ana_items);
-    let extra_values =
-      Sig.value_names(have)
-      |> List.filter(~f=x => Option.is_none(Sig.find_value(want, x)));
-    let extra_types =
-      Sig.type_names(have)
-      |> List.filter(~f=t => Option.is_none(Sig.find_type_def(want, t)));
-    extra_values @ extra_types;
-  };
 
 /* The module's type under the signature it is checked against: each
    member [checked] against the signature on its item at the type

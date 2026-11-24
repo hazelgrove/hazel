@@ -172,17 +172,23 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
   };
 
 /* the ⇓ probe's term, once placed: the program's last expression, in a
-   stack the ⇒ cell's */
+   stack the ⇒ cell's (or a world slide's members cell's) */
 let tail_target = (p: t): option(Id.t) =>
   switch (p) {
   | Whole(e) => e.editor.editor.state.zipper.refractors.tail_target
   | Divided(d) =>
     Divided.cells(d)
-    |> List.find(~f=(e: ScratchCell.t) =>
-         Poly.equal(e.e_kind, Headless({js|⇒|js}))
-       )
-    |> Option.map(~f=(e: ScratchCell.t) =>
-         e.e_body.editor.editor.state.zipper.refractors.tail_target
+    |> List.find_map(~f=(e: ScratchCell.t) =>
+         switch (e.e_kind) {
+         | Headless(s) when String.equal(s, {js|⇒|js}) =>
+           Some(e.e_body.editor.editor.state.zipper.refractors.tail_target)
+         | Members =>
+           Option.map(
+             ~f=Option.some,
+             e.e_body.editor.editor.state.zipper.refractors.tail_target,
+           )
+         | _ => None
+         }
        )
     |> Option.join
   };

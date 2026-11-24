@@ -81,6 +81,10 @@ let carry_over = (~from: Model.t, m: Model.t): Model.t => {
       ...m,
       editors: Documentation(carry(a, b)),
     }
+  | (World(a), World(b)) => {
+      ...m,
+      editors: World(carry(a, b)),
+    }
   | _ => m
   };
 };
@@ -92,6 +96,8 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
+      /* the program level: the library's document */
+      | Code({lib: Some(editor), _}) => editor.editor
       | Code({program: Whole(editor), _}) => editor.editor
       /* divided: the cell with the caret */
       | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
@@ -103,7 +109,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
-    | Documentation(m) => get_scratchpad_editor(m)
+    | Documentation(m)
+    | World(m) => get_scratchpad_editor(m)
     | Tutorial(m) =>
       List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
@@ -162,7 +169,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => scratchpad_editors(m)
-    | Documentation(m) => scratchpad_editors(m)
+    | Documentation(m)
+    | World(m) => scratchpad_editors(m)
     | Tutorial(m) => [
         (
           None,
@@ -193,6 +201,8 @@ module Update = {
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
+    /* one of the World's unloaded slides summarized (WorldSummaries) */
+    | Summarize
     | Start
     | Save;
 
@@ -213,7 +223,8 @@ module Update = {
   let open_tail_cell = (editors: Editors.Model.t): option(Editors.Update.t) =>
     switch (editors) {
     | Scratch(m)
-    | Documentation(m) =>
+    | Documentation(m)
+    | World(m) =>
       switch (ScratchMode.Model.current_program(m)) {
       | Some(Divided(_) as p) =>
         Program.tail_row(p)
@@ -401,17 +412,19 @@ module Update = {
             persisted.backup_text,
           );
         | Scratch(model)
-        | Documentation(model) =>
+        | Documentation(model)
+        | World(model) =>
           let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({program, _}) =>
+            | Code(code) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
+                /* a world slide's own members, not the library's */
                 Haz3lcore.PersistentZipper.persist(
-                  Program.whole(program).editor.editor.state.zipper,
+                  WorldSlide.own_editor(code).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -562,6 +575,25 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Summarize =>
+      switch (model.editors) {
+      | World(m) when WorldSummaries.idle() =>
+        switch (ScratchModel.Model.current_code(m)) {
+        | Some(code)
+            when
+              WorldSummaries.step(
+                ~settings=model.globals.settings.core,
+                Program.document(code.program),
+              ) =>
+          model |> Updated.return_quiet(~recalculate=true)
+        | _ => model |> Updated.return_quiet
+        }
+      | World(_) => model |> Updated.return_quiet
+      /* not in the World: none wanted until it opens (on_load) */
+      | _ =>
+        WorldSummaries.wanted := false;
+        model |> Updated.return_quiet;
+      }
     | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");
@@ -1099,7 +1131,8 @@ module View = {
     let dynamics =
       switch (editors) {
       | Scratch(m)
-      | Documentation(m) when globals.settings.core.dynamics =>
+      | Documentation(m)
+      | World(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
         |> Option.map(~f=p => {
              let tail = globals.settings.tail_probe;
@@ -1173,6 +1206,7 @@ module View = {
       switch (model.editors) {
       | Scratch(m) => Some(("scratch", m))
       | Documentation(m) => Some(("doc", m))
+      | World(m) => Some((ScratchModel.prefix(World), m))
       | _ => None
       };
     let outline_mark =
@@ -1186,17 +1220,59 @@ module View = {
         | None => []
         },
       );
+    /* the program level, above every code slide: the standard library,
+       shown in the slide's place while [lib] holds it */
+    let workspace = a => inject(Editors(Scratch(Workspace(a))));
+    let enclosing: option(OutlineControl.enclosing) =
+      switch (Option.bind(deck, ~f=OutlineControl.current)) {
+      | Some({kind: Code({lib, _}), _}) =>
+        Some({
+          e_above: {
+            a_label: "program",
+            a_out: "zoom out to the program: the standard library",
+            a_here: "the standard library",
+            a_chip:
+              LibraryDoc.edited()
+                ? Some((
+                    {js|edited ↺|js},
+                    "the library is edited: back to the shipped one",
+                  ))
+                : None,
+            a_alarm:
+              switch (LibraryDoc.errors^) {
+              | 0 => None
+              | n =>
+                Some({
+                  al_why:
+                    Printf.sprintf(
+                      "the standard library has %d error%s",
+                      n,
+                      n == 1 ? "" : "s",
+                    ),
+                  al_act: {js|↺|js},
+                  al_act_title: "back to the shipped library",
+                })
+              },
+          },
+          e_shown: Option.is_some(lib),
+          e_go: shown => workspace(ShowLibrary(shown)),
+          e_chip: workspace(ResetLibrary),
+        })
+      | _ => None
+      };
     let outline =
       OutlineControl.view(
         ~arrows=globals.settings.outline_arrows,
         ~deck,
+        ~enclosing?,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,
         ~inject=a => inject(Editors(Scratch(Outline(a)))),
-        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+        ~inject_workspace=workspace,
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
         ~statics_on=globals.settings.core.statics,
+        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);

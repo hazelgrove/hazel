@@ -35,12 +35,12 @@ let tests = (
     ),
     fully_consistent_typecheck(
       "function application",
-      "float_of_int(1)",
+      "Float.of_int(1)",
       Some(float()),
     ),
     fully_consistent_typecheck(
       "function deferral",
-      "string_sub(\"hello\", 1, _)",
+      "String.sub(\"hello\", 1, _)",
       Some(arrow(int(), string())),
     ),
     fully_consistent_typecheck(
@@ -50,7 +50,7 @@ let tests = (
     ),
     fully_consistent_typecheck(
       "Deferrals applied to known type",
-      {|string_sub(_, 2, 3)|},
+      {|String.sub(_, 2, 3)|},
       Some(arrow(string(), string())),
     ),
     fully_consistent_typecheck(
@@ -65,7 +65,7 @@ let tests = (
     ),
     test_case("Wrong number of deferrals", `Quick, () =>
       annotated_tree_test(
-        {|string_sub(_, _, 2, 3)|},
+        {|String.sub(_, _, 2, 3)|},
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
@@ -80,7 +80,7 @@ let tests = (
                   ),
                 ]),
               ),
-            var("string_sub"),
+            dot(var("String"), label("sub")),
             [deferral(InAp), deferral(InAp), int(2), int(3)],
           )
         ),

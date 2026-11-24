@@ -32,7 +32,7 @@ let get_fn_info =
        * Skip for built-in names: their FixF patterns create context entries
        * with fresh IDs that aren't navigable tiles in the user's zipper. */
       let body_id: option(Id.t) =
-        if (Option.is_some(Environment.lookup(Builtins.env_init, name))) {
+        if (Builtins.predefined(name)) {
           None;
         } else {
           switch (Statics.Map.lookup(fn_id, info_map)) {
@@ -120,7 +120,7 @@ let get_definition_target =
       let base =
         String.is_suffix(n, ~suffix="+")
           ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
-      Option.is_some(Environment.lookup(Builtins.env_init, base));
+      Builtins.predefined(base);
     | None => false
     };
   if (is_builtin_name) {
@@ -129,7 +129,11 @@ let get_definition_target =
     let (_, body_id_opt) = get_fn_info(~info_map, app_id);
     switch (body_id_opt) {
     | Some(_) => body_id_opt
-    | None => fn_def_id
+    /* a library function's definition is not in the editor */
+    | None =>
+      Option.bind(fn_def_id, ~f=id =>
+        is_in_user_code(~info_map, id) ? Some(id) : None
+      )
     };
   };
 };
@@ -151,7 +155,7 @@ let get_param_target =
       let base =
         String.is_suffix(n, ~suffix="+")
           ? String.sub(n, ~pos=0, ~len=String.length(n) - 1) : n;
-      Option.is_some(Environment.lookup(Builtins.env_init, base));
+      Builtins.predefined(base);
     | None => false
     };
   if (is_builtin_name) {

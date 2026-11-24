@@ -4,7 +4,7 @@
  (name cli)
  (flags
   (:standard -open Core))
- (libraries core ppx_yojson_conv.expander haz3lcore web cmdliner)
+ (libraries core ppx_yojson_conv.expander haz3lcore web stdlibBaked cmdliner)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx ppx_deriving.show ppx_yojson_conv ppx_sexp_conv)))

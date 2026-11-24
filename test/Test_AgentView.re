@@ -36,7 +36,7 @@ let run = (z: Zipper.t, st: CachedStatics.t) => {
   let (value, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       st.elaborated,
     );
   (
@@ -767,6 +767,9 @@ let slide = (~src=lens_src, ~opened: list(string), ()) => {
     view: W.SlideView.init,
     agent,
     lens: None,
+    lib: None,
+    lib_gen: 0,
+    world: None,
   };
   (code, chat_id);
 };

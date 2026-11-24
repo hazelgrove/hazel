@@ -322,6 +322,9 @@ nonAscriptingPat:
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* A module's constructor (`M.A`, `m.N.A`); the head is the path. *)
+    | p = nonAscriptingPat; DOT; c = CONSTRUCTOR_IDENT { DotPat(p, c) }
+    | p = nonAscriptingPat; DOT; x = IDENT { DotPat(p, x) }
     (* Base-type keywords are ordinary constructors in pat position too
        (JSON's Int/Float/Bool/String cases; `let x : Int ⧖ Bool` is a
        pattern-level hole beside a constructor pattern) — MakeTerm
@@ -450,6 +453,18 @@ funExp:
     | NAMED_FUN; name = IDENT; p = funPat; DASH_ARROW; e1 = exp { Fun (p, e1, Some(name)) } %prec BINDER_BODY
 
 
+(* A module may take a base type's name (the standard library's String,
+   Int, ...): the keyword is a constructor in exp position, so `Int.x`
+   already parses. *)
+moduleName:
+    | c = CONSTRUCTOR_IDENT { c }
+    | INT_TYPE { "Int" }
+    | SINT_TYPE { "SInt" }
+    | NAT_TYPE { "Nat" }
+    | FLOAT_TYPE { "Float" }
+    | BOOL_TYPE { "Bool" }
+    | STRING_TYPE { "String" }
+
 %inline ifExp:
     | IF; e1 = exp; THEN; e2 = exp; ELSE; e3 = exp { If (e1, e2, e3) } %prec IF_EXP
 
@@ -517,9 +532,9 @@ exp:
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (i, TupleExp(e1 :: es), e2) } %prec LET_EXP
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp); IN; e2 = exp { Let (TuplePat(p1 :: ps), TupleExp(e1 :: es), e2) } %prec LET_EXP
     | MODULE; i = IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(i), e1, e2) } %prec LET_EXP
-    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
+    | MODULE; c = moduleName; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(VarPat(c), e1, e2) } %prec LET_EXP
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(i), t), e1, e2) } %prec LET_EXP
-    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
+    | MODULE; c = moduleName; COLON; t = typ; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { ModuleExp(AscPat(VarPat(c), t), e1, e2) } %prec LET_EXP
     | i = ifExp { i }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
@@ -558,9 +573,9 @@ modItem:
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp) { ModItemLet(i, TupleExp(e1 :: es)) }
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp) { ModItemLet(TuplePat(p1 :: ps), TupleExp(e1 :: es)) }
     | MODULE; i = IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
-    | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
+    | MODULE; c = moduleName; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
-    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
+    | MODULE; c = moduleName; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
     | e = modItemExp { ModItemExp(e) }
 
@@ -568,7 +583,7 @@ sigItem:
     | LET; p = pat { SigItemLet(p) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { SigItemType(tp, ty) }
     | MODULE; i = IDENT { SigItemModule(VarPat(i)) }
-    | MODULE; c = CONSTRUCTOR_IDENT { SigItemModule(VarPat(c)) }
+    | MODULE; c = moduleName { SigItemModule(VarPat(c)) }
     | MODULE; i = IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(i), t)) }
-    | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ { SigItemModule(AscPat(VarPat(c), t)) }
+    | MODULE; c = moduleName; COLON; t = typ { SigItemModule(AscPat(VarPat(c), t)) }
 

@@ -1,0 +1,24 @@
+# String: text, its conversions and comparison #
+module String = {
+  let length = $prim.string_length;
+  let trim = $prim.string_trim;
+  let escaped = $prim.string_escaped;
+  let unescaped = $prim.string_unescaped;
+  let uppercase = $prim.string_uppercase;
+  let lowercase = $prim.string_lowercase;
+  let capitalize = $prim.string_capitalize;
+  let uncapitalize = $prim.string_uncapitalize;
+  let join = $prim.string_join;
+  let sub = $prim.string_sub;
+  let split = $prim.string_split;
+  let match = $prim.string_match;
+  let replace = $prim.string_replace;
+  let search = $prim.string_search;
+  let concat = $prim.string_concat;
+  let compare = $prim.string_compare;
+  let of_int = $prim.string_of_int;
+  let of_sint = $prim.string_of_sint;
+  let of_nat = $prim.string_of_nat;
+  let of_float = $prim.string_of_float;
+  let of_bool = $prim.string_of_bool
+}

@@ -22,7 +22,7 @@ let get_all_samples = (code: string): list(Sample.t) => {
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
@@ -357,7 +357,7 @@ let step_into_frame_tests = [
         let (_, state) =
           Evaluator.evaluate(
             ~eval_info=EvalInfo.of_targets(targets),
-            ~env=Builtins.env_init,
+            ~env=Builtins.env_init(),
             elaborated,
           );
         let samples =
@@ -489,7 +489,7 @@ in apply(add(_, 10), 5)|},
          step-into predicate can't rely on fn_def_id alone and must suppress
          builtin call sites separately. */
       let samples =
-        get_all_samples({|^^probe(map([1, 2, 3], fun n -> n + 1))|});
+        get_all_samples({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|});
       switch (samples) {
       | [s, ..._] =>
         check(
@@ -503,9 +503,10 @@ in apply(add(_, 10), 5)|},
     },
   ),
   /* the probe's menu offers step into on a call it names (cur_var_ap)
-     whose function has code */
+     whose function has code: the library's is its editor's (plans/stdlib.md
+     §9b); a primitive has none */
   test_case(
-    "Step into is offered on user calls, bare or through a module, not on a builtin",
+    "Step into is offered on user and library calls, not on a primitive",
     `Quick,
     () => {
       let offered = code => {
@@ -513,7 +514,7 @@ in apply(add(_, 10), 5)|},
         let (_, state) =
           Evaluator.evaluate(
             ~eval_info=EvalInfo.of_targets(targets),
-            ~env=Builtins.env_init,
+            ~env=Builtins.env_init(),
             elaborated,
           );
         switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
@@ -540,9 +541,15 @@ in apply(add(_, 10), 5)|},
       );
       check(
         bool,
-        "builtin",
+        "library call",
+        true,
+        offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
+      );
+      check(
+        bool,
+        "primitive",
         false,
-        offered({|^^probe(string_length("abc"))|}),
+        offered({|^^probe($prim.string_length("abc"))|}),
       );
     },
   ),
@@ -559,7 +566,7 @@ in apply(add(_, 10), 5)|},
       let (_, state) =
         Evaluator.evaluate(
           ~eval_info=EvalInfo.of_targets(targets),
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           elaborated,
         );
       switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {

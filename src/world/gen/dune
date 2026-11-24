@@ -1,0 +1,7 @@
+; Generates the world tree's slide list from its source folder.
+
+(executable
+ (name gen)
+ (flags
+  (:standard -open Core))
+ (libraries core worldFolder))

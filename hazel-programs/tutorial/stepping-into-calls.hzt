@@ -22,7 +22,7 @@ Right-click a call's sample and choose *Step into*, or click it and press Enter.
 @code
 type Plant = (name = String, water = Int) in
 let total_water(plants: [Plant]): Int =
-  fold_left(plants, fun (acc, p) -> acc + p.water, 0)
+  List.fold_left(plants, fun (acc, p) -> acc + p.water, 0)
 in
 let shade = [
   (name = "fern", water = 250),

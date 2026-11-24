@@ -72,8 +72,14 @@ module Env = {
     | Fun(_)
     | FixF(_)
     | Closure(_)
-    | BuiltinFun(_) when !full => Opaque
-    | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
+    | BuiltinFun(_)
+    /* a module referenced (`List` in `List.map(xs)`): its value is every
+       member's function, the standard library's whole List */
+    | Module(_) when !full => Opaque
+    | _ =>
+      Val(
+        d |> DHExp.strip_ascriptions |> Substitution.in_exp(~fns=Shown, env),
+      )
     };
 
   let mk_entry =

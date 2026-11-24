@@ -703,8 +703,8 @@ let slides = () => {
   let checked = ref(0);
   List.iter(
     ~f=
-      ((path, src)) =>
-        switch (CorpusUtil.parse(src)) {
+      ((path, root, src)) =>
+        switch (CorpusUtil.parse(~root, src)) {
         | Some(seg) =>
           incr(checked);
           parity(path, seg);

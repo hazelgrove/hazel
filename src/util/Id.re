@@ -69,25 +69,44 @@ type t = Uuidm.t;
  * concatenating one-byte strings: under js_of_ocaml a string is a JS
  * string and `++` is JS `+`, where Uuidm.v4's byte buffer was copied and
  * converted on every call (~10% of evaluating a livelit's view). */
-let mk: unit => t = {
-  let byte = Array.init(256, ~f=i => String.make(1, Char.of_int_exn(i)));
-  let seed = Random.State.make_self_init();
-  let rnd = () => Random.State.int(seed, 256);
-  /* byte 8: the variant bits 10, then 6 random bits; bytes 9-15 random */
-  let tail = {
-    let b8 = byte[0x80 lor rnd() land 0x3f];
-    let rest = String.concat(List.init(7, ~f=_ => byte[rnd()]));
-    b8 ++ rest;
+let byte = Array.init(256, ~f=i => String.make(1, Char.of_int_exn(i)));
+
+/* a generator: its tail (bytes 8-15), and its counter. Bytes 1 to 15 are
+ * the same for 256 ids in a row, so they are made once for each run of 256
+ * (when the counter's bytes above its lowest change), and each id is one
+ * concatenation, not eight. */
+type gen = {
+  tail: string,
+  lo: ref(int),
+  hi: ref(int),
+  suffix: ref(string),
+  suffix_of: ref(int),
+};
+
+/* [tail(i)] is byte i, 8 to 15; byte 8 keeps 6 of its bits after the
+   variant bits 10 */
+let gen_of_tail = (tail: int => int): gen => {
+  let b8 = byte[0x80 lor tail(8) land 0x3f];
+  let rest = String.concat(Stdlib.List.init(7, i => byte[tail(i + 9)]));
+  {
+    tail: b8 ++ rest,
+    lo: ref(0),
+    hi: ref(0),
+    suffix: ref(""),
+    suffix_of: ref(-1),
   };
-  let lo = ref(0);
-  let hi = ref(0);
-  /* Bytes 1 to 15 are the same for 256 ids in a row, so they are made
-   * once for each run of 256 (when the counter's bytes above its lowest
-   * change), and each id is one concatenation, not eight. The same ids as
-   * before. */
-  let suffix = ref("");
-  let suffix_of = ref(-1);
+};
+
+let session: gen = {
+  let seed = Random.State.make_self_init();
+  gen_of_tail(_ => Random.State.int(seed, 256));
+};
+
+let current: ref(gen) = ref(session);
+
+let mk: unit => t =
   () => {
+    let {tail, lo, hi, suffix, suffix_of} = current^;
     incr(lo);
     if (lo^ >= 1073741824) {
       lo := 0;
@@ -110,6 +129,22 @@ let mk: unit => t = {
         ++ tail;
     };
     Uuidm.unsafe_of_bytes(byte[l land 0xff] ++ suffix^);
+  };
+
+/* [f] with ids that depend only on [seed] and the order [f] makes them: a
+   deterministic computation (a parse) gives the same ids for the same
+   seed, at build time and in the app, in any session */
+let with_seed = (seed: string, f: unit => 'a): 'a => {
+  let digest = Stdlib.Digest.string(seed);
+  let prev = current^;
+  current := gen_of_tail(i => Char.to_int(digest.[i - 8]));
+  switch (f()) {
+  | x =>
+    current := prev;
+    x;
+  | exception e =>
+    current := prev;
+    raise(e);
   };
 };
 let namespace_uuid =

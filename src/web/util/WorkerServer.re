@@ -87,7 +87,10 @@ module Response = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Posted.t);
+    | Evaluate(Posted.t)
+    /* a new standard library (Marshal of Library.baked), when it was
+       edited: later evaluations run against it */
+    | InstallLibrary(string);
 };
 
 module ServerMessage = {
@@ -316,7 +319,7 @@ let evaluate_sync =
   switch (
     Language.Evaluator.evaluate(
       ~eval_info,
-      ~env=Language.Builtins.env_init,
+      ~env=Language.Builtins.env_for(expr),
       expr,
     )
   ) {
@@ -418,7 +421,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
         Language.ReusePass.reuse_pass(
           ~prev,
           ~eval_info=eval_info_map,
-          ~env=Language.Builtins.env_init,
+          ~env=Language.Builtins.env_for(expr),
           expr,
         )
       ) {
@@ -480,7 +483,7 @@ let start_evaluation =
     Language.Evaluator.start_yielding_evaluation(
       ~prev=gated_prev(~key, req_value),
       ~eval_info=eval_info_map,
-      ~env=Language.Builtins.env_init,
+      ~env=Language.Builtins.env_for(expr),
       ~reuse_stream=?planned,
       expr,
     )
@@ -523,9 +526,25 @@ let post_batch_result = (model, request_id, completed) =>
    probe targets, value, nested incr_eval) stays in the worker, as
    decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+/* also without the observation trace (the worker has minted its samples
+   already) and without closure environments in sample values, as results
+   ship: both hold whole environments, the standard library's included */
 let slim_state = (state: Language.EvaluatorState.t) =>
   Language.EvaluatorState.{
-    ...state,
+    ...clear_transient(state),
+    probes:
+      Id.Map.map(
+        List.map(~f=(s: Language.Sample.t) =>
+          {
+            ...s,
+            value:
+              s.value
+              |> Language.TermPrune.prune_closure_envs
+              |> Language.Library.name_modules,
+          }
+        ),
+        state.probes,
+      ),
     incr_eval: Language.IncrEval.empty,
   };
 let slim_entries =
@@ -925,52 +944,59 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(posted) = Active.decode_request(req);
-    post_ack(posted.request_id);
-    switch (receive(posted)) {
-    | Composed(request) =>
-      eval_total := Core.Time_ns.Span.zero;
-      commit({
-        ...model^,
-        latest_request: Some(request),
-        runtime: Planning,
-      });
-    | Missing(_) =>
-      post_message(Resend({request_id: posted.request_id}));
-      commit({
-        ...model^,
-        latest_request: None,
-        runtime: Idle,
-      });
-    | Malformed(why) =>
-      post_message(
-        Result({
-          request_id: posted.request_id,
-          response:
-            List.map(
-              ~f=
-                ((key, _)) =>
-                  (
-                    key,
-                    Error(
-                      Language.ProgramResult.UnknownException(
-                        "eval request: " ++ why,
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | Evaluate(posted) =>
+      post_ack(posted.request_id);
+      switch (receive(posted)) {
+      | Composed(request) =>
+        eval_total := Core.Time_ns.Span.zero;
+        commit({
+          ...model^,
+          latest_request: Some(request),
+          runtime: Planning,
+        });
+      | Missing(_) =>
+        post_message(Resend({request_id: posted.request_id}));
+        commit({
+          ...model^,
+          latest_request: None,
+          runtime: Idle,
+        });
+      | Malformed(why) =>
+        post_message(
+          Result({
+            request_id: posted.request_id,
+            response:
+              List.map(
+                ~f=
+                  ((key, _)) =>
+                    (
+                      key,
+                      Error(
+                        Language.ProgramResult.UnknownException(
+                          "eval request: " ++ why,
+                        ),
                       ),
                     ),
-                  ),
-              posted.batch,
-            ),
-          eval_time: Core.Time_ns.Span.zero,
-        }),
-      );
-      commit({
-        ...model^,
-        latest_request: None,
-        runtime: Idle,
-      });
+                posted.batch,
+              ),
+            eval_time: Core.Time_ns.Span.zero,
+          }),
+        );
+        commit({
+          ...model^,
+          latest_request: None,
+          runtime: Idle,
+        });
+      };
+    | InstallLibrary(blob) =>
+      Language.Library.install(blob);
+      /* cached results were computed against the old library; the held
+         pieces are still the program's */
+      Stdlib.Hashtbl.reset(resident);
+      planned_reuse := [];
     };
-  };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

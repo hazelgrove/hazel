@@ -24,7 +24,7 @@ let check_variant = (name: string): unit => {
          ),
     );
   };
-  let (result, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+  let (result, state) = Evaluator.evaluate(~env=Builtins.env_init(), elab);
   let failing =
     EvaluatorState.get_tests(state)
     |> List.filter(~f=((_, reports)) =>

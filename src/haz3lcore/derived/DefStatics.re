@@ -103,6 +103,8 @@ and sur = {
 type t = {
   items: list(item),
   term: Exp.t, /* the whole term these items were computed from */
+  /* the context it starts from: the builtins and the standard library */
+  ctx_in: Ctx.t,
   probe_ids: Id.Map.t(unit),
   merged: Statics.Map.t, /* union of the items' maps, kept incrementally */
   /* each item's elab grafted into its predecessor's body hole: recursion
@@ -409,6 +411,24 @@ let export_delta =
       changed,
     );
   let tnames = List.concat_map(~f=tnames_of_entry, changed);
+  /* an unchanged constructor of a changed sum means something else now
+     (`A : Int -> t` names t), and a use mentions the constructor only */
+  let tnames =
+    tnames
+    @ List.concat_map(
+        ~f=
+          fun
+          | Ctx.ConstructorEntry({name, typ, _})
+              when
+                List.exists(
+                  ~f=v => List.mem(tnames, v, ~equal=Poly.equal),
+                  Typ.free_vars(typ),
+                ) => [
+              ctor_key(name),
+            ]
+          | _ => [],
+        old @ new_,
+      );
   List.is_empty(vars) && List.is_empty(tnames)
     ? Unchanged
     : Changed({
@@ -1173,9 +1193,10 @@ let names_meet = (~ana_items: list(Sig.t), items: list(Mod.t)): bool => {
         )
       }
     );
+  /* every member the signature declares (extra members are sealed away) */
   let want = Sig.members(ana_items);
-  SSet.equal(values, SSet.of_list(Sig.value_names(want)))
-  && SSet.equal(types, SSet.of_list(Sig.type_names(want)));
+  SSet.subset(SSet.of_list(Sig.value_names(want)), values)
+  && SSet.subset(SSet.of_list(Sig.type_names(want)), types);
 };
 
 /* where a module literal is bound: a top-level item binding [pat], or a
@@ -1744,8 +1765,8 @@ and calc_member =
 /* member granularity for a module literal bound to a name, plain or
    ascribed with a signature whose members it defines (and against whose
    items the members are checked, as the whole check does). one missing
-   or extra is reported on the module, as the whole check does: such an
-   item is analyzed whole */
+   is reported on the module, as the whole check does: such an item is
+   analyzed whole */
 and module_literal_members =
     (~ctx: Ctx.t, node: Exp.t)
     : option((Pat.t, Exp.t, list(Mod.t), option(list(Sig.t)))) => {
@@ -2369,7 +2390,10 @@ and calc_chain =
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse
    gating chains on pointer identity in the clean case */
-let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
+/* the seed ctx must be PHYSICALLY stable across calc calls: reuse
+   gating chains on pointer identity in the clean case (ctx_init's memo
+   holds it until the library changes) */
+let ctx0 = (): Ctx.t => Builtins.ctx_init(Some(Operators.default_mode));
 
 /* [chain], except a Module root's members are its items (chain never
    descends into defs, so only a root Module is seen here): its nodes, and
@@ -2405,9 +2429,23 @@ let chain_root = (~prev: option(t), e: Exp.t) => {
    sets) is reused; its map may keep stale ctx entries for dirty names it
    doesn't use, sound for typing though its Γ display can lag */
 let calc =
-    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+    (
+      ~settings,
+      ~ctx_in: Ctx.t=ctx0(),
+      ~prev: option(t)=?,
+      ~probe_ids=Id.Map.empty,
+      whole: Exp.t,
+    )
+    : t => {
   last_analyzed := 0;
   summed := 0;
+  /* a new starting context (the library changed) dirties every item;
+     library edits are rare enough that this beats diffing its exports */
+  let prev =
+    switch (prev) {
+    | Some(p) when phys_equal(p.ctx_in, ctx_in) => Some(p)
+    | _ => None
+    };
   let (nodes, root) = chain_root(~prev, whole);
   /* probe ids are an analysis input (witness stamping): only items whose
      maps contain a toggled probe id re-analyze */
@@ -2446,7 +2484,7 @@ let calc =
       ~prevs=Option.value_map(prev, ~default=[], ~f=(p: t) => p.items),
       ~dirty_vars=[],
       ~dirty_tnames=[],
-      ~ctx_in=ctx0,
+      ~ctx_in,
       nodes,
     );
   /* a Module root's members list it as their parent */
@@ -2498,7 +2536,7 @@ let calc =
         user_term: s,
         elab_term: value,
         ancestors: [],
-        ctx: ctx0,
+        ctx: ctx_in,
         ana: Typ.temp(Unknown(SynSwitch)),
         elab_syn_ty: ty,
         marks: [],
@@ -2524,6 +2562,7 @@ let calc =
   {
     items,
     term: whole,
+    ctx_in,
     probe_ids,
     merged,
     elab,
@@ -2561,11 +2600,12 @@ let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
 let slots: ref(list((Id.t, t))) = ref([]);
 let slots_cap = 8;
 
-let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+let calc_auto =
+    (~settings, ~ctx_in=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
   let prev = List.Assoc.find(slots^, key, ~equal=Poly.equal);
-  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+  let t = calc(~settings, ~ctx_in?, ~prev?, ~probe_ids, whole);
   slots :=
     [
       (key, t),
@@ -2578,6 +2618,15 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   t;
 };
 
-/* the last calc of [whole]'s document, if still cached */
-let cached = (whole: Exp.t): option(t) =>
+/* the last calc of [whole]'s document, in whatever context: for callers
+   that check it made what they hold */
+let last = (whole: Exp.t): option(t) =>
   List.Assoc.find(slots^, Exp.rep_id(whole), ~equal=Poly.equal);
+
+/* the last calc of [whole]'s document, if still cached and against the
+   current library */
+let cached = (~ctx_in=ctx0(), whole: Exp.t): option(t) =>
+  switch (last(whole)) {
+  | Some(t) when phys_equal(t.ctx_in, ctx_in) => Some(t)
+  | _ => None
+  };

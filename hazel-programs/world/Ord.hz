@@ -1,0 +1,7 @@
+# Ord: comparison results (Lt, Eq, Gt) #
+module Ord = {
+  # the type Ord; Lt, Eq and Gt also work unqualified everywhere #
+  type t = Lt + Eq + Gt;
+
+  let invert = $prim.invert_ord
+}

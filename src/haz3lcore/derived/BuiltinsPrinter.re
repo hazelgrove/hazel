@@ -9,8 +9,7 @@ let builtin_typ: BuiltinsUtil.builtin => Typ.t =
   (builtin: BuiltinsUtil.builtin) =>
     switch (builtin) {
     | BuiltinsUtil.Const({typ, _}) => Typ.temp(typ)
-    | BuiltinsUtil.Fn({arg, ret, _})
-    | BuiltinsUtil.HazelFn({arg, ret, _}) =>
+    | BuiltinsUtil.Fn({arg, ret, _}) =>
       BuiltinsUtil.Fresh.Typ.arrow(Typ.temp(arg), Typ.temp(ret))
     };
 

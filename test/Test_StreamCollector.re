@@ -65,7 +65,7 @@ let stream_collector_parity = (): unit => {
   drive(
     Evaluator.start_yielding_evaluation(
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     ),
   );

@@ -1,0 +1,6 @@
+# perf corpora (also the editor benchmarks' and tests' fixtures); exp: an
+# expression program, converted to members when it opens
+mega-1k  Mega 1k  exp
+mega-2k  Mega 2k  exp
+mega-4k  Mega 4k  exp
+mega-mod-1k  Mega-Mod 1k

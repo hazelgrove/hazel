@@ -188,7 +188,7 @@ let eval_incr_with =
     Language.Evaluator.evaluate(
       ~prev,
       ~eval_info,
-      ~env=Language.Builtins.env_init,
+      ~env=Language.Builtins.env_init(),
       elab,
     );
   (result, Language.EvaluatorState.get_incr_eval(state));
@@ -368,7 +368,7 @@ let eval_incr_probes =
     Language.Evaluator.evaluate(
       ~prev,
       ~eval_info,
-      ~env=Language.Builtins.env_init,
+      ~env=Language.Builtins.env_init(),
       elab,
     );
   (

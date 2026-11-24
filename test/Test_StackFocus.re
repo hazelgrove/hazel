@@ -302,8 +302,9 @@ let header_symbols = () => {
     ],
   );
   List.iter(
-    ~f=((name, src)) => ignore(survey(~root=Exp, name, src)),
-    incomplete_programs @ slide_corpus(),
+    ~f=((name, root, src)) => ignore(survey(~root, name, src)),
+    List.map(~f=((n, s)) => (n, Sort.Exp, s), incomplete_programs)
+    @ slide_corpus(),
   );
   List.iter(
     ~f=

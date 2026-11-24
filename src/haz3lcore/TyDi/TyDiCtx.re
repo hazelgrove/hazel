@@ -113,8 +113,10 @@ let bound_constructor_aps =
 /* The named fields of a labeled tuple type or the value members of a
  * signature type, with their types (a signature's own manifest type members
  * are substituted into its member types). */
+/* the head only: a full normalize of every entry, per keystroke, would
+   expand each module's whole signature */
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
-  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  switch (Typ.weak_head_normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(~f=Typ.match_tup_label, ts)
   | Sig(Closed(items)) =>
     Sig.members(ClosedSig.items(items))
@@ -208,7 +210,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * builtin context. */
 let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     bound_variables(ana, ctx)
@@ -255,7 +257,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     strategy,
   };
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>

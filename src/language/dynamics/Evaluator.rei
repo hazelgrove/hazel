@@ -20,6 +20,10 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* the value unfinished, closures kept: for values that go back into an
+   environment (the standard library's bindings) */
+let evaluate_raw: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
 /* evaluate, also returning the work done: the steps the trampoline
    actually took, a reused result counting as one. Unlike the state's
    step_count, it drops when results are reused. For Test_PerfBudgets. */

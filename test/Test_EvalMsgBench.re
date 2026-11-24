@@ -98,6 +98,7 @@ let receive_pieces = (encoded: WorkerServer.Active.request): unit =>
     WorkerServer.receive(
       switch (WorkerServer.Active.decode_request(encoded)) {
       | Evaluate(p) => p
+      | InstallLibrary(_) => Alcotest.fail("a library install")
       },
     )
   ) {

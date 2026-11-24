@@ -476,6 +476,10 @@ let pat_view = (~globals, ~raw, info: Info.pat): list(Node.t) =>
         Option.value(info.inferred_label, ~default="None"),
       ),
       field_str("label_sort", string_of_bool(info.label_sort)),
+      field_str(
+        "dot_labels",
+        "[" ++ String.concat(~sep=", ", info.dot_labels) ++ "]",
+      ),
     ]
   );
 

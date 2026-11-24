@@ -22,6 +22,6 @@ let error_count = (~ana: Typ.t, source: PersistentZipper.t): int =>
 /* The slide's value, as a config applier sees it. */
 let evaluate = (~ana: Typ.t, source: PersistentZipper.t): Exp.t => {
   let (_, elab) = statics(~ana, source);
-  let (result, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+  let (result, _) = Evaluator.evaluate(~env=Builtins.env_for(elab), elab);
   result;
 };

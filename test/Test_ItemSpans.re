@@ -10,12 +10,12 @@ open Poly;
 
 module S = ItemSpans;
 
-/* the stdlib's sources, module bodies (Mod-rooted), where the repo has
-   them */
+/* the stdlib's sources (the world tree's top-level files), module bodies
+   (Mod-rooted), where the repo has them */
 let stdlib_corpus = (): list((string, string)) => {
   let dir =
-    Stdlib.Sys.file_exists("hazel-programs/stdlib")
-      ? "hazel-programs/stdlib" : "../hazel-programs/stdlib";
+    Stdlib.Sys.file_exists("hazel-programs/world")
+      ? "hazel-programs/world" : "../hazel-programs/world";
   switch (Stdlib.Sys.readdir(dir)) {
   | files =>
     files
@@ -536,7 +536,7 @@ let incomplete = () => {
 let corpus = () => {
   let t =
     run(
-      List.map(~f=((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+      CorpusUtil.slide_corpus()
       @ List.map(
           ~f=
             ((f, root)) =>
@@ -603,7 +603,7 @@ let memo = () => {
    apart: there Read may cut */
 let read_finished = () => {
   let programs =
-    List.map(~f=((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+    CorpusUtil.slide_corpus()
     @ List.map(
         ~f=
           ((f, root)) =>

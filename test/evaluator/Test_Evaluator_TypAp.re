@@ -15,7 +15,7 @@ let map = typfun a ->typfun b -> fun f :(a ->b), as : [a] -> let bs : [b] =
   end
 in bs in
 
-map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
+map@<T>@<Int>(fun e -> String.length(e), ["hello","bar"])|},
       )
     ),
     /* Test_Statics_Polymorphism pins the type this result has to agree with. */

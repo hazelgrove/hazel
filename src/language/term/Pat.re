@@ -8,6 +8,7 @@ type cls =
   | Atom(Atom.cls)
   | ListLit
   | Constructor
+  | Dot
   | Cons
   | Var
   | Label
@@ -56,6 +57,7 @@ let rec strip_wrappers = (p: t): t =>
   | Atom(_)
   | ListLit(_)
   | Constructor(_)
+  | Dot(_)
   | Cons(_)
   | Var(_)
   | Tuple(_)
@@ -67,9 +69,11 @@ let rec strip_wrappers = (p: t): t =>
 
 let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
   switch (p.term) {
-  | Constructor(name, _) => Some(name)
+  | Constructor(name, _)
+  | Dot(_, {term: Label(name), _}) => Some(name)
   | Parens(p)
   | Projector(_, p) => ctr_name(p)
+  | Dot(_)
   | Asc(_)
   | Invalid(_)
   | EmptyHole
@@ -95,6 +99,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Atom(c) => Atom(Atom.cls_of_t(c))
   | ListLit(_) => ListLit
   | Constructor(_) => Constructor
+  | Dot(_) => Dot
   | Cons(_) => Cons
   | Var(_) => Var
   | Label(_) => Label
@@ -121,6 +126,7 @@ let show_cls: cls => string =
   | Atom(SInt) => "System integer literal"
   | ListLit => "List literal"
   | Constructor => "Constructor"
+  | Dot => "Module constructor"
   | Cons => "Cons"
   | Var => "Variable binding"
   | Label => "Label"
@@ -152,7 +158,8 @@ let rec has_hole_binder = (pat: t): bool =>
   | Atom(_)
   | Label(_)
   | ExplicitNonlabel
-  | Constructor(_) => false
+  | Constructor(_)
+  | Dot(_) => false
   };
 
 let rec is_var = (pat: t): option(Var.t) => {
@@ -173,6 +180,7 @@ let rec is_var = (pat: t): option(Var.t) => {
   | Label(_)
   | ExplicitNonlabel
   | Constructor(_)
+  | Dot(_)
   | Ap(_) => None
   };
 };
@@ -198,6 +206,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
+    | Dot(_)
     | Ap(_) => false
     }
   );
@@ -220,6 +229,7 @@ let rec get_var = (pat: t) => {
   | ExplicitNonlabel
   | Tuple(_)
   | Constructor(_)
+  | Dot(_)
   | Ap(_) => None
   };
 };
@@ -245,6 +255,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Cons(_, _)
     | Var(_)
     | Constructor(_)
+    | Dot(_)
     | Ap(_) => None
     }
   };
@@ -267,6 +278,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
     | Atom(_)
     | ListLit(_)
     | Constructor(_)
+    | Dot(_)
     | Cons(_)
     | Var(_)
     | Tuple(_)
@@ -287,7 +299,8 @@ let rec bindings = (dp: t): Binding.s =>
   | Atom(_)
   | Label(_)
   | ExplicitNonlabel
-  | Constructor(_) => []
+  | Constructor(_)
+  | Dot(_) => []
   | Asc(y, _)
   | Parens(y)
   | Projector(_, y)

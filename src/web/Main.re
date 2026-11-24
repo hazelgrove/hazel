@@ -109,18 +109,22 @@ let apply =
       updated.model,
     );
 
-  if (updated.is_edit) {
+  switch (action) {
+  /* background work: it neither edits nor postpones the next save (a
+     summary a tick would snooze it for as long as summaries run) */
+  | Summarize => ()
+  | _ when updated.is_edit =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
-  } else {
+    )
+  | _ =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SnoozeAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
+    )
   };
   /* Runs before the re-render, so caret_in_view sees the layout the user is
      looking at, not the one this action is about to make. */
@@ -192,6 +196,25 @@ let start = default_model => {
       ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
       Core.Time_ns.Span.of_sec(0.1),
       replay_effect,
+    );
+
+  /* the World's unloaded slides summarized while the editor is idle (no
+     update at all otherwise, so typing pays nothing for it) */
+  let summarize_effect = {
+    let%map app_inject = app_inject;
+    Bonsai.Effect.of_sync_fun(
+      () =>
+        if (WorldSummaries.due() && WorldSummaries.idle()) {
+          Ui_effect.Expert.handle(app_inject(Page.Update.Summarize));
+        },
+      (),
+    );
+  };
+  let%sub () =
+    Bonsai.Clock.every(
+      ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
+      Core.Time_ns.Span.of_sec(0.25),
+      summarize_effect,
     );
 
   // Update font metrics on resize
@@ -384,27 +407,47 @@ let start = default_model => {
 
 CoverageExport.install();
 
+/* Start the eval worker now, while the page is idle waiting on the
+   library's files and IndexedDB, not on first use. First use comes in the
+   middle of a calculation, and a worker created while the main thread is
+   busy does not start running until that task ends, in Chrome as in
+   Firefox (Firefox even loads the worker's script through the main
+   thread). On the Livelit Playground's largest slides, statics held
+   Firefox's main thread for 20+ s, so the worker never acknowledged, the
+   page reported "Evaluation timed out", and the slide never drew. Created
+   here, it is loaded and listening before the first request. */
+ignore(WorkerClient.get_worker());
+
+/* the standard library's files and IndexedDB load side by side; nothing
+   computes statics before both are in */
+let when_loaded = (k: unit => unit): unit => {
+  let pending = ref(2);
+  let ready = () => {
+    decr(pending);
+    if (pending^ == 0) {
+      k();
+    };
+  };
+  StdlibServed.load(text => {
+    LibraryDoc.ship(text);
+    ready();
+  });
+  HazelDB.kv_load_all(_pairs => ready());
+};
+
 switch (JsUtil.Fragment.get_current()) {
-| Some("debug") => DebugMode.go()
+| Some("debug") => when_loaded(DebugMode.go)
 | _ =>
-  /* Start the eval worker now, while the page is idle waiting on
-     IndexedDB, not on first use. First use comes in the middle of a
-     calculation, and a worker created while the main thread is busy does
-     not start running until that task ends, in Chrome as in Firefox
-     (Firefox even loads the worker's script through the main thread). On
-     the Livelit Playground's largest slides, statics held Firefox's main
-     thread for 20+ s, so the worker never acknowledged, the page reported
-     "Evaluation timed out", and the slide never drew. Created here, it is
-     loaded and listening before the first request. */
-  ignore(WorkerClient.get_worker());
-  /* Load all IndexedDB data, then construct model and start Bonsai.
-     The hazelnut loading spinner (in index.html) stays visible until
-     Bonsai renders its first frame. */
-  HazelDB.kv_load_all(_pairs => {
+  /* Then construct the model and start Bonsai. The hazelnut loading
+     spinner (in index.html) stays visible until Bonsai renders its first
+     frame. */
+  when_loaded(() => {
     /* The user's theme, before the first frame and whatever mode they are
        in. The inline script in index.html has already themed the loading
        screen from the same cache; this validates it and fills a miss. */
     ConfigurationMode.apply_theme_at_startup();
+    /* a library edited in an earlier session, over the shipped one */
+    LibraryDoc.restore();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(
@@ -418,5 +461,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  });
+  })
 };

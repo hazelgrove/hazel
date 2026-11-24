@@ -1,0 +1,15 @@
+# the program: the standard library's modules in dependency order (later
+# ones may use earlier ones), then the slides' folders
+String
+Int
+SInt
+Nat
+Float
+Bool
+Ord
+Color
+Option
+List
+Prelude
+documentation  Documentation
+scratch  Scratch

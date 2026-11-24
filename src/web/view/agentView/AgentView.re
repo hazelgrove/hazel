@@ -21,7 +21,8 @@ let view =
       );
     switch (editors) {
     | Scratch(m)
-    | Documentation(m) =>
+    | Documentation(m)
+    | World(m) =>
       let scratchpad = List.nth_exn(m.scratchpads, m.current);
       switch (scratchpad.kind) {
       | ScratchMode.Scratchpad.Code({program, agent, _}) =>

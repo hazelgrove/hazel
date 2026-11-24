@@ -11,7 +11,7 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elaborated,
     );
   EvaluatorState.get_probes(state);
@@ -721,7 +721,7 @@ in ^^probe(f(42))|};
       let (_, state) =
         Evaluator.evaluate(
           ~eval_info=EvalInfo.of_targets(targets),
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           elaborated,
         );
       let probes_map = EvaluatorState.get_probes(state);
@@ -784,7 +784,7 @@ in ^^probe(f(42))|};
 ];
 
 /* Repro: pinning one fold iteration must still narrow other probes to that
- * iteration, even though builtin fold_left's internal ap frames repeat per
+ * iteration, even though List.fold_left's internal ap frames repeat per
  * iteration. */
 
 let fold_pin_repro_tests = [
@@ -793,7 +793,7 @@ let fold_pin_repro_tests = [
     `Quick,
     () => {
       let code = {|let update = fun (m, a) -> ^^probe(m + a) in
-let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+let run = fun (m, xs) -> List.fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
       let probes = get_probes_map(code) |> Id.Map.bindings;
       check(int, "should have 2 probes", 2, List.length(probes));
@@ -866,7 +866,7 @@ let dead_pin_tests = [
     `Quick,
     () => {
       let code = {|let update = fun (m, a) -> ^^probe(m + a) in
-let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+let run = fun (m, xs) -> List.fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
       let dynamics = get_probes_map(code);
       let samples = dynamics |> Id.Map.bindings |> List.concat_map(~f=snd);
@@ -958,7 +958,7 @@ let sample_id_tests = [
     `Quick,
     () => {
       let code = {|let update = fun (m, a) -> ^^probe(m + a) in
-let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+let run = fun (m, xs) -> List.fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3, 4, 5, 6, 7, 8])|};
       let samples = get_all_samples(code);
       check(int, "16 samples (8 per probe)", 16, List.length(samples));
@@ -1062,7 +1062,7 @@ let iteration_anchor_tests = [
       let samples =
         get_all_samples(
           {|let go = fun (m, a) -> ^^probe(m + a)
-in fold_left([10, 20, 30], go, 0)|},
+in List.fold_left([10, 20, 30], go, 0)|},
         );
       check(int, "three iteration samples", 3, List.length(samples));
       let by_step =

@@ -41,6 +41,15 @@ let created: ref(option((Id.t, string))) = ref(None);
 /* the slide the state above belongs to */
 let owner: ref(option(string)) = ref(None);
 
+/* the folds of the level above the slide: its own, for the session */
+let above_folds: ref(OutlineTree.folds) = ref([]);
+/* row [path] of the level above's [outline]: its fold as shown, flipped */
+let fold_above = (outline: OutlineTree.t, path: OutlineTree.path): unit =>
+  Option.iter(
+    ~f=f => above_folds := OutlineTree.choose(path, f, above_folds^),
+    OutlineTree.flipped(~folds=above_folds^, path, outline),
+  );
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -84,6 +93,44 @@ let slide_name = (deck: deck): string =>
   | Some(sp) => sp.name
   | None => ""
   };
+
+/* the slide's module, if its program is the library's world */
+let world_of = (deck: option(deck)): option(Id.t) =>
+  switch (Option.bind(deck, ~f=current)) {
+  | Some({kind: Code({world, _}), _}) => world
+  | _ => None
+  };
+
+/* a world's rows folded by default: the slides other than the one open
+   and the library's modules, so the tree reads as its folders and slides
+   (the slide open stays open) */
+let world_defaults = (deck: option(deck)) => {
+  let slides =
+    lazy(
+      switch (deck) {
+      | Some((_, m)) =>
+        List.map(
+          ~f=(sp: Scratchpad.t) => WorldDeck.slide_id(sp.name),
+          m.scratchpads,
+        )
+      | None => []
+      }
+    );
+  (current: option(Id.t), path: OutlineTree.path, n: OutlineTree.node) =>
+    switch (current, n.o_id) {
+    | (None, _)
+    | (_, None) => None
+    | (Some(open_), Some(id)) when id == open_ => Some(false)
+    | (Some(_), Some(id))
+        when List.mem(Lazy.force(slides), id, ~equal=Poly.equal) =>
+      Some(true)
+    | (Some(_), Some(id)) =>
+      List.length(path) == 1
+      && n.o_kind == KModule
+      && !List.mem(WorldSlide.tree_heads, id, ~equal=Poly.equal)
+        ? Some(true) : None
+    };
+};
 
 /* the program the slide shows: View as agent's request, else its own */
 let program_of = (deck: option(deck)): option(Program.t) =>
@@ -458,7 +505,13 @@ let create =
   | (New(anchor, place), Some(t))
       when E.same_line(t.line, line) && Option.is_none(t.fresh) =>
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+    let ctx =
+      Workspace.item_ctx(
+        ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
+        ~folds=[],
+        program,
+      );
     switch (
       ItemEdit.edit(
         ctx,
@@ -619,7 +672,13 @@ let drop =
     (~settings: Settings.t, line: E.line, d: Id.t, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) => {
   let program = code.program;
-  let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+  let ctx =
+    Workspace.item_ctx(
+      ~settings,
+      ~ctx_in=?Workspace.ctx_in(code),
+      ~folds=[],
+      program,
+    );
   switch (ItemEdit.edit(ctx, Op(Delete, d), Program.document(program))) {
   | Ok((seg, _)) =>
     /* as if it had never been made: the program from before it, when
@@ -690,6 +749,7 @@ let update =
     let ctx =
       Workspace.item_ctx(
         ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
         ~folds=Persist.folds(prefix, name),
         program,
       );
@@ -846,7 +906,13 @@ let update =
       code |> Updated.return_quiet;
     };
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+    let ctx =
+      Workspace.item_ctx(
+        ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
+        ~folds=[],
+        program,
+      );
     /* the save landed: row mode's cursor on the row, if it was left */
     let landed = (code: Scratchpad.code, id: Id.t) =>
       if (E.exits(after)) {
@@ -977,7 +1043,12 @@ let update =
                        code.view.pins,
                      ) =>
             Workspace.realize(
-              ~info_map=Workspace.fresh_info_map(~settings, program),
+              ~info_map=
+                Workspace.fresh_info_map(
+                  ~settings,
+                  ~ctx_in=?Workspace.ctx_in(code),
+                  program,
+                ),
               SlideView.pin(~outline, f.f_id, code.view),
               code,
             )
@@ -1175,8 +1246,27 @@ let same =
   && Option.equal(phys_equal, results, results')
   && rest == rest';
 
+/* a level above the slide (OutlineSidebar.above): whether it's shown in
+   the slide's place, the way up (true) and back, and its chip's click */
+type enclosing = {
+  e_above: OutlineSidebar.above,
+  e_shown: bool,
+  e_go: bool => Effect.t(unit),
+  e_chip: Effect.t(unit),
+};
+
+let level =
+    (~enclosing: option(enclosing), deck: option(deck))
+    : OutlineSidebar.level =>
+  switch (enclosing, deck) {
+  | (Some(e), Some(d)) when e.e_shown => Enclosing(e.e_above, slide_name(d))
+  | (Some(e), Some(_)) => InSlide(e.e_above)
+  | _ => Plain
+  };
+
 /* the outline of the slide's whole program in Scratch and Documentation,
-   else of the current editor's [statics] and [segment] */
+   else of the current editor's [statics] and [segment]: so too at a
+   level above the slide, for navigating only */
 let view =
     (
       ~arrows: bool,
@@ -1188,8 +1278,17 @@ let view =
       ~jump: Id.t => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~statics_on: bool,
+      ~enclosing: option(enclosing)=?,
+      (),
     )
     : Node.t => {
+  let level = level(~enclosing, deck);
+  let deck =
+    switch (level) {
+    | Enclosing(_) => None
+    | Plain
+    | InSlide(_) => deck
+    };
   let program = program_of(deck);
   let statics =
     switch (program) {
@@ -1220,7 +1319,13 @@ let view =
     OutlineFollow.spot := spot(p, id);
   | _ => ()
   };
-  let folds = folds(deck);
+  let world_folded = world_defaults(deck, world_of(deck));
+  let folds =
+    switch (level) {
+    | Enclosing(_) => above_folds^
+    | Plain
+    | InSlide(_) => folds(deck)
+    };
   let focused =
     switch (deck) {
     | Some((_, m)) => ScratchModel.Model.focused_names(m)
@@ -1267,6 +1372,8 @@ let view =
       created^,
       live,
       statics_on,
+      level,
+      WorldSummaries.version^,
     ),
   );
   Util.Slot.get(
@@ -1280,8 +1387,20 @@ let view =
           statics.error_ids,
           outline,
         );
+      /* the World's unloaded slides, by their summaries */
+      let error_subtree =
+        switch (deck) {
+        | Some((prefix, _)) when prefix == WorldDeck.prefix =>
+          error_subtree @ WorldSummaries.error_rows()
+        | _ => error_subtree
+        };
+      /* in the library's world, the slide's module goes by the slide's
+         name, and the program by the level above's crumb */
+      let world = world_of(deck);
       let label = id =>
         switch (OutlineTree.node_of(id, outline)) {
+        | _ when world == Some(id) =>
+          SlidePath.leaf(SlidePath.of_string(name))
         | Some(n) => n.o_label
         | None => ""
         };
@@ -1323,9 +1442,18 @@ let view =
             );
           id => Id.Map.find_opt(id, Lazy.force(refused));
         },
-        folded: (path, n) => OutlineTree.folded(~folds, path, n.o_kind),
+        folded: (path, n) =>
+          switch (
+            List.Assoc.find(folds, path, ~equal=Poly.equal),
+            world_folded(path, n),
+          ) {
+          | (Some(f), _) => f
+          | (None, Some(f)) => f
+          | (None, None) => OutlineTree.folded(~folds, path, n.o_kind)
+          },
         header: {
-          h_program: name,
+          h_level: level,
+          h_program: Option.is_none(world) ? name : "",
           h_trail:
             switch (slide_view) {
             | Some(v) => List.map(~f=id => (id, label(id)), v.zoom)
@@ -1391,6 +1519,17 @@ let view =
           }
         | _ => false
         };
+      /* the toggle's: inside a zoomed module's members view an item still
+         opens its own cell (a world slide is always one) */
+      let nested_in_item = id =>
+        switch (program) {
+        | Some(Divided(d)) =>
+          switch (Divided.owner(id, d)) {
+          | Some(e) => e.e_id != id && e.e_kind != Members
+          | None => false
+          }
+        | _ => false
+        };
       let redraw = inject(Redraw);
       /* row mode's cursor for a line: its row's, or a new definition's
          anchor */
@@ -1442,10 +1581,32 @@ let view =
         focus: id =>
           nested(id) ? jump(id) : inject_workspace(FocusEnsure(id)),
         toggle: id =>
-          nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
+          nested_in_item(id)
+            ? jump(id) : inject_workspace(FocusToggle(id)),
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
-        toggle_collapse: path => inject(Collapse(path)),
+        toggle_collapse: path =>
+          switch (level) {
+          | Enclosing(_) =>
+            Effect.Many([
+              Effect.of_sync_fun(fold_above(outline), path),
+              redraw,
+            ])
+          | Plain
+          | InSlide(_) => inject(Collapse(path))
+          },
         zoom_to: m => inject_workspace(ZoomTo(m)),
+        go_above: up =>
+          Option.value_map(
+            ~default=Effect.Ignore,
+            ~f=e => e.e_go(up),
+            enclosing,
+          ),
+        above_chip:
+          Option.value_map(
+            ~default=Effect.Ignore,
+            ~f=e => e.e_chip,
+            enclosing,
+          ),
         zoom_in: id => inject_workspace(ZoomIn(id)),
         show_whole: b => inject_workspace(ShowWhole(b)),
         discard: inject_workspace(UnfocusDef),

@@ -42,7 +42,7 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
     let (_, state) =
       Evaluator.evaluate(
         ~eval_info=EvalInfo.of_targets(targets),
-        ~env=Builtins.env_init,
+        ~env=Builtins.env_init(),
         elaborated,
       );
     (EvaluatorState.get_probes(state), info_map);

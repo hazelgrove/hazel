@@ -1,0 +1,11 @@
+flatten  flatten
+transformcolumn  transformColumn
+renamecolumns  renameColumns
+find  find
+groupbyretentive  groupByRetentive
+groupbysubtractive  groupBySubtractive
+update  update
+select  select
+selectmany  selectMany
+groupjoin  groupJoin
+join  join

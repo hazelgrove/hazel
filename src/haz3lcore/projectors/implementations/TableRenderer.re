@@ -155,10 +155,10 @@ let build_column_menu =
       switch (column_cls) {
       | Some(cls) =>
         Atom.conversions_from(cls)
-        |> List.map(~f=((func, to_)) => {
+        |> List.map(~f=((_, to_)) => {
              let display = Atom.show_cls(to_);
              leaf(~tooltip="Convert column values to " ++ display, display, () =>
-               apply([convert_column(h, func)])
+               apply([convert_column(h, ~from=cls, ~to_)])
              );
            })
       | None => []

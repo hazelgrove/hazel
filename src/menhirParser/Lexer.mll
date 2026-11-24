@@ -95,6 +95,8 @@ let name_rest = ['a'-'z' 'A'-'Z' '0'-'9' '_'] | nonascii
 (* `'` continues a variable but not a constructor, as in the editor. *)
 let var_rest = name_rest | '\''
 let identifier = name_start var_rest*
+(* `$`-prefixed names, either case, as in the editor (Token.var_regexp) *)
+let dollar_identifier = '$' (['a'-'z' 'A'-'Z' '_'] | nonascii) var_rest*
 let constructor_ident = ['A'-'Z'] name_rest*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
@@ -217,6 +219,7 @@ rule token =
     | "poly" {POLY}
     | "rec" {REC}
     | identifier as i { IDENT(i) }
+    | dollar_identifier as i { IDENT(i) }
     | constructor_ident as i { CONSTRUCTOR_IDENT(i)}
     | eof { EOF }
     | _ { raise (Failure ("Lex error: unknown char: '" ^ Lexing.lexeme lexbuf ^ "'")) }

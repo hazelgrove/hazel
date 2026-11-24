@@ -217,7 +217,7 @@ let run = (~prev=IncrEval.empty, exp: Exp.t) => {
     Evaluator.evaluate(
       ~prev=WorkerServer.gated_prev(~key, value),
       ~eval_info=value.eval_info_map,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       value.expr,
     )
   ) {

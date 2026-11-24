@@ -256,18 +256,6 @@ let sideways = () => {
 /* a ghost line has one caret position: arrows step over it, typing and
    Backspace flash */
 let ghosts = () => {
-  check(
-    outcome,
-    "← to the line above's end",
-    go("blank", 5, None),
-    press(";", k("ArrowLeft")),
-  );
-  check(
-    outcome,
-    "→ to the next line's start",
-    go({js|⇒|js}, 0, None),
-    press(";", k("ArrowRight")),
-  );
   check(outcome, "typing flashes", Flash, press("tests", k("x")));
   check(outcome, "so does a space", Flash, press("tests", k(" ")));
   check(outcome, "and Backspace", Flash, press("1", k("Backspace")));
@@ -417,17 +405,6 @@ let enter = () => {
     "tests, folded: after the run",
     NewTest(NewTestBelow, List.nth_exn(tests, 1)),
     press(~collapsed=["tests"], "tests", k("Enter")),
-  );
-  let stmt =
-    List.find_map(
-      ~f=(n: O.node) => Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
-      O.flatten(O.rows(term)),
-    );
-  check(
-    outcome,
-    "a statement: a new definition below",
-    E.Go(New(Option.value_exn(stmt), Below), 0, None),
-    press(";", k("Enter")),
   );
   check(
     outcome,
@@ -658,12 +635,6 @@ let nesting = () => {
       ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
-  let semi =
-    List.find_map(
-      ~f=(n: O.node) => Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
-      O.flatten(O.rows(term)),
-    )
-    |> Option.value_exn;
   List.iter(
     ~f=((label, want, got)) => check(outcome, label, want, got),
     [
@@ -682,7 +653,6 @@ let nesting = () => {
         Op(Indent, id("beta")),
         press("beta", tab),
       ),
-      ("a statement", E.Op(Indent, semi), press(";", tab)),
       (
         "a member into the member above",
         Op(Indent, id("unit")),

@@ -50,7 +50,7 @@ let get_all_samples = (code: string): list(Sample.t) => {
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);

@@ -209,6 +209,14 @@ let core_mark_err_view =
         text("but expected label"),
         code(an_label),
       ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
+      ]
     | _ =>
       let together = [syn, ana, ...Option.to_list(lifted_ty)];
       colon_prefix(show_type_colon)
@@ -323,7 +331,19 @@ let core_mark_err_view =
         }
       };
     | ExplicitNonlabel => [text("Type error")]
-    | Free(_)
+    /* a pattern's module path (`M.A`) */
+    | Free(name) => [code(name), text("not found")]
+    | ModuleMemberNotFound(not_found) =>
+      parts_view(
+        ~view_type,
+        Haz3lcore.ErrorPrint.member_not_found_parts("member", not_found),
+      )
+    | TypWantModule({name, typ}) => [
+        code(name),
+        text("is a value of type"),
+        view_type(typ),
+        text(", not a module"),
+      ]
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_)
@@ -335,8 +355,6 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
-    | ModuleExtraMembers(_)
-    | ModuleMemberNotFound(_)
     | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
     | BadOperator(_)
@@ -351,7 +369,6 @@ let core_mark_err_view =
     | TypWantLabel
     | TypWantProduct(_)
     | ModuleTypeMemberNotFound(_)
-    | TypWantModule(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -895,13 +912,6 @@ let exp_mark_err_view =
       parts_view(
         ~view_type,
         Haz3lcore.ErrorPrint.module_member_is_type_parts(name),
-      ),
-    )
-  | ModuleExtraMembers(names) =>
-    div_err(
-      parts_view(
-        ~view_type,
-        Haz3lcore.ErrorPrint.module_extra_members_parts(names),
       ),
     )
   | ModuleTypeMemberMismatch({name, expected, actual}) =>

@@ -1,0 +1,20 @@
+# Int: arbitrary-precision integers #
+module Int = {
+  let abs = $prim.abs;
+  let mod = $prim.int_mod;
+  let compare = $prim.int_compare;
+  let plus = $prim.int_plus;
+  let minus = $prim.int_minus;
+  let times = $prim.int_times;
+  let power = $prim.int_power;
+  let divide = $prim.int_divide;
+  let lt = $prim.int_lt;
+  let lte = $prim.int_lte;
+  let gt = $prim.int_gt;
+  let gte = $prim.int_gte;
+  let of_sint = $prim.int_of_sint;
+  let of_nat = $prim.int_of_nat;
+  let of_float = $prim.int_of_float;
+  let of_bool = $prim.int_of_bool;
+  let of_string = $prim.int_of_string
+}

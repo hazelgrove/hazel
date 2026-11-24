@@ -510,7 +510,7 @@ let completed = (state: EvaluatorState.t): EvaluatorState.t => {
 };
 
 let finish = (~env, e: DHExp.t): Exp.t =>
-  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
+  e |> Substitution.in_exp(~fns=Shown, env) |> Exp.replace_all_ids;
 
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
@@ -672,6 +672,18 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
     evaluation.continuation;
   step_counter;
 };
+
+let evaluate_raw = (~env, d: DHExp.t): DHExp.t =>
+  prepare_evaluation(
+    ~prev=IncrEval.empty,
+    ~eval_info=EvalInfo.empty,
+    ~env,
+    ~reuse_map=None,
+    ~outbox=None,
+    d,
+  )
+  |> snd
+  |> Trampoline.run;
 
 /* evaluate, also returning the work it did: the steps its trampoline
    actually took. A reused result costs the one step that fetches it. That

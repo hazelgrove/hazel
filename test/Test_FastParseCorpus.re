@@ -189,21 +189,20 @@ let tests = (
                     Filename.basename(path),
                     ~equal=Poly.equal,
                   );
-                let root =
-                  String.is_prefix(
-                    ~prefix="mega-mod",
-                    Filename.basename(path),
-                  )
-                    ? Sort.Mod : Sort.Exp;
+                let root = CorpusUtil.root_of(path);
+                /* an empty program has nothing to read, and the typing
+                   parser makes its hole at no cost */
                 let r =
-                  known_gap
-                    ? None
-                    : FastParse.of_text(
-                        ~materialize=Triggers.invoked_projector,
-                        ~collect_refractors=true,
-                        ~root,
-                        src,
-                      );
+                  String.equal(src, "")
+                    ? Some([])
+                    : known_gap
+                        ? None
+                        : FastParse.of_text(
+                            ~materialize=Triggers.invoked_projector,
+                            ~collect_refractors=true,
+                            ~root,
+                            src,
+                          );
                 let ms = (Stdlib.Sys.time() -. f0) *. 1000.;
                 let worst =
                   ms > snd(worst) ? (Filename.basename(path), ms) : worst;

@@ -1,0 +1,7 @@
+selectrows  selectRows
+selectcolumns  selectColumns
+head  head
+distinct  distinct
+dropcolumn  dropColumn
+dropcolumns  dropColumns
+tfilter  tfilter

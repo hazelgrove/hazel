@@ -54,8 +54,8 @@ let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
               }).
                 exp
             )(
-              MakeTerm.go(fast_segment).term,
-              MakeTerm.go(reparsed_segment).term,
+              MakeTerm.Incr.term_of_root(~root, fast_segment),
+              MakeTerm.Incr.term_of_root(~root, reparsed_segment),
             ),
           )
         };
