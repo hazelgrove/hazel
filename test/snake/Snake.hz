@@ -1,4 +1,4 @@
-# Snake: one step of the game (the snake moved a cell its way, unless turned straight back on itself; a meal grows it by three; a wall, unless the walls wrap, or its own body ends the game; the next meal on a free cell, by chance), and a robot that plays it, for 🤖 Hazel plays: the shortest way to the food, if the snake will still have room there #
+# Snake: one step of the game (the snake moved a cell its way, unless turned straight back on itself; a meal grows it by three; a wall, unless the walls wrap, or its own body ends the game; the next meal on a free cell, by chance), and a robot that plays it, for 🤖 Hazel plays: toward the food by moves after which it can still reach its own tail #
 let n : Int = 20;
 let md : (Int, Int) -> Int = fun (a, b) -> a - (a / b) * b;
 let next : Int -> Int = fun s -> md(s * 48271, 2147483647);
@@ -58,16 +58,35 @@ let gap : (Int, Int, Bool) -> Int = fun (a, b, wrap) ->
   let dr = absi(a / n - b / n) in
   let dc = absi(md(a, n) - md(b, n)) in
   (if wrap && n - dr < dr then n - dr else dr) + (if wrap && n - dc < dc then n - dc else dc);
-# the robot's choice: of the three directions not straight back, a cell it can move to that leaves room (more than its length, by a flood from there with the snake's body as it will be), the one nearest the food, straight on when as near; else the one with the most room; -1 to go on if none can move #
+# can the head, at the frontier's cells, reach the cell `goal` (the tail's: it moves on, so it is free), over the cells not in `body`: a flood from it, stopping as soon as it finds it #
+let reaches : (Bool, [Int], [Int], [Int], Int) -> Bool = fun (wrap, body, frontier, seen, goal) ->
+  case frontier
+  | [] => false
+  | k :: rest =>
+    let add : ([Int], [Int], Int) -> ([Int], [Int], Bool) = fun (fr, sn, d) ->
+      (let m = toward(k, d, wrap) in if m == goal then (fr, sn, true) else if m < 0 || mem(m, sn) || mem(m, body) then (fr, sn, false) else (m :: fr, m :: sn, false)) in
+    let (f0, s0, h0) = add(rest, seen, 0) in
+    let (f1, s1, h1) = add(f0, s0, 1) in
+    let (f2, s2, h2) = add(f1, s1, 2) in
+    let (f3, s3, h3) = add(f2, s2, 3) in
+    h0 || h1 || h2 || h3 || reaches(wrap, body, f3, s3, goal)
+  end;
+let last : [Int] -> Int = fun xs -> case xs | [] => 0 - 1 | x :: rest => (case rest | [] => x | _ :: _ => last(rest) end) end;
+# the robot's choice (Matthew: "for snake -- we need better robot automation"; "We are running backwards, with no place to go, eventually --- we could leave ourselves space but do not"; "look at the other games for inspiration, especially the racer game"): of the three directions not straight back, a move is safe if, after it, the head can still reach the tail (the tail always moves on, so following it the snake can never be shut in) and, eating or growing, when the tail stays put a while, it has room at least as long as itself (the light trails' riders keep room the same way, by a flood). Of the safe moves, the one nearest the food, then the one hugging the most walls and body (so it fills the board from the edges in and leaves its room in one piece), straight on when as good. With none safe, the move with the most room (a flood with an early stop, as before); -1 to go on if none can move #
 let robot : Game -> Int = fun g ->
   if g.over then 0 - 1 else
   let head = (case g.body | [] => 0 | h :: _ => h end) in
-  let body = drop_last(g.body) in
+  let kept = (if g.grow > 0 then g.body else drop_last(g.body)) in
   let long = len(g.body) + g.grow + 2 in
   let worth : Int -> Int = fun d ->
     (let m = toward(head, d, g.wrap) in
-     if d == md(g.dir + 2, 4) || m < 0 || mem(m, body) then 0 - 100000 else
-     let space = flood(g.wrap, body, [m], [m], 1, long) in
-     (if space < long then 0 - 50000 + space * 10 else 0) - 10 * gap(m, g.food, g.wrap) + (if d == g.dir then 1 else 0)) in
+     if d == md(g.dir + 2, 4) || m < 0 || mem(m, kept) then 0 - 100000 else
+     let after = m :: kept in
+     let tail = last(after) in
+     let inner = drop_last(after) in
+     let safe = reaches(g.wrap, inner, [m], [m], tail) && (g.grow == 0 && m != g.food || flood(g.wrap, inner, [m], [m], 1, long) >= long) in
+     let hug = (let b : Int -> Int = fun e -> (let q = toward(m, e, g.wrap) in if q < 0 || mem(q, inner) then 1 else 0) in b(0) + b(1) + b(2) + b(3)) in
+     if safe then 0 - 10 * gap(m, g.food, g.wrap) + 3 * hug + (if d == g.dir then 1 else 0)
+     else 0 - 50000 + 10 * flood(g.wrap, kept, [m], [m], 1, long)) in
   let pick : (Int, Int, Int) -> Int = fun (d, bd, bw) -> if d > 3 then bd else (let w = worth(d) in if w > bw then pick(d + 1, d, w) else pick(d + 1, bd, bw)) in
   pick(0, 0 - 1, 0 - 100000)
