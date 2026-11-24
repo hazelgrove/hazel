@@ -2841,24 +2841,21 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ t1 = go(t1)
     and+ t2 = go(t2);
     wrap(typ, t1 @ [mk_form(ApTyp, id, [t2])]);
-  | TypTuple(ts) =>
-    /* Render as a comma-separated list (no surrounding parens — the
-       enclosing TypParamAp's parens carry it). */
-    let id = typ |> Typ.rep_id;
-    let+ rendered =
-      List.fold_left(
-        (acc, t) => {
-          let+ acc = acc
-          and+ rt = go(t);
-          switch (acc) {
-          | [] => rt
-          | _ => acc @ text_to_pretty(id, Sort.Typ, ", ") @ rt
-          };
-        },
-        all([]),
-        ts,
-      );
-    wrap(typ, rendered);
+  | TypTuple([]) => wrap(typ, [])
+  | TypTuple([t, ...ts]) =>
+    let+ t = go(t)
+    and+ ts = ts |> List.map(go) |> all;
+    wrap(
+      typ,
+      t
+      @ List.flatten(
+          List.map2(
+            (id, t) => [mk_form(CommaTyp, id, [])] @ t,
+            IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+            ts,
+          ),
+        ),
+    );
   | Sum([]) => failwith("Empty Sums are not allowed")
   | Sum([t]) =>
     let id = typ |> Typ.rep_id;
