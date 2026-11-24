@@ -511,6 +511,20 @@ let control = [
   ),
   synthesis_case("filter-hide", "hide 1 in true", "Bool", "hide ? in true"),
   synthesis_case("filter-eval", "eval 1 in true", "Bool", "eval ? in true"),
+  synthesis_case(
+    ~focus=e => exp_var(e, "f"),
+    "lambda-param-typed-by-annotation",
+    "let g : (Int -> Bool) -> Bool = fun f -> f(1) in g",
+    "Int -> Bool",
+    "let ?:((Int -> Bool) -> ?) = fun f -> f(?) in ?",
+  ),
+  synthesis_case(
+    ~focus=e => exp_var(e, "f"),
+    "lambda-param-typed-through-abs",
+    "let g : poly A -> (Int -> Bool) -> A -> Bool = abs A -> fun f -> fun x -> f(1) in g",
+    "Int -> Bool",
+    "let ?:(poly A -> (Int -> Bool) -> ?) = abs ? -> fun f -> fun ? -> f(?) in ?",
+  ),
 ];
 
 let tests = (

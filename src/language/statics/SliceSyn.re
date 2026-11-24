@@ -1778,21 +1778,30 @@ and sibling_omissions = (e: Exp.t, child: Exp.t): Id.Set.t =>
     exp_children(e),
   )
 
-and focused = (env: env, e: Exp.t, descent: list(Id.t), query: Typ.t): t =>
-  switch (descent) {
-  | [] => syn(env, e, query)
-  | [next, ...rest] =>
-    switch (List.find_opt(c => Exp.rep_id(c) == next, exp_children(e))) {
-    | None =>
-      switch (labelled_item(e, next)) {
-      | Some(item) =>
-        discharge(env, e, item, focused(env, item, descent, query))
-      | None => focused(env, e, rest, query)
-      }
-    | Some(child) =>
-      discharge(env, e, child, focused(env, child, rest, query))
-    }
+and focused = (env: env, e: Exp.t, descent: list(Id.t), query: Typ.t): t => {
+  let (r, _) =
+    ana_up_from(env, e, descent, at => (syn(env, at, query), gap));
+  r;
+}
+
+and lam_residual = (env: env, e: Exp.t, child: Exp.t, inner: t): Typ.t =>
+  switch (Exp.term_of(e)) {
+  | Fun(p, body, _, _) when Exp.rep_id(body) == Exp.rep_id(child) =>
+    let ps = slice_pat(env, p, ~query=gap, ~demands=inner.gamma);
+    SliceQuery.residual(ctx_at(env, e), ps.phi, ps.supplied);
+  | _ => gap
   }
+
+and climb =
+    (env: env, e: Exp.t, child: Exp.t, inner: t, demand: Typ.t): (t, Typ.t) => {
+  let pending = lam_residual(env, e, child, inner);
+  let (r, up) =
+    SliceQuery.is_gap(demand)
+      ? (discharge(env, e, child, inner), gap)
+      : ana_step(env, e, child, inner, demand);
+  SliceQuery.is_gap(pending)
+    ? (r, up) : (r, SliceQuery.mk_arrow(pending, demand));
+}
 
 and labelled_item = (e: Exp.t, body_id: Id.t): option(Exp.t) =>
   switch (Exp.term_of(e)) {
@@ -2286,16 +2295,12 @@ and ana_up_from =
       switch (labelled_item(e, next)) {
       | Some(item) =>
         let (inner, demand) = ana_up_from(env, item, descent, at_end);
-        SliceQuery.is_gap(demand)
-          ? (discharge(env, e, item, inner), gap)
-          : ana_step(env, e, item, inner, demand);
+        climb(env, e, item, inner, demand);
       | None => ana_up_from(env, e, rest, at_end)
       }
     | Some(child) =>
       let (inner, demand) = ana_up_from(env, child, rest, at_end);
-      SliceQuery.is_gap(demand)
-        ? (discharge(env, e, child, inner), gap)
-        : ana_step(env, e, child, inner, demand);
+      climb(env, e, child, inner, demand);
     }
   }
 and ana_step =
