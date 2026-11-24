@@ -66,22 +66,19 @@ let rejected = (label, model, action) =>
    schedules (a slide's defaults on arrival) as the app does. */
 
 let lesson = title =>
-  List.find(
-    (s: Tutorial.spec) => s.title == "Probes / " ++ title,
-    TutorialSettings.lessons,
+  List.find_exn(TutorialSettings.lessons, ~f=(s: Tutorial.spec) =>
+    String.equal(s.title, "Probes / " ++ title)
   );
 
 let mk_tutorial = (): History.Model.t => {
   let globals = Globals.Model.init();
   let exercises =
-    List.map(
-      title =>
-        TutorialMode.Model.of_spec(
-          ~settings=globals.settings.core,
-          ~instructor_mode=false,
-          lesson(title),
-        ),
-      ["Environment Explorer", "Case Expressions"],
+    List.map(["Environment Explorer", "Case Expressions"], ~f=title =>
+      TutorialMode.Model.of_spec(
+        ~settings=globals.settings.core,
+        ~instructor_mode=false,
+        lesson(title),
+      )
     );
   let editors: Editors.Model.t =
     Tutorial({
@@ -128,7 +125,7 @@ let step = (model: History.Model.t, action: Page.Update.t): History.Model.t => {
       model,
     ).
       model;
-  List.fold_left(apply, model, scheduled^);
+  List.fold(scheduled^, ~init=model, ~f=apply);
 };
 
 let go_to = (slide: int): Page.Update.t =>
@@ -140,7 +137,7 @@ let slide_of = (model: History.Model.t) =>
   };
 let exercise = (model: History.Model.t, slide: int) =>
   switch (model.current.editors) {
-  | Tutorial(m) => List.nth(m.exercises, slide)
+  | Tutorial(m) => List.nth_exn(m.exercises, slide)
   | _ => fail("not in the tutorial")
   };
 
@@ -327,7 +324,7 @@ let tests = (
           bool,
           "the other slide is the one left behind, not the one in the entry",
           true,
-          exercise(m4, 1) === exercise(m3, 1),
+          phys_equal(exercise(m4, 1), exercise(m3, 1)),
         );
       })
     ),
