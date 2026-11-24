@@ -187,6 +187,7 @@ let all =
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       ~term_data: TermData.t,
+      ~drawers=?,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
@@ -209,6 +210,7 @@ let all =
            make_active,
            font_metrics,
            ~core_settings,
+           ~drawers?,
            ~skip_inline=true,
            data,
            refractor_list,

@@ -157,6 +157,23 @@ module View = {
     ) =>
     Node.t;
 
+  /* What the web layer renders into drawers, by anchor id: a probe's
+   * stepper, how far a stopped program got (for the ⇓ probe), a
+   * theorem's proof. Provided here, like [seg], to address a dependency
+   * cycle */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type drawers = {
+    steps: Id.t => option(Node.t),
+    stopped: Id.t => option(Node.t),
+    proof: Id.t => option(Node.t),
+  };
+
+  let no_drawers = {
+    steps: _ => None,
+    stopped: _ => None,
+    proof: _ => None,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type args('model, 'action) = {
     model: 'model,
@@ -168,6 +185,7 @@ module View = {
     /* Creates a non-interactive embedded syntax view,
      * provided here to address a dependency cycle */
     view_seg: seg,
+    drawers,
     /* Parent editor context on the projector */
     status,
     /* Core settings for feature flags */
@@ -285,6 +303,7 @@ module Cook = (C: Projector) : Cooked => {
       local: a => args.local(serialize_a(a)),
       parent: args.parent,
       view_seg: args.view_seg,
+      drawers: args.drawers,
       status: args.status,
       core_settings: args.core_settings,
     });

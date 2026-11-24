@@ -486,6 +486,7 @@ let mk_view =
       inject: Action.t => Ui_effect.t(unit),
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~drawers=View.no_drawers,
       {
         p,
         info,
@@ -562,6 +563,7 @@ let mk_view =
             sort,
             segment,
           ),
+        drawers,
         status,
         core_settings,
       });
@@ -589,6 +591,7 @@ let split_views =
       make_active,
       font_metrics: FontMetrics.t,
       ~core_settings: Language.CoreSettings.t,
+      ~drawers=View.no_drawers,
       ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
       projector_list: list(Id.t),
@@ -603,6 +606,7 @@ let split_views =
       inject,
       font_metrics,
       ~core_settings,
+      ~drawers,
       projector_data,
       projector_list,
     );

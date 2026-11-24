@@ -307,65 +307,57 @@ module View = {
         ~locked,
         model.result,
       );
-    /* a stepping drawer in this editor renders its result's stepper */
     let (steps_result, steps_inject) = (
       model.result,
       a => inject(ResultAction(a)),
     );
-    Haz3lcore.ProbeProj.Settings.steps_view :=
-      (
-        id =>
-          switch (steps_result.probe_steps) {
-          | Some(ps) when ps.span.probe_id == id =>
-            ProbeSteps.view(
-              ~globals,
-              ~inject=a => steps_inject(ProbeStepperAction(a)),
-              ~focus=f => steps_inject(ProbeStepperFocus(f)),
-              ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
-              ~stepped=
-                switch (
-                  Haz3lcore.TermData.segment(
-                    ps.span.probe_id,
-                    model.editor.editor.syntax.term_data,
-                  )
-                ) {
-                | Some(seg) =>
-                  ProbeSteps.one_line(
-                    Haz3lcore.Printer.of_segment(
-                      ~holes="?",
-                      ~indent="",
-                      ~is_single_line=true,
-                      seg,
-                    ),
-                  )
-                | None => ""
-                },
-              ps,
-            )
-          | _ => None
-          }
-      );
-    /* the ⇓ drawer, when the program stopped before its last line */
     let tail = model.editor.editor.state.zipper.refractors.tail_target;
     let stop = EvalResult.Model.stopped(~tail, steps_result);
-    Option.iter(tail, ~f=id => EvalResult.Model.note_stop(id, stop));
-    Haz3lcore.ProbeProj.Settings.value_fallback :=
-      (
-        id =>
-          Option.equal(Id.equal, tail, Some(id))
-            ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
-            : None
-      );
-    Haz3lcore.ProofProj.Settings.view :=
-      (
-        id =>
-          Theorems.View.view_one(
+    let drawers: Haz3lcore.ProjectorBase.View.drawers = {
+      /* a stepping drawer renders its result's stepper */
+      steps: id =>
+        switch (steps_result.probe_steps) {
+        | Some(ps) when Id.equal(ps.span.probe_id, id) =>
+          ProbeSteps.view(
             ~globals,
-            ~inject=a => steps_inject(TheoremsAction(a)),
-            steps_result.theorems,
-            id,
+            ~inject=a => steps_inject(ProbeStepperAction(a)),
+            ~focus=f => steps_inject(ProbeStepperFocus(f)),
+            ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
+            ~stepped=
+              switch (
+                Haz3lcore.TermData.segment(
+                  ps.span.probe_id,
+                  model.editor.editor.syntax.term_data,
+                )
+              ) {
+              | Some(seg) =>
+                ProbeSteps.one_line(
+                  Haz3lcore.Printer.of_segment(
+                    ~holes="?",
+                    ~indent="",
+                    ~is_single_line=true,
+                    seg,
+                  ),
+                )
+              | None => ""
+              },
+            ps,
           )
-      );
+        | _ => None
+        },
+      /* the ⇓ drawer, when the program stopped before its last line */
+      stopped: id =>
+        Option.equal(Id.equal, tail, Some(id))
+          ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
+          : None,
+      proof: id =>
+        Theorems.View.view_one(
+          ~globals,
+          ~inject=a => steps_inject(TheoremsAction(a)),
+          steps_result.theorems,
+          id,
+        ),
+    };
     div(
       ~attrs=[
         Attr.classes(
@@ -380,6 +372,7 @@ module View = {
       @ [
         CodeEditable.View.view(
           ~globals,
+          ~drawers,
           ~signal=
             locked
               ? _ => Ui_effect.Ignore

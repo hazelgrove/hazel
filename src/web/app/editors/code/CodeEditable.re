@@ -542,6 +542,8 @@ module View = {
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
+        /* what the web layer renders into this editor's drawers */
+        ~drawers=?,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
@@ -723,6 +725,7 @@ module View = {
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
         ~term_data=model.editor.syntax.term_data,
+        ~drawers?,
         refractor_data,
         List.map(~f=fst, zipper.refractors.manuals)
         @ List.map(

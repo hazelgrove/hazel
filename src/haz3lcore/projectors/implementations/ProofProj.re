@@ -3,13 +3,8 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 
 /* A theorem's proof, in a drawer below the theorem. The web layer renders
-   the proof (Settings.view) and counts its rows (DrawerFit.set_computed).
+   the proof (View.drawers) and counts its rows (DrawerFit.set_computed).
    Placed only by AutoProbePerform.update_proofs. */
-
-module Settings = {
-  /* Set by the web layer each render: a theorem's proof, by its id */
-  let view: ref(Id.t => option(Node.t)) = ref(_ => None);
-};
 
 /* the theorem whose proof this drawer shows: its own anchor, unless the
    drawer sits under a theorem cell's statement */
@@ -40,7 +35,7 @@ module M: Projector = {
   let update = (m, _, ()) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 
-  let view = ({model, info, _}: View.args(model, action)) => {
+  let view = ({model, info, drawers, _}: View.args(model, action)) => {
     let theorem = theorem_of(model, info);
     View.{
       inline: Node.div([]),
@@ -55,7 +50,7 @@ module M: Projector = {
                 Attr.create("data-drawer-id", Id.to_string(theorem)),
               ]
               @ ProbeProj.keep_clicks,
-            switch (Settings.view^(theorem)) {
+            switch (drawers.proof(theorem)) {
             | Some(proof) => [proof]
             | None => []
             },

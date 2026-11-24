@@ -203,28 +203,6 @@ module Model = {
     | _ => None
     };
 
-  /* the drawer's view cache keys on the probe's samples, which a stopped
-     run never changes: the stop, as last drawn for the ⇓ probe, redraws
-     probe views when it changes */
-  let drawn_stop: ref(option((Id.t, option(stop)))) = ref(None);
-  let note_stop = (id: Id.t, stop: option(stop)) => {
-    let same =
-      switch (drawn_stop^) {
-      | Some((id', stop')) when id' == id =>
-        switch (stop', stop) {
-        | (None, None) => true
-        | (Some(Stuck(a)), Some(Stuck(b))) => phys_equal(a, b)
-        | (Some(Failed(a)), Some(Failed(b))) => a == b
-        | _ => false
-        }
-      | _ => false
-      };
-    if (!same) {
-      drawn_stop := Some((id, stop));
-      Haz3lcore.ProbeProj.Settings.redraw();
-    };
-  };
-
   let eval_is_pending = (model: t): bool =>
     switch (Calc.get_value(model.result)) {
     | ProgramResult.ResultPending(_) => true
@@ -640,6 +618,28 @@ module Update = {
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
         : theorems;
 
+    /* only a new result settles; a change redraws the probe views, whose
+       cache can't see the ⇓ drawer's stop */
+    let settled' =
+      switch (result) {
+      | NewValue(r) =>
+        Model.settle(
+          settled,
+          switch (r) {
+          | ResultOk({result, _}) => ResultOk(result)
+          | ResultFail(err) => ResultFail(err)
+          | ResultPending(phase) => ResultPending(phase)
+          },
+          Calc.get_value(dynamics)
+          |> Option.value_map(~default=Sample.Map.empty, ~f=(d: Dynamics.t) =>
+               d.probe_map
+             ),
+        )
+      | OldValue(_) => settled
+      };
+    if (!phys_equal(settled', settled)) {
+      Haz3lcore.ProbeProj.Settings.redraw();
+    };
     let model: Model.t = {
       cached_settings: settings |> Calc.save,
       elab: elab |> Calc.save,
@@ -651,19 +651,7 @@ module Update = {
       streaming_outbox: streaming_outbox |> Calc.save,
       streaming_state: streaming_state |> Calc.save,
       pending_eval_ids,
-      settled:
-        Model.settle(
-          settled,
-          switch (Calc.get_value(result)) {
-          | ResultOk({result, _}) => ResultOk(result)
-          | ResultFail(err) => ResultFail(err)
-          | ResultPending(phase) => ResultPending(phase)
-          },
-          Calc.get_value(dynamics)
-          |> Option.value_map(~default=Sample.Map.empty, ~f=(d: Dynamics.t) =>
-               d.probe_map
-             ),
-        ),
+      settled: settled',
       display,
       theorems,
       probe_steps,

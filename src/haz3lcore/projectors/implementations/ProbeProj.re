@@ -229,17 +229,6 @@ module Settings = {
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
-  /* Set by the web layer each render: the stepper a stepping drawer
-   * shows for a probe id, once its sample is ready. */
-  let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
-    ref(_ => None);
-
-  /* Set by the web layer each render: for the ⇓ probe, what its drawer
-   * shows when the program stopped before reaching it (no value of its
-   * own), or None. */
-  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
-    ref(_ => None);
-
   /* probe views are cached against [version]: a bump redraws them */
   let redraw = () => version := version^ + 1;
 
@@ -2301,7 +2290,7 @@ let keep_clicks = [
   ),
 ];
 
-let steps_drawer_view = (~parent, info: info): Node.t =>
+let steps_drawer_view = (~parent, ~drawers: View.drawers, info: info): Node.t =>
   div(
     ~attrs=
       [
@@ -2310,7 +2299,7 @@ let steps_drawer_view = (~parent, info: info): Node.t =>
       ]
       @ keep_clicks,
     /* the stepper's own toggle closes it; until it's up, this does */
-    switch (Settings.steps_view^(info.id)) {
+    switch (drawers.steps(info.id)) {
     | Some(stepper) => [stepper]
     | None => [
         div(
@@ -2584,7 +2573,7 @@ module M: Projector = {
 
   let view =
       (
-        {info, local, parent, view_seg, model, status, _}:
+        {info, local, parent, view_seg, drawers, model, status, _}:
           View.args(model, action),
       ) => {
     let settings = Settings.s^;
@@ -2633,7 +2622,7 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       stepping
-        ? Some(steps_drawer_view(~parent, info))
+        ? Some(steps_drawer_view(~parent, ~drawers, info))
         : drawer
           && (
             switch (rich_drawer_rows(model, info)) {
@@ -2680,7 +2669,7 @@ module M: Projector = {
         switch (
           data_opt,
           drawer,
-          info.program_value ? Settings.value_fallback^(info.id) : None,
+          info.program_value ? drawers.stopped(info.id) : None,
         ) {
         /* the program stopped short of the ⇓ probe: how far it got */
         | (_, true, Some(stopped)) => Some(stopped)
