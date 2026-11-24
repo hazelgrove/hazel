@@ -27,10 +27,6 @@ let init = (span: Sample.span_ref): t => {
   focus: None,
 };
 
-/* a step taken or undone: the drawer scrolls the newest step into view
-   after it renders */
-let reveal = ref(false);
-
 /* a selection or a panel toggle is not a step */
 let rec steps = (a: StepperView.Update.t): bool =>
   switch (a) {
@@ -138,9 +134,6 @@ let calculate =
 /* view state: not an edit to the program, not an undo step */
 let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
   open Updated;
-  if (steps(a)) {
-    reveal := true;
-  };
   /* dirty: calculate redraws the drawer */
   let updated = {
     let* stepper = StepperView.Update.update(~settings, a, ps.stepper);
@@ -155,8 +148,9 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
     is_edit: false,
     historic: false,
     recalculate: true,
-    /* the main editor's caret isn't what moved */
-    scroll: Never,
+    /* the main editor's caret isn't what moved; a step taken or undone
+       shows the newest step */
+    scroll: steps(a) ? NewStep : Never,
   };
 };
 

@@ -4,6 +4,8 @@ open Web;
 open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
+/* a drawer's newest step to show once it has its rows (Updated.NewStep) */
+let reveal_step = ref(false);
 
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
@@ -131,6 +133,7 @@ let apply =
   switch (updated.scroll) {
   | Updated.Always => scroll_to_caret := true
   | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | NewStep => reveal_step := true
   | IfCaretVisible
   | Never => ()
   };
@@ -343,10 +346,10 @@ let start = default_model => {
               |> Bonsai.Effect.Expert.handle,
           /* a step taken: once the drawer has its rows, show the new step */
           ~reveal=
-            ProbeSteps.reveal^
+            reveal_step^
               ? Some(
                   () => {
-                    ProbeSteps.reveal := false;
+                    reveal_step := false;
                     JsUtil.reveal_last(".probe-stepper .step-border");
                   },
                 )
