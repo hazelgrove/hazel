@@ -117,5 +117,11 @@ let tests = (
       "(a = Int, b = ?)",
       {|type P(?) = (a=Int, b=?) in let r:(P(Bool)) = ? in r|},
     ),
+    synthesis_case(
+      "alias-binder-kept-for-payload",
+      "type O(A) = N + S(A) in let o : O(Int) = ? in case o | S(n) => n end",
+      "Int",
+      {|type O(A) = + ? + S(A) in let o:(O(Int)) = ? in case o | S(n) => n end|},
+    ),
   ],
 );

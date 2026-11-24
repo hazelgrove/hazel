@@ -204,7 +204,9 @@ let mask_definition =
         );
       let demanded =
         List.map(
-          name => !SliceQuery.is_gap(binder_demand(ctx, constraints, name)),
+          name =>
+            !SliceQuery.is_gap(binder_demand(ctx, constraints, name))
+            || mentions_tvar([name], inner),
           names,
         );
       if (List.for_all(kept => !kept, demanded)) {
@@ -1707,19 +1709,42 @@ and alias_omissions =
     )
     : Id.Set.t => {
   let kept = alias_kept_params(~gamma, ~ctx, demand, binder);
+  let body_omitted = SliceQuery.omit_typ(ctx, demand, definition);
+  let params =
+    switch (TPat.alias_head(binder)) {
+    | Some((_, params)) => List.filter_map(TPat.tyvar_of_utpat, params)
+    | None => []
+    };
+  let surviving =
+    params |> List.filter(name => survives_in(body_omitted, name, definition));
   Id.Set.diff(
     union(
-      SliceQuery.omit_typ(ctx, demand, definition),
-      alias_binder_omissions(~gamma, ~ctx, demand, binder),
+      body_omitted,
+      alias_binder_omissions(~gamma, ~ctx, ~also=surviving, demand, binder),
     ),
     tvar_occurrences(kept, definition),
   );
 }
 
+and survives_in = (omitted: Id.Set.t, name: string, ty: Typ.t): bool =>
+  !Id.Set.mem(Typ.rep_id(ty), omitted)
+  && (
+    switch (Typ.term_of(ty)) {
+    | Var(found) => found == name
+    | _ => List.exists(survives_in(omitted, name), Typ.children(ty))
+    }
+  )
+
 and alias_binder_omissions =
-    (~gamma=Ctx.empty, ~ctx=Ctx.empty, demand: Typ.t, binder: TPat.t)
+    (
+      ~gamma=Ctx.empty,
+      ~ctx=Ctx.empty,
+      ~also=[],
+      demand: Typ.t,
+      binder: TPat.t,
+    )
     : Id.Set.t => {
-  let kept = alias_kept_params(~gamma, ~ctx, demand, binder);
+  let kept = also @ alias_kept_params(~gamma, ~ctx, demand, binder);
   switch (TPat.alias_head(binder)) {
   | Some((_, params)) when params != [] =>
     List.fold_left(
