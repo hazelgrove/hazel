@@ -83,14 +83,14 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
       projector_data,
       editor.editor.syntax.projector_list,
     )
-    |> List.map(((p, view)) => card(~globals, p, view, ~inject));
+    |> List.map(~f=((p, view)) => card(~globals, p, view, ~inject));
   div(
     ~attrs=[Attr.id("projector-panel")],
     [
       div(~attrs=[clss(["header"])], [text("Projectors")]),
       div(
         ~attrs=[clss(["projector-panel-body"])],
-        cards == [] ? [empty_view()] : cards,
+        List.is_empty(cards) ? [empty_view()] : cards,
       ),
     ],
   );

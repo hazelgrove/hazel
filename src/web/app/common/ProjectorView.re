@@ -803,11 +803,11 @@ let sidebar_views =
       );
     };
   projector_data
-  |> List.filter((d: Model.projector_data) =>
+  |> List.filter(~f=(d: Model.projector_data) =>
        ProjectorCore.Placement.is_sidebar(d.p.placement)
      )
-  |> List.sort((d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
-  |> List.map((d: Model.projector_data) => {
+  |> List.sort(~compare=(d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
+  |> List.map(~f=(d: Model.projector_data) => {
        let views =
          mk_view(inject, font_metrics, ~core_settings, d, projector_list);
        /* Same class list the code-site wrapper applies, so per-kind CSS

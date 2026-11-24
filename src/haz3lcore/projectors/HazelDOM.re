@@ -30,8 +30,8 @@ let render_style_attr = (d: DHExp.t): option(string) =>
 
 let render_styles = styles =>
   styles
-  |> List.filter_map(render_style_attr)
-  |> String.concat(";")
+  |> List.filter_map(~f=render_style_attr)
+  |> String.concat(~sep=";")
   |> Attr.create("style");
 
 // === Event handlers ===
@@ -432,7 +432,7 @@ let svg_tags = [
   "animateTransform",
 ];
 
-let is_svg_tag = (tag: string): bool => List.mem(tag, svg_tags);
+let is_svg_tag = (tag: string): bool => List.mem(svg_tags, tag, ~equal=String.equal);
 
 let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   switch (of_constructor(d)) {
@@ -633,8 +633,8 @@ and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
     let elems_exp = strip_wrappers(elems_exp);
     switch (attrs_exp.term, elems_exp.term) {
     | (ListLit(attrs), ListLit(elems)) => (
-        List.map(render_attr(mvu), attrs),
-        List.map(render_elem(mvu), elems),
+        List.map(~f=render_attr(mvu), attrs),
+        List.map(~f=render_elem(mvu), elems),
       )
     | _ => ([], [mvu.view_term(body)])
     };
@@ -646,7 +646,7 @@ and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
 and attrs_only = (mvu: t, body: DHExp.t): (list(Attr.t), unit) => {
   let body = strip_wrappers(body);
   switch (body.term) {
-  | ListLit(attrs) => (List.map(render_attr(mvu), attrs), ())
+  | ListLit(attrs) => (List.map(~f=render_attr(mvu), attrs), ())
   | _ => ([], ())
   };
 }
@@ -661,7 +661,7 @@ and attrs_and_string =
     let str_exp = strip_wrappers(str_exp);
     switch (attrs_exp.term, str_exp.term) {
     | (ListLit(attrs), Atom(String(s))) =>
-      Some((List.map(render_attr(mvu), attrs), s))
+      Some((List.map(~f=render_attr(mvu), attrs), s))
     | _ => None
     };
   | _ => None
@@ -681,8 +681,8 @@ and node_body =
     | (Atom(String(tag)), ListLit(attrs), ListLit(elems)) =>
       Some((
         tag,
-        List.map(render_attr(mvu), attrs),
-        List.map(render_elem(mvu), elems),
+        List.map(~f=render_attr(mvu), attrs),
+        List.map(~f=render_elem(mvu), elems),
       ))
     | _ => None
     };

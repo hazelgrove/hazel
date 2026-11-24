@@ -115,7 +115,7 @@ let init =
        only if the current view still renders it — otherwise discard it
        silently and start from the app's own init model. */
     let restored = () =>
-      Option.bind(checkpoint, Haz3lcore.MvuShape.restore_model(~view_fn));
+      Option.bind(checkpoint, ~f=Haz3lcore.MvuShape.restore_model(~view_fn));
     let fresh = () =>
       switch (restored()) {
       | Some(restored) => restored
@@ -213,7 +213,7 @@ let dispatch =
     | exn =>
       Js_of_ocaml.Firebug.console##error(
         Js_of_ocaml.Js.string(
-          "AppStore.dispatch EXCEPTION: " ++ Printexc.to_string(exn),
+          "AppStore.dispatch EXCEPTION: " ++ Stdlib.Printexc.to_string(exn),
         ),
       );
       store;

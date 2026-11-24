@@ -417,12 +417,12 @@ let of_projector_invoke = (input: t): option(t) =>
    SUFFIX and the option split below reads the FIRST `_`, so placement must
    come off first: "probe_table_sidebar" ==> ("probe_table", Sidebar). */
 let split_invoke_placement = (body: t): (t, ProjectorPlacement.t) =>
-  String.ends_with(~suffix=projector_invoke_sidebar, body)
+  String.is_suffix(body, ~suffix=projector_invoke_sidebar)
     ? (
       String.sub(
         body,
-        0,
-        String.length(body) - String.length(projector_invoke_sidebar),
+        ~pos=0,
+        ~len=String.length(body) - String.length(projector_invoke_sidebar),
       ),
       ProjectorPlacement.Sidebar,
     )
@@ -433,7 +433,7 @@ let split_invoke_placement = (body: t): (t, ProjectorPlacement.t) =>
    "^^probe_table"    ==> Some(("probe_table", Inline)) */
 let of_projector_invoke_parts =
     (input: t): option((t, ProjectorPlacement.t)) =>
-  Option.map(split_invoke_placement, of_projector_invoke(input));
+  Option.map(~f=split_invoke_placement, of_projector_invoke(input));
 
 /* A `_opt` suffix on the invoke body is a trigger OPTION (e.g. the
    probe renderer in `^^probe_table`) — stripped for validity; Triggers

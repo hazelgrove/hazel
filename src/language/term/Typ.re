@@ -393,8 +393,8 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
         Grammar.Arrow(ty1', ty2') |> rewrap;
       };
     | Prod(tys) =>
-      let tys' = List.map(subst(s, x), tys);
-      if (List.for_all2((a, b) => phys_equal(a, b), tys, tys')) {
+      let tys' = List.map(~f=subst(s, x), tys);
+      if (List.for_all2_exn(tys, tys', ~f=phys_equal)) {
         ty;
       } else {
         Prod(tys') |> rewrap;
@@ -408,13 +408,19 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
         TupLabel(label', t') |> rewrap;
       };
     | Sum(sm) =>
-      let sm' = ConstructorMap.map(Option.map(subst(s, x)), sm);
+      let sm' = ConstructorMap.map(Option.map(~f=subst(s, x)), sm);
       if (phys_equal(sm', sm)) {
         ty;
       } else {
         Sum(sm') |> rewrap;
       };
-    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Poly(tp2, _)
+        when
+          Option.equal(
+            String.equal,
+            TPat.tyvar_of_utpat(x),
+            TPat.tyvar_of_utpat(tp2),
+          ) => ty
     | Poly(tp2, t) =>
       let (tp2', t') = avoid_capture(tp2, t);
       let t'' = subst(s, x, t');
@@ -423,7 +429,13 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       } else {
         Poly(tp2', t'') |> rewrap;
       };
-    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Rec(tp2, _)
+        when
+          Option.equal(
+            String.equal,
+            TPat.tyvar_of_utpat(x),
+            TPat.tyvar_of_utpat(tp2),
+          ) => ty
     | Rec(tp2, t) =>
       let (tp2', t') = avoid_capture(tp2, t);
       let t'' = subst(s, x, t');
@@ -439,7 +451,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
       } else {
         List(t') |> rewrap;
       };
-    | Var(y) => str == y ? s : ty
+    | Var(y) => String.equal(str, y) ? s : ty
     | Parens(t) =>
       let t' = subst(s, x, t);
       if (phys_equal(t', t)) {
@@ -762,7 +774,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     let ts'' =
       List.is_empty(duplicate_labels)
         ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
-    List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
+    List.length(ts) == List.length(ts'') && List.for_all2_exn(ts, ts'', ~f=phys_equal)
       ? ty : Prod(ts'') |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
@@ -772,7 +784,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     let t' = normalize(ctx, t);
     phys_equal(label, label') && phys_equal(t, t') ? ty : TupLabel(label', t') |> rewrap;
   | Sum(ts) =>
-    let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
+    let ts' = ConstructorMap.map(Option.map(~f=normalize(ctx)), ts);
     phys_equal(ts, ts') ? ty : Sum(ts') |> rewrap;
   | Rec(tpat, t) =>
     let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
@@ -1082,7 +1094,7 @@ let rec meet =
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    p1 == p2
+    Poly.equal(p1, p2)
       ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
@@ -1109,11 +1121,11 @@ let rec meet =
      rest. Anything else falls through to the general Var expansion. */
   | (Var(name), Rec(tp2, _))
       when
-        TPat.tyvar_of_utpat(tp2) == Some(name)
+        Option.equal(String.equal, TPat.tyvar_of_utpat(tp2), Some(name))
         && (
           switch (Ctx.lookup_alias(ctx, name)) {
           | Some({term: Rec(tp1, _), _} as ty_alias) =>
-            TPat.tyvar_of_utpat(tp1) == Some(name)
+            Option.equal(String.equal, TPat.tyvar_of_utpat(tp1), Some(name))
             && (phys_equal(ty_alias, ty2) || equal(ty_alias, ty2))
           | _ => false
           }
@@ -1121,11 +1133,11 @@ let rec meet =
     Some(ty1)
   | (Rec(tp1, _), Var(name))
       when
-        TPat.tyvar_of_utpat(tp1) == Some(name)
+        Option.equal(String.equal, TPat.tyvar_of_utpat(tp1), Some(name))
         && (
           switch (Ctx.lookup_alias(ctx, name)) {
           | Some({term: Rec(tp2, _), _} as ty_alias) =>
-            TPat.tyvar_of_utpat(tp2) == Some(name)
+            Option.equal(String.equal, TPat.tyvar_of_utpat(tp2), Some(name))
             && (phys_equal(ty_alias, ty1) || equal(ty_alias, ty1))
           | _ => false
           }
