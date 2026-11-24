@@ -3,7 +3,7 @@ open Util;
 open Haz3lcore;
 open Action;
 
-let parse = text => Parser.to_zipper(~root=Exp, text) |> Option.get;
+let parse = text => Parser.to_zipper(~root=Exp, text) |> Option.value_exn;
 let measure = z =>
   Measured.of_segment(
     Zipper.unselect_and_zip(z),
@@ -64,15 +64,15 @@ let tests = (
         (2, 14),
       ];
       let _ =
-        List.fold_left(
-          (z, (row, col)) => {
-            let z = Move.by_char(Right, z) |> Option.get;
+        List.fold(
+          expected,
+          ~init=z,
+          ~f=(z, (row, col)) => {
+            let z = Move.by_char(Right, z) |> Option.value_exn;
             check_point(row, col, z);
             check_point(row, col, at(text, row, col));
             z;
           },
-          z,
-          expected,
         );
       ();
     }),
@@ -159,7 +159,7 @@ let tests = (
           ~chunkiness=ByChar,
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let z =
         perform(
           z,
@@ -186,40 +186,50 @@ let tests = (
     run("clicking beyond blank and short comment lines clamps to the row", () => {
       let text = "1 # first\n  longer continuation\n\n  短🙂\n#\n2 # another\n  comment #";
       List.iter(
-        extra_rows => {
-          let initial = parse(text);
-          let segment = Zipper.unselect_and_zip(initial);
-          let measured =
-            Measured.of_segment(
-              segment,
-              Id.Map.empty,
-              Id.Map.singleton(Piece.id(List.hd(segment)), extra_rows),
-            );
-          List.iter(
-            ((row, col)) => {
-              let z =
-                Move.to_point(
-                  ~measured,
-                  ~goal=
-                    Point.{
-                      row: row + extra_rows,
-                      col: 80,
-                    },
-                  initial,
-                )
-                |> Option.get;
-              let p = Zipper.Caret.point(measured, z);
-              check(
-                pair(int, int),
-                "nearest position on clicked row",
-                (row + extra_rows, col),
-                (p.row, p.col),
+        ~f=
+          extra_rows => {
+            let initial = parse(text);
+            let segment = Zipper.unselect_and_zip(initial);
+            let measured =
+              Measured.of_segment(
+                segment,
+                Id.Map.empty,
+                Id.Map.singleton(
+                  Piece.id(List.hd_exn(segment)),
+                  extra_rows,
+                ),
               );
-              check(string, "text unchanged", printed(initial), printed(z));
-            },
-            [(1, 21), (2, 0), (3, 6), (4, 1)],
-          );
-        },
+            List.iter(
+              ~f=
+                ((row, col)) => {
+                  let z =
+                    Move.to_point(
+                      ~measured,
+                      ~goal=
+                        Point.{
+                          row: row + extra_rows,
+                          col: 80,
+                        },
+                      initial,
+                    )
+                    |> Option.value_exn;
+                  let p = Zipper.Caret.point(measured, z);
+                  check(
+                    pair(int, int),
+                    "nearest position on clicked row",
+                    (row + extra_rows, col),
+                    (p.row, p.col),
+                  );
+                  check(
+                    string,
+                    "text unchanged",
+                    printed(initial),
+                    printed(z),
+                  );
+                },
+              [(1, 21), (2, 0), (3, 6), (4, 1)],
+            );
+          },
         [0, 1, 2],
       );
     }),
@@ -238,7 +248,7 @@ let tests = (
           Down,
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       check_point(1, 3, z);
     }),
     run("multiline selection highlights and deletes exact characters", () => {
@@ -254,7 +264,7 @@ let tests = (
           ~chunkiness=ByChar,
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       check(string, "copied text", "irst\n  sec", Insert.selected_text(z));
       let rows =
         Web.Highlight.rows_of_segment(
@@ -263,7 +273,7 @@ let tests = (
           ~shape_init=None,
           z.selection.content,
         )
-        |> List.map(((m, tips)) => Web.Highlight.row_data_of(m, tips));
+        |> List.map(~f=((m, tips)) => Web.Highlight.row_data_of(m, tips));
       let rows =
         Web.Highlight.clip_char_selection(~measured=measure(z), z, rows);
       check(
@@ -271,8 +281,9 @@ let tests = (
         "highlight extents",
         [(0, 3, 7), (1, 0, 5)],
         List.map(
-          (r: Web.Highlight.row_data) =>
-            (r.row_num, r.left_col, r.right_col),
+          ~f=
+            (r: Web.Highlight.row_data) =>
+              (r.row_num, r.left_col, r.right_col),
           rows,
         ),
       );
@@ -335,7 +346,7 @@ let tests = (
             },
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let z = perform(z, [AdjustIndent(Right, Always)]);
       check(
         string,
@@ -369,7 +380,7 @@ let tests = (
             },
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let rows =
         Web.Highlight.rows_of_segment(
           ~measured=measure(z),
@@ -377,15 +388,16 @@ let tests = (
           ~shape_init=None,
           z.selection.content,
         )
-        |> List.map(((m, tips)) => Web.Highlight.row_data_of(m, tips))
+        |> List.map(~f=((m, tips)) => Web.Highlight.row_data_of(m, tips))
         |> Web.Highlight.clip_char_selection(~measured=measure(z), z);
       check(
         list(triple(int, int, int)),
         "single row",
         [(1, 3, 6)],
         List.map(
-          (r: Web.Highlight.row_data) =>
-            (r.row_num, r.left_col, r.right_col),
+          ~f=
+            (r: Web.Highlight.row_data) =>
+              (r.row_num, r.left_col, r.right_col),
           rows,
         ),
       );
@@ -435,14 +447,14 @@ let tests = (
       );
       let z = parse("# closed #\n1");
       let has_linebreak =
-        List.exists(Piece.is_linebreak, Zipper.unselect_and_zip(z));
+        List.exists(~f=Piece.is_linebreak, Zipper.unselect_and_zip(z));
       check(bool, "separate newline", true, has_linebreak);
       check_point(1, 1, z);
     }),
     run("reserved projector rows precede a comment continuation", () => {
       let z = parse("1 # first\nsecond # + 2");
       let segment = Zipper.unselect_and_zip(z);
-      let id = Piece.id(List.hd(segment));
+      let id = Piece.id(List.hd_exn(segment));
       let measured =
         Measured.of_segment(segment, Id.Map.empty, Id.Map.singleton(id, 2));
       let z =
@@ -455,7 +467,7 @@ let tests = (
             },
           z,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let p = Zipper.Caret.point(measured, z);
       check(
         pair(int, int),

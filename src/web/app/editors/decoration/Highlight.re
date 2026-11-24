@@ -104,10 +104,12 @@ let rows_of_segment =
           when String.contains(Secondary.get_string(w.content), '\n') =>
         let token = Secondary.get_string(w.content);
         let m = find_w(w);
-        let lines = String.split_on_char('\n', token);
+        let lines = String.split(token, ~on='\n');
         let (_, shards) =
-          List.fold_left_map(
-            (count, line) => {
+          List.fold_map(
+            lines,
+            ~init=0,
+            ~f=(count, line) => {
               let origin = Measured.point_in_token(m, token, count);
               let last =
                 Point.add(
@@ -128,14 +130,12 @@ let rows_of_segment =
                 ],
               );
             },
-            0,
-            lines,
           );
         ListUtil.interleave(
           shards,
-          List.init(List.length(lines) - 1, _ => [None]),
+          List.init(List.length(lines) - 1, ~f=_ => [None]),
         )
-        |> List.flatten;
+        |> List.concat;
       | Secondary(w) => [
           Some((
             find_w(w),
@@ -563,7 +563,8 @@ let clip_char_selection =
     let boundary = (inner, piece, d) => {
       let shards = Piece.disassemble(piece);
       let shard =
-        Direction.equal(d, Left) ? List.hd_exn(shards) : ListUtil.last(shards);
+        Direction.equal(d, Left)
+          ? List.hd_exn(shards) : ListUtil.last(shards);
       let m = Measured.find_p(shard, measured);
       switch (inner, Piece.token_of(shard)) {
       | (Some(n), Some(tok)) => Measured.point_in_token(m, tok, n + 1)

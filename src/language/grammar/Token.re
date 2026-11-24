@@ -133,38 +133,43 @@ let trim_leading_code_whitespace = (s: string): string => {
   let escaped = ref(false);
   let line_start = ref(true);
   String.iter(
-    c =>
-      if (c == '\n') {
-        Buffer.add_char(result, c);
-        line_start := true;
-        if (quote^ != Some('#')) {
-          quote := None;
-        };
-        escaped := false;
-      } else if (quote^ == None && line_start^ && (c == ' ' || c == '\t')) {
-        ();
-      } else {
-        Buffer.add_char(result, c);
-        line_start := false;
-        switch (quote^) {
-        | Some('#') =>
-          if (c == '#') {
+    ~f=
+      c =>
+        if (Char.equal(c, '\n')) {
+          Buffer.add_char(result, c);
+          line_start := true;
+          if (!Option.equal(Char.equal, quote^, Some('#'))) {
             quote := None;
-          }
-        | Some(q) =>
-          if (escaped^) {
-            escaped := false;
-          } else if (c == '\\') {
-            escaped := true;
-          } else if (c == q) {
-            quote := None;
-          }
-        | None =>
-          if (c == '#' || c == '"' || c == '`') {
-            quote := Some(c);
-          }
-        };
-      },
+          };
+          escaped := false;
+        } else if (Option.is_none(quote^)
+                   && line_start^
+                   && (Char.equal(c, ' ') || Char.equal(c, '\t'))) {
+          ();
+        } else {
+          Buffer.add_char(result, c);
+          line_start := false;
+          switch (quote^) {
+          | Some('#') =>
+            if (Char.equal(c, '#')) {
+              quote := None;
+            }
+          | Some(q) =>
+            if (escaped^) {
+              escaped := false;
+            } else if (Char.equal(c, '\\')) {
+              escaped := true;
+            } else if (Char.equal(c, q)) {
+              quote := None;
+            }
+          | None =>
+            if (Char.equal(c, '#')
+                || Char.equal(c, '"')
+                || Char.equal(c, '`')) {
+              quote := Some(c);
+            }
+          };
+        },
     s,
   );
   Buffer.contents(result);

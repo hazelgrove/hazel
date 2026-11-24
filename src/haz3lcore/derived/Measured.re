@@ -24,7 +24,7 @@ let point_in_token = (m: measurement, token: string, count: int): Point.t =>
     );
   } else {
     let (prefix, _) = Token.split_nth(token, count);
-    let lines = String.split_on_char('\n', prefix);
+    let lines = String.split(prefix, ~on='\n');
     let row = List.length(lines) - 1;
     let extra = m.last.row - m.origin.row - StringUtil.num_linebreaks(token);
     {
@@ -432,8 +432,7 @@ let of_segment_inner =
     } else {
       /* A comment contributes real content on every line it spans. Keep
          the same piece in each row so row consumers can see the comment. */
-      let lines =
-        String.split_on_char('\n', Secondary.get_string(w.content));
+      let lines = String.split(Secondary.get_string(w.content), ~on='\n');
       let rec add_lines = (acc: measure_acc, lines) =>
         switch (lines) {
         | [] => acc

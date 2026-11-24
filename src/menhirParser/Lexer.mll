@@ -114,7 +114,7 @@ rule token =
         let rec lines i count bol =
           if i >= n then (count, bol) else
           match text.[i] with
-          | '\r' when i + 1 < n && text.[i + 1] = '\n' ->
+          | '\r' when i + 1 < n && Char.equal text.[i + 1] '\n' ->
               lines (i + 2) (count + 1) (i + 2)
           | '\r' | '\n' -> lines (i + 1) (count + 1) (i + 1)
           | _ -> lines (i + 1) count bol

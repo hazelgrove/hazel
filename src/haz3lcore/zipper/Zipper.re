@@ -1143,8 +1143,8 @@ let text_linebreak_on = (d: Direction.t, z: t): bool =>
   | (Inner(idx), Some(token)) when String.contains(token, '\n') =>
     let (before, after) = Token.split_nth(token, idx + 1);
     switch (d) {
-    | Left => String.ends_with(~suffix="\n", before)
-    | Right => String.starts_with(~prefix="\n", after)
+    | Left => String.is_suffix(before, ~suffix="\n")
+    | Right => String.is_prefix(after, ~prefix="\n")
     };
   | _ => linebreak_on(d, generalized_neighbors(z))
   };

@@ -166,19 +166,17 @@ let view =
           ? "in-unparsed-buffer" : "comment";
       let lines = String.split(str, ~on='\n');
       let nodes =
-        List.mapi(
-          lines,
-          ~f=(i, line) =>
-            (
-              i == 0
-                ? []
-                : [
-                  Node.text(
-                    String.make(DeferredLinebreaks.of_secondary(), '\n'),
-                  ),
-                ]
-            )
-            @ [comment_text(~font_metrics, cls, line)],
+        List.mapi(lines, ~f=(i, line) =>
+          (
+            i == 0
+              ? []
+              : [
+                Node.text(
+                  String.make(DeferredLinebreaks.of_secondary(), '\n'),
+                ),
+              ]
+          )
+          @ [comment_text(~font_metrics, cls, line)]
         )
         |> List.concat;
       span(nodes);

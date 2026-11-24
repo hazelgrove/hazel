@@ -4,16 +4,21 @@ open Haz3lcore;
 let parse = Test_Editing.parse_with_caret;
 let convert = z => {
   let elaborated = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  ProjectorPerform.newline_in_string(z, ~elaborated) |> Option.get;
+  ProjectorPerform.newline_in_string(z, ~elaborated) |> Option.value_exn;
 };
 let content = z =>
   switch (Zipper.generalized_neighbor(Right, z)) {
   | Some(Projector(pr)) =>
-    check(bool, "text projector", true, pr.kind == TextArea);
+    check(
+      bool,
+      "text projector",
+      true,
+      ProjectorCore.Kind.equal(pr.kind, TextArea),
+    );
     Piece.unparenthesize(pr.syntax)
     |> MakeTerm.for_projection
-    |> Option.bind(_, TextAreaProj.string_of)
-    |> Option.get;
+    |> Option.bind(~f=TextAreaProj.string_of)
+    |> Option.value_exn;
   | _ => fail("Expected a text projector at the caret")
   };
 let conversion = (name, source, expected, offset) =>
@@ -26,7 +31,7 @@ let conversion = (name, source, expected, offset) =>
       check(int, "UTF-16 caret after newline", offset, actual_offset);
       /* A projected edit must survive the normal clipboard/persistence syntax. */
       let printed = Printer.of_zipper(~holes="", z);
-      let reparsed = Parser.to_zipper(~root=Exp, printed) |> Option.get;
+      let reparsed = Parser.to_zipper(~root=Exp, printed) |> Option.value_exn;
       check(
         string,
         "serialized round trip",
@@ -44,23 +49,24 @@ let join_roundtrip = (name, source) =>
       let original = parse(source);
       let (projected, id, offset) = convert(original);
       List.iter(
-        ((direction, position)) => {
-          let restored =
-            ProjectorPerform.join_text_lines(
-              projected,
-              id,
-              position,
-              position,
-              direction,
-            )
-            |> Option.get;
-          check(
-            string,
-            "source and caret restored",
-            Test_Editing.printer_indented(original),
-            Test_Editing.printer_indented(restored),
-          );
-        },
+        ~f=
+          ((direction, position)) => {
+            let restored =
+              ProjectorPerform.join_text_lines(
+                projected,
+                id,
+                position,
+                position,
+                direction,
+              )
+              |> Option.value_exn;
+            check(
+              string,
+              "source and caret restored",
+              Test_Editing.printer_indented(original),
+              Test_Editing.printer_indented(restored),
+            );
+          },
         [(Util.Direction.Left, offset), (Right, offset - 1)],
       );
     },
@@ -114,7 +120,7 @@ let paste_case = (name, source, text, expected) =>
         "copy/paste round trip",
         serialized,
         Parser.to_zipper(~root=Exp, serialized)
-        |> Option.get
+        |> Option.value_exn
         |> Printer.of_zipper(~holes=""),
       );
     },
@@ -144,23 +150,24 @@ let tests = (
     test_case(
       "multiline paste replaces either selection direction", `Quick, () => {
       List.iter(
-        ((source, direction)) => {
-          let z =
-            Test_Editing.perform(
-              parse(source),
-              [
-                Select(Resize(Local(direction, ByChar))),
-                Select(Resize(Local(direction, ByChar))),
-              ],
+        ~f=
+          ((source, direction)) => {
+            let z =
+              Test_Editing.perform(
+                parse(source),
+                [
+                  Select(Resize(Local(direction, ByChar))),
+                  Select(Resize(Local(direction, ByChar))),
+                ],
+              );
+            let z = paste(z, " X\n  Y ");
+            check(
+              string,
+              "only selected characters replaced",
+              "ab X\n  Y ef",
+              content(z),
             );
-          let z = paste(z, " X\n  Y ");
-          check(
-            string,
-            "only selected characters replaced",
-            "ab X\n  Y ef",
-            content(z),
-          );
-        },
+          },
         [("\"ab¦cdef\"", Util.Direction.Right), ("\"abcd¦ef\"", Left)],
       )
     }),
@@ -180,18 +187,19 @@ let tests = (
     test_case(
       "unrepresentable pasted text is not silently changed", `Quick, () => {
       List.iter(
-        ((source, text)) => {
-          let z = parse(source);
-          let elaborated = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-          check(
-            bool,
-            "conversion refused",
-            true,
-            Option.is_none(
-              ProjectorPerform.insert_text_in_string(z, text, ~elaborated),
-            ),
-          );
-        },
+        ~f=
+          ((source, text)) => {
+            let z = parse(source);
+            let elaborated = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+            check(
+              bool,
+              "conversion refused",
+              true,
+              Option.is_none(
+                ProjectorPerform.insert_text_in_string(z, text, ~elaborated),
+              ),
+            );
+          },
         [
           ("\"¦\"", "quote \"\ntext"),
           ("\"¦\"", "literal \\n\ntext"),
@@ -255,16 +263,17 @@ let tests = (
     join_roundtrip("round trip indented", "let x =\n  \"left¦right\"\nin x"),
     test_case("only removing the final linebreak converts", `Quick, () => {
       List.iter(
-        ((text, start, finish, direction)) => {
-          check(
-            bool,
-            "stays projected",
-            true,
-            Option.is_none(
-              TextAreaProj.joined_string(text, start, finish, direction),
-            ),
-          )
-        },
+        ~f=
+          ((text, start, finish, direction)) => {
+            check(
+              bool,
+              "stays projected",
+              true,
+              Option.is_none(
+                TextAreaProj.joined_string(text, start, finish, direction),
+              ),
+            )
+          },
         [
           ("single line", 4, 4, Util.Direction.Left),
           ("a\nb\nc", 2, 2, Left),
@@ -312,13 +321,14 @@ let tests = (
     ),
     test_case("comments and boundaries are not converted", `Quick, () => {
       List.iter(
-        source =>
-          check(
-            bool,
-            source,
-            false,
-            ProjectorPerform.can_newline_in_string(parse(source)),
-          ),
+        ~f=
+          source =>
+            check(
+              bool,
+              source,
+              false,
+              ProjectorPerform.can_newline_in_string(parse(source)),
+            ),
         ["# a¦b #", "¦\"ab\"", "\"ab\"¦", "12¦3"],
       )
     }),
@@ -345,7 +355,8 @@ let tests = (
         );
         let elaborated = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
         let (z, _, offset) =
-          ProjectorPerform.newline_in_string(z, ~elaborated) |> Option.get;
+          ProjectorPerform.newline_in_string(z, ~elaborated)
+          |> Option.value_exn;
         check(string, "text value", "ab\nef", content(z));
         check(int, "UTF-16 caret after newline", 3, offset);
       },
@@ -356,17 +367,18 @@ let tests = (
       () => {
         let refused = (name, z) =>
           List.iter(
-            a =>
-              check(
-                bool,
-                name ++ ": " ++ Action.show(a),
-                true,
-                Result.is_error(attempt(a, z)),
-              ),
+            ~f=
+              a =>
+                check(
+                  bool,
+                  name ++ ": " ++ Action.show(a),
+                  true,
+                  Result.is_error(attempt(a, z)),
+                ),
             [Action.Insert("\n"), Paste("one\ntwo")],
           );
         List.iter(
-          source => refused(source, parse(source)),
+          ~f=source => refused(source, parse(source)),
           [
             "(`my¦ label`=1, 2)",
             "let t = (abc=1) in t.`ab¦c`",
@@ -408,14 +420,16 @@ let tests = (
           bool,
           "same program model",
           true,
-          undone.current === initial.current,
+          phys_equal(undone.current, initial.current),
         );
         check(
           bool,
           "native range and direction scheduled",
           true,
-          FocusEffect.scheduled^
-          == Some(TextArea("test-textarea", 2, 7, "backward")),
+          Poly.equal(
+            FocusEffect.scheduled^,
+            Some(TextArea("test-textarea", 2, 7, "backward")),
+          ),
         );
         FocusEffect.scheduled := None;
       },
@@ -429,14 +443,11 @@ let tests = (
         let m =
           Test_Undo.apply(m, Globals(ActiveEditor(Paste("\"abcd\""))));
         let m =
-          List.fold_left(
-            (m, _) =>
-              Test_Undo.apply(
-                m,
-                Globals(ActiveEditor(Move(Local(Left, ByChar)))),
-              ),
-            m,
-            [(), (), ()],
+          List.fold([(), (), ()], ~init=m, ~f=(m, _) =>
+            Test_Undo.apply(
+              m,
+              Globals(ActiveEditor(Move(Local(Left, ByChar)))),
+            )
           );
         let edited =
           Test_Undo.apply(
@@ -480,28 +491,28 @@ let tests = (
           bool,
           "undo restores the multiline projector",
           true,
-          undo_join.current === edited.current,
+          phys_equal(undo_join.current, edited.current),
         );
         let redo_join = Test_Undo.apply(undo_join, Test_Undo.redo);
         check(
           bool,
           "redo restores the joined string",
           true,
-          redo_join.current === joined.current,
+          phys_equal(redo_join.current, joined.current),
         );
         let undone = Test_Undo.apply(edited, Test_Undo.undo);
         check(
           bool,
           "original model and caret",
           true,
-          undone.current === m.current,
+          phys_equal(undone.current, m.current),
         );
         let redone = Test_Undo.apply(undone, Test_Undo.redo);
         check(
           bool,
           "projector restored",
           true,
-          redone.current === edited.current,
+          phys_equal(redone.current, edited.current),
         );
       },
     ),

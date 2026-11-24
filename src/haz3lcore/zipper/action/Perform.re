@@ -60,7 +60,7 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
 
 let text_in_string = (~elaborated, z: Zipper.t, text: string) =>
   ProjectorPerform.insert_text_in_string(z, text, ~elaborated)
-  |> Option.map(((z, id, offset)) => {
+  |> Option.map(~f=((z, id, offset)) => {
        FocusEffect.schedule_textarea(id, offset);
        z;
      });
@@ -70,10 +70,10 @@ let comment_indent_prefix = (z: Zipper.t) =>
   switch (z.caret, z.selection.content, Zipper.neighbor_token(Right, z)) {
   | (Inner(idx), [], Some(token)) when Token.is_comment(token) =>
     let (prefix, suffix) = Token.split_nth(token, idx + 1);
-    switch (List.rev(String.split_on_char('\n', prefix))) {
+    switch (List.rev(String.split(prefix, ~on='\n'))) {
     | [spaces, ...[_, ..._] as previous]
-        when String.for_all(c => c == ' ', spaces) =>
-      Some((String.concat("\n", List.rev(previous)), spaces, suffix))
+        when String.for_all(spaces, ~f=c => Char.equal(c, ' ')) =>
+      Some((String.concat(~sep="\n", List.rev(previous)), spaces, suffix))
     | _ => None
     };
   | _ => None
@@ -245,16 +245,17 @@ let adjust_indent_with_comments = (~syntax: CachedSyntax.t, d, z: Zipper.t) => {
   let affected = row => row >= first && row <= last;
   let rec contains_comment = seg =>
     List.exists(
-      (p: Piece.t) =>
-        switch (p) {
-        | Secondary(w) when Secondary.is_comment(w) =>
-          let m = Measured.find_w(w, measured);
-          m.last.row > m.origin.row
-          && m.last.row >= first
-          && m.origin.row <= last;
-        | Tile(t) => List.exists(contains_comment, t.children)
-        | _ => false
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Secondary(w) when Secondary.is_comment(w) =>
+            let m = Measured.find_w(w, measured);
+            m.last.row > m.origin.row
+            && m.last.row >= first
+            && m.origin.row <= last;
+          | Tile(t) => List.exists(t.children, ~f=contains_comment)
+          | _ => false
+          },
       seg,
     );
   let has_comment = contains_comment(syntax.segment);
@@ -280,9 +281,10 @@ let adjust_indent_with_comments = (~syntax: CachedSyntax.t, d, z: Zipper.t) => {
         let text = Secondary.get_string(w.content);
         let m = Measured.find_w(w, measured);
         let (_, lines) =
-          String.split_on_char('\n', text)
-          |> List.fold_left_map(
-               (offset, line) => {
+          String.split(text, ~on='\n')
+          |> List.fold_map(
+               ~init=0,
+               ~f=(offset, line) => {
                  let row = Measured.point_in_token(m, text, offset).row;
                  let next = offset + Token.length(line) + 1;
                  if (offset == 0 || !affected(row)) {
@@ -297,16 +299,19 @@ let adjust_indent_with_comments = (~syntax: CachedSyntax.t, d, z: Zipper.t) => {
                    (
                      next,
                      String.make(k, ' ')
-                     ++ String.sub(line, n^, String.length(line) - n^),
+                     ++ String.sub(
+                          line,
+                          ~pos=n^,
+                          ~len=String.length(line) - n^,
+                        ),
                    );
                  };
                },
-               0,
              );
         [
           Piece.Secondary({
             ...w,
-            content: Comment(String.concat("\n", lines)),
+            content: Comment(String.concat(~sep="\n", lines)),
           }),
           ...level(rest),
         ];
@@ -712,7 +717,8 @@ let rec go =
         | (Local(Left, ByChar), true, Some((prefix, spaces, suffix))) =>
           let previous = ListUtil.last(String.split(prefix, ~on='\n'));
           let n = ref(0);
-          while (n^ < String.length(previous) && Char.equal(previous.[n^], ' ')) {
+          while (n^ < String.length(previous)
+                 && Char.equal(previous.[n^], ' ')) {
             incr(n);
           };
           let indent =

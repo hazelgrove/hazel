@@ -666,7 +666,7 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
       let char =
         if (auto_indent && char == "\n" && Token.is_comment(t)) {
           let (prefix, _) = Token.split_nth(t, idx);
-          let lines = String.split_on_char('\n', prefix);
+          let lines = String.split(prefix, ~on='\n');
           let indent =
             if (List.length(lines) == 1) {
               let measured =

@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Poly;
 
 let string_of = (any: Language.Any.t): option(string) =>
   switch (any) {
@@ -74,7 +75,7 @@ let joined_string = (text: string, start: int, finish: int, d: Direction.t) => {
     if (String.contains(removed, '\n')
         && !String.contains(joined, '\n')
         && Token.is_string(Token.string_quote(joined))
-        && StringUtil.unescape_linebreaks(joined) == joined) {
+        && String.equal(StringUtil.unescape_linebreaks(joined), joined)) {
       let caret = HazelString.grapheme_of_utf16(joined, left);
       /* Joining can form a new cluster (e.g. a + combining acute). Snap to
        * its end rather than leaving a caret inside the resulting grapheme. */
@@ -98,7 +99,7 @@ let key_handler = (id, ~parent, evt) => {
     let area = WebUtil.TextArea.get(Id.cls(id));
     let start = area##.selectionStart;
     let finish = area##.selectionEnd;
-    let d = deletion == "Backspace" ? Direction.Left : Right;
+    let d = String.equal(deletion, "Backspace") ? Direction.Left : Right;
     switch (
       joined_string(Js_of_ocaml.Js.to_string(area##.value), start, finish, d)
     ) {

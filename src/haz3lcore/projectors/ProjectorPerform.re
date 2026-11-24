@@ -104,9 +104,8 @@ let string_range = (z: Zipper.t) => {
   let candidate =
     switch (z.caret, z.selection.content, z.selection.anchor_caret) {
     | (Inner(idx), [], _) =>
-      Option.map(
-        piece => (piece, idx, idx),
-        Zipper.generalized_neighbor(Right, z),
+      Option.map(Zipper.generalized_neighbor(Right, z), ~f=piece =>
+        (piece, idx, idx)
       )
     | (Inner(focus), [piece], Inner(anchor))
         when !z.selection.smart_rounded =>
@@ -136,9 +135,12 @@ let insert_text_in_string = (z: Zipper.t, text: string, ~elaborated) => {
   /* Snap an endpoint inside an existing \n escape after the escape. */
   let split = idx => {
     let (prefix, suffix) = Token.split_nth(body, idx);
-    if (String.ends_with(~suffix="\\", prefix)
-        && String.starts_with(~prefix="n", suffix)) {
-      (prefix ++ "n", String.sub(suffix, 1, String.length(suffix) - 1));
+    if (String.is_suffix(prefix, ~suffix="\\")
+        && String.is_prefix(suffix, ~prefix="n")) {
+      (
+        prefix ++ "n",
+        String.sub(suffix, ~pos=1, ~len=String.length(suffix) - 1),
+      );
     } else {
       (prefix, suffix);
     };
@@ -156,7 +158,7 @@ let insert_text_in_string = (z: Zipper.t, text: string, ~elaborated) => {
     ++ StringUtil.unescape_linebreaks(suffix);
   let* () =
     Token.is_string(token)
-    && StringUtil.unescape_linebreaks(source) == expected
+    && String.equal(StringUtil.unescape_linebreaks(source), expected)
       ? Some() : None;
   let offset =
     HazelString.utf16_length(
@@ -194,7 +196,8 @@ let newline_in_string = (z, ~elaborated) =>
 let join_text_lines = (z: Zipper.t, id: Id.t, start, finish, d) => {
   let* z = Move.jump_to_side_of_id(Left, z, id);
   switch (Zipper.generalized_neighbor(Right, z)) {
-  | Some(Projector(pr)) when pr.id == id && pr.kind == TextArea =>
+  | Some(Projector(pr))
+      when Id.equal(pr.id, id) && ProjectorCore.Kind.equal(pr.kind, TextArea) =>
     let seg = Piece.unparenthesize(pr.syntax);
     let* any = MakeTerm.for_projection(seg);
     let* text = TextAreaProj.string_of(any);

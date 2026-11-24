@@ -227,16 +227,16 @@ let keep_textarea_focus = (): unit => {
       | None => true
       | Some(el) =>
         let id = Js.to_string(el##.id);
-        Js.to_string(el##.tagName) == "BODY"
-        || id == "page"
-        || id == "clipboard-shim";
+        String.equal(Js.to_string(el##.tagName), "BODY")
+        || String.equal(id, "page")
+        || String.equal(id, "clipboard-shim");
       };
     switch (kept_textarea^) {
     | Some(TextAreaFocus(id, start, finish, direction))
         when fell_to_nothing && ! blur_expected^ =>
       switch (
         JsUtil.get_elem_by_id_opt(id)
-        |> Option.bind(_, el =>
+        |> Option.bind(~f=el =>
              Js.Opt.to_option(Dom_html.CoerceTo.textarea(el))
            )
       ) {
