@@ -1176,18 +1176,18 @@ let rec reassemble_reforge = (sort: Sort.t, seg: t): t =>
       let t = Tile.reassemble(match);
       let children =
         if (Tile.is_complete(t)) {
-          List.map2(
-            (child, child_sort) =>
-              if (child_sort != sort) {
-                reforge(child_sort, child);
-              } else {
-                reassemble_reforge(sort, child);
-              },
+          List.map2_exn(
             t.children,
             Tile.mold(t).in_,
+            ~f=(child, child_sort) =>
+            if (child_sort != sort) {
+              reforge(child_sort, child);
+            } else {
+              reassemble_reforge(sort, child);
+            }
           );
         } else {
-          List.map(reassemble_reforge(sort), t.children);
+          List.map(t.children, ~f=reassemble_reforge(sort));
         };
       let children = inner_regrout(children);
       let p =

@@ -2646,13 +2646,14 @@ let zip_has_incomplete = (z: Zipper.t): bool =>
  * in the segment, recursing into children. */
 let rec seg_has_tile = (label: Label.t, seg: Segment.t): bool =>
   List.exists(
-    fun
-    | Piece.Tile(t) =>
-      Tile.has_label(t, label)
-      && Tile.is_complete(t)
-      || List.exists(seg_has_tile(label), t.children)
-    | _ => false,
     seg,
+    ~f=
+      fun
+      | Piece.Tile(t) =>
+        Tile.has_label(t, label)
+        && Tile.is_complete(t)
+        || List.exists(t.children, ~f=seg_has_tile(label))
+      | _ => false,
   );
 
 /* Test helper that checks printer output AND absence of incomplete tiles. */
@@ -4083,7 +4084,7 @@ let assert_no_incomplete = (~skip=false, ~name, input: string) =>
       if (skip) {
         Alcotest.skip();
       };
-      Printexc.record_backtrace(true);
+      Stdlib.Printexc.record_backtrace(true);
       let z_sel = mk_zipper(input);
       let clipboard =
         Printer.of_segment(
@@ -4096,25 +4097,24 @@ let assert_no_incomplete = (~skip=false, ~name, input: string) =>
         | exn =>
           Alcotest.fail(
             "Cut+Paste raised: "
-            ++ Printexc.to_string(exn)
+            ++ Stdlib.Printexc.to_string(exn)
             ++ "\nbacktrace:\n"
-            ++ Printexc.get_backtrace(),
+            ++ Stdlib.Printexc.get_backtrace(),
           )
         };
       let inc = Segment.incomplete_tiles_deep(Zipper.unselect_and_zip(z));
       let printed = printer(z);
       let has_concave = String.contains(printed, concave_char.[0]);
       let has_convex = String.contains(printed, convex_char.[0]);
-      if (inc != [] || has_concave || has_convex) {
+      if (!List.is_empty(inc) || has_concave || has_convex) {
         let inc_str =
-          inc == []
+          List.is_empty(inc)
             ? ""
             : "\nincomplete tiles: ["
               ++ String.concat(
-                   "; ",
-                   List.map(
-                     (t: Tile.t) => String.concat(",", Tile.label(t)),
-                     inc,
+                   ~sep="; ",
+                   List.map(inc, ~f=(t: Tile.t) =>
+                     String.concat(~sep=",", Tile.label(t))
                    ),
                  )
               ++ "]";
@@ -4150,11 +4150,13 @@ let cut_paste_sort_recovery_tests = [
       let z = perform(z_sel, [Cut, Paste(clipboard)]);
       let let_tile =
         List.find_map(
-          fun
-          | Piece.Tile(t) when Tile.effective_label(t) == ["let", "=", "in"] =>
-            Some(t)
-          | _ => None,
           Zipper.unselect_and_zip(z),
+          ~f=
+            fun
+            | Piece.Tile(t)
+                when Label.equal(Tile.effective_label(t), ["let", "=", "in"]) =>
+              Some(t)
+            | _ => None,
         );
       switch (let_tile) {
       | None =>
@@ -4166,16 +4168,17 @@ let cut_paste_sort_recovery_tests = [
         /* children: [pattern, definition]; the definition is `g(x)` */
         let bad_typ_tiles =
           List.filter_map(
-            fun
-            | Piece.Tile(t: Tile.t) when t.sort == Sort.Typ =>
-              Some(String.concat(" ", Tile.effective_label(t)))
-            | _ => None,
-            List.nth(t.children, 1),
+            List.nth_exn(t.children, 1),
+            ~f=
+              fun
+              | Piece.Tile(t: Tile.t) when Sort.equal(t.sort, Sort.Typ) =>
+                Some(String.concat(~sep=" ", Tile.effective_label(t)))
+              | _ => None,
           );
-        if (bad_typ_tiles != []) {
+        if (!List.is_empty(bad_typ_tiles)) {
           Alcotest.fail(
             "let body should be Exp-sorted but contains Typ tiles: ["
-            ++ String.concat(", ", bad_typ_tiles)
+            ++ String.concat(~sep=", ", bad_typ_tiles)
             ++ "]",
           );
         };
@@ -4256,7 +4259,7 @@ let cut_paste_sort_recovery_tests = [
     "CHALLENGE: partition_at with full settings",
     `Quick,
     () => {
-      Printexc.record_backtrace(true);
+      Stdlib.Printexc.record_backtrace(true);
       let settings = Language.CoreSettings.on;
       /* built with the test settings: indentation_ux's indent-skipping
        * ByChar moves overshoot mk's caret walk-back (Cant_move) */
@@ -4272,9 +4275,9 @@ let cut_paste_sort_recovery_tests = [
         | exn =>
           Alcotest.fail(
             "Cut+Paste raised: "
-            ++ Printexc.to_string(exn)
+            ++ Stdlib.Printexc.to_string(exn)
             ++ "\n"
-            ++ Printexc.get_backtrace(),
+            ++ Stdlib.Printexc.get_backtrace(),
           )
         };
       try({
@@ -4290,9 +4293,9 @@ let cut_paste_sort_recovery_tests = [
       | exn =>
         Alcotest.fail(
           "Statics/elaboration raised: "
-          ++ Printexc.to_string(exn)
+          ++ Stdlib.Printexc.to_string(exn)
           ++ "\n"
-          ++ Printexc.get_backtrace(),
+          ++ Stdlib.Printexc.get_backtrace(),
         )
       };
     },
