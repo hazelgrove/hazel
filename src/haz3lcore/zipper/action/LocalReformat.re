@@ -279,7 +279,7 @@ let rec completed_rule_lines =
         | _ => []
         };
       here
-      @ List.concat_map(completed_rule_lines(completed), t.children)
+      @ List.concat_map(t.children, ~f=completed_rule_lines(completed))
       @ go(None, rest);
     | [_, ...rest] => go(None, rest)
     };
@@ -318,14 +318,14 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
           ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
       let rule_lines =
         completed_rule_lines(completed, full)
-        |> List.filter_map(id =>
+        |> List.filter_map(~f=id =>
              Id.Map.find_opt(id, Lazy.force(indent_map))
-             |> Option.map(l => (id, l))
+             |> Option.map(~f=l => (id, l))
            );
-      rule_lines == []
+      List.is_empty(rule_lines)
         ? z
         : ZipperBase.MapSegment.go(
-            set_lb_indents(rule_lines |> List.to_seq |> Id.Map.of_seq),
+            set_lb_indents(rule_lines |> Id.Map.of_list),
             z,
           );
     };
