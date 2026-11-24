@@ -82,7 +82,8 @@ let merge_ellipses = (s: string): string => {
   let rec go = (i, acc) =>
     if (i >= String.length(s)) {
       acc;
-    } else if (i + n <= String.length(s)
+    } else if (i
+               + n <= String.length(s)
                && String.equal(String.sub(s, ~pos=i, ~len=n), run)) {
       /* drop the `…, ` and look again at the second `…` */
       go(

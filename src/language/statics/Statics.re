@@ -1776,7 +1776,8 @@ and uexp_to_info_map =
         switch (custom_statics) {
         | Some(kind) =>
           let gradual_arg = ((info, elab, m)) => {
-            Option.iter(Map.lookup_exp(Exp.rep_id(arg), m), ~f=(a: Info.exp) =>
+            Option.iter(
+              Map.lookup_exp(Exp.rep_id(arg), m), ~f=(a: Info.exp) =>
               Inference.gradual_use(a.elab_syn_ty)
             );
             (info, elab, m);

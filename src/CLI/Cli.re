@@ -120,7 +120,8 @@ let analyze_hazel =
           1000. *. (Stdlib.Sys.time() -. t0);
         | None => 0.
         };
-      let times = List.sort(List.init(runs, ~f=time), ~compare=Float.compare);
+      let times =
+        List.sort(List.init(runs, ~f=time), ~compare=Float.compare);
       Printf.printf(
         "statics_ms min %.1f median %.1f\n",
         List.hd_exn(times),

@@ -86,7 +86,8 @@ let let_time = ref(0.);
 
 /* Hole ids are derived from their site so both passes agree on them. The
    cache spans runs (sites are mostly stable across edits), within a bound. */
-let id_cache: Stdlib.Hashtbl.t((Id.t, string), Id.t) = Stdlib.Hashtbl.create(256);
+let id_cache: Stdlib.Hashtbl.t((Id.t, string), Id.t) =
+  Stdlib.Hashtbl.create(256);
 let derive = (salt: string, id: Id.t): Id.t =>
   switch (Stdlib.Hashtbl.find_opt(id_cache, (id, salt))) {
   | Some(d) => d
@@ -154,7 +155,8 @@ let rec strip = (ty: Typ.t): Typ.t =>
 let hole_of = (st: infer_state, ty: Typ.t): option(Id.t) => {
   let ty = strip(ty);
   switch (Typ.term_of(ty)) {
-  | Unknown(Hole(EmptyHole)) when Stdlib.Hashtbl.mem(st.holes, Typ.rep_id(ty)) =>
+  | Unknown(Hole(EmptyHole))
+      when Stdlib.Hashtbl.mem(st.holes, Typ.rep_id(ty)) =>
     Some(Typ.rep_id(ty))
   | _ => None
   };
@@ -253,7 +255,9 @@ let instantiate =
       None,
     )
   | Apply(ap)
-      when !wants_instance(ctx, ana) && !Stdlib.Hashtbl.mem(ap.instantiated, site) => (
+      when
+        !wants_instance(ctx, ana)
+        && !Stdlib.Hashtbl.mem(ap.instantiated, site) => (
       elab,
       syn,
       None,
@@ -317,7 +321,11 @@ let matched_arrow =
 let record_join = (~site: Id.t, ~ctx: Ctx.t, tys: list(Typ.t)): unit =>
   switch (mode^, tys) {
   | (Infer(st), [t, ...ts]) =>
-    Stdlib.Hashtbl.replace(st.extras, site, List.map(ts, ~f=t' => (ctx, t, t')))
+    Stdlib.Hashtbl.replace(
+      st.extras,
+      site,
+      List.map(ts, ~f=t' => (ctx, t, t')),
+    )
   | _ => ()
   };
 
@@ -771,11 +779,14 @@ let subtree = (m: StaticsBase.Map.t, e: Exp.t): (list(Info.t), Id.Set.t) => {
   (infos^, ids^);
 };
 
-let rigid_of_gens = (gens: Stdlib.Hashtbl.t(Id.t, gen)): Stdlib.Hashtbl.t(Id.t, string) => {
+let rigid_of_gens =
+    (gens: Stdlib.Hashtbl.t(Id.t, gen)): Stdlib.Hashtbl.t(Id.t, string) => {
   let rigid = Stdlib.Hashtbl.create(16);
   Stdlib.Hashtbl.iter(
     (_, g: gen) =>
-      List.iter(g.holes, ~f=((h, a)) => Stdlib.Hashtbl.replace(rigid, h, a)),
+      List.iter(g.holes, ~f=((h, a)) =>
+        Stdlib.Hashtbl.replace(rigid, h, a)
+      ),
     gens,
   );
   rigid;
@@ -947,7 +958,10 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
     },
     m,
   );
-  Stdlib.Hashtbl.iter((_, cs) => List.iter(cs, ~f=Solver.add(s)), st.extras);
+  Stdlib.Hashtbl.iter(
+    (_, cs) => List.iter(cs, ~f=Solver.add(s)),
+    st.extras,
+  );
   let fills = Stdlib.Hashtbl.create(64);
   let conflicts = Stdlib.Hashtbl.create(8);
   let conflict = (id, tys) =>
