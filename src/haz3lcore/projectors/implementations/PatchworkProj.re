@@ -38,13 +38,13 @@ module Decode = {
           tool_id,
         })
       | _ =>
-        if (doc_opt == None) {
+        if (Option.is_none(doc_opt)) {
           warn(
             warnings,
             "Patchwork projector doc-url argument must be a string literal.",
           );
         };
-        if (tool_opt == None) {
+        if (Option.is_none(tool_opt)) {
           warn(
             warnings,
             "Patchwork projector tool-id argument must be a string literal.",
@@ -104,11 +104,12 @@ let warning_list = (warnings: list(string)): Node.t =>
   Node.div(
     ~attrs=[Attr.classes(["patchwork-warning-list"])],
     List.map(
-      (message: string) =>
-        Node.div(
-          ~attrs=[Attr.classes(["patchwork-warning-item"])],
-          [Node.text(message)],
-        ),
+      ~f=
+        (message: string) =>
+          Node.div(
+            ~attrs=[Attr.classes(["patchwork-warning-item"])],
+            [Node.text(message)],
+          ),
       warnings,
     ),
   );
