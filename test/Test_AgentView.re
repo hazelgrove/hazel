@@ -352,7 +352,7 @@ f(1)|},
       "#› program map · 1 error #\n"
       ++ CompositionView.legend
       ++ {|
-let ^pct = {  #› 1 error: "^pct" isn't a valid token #
+let ^pct = {  #› 1 error: Livelit definition is missing members: update, view, expand #
   type T = Int;
   let init = ⋯  #› open below #
 } in

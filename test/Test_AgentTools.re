@@ -3045,8 +3045,9 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.tools;
-        /* 33 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 33, List.length(tools));
+        /* 34: agent-canvas's doc packs (mvu, livelits, creative) make
+           read_docs offered; 33 while DocPacks is empty */
+        check(int, "tool count", 34, List.length(tools));
       },
     ),
     test_case(

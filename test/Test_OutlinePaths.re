@@ -446,6 +446,7 @@ let arrows_redraw = () => {
       ~inject_workspace=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~leave=Virtual_dom.Vdom.Effect.Ignore,
+      ~select_one=None,
       ~statics_on=true,
     );
   let off = view(false);
