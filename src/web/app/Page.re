@@ -370,7 +370,7 @@ module Update = {
   /* Action Explorer helpers */
   let resolve_action_explorer_path =
       (path: string, model: Model.t): list(Haz3lcore.Id.t) =>
-    if (String.length(String.trim(path)) == 0) {
+    if (String.length(String.strip(path)) == 0) {
       [];
     } else {
       let editor = get_editor(model);
@@ -441,8 +441,9 @@ module Update = {
         | Scratch(m) =>
           let scratchpads =
             List.mapi(
-              (i, s: ScratchMode.Scratchpad.t) =>
-                i == m.current ? update_pad(s) : s,
+              ~f=
+                (i, s: ScratchMode.Scratchpad.t) =>
+                  i == m.current ? update_pad(s) : s,
               m.scratchpads,
             );
           Ok(
@@ -454,8 +455,9 @@ module Update = {
         | Documentation(m) =>
           let scratchpads =
             List.mapi(
-              (i, s: ScratchMode.Scratchpad.t) =>
-                i == m.current ? update_pad(s) : s,
+              ~f=
+                (i, s: ScratchMode.Scratchpad.t) =>
+                  i == m.current ? update_pad(s) : s,
               m.scratchpads,
             );
           Ok(
@@ -489,11 +491,11 @@ module Update = {
         | matches =>
           let ids =
             List.map(
-              (m: Haz3lcore.Selector.match_result) => m.focused_id,
+              ~f=(m: Haz3lcore.Selector.match_result) => m.focused_id,
               matches,
             );
-          let results = List.map(Haz3lcore.Selector.print_match, matches);
-          Ok((String.concat("\n", results), ids));
+          let results = List.map(~f=Haz3lcore.Selector.print_match, matches);
+          Ok((String.concat(~sep="\n", results), ids));
         };
       | GetCanonical(selector_str)
       | SelectorGetStatics(selector_str)
@@ -510,7 +512,7 @@ module Update = {
           let ids =
             try(
               Haz3lcore.Selector.query(selector_str, term)
-              |> List.map((m: Haz3lcore.Selector.match_result) =>
+              |> List.map(~f=(m: Haz3lcore.Selector.match_result) =>
                    m.focused_id
                  )
             ) {
@@ -663,13 +665,15 @@ module Update = {
         ActionExplorer.Update.update(~action, ~model=model.action_explorer);
       /* Live-resolve selector for highlighting */
       let ids =
-        if (String.length(String.trim(selector)) > 0) {
+        if (String.length(String.strip(selector)) > 0) {
           let editor = get_editor(model);
           let z = editor.editor.state.zipper;
           let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
           try(
             Haz3lcore.Selector.query(selector, term)
-            |> List.map((m: Haz3lcore.Selector.match_result) => m.focused_id)
+            |> List.map(~f=(m: Haz3lcore.Selector.match_result) =>
+                 m.focused_id
+               )
           ) {
           | _ => []
           };

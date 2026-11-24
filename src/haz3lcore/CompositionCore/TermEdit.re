@@ -15,6 +15,7 @@
 
 open Util;
 open Language;
+open Poly;
 
 /* Round-trip settings: use PreserveExact to preserve original whitespace.
    MakeTerm populates each term's annotation.secondary with (before, after)
@@ -170,7 +171,7 @@ let exp_to_mod_item = (code: string): option(Mod.t) => {
 /* Delete a module item by index from the items list.
    Returns the modified items list (no hole left). */
 let delete_item = (items: list(Mod.t), idx: int): list(Mod.t) =>
-  List.filteri((i, _) => i != idx, items);
+  List.filteri(~f=(i, _) => i != idx, items);
 
 /* Insert a module item at a position in the items list.
    Left = before idx, Right = after idx.
@@ -212,7 +213,7 @@ let copy_mod_secondary = (from: Mod.t, to_: Mod.t): Mod.t => {
 let replace_item =
     (items: list(Mod.t), idx: int, new_item: Mod.t): list(Mod.t) =>
   List.mapi(
-    (i, item) => i == idx ? copy_mod_secondary(item, new_item) : item,
+    ~f=(i, item) => i == idx ? copy_mod_secondary(item, new_item) : item,
     items,
   );
 
@@ -258,28 +259,29 @@ let find_module_item_id = (z: Zipper.t, exp_id: Id.t): option(Id.t) => {
             switch (Exp.term_of(e)) {
             | Module(items) =>
               List.iter(
-                (item: Mod.t) =>
-                  switch (item.term) {
-                  | ModLet(pat, def) =>
-                    if (Id.equal(Pat.rep_id(pat), exp_id)
-                        || Id.equal(Exp.rep_id(def), exp_id)) {
-                      result := Some(Mod.rep_id(item));
-                    }
-                  | ModuleMod(mpat, def) =>
-                    if (Id.equal(IdTagged.rep_id(mpat), exp_id)
-                        || Id.equal(Exp.rep_id(def), exp_id)) {
-                      result := Some(Mod.rep_id(item));
-                    }
-                  | ModType(tpat, _tdef) =>
-                    if (Id.equal(TPat.rep_id(tpat), exp_id)) {
-                      result := Some(Mod.rep_id(item));
-                    }
-                  | ModExp(e') =>
-                    if (Id.equal(Exp.rep_id(e'), exp_id)) {
-                      result := Some(Mod.rep_id(item));
-                    }
-                  | _ => ()
-                  },
+                ~f=
+                  (item: Mod.t) =>
+                    switch (item.term) {
+                    | ModLet(pat, def) =>
+                      if (Id.equal(Pat.rep_id(pat), exp_id)
+                          || Id.equal(Exp.rep_id(def), exp_id)) {
+                        result := Some(Mod.rep_id(item));
+                      }
+                    | ModuleMod(mpat, def) =>
+                      if (Id.equal(IdTagged.rep_id(mpat), exp_id)
+                          || Id.equal(Exp.rep_id(def), exp_id)) {
+                        result := Some(Mod.rep_id(item));
+                      }
+                    | ModType(tpat, _tdef) =>
+                      if (Id.equal(TPat.rep_id(tpat), exp_id)) {
+                        result := Some(Mod.rep_id(item));
+                      }
+                    | ModExp(e') =>
+                      if (Id.equal(Exp.rep_id(e'), exp_id)) {
+                        result := Some(Mod.rep_id(item));
+                      }
+                    | _ => ()
+                    },
                 items,
               );
               continue(e);
@@ -629,11 +631,11 @@ let find_match_containing_arm =
 let parse_case_arm = (code: string): option(case_arm) => {
   /* Strip leading | if present */
   let code =
-    String.trim(code)
+    String.strip(code)
     |> (
       s =>
         if (String.length(s) > 0 && s.[0] == '|') {
-          String.trim(String.sub(s, 1, String.length(s) - 1));
+          String.strip(String.sub(s, ~pos=1, ~len=String.length(s) - 1));
         } else {
           s;
         }
@@ -654,7 +656,7 @@ let case_delete_arm =
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_match_containing_arm(target_arm_body_id, term)) {
   | Some((match_id, _, arms, idx)) =>
-    let new_arms = List.filteri((i, _) => i != idx, arms);
+    let new_arms = List.filteri(~f=(i, _) => i != idx, arms);
     let new_term = replace_match_arms(match_id, new_arms, term);
     Some(term_to_zipper(new_term));
   | None => None
@@ -692,9 +694,10 @@ let case_update_arm_body =
     | Some(new_body) =>
       let new_arms =
         List.mapi(
-          (i, (pat, body)) =>
-            i == idx
-              ? (pat, copy_exp_secondary(body, new_body)) : (pat, body),
+          ~f=
+            (i, (pat, body)) =>
+              i == idx
+                ? (pat, copy_exp_secondary(body, new_body)) : (pat, body),
           arms,
         );
       let new_term = replace_match_arms(match_id, new_arms, term);
@@ -716,9 +719,10 @@ let case_update_arm_pattern =
     | Some(new_pat) =>
       let new_arms =
         List.mapi(
-          (i, (pat, body)) =>
-            i == idx
-              ? (copy_pat_secondary(pat, new_pat), body) : (pat, body),
+          ~f=
+            (i, (pat, body)) =>
+              i == idx
+                ? (copy_pat_secondary(pat, new_pat), body) : (pat, body),
           arms,
         );
       let new_term = replace_match_arms(match_id, new_arms, term);
@@ -796,7 +800,7 @@ let list_delete_element =
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_list_containing_element(target_element_id, term)) {
   | Some((list_id, elements, idx)) =>
-    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_elements = List.filteri(~f=(i, _) => i != idx, elements);
     let new_term = replace_list_elements(list_id, new_elements, term);
     Some(term_to_zipper(new_term));
   | None => None
@@ -830,7 +834,7 @@ let list_update_element =
     switch (parse_exp(code)) {
     | Some(new_element) =>
       let new_elements =
-        List.mapi((i, el) => i == idx ? new_element : el, elements);
+        List.mapi(~f=(i, el) => i == idx ? new_element : el, elements);
       let new_term = replace_list_elements(list_id, new_elements, term);
       Some(term_to_zipper(new_term));
     | None => None
@@ -905,7 +909,7 @@ let tuple_delete_element =
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   switch (find_tuple_containing_element(target_element_id, term)) {
   | Some((tuple_id, elements, idx)) =>
-    let new_elements = List.filteri((i, _) => i != idx, elements);
+    let new_elements = List.filteri(~f=(i, _) => i != idx, elements);
     let new_term = replace_tuple_elements(tuple_id, new_elements, term);
     Some(term_to_zipper(new_term));
   | None => None
@@ -939,7 +943,7 @@ let tuple_update_element =
     switch (parse_exp(code)) {
     | Some(new_element) =>
       let new_elements =
-        List.mapi((i, el) => i == idx ? new_element : el, elements);
+        List.mapi(~f=(i, el) => i == idx ? new_element : el, elements);
       let new_term = replace_tuple_elements(tuple_id, new_elements, term);
       Some(term_to_zipper(new_term));
     | None => None
@@ -996,7 +1000,7 @@ let rec pat_binds = (pat: Pat.t, name: string): bool =>
   | Var(n) => String.equal(n, name)
   | Asc(p, _)
   | Parens(p) => pat_binds(p, name)
-  | Tuple(ps) => List.exists(p => pat_binds(p, name), ps)
+  | Tuple(ps) => List.exists(~f=p => pat_binds(p, name), ps)
   | Cons(p1, p2) => pat_binds(p1, name) || pat_binds(p2, name)
   | _ => false
   };
@@ -1095,52 +1099,53 @@ let update_pattern =
                   };
                 let new_items =
                   List.mapi(
-                    (i, item: Mod.t) =>
-                      if (i == idx) {
-                        switch (item.term) {
-                        | ModLet(_, def) =>
-                          let def =
-                            switch (should_rename) {
-                            | Some((old_n, new_n)) =>
-                              rename_var_in_exp(old_n, new_n, def)
-                            | None => def
-                            };
-                          let new_term: TermBase.mod_term =
-                            ModLet(new_pat, def);
-                          {
-                            ...item,
-                            term: new_term,
-                          };
-                        | _ => item
-                        };
-                      } else if (i > idx) {
-                        switch (should_rename) {
-                        | Some((old_n, new_n)) =>
+                    ~f=
+                      (i, item: Mod.t) =>
+                        if (i == idx) {
                           switch (item.term) {
-                          | ModLet(p, def) =>
+                          | ModLet(_, def) =>
+                            let def =
+                              switch (should_rename) {
+                              | Some((old_n, new_n)) =>
+                                rename_var_in_exp(old_n, new_n, def)
+                              | None => def
+                              };
                             let new_term: TermBase.mod_term =
-                              ModLet(
-                                p,
-                                rename_var_in_exp(old_n, new_n, def),
-                              );
-                            {
-                              ...item,
-                              term: new_term,
-                            };
-                          | ModExp(exp) =>
-                            let new_term: TermBase.mod_term =
-                              ModExp(rename_var_in_exp(old_n, new_n, exp));
+                              ModLet(new_pat, def);
                             {
                               ...item,
                               term: new_term,
                             };
                           | _ => item
-                          }
-                        | None => item
-                        };
-                      } else {
-                        item;
-                      },
+                          };
+                        } else if (i > idx) {
+                          switch (should_rename) {
+                          | Some((old_n, new_n)) =>
+                            switch (item.term) {
+                            | ModLet(p, def) =>
+                              let new_term: TermBase.mod_term =
+                                ModLet(
+                                  p,
+                                  rename_var_in_exp(old_n, new_n, def),
+                                );
+                              {
+                                ...item,
+                                term: new_term,
+                              };
+                            | ModExp(exp) =>
+                              let new_term: TermBase.mod_term =
+                                ModExp(rename_var_in_exp(old_n, new_n, exp));
+                              {
+                                ...item,
+                                term: new_term,
+                              };
+                            | _ => item
+                            }
+                          | None => item
+                          };
+                        } else {
+                          item;
+                        },
                     items,
                   );
                 {
@@ -1259,9 +1264,9 @@ let insert_binding =
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   /* Strip trailing " in" from code, since we add our own " in 0" */
   let code = {
-    let trimmed = String.trim(code);
-    if (String.ends_with(trimmed, ~suffix=" in")) {
-      String.sub(trimmed, 0, String.length(trimmed) - 3);
+    let trimmed = String.strip(code);
+    if (String.is_suffix(trimmed, ~suffix=" in")) {
+      String.sub(trimmed, ~pos=0, ~len=String.length(trimmed) - 3);
     } else {
       trimmed;
     };

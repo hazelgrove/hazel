@@ -243,12 +243,12 @@ module Local = {
       | [_, ..._] as tiles =>
         let labels =
           tiles
-          |> List.map((t: Tile.t) =>
-               String.concat(" ", Tile.effective_label(t))
+          |> List.map(~f=(t: Tile.t) =>
+               String.concat(~sep=" ", Tile.effective_label(t))
              );
         Some(
           "Parse error: unmatched delimiter(s) ["
-          ++ String.concat(", ", labels)
+          ++ String.concat(~sep=", ", labels)
           ++ "]. Check for missing or extra delimiters in your code.",
         );
       | [] =>
@@ -276,7 +276,7 @@ module Local = {
         | errs =>
           Some(
             "Parse error: "
-            ++ String.concat("; ", List.rev(errs))
+            ++ String.concat(~sep="; ", List.rev(errs))
             ++ ". Check your syntax.",
           )
         };
@@ -434,7 +434,7 @@ module Local = {
       if (List.length(new_errors) > List.length(initial_errors)) {
         Some(
           "Warning: this edit introduced new static error(s): "
-          ++ String.concat(", ", new_errors)
+          ++ String.concat(~sep=", ", new_errors)
           ++ ". Use get_statics to investigate.",
         );
       } else {
@@ -1440,7 +1440,7 @@ module Local = {
         Error(
           Action.Failure.Composition_action_failure(
             "Not applying the action you requested as it would introduce new static error(s): "
-            ++ String.concat(", ", new_errors)
+            ++ String.concat(~sep=", ", new_errors)
             ++ PerformUtils.reserved_word_note(code),
           ),
         );
@@ -1449,7 +1449,7 @@ module Local = {
           new_z,
           Some(
             "Warning: this edit introduced new static error(s): "
-            ++ String.concat(", ", new_errors)
+            ++ String.concat(~sep=", ", new_errors)
             ++ ". Use get_statics to investigate.",
           ),
         ));
@@ -1816,11 +1816,11 @@ module Local = {
                     "Cannot rewrite use sites: the old pattern binds "
                     ++ string_of_int(List.length(old_names))
                     ++ " name(s) ("
-                    ++ String.concat(", ", old_names)
+                    ++ String.concat(~sep=", ", old_names)
                     ++ ") but the new pattern binds "
                     ++ string_of_int(List.length(new_names))
                     ++ " ("
-                    ++ String.concat(", ", new_names)
+                    ++ String.concat(~sep=", ", new_names)
                     ++ "). Keep the same number of bound names, or update the definition and body references explicitly.",
                   ),
                 );
@@ -1830,14 +1830,18 @@ module Local = {
                    occur anywhere in this binding's scope. Conservative:
                    over-rejects some shadow-safe cases. */
                 let added_names =
-                  List.filter(n => !List.mem(n, old_names), new_names);
+                  List.filter(
+                    ~f=n => !List.mem(old_names, n, ~equal=Poly.equal),
+                    new_names,
+                  );
                 let scope_root = id_of(initial_node);
                 let taken_name =
-                  List.find_opt(
-                    GeneralTreeUtils.name_occurs_within(
-                      ~root_id=scope_root,
-                      ~info_map=initial_info_map,
-                    ),
+                  List.find(
+                    ~f=
+                      GeneralTreeUtils.name_occurs_within(
+                        ~root_id=scope_root,
+                        ~info_map=initial_info_map,
+                      ),
                     added_names,
                   );
                 switch (taken_name) {
@@ -1882,7 +1886,7 @@ module Local = {
                     Error(
                       Action.Failure.Composition_action_failure(
                         "Not applying the rename: rewriting the use sites would introduce new static error(s): "
-                        ++ String.concat(", ", final_errors),
+                        ++ String.concat(~sep=", ", final_errors),
                       ),
                     );
                   } else {
@@ -2255,8 +2259,8 @@ module Local = {
           ),
         )
       | matches =>
-        let results = matches |> List.map(Selector.print_match);
-        Ok(String.concat("\n", results));
+        let results = matches |> List.map(~f=Selector.print_match);
+        Ok(String.concat(~sep="\n", results));
       };
     | GetCanonical(selector_str) =>
       let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -2297,7 +2301,7 @@ module Local = {
           "Incomplete: "
           ++ string_of_int(total)
           ++ " unfilled hole(s) ("
-          ++ String.concat(", ", parts^)
+          ++ String.concat(~sep=", ", parts^)
           ++ ").",
         );
       };
@@ -2370,7 +2374,7 @@ module Local = {
             | _ =>
               result
               ++ "\nErrors in subtree:\n"
-              ++ String.concat("\n", errors)
+              ++ String.concat(~sep="\n", errors)
             };
           Ok(result);
         };
@@ -2393,7 +2397,7 @@ module Local = {
           let ctx = Info.ctx_of(info) |> Ctx.filter_shadowed;
           let vars =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.VarEntry(ve) => Some(ve)
                  | _ => None
@@ -2401,7 +2405,7 @@ module Local = {
                );
           let constructors =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.ConstructorEntry(ve) => Some(ve)
                  | _ => None
@@ -2409,7 +2413,7 @@ module Local = {
                );
           let type_aliases =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.TVarEntry(te) => Some(te)
                  | _ => None
@@ -2429,7 +2433,7 @@ module Local = {
             | _ =>
               result
               ++ "\nVariables:\n"
-              ++ String.concat("\n", List.map(fmt_var, vars))
+              ++ String.concat(~sep="\n", List.map(~f=fmt_var, vars))
             };
           let result =
             switch (type_aliases) {
@@ -2437,7 +2441,10 @@ module Local = {
             | _ =>
               result
               ++ "\nType aliases:\n"
-              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+              ++ String.concat(
+                   ~sep="\n",
+                   List.map(~f=fmt_tvar, type_aliases),
+                 )
             };
           let result =
             switch (constructors) {
@@ -2445,7 +2452,7 @@ module Local = {
             | _ =>
               result
               ++ "\nConstructors:\n"
-              ++ String.concat("\n", List.map(fmt_var, constructors))
+              ++ String.concat(~sep="\n", List.map(~f=fmt_var, constructors))
             };
           Ok(result);
         };
@@ -2529,7 +2536,7 @@ module Local = {
             | _ =>
               result
               ++ "\nErrors in subtree:\n"
-              ++ String.concat("\n", errors)
+              ++ String.concat(~sep="\n", errors)
             };
           Ok(result);
         | GetContext(path) =>
@@ -2537,7 +2544,7 @@ module Local = {
           let ctx = Info.ctx_of(node.info) |> Ctx.filter_shadowed;
           let vars =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.VarEntry(ve) => Some(ve)
                  | _ => None
@@ -2545,7 +2552,7 @@ module Local = {
                );
           let constructors =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.ConstructorEntry(ve) => Some(ve)
                  | _ => None
@@ -2553,7 +2560,7 @@ module Local = {
                );
           let type_aliases =
             ctx.entries
-            |> List.filter_map(entry =>
+            |> List.filter_map(~f=entry =>
                  switch (entry) {
                  | Ctx.TVarEntry(te) => Some(te)
                  | _ => None
@@ -2573,7 +2580,7 @@ module Local = {
             | _ =>
               result
               ++ "\nVariables:\n"
-              ++ String.concat("\n", List.map(fmt_var, vars))
+              ++ String.concat(~sep="\n", List.map(~f=fmt_var, vars))
             };
           let result =
             switch (type_aliases) {
@@ -2581,7 +2588,10 @@ module Local = {
             | _ =>
               result
               ++ "\nType aliases:\n"
-              ++ String.concat("\n", List.map(fmt_tvar, type_aliases))
+              ++ String.concat(
+                   ~sep="\n",
+                   List.map(~f=fmt_tvar, type_aliases),
+                 )
             };
           let result =
             switch (constructors) {
@@ -2589,7 +2599,7 @@ module Local = {
             | _ =>
               result
               ++ "\nConstructors:\n"
-              ++ String.concat("\n", List.map(fmt_var, constructors))
+              ++ String.concat(~sep="\n", List.map(~f=fmt_var, constructors))
             };
           Ok(result);
         | Select(_)

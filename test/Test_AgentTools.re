@@ -2325,7 +2325,7 @@ let string_contains = (needle: string, haystack: string): bool => {
   } else {
     let found = ref(false);
     for (i in 0 to haystack_len - needle_len) {
-      if (String.sub(haystack, i, needle_len) == needle) {
+      if (String.sub(haystack, ~pos=i, ~len=needle_len) == needle) {
         found := true;
       };
     };
@@ -2434,9 +2434,9 @@ let read_action_tests = (
           bool,
           "contains error",
           true,
-          string_contains("error", String.lowercase_ascii(result))
+          string_contains("error", String.lowercase(result))
           || string_contains("Error", result)
-          || string_contains("inconsistent", String.lowercase_ascii(result)),
+          || string_contains("inconsistent", String.lowercase(result)),
         );
       },
     ),
@@ -2524,8 +2524,8 @@ let read_action_tests = (
           bool,
           "no error in result",
           false,
-          string_contains("error", String.lowercase_ascii(result))
-          && string_contains("inconsistent", String.lowercase_ascii(result)),
+          string_contains("error", String.lowercase(result))
+          && string_contains("inconsistent", String.lowercase(result)),
         );
       },
     ),
@@ -2592,7 +2592,7 @@ let seq_node_map_tests = (
         let node_map = build_node_map("let x = 1 in test x == 1 end; x");
         let top_names =
           HighLevelNodeMap.gather_top_level(node_map)
-          |> List.map((id: Id.t) =>
+          |> List.map(~f=(id: Id.t) =>
                HighLevelNodeMap.id_to_name(node_map, id)
              );
         /* gather_top_level returns IDs in source order */
@@ -2627,7 +2627,7 @@ let seq_node_map_tests = (
           build_node_map("let x = 1 in test x == 1 end; test x > 0 end; x");
         let top_names =
           HighLevelNodeMap.gather_top_level(node_map)
-          |> List.map((id: Id.t) =>
+          |> List.map(~f=(id: Id.t) =>
                HighLevelNodeMap.id_to_name(node_map, id)
              );
         check(
@@ -2699,7 +2699,7 @@ let str_contains = (haystack: string, needle: string): bool => {
   } else {
     let found = ref(false);
     for (i in 0 to hlen - nlen) {
-      if (String.sub(haystack, i, nlen) == needle) {
+      if (String.sub(haystack, ~pos=i, ~len=nlen) == needle) {
         found := true;
       };
     };
@@ -2715,7 +2715,7 @@ let mk_term = (code: string): Exp.t => {
 let selector_query = (code: string, sel: string): list(string) => {
   let term = mk_term(code);
   let matches = Selector.query(sel, term);
-  List.map(Selector.print_match, matches);
+  List.map(~f=Selector.print_match, matches);
 };
 
 let selector_query_unique = (code: string, sel: string): string => {
@@ -2902,7 +2902,8 @@ let selector_tests = (
           bool,
           "starts with ERROR",
           true,
-          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+          String.length(result) > 5
+          && String.sub(result, ~pos=0, ~len=5) == "ERROR",
         );
       },
     ),
@@ -2946,8 +2947,8 @@ let selector_tests = (
           );
         let lines =
           result
-          |> String.split_on_char('\n')
-          |> List.filter(s => String.length(String.trim(s)) > 0);
+          |> String.split(~on='\n')
+          |> List.filter(~f=s => String.length(String.strip(s)) > 0);
         check(int, "line count", 2, List.length(lines));
       },
     ),
@@ -2973,7 +2974,8 @@ let selector_tests = (
           bool,
           "not error",
           false,
-          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+          String.length(result) > 5
+          && String.sub(result, ~pos=0, ~len=5) == "ERROR",
         );
       },
     ),
@@ -3176,7 +3178,8 @@ let selector_tests = (
           bool,
           "not error",
           false,
-          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+          String.length(result) > 5
+          && String.sub(result, ~pos=0, ~len=5) == "ERROR",
         );
         check(bool, "has let", true, string_contains("let", result));
       },
@@ -3193,7 +3196,8 @@ let selector_tests = (
           bool,
           "not error",
           false,
-          String.length(result) > 5 && String.sub(result, 0, 5) == "ERROR",
+          String.length(result) > 5
+          && String.sub(result, ~pos=0, ~len=5) == "ERROR",
         );
       },
     ),
@@ -3417,7 +3421,7 @@ let selector_tests = (
             "a/a = %",
           );
         check(int, "match count", 1, List.length(results));
-        check(string, "value", "0", List.hd(results));
+        check(string, "value", "0", List.hd_exn(results));
       },
     ),
     test_case(
@@ -3427,7 +3431,7 @@ let selector_tests = (
         let results =
           selector_query("let a = (let b = 42 in b) in a", "a/b = %");
         check(int, "match count", 1, List.length(results));
-        check(string, "value", "42", List.hd(results));
+        check(string, "value", "42", List.hd_exn(results));
       },
     ),
     test_case(
@@ -3440,7 +3444,7 @@ let selector_tests = (
             "a/a/a = %",
           );
         check(int, "match count", 1, List.length(results));
-        check(string, "value", "99", List.hd(results));
+        check(string, "value", "99", List.hd_exn(results));
       },
     ),
     /* === Module/type spine uniformity === */
@@ -3543,7 +3547,7 @@ let selector_tests = (
           "starts with { let init",
           true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "{ let init",
+          && String.sub(result, ~pos=0, ~len=10) == "{ let init",
         );
       },
     ),
@@ -3558,7 +3562,7 @@ let selector_tests = (
           "starts with let result",
           true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "let result",
+          && String.sub(result, ~pos=0, ~len=10) == "let result",
         );
       },
     ),
@@ -3573,7 +3577,7 @@ let selector_tests = (
           "starts with let result",
           true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "let result",
+          && String.sub(result, ~pos=0, ~len=10) == "let result",
         );
       },
     ),
@@ -4268,7 +4272,8 @@ let selector_tests = (
           bool,
           "starts with ERROR",
           true,
-          String.length(result) >= 5 && String.sub(result, 0, 5) == "ERROR",
+          String.length(result) >= 5
+          && String.sub(result, ~pos=0, ~len=5) == "ERROR",
         );
       },
     ),
@@ -5155,7 +5160,7 @@ let canonical_tests = (
           "starts with let update",
           true,
           String.length(result) >= 10
-          && String.sub(result, 0, 10) == "let update",
+          && String.sub(result, ~pos=0, ~len=10) == "let update",
         );
       },
     ),
@@ -5169,7 +5174,7 @@ let canonical_tests = (
           "starts with let view",
           true,
           String.length(result) >= 8
-          && String.sub(result, 0, 8) == "let view",
+          && String.sub(result, ~pos=0, ~len=8) == "let view",
         );
       },
     ),
@@ -5207,7 +5212,8 @@ let canonical_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5221,7 +5227,8 @@ let canonical_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5235,7 +5242,8 @@ let canonical_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5287,7 +5295,8 @@ let canonical_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5582,7 +5591,8 @@ let gap_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5600,7 +5610,8 @@ let gap_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5618,7 +5629,8 @@ let gap_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5668,7 +5680,8 @@ let gap_tests = (
           bool,
           "not error",
           true,
-          String.length(result) < 5 || String.sub(result, 0, 5) != "ERROR",
+          String.length(result) < 5
+          || String.sub(result, ~pos=0, ~len=5) != "ERROR",
         );
       },
     ),
@@ -5809,7 +5822,8 @@ let selector_edit_tests = (
           bool,
           "error mentions no match",
           true,
-          String.length(msg) >= 8 && String.sub(msg, 0, 8) == "No match",
+          String.length(msg) >= 8
+          && String.sub(msg, ~pos=0, ~len=8) == "No match",
         )
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
@@ -5828,7 +5842,8 @@ let selector_edit_tests = (
           bool,
           "error mentions ambiguous",
           true,
-          String.length(msg) >= 9 && String.sub(msg, 0, 9) == "Ambiguous",
+          String.length(msg) >= 9
+          && String.sub(msg, ~pos=0, ~len=9) == "Ambiguous",
         )
       | Error(err) =>
         Alcotest.fail("Unexpected error: " ++ Action.Failure.show(err))
@@ -7363,7 +7378,7 @@ let find_arm_body_id_in_zipper = (z: Zipper.t, arm_idx: int): Id.t => {
         (continue, e) => {
           switch (Exp.term_of(e)) {
           | Match(_, arms) when result^ == None =>
-            switch (List.nth_opt(arms, arm_idx)) {
+            switch (List.nth(arms, arm_idx)) {
             | Some((_, body)) => result := Some(Exp.rep_id(body))
             | None => ()
             };
@@ -7677,7 +7692,7 @@ let find_list_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
         (continue, e) => {
           switch (Exp.term_of(e)) {
           | ListLit(elements) when result^ == None =>
-            switch (List.nth_opt(elements, idx)) {
+            switch (List.nth(elements, idx)) {
             | Some(el) => result := Some(Exp.rep_id(el))
             | None => ()
             };
@@ -7825,7 +7840,7 @@ let find_tuple_element_id_in_zipper = (z: Zipper.t, idx: int): Id.t => {
         (continue, e) => {
           switch (Exp.term_of(e)) {
           | Tuple(elements) when result^ == None =>
-            switch (List.nth_opt(elements, idx)) {
+            switch (List.nth(elements, idx)) {
             | Some(el) => result := Some(Exp.rep_id(el))
             | None => ()
             };

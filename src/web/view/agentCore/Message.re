@@ -347,7 +347,7 @@ module Utils = {
        path-based, not cursor-based. This may be unnecessary noise.
        Consider gating on relevance or removing for path-based agents. */
     let cursor_context_block =
-      switch (String.trim(cursor_context_content)) {
+      switch (String.strip(cursor_context_content)) {
       | "" => ""
       | s => "\n<cursorContext>\n" ++ s ++ "\n</cursorContext>\n"
       };

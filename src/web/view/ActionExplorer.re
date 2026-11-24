@@ -250,14 +250,15 @@ module View = {
     select(
       ~attrs=[Attr.class_(clss), Attr.on_change((_, v) => on_change(v))],
       List.map(
-        ((v, label)) =>
-          option(
-            ~attrs=[
-              Attr.value(v),
-              Attr.bool_property("selected", v == value),
-            ],
-            [text(label)],
-          ),
+        ~f=
+          ((v, label)) =>
+            option(
+              ~attrs=[
+                Attr.value(v),
+                Attr.bool_property("selected", String.equal(v, value)),
+              ],
+              [text(label)],
+            ),
         options,
       ),
     );

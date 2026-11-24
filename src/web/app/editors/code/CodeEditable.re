@@ -480,13 +480,14 @@ module View = {
       Node.div(
         ~attrs=[Attr.class_("action-highlights")],
         List.concat_map(
-          id =>
-            Highlight.color(
-              ~syntax,
-              ~font_metrics=globals.font_metrics,
-              ["action-explorer-match"],
-              id,
-            ),
+          ~f=
+            id =>
+              Highlight.color(
+                ~syntax,
+                ~font_metrics=globals.font_metrics,
+                ["action-explorer-match"],
+                id,
+              ),
           globals.action_highlights,
         ),
       ),

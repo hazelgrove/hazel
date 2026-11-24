@@ -568,30 +568,30 @@ let rec build_children =
          Names are prefixed with | (e.g. "|A", "|Some(x)").
          Arm bodies become siblings of each other and children of the
          enclosing node (same path level as the Match). */
-      List.fold_left(
-        (node_map, (pat, body)) => {
+      List.fold(
+        arms,
+        ~init=node_map,
+        ~f=(node_map, (pat, body)) => {
           let body_info = exp_to_info(body);
           let arm_path = path @ [Info.id_of(body_info)];
           let name = "|" ++ Namer.mk_name_from_pat(pat);
           let node_map = init_node_named(body_info, name, arm_path, node_map);
           build_children(body_info, arm_path, node_map, info_map);
         },
-        node_map,
-        arms,
       )
     | ListLit(elements) =>
       /* List elements: create a node for each element, named by index.
          Names are [0], [1], [2], etc. */
-      List.fold_left(
-        (node_map, (idx, el)) => {
+      List.fold(
+        List.mapi(~f=(i, el) => (i, el), elements),
+        ~init=node_map,
+        ~f=(node_map, (idx, el)) => {
           let el_info = exp_to_info(el);
           let el_path = path @ [Info.id_of(el_info)];
           let name = "[" ++ string_of_int(idx) ++ "]";
           let node_map = init_node_named(el_info, name, el_path, node_map);
           build_children(el_info, el_path, node_map, info_map);
         },
-        node_map,
-        List.mapi((i, el) => (i, el), elements),
       )
     | Tuple(elements) =>
       /* Tuple elements: create a node for each element. Labeled tuple
@@ -599,37 +599,35 @@ let rec build_children =
          Skip trivial re-export elements (TupLabel(Label(s), Var(s)))
          that appear in module expansion tuples — these are already
          represented by their Let/TyAlias nodes in the chain above. */
-      List.fold_left(
-        (node_map, (idx, el)) => {
-          switch (Exp.term_of(el)) {
-          | TupLabel(label, value) =>
-            switch (Exp.term_of(label), Exp.term_of(value)) {
-            | (Label(s1), Var(s2)) when String.equal(s1, s2) =>
-              /* Module re-export binding (a=a) — skip, already a node */
-              node_map
-            | _ =>
-              let el_info = exp_to_info(el);
-              let el_path = path @ [Info.id_of(el_info)];
-              let name =
-                switch (Exp.term_of(label)) {
-                | Label(s) => s
-                | _ => "(" ++ string_of_int(idx) ++ ")"
-                };
-              let node_map =
-                init_node_named(el_info, name, el_path, node_map);
-              build_children(el_info, el_path, node_map, info_map);
-            }
+      List.fold(
+        List.mapi(~f=(i, el) => (i, el), elements),
+        ~init=node_map,
+        ~f=(node_map, (idx, el)) => {
+        switch (Exp.term_of(el)) {
+        | TupLabel(label, value) =>
+          switch (Exp.term_of(label), Exp.term_of(value)) {
+          | (Label(s1), Var(s2)) when String.equal(s1, s2) =>
+            /* Module re-export binding (a=a) — skip, already a node */
+            node_map
           | _ =>
             let el_info = exp_to_info(el);
             let el_path = path @ [Info.id_of(el_info)];
-            let name = "(" ++ string_of_int(idx) ++ ")";
+            let name =
+              switch (Exp.term_of(label)) {
+              | Label(s) => s
+              | _ => "(" ++ string_of_int(idx) ++ ")"
+              };
             let node_map = init_node_named(el_info, name, el_path, node_map);
             build_children(el_info, el_path, node_map, info_map);
           }
-        },
-        node_map,
-        List.mapi((i, el) => (i, el), elements),
-      )
+        | _ =>
+          let el_info = exp_to_info(el);
+          let el_path = path @ [Info.id_of(el_info)];
+          let name = "(" ++ string_of_int(idx) ++ ")";
+          let node_map = init_node_named(el_info, name, el_path, node_map);
+          build_children(el_info, el_path, node_map, info_map);
+        }
+      })
     | Module(items) =>
       /* Module literal: members become nodes at this path (children of the
          enclosing binding). Statics checks module literals by expansion
@@ -644,14 +642,15 @@ let rec build_children =
          (ModLet/ModType/ModuleMod); ModExp items after it appear as
          "{wild}" nodes. */
       let first_named_item =
-        List.find_opt(
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModLet(_, _)
-            | ModType(_, _)
-            | ModuleMod(_, _) => true
-            | _ => false
-            },
+        List.find(
+          ~f=
+            (item: Mod.t) =>
+              switch (item.term) {
+              | ModLet(_, _)
+              | ModType(_, _)
+              | ModuleMod(_, _) => true
+              | _ => false
+              },
           items,
         );
       switch (first_named_item) {
@@ -736,8 +735,10 @@ let gather_top_level = (node_map: t): list(Id.t) => {
        | None => Some((id, node.sibling_idx))
        }
      })
-  |> List.sort(((_, idx_a), (_, idx_b)) => Int.compare(idx_a, idx_b))
-  |> List.map(fst);
+  |> List.sort(~compare=((_, idx_a), (_, idx_b)) =>
+       Int.compare(idx_a, idx_b)
+     )
+  |> List.map(~f=fst);
 };
 
 type path_segment =
@@ -749,7 +750,9 @@ let parse_segment = (s: string): path_segment =>
   if (s == "$") {
     FinalExpr;
   } else if (String.length(s) > 1 && s.[0] == '#') {
-    switch (int_of_string_opt(String.sub(s, 1, String.length(s) - 1))) {
+    switch (
+      int_of_string_opt(String.sub(s, ~pos=1, ~len=String.length(s) - 1))
+    ) {
     | Some(n) => Index(n)
     | None => Name(s)
     };
@@ -765,7 +768,7 @@ let split_path = (path: string): list(string) => {
 };
 
 let parse_path = (path: string): list(path_segment) => {
-  split_path(path) |> List.map(parse_segment);
+  split_path(path) |> List.map(~f=parse_segment);
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
@@ -803,11 +806,11 @@ let nodes_at_level = (node_map: t, parent_id: option(Id.t)): list(node) => {
     | [first_id, ..._] =>
       let first_node = find(node_map, first_id);
       if (List.length(first_node.siblings) > 0) {
-        List.map((id: Id.t) => find(node_map, id), first_node.siblings);
+        List.map(~f=(id: Id.t) => find(node_map, id), first_node.siblings);
       } else {
         /* Fallback: just return top-level nodes (unordered) */
         List.map(
-          (id: Id.t) => find(node_map, id),
+          ~f=(id: Id.t) => find(node_map, id),
           top_level_ids,
         );
       };
@@ -829,8 +832,8 @@ let resolve_path = (node_map: t, segments: list(path_segment)): option(Id.t) => 
       let found =
         switch (seg) {
         | Name(name) =>
-          List.find_opt((n: node) => String.equal(n.name, name), candidates)
-        | Index(idx) => List.nth_opt(candidates, idx)
+          List.find(~f=(n: node) => String.equal(n.name, name), candidates)
+        | Index(idx) => List.nth(candidates, idx)
         | FinalExpr => ListUtil.last_opt(candidates)
         };
       switch (found) {
@@ -1045,7 +1048,7 @@ let path_to_id = (node_map: t, path: string): Id.t => {
   switch (matches, occurrence) {
   | ([], _) when resolve_path(node_map, parse_path(path)) != None =>
     /* Structured form (#n index, $ final binding) */
-    Option.get(resolve_path(node_map, parse_path(path)))
+    Option.value_exn(resolve_path(node_map, parse_path(path)))
   | ([], _) =>
     let closest = closest_valid_path_to_ill_path(node_map, base);
     let suffix_hint =

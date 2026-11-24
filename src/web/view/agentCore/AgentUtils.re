@@ -121,7 +121,7 @@ let format_cursor_context =
     let synthesized = ErrorPrint.Print.typ(ty);
     let ctx_entries =
       Language.Ctx.filter_shadowed(ctx).entries
-      |> List.filter_map((entry: Language.Ctx.entry) =>
+      |> List.filter_map(~f=(entry: Language.Ctx.entry) =>
            switch (entry) {
            | VarEntry({name, typ, _}) =>
              Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
@@ -137,7 +137,7 @@ let format_cursor_context =
           List.length(entries) > 10
             ? " (+" ++ string_of_int(List.length(entries) - 10) ++ " more)"
             : "";
-        String.concat(", ", shown) ++ suffix;
+        String.concat(~sep=", ", shown) ++ suffix;
       };
     "Expected type: "
     ++ expected
@@ -149,7 +149,7 @@ let format_cursor_context =
     let expected = ErrorPrint.Print.typ(ana);
     let ctx_entries =
       Language.Ctx.filter_shadowed(ctx).entries
-      |> List.filter_map((entry: Language.Ctx.entry) =>
+      |> List.filter_map(~f=(entry: Language.Ctx.entry) =>
            switch (entry) {
            | ConstructorEntry({name, typ, _}) =>
              Some(name ++ " : " ++ ErrorPrint.Print.typ(typ))
@@ -159,7 +159,7 @@ let format_cursor_context =
     let ctors_str =
       switch (ctx_entries) {
       | [] => "none"
-      | entries => String.concat(", ", Util.ListUtil.take(10, entries))
+      | entries => String.concat(~sep=", ", Util.ListUtil.take(10, entries))
       };
     "Pattern expected type: "
     ++ expected
