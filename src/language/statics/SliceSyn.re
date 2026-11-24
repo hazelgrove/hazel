@@ -747,10 +747,16 @@ and syn_typ_ap = (env: env, e: Exp.t, fn: Exp.t, arg: Typ.t, query: Typ.t): t =>
               f_body,
             )
           : inlined;
+  let dropped = SliceQuery.omit_typ(ctx, arg_query, arg);
   {
     kept: f.kept,
-    omitted: union(f.omitted, SliceQuery.omit_typ(ctx, arg_query, arg)),
-    gamma: f.gamma,
+    omitted: union(f.omitted, dropped),
+    gamma:
+      SliceGamma.join(
+        ctx,
+        f.gamma,
+        alias_demands(ctx, ~omitted=dropped, arg_query, arg),
+      ),
     psi,
   };
 }

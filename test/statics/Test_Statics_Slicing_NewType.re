@@ -94,7 +94,14 @@ let tests = (
       "nominal-brand-only",
       three,
       "App(Eval, ?)",
-      {|type App(?, ?) = ? in type ? = ? in let three:(poly F -> App(F, ?)) = ? in three @< Eval >|},
+      {|type App(?, ?) = ? in type Eval = ? in let three:(poly F -> App(F, ?)) = ? in three @< Eval >|},
+    ),
+    synthesis_case(
+      ~focus=use_of("m"),
+      "nominal-multi-binder-type-args",
+      "type M(C) = + M(Int) in type G = + G in type Q(D, S) = + Q(Int) in type Db = + Db in let s : poly D, R, S -> Int -> Q(D, S) = ? in let m = s@<Db, Int, (a = String, b = M(G))>(1) in m",
+      "Q(Db, (a = String, b = M(G)))",
+      {|type M(?) = ? in type G = ? in type Q(?, ?) = ? in type Db = ? in let s:(poly D, R, S -> ? -> Q(D, S)) = ? in let m = s @< Db, ?, (a=String, b=M(G)) > (?) in m|},
     ),
   ],
 );
