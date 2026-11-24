@@ -59,7 +59,7 @@ let rec reuse_pass_for =
         : IncrEval.t(EvaluatorState.t) => {
   let id = DHExp.rep_id(d);
   switch (reusable_entry(~prev, ~eval_info, ~reuse_map, d)) {
-  | Some(entry) => {entries: Id.Map.add(id, entry, Id.Map.empty)}
+  | Some(entry) => IncrEval.add_entry(id, entry, IncrEval.empty)
   | None =>
     let (req_stream, rule) =
       ReusePassTransition.transition(

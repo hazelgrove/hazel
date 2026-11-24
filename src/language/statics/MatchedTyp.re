@@ -1,5 +1,6 @@
 /*
-   Matched type judgements (▷): extract expected shapes from types after WHNF.
+   Matched type judgements (▷): extract expected shapes from types after WHNF,
+   with a recursive type unrolled so that its shape is its unrolling's.
    Prefer these over ad hoc `Typ.term_of` switches — parens, unknowns, SynSwitch.
  */
 
@@ -7,8 +8,39 @@ open Util;
 open Either;
 open Typ;
 
+/* [ty] in weak head normal form, a recursive type unrolled. A self-loop has
+   no unrolling and stays a Rec, which has no shape. */
+let head = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let ty = weak_head_normalize(ctx, ty);
+  switch (term_of(ty)) {
+  | Rec(_) =>
+    switch (unroll(ty)) {
+    | Some(ty) => weak_head_normalize(ctx, ty)
+    | None => ty
+    }
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => ty
+  };
+};
+
 let rec arrow = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
+  switch (term_of(head(ctx, ty))) {
   | Parens(ty) => arrow(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
@@ -23,7 +55,7 @@ let arrow_tolerant = (ctx, ty) =>
      );
 
 let rec poly_pair = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
+  switch (term_of(head(ctx, ty))) {
   | Parens(ty) => poly_pair(ctx, ty)
   | Poly(t, ty) => Some((Some(t), ty))
   | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
@@ -39,7 +71,7 @@ let rec prod_strict:
     (Ctx.t, list(a), a => option((string, a)), Typ.t, (string, a) => a) =>
     (list(a), option(list(Typ.t))) =
   (ctx: Ctx.t, es, get_label_es, ty: Typ.t, constructor) => {
-    switch (term_of(weak_head_normalize(ctx, ty))) {
+    switch (term_of(head(ctx, ty))) {
     | Parens(ty) => prod_strict(ctx, es, get_label_es, ty, constructor)
     | Prod(tys: list(Typ.t)) =>
       if (List.length(es) != List.length(tys)) {
@@ -76,7 +108,7 @@ let prod = (ctx, es, get_label_es, ty, constructor) => {
 };
 
 let rec list_strict = (ctx, ty) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
+  switch (term_of(head(ctx, ty))) {
   | Parens(ty) => list_strict(ctx, ty)
   | List(ty) => Some(ty)
   | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
@@ -87,7 +119,7 @@ let list_tolerant = (ctx, ty) =>
   list_strict(ctx, ty) |> Option.value(~default=Unknown(Internal) |> temp);
 
 let rec args = (ctx, ty, arity): Either.t('a, int) => {
-  switch (term_of(weak_head_normalize(ctx, ty))) {
+  switch (term_of(head(ctx, ty))) {
   | Parens(ty) => args(ctx, ty, arity)
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
@@ -98,7 +130,7 @@ let rec args = (ctx, ty, arity): Either.t('a, int) => {
 };
 
 let label = (ctx, ty): option((Typ.t, Typ.t)) =>
-  switch (term_of(weak_head_normalize(ctx, ty))) {
+  switch (term_of(head(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))

@@ -379,9 +379,20 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
-let wants_incremental = (req_value: Evaluation.value): bool =>
+let incremental_min_prev_steps = 100_000;
+
+let wants_incremental =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Evaluation.value)
+    : bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
-  >= incremental_min_statics;
+  >= incremental_min_statics
+  || prev.steps >= incremental_min_prev_steps;
+
+/* the cache an evaluation starts from: the resident one, if the gate wants it */
+let gated_prev = (~key: key, req_value: Evaluation.value) => {
+  let prev = resolve_prev(~key, req_value.prev);
+  wants_incremental(~prev, req_value) ? prev : Language.IncrEval.empty;
+};
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -393,14 +404,15 @@ let planned_reuse:
   ref([]);
 
 let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
-  let Evaluation.{expr, eval_info_map, prev, _} = req_value;
+  let Evaluation.{expr, eval_info_map, _} = req_value;
+  let prev = gated_prev(~key, req_value);
   let stream =
-    if (!wants_incremental(req_value)) {
+    if (Language.IncrEval.is_empty(prev)) {
       Language.IncrEval.empty;
     } else {
       switch (
         Language.ReusePass.reuse_pass(
-          ~prev=resolve_prev(~key, prev),
+          ~prev,
           ~eval_info=eval_info_map,
           ~env=Language.Builtins.env_init,
           expr,
@@ -446,7 +458,7 @@ let current_stream_interest: ref(Request.stream_interest) =
 
 let start_evaluation =
     (~key: key, req_value: Evaluation.value): evaluation_start => {
-  let Evaluation.{expr, eval_info_map, prev, stream} = req_value;
+  let Evaluation.{expr, eval_info_map, stream, _} = req_value;
   current_stream_interest := stream;
   let planned = take_planned_reuse(expr);
   /* stream cadence scales with program size: each posted chunk costs
@@ -461,9 +473,7 @@ let start_evaluation =
     );
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev=
-        wants_incremental(req_value)
-          ? resolve_prev(~key, prev) : Language.IncrEval.empty,
+      ~prev=gated_prev(~key, req_value),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
       ~reuse_stream=?planned,
@@ -533,6 +543,7 @@ let slim_entries =
           },
         incr.entries,
       ),
+    steps: incr.steps,
   };
 let slim_stream_update =
     (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
@@ -592,6 +603,7 @@ let filter_stream_interest =
   | Effects =>
     Language.IncrEval.{
       completed: {
+        ...u.completed,
         entries:
           Util.Id.Map.filter(
             (_, e) => entry_has_effects(e),

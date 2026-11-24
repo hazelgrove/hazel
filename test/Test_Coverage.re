@@ -15,6 +15,8 @@ let equal_issue_for_coverage =
     (a: Test_Statics_Prelude.issue, b: Test_Statics_Prelude.issue): bool =>
   switch (a, b) {
   | (Marks(xs), Marks(ys)) => List.equal(equal_mark_for_coverage, xs, ys)
+  | (Warnings(_), _)
+  | (_, Warnings(_)) => equal_issue(a, b)
   };
 
 let equal_errors_map_coverage = Id.Map.equal(equal_issue_for_coverage);

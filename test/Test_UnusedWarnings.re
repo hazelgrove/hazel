@@ -28,9 +28,144 @@ let check_unused = (name, input, expected_unused) =>
     },
   );
 
+/* The theorem pattern `t`'s own Info, from statics of `input`. */
+let theorem_binder = (input, name): Info.pat => {
+  let found =
+    Id.Map.fold(
+      (_id, info: Info.t, acc) =>
+        switch (info) {
+        | InfoPat({user_term: {term: Var(n), _}, _} as p) when n == name =>
+          Some(p)
+        | _ => acc
+        },
+      statics(parse_exp(input)),
+      None,
+    );
+  switch (found) {
+  | Some(p) => p
+  | None => fail("no pattern info for " ++ name)
+  };
+};
+
 let tests = (
   "Unused Variable Warnings",
   [
+    check_unused(
+      "theorem: declaration needs no reference",
+      "theorem t = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: referenced declaration",
+      "theorem t = true in t",
+      [],
+    ),
+    check_unused(
+      "theorem: shadowed declarations",
+      "theorem t = true in theorem t = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: invalid pattern bindings are exempt too",
+      "theorem (x, y) = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: ordinary bindings still warn",
+      "let x = 1 in theorem t = true in fun y -> 0",
+      ["x", "y"],
+    ),
+    check_unused(
+      "theorem: exemption does not use an outer binding",
+      "let t = 1 in theorem t = true in 0",
+      ["t"],
+    ),
+    check_unused(
+      "theorem: statement uses outer binding",
+      "let x = 1 in theorem t = x == x in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: statement uses outer binding (invalid pattern)",
+      "let x = 1 in theorem (a, b) = x == x in 0",
+      [],
+    ),
+    test_case(
+      "theorem: exemption does not record its name as a use",
+      `Quick,
+      () => {
+        let t = theorem_binder("theorem t = true in 0", "t");
+        check(
+          bool,
+          "t is not in its own co_ctx",
+          false,
+          CoCtx.has_any(t.co_ctx, ["t"]),
+        );
+      },
+    ),
+    test_case(
+      "theorem: binder's info has the proof type",
+      `Quick,
+      () => {
+        let t = theorem_binder("theorem t = true in t", "t");
+        check(
+          bool,
+          "t : ProofOf(...)",
+          true,
+          switch (Typ.term_of(t.ty)) {
+          | ProofOf(_) => true
+          | _ => false
+          },
+        );
+      },
+    ),
+    check_unused("forall: used binder", "forall (x : Int) -> x == x", []),
+    check_unused("forall: unused binder", "forall (x : Int) -> true", ["x"]),
+    check_unused(
+      "forall: tuple partial use",
+      "forall (x : Int, y : Int) -> x == x",
+      ["y"],
+    ),
+    check_unused(
+      "forall: nested binders both used",
+      "forall (x : Int) -> forall (y : Int) -> x == y",
+      [],
+    ),
+    check_unused(
+      "forall: nested unused inner binder",
+      "forall (x : Int) -> forall (y : Int) -> x == x",
+      ["y"],
+    ),
+    check_unused(
+      "forall: shadowed outer binder unused",
+      "forall (x : Int) -> forall (x : Int) -> x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: both shadowed binders unused",
+      "forall (x : Int) -> forall (x : Int) -> true",
+      ["x", "x"],
+    ),
+    check_unused(
+      "forall: let shadows binder",
+      "forall (x : Int) -> let x = 1 in x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: bound use does not escape",
+      "let x = 1 in forall (x : Int) -> x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: free use reaches outer binding",
+      "let x = 1 in forall (y : Int) -> x == y",
+      [],
+    ),
+    check_unused(
+      "forall: hole suppresses warning",
+      "forall (x : Int) -> ?",
+      [],
+    ),
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        LET BINDINGS
        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
