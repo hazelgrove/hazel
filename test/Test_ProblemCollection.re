@@ -298,7 +298,7 @@ let error_arms_inside_fold = () => {
     Haz3lcore.CachedStatics.init(
       ~settings=Language.CoreSettings.on,
       ~is_dynamic_term=false,
-      ~stitch=Fun.id,
+      ~stitch=Fn.id,
       ~root=Exp,
       editor.state.zipper,
     );
@@ -306,9 +306,8 @@ let error_arms_inside_fold = () => {
     bool,
     "an error id is not measured",
     true,
-    List.exists(
-      id => Haz3lcore.Measured.find_by_id(id, editor.syntax.measured) == None,
-      statics.error_ids,
+    List.exists(statics.error_ids, ~f=id =>
+      Haz3lcore.Measured.find_by_id(id, editor.syntax.measured) == None
     ),
   );
   let arms = (~simple_indication) =>
