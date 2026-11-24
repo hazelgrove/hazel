@@ -1307,3 +1307,13 @@
   position: static;
   display: inline-block;
 }
+
+/* a run under way: the ⇓ drawer still shows the last run's, dimmed after
+   the usual delay */
+.below-wrapper .program-value {
+  transition: opacity 0.2s linear;
+}
+.cell.running .below-wrapper .program-value {
+  opacity: 0.5;
+  transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
+}

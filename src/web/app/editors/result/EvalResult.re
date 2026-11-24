@@ -17,6 +17,14 @@ module Model = {
     | Stepper(StepperView.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type settled = {
+    failed: option(ProgramResult.error),
+    /* the program's value, when it ran */
+    value: option(Exp.t),
+    probes: Sample.Map.t,
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_settings: Calc.saved(CoreSettings.t),
     elab: Calc.saved(Exp.t),
@@ -30,9 +38,9 @@ module Model = {
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
-    /* the last finished run (Some(None): it ran, Some(Some(e)): it
-       failed), which the status line keeps while the next one runs */
-    settled: option(option(ProgramResult.error)),
+    /* the last finished run, which the status line and the ⇓ drawer
+       keep while the next one runs */
+    settled: option(settled),
     display,
     theorems: Theorems.Model.t,
     /* a probe drawer's stepper over one of its samples */
@@ -62,17 +70,27 @@ module Model = {
     probe_steps: None,
   };
 
-  /* what a run's result leaves for the status line: a finished run
-     replaces the last one, a pending one keeps it */
+  /* a finished run replaces the last one; a pending one keeps it */
   let settle =
       (
-        settled: option(option(ProgramResult.error)),
-        r: ProgramResult.t('a),
+        settled: option(settled),
+        r: ProgramResult.t(Exp.t),
+        probes: Sample.Map.t,
       )
-      : option(option(ProgramResult.error)) =>
+      : option(settled) =>
     switch (r) {
-    | ResultOk(_) => Some(None)
-    | ResultFail(err) => Some(Some(err))
+    | ResultOk(value) =>
+      Some({
+        failed: None,
+        value: Some(value),
+        probes,
+      })
+    | ResultFail(err) =>
+      Some({
+        failed: Some(err),
+        value: None,
+        probes,
+      })
     | ResultPending(_) => settled
     };
 
@@ -121,11 +139,39 @@ module Model = {
     |> Calc.get_saved(None)
     |> Option.map(~f=(d: Dynamics.t) => d.test_results);
 
-  let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
+  let has_samples = (id: Id.t, probes: Sample.Map.t): bool =>
+    switch (Dynamics.Map.lookup(id, Dynamics.Map.mk(probes))) {
+    | Some([_, ..._]) => true
+    | _ => false
     };
+
+  /* memoised so views cached on the map's identity stay cached */
+  let kept_tail_memo:
+    ref(option((Id.t, Sample.Map.t, Sample.Map.t, Sample.Map.t))) =
+    ref(None);
+
+  /* the ⇓ probe ([tail]) gets its value last: until this run has it,
+     it keeps the last finished run's */
+  let dynamics = (~tail: option(Id.t)=None, model: t): Dynamics.Map.t => {
+    let probes =
+      probe_results(model) |> Option.value(~default=Sample.Map.empty);
+    switch (tail, model.settled) {
+    | (Some(id), Some({probes: last, _}))
+        when !has_samples(id, probes) && has_samples(id, last) =>
+      switch (kept_tail_memo^) {
+      | Some((id', probes', last', kept))
+          when
+            Id.equal(id, id')
+            && phys_equal(probes, probes')
+            && phys_equal(last, last') => kept
+      | _ =>
+        let kept = Id.Map.add(id, Id.Map.find(id, last), probes);
+        kept_tail_memo := Some((id, probes, last, kept));
+        kept;
+      }
+    | _ => Dynamics.Map.mk(probes)
+    };
+  };
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
     model.predicted_reuse;
@@ -137,17 +183,24 @@ module Model = {
     | Stuck(Exp.t)
     | Failed(ProgramResult.error);
 
+  /* as of the last finished run, until this one gets a value there */
   let stopped = (~tail: option(Id.t), model: t): option(stop) =>
-    switch (tail, Calc.get_value(model.result)) {
-    | (None, _)
-    | (_, ResultPending(_)) => None
-    | (Some(id), result) =>
-      switch (Dynamics.Map.lookup(id, dynamics(model)), result) {
-      | (Some([_, ..._]), _)
-      | (_, ResultPending(_)) => None
-      | (_, ResultOk({result: exp, _})) => Some(Stuck(exp))
-      | (_, ResultFail(err)) => Some(Failed(err))
+    switch (tail, model.settled) {
+    | (Some(id), Some(s))
+        when
+          !has_samples(id, s.probes)
+          && !
+               has_samples(
+                 id,
+                 probe_results(model)
+                 |> Option.value(~default=Sample.Map.empty),
+               ) =>
+      switch (s.failed, s.value) {
+      | (Some(err), _) => Some(Failed(err))
+      | (None, Some(exp)) => Some(Stuck(exp))
+      | (None, None) => None
       }
+    | _ => None
     };
 
   /* the drawer's view cache keys on the probe's samples, which a stopped
@@ -598,7 +651,19 @@ module Update = {
       streaming_outbox: streaming_outbox |> Calc.save,
       streaming_state: streaming_state |> Calc.save,
       pending_eval_ids,
-      settled: Model.settle(settled, Calc.get_value(result)),
+      settled:
+        Model.settle(
+          settled,
+          switch (Calc.get_value(result)) {
+          | ResultOk({result, _}) => ResultOk(result)
+          | ResultFail(err) => ResultFail(err)
+          | ResultPending(phase) => ResultPending(phase)
+          },
+          Calc.get_value(dynamics)
+          |> Option.value_map(~default=Sample.Map.empty, ~f=(d: Dynamics.t) =>
+               d.probe_map
+             ),
+        ),
       display,
       theorems,
       probe_steps,
@@ -814,11 +879,19 @@ module View = {
       : Node.t => {
     let result = Calc.get_value(model.result);
     let (mark, msg, outcome) =
-      switch (Model.settle(model.settled, result)) {
+      switch (model.settled) {
       | None => ("", {js|Running…|js}, "pending")
-      | Some(None) when stopped => ("!", "Stopped early", "stuck")
-      | Some(None) => ({js|✓|js}, "Ran", "ok")
-      | Some(Some(err)) => ({js|✗|js}, error_msg(err), "fail")
+      | Some({failed: None, _}) when stopped => (
+          "!",
+          "Stopped early",
+          "stuck",
+        )
+      | Some({failed: None, _}) => ({js|✓|js}, "Ran", "ok")
+      | Some({failed: Some(err), _}) => (
+          {js|✗|js},
+          error_msg(err),
+          "fail",
+        )
       };
     let running =
       switch (result) {

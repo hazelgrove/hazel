@@ -145,7 +145,11 @@ module Update = {
         ~statics_mode,
         ~stitch,
         ~ana?,
-        ~dynamics=EvalResult.Model.dynamics(result),
+        ~dynamics=
+          EvalResult.Model.dynamics(
+            ~tail=editor.editor.state.zipper.refractors.tail_target,
+            result,
+          ),
         ~is_dynamic_term=false,
         editor,
       );
@@ -200,7 +204,11 @@ module Update = {
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~stitch,
           ~ana?,
-          ~dynamics=EvalResult.Model.dynamics(result),
+          ~dynamics=
+            EvalResult.Model.dynamics(
+              ~tail=editor.editor.state.zipper.refractors.tail_target,
+              result,
+            ),
           ~is_dynamic_term=false,
           editor,
         );
@@ -359,7 +367,15 @@ module View = {
           )
       );
     div(
-      ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
+      ~attrs=[
+        Attr.classes(
+          ["cell", locked ? "locked" : "unlocked"]
+          /* dims what the ⇓ drawer kept from the last run */
+          @ (
+            EvalResult.Model.eval_is_pending(model.result) ? ["running"] : []
+          ),
+        ),
+      ],
       Option.to_list(caption)
       @ [
         CodeEditable.View.view(
@@ -401,7 +417,11 @@ module View = {
           ~overlays=overlays(model.editor.editor),
           ~lines,
           ~cull,
-          ~dynamics=EvalResult.Model.dynamics(model.result),
+          ~dynamics=
+            EvalResult.Model.dynamics(
+              ~tail=model.editor.editor.state.zipper.refractors.tail_target,
+              model.result,
+            ),
           ~predicted_reuse=EvalResult.Model.predicted_reuse(model.result),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
