@@ -60,6 +60,9 @@ type t =
   | DotOperatorRequiresTuple
   | TupleExtensionRequiresTuples
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  /* Positional tuple access out of bounds.
+     Carries (index_given, tuple_length). */
+  | TupleIndexOutOfBounds(int, int)
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)

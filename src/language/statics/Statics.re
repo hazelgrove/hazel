@@ -1415,6 +1415,44 @@ and uexp_to_info_map =
               m,
             )
           };
+        | Atom(Int(idx_big)) =>
+          /* Positional tuple access: x.0, x.1, ... */
+          let len = List.length(ts);
+          switch (Bigint.to_int(idx_big)) {
+          | Some(i) when i >= 0 && i < len =>
+            let element_ty =
+              switch (List.nth_exn(ts, i) |> Typ.term_of) {
+              | TupLabel(_, inner) => inner
+              | _ => List.nth_exn(ts, i)
+              };
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=element_ty,
+              ~marks=[],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              m,
+            );
+          | Some(i) =>
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~marks=[TupleIndexOutOfBounds(i, len)],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              m,
+            )
+          | None =>
+            /* Index too large to fit in OCaml int — treat as OOB */
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~marks=[TupleIndexOutOfBounds(Int.max_value, len)],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              m,
+            )
+          };
         | EmptyHole =>
           add(
             ~elab_term=dot_elab,
@@ -1464,6 +1502,42 @@ and uexp_to_info_map =
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               ~probe_targets=dot_probe_targets,
+              m,
+            )
+          };
+        | Atom(Int(idx_big)) =>
+          let len = List.length(ts);
+          switch (Bigint.to_int(idx_big)) {
+          | Some(i) when i >= 0 && i < len =>
+            let element_ty =
+              switch (List.nth_exn(ts, i) |> Typ.term_of) {
+              | TupLabel(_, inner) => inner
+              | _ => List.nth_exn(ts, i)
+              };
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=List(element_ty) |> Typ.fresh,
+              ~marks=[],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              m,
+            );
+          | Some(i) =>
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~marks=[TupleIndexOutOfBounds(i, len)],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              m,
+            )
+          | None =>
+            add(
+              ~elab_term=dot_elab,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~marks=[TupleIndexOutOfBounds(Int.max_value, len)],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
               m,
             )
           };
