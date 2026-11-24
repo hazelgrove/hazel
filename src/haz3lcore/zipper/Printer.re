@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 let remove_projector: Piece.t => Segment.t =
   fun
@@ -68,9 +69,9 @@ let of_segment =
        ~refractor_seg_to_seg,
        ~projector_to_segment,
      )
-  |> String.split_on_char('\n')
+  |> String.split(~on='\n')
   |> add_caret(~caret, ~selection_anchor)
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 let selected_text = (~holes=" ", ~refractors=[], z: Zipper.t): string => {
   let full = of_segment(~holes, ~refractors, z.selection.content);
@@ -93,11 +94,11 @@ let of_zipper =
    * we must recalculate the measured after removing projectors */
   let measured = measured_no_projectors(segment);
   let caret =
-    Option.map(char => (char, Zipper.Caret.point(measured, z)), caret);
+    Option.map(~f=char => (char, Zipper.Caret.point(measured, z)), caret);
   let selection_anchor =
-    Option.bind(selection_anchor, char =>
+    Option.bind(selection_anchor, ~f=char =>
       Zipper.selection_anchor_point(measured, z)
-      |> Option.map(pt => (char, pt))
+      |> Option.map(~f=pt => (char, pt))
     );
 
   of_segment(

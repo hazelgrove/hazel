@@ -83,7 +83,7 @@ let dynamic_typ_test = (name: string, code: string, expected: option(string)) =>
         option(testable_typ_string),
         name,
         expected,
-        Option.map(typ_to_string, result),
+        Option.map(~f=typ_to_string, result),
       );
     },
   );
@@ -137,7 +137,7 @@ in [f(true), f(false)]|},
         ~ctx=Builtins.ctx_init(Some(Int)),
         [],
       )
-      |> Option.map(typ_to_string),
+      |> Option.map(~f=typ_to_string),
     )
   }),
 ];
@@ -222,8 +222,8 @@ let uncoloured_tiles_test = (name: string, code: string) =>
         "tiles of a wholly runtime-derived type left uncoloured",
         [],
         Test_TypToSegment.tile_ids(seg)
-        |> List.filter(id => !Id.Set.mem(id, dynamic_ids))
-        |> List.map(id => Id.str8(id)),
+        |> List.filter(~f=id => !Id.Set.mem(id, dynamic_ids))
+        |> List.map(~f=id => Id.str8(id)),
       );
     },
   );

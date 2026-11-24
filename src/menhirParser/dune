@@ -1,6 +1,8 @@
 (library
  (name menhirParser)
- (libraries language qcheck-alcotest)
+ (flags
+  (:standard -open Core))
+ (libraries core language qcheck-alcotest)
  (modules AST Conversion Interface Lexer Parser)
  (instrumentation
   (backend bisect_ppx))
