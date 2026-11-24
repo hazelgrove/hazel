@@ -19,7 +19,7 @@ let now = (): float =>
 
 let note_action = (): unit => last_action := now();
 
-let in_burst = (): bool => now() -. last_action^ < burst_window_ms;
+let in_burst = (): bool => Float.(now() -. last_action^ < burst_window_ms);
 
 /* The user asked for samples NOW (probe-all toggled by hand): end the
    mask immediately rather than waiting the window out. */

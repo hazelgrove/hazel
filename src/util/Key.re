@@ -63,7 +63,7 @@ let get_target_tag = (evt): option(string) =>
   | None => None
   | Some(el) =>
     Js.Optdef.to_option(Js.Unsafe.coerce(el)##.tagName)
-    |> Option.map(Js.to_string)
+    |> Option.map(~f=Js.to_string)
   };
 
 let mk = (dir, evt): t => {

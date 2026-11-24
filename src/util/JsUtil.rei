@@ -5,6 +5,10 @@
 
 /** Raises if no element has that id; see `get_elem_by_id_opt`. */
 let get_elem_by_id: string => Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element);
+
+/* the ids of the document's elements whose id starts with [prefix]; none
+   headless */
+let ids_with_prefix: string => list(string);
 let get_elem_by_id_opt:
   string => option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
 let get_elem_by_selector:
@@ -109,3 +113,9 @@ let navigate_probes:
 let class_at_target:
   (~prefix: string, Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.mouseEvent)) =>
   option(string);
+
+/* a short sine tone ([freq] Hz for [ms] ms) */
+let play_tone: (~freq: float, ~ms: float) => unit;
+
+/* speaks [text] (speech synthesis), when the browser has it */
+let say: string => unit;

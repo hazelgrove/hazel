@@ -1202,8 +1202,8 @@ module AvailableLLMs = {
                       let supports_reasoning =
                         switch (params_opt) {
                         | Some(`List(params)) =>
-                          List.exists(
-                              ~f=
+                          List.exists(~f=
+                              
                             fun
                             | `String("reasoning") => true
                             | _ => false,

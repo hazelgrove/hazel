@@ -32,6 +32,8 @@ let escape_linebreaks: string => string;
 let unescape_linebreaks: string => string;
 /** Normalizes line endings to `\n` and strips leading spaces and tabs from
     every line. */
+/* \r\n and \r become \n */
+let normalize_line_endings: string => string;
 let trim_leading: string => string;
 /** Splits around the first occurrence of the character. */
 let split_first: (~on: char, string) => option((string, string));

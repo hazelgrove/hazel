@@ -5,6 +5,7 @@
    coords (radius-aware column x / stacked y, then neighbor-aligned y
    relaxation that preserves order and gaps) → attach (collision-aware
    ring search around hosts, chained hosts resolved in passes). */
+open Poly;
 
 type pos = {
   x: float,
@@ -80,24 +81,24 @@ type result = {
 };
 
 let pos_of = (r: result, id: string): option(pos) =>
-  List.assoc_opt(id, r.positions);
+  List.Assoc.find(r.positions, id, ~equal=Poly.equal);
 
 let layout = (spec: Spec.t): result => {
   open Spec;
   let t_gl = PerfTimer.now();
-  let node_ids = List.map((n: node) => n.id, spec.nodes);
-  let node_set: Hashtbl.t(string, unit) = Hashtbl.create(64);
-  List.iter(id => Hashtbl.replace(node_set, id, ()), node_ids);
-  let is_node = (id: string) => Hashtbl.mem(node_set, id);
+  let node_ids = List.map(~f=(n: node) => n.id, spec.nodes);
+  let node_set: Stdlib.Hashtbl.t(string, unit) = Stdlib.Hashtbl.create(64);
+  List.iter(~f=id => Stdlib.Hashtbl.replace(node_set, id, ()), node_ids);
+  let is_node = (id: string) => Stdlib.Hashtbl.mem(node_set, id);
   /* per-node lookups are asked thousands of times per layout (every
      relaxation pass, every column height): tables, not list scans */
-  let radius_tbl: Hashtbl.t(string, float) = Hashtbl.create(64);
-  List.iter(
-    (n: node) => Hashtbl.replace(radius_tbl, n.id, n.radius),
+  let radius_tbl: Stdlib.Hashtbl.t(string, float) = Stdlib.Hashtbl.create(64);
+  List.iter(~f=
+    (n: node) => Stdlib.Hashtbl.replace(radius_tbl, n.id, n.radius),
     spec.nodes,
   );
   let radius = (id: string): float =>
-    switch (Hashtbl.find_opt(radius_tbl, id)) {
+    switch (Stdlib.Hashtbl.find_opt(radius_tbl, id)) {
     | Some(r) => r
     | None => 10.
     };
@@ -105,22 +106,22 @@ let layout = (spec: Spec.t): result => {
   /* ---- 1. rank: longest-path relaxation over ranked edges ----
      Iteration count bounds cycle blowup: a DAG converges within
      |nodes| passes; cyclic remainders just stop advancing. */
-  let rank_tbl: Hashtbl.t(string, int) = Hashtbl.create(16);
-  List.iter(id => Hashtbl.replace(rank_tbl, id, 0), node_ids);
+  let rank_tbl: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(16);
+  List.iter(~f=id => Stdlib.Hashtbl.replace(rank_tbl, id, 0), node_ids);
   let ranked_edges =
-    List.filter(
+    List.filter(~f=
       (e: edge) =>
         e.ranked && e.src != e.dst && is_node(e.src) && is_node(e.dst),
       spec.edges,
     );
   let passes = min(List.length(node_ids) + 1, 32);
   for (_ in 1 to passes) {
-    List.iter(
+    List.iter(~f=
       (e: edge) => {
-        let sr = Hashtbl.find(rank_tbl, e.src)
-        and dr = Hashtbl.find(rank_tbl, e.dst);
+        let sr = Stdlib.Hashtbl.find(rank_tbl, e.src)
+        and dr = Stdlib.Hashtbl.find(rank_tbl, e.dst);
         if (dr <= sr && sr < 64) {
-          Hashtbl.replace(rank_tbl, e.dst, sr + 1);
+          Stdlib.Hashtbl.replace(rank_tbl, e.dst, sr + 1);
         };
       },
       ranked_edges,
@@ -132,24 +133,24 @@ let layout = (spec: Spec.t): result => {
      stranding at rank 0 (andrew's Msg rule). Host-resolution applies:
      a neighbor that is an attachment counts as its host. */
   let has_ranked_in = (id: string): bool =>
-    List.exists((e: edge) => e.dst == id, ranked_edges);
+    List.exists(~f=(e: edge) => e.dst == id, ranked_edges);
   let rec resolve_node = (~depth=0, id: string): option(string) =>
     if (is_node(id)) {
       Some(id);
     } else if (depth > 3) {
       None;
     } else {
-      switch (List.find_opt((a: attachment) => a.id == id, spec.attachments)) {
+      switch (List.find(~f=(a: attachment) => a.id == id, spec.attachments)) {
       | Some(a) => resolve_node(~depth=depth + 1, a.host)
       | None => None
       };
     };
-  List.iter(
+  List.iter(~f=
     id =>
       if (!has_ranked_in(id)) {
         let neighbor_ranks =
           spec.edges
-          |> List.filter_map((e: edge) =>
+          |> List.filter_map(~f=(e: edge) =>
                if (e.src == id) {
                  resolve_node(e.dst);
                } else if (e.dst == id) {
@@ -158,10 +159,10 @@ let layout = (spec: Spec.t): result => {
                  None;
                }
              )
-          |> List.filter(m => m != id)
-          |> List.map(Hashtbl.find(rank_tbl));
-        switch (List.sort(compare, neighbor_ranks)) {
-        | [r_min, ..._] => Hashtbl.replace(rank_tbl, id, max(0, r_min - 1))
+          |> List.filter(~f=m => m != id)
+          |> List.map(~f=Stdlib.Hashtbl.find(rank_tbl));
+        switch (List.sort(~compare=compare, neighbor_ranks)) {
+        | [r_min, ..._] => Stdlib.Hashtbl.replace(rank_tbl, id, max(0, r_min - 1))
         | [] => ()
         };
       },
@@ -169,12 +170,12 @@ let layout = (spec: Spec.t): result => {
   );
   /* re-run relaxation so ranked successors shift right if needed */
   for (_ in 1 to passes) {
-    List.iter(
+    List.iter(~f=
       (e: edge) => {
-        let sr = Hashtbl.find(rank_tbl, e.src)
-        and dr = Hashtbl.find(rank_tbl, e.dst);
+        let sr = Stdlib.Hashtbl.find(rank_tbl, e.src)
+        and dr = Stdlib.Hashtbl.find(rank_tbl, e.dst);
         if (dr <= sr && sr < 64) {
-          Hashtbl.replace(rank_tbl, e.dst, sr + 1);
+          Stdlib.Hashtbl.replace(rank_tbl, e.dst, sr + 1);
         };
       },
       ranked_edges,
@@ -182,9 +183,9 @@ let layout = (spec: Spec.t): result => {
   };
   /* compact used ranks */
   let used =
-    node_ids |> List.map(Hashtbl.find(rank_tbl)) |> List.sort_uniq(compare);
+    node_ids |> List.map(~f=Stdlib.Hashtbl.find(rank_tbl)) |> List.dedup_and_sort(~compare=compare);
   let rank = (id: string): int => {
-    let raw = Hashtbl.find(rank_tbl, id);
+    let raw = Stdlib.Hashtbl.find(rank_tbl, id);
     let rec idx = (i, ls) =>
       switch (ls) {
       | [] => 0
@@ -201,8 +202,8 @@ let layout = (spec: Spec.t): result => {
      Order state: per rank, node ids in display order. Neighbors from ALL
      edges (ranked or not) between adjacent-or-any ranks. */
   let columns: array(ref(list(string))) =
-    Array.init(n_ranks, _ => ref([]));
-  List.iter(
+    Array.init(n_ranks, ~f=_ => ref([]));
+  List.iter(~f=
     id => columns[rank(id)] := (columns[rank(id)])^ @ [id],
     node_ids,
   );
@@ -215,7 +216,7 @@ let layout = (spec: Spec.t): result => {
     } else if (depth > 3) {
       None;
     } else {
-      switch (List.find_opt((a: attachment) => a.id == id, spec.attachments)) {
+      switch (List.find(~f=(a: attachment) => a.id == id, spec.attachments)) {
       | Some(a) => resolve_host(~depth=depth + 1, a.host)
       | None => None
       };
@@ -223,19 +224,19 @@ let layout = (spec: Spec.t): result => {
   /* adjacency once: the sweeps ask for every node's neighbors on every
      pass, and an edge scan per ask was the layout's whole cost at 100
      nodes (~30 ms a layout, ~25 layouts a tool call) */
-  let adjacency: Hashtbl.t(string, list(string)) = Hashtbl.create(64);
+  let adjacency: Stdlib.Hashtbl.t(string, list(string)) = Stdlib.Hashtbl.create(64);
   let add_neighbor = (id: string, other: option(string)) =>
     switch (other) {
     | Some(o) when o != id =>
       let cur =
-        switch (Hashtbl.find_opt(adjacency, id)) {
+        switch (Stdlib.Hashtbl.find_opt(adjacency, id)) {
         | Some(l) => l
         | None => []
         };
-      Hashtbl.replace(adjacency, id, [o, ...cur]);
+      Stdlib.Hashtbl.replace(adjacency, id, [o, ...cur]);
     | _ => ()
     };
-  List.iter(
+  List.iter(~f=
     (e: edge) => {
       let src = resolve_host(e.src)
       and dst = resolve_host(e.dst);
@@ -251,40 +252,40 @@ let layout = (spec: Spec.t): result => {
     spec.edges,
   );
   let neighbors = (id: string): list(string) =>
-    switch (Hashtbl.find_opt(adjacency, id)) {
+    switch (Stdlib.Hashtbl.find_opt(adjacency, id)) {
     | Some(l) => List.rev(l)
     | None => []
     };
   /* display position within a column, refreshed after each column pass */
-  let positions: Hashtbl.t(string, int) = Hashtbl.create(64);
+  let positions: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(64);
   let index_column = (l: int): unit =>
-    List.iteri((i, id) => Hashtbl.replace(positions, id, i), (columns[l])^);
+    List.iteri(~f=(i, id) => Stdlib.Hashtbl.replace(positions, id, i), (columns[l])^);
   for (l in 0 to n_ranks - 1) {
     index_column(l);
   };
   let order_index = (id: string): option(float) =>
-    Option.map(float_of_int, Hashtbl.find_opt(positions, id));
+    Option.map(~f=float_of_int, Stdlib.Hashtbl.find_opt(positions, id));
   let sweep = (~from_left: bool): unit => {
     let ranks_seq =
       from_left
-        ? List.init(n_ranks, i => i) : List.init(n_ranks, i => n_ranks - 1 - i);
-    List.iter(
+        ? List.init(n_ranks, ~f=i => i) : List.init(n_ranks, ~f=i => n_ranks - 1 - i);
+    List.iter(~f=
       l => {
         let col = (columns[l])^;
         let keyed =
-          List.mapi(
+          List.mapi(~f=
             (i, id) => {
               /* barycenter of neighbors in OTHER columns (the sweep
                  direction biases which ones have settled) */
               let ns =
                 neighbors(id)
-                |> List.filter(m => rank(m) != l)
-                |> List.filter_map(order_index);
+                |> List.filter(~f=m => rank(m) != l)
+                |> List.filter_map(~f=order_index);
               let key =
                 switch (ns) {
                 | [] => float_of_int(i) /* keep position */
                 | _ =>
-                  List.fold_left((+.), 0., ns)
+                  List.fold(ns, ~init=0., ~f=(+.))
                   /. float_of_int(List.length(ns))
                 };
               (key, float_of_int(i), id);
@@ -313,7 +314,7 @@ let layout = (spec: Spec.t): result => {
             };
           };
         };
-        columns[l] := Array.to_list(arr) |> List.map(((_, _, id)) => id);
+        columns[l] := Array.to_list(arr) |> List.map(~f=((_, _, id)) => id);
         index_column(l);
       },
       ranks_seq,
@@ -333,35 +334,32 @@ let layout = (spec: Spec.t): result => {
       | (s, p) => s == p
       };
     spec.attachments
-    |> List.filter((a: attachment) => a.host == id && matches(a.prefer))
-    |> List.fold_left(
-         (acc, a: attachment) => max(acc, a.dist +. a.radius *. 2.),
-         0.,
-       );
+    |> List.filter(~f=(a: attachment) => a.host == id && matches(a.prefer))
+    |> List.fold(~init=0., ~f=(acc, a: attachment) => max(acc, a.dist +. a.radius *. 2.));
   };
   let node_extent_uncached = (id: string, side: side): float =>
-    switch (List.find_opt((n: node) => n.id == id, spec.nodes)) {
+    switch (List.find(~f=(n: node) => n.id == id, spec.nodes)) {
     | Some(n) => side == Above ? n.extent_above : n.extent_below
     | None => 0.
     };
-  let att_extent_memo: Hashtbl.t((string, side), float) =
-    Hashtbl.create(64);
+  let att_extent_memo: Stdlib.Hashtbl.t((string, side), float) =
+    Stdlib.Hashtbl.create(64);
   let att_extent = (id: string, side: side): float =>
-    switch (Hashtbl.find_opt(att_extent_memo, (id, side))) {
+    switch (Stdlib.Hashtbl.find_opt(att_extent_memo, (id, side))) {
     | Some(v) => v
     | None =>
       let v = att_extent_uncached(id, side);
-      Hashtbl.replace(att_extent_memo, (id, side), v);
+      Stdlib.Hashtbl.replace(att_extent_memo, (id, side), v);
       v;
     };
-  let node_extent_memo: Hashtbl.t((string, side), float) =
-    Hashtbl.create(64);
+  let node_extent_memo: Stdlib.Hashtbl.t((string, side), float) =
+    Stdlib.Hashtbl.create(64);
   let node_extent = (id: string, side: side): float =>
-    switch (Hashtbl.find_opt(node_extent_memo, (id, side))) {
+    switch (Stdlib.Hashtbl.find_opt(node_extent_memo, (id, side))) {
     | Some(v) => v
     | None =>
       let v = node_extent_uncached(id, side);
-      Hashtbl.replace(node_extent_memo, (id, side), v);
+      Stdlib.Hashtbl.replace(node_extent_memo, (id, side), v);
       v;
     };
 
@@ -372,18 +370,14 @@ let layout = (spec: Spec.t): result => {
      positions: a flat band of rows would otherwise translate instead
      of spreading */
   let row_gap = spec.row_gap *. spec.y_stretch;
-  let posed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
+  let posed: Stdlib.Hashtbl.t(string, (pos, float)) = Stdlib.Hashtbl.create(16);
   /* column x-centers: gaps account for both columns' radii and any
      Out/In attachments hanging between them */
   let col_max_r = l =>
-    List.fold_left((m, id) => max(m, radius(id)), 10., (columns[l])^);
+    List.fold((columns[l])^, ~init=10., ~f=(m, id) => max(m, radius(id)));
   let col_side_extent = (l, side) =>
-    List.fold_left(
-      (m, id) => max(m, att_extent(id, side)),
-      0.,
-      (columns[l])^,
-    );
-  let x_centers = Array.make(n_ranks, spec.margin);
+    List.fold((columns[l])^, ~init=0., ~f=(m, id) => max(m, att_extent(id, side)));
+  let x_centers = Array.create(~len=n_ranks, spec.margin);
   for (l in 0 to n_ranks - 1) {
     x_centers[l] = (
       if (l == 0) {
@@ -412,19 +406,18 @@ let layout = (spec: Spec.t): result => {
     switch ((columns[l])^) {
     | [] => 0.
     | col =>
-      List.fold_left((acc, id) => acc +. v_half(id) *. 2., 0., col)
+      List.fold(col, ~init=0., ~f=(acc, id) => acc +. v_half(id) *. 2.)
       +. float_of_int(List.length(col) - 1)
       *. row_gap
     };
-  let max_h = List.fold_left(max, 0., List.init(n_ranks, col_height));
+  let max_h = List.fold(List.init(n_ranks, ~f=col_height), ~init=0., ~f=max);
   /* initial stacked y, columns centered against the tallest */
   for (l in 0 to n_ranks - 1) {
     let y0 = spec.margin +. (max_h -. col_height(l)) /. 2.;
     let _ =
-      List.fold_left(
-        (y, id) => {
+      List.fold((columns[l])^, ~init=y0, ~f=(y, id) => {
           let h = v_half(id);
-          Hashtbl.replace(
+          Stdlib.Hashtbl.replace(
             posed,
             id,
             (
@@ -436,10 +429,7 @@ let layout = (spec: Spec.t): result => {
             ),
           );
           y +. h *. 2. +. row_gap;
-        },
-        y0,
-        (columns[l])^,
-      );
+        });
     ();
   };
   /* y relaxation: pull nodes toward their neighbors' average y, then
@@ -447,20 +437,20 @@ let layout = (spec: Spec.t): result => {
   let relax_col = l => {
     let col = (columns[l])^;
     let targets =
-      List.map(
+      List.map(~f=
         id => {
-          let (p, _) = Hashtbl.find(posed, id);
+          let (p, _) = Stdlib.Hashtbl.find(posed, id);
           let ns =
             neighbors(id)
-            |> List.filter(m => rank(m) != l)
-            |> List.filter_map(m =>
-                 Hashtbl.find_opt(posed, m) |> Option.map(((q, _)) => q.y)
+            |> List.filter(~f=m => rank(m) != l)
+            |> List.filter_map(~f=m =>
+                 Stdlib.Hashtbl.find_opt(posed, m) |> Option.map(~f=((q, _)) => q.y)
                );
           switch (ns) {
           | [] => (id, p.y)
           | _ => (
               id,
-              List.fold_left((+.), 0., ns) /. float_of_int(List.length(ns)),
+              List.fold(ns, ~init=0., ~f=(+.)) /. float_of_int(List.length(ns)),
             )
           };
         },
@@ -470,16 +460,12 @@ let layout = (spec: Spec.t): result => {
        adjacent violations minimizes squared displacement in both directions;
        a top-down-only clamp ratchets whole columns downward on every sweep. */
     let (_, _, entries) =
-      List.fold_left(
-        ((offset, previous_half, entries), (id, target)) => {
+      List.fold(targets, ~init=(0., 0., []), ~f=((offset, previous_half, entries), (id, target)) => {
           let half = v_half(id);
           let offset =
             entries == [] ? 0. : offset +. previous_half +. row_gap +. half;
           (offset, half, entries @ [(id, target -. offset, offset)]);
-        },
-        (0., 0., []),
-        targets,
-      );
+        });
     let rec push = ((mean, count, members) as block, stack) =>
       switch (stack) {
       | [(last, n, earlier), ...rest] when last > mean =>
@@ -495,23 +481,19 @@ let layout = (spec: Spec.t): result => {
       | _ => [block, ...stack]
       };
     let blocks =
-      List.fold_left(
-        (stack, (id, target, offset)) =>
-          push((target, 1, [(id, offset)]), stack),
-        [],
-        entries,
-      );
+      List.fold(entries, ~init=[], ~f=(stack, (id, target, offset)) =>
+          push((target, 1, [(id, offset)]), stack));
     let lower =
       switch (col) {
       | [id, ..._] => spec.margin +. v_half(id)
       | [] => spec.margin
       };
-    List.iter(
+    List.iter(~f=
       ((mean, _, members)) =>
-        List.iter(
+        List.iter(~f=
           ((id, offset)) => {
-            let (p, r) = Hashtbl.find(posed, id);
-            Hashtbl.replace(
+            let (p, r) = Stdlib.Hashtbl.find(posed, id);
+            Stdlib.Hashtbl.replace(
               posed,
               id,
               (
@@ -547,26 +529,26 @@ let layout = (spec: Spec.t): result => {
   let h_halo = (id: string): float =>
     radius(id) +. (att_extent(id, In) +. att_extent(id, Out)) /. 2.;
   for (_ in 1 to 12) {
-    List.iteri(
+    List.iteri(~f=
       (i, a) =>
-        List.iteri(
+        List.iteri(~f=
           (j, b) =>
             if (j > i) {
               switch (
-                Hashtbl.find_opt(posed, a),
-                Hashtbl.find_opt(posed, b),
+                Stdlib.Hashtbl.find_opt(posed, a),
+                Stdlib.Hashtbl.find_opt(posed, b),
               ) {
               | (Some((pa, ra)), Some((pb, rb))) =>
                 let need_x = h_halo(a) +. h_halo(b) +. 14.;
                 let need_y = v_half(a) +. v_half(b) +. row_gap /. 2.;
-                let dx = abs_float(pa.x -. pb.x)
+                let dx = Float.abs(pa.x -. pb.x)
                 and dy = pb.y -. pa.y;
-                if (dx < need_x && abs_float(dy) < need_y) {
-                  let push = (need_y -. abs_float(dy)) /. 2.;
+                if (dx < need_x && Float.abs(dy) < need_y) {
+                  let push = (need_y -. Float.abs(dy)) /. 2.;
                   /* preserve current vertical order; ties break by
                      input order (a stays above) */
                   let s = dy > 0. || dy == 0. ? 1. : (-1.);
-                  Hashtbl.replace(
+                  Stdlib.Hashtbl.replace(
                     posed,
                     a,
                     (
@@ -577,7 +559,7 @@ let layout = (spec: Spec.t): result => {
                       ra,
                     ),
                   );
-                  Hashtbl.replace(
+                  Stdlib.Hashtbl.replace(
                     posed,
                     b,
                     (
@@ -602,7 +584,7 @@ let layout = (spec: Spec.t): result => {
   let t_gl = PerfTimer.now();
   /* ---- 4. attachments: collision-aware ring search ---- */
   let collides = (p: pos, r: float): bool =>
-    Hashtbl.fold(
+    Stdlib.Hashtbl.fold(
       (_, (q, qr), acc) =>
         acc || Float.hypot(q.x -. p.x, q.y -. p.y) < r +. qr +. 6.,
       posed,
@@ -620,32 +602,32 @@ let layout = (spec: Spec.t): result => {
      n same-side satellites of one host spread vertically (the dataflow
      fan-in / fan-out reading), rather than greedily claiming slots. */
   let fan_step = 32.;
-  let group_total: Hashtbl.t((string, side), int) = Hashtbl.create(8);
-  List.iter(
+  let group_total: Stdlib.Hashtbl.t((string, side), int) = Stdlib.Hashtbl.create(8);
+  List.iter(~f=
     (a: attachment) =>
       switch (a.prefer) {
       | In
       | Out =>
         let k = (a.host, a.prefer);
-        Hashtbl.replace(
+        Stdlib.Hashtbl.replace(
           group_total,
           k,
-          1 + Option.value(~default=0, Hashtbl.find_opt(group_total, k)),
+          1 + Option.value(~default=0, Stdlib.Hashtbl.find_opt(group_total, k)),
         );
       | _ => ()
       },
     spec.attachments,
   );
-  let group_seen: Hashtbl.t((string, side), int) = Hashtbl.create(8);
+  let group_seen: Stdlib.Hashtbl.t((string, side), int) = Stdlib.Hashtbl.create(8);
   let fan_angle = (a: attachment): float => {
     let base = base_angle(a.prefer);
     switch (a.prefer) {
     | In
     | Out =>
       let k = (a.host, a.prefer);
-      let n = Option.value(~default=1, Hashtbl.find_opt(group_total, k));
-      let i = Option.value(~default=0, Hashtbl.find_opt(group_seen, k));
-      Hashtbl.replace(group_seen, k, i + 1);
+      let n = Option.value(~default=1, Stdlib.Hashtbl.find_opt(group_total, k));
+      let i = Option.value(~default=0, Stdlib.Hashtbl.find_opt(group_seen, k));
+      Stdlib.Hashtbl.replace(group_seen, k, i + 1);
       /* In fans mirror (screen-y grows down; sin positive = up) */
       let dir = a.prefer == In ? (-1.) : 1.;
       base
@@ -658,10 +640,10 @@ let layout = (spec: Spec.t): result => {
   /* candidate angles: preferred first, alternating outward in 30° steps */
   let angle_offsets = [0., 45., (-45.), 90., (-90.), 135., (-135.), 180.];
   let place_attachment = (a: attachment): bool =>
-    switch (Hashtbl.find_opt(posed, a.id)) {
+    switch (Stdlib.Hashtbl.find_opt(posed, a.id)) {
     | Some(_) => true
     | None =>
-      switch (Hashtbl.find_opt(posed, a.host)) {
+      switch (Stdlib.Hashtbl.find_opt(posed, a.host)) {
       | None => false
       | Some((hp, hr)) =>
         let a_base = fan_angle(a);
@@ -674,18 +656,14 @@ let layout = (spec: Spec.t): result => {
             | Out =>
               let key = (a.host, a.prefer);
               let count =
-                Option.value(~default=1, Hashtbl.find_opt(group_total, key));
+                Option.value(~default=1, Stdlib.Hashtbl.find_opt(group_total, key));
               let index =
-                Option.value(~default=1, Hashtbl.find_opt(group_seen, key))
+                Option.value(~default=1, Stdlib.Hashtbl.find_opt(group_seen, key))
                 - 1;
               let half =
-                List.fold_left(
-                  (v, b: attachment) =>
+                List.fold(spec.attachments, ~init=a.radius, ~f=(v, b: attachment) =>
                     b.host == a.host && b.prefer == a.prefer
-                      ? max(v, b.radius) : v,
-                  a.radius,
-                  spec.attachments,
-                );
+                      ? max(v, b.radius) : v);
               let step = max(42., 2. *. half +. 10.);
               Some({
                 x: hp.x +. (a.prefer == In ? -. dist : dist),
@@ -697,23 +675,19 @@ let layout = (spec: Spec.t): result => {
             | _ => None
             };
           let preferred =
-            Option.bind(fan, p => collides(p, a.radius) ? None : Some(p));
-          List.fold_left(
-            (found, off) =>
+            Option.bind(fan, ~f=p => collides(p, a.radius) ? None : Some(p));
+          List.fold(angle_offsets, ~init=preferred, ~f=(found, off) =>
               switch (found) {
               | Some(_) => found
               | None =>
                 let th = (a_base +. off) *. Float.pi /. 180.;
                 let p = {
-                  x: hp.x +. cos(th) *. dist,
+                  x: hp.x +. Float.cos(th) *. dist,
                   /* screen y grows downward */
-                  y: hp.y -. sin(th) *. dist,
+                  y: hp.y -. Float.sin(th) *. dist,
                 };
                 collides(p, a.radius) ? None : Some(p);
-              },
-            preferred,
-            angle_offsets,
-          );
+              });
         };
         let p =
           switch (try_ring(0)) {
@@ -726,20 +700,20 @@ let layout = (spec: Spec.t): result => {
           };
         switch (p) {
         | Some(p) =>
-          Hashtbl.replace(posed, a.id, (p, a.radius));
+          Stdlib.Hashtbl.replace(posed, a.id, (p, a.radius));
           true;
         | None =>
           /* saturated neighborhood: overlap at the preferred slot rather
              than vanish */
           let th = a_base *. Float.pi /. 180.;
           let dist = hr +. a.dist;
-          Hashtbl.replace(
+          Stdlib.Hashtbl.replace(
             posed,
             a.id,
             (
               {
-                x: hp.x +. cos(th) *. dist,
-                y: hp.y -. sin(th) *. dist,
+                x: hp.x +. Float.cos(th) *. dist,
+                y: hp.y -. Float.sin(th) *. dist,
               },
               a.radius,
             ),
@@ -752,11 +726,11 @@ let layout = (spec: Spec.t): result => {
      top-left rather than vanishing */
   let unresolved =
     spec.attachments
-    |> List.filter(a => !place_attachment(a))
-    |> List.filter(a => !place_attachment(a));
-  List.iteri(
+    |> List.filter(~f=a => !place_attachment(a))
+    |> List.filter(~f=a => !place_attachment(a));
+  List.iteri(~f=
     (i, a: attachment) =>
-      Hashtbl.replace(
+      Stdlib.Hashtbl.replace(
         posed,
         a.id,
         (
@@ -773,14 +747,14 @@ let layout = (spec: Spec.t): result => {
   PerfTimer.record("gl/attach", PerfTimer.now() -. t_gl);
   /* ---- result (input order for determinism) ---- */
   let all_ids =
-    node_ids @ List.map((a: attachment) => a.id, spec.attachments);
+    node_ids @ List.map(~f=(a: attachment) => a.id, spec.attachments);
   {
     positions:
-      List.filter_map(
+      List.filter_map(~f=
         id =>
-          Hashtbl.find_opt(posed, id) |> Option.map(((p, _)) => (id, p)),
+          Stdlib.Hashtbl.find_opt(posed, id) |> Option.map(~f=((p, _)) => (id, p)),
         all_ids,
       ),
-    ranks: List.map(id => (id, rank(id)), node_ids),
+    ranks: List.map(~f=id => (id, rank(id)), node_ids),
   };
 };
