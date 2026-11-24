@@ -44,5 +44,5 @@ let all = (~skip=?, z: Zipper.t, ~root: Sort.t): Zipper.t =>
 
 let one = (z: Zipper.t, ~root: Sort.t, id: Id.t): option(Zipper.t) =>
   CanonicalCompletion.materialize_one(~sort=root, prepared(z), id)
-  |> Option.map(SpaceNormalize.go)
-  |> Option.map(rezip(z));
+  |> Option.map(~f=SpaceNormalize.go)
+  |> Option.map(~f=rezip(z));

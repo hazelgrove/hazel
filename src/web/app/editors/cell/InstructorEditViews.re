@@ -23,7 +23,7 @@ let title_view =
       ~update_title: string => Ui_effect.t(unit),
     )
     : Node.t => {
-  let placeholder = title == "" ? "Untitled Exercise" : title;
+  let placeholder = String.equal(title, "") ? "Untitled Exercise" : title;
   let confirm = ev => {
     let new_value =
       Obj.magic(Js_of_ocaml.Js.some(JsUtil.get_elem_by_id(title_input_id)))##.value;
@@ -64,7 +64,7 @@ let title_view =
                       ~attrs=[
                         Attr.classes([
                           "title-text",
-                          title == "" ? "title-placeholder" : "",
+                          String.equal(title, "") ? "title-placeholder" : "",
                         ]),
                       ],
                       [text(placeholder)],
@@ -92,7 +92,8 @@ let module_name_view =
       ~update_module_name: string => Ui_effect.t(unit),
     )
     : Node.t => {
-  let placeholder = module_name == "" ? "Unnamed Module" : module_name;
+  let placeholder =
+    String.equal(module_name, "") ? "Unnamed Module" : module_name;
   let confirm = ev => {
     let new_value =
       Obj.magic(
@@ -136,7 +137,8 @@ let module_name_view =
                   div(
                     ~attrs=[
                       Attr.classes([
-                        module_name == "" ? "module-placeholder" : "",
+                        String.equal(module_name, "")
+                          ? "module-placeholder" : "",
                       ]),
                     ],
                     [text(placeholder)],
@@ -166,7 +168,7 @@ let prompt_view =
       ~update_prompt: string => Ui_effect.t(unit),
     )
     : Node.t => {
-  let placeholder = prompt == "" ? "Empty Prompt" : prompt;
+  let placeholder = String.equal(prompt, "") ? "Empty Prompt" : prompt;
   let (msg, _) =
     ExplainThis.mk_translation(
       ~globals,
@@ -218,7 +220,7 @@ let prompt_view =
                     ~attrs=[
                       Attr.classes([
                         "prompt-content",
-                        prompt == "" ? "prompt-placeholder" : "",
+                        String.equal(prompt, "") ? "prompt-placeholder" : "",
                       ]),
                     ],
                     msg,
