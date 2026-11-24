@@ -90,14 +90,13 @@ let fold_step = (acc: fold, ev: event): fold =>
      * usually at or near the head (the entered ap's own span), so stop
      * at the first match and share the tail. A later enter for the same
      * span overwrites (matching the old most-recent lookup semantics). */
-    let stack_ids = CallStack.ids_of_stack(stack);
     let rec attach = (opens: list(open_span)) =>
       switch (opens) {
       | [] => []
       | [o, ...rest]
           when
-            o.syntax_id == frame.id
-            && CallStack.ids_of_stack(o.stack) == stack_ids => [
+            Id.equal(o.syntax_id, frame.id)
+            && CallStack.equal(o.stack, stack) => [
           {
             ...o,
             app: Some((arg, frame)),
@@ -113,7 +112,7 @@ let fold_step = (acc: fold, ev: event): fold =>
   | SpanClose({syntax_id, value, env, spec, step: step_end}) =>
     let (opened, opens) =
       switch (acc.opens) {
-      | [o, ...rest] when o.syntax_id == syntax_id => (o, rest)
+      | [o, ...rest] when Id.equal(o.syntax_id, syntax_id) => (o, rest)
       | _ =>
         failwith(
           "ObsTrace.fold_step: unbalanced span close for "
@@ -122,8 +121,8 @@ let fold_step = (acc: fold, ev: event): fold =>
       };
     let sample =
       Sample.mk(
-        ~args=Option.map(fst, opened.app),
-        ~frame=Option.map(snd, opened.app),
+        ~args=Option.map(~f=fst, opened.app),
+        ~frame=Option.map(~f=snd, opened.app),
         ~step_start=opened.step_open,
         ~step_end,
         syntax_id,
@@ -144,7 +143,7 @@ let fold_step = (acc: fold, ev: event): fold =>
 
 /* Batch-assemble a probe map from a chronological event sequence. */
 let assemble = (events: list(event)): Sample.Map.t => {
-  let final = List.fold_left(fold_step, init, events);
+  let final = List.fold_left(~f=fold_step, ~init, events);
   switch (final.opens) {
   | [] => final.probes
   | _ => failwith("ObsTrace.assemble: spans left open at end of trace")

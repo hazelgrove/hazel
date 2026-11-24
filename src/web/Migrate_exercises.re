@@ -17,27 +17,38 @@
  *   ===END===
  *
  * A file is only emitted if every editor passes (a) the parse-fixpoint
- * check (text |> Parser.to_zipper |> print == text; guards the backup_text
- * fallback) and (b) the persistent-decode equivalence check (the emitted
- * zipper sexp decodes and is segment-structurally equal to the reparse of
- * backup_text); failures are reported in the summary (and on stderr) and
- * the original file should be left in place.
+ * check (text |> PersistentZipper.parse_text |> print == text; guards the
+ * backup_text fallback, which parses the same way) and (b) the
+ * persistent-decode equivalence check (the emitted zipper sexp decodes and
+ * is segment-structurally equal to the reparse of backup_text); failures
+ * are reported in the summary (and on stderr) and the original file should
+ * be left in place.
+ *
+ * `--reindent` also re-indents every editor (the Format(Indent) action)
+ * before writing it. Indentation is the text's own spaces, owned by the
+ * author, so a plain refresh leaves it alone; the flag is for modules
+ * authored when the editor computed indentation at layout time, which
+ * were stored flat (every line at column 0).
  *
  * Build & run:
  *   dune build src/web/migrate_exercises.bc.js --profile dev
  *   node --stack-size=8192 --require ./test/idb_stub.js \
- *     _build/default/src/web/migrate_exercises.bc.js > /tmp/migrate_out.txt
- * then split the dump into files, e.g.:
+ *     _build/default/src/web/migrate_exercises.bc.js [--reindent] \
+ *     > /tmp/migrate_out.txt
+ * then split the dump into files and format them, e.g.:
  *   awk '/^===FILE: /{f=substr($0,10,length($0)-12); next}
  *        /^===END===$/{f=""; next} f{print > f}' /tmp/migrate_out.txt
+ *   dune fmt
  */
 open Haz3lcore;
 open Web;
 
+let reindent = Array.mem(Sys.get_argv(), "--reindent", ~equal=String.equal);
+
 /* Reset non-persistable refractor state before serialization, mirroring
  * CodeExercise.editor_pp (keeps manuals, resets multis/sample_focus). */
 let persist_zipper = (z: Zipper.t): PersistentZipper.t =>
-  z
+  (reindent ? Perform.reindent_zipper(z) : z)
   |> Zipper.update_refractors(_, Refractors.for_serialization)
   |> PersistentZipper.persist;
 
@@ -159,14 +170,14 @@ let emit_item = (item: item): string =>
   };
 
 let emit_file = (f: file): string =>
-  f.items |> List.map(emit_item) |> String.concat("\n");
+  f.items |> List.map(~f=emit_item) |> String.concat(~sep="\n");
 
 /* ---------- safety checks ----------
  * The backup_text fallback re-parses program text and the exercise loader
  * FAILWITHS on parse failure, so before converting we verify for every
  * editor:
  *  (a) parse fixpoint:
- *      text |> Parser.to_zipper(~root) |> PersistentZipper.to_string == text
+ *      text |> PersistentZipper.parse_text(~root) |> persist == text
  *  (b) persistent-decode equivalence: the zipper sexp we emit decodes, and
  *      its segment structurally equals (ids ignored) the segment obtained
  *      by re-parsing backup_text. */
@@ -178,15 +189,16 @@ let rec equal_segment = (a: Base.segment, b: Base.segment) =>
 and equal_piece = (a: Base.piece, b: Base.piece) =>
   switch (a, b) {
   | (Tile(t1), Tile(t2)) =>
-    Tile.label(t1) == Tile.label(t2)
+    Label.equal(Tile.label(t1), Tile.label(t2))
     && List.equal(equal_segment, t1.children, t2.children)
-    && Tile.mold(t1) == Tile.mold(t2)
-    && t1.shards == t2.shards
-  | (Grout(g1), Grout(g2)) => g1.shape == g2.shape
-  | (Secondary(s1), Secondary(s2)) => s1.content == s2.content
+    && Mold.equal(Tile.mold(t1), Tile.mold(t2))
+    && List.equal(Int.equal, t1.shards, t2.shards)
+  | (Grout(g1), Grout(g2)) => Grout.equal_shape(g1.shape, g2.shape)
+  | (Secondary(s1), Secondary(s2)) =>
+    Language.Secondary.equal_secondary_content(s1.content, s2.content)
   | (Projector(p1), Projector(p2)) =>
-    p1.kind == p2.kind
-    && p1.model == p2.model
+    ProjectorCore.Kind.equal(p1.kind, p2.kind)
+    && String.equal(p1.model, p2.model)
     && equal_piece(p1.syntax, p2.syntax)
   | _ => false
   };
@@ -210,8 +222,9 @@ let code_fields = (name, s: CodeExercise.spec): list(field) => {
     f("your_impl", s.your_impl),
   ]
   @ List.mapi(
-      (i, wi: CodeExercise.wrong_impl(Zipper.t)) =>
-        f("hidden_bugs[" ++ string_of_int(i) ++ "].impl", wi.impl),
+      ~f=
+        (i, wi: CodeExercise.wrong_impl(Zipper.t)) =>
+          f("hidden_bugs[" ++ string_of_int(i) ++ "].impl", wi.impl),
       s.hidden_bugs,
     )
   @ [f("hidden_tests.tests", s.hidden_tests.tests)];
@@ -265,11 +278,11 @@ let seg_of_zipper = (z: Zipper.t): Base.segment =>
 let check_field = ({label, root, zipper}: field): option(string) => {
   let persisted = persist_zipper(zipper);
   let code = persisted.backup_text;
-  switch (Parser.to_zipper(~root, code)) {
-  | None => Some(label ++ ": reparse FAILED (Parser.to_zipper => None)")
+  switch (PersistentZipper.parse_text(~source=label, ~root, code)) {
+  | None => Some(label ++ ": reparse FAILED (PersistentZipper.parse_text)")
   | Some(z2) =>
-    let code2 = PersistentZipper.to_string(z2);
-    if (code2 != code) {
+    let code2 = PersistentZipper.persist(z2).backup_text;
+    if (!String.equal(code2, code)) {
       Some(
         label
         ++ ": fixpoint MISMATCH\n  original: "
@@ -286,7 +299,7 @@ let check_field = ({label, root, zipper}: field): option(string) => {
         Some(
           label
           ++ ": persistent sexp decode FAILED ("
-          ++ Printexc.to_string(exn)
+          ++ Exn.to_string(exn)
           ++ ")",
         )
       | decoded =>
@@ -306,7 +319,9 @@ let check_field = ({label, root, zipper}: field): option(string) => {
 };
 
 let check_file = (f: file): list(string) =>
-  f.items |> List.concat_map(fields_of_item) |> List.filter_map(check_field);
+  f.items
+  |> List.concat_map(~f=fields_of_item)
+  |> List.filter_map(~f=check_field);
 
 /* ---------- registry coverage cross-check ----------
  * Make sure every registered exercise/tutorial/derivation-slide is reached
@@ -316,16 +331,17 @@ let check_file = (f: file): list(string) =>
 let registry_warnings = (): list(string) => {
   let covered_ids =
     files
-    |> List.concat_map(f => f.items)
+    |> List.concat_map(~f=f => f.items)
     |> List.map(
-         fun
-         | CodeEx(_, s) => s.id
-         | DrvEx(_, s)
-         | DrvSpec(_, s) => s.id
-         | ThmEx(_, s) => s.id,
+         ~f=
+           fun
+           | CodeEx(_, s) => s.id
+           | DrvEx(_, s)
+           | DrvSpec(_, s) => s.id
+           | ThmEx(_, s) => s.id,
        );
   let missing = (kind, title, id) =>
-    List.mem(id, covered_ids)
+    List.mem(covered_ids, id, ~equal=Id.equal)
       ? None
       : Some(
           "registered "
@@ -335,13 +351,15 @@ let registry_warnings = (): list(string) => {
         );
   /* Tutorial lessons are .hzt text (no zipper literals) — nothing to migrate. */
   List.filter_map(
-    (e: Exercise.t) =>
-      missing("exercise", Exercise.title_of(e), Exercise.id_of(e)),
+    ~f=
+      (e: Exercise.t) =>
+        missing("exercise", Exercise.title_of(e), Exercise.id_of(e)),
     ExerciseSettings_base.exercises,
   )
   @ List.filter_map(
-      ((name, s): (string, DerivationExercise.spec)) =>
-        missing("derivation slide", name, s.id),
+      ~f=
+        ((name, s): (string, DerivationExercise.spec)) =>
+          missing("derivation slide", name, s.id),
       Init.documentation_drv_slides,
     );
 };
@@ -351,7 +369,7 @@ let registry_warnings = (): list(string) => {
 let () = {
   let summary = ref([]);
   files
-  |> List.iter(f => {
+  |> List.iter(~f=f => {
        switch (check_file(f)) {
        | [] =>
          print_string("===FILE: " ++ f.path ++ "===\n");
@@ -360,20 +378,20 @@ let () = {
          summary := [f.path ++ ": PASS", ...summary^];
        | errors =>
          prerr_endline("FIXPOINT FAILURE — NOT converting " ++ f.path);
-         List.iter(prerr_endline, errors);
+         List.iter(~f=prerr_endline, errors);
          summary :=
            [
              f.path
              ++ ": FAIL (left unconverted)\n  "
-             ++ String.concat("\n  ", errors),
+             ++ String.concat(~sep="\n  ", errors),
              ...summary^,
            ];
        }
      });
   let warnings = registry_warnings();
   print_string("===SUMMARY===\n");
-  List.iter(print_endline, List.rev(summary^));
-  List.iter(print_endline, warnings);
+  List.iter(~f=print_endline, List.rev(summary^));
+  List.iter(~f=print_endline, warnings);
   print_string("===END===\n");
-  List.iter(prerr_endline, warnings);
+  List.iter(~f=prerr_endline, warnings);
 };

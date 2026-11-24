@@ -22,7 +22,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = " ";
+          backup_text = " \194\191\n";
         };
       setup =
         {
@@ -151,8 +151,6 @@ let exercise : DerivationExercise.spec =
              \")))))))))(Secondary((id \
              8817062d-6def-41a9-9977-9e7777c06663)(content(Whitespace\" \
              \")))))))))(Secondary((id \
-             ddfe4246-e93e-486b-8a80-b0482769e581)(content(Whitespace\" \
-             \"))))(Secondary((id \
              a5598551-0275-4593-870d-bfdb08259d4a)(content(Whitespace\"\\n\")))))((Grout((id \
              7f089dd8-7a3b-421f-8fd7-fe113b5ef3f6)(shape \
              Convex))))))(ancestors())))(caret \
@@ -163,7 +161,8 @@ let exercise : DerivationExercise.spec =
             "let $tau_pm = of_alfa_typ (Bool -> Bool) -> (Bool * Bool) -> \
              (Bool * Bool) end in\n\
              let $gamma_pm = of_ctx [pairmap : $tau_pm] end in\n\
-             let $gamma_pmz = of_ctx (z: Bool)::$gamma_pm end in \n";
+             let $gamma_pmz = of_ctx (z: Bool)::$gamma_pm end in\n\
+             \194\191\n";
         };
       rule_set = ALFp;
       trees =
@@ -243,7 +242,7 @@ let exercise : DerivationExercise.spec =
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "$gamma_pm |- (fun z -> if z then False else True) <= \
-                         (Bool -> Bool)";
+                         (Bool -> Bool)\n";
                     };
                   rule = Some A_Fun;
                 },
@@ -300,8 +299,7 @@ let exercise : DerivationExercise.spec =
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text =
-                              "$gamma_pmz |- (if z then False else True) <= \
-                               Bool";
+                              "$gamma_pmz |- (if z then False else True) <= Bool\n";
                           };
                         rule = Some A_If;
                       },
@@ -338,7 +336,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "$gamma_pmz |- z <= Bool";
+                                  backup_text = "$gamma_pmz |- z <= Bool\n";
                                 };
                               rule = Some A_Subsumption;
                             },
@@ -379,7 +377,8 @@ let exercise : DerivationExercise.spec =
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                            -1)(pinned_stack())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                        backup_text = "$gamma_pmz |- z => Bool";
+                                        backup_text =
+                                          "$gamma_pmz |- z => Bool\n";
                                       };
                                     rule = Some S_Var;
                                   },
@@ -417,7 +416,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "$gamma_pmz |- False <= Bool";
+                                  backup_text = "$gamma_pmz |- False <= Bool\n";
                                 };
                               rule = Some A_Subsumption;
                             },
@@ -460,7 +459,7 @@ let exercise : DerivationExercise.spec =
                                            -1)(pinned_stack())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
-                                          "$gamma_pmz |- False => Bool";
+                                          "$gamma_pmz |- False => Bool\n";
                                       };
                                     rule = Some S_False;
                                   },
@@ -498,7 +497,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "$gamma_pmz |- True <= Bool";
+                                  backup_text = "$gamma_pmz |- True <= Bool\n";
                                 };
                               rule = Some A_Subsumption;
                             },
@@ -541,7 +540,7 @@ let exercise : DerivationExercise.spec =
                                            -1)(pinned_stack())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
-                                          "$gamma_pmz |- True => Bool";
+                                          "$gamma_pmz |- True => Bool\n";
                                       };
                                     rule = Some S_True;
                                   },
@@ -646,7 +645,7 @@ let exercise : DerivationExercise.spec =
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "$gamma_pm |- pairmap (fun z -> if z then False else \
-                         True) => (Bool * Bool) -> (Bool * Bool)";
+                         True) => (Bool * Bool) -> (Bool * Bool)\n";
                     };
                   rule = Some S_Ap;
                 },
@@ -682,7 +681,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "$gamma_pm |- pairmap => $tau_pm";
+                            backup_text = "$gamma_pm |- pairmap => $tau_pm\n";
                           };
                         rule = Some S_Var;
                       },
