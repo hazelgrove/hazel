@@ -1,6 +1,9 @@
 (library
  (name util)
+ (flags
+  (:standard -open Core))
  (libraries
+  core
   ptmap
   bonsai.web
   virtual_dom.input_widgets

@@ -33,7 +33,8 @@ let rec map_piece = (~f_piece, x: piece) => {
     | Tile(t) =>
       Tile({
         ...t,
-        children: t.children |> List.map(List.map(map_piece(~f_piece))),
+        children:
+          t.children |> List.map(~f=List.map(~f=map_piece(~f_piece))),
       })
     | Grout(_)
     | Secondary(_)
@@ -67,15 +68,16 @@ let rec segment_to_string =
   let (refractors, seg) = refractor_seg_to_seg(refractors, seg);
   seg
   |> List.map(
-       piece_to_string(
-         ~holes,
-         ~concave_holes,
-         ~refractors,
-         ~refractor_seg_to_seg,
-         ~projector_to_segment,
-       ),
+       ~f=
+         piece_to_string(
+           ~holes,
+           ~concave_holes,
+           ~refractors,
+           ~refractor_seg_to_seg,
+           ~projector_to_segment,
+         ),
      )
-  |> String.concat("");
+  |> String.concat(~sep="");
 }
 and piece_to_string =
     (
@@ -122,7 +124,7 @@ and tile_to_string =
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       List.nth(Form.label_of(t.form)),
+       List.nth_exn(Form.label_of(t.form)),
        segment_to_string(
          ~holes,
          ~concave_holes,
@@ -131,4 +133,4 @@ and tile_to_string =
          ~projector_to_segment,
        ),
      )
-  |> String.concat("");
+  |> String.concat(~sep="");

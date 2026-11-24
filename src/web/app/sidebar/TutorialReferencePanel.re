@@ -13,7 +13,7 @@ type context = {
 let of_lesson = (lesson: Tutorial.p('a)): option(context) => {
   let config = TutorialProbeConfig.of_slide(lesson.module_name);
   let probe_config: option(TutorialProbeConfig.t) =
-    config.flags == [] ? None : Some(config);
+    List.is_empty(config.flags) ? None : Some(config);
   switch (lesson.task_reference, probe_config) {
   | (None, None) => None
   | (reference, probe_config) =>
@@ -53,7 +53,7 @@ let strip_view =
         : []
     );
   let toggle_panel =
-    toggles == []
+    List.is_empty(toggles)
       ? [] : [div(~attrs=[clss(["toggle-controls", "panel"])], toggles)];
   let legend =
     mem(flags, Legend)
@@ -120,31 +120,32 @@ let view =
     };
   let section_nodes =
     List.map(
-      ((heading, content)) =>
-        switch (heading) {
-        | Option.None =>
-          div(
-            ~attrs=[clss(["task-reference-preamble"])],
-            render_md(content),
-          )
-        | Option.Some(h) =>
-          Node.details(
-            ~attrs=[
-              clss(["task-reference-section"]),
-              Attr.create("open", ""),
-            ],
-            [
-              Node.summary(
-                ~attrs=[clss(["task-reference-section-title"])],
-                [text(h)],
-              ),
-              div(
-                ~attrs=[clss(["task-reference-section-body"])],
-                render_md(content),
-              ),
-            ],
-          )
-        },
+      ~f=
+        ((heading: option(string), content)) =>
+          switch (heading) {
+          | None =>
+            div(
+              ~attrs=[clss(["task-reference-preamble"])],
+              render_md(content),
+            )
+          | Some(h) =>
+            Node.details(
+              ~attrs=[
+                clss(["task-reference-section"]),
+                Attr.create("open", ""),
+              ],
+              [
+                Node.summary(
+                  ~attrs=[clss(["task-reference-section-title"])],
+                  [text(h)],
+                ),
+                div(
+                  ~attrs=[clss(["task-reference-section-body"])],
+                  render_md(content),
+                ),
+              ],
+            )
+          },
       sections,
     );
   let body_div = div(~attrs=[clss(["task-reference-body"])], section_nodes);
@@ -181,7 +182,7 @@ let view =
   } else {
     let strip = strip();
     let strip_div =
-      strip == []
+      List.is_empty(strip)
         ? []
         : [
           div(

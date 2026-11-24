@@ -1,5 +1,6 @@
 open Alcotest;
 open Web;
+open Poly;
 
 /* Boot builds a full editor only for the CURRENT slide; the rest are
    dormant placeholders hydrated on first switch. */
@@ -13,7 +14,7 @@ let zip_len = (sp: ScratchMode.Scratchpad.t): int =>
 
 let dormant_count = (m: ScratchMode.Model.t): int =>
   m.scratchpads
-  |> List.filter((sp: ScratchMode.Scratchpad.t) => sp.dormant)
+  |> List.filter(~f=(sp: ScratchMode.Scratchpad.t) => sp.dormant)
   |> List.length;
 
 let tests = (
@@ -25,7 +26,7 @@ let tests = (
       () => {
         let settings = Language.CoreSettings.on;
         let names =
-          List.map(fst, snd(Lazy.force(Init.startup).documentation));
+          List.map(~f=fst, snd(Lazy.force(Init.startup).documentation));
         let m =
           ScratchMode.Persist.load_all(
             "doc",
@@ -43,13 +44,13 @@ let tests = (
           bool,
           "current slide is hydrated",
           true,
-          zip_len(List.nth(m.scratchpads, 0)) > 10,
+          zip_len(List.nth_exn(m.scratchpads, 0)) > 10,
         );
         check(
           bool,
           "another slide is a placeholder",
           true,
-          zip_len(List.nth(m.scratchpads, 5)) <= 2,
+          zip_len(List.nth_exn(m.scratchpads, 5)) <= 2,
         );
         let m2 =
           ScratchMode.Persist.hydrate_current(
@@ -70,7 +71,7 @@ let tests = (
           bool,
           "switched slide is now hydrated",
           true,
-          zip_len(List.nth(m2.scratchpads, 5)) > 10,
+          zip_len(List.nth_exn(m2.scratchpads, 5)) > 10,
         );
         /* idempotent: hydrating again is a no-op */
         let m3 = ScratchMode.Persist.hydrate_current(~settings, "doc", m2);

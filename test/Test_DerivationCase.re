@@ -69,8 +69,8 @@ let perform_chars_editor =
   let model = init_model(~root, z);
   Token.to_list(chars)
   |> List.fold_left(
-       (m, c) => update_once(~settings, Action.Insert(c), m),
-       model,
+       ~f=(m, c) => update_once(~settings, Action.Insert(c), m),
+       ~init=model,
      );
 };
 
@@ -185,12 +185,13 @@ let test_drv_case_mid_rule_body = () => {
   /* Move left from end: skip `end`, space -> 4 tokens via byToken */
   let z =
     List.fold_left(
-      (z, _) =>
-        switch (Haz3lcore.Move.local(ByToken, Left, z)) {
-        | Some(z) => z
-        | None => z
-        },
-      z,
+      ~f=
+        (z, _) =>
+          switch (Haz3lcore.Move.local(ByToken, Left, z)) {
+          | Some(z) => z
+          | None => z
+          },
+      ~init=z,
       [(), ()],
     );
   let _z = perform_chars_editor(~root=Drv(Exp), " | B => 2", z);
@@ -335,9 +336,10 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   /* Find the "end" piece id and jump there. */
   let find_end_id = (seg: Segment.t): option(Id.t) =>
     List.find_map(
-      fun
-      | Piece.Tile({id, _} as t: Tile.t) when Tile.is_case(t) => Some(id)
-      | _ => None,
+      ~f=
+        fun
+        | Piece.Tile({id, _} as t: Tile.t) when Tile.is_case(t) => Some(id)
+        | _ => None,
       seg,
     );
   let id_opt = find_end_id(seg);
