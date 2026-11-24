@@ -507,13 +507,17 @@ module Local = {
     /* the source nearest join i, over (join ordinal, source); ties go to
        the following join */
     let nearest = (i: int, sources: list((int, 'a))): option('a) =>
-      List.fold_left(sources, ~init=None, ~f=(best, (i', x)) => {
-        let d = (abs(i' - i), i' > i ? 0 : 1);
-        switch (best) {
-        | Some((d', _)) when compare(d', d) <= 0 => best
-        | _ => Some((d, x))
-        };
-      })
+      List.fold_left(
+        sources,
+        ~init=None,
+        ~f=(best, (i', x)) => {
+          let d = (abs(i' - i), i' > i ? 0 : 1);
+          switch (best) {
+          | Some((d', _)) when compare(d', d) <= 0 => best
+          | _ => Some((d, x))
+          };
+        },
+      )
       |> Option.map(~f=snd);
     /* theirs as fresh pieces, or mine when it already reads the same */
     let copy_ws = (mine: Segment.t, theirs: Segment.t): Segment.t => {
@@ -747,7 +751,9 @@ module Local = {
       /* old secondary → the old gap holding it */
       let origin =
         snd(tok_gaps(before))
-        |> List.mapi(~f=(j, (_, g)) => List.map(g, ~f=p => (Piece.id(p), j)))
+        |> List.mapi(~f=(j, (_, g)) =>
+             List.map(g, ~f=p => (Piece.id(p), j))
+           )
         |> List.concat
         |> Id.Map.of_list;
       let from = p => Id.Map.find_opt(Piece.id(p), origin);
