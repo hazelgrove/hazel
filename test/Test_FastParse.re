@@ -99,17 +99,17 @@ let parens_typed_in = (name, marked, typed) =>
       let z =
         Test_Editing.perform(
           Test_TabDispatch.padding_zipper(marked),
-          List.map(c => Action.Insert(c), Token.to_list(typed)),
+          List.map(Token.to_list(typed), ~f=c => Action.Insert(c)),
         );
       let rec lone = seg =>
         List.exists(
-          (p: Piece.t) =>
+          seg,
+          ~f=(p: Piece.t) =>
             switch (p) {
             | Tile(t) =>
-              Tile.label(t) == ["("] || List.exists(lone, t.children)
+              Tile.label(t) == ["("] || List.exists(t.children, ~f=lone)
             | _ => false
             },
-          seg,
         );
       check(
         bool,
@@ -244,12 +244,12 @@ let tests = (
           ++ " + 2 in\n  b;\nf(1)";
         let members =
           List.filter(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) => Tile.label(t) == ["let", "="]
-              | _ => false
-              },
-            Option.get(Parser.to_segment(src, ~root=Mod)),
+            Option.value_exn(Parser.to_segment(src, ~root=Mod)),
+            ~f=(p: Piece.t) =>
+            switch (p) {
+            | Tile(t) => Tile.label(t) == ["let", "="]
+            | _ => false
+            }
           );
         check(int, "members", 1, List.length(members));
       },
