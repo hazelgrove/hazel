@@ -10,7 +10,7 @@ let statics_of = (z: Zipper.t): CachedStatics.t =>
   CachedStatics.init(
     ~settings,
     ~is_dynamic_term=false,
-    ~stitch=Fun.id,
+    ~stitch=Fn.id,
     ~root=Exp,
     z,
   );
@@ -73,20 +73,22 @@ let caret_moves = () => {
     bool,
     "caret moved",
     false,
-    Test_Editing.printer(s2.ed.state.zipper)
-    == Test_Editing.printer(s0.ed.state.zipper),
+    String.equal(
+      Test_Editing.printer(s2.ed.state.zipper),
+      Test_Editing.printer(s0.ed.state.zipper),
+    ),
   );
   check(
     bool,
     "horizontal move keeps syntax",
     true,
-    s1.ed.syntax === s0.ed.syntax,
+    phys_equal(s1.ed.syntax, s0.ed.syntax),
   );
   check(
     bool,
     "vertical move keeps syntax",
     true,
-    s2.ed.syntax === s0.ed.syntax,
+    phys_equal(s2.ed.syntax, s0.ed.syntax),
   );
 };
 
@@ -97,15 +99,18 @@ let selection = () => {
     bool,
     "measured kept",
     true,
-    s1.ed.syntax.measured === s0.ed.syntax.measured,
+    phys_equal(s1.ed.syntax.measured, s0.ed.syntax.measured),
   );
   check(
     bool,
     "selection ids",
     true,
-    s1.ed.syntax.selection_ids != []
-    && s1.ed.syntax.selection_ids
-    == Selection.selection_ids(s1.ed.state.zipper.selection),
+    !List.is_empty(s1.ed.syntax.selection_ids)
+    && List.equal(
+         Id.equal,
+         s1.ed.syntax.selection_ids,
+         Selection.selection_ids(s1.ed.state.zipper.selection),
+       ),
   );
 };
 
@@ -177,9 +182,9 @@ let shape_inputs = () => {
   let calc = (~info_map=Id.Map.empty, ~dyn_map=dyn_map, ~elaborated=None, z) =>
     CachedSyntax.calculate(z, info_map, dyn_map, ~elaborated, syntax);
   let kept = (name, s: CachedSyntax.t) =>
-    check(bool, name, true, s === syntax);
+    check(bool, name, true, phys_equal(s, syntax));
   let refreshed = (name, s: CachedSyntax.t) =>
-    check(bool, name, true, s !== syntax);
+    check(bool, name, true, !phys_equal(s, syntax));
   let with_focus = f =>
     Zipper.update_refractors(z, r =>
       {
@@ -237,8 +242,12 @@ let shape_inputs = () => {
     bool,
     "refresh keeps the selection current",
     true,
-    s.selection_ids != []
-    && s.selection_ids == Selection.selection_ids(z_sel.selection),
+    !List.is_empty(s.selection_ids)
+    && List.equal(
+         Id.equal,
+         s.selection_ids,
+         Selection.selection_ids(z_sel.selection),
+       ),
   );
 };
 
