@@ -186,14 +186,12 @@ let apply_chain_render =
 
 /* each edit applied to [code] alone, compared exactly */
 let check_edits = (code: string, edits: list((Action.Structural.t, string))) =>
-  List.iter(
-    ((a, expected)) =>
-      check_rendered_exact(
-        Action.Structural.show(a),
-        expected,
-        apply_and_render(code, a),
-      ),
-    edits,
+  List.iter(edits, ~f=((a, expected)) =>
+    check_rendered_exact(
+      Action.Structural.show(a),
+      expected,
+      apply_and_render(code, a),
+    )
   );
 
 let expect_composition_failure =

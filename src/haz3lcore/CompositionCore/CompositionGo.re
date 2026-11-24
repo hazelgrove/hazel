@@ -310,13 +310,11 @@ module Local = {
       | _ => false
       };
     let rec spans_lines = (seg: Segment.t): bool =>
-      List.exists(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) => List.exists(spans_lines, t.children)
-          | p => is_linebreak(p)
-          },
-        seg,
+      List.exists(seg, ~f=(p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => List.exists(t.children, ~f=spans_lines)
+        | p => is_linebreak(p)
+        }
       );
     let is_binding_tile = (p: Piece.t): bool =>
       switch (p) {
@@ -490,10 +488,8 @@ module Local = {
     let is_mod_body = (t: Tile.t): bool =>
       t.form == Form.Compound(ModBody) && Tile.mold(t).in_ == [Sort.Mod];
     let ids = (ps: Segment.t): Id.Map.t(unit) =>
-      List.fold_left(
-        (acc, p) => Id.Map.add(Piece.id(p), (), acc),
-        Id.Map.empty,
-        ps,
+      List.fold_left(ps, ~init=Id.Map.empty, ~f=(acc, p) =>
+        Id.Map.add(Piece.id(p), (), acc)
       );
     /* g0 t0 g1 t1 …: each token with the secondaries after it */
     let tok_gaps =
@@ -511,18 +507,14 @@ module Local = {
     /* the source nearest join i, over (join ordinal, source); ties go to
        the following join */
     let nearest = (i: int, sources: list((int, 'a))): option('a) =>
-      List.fold_left(
-        (best, (i', x)) => {
-          let d = (abs(i' - i), i' > i ? 0 : 1);
-          switch (best) {
-          | Some((d', _)) when compare(d', d) <= 0 => best
-          | _ => Some((d, x))
-          };
-        },
-        None,
-        sources,
-      )
-      |> Option.map(snd);
+      List.fold_left(sources, ~init=None, ~f=(best, (i', x)) => {
+        let d = (abs(i' - i), i' > i ? 0 : 1);
+        switch (best) {
+        | Some((d', _)) when compare(d', d) <= 0 => best
+        | _ => Some((d, x))
+        };
+      })
+      |> Option.map(~f=snd);
     /* theirs as fresh pieces, or mine when it already reads the same */
     let copy_ws = (mine: Segment.t, theirs: Segment.t): Segment.t => {
       let content = (p: Piece.t) =>
@@ -530,19 +522,17 @@ module Local = {
         | Secondary(s) => Some(s.content)
         | _ => None
         };
-      List.map(content, mine) == List.map(content, theirs)
+      List.map(mine, ~f=content) == List.map(theirs, ~f=content)
         ? mine
-        : List.map(
-            (p: Piece.t) =>
-              switch (p) {
-              | Secondary(s) =>
-                Piece.Secondary({
-                  ...s,
-                  id: Id.mk(),
-                })
-              | p => p
-              },
-            theirs,
+        : List.map(theirs, ~f=(p: Piece.t) =>
+            switch (p) {
+            | Secondary(s) =>
+              Piece.Secondary({
+                ...s,
+                id: Id.mk(),
+              })
+            | p => p
+            }
           );
     };
     let clean_member_separators = (~before=[], seg: Segment.t): Segment.t => {
@@ -672,25 +662,25 @@ module Local = {
        copies. */
     let copy_joins =
         (~before=[], seg: Segment.t): (Segment.t, Id.Map.t(unit)) => {
-      let old = ids(List.filter(is_semi, before));
+      let old = ids(List.filter(before, ~f=is_semi));
       let (g0, items) = tok_gaps(seg);
-      let toks = Array.of_list(List.map(fst, items));
-      let gaps = Array.of_list(List.map(snd, items));
+      let toks = Array.of_list(List.map(items, ~f=fst));
+      let gaps = Array.of_list(List.map(items, ~f=snd));
       let n = Array.length(toks);
       /* a `;` at k joins the tokens at k - 1 and k + 1; its whitespace is
          gaps[k - 1] and gaps[k] */
       let inner = k => 0 < k && k < n - 1;
       let joins =
-        List.init(n, k => k)
-        |> List.filter(k =>
+        List.init(n, ~f=k => k)
+        |> List.filter(~f=k =>
              inner(k)
              && is_semi(toks[k])
              && !is_semi(toks[k - 1])
              && !is_semi(toks[k + 1])
            )
-        |> List.mapi((i, k) => (i, k));
+        |> List.mapi(~f=(i, k) => (i, k));
       let is_old = k => Id.Map.mem(Piece.id(toks[k]), old);
-      let clean = k => List.for_all(is_ws, gaps[k - 1] @ gaps[k]);
+      let clean = k => List.for_all(gaps[k - 1] @ gaps[k], ~f=is_ws);
       /* a hole standing alone is a placeholder member (a trailing `;`
          leaves one): its spacing is no model */
       let lone_hole = k =>
@@ -701,14 +691,12 @@ module Local = {
         | _ => false
         };
       let sources =
-        List.filter(
-          ((_, k)) =>
-            is_old(k) && clean(k) && !lone_hole(k - 1) && !lone_hole(k + 1),
-          joins,
+        List.filter(joins, ~f=((_, k)) =>
+          is_old(k) && clean(k) && !lone_hole(k - 1) && !lone_hole(k + 1)
         );
       let copies =
         joins
-        |> List.concat_map(((i, k)) =>
+        |> List.concat_map(~f=((i, k)) =>
              is_old(k) || !clean(k)
                ? []
                : (
@@ -722,18 +710,23 @@ module Local = {
                )
            );
       let gap = k =>
-        switch (List.assoc_opt(k, copies)) {
+        switch (List.Assoc.find(copies, k, ~equal=Int.equal)) {
         | Some(g) => g
         | None => gaps[k]
         };
       let keep =
         joins
-        |> List.filter(((_, k)) => is_old(k) || List.mem_assoc(k, copies))
-        |> List.concat_map(((_, k)) => gap(k - 1) @ gap(k))
+        |> List.filter(~f=((_, k)) =>
+             is_old(k) || List.Assoc.mem(copies, k, ~equal=Int.equal)
+           )
+        |> List.concat_map(~f=((_, k)) => gap(k - 1) @ gap(k))
         |> ids;
-      List.for_all(((k, g)) => g === gaps[k], copies)
+      List.for_all(copies, ~f=((k, g)) => phys_equal(g, gaps[k]))
         ? (seg, keep)
-        : (g0 @ List.concat(List.init(n, k => [toks[k], ...gap(k)])), keep);
+        : (
+          g0 @ List.concat(List.init(n, ~f=k => [toks[k], ...gap(k)])),
+          keep,
+        );
     };
     let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t => {
       let (seg, keep) = copy_joins(~before, seg);
@@ -754,50 +747,46 @@ module Local = {
       /* old secondary → the old gap holding it */
       let origin =
         snd(tok_gaps(before))
-        |> List.mapi((j, (_, g)) => List.map(p => (Piece.id(p), j), g))
+        |> List.mapi(~f=(j, (_, g)) => List.map(g, ~f=p => (Piece.id(p), j)))
         |> List.concat
-        |> List.to_seq
-        |> Id.Map.of_seq;
+        |> Id.Map.of_list;
       let from = p => Id.Map.find_opt(Piece.id(p), origin);
       let (g0, items) = tok_gaps(seg);
-      let toks = Array.of_list(List.map(fst, items));
-      let gaps = Array.of_list(List.map(snd, items));
+      let toks = Array.of_list(List.map(items, ~f=fst));
+      let gaps = Array.of_list(List.map(items, ~f=snd));
       let n = Array.length(toks);
-      let inner = List.init(max(0, n - 1), k => k);
+      let inner = List.init(max(0, n - 1), ~f=k => k);
       let binding = k =>
         is_binding_tile(toks[k]) && is_binding_tile(toks[k + 1]);
       let origins = k =>
-        List.fold_left(
-          (os, p) =>
-            switch (from(p)) {
-            | Some(j) when !List.mem(j, os) => os @ [j]
-            | _ => os
-            },
-          [],
-          gaps[k],
+        List.fold_left(gaps[k], ~init=[], ~f=(os, p) =>
+          switch (from(p)) {
+          | Some(j) when !List.mem(os, j, ~equal=Int.equal) => os @ [j]
+          | _ => os
+          }
         );
       let settled =
         inner
-        |> List.filter_map(k =>
+        |> List.filter_map(~f=k =>
              switch (origins(k)) {
              | [] => None
              | os =>
                let j =
                  binding(k)
-                   ? List.hd(os) : List.nth(os, List.length(os) - 1);
+                   ? List.hd_exn(os) : List.nth_exn(os, List.length(os) - 1);
                let (kept, dropped) =
-                 List.partition(p => from(p) == Some(j), gaps[k]);
-               List.for_all(is_ws, dropped)
+                 List.partition_tf(gaps[k], ~f=p => from(p) == Some(j));
+               List.for_all(dropped, ~f=is_ws)
                  ? Some((k, dropped == [] ? gaps[k] : kept)) : None;
              }
            );
       let joins =
-        inner |> List.filter(binding) |> List.mapi((i, k) => (i, k));
-      let clean = List.for_all(is_ws);
+        inner |> List.filter(~f=binding) |> List.mapi(~f=(i, k) => (i, k));
+      let clean = List.for_all(~f=is_ws);
       let sources =
         joins
-        |> List.filter_map(((i, k)) =>
-             switch (List.assoc_opt(k, settled)) {
+        |> List.filter_map(~f=((i, k)) =>
+             switch (List.Assoc.find(settled, k, ~equal=Int.equal)) {
              | Some(g) when clean(g) => Some((i, g))
              | _ => None
              }
@@ -810,7 +799,7 @@ module Local = {
         });
       let copies =
         joins
-        |> List.filter_map(((i, k)) =>
+        |> List.filter_map(~f=((i, k)) =>
              origins(k) == [] && clean(gaps[k])
                ? switch (nearest(i, sources)) {
                  | Some(g) => Some((k, copy_ws(gaps[k], g)))
@@ -822,17 +811,17 @@ module Local = {
            );
       let fixed = settled @ copies;
       let gap = k =>
-        switch (List.assoc_opt(k, fixed)) {
+        switch (List.Assoc.find(fixed, k, ~equal=Int.equal)) {
         | Some(g) => g
         | None => gaps[k]
         };
-      let keep = fixed |> List.concat_map(snd) |> ids;
-      let g0' = List.filter(p => from(p) == None || !is_ws(p), g0);
-      List.for_all(((k, g)) => g === gaps[k], fixed)
+      let keep = fixed |> List.concat_map(~f=snd) |> ids;
+      let g0' = List.filter(g0, ~f=p => from(p) == None || !is_ws(p));
+      List.for_all(fixed, ~f=((k, g)) => phys_equal(g, gaps[k]))
       && List.length(g0') == List.length(g0)
         ? (seg, keep)
         : (
-          g0' @ List.concat(List.init(n, k => [toks[k], ...gap(k)])),
+          g0' @ List.concat(List.init(n, ~f=k => [toks[k], ...gap(k)])),
           keep,
         );
     };
@@ -894,7 +883,7 @@ module Local = {
       let originals = EditIdentity.index(Zipper.unselect_and_zip(before));
       let unchanged = (p: Piece.t) =>
         switch (Id.Map.find_opt(Piece.id(p), originals)) {
-        | Some(old) => old === p || compare(old, p) == 0
+        | Some(old) => phys_equal(old, p) || Poly.compare(old, p) == 0
         | None => false
         };
       Materialize.all(~skip=unchanged, z, ~root=Exp);

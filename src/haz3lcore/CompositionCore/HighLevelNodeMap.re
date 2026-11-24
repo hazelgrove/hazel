@@ -534,7 +534,7 @@ let rec build_children =
         | Invalid(_)
         | MultiHole(_) => false
         };
-      switch (List.find_opt(is_named, items)) {
+      switch (List.find(items, ~f=is_named)) {
       | None => node_map
       | Some(first) =>
         switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
