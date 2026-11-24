@@ -32,7 +32,10 @@ let read_file = (path: string): string => {
 };
 
 let edits_per_program = 3;
-let min_compared = 120;
+/* the world tree's slides are members of one program and read each
+   other's definitions: alone, most get stuck on a free name and are
+   skipped (stdlib compares 12 here; modular-editors' standalone slides 120) */
+let min_compared = 10;
 
 let tests = (
   "Evaluator.IncrCorpus",
@@ -53,10 +56,13 @@ let tests = (
               read_file(path)
               |> Util.StringUtil.trim_leading
               |> Util.StringUtil.strip_final_newline;
-            switch (FastParse.of_text(~root=Exp, src)) {
+            /* the world tree's files are module members: read as the
+               module they are the body of */
+            let root = CorpusUtil.root_of(path);
+            switch (FastParse.of_text(~root, src)) {
             | None => ()
             | Some(seg) =>
-              let exp = MakeTerm.go(seg).term;
+              let exp = MakeTerm.Incr.term_of_root(~root, seg);
               for (literal_index in 0 to edits_per_program - 1) {
                 Test_Evaluator_Properties.check_incremental_against_fresh_after_edit(
                   ~values_only=true,
