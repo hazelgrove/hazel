@@ -240,6 +240,9 @@ module Settings = {
   let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
+  /* probe views are cached against [version]: a bump redraws them */
+  let redraw = () => version := version^ + 1;
+
   /* drawers print values at the editor's visible width */
   let set_drawer_width = (width: int) =>
     if (width != s^.drawer.width) {
@@ -250,8 +253,8 @@ module Settings = {
             width: width,
           },
         };
-      version := version^ + 1;
-      DrawerFit.layout := DrawerFit.layout^ + 1;
+      redraw();
+      DrawerFit.relayout();
     };
 
   let set_sticky = (b: bool) => {
@@ -1775,7 +1778,7 @@ let key_handler =
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when ctx.p_info.stepping != None =>
+  | D("Escape") when Option.is_some(ctx.p_info.stepping) =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
   | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
@@ -2436,7 +2439,7 @@ module M: Projector = {
     switch (info.stepping) {
     /* uncapped: steps are worked through, so the drawer opens to the
        whole trace instead of scrolling inside itself */
-    | Some(st) => DrawerFit.shape(info.id, st.rows)
+    | Some(_) => DrawerFit.shape(info.id)
     | None => placeholder_samples(model, info)
     };
 
@@ -2591,7 +2594,7 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let stepping = info.stepping != None;
+    let stepping = Option.is_some(info.stepping);
     let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
@@ -2674,13 +2677,14 @@ module M: Projector = {
       overlay: None,
       offside: Some(offside_node),
       below:
-        switch (data_opt, drawer) {
+        switch (
+          data_opt,
+          drawer,
+          info.program_value ? Settings.value_fallback^(info.id) : None,
+        ) {
         /* the program stopped short of the ⇓ probe: how far it got */
-        | (_, true)
-            when
-              info.program_value && Settings.value_fallback^(info.id) != None =>
-          Settings.value_fallback^(info.id)
-        | (Some(data), true) =>
+        | (_, true, Some(stopped)) => Some(stopped)
+        | (Some(data), true, _) =>
           Some(
             live_offside_view(
               ~display=Block,

@@ -79,7 +79,7 @@ let is_program_value =
 
 let mk_info =
     (
-      ~stepping: option(ProjectorBase.stepping)=None,
+      ~stepping: option(Sample.span_ref)=None,
       ~tail: option(Id.t)=None,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
@@ -127,7 +127,7 @@ let mk_info =
   },
   stepping:
     switch (stepping) {
-    | Some(st) when Id.equal(st.span.probe_id, p.id) => stepping
+    | Some(span: Sample.span_ref) when Id.equal(span.probe_id, p.id) => stepping
     | _ => None
     },
   program_value: is_program_value(~tail, p.id, p.kind, p.model),

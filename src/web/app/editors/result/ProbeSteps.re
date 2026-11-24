@@ -1,4 +1,3 @@
-open Stdlib;
 open Util;
 open Language;
 
@@ -51,10 +50,10 @@ let closed_exp =
   open OptUtil.Syntax;
   let* info = Statics.Map.lookup_exp(span.probe_id, info_map);
   let* samples = Dynamics.Map.lookup(span.probe_id, dynamics);
-  let* sample = List.find_opt(Sample.ref_matches(span), samples);
+  let* sample = List.find(samples, ~f=Sample.ref_matches(span));
   let+ bindings =
     sample.env
-    |> List.map((en: Sample.Env.entry) =>
+    |> List.map(~f=(en: Sample.Env.entry) =>
          switch (en.value) {
          | Val(d) => Some((en.binding.name, d))
          | Opaque => None
@@ -83,7 +82,7 @@ let calculate =
   | Some(span) =>
     let ps =
       switch (prev) {
-      | Some(ps) when ps.span == span => ps
+      | Some(ps) when Sample.equal_span_ref(ps.span, span) => ps
       | _ => init(span)
       };
     /* a run in progress may lack the sample: keep the last one */
@@ -94,20 +93,19 @@ let calculate =
       };
     let same_exp =
       switch (exp, ps.exp) {
-      | (Some(a), Some(b)) => a === b || Exp.fast_equal(a, b)
+      | (Some(a), Some(b)) => phys_equal(a, b) || Exp.fast_equal(a, b)
       | (None, None) => true
       | _ => false
       };
     let fresh =
       switch (prev) {
-      | Some(p) => p !== ps
+      | Some(p) => !phys_equal(p, ps)
       | None => true
       };
     if (!fresh && same_exp && !ps.dirty && !Calc.is_new(settings)) {
       prev;
     } else {
-      Haz3lcore.ProbeProj.Settings.version :=
-        Haz3lcore.ProbeProj.Settings.version^ + 1;
+      Haz3lcore.ProbeProj.Settings.redraw();
       switch (exp, ps.exp) {
       | (None, _) =>
         Some({
@@ -205,8 +203,8 @@ let one_line = (s: string): string => {
   } else {
     /* back off to a UTF-8 character boundary */
     let rec cut = i =>
-      i > 0 && Char.code(s.[i]) land 0xC0 == 0x80 ? cut(i - 1) : i;
-    String.sub(s, 0, cut(cap)) ++ {js|…|js};
+      i > 0 && Char.to_int(s.[i]) land 0xC0 == 0x80 ? cut(i - 1) : i;
+    String.sub(s, ~pos=0, ~len=cut(cap)) ++ {js|…|js};
   };
 };
 
@@ -224,7 +222,7 @@ let bar = (~classes=[], ~label, ~name, ~title=?, ~status=[], ~undo, controls) =>
             Node.span(
               ~attrs=[
                 Attr.classes(["steps-bar-expr"]),
-                ...Option.to_list(Option.map(Attr.title, title)),
+                ...Option.to_list(Option.map(title, ~f=Attr.title)),
               ],
               [Node.text(name)],
             ),
@@ -274,7 +272,7 @@ let view =
         ~label="Stepper",
         ~name=stepped,
         ~title=stepped,
-        ~undo=Option.map(inject, StepperView.Update.undo(ps.stepper)),
+        ~undo=Option.map(StepperView.Update.undo(ps.stepper), ~f=inject),
         [
           Widgets.button(~tooltip="Stepper settings", Icons.gear, _ =>
             set(ShowSettings)

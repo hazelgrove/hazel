@@ -1157,7 +1157,7 @@ let view =
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
   | _ when !globals.settings.core.statics =>
-    dynamics == None ? div_empty : bar_view([])
+    Option.is_none(dynamics) ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,

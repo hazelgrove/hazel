@@ -1,32 +1,14 @@
-open Stdlib;
 open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 
 /* A theorem's proof, in a drawer below the theorem. The web layer renders
-   the proof (Settings.view) and fits the drawer to it (Settings.rows).
+   the proof (Settings.view) and counts its rows (DrawerFit.set_computed).
    Placed only by AutoProbePerform.update_proofs. */
 
 module Settings = {
   /* Set by the web layer each render: a theorem's proof, by its id */
   let view: ref(Id.t => option(Node.t)) = ref(_ => None);
-  /* the rows each theorem's proof takes, as counted from its stepper;
-     DrawerFit adds what rendering measures */
-  let computed: Hashtbl.t(Id.t, int) = Hashtbl.create(8);
-  let computed_rows = (id: Id.t): int =>
-    Hashtbl.find_opt(computed, id) |> Option.value(~default=1);
-  /* true when the drawer's rows changed */
-  let set_computed = (id: Id.t, n: int): bool => {
-    let before = DrawerFit.rows(id, computed_rows(id));
-    Hashtbl.replace(computed, id, n);
-    if (DrawerFit.rows(id, n) == before) {
-      false;
-    } else {
-      DrawerFit.layout := DrawerFit.layout^ + 1;
-      ProbeProj.Settings.version := ProbeProj.Settings.version^ + 1;
-      true;
-    };
-  };
 };
 
 /* the theorem whose proof this drawer shows: its own anchor, unless the
@@ -53,10 +35,8 @@ module M: Projector = {
   let focusable = Focusable.non;
   let elaborate_syntax = false;
 
-  let placeholder = (m: model, info: info) => {
-    let theorem = theorem_of(m, info);
-    DrawerFit.shape(theorem, Settings.computed_rows(theorem));
-  };
+  let placeholder = (m: model, info: info) =>
+    DrawerFit.shape(theorem_of(m, info));
   let update = (m, _, ()) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 

@@ -352,7 +352,7 @@ let start = default_model => {
                 )
               : None,
         );
-        JsUtil.observe_drawer_width(~report=cols =>
+        DrawerRows.watch_width(~report=cols =>
           if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
             app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
             |> Bonsai.Effect.Expert.handle;

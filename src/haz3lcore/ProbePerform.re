@@ -792,11 +792,7 @@ let go =
     Zipper.update_refractors(z, r =>
       {
         ...r,
-        stepping:
-          Some({
-            span,
-            rows: 1,
-          }),
+        stepping: Some(span),
       }
     );
   | HideSteps => hide_steps(z)
@@ -806,9 +802,9 @@ let go =
    probe; probe actions on other probes leave it open */
 let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
   switch (z.refractors.stepping) {
-  | Some(st)
+  | Some(span: Sample.span_ref)
       when
-        !has_probe(st.span.probe_id, z)
+        !has_probe(span.probe_id, z)
         || Action.is_edit(a)
         && (
           switch (a) {

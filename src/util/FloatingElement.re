@@ -156,8 +156,8 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         ) {
         | (Some(_), Some(main)) =>
           let m = main##getBoundingClientRect;
-          let h = float_of_int(el##.offsetHeight);
-          let w = float_of_int(el##.offsetWidth);
+          let h = Float.of_int(el##.offsetHeight);
+          let w = Float.of_int(el##.offsetWidth);
           let up =
             Float.(
               viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top
@@ -178,8 +178,8 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
           );
         | _ => (viewport_top, viewport_left)
         };
-      el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
-      el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
+      el##.style##.top := Js.string(sprintf("%fpx", viewport_top));
+      el##.style##.left := Js.string(sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
     }
   };

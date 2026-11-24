@@ -1,4 +1,3 @@
-open Stdlib;
 open Js_of_ocaml;
 
 /* Reading layout without forcing it. A ResizeObserver reports after the
@@ -25,7 +24,7 @@ let watchers: ref(array(watcher)) = ref([||]);
 let guard = (name: string, f: unit => 'a, default: 'a): 'a =>
   try(f()) {
   | exn =>
-    print_endline("AfterLayout " ++ name ++ ": " ++ Printexc.to_string(exn));
+    print_endline("AfterLayout " ++ name ++ ": " ++ Exn.to_string(exn));
     default;
   };
 
@@ -43,7 +42,7 @@ let pass =
       _,
     )
     : unit => {
-  let changed = Array.make(Array.length(watchers^), []);
+  let changed = Array.create(~len=Array.length(watchers^), []);
   for (i in entries##.length - 1 downto 0) {
     Js.Optdef.iter(
       Js.array_get(entries, i),
@@ -60,17 +59,15 @@ let pass =
   let reads = List.rev(pending^);
   pending := [];
   let watched =
-    List.filter_map(
-      w =>
-        switch (changed[w]) {
-        | [] => None
-        | els => Some(guard("watcher", () => (watchers^[w])(els), () => ()))
-        },
-      List.init(Array.length(changed), Fun.id),
+    List.filter_mapi(Array.to_list(changed), ~f=(w, els) =>
+      switch (els) {
+      | [] => None
+      | els => Some(guard("watcher", () => (watchers^[w])(els), () => ()))
+      }
     );
   let writes =
-    watched @ List.map(read => guard("read", read, () => ()), reads);
-  List.iter(write => guard("write", write, ()), writes);
+    watched @ List.map(reads, ~f=read => guard("read", read, () => ()));
+  List.iter(writes, ~f=write => guard("write", write, ()));
 };
 
 /* made on first use: there is no ResizeObserver outside a browser */
@@ -106,7 +103,7 @@ let watcher = (f: watcher): int => {
 };
 
 let watch = (w: int, el: Js.t(Dom_html.element)): unit =>
-  if (id_of(el) == None) {
+  if (Option.is_none(id_of(el))) {
     ignore(
       Js.Unsafe.meth_call(
         Lazy.force(ids),
@@ -120,7 +117,7 @@ let watch = (w: int, el: Js.t(Dom_html.element)): unit =>
   };
 
 let unwatch = (el: Js.t(Dom_html.element)): unit =>
-  if (id_of(el) != None) {
+  if (Option.is_some(id_of(el))) {
     ignore(
       Js.Unsafe.meth_call(
         Lazy.force(ids),

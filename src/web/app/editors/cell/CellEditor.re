@@ -46,20 +46,6 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
-
-  let map_zipper = (f: Zipper.t => Zipper.t, model: t): t => {
-    ...model,
-    editor: {
-      ...model.editor,
-      editor: {
-        ...model.editor.editor,
-        state: {
-          ...model.editor.editor.state,
-          zipper: f(model.editor.editor.state.zipper),
-        },
-      },
-    },
-  };
 };
 
 module Update = {
@@ -109,46 +95,29 @@ module Update = {
     };
   };
 
-  let stepping = (editor: CodeEditable.Model.t) =>
-    editor.editor.state.zipper.refractors.stepping
-    |> Option.map(~f=(st: Haz3lcore.ProjectorBase.stepping) => st.span);
-
-  /* a stepping drawer takes the rows its stepper needs; true when they
-     changed, which the layout must pick up */
-  let fit_steps =
+  /* the stepping drawer and the proof drawers take the rows their
+     steppers need; true when that changed, which the layout must pick up */
+  let fit_drawers =
       (~settings, result: EvalResult.Model.t, editor: CodeEditable.Model.t)
-      : (CodeEditable.Model.t, bool) => {
+      : bool => {
     let z = editor.editor.state.zipper;
-    switch (z.refractors.stepping, result.probe_steps) {
-    | (Some(st), Some(ps)) when ps.span == st.span =>
-      let rows = ProbeSteps.rows(~settings, ps);
-      rows == st.rows
-        ? (editor, false)
-        : (
-          {
-            ...editor,
-            editor: {
-              ...editor.editor,
-              state: {
-                ...editor.editor.state,
-                zipper:
-                  Zipper.update_refractors(z, r =>
-                    {
-                      ...r,
-                      stepping:
-                        Some({
-                          ...st,
-                          rows,
-                        }),
-                    }
-                  ),
-              },
-            },
-          },
-          true,
-        );
-    | _ => (editor, false)
+    let steps =
+      switch (z.refractors.stepping, result.probe_steps) {
+      | (Some(span), Some(ps))
+          when Language.Sample.equal_span_ref(ps.span, span) =>
+        Haz3lcore.DrawerFit.set_computed(
+          span.probe_id,
+          ProbeSteps.rows(~settings, ps),
+        )
+      | _ => false
+      };
+    let proofs =
+      !Id.Map.is_empty(z.refractors.proofs)
+      && Theorems.fit(~settings, result.theorems);
+    if (steps || proofs) {
+      Haz3lcore.ProbeProj.Settings.redraw();
     };
+    steps || proofs;
   };
 
   let calculate =
@@ -191,14 +160,11 @@ module Update = {
         },
         ~queue_worker,
         ~is_edited,
-        ~stepping=stepping(editor),
+        ~stepping=editor.editor.state.zipper.refractors.stepping,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    let (editor, steps_resized) = fit_steps(~settings, result, editor);
-    let proofs_resized =
-      !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
-      && Theorems.fit(~settings, result.theorems);
+    let drawers_resized = fit_drawers(~settings, result, editor);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);
@@ -222,8 +188,7 @@ module Update = {
       has_pending_focus
       || has_pending_cursor
       || dynamics_changed
-      || steps_resized
-      || proofs_resized;
+      || drawers_resized;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
@@ -379,7 +344,7 @@ module View = {
     Haz3lcore.ProbeProj.Settings.value_fallback :=
       (
         id =>
-          tail == Some(id)
+          Option.equal(Id.equal, tail, Some(id))
             ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
             : None
       );

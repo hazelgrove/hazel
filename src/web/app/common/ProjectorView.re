@@ -21,7 +21,7 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
-    stepping: option(ProjectorBase.stepping),
+    stepping: option(Language.Sample.span_ref),
     program_value: bool,
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
@@ -52,7 +52,11 @@ module ViewCache = {
           phys_equal(e.statics_map, statics_map)
           && phys_equal(e.dynamics_map, dynamics_map)
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
-          && e.stepping == stepping
+          && Option.equal(
+               Language.Sample.equal_span_ref,
+               e.stepping,
+               stepping,
+             )
           && e.program_value == program_value
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && Poly.equal(e.core_settings, core_settings)

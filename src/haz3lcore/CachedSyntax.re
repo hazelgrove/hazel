@@ -33,7 +33,7 @@ type t = {
   cached_ephemerals: Refractors.Map.t,
   /* the ⇓ probe's term: its drawer reserves no rows */
   cached_tail: option(Id.t),
-  cached_stepping: option(ProjectorBase.stepping),
+  cached_stepping: option(Language.Sample.span_ref),
   /* DrawerFit.layout when the rows were computed */
   cached_layout: int,
   cached_proofs: Refractors.Map.t,
@@ -258,7 +258,12 @@ let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
     !phys_equal(z.refractors.manuals, old.cached_manuals)
     || !phys_equal(z.refractors.multis.ephemerals, old.cached_ephemerals)
     || !Poly.equal(z.refractors.tail_target, old.cached_tail)
-    || !Poly.equal(z.refractors.stepping, old.cached_stepping)
+    || !
+         Option.equal(
+           Language.Sample.equal_span_ref,
+           z.refractors.stepping,
+           old.cached_stepping,
+         )
     || DrawerFit.layout^ != old.cached_layout
     || !phys_equal(z.refractors.proofs, old.cached_proofs);
   if (old.old) {

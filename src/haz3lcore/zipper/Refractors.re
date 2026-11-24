@@ -75,9 +75,9 @@ type t = {
      so that when evaluation results return, we can set the sample focus
      to the first sample of the first probe that has samples. */
   pending_probe_cursor: option(list(Id.t)),
-  /* the one probe drawer showing a stepper, if any */
+  /* the sample the one stepping probe drawer steps, if any */
   [@default None]
-  stepping: option(ProjectorBase.stepping),
+  stepping: option(Language.Sample.span_ref),
   /* the ⇓ toggle's probe: an ephemeral on the program's last expression,
      re-anchored as that expression changes */
   [@default None]

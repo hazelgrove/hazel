@@ -168,8 +168,7 @@ module Model = {
       };
     if (!same) {
       drawn_stop := Some((id, stop));
-      Haz3lcore.ProbeProj.Settings.version :=
-        Haz3lcore.ProbeProj.Settings.version^ + 1;
+      Haz3lcore.ProbeProj.Settings.redraw();
     };
   };
 
@@ -260,8 +259,7 @@ module Update = {
       };
     | (ProbeStepperAction(_), _) => model |> Updated.raise_invalid_action
     | (ProbeStepperFocus(focus), {probe_steps: Some(ps), _}) =>
-      Haz3lcore.ProbeProj.Settings.version :=
-        Haz3lcore.ProbeProj.Settings.version^ + 1;
+      Haz3lcore.ProbeProj.Settings.redraw();
       {
         ...model,
         probe_steps:
@@ -837,7 +835,7 @@ module View = {
               Attr.classes(["dyn-chip"]),
               Attr.title("Theorems proven, of all the program's theorems"),
             ],
-            [text(Printf.sprintf("Proofs %d of %d", proven, all))],
+            [text(sprintf("Proofs %d of %d", proven, all))],
           ),
         ]
       };

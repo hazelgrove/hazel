@@ -136,8 +136,7 @@ module Update = {
         core: proof_core(settings.core),
       };
     /* a proof drawer's cached view shows the old stepper until this moves */
-    Haz3lcore.ProbeProj.Settings.version :=
-      Haz3lcore.ProbeProj.Settings.version^ + 1;
+    Haz3lcore.ProbeProj.Settings.redraw();
     switch (action) {
     | TheoremUpdate(n, action) =>
       let id_and_thm = {
@@ -344,7 +343,7 @@ let fit = (~settings: CoreSettings.t, model: Model.t): bool =>
   Id.Map.fold(
     (id, _, changed) =>
       switch (rows(~settings, model, id)) {
-      | Some(n) => Haz3lcore.ProofProj.Settings.set_computed(id, n) || changed
+      | Some(n) => Haz3lcore.DrawerFit.set_computed(id, n) || changed
       | None => changed
       },
     model.thm_map,

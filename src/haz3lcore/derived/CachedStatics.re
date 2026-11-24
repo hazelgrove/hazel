@@ -104,7 +104,7 @@ let probe_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
 
 let full_ids_of_zipper = (z: Zipper.t): Id.Map.t(unit) =>
   switch (z.refractors.stepping) {
-  | Some(st) => Id.Map.singleton(st.span.probe_id, ())
+  | Some(span: Sample.span_ref) => Id.Map.singleton(span.probe_id, ())
   | None => Id.Map.empty
   };
 
