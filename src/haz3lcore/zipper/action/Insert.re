@@ -12,11 +12,11 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
-        | _ => false
-        },
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
+          | _ => false
+          },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
@@ -557,16 +557,16 @@ let wrap_balanced = (char: string, z: t, ~root): t => {
   let content =
     List.map(
       ~f=
-      fun
+        fun
         | Piece.Tile(t)
             when
               !Tile.is_complete(t)
               && List.mem(outer_ids, t.id, ~equal=Poly.equal) =>
-        Piece.Tile({
-          ...t,
-          id: Id.mk(),
-        })
-      | p => p,
+          Piece.Tile({
+            ...t,
+            id: Id.mk(),
+          })
+        | p => p,
       content,
     );
   /* Place content as right siblings inside the new ancestor,
@@ -724,7 +724,7 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(
                ~f=
-               Token.is_secondary(new_token)
+                 Token.is_secondary(new_token)
                    ? Fn.id : remold_regrout(Right, ~root),
              )
         : split(~auto_indent, z, char, idx, t, ~root);

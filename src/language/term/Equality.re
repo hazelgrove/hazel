@@ -160,7 +160,7 @@ let equality =
 
       // Expression Wildcards:
       | (Constructor("$v", _), _) when Option.is_some(use_expr_wildcards) =>
-      let check_value = Option.value_exn(use_expr_wildcards);
+        let check_value = Option.value_exn(use_expr_wildcards);
         check_value(Option.value(env2, ~default=Environment.empty), e2);
       | (EmptyHole, _) when Option.is_some(use_expr_wildcards) => true
       | (Constructor("$e", _), _) when Option.is_some(use_expr_wildcards) =>
@@ -183,7 +183,7 @@ let equality =
               let* env1 = env1;
               let v = Environment.lookup(env1, x);
               switch (v) {
-            | Some({term: Var(v), _}) when String.equal(v, x) => None
+              | Some({term: Var(v), _}) when String.equal(v, x) => None
               | _ => v
               };
             };
@@ -191,7 +191,7 @@ let equality =
               let* env2 = env2;
               let v = Environment.lookup(env2, y);
               switch (v) {
-            | Some({term: Var(v), _}) when String.equal(v, y) => None
+              | Some({term: Var(v), _}) when String.equal(v, y) => None
               | _ => v
               };
             };
@@ -202,7 +202,7 @@ let equality =
             | (None, None) =>
               switch (free_var_handler) {
               | Some(handler) => handler(alphas_exp, x, e2)
-            | None => String.equal(x, y) // If no handler, just check if they are equal.
+              | None => String.equal(x, y) // If no handler, just check if they are equal.
               }
             };
           }
@@ -234,12 +234,12 @@ let equality =
 
       // Wrappers otherwise: compare.
       | (DynamicErrorHole(x, err1), DynamicErrorHole(y, err2)) =>
-      InvalidOperationError.equal(err1, err2) && exp'(x, y)
+        InvalidOperationError.equal(err1, err2) && exp'(x, y)
       | (DynamicErrorHole(_), _) => false
       | (Parens(x), Parens(y)) => exp'(x, y)
       | (Parens(_), _) => false
-    | (Projector(d1, x), Projector(d2, y)) =>
-      Grammar.equal_projector_data(d1, d2) && exp'(x, y)
+      | (Projector(d1, x), Projector(d2, y)) =>
+        Grammar.equal_projector_data(d1, d2) && exp'(x, y)
       | (Projector(_), _) => false
       | (Asc(x, t1), Asc(y, t2)) => typ'(t1, t2) && exp'(x, y)
       | (Asc(_), _) => false
@@ -325,13 +325,17 @@ let equality =
       | (Closure(_), _) => false
 
       // Constructors: might ignore constructor types.
-    | (Constructor(c1, _), Constructor(c2, _)) when ignore_constructor_types =>
-      String.equal(c1, c2)
-    | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
-      String.equal(c1, c2) && typ'(ty1, ty2)
+      | (Constructor(c1, _), Constructor(c2, _))
+          when ignore_constructor_types =>
+        String.equal(c1, c2)
+      | (
+          Constructor(c1, Some(Some(ty1))),
+          Constructor(c2, Some(Some(ty2))),
+        ) =>
+        String.equal(c1, c2) && typ'(ty1, ty2)
       | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
-    | (Constructor(c1, None), Constructor(c2, None)) =>
-      String.equal(c1, c2)
+      | (Constructor(c1, None), Constructor(c2, None)) =>
+        String.equal(c1, c2)
       | (Constructor(_), _) => false
 
       // Holes: equal if provenance is ignored
@@ -347,7 +351,7 @@ let equality =
           when List.length(xs1) == List.length(xs2) =>
         List.equal(any', xs1, xs2)
       | (MultiHole(_), _) => false
-    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
+      | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
       | (Invalid(_), _) => false
 
       // Other forms: compare.
@@ -357,9 +361,9 @@ let equality =
       | (Deferral(_), _) => false
       | (Atom(c1), Atom(c2)) => c1 == c2
       | (Atom(_), _) => false
-    | (Label(l1), Label(l2)) => String.equal(l1, l2)
+      | (Label(l1), Label(l2)) => String.equal(l1, l2)
       | (Label(_), _) => false
-    | (LivelitName(s1), LivelitName(s2)) => String.equal(s1, s2)
+      | (LivelitName(s1), LivelitName(s2)) => String.equal(s1, s2)
       | (LivelitName(_), _) => false
       | (Tuple(xs1), Tuple(xs2)) when List.length(xs1) == List.length(xs2) =>
         List.equal(exp', xs1, xs2)
@@ -404,7 +408,7 @@ let equality =
       | (BinOp(op1, e11, e12), BinOp(op2, e21, e22)) =>
         op1 == op2 && exp'(e11, e21) && exp'(e12, e22)
       | (BinOp(_, _, _), _) => false
-    | (BuiltinFun(f1), BuiltinFun(f2)) => String.equal(f1, f2)
+      | (BuiltinFun(f1), BuiltinFun(f2)) => String.equal(f1, f2)
       | (BuiltinFun(_), _) => false
       | (Match(e1, rs1), Match(e2, rs2))
           when List.length(rs1) == List.length(rs2) =>
@@ -437,7 +441,7 @@ let equality =
       | (ProofObject(_), _) => false
       | (Module(items1), Module(items2)) =>
         List.length(items1) == List.length(items2)
-      && List.for_all2_exn(items1, items2, ~f=mod')
+        && List.for_all2_exn(items1, items2, ~f=mod')
       | (Module(_), _) => false
       | (ModuleExp(mp1, def1, body1), ModuleExp(mp2, def2, body2)) =>
         switch (mpat(alphas_exp, alphas_typ, mp1, mp2)) {
@@ -722,7 +726,7 @@ let equality =
       | (Var(x), Var(y)) =>
         switch (Alphas.are_alpha_equiv(x, y, alphas_typ)) {
         | Equiv => true
-      | Free => String.equal(x, y)
+        | Free => String.equal(x, y)
         | NotEquiv => false
         }
       | (Var(_), _) => false
@@ -732,7 +736,7 @@ let equality =
       | (Unknown(SynSwitch), Unknown(SynSwitch)) => true
       | (Unknown(SynSwitch), _) => false
       | (Unknown(Hole(Invalid(s1))), Unknown(Hole(Invalid(s2)))) =>
-      String.equal(s1, s2)
+        String.equal(s1, s2)
       | (Unknown(Hole(Invalid(_))), _) => false
       | (Unknown(Hole(EmptyHole)), Unknown(Hole(EmptyHole))) => true
       | (Unknown(Hole(EmptyHole)), _) => false
@@ -746,7 +750,7 @@ let equality =
       // Other forms: compare.
       | (Atom(a1), Atom(a2)) => a1 == a2
       | (Atom(_), _) => false
-    | (Label(l1), Label(l2)) => String.equal(l1, l2)
+      | (Label(l1), Label(l2)) => String.equal(l1, l2)
       | (Label(_), _) => false
       | (List(ty1), List(ty2)) => typ'(ty1, ty2)
       | (List(_), _) => false
@@ -774,17 +778,21 @@ let equality =
       | (ProdExtension(_), _) => false
       | (ProofOf(e1), ProofOf(e2)) => exp'(e1, e2)
       | (ProofOf(_), _) => false
-    | (Sig(s1), Sig(s2)) =>
-      let items = (items1, items2) =>
-        List.length(items1) == List.length(items2)
-        && List.for_all2_exn(~f=sig_(alphas_exp, alphas_typ), items1, items2);
-      switch (s1, s2) {
-      | (Open(items1), Open(items2)) => items(items1, items2)
-      | (Closed(c1), Closed(c2)) =>
-        items(ClosedSig.items(c1), ClosedSig.items(c2))
-      | (Open(_), Closed(_))
-      | (Closed(_), Open(_)) => false
-      };
+      | (Sig(s1), Sig(s2)) =>
+        let items = (items1, items2) =>
+          List.length(items1) == List.length(items2)
+          && List.for_all2_exn(
+               ~f=sig_(alphas_exp, alphas_typ),
+               items1,
+               items2,
+             );
+        switch (s1, s2) {
+        | (Open(items1), Open(items2)) => items(items1, items2)
+        | (Closed(c1), Closed(c2)) =>
+          items(ClosedSig.items(c1), ClosedSig.items(c2))
+        | (Open(_), Closed(_))
+        | (Closed(_), Open(_)) => false
+        };
       | (Sig(_), _) => false
       | (DrvQuoteTy(s1), DrvQuoteTy(s2)) => s1 == s2
       | (DrvQuoteTy(_), _) => false
@@ -895,10 +903,10 @@ let equality =
         when List.length(rls1) == List.length(rls2) =>
       exp'(e1, e2)
       && List.for_all2_exn(rls1, rls2, ~f=((p1, e1), (p2, e2)) =>
-             switch (pat'(p1, p2)) {
-             | Some(alphas_exp') =>
+           switch (pat'(p1, p2)) {
+           | Some(alphas_exp') =>
              exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
-             | None => false
+           | None => false
            }
          )
     | (Rules(_, _), _) => false

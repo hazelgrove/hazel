@@ -105,15 +105,16 @@ let mode_class = (m: mode): string =>
   };
 let set_mode_class = (el, m: mode): unit => {
   let cl = Js.Unsafe.get(el, "classList");
-  List.iter(~f=
-    c =>
-      ignore(
-        Js.Unsafe.meth_call(
-          cl,
-          "remove",
-          [|Js.Unsafe.inject(Js.string(c))|],
+  List.iter(
+    ~f=
+      c =>
+        ignore(
+          Js.Unsafe.meth_call(
+            cl,
+            "remove",
+            [|Js.Unsafe.inject(Js.string(c))|],
+          ),
         ),
-      ),
     ["mode-speech", "mode-thought", "mode-hidden"],
   );
   ignore(
@@ -242,25 +243,26 @@ let speech_path =
   let edge_len = ((ix, _)) => Float.abs(ix) > 0.5 ? w : h;
   let segs =
     Array.to_list(
-      Array.mapi(~f=
-        (k, ((cx, cy), (ix, iy), (ox, oy))) =>
-          if (k == tail) {
-            let back = min(13., 0.45 *. edge_len((ix, iy)))
-            and on = min(11., 0.45 *. edge_len((ox, oy)));
-            Printf.sprintf(
-              "L %s L %s L %s",
-              pt((cx -. ix *. back, cy -. iy *. back)),
-              pt((tx, ty)),
-              pt((cx +. ox *. on, cy +. oy *. on)),
-            );
-          } else {
-            Printf.sprintf(
-              "L %s Q %s %s",
-              pt((cx -. ix *. r, cy -. iy *. r)),
-              pt((cx, cy)),
-              pt((cx +. ox *. r, cy +. oy *. r)),
-            );
-          },
+      Array.mapi(
+        ~f=
+          (k, ((cx, cy), (ix, iy), (ox, oy))) =>
+            if (k == tail) {
+              let back = min(13., 0.45 *. edge_len((ix, iy)))
+              and on = min(11., 0.45 *. edge_len((ox, oy)));
+              Printf.sprintf(
+                "L %s L %s L %s",
+                pt((cx -. ix *. back, cy -. iy *. back)),
+                pt((tx, ty)),
+                pt((cx +. ox *. on, cy +. oy *. on)),
+              );
+            } else {
+              Printf.sprintf(
+                "L %s Q %s %s",
+                pt((cx -. ix *. r, cy -. iy *. r)),
+                pt((cx, cy)),
+                pt((cx +. ox *. r, cy +. oy *. r)),
+              );
+            },
         corners,
       ),
     );
@@ -341,14 +343,15 @@ let place = (): unit =>
           | Hidden =>
             let a = max(1., w /. 2. -. 7.)
             and b = max(1., h /. 2. -. 5.);
-            let re = 1. /. Float.sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
+            let re =
+              1. /. Float.sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
             let ccx = tipx +. dx *. (17. +. re)
             and ccy = tipy +. dy *. (17. +. re);
             (ccx -. w /. 2., ccy -. h /. 2.);
           };
         let key =
-          String.concat(~sep=
-            "/",
+          String.concat(
+            ~sep="/",
             List.map(~f=f1, [left, top, w, h, tipx, tipy, sx, sy])
             @ [mode_class(m)],
           );
@@ -376,16 +379,17 @@ let place = (): unit =>
                coordinates stay body-local for the rig's bounding circle. */
             set_style(t, "left", f1((-300.) -. left) ++ "px");
             set_style(t, "top", f1((-300.) -. top) ++ "px");
-            List.iter(~f=
-              ((sel, along, rad)) =>
-                switch (child(t, sel)) {
-                | Some(c) =>
-                  set_attr(c, "cx", f1(tipx +. dx *. along));
-                  set_attr(c, "cy", f1(tipy +. dy *. along));
-                  set_attr(c, "r", f1(rad));
-                  set_attr(c, "opacity", m == Thought ? "1" : "0");
-                | None => ()
-                },
+            List.iter(
+              ~f=
+                ((sel, along, rad)) =>
+                  switch (child(t, sel)) {
+                  | Some(c) =>
+                    set_attr(c, "cx", f1(tipx +. dx *. along));
+                    set_attr(c, "cy", f1(tipy +. dy *. along));
+                    set_attr(c, "r", f1(rad));
+                    set_attr(c, "opacity", m == Thought ? "1" : "0");
+                  | None => ()
+                  },
               [(".cloud-puff-1", 3., 2.4), (".cloud-puff-2", 11., 3.8)],
             );
           | None => ()

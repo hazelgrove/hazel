@@ -257,7 +257,11 @@ module MapSegment = {
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
     let children = List.map(~f=of_segment(f), t.children);
-    List.for_all2_exn(~f=(a, b) => Segment.ptr_eq(a, b), t.children, children)
+    List.for_all2_exn(
+      ~f=(a, b) => Segment.ptr_eq(a, b),
+      t.children,
+      children,
+    )
       ? t
       : {
         ...t,

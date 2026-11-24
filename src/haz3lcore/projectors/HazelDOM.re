@@ -122,7 +122,8 @@ let relative_xy = evt =>
   | None => (float_of_int(evt##.offsetX), float_of_int(evt##.offsetY))
   };
 
-let px = (f: float): DHExp.t => Exp.int(int_of_float(Stdlib.Float.round(f)));
+let px = (f: float): DHExp.t =>
+  Exp.int(int_of_float(Stdlib.Float.round(f)));
 
 let relative_pos = (evt): DHExp.t => {
   let (x, y) = relative_xy(evt);
@@ -484,7 +485,8 @@ let svg_tags = [
   "animateTransform",
 ];
 
-let is_svg_tag = (tag: string): bool => List.mem(svg_tags, tag, ~equal=Poly.equal);
+let is_svg_tag = (tag: string): bool =>
+  List.mem(svg_tags, tag, ~equal=Poly.equal);
 
 let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   switch (of_constructor(d)) {

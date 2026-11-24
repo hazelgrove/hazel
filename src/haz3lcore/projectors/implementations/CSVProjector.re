@@ -35,24 +35,24 @@ module M: Projector = {
         ListLit(
           List.map(
             ~f=
-            (row: list((string, string))) =>
-              Language.IdTagged.FreshGrammar.Exp.(
-                tuple(
-                  List.map(~f=
-                      
-                    ((header: string, value: string)) =>
-                      tup_label(
-                        label(StringUtil.sanitize_for_label(header)),
-                        string(
+              (row: list((string, string))) =>
+                Language.IdTagged.FreshGrammar.Exp.(
+                  tuple(
+                    List.map(
+                      ~f=
+                        ((header: string, value: string)) =>
+                          tup_label(
+                            label(StringUtil.sanitize_for_label(header)),
+                            string(
                               StringUtil.sanitize_for_string_expression(
                                 value,
                               ),
-                        ),
-                      ),
-                    row,
-                  ),
-                )
-              ),
+                            ),
+                          ),
+                      row,
+                    ),
+                  )
+                ),
             rows,
           ),
         )
@@ -60,19 +60,19 @@ module M: Projector = {
         ListLit(
           List.map(
             ~f=
-            (row: list(string)) =>
-              Language.IdTagged.FreshGrammar.Exp.(
-                tuple(
-                  List.map(~f=
-                      
-                    (value: string) =>
-                      string(
-                        StringUtil.sanitize_for_string_expression(value),
-                      ),
-                    row,
-                  ),
-                )
-              ),
+              (row: list(string)) =>
+                Language.IdTagged.FreshGrammar.Exp.(
+                  tuple(
+                    List.map(
+                      ~f=
+                        (value: string) =>
+                          string(
+                            StringUtil.sanitize_for_string_expression(value),
+                          ),
+                      row,
+                    ),
+                  )
+                ),
             rows,
           ),
         )

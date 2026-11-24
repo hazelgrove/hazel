@@ -75,13 +75,13 @@ let agrees_with_segmenter = ((name, s)) =>
       /* columns, on each line separately: bounding_box measures per line */
       List.iter(
         ~f=
-        line =>
-          check(
-            int,
-            "columns",
-            reference_columns(line),
-            Unicode.Width.columns_of_string(line),
-          ),
+          line =>
+            check(
+              int,
+              "columns",
+              reference_columns(line),
+              Unicode.Width.columns_of_string(line),
+            ),
         String.split(s, ~on='\n'),
       );
       /* every prefix length, including out-of-range ones */

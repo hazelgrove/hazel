@@ -146,18 +146,18 @@ let problems_tab_icon =
   let grouped =
     List.fold_left(
       ~f=
-      (acc, (cat, n)) => {
-        let cls = category_badge_cls(cat);
-        let sev = category_badge_severity(cat);
-        let label = category_badge_label(cat);
+        (acc, (cat, n)) => {
+          let cls = category_badge_cls(cat);
+          let sev = category_badge_severity(cat);
+          let label = category_badge_label(cat);
           switch (List.Assoc.find(acc, cls, ~equal=String.equal)) {
-        | Some((total, s, _)) => [
-            (cls, (total + n, max(s, sev), label)),
+          | Some((total, s, _)) => [
+              (cls, (total + n, max(s, sev), label)),
               ...List.Assoc.remove(acc, cls, ~equal=String.equal),
-          ]
-        | None => [(cls, (n, sev, label)), ...acc]
-        };
-      },
+            ]
+          | None => [(cls, (n, sev, label)), ...acc]
+          };
+        },
       ~init=[],
       counts,
     );
@@ -252,22 +252,22 @@ let updateElementStyles = (new_width: int) => {
   ];
   List.iter(
     ~f=
-    ((id, style)) => {
-      switch (get_elem_by_id_opt(id)) {
-      | Some(elem) =>
-        let value =
+      ((id, style)) => {
+        switch (get_elem_by_id_opt(id)) {
+        | Some(elem) =>
+          let value =
             String.equal(style, "width")
-            ? string_of_int(new_width) ++ "px"
-            : string_of_int(new_width + 20) ++ "px";
-        let elem_style = Js.Unsafe.coerce(elem)##.style;
-        switch (style) {
-        | "width" => elem_style##.width := Js.string(value)
-        | "right" => elem_style##.right := Js.string(value)
-        | _ => ()
-        };
-      | None => ()
-      }
-    },
+              ? string_of_int(new_width) ++ "px"
+              : string_of_int(new_width + 20) ++ "px";
+          let elem_style = Js.Unsafe.coerce(elem)##.style;
+          switch (style) {
+          | "width" => elem_style##.width := Js.string(value)
+          | "right" => elem_style##.right := Js.string(value)
+          | _ => ()
+          };
+        | None => ()
+        }
+      },
     elements,
   );
 };
@@ -280,18 +280,18 @@ let resetElementStyles = () => {
   ];
   List.iter(
     ~f=
-    ((id, style)) => {
-      switch (get_elem_by_id_opt(id)) {
-      | Some(elem) =>
-        let elem_style = Js.Unsafe.coerce(elem)##.style;
-        switch (style) {
-        | "width" => elem_style##.width := Js.string("")
-        | "right" => elem_style##.right := Js.string("")
-        | _ => ()
-        };
-      | None => ()
-      }
-    },
+      ((id, style)) => {
+        switch (get_elem_by_id_opt(id)) {
+        | Some(elem) =>
+          let elem_style = Js.Unsafe.coerce(elem)##.style;
+          switch (style) {
+          | "width" => elem_style##.width := Js.string("")
+          | "right" => elem_style##.right := Js.string("")
+          | _ => ()
+          };
+        | None => ()
+        }
+      },
     elements,
   );
 };
@@ -366,20 +366,20 @@ let view =
       ~display_warnings=globals.settings.core.display_warnings,
       List.map(
         ~f=
-        ((label, editors: list(CodeWithStatics.Model.t))) =>
-          Haz3lcore.ProblemCollection.{
-            label,
-            sources:
-              List.map(~f=
-                  
-                (e: CodeWithStatics.Model.t) =>
-                  Haz3lcore.ProblemCollection.{
-                    statics: e.statics,
-                    syntax: e.editor.syntax,
-                  },
-                editors,
-              ),
-          },
+          ((label, editors: list(CodeWithStatics.Model.t))) =>
+            Haz3lcore.ProblemCollection.{
+              label,
+              sources:
+                List.map(
+                  ~f=
+                    (e: CodeWithStatics.Model.t) =>
+                      Haz3lcore.ProblemCollection.{
+                        statics: e.statics,
+                        syntax: e.editor.syntax,
+                      },
+                  editors,
+                ),
+            },
         problem_editors,
       ),
     );

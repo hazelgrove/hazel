@@ -188,7 +188,10 @@ let site_pos = (~pos_of: string => option(pos), s: site): option(pos) =>
 
 let act_len = (a: act): int => {
   let body =
-    List.fold(a.effects, ~init=a.travel_ms + a.pause_ms, ~f=(m, e: timed_effect) => max(m, e.at + e.dur));
+    List.fold(
+      a.effects, ~init=a.travel_ms + a.pause_ms, ~f=(m, e: timed_effect) =>
+      max(m, e.at + e.dur)
+    );
   body + a.settle_ms;
 };
 
@@ -203,28 +206,30 @@ type definition = {
 let definitions = (added: list(new_node)): list(definition) => {
   let is_new = k => List.exists(~f=(n: new_node) => n.key == k, added);
   let primaries =
-    List.filter(~f=
-      (n: new_node) =>
-        switch (n.anchor) {
-        | None => true
-        | Some(a) => !is_new(a) /* an orphan terminal leads its own act */
-        },
+    List.filter(
+      ~f=
+        (n: new_node) =>
+          switch (n.anchor) {
+          | None => true
+          | Some(a) => !is_new(a) /* an orphan terminal leads its own act */
+          },
       added,
     )
     /* program order first; the screen's reading order breaks ties */
     |> List.sort(~compare=(a: new_node, b: new_node) =>
          compare((a.order, a.p.x, a.p.y), (b.order, b.p.x, b.p.y))
        );
-  List.map(~f=
-    (p: new_node) =>
-      {
-        primary: p,
-        terminals:
-          List.filter(~f=
-            (n: new_node) => n.anchor == Some(p.key) && n.key != p.key,
-            added,
-          ),
-      },
+  List.map(
+    ~f=
+      (p: new_node) =>
+        {
+          primary: p,
+          terminals:
+            List.filter(
+              ~f=(n: new_node) => n.anchor == Some(p.key) && n.key != p.key,
+              added,
+            ),
+        },
     primaries,
   );
 };
@@ -255,13 +260,14 @@ let definition_act = (~tempo, ~cause, ~from: option(pos), d: definition): act =>
           dur: 0,
         },
       ]
-      @ List.mapi(~f=
-          (i, t: new_node) =>
-            {
-              effect: Appear(t.key),
-              at: t0 + tempo.bloom_gap * (i + 1),
-              dur: tempo.effect,
-            },
+      @ List.mapi(
+          ~f=
+            (i, t: new_node) =>
+              {
+                effect: Appear(t.key),
+                at: t0 + tempo.bloom_gap * (i + 1),
+                dur: tempo.effect,
+              },
           d.terminals,
         ),
     settle_ms: tempo.settle,
@@ -288,13 +294,14 @@ let batch_act =
     travel_ms,
     pause_ms: tempo.pause,
     effects:
-      List.mapi(~f=
-        (i, n: new_node) =>
-          {
-            effect: Appear(n.key),
-            at: t0 + 80 * i,
-            dur: tempo.effect,
-          },
+      List.mapi(
+        ~f=
+          (i, n: new_node) =>
+            {
+              effect: Appear(n.key),
+              at: t0 + 80 * i,
+              dur: tempo.effect,
+            },
         all,
       ),
     settle_ms: tempo.settle,
@@ -328,13 +335,14 @@ let rest_act =
     travel_ms,
     pause_ms: tempo.pause,
     effects:
-      List.mapi(~f=
-        (i, e: new_edge) =>
-          {
-            effect: Reveal(e.name),
-            at: t0 + 150 * i,
-            dur: tempo.effect,
-          },
+      List.mapi(
+        ~f=
+          (i, e: new_edge) =>
+            {
+              effect: Reveal(e.name),
+              at: t0 + 150 * i,
+              dur: tempo.effect,
+            },
         es,
       ),
     settle_ms: tempo.settle,
@@ -385,21 +393,22 @@ let edge_act =
     };
   /* a terminal this edge lands on (or leaves from) blooms as it arrives */
   let ends =
-    List.filter_map(~f=
-      (n: new_node) =>
-        n.key == e.dst
-          ? Some({
-              effect: Appear(n.key),
-              at: t_draw + ride,
-              dur: tempo.effect,
-            })
-          : n.key == e.src
-              ? Some({
-                  effect: Appear(n.key),
-                  at: t0,
-                  dur: tempo.effect,
-                })
-              : None,
+    List.filter_map(
+      ~f=
+        (n: new_node) =>
+          n.key == e.dst
+            ? Some({
+                effect: Appear(n.key),
+                at: t_draw + ride,
+                dur: tempo.effect,
+              })
+            : n.key == e.src
+                ? Some({
+                    effect: Appear(n.key),
+                    at: t0,
+                    dur: tempo.effect,
+                  })
+                : None,
       orphans,
     );
   {
@@ -566,7 +575,9 @@ let act_end_pos = (~pos_of, a: act): option(pos) =>
 /* lay the acts out in time, each starting when the previous settles */
 let sequence = (acts: list(act)): (list((int, act)), int) => {
   let (rev, t) =
-    List.fold(acts, ~init=([], 0), ~f=((acc, t), a) => ([(t, a), ...acc], t + act_len(a)));
+    List.fold(acts, ~init=([], 0), ~f=((acc, t), a) =>
+      ([(t, a), ...acc], t + act_len(a))
+    );
   (List.rev(rev), t);
 };
 
@@ -600,23 +611,27 @@ and plan_at = (~tempo, ~pos_of: string => option(pos), diff: diff): score => {
      edge's act (Form: visit the parts, lines draw in, the dot grows) —
      not a definition of its own */
   let formed =
-    List.filter_map(~f=
-      (e: new_edge) => Option.map(~f=fst, e.product),
+    List.filter_map(
+      ~f=(e: new_edge) => Option.map(~f=fst, e.product),
       diff.edges,
     );
   let defs =
     definitions(
-      List.filter(~f=(n: new_node) => !List.mem(formed, n.key, ~equal=Poly.equal), diff.added),
+      List.filter(
+        ~f=(n: new_node) => !List.mem(formed, n.key, ~equal=Poly.equal),
+        diff.added,
+      ),
     );
   let edge_keys =
     List.concat_map(~f=(e: new_edge) => [e.src, e.dst], diff.edges);
   /* terminals with an old anchor that a new edge touches ride that edge */
   let (edge_orphans, own_defs) =
-    List.partition_tf(~f=
-      (d: definition) =>
-        d.terminals == []
-        && d.primary.anchor != None
-        && List.mem(edge_keys, d.primary.key, ~equal=Poly.equal),
+    List.partition_tf(
+      ~f=
+        (d: definition) =>
+          d.terminals == []
+          && d.primary.anchor != None
+          && List.mem(edge_keys, d.primary.key, ~equal=Poly.equal),
       defs,
     );
   let orphans = List.map(~f=(d: definition) => d.primary, edge_orphans);
@@ -643,30 +658,31 @@ and plan_at = (~tempo, ~pos_of: string => option(pos), diff: diff): score => {
      is still there — arrows first (a function goes before its type),
      then nodes, each with its own act */
   let removals =
-    List.map(~f=
-      e => mk(from => erase_act(~tempo, ~cause, ~from, e)),
+    List.map(
+      ~f=e => mk(from => erase_act(~tempo, ~cause, ~from, e)),
       diff.removed_edges,
     )
-    @ List.map(~f=
-        r => mk(from => removal_act(~tempo, ~cause, ~from, r)),
+    @ List.map(
+        ~f=r => mk(from => removal_act(~tempo, ~cause, ~from, r)),
         diff.removed,
       );
   let changes =
-    List.map(~f=
-      c => mk(from => change_act(~tempo, ~cause, ~from, c)),
+    List.map(
+      ~f=c => mk(from => change_act(~tempo, ~cause, ~from, c)),
       diff.changed,
     );
   let additions =
-    List.map(~f=
-      d => mk(from => definition_act(~tempo, ~cause, ~from, d)),
+    List.map(
+      ~f=d => mk(from => definition_act(~tempo, ~cause, ~from, d)),
       own_defs,
     );
   let edge_acts =
-    List.map(~f=
-      e =>
-        mk(from =>
-          edge_act(~tempo, ~cause, ~from, ~pos_of=pos_of', ~orphans, e)
-        ),
+    List.map(
+      ~f=
+        e =>
+          mk(from =>
+            edge_act(~tempo, ~cause, ~from, ~pos_of=pos_of', ~orphans, e)
+          ),
       edges,
     );
   /* edges we do not enact still need their terminals to appear */
@@ -678,12 +694,13 @@ and plan_at = (~tempo, ~pos_of: string => option(pos), diff: diff): score => {
             ~tempo,
             ~cause,
             ~from,
-            List.map(~f=
-              (n: new_node) =>
-                {
-                  primary: n,
-                  terminals: [],
-                },
+            List.map(
+              ~f=
+                (n: new_node) =>
+                  {
+                    primary: n,
+                    terminals: [],
+                  },
               orphans,
             ),
           )
@@ -725,18 +742,22 @@ let bbox_of = (~pad: float, ps: list(pos)): option(bbox) =>
   | [] => None
   | [p, ...rest] =>
     Some(
-      List.fold(rest, ~init={
+      List.fold(
+        rest,
+        ~init={
           x0: p.x -. pad,
           y0: p.y -. pad,
           x1: p.x +. pad,
           y1: p.y +. pad,
-        }, ~f=(b, q: pos) =>
-          {
-            x0: min(b.x0, q.x -. pad),
-            y0: min(b.y0, q.y -. pad),
-            x1: max(b.x1, q.x +. pad),
-            y1: max(b.y1, q.y +. pad),
-          }),
+        },
+        ~f=(b, q: pos) =>
+        {
+          x0: min(b.x0, q.x -. pad),
+          y0: min(b.y0, q.y -. pad),
+          x1: max(b.x1, q.x +. pad),
+          y1: max(b.y1, q.y +. pad),
+        }
+      ),
     )
   };
 
@@ -862,9 +883,10 @@ let frame_for =
            at a readable zoom, keep it all rather than pan a node off the
            edge (C1: the most other content in frame) */
         let in_view =
-          List.filter(~f=
-            (p: pos) =>
-              p.x >= vr.x0 && p.x <= vr.x1 && p.y >= vr.y0 && p.y <= vr.y1,
+          List.filter(
+            ~f=
+              (p: pos) =>
+                p.x >= vr.x0 && p.x <= vr.x1 && p.y >= vr.y0 && p.y <= vr.y1,
             all,
           );
         let keep = bbox_of(~pad=32., in_view @ required);
@@ -928,10 +950,11 @@ let with_edge_positions =
   switch (pos_of(key)) {
   | Some(_) as p => p
   | None =>
-    List.find_map(~f=
-      ((name, src, dst)) =>
-        key == "edge-src:" ++ name
-          ? Some(src) : key == "edge-end:" ++ name ? Some(dst) : None,
+    List.find_map(
+      ~f=
+        ((name, src, dst)) =>
+          key == "edge-src:" ++ name
+            ? Some(src) : key == "edge-end:" ++ name ? Some(dst) : None,
       edges,
     )
   };
@@ -940,22 +963,26 @@ let with_edge_positions =
 let act_targets = (~pos_of: string => option(pos), a: act): list(pos) => {
   let site = site_pos(~pos_of, a.at) |> Option.to_list;
   let eff =
-    List.concat_map(~f=
-      (e: timed_effect) =>
-        switch (e.effect) {
-        | Appear(k)
-        | Vanish(k)
-        | Change(k) => Option.to_list(pos_of(k))
-        | Form(pk, parts) => List.filter_map(~f=pos_of, [pk, ...parts])
-        | Draw(name)
-        | Erase(name)
-        | Pill(name)
-        | Reveal(name) =>
-          List.filter_map(~f=pos_of, ["edge-src:" ++ name, "edge-end:" ++ name])
-        | Drift
-        | Say(_) => []
-        | Ripple(s) => Option.to_list(site_pos(~pos_of, s))
-        },
+    List.concat_map(
+      ~f=
+        (e: timed_effect) =>
+          switch (e.effect) {
+          | Appear(k)
+          | Vanish(k)
+          | Change(k) => Option.to_list(pos_of(k))
+          | Form(pk, parts) => List.filter_map(~f=pos_of, [pk, ...parts])
+          | Draw(name)
+          | Erase(name)
+          | Pill(name)
+          | Reveal(name) =>
+            List.filter_map(
+              ~f=pos_of,
+              ["edge-src:" ++ name, "edge-end:" ++ name],
+            )
+          | Drift
+          | Say(_) => []
+          | Ripple(s) => Option.to_list(site_pos(~pos_of, s))
+          },
       a.effects,
     );
   site @ eff;
@@ -975,7 +1002,10 @@ let with_frames =
     : score => {
   let all = List.filter_map(~f=pos_of, all_keys);
   let unexposed =
-    List.filter_map(~f=k => List.mem(exposed, k, ~equal=Poly.equal) ? None : pos_of(k), all_keys);
+    List.filter_map(
+      ~f=k => List.mem(exposed, k, ~equal=Poly.equal) ? None : pos_of(k),
+      all_keys,
+    );
   /* C3: the beat is framed WHOLE before its first act — everything its
      acts will touch, in one view — and held; per-act frames only when an
      act's targets leave it (a 26-act module insert used to pan 200–500 px
@@ -997,13 +1027,17 @@ let with_frames =
     | None => ([], cur)
     };
   let (frames, _) =
-    List.fold(s.acts, ~init=(frames0, cur), ~f=((acc, cur), (t, a)) => {
+    List.fold(
+      s.acts,
+      ~init=(frames0, cur),
+      ~f=((acc, cur), (t, a)) => {
         let required = act_targets(~pos_of, a);
         switch (frame_for(~pane, ~cur, ~all, ~required, ())) {
         | Some(f) => ([(t, f), ...acc], f)
         | None => (acc, cur)
         };
-      });
+      },
+    );
   {
     ...s,
     frames: List.rev(frames),
@@ -1013,9 +1047,10 @@ let with_frames =
 /* ---------------- queries for the player ---------------- */
 
 let effects_abs = (s: score): list((int, act, timed_effect)) =>
-  List.concat_map(~f=
-    ((t, a)) =>
-      List.map(~f=(e: timed_effect) => (t + e.at, a, e), a.effects),
+  List.concat_map(
+    ~f=
+      ((t, a)) =>
+        List.map(~f=(e: timed_effect) => (t + e.at, a, e), a.effects),
     s.acts,
   )
   |> List.sort(~compare=((t1, _, _), (t2, _, _)) => compare(t1, t2));
@@ -1025,23 +1060,25 @@ let effects_abs = (s: score): list((int, act, timed_effect)) =>
    by an edge act grows at the END of the formation (the player visits
    the parts first, then the dot scales in over its last 320 ms) */
 let appear_times = (s: score): list((string, int)) =>
-  List.filter_map(~f=
-    ((t, _, e: timed_effect)) =>
-      switch (e.effect) {
-      | Appear(k) => Some((k, t))
-      | Form(pk, _) => Some((pk, t + e.dur - min(320, e.dur * 2 / 5)))
-      | _ => None
-      },
+  List.filter_map(
+    ~f=
+      ((t, _, e: timed_effect)) =>
+        switch (e.effect) {
+        | Appear(k) => Some((k, t))
+        | Form(pk, _) => Some((pk, t + e.dur - min(320, e.dur * 2 / 5)))
+        | _ => None
+        },
     effects_abs(s),
   );
 
 let drift_at = (s: score): option(int) =>
-  List.find_map(~f=
-    ((t, _, e: timed_effect)) =>
-      switch (e.effect) {
-      | Drift => Some(t)
-      | _ => None
-      },
+  List.find_map(
+    ~f=
+      ((t, _, e: timed_effect)) =>
+        switch (e.effect) {
+        | Drift => Some(t)
+        | _ => None
+        },
     effects_abs(s),
   );
 
@@ -1050,21 +1087,22 @@ let drift_at = (s: score): option(int) =>
    expanded by the player, which can sample the rendered path. */
 let actor_path =
     (~pos_of: string => option(pos), s: score): list((int, pos, emote)) =>
-  List.concat_map(~f=
-    ((t, a)) => {
-      let where =
-        switch (a.at) {
-        | Edge(name) => pos_of("edge-src:" ++ name)
-        | site => site_pos(~pos_of, site)
+  List.concat_map(
+    ~f=
+      ((t, a)) => {
+        let where =
+          switch (a.at) {
+          | Edge(name) => pos_of("edge-src:" ++ name)
+          | site => site_pos(~pos_of, site)
+          };
+        switch (where) {
+        | None => []
+        | Some(p) => [
+            (t + a.travel_ms, p, a.emote),
+            (t + act_len(a) - a.settle_ms, p, a.emote),
+          ]
         };
-      switch (where) {
-      | None => []
-      | Some(p) => [
-          (t + a.travel_ms, p, a.emote),
-          (t + act_len(a) - a.settle_ms, p, a.emote),
-        ]
-      };
-    },
+      },
     s.acts,
   );
 
@@ -1075,7 +1113,10 @@ let validate = (~tempo=tempo, s: score): list(string) => {
   let bad = msg => v := [msg, ...v^];
   /* act starts never decrease; each act starts after the previous ends */
   ignore(
-    List.fold(s.acts, ~init=0, ~f=(prev_end, (t, a)) => {
+    List.fold(
+      s.acts,
+      ~init=0,
+      ~f=(prev_end, (t, a)) => {
         if (t < prev_end) {
           bad(
             Printf.sprintf(
@@ -1086,24 +1127,27 @@ let validate = (~tempo=tempo, s: score): list(string) => {
           );
         };
         t + act_len(a);
-      }),
+      },
+    ),
   );
   /* the actor precedes every effect */
-  List.iter(~f=
-    ((_, a)) =>
-      List.iter(~f=
-        (e: timed_effect) =>
-          if (e.at < a.travel_ms + a.pause_ms) {
-            bad(
-              Printf.sprintf(
-                "ORPHAN: effect at %dms before the actor arrives (%dms)",
-                e.at,
-                a.travel_ms + a.pause_ms,
-              ),
-            );
-          },
-        a.effects,
-      ),
+  List.iter(
+    ~f=
+      ((_, a)) =>
+        List.iter(
+          ~f=
+            (e: timed_effect) =>
+              if (e.at < a.travel_ms + a.pause_ms) {
+                bad(
+                  Printf.sprintf(
+                    "ORPHAN: effect at %dms before the actor arrives (%dms)",
+                    e.at,
+                    a.travel_ms + a.pause_ms,
+                  ),
+                );
+              },
+          a.effects,
+        ),
     s.acts,
   );
   /* structural effects of different acts keep a minimum gap */
@@ -1117,34 +1161,40 @@ let validate = (~tempo=tempo, s: score): list(string) => {
     | _ => false
     };
   ignore(
-    List.fold(effects_abs(s), ~init=Stdlib.Option.None, ~f=(prev, (t, a, e)) =>
-        if (structural(e)) {
-          switch (prev) {
-          | Some((pt, pa)) when !phys_equal(pa, a) && t - pt < tempo.min_gap =>
-            bad(
-              Printf.sprintf(
-                "CROWDED: effects %dms apart across acts (min %d)",
-                t - pt,
-                tempo.min_gap,
-              ),
-            );
-            Some((t, a));
-          | _ => Some((t, a))
-          };
-        } else {
-          prev;
-        }),
+    List.fold(
+      effects_abs(s), ~init=Stdlib.Option.None, ~f=(prev, (t, a, e)) =>
+      if (structural(e)) {
+        switch (prev) {
+        | Some((pt, pa)) when !phys_equal(pa, a) && t - pt < tempo.min_gap =>
+          bad(
+            Printf.sprintf(
+              "CROWDED: effects %dms apart across acts (min %d)",
+              t - pt,
+              tempo.min_gap,
+            ),
+          );
+          Some((t, a));
+        | _ => Some((t, a))
+        };
+      } else {
+        prev;
+      }
+    ),
   );
   /* frames lead their act and never run backwards */
   ignore(
-    List.fold(s.frames, ~init=0, ~f=(prev, (t, _)) => {
+    List.fold(
+      s.frames,
+      ~init=0,
+      ~f=(prev, (t, _)) => {
         if (t < prev) {
           bad(
             Printf.sprintf("FRAME: cue at %dms after one at %dms", t, prev),
           );
         };
         t;
-      }),
+      },
+    ),
   );
   if (s.total_ms > 60000) {
     bad(Printf.sprintf("LONG: %dms", s.total_ms));
@@ -1160,64 +1210,74 @@ let coverage = (diff: diff, s: score): list(string) => {
   let effects =
     List.map(~f=((_, _, e: timed_effect)) => e.effect, effects_abs(s));
   let node_staged = k =>
-    List.exists(~f=
-      fun
-      | Appear(k') => k' == k
-      | Form(pk, _) => pk == k
-      | _ => false,
+    List.exists(
+      ~f=
+        fun
+        | Appear(k') => k' == k
+        | Form(pk, _) => pk == k
+        | _ => false,
       effects,
     );
   let edge_staged = n =>
-    List.exists(~f=
-      fun
-      | Draw(n')
-      | Reveal(n') => n' == n
-      | _ => false,
+    List.exists(
+      ~f=
+        fun
+        | Draw(n')
+        | Reveal(n') => n' == n
+        | _ => false,
       effects,
     );
-  List.filter_map(~f=
-    (n: new_node) =>
-      node_staged(n.key)
-        ? None : Some("ORPHAN: node " ++ n.key ++ " unstaged"),
+  List.filter_map(
+    ~f=
+      (n: new_node) =>
+        node_staged(n.key)
+          ? None : Some("ORPHAN: node " ++ n.key ++ " unstaged"),
     diff.added,
   )
-  @ List.filter_map(~f=
-      (e: new_edge) =>
-        edge_staged(e.name)
-          ? None : Some("ORPHAN: edge " ++ e.name ++ " unstaged"),
+  @ List.filter_map(
+      ~f=
+        (e: new_edge) =>
+          edge_staged(e.name)
+            ? None : Some("ORPHAN: edge " ++ e.name ++ " unstaged"),
       diff.edges,
     )
-  @ List.filter_map(~f=
-      ((k, _)) =>
-        List.exists(~f=
-          fun
-          | Vanish(k') => k' == k
-          | _ => false,
-          effects,
-        )
-          ? None : Some("ORPHAN: removal " ++ k ++ " unstaged"),
+  @ List.filter_map(
+      ~f=
+        ((k, _)) =>
+          List.exists(
+            ~f=
+              fun
+              | Vanish(k') => k' == k
+              | _ => false,
+            effects,
+          )
+            ? None : Some("ORPHAN: removal " ++ k ++ " unstaged"),
       diff.removed,
     )
-  @ List.filter_map(~f=
-      ((n, _)) =>
-        List.exists(~f=
-          fun
-          | Erase(n') => n' == n
-          | _ => false,
-          effects,
-        )
-          ? None : Some("ORPHAN: erased edge " ++ n ++ " unstaged"),
+  @ List.filter_map(
+      ~f=
+        ((n, _)) =>
+          List.exists(
+            ~f=
+              fun
+              | Erase(n') => n' == n
+              | _ => false,
+            effects,
+          )
+            ? None : Some("ORPHAN: erased edge " ++ n ++ " unstaged"),
       diff.removed_edges,
     )
-  @ List.filter_map(~f=
-      ((k, _)) =>
-        List.exists(~f=
-          fun
-          | Change(k') => k' == k
-          | _ => false,
-          effects,
-        )
-          ? None : Some("ORPHAN: change of " ++ k ++ " unstaged"),
+  @ List.filter_map(
+      ~f=
+        ((k, _)) =>
+          List.exists(
+            ~f=
+              fun
+              | Change(k') => k' == k
+              | _ => false,
+            effects,
+          )
+            ? None : Some("ORPHAN: change of " ++ k ++ " unstaged"),
       diff.changed,
     );
 };
@@ -1225,12 +1285,13 @@ let coverage = (diff: diff, s: score): list(string) => {
 /* absolute cue times of the Change effects (the staged old looks swap
    then) */
 let change_times = (s: score): list((string, int)) =>
-  List.filter_map(~f=
-    ((t, _, e: timed_effect)) =>
-      switch (e.effect) {
-      | Change(k) => Some((k, t))
-      | _ => None
-      },
+  List.filter_map(
+    ~f=
+      ((t, _, e: timed_effect)) =>
+        switch (e.effect) {
+        | Change(k) => Some((k, t))
+        | _ => None
+        },
     effects_abs(s),
   );
 
@@ -1239,17 +1300,18 @@ let change_times = (s: score): list((string, int)) =>
 /* a Point site is named by what the act does there (its first targeted
    effect), so the journal reads "edit@damage" not "edit@·" */
 let act_target_name = (a: act): option(string) =>
-  List.find_map(~f=
-    (e: timed_effect) =>
-      switch (e.effect) {
-      | Change(k)
-      | Vanish(k)
-      | Appear(k) => Some(k)
-      | Erase(n)
-      | Draw(n)
-      | Reveal(n) => Some(n)
-      | _ => None
-      },
+  List.find_map(
+    ~f=
+      (e: timed_effect) =>
+        switch (e.effect) {
+        | Change(k)
+        | Vanish(k)
+        | Appear(k) => Some(k)
+        | Erase(n)
+        | Draw(n)
+        | Reveal(n) => Some(n)
+        | _ => None
+        },
     a.effects,
   );
 

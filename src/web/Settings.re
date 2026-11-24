@@ -554,9 +554,13 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_value_nodes:
-              List.mem(settings.sidebar.canvas_value_nodes, key, ~equal=Poly.equal)
-                ? List.filter(~f=
-                    k => !String.equal(k, key),
+              List.mem(
+                settings.sidebar.canvas_value_nodes,
+                key,
+                ~equal=Poly.equal,
+              )
+                ? List.filter(
+                    ~f=k => !String.equal(k, key),
                     settings.sidebar.canvas_value_nodes,
                   )
                 : [key, ...settings.sidebar.canvas_value_nodes],
@@ -568,7 +572,11 @@ module Update = {
             ...settings.sidebar,
             canvas_card_natural: [
               ((slide, key), (w, h)),
-              ...List.Assoc.remove(settings.sidebar.canvas_card_natural, (slide, key), ~equal=Poly.equal),
+              ...List.Assoc.remove(
+                   settings.sidebar.canvas_card_natural,
+                   (slide, key),
+                   ~equal=Poly.equal,
+                 ),
             ],
           },
         }
@@ -577,9 +585,13 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_card_live:
-              List.mem(settings.sidebar.canvas_card_live, key, ~equal=Poly.equal)
-                ? List.filter(~f=
-                    k => !String.equal(k, key),
+              List.mem(
+                settings.sidebar.canvas_card_live,
+                key,
+                ~equal=Poly.equal,
+              )
+                ? List.filter(
+                    ~f=k => !String.equal(k, key),
                     settings.sidebar.canvas_card_live,
                   )
                 : [key, ...settings.sidebar.canvas_card_live],
@@ -591,7 +603,11 @@ module Update = {
             ...settings.sidebar,
             canvas_card_sizes: [
               ((slide, key), (w, h)),
-              ...List.Assoc.remove(settings.sidebar.canvas_card_sizes, (slide, key), ~equal=Poly.equal),
+              ...List.Assoc.remove(
+                   settings.sidebar.canvas_card_sizes,
+                   (slide, key),
+                   ~equal=Poly.equal,
+                 ),
             ],
           },
         }
@@ -601,7 +617,11 @@ module Update = {
             ...settings.sidebar,
             canvas_probe_models: [
               (key, model),
-              ...List.Assoc.remove(settings.sidebar.canvas_probe_models, key, ~equal=Poly.equal),
+              ...List.Assoc.remove(
+                   settings.sidebar.canvas_probe_models,
+                   key,
+                   ~equal=Poly.equal,
+                 ),
             ],
           },
         }
@@ -766,7 +786,11 @@ module Update = {
           ...settings,
           canvas_node_offsets: [
             ((slide, key), (dx, dy)),
-            ...List.Assoc.remove(settings.canvas_node_offsets, (slide, key), ~equal=Poly.equal),
+            ...List.Assoc.remove(
+                 settings.canvas_node_offsets,
+                 (slide, key),
+                 ~equal=Poly.equal,
+               ),
           ],
         }
       | SetCanvasZoom(z) => {
@@ -789,29 +813,42 @@ module Update = {
           ...settings,
           canvas_node_pins: [
             ((slide, key), (x, y)),
-            ...List.Assoc.remove(settings.canvas_node_pins, (slide, key), ~equal=Poly.equal),
+            ...List.Assoc.remove(
+                 settings.canvas_node_pins,
+                 (slide, key),
+                 ~equal=Poly.equal,
+               ),
           ],
         }
       | SetCanvasFrame(slide, ox, oy, xs, ys) => {
           ...settings,
           canvas_frames: [
             (slide, (ox, oy, xs, ys)),
-            ...List.Assoc.remove(settings.canvas_frames, slide, ~equal=Poly.equal),
+            ...List.Assoc.remove(
+                 settings.canvas_frames,
+                 slide,
+                 ~equal=Poly.equal,
+               ),
           ],
         }
       | ClearCanvasNodeOffsets(slide) => {
           ...settings,
           canvas_node_offsets:
-            List.filter(~f=
-              (((s, _), _)) => !String.equal(s, slide),
+            List.filter(
+              ~f=(((s, _), _)) => !String.equal(s, slide),
               settings.canvas_node_offsets,
             ),
           canvas_node_pins:
-            List.filter(~f=
-              (((s, _), _)) => !String.equal(s, slide),
+            List.filter(
+              ~f=(((s, _), _)) => !String.equal(s, slide),
               settings.canvas_node_pins,
             ),
-          canvas_frames: List.Assoc.remove(settings.canvas_frames, slide, ~equal=Poly.equal),
+          canvas_frames:
+            List.Assoc.remove(
+              settings.canvas_frames,
+              slide,
+              ~equal=Poly.equal,
+            ),
         }
       | ToggleCanvasMain =>
         let enabling = !settings.canvas_main;

@@ -481,8 +481,8 @@ let collect_print_entries =
       (_, samples, acc) =>
         List.fold_left(
           ~f=
-          (acc, sample) =>
-            sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
+            (acc, sample) =>
+              sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
           ~init=acc,
           samples,
         ),

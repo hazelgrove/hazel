@@ -106,7 +106,7 @@ let write_side = (prefix: string, name: string, update: side => side): unit => {
   let s = Sexplib.Sexp.to_string(sexp_of_side(side));
   if (s != prev_s) {
     Stdlib.Hashtbl.replace(last_side, ck, (side, s));
-      HazelDB.kv_save(side_key(prefix, name), s);
+    HazelDB.kv_save(side_key(prefix, name), s);
   };
 };
 
@@ -157,14 +157,14 @@ let resolve_view = (saved: side, outline: OutlineTree.t): SlideView.t => {
   pins:
     List.filter_map(
       ~f=
-      ((path, run)) =>
+        ((path, run)) =>
           OutlineTree.resolve_path(path, outline)
           |> Option.map(~f=id =>
-             SlideView.{
-               p_id: id,
-               p_run: run,
-             }
-           ),
+               SlideView.{
+                 p_id: id,
+                 p_run: run,
+               }
+             ),
       saved.pins,
     ),
   parked: saved.parked,
@@ -435,7 +435,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         pins:
           List.filter_map(
             ~f=
-            (p: SlideView.pin) =>
+              (p: SlideView.pin) =>
                 OutlineTree.label_path(p.p_id, outline)
                 |> Option.map(~f=path => (path, p.p_run)),
             view.pins,
@@ -610,7 +610,10 @@ let load_all =
       let names =
         adopt_new_defaults
           ? meta.names
-            @ List.filter(~f=n => !List.mem(meta.names, n, ~equal=Poly.equal), default_names)
+            @ List.filter(
+                ~f=n => !List.mem(meta.names, n, ~equal=Poly.equal),
+                default_names,
+              )
           : meta.names;
       (meta.current, names);
     | None => (default_current, default_names)
@@ -620,10 +623,10 @@ let load_all =
     scratchpads:
       List.mapi(
         ~f=
-        (i, name) =>
-          i == current
-            ? load_scratchpad(~settings, prefix, name)
-            : Scratchpad.dormant_code(name),
+          (i, name) =>
+            i == current
+              ? load_scratchpad(~settings, prefix, name)
+              : Scratchpad.dormant_code(name),
         names,
       ),
   };
@@ -654,38 +657,38 @@ let export_all =
   let scratchpads: list(Scratchpad.persistent) =
     List.map(
       ~f=
-      name =>
-        switch (load_slide_kind(prefix, name)) {
-        | Some(CodePersist({editor, agent})) =>
-          Scratchpad.{
-            name,
-            kind:
-              CodePersist({
-                editor,
-                agent:
-                  Option.value(load_agent(prefix, name), ~default=agent),
-              }),
-          }
-        | Some(DrvPersist(_) as k) =>
-          Scratchpad.{
-            name,
-            kind: k,
-          }
-        | None =>
-          let agent =
-            switch (load_agent(prefix, name)) {
-            | Some(a) => a
-            | None => Agent.Persistent.persist(Agent.Utils.init())
+        name =>
+          switch (load_slide_kind(prefix, name)) {
+          | Some(CodePersist({editor, agent})) =>
+            Scratchpad.{
+              name,
+              kind:
+                CodePersist({
+                  editor,
+                  agent:
+                    Option.value(load_agent(prefix, name), ~default=agent),
+                }),
+            }
+          | Some(DrvPersist(_) as k) =>
+            Scratchpad.{
+              name,
+              kind: k,
+            }
+          | None =>
+            let agent =
+              switch (load_agent(prefix, name)) {
+              | Some(a) => a
+              | None => Agent.Persistent.persist(Agent.Utils.init())
+              };
+            Scratchpad.{
+              name,
+              kind:
+                CodePersist({
+                  editor: None,
+                  agent,
+                }),
             };
-          Scratchpad.{
-            name,
-            kind:
-              CodePersist({
-                editor: None,
-                agent,
-              }),
-          };
-        },
+          },
       names,
     );
   let persistent: Model.persistent = (current, scratchpads);
@@ -717,24 +720,24 @@ let import_all = (prefix: string, data: string): unit =>
     );
     List.iter(
       ~f=
-      (sp: Scratchpad.persistent) =>
-        switch (sp.kind) {
-        | CodePersist({editor, agent}) =>
-          switch (editor) {
-          | Some(_) =>
-            save_slide_kind(
-              prefix,
-              sp.name,
-              CodePersist({
-                editor,
-                agent,
-              }),
-            )
-          | None => ()
-          };
-          save_agent(prefix, sp.name, agent);
-        | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
-        },
+        (sp: Scratchpad.persistent) =>
+          switch (sp.kind) {
+          | CodePersist({editor, agent}) =>
+            switch (editor) {
+            | Some(_) =>
+              save_slide_kind(
+                prefix,
+                sp.name,
+                CodePersist({
+                  editor,
+                  agent,
+                }),
+              )
+            | None => ()
+            };
+            save_agent(prefix, sp.name, agent);
+          | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+          },
       scratchpads,
     );
   }) {

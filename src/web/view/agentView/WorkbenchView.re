@@ -236,15 +236,15 @@ let view =
                           ~attrs=[clss(["wb-tool-results"])],
                           List.mapi(
                             ~f=
-                            (
-                              index: int,
-                              tool_result: AgentToolResult.tool_result,
-                            ) =>
-                              render_tool_result(
-                                ~subtask_title=subtask.title,
-                                ~tool_result_index=index,
-                                ~tool_result,
-                              ),
+                              (
+                                index: int,
+                                tool_result: AgentToolResult.tool_result,
+                              ) =>
+                                render_tool_result(
+                                  ~subtask_title=subtask.title,
+                                  ~tool_result_index=index,
+                                  ~tool_result,
+                                ),
                             subtask.tools_used,
                           ),
                         ),
@@ -365,8 +365,8 @@ let view =
           ~attrs=[clss(["wb-subtask-list"])],
           List.map(
             ~f=
-            (subtask: AgentWorkbench.Model.subtask) =>
-              render_subtask(~task, ~subtask),
+              (subtask: AgentWorkbench.Model.subtask) =>
+                render_subtask(~task, ~subtask),
             ordered_subtasks,
           ),
         ),
@@ -412,80 +412,80 @@ let view =
                 ~attrs=[clss(["wb-archive-list"])],
                 List.map(
                   ~f=
-                  (task: AgentWorkbench.Model.task) => {
-                    let is_displayed =
-                      switch (workbench.t_ui.display_task) {
+                    (task: AgentWorkbench.Model.task) => {
+                      let is_displayed =
+                        switch (workbench.t_ui.display_task) {
                         | Some(displayed_title) =>
                           String.equal(displayed_title, task.title)
-                      | None => false
-                      };
-                    let is_active =
-                      switch (workbench.active_task) {
+                        | None => false
+                        };
+                      let is_active =
+                        switch (workbench.active_task) {
                         | Some(active_title) =>
                           String.equal(active_title, task.title)
-                      | None => false
-                      };
-                    let is_completed =
-                      switch (task.completion_info) {
-                      | Some(_) => true
-                      | None => false
-                      };
-                    let switch_to_task = _ => {
-                      Effect.Many([
-                        inject_workbench_ui_action(
-                          AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
-                            task.title,
+                        | None => false
+                        };
+                      let is_completed =
+                        switch (task.completion_info) {
+                        | Some(_) => true
+                        | None => false
+                        };
+                      let switch_to_task = _ => {
+                        Effect.Many([
+                          inject_workbench_ui_action(
+                            AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
+                              task.title,
+                            ),
                           ),
-                        ),
-                        Effect.Stop_propagation,
-                      ]);
-                    };
-                    div(
-                      ~attrs=[
-                        clss(
-                          ["wb-archive-item"]
-                          @ (is_displayed ? ["selected"] : [])
-                          @ (is_active ? ["active"] : []),
-                        ),
-                        Attr.on_click(switch_to_task),
-                      ],
-                      [
-                        div(
-                          ~attrs=[
-                            clss([
-                              "wb-archive-item-icon",
-                              is_completed ? "completed" : "",
-                              is_active && !is_completed ? "active" : "",
-                            ]),
-                          ],
-                          [
-                            is_completed
-                              ? Icons.circle_with_check
-                              : Icons.circle_with_no_check,
-                          ],
-                        ),
-                        div(
-                          ~attrs=[clss(["wb-archive-item-content"])],
-                          [
-                            div(
-                              ~attrs=[clss(["wb-archive-item-title"])],
-                              [text(task.title)],
-                            ),
-                            div(
-                              ~attrs=[clss(["wb-archive-item-time"])],
-                              [
-                                text(
-                                  TimeUtil.format_time_diff(
-                                    task.metadata.last_updated_at,
+                          Effect.Stop_propagation,
+                        ]);
+                      };
+                      div(
+                        ~attrs=[
+                          clss(
+                            ["wb-archive-item"]
+                            @ (is_displayed ? ["selected"] : [])
+                            @ (is_active ? ["active"] : []),
+                          ),
+                          Attr.on_click(switch_to_task),
+                        ],
+                        [
+                          div(
+                            ~attrs=[
+                              clss([
+                                "wb-archive-item-icon",
+                                is_completed ? "completed" : "",
+                                is_active && !is_completed ? "active" : "",
+                              ]),
+                            ],
+                            [
+                              is_completed
+                                ? Icons.circle_with_check
+                                : Icons.circle_with_no_check,
+                            ],
+                          ),
+                          div(
+                            ~attrs=[clss(["wb-archive-item-content"])],
+                            [
+                              div(
+                                ~attrs=[clss(["wb-archive-item-title"])],
+                                [text(task.title)],
+                              ),
+                              div(
+                                ~attrs=[clss(["wb-archive-item-time"])],
+                                [
+                                  text(
+                                    TimeUtil.format_time_diff(
+                                      task.metadata.last_updated_at,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   sorted_tasks,
                 ),
               ),

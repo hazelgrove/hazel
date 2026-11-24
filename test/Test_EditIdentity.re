@@ -30,7 +30,12 @@ let check_survivors = (before, after) => {
     (id, p) => {
       switch (Id.Map.find_opt(id, after)) {
       | Some(next) when compare(p, next) == 0 =>
-        check(bool, "unchanged piece shares its old object", true, phys_equal(p, next))
+        check(
+          bool,
+          "unchanged piece shares its old object",
+          true,
+          phys_equal(p, next),
+        )
       | _ => ()
       }
     },
@@ -84,12 +89,13 @@ let tests = (
           bool,
           "fixture contains a projector",
           true,
-          List.exists(~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Projector(_) => true
-              | _ => false
-              },
+          List.exists(
+            ~f=
+              (p: Piece.t) =>
+                switch (p) {
+                | Projector(_) => true
+                | _ => false
+                },
             before,
           ),
         );
@@ -190,15 +196,16 @@ let tests = (
         let before = parse("[1, 1]");
         let after = EditIdentity.reuse(before, parse("[1, 1, 1]"));
         let rec ids = seg =>
-          List.concat_map(~f=
-            (p: Piece.t) =>
-              [
-                Piece.id(p),
-                ...switch (p) {
-                   | Tile(t) => List.concat_map(~f=ids, t.children)
-                   | _ => []
-                   },
-              ],
+          List.concat_map(
+            ~f=
+              (p: Piece.t) =>
+                [
+                  Piece.id(p),
+                  ...switch (p) {
+                     | Tile(t) => List.concat_map(~f=ids, t.children)
+                     | _ => []
+                     },
+                ],
             seg,
           );
         let all = ids(after);
@@ -206,7 +213,7 @@ let tests = (
           int,
           "all ids unique",
           List.length(all),
-          List.length(List.dedup_and_sort(~compare=compare, all)),
+          List.length(List.dedup_and_sort(~compare, all)),
         );
         check(string, "requested result", "[1, 1, 1]", text(after));
         check_survivors(before, after);

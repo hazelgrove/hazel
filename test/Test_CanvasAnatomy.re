@@ -64,12 +64,18 @@ let run =
       );
     let anatomy =
       Web.CanvasGraph.spine(term)
-      |> List.filter_map(~f=
-           fun
-           | (_, Web.CanvasGraph.ILet(_, _, pat, def))
-               when List.mem(Web.CanvasGraph.pat_names(pat), "update", ~equal=Poly.equal) =>
-             Some(Web.CanvasGraph.fun_anatomy(~pat, def))
-           | _ => None,
+      |> List.filter_map(
+           ~f=
+             fun
+             | (_, Web.CanvasGraph.ILet(_, _, pat, def))
+                 when
+                   List.mem(
+                     Web.CanvasGraph.pat_names(pat),
+                     "update",
+                     ~equal=Poly.equal,
+                   ) =>
+               Some(Web.CanvasGraph.fun_anatomy(~pat, def))
+             | _ => None,
          )
       |> (
         fun
@@ -90,14 +96,15 @@ let check_anatomy_sampled = (name: string, code: string) =>
     () => {
       let ((arg_ids, _whole_ids, out_id), probes) = run(code);
       check(int, "two input anchors", 2, List.length(arg_ids));
-      List.iteri(~f=
-        (i, id) =>
-          check(
-            bool,
-            Printf.sprintf("input anchor %d has samples", i),
-            true,
-            samples_at(probes, id) > 0,
-          ),
+      List.iteri(
+        ~f=
+          (i, id) =>
+            check(
+              bool,
+              Printf.sprintf("input anchor %d has samples", i),
+              true,
+              samples_at(probes, id) > 0,
+            ),
         arg_ids,
       );
       switch (out_id) {

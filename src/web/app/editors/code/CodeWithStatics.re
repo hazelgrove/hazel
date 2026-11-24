@@ -63,9 +63,9 @@ module Model = {
       Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
       |> Option.map(
            ~f=
-           Language.Info.as_member_reference(
-             ~info_map=model.statics.info_map,
-           ),
+             Language.Info.as_member_reference(
+               ~info_map=model.statics.info_map,
+             ),
          ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
@@ -210,13 +210,13 @@ module Update = {
               /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
                  entries for the inspector) under the provided ctx */
               ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
-            : Sort.equal(editor.root, Sort.Pat)
+              : Sort.equal(editor.root, Sort.Pat)
                   ? CachedStatics.init_pat(
                       ~settings,
                       ~ctx?,
                       editor.state.zipper,
                     )
-                : Sort.equal(editor.root, Sort.TPat)
+                  : Sort.equal(editor.root, Sort.TPat)
                       ? CachedStatics.init_tpat(
                           ~settings,
                           ~ctx?,

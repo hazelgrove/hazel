@@ -135,16 +135,16 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
 let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
   List.exists(
     ~f=
-    (p: Piece.t) =>
+      (p: Piece.t) =>
         Id.equal(Piece.id(p), id)
-      || (
-        switch (p) {
+        || (
+          switch (p) {
           | Tile(t) => List.exists(t.children, ~f=has_id_deep(id))
-        | Projector(pr) => has_id_deep(id, [pr.syntax])
-        | Grout(_)
-        | Secondary(_) => false
-        }
-      ),
+          | Projector(pr) => has_id_deep(id, [pr.syntax])
+          | Grout(_)
+          | Secondary(_) => false
+          }
+        ),
     seg,
   );
 
@@ -435,12 +435,12 @@ let teleport_to_boundary =
      below: after the last piece starting by goal.row */
   let k =
     List.fold(seg, ~init=0, ~f=(k, p) =>
-        switch (Measured.find_by_id(Piece.id(p), measured)) {
-        | Some(m) =>
-          let above =
-            from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
-          above ? k + 1 : k;
-        | None => k
+      switch (Measured.find_by_id(Piece.id(p), measured)) {
+      | Some(m) =>
+        let above =
+          from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
+        above ? k + 1 : k;
+      | None => k
       }
     );
   let (pre, suf) = Util.ListUtil.split_n(k, seg);

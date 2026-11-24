@@ -100,8 +100,8 @@ let max_type_values = 10;
 let livelit_spans =
     (~graph: CanvasGraph.t, ~syntax: CachedSyntax.t)
     : list((Measured.Point.t, Measured.Point.t)) =>
-  List.filter_map(~f=
-    id => TermData.extreme_measures(id, syntax.term_data, syntax.measured),
+  List.filter_map(
+    ~f=id => TermData.extreme_measures(id, syntax.term_data, syntax.measured),
     graph.livelit_defs,
   );
 
@@ -116,10 +116,11 @@ let inside_livelit =
   && (
     switch (TermData.extreme_measures(id, syntax.term_data, syntax.measured)) {
     | Some((a, b)) =>
-      List.exists(~f=
-        ((l, r)) =>
-          Measured.Point.compare(l, a) <= 0
-          && Measured.Point.compare(b, r) <= 0,
+      List.exists(
+        ~f=
+          ((l, r)) =>
+            Measured.Point.compare(l, a) <= 0
+            && Measured.Point.compare(b, r) <= 0,
         spans,
       )
     | None => false
@@ -130,7 +131,12 @@ let inside_livelit =
    (every card scans every site on every render; pretty-printing each
    site's type each time was a per-keystroke cost). */
 let site_ty_memo:
-  ref((option(Language.Statics.Map.t), Stdlib.Hashtbl.t(Id.t, option(string)))) =
+  ref(
+    (
+      option(Language.Statics.Map.t),
+      Stdlib.Hashtbl.t(Id.t, option(string)),
+    ),
+  ) =
   ref((Stdlib.Option.none, Stdlib.Hashtbl.create(64)));
 let site_ty = (~info_map: Language.Statics.Map.t, id: Id.t): option(string) => {
   let tbl =
@@ -291,14 +297,15 @@ let rec value_site =
   /* memo: the same inputs (by identity for the maps) give the same site;
      every render of every card asks */
   let hit =
-    List.find(~f=
-      ((k, d, i, f, w, g, _)) =>
-        k == key
-        && phys_equal(d, dynamics)
-        && phys_equal(i, info_map)
-        && f == focus
-        && w == within
-        && phys_equal(g, graph),
+    List.find(
+      ~f=
+        ((k, d, i, f, w, g, _)) =>
+          k == key
+          && phys_equal(d, dynamics)
+          && phys_equal(i, info_map)
+          && f == focus
+          && w == within
+          && phys_equal(g, graph),
       value_site_memo^,
     );
   switch (hit) {
@@ -364,26 +371,27 @@ and value_site_impl =
     switch (syntax) {
     | None => None
     | Some(syntax) =>
-      List.find(~f=
-        (id: Id.t) =>
-          switch (
-            Id.Map.find_opt(id, syntax.projectors),
-            Id.Map.find_opt(id, info_map),
-          ) {
-          | (Some(p), Some(Language.Info.InfoExp({user_term, ctx, _})))
-              when p.kind == ProjectorCore.Kind.Livelit =>
-            /* the site's term is the Projector wrapper around the use */
-            let inner =
-              switch (Language.Exp.term_of(user_term)) {
-              | Projector(_, e) => e
-              | _ => user_term
+      List.find(
+        ~f=
+          (id: Id.t) =>
+            switch (
+              Id.Map.find_opt(id, syntax.projectors),
+              Id.Map.find_opt(id, info_map),
+            ) {
+            | (Some(p), Some(Language.Info.InfoExp({user_term, ctx, _})))
+                when p.kind == ProjectorCore.Kind.Livelit =>
+              /* the site's term is the Projector wrapper around the use */
+              let inner =
+                switch (Language.Exp.term_of(user_term)) {
+                | Projector(_, e) => e
+                | _ => user_term
+                };
+              switch (Language.UserLivelit.use_parts(ctx, inner)) {
+              | Some((name, _)) => "^" ++ name == n.label
+              | None => false
               };
-            switch (Language.UserLivelit.use_parts(ctx, inner)) {
-            | Some((name, _)) => "^" ++ name == n.label
-            | None => false
-            };
-          | _ => false
-          },
+            | _ => false
+            },
         syntax.projector_list,
       )
     }
@@ -433,27 +441,28 @@ and value_site_impl =
           | Language.Info.InfoPat(_) => true
           | _ => false
           };
-        List.exists(~f=
-          (s: Language.Sample.t) => {
-            let r =
-              Language.Sample.Focus.relation(
-                ~trimmed=true,
-                ~ap_id,
-                cursor,
-                s,
+        List.exists(
+          ~f=
+            (s: Language.Sample.t) => {
+              let r =
+                Language.Sample.Focus.relation(
+                  ~trimmed=true,
+                  ~ap_id,
+                  cursor,
+                  s,
+                );
+              r.is_call_cursor
+              /* a PARAMETER's sample is taken one frame up from the body's
+                 sites of the same call: still the same call */
+              || is_pat
+              && (
+                switch (r.relative_level_to_cursor) {
+                | Above(1)
+                | Below(1) => true
+                | _ => false
+                }
               );
-            r.is_call_cursor
-            /* a PARAMETER's sample is taken one frame up from the body's
-               sites of the same call: still the same call */
-            || is_pat
-            && (
-              switch (r.relative_level_to_cursor) {
-              | Above(1)
-              | Below(1) => true
-              | _ => false
-              }
-            );
-          },
+            },
           samples,
         );
       | _ => false
@@ -468,11 +477,12 @@ and value_site_impl =
     let rich_ok = (id: Id.t, s: Language.Sample.t): bool => {
       let statics = Id.Map.find_opt(id, info_map);
       LivelitRenderer.candidates(statics) != []
-      || List.exists(~f=
-           (r: RichProbe.packed_renderer) =>
-             r.id != "table"
-             && r.id != "livelit"
-             && r.can_handle(~statics, Sort.Exp, s.value),
+      || List.exists(
+           ~f=
+             (r: RichProbe.packed_renderer) =>
+               r.id != "table"
+               && r.id != "livelit"
+               && r.can_handle(~statics, Sort.Exp, s.value),
            RichProbeRegistry.renderers,
          );
     };
@@ -490,20 +500,28 @@ and value_site_impl =
                 }
               ) =>
           let newest =
-            List.fold(samples, ~init=-1, ~f=(m, s: Language.Sample.t) => max(m, s.seq));
+            List.fold(samples, ~init=-1, ~f=(m, s: Language.Sample.t) =>
+              max(m, s.seq)
+            );
           let n_samples = List.length(samples);
           let depth =
-            List.fold(samples, ~init=Int.max_value, ~f=(m, s: Language.Sample.t) =>
-                min(m, List.length(s.call_stack)));
+            List.fold(
+              samples, ~init=Int.max_value, ~f=(m, s: Language.Sample.t) =>
+              min(m, List.length(s.call_stack))
+            );
           /* HISTORY = distinct values, not samples: a step function's
              output has one sample per step and all of them differ; a
              helper's parameter has hundreds of copies of the same few */
           let distinct =
-            List.fold(/* bounded: 240 samples of a helper's parameter need no
+            List.fold(
+              /* bounded: 240 samples of a helper's parameter need no
                  exact count to lose to a step function's 10 */
-              Util.ListUtil.take(48, samples), ~init=[], ~f=(reps, s: Language.Sample.t) =>
-                List.exists(~f=r => Language.Exp.fast_equal(r, s.value), reps)
-                  ? reps : [s.value, ...reps])
+              Util.ListUtil.take(48, samples),
+              ~init=[],
+              ~f=(reps, s: Language.Sample.t) =>
+              List.exists(~f=r => Language.Exp.fast_equal(r, s.value), reps)
+                ? reps : [s.value, ...reps]
+            )
             |> List.length;
           let rank = (
             /* an app's own site last: its stream is the app's, and the
@@ -560,7 +578,8 @@ let type_view =
        /* a site inhabits this type if its pretty type matches the node's
           name or (for aliases) its body */
        let names = node_type_names(~graph, n);
-       let tally: Stdlib.Hashtbl.t(string, (int, int, Language.Sample.t, bool)) =
+       let tally:
+         Stdlib.Hashtbl.t(string, (int, int, Language.Sample.t, bool)) =
          Stdlib.Hashtbl.create(16);
        let spans = livelit_spans(~graph, ~syntax=editor.editor.syntax);
        Language.Sample.Map.fold(
@@ -572,31 +591,33 @@ let type_view =
                  || !anchorable(~syntax=editor.editor.syntax, id) =>
              ()
            | Some(t) when List.mem(names, t, ~equal=Poly.equal) =>
-             List.iter(~f=
-               (s: Language.Sample.t) =>
-                 /* an app site's stream mixes its VIEW samples (HTML)
-                    with its values: at a site not typed HTML, the views
-                    are not values of this type */
-                 if (t != "HTML" && MvuShape.is_html(s.value)) {
-                   ();
-                 } else {
-                   let v = print_value(s.value);
-                   let (c, latest, repr, highlighted) =
-                     Option.value(
-                       ~default=(0, 0, s, false),
-                       Stdlib.Hashtbl.find_opt(tally, v),
+             List.iter(
+               ~f=
+                 (s: Language.Sample.t) =>
+                   /* an app site's stream mixes its VIEW samples (HTML)
+                      with its values: at a site not typed HTML, the views
+                      are not values of this type */
+                   if (t != "HTML" && MvuShape.is_html(s.value)) {
+                     ();
+                   } else {
+                     let v = print_value(s.value);
+                     let (c, latest, repr, highlighted) =
+                       Option.value(
+                         ~default=(0, 0, s, false),
+                         Stdlib.Hashtbl.find_opt(tally, v),
+                       );
+                     Stdlib.Hashtbl.replace(
+                       tally,
+                       v,
+                       (
+                         c + 1,
+                         max(latest, s.seq),
+                         s.seq >= latest ? s : repr,
+                         highlighted
+                         || CanvasProbe.sample_is_anchor(~editor, s),
+                       ),
                      );
-                   Stdlib.Hashtbl.replace(
-                     tally,
-                     v,
-                     (
-                       c + 1,
-                       max(latest, s.seq),
-                       s.seq >= latest ? s : repr,
-                       highlighted || CanvasProbe.sample_is_anchor(~editor, s),
-                     ),
-                   );
-                 },
+                   },
                samples,
              )
            | _ => ()
@@ -611,7 +632,9 @@ let type_view =
            tally,
            [],
          )
-         |> List.sort(~compare=((_, _, a, _, _), (_, _, b, _, _)) => compare(b, a));
+         |> List.sort(~compare=((_, _, a, _, _), (_, _, b, _, _)) =>
+              compare(b, a)
+            );
        let shown = entries |> List.filteri(~f=(i, _) => i < max_type_values);
        let total_obs =
          List.fold(entries, ~init=0, ~f=(acc, (_, c, _, _, _)) => acc + c);
@@ -695,7 +718,8 @@ let type_view =
           counts; clicking captures that occurrence */
        let chips =
          shown
-         |> List.filter_map(~f=((_, c, _, repr: Language.Sample.t, highlight)) =>
+         |> List.filter_map(
+              ~f=((_, c, _, repr: Language.Sample.t, highlight)) =>
               CanvasProbe.value_chip(
                 ~globals,
                 ~editor,
@@ -749,28 +773,29 @@ let type_view =
                : [
                  div(
                    ~attrs=[clss(["type-values"])],
-                   List.map(~f=
-                     ((v, c, _, repr: Language.Sample.t, _)) =>
-                       div(
-                         ~attrs=[clss(["type-value"]), Attr.title(v)],
-                         [
-                           CanvasValue.chip(
-                             ~font_metrics=globals.font_metrics,
-                             ~available=34,
-                             repr.value,
+                   List.map(
+                     ~f=
+                       ((v, c, _, repr: Language.Sample.t, _)) =>
+                         div(
+                           ~attrs=[clss(["type-value"]), Attr.title(v)],
+                           [
+                             CanvasValue.chip(
+                               ~font_metrics=globals.font_metrics,
+                               ~available=34,
+                               repr.value,
+                             ),
+                           ]
+                           @ (
+                             c > 1
+                               ? [
+                                 span(
+                                   ~attrs=[clss(["type-value-count"])],
+                                   [text(Printf.sprintf({js| ×%d|js}, c))],
+                                 ),
+                               ]
+                               : []
                            ),
-                         ]
-                         @ (
-                           c > 1
-                             ? [
-                               span(
-                                 ~attrs=[clss(["type-value-count"])],
-                                 [text(Printf.sprintf({js| ×%d|js}, c))],
-                               ),
-                             ]
-                             : []
                          ),
-                       ),
                      shown,
                    )
                    @ (
@@ -816,15 +841,11 @@ let view =
        let input_slots =
          switch (node_of(graph, e.e_src)) {
          | Some({kind: Product, parts, _}) =>
-           List.mapi(~f=
-             (i, key) => (key, List.nth(e.e_arg_ids, i)),
-             parts,
-           )
+           List.mapi(~f=(i, key) => (key, List.nth(e.e_arg_ids, i)), parts)
          | _ =>
            let anchor =
              List.length(e.e_arg_ids) > 1
-               ? List.nth(e.e_whole_ids, 0)
-               : List.nth(e.e_arg_ids, 0);
+               ? List.nth(e.e_whole_ids, 0) : List.nth(e.e_arg_ids, 0);
            [(e.e_src, anchor)];
          };
        let head =
@@ -910,13 +931,14 @@ let view =
            [
              div(
                ~attrs=[clss(["focus-inputs"])],
-               List.mapi(~f=
-                 (i, sl) =>
-                   mk_slot(
-                     ~role="role-in",
-                     ~probe_key=Printf.sprintf("%s/in%d", e.e_name, i),
-                     sl,
-                   ),
+               List.mapi(
+                 ~f=
+                   (i, sl) =>
+                     mk_slot(
+                       ~role="role-in",
+                       ~probe_key=Printf.sprintf("%s/in%d", e.e_name, i),
+                       sl,
+                     ),
                  input_slots,
                ),
              ),

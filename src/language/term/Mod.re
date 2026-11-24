@@ -157,11 +157,11 @@ let split_pending = (items: list(t)): (list(t), option((t, list(t)))) => {
 let modval_defs = (items: list(t)): list(TermBase.Exp.t) =>
   List.filter_map(
     ~f=
-    (item: t) =>
-      switch (item.term) {
-      | ModVal(_, d) => Some(d)
-      | _ => None
-      },
+      (item: t) =>
+        switch (item.term) {
+        | ModVal(_, d) => Some(d)
+        | _ => None
+        },
     items,
   );
 
@@ -188,7 +188,7 @@ let value_bindings =
     (items: list(t)): option(list((Var.t, TermBase.Exp.t))) =>
   items
   |> List.map(~f=(item: t) =>
-      switch (item.term) {
+       switch (item.term) {
        | ModVal(x, d) => Some((x, d))
        | _ => None
        }
@@ -230,8 +230,8 @@ let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
     ? None
     : List.find_map(
         ~f=
-    (item: t) =>
-      switch (item.term) {
+          (item: t) =>
+            switch (item.term) {
             | ModVal(x, d) when String.equal(x, name) => Some(d)
             | _ => None
             },
@@ -247,8 +247,8 @@ let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
       (item: t) =>
         switch (item.term) {
         | ModVal(x, _) => !String.equal(x, name)
-      | _ => true
-      },
+        | _ => true
+        },
     items,
   )
   @ [fresh(ModVal(name, d))];

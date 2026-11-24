@@ -80,8 +80,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let* t_compact = Typ.unroll(t);
       let* t' = Typ.unroll(t');
       let+ t = Typ.meet(ctx, t_compact, t');
-          recur(
-            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+      recur(
+        IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
       );
     | (_, Parens(t)) =>
       /* An impossible case: types are normalized before they come to
@@ -133,7 +133,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Mod.value_bindings(items)
         |> Option.map(~f=bindings => {
              let declared =
-        members
+               members
                |> List.map(~f=((x, ty)) => {
                     let d =
                       switch (
@@ -152,8 +152,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
                           List.exists(
                             ~f=((y, _)) => String.equal(x, y),
                             members,
-                )
-           )
+                          )
+                      )
                    |> List.map(~f=((x, v)) => Mod.fresh(ModVal(x, v)))
                  : [];
              declared @ undeclared;

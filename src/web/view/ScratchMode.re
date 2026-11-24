@@ -283,7 +283,10 @@ module Selection = {
              | Some((u, _)) => u
              | None => MainEditor(Perform(Move(Goal(TileId(tile)))))
              };
-           (Update.Workspace(Stack(e.e_id, side, caret)), Stack(MainEditor));
+           (
+             Update.Workspace(Stack(e.e_id, side, caret)),
+             Stack(MainEditor),
+           );
          });
     switch (find(tile)) {
     | Some(_) as found => found
@@ -650,40 +653,40 @@ module View = {
           let rendered =
             List.mapi(
               ~f=
-              (i, e: ScratchCell.t) => {
-                let sel = (side: ScratchCell.side) =>
-                  switch (focus) {
+                (i, e: ScratchCell.t) => {
+                  let sel = (side: ScratchCell.side) =>
+                    switch (focus) {
                     | Some((j, s, sel)) when Id.equal(j, e.e_id) && s == side =>
-                    Some(sel)
-                  | _ => None
+                      Some(sel)
+                    | _ => None
+                    };
+                  let key = {
+                    k_index: i,
+                    k_stack_len: List.length(cells),
+                    k_header_sel: sel(Header),
+                    k_body_sel: sel(Body),
+                    k_meta_down: globals.Globals.Model.meta_down,
+                    /* only the first body culls (below) */
+                    k_visible_rows:
+                      i == 0 ? globals.Globals.Model.visible_rows : None,
+                    k_zoom_cell: zoom_cell,
+                    k_program: current.name,
                   };
-                let key = {
-                  k_index: i,
-                  k_stack_len: List.length(cells),
-                  k_header_sel: sel(Header),
-                  k_body_sel: sel(Body),
-                  k_meta_down: globals.Globals.Model.meta_down,
-                  /* only the first body culls (below) */
-                  k_visible_rows:
-                    i == 0 ? globals.Globals.Model.visible_rows : None,
-                  k_zoom_cell: zoom_cell,
-                  k_program: current.name,
-                };
-                let draws = (c: CellEditor.Model.t) =>
+                  let draws = (c: CellEditor.Model.t) =>
                     Option.is_some(
                       c.editor.editor.state.zipper.refractors.stepping,
                     )
-                  || !
-                       Haz3lcore.Id.Map.is_empty(
-                         c.editor.editor.state.zipper.refractors.proofs,
-                       );
-                let drawers =
-                  draws(e.e_body) || draws(e.e_header)
-                    ? Some(Divided.result(d)) : None;
-                switch (stack_cache_lookup(e.e_id)) {
-                | Some(c)
-                    when
-                      c.c_key == key
+                    || !
+                         Haz3lcore.Id.Map.is_empty(
+                           c.editor.editor.state.zipper.refractors.proofs,
+                         );
+                  let drawers =
+                    draws(e.e_body) || draws(e.e_header)
+                      ? Some(Divided.result(d)) : None;
+                  switch (stack_cache_lookup(e.e_id)) {
+                  | Some(c)
+                      when
+                        c.c_key == key
                         && Option.equal(phys_equal, c.c_drawers, drawers)
                         && phys_equal(c.c_header, e.e_header)
                         && phys_equal(c.c_body, e.e_body)
@@ -700,306 +703,306 @@ module View = {
                              globals.Globals.Model.color_highlights,
                            )
                         && Option.equal(phys_equal, c.c_tests, tests) => (
-                    e.e_id,
-                    c,
-                  )
-                | _ =>
-                  let qualifier =
+                      e.e_id,
+                      c,
+                    )
+                  | _ =>
+                    let qualifier =
                       switch (OutlineTree.path_of(e.e_id, outline)) {
-                    | [] => []
-                    | path => [
-                        span(
-                          ~attrs=[Attr.classes(["focus-qualifier"])],
+                      | [] => []
+                      | path => [
+                          span(
+                            ~attrs=[Attr.classes(["focus-qualifier"])],
                             [text(String.concat(~sep=".", path) ++ ".")],
-                        ),
-                      ]
-                    };
-                  /* arrow keys at a pane's edge walk the cells:
-                     ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
-                  /* no header pane: symbol cells, and every cell while a
-                     zoomed module shows as its members */
-                  let headerless = idx =>
+                          ),
+                        ]
+                      };
+                    /* arrow keys at a pane's edge walk the cells:
+                       ... body(i-1) <- header(i) <-> body(i) -> header(i+1) ... */
+                    /* no header pane: symbol cells, and every cell while a
+                       zoomed module shows as its members */
+                    let headerless = idx =>
                       switch (List.nth(cells, idx)) {
                       | Some(e) =>
                         zoom_cell || Option.is_some(ScratchCell.symbol(e))
-                    | None => false
-                    };
-                  let pane_focus =
-                      (
-                        idx,
-                        side: ScratchCell.side,
-                        move: Haz3lcore.Action.move,
-                      ) =>
-                    if (idx < 0 || idx >= List.length(cells)) {
-                      Effect.Ignore;
-                    } else {
-                      /* headerless entries have no header pane */
-                      let side = headerless(idx) ? ScratchCell.Body : side;
-                      /* DOM focus must follow to the new pane after render,
-                         or the caret vanishes and arrows scroll the page */
-                      Haz3lcore.FocusEffect.schedule_cell();
+                      | None => false
+                      };
+                    let pane_focus =
+                        (
+                          idx,
+                          side: ScratchCell.side,
+                          move: Haz3lcore.Action.move,
+                        ) =>
+                      if (idx < 0 || idx >= List.length(cells)) {
+                        Effect.Ignore;
+                      } else {
+                        /* headerless entries have no header pane */
+                        let side = headerless(idx) ? ScratchCell.Body : side;
+                        /* DOM focus must follow to the new pane after render,
+                           or the caret vanishes and arrows scroll the page */
+                        Haz3lcore.FocusEffect.schedule_cell();
                         let id = List.nth_exn(cells, idx).e_id;
-                      Effect.Many([
-                        signal(MakeActive(Stack(MainEditor))),
-                        inject(
-                          Workspace(
-                            Stack(
-                              id,
-                              side,
-                              MainEditor(Perform(Move(move))),
+                        Effect.Many([
+                          signal(MakeActive(Stack(MainEditor))),
+                          inject(
+                            Workspace(
+                              Stack(
+                                id,
+                                side,
+                                MainEditor(Perform(Move(move))),
+                              ),
                             ),
                           ),
-                        ),
-                      ]);
-                    };
-                  let header_escape = (d: Util.Direction.t) =>
-                    switch (d) {
-                    | Left => pane_focus(i - 1, Body, End)
-                    | Right => pane_focus(i, Body, Start)
-                    };
-                  let body_escape = (d: Util.Direction.t) =>
-                    switch (d) {
-                    | Left =>
-                      headerless(i)
-                        ? pane_focus(i - 1, Body, End)
-                        : pane_focus(i, Header, End)
-                    | Right => pane_focus(i + 1, Header, Start)
-                    };
-                  /* Up/Down at a pane's edge keep the goal column in the
-                     adjacent pane, shifted by the qualifier chip's width
-                     across a header; at the ends the plain move is
-                     re-dispatched, keeping its line-start/end snap */
-                  let qual_cols = idx =>
+                        ]);
+                      };
+                    let header_escape = (d: Util.Direction.t) =>
+                      switch (d) {
+                      | Left => pane_focus(i - 1, Body, End)
+                      | Right => pane_focus(i, Body, Start)
+                      };
+                    let body_escape = (d: Util.Direction.t) =>
+                      switch (d) {
+                      | Left =>
+                        headerless(i)
+                          ? pane_focus(i - 1, Body, End)
+                          : pane_focus(i, Header, End)
+                      | Right => pane_focus(i + 1, Header, Start)
+                      };
+                    /* Up/Down at a pane's edge keep the goal column in the
+                       adjacent pane, shifted by the qualifier chip's width
+                       across a header; at the ends the plain move is
+                       re-dispatched, keeping its line-start/end snap */
+                    let qual_cols = idx =>
                       switch (List.nth(cells, idx)) {
-                    | Some(e) =>
+                      | Some(e) =>
                         switch (
                           OutlineTree.path_of(e.ScratchCell.e_id, outline)
                         ) {
-                      | [] => 0
+                        | [] => 0
                         | path =>
                           String.length(String.concat(~sep=".", path)) + 1
-                      }
-                    | None => 0
-                    };
-                  let body_last_row = idx =>
+                        }
+                      | None => 0
+                      };
+                    let body_last_row = idx =>
                       switch (List.nth(cells, idx)) {
-                    | Some(e) =>
-                      max(
-                        0,
-                        e.ScratchCell.e_body.editor.editor.syntax.measured.
-                          total_rows
-                        - 1,
-                      )
-                    | None => 0
-                    };
-                  let pane_point = (idx, side, row, col) =>
-                    pane_focus(
-                      idx,
-                      side,
-                      Point(
-                        Util.Point.{
-                          row,
-                          col: max(0, col),
-                        },
-                        None,
-                      ),
-                    );
-                  let same_pane = (side, v: Haz3lcore.Action.vertical) =>
-                    inject(
-                      Workspace(
-                        Stack(
-                          e.e_id,
-                          side,
-                          MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                      | Some(e) =>
+                        max(
+                          0,
+                          e.ScratchCell.e_body.editor.editor.syntax.measured.
+                            total_rows
+                          - 1,
+                        )
+                      | None => 0
+                      };
+                    let pane_point = (idx, side, row, col) =>
+                      pane_focus(
+                        idx,
+                        side,
+                        Point(
+                          Util.Point.{
+                            row,
+                            col: max(0, col),
+                          },
+                          None,
                         ),
-                      ),
-                    );
-                  let header_escape_vertical =
-                      (v: Haz3lcore.Action.vertical, col) =>
-                    switch (v) {
-                    | Down => pane_point(i, Body, 0, col + qual_cols(i))
-                    | Up =>
-                      i == 0
-                        ? same_pane(Header, Up)
-                        : pane_point(
-                            i - 1,
-                            Body,
-                            body_last_row(i - 1),
-                            col + qual_cols(i),
-                          )
-                    };
-                  let body_escape_vertical =
-                      (v: Haz3lcore.Action.vertical, col) =>
-                    switch (v) {
-                    | Down =>
-                      i + 1 >= List.length(cells)
-                        ? same_pane(Body, Down)
-                        : headerless(i + 1)
-                            ? pane_point(i + 1, Body, 0, col)
-                            : pane_point(
-                                i + 1,
-                                Header,
-                                0,
-                                col - qual_cols(i + 1),
-                              )
-                    | Up =>
-                      headerless(i)
-                        ? i == 0
-                            ? same_pane(Body, Up)
-                            : pane_point(
-                                i - 1,
-                                Body,
-                                body_last_row(i - 1),
-                                col,
-                              )
-                        : pane_point(i, Header, 0, col - qual_cols(i))
-                    };
-                  let pane_view =
-                      (
-                        side: ScratchCell.side,
+                      );
+                    let same_pane = (side, v: Haz3lcore.Action.vertical) =>
+                      inject(
+                        Workspace(
+                          Stack(
+                            e.e_id,
+                            side,
+                            MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                          ),
+                        ),
+                      );
+                    let header_escape_vertical =
+                        (v: Haz3lcore.Action.vertical, col) =>
+                      switch (v) {
+                      | Down => pane_point(i, Body, 0, col + qual_cols(i))
+                      | Up =>
+                        i == 0
+                          ? same_pane(Header, Up)
+                          : pane_point(
+                              i - 1,
+                              Body,
+                              body_last_row(i - 1),
+                              col + qual_cols(i),
+                            )
+                      };
+                    let body_escape_vertical =
+                        (v: Haz3lcore.Action.vertical, col) =>
+                      switch (v) {
+                      | Down =>
+                        i + 1 >= List.length(cells)
+                          ? same_pane(Body, Down)
+                          : headerless(i + 1)
+                              ? pane_point(i + 1, Body, 0, col)
+                              : pane_point(
+                                  i + 1,
+                                  Header,
+                                  0,
+                                  col - qual_cols(i + 1),
+                                )
+                      | Up =>
+                        headerless(i)
+                          ? i == 0
+                              ? same_pane(Body, Up)
+                              : pane_point(
+                                  i - 1,
+                                  Body,
+                                  body_last_row(i - 1),
+                                  col,
+                                )
+                          : pane_point(i, Header, 0, col - qual_cols(i))
+                      };
+                    let pane_view =
+                        (
+                          side: ScratchCell.side,
+                          ~result_kind,
+                          ~lines,
+                          ~master=?,
+                          ~escape,
+                          ~escape_vertical,
+                          ~cull,
+                          (),
+                        ) =>
+                      CellEditor.View.view(
+                        ~globals,
+                        /* the pane's own action (a click's caret move)
+                           gives it the focus */
+                        ~signal=
+                          fun
+                          | MakeActive(s) => signal(MakeActive(Stack(s))),
+                        ~inject=
+                          a => inject(Workspace(Stack(e.e_id, side, a))),
+                        ~selected=sel(side),
                         ~result_kind,
-                        ~lines,
-                        ~master=?,
-                        ~escape,
-                        ~escape_vertical,
-                        ~cull,
-                        (),
-                      ) =>
-                    CellEditor.View.view(
-                      ~globals,
-                      /* the pane's own action (a click's caret move)
-                         gives it the focus */
-                      ~signal=
-                        fun
-                        | MakeActive(s) => signal(MakeActive(Stack(s))),
-                      ~inject=
-                        a => inject(Workspace(Stack(e.e_id, side, a))),
-                      ~selected=sel(side),
-                      ~result_kind,
                         ~locked,
-                      ~lines,
-                      ~master?,
-                      ~escape,
-                      ~escape_vertical=Some(escape_vertical),
-                      ~cull,
-                      ScratchCell.pane(side, e),
-                    );
-                  let header_pane =
-                    switch (ScratchCell.symbol(e)) {
-                    | Some(sym) =>
-                      div(
-                        ~attrs=[
+                        ~lines,
+                        ~master?,
+                        ~escape,
+                        ~escape_vertical=Some(escape_vertical),
+                        ~cull,
+                        ScratchCell.pane(side, e),
+                      );
+                    let header_pane =
+                      switch (ScratchCell.symbol(e)) {
+                      | Some(sym) =>
+                        div(
+                          ~attrs=[
                             Attr.classes([
                               "focus-header",
                               "focus-header-sym",
                             ]),
-                        ],
-                        /* no qualifier chip: the symbol is the label; the
-                           trailing ⇒ names what it's the result of, the
-                           program (not editable) */
-                        [
-                          span(
-                            ~attrs=[Attr.classes(["focus-sym"])],
-                            (
-                              sym == {js|⇒|js}
-                                ? [
-                                  span(
-                                    ~attrs=[
-                                      Attr.classes(["focus-sym-name"]),
-                                    ],
-                                    [text(current.name)],
-                                  ),
-                                ]
-                                : []
-                            )
-                            @ [
-                              span(
-                                ~attrs=[Attr.classes(["focus-sym-mark"])],
-                                [text(sym)],
+                          ],
+                          /* no qualifier chip: the symbol is the label; the
+                             trailing ⇒ names what it's the result of, the
+                             program (not editable) */
+                          [
+                            span(
+                              ~attrs=[Attr.classes(["focus-sym"])],
+                              (
+                                sym == {js|⇒|js}
+                                  ? [
+                                    span(
+                                      ~attrs=[
+                                        Attr.classes(["focus-sym-name"]),
+                                      ],
+                                      [text(current.name)],
+                                    ),
+                                  ]
+                                  : []
+                              )
+                              @ [
+                                span(
+                                  ~attrs=[Attr.classes(["focus-sym-mark"])],
+                                  [text(sym)],
+                                ),
+                              ]
+                              @ (
+                                sym == {js|⇒|js}
+                                  ? [
+                                    span(
+                                      ~attrs=[
+                                        Attr.classes(["focus-sym-word"]),
+                                      ],
+                                      [text("result")],
+                                    ),
+                                  ]
+                                  : []
                               ),
-                            ]
-                            @ (
-                              sym == {js|⇒|js}
-                                ? [
-                                  span(
-                                    ~attrs=[
-                                      Attr.classes(["focus-sym-word"]),
-                                    ],
-                                    [text("result")],
-                                  ),
-                                ]
-                                : []
                             ),
-                          ),
-                        ],
-                      )
-                    | None =>
-                      div(
-                        ~attrs=[Attr.classes(["focus-header"])],
-                        qualifier
-                        @ [
-                          pane_view(
-                            Header,
-                            ~result_kind=`NoResults,
-                            ~lines=false,
-                            ~escape=header_escape,
-                            ~escape_vertical=header_escape_vertical,
-                            ~cull=false,
-                            (),
-                          ),
-                        ],
-                      )
-                    };
-                  let nodes =
-                    (zoom_cell ? [] : [header_pane])
-                    @ [
-                      div(
-                        ~attrs=[
-                          Attr.classes(
+                          ],
+                        )
+                      | None =>
+                        div(
+                          ~attrs=[Attr.classes(["focus-header"])],
+                          qualifier
+                          @ [
+                            pane_view(
+                              Header,
+                              ~result_kind=`NoResults,
+                              ~lines=false,
+                              ~escape=header_escape,
+                              ~escape_vertical=header_escape_vertical,
+                              ~cull=false,
+                              (),
+                            ),
+                          ],
+                        )
+                      };
+                    let nodes =
+                      (zoom_cell ? [] : [header_pane])
+                      @ [
+                        div(
+                          ~attrs=[
+                            Attr.classes(
                               ["focus-body"]
                               @ (zoom_cell ? ["zoom-body"] : []),
-                          ),
-                        ],
-                        [
-                          pane_view(
-                            Body,
-                            /* its tests ran in the whole program */
-                            ~result_kind=`TestSigilsOnly,
-                            ~lines=true,
-                            ~master=(
-                              Divided.result(d),
-                              a =>
-                                inject(
-                                  Workspace(CellAction(ResultAction(a))),
-                                ),
                             ),
-                            ~escape=body_escape,
-                            ~escape_vertical=body_escape_vertical,
-                            /* culling measures one `.cull-scope`: only
-                               the first body opts in; the rest render
-                               unculled, not against another's rows */
-                            ~cull=i == 0,
-                            (),
-                          ),
-                        ],
-                      ),
-                    ];
-                  (
-                    e.e_id,
-                    {
-                      c_key: key,
-                      c_header: e.e_header,
-                      c_body: e.e_body,
-                      c_settings: globals.Globals.Model.settings,
-                      c_font_metrics: globals.Globals.Model.font_metrics,
-                      c_colors: globals.Globals.Model.color_highlights,
-                      c_tests: tests,
-                      c_drawers: drawers,
-                      c_nodes: nodes,
-                    },
-                  );
-                };
-              },
+                          ],
+                          [
+                            pane_view(
+                              Body,
+                              /* its tests ran in the whole program */
+                              ~result_kind=`TestSigilsOnly,
+                              ~lines=true,
+                              ~master=(
+                                Divided.result(d),
+                                a =>
+                                  inject(
+                                    Workspace(CellAction(ResultAction(a))),
+                                  ),
+                              ),
+                              ~escape=body_escape,
+                              ~escape_vertical=body_escape_vertical,
+                              /* culling measures one `.cull-scope`: only
+                                 the first body opts in; the rest render
+                                 unculled, not against another's rows */
+                              ~cull=i == 0,
+                              (),
+                            ),
+                          ],
+                        ),
+                      ];
+                    (
+                      e.e_id,
+                      {
+                        c_key: key,
+                        c_header: e.e_header,
+                        c_body: e.e_body,
+                        c_settings: globals.Globals.Model.settings,
+                        c_font_metrics: globals.Globals.Model.font_metrics,
+                        c_colors: globals.Globals.Model.color_highlights,
+                        c_tests: tests,
+                        c_drawers: drawers,
+                        c_nodes: nodes,
+                      },
+                    );
+                  };
+                },
               cells,
             );
           stack_cache := rendered;

@@ -492,11 +492,14 @@ module Update = {
         };
       }
     | SaveLocalApiKey =>
-      Option.iter(~f=
-        key =>
-          AgentLocalKey.save(key, ok =>
-            schedule_action(SetLocalKeyStatus(ok ? LocalSaved : LocalError))
-          ),
+      Option.iter(
+        ~f=
+          key =>
+            AgentLocalKey.save(key, ok =>
+              schedule_action(
+                SetLocalKeyStatus(ok ? LocalSaved : LocalError),
+              )
+            ),
         model.api_key,
       );
       model;
@@ -577,25 +580,26 @@ module Update = {
         };
       };
     | RefreshModels =>
-      Option.iter(~f=
-        api_key => {
-          OpenRouter.AvailableLLMs.Utils.get_models(
-            ~key=api_key, ~handler=response => {
-            switch (response) {
-            | Some(json) =>
-              switch (
-                OpenRouter.AvailableLLMs.Utils.parse_available_models_response(
-                  json,
-                )
-              ) {
-              | Some(available_llms) =>
-                schedule_action(SetAvailableLLMs(available_llms))
+      Option.iter(
+        ~f=
+          api_key => {
+            OpenRouter.AvailableLLMs.Utils.get_models(
+              ~key=api_key, ~handler=response => {
+              switch (response) {
+              | Some(json) =>
+                switch (
+                  OpenRouter.AvailableLLMs.Utils.parse_available_models_response(
+                    json,
+                  )
+                ) {
+                | Some(available_llms) =>
+                  schedule_action(SetAvailableLLMs(available_llms))
+                | None => ()
+                }
               | None => ()
               }
-            | None => ()
-            }
-          })
-        },
+            })
+          },
         model.api_key,
       );
       model;

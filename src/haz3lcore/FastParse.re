@@ -407,16 +407,16 @@ let weave =
       let (children, label_rev) =
         List.fold2_exn(
           ~f=
-          ((children_acc, label_acc), label_tok, child_seg) => {
-            /* each child sits between consecutive shards; the gap
-               before the closing token belongs inside the child */
-            let child = weave_seg(child_seg);
-            let (gap, tok) = expect(label_tok);
-            (
-              children_acc @ [child @ gap_pieces(gap)],
-              [tok, ...label_acc],
-            );
-          },
+            ((children_acc, label_acc), label_tok, child_seg) => {
+              /* each child sits between consecutive shards; the gap
+                 before the closing token belongs inside the child */
+              let child = weave_seg(child_seg);
+              let (gap, tok) = expect(label_tok);
+              (
+                children_acc @ [child @ gap_pieces(gap)],
+                [tok, ...label_acc],
+              );
+            },
           ~init=([], [tok0]),
           List.tl_exn(label),
           t.children,
@@ -602,11 +602,11 @@ let parsed_of_text =
           ? Option.bind(unbraced("{" ++ body ++ " ?}"), ~f=p =>
               Option.map(
                 ~f=
-                segment =>
-                  {
-                    ...p,
-                    segment,
-                  },
+                  segment =>
+                    {
+                      ...p,
+                      segment,
+                    },
                 strip_appended_hole(p.segment),
               )
             )

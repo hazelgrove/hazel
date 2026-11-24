@@ -797,7 +797,8 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
       | None => ()
       };
       cancel_anims(anims);
-      s.scrub_anims = List.Assoc.remove(s.scrub_anims, prev, ~equal=Poly.equal);
+      s.scrub_anims =
+        List.Assoc.remove(s.scrub_anims, prev, ~equal=Poly.equal);
     | None => ()
     }
   | (None, _) => ()
@@ -857,7 +858,9 @@ let resolve = (s: session, p: vec): unit => {
   let scored = s.cands |> List.mapi(~f=(i, c) => (i, c, track(c)));
   let best =
     scored
-    |> List.fold(~init=Stdlib.Option.None, ~f=(acc, (i, c, (t, gap, cos))) => {
+    |> List.fold(
+         ~init=Stdlib.Option.None,
+         ~f=(acc, (i, c, (t, gap, cos))) => {
            let bonus = s.winner == Some(i) ? stickiness : 0.;
            /* ALIGNMENT GATE: a track engages only when the pull
               points along it (andrew: pulling away from the sole
@@ -873,7 +876,8 @@ let resolve = (s: session, p: vec): unit => {
              | _ => Some((i, c, t, gap -. bonus))
              };
            };
-         });
+         },
+       );
   switch (best) {
   | Some((i, c, t, _)) =>
     let t = sharpen(t);
@@ -965,7 +969,10 @@ let end_session = () => {
   | Some(s) =>
     switch (s.scrub_active) {
     | Some(w) =>
-      switch (List.Assoc.find(s.scrub_anims, w, ~equal=Poly.equal), List.nth(s.cands, w)) {
+      switch (
+        List.Assoc.find(s.scrub_anims, w, ~equal=Poly.equal),
+        List.nth(s.cands, w),
+      ) {
       | (Some(anims), Some(c)) => relax_from(c, anim_t(anims))
       | _ => ()
       }
@@ -1004,7 +1011,8 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
   | Some(s) =>
     let p = local(s, e);
     if (!s.began) {
-      let d = Float.sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
+      let d =
+        Float.sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
         s.began = true;
         Dom_html.document##.body##.style##.cursor := Js.string("grabbing");
@@ -1425,7 +1433,7 @@ let sync =
       let here = Zipper.Caret.point(measured, z) == goal;
       let changed =
         switch (stale) {
-        | Some(z0) => !(phys_equal(z0, z))
+        | Some(z0) => !phys_equal(z0, z)
         | None => false
         };
       if (here || changed) {
@@ -1443,8 +1451,9 @@ let sync =
          term to catch up. */
       let changed =
         switch (z0, t0) {
-        | (Some(z0), Some(t0)) => !(phys_equal(z0, z)) && !(phys_equal(t0, term))
-        | (Some(z0), None) => !(phys_equal(z0, z))
+        | (Some(z0), Some(t0)) =>
+          !phys_equal(z0, z) && !phys_equal(t0, term)
+        | (Some(z0), None) => !phys_equal(z0, z)
         | (None, _) => true
         };
       if (changed) {

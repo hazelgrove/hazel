@@ -7,7 +7,11 @@ let request =
     (~method: string, ~body="", handler: option(Yojson.Safe.t) => unit) => {
   let local =
     try(
-      List.mem(["localhost", "127.0.0.1", "[::1]"], Js.to_string(Dom_html.window##.location##.hostname), ~equal=Poly.equal)
+      List.mem(
+        ["localhost", "127.0.0.1", "[::1]"],
+        Js.to_string(Dom_html.window##.location##.hostname),
+        ~equal=Poly.equal,
+      )
     ) {
     | _ => false
     };
@@ -22,7 +26,9 @@ let request =
             try(
               if (req##.status == 200) {
                 Js.Opt.to_option(req##.responseText)
-                |> Option.map(~f=x => Yojson.Safe.from_string(Js.to_string(x)));
+                |> Option.map(~f=x =>
+                     Yojson.Safe.from_string(Js.to_string(x))
+                   );
               } else {
                 None;
               }
@@ -53,7 +59,8 @@ let load = handler =>
       switch (result) {
       | Some(`Assoc(fields)) =>
         switch (List.Assoc.find(fields, "key", ~equal=Poly.equal)) {
-        | Some(`String(key)) when String.strip(key) != "" => Some(Some(key))
+        | Some(`String(key)) when String.strip(key) != "" =>
+          Some(Some(key))
         | Some(`Null) => Some(None)
         | _ => None
         }

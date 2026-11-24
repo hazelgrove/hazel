@@ -168,12 +168,13 @@ let save_index = (s: list(summary)): unit =>
 
 let n_replies = (events: list(stamped)): int =>
   List.length(
-    List.filter(~f=
-      s =>
-        switch (s.ev) {
-        | Reply(_) => true
-        | _ => false
-        },
+    List.filter(
+      ~f=
+        s =>
+          switch (s.ev) {
+          | Reply(_) => true
+          | _ => false
+          },
       events,
     ),
   );
@@ -198,37 +199,38 @@ let run_to_json = (r: run): Yojson.Safe.t => {
       "events",
       `List(
         List.rev_map(r.events, ~f=({t, ev}) =>
-            switch (ev) {
-            | Reply(calls) =>
-              `Assoc([
-                ("t", `Float(t)),
-                ("kind", `String("reply")),
-                (
-                  "tools",
-                  `List(
-                    List.map(~f=
+          switch (ev) {
+          | Reply(calls) =>
+            `Assoc([
+              ("t", `Float(t)),
+              ("kind", `String("reply")),
+              (
+                "tools",
+                `List(
+                  List.map(
+                    ~f=
                       ((name, args)) =>
                         `Assoc([("name", `String(name)), ("args", args)]),
-                      calls,
-                    ),
+                    calls,
                   ),
                 ),
-              ])
-            | Busy(b) =>
-              `Assoc([
-                ("t", `Float(t)),
-                ("kind", `String("busy")),
-                ("on", `Bool(b)),
-              ])
-            | Tick =>
-              `Assoc([("t", `Float(t)), ("kind", `String("tick"))])
-            | Prompt(text) =>
-              `Assoc([
-                ("t", `Float(t)),
-                ("kind", `String("prompt")),
-                ("text", `String(text)),
-              ])
-            }),
+              ),
+            ])
+          | Busy(b) =>
+            `Assoc([
+              ("t", `Float(t)),
+              ("kind", `String("busy")),
+              ("on", `Bool(b)),
+            ])
+          | Tick => `Assoc([("t", `Float(t)), ("kind", `String("tick"))])
+          | Prompt(text) =>
+            `Assoc([
+              ("t", `Float(t)),
+              ("kind", `String("prompt")),
+              ("text", `String(text)),
+            ])
+          }
+        ),
       ),
     ),
   ]);
@@ -261,8 +263,8 @@ let save_run = (~live: bool, r: run): unit => {
   /* the cap spares kept traces */
   let (keep, drop) =
     List.fold(all, ~init=([], []), ~f=((k, d), x) =>
-        List.length(k) < keep_last || x.s_kept
-          ? (k @ [x], d) : (k, d @ [x]));
+      List.length(k) < keep_last || x.s_kept ? (k @ [x], d) : (k, d @ [x])
+    );
   List.iter(~f=x => HazelDB.kv_delete(trace_key(x.s_id)), drop);
   save_index(keep);
 };
@@ -303,7 +305,8 @@ let begin_run = (~prompt: string): run => {
       prompt,
       program:
         switch (program_text^()) {
-        | Some(p) when String.strip(p) == "" || String.strip(p) == "?" => None
+        | Some(p) when String.strip(p) == "" || String.strip(p) == "?" =>
+          None
         | p => p
         },
       pane: pane_size(),
@@ -319,7 +322,8 @@ let begin_run = (~prompt: string): run => {
     ++ (
       prompt == ""
         ? ""
-        : " — " ++ String.sub(prompt, ~pos=0, ~len=min(40, String.length(prompt)))
+        : " — "
+          ++ String.sub(prompt, ~pos=0, ~len=min(40, String.length(prompt)))
     ),
   );
   on_change^();
@@ -424,65 +428,73 @@ let latest_json = (): string =>
 let events_of_json = (j: Yojson.Safe.t): list(stamped) =>
   switch (j) {
   | `List(items) =>
-    List.filter_map(~f=
-      item =>
-        switch (item) {
-        | `Assoc(fields) =>
-          let t = num(fields, "t");
-          switch (List.Assoc.find(fields, "kind", ~equal=Poly.equal)) {
-          | Some(`String("reply")) =>
-            let tools =
-              switch (List.Assoc.find(fields, "tools", ~equal=Poly.equal)) {
-              | Some(`List(ts)) =>
-                List.filter_map(~f=
-                  tj =>
-                    switch (tj) {
-                    | `Assoc(tf) =>
-                      switch (List.Assoc.find(tf, "name", ~equal=Poly.equal)) {
-                      | Some(`String(name)) =>
-                        Some((
-                          name,
-                          Option.value(
-                            ~default=`Assoc([]),
-                            List.Assoc.find(tf, "args", ~equal=Poly.equal),
-                          ),
-                        ))
-                      | _ => None
-                      }
-                    | _ => None
-                    },
-                  ts,
-                )
-              | _ => []
-              };
-            Some({
-              t,
-              ev: Reply(tools),
-            });
-          | Some(`String("busy")) =>
-            let on =
-              switch (List.Assoc.find(fields, "on", ~equal=Poly.equal)) {
-              | Some(`Bool(b)) => b
-              | _ => false
-              };
-            Some({
-              t,
-              ev: Busy(on),
-            });
-          | Some(`String("tick")) =>
-            Some({
-              t,
-              ev: Tick,
-            })
-          | Some(`String("prompt")) =>
-            Some({
-              t,
-              ev: Prompt(str(fields, "text")),
-            })
+    List.filter_map(
+      ~f=
+        item =>
+          switch (item) {
+          | `Assoc(fields) =>
+            let t = num(fields, "t");
+            switch (List.Assoc.find(fields, "kind", ~equal=Poly.equal)) {
+            | Some(`String("reply")) =>
+              let tools =
+                switch (List.Assoc.find(fields, "tools", ~equal=Poly.equal)) {
+                | Some(`List(ts)) =>
+                  List.filter_map(
+                    ~f=
+                      tj =>
+                        switch (tj) {
+                        | `Assoc(tf) =>
+                          switch (
+                            List.Assoc.find(tf, "name", ~equal=Poly.equal)
+                          ) {
+                          | Some(`String(name)) =>
+                            Some((
+                              name,
+                              Option.value(
+                                ~default=`Assoc([]),
+                                List.Assoc.find(
+                                  tf,
+                                  "args",
+                                  ~equal=Poly.equal,
+                                ),
+                              ),
+                            ))
+                          | _ => None
+                          }
+                        | _ => None
+                        },
+                    ts,
+                  )
+                | _ => []
+                };
+              Some({
+                t,
+                ev: Reply(tools),
+              });
+            | Some(`String("busy")) =>
+              let on =
+                switch (List.Assoc.find(fields, "on", ~equal=Poly.equal)) {
+                | Some(`Bool(b)) => b
+                | _ => false
+                };
+              Some({
+                t,
+                ev: Busy(on),
+              });
+            | Some(`String("tick")) =>
+              Some({
+                t,
+                ev: Tick,
+              })
+            | Some(`String("prompt")) =>
+              Some({
+                t,
+                ev: Prompt(str(fields, "text")),
+              })
+            | _ => None
+            };
           | _ => None
-          };
-        | _ => None
-        },
+          },
       items,
     )
   | _ => []
@@ -511,7 +523,10 @@ let parse = (text: string): option((option(header), list(stamped))) =>
           },
         pane,
       }),
-      Option.value(~default=`List([]), List.Assoc.find(f, "events", ~equal=Poly.equal))
+      Option.value(
+        ~default=`List([]),
+        List.Assoc.find(f, "events", ~equal=Poly.equal),
+      )
       |> events_of_json,
     ));
   | _ => None
@@ -766,7 +781,10 @@ let replay = (~speed: float=1., ~record: bool=false, text: string): unit =>
       },
     );
     let p = {
-      steps: Array.of_list(List.sort(~compare=(a, b) => compare(a.t, b.t), steps)),
+      steps:
+        Array.of_list(
+          List.sort(~compare=(a, b) => compare(a.t, b.t), steps),
+        ),
       idx: 0,
       speed,
       paused: false,
@@ -842,10 +860,11 @@ let refresh_repo_traces = (): unit =>
           switch (Yojson.Safe.from_string(text)) {
           | exception _ => []
           | `List(items) =>
-            List.filter_map(~f=
-              fun
-              | `Assoc(f) => Some(str(f, "name"))
-              | _ => None,
+            List.filter_map(
+              ~f=
+                fun
+                | `Assoc(f) => Some(str(f, "name"))
+                | _ => None,
               items,
             )
           | _ => []
@@ -858,17 +877,18 @@ let refresh_repo_traces = (): unit =>
 refresh_hook := refresh_repo_traces;
 
 let sanitize_name = (s: string): string =>
-  String.map(~f=
-    c =>
-      switch (c) {
-      | 'a' .. 'z'
-      | 'A' .. 'Z'
-      | '0' .. '9'
-      | '-'
-      | '_'
-      | '.' => c
-      | _ => '-'
-      },
+  String.map(
+    ~f=
+      c =>
+        switch (c) {
+        | 'a' .. 'z'
+        | 'A' .. 'Z'
+        | '0' .. '9'
+        | '-'
+        | '_'
+        | '.' => c
+        | _ => '-'
+        },
     s,
   );
 
@@ -907,14 +927,15 @@ let keep = (id: string): unit =>
       (ok, _) => {
         if (ok) {
           save_index(
-            List.map(~f=
-              x =>
-                x.s_id == id
-                  ? {
-                    ...x,
-                    s_kept: true,
-                  }
-                  : x,
+            List.map(
+              ~f=
+                x =>
+                  x.s_id == id
+                    ? {
+                      ...x,
+                      s_kept: true,
+                    }
+                    : x,
               index(),
             ),
           );

@@ -131,13 +131,14 @@ let install_longtask_observer = (): unit =>
           Js.Unsafe.callback((list: Js.t(Js.Unsafe.any)) => {
             let entries: array(Js.t(Js.Unsafe.any)) =
               Js.to_array(Js.Unsafe.meth_call(list, "getEntries", [||]));
-            Array.iter(~f=
-              e => {
-                let d: float = Js.Unsafe.coerce(e)##.duration;
-                lt_count := lt_count^ + 1;
-                lt_max := max(lt_max^, d);
-                lt_total := lt_total^ +. d;
-              },
+            Array.iter(
+              ~f=
+                e => {
+                  let d: float = Js.Unsafe.coerce(e)##.duration;
+                  lt_count := lt_count^ + 1;
+                  lt_max := max(lt_max^, d);
+                  lt_total := lt_total^ +. d;
+                },
               entries,
             );
           });

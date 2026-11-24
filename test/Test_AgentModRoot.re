@@ -29,8 +29,8 @@ let agent_paths = (nm: HighLevelNodeMap.t): list((string, Id.t)) => {
     |> List.map(~f=((id, n: HighLevelNodeMap.node)) =>
          (
            id,
-           String.concat(~sep=
-             "/",
+           String.concat(
+             ~sep="/",
              HighLevelNodeMap.id_path_to_name_path(n.path, nm),
            ),
          )
@@ -47,7 +47,7 @@ let agent_paths = (nm: HighLevelNodeMap.t): list((string, Id.t)) => {
          (base ++ "#" ++ string_of_int(fst(k) + 1), id);
        }
      )
-  |> List.sort(~compare=compare);
+  |> List.sort(~compare);
 };
 
 let parity = (z: Zipper.t) => {
@@ -68,7 +68,12 @@ let parity = (z: Zipper.t) => {
         ),
       ),
     );
-  check(list(string), "paths", List.map(~f=fst, whole), List.map(~f=fst, items));
+  check(
+    list(string),
+    "paths",
+    List.map(~f=fst, whole),
+    List.map(~f=fst, items),
+  );
   check(
     list(string),
     "nodes",
@@ -117,8 +122,8 @@ let parity_tests = (
       parity(Zipper.unzip(CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz")))
     ),
     test_case("the module-rooted slides", `Slow, () =>
-      List.iter(~f=
-        ((_, p)) => parity(PersistentZipper.unpersist(p, ~root=Mod)),
+      List.iter(
+        ~f=((_, p)) => parity(PersistentZipper.unpersist(p, ~root=Mod)),
         Docslides.Slides.mod_slides,
       )
     ),

@@ -99,10 +99,10 @@ module Store = {
     let exercise_data =
       List.map(
         ~f=
-        spec => {
-          let key = Tutorial.id_of(spec);
-          (key, load_exercise(~settings, key, spec, ~instructor_mode));
-        },
+          spec => {
+            let key = Tutorial.id_of(spec);
+            (key, load_exercise(~settings, key, spec, ~instructor_mode));
+          },
         TutorialSettings.lessons,
       );
     {
@@ -116,10 +116,10 @@ module Store = {
       exercise_data:
         List.map(
           ~f=
-          spec => {
-            let key = Tutorial.id_of(spec);
-            (key, load_exercise(~settings, key, spec, ~instructor_mode));
-          },
+            spec => {
+              let key = Tutorial.id_of(spec);
+              (key, load_exercise(~settings, key, spec, ~instructor_mode));
+            },
           TutorialSettings.lessons,
         ),
     }
@@ -132,26 +132,26 @@ module Store = {
     StoreTutorialKey.save(exercise_export.cur_exercise);
     List.iter(
       ~f=
-      ((key, value)) => {
-        let n =
-          ListUtil.findi_opt(
-            spec => Tutorial.id_of(spec) == key,
-            tutorial_specs,
-          )
+        ((key, value)) => {
+          let n =
+            ListUtil.findi_opt(
+              spec => Tutorial.id_of(spec) == key,
+              tutorial_specs,
+            )
             |> Option.value_exn
-          |> fst;
+            |> fst;
           let spec = List.nth_exn(tutorial_specs, n);
-        save_exercise(
-          value
-          |> TutorialMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
-          ~instructor_mode,
-        );
-      },
+          save_exercise(
+            value
+            |> TutorialMode.Model.unpersist(
+                 ~settings,
+                 ~instructor_mode,
+                 _,
+                 spec,
+               ),
+            ~instructor_mode,
+          );
+        },
       exercise_export.exercise_data,
     );
   };
@@ -160,10 +160,10 @@ module Store = {
     let _ = StoreTutorialKey.reset();
     List.iter(
       ~f=
-      spec => {
-        let _ = init_exercise(~settings, spec, ~instructor_mode);
-        ();
-      },
+        spec => {
+          let _ = init_exercise(~settings, spec, ~instructor_mode);
+          ();
+        },
       TutorialSettings.lessons,
     );
   };

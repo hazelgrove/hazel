@@ -190,7 +190,9 @@ let note_agent_busy = (busy: bool): unit => {
           ? "-"
           : Printf.sprintf(
               "avg %.1fs max %.1fs",
-              List.fold(t.lags, ~init=0., ~f=(+.)) /. float_of_int(n) /. 1000.,
+              List.fold(t.lags, ~init=0., ~f=(+.))
+              /. float_of_int(n)
+              /. 1000.,
               List.fold(t.lags, ~init=0., ~f=max) /. 1000.,
             ),
       );
@@ -286,11 +288,14 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
          let (tx, ty) =
            switch (String.index(tf, '(')) {
            | Some(i) when String.length(tf) > i + 1 =>
-             let inner = String.sub(tf, ~pos=i + 1, ~len=String.length(tf) - i - 2);
+             let inner =
+               String.sub(tf, ~pos=i + 1, ~len=String.length(tf) - i - 2);
              let nums =
                inner
                |> String.split(~on=',')
-               |> List.filter_map(~f=s => float_of_string_opt(String.strip(s)));
+               |> List.filter_map(~f=s =>
+                    float_of_string_opt(String.strip(s))
+                  );
              switch (nums) {
              | [_, _, _, _, tx, ty] => (tx, ty)
              | _ => (0., 0.)
@@ -328,8 +333,8 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
         Util.JsUtil.ids_with_prefix("cnode-")
         @ Util.JsUtil.ids_with_prefix("cedge-")
         @ Util.JsUtil.ids_with_prefix("cval-")
-        |> List.map(~f=
-             Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
+        |> List.map(
+             ~f=Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
            )
       )
       @ (
@@ -460,7 +465,7 @@ let observe =
       !Haz3lcore.Id.Map.is_empty(live.statics.info_map)
       && (
         switch (last_seen^) {
-        | Some(s) => !(phys_equal(s, live))
+        | Some(s) => !phys_equal(s, live)
         | None => true
         }
       );

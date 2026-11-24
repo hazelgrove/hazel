@@ -95,7 +95,9 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
           params
           |> List.filter(~f=x =>
                defs
-               |> List.exists(~f=((dl, _)) => free_in(x, line_material(dl)))
+               |> List.exists(~f=((dl, _)) =>
+                    free_in(x, line_material(dl))
+                  )
              );
         let carried = block |> List.filter(~f=nd => !same_node(nd, c));
         let wall_names =
@@ -214,7 +216,8 @@ let lift_function_impl: impl = {
       switch (IdTagged.term_of(c)) {
       | Let(cp, cdef, cbody) =>
         let g = Option.value_exn(let_head_name(cp));
-        let carried = site.ls_block |> List.filter(~f=nd => !same_node(nd, c));
+        let carried =
+          site.ls_block |> List.filter(~f=nd => !same_node(nd, c));
         let sep_lead = i => i == 0 ? ([], []) : (space(), []);
         /* the helper INTERIOR: carried dep lines wrap C's def */
         /* multiline helper (andrew): with carried lets inside, the
@@ -234,15 +237,21 @@ let lift_function_impl: impl = {
         let carried' =
           carried |> List.map(~f=nd => with_secondary((inner_sep(), []), nd));
         let interior =
-          List.fold(List.rev(carried'), ~init=carried == []
-              ? with_secondary(
-                  (space(), []),
-                  cdef |> strip_leading |> strip_trailing,
-                )
-              : with_secondary(
-                  (inner_sep(), []),
-                  cdef |> strip_leading |> strip_trailing,
-                ), ~f=(inner, nd) => def_line_rebuild(nd, inner));
+          List.fold(
+            List.rev(carried'),
+            ~init=
+              carried == []
+                ? with_secondary(
+                    (space(), []),
+                    cdef |> strip_leading |> strip_trailing,
+                  )
+                : with_secondary(
+                    (inner_sep(), []),
+                    cdef |> strip_leading |> strip_trailing,
+                  ),
+            ~f=(inner, nd) =>
+            def_line_rebuild(nd, inner)
+          );
         /* the closing `in` on its own line for multiline helpers */
         let interior =
           carried == []

@@ -115,13 +115,13 @@ let plan_tile = (full: Segment.t, t: Tile.t): list(child_plan) =>
 let rec find_tiles = (ids: Id.Map.t(unit), seg: Segment.t): list(Tile.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        (Id.Map.mem(t.id, ids) ? [t] : [])
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          (Id.Map.mem(t.id, ids) ? [t] : [])
           @ List.concat_map(~f=find_tiles(ids), t.children)
-      | _ => []
-      },
+        | _ => []
+        },
     seg,
   );
 
@@ -142,16 +142,16 @@ let apply_plans =
              children:
                List.mapi(
                  ~f=
-                 (i, ch) =>
+                   (i, ch) =>
                      switch (List.nth(child_plans, i)) {
-                   | Some(Fix) =>
-                     Indentation.fix_indentation_in_segment(
-                       Lazy.force(indent_map),
-                       ch,
-                     )
-                   | Some(Shift(d)) => shift(d, ch)
-                   | _ => ch
-                   },
+                     | Some(Fix) =>
+                       Indentation.fix_indentation_in_segment(
+                         Lazy.force(indent_map),
+                         ch,
+                       )
+                     | Some(Shift(d)) => shift(d, ch)
+                     | _ => ch
+                     },
                  t.children,
                ),
            })

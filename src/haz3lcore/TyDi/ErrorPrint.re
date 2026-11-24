@@ -48,7 +48,7 @@ let string_of_parts = (parts: list(part)): string =>
          | Code(s)
          | Label(s) => s
          | Type(ty) => Print.typ(ty),
-    )
+     )
   |> String.concat(~sep="");
 
 let codes = (names: list(Var.t)): list(part) =>
@@ -343,7 +343,7 @@ let typ_mark_string: Mark.t => string =
     member_not_found_string(
       TypExpectation.module_member_to_string(member),
       not_found,
-        )
+    )
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>

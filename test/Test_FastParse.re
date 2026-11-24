@@ -104,12 +104,12 @@ let parens_typed_in = (name, marked, typed) =>
       let rec lone = seg =>
         List.exists(
           ~f=
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile(t) =>
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) =>
                 Tile.label(t) == ["("] || List.exists(~f=lone, t.children)
-            | _ => false
-            },
+              | _ => false
+              },
           seg,
         );
       check(
@@ -174,25 +174,25 @@ let rec shape = (seg: Segment.t): string =>
     ~sep="",
     List.map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          "<"
-          ++ Form.show(t.form)
-          ++ ":"
-          ++ Mold.show(Tile.mold(t))
-          ++ ":"
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            "<"
+            ++ Form.show(t.form)
+            ++ ":"
+            ++ Mold.show(Tile.mold(t))
+            ++ ":"
             ++ String.concat(~sep=",", List.map(~f=string_of_int, t.shards))
-          ++ String.concat(~sep=
-                 "",
+            ++ String.concat(
+                 ~sep="",
                  List.map(~f=c => "[" ++ shape(c) ++ "]", t.children),
-             )
-          ++ ">"
-        | Grout(g) => Grout.show_shape(g.shape)
+               )
+            ++ ">"
+          | Grout(g) => Grout.show_shape(g.shape)
           | Secondary(w) =>
             Language.Secondary.show_secondary_content(w.content)
-        | Projector(pr) => "P" ++ shape([pr.syntax])
-        },
+          | Projector(pr) => "P" ++ shape([pr.syntax])
+          },
       seg,
     ),
   );
@@ -344,14 +344,14 @@ let tests = (
           let rec go = s =>
             List.exists(
               ~f=
-              (p: Piece.t) =>
-                pred(p)
-                || (
-                  switch (p) {
+                (p: Piece.t) =>
+                  pred(p)
+                  || (
+                    switch (p) {
                     | Tile({children, _}) => List.exists(~f=go, children)
-                  | _ => false
-                  }
-                ),
+                    | _ => false
+                    }
+                  ),
               s,
             );
           go(seg);
@@ -470,11 +470,11 @@ let tests = (
         let members =
           List.filter(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) => Tile.label(t) == ["let", "="]
-              | _ => false
-              },
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile(t) => Tile.label(t) == ["let", "="]
+                | _ => false
+                },
             Option.value_exn(Parser.to_segment(src, ~root=Mod)),
           );
         check(int, "members", 1, List.length(members));
@@ -509,22 +509,22 @@ let tests = (
         let has_projector =
           List.exists(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
-                List.exists(~f=
-                    
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile({children, _}) =>
+                  List.exists(
+                    ~f=
                       List.exists(~f=q =>
-                    switch ((q: Piece.t)) {
-                    | Projector(_) => true
-                    | _ => false
-                    }
-                  ),
-                  children,
-                )
-              | Projector(_) => true
-              | _ => false
-              },
+                        switch ((q: Piece.t)) {
+                        | Projector(_) => true
+                        | _ => false
+                        }
+                      ),
+                    children,
+                  )
+                | Projector(_) => true
+                | _ => false
+                },
             seg,
           );
         check(bool, "projector piece present", true, has_projector);
@@ -611,17 +611,17 @@ let tests = (
           "wrapped projector materialized",
           true,
           List.exists(parsed.segment, ~f=(p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
+            switch (p) {
+            | Tile({children, _}) =>
               List.exists(children, ~f=child =>
                 List.exists(child, ~f=(p: Piece.t) =>
-                    switch (p) {
-                    | Projector({kind: Slider, _}) => true
-                    | _ => false
-                    }
+                  switch (p) {
+                  | Projector({kind: Slider, _}) => true
+                  | _ => false
+                  }
                 )
-                )
-              | _ => false
+              )
+            | _ => false
             }
           ),
         );
@@ -752,18 +752,18 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, case)) =>
-        test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
+        ((name, case)) =>
+          test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
       mod_paste_cases,
     )
   @ List.map(
       ~f=
-      ((name, case)) =>
-        test_case(
-          "Exp paste: " ++ name,
-          `Quick,
-          paste_parity(~sort=Exp, case),
-        ),
+        ((name, case)) =>
+          test_case(
+            "Exp paste: " ++ name,
+            `Quick,
+            paste_parity(~sort=Exp, case),
+          ),
       exp_paste_cases,
     ),
 );

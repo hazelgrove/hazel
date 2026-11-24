@@ -31,9 +31,9 @@ let cursor_is_aligned_uncached =
       @ List.map(~f=fst, z.refractors.manuals);
     List.exists(
       ~f=
-      id =>
-        switch (Dynamics.Map.lookup(id, dynamics)) {
-        | Some([_, ..._] as samples) =>
+        id =>
+          switch (Dynamics.Map.lookup(id, dynamics)) {
+          | Some([_, ..._] as samples) =>
             Option.is_some(
               Sample.Selection.most_aligned_index(
                 ~ap_id=None,
@@ -41,8 +41,8 @@ let cursor_is_aligned_uncached =
                 samples,
               ),
             )
-        | _ => false
-        },
+          | _ => false
+          },
       all_probe_ids,
     );
   };
@@ -164,12 +164,12 @@ let resolve_pending_probe_cursor =
     let first_with_samples =
       List.find_map(
         ~f=
-        id =>
-          switch (Dynamics.Map.lookup(id, dynamics)) {
-          | Some([_, ..._] as s) => Some((id, s))
-          | Some([]) => None
-          | None => None
-          },
+          id =>
+            switch (Dynamics.Map.lookup(id, dynamics)) {
+            | Some([_, ..._] as s) => Some((id, s))
+            | Some([]) => None
+            | None => None
+            },
         ids,
       );
     switch (first_with_samples) {

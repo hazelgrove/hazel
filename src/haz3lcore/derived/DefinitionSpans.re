@@ -58,31 +58,33 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
   let ind = ref(0);
   let lead = ref(true);
   let rec go = (ps: Segment.t) =>
-    List.iter(~f=
-      (p: Piece.t) => {
-        if (Piece.id(p) == id) {
-          raise(Indent(ind^));
-        };
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          ind := 0;
-          lead := true;
-        | Secondary(w) when Secondary.is_space(w) =>
-          if (lead^) {
-            ind := ind^ + 1;
-          }
-        | Tile(t) =>
-          lead := false;
-          List.iter(~f=
-            ch => {
-              go(ch);
-              lead := false;
-            },
-            t.children,
-          );
-        | _ => lead := false
-        };
-      },
+    List.iter(
+      ~f=
+        (p: Piece.t) => {
+          if (Piece.id(p) == id) {
+            raise(Indent(ind^));
+          };
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) =>
+            ind := 0;
+            lead := true;
+          | Secondary(w) when Secondary.is_space(w) =>
+            if (lead^) {
+              ind := ind^ + 1;
+            }
+          | Tile(t) =>
+            lead := false;
+            List.iter(
+              ~f=
+                ch => {
+                  go(ch);
+                  lead := false;
+                },
+              t.children,
+            );
+          | _ => lead := false
+          };
+        },
       ps,
     );
   switch (go(seg)) {
@@ -92,15 +94,16 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
 };
 
 let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
-  List.exists(~f=
-    (p: Piece.t) =>
-      Piece.id(p) == target
-      || (
-        switch (p) {
-        | Tile(t) => List.exists(~f=seg_contains_id(target), t.children)
-        | _ => false
-        }
-      ),
+  List.exists(
+    ~f=
+      (p: Piece.t) =>
+        Piece.id(p) == target
+        || (
+          switch (p) {
+          | Tile(t) => List.exists(~f=seg_contains_id(target), t.children)
+          | _ => false
+          }
+        ),
     seg,
   );
 

@@ -20,10 +20,10 @@ let mega_4k = (~root: Sort.t) => {
     ? String.split(~on='\n', src)
       |> List.map(
            ~f=
-           fun
-           | "} in" => "};"
-           | "let final = MetaRunner.run_all(()) in" => "let final = MetaRunner.run_all(());"
-           | l => l,
+             fun
+             | "} in" => "};"
+             | "let final = MetaRunner.run_all(()) in" => "let final = MetaRunner.run_all(());"
+             | l => l,
          )
       |> String.concat(~sep="\n")
     : src;

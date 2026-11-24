@@ -412,7 +412,7 @@ let warn_or_ok_view =
   | [_, ..._] when globals.settings.core.display_warnings =>
     div_warn(List.concat_map(~f=common_warn_view(~globals, ~ctx), warnings))
   | _ => div_ok(ok)
-};
+  };
 let common_ok_view =
     (
       ~globals,
@@ -794,7 +794,7 @@ let exp_mark_err_view =
              ~globals,
              "; " ++ String.uncapitalize(cls_str),
              example,
-        ),
+           ),
       ])
     };
   | IsDeferral(InAp) =>
@@ -880,11 +880,11 @@ let exp_mark_err_view =
   | LabelNotFound(name, labels) =>
     div_err(label_not_found_view(name, labels))
   | ModuleMissingMembers(names) =>
-      div_err(
+    div_err(
       parts_view(
         ~view_type,
         Haz3lcore.ErrorPrint.module_missing_members_parts(names),
-        ),
+      ),
     )
   | ModuleMemberNotFound(not_found) =>
     div_err(

@@ -11,12 +11,13 @@ let text_of = (z: Zipper.t): string =>
 
 let collect_tile_ids = (z: Zipper.t): list(Id.t) => {
   let rec go = (seg: Segment.t) =>
-    List.concat_map(~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => [t.id, ...List.concat_map(~f=go, t.children)]
-        | _ => []
-        },
+    List.concat_map(
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) => [t.id, ...List.concat_map(~f=go, t.children)]
+          | _ => []
+          },
       seg,
     );
   go(Zipper.unselect_and_zip(z));
@@ -63,12 +64,13 @@ let assert_unique_ids = (z: Zipper.t): unit => {
        );
   collect(Zipper.unselect_and_zip(z));
   let all = ids^;
-  let uniq = List.dedup_and_sort(~compare=compare, all);
+  let uniq = List.dedup_and_sort(~compare, all);
   if (List.length(all) != List.length(uniq)) {
     let dupes =
-      List.sort(~compare=compare, all)
+      List.sort(~compare, all)
       |> List.fold(~init=(None, []), ~f=((seen, ds), id) =>
-             seen == Some(id) ? (seen, [id, ...ds]) : (Some(id), ds))
+           seen == Some(id) ? (seen, [id, ...ds]) : (Some(id), ds)
+         )
       |> snd
       |> List.map(~f=id =>
            Id.to_string(id)
@@ -118,7 +120,8 @@ let kinds_at = (marked: string): list(Action.refactor) => {
   |> List.map(~f=((k, _, _)) => k);
 };
 
-let offers = (kind, marked) => List.mem(kinds_at(marked), kind, ~equal=Poly.equal);
+let offers = (kind, marked) =>
+  List.mem(kinds_at(marked), kind, ~equal=Poly.equal);
 
 let drag_cands = (marked: string): list(Refactor.DragCandidate.t) => {
   let z = Test_Editing.parse_zipper(marked);
@@ -254,7 +257,7 @@ let refactor_tests = [
         int,
         "no duplicate tile ids",
         List.length(ids),
-        List.length(List.dedup_and_sort(~compare=compare, ids)),
+        List.length(List.dedup_and_sort(~compare, ids)),
       );
     },
   ),
@@ -379,7 +382,11 @@ let case_arm_tests = [
       bool,
       "Add arm | false",
       true,
-      List.mem(labels_at("let b : Bool = ? in ¦case b | true => 1 end"), "Add arm | false", ~equal=Poly.equal),
+      List.mem(
+        labels_at("let b : Bool = ? in ¦case b | true => 1 end"),
+        "Add arm | false",
+        ~equal=Poly.equal,
+      ),
     )
   ),
   test_case("add parameter label names the fn", `Quick, () =>
@@ -387,7 +394,11 @@ let case_arm_tests = [
       bool,
       "Add param to f",
       true,
-      List.mem(labels_at("¦let f = fun x -> x in f(1)"), "Add param to f", ~equal=Poly.equal),
+      List.mem(
+        labels_at("¦let f = fun x -> x in f(1)"),
+        "Add param to f",
+        ~equal=Poly.equal,
+      ),
     )
   ),
   test_case(
@@ -740,7 +751,11 @@ let remove_param_tests = [
       bool,
       "named",
       true,
-      List.mem(labels_at("let f = fun (a, ¦b) -> a in f(1, 2)"), "Remove Parameter b", ~equal=Poly.equal),
+      List.mem(
+        labels_at("let f = fun (a, ¦b) -> a in f(1, 2)"),
+        "Remove Parameter b",
+        ~equal=Poly.equal,
+      ),
     )
   ),
 ];
@@ -805,7 +820,11 @@ let swap_tests = [
       bool,
       "Swap a ↔ b",
       true,
-      List.mem(labels_at("¦let f = fun (a, b) -> a in f(1, 2)"), "Swap a ↔ b", ~equal=Poly.equal),
+      List.mem(
+        labels_at("¦let f = fun (a, b) -> a in f(1, 2)"),
+        "Swap a ↔ b",
+        ~equal=Poly.equal,
+      ),
     )
   ),
 ];
@@ -822,7 +841,9 @@ let put_down_tests = [
         let n = String.length(needle);
         let h = String.length(hay);
         let rec go = i =>
-          i + n <= h && (String.sub(hay, ~pos=i, ~len=n) == needle || go(i + 1));
+          i
+          + n <= h
+          && (String.sub(hay, ~pos=i, ~len=n) == needle || go(i + 1));
         go(0);
       };
       check(bool, "no endin in: " ++ got, false, contains("endin", got));
@@ -1893,10 +1914,23 @@ let drag_tests = [
     () => {
       let cs = drag_cands("let a = 1 in\n¦let x = 2 in\nx + a");
       let kinds = cs |> List.map(~f=(c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "hoist", true, List.mem(kinds, Action.HoistLet, ~equal=Poly.equal));
-      check(bool, "feed", true, List.mem(kinds, Action.FeedLet, ~equal=Poly.equal));
+      check(
+        bool,
+        "hoist",
+        true,
+        List.mem(kinds, Action.HoistLet, ~equal=Poly.equal),
+      );
+      check(
+        bool,
+        "feed",
+        true,
+        List.mem(kinds, Action.FeedLet, ~equal=Poly.equal),
+      );
       let hoist =
-        cs |> List.find_exn(~f=(c: Refactor.DragCandidate.t) => c.kind == HoistLet);
+        cs
+        |> List.find_exn(~f=(c: Refactor.DragCandidate.t) =>
+             c.kind == HoistLet
+           );
       let ((r0, _), (r1, _)) = track_of(hoist);
       check(bool, "hoist goes up", true, r1 == r0 - 1);
     },
@@ -1908,9 +1942,7 @@ let drag_tests = [
       let cs = drag_cands("let y = f(1 ¦+ 2) in y");
       let ext =
         cs
-        |> List.find(~f=(c: Refactor.DragCandidate.t) =>
-             c.kind == ExtractLet
-           );
+        |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == ExtractLet);
       check(bool, "extract present", true, ext != None);
       switch (ext) {
       | Some(c) =>
@@ -1952,7 +1984,12 @@ let drag_tests = [
     () => {
       let cs = drag_cands("let x = 2 in x + ¦x");
       let kinds = cs |> List.map(~f=(c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "no feed", false, List.mem(kinds, Action.FeedLet, ~equal=Poly.equal));
+      check(
+        bool,
+        "no feed",
+        false,
+        List.mem(kinds, Action.FeedLet, ~equal=Poly.equal),
+      );
     },
   ),
   test_case(
@@ -1961,8 +1998,7 @@ let drag_tests = [
     () => {
       let cs = drag_cands("¦let x = 2 in\nx + a");
       let feed =
-        cs
-        |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == FeedLet);
+        cs |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == FeedLet);
       check(bool, "feed present", true, feed != None);
       switch (feed) {
       | Some(c) =>
@@ -1981,9 +2017,7 @@ let drag_tests = [
       let cs = drag_cands("let a = 1 in\nlet y = f(1 ¦+ 2) in\ny");
       let ext =
         cs
-        |> List.find(~f=(c: Refactor.DragCandidate.t) =>
-             c.kind == ExtractLet
-           );
+        |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == ExtractLet);
       check(bool, "extract present", true, ext != None);
       switch (ext) {
       | Some(c) =>
@@ -2000,8 +2034,7 @@ let drag_tests = [
     () => {
       let cs = drag_cands("¦let k = 3 in k + k");
       let feed =
-        cs
-        |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == FeedLet);
+        cs |> List.find(~f=(c: Refactor.DragCandidate.t) => c.kind == FeedLet);
       check(bool, "feed present", true, feed != None);
       switch (feed) {
       | Some(c) =>
@@ -2057,7 +2090,12 @@ let identity_tests = [
     () => {
       let cs = drag_cands("let x = 2 ¦+ 3 in x + 1");
       let kinds = cs |> List.map(~f=(c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "feed", true, List.mem(kinds, Action.FeedLet, ~equal=Poly.equal));
+      check(
+        bool,
+        "feed",
+        true,
+        List.mem(kinds, Action.FeedLet, ~equal=Poly.equal),
+      );
     },
   ),
   test_case(
@@ -2100,12 +2138,13 @@ let regression_tests = [
         bool,
         "swap-arms track from the bar",
         true,
-        List.exists(~f=
-          k =>
-            switch (k) {
-            | Action.SwapArms(_) => true
-            | _ => false
-            },
+        List.exists(
+          ~f=
+            k =>
+              switch (k) {
+              | Action.SwapArms(_) => true
+              | _ => false
+              },
           kinds,
         ),
       );
@@ -2123,7 +2162,12 @@ let shard_anchor_tests = [
          preview a transform the release contradicts */
       let cs = drag_cands("let a = 1 in\nlet y = ¦a + 5 in\nf(a + y)");
       let kinds = cs |> List.map(~f=(c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "no feed", false, List.mem(kinds, Action.FeedLet, ~equal=Poly.equal));
+      check(
+        bool,
+        "no feed",
+        false,
+        List.mem(kinds, Action.FeedLet, ~equal=Poly.equal),
+      );
     },
   ),
   test_case(
@@ -2134,7 +2178,12 @@ let shard_anchor_tests = [
          tile-level anchor showed zero travel and dropped it */
       let cs = drag_cands("let b : Bool = true in case b | true => 1 ¦end");
       let kinds = cs |> List.map(~f=(c: Refactor.DragCandidate.t) => c.kind);
-      check(bool, "add-arm track", true, List.mem(kinds, Action.AddCaseArm, ~equal=Poly.equal));
+      check(
+        bool,
+        "add-arm track",
+        true,
+        List.mem(kinds, Action.AddCaseArm, ~equal=Poly.equal),
+      );
     },
   ),
 ];
@@ -4539,7 +4588,8 @@ let inline_alias_tests = [
         bool,
         "both present",
         true,
-        List.mem(ls, "Merge into aa", ~equal=Poly.equal) && List.mem(ls, "Hoist", ~equal=Poly.equal),
+        List.mem(ls, "Merge into aa", ~equal=Poly.equal)
+        && List.mem(ls, "Hoist", ~equal=Poly.equal),
       );
     },
   ),

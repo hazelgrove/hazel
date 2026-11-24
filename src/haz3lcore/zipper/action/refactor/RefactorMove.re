@@ -212,7 +212,8 @@ let add_case_arm_impl: impl = {
             | Some(w) =>
               let w = wildify(refresh_pat_ids(w));
               let w = pat_needs_parens(w) ? fresh_pat(Parens(w)) : w;
-              let (_, last_body) = List.nth_exn(rules, List.length(rules) - 1);
+              let (_, last_body) =
+                List.nth_exn(rules, List.length(rules) - 1);
               /* the last body's trailing run stays put, becoming the
                  separator before the new |; the new body gets a fresh
                  copy so end keeps its position style */
@@ -465,7 +466,8 @@ let hit_add_param = (target: Id.t, e: Exp.t): bool =>
   hit_let(target, e)
   || (
     switch (param_paren(e)) {
-    | Some(paren) => List.mem(IdTagged.ids(paren), target, ~equal=Poly.equal)
+    | Some(paren) =>
+      List.mem(IdTagged.ids(paren), target, ~equal=Poly.equal)
     | None => false
     }
   );
@@ -1164,7 +1166,8 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
                 term: Let(lp, ldef, rb'),
               },
             );
-          let rules' = rules |> List.mapi(~f=(j, r) => j == i ? (rp, l') : r);
+          let rules' =
+            rules |> List.mapi(~f=(j, r) => j == i ? (rp, l') : r);
           let match': Exp.t =
             with_secondary(
               l.annotation.secondary,
@@ -1440,8 +1443,12 @@ let hoist_carry_impl: impl = {
       let secs = nodes |> List.map(~f=(nd: Exp.t) => nd.annotation.secondary);
       let new_order = List.tl_exn(nodes) @ [List.hd_exn(nodes)];
       let result =
-        List.fold(List.rev(List.zip_exn(new_order, secs)), ~init=cbody, ~f=(inner, (node, sec)) =>
-            with_secondary(sec, def_line_rebuild(node, inner)));
+        List.fold(
+          List.rev(List.zip_exn(new_order, secs)),
+          ~init=cbody,
+          ~f=(inner, (node, sec)) =>
+          with_secondary(sec, def_line_rebuild(node, inner))
+        );
       let carry = nodes |> List.map(~f=Exp.rep_id);
       rewrite_node(
         ~hit=same_node(List.hd_exn(nodes)),
@@ -1500,7 +1507,8 @@ let wildcard_expansion =
             variants
             |> List.filter_map(~f=(v: ConstructorMap.variant(Typ.t)) =>
                  switch (v) {
-                 | Variant(name, _, arg) when !List.mem(handled, name, ~equal=Poly.equal) =>
+                 | Variant(name, _, arg)
+                     when !List.mem(handled, name, ~equal=Poly.equal) =>
                    Some((name, arg != None))
                  | _ => None
                  }
@@ -2081,7 +2089,9 @@ let arm_index_at = (target: Id.t, e: Exp.t): option(int) =>
     let by_pat =
       rules
       |> List.mapi(~f=(j, (p, _)) => (j, p))
-      |> List.find(~f=((_, p)) => List.mem(pat_subtree_ids(p), target, ~equal=Poly.equal))
+      |> List.find(~f=((_, p)) =>
+           List.mem(pat_subtree_ids(p), target, ~equal=Poly.equal)
+         )
       |> Option.map(~f=fst);
     switch (by_pat) {
     | Some(_) => by_pat
@@ -2177,9 +2187,17 @@ let swap_tuple_pat_rewrite =
       let ditems = tuple_def_items(def);
       let in_swapped = (j: int) =>
         j < List.length(pitems)
-        && List.mem(pat_subtree_ids(List.nth_exn(pitems, j)), target, ~equal=Poly.equal)
+        && List.mem(
+             pat_subtree_ids(List.nth_exn(pitems, j)),
+             target,
+             ~equal=Poly.equal,
+           )
         || j < List.length(ditems)
-        && List.mem(exp_subtree_ids(List.nth_exn(ditems, j)), target, ~equal=Poly.equal);
+        && List.mem(
+             exp_subtree_ids(List.nth_exn(ditems, j)),
+             target,
+             ~equal=Poly.equal,
+           );
       /* caret follows the component it was on (ids travel through
          the swap, either side) */
       let focus =
@@ -2204,7 +2222,9 @@ let tuple_pat_index_at = (target: Id.t, e: Exp.t): option(int) =>
     let by_pat =
       tuple_pat_items(p)
       |> List.mapi(~f=(j, it) => (j, it))
-      |> List.find(~f=((_, it)) => List.mem(pat_subtree_ids(it), target, ~equal=Poly.equal))
+      |> List.find(~f=((_, it)) =>
+           List.mem(pat_subtree_ids(it), target, ~equal=Poly.equal)
+         )
       |> Option.map(~f=fst);
     switch (by_pat) {
     | Some(_) => by_pat
@@ -2254,7 +2274,9 @@ let swap_arms_impl = (i: int): impl => {
 let param_index_at = (target: Id.t, e: Exp.t): option(int) =>
   param_items(e)
   |> List.mapi(~f=(j, it) => (j, it))
-  |> List.find(~f=((_, it: Pat.t)) => List.mem(IdTagged.ids(it), target, ~equal=Poly.equal))
+  |> List.find(~f=((_, it: Pat.t)) =>
+       List.mem(IdTagged.ids(it), target, ~equal=Poly.equal)
+     )
   |> Option.map(~f=fst);
 
 let hit_param = (target: Id.t, e: Exp.t): bool =>
@@ -2289,7 +2311,10 @@ let swap_site =
           switch (IdTagged.term_of(f), IdTagged.term_of(arg)) {
           | (Var(_), Tuple(items))
           | (Var(_), Parens({term: Tuple(items), _})) =>
-            items |> List.exists(~f=it => List.mem(exp_subtree_ids(it), target, ~equal=Poly.equal))
+            items
+            |> List.exists(~f=it =>
+                 List.mem(exp_subtree_ids(it), target, ~equal=Poly.equal)
+               )
           | _ => false
           }
         | _ => false
@@ -2462,7 +2487,8 @@ let remove_param_target = (~target: Id.t, e: Exp.t): option(Id.t) =>
     Some(target);
   } else {
     switch (param_paren(e)) {
-    | Some(paren) when List.mem(IdTagged.ids(paren), target, ~equal=Poly.equal) =>
+    | Some(paren)
+        when List.mem(IdTagged.ids(paren), target, ~equal=Poly.equal) =>
       switch (List.rev(param_items(e))) {
       | [last, ..._] =>
         switch (IdTagged.term_of(last)) {

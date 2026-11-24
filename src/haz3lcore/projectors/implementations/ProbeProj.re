@@ -486,7 +486,8 @@ module DrawerHeight = {
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(~f=sample_rows(~lengths, info.utility), samples);
+        let heights =
+          List.map(~f=sample_rows(~lengths, info.utility), samples);
         List.fold(heights, ~init=1, ~f=max);
       };
     | _ => 1
@@ -885,46 +886,48 @@ let value_view =
           }
         | None when ctx.auto_rich_on =>
           switch (
-            List.find(~f=
-              (r: packed_renderer) =>
-                r.can_handle(
-                  ~statics=Some(ctx.statics),
-                  ctx.sort,
-                  sample.value,
-                )
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(
+            List.find(
+              ~f=
+                (r: packed_renderer) =>
+                  r.can_handle(
                     ~statics=Some(ctx.statics),
                     ctx.sort,
                     sample.value,
                   )
-                  || List.exists(~f=
-                       (s: Sample.t) =>
-                         r.auto_applies(
-                           ~statics=Some(ctx.statics),
-                           ctx.sort,
-                           s.value,
-                         ),
-                       ctx.dynamics.samples,
-                     )
-                )
-                && (
-                  ctx.auto_unbounded
-                  || (
-                    switch (
-                      r.drawer_rows(
-                        ~statics=Some(ctx.statics),
-                        ctx.sort,
-                        sample.value,
-                      )
-                    ) {
-                    | Some(n) => n <= inline_rows_cap
-                    | None => true
-                    }
+                  /* a vacuous match (empty hand) still renders when a
+                     SIBLING sample at this site is real evidence */
+                  && (
+                    r.auto_applies(
+                      ~statics=Some(ctx.statics),
+                      ctx.sort,
+                      sample.value,
+                    )
+                    || List.exists(
+                         ~f=
+                           (s: Sample.t) =>
+                             r.auto_applies(
+                               ~statics=Some(ctx.statics),
+                               ctx.sort,
+                               s.value,
+                             ),
+                         ctx.dynamics.samples,
+                       )
                   )
-                ),
+                  && (
+                    ctx.auto_unbounded
+                    || (
+                      switch (
+                        r.drawer_rows(
+                          ~statics=Some(ctx.statics),
+                          ctx.sort,
+                          sample.value,
+                        )
+                      ) {
+                      | Some(n) => n <= inline_rows_cap
+                      | None => true
+                      }
+                    )
+                  ),
               renderers,
             )
           ) {
@@ -959,9 +962,10 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    List.find(~f=
-      (r: packed_renderer) =>
-        r.auto_applies(~statics=info.statics, sort, value),
+    List.find(
+      ~f=
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, value),
       renderers,
     );
   switch (pick) {
@@ -1320,16 +1324,16 @@ let sample_call_display =
         let arg_rows =
           List.mapi(
             ~f=
-            (i, elem) =>
-              arg_row(
-                ~var_info=
+              (i, elem) =>
+                arg_row(
+                  ~var_info=
                     switch (List.nth(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(elem),
-              ),
+                    | Some(v) => v
+                    | None => None
+                    },
+                  ~is_last=i == num_elems - 1,
+                  render_exp(elem),
+                ),
             elements,
           );
         [
@@ -1517,11 +1521,11 @@ let sample_view =
           List.exists(
             ~f=
               r =>
-              r.can_handle(
-                ~statics=Some(ctx.statics),
-                ctx.sort,
-                indicated.value,
-              ),
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  indicated.value,
+                ),
             renderers,
           )
         | None => false
@@ -2051,12 +2055,17 @@ let prepare_offside =
       && Option.is_none(model.active_renderer)
       && List.exists(
            ~f=
-           (sample: Sample.t) =>
-             List.exists(~f=
-               (r: packed_renderer) =>
-                 r.auto_applies(~statics=Some(statics), sort, sample.value),
-               renderers,
-             ),
+             (sample: Sample.t) =>
+               List.exists(
+                 ~f=
+                   (r: packed_renderer) =>
+                     r.auto_applies(
+                       ~statics=Some(statics),
+                       sort,
+                       sample.value,
+                     ),
+                 renderers,
+               ),
            dynamics.samples,
          );
     let ctx = {
@@ -2278,11 +2287,11 @@ let live_offside_view =
       let group_views =
         List.map(
           ~f=
-          samples =>
-            Node.div(
-              ~attrs=[Attr.classes(["sample-group"])],
+            samples =>
+              Node.div(
+                ~attrs=[Attr.classes(["sample-group"])],
                 List.map(~f=sample_view, samples),
-            ),
+              ),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */
@@ -2357,9 +2366,10 @@ let rich_content =
   | (None, Some(exp))
       when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
     switch (
-      List.find(~f=
-        (r: packed_renderer) =>
-          r.auto_applies(~statics=info.statics, sort, exp),
+      List.find(
+        ~f=
+          (r: packed_renderer) =>
+            r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
     ) {
@@ -2406,8 +2416,8 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
   let values =
     site_is_html
       ? ctx.dynamics.samples
-      : List.filter(~f=
-          (s: Sample.t) => !MvuShape.is_html(s.value),
+      : List.filter(
+          ~f=(s: Sample.t) => !MvuShape.is_html(s.value),
           ctx.dynamics.samples,
         );
   let newest = () =>
@@ -2417,11 +2427,12 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
       ~pinned_interval=ctx.dynamics.pinned_interval,
       values,
     )
-    |> List.fold(~init=(None: option(Sample.t)), ~f=(best, s: Sample.t) =>
-           switch (best) {
-           | Some(b: Sample.t) when b.seq >= s.seq => best
-           | _ => Some(s)
-           });
+    |> List.fold(~init=None: option(Sample.t), ~f=(best, s: Sample.t) =>
+         switch (best) {
+         | Some(b: Sample.t) when b.seq >= s.seq => best
+         | _ => Some(s)
+         }
+       );
   let focus = ctx.dynamics.sample_focus;
   let anchored_here =
     switch (focus.anchor) {
@@ -2456,23 +2467,27 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
 let card_rich =
     (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
     : option(Node.t) =>
-  List.find_map(~f=
-    (r: packed_renderer) =>
-      r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
-      || r.id == "table"
-      && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
-        ? Option.bind(r.init_model(~statics=Some(ctx.statics), ctx.sort, value), ~f=pm =>
-            r.render_model(
-              pm,
-              ~info=ctx.p_info,
-              ~exp=value,
-              ~view_seg=(sort, seg) => view_seg(sort, seg),
-              ~local=pa => local(RendererAction(pa)),
-              ~parent=ctx.parent,
-              ~sort=ctx.sort,
-              (),
-            ))
-        : None,
+  List.find_map(
+    ~f=
+      (r: packed_renderer) =>
+        r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
+        || r.id == "table"
+        && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+          ? Option.bind(
+              r.init_model(~statics=Some(ctx.statics), ctx.sort, value),
+              ~f=pm =>
+              r.render_model(
+                pm,
+                ~info=ctx.p_info,
+                ~exp=value,
+                ~view_seg=(sort, seg) => view_seg(sort, seg),
+                ~local=pa => local(RendererAction(pa)),
+                ~parent=ctx.parent,
+                ~sort=ctx.sort,
+                (),
+              )
+            )
+          : None,
     renderers,
   );
 
@@ -2491,9 +2506,10 @@ let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
     switch (sample) {
     | None => None
     | Some(current: Sample.t) =>
-      List.mapi(~f=
-        (i, s: Sample.t) =>
-          s.step_start == current.step_start ? Some(i) : None,
+      List.mapi(
+        ~f=
+          (i, s: Sample.t) =>
+            s.step_start == current.step_start ? Some(i) : None,
         samples,
       )
       |> List.find_map(~f=x => x)
@@ -2737,9 +2753,10 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
         (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
-      List.find(~f=
-        (r: packed_renderer) =>
-          r.auto_applies(~statics=info.statics, sort, exp),
+      List.find(
+        ~f=
+          (r: packed_renderer) =>
+            r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
       |> Option.map(~f=(r: packed_renderer) =>

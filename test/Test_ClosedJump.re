@@ -17,11 +17,11 @@ let jump = () => {
     switch (
       List.find(
         ~f=
-        id =>
-          switch (Id.Map.find_opt(id, ds.merged)) {
-          | Some(info) => Info.is_error(info)
-          | None => false
-          },
+          id =>
+            switch (Id.Map.find_opt(id, ds.merged)) {
+            | Some(info) => Info.is_error(info)
+            | None => false
+            },
         DefStatics.all_error_ids(ds),
       )
     ) {

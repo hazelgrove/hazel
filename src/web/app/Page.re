@@ -127,26 +127,26 @@ module Update = {
         let stack: list((option(string), list(CodeEditable.Model.t))) =
           List.map(
             ~f=
-            (e: ScratchCell.t) =>
-              (
-                Some(
+              (e: ScratchCell.t) =>
+                (
+                  Some(
                     Option.value(
                       ScratchCell.header_name(e),
                       ~default="cell",
                     ),
+                  ),
+                  /* header too: binder and signature errors live there.
+                     a ⇒ or `;` cell shows none, and its empty one is a hole */
+                  (
+                    switch (e.e_kind) {
+                    | Def(_)
+                    | Members => [e.e_header.editor]
+                    | Headless(_)
+                    | Run(_) => []
+                    }
+                  )
+                  @ [e.e_body.editor],
                 ),
-                /* header too: binder and signature errors live there.
-                   a ⇒ or `;` cell shows none, and its empty one is a hole */
-                (
-                  switch (e.e_kind) {
-                  | Def(_)
-                  | Members => [e.e_header.editor]
-                  | Headless(_)
-                  | Run(_) => []
-                  }
-                )
-                @ [e.e_body.editor],
-              ),
             cells,
           );
         /* cells first: the panel dedups by id, so a problem shows in its
@@ -1604,26 +1604,30 @@ module View = {
                     ~selected_item,
                     ~definition_view=
                       presenting
-                        ? Option.bind(selected_item, ~f=id => {
+                        ? Option.bind(
+                            selected_item,
+                            ~f=id => {
                               let seg =
                                 Haz3lcore.Zipper.unselect_and_zip(
                                   current_editor.editor.state.zipper,
                                 );
-                              Option.map(~f=
-                                def =>
-                                  CanvasDefPreview.view(
-                                    ~globals,
-                                    ~key=seg,
-                                    ~id,
-                                    def,
-                                  ),
+                              Option.map(
+                                ~f=
+                                  def =>
+                                    CanvasDefPreview.view(
+                                      ~globals,
+                                      ~key=seg,
+                                      ~id,
+                                      def,
+                                    ),
                                 ScratchFocus.find_def(
                                   ~root=current_editor.editor.root,
                                   id,
                                   seg,
                                 ),
                               );
-                            })
+                            },
+                          )
                         : selected_item == None
                             ? None
                             : Some(

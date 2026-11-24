@@ -8,7 +8,10 @@ let try_text = (label, text) =>
     | _ => ()
     | exception e =>
       fail(
-        "segment_of_text raised " ++ Stdlib.Printexc.to_string(e) ++ " on: " ++ text,
+        "segment_of_text raised "
+        ++ Stdlib.Printexc.to_string(e)
+        ++ " on: "
+        ++ text,
       )
     }
   );
@@ -24,7 +27,8 @@ let try_context = (label, code) =>
         Outline.of_program(~root=Exp, Zipper.unselect_and_zip(z));
       switch (CompositionView.render(outline, ~opened=[])) {
       | s => check(bool, "nonempty", true, String.length(s) > 0)
-      | exception e => fail("context view raised " ++ Stdlib.Printexc.to_string(e))
+      | exception e =>
+        fail("context view raised " ++ Stdlib.Printexc.to_string(e))
       };
     }
   );
@@ -64,7 +68,8 @@ let try_canvas_nodemap = (label, code, ~caret_token) =>
       switch (HighLevelNodeMap.build_for(z, comp)) {
       | Some(nm) => check(bool, "nonempty", true, Id.Map.cardinal(nm) > 0)
       | None => fail("node map None")
-      | exception e => fail("build_for raised " ++ Stdlib.Printexc.to_string(e))
+      | exception e =>
+        fail("build_for raised " ++ Stdlib.Printexc.to_string(e))
       };
       /* and the legacy builder must not raise on a per-item map either */
       switch (HighLevelNodeMap.build(z, comp.info_map)) {
@@ -98,18 +103,19 @@ let canvas_edges_of =
             z,
           );
     let g = Web.CanvasGraph.extract(st);
-    List.iter(~f=
-      (e: Web.CanvasGraph.edge) =>
-        print_endline(
-          (comp ? "comp " : "mono ")
-          ++ e.e_name
-          ++ " : "
-          ++ e.e_ty
-          ++ "  src="
-          ++ e.e_src
-          ++ " dst="
-          ++ e.dst,
-        ),
+    List.iter(
+      ~f=
+        (e: Web.CanvasGraph.edge) =>
+          print_endline(
+            (comp ? "comp " : "mono ")
+            ++ e.e_name
+            ++ " : "
+            ++ e.e_ty
+            ++ "  src="
+            ++ e.e_src
+            ++ " dst="
+            ++ e.dst,
+          ),
       g.edges,
     );
     (
@@ -133,13 +139,13 @@ let incremental_member_edges = () => {
   let g1 = Web.CanvasGraph.extract(st1);
   print_endline(
     "before: edges "
-    ++ String.concat(~sep=
-         ",",
+    ++ String.concat(
+         ~sep=",",
          List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g1.edges),
        )
     ++ " values "
-    ++ String.concat(~sep=
-         ",",
+    ++ String.concat(
+         ~sep=",",
          List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g1.values),
        ),
   );
@@ -164,7 +170,8 @@ let incremental_member_edges = () => {
       );
     let g2 = Web.CanvasGraph.extract(st2);
     let edges = List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g2.edges);
-    let values = List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g2.values);
+    let values =
+      List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g2.values);
     print_endline(
       "after (incremental): edges "
       ++ String.concat(~sep=",", edges)
@@ -183,8 +190,8 @@ let incremental_member_edges = () => {
     let g3 = Web.CanvasGraph.extract(st3);
     print_endline(
       "after (fresh): edges "
-      ++ String.concat(~sep=
-           ",",
+      ++ String.concat(
+           ~sep=",",
            List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g3.edges),
          ),
     );
@@ -223,7 +230,12 @@ let tests = [
       );
       check(list(string), "edges agree", em, ec);
       check(list(string), "values agree", vm, vc);
-      check(bool, "add is an edge", true, List.mem(em, "Geo.add", ~equal=Poly.equal));
+      check(
+        bool,
+        "add is an edge",
+        true,
+        List.mem(em, "Geo.add", ~equal=Poly.equal),
+      );
     },
   ),
   test_case(
@@ -248,8 +260,8 @@ let tests = [
         | (Some(w), Some(nth)) =>
           check(string, "width's domain is Room", "D.Room", w.e_src);
           let src =
-            List.find(~f=
-              (n: Web.CanvasGraph.tynode) => n.key == nth.e_src,
+            List.find(
+              ~f=(n: Web.CanvasGraph.tynode) => n.key == nth.e_src,
               g.nodes,
             );
           switch (src) {
@@ -269,14 +281,17 @@ let tests = [
         | _ => fail("edges missing")
         };
         /* no inlined-body glyph survives as a node */
-        let keys = List.map(~f=(n: Web.CanvasGraph.tynode) => n.key, g.nodes);
+        let keys =
+          List.map(~f=(n: Web.CanvasGraph.tynode) => n.key, g.nodes);
         check(
           bool,
           "no '(Int, Int, [Floor…' glyph",
           false,
-          List.exists(~f=
-            k =>
-              String.length(k) > 12 && String.sub(k, ~pos=0, ~len=12) == "(Int, Int, [",
+          List.exists(
+            ~f=
+              k =>
+                String.length(k) > 12
+                && String.sub(k, ~pos=0, ~len=12) == "(Int, Int, [",
             keys,
           ),
         );
@@ -297,8 +312,8 @@ let tests = [
         );
       let g = Web.CanvasGraph.extract(st);
       switch (
-        List.find(~f=
-          (e: Web.CanvasGraph.edge) => e.e_name == "Geo.add",
+        List.find(
+          ~f=(e: Web.CanvasGraph.edge) => e.e_name == "Geo.add",
           g.edges,
         )
       ) {
@@ -306,8 +321,8 @@ let tests = [
       | Some(e) =>
         check(string, "codomain is the alias", "Geo.P", e.dst);
         let src =
-          List.find(~f=
-            (n: Web.CanvasGraph.tynode) => n.key == e.e_src,
+          List.find(
+            ~f=(n: Web.CanvasGraph.tynode) => n.key == e.e_src,
             g.nodes,
           );
         switch (src) {

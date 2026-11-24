@@ -41,8 +41,8 @@ let tests = (
           });
         let one = layout([consumer("Carrier")]);
         let at = l =>
-          List.find_exn(~f=
-            (n: L.node_layout) => n.node.key == unknown.key,
+          List.find_exn(
+            ~f=(n: L.node_layout) => n.node.key == unknown.key,
             l.L.nodes,
           );
         check(
@@ -76,28 +76,30 @@ let tests = (
           },
           item("peer", 540., 180.),
         ];
-        List.iter(~f=
-          ((mode, _)) => {
-            let result = E.place(mode, fan, [("host", "peer")], []);
-            let h = at(result, "host");
-            List.iter(~f=
-              ((k, dy)) => {
-                let p = at(result, k);
-                same(
-                  mode ++ "/" ++ k,
-                  {
-                    x: (-80.),
-                    y: dy,
+        List.iter(
+          ~f=
+            ((mode, _)) => {
+              let result = E.place(mode, fan, [("host", "peer")], []);
+              let h = at(result, "host");
+              List.iter(
+                ~f=
+                  ((k, dy)) => {
+                    let p = at(result, k);
+                    same(
+                      mode ++ "/" ++ k,
+                      {
+                        x: (-80.),
+                        y: dy,
+                      },
+                      {
+                        x: p.x -. h.x,
+                        y: p.y -. h.y,
+                      },
+                    );
                   },
-                  {
-                    x: p.x -. h.x,
-                    y: p.y -. h.y,
-                  },
-                );
-              },
-              [("i0", (-20.)), ("i1", 20.)],
-            );
-          },
+                [("i0", (-20.)), ("i1", 20.)],
+              );
+            },
           E.modes,
         );
       },
@@ -109,7 +111,10 @@ let tests = (
         let g = Test_CanvasGraphFold.graph_of(Test_CanvasGraphFold.prog);
         let l = L.layout_impl(g);
         let e =
-          List.find_exn(~f=(e: L.edge_layout) => e.edge.e_name == "step", l.edges);
+          List.find_exn(
+            ~f=(e: L.edge_layout) => e.edge.e_name == "step",
+            l.edges,
+          );
         check(bool, "separate smooth handles", true, e.c1 != e.c2);
         check(bool, "label stays on its own function", true, e.on_wire);
       },
@@ -126,23 +131,25 @@ let tests = (
             [("a", "b"), ("b", "d")],
             before,
           );
-        List.iter(~f=
-          (n: E.item) => same(n.key, n.p, at(after, n.key)),
+        List.iter(
+          ~f=(n: E.item) => same(n.key, n.p, at(after, n.key)),
           before,
         );
         check(
           bool,
           "new node clears existing nodes",
           false,
-          List.exists(~f=
-            n => E.overlaps(n, Option.value_exn(E.at(after, "d")), 20.),
+          List.exists(
+            ~f=n => E.overlaps(n, Option.value_exn(E.at(after, "d")), 20.),
             before,
           ),
         );
         let survivors = List.filter(~f=(n: E.item) => n.key != "b", after);
         let removed = E.place("stable", survivors, [], after);
-        List.iter(~f=
-          (n: E.item) => same("delete " ++ n.key, n.p, at(removed, n.key)),
+        List.iter(
+          ~f=
+            (n: E.item) =>
+              same("delete " ++ n.key, n.p, at(removed, n.key)),
           survivors,
         );
       },
@@ -151,32 +158,35 @@ let tests = (
       "all placements preserve graph membership and finite coordinates",
       `Quick,
       () => {
-      List.iter(~f=
-        ((mode, _)) => {
-          let result = E.place(mode, fixtures, [("a", "b")], []);
-          check(
-            list(string),
-            mode,
-            ["a", "b", "c"],
-            List.map(~f=(n: E.item) => n.key, result) |> List.sort(~compare=compare),
-          );
-          List.iter(~f=
-            (n: E.item) =>
-              check(
-                bool,
-                "finite",
-                true,
-                Float.is_finite(n.p.x) && Float.is_finite(n.p.y),
-              ),
-            result,
-          );
-          check(
-            bool,
-            "deterministic",
-            true,
-            result == E.place(mode, fixtures, [("a", "b")], []),
-          );
-        },
+      List.iter(
+        ~f=
+          ((mode, _)) => {
+            let result = E.place(mode, fixtures, [("a", "b")], []);
+            check(
+              list(string),
+              mode,
+              ["a", "b", "c"],
+              List.map(~f=(n: E.item) => n.key, result)
+              |> List.sort(~compare),
+            );
+            List.iter(
+              ~f=
+                (n: E.item) =>
+                  check(
+                    bool,
+                    "finite",
+                    true,
+                    Float.is_finite(n.p.x) && Float.is_finite(n.p.y),
+                  ),
+              result,
+            );
+            check(
+              bool,
+              "deterministic",
+              true,
+              result == E.place(mode, fixtures, [("a", "b")], []),
+            );
+          },
         E.modes,
       )
     }),
@@ -200,21 +210,22 @@ let tests = (
         let ps = E.route(~obstacles=[obstacle], ~src="a", ~dst="b", a, b);
         same("starts at source", a, List.hd_exn(ps));
         same("ends at destination", b, List.hd_exn(List.rev(ps)));
-        List.iter(~f=
-          ((u: E.point, v: E.point)) => {
-            check(bool, "axis aligned", true, u.x == v.x || u.y == v.y);
-            let hit =
-              u.x == v.x
-                ? u.x > 140.
-                  && u.x < 260.
-                  && max(u.y, v.y) > 40.
-                  && min(u.y, v.y) < 160.
-                : u.y > 40.
-                  && u.y < 160.
-                  && max(u.x, v.x) > 140.
-                  && min(u.x, v.x) < 260.;
-            check(bool, "clear of card", false, hit);
-          },
+        List.iter(
+          ~f=
+            ((u: E.point, v: E.point)) => {
+              check(bool, "axis aligned", true, u.x == v.x || u.y == v.y);
+              let hit =
+                u.x == v.x
+                  ? u.x > 140.
+                    && u.x < 260.
+                    && max(u.y, v.y) > 40.
+                    && min(u.y, v.y) < 160.
+                  : u.y > 40.
+                    && u.y < 160.
+                    && max(u.x, v.x) > 140.
+                    && min(u.x, v.x) < 260.;
+              check(bool, "clear of card", false, hit);
+            },
           E.segments(ps),
         );
       },
@@ -245,7 +256,10 @@ let tests = (
           bool,
           "second route leaves occupied horizontal corridor",
           true,
-          List.exists(~f=(p: E.point) => Float.abs(p.y -. 100.) > 10., second),
+          List.exists(
+            ~f=(p: E.point) => Float.abs(p.y -. 100.) > 10.,
+            second,
+          ),
         );
         let vertical =
           E.route(
@@ -288,62 +302,70 @@ let tests = (
               E.scene := "";
             },
           () =>
-            List.iter(~f=
-              ((mode, _)) =>
-                List.iter(~f=
-                  wires => {
-                    E.mode := mode;
-                    E.wires := wires;
-                    E.scene := "test/" ++ mode ++ wires;
-                    E.reset();
-                    let base = L.layout(~cards=[], g);
-                    let moved =
-                      L.layout(
-                        ~cards=[],
-                        ~origin_override=Some(base.origin),
-                        ~offsets=[("Pos", (280., 84.))],
-                        g,
-                      );
-                    List.iter(~f=
-                      (n: L.node_layout) =>
-                        if (n.node.key != "Pos" && n.node.sat == None) {
-                          let other =
-                            List.find_exn(~f=
-                              (q: L.node_layout) => q.node.key == n.node.key,
-                              moved.nodes,
-                            );
-                          same(
-                            mode ++ wires,
-                            L.to_lab(n.p),
-                            L.to_lab(other.p),
+            List.iter(
+              ~f=
+                ((mode, _)) =>
+                  List.iter(
+                    ~f=
+                      wires => {
+                        E.mode := mode;
+                        E.wires := wires;
+                        E.scene := "test/" ++ mode ++ wires;
+                        E.reset();
+                        let base = L.layout(~cards=[], g);
+                        let moved =
+                          L.layout(
+                            ~cards=[],
+                            ~origin_override=Some(base.origin),
+                            ~offsets=[("Pos", (280., 84.))],
+                            g,
                           );
-                        },
-                      base.nodes,
-                    );
-                    let unchanged =
-                      L.layout(
-                        ~cards=[("Pos", (360., 250.))],
-                        ~origin_override=Some(base.origin),
-                        g,
-                      );
-                    List.iter(~f=
-                      (n: L.node_layout) => {
-                        let other =
-                          List.find_exn(~f=
-                            (q: L.node_layout) => q.node.key == n.node.key,
-                            unchanged.nodes,
+                        List.iter(
+                          ~f=
+                            (n: L.node_layout) =>
+                              if (n.node.key != "Pos" && n.node.sat == None) {
+                                let other =
+                                  List.find_exn(
+                                    ~f=
+                                      (q: L.node_layout) =>
+                                        q.node.key == n.node.key,
+                                    moved.nodes,
+                                  );
+                                same(
+                                  mode ++ wires,
+                                  L.to_lab(n.p),
+                                  L.to_lab(other.p),
+                                );
+                              },
+                          base.nodes,
+                        );
+                        let unchanged =
+                          L.layout(
+                            ~cards=[("Pos", (360., 250.))],
+                            ~origin_override=Some(base.origin),
+                            g,
                           );
-                        same(
-                          "card: " ++ mode,
-                          L.to_lab(n.p),
-                          L.to_lab(other.p),
+                        List.iter(
+                          ~f=
+                            (n: L.node_layout) => {
+                              let other =
+                                List.find_exn(
+                                  ~f=
+                                    (q: L.node_layout) =>
+                                      q.node.key == n.node.key,
+                                  unchanged.nodes,
+                                );
+                              same(
+                                "card: " ++ mode,
+                                L.to_lab(n.p),
+                                L.to_lab(other.p),
+                              );
+                            },
+                          base.nodes,
                         );
                       },
-                      base.nodes,
-                    );
-                  },
-                  ["curves", "circuit"],
-                ),
+                    ["curves", "circuit"],
+                  ),
               E.modes,
             ),
         );

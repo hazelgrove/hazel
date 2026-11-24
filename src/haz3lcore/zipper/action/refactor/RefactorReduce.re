@@ -213,7 +213,8 @@ let evaluate_in_place_impl: impl = {
          values — any use evaluates indeterminate and fails the
          value gate. */
       let ctx =
-        Id.Map.find_opt(Exp.rep_id(e), info_map) |> Option.map(~f=Info.ctx_of);
+        Id.Map.find_opt(Exp.rep_id(e), info_map)
+        |> Option.map(~f=Info.ctx_of);
       let elab =
         CachedStatics.init_from_term(
           ~settings=CoreSettings.on,
@@ -429,14 +430,15 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
       ? NoMatch
       : List.zip_exn(ps, vs)
         |> List.fold(~init=Matched([]), ~f=(acc, (p, v)) =>
-               switch (acc) {
-               | Matched(bs) =>
-                 switch (match_value(p, v)) {
-                 | Matched(bs') => Matched(bs @ bs')
-                 | r => r
-                 }
+             switch (acc) {
+             | Matched(bs) =>
+               switch (match_value(p, v)) {
+               | Matched(bs') => Matched(bs @ bs')
                | r => r
-               });
+               }
+             | r => r
+             }
+           );
   switch (IdTagged.term_of(p), IdTagged.term_of(v)) {
   | (Parens(p'), _) => match_value(p', v)
   | (_, Parens(v')) => match_value(p, v')
@@ -632,9 +634,13 @@ let reduce_case_impl: impl = {
         | Some((bs, _)) =>
           let binder_ids = bs |> List.map(~f=((x, _)) => Pat.rep_id(x));
           binder_ids
-          |> List.fold(~init=case_to_lets(~landing=false, ~target, program), ~f=(acc, bid) =>
-                 Option.bind(acc, ~f=((prog, _)) =>
-                   inline_let_impl.prepare(~info_map, ~target=bid, prog)));
+          |> List.fold(
+               ~init=case_to_lets(~landing=false, ~target, program),
+               ~f=(acc, bid) =>
+               Option.bind(acc, ~f=((prog, _)) =>
+                 inline_let_impl.prepare(~info_map, ~target=bid, prog)
+               )
+             );
         | None => None
         }
       | _ => None
@@ -747,14 +753,19 @@ let beta_reduce_impl: impl = {
                 List.rev(acc^);
               };
               binder_ids
-              |> List.fold(~init=split_let_prepare(
-                     ~landing=false,
-                     ~info_map,
-                     ~target=binder_id,
-                     prog',
-                   ), ~f=(acc, bid) =>
-                     Option.bind(acc, ~f=((prog, _)) =>
-                       inline_let_impl.prepare(~info_map, ~target=bid, prog)));
+              |> List.fold(
+                   ~init=
+                     split_let_prepare(
+                       ~landing=false,
+                       ~info_map,
+                       ~target=binder_id,
+                       prog',
+                     ),
+                   ~f=(acc, bid) =>
+                   Option.bind(acc, ~f=((prog, _)) =>
+                     inline_let_impl.prepare(~info_map, ~target=bid, prog)
+                   )
+                 );
             | _ => None
             }
           | None => None

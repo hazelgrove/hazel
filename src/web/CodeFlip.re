@@ -111,7 +111,8 @@ let find_meas_end_aligned =
       Measured.find_shards_by_id(id, other),
     ) {
     | (Some(m_shards), Some(o_shards)) =>
-      let last = shards => shards |> List.map(~f=fst) |> List.fold(~init=0, ~f=max);
+      let last = shards =>
+        shards |> List.map(~f=fst) |> List.fold(~init=0, ~f=max);
       let (m_last, o_last) = (last(m_shards), last(o_shards));
       let same_glyph =
         switch (m_seg, other_seg) {
@@ -313,10 +314,13 @@ let rec keyed_tokens_of_segment =
               keyed_tokens_of_segment(ids),
             )
          |> List.concat
-       | Grout(g) => List.mem(ids, g.id, ~equal=Poly.equal) ? [(GroutK(g.id), "")] : []
+       | Grout(g) =>
+         List.mem(ids, g.id, ~equal=Poly.equal) ? [(GroutK(g.id), "")] : []
        | Secondary(s) =>
          switch (s.content) {
-         | Comment(c) when List.mem(ids, s.id, ~equal=Poly.equal) => [(CommentK(s.id), c)]
+         | Comment(c) when List.mem(ids, s.id, ~equal=Poly.equal) => [
+             (CommentK(s.id), c),
+           ]
          | _ => []
          }
        | Projector(_) => []
@@ -505,8 +509,7 @@ let warn_invisible = (node: Js.t(Dom.node)): unit =>
       } else {
         vetted := [cls, ...vetted^];
         let name =
-          Js.to_string(Js.Unsafe.get(node, "nodeName"))
-          |> String.lowercase;
+          Js.to_string(Js.Unsafe.get(node, "nodeName")) |> String.lowercase;
         let display =
           Js.Unsafe.meth_call(
             Js.Unsafe.global##.window,
@@ -605,7 +608,8 @@ let shake_tokens = (~syntax: CachedSyntax.t, ids: list(Id.t)): unit =>
                 pairs
                 |> List.filter_map(~f=((k, node)) =>
                      switch (k) {
-                     | Shard(id, _) when List.mem(ids, id, ~equal=Poly.equal) => Some(node)
+                     | Shard(id, _) when List.mem(ids, id, ~equal=Poly.equal) =>
+                       Some(node)
                      | _ => None
                      }
                    )
@@ -699,10 +703,15 @@ let anchored_decos = (): list((Id.t, option(int), Js.t(Dom.node))) =>
        JsUtil.ids_with_prefix(prefix)
        |> List.filter_map(~f=dom_id => {
             let rest =
-              String.sub(dom_id, ~pos=String.length(prefix), ~len=String.length(dom_id) - String.length(prefix));
+              String.sub(
+                dom_id,
+                ~pos=String.length(prefix),
+                ~len=String.length(dom_id) - String.length(prefix),
+              );
             /* a uuid is 36 chars; an optional -<shard> follows */
             let uuid =
-              String.length(rest) > 36 ? String.sub(rest, ~pos=0, ~len=36) : rest;
+              String.length(rest) > 36
+                ? String.sub(rest, ~pos=0, ~len=36) : rest;
             let shard =
               if (String.length(rest) > 37) {
                 switch (
@@ -795,7 +804,12 @@ let shake_dead_press =
               |> List.filter_map(~f=((k, node)) =>
                    switch (k) {
                    | Shard(id, _)
-                       when List.mem(indicated_uuids, Id.to_string(id), ~equal=Poly.equal) =>
+                       when
+                         List.mem(
+                           indicated_uuids,
+                           Id.to_string(id),
+                           ~equal=Poly.equal,
+                         ) =>
                      Some(node)
                    | _ => None
                    }
@@ -1213,7 +1227,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                       switch (windows) {
                       | [] => false
                       | ws =>
-                        let sorted = List.sort(~compare=compare, ws);
+                        let sorted = List.sort(~compare, ws);
                         let rec ok = w =>
                           switch (w) {
                           | []
@@ -1228,28 +1242,29 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                         windows |> List.exists(~f=w => i >= w && i < w + n_src);
                       windows
                       |> List.iter(~f=w =>
-                           List.iteri(~f=
-                             (j, (sk, _)) => {
-                               let (k, node) = ents[w + j];
-                               switch (
-                                 find_meas(old_m, sk),
-                                 find_meas(new_m, k),
-                               ) {
-                               | (Some(o), Some(n))
-                                   when
-                                     o.origin.row == o.last.row
-                                     && n.origin.row == n.last.row =>
-                                 animate_emerge(
-                                   ~font_metrics,
-                                   ~from=?enter_from,
-                                   ~bump=bump_y,
-                                   node,
-                                   o.origin,
-                                   n.origin,
-                                 )
-                               | _ => animate_enter(node)
-                               };
-                             },
+                           List.iteri(
+                             ~f=
+                               (j, (sk, _)) => {
+                                 let (k, node) = ents[w + j];
+                                 switch (
+                                   find_meas(old_m, sk),
+                                   find_meas(new_m, k),
+                                 ) {
+                                 | (Some(o), Some(n))
+                                     when
+                                       o.origin.row == o.last.row
+                                       && n.origin.row == n.last.row =>
+                                   animate_emerge(
+                                     ~font_metrics,
+                                     ~from=?enter_from,
+                                     ~bump=bump_y,
+                                     node,
+                                     o.origin,
+                                     n.origin,
+                                   )
+                                 | _ => animate_enter(node)
+                                 };
+                               },
                              srcs,
                            )
                          );
@@ -1274,7 +1289,9 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                          );
                     };
                     moved
-                    |> List.iter(~f=((_, node, _, _)) => warn_invisible(node));
+                    |> List.iter(~f=((_, node, _, _)) =>
+                         warn_invisible(node)
+                       );
                   };
                 };
               },

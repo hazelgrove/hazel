@@ -27,7 +27,8 @@ and same_piece = (a: Piece.t, b: Piece.t): bool =>
     }
   )
 and same_content_children = (a, b) =>
-  List.length(a) == List.length(b) && List.for_all2_exn(~f=same_content, a, b);
+  List.length(a) == List.length(b)
+  && List.for_all2_exn(~f=same_content, a, b);
 
 let rec reuse = (old: Segment.t, fresh: Segment.t): Segment.t =>
   if (same_content(old, fresh)) {
@@ -70,13 +71,17 @@ and reuse_piece = (old: Piece.t, fresh: Piece.t): Piece.t =>
    records. Strict comparison includes ids (unlike derived Piece.equal). */
 let index = (seg: Segment.t): Id.Map.t(Piece.t) => {
   let rec add = (acc, ps) =>
-    List.fold(ps, ~init=acc, ~f=(acc, p: Piece.t) => {
+    List.fold(
+      ps,
+      ~init=acc,
+      ~f=(acc, p: Piece.t) => {
         let acc = Id.Map.add(Piece.id(p), p, acc);
         switch (p) {
         | Tile(t) => List.fold(t.children, ~init=acc, ~f=add)
         | _ => acc
         };
-      });
+      },
+    );
   add(Id.Map.empty, seg);
 };
 
@@ -93,7 +98,11 @@ let restore = (before: Segment.t, after: Segment.t): Segment.t => {
       switch (p) {
       | Tile(t) =>
         let children = List.map(~f=seg, t.children);
-        List.for_all2_exn(~f=(a, b) => phys_equal(a, b), children, t.children)
+        List.for_all2_exn(
+          ~f=(a, b) => phys_equal(a, b),
+          children,
+          t.children,
+        )
           ? p
           : Tile({
               ...t,

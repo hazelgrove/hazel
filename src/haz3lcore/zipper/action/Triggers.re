@@ -102,11 +102,11 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
 let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
   List.fold_left(
     ~f=
-    (z, (id, trigger)) =>
-      switch (refractor_of_invoke_token(trigger)) {
-      | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
-      | None => z
-      },
+      (z, (id, trigger)) =>
+        switch (refractor_of_invoke_token(trigger)) {
+        | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
+        | None => z
+        },
     ~init=z,
     refractors,
   );

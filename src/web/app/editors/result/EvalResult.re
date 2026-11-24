@@ -551,8 +551,8 @@ module Update = {
             let fresh_ids =
               List.map(~f=fst, fresh.Dynamics.test_results.test_map);
             let carried =
-              List.filter(~f=
-                ((id, _)) => !List.mem(fresh_ids, id, ~equal=Poly.equal),
+              List.filter(
+                ~f=((id, _)) => !List.mem(fresh_ids, id, ~equal=Poly.equal),
                 old.Dynamics.test_results.test_map,
               );
             Some({
@@ -670,8 +670,8 @@ module Update = {
       completed_dynamics:
         switch (Calc.get_value(result)) {
         | ProgramResult.ResultOk(_) =>
-          Option.map(~f=
-            (d: Dynamics.t) => d.probe_map,
+          Option.map(
+            ~f=(d: Dynamics.t) => d.probe_map,
             Calc.get_value(dynamics),
           )
         | _ => completed_dynamics
@@ -797,23 +797,23 @@ module View = {
     let code_view =
       Option.map(
         ~f=
-        (editor: CodeSelectable.Model.t) =>
-          CodeSelectable.View.view(
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(Evaluation())),
-            ~edit_mode=
-              EditMode.Editable({
-                inject: a => inject(EvalEditorAction(a)),
-                escape: _ => Ui_effect.Ignore,
-                escape_vertical: None,
-                take_focus: _ => Ui_effect.Ignore,
-                focus: selected ? Some() : None,
-              }),
-            ~globals,
-            ~dynamics=editor.dynamics,
-            editor,
-          ),
+          (editor: CodeSelectable.Model.t) =>
+            CodeSelectable.View.view(
+              ~signal=
+                fun
+                | MakeActive => signal(MakeActive(Evaluation())),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: a => inject(EvalEditorAction(a)),
+                  escape: _ => Ui_effect.Ignore,
+                  escape_vertical: None,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected ? Some() : None,
+                }),
+              ~globals,
+              ~dynamics=editor.dynamics,
+              editor,
+            ),
         editor,
       );
     let exn_view =
@@ -1035,11 +1035,11 @@ module View = {
       "test-decos",
       List.filter_map(
         ~f=
-        ((id, insts)) =>
-          switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-          | None => None
-          },
+          ((id, insts)) =>
+            switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
+            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+            | None => None
+            },
         test_results.test_map,
       ),
     );

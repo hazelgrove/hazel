@@ -348,15 +348,15 @@ let debug_pieces = (tag, text) =>
                ~sep=" ",
                List.map(
                  ~f=
-                 (p: Piece.t) =>
-                   switch (p) {
-                   | Tile(t) =>
+                   (p: Piece.t) =>
+                     switch (p) {
+                     | Tile(t) =>
                        "T(" ++ String.concat(~sep="", Tile.label(t)) ++ ")"
-                   | Grout({shape: Convex, _}) => "Gcvx"
-                   | Grout({shape: Concave, _}) => "Gccv"
-                   | Secondary(_) => "_"
-                   | Projector(_) => "P"
-                   },
+                     | Grout({shape: Convex, _}) => "Gcvx"
+                     | Grout({shape: Concave, _}) => "Gccv"
+                     | Secondary(_) => "_"
+                     | Projector(_) => "P"
+                     },
                  seg,
                ),
              ),
@@ -372,15 +372,15 @@ let debug_pieces = (tag, text) =>
                ~sep=" ",
                List.map(
                  ~f=
-                 (p: Piece.t) =>
-                   switch (p) {
-                   | Tile(t) =>
+                   (p: Piece.t) =>
+                     switch (p) {
+                     | Tile(t) =>
                        "T(" ++ String.concat(~sep="", Tile.label(t)) ++ ")"
-                   | Grout({shape: Convex, _}) => "Gcvx"
-                   | Grout({shape: Concave, _}) => "Gccv"
-                   | Secondary(_) => "_"
-                   | Projector(_) => "P"
-                   },
+                     | Grout({shape: Convex, _}) => "Gcvx"
+                     | Grout({shape: Concave, _}) => "Gccv"
+                     | Secondary(_) => "_"
+                     | Projector(_) => "P"
+                     },
                  segment,
                ),
              ),
@@ -412,11 +412,11 @@ let debug_parse_text = (tag, text) =>
 let deep_concave_count = (seg: Segment.t): int => {
   let rec go = (seg: Segment.t) =>
     List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
-        switch (p) {
-        | Grout({shape: Concave, _}) => n + 1
-        | Tile(t) =>
+      switch (p) {
+      | Grout({shape: Concave, _}) => n + 1
+      | Tile(t) =>
         n + List.fold(t.children, ~init=0, ~f=(m, kid) => m + go(kid))
-        | _ => n
+      | _ => n
       }
     );
   go(seg);

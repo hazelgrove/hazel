@@ -83,13 +83,13 @@ let enabled_tools =
     : list(API.Json.t) =>
   List.filter(
     ~f=
-    (tool: API.Json.t) =>
-      switch (ToolUtils.get_name(tool)) {
-      | Some(name) =>
+      (tool: API.Json.t) =>
+        switch (ToolUtils.get_name(tool)) {
+        | Some(name) =>
           !List.mem(disabled, name, ~equal=Poly.equal)
-        && tool_allowed_in_mode(mode, name)
-      | None => true
-      },
+          && tool_allowed_in_mode(mode, name)
+        | None => true
+        },
     CompositionUtils.tools,
   );
 // Exponential backoff
@@ -292,11 +292,11 @@ let send_llm_request =
         usage:
           Option.map(
             ~f=
-            (u: OpenRouter.Reply.Model.usage) =>
-              {
-                ...u,
-                model_id: Some(payload.model_id),
-              },
+              (u: OpenRouter.Reply.Model.usage) =>
+                {
+                  ...u,
+                  model_id: Some(payload.model_id),
+                },
             reply.usage,
           ),
       };
@@ -415,13 +415,13 @@ let dispatch_send =
   | (Some(api_key), Some(llm_id)) =>
     let model =
       send_main(
-      ~api_key,
+        ~api_key,
         ~request=request_of(~llm_id, ~reasoning_effort, ~session_mode, model),
-      ~schedule_action,
-      ~retry_attempt=0,
+        ~schedule_action,
+        ~retry_attempt=0,
         chat_id,
         model,
-    );
+      );
     let current_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
     let tail = Chat.Utils.current_tail(current_chat);
     if (String.equal(current_chat.title, "New Chat") && tail.role == User) {
@@ -472,7 +472,8 @@ let presentation_stopped: ref(list(Id.t)) = ref([]);
 let schedule_flush_pending_if_idle_for_chat =
     (model_after: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
     : unit =>
-  if (busy_for_send(model_after) || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
+  if (busy_for_send(model_after)
+      || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
     ();
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
@@ -601,8 +602,8 @@ let stop_agentic_loop =
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   if (!flush_pending) {
     presentation_stopped :=
-      List.dedup_and_sort(~compare=
-        Id.compare,
+      List.dedup_and_sort(
+        ~compare=Id.compare,
         [model.chat_system.current, ...presentation_stopped^],
       );
   };
@@ -686,7 +687,8 @@ let flush_pending_send =
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) =>
-  if (busy_for_send(model) || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
+  if (busy_for_send(model)
+      || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
     (model, editor |> Updated.return);
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
@@ -844,16 +846,16 @@ let do_retry_api_send =
     ) {
     | (Some(api_key), Some(llm_id)) => (
         send_main(
-        ~api_key,
+          ~api_key,
           ~request=
             request_of(
               ~llm_id,
               ~reasoning_effort=settings.agent_globals.reasoning_effort,
               ~session_mode=settings.agent_globals.session_mode,
               model,
-          ),
-        ~schedule_action,
-        ~retry_attempt=attempt + 1,
+            ),
+          ~schedule_action,
+          ~retry_attempt=attempt + 1,
           chat_id,
           model,
         ),
@@ -918,16 +920,16 @@ let retry_empty_response =
     ) {
     | (Some(api_key), Some(llm_id)) => (
         send_main(
-        ~api_key,
+          ~api_key,
           ~request=
             request_of(
               ~llm_id,
               ~reasoning_effort=settings.agent_globals.reasoning_effort,
               ~session_mode=settings.agent_globals.session_mode,
               model,
-          ),
-        ~schedule_action,
-        ~retry_attempt=0,
+            ),
+          ~schedule_action,
+          ~retry_attempt=0,
           chat_id,
           model,
         ),

@@ -151,7 +151,7 @@ let item_of =
     : option(Haz3lcore.DefStatics.item) =>
   List.find(
     ~f=
-    (it: Haz3lcore.DefStatics.item) =>
+      (it: Haz3lcore.DefStatics.item) =>
         Id.equal(it.d_id, e.e_id) || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
     ds.items,
   );
@@ -243,7 +243,7 @@ let fresh_info_map =
     ~settings,
     ~probe_ids=Program.probe_ids(program),
     fresh_term(program),
-      ).
+  ).
     info_map;
 
 /* the program after an outline edit: statics seeded now (the outline
@@ -282,13 +282,13 @@ let with_segment =
   let statics =
     statics_of(
       ~settings,
-          ~probe_ids=
+      ~probe_ids=
         CachedStatics.probe_ids_of_zipper(fresh.editor.editor.state.zipper),
-          MakeTerm.semantic_term(
-            ~root,
-            ~shared=fresh.editor.editor.syntax.t_cache,
-            new_seg,
-          ),
+      MakeTerm.semantic_term(
+        ~root,
+        ~shared=fresh.editor.editor.syntax.t_cache,
+        new_seg,
+      ),
     );
   let editor: CellEditor.Model.t = {
     editor: {
@@ -482,13 +482,13 @@ let update_code =
             | Divided(d) =>
               List.find(
                 ~f=
-                (e: ScratchCell.t) =>
-                  switch (e.e_kind) {
+                  (e: ScratchCell.t) =>
+                    switch (e.e_kind) {
                     | Run(ids) => List.mem(ids, fid, ~equal=Poly.equal)
-                  | Def(_)
-                  | Members
-                  | Headless(_) => false
-                  },
+                    | Def(_)
+                    | Members
+                    | Headless(_) => false
+                    },
                 Divided.cells(d),
               )
             | Whole(_) => None
@@ -720,7 +720,7 @@ let update =
         {
           ...code,
           lens,
-              },
+        },
       )
     | None => Updated.return_quiet(code)
     }
@@ -753,8 +753,8 @@ let update =
             ...l,
             map_shown: shown,
           }),
-            },
-          );
+      },
+    );
   | (LensMode(mode), Some(l)) =>
     AgentLens.last_mode := mode;
     switch (Id.Map.find_opt(l.chat, code.agent.chat_system.chat_map)) {
@@ -768,7 +768,7 @@ let update =
         },
       )
     | None => Updated.return_quiet(code)
-        };
+    };
   | (AgentAction(LeaveAgentView), _) =>
     Updated.return(
       ~is_edit=false,
@@ -799,7 +799,7 @@ let update =
           lens,
         },
         recalculate: true,
-    }
+      }
     | None => updated
     };
   /* the program's own run, and its restores, still land */
@@ -899,9 +899,9 @@ let calculate_program =
           Divided.cells(d),
           ~init=Program.probe_ids(Divided(d)),
           ~f=(acc, e: ScratchCell.t) =>
-            switch (is_tail_cell(e) ? tail_root(e) : None) {
-            | Some(id) => Id.Map.add(id, (), acc)
-            | None => acc
+          switch (is_tail_cell(e) ? tail_root(e) : None) {
+          | Some(id) => Id.Map.add(id, (), acc)
+          | None => acc
           }
         );
       let (d, ds) =
@@ -1097,13 +1097,13 @@ let calculate_program =
           let project = (c: CellEditor.Model.t) =>
             Option.map(
               ~f=
-              item =>
-                project_cell_statics(
-                  ~settings,
-                  ~item,
-                  ~engine_warnings=Lazy.force(frame_warns),
-                  c,
-                ),
+                item =>
+                  project_cell_statics(
+                    ~settings,
+                    ~item,
+                    ~engine_warnings=Lazy.force(frame_warns),
+                    c,
+                  ),
               item,
             );
           let (proj_header, proj_body) = (
@@ -1250,7 +1250,7 @@ let calculate =
               );
             {
               ...l,
-    program,
+              program,
               map: AgentLensMap.calculate(~settings, program, l.map),
             };
           },

@@ -774,20 +774,20 @@ module View = {
             ],
             List.map(
               ~f=
-              s =>
-                EditorModeView.option_view(
+                s =>
+                  EditorModeView.option_view(
                     String.equal(
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    | Config(_) => "Configuration"
+                      switch (editors) {
+                      | Scratch(_) => "Scratch"
+                      | Documentation(_) => "Documentation"
+                      | Tutorial(_) => "Tutorial"
+                      | Exercises(_) => "Exercises"
+                      | Config(_) => "Configuration"
                       },
                       s,
                     ),
-                  s,
-                ),
+                    s,
+                  ),
               [
                 "Scratch",
                 "Documentation",

@@ -41,7 +41,8 @@ let pos_of_added = (d: S.diff, k) =>
   List.find(~f=(n: S.new_node) => n.key == k, d.added)
   |> Option.map(~f=(n: S.new_node) => n.p);
 
-let appear = (s: S.score, k) => List.Assoc.find_exn(S.appear_times(s), k, ~equal=Poly.equal);
+let appear = (s: S.score, k) =>
+  List.Assoc.find_exn(S.appear_times(s), k, ~equal=Poly.equal);
 
 let no_violations = (name, s: S.score) =>
   check(list(string), name ++ ": validate", [], S.validate(s));
@@ -79,7 +80,7 @@ let three_types = () => {
   /* the actor's path never runs backwards in time */
   let path = S.actor_path(~pos_of=pos_of_added(d), s);
   let ts = List.map(~f=((t, _, _)) => t, path);
-  check(list(int), "actor path sorted", List.sort(~compare=compare, ts), ts);
+  check(list(int), "actor path sorted", List.sort(~compare, ts), ts);
   check(
     bool,
     "about a second per type",
@@ -93,14 +94,15 @@ let actor_first = () => {
   let s = S.plan(~pos_of=pos_of_added(d), d);
   let (t0, a) = List.hd_exn(s.acts);
   check(int, "first act at 0", 0, t0);
-  List.iter(~f=
-    (e: S.timed_effect) =>
-      check(
-        bool,
-        "effect after arrival+pause",
-        true,
-        e.at >= a.travel_ms + a.pause_ms,
-      ),
+  List.iter(
+    ~f=
+      (e: S.timed_effect) =>
+        check(
+          bool,
+          "effect after arrival+pause",
+          true,
+          e.at >= a.travel_ms + a.pause_ms,
+        ),
     a.effects,
   );
 };
@@ -128,8 +130,8 @@ let edge_after_types = () => {
   no_violations("edge after types", s);
   let effs = S.effects_abs(s);
   let t_of = f =>
-    List.find_map(~f=
-      ((t, _, e: S.timed_effect)) => f(e.effect) ? Some(t) : None,
+    List.find_map(
+      ~f=((t, _, e: S.timed_effect)) => f(e.effect) ? Some(t) : None,
       effs,
     )
     |> Option.value_exn;
@@ -156,17 +158,19 @@ let no_batch = () => {
     diff(
       ~added=
         List.init(14, ~f=i =>
-          node("T" ++ string_of_int(i), float_of_int(i) *. 50., 0.)),
+          node("T" ++ string_of_int(i), float_of_int(i) *. 50., 0.)
+        ),
       (),
     );
   let s = S.plan(~pos_of=pos_of_added(d), d);
   check(int, "one act per definition", 14, List.length(s.acts));
-  List.iter(~f=
-    ((_, a): (int, S.act)) =>
-      switch (a.at) {
-      | S.Centroid(_) => fail("a centroid act (batch) in a scored beat")
-      | _ => ()
-      },
+  List.iter(
+    ~f=
+      ((_, a): (int, S.act)) =>
+        switch (a.at) {
+        | S.Centroid(_) => fail("a centroid act (batch) in a scored beat")
+        | _ => ()
+        },
     s.acts,
   );
   no_violations("no batch", s);
@@ -181,7 +185,10 @@ let every_edge_ridden = () => {
   let d =
     diff(
       ~added=
-        List.mapi(~f=(i, k) => node(k, float_of_int(i) *. 120., 40.), types),
+        List.mapi(
+          ~f=(i, k) => node(k, float_of_int(i) *. 120., 40.),
+          types,
+        ),
       ~edges=
         List.init(8, ~f=i =>
           {
@@ -189,17 +196,19 @@ let every_edge_ridden = () => {
             src: List.nth_exn(types, i mod 4),
             dst: List.nth_exn(types, (i + 1) mod 4),
             product: None,
-          }),
+          }
+        ),
       (),
     );
   let s = S.plan(~pos_of=pos_of_added(d), d);
   let edge_acts =
-    List.filter(~f=
-      ((_, a): (int, S.act)) =>
-        switch (a.at) {
-        | S.Edge(_) => true
-        | _ => false
-        },
+    List.filter(
+      ~f=
+        ((_, a): (int, S.act)) =>
+          switch (a.at) {
+          | S.Edge(_) => true
+          | _ => false
+          },
       s.acts,
     );
   check(int, "one act per edge", 8, List.length(edge_acts));
@@ -287,7 +296,8 @@ let framing = () => {
   /* a large program: required point off to the right -> minimal pan, same zoom */
   let big =
     List.init(40, ~f=i =>
-      p(float_of_int(i) *. 100., float_of_int(i mod 7) *. 150.));
+      p(float_of_int(i) *. 100., float_of_int(i mod 7) *. 150.)
+    );
   switch (
     S.frame_for(~pane, ~cur, ~all=big, ~required=[p(1000., 300.)], ())
   ) {
@@ -323,12 +333,13 @@ let removals_choreographed = () => {
     bool,
     "erase emote",
     true,
-    List.for_all(~f=
-      ((_, a): (int, S.act)) =>
-        switch (a.emote) {
-        | S.Erase => true
-        | _ => false
-        },
+    List.for_all(
+      ~f=
+        ((_, a): (int, S.act)) =>
+          switch (a.emote) {
+          | S.Erase => true
+          | _ => false
+          },
       s.acts,
     ),
   );
@@ -340,12 +351,13 @@ let removals_choreographed = () => {
       bool,
       "the arrow goes before the node",
       true,
-      List.exists(~f=
-        (e: S.timed_effect) =>
-          switch (e.effect) {
-          | S.Erase("f") => true
-          | _ => false
-          },
+      List.exists(
+        ~f=
+          (e: S.timed_effect) =>
+            switch (e.effect) {
+            | S.Erase("f") => true
+            | _ => false
+            },
         first.effects,
       ),
     )
@@ -369,7 +381,8 @@ let changes_choreographed = () => {
     bool,
     "both cued",
     true,
-    List.Assoc.mem(cues, "f", ~equal=Poly.equal) && List.Assoc.mem(cues, "Kind", ~equal=Poly.equal),
+    List.Assoc.mem(cues, "f", ~equal=Poly.equal)
+    && List.Assoc.mem(cues, "Kind", ~equal=Poly.equal),
   );
   /* changes come before additions */
   let t_new = appear(s, "New");
@@ -428,19 +441,21 @@ let camera_frames_function_draw = () => {
     true,
     framed.frames != [],
   );
-  let last = snd(List.nth_exn(framed.frames, List.length(framed.frames) - 1));
+  let last =
+    snd(List.nth_exn(framed.frames, List.length(framed.frames) - 1));
   let visible = S.view_rect(~pane, last);
-  List.iter(~f=
-    (point: S.pos) =>
-      check(
-        bool,
-        "the rendered endpoint is in view",
-        true,
-        point.x >= visible.x0
-        && point.x <= visible.x1
-        && point.y >= visible.y0
-        && point.y <= visible.y1,
-      ),
+  List.iter(
+    ~f=
+      (point: S.pos) =>
+        check(
+          bool,
+          "the rendered endpoint is in view",
+          true,
+          point.x >= visible.x0
+          && point.x <= visible.x1
+          && point.y >= visible.y0
+          && point.y <= visible.y1,
+        ),
     [src, dst],
   );
 };

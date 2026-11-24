@@ -52,9 +52,11 @@ let tests = (
         B.reset();
         let before = model("0");
         let src =
-          String.concat(~sep=
-            " ",
-            List.init(12, ~f=i => "type T" ++ string_of_int(i) ++ " = Int in"),
+          String.concat(
+            ~sep=" ",
+            List.init(12, ~f=i =>
+              "type T" ++ string_of_int(i) ++ " = Int in"
+            ),
           )
           ++ " 0";
         let after = model(src);
@@ -83,7 +85,7 @@ let tests = (
           int,
           "every step distinct",
           planned,
-          List.length(List.dedup_and_sort(~compare=compare, seen^)),
+          List.length(List.dedup_and_sort(~compare, seen^)),
         );
         check(
           bool,
@@ -118,26 +120,27 @@ let tests = (
           before,
           after,
         );
-        List.iter(~f=
-          beat => {
-            let shown = Lazy.force(beat.Web.CanvasBuffer.b_model);
-            check(
-              bool,
-              "statics are populated before the beat is released",
-              false,
-              Id.Map.is_empty(shown.statics.info_map),
-            );
-            let graph = Web.CanvasGraph.extract(shown.statics);
-            check(
-              bool,
-              "Model remains visible",
-              true,
-              List.exists(~f=
-                (n: Web.CanvasGraph.tynode) => n.key == "Model",
-                graph.nodes,
-              ),
-            );
-          },
+        List.iter(
+          ~f=
+            beat => {
+              let shown = Lazy.force(beat.Web.CanvasBuffer.b_model);
+              check(
+                bool,
+                "statics are populated before the beat is released",
+                false,
+                Id.Map.is_empty(shown.statics.info_map),
+              );
+              let graph = Web.CanvasGraph.extract(shown.statics);
+              check(
+                bool,
+                "Model remains visible",
+                true,
+                List.exists(
+                  ~f=(n: Web.CanvasGraph.tynode) => n.key == "Model",
+                  graph.nodes,
+                ),
+              );
+            },
           B.queue^,
         );
         check(

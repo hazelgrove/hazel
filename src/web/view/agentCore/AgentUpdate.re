@@ -389,7 +389,7 @@ let update =
       } else {
         List.fold_left(
           ~f=
-          (acc: list(string), n: string) =>
+            (acc: list(string), n: string) =>
               List.mem(acc, n, ~equal=String.equal) ? acc : [n, ...acc],
           ~init=model.prompting.disabled_tool_names,
           names_in_cat,

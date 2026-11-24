@@ -44,13 +44,16 @@ let canvas_reply =
   /* the phases inside this reply (the editor's own recompute lands in
      the 5-second perf line) */
   CanvasLog.log(
-    sprintf("perf-reply: %s %.0fms — %s", names, ms, PerfTimer.take_summary()),
+    sprintf(
+      "perf-reply: %s %.0fms — %s",
+      names,
+      ms,
+      PerfTimer.take_summary(),
+    ),
   );
   /* the journal is the truth: every tool's verdict lands in it, so a
      replay (or a real run) shows WHY nothing changed */
-  List.iter(
-    results,
-    ~f=(tr: AgentToolResult.tool_result) =>
+  List.iter(results, ~f=(tr: AgentToolResult.tool_result) =>
     CanvasLog.log(
       sprintf(
         "tool %s -> %s",

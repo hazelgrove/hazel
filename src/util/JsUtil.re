@@ -1051,26 +1051,26 @@ let navigate_probes =
   let sorted =
     List.sort(
       ~compare=
-      ((_, t1, l1), (_, t2, l2)) => {
+        ((_, t1, l1), (_, t2, l2)) => {
           let c = Float.compare(t1, t2);
-        if (c != 0) {
-          c;
-        } else {
+          if (c != 0) {
+            c;
+          } else {
             Float.compare(l1, l2);
-        };
-      },
+          };
+        },
       items^,
     );
   /* Find current index */
   let current_idx = ref(-1);
   List.iteri(
     ~f=
-    (i, (el, _, _)) => {
-      let id: string = Js.to_string(el##.id);
+      (i, (el, _, _)) => {
+        let id: string = Js.to_string(el##.id);
         if (String.equal(id, current_id)) {
-        current_idx := i;
-      };
-    },
+          current_idx := i;
+        };
+      },
     sorted,
   );
   /* Find target, optionally skipping unaligned probes */

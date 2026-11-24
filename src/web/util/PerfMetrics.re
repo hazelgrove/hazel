@@ -205,32 +205,32 @@ let time_frame: 'a. (unit => 'a) => 'a =
       });
       Option.iter(
         ~f=
-        frames => {
-          let ms = span =>
-            Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
-          let opt = o =>
+          frames => {
+            let ms = span =>
+              Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
+            let opt = o =>
               Option.value_map(
-              o,
+                o,
                 ~default=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
                 ~f=s =>
                 Js_of_ocaml.Js.Unsafe.inject(ms(s))
-            );
-          ignore(
-            Js_of_ocaml.Js.Unsafe.meth_call(
-              frames,
-              "push",
-              [|
-                Js_of_ocaml.Js.Unsafe.inject(
-                  Js_of_ocaml.Js.Unsafe.obj([|
+              );
+            ignore(
+              Js_of_ocaml.Js.Unsafe.meth_call(
+                frames,
+                "push",
+                [|
+                  Js_of_ocaml.Js.Unsafe.inject(
+                    Js_of_ocaml.Js.Unsafe.obj([|
                       ("perform", opt(Option.map(~f=snd, frame.perform))),
-                    ("statics", opt(frame.statics)),
-                    ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
-                  |]),
-                ),
-              |],
-            ),
-          );
-        },
+                      ("statics", opt(frame.statics)),
+                      ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
+                    |]),
+                  ),
+                |],
+              ),
+            );
+          },
         bench_frames(),
       );
       current :=

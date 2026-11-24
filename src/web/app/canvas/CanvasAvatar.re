@@ -106,15 +106,16 @@ let set_mood = (m: string): unit => {
   | None => ()
   | Some(b) =>
     let cl = Js.Unsafe.get(b, "classList");
-    List.iter(~f=
-      x =>
-        ignore(
-          Js.Unsafe.meth_call(
-            cl,
-            "remove",
-            [|Js.Unsafe.inject(Js.string("mood-" ++ x))|],
+    List.iter(
+      ~f=
+        x =>
+          ignore(
+            Js.Unsafe.meth_call(
+              cl,
+              "remove",
+              [|Js.Unsafe.inject(Js.string("mood-" ++ x))|],
+            ),
           ),
-        ),
       moods,
     );
     if (m != "") {
@@ -189,7 +190,9 @@ let pen_tip = (): option((float, float)) =>
           n > 2
             ? Option.value(
                 ~default=0.,
-                float_of_string_opt(String.strip(String.sub(v, ~pos=0, ~len=n - 2))),
+                float_of_string_opt(
+                  String.strip(String.sub(v, ~pos=0, ~len=n - 2)),
+                ),
               )
             : 0.;
         };
@@ -245,7 +248,9 @@ let base_r = 11.; /* the triangle spans 22 px; a type node is 40+ */
 
 let rig: rig = {
   v:
-    Array.init(3, ~f=i => {
+    Array.init(
+      3,
+      ~f=i => {
         let a = -. Float.pi /. 2. +. float_of_int(i) *. tau /. 3.;
         {
           x: Float.cos(a) *. base_r,
@@ -253,7 +258,8 @@ let rig: rig = {
           vx: 0.,
           vy: 0.,
         };
-      }),
+      },
+    ),
   t: Random.float(10.),
   rot: 0.,
   rot_v: 0.,
@@ -611,7 +617,8 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   };
   /* the rig's center: on the node while editing (the anchor hangs
      above-right of the site by (14, -34)), a gentle bob otherwise */
-  let (ox, oy) = editing ? ((-14.), 34.) : (0., 1.4 *. Float.sin(rig.t *. 2.4));
+  let (ox, oy) =
+    editing ? ((-14.), 34.) : (0., 1.4 *. Float.sin(rig.t *. 2.4));
   let hc = Float.cos(rig.heading +. Float.pi /. 2.)
   and hs = Float.sin(rig.heading +. Float.pi /. 2.);
   switch (held^) {
@@ -798,7 +805,7 @@ let svg = (tag, attrs, kids) => Node.create_svg(tag, ~attrs, kids);
 
 let rig_view = (): Node.t => {
   ensure_loop();
-  let three = f => List.init(3, ~f=f);
+  let three = f => List.init(3, ~f);
   Node.div(
     ~attrs=[Attr.classes(["rig-box"])],
     [
@@ -902,7 +909,9 @@ let bounding_circle = (): (float, float, float) =>
     let cx = Array.fold(rig.v, ~init=0., ~f=(a, v) => a +. v.x) /. n
     and cy = Array.fold(rig.v, ~init=0., ~f=(a, v) => a +. v.y) /. n;
     let reach =
-      Array.fold(rig.v, ~init=0., ~f=(m, v) => max(m, Float.hypot(v.x -. cx, v.y -. cy)));
+      Array.fold(rig.v, ~init=0., ~f=(m, v) =>
+        max(m, Float.hypot(v.x -. cx, v.y -. cy))
+      );
     (cx, cy, reach +. (last_thinking^ ? 6.7 : 3.6) +. 2.);
   } else {
     switch (body()) {
@@ -919,7 +928,7 @@ let bounding_circle = (): (float, float, float) =>
 let brand_icon = (): Node.t =>
   if (is_rig()) {
     ensure_loop(); /* the chat may be the only place the rig is shown */
-    let three = f => List.init(3, ~f=f);
+    let three = f => List.init(3, ~f);
     Node.create_svg(
       "svg",
       ~attrs=[

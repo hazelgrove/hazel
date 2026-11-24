@@ -55,23 +55,24 @@ let tests = [
       let n = ref(0);
       Sample.Map.fold(
         (_, samples, ()) =>
-          List.iter(~f=
-            (s: Sample.t) => {
-              incr(n);
-              let str =
-                try({
-                  let _ =
-                    Web.CanvasValue.chip(
-                      ~font_metrics=fm,
-                      ~available=24,
-                      s.value,
-                    );
-                  "ok";
-                }) {
-                | e => "EXN " ++ Stdlib.Printexc.to_string(e)
-                };
-              check(string, Printf.sprintf("sample %d", n^), "ok", str);
-            },
+          List.iter(
+            ~f=
+              (s: Sample.t) => {
+                incr(n);
+                let str =
+                  try({
+                    let _ =
+                      Web.CanvasValue.chip(
+                        ~font_metrics=fm,
+                        ~available=24,
+                        s.value,
+                      );
+                    "ok";
+                  }) {
+                  | e => "EXN " ++ Stdlib.Printexc.to_string(e)
+                  };
+                check(string, Printf.sprintf("sample %d", n^), "ok", str);
+              },
             samples,
           ),
         EvaluatorState.get_probes(state),

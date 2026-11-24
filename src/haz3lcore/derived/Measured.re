@@ -777,7 +777,9 @@ let num_rows = (m: t): int => m.total_rows;
 
 /* tiles live per chunk, a split tile in two */
 let num_tiles = (m: t): int =>
-  Array.fold(m.chunks, ~init=0, ~f=(n, ch) => n + Id.Map.cardinal(ch.c_flat.tiles))
+  Array.fold(m.chunks, ~init=0, ~f=(n, ch) =>
+    n + Id.Map.cardinal(ch.c_flat.tiles)
+  )
   - Id.Map.cardinal(m.split);
 
 /* single-chunk measurement, without the incremental cache */
@@ -940,13 +942,13 @@ module Partition = {
     Array.fold_right(
       lv.spans,
       ~f=
-      (sp: S.span, acc) =>
-        switch (sp.lines) {
-        | Some((lo, hi)) =>
-          let acc = ok(hi, acc) ? [hi, ...acc] : acc;
-          ok(lo, acc) ? [lo, ...acc] : acc;
-        | None => acc
-        },
+        (sp: S.span, acc) =>
+          switch (sp.lines) {
+          | Some((lo, hi)) =>
+            let acc = ok(hi, acc) ? [hi, ...acc] : acc;
+            ok(lo, acc) ? [lo, ...acc] : acc;
+          | None => acc
+          },
       ~init=[],
     );
   };
@@ -1031,15 +1033,15 @@ module Partition = {
           let body = body_of(memo, brace.id, members);
           Option.map(
             ~f=
-            ((first, last)) =>
-              Module({
-                site,
-                at,
-                brace,
-                body,
-                first,
-                last,
-              }),
+              ((first, last)) =>
+                Module({
+                  site,
+                  at,
+                  brace,
+                  body,
+                  first,
+                  last,
+                }),
             body.b_edges,
           );
         | None => None
@@ -1064,10 +1066,10 @@ module Partition = {
         let sub = builder(~nested=true, memo);
         Option.iter(
           ~f=
-          ((first, last)) => {
-            level(sub, ml, first, last);
-            close(sub);
-          },
+            ((first, last)) => {
+              level(sub, ml, first, last);
+              close(sub);
+            },
           edges,
         );
         {
@@ -1116,15 +1118,15 @@ module Partition = {
       let last_kid = List.length(t.children) - 1;
       List.iteri(
         ~f=
-        (j, kid) => {
-          push(b, Shard(t, j));
-          if (j < last_kid) {
+          (j, kid) => {
+            push(b, Shard(t, j));
+            if (j < last_kid) {
               List.iter(~f=p => push(b, Whole(p)), kid);
-          } else {
-            push_range(b, Array.of_list(kid), 0, lit.at);
-            push(b, Shard(lit.brace, 0));
-          };
-        },
+            } else {
+              push_range(b, Array.of_list(kid), 0, lit.at);
+              push(b, Shard(lit.brace, 0));
+            };
+          },
         t.children,
       );
       b.splits = [(t.id, (head, foot)), ...b.splits];
@@ -1241,17 +1243,17 @@ module Incr = {
     let h = IdTbl.create(8);
     List.iter(
       ~f=
-      ((id, v)) =>
-        switch (Id.Map.find_opt(id, map)) {
-        | Some(anchor) =>
-          let cur =
-            switch (IdTbl.find_opt(h, anchor)) {
-            | Some(l) => l
-            | None => []
-            };
-          IdTbl.replace(h, anchor, [(id, v), ...cur]);
-        | None => ()
-        },
+        ((id, v)) =>
+          switch (Id.Map.find_opt(id, map)) {
+          | Some(anchor) =>
+            let cur =
+              switch (IdTbl.find_opt(h, anchor)) {
+              | Some(l) => l
+              | None => []
+              };
+            IdTbl.replace(h, anchor, [(id, v), ...cur]);
+          | None => ()
+          },
       bindings,
     );
     h;
@@ -1293,20 +1295,20 @@ module Incr = {
     let chunks =
       List.map(
         ~f=
-        (
-          {
-            p_anchor: anchor,
-            p_tokens: tokens,
-            p_final: final,
-            p_nested: nested,
-          }: Partition.part,
-        ) => {
-          let (e, carried) =
-            switch (IdTbl.find_opt(prev_entries, anchor)) {
-            | Some(e)
-                when
+          (
+            {
+              p_anchor: anchor,
+              p_tokens: tokens,
+              p_final: final,
+              p_nested: nested,
+            }: Partition.part,
+          ) => {
+            let (e, carried) =
+              switch (IdTbl.find_opt(prev_entries, anchor)) {
+              | Some(e)
+                  when
                     Bool.equal(e.e_final, final)
-                  && tokens_eq(e.e_tokens, tokens)
+                    && tokens_eq(e.e_tokens, tokens)
                     && Poly.equal(
                          e.e_shape_slice,
                          slice_for(shape_slices, anchor),
@@ -1315,36 +1317,36 @@ module Incr = {
                          e.e_refr_slice,
                          slice_for(refr_slices, anchor),
                        ) => (
-                e,
-                true,
-              )
-            | _ =>
-              incr(built);
-              let f =
-                of_tokens_inner(
-                  ~final,
-                  tokens,
-                  shape_map,
-                  refractor_shape_map,
+                  e,
+                  true,
+                )
+              | _ =>
+                incr(built);
+                let f =
+                  of_tokens_inner(
+                    ~final,
+                    tokens,
+                    shape_map,
+                    refractor_shape_map,
+                  );
+                (
+                  {
+                    e_tokens: tokens,
+                    e_final: final,
+                    e_flat: f,
+                    e_height: flat_height(f),
+                    e_ids: ids_of_flat(f),
+                    e_shape_slice: [], /* filled below from the new map */
+                    e_refr_slice: [],
+                    e_gen: gen,
+                  },
+                  false,
                 );
-              (
-                {
-                  e_tokens: tokens,
-                  e_final: final,
-                  e_flat: f,
-                  e_height: flat_height(f),
-                  e_ids: ids_of_flat(f),
-                  e_shape_slice: [], /* filled below from the new map */
-                  e_refr_slice: [],
-                  e_gen: gen,
-                },
-                false,
-              );
-            };
-          e.e_gen = gen;
-          IdTbl.replace(new_entries, anchor, e);
-          (anchor, tokens, e, carried, nested);
-        },
+              };
+            e.e_gen = gen;
+            IdTbl.replace(new_entries, anchor, e);
+            (anchor, tokens, e, carried, nested);
+          },
         parts,
       );
     /* diff the previous chunk_of_id: drop the ids of the entries this
@@ -1355,10 +1357,10 @@ module Incr = {
     let rebuilt = IdTbl.create(64);
     List.iter(
       ~f=
-      ((anchor, _, e: entry, carried, _)) =>
-        if (!carried) {
+        ((anchor, _, e: entry, carried, _)) =>
+          if (!carried) {
             List.iter(~f=id => IdTbl.replace(rebuilt, id, anchor), e.e_ids);
-        },
+          },
       chunks,
     );
     IdTbl.iter(
@@ -1366,11 +1368,11 @@ module Incr = {
         if (old_e.e_gen != gen) {
           List.iter(
             ~f=
-            id =>
-              switch (IdTbl.find_opt(rebuilt, id)) {
+              id =>
+                switch (IdTbl.find_opt(rebuilt, id)) {
                 | Some(a) when phys_equal(a, anchor) => ()
-              | _ => map := Id.Map.remove(id, map^)
-              },
+                | _ => map := Id.Map.remove(id, map^)
+                },
             old_e.e_ids,
           );
         },
@@ -1387,11 +1389,11 @@ module Incr = {
     /* a split tile is in two chunks: it maps to its foot */
     List.iter(
       ~f=
-      ((id, (_, foot))) =>
-        switch (Id.Map.find_opt(id, map^)) {
+        ((id, (_, foot))) =>
+          switch (Id.Map.find_opt(id, map^)) {
           | Some(a) when phys_equal(a, foot) => ()
-        | _ => map := Id.Map.add(id, foot, map^)
-        },
+          | _ => map := Id.Map.add(id, foot, map^)
+          },
       splits,
     );
     let chunk_of_id = map^;
@@ -1399,10 +1401,10 @@ module Incr = {
     let refr_slices = slices_of(chunk_of_id, refr_bindings);
     List.iter(
       ~f=
-      ((anchor, _, e: entry, _, _)) => {
-        e.e_shape_slice = slice_for(shape_slices, anchor);
-        e.e_refr_slice = slice_for(refr_slices, anchor);
-      },
+        ((anchor, _, e: entry, _, _)) => {
+          e.e_shape_slice = slice_for(shape_slices, anchor);
+          e.e_refr_slice = slice_for(refr_slices, anchor);
+        },
       chunks,
     );
     cache.prev = Some((chunk_of_id, new_entries));
@@ -1423,8 +1425,8 @@ module Incr = {
       ~split=snd(cache.split),
       List.map(
         ~f=
-        ((a, tokens, e: entry, _, nested)) =>
-          (a, tokens, e.e_flat, e.e_height, nested),
+          ((a, tokens, e: entry, _, nested)) =>
+            (a, tokens, e.e_flat, e.e_height, nested),
         chunks,
       ),
     );

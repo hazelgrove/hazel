@@ -45,12 +45,13 @@ let is_unknown = (ty: Typ.t): bool =>
 let member = (record: Exp.t, label: string): option(Exp.t) =>
   switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
   | Some(fs) =>
-    List.find_map(~f=
-      f =>
-        switch (MvuShape.of_field(f)) {
-        | Some((l, v)) when l == label => Some(v)
-        | _ => None
-        },
+    List.find_map(
+      ~f=
+        f =>
+          switch (MvuShape.of_field(f)) {
+          | Some((l, v)) when l == label => Some(v)
+          | _ => None
+          },
       fs,
     )
   | None => None
@@ -121,15 +122,17 @@ let expands_to = (ctx: Ctx.t, expansion_t: Typ.t, ty: Typ.t): bool =>
 let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
   is_unknown(ty)
     ? []
-    : List.filter_map(~f=
-        (e: Ctx.entry) =>
-          switch (e) {
-          | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
-              when
-                !is_unknown(expansion_t) && expands_to(ctx, expansion_t, ty) =>
-            Some(ll)
-          | _ => None
-          },
+    : List.filter_map(
+        ~f=
+          (e: Ctx.entry) =>
+            switch (e) {
+            | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
+                when
+                  !is_unknown(expansion_t)
+                  && expands_to(ctx, expansion_t, ty) =>
+              Some(ll)
+            | _ => None
+            },
         ctx.entries,
       );
 
@@ -165,13 +168,14 @@ let model_of =
 let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
 let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
   switch (
-    List.find(~f=
-      ((k, _)) =>
-        snd(k) == ll.name
-        /* by identity, else by value: a re-evaluation hands out fresh
-           sample objects for unchanged values, and re-running the
-           view for each of them on every keystroke is the cost */
-        && (phys_equal(fst(k), raw) || Exp.fast_equal(fst(k), raw)),
+    List.find(
+      ~f=
+        ((k, _)) =>
+          snd(k) == ll.name
+          /* by identity, else by value: a re-evaluation hands out fresh
+             sample objects for unchanged values, and re-running the
+             view for each of them on every keystroke is the cost */
+          && (phys_equal(fst(k), raw) || Exp.fast_equal(fst(k), raw)),
       html_memo^,
     )
   ) {
@@ -238,18 +242,19 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
     let direct =
-      List.find_map(~f=
-        (ll: LivelitCtx.raw_livelit) =>
-          switch (html_of(~ctx, ll, exp)) {
-          | Some(_) =>
-            Some({
-              ll_name: ll.name,
-              rows: rows_of(ll),
-              raw: exp,
-              as_list: false,
-            })
-          | None => None
-          },
+      List.find_map(
+        ~f=
+          (ll: LivelitCtx.raw_livelit) =>
+            switch (html_of(~ctx, ll, exp)) {
+            | Some(_) =>
+              Some({
+                ll_name: ll.name,
+                rows: rows_of(ll),
+                raw: exp,
+                as_list: false,
+              })
+            | None => None
+            },
         candidates(statics),
       );
     switch (direct) {
@@ -261,16 +266,17 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
         list_elems(exp),
       ) {
       | (List(elem), Some(items)) =>
-        List.find_map(~f=
-          (ll: LivelitCtx.raw_livelit) =>
-            List.for_all(~f=it => html_of(~ctx, ll, it) != None, items)
-              ? Some({
-                  ll_name: ll.name,
-                  rows: rows_of(ll),
-                  raw: exp,
-                  as_list: true,
-                })
-              : None,
+        List.find_map(
+          ~f=
+            (ll: LivelitCtx.raw_livelit) =>
+              List.for_all(~f=it => html_of(~ctx, ll, it) != None, items)
+                ? Some({
+                    ll_name: ll.name,
+                    rows: rows_of(ll),
+                    raw: exp,
+                    as_list: true,
+                  })
+                : None,
           candidates_for(ctx, elem),
         )
       | _ => None
@@ -312,11 +318,17 @@ let render =
       switch (Ctx.lookup_livelit(ctx, value.ll_name)) {
       | Some(ll) when value.as_list =>
         Option.bind(list_elems(value.raw), ~f=items =>
-          List.fold_right(items, ~f=(it, acc) =>
-              switch (acc, html_of(~ctx, ll, it)) {
-              | (Some(hs), Some(h)) => Some([h, ...hs])
-              | _ => None
-              }, ~init=Some([])))
+          List.fold_right(
+            items,
+            ~f=
+              (it, acc) =>
+                switch (acc, html_of(~ctx, ll, it)) {
+                | (Some(hs), Some(h)) => Some([h, ...hs])
+                | _ => None
+                },
+            ~init=Some([]),
+          )
+        )
       | Some(ll) => Option.map(~f=h => [h], html_of(~ctx, ll, value.raw))
       | None => None
       }

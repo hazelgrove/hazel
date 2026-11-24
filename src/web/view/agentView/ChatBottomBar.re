@@ -143,19 +143,21 @@ let view =
 
   let demo_menu = chat_system.ui.demo_menu;
   let demo_items =
-    List.map(~f=
-      group =>
-        Menu.submenu_item(
-          ~tooltip=
-            group == "Follow-ups"
-              ? "Requires an existing program" : "Start on a fresh scratchpad",
-          group,
-          DemoPrompts.all
-          |> List.filter(~f=(p: DemoPrompts.t) => p.group == group)
-          |> List.map(~f=(p: DemoPrompts.t) =>
-               Menu.action_item(p.title, p.prompt)
-             ),
-        ),
+    List.map(
+      ~f=
+        group =>
+          Menu.submenu_item(
+            ~tooltip=
+              group == "Follow-ups"
+                ? "Requires an existing program"
+                : "Start on a fresh scratchpad",
+            group,
+            DemoPrompts.all
+            |> List.filter(~f=(p: DemoPrompts.t) => p.group == group)
+            |> List.map(~f=(p: DemoPrompts.t) =>
+                 Menu.action_item(p.title, p.prompt)
+               ),
+          ),
       DemoPrompts.groups,
     );
   let update_demo_menu = action =>
@@ -359,11 +361,11 @@ let view =
     let user_facing_messages =
       List.filter(
         ~f=
-        (msg: Message.Model.t) =>
-          switch (msg.role) {
-          | Message.Model.System(_) => false
-          | _ => true
-          },
+          (msg: Message.Model.t) =>
+            switch (msg.role) {
+            | Message.Model.System(_) => false
+            | _ => true
+            },
         messages,
       );
     let format_message = (msg: Message.Model.t): string => {
@@ -568,11 +570,11 @@ let view =
     let last_usage =
       List.fold_left(
         ~f=
-        (acc, m: Message.Model.t) =>
-          switch (m.role) {
-          | Agent(Some(u)) => Some(u)
-          | _ => acc
-          },
+          (acc, m: Message.Model.t) =>
+            switch (m.role) {
+            | Agent(Some(u)) => Some(u)
+            | _ => acc
+            },
         ~init=Stdlib.Option.none,
         Chat.Utils.get(current_chat),
       );
@@ -876,31 +878,31 @@ let view =
               ~attrs=[clss(["chat-slash-menu"])],
               List.mapi(
                 ~f=
-                (i, (name, desc)) =>
-                  div(
-                    ~attrs=[
-                      clss(
-                        ["chat-slash-menu-item"]
-                        @ (sm.selected_index == i ? ["selected"] : []),
-                      ),
-                      Attr.on_mousedown(_ =>
-                        Effect.Many([
-                          effect_run_slash_command(name),
-                          Effect.Prevent_default,
-                        ])
-                      ),
-                    ],
-                    [
-                      span(
-                        ~attrs=[clss(["chat-slash-cmd"])],
-                        [text("/" ++ name)],
-                      ),
-                      span(
-                        ~attrs=[clss(["chat-slash-desc"])],
-                        [text(desc)],
-                      ),
-                    ],
-                  ),
+                  (i, (name, desc)) =>
+                    div(
+                      ~attrs=[
+                        clss(
+                          ["chat-slash-menu-item"]
+                          @ (sm.selected_index == i ? ["selected"] : []),
+                        ),
+                        Attr.on_mousedown(_ =>
+                          Effect.Many([
+                            effect_run_slash_command(name),
+                            Effect.Prevent_default,
+                          ])
+                        ),
+                      ],
+                      [
+                        span(
+                          ~attrs=[clss(["chat-slash-cmd"])],
+                          [text("/" ++ name)],
+                        ),
+                        span(
+                          ~attrs=[clss(["chat-slash-desc"])],
+                          [text(desc)],
+                        ),
+                      ],
+                    ),
                 cmds,
               ),
             );

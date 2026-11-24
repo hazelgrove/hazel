@@ -92,14 +92,14 @@ let flatten = (m: M.t): M.flat =>
 let canon_rows = (rows: list(list(Piece.t))): list(list(Id.t)) =>
   List.map(
     ~f=
-    row =>
-      row
+      row =>
+        row
         |> List.filter(~f=p =>
-           switch ((p: Piece.t)) {
-           | Secondary(s) => !Secondary.is_linebreak(s)
-           | _ => true
-           }
-         )
+             switch ((p: Piece.t)) {
+             | Secondary(s) => !Secondary.is_linebreak(s)
+             | _ => true
+             }
+           )
         |> List.map(~f=Piece.id),
     rows,
   );
@@ -153,28 +153,28 @@ let structure = (name: string, m: M.t): unit => {
   let homes = Stdlib.Hashtbl.create(1024);
   Array.iter(
     ~f=
-    (ch: M.chunk) => {
+      (ch: M.chunk) => {
         if (Stdlib.Hashtbl.mem(anchors, ch.c_anchor)) {
-        fail'("two chunks under one anchor");
-      };
+          fail'("two chunks under one anchor");
+        };
         Stdlib.Hashtbl.replace(anchors, ch.c_anchor, ());
-      List.iter(~f=
-          
-        id =>
+        List.iter(
+          ~f=
+            id =>
               Stdlib.Hashtbl.replace(
-            homes,
-            id,
-            [
-              ch.c_anchor,
+                homes,
+                id,
+                [
+                  ch.c_anchor,
                   ...Option.value(
                        ~default=[],
                        Stdlib.Hashtbl.find_opt(homes, id),
                      ),
-            ],
-          ),
-        M.ids_of_flat(ch.c_flat),
-      );
-    },
+                ],
+              ),
+          M.ids_of_flat(ch.c_flat),
+        );
+      },
     m.chunks,
   );
   Stdlib.Hashtbl.iter(
@@ -204,11 +204,11 @@ let structure = (name: string, m: M.t): unit => {
 let rec tiles_of = (seg: Segment.t): list(Tile.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
+      (p: Piece.t) =>
+        switch (p) {
         | Tile(t) => [t, ...List.concat_map(~f=tiles_of, t.children)]
-      | _ => []
-      },
+        | _ => []
+        },
     seg,
   );
 
@@ -219,22 +219,22 @@ let agree = (name: string, seg: Segment.t, mono: M.t, chunked: M.t): unit => {
   check(int, name ++ ":num_rows", M.num_rows(mono), M.num_rows(chunked));
   List.iter(
     ~f=
-    id =>
-      if (M.find_by_id(id, mono) != M.find_by_id(id, chunked)) {
-        fail(name ++ ": find_by_id " ++ Id.to_string(id));
-      },
+      id =>
+        if (M.find_by_id(id, mono) != M.find_by_id(id, chunked)) {
+          fail(name ++ ": find_by_id " ++ Id.to_string(id));
+        },
     Segment.ids(seg),
   );
   List.iter(
     ~f=
-    (t: Tile.t) =>
-      if (M.find_shards_by_id(t.id, mono)
-          != M.find_shards_by_id(t.id, chunked)
-          || M.find_p(Tile(t), mono) != M.find_p(Tile(t), chunked)) {
+      (t: Tile.t) =>
+        if (M.find_shards_by_id(t.id, mono)
+            != M.find_shards_by_id(t.id, chunked)
+            || M.find_p(Tile(t), mono) != M.find_p(Tile(t), chunked)) {
           fail(
             name ++ ": shards of " ++ String.concat(~sep=" ", Tile.label(t)),
           );
-      },
+        },
     tiles_of(seg),
   );
   for (r in 0 to M.num_rows(mono) - 1) {
@@ -262,13 +262,13 @@ let step =
   let built = M.Incr.built^ - b0;
   Option.iter(
     ~f=
-    n =>
-      check(
-        bool,
-        Printf.sprintf("%s: re-measured %d, at most %d", name, built, n),
-        true,
-        built <= n,
-      ),
+      n =>
+        check(
+          bool,
+          Printf.sprintf("%s: re-measured %d, at most %d", name, built, n),
+          true,
+          built <= n,
+        ),
     at_most,
   );
   agree(name, seg, M.of_segment(seg, shapes, rows), chunked);
@@ -340,11 +340,11 @@ let brace_after = (label: string, seg: Segment.t): Id.t => {
     | [Tile(t), ...rest] when Tile.label(t) == [label, "="] =>
       List.find_map(
         ~f=
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(b) when Tile.label(b) == ["{", "}"] => Some(b.id)
-          | _ => None
-          },
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(b) when Tile.label(b) == ["{", "}"] => Some(b.id)
+            | _ => None
+            },
         rest,
       )
     | [Tile(t), ...rest] =>
@@ -703,20 +703,20 @@ let slides = () => {
   let checked = ref(0);
   List.iter(
     ~f=
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
-      | Some(seg) =>
-        incr(checked);
-        parity(path, seg);
-      | None => ()
-      },
+      ((path, src)) =>
+        switch (CorpusUtil.parse(src)) {
+        | Some(seg) =>
+          incr(checked);
+          parity(path, seg);
+        | None => ()
+        },
     CorpusUtil.slide_corpus(),
   );
   check(bool, "slides read", true, checked^ > 20);
   List.iter(
     ~f=
-    ((path, src)) =>
-      parity(~root=Mod, path, CorpusUtil.seg_of(~root=Mod, src)),
+      ((path, src)) =>
+        parity(~root=Mod, path, CorpusUtil.seg_of(~root=Mod, src)),
     Test_ItemSpans.stdlib_corpus(),
   );
 };
@@ -729,12 +729,12 @@ let tests = (
   )
   @ List.map(
       ~f=
-      ((name, src)) =>
-        test_case(
-          "incomplete: " ++ name,
-          `Quick,
-          incomplete_case((name, src)),
-        ),
+        ((name, src)) =>
+          test_case(
+            "incomplete: " ++ name,
+            `Quick,
+            incomplete_case((name, src)),
+          ),
       CorpusUtil.incomplete_programs,
     )
   @ [
@@ -805,16 +805,17 @@ let tests = (
     ),
     test_case("slides and stdlib parity", `Slow, slides),
   ]
-  @ List.map(~f=
-      c => {
-        let cache = Measured.Incr.mk_cache();
-        Test_DrawerMeasurement.case_(
-          ~measure=
-            (seg, rows) =>
-              Measured.Incr.of_segment(~cache, seg, empty_shapes, rows),
-          c,
-        );
-      },
+  @ List.map(
+      ~f=
+        c => {
+          let cache = Measured.Incr.mk_cache();
+          Test_DrawerMeasurement.case_(
+            ~measure=
+              (seg, rows) =>
+                Measured.Incr.of_segment(~cache, seg, empty_shapes, rows),
+            c,
+          );
+        },
       Test_DrawerMeasurement.cases,
     ),
 );

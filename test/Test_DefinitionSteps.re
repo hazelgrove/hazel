@@ -5,12 +5,16 @@ let parse = CorpusUtil.seg_of;
 let check_plan = (before, after) => {
   let steps = DefinitionSteps.plan(before, after);
   let final =
-    List.fold(steps, ~init=before, ~f=(seg, step) => {
+    List.fold(
+      steps,
+      ~init=before,
+      ~f=(seg, step) => {
         let next = DefinitionSteps.apply(step, seg);
         /* Each intermediate is real syntax, not an overlay on the final term. */
         ignore(MakeTerm.go(DefinitionSteps.materialize(next)));
         next;
-      });
+      },
+    );
   check(
     bool,
     "operations reconstruct accepted syntax and ids",
@@ -36,7 +40,10 @@ let tests = (
           );
         let steps = check_plan(before, after);
         ignore(
-          List.fold(steps, ~init=before, ~f=(seg, op) => {
+          List.fold(
+            steps,
+            ~init=before,
+            ~f=(seg, op) => {
               let next = DefinitionSteps.apply(op, seg);
               let names =
                 DefinitionSteps.items(next)
@@ -44,7 +51,7 @@ let tests = (
               check(
                 int,
                 "each named definition appears once",
-                List.length(List.dedup_and_sort(~compare=compare, names)),
+                List.length(List.dedup_and_sort(~compare, names)),
                 List.length(names),
               );
               check(
@@ -57,7 +64,8 @@ let tests = (
                    ),
               );
               next;
-            }),
+            },
+          ),
         );
       },
     ),
@@ -96,20 +104,25 @@ let tests = (
           List.length(steps) >= 3,
         );
         let states =
-          List.fold(steps, ~init=(parse("0"), []), ~f=((seg, states), op) => {
+          List.fold(
+            steps,
+            ~init=(parse("0"), []),
+            ~f=((seg, states), op) => {
               let next = DefinitionSteps.apply(op, seg);
               (next, states @ [next]);
-            })
+            },
+          )
           |> snd;
         check(
           bool,
           "a real state contains A before B",
           true,
-          List.exists(~f=
-            seg => {
-              let text = CorpusUtil.text_of(seg);
-              String.contains(text, 'A') && !String.contains(text, 'B');
-            },
+          List.exists(
+            ~f=
+              seg => {
+                let text = CorpusUtil.text_of(seg);
+                String.contains(text, 'A') && !String.contains(text, 'B');
+              },
             states,
           ),
         );
@@ -129,7 +142,10 @@ let tests = (
           );
         let steps = check_plan(before, after);
         ignore(
-          List.fold(steps, ~init=before, ~f=(seg, op) => {
+          List.fold(
+            steps,
+            ~init=before,
+            ~f=(seg, op) => {
               let next = DefinitionSteps.apply(op, seg);
               let text = CorpusUtil.text_of(next);
               check(
@@ -145,7 +161,8 @@ let tests = (
                 String.contains(text, 'B'),
               );
               next;
-            }),
+            },
+          ),
         );
       },
     ),
@@ -163,8 +180,8 @@ let tests = (
           "module shell and members have distinct operations",
           true,
           List.length(
-            List.filter(~f=
-              (op: DefinitionSteps.operation) => op.path != [],
+            List.filter(
+              ~f=(op: DefinitionSteps.operation) => op.path != [],
               steps,
             ),
           )
@@ -179,16 +196,22 @@ let tests = (
         let original = parse("type A = Int in type B = Int in 0");
         let spans = DefinitionSpans.item_spans(original);
         let parts =
-          List.map(~f=
-            (s: DefinitionSpans.item_span) =>
-              DefinitionSpans.slice(s.sp_start, s.sp_stop, original),
+          List.map(
+            ~f=
+              (s: DefinitionSpans.item_span) =>
+                DefinitionSpans.slice(s.sp_start, s.sp_stop, original),
             spans,
           );
         let reordered =
-          List.nth_exn(parts, 1) @ List.nth_exn(parts, 0) @ List.nth_exn(parts, 2);
+          List.nth_exn(parts, 1)
+          @ List.nth_exn(parts, 0)
+          @ List.nth_exn(parts, 2);
         ignore(check_plan(original, reordered));
         ignore(
-          check_plan(reordered, List.nth_exn(parts, 0) @ List.nth_exn(parts, 2)),
+          check_plan(
+            reordered,
+            List.nth_exn(parts, 0) @ List.nth_exn(parts, 2),
+          ),
         );
       },
     ),

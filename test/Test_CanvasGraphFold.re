@@ -30,9 +30,7 @@ let graph_of = (code: string): Web.CanvasGraph.t =>
   };
 
 let node = (g: Web.CanvasGraph.t, key: string): Web.CanvasGraph.tynode =>
-  switch (
-    List.find(~f=(n: Web.CanvasGraph.tynode) => n.key == key, g.nodes)
-  ) {
+  switch (List.find(~f=(n: Web.CanvasGraph.tynode) => n.key == key, g.nodes)) {
   | Some(n) => n
   | None => fail("no node " ++ key)
   };
@@ -50,14 +48,15 @@ let tests = [
       check(int, "two component terminals", 2, List.length(pos.parts));
       check(bool, "no separate former node", false, has(g, "()@Pos"));
       /* the terminals dock at the alias itself */
-      List.iter(~f=
-        pk =>
-          check(
-            option(string),
-            "part " ++ pk ++ " anchored at Pos",
-            Some("Pos"),
-            node(g, pk).sat |> Option.map(~f=fst),
-          ),
+      List.iter(
+        ~f=
+          pk =>
+            check(
+              option(string),
+              "part " ++ pk ++ " anchored at Pos",
+              Some("Pos"),
+              node(g, pk).sat |> Option.map(~f=fst),
+            ),
         pos.parts,
       );
     },
@@ -92,9 +91,10 @@ let tests = [
         bool,
         "a Product node exists for step's (Pos, Msg) input",
         true,
-        List.exists(~f=
-          (n: Web.CanvasGraph.tynode) =>
-            n.kind == Web.CanvasGraph.Product && n.former == None,
+        List.exists(
+          ~f=
+            (n: Web.CanvasGraph.tynode) =>
+              n.kind == Web.CanvasGraph.Product && n.former == None,
           g.nodes,
         ),
       );
@@ -106,8 +106,10 @@ let tests = [
     () => {
       let g = graph_of("type Pos = Int in type Pos = Bool in 1");
       let keys =
-        List.filter(~f=
-          k => String.length(k) >= 3 && String.sub(k, ~pos=0, ~len=3) == "Pos",
+        List.filter(
+          ~f=
+            k =>
+              String.length(k) >= 3 && String.sub(k, ~pos=0, ~len=3) == "Pos",
           List.map(~f=(n: Web.CanvasGraph.tynode) => n.key, g.nodes),
         );
       check(list(string), "keys", ["Pos", "Pos#2"], keys);

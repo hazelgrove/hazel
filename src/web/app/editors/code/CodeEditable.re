@@ -94,11 +94,11 @@ module Update = {
                ),
              ~save=is_edit,
              ~recalculate=true,
-           ~scroll={
+             ~scroll={
                switch (action) {
-             | Move(Point(_)) => Updated.Never
-             | Select(All) => Never
-             | Select(Resize(Point(_))) => Never
+               | Move(Point(_)) => Updated.Never
+               | Select(All) => Never
+               | Select(Resize(Point(_))) => Never
                | Move(_)
                | Select(_)
                | Destruct(_)
@@ -116,11 +116,11 @@ module Update = {
                | Format(_)
                | AdjustIndent(_, _)
                | ApplyCompletion(_)
-             | ToggleLineComment => Always
+               | ToggleLineComment => Always
                | Project(_)
                | Unselect(_)
                | Structural(_)
-             | Probe(_) => Never
+               | Probe(_) => Never
                };
              },
            )
@@ -216,16 +216,17 @@ module Update = {
             JsUtil.ids_with_prefix("cnode-")
             @ JsUtil.ids_with_prefix("cedge-")
             @ JsUtil.ids_with_prefix("cval-")
-            |> List.map(~f=
-                 Animation.Actions.move(~scale=CanvasBuffer.canvas_zoom^),
+            |> List.map(
+                 ~f=Animation.Actions.move(~scale=CanvasBuffer.canvas_zoom^),
                )
           )
           @ (
             JsUtil.ids_with_prefix("canvas-avatar")
-            |> List.map(~f=
-                 Animation.Actions.move_slow(
-                   ~scale=CanvasBuffer.canvas_zoom^,
-                 ),
+            |> List.map(
+                 ~f=
+                   Animation.Actions.move_slow(
+                     ~scale=CanvasBuffer.canvas_zoom^,
+                   ),
                )
           ),
         );
@@ -467,13 +468,13 @@ module Selection = {
       |> (
         l =>
           List.findi(l, ~f=(_, (id, _)) =>
-           switch (Measured.find_by_id(id, measured)) {
-           | Some(m) => m.last.row == caret_row
-           | None => false
-           }
+            switch (Measured.find_by_id(id, measured)) {
+            | Some(m) => m.last.row == caret_row
+            | None => false
+            }
           )
           |> Option.map(~f=fst)
-         );
+      );
     switch (probe_on_row) {
     | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
     | None => None
@@ -805,11 +806,11 @@ module View = {
         let ids = Haz3lcore.Segment.ids(selection);
         List.exists(
           ~f=
-          id =>
-            List.exists(~f=
-                ((id2, _)) => Id.equal(id, id2),
-              refractors.manuals,
-            ),
+            id =>
+              List.exists(
+                ~f=((id2, _)) => Id.equal(id, id2),
+                refractors.manuals,
+              ),
           ids,
         );
       };

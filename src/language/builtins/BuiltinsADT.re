@@ -578,11 +578,11 @@ module Shortcut = {
   let key_mod_of_exp = (v: Exp.t): option(key_mod) =>
     List.find_map(
       ~f=
-      m =>
-        switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
-        | Matches () => Some(m)
-        | _ => None
-        },
+        m =>
+          switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
+          | Matches () => Some(m)
+          | _ => None
+          },
       all_key_mods,
     );
 
@@ -1045,17 +1045,17 @@ let types: list(Ctx.entry) =
 let constructors: Ctx.t = {
   List.fold_left(
     ~f=
-    (ctx, (name, typ)) => {
-      switch (Typ.term_of(typ)) {
-      | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
-      | Rec(_, tbody) =>
-        switch (Typ.term_of(tbody)) {
+      (ctx, (name, typ)) => {
+        switch (Typ.term_of(typ)) {
         | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
-        | _ => ctx
+        | Rec(_, tbody) =>
+          switch (Typ.term_of(tbody)) {
+          | Sum(cons_map) => Ctx.add_ctrs(ctx, name, cons_map)
+          | _ => ctx
+          }
+        | _ => ctx // Product types have no constructors to add
         }
-      | _ => ctx // Product types have no constructors to add
-      }
-    },
+      },
     ~init=Ctx.empty,
     type_aliases,
   );

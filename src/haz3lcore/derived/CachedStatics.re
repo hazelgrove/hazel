@@ -82,7 +82,10 @@ let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) => {
   let views = livelit_def_ids(info_map);
   let inside_view = (info: Info.t): bool =>
     !List.is_empty(views)
-    && List.exists(~f=a => List.mem(views, a, ~equal=Poly.equal), Info.ancestors_of(info));
+    && List.exists(
+         ~f=a => List.mem(views, a, ~equal=Poly.equal),
+         Info.ancestors_of(info),
+       );
   Id.Map.fold(
     (id, info, acc) =>
       should_probe(info) && !inside_view(info)
@@ -149,13 +152,17 @@ let compute_targets =
           | None => [(id, [])]
           }
         };
-      List.fold(entries, ~init=acc, ~f=(acc, (id, refs)) => {
+      List.fold(
+        entries,
+        ~init=acc,
+        ~f=(acc, (id, refs)) => {
           let spec: Sample.capture_spec = {
             refs,
             full: Id.Map.mem(id, full_ids),
           };
           Id.Map.add(id, spec, acc);
-        });
+        },
+      );
     },
     effective_probe_ids,
     Id.Map.empty,
@@ -180,14 +187,15 @@ let projector_probe_ids =
 let projector_probe_ids_of_segment = (seg: Segment.t): Id.Map.t(unit) => {
   let rec go = (acc, seg: Segment.t) =>
     List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => List.fold(t.children, ~init=acc, ~f=go)
-        | Projector(pr) =>
-          let (module P) = ProjectorInit.to_module(pr.kind);
-          go(P.dynamics ? Id.Map.add(pr.id, (), acc) : acc, [pr.syntax]);
-        | Grout(_)
-        | Secondary(_) => acc
-        });
+      switch (p) {
+      | Tile(t) => List.fold(t.children, ~init=acc, ~f=go)
+      | Projector(pr) =>
+        let (module P) = ProjectorInit.to_module(pr.kind);
+        go(P.dynamics ? Id.Map.add(pr.id, (), acc) : acc, [pr.syntax]);
+      | Grout(_)
+      | Secondary(_) => acc
+      }
+    );
   go(Id.Map.empty, seg);
 };
 

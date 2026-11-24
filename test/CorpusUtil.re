@@ -104,13 +104,13 @@ let slide_corpus = (): list((string, string)) => {
   |> List.filter_map(~f=path =>
        Option.map(
          ~f=
-         src =>
-           (
-             path,
-             src
-             |> Util.StringUtil.trim_leading
-             |> Util.StringUtil.strip_final_newline,
-           ),
+           src =>
+             (
+               path,
+               src
+               |> Util.StringUtil.trim_leading
+               |> Util.StringUtil.strip_final_newline,
+             ),
          read_file(path),
        )
      );
@@ -190,11 +190,11 @@ let edit_token =
   let is_match = (t: Tile.t) => Tile.label(t) == [needle];
   let rec matches = (seg: Segment.t): int =>
     List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when is_match(t) => n + 1
-        | Tile(t) =>
+      switch (p) {
+      | Tile(t) when is_match(t) => n + 1
+      | Tile(t) =>
         List.fold(t.children, ~init=n, ~f=(n, kid) => n + matches(kid))
-        | _ => n
+      | _ => n
       }
     );
   let chosen =
@@ -270,12 +270,12 @@ let tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (seg: Segment.t) =>
     List.find_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [label] => Some(t.id)
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == [label] => Some(t.id)
           | Tile(t) => List.find_map(~f=find, t.children)
-        | _ => None
-        },
+          | _ => None
+          },
       seg,
     );
   switch (find(seg)) {
@@ -288,14 +288,14 @@ let tile = (label: string, seg: Segment.t): Id.t => {
 let last_tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (acc, seg: Segment.t) =>
     List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
+      switch (p) {
+      | Tile(t) =>
         List.fold(
-            t.children,
+          t.children,
           ~init=Tile.label(t) == [label] ? Some(t.id) : acc,
           ~f=find,
-          )
-        | _ => acc
+        )
+      | _ => acc
       }
     );
   switch (find(None, seg)) {
@@ -367,7 +367,7 @@ let contains = (needle: string, hay: string): bool => {
 };
 
 let sorted_ids = (ids: list(Id.t)): list(string) =>
-  List.dedup_and_sort(~compare=compare, List.map(~f=Id.to_string, ids));
+  List.dedup_and_sort(~compare, List.map(~f=Id.to_string, ids));
 
 /* the simulated-typing parser is quadratic in program size and
    re-materializes every ^^livelit use per keystroke: past this point a

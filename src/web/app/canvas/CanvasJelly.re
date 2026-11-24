@@ -154,44 +154,49 @@ let set_targets =
     )
     : unit => {
   Stdlib.Hashtbl.iter((_, s) => s.seen = false, springs);
-  List.iter(~f=
-    ((id, p: CanvasLayout.pos, r)) =>
-      switch (Stdlib.Hashtbl.find_opt(springs, id)) {
-      | Some(s) =>
-        let moved =
-          Float.abs(p.x -. s.tx) > 0.5 || Float.abs(p.y -. s.ty) > 0.5;
-        if (moved) {
-          switch (glide) {
-          | Some((t0, dur)) => s.glide = Some((s.x, s.y, t0, dur))
-          | None => ()
+  List.iter(
+    ~f=
+      ((id, p: CanvasLayout.pos, r)) =>
+        switch (Stdlib.Hashtbl.find_opt(springs, id)) {
+        | Some(s) =>
+          let moved =
+            Float.abs(p.x -. s.tx) > 0.5 || Float.abs(p.y -. s.ty) > 0.5;
+          if (moved) {
+            switch (glide) {
+            | Some((t0, dur)) => s.glide = Some((s.x, s.y, t0, dur))
+            | None => ()
+            };
           };
-        };
-        s.tx = p.x;
-        s.ty = p.y;
-        s.r = r;
-        s.seen = true;
-      | None =>
-        Stdlib.Hashtbl.replace(
-          springs,
-          id,
-          {
-            x: p.x,
-            y: p.y,
-            vx: 0.,
-            vy: 0.,
-            tx: p.x,
-            ty: p.y,
-            r,
-            seen: true,
-            glide: None,
-          },
-        )
-      },
+          s.tx = p.x;
+          s.ty = p.y;
+          s.r = r;
+          s.seen = true;
+        | None =>
+          Stdlib.Hashtbl.replace(
+            springs,
+            id,
+            {
+              x: p.x,
+              y: p.y,
+              vx: 0.,
+              vy: 0.,
+              tx: p.x,
+              ty: p.y,
+              r,
+              seen: true,
+              glide: None,
+            },
+          )
+        },
     ts,
   );
   /* circles gone from the layout: drop their springs */
   let dead =
-    Stdlib.Hashtbl.fold((id, s, acc) => s.seen ? acc : [id, ...acc], springs, []);
+    Stdlib.Hashtbl.fold(
+      (id, s, acc) => s.seen ? acc : [id, ...acc],
+      springs,
+      [],
+    );
   List.iter(~f=id => Stdlib.Hashtbl.remove(springs, id), dead);
   kick();
 };

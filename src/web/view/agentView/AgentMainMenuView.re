@@ -584,39 +584,39 @@ let view =
               let recommended =
                 List.filter_map(
                   ~f=
-                  ((id, _tagline)) =>
+                    ((id, _tagline)) =>
                       List.find(
                         ~f=
-                      (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                          (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
                             String.equal(llm.id, id),
-                      agent_globals.available_llms,
-                    ),
+                        agent_globals.available_llms,
+                      ),
                   OpenRouter.AvailableLLMs.recommended_entries,
                 );
               let master_sorted =
                 List.sort(
                   ~compare=
-                  (
-                    a: OpenRouter.AvailableLLMs.Model.llm_info,
-                    b: OpenRouter.AvailableLLMs.Model.llm_info,
-                  ) =>
-                    String.compare(a.name, b.name),
+                    (
+                      a: OpenRouter.AvailableLLMs.Model.llm_info,
+                      b: OpenRouter.AvailableLLMs.Model.llm_info,
+                    ) =>
+                      String.compare(a.name, b.name),
                   agent_globals.available_llms,
                 );
               let filter = agent_globals.model_filter;
               let master_filtered =
                 List.filter(
                   ~f=
-                  (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
-                    let name_match =
-                      String.length(filter) == 0
-                      || StringUtil.subseq_search(llm.name, filter)
-                      || StringUtil.subseq_search(llm.id, filter);
-                    let free_match =
-                      !agent_globals.only_free_models
-                      || OpenRouter.AvailableLLMs.is_free(llm);
-                    name_match && free_match;
-                  },
+                    (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
+                      let name_match =
+                        String.length(filter) == 0
+                        || StringUtil.subseq_search(llm.name, filter)
+                        || StringUtil.subseq_search(llm.id, filter);
+                      let free_match =
+                        !agent_globals.only_free_models
+                        || OpenRouter.AvailableLLMs.is_free(llm);
+                      name_match && free_match;
+                    },
                   master_sorted,
                 );
               let section_header = (label: string) =>
@@ -640,14 +640,14 @@ let view =
                             ~attrs=[clss(["llm-list"])],
                             List.map(
                               ~f=
-                              (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
-                                render_llm_item(
-                                  ~tagline=?
-                                    OpenRouter.AvailableLLMs.recommended_tagline(
-                                      llm,
-                                    ),
-                                  llm,
-                                ),
+                                (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
+                                  render_llm_item(
+                                    ~tagline=?
+                                      OpenRouter.AvailableLLMs.recommended_tagline(
+                                        llm,
+                                      ),
+                                    llm,
+                                  ),
                               recommended,
                             ),
                           ),

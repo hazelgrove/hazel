@@ -31,18 +31,18 @@ let place_syntax_projector: API.Json.t =
     ~name="place_syntax_projector",
     ~description=place_syntax_projector_description,
     ~properties=[
-                (
-                  "kind",
+      (
+        "kind",
         EditTools.string_param(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
-                      ),
-                    ),
-                (
-                  "paths",
+          "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
+        ),
+      ),
+      (
+        "paths",
         EditTools.paths_param(
-                        "Paths to terms to wrap with the given projector (e.g. binding whose body is a literal).",
-                      ),
-                    ),
+          "Paths to terms to wrap with the given projector (e.g. binding whose body is a literal).",
+        ),
+      ),
     ],
     ~required=["kind", "paths"],
   );
@@ -63,12 +63,12 @@ let remove_syntax_projector: API.Json.t =
     ~name="remove_syntax_projector",
     ~description=remove_syntax_projector_description,
     ~properties=[
-                (
-                  "paths",
+      (
+        "paths",
         EditTools.paths_param(
-                        "Paths where a syntax projector should be removed (unproject).",
-                      ),
-                    ),
+          "Paths where a syntax projector should be removed (unproject).",
+        ),
+      ),
     ],
     ~required=["paths"],
   );
@@ -91,16 +91,16 @@ let toggle_syntax_projector: API.Json.t =
     ~name="toggle_syntax_projector",
     ~description=toggle_syntax_projector_description,
     ~properties=[
-                (
-                  "kind",
+      (
+        "kind",
         EditTools.string_param(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
-                      ),
-                    ),
-                (
-                  "paths",
+          "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
+        ),
+      ),
+      (
+        "paths",
         EditTools.paths_param("Paths to terms to toggle projection on."),
-                    ),
+      ),
     ],
     ~required=["kind", "paths"],
   );

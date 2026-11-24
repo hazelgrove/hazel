@@ -74,11 +74,11 @@ let commit = (writes: list(write)): unit =>
       let store = kv_store(db);
       List.iter(
         ~f=
-        fun
-        | Put(key, value) =>
-          IDBStore.put(~key, ~callback=_ => (), store, value)
-        | Delete(key) =>
-          IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
+          fun
+          | Put(key, value) =>
+            IDBStore.put(~key, ~callback=_ => (), store, value)
+          | Delete(key) =>
+            IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
         writes,
       );
     });
@@ -250,17 +250,20 @@ let clear_all = (~callback=() => (), ()): unit => {
     };
   };
   with_db(db =>
-    List.iter(~f=
-      make_store => {
-        let store = make_store(db);
-        let transaction = store##.transaction;
-        transaction##.oncomplete :=
-          Ezjs_min.AOpt.option(Some(Ezjs_min.wrap_callback(_ => on_done())));
-        IDBStore.clear(
-          ~error=_ => print_endline("ERROR: HazelDB.clear_all"),
-          store,
-        );
-      },
+    List.iter(
+      ~f=
+        make_store => {
+          let store = make_store(db);
+          let transaction = store##.transaction;
+          transaction##.oncomplete :=
+            Ezjs_min.AOpt.option(
+              Some(Ezjs_min.wrap_callback(_ => on_done())),
+            );
+          IDBStore.clear(
+            ~error=_ => print_endline("ERROR: HazelDB.clear_all"),
+            store,
+          );
+        },
       [kv_store, log_store],
     )
   );

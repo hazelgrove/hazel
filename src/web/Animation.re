@@ -106,7 +106,9 @@ module Js = {
       |> List.map(~f=props =>
            Js.Unsafe.obj(
              props
-             |> List.map(~f=((p, v)) => (p, Js.Unsafe.inject(Js.string(v))))
+             |> List.map(~f=((p, v)) =>
+                  (p, Js.Unsafe.inject(Js.string(v)))
+                )
              |> Array.of_list,
            )
          )
@@ -197,15 +199,15 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let inner_height = inner_height();
   List.filter_map(
     ~f=
-    (tr: transition_internal) => {
-      switch (JsUtil.get_elem_by_id_opt(tr.id)) {
-      | None => None
-      | Some(elem) =>
-        let new_box = box_of(elem);
-        check_visible(client_height, inner_height, new_box)
-          ? Some((tr, elem, Some(new_box))) : None;
-      }
-    },
+      (tr: transition_internal) => {
+        switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+        | None => None
+        | Some(elem) =>
+          let new_box = box_of(elem);
+          check_visible(client_height, inner_height, new_box)
+            ? Some((tr, elem, Some(new_box))) : None;
+        }
+      },
     tracked_elems,
   );
 };
@@ -254,10 +256,11 @@ let is_held = (id: string): bool => {
   let (prefixes, until_ms) = held^;
   Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now()
   < until_ms
-  && List.exists(~f=
-       p =>
-         String.length(id) >= String.length(p)
-         && String.sub(id, ~pos=0, ~len=String.length(p)) == p,
+  && List.exists(
+       ~f=
+         p =>
+           String.length(id) >= String.length(p)
+           && String.sub(id, ~pos=0, ~len=String.length(p)) == p,
        prefixes,
      );
 };
@@ -268,32 +271,33 @@ let slow_hook: ref(string => unit) = ref(_ => ());
 let request = (transitions: list(transition)): unit => {
   /* the avatar's motion has one owner at a time; say when a generic hop is
      requested for it (or dropped as held) so a replay can pin a teleport */
-  List.iter(~f=
-    ({id, _}: transition) =>
-      if (id == "canvas-avatar") {
-        slow_hook^(
-          is_held(id)
-            ? "avatar: generic hop dropped (score owns it)"
-            : "avatar: generic hop requested",
-        );
-      },
+  List.iter(
+    ~f=
+      ({id, _}: transition) =>
+        if (id == "canvas-avatar") {
+          slow_hook^(
+            is_held(id)
+              ? "avatar: generic hop dropped (score owns it)"
+              : "avatar: generic hop requested",
+          );
+        },
     transitions,
   );
   /* the avatar's transform has one writer (CanvasEnact's driver) */
   let transitions =
-    List.filter(~f=
-      ({id, _}: transition) => id != "canvas-avatar" && !is_held(id),
+    List.filter(
+      ~f=({id, _}: transition) => id != "canvas-avatar" && !is_held(id),
       transitions,
     );
   tracked_elems :=
     List.map(
       ~f=
-      ({id, animate}: transition) =>
-        {
-          id,
+        ({id, animate}: transition) =>
+          {
+            id,
             box: Option.map(~f=box_of, JsUtil.get_elem_by_id_opt(id)),
-          animate,
-        },
+            animate,
+          },
       transitions,
     )
     @ tracked_elems^;
@@ -450,35 +454,36 @@ let go_impl = (): unit => {
     let step = stagger_step(b.b_stagger);
     last_arrivals := [];
     arrival_span_override := 0;
-    List.iter(~f=
-      ((id, el)) => {
-        let delay =
-          switch (List.Assoc.find(arrival_schedule^, id, ~equal=Poly.equal)) {
-          | Some(d) => d
-          | None =>
-            /* a scored beat stages every arrival; one the score did not
-               name appears with the generic stagger — no actor (A2) */
-            if (arrival_schedule^ != []) {
-              slow_hook^("ORPHAN: arrival " ++ id ++ " unscheduled");
+    List.iter(
+      ~f=
+        ((id, el)) => {
+          let delay =
+            switch (List.Assoc.find(arrival_schedule^, id, ~equal=Poly.equal)) {
+            | Some(d) => d
+            | None =>
+              /* a scored beat stages every arrival; one the score did not
+                 name appears with the generic stagger — no actor (A2) */
+              if (arrival_schedule^ != []) {
+                slow_hook^("ORPHAN: arrival " ++ id ++ " unscheduled");
+              };
+              b.b_delay + stagger_index^ * step;
             };
-            b.b_delay + stagger_index^ * step;
-          };
-        arrival_span_override :=
-          max(arrival_span_override^, delay - b.b_delay);
-        last_arrivals := last_arrivals^ @ [(id, delay)];
-        Js.animate(
-          {
-            options: {
-              duration: 220,
-              easing: easeOutExpo,
-              delay,
+          arrival_span_override :=
+            max(arrival_span_override^, delay - b.b_delay);
+          last_arrivals := last_arrivals^ @ [(id, delay)];
+          Js.animate(
+            {
+              options: {
+                duration: 220,
+                easing: easeOutExpo,
+                delay,
+              },
+              keyframes: Keyframes.scale_from_zero,
             },
-            keyframes: Keyframes.scale_from_zero,
-          },
-          el,
-        );
-        incr(stagger_index);
-      },
+            el,
+          );
+          incr(stagger_index);
+        },
       arrivals,
     );
   | _ => ()
@@ -505,38 +510,40 @@ let go_impl = (): unit => {
           ? max(stagger_span(b.b_stagger), arrival_span_override^) + 120 : 0
       };
     /* morph tracked geometry on the movers' timing */
-    List.iter(~f=
-      ((id, olds)) =>
-        switch (JsUtil.get_elem_by_id_opt(id)) {
-        | None => ()
-        | Some(el) =>
-          let frames =
-            olds
-            |> List.filter_map(~f=((a, old)) =>
-                 switch (attr_of(el, a)) {
-                 | Some(nw) when nw != old => Some((a, old, nw))
-                 | _ => None
-                 }
-               );
-          if (frames != []) {
-            did_anything := true;
-            let kf = side =>
-              List.map(~f=
-                ((a, old, nw)) =>
-                  (a, geom_css(a, side == `From ? old : nw)),
-                frames,
+    List.iter(
+      ~f=
+        ((id, olds)) =>
+          switch (JsUtil.get_elem_by_id_opt(id)) {
+          | None => ()
+          | Some(el) =>
+            let frames =
+              olds
+              |> List.filter_map(~f=((a, old)) =>
+                   switch (attr_of(el, a)) {
+                   | Some(nw) when nw != old => Some((a, old, nw))
+                   | _ => None
+                   }
+                 );
+            if (frames != []) {
+              did_anything := true;
+              let kf = side =>
+                List.map(
+                  ~f=
+                    ((a, old, nw)) =>
+                      (a, geom_css(a, side == `From ? old : nw)),
+                  frames,
+                );
+              Js.animate_multi(
+                [kf(`From), kf(`To)],
+                {
+                  duration: b.b_move_dur,
+                  easing: easeOutExpo,
+                  delay: b.b_delay + wait,
+                },
+                el,
               );
-            Js.animate_multi(
-              [kf(`From), kf(`To)],
-              {
-                duration: b.b_move_dur,
-                easing: easeOutExpo,
-                delay: b.b_delay + wait,
-              },
-              el,
-            );
-          };
-        },
+            };
+          },
       b.geom_old,
     );
     /* new geometry (fresh formation lines, orbit rings, edges) DRAWS ON
@@ -580,8 +587,8 @@ let go_impl = (): unit => {
           let n = int_of_float(Float.round_up(total /. period));
           let on_len = float_of_int(n) *. period;
           (
-            String.concat(~sep=
-              " ",
+            String.concat(
+              ~sep=" ",
               List.init(n, ~f=_ => Printf.sprintf("%.2f %.2f", dot, gap)),
             )
             ++ Printf.sprintf(" 0 %.1f", on_len),
@@ -608,15 +615,16 @@ let go_impl = (): unit => {
         "strokeDashoffset",
         Js_of_ocaml.Js.string(""),
       );
-      List.iter(~f=
-        a =>
-          ignore(
-            Js_of_ocaml.Js.Unsafe.meth_call(
-              el,
-              "removeAttribute",
-              [|Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(a))|],
+      List.iter(
+        ~f=
+          a =>
+            ignore(
+              Js_of_ocaml.Js.Unsafe.meth_call(
+                el,
+                "removeAttribute",
+                [|Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.string(a))|],
+              ),
             ),
-          ),
         ["stroke-dasharray", "stroke-dashoffset"],
       );
     };

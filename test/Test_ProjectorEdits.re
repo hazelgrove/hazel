@@ -23,7 +23,8 @@ let edit_card = (z, update) => {
   let before_info = info(p);
   let expected =
     CardProj.update(CardProj.SyntaxTerm.get(before_info), update);
-  let seg = CardProj.SyntaxTerm.put(before_info, expected) |> Option.value_exn;
+  let seg =
+    CardProj.SyntaxTerm.put(before_info, expected) |> Option.value_exn;
   let z =
     ProjectorPerform.go(
       parsed.term_data,

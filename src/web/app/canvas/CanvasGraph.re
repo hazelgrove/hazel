@@ -184,66 +184,70 @@ let doc_of_fwd: ref(Language.IdTagged.IdTag.t => option(string)) =
 let rec mod_members =
         (path: list(string), ms: list(Language.Mod.t))
         : list((list(string), item)) =>
-  List.concat_map(~f=
-    (m: Language.Mod.t) =>
-      switch (m.term) {
-      | ModLet(pat, def) =>
-        let entry = (
-          path,
-          ILet(
-            Some(Language.Mod.rep_id(m)),
-            doc_of_fwd^(m.annotation),
-            pat,
-            def,
-          ),
-        );
-        /* `let m = { … }` members are modules too */
-        switch (strip_exp(def).term, pat.term) {
-        | (Module(items), Var(name)) => [
-            entry,
-            ...mod_members(path @ [name], items),
-          ]
-        | _ => [entry]
-        };
-      | ModType(tp, ty) => [
-          (
-            path,
-            IAlias(
-              Some(Language.Mod.rep_id(m)),
-              doc_of_fwd^(m.annotation),
-              tp,
-              ty,
-            ),
-          ),
-        ]
-      | ModuleMod(mpat, def) =>
-        switch (mpat.term) {
-        | Var(name) =>
+  List.concat_map(
+    ~f=
+      (m: Language.Mod.t) =>
+        switch (m.term) {
+        | ModLet(pat, def) =>
           let entry = (
             path,
             ILet(
               Some(Language.Mod.rep_id(m)),
               doc_of_fwd^(m.annotation),
-              {
-                term: Var(name),
-                annotation: mpat.annotation,
-              },
+              pat,
               def,
             ),
           );
-          switch (strip_exp(def).term) {
-          | Module(items) => [entry, ...mod_members(path @ [name], items)]
+          /* `let m = { … }` members are modules too */
+          switch (strip_exp(def).term, pat.term) {
+          | (Module(items), Var(name)) => [
+              entry,
+              ...mod_members(path @ [name], items),
+            ]
           | _ => [entry]
           };
-        | _ => []
-        }
-      /* ModVal: evaluated values, never in a program's term */
-      | ModExp(_)
-      | ModVal(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) => []
-      },
+        | ModType(tp, ty) => [
+            (
+              path,
+              IAlias(
+                Some(Language.Mod.rep_id(m)),
+                doc_of_fwd^(m.annotation),
+                tp,
+                ty,
+              ),
+            ),
+          ]
+        | ModuleMod(mpat, def) =>
+          switch (mpat.term) {
+          | Var(name) =>
+            let entry = (
+              path,
+              ILet(
+                Some(Language.Mod.rep_id(m)),
+                doc_of_fwd^(m.annotation),
+                {
+                  term: Var(name),
+                  annotation: mpat.annotation,
+                },
+                def,
+              ),
+            );
+            switch (strip_exp(def).term) {
+            | Module(items) => [
+                entry,
+                ...mod_members(path @ [name], items),
+              ]
+            | _ => [entry]
+            };
+          | _ => []
+          }
+        /* ModVal: evaluated values, never in a program's term */
+        | ModExp(_)
+        | ModVal(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => []
+        },
     ms,
   )
 
@@ -264,13 +268,14 @@ and spine = (e: Exp.t): list((list(string), item)) => {
       switch (strip_exp(def).term, pat.term) {
       | (Module(items), Var(name))
           when Language.UserLivelit.is_livelit_name(name) =>
-        List.exists(~f=
-          (it: Language.Mod.t) =>
-            switch (it.term) {
-            | ModLet(pat, _) =>
-              Language.UserLivelit.pat_name(pat) == Some("wrap")
-            | _ => false
-            },
+        List.exists(
+          ~f=
+            (it: Language.Mod.t) =>
+              switch (it.term) {
+              | ModLet(pat, _) =>
+                Language.UserLivelit.pat_name(pat) == Some("wrap")
+              | _ => false
+              },
           items,
         )
       | _ => false
@@ -336,18 +341,19 @@ and spine = (e: Exp.t): list((list(string), item)) => {
 let program_items = (e: Exp.t): list((list(string), item)) =>
   switch (strip_exp(e).term) {
   | Module(items) =>
-    List.concat_map(~f=
-      (m: Language.Mod.t) =>
-        switch (m.term) {
-        | ModExp(t) =>
-          let t = strip_exp(t);
-          switch (t.term) {
-          | Test(b)
-          | HintedTest(b, _) => [([], ITest(t, b))]
-          | _ => [([], IResult(t))]
-          };
-        | _ => mod_members([], [m])
-        },
+    List.concat_map(
+      ~f=
+        (m: Language.Mod.t) =>
+          switch (m.term) {
+          | ModExp(t) =>
+            let t = strip_exp(t);
+            switch (t.term) {
+            | Test(b)
+            | HintedTest(b, _) => [([], ITest(t, b))]
+            | _ => [([], IResult(t))]
+            };
+          | _ => mod_members([], [m])
+          },
       items,
     )
   | _ => spine(e)
@@ -541,7 +547,8 @@ let ty_ref = (~anchor: string, ty: Typ.t): (string, node_kind) => {
 let display_label = (key: string): string =>
   if (String.length(key) > 0 && key.[0] == '?') {
     "?";
-  } else if (String.length(key) >= 2 && String.sub(key, ~pos=0, ~len=2) == "{}") {
+  } else if (String.length(key) >= 2
+             && String.sub(key, ~pos=0, ~len=2) == "{}") {
     "{}";
   } else {
     truncate(20, key);
@@ -550,12 +557,13 @@ let display_label = (key: string): string =>
 let ctr_names = (ty: Typ.t): list(string) =>
   switch (unwrap_ty(ty).term) {
   | Sum(cmap) =>
-    List.filter_map(~f=
-      (variant: ConstructorMap.variant(Typ.t)) =>
-        switch (variant) {
-        | Variant(ctr, _, _) => Some(ctr)
-        | _ => None
-        },
+    List.filter_map(
+      ~f=
+        (variant: ConstructorMap.variant(Typ.t)) =>
+          switch (variant) {
+          | Variant(ctr, _, _) => Some(ctr)
+          | _ => None
+          },
       cmap,
     )
   | _ => []
@@ -566,14 +574,15 @@ let ctr_names = (ty: Typ.t): list(string) =>
 let doc_of = (e_annotation: Language.IdTagged.IdTag.t): option(string) => {
   let (before, _) = e_annotation.secondary;
   let comments =
-    List.filter_map(~f=
-      (s: Language.Secondary.t) =>
-        switch (s.content) {
-        | Comment(c) =>
-          let c = c |> String.split(~on='#') |> String.concat(~sep="");
-          Some(String.strip(c));
-        | Whitespace(_) => None
-        },
+    List.filter_map(
+      ~f=
+        (s: Language.Secondary.t) =>
+          switch (s.content) {
+          | Comment(c) =>
+            let c = c |> String.split(~on='#') |> String.concat(~sep="");
+            Some(String.strip(c));
+          | Whitespace(_) => None
+          },
       before,
     );
   switch (comments) {
@@ -690,19 +699,21 @@ let test_subject = (~edge_names: list(string), body: Exp.t): option(string) => {
         },
       body,
     );
-  let names = hits^ |> List.map(~f=fst) |> List.dedup_and_sort(~compare=compare);
+  let names = hits^ |> List.map(~f=fst) |> List.dedup_and_sort(~compare);
   switch (names) {
   | [] =>
     /* no applications: fall back to any bare mention */
-    exp_refs(body) |> List.find(~f=v => List.mem(edge_names, v, ~equal=Poly.equal))
+    exp_refs(body)
+    |> List.find(~f=v => List.mem(edge_names, v, ~equal=Poly.equal))
   | [x] => Some(x)
   | _ =>
     hits^
     |> List.fold(~init=Stdlib.Option.None, ~f=(best, (x, d)) =>
-           switch (best) {
-           | Some((_, bd)) when bd >= d => best
-           | _ => Some((x, d))
-           })
+         switch (best) {
+         | Some((_, bd)) when bd >= d => best
+         | _ => Some((x, d))
+         }
+       )
     |> Option.map(~f=fst)
   };
 };
@@ -757,18 +768,19 @@ let rec sig_members = (t: Typ.t): list((string, Typ.t)) =>
    `#3`…; references by key resolve to the first, as in HighLevelNodeMap. */
 let uniquify_keys = (nodes: list(tynode)): list(tynode) => {
   let seen = Stdlib.Hashtbl.create(16);
-  List.map(~f=
-    (n: tynode) => {
-      let count =
-        Option.value(Stdlib.Hashtbl.find_opt(seen, n.key), ~default=0) + 1;
-      Stdlib.Hashtbl.replace(seen, n.key, count);
-      count == 1
-        ? n
-        : {
-          ...n,
-          key: n.key ++ "#" ++ string_of_int(count),
-        };
-    },
+  List.map(
+    ~f=
+      (n: tynode) => {
+        let count =
+          Option.value(Stdlib.Hashtbl.find_opt(seen, n.key), ~default=0) + 1;
+        Stdlib.Hashtbl.replace(seen, n.key, count);
+        count == 1
+          ? n
+          : {
+            ...n,
+            key: n.key ++ "#" ++ string_of_int(count),
+          };
+      },
     nodes,
   );
 };
@@ -790,14 +802,15 @@ let extract_impl =
     ) {
     | Some(ctx) => Some(ctx)
     | None =>
-      List.find_map(~f=
-        fun
-        | ([], IResult(e)) =>
-          switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
-          | Some(info) => Some(Info.ctx_of(info))
-          | None => None
-          }
-        | _ => None,
+      List.find_map(
+        ~f=
+          fun
+          | ([], IResult(e)) =>
+            switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
+            | Some(info) => Some(Info.ctx_of(info))
+            | None => None
+            }
+          | _ => None,
         items,
       )
     };
@@ -814,19 +827,23 @@ let extract_impl =
     | [] => lookup_type(name)
     | [root, ...rest] =>
       List.fold(rest @ [name], ~init=lookup_type(root), ~f=(acc, seg) =>
-          Option.bind(acc, ~f=mty => List.Assoc.find(sig_members(mty), seg, ~equal=Poly.equal)))
+        Option.bind(acc, ~f=mty =>
+          List.Assoc.find(sig_members(mty), seg, ~equal=Poly.equal)
+        )
+      )
     };
   /* internal type aliases, per path — references to them from member
      signatures resolve to the qualified node (nearest enclosing scope) */
   let internal_aliases: list((list(string), string)) =
-    List.filter_map(~f=
-      fun
-      | (path, IAlias(_, _, tpat, _)) when path != [] =>
-        switch (tpat.term) {
-        | Var(n) => Some((path, n))
-        | _ => None
-        }
-      | _ => None,
+    List.filter_map(
+      ~f=
+        fun
+        | (path, IAlias(_, _, tpat, _)) when path != [] =>
+          switch (tpat.term) {
+          | Var(n) => Some((path, n))
+          | _ => None
+          }
+        | _ => None,
       items,
     );
   let rec resolve_internal = (path: list(string), k: string): option(string) =>
@@ -845,14 +862,15 @@ let extract_impl =
      them back: a component that prints like a local alias's body — the
      nearest enclosing module's first — is that alias. */
   let internal_alias_bodies: list((list(string), string, string)) =
-    List.filter_map(~f=
-      fun
-      | (path, IAlias(_, _, tpat, ty)) when path != [] =>
-        switch (tpat.term) {
-        | Var(n) => Some((path, n, pretty_ty(ty)))
-        | _ => None
-        }
-      | _ => None,
+    List.filter_map(
+      ~f=
+        fun
+        | (path, IAlias(_, _, tpat, ty)) when path != [] =>
+          switch (tpat.term) {
+          | Var(n) => Some((path, n, pretty_ty(ty)))
+          | _ => None
+          }
+        | _ => None,
       items,
     );
   /* the local alias (nearest enclosing module first) whose body prints
@@ -862,8 +880,8 @@ let extract_impl =
       None;
     } else {
       switch (
-        List.find(~f=
-          ((p, _, body)) => p == path && body == printed,
+        List.find(
+          ~f=((p, _, body)) => p == path && body == printed,
           internal_alias_bodies,
         )
       ) {
@@ -949,10 +967,14 @@ let extract_impl =
     | _ => None
     };
   let rec items_error_roots = (its: list(DefStatics.item)): list(Id.t) =>
-    List.concat_map(~f=
-      (it: DefStatics.item) =>
-        (it.d_error_ids == [] ? [] : Option.to_list(payload_root(it.d_node)))
-        @ items_error_roots(it.d_members),
+    List.concat_map(
+      ~f=
+        (it: DefStatics.item) =>
+          (
+            it.d_error_ids == []
+              ? [] : Option.to_list(payload_root(it.d_node))
+          )
+          @ items_error_roots(it.d_members),
       its,
     );
   let err_roots: list(Id.t) =
@@ -973,40 +995,41 @@ let extract_impl =
   /* Aliases, in program order (module-internal ones get qualified keys,
      bare labels, and their module path). */
   let alias_nodes: list(tynode) =
-    List.filter_map(~f=
-      fun
-      | (path, IAlias(anchor, doc, tpat, ty)) => {
-          let name =
-            switch (tpat.term) {
-            | Var(n) => n
-            | _ => "?"
-            };
-          let is_hole =
-            switch (unwrap_ty(ty).term) {
-            | Unknown(_) => true
-            | _ => false
-            };
-          let deps =
-            List.dedup_and_sort(~compare=compare, ty_vars(ty))
-            |> List.map(~f=d =>
-                 Option.value(resolve_internal(path, d), ~default=d)
-               );
-          Some(
-            mk_node(
-              ~n_id=anchor,
-              ~m_path=path,
-              ~kind=is_hole ? Ghost : Alias,
-              ~ctrs=ctr_names(ty),
-              ~n_ty=is_hole ? None : Some(pretty_ty(ty)),
-              ~n_doc=doc,
-              ~n_err=root_has_err(Some(Typ.rep_id(ty))),
-              ~deps,
-              ~label=name,
-              path == [] ? name : qname(path, name),
-            ),
-          );
-        }
-      | _ => None,
+    List.filter_map(
+      ~f=
+        fun
+        | (path, IAlias(anchor, doc, tpat, ty)) => {
+            let name =
+              switch (tpat.term) {
+              | Var(n) => n
+              | _ => "?"
+              };
+            let is_hole =
+              switch (unwrap_ty(ty).term) {
+              | Unknown(_) => true
+              | _ => false
+              };
+            let deps =
+              List.dedup_and_sort(~compare, ty_vars(ty))
+              |> List.map(~f=d =>
+                   Option.value(resolve_internal(path, d), ~default=d)
+                 );
+            Some(
+              mk_node(
+                ~n_id=anchor,
+                ~m_path=path,
+                ~kind=is_hole ? Ghost : Alias,
+                ~ctrs=ctr_names(ty),
+                ~n_ty=is_hole ? None : Some(pretty_ty(ty)),
+                ~n_doc=doc,
+                ~n_err=root_has_err(Some(Typ.rep_id(ty))),
+                ~deps,
+                ~label=name,
+                path == [] ? name : qname(path, name),
+              ),
+            );
+          }
+        | _ => None,
       items,
     );
   let alias_keys = List.map(~f=(n: tynode) => n.key, alias_nodes);
@@ -1066,7 +1089,8 @@ let extract_impl =
      separate "()" / "[]" node. The replaced deps go to hidden_deps
      (still ordering the columns, no longer drawn). Anonymous formers
      (a tuple written inline in a signature) keep their own nodes. */
-  let expanded_aliases: Stdlib.Hashtbl.t(string, unit) = Stdlib.Hashtbl.create(8);
+  let expanded_aliases: Stdlib.Hashtbl.t(string, unit) =
+    Stdlib.Hashtbl.create(8);
   let alias_former: Stdlib.Hashtbl.t(string, (string, list(string))) =
     Stdlib.Hashtbl.create(8);
   let resolve_former_comp = (~path, ~alias_key, ~anchor, comp: Typ.t): string => {
@@ -1080,45 +1104,47 @@ let extract_impl =
       k;
     };
   };
-  List.iter(~f=
-    fun
-    | (path, IAlias(_, _, tpat, ty)) => {
-        let name =
-          switch (tpat.term) {
-          | Var(n) => n
-          | _ => "?"
+  List.iter(
+    ~f=
+      fun
+      | (path, IAlias(_, _, tpat, ty)) => {
+          let name =
+            switch (tpat.term) {
+            | Var(n) => n
+            | _ => "?"
+            };
+          let key = path == [] ? name : qname(path, name);
+          switch (unwrap_ty(ty).term) {
+          | Prod(comps) when List.length(comps) > 1 =>
+            let parts =
+              List.mapi(
+                ~f=
+                  (i, c) =>
+                    resolve_former_comp(
+                      ~path,
+                      ~alias_key=key,
+                      ~anchor=key ++ "c" ++ string_of_int(i),
+                      c,
+                    ),
+                comps,
+              );
+            Stdlib.Hashtbl.replace(alias_former, key, ("()", parts));
+            Stdlib.Hashtbl.replace(expanded_aliases, key, ());
+          | List(el) =>
+            let part =
+              resolve_former_comp(
+                ~path,
+                ~alias_key=key,
+                ~anchor=key ++ "el",
+                el,
+              );
+            Stdlib.Hashtbl.replace(alias_former, key, ("[]", [part]));
+            Stdlib.Hashtbl.replace(expanded_aliases, key, ());
+          | Sum(_) => Stdlib.Hashtbl.replace(alias_former, key, ("+", []))
+          | _ => ()
           };
-        let key = path == [] ? name : qname(path, name);
-        switch (unwrap_ty(ty).term) {
-        | Prod(comps) when List.length(comps) > 1 =>
-          let parts =
-            List.mapi(~f=
-              (i, c) =>
-                resolve_former_comp(
-                  ~path,
-                  ~alias_key=key,
-                  ~anchor=key ++ "c" ++ string_of_int(i),
-                  c,
-                ),
-              comps,
-            );
-          Stdlib.Hashtbl.replace(alias_former, key, ("()", parts));
-          Stdlib.Hashtbl.replace(expanded_aliases, key, ());
-        | List(el) =>
-          let part =
-            resolve_former_comp(
-              ~path,
-              ~alias_key=key,
-              ~anchor=key ++ "el",
-              el,
-            );
-          Stdlib.Hashtbl.replace(alias_former, key, ("[]", [part]));
-          Stdlib.Hashtbl.replace(expanded_aliases, key, ());
-        | Sum(_) => Stdlib.Hashtbl.replace(alias_former, key, ("+", []))
-        | _ => ()
-        };
-      }
-    | _ => (),
+        }
+      | _ => (),
     items,
   );
 
@@ -1139,102 +1165,105 @@ let extract_impl =
         Exp.t,
       ),
     ) =
-    List.concat_map(~f=
-      fun
-      | (path, ILet(anchor, doc, pat, def)) => {
-          let err = root_has_err(Some(Exp.rep_id(def)));
-          let hole = exp_has_hole(def);
-          /* module literals get a {} former node instead of their
-             statics-expanded labeled-product type */
-          let is_mod =
-            switch (strip_exp(def).term) {
-            | Module(_) => true
-            | _ => false
-            };
-          let anatomy = fun_anatomy(~pat, def);
-          /* Member types come from the DEFINITION'S OWN statics entry:
-             it is typed where module-local aliases are still in scope,
-             so (per the whnf invariant) names like Tally/Model survive.
-             The module's labeled-product type is only a fallback — the
-             sig-builder must expand local aliases (they cannot escape
-             into the module's exported type), which is exactly where
-             names died before. */
-          let def_ty = (): option(Typ.t) =>
-            switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
-            | Some(InfoExp(e)) => Some(Language.Info.exp_ty(e))
-            | _ => None
-            };
-          /* def_ty types the whole definition: only primary when the
-             pattern binds exactly that one name plainly (tuple pats
-             split it; funlet heads' defs are just the body) */
-          let rec plain_var = (p: Pat.t): bool =>
-            switch (p.term) {
-            | Var(_) => true
-            | Parens(p)
-            | Asc(p, _)
-            | Projector(_, p) => plain_var(p)
-            | _ => false
-            };
-          /* an ascribed name is the author's word: `start : World` docks at
-             World even though the definition's own type is the joined,
-             alias-free tuple (which made a structural Derived node) */
-          let rec asc_of = (p: Pat.t): option(Typ.t) =>
-            switch (p.term) {
-            | Asc(_, ann) => Some(ann)
-            | Parens(p)
-            | Projector(_, p) => asc_of(p)
-            | _ => None
-            };
-          let member_ty = (name: string): option(Typ.t) => {
-            let looked = () =>
-              path == [] ? lookup_type(name) : lookup_path_type(path, name);
-            switch (plain_var(pat) ? asc_of(pat) : None) {
-            | Some(ann) => Some(ann)
-            | None =>
-              plain_var(pat)
-                ? switch (def_ty()) {
-                  | Some(ty) => Some(ty)
-                  | None => looked()
-                  }
-                : (
-                  switch (looked()) {
-                  | Some(ty) => Some(ty)
-                  | None => def_ty()
-                  }
-                )
-            };
-          };
-          pat_names(pat)
-          |> List.filter_map(~f=name =>
-               member_ty(name)
-               |> Option.map(~f=ty =>
-                    (
-                      path,
-                      name,
-                      Option.value(anchor, ~default=Exp.rep_id(def)),
-                      ty,
-                      doc,
-                      err,
-                      hole,
-                      is_mod,
-                      anatomy,
-                      List.dedup_and_sort(~compare=compare, exp_vars(def)),
-                      def,
-                    )
+    List.concat_map(
+      ~f=
+        fun
+        | (path, ILet(anchor, doc, pat, def)) => {
+            let err = root_has_err(Some(Exp.rep_id(def)));
+            let hole = exp_has_hole(def);
+            /* module literals get a {} former node instead of their
+               statics-expanded labeled-product type */
+            let is_mod =
+              switch (strip_exp(def).term) {
+              | Module(_) => true
+              | _ => false
+              };
+            let anatomy = fun_anatomy(~pat, def);
+            /* Member types come from the DEFINITION'S OWN statics entry:
+               it is typed where module-local aliases are still in scope,
+               so (per the whnf invariant) names like Tally/Model survive.
+               The module's labeled-product type is only a fallback — the
+               sig-builder must expand local aliases (they cannot escape
+               into the module's exported type), which is exactly where
+               names died before. */
+            let def_ty = (): option(Typ.t) =>
+              switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+              | Some(InfoExp(e)) => Some(Language.Info.exp_ty(e))
+              | _ => None
+              };
+            /* def_ty types the whole definition: only primary when the
+               pattern binds exactly that one name plainly (tuple pats
+               split it; funlet heads' defs are just the body) */
+            let rec plain_var = (p: Pat.t): bool =>
+              switch (p.term) {
+              | Var(_) => true
+              | Parens(p)
+              | Asc(p, _)
+              | Projector(_, p) => plain_var(p)
+              | _ => false
+              };
+            /* an ascribed name is the author's word: `start : World` docks at
+               World even though the definition's own type is the joined,
+               alias-free tuple (which made a structural Derived node) */
+            let rec asc_of = (p: Pat.t): option(Typ.t) =>
+              switch (p.term) {
+              | Asc(_, ann) => Some(ann)
+              | Parens(p)
+              | Projector(_, p) => asc_of(p)
+              | _ => None
+              };
+            let member_ty = (name: string): option(Typ.t) => {
+              let looked = () =>
+                path == []
+                  ? lookup_type(name) : lookup_path_type(path, name);
+              switch (plain_var(pat) ? asc_of(pat) : None) {
+              | Some(ann) => Some(ann)
+              | None =>
+                plain_var(pat)
+                  ? switch (def_ty()) {
+                    | Some(ty) => Some(ty)
+                    | None => looked()
+                    }
+                  : (
+                    switch (looked()) {
+                    | Some(ty) => Some(ty)
+                    | None => def_ty()
+                    }
                   )
-             );
-        }
-      | _ => [],
+              };
+            };
+            pat_names(pat)
+            |> List.filter_map(~f=name =>
+                 member_ty(name)
+                 |> Option.map(~f=ty =>
+                      (
+                        path,
+                        name,
+                        Option.value(anchor, ~default=Exp.rep_id(def)),
+                        ty,
+                        doc,
+                        err,
+                        hole,
+                        is_mod,
+                        anatomy,
+                        List.dedup_and_sort(~compare, exp_vars(def)),
+                        def,
+                      )
+                    )
+               );
+          }
+        | _ => [],
       items,
     );
 
   /* Reference counts across all definition bodies + result, for main-ness. */
   let all_uses: list(string) =
-    List.concat_map(~f=
-      fun
-      | (_, ILet(_, _, _, def)) => exp_vars(def)
-      | (_, IResult(e)) => exp_vars(e)
-      | _ => [],
+    List.concat_map(
+      ~f=
+        fun
+        | (_, ILet(_, _, _, def)) => exp_vars(def)
+        | (_, IResult(e)) => exp_vars(e)
+        | _ => [],
       items,
     );
   let use_count = (name: string): int =>
@@ -1248,49 +1277,54 @@ let extract_impl =
      name stays bare. */
   let qns = {
     let key = ((path, name, _, _, _, _, _, _, _, _, _)) => (path, name);
-    let total = k => List.length(List.filter(~f=b => key(b) == k, bindings));
-    List.mapi(~f=
-      (i, b) => {
-        let (path, name) = key(b);
-        let base = path == [] ? name : qname(path, name);
-        if (total((path, name)) <= 1) {
-          base;
-        } else {
-          let k =
-            List.length(
-              List.filter(~f=
-                b' => key(b') == (path, name),
-                List.filteri(~f=(j, _) => j < i, bindings),
-              ),
-            )
-            + 1;
-          base ++ "#" ++ string_of_int(k);
-        };
-      },
+    let total = k =>
+      List.length(List.filter(~f=b => key(b) == k, bindings));
+    List.mapi(
+      ~f=
+        (i, b) => {
+          let (path, name) = key(b);
+          let base = path == [] ? name : qname(path, name);
+          if (total((path, name)) <= 1) {
+            base;
+          } else {
+            let k =
+              List.length(
+                List.filter(
+                  ~f=b' => key(b') == (path, name),
+                  List.filteri(~f=(j, _) => j < i, bindings),
+                ),
+              )
+              + 1;
+            base ++ "#" ++ string_of_int(k);
+          };
+        },
       bindings,
     );
   };
   /* Bindings, phase 2: materialize nodes and edges/values. */
   let (edges_raw, values) =
-    List.fold(List.zip_exn(bindings, qns), ~init=([], []), ~f=(
-        (es, vs),
-        (
-          (
-            path,
-            name,
-            id,
-            ty,
-            doc,
-            err,
-            hole,
-            is_mod,
-            (arg_ids, whole_ids, out_id),
-            dvars,
-            def,
-          ),
-          qn,
-        ),
-      ) => {
+    List.fold(
+      List.zip_exn(bindings, qns),
+      ~init=([], []),
+      ~f=(
+           (es, vs),
+           (
+             (
+               path,
+               name,
+               id,
+               ty,
+               doc,
+               err,
+               hole,
+               is_mod,
+               (arg_ids, whole_ids, out_id),
+               dvars,
+               def,
+             ),
+             qn,
+           ),
+         ) => {
         /* fold the module's inlined local aliases back BEFORE reading
            the arrow: `width : Room -> Int` arrives as
            `(Int, Int, [Tile]) -> Int`, which would read as three args */
@@ -1349,8 +1383,10 @@ let extract_impl =
         | _ =>
           /* input node: single component, or a shared Product */
           let comp_refs =
-            List.mapi(~f=
-              (i, a) => ty_ref_at(~path, ~anchor=qn ++ string_of_int(i), a),
+            List.mapi(
+              ~f=
+                (i, a) =>
+                  ty_ref_at(~path, ~anchor=qn ++ string_of_int(i), a),
               args,
             );
           let (ret_key, ret_kind) = ty_ref_at(~path, ~anchor=qn ++ "r", ret);
@@ -1372,29 +1408,30 @@ let extract_impl =
             | comps =>
               let product_key =
                 "("
-                ++ String.concat(~sep=
-                     ", ",
+                ++ String.concat(
+                     ~sep=", ",
                      List.map(~f=((k, _)) => display_label(k), comps),
                    )
                 ++ ")";
               let part_keys =
-                List.mapi(~f=
-                  (ci, (k, kind)) =>
-                    switch (kind) {
-                    | Builtin =>
-                      /* per-component dup: (Int, Int) must yield TWO
-                         Int terminals, not a deduped one */
-                      ensure_sat(
-                        ~m_path=path,
-                        ~anchor_key=product_key,
-                        ~output=false,
-                        ~dup=product_key ++ "c" ++ string_of_int(ci),
-                        k,
-                      )
-                    | _ =>
-                      ensure_grid(~hole_path=path, k, kind);
-                      k;
-                    },
+                List.mapi(
+                  ~f=
+                    (ci, (k, kind)) =>
+                      switch (kind) {
+                      | Builtin =>
+                        /* per-component dup: (Int, Int) must yield TWO
+                           Int terminals, not a deduped one */
+                        ensure_sat(
+                          ~m_path=path,
+                          ~anchor_key=product_key,
+                          ~output=false,
+                          ~dup=product_key ++ "c" ++ string_of_int(ci),
+                          k,
+                        )
+                      | _ =>
+                        ensure_grid(~hole_path=path, k, kind);
+                        k;
+                      },
                   comps,
                 );
               ensure(
@@ -1403,12 +1440,13 @@ let extract_impl =
                   ~label="()",
                   ~parts=part_keys,
                   ~deps=
-                    List.filter_map(~f=
-                      ((k, kind)) =>
-                        switch (kind) {
-                        | Builtin => None
-                        | _ => Some(k)
-                        },
+                    List.filter_map(
+                      ~f=
+                        ((k, kind)) =>
+                          switch (kind) {
+                          | Builtin => None
+                          | _ => Some(k)
+                          },
                       comps,
                     ),
                   product_key,
@@ -1452,13 +1490,17 @@ let extract_impl =
                 e_out_id: out_id,
                 e_deps:
                   dvars
-                  |> List.filter(~f=v => v != name && List.mem(binding_names, v, ~equal=Poly.equal)),
+                  |> List.filter(~f=v =>
+                       v != name
+                       && List.mem(binding_names, v, ~equal=Poly.equal)
+                     ),
               },
             ],
             vs,
           );
         };
-      });
+      },
+    );
 
   /* Tests: attach to their lexical subject (see test_subject). */
   let edge_names = List.map(~f=e => e.e_name, edges_raw);
@@ -1470,87 +1512,93 @@ let extract_impl =
     };
   let (edge_tests, loose_tests, all_tests) =
     List.fold(items, ~init=([], [], []), ~f=((et, lt, all), (_, item)) =>
-        switch (item) {
-        | ITest(term, body) =>
-          let t_id = Exp.rep_id(term);
-          let vars = exp_refs(body);
-          /* a mention matches an edge by its qualified name or its bare
-             label (module members are referenced either way) */
-          let t_refs =
-            List.filter(~f=
+      switch (item) {
+      | ITest(term, body) =>
+        let t_id = Exp.rep_id(term);
+        let vars = exp_refs(body);
+        /* a mention matches an edge by its qualified name or its bare
+           label (module members are referenced either way) */
+        let t_refs =
+          List.filter(
+            ~f=
               name => {
                 let bare =
                   switch (List.rev(String.split(~on='.', name))) {
                   | [b, ..._] => b
                   | [] => name
                   };
-                List.mem(vars, name, ~equal=Poly.equal) || List.mem(vars, bare, ~equal=Poly.equal);
+                List.mem(vars, name, ~equal=Poly.equal)
+                || List.mem(vars, bare, ~equal=Poly.equal);
               },
-              edge_names,
-            );
-          let info = {
-            t_id,
-            status: status_of(t_id),
-            t_body: body,
-            t_refs,
-          };
-          switch (test_subject(~edge_names, body)) {
-          | Some(target) => ([(target, info), ...et], lt, all @ [info])
-          | None => (et, lt @ [info], all @ [info])
-          };
-        | _ => (et, lt, all)
-        });
+            edge_names,
+          );
+        let info = {
+          t_id,
+          status: status_of(t_id),
+          t_body: body,
+          t_refs,
+        };
+        switch (test_subject(~edge_names, body)) {
+        | Some(target) => ([(target, info), ...et], lt, all @ [info])
+        | None => (et, lt @ [info], all @ [info])
+        };
+      | _ => (et, lt, all)
+      }
+    );
   let edges =
-    List.map(~f=
-      e =>
-        {
-          ...e,
-          tests:
-            edge_tests
-            |> List.filter(~f=((name, _)) => name == e.e_name)
-            |> List.rev_map(~f=snd),
-        },
+    List.map(
+      ~f=
+        e =>
+          {
+            ...e,
+            tests:
+              edge_tests
+              |> List.filter(~f=((name, _)) => name == e.e_name)
+              |> List.rev_map(~f=snd),
+          },
       edges_raw,
     );
 
   let last_def =
     List.fold(items, ~init=Stdlib.Option.None, ~f=(acc, (path, item)) =>
-        path != []
-          ? acc
-          : (
-            switch (item) {
-            | IAlias(Some(id), _, tpat, _) =>
-              switch (tpat.term) {
-              | Var(n) => Some((n, id))
-              | _ => acc
-              }
-            | ILet(Some(id), _, pat, _) =>
-              switch (pat_names(pat)) {
-              | [n, ..._] => Some((n, id))
-              | [] => acc
-              }
+      path != []
+        ? acc
+        : (
+          switch (item) {
+          | IAlias(Some(id), _, tpat, _) =>
+            switch (tpat.term) {
+            | Var(n) => Some((n, id))
             | _ => acc
             }
-          ));
-  let alias_nodes =
-    List.map(~f=
-      (n: tynode) => {
-        let n =
-          Stdlib.Hashtbl.mem(expanded_aliases, n.key)
-            ? {
-              ...n,
-              hidden_deps: n.deps,
+          | ILet(Some(id), _, pat, _) =>
+            switch (pat_names(pat)) {
+            | [n, ..._] => Some((n, id))
+            | [] => acc
             }
-            : n;
-        switch (Stdlib.Hashtbl.find_opt(alias_former, n.key)) {
-        | Some((glyph, parts)) => {
-            ...n,
-            former: Some(glyph),
-            parts,
+          | _ => acc
           }
-        | None => n
-        };
-      },
+        )
+    );
+  let alias_nodes =
+    List.map(
+      ~f=
+        (n: tynode) => {
+          let n =
+            Stdlib.Hashtbl.mem(expanded_aliases, n.key)
+              ? {
+                ...n,
+                hidden_deps: n.deps,
+              }
+              : n;
+          switch (Stdlib.Hashtbl.find_opt(alias_former, n.key)) {
+          | Some((glyph, parts)) => {
+              ...n,
+              former: Some(glyph),
+              parts,
+            }
+          | None => n
+          };
+        },
       alias_nodes,
     );
   /* walked directly: the spine drops the value-view livelits' entries */

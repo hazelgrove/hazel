@@ -235,9 +235,13 @@ module Namer = {
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)
     | Tuple(pats) =>
-      "(" ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats)) ++ ")"
+      "("
+      ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats))
+      ++ ")"
     | ListLit(pats) =>
-      "[" ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats)) ++ "]"
+      "["
+      ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats))
+      ++ "]"
     | Wild => "{wild}"
     | EmptyHole => "{empty pattern hole}"
     | MultiHole(_) => "{multi hole}"
@@ -437,8 +441,8 @@ let lowest_enclosing_node_of =
   | Some(node) => Some(node)
   | None =>
     let ancestors = Info.ancestors(~info_map, info);
-    List.find_map(~f=
-      (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
+    List.find_map(
+      ~f=(ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
       ancestors,
     );
   };
@@ -520,18 +524,20 @@ let rec build_children =
          items (tests, a Mod root's trailing expression) are wrapped under
          fresh ids and make none. */
       List.fold(items, ~init=node_map, ~f=(node_map, item: Mod.t) =>
-          switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
-          | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
-            build_binding(wrapper, path, node_map, info_map)
-          | _ => node_map
-          })
+        switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
+        | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
+          build_binding(wrapper, path, node_map, info_map)
+        | _ => node_map
+        }
+      )
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(~f=exp_to_info, es);
       /* [build_children] threads the accumulated map, so each result already
          contains everything in the accumulator; no per-child merge needed. */
       List.fold(es_mapped, ~init=node_map, ~f=(acc_map: t, e: Info.t) =>
-          build_children(e, path, acc_map, info_map));
+        build_children(e, path, acc_map, info_map)
+      );
     }
   | _ => node_map
   };
@@ -648,7 +654,8 @@ let split_disambiguator = (path: string): (string, option(int)) => {
   | None => (path, None)
   | Some(i) =>
     let base = String.sub(path, ~pos=0, ~len=i);
-    let suffix = String.sub(path, ~pos=i + 1, ~len=String.length(path) - i - 1);
+    let suffix =
+      String.sub(path, ~pos=i + 1, ~len=String.length(path) - i - 1);
     switch (int_of_string_opt(suffix)) {
     | Some(k) when k >= 1 => (base, Some(k))
     | _ => (path, None)
@@ -743,8 +750,8 @@ let path_to_syntax_projector_target_id_opt =
 let all_path_strings = (node_map: t): list(string) => {
   Id.Map.bindings(node_map)
   |> List.map(~f=((_, node: node)) =>
-       String.concat(~sep=
-         "/",
+       String.concat(
+         ~sep="/",
          List.map(~f=(id: Id.t) => id_to_name(node_map, id), node.path),
        )
      )
@@ -791,7 +798,8 @@ let path_to_id = (node_map: t, path: string): Id.t => {
     let available_str =
       switch (available) {
       | [] => ""
-      | xs => "\nAvailable paths in the node map: " ++ String.concat(~sep=", ", xs)
+      | xs =>
+        "\nAvailable paths in the node map: " ++ String.concat(~sep=", ", xs)
       };
     raise(
       Failure(
@@ -928,8 +936,8 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
   let first_root =
     empty
       ? None
-      : List.find_map(~f=
-          (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
+      : List.find_map(
+          ~f=(it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
           ds.items,
         );
   switch (first_root) {

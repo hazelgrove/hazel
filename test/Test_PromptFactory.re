@@ -135,37 +135,37 @@ let usable = [
 let check_reserved = () =>
   List.iter(
     ~f=
-    w =>
-      switch (diagnose(w)) {
-      | Some(_) => ()
-      | None => failf("`%s` is usable as an identifier; unlist it", w)
-      },
+      w =>
+        switch (diagnose(w)) {
+        | Some(_) => ()
+        | None => failf("`%s` is usable as an identifier; unlist it", w)
+        },
     reserved,
   );
 
 let check_usable = () =>
   List.iter(
     ~f=
-    w =>
-      switch (diagnose(w)) {
-      | None => ()
-      | Some(why) => failf("`%s` unusable as an identifier: %s", w, why)
-      },
+      w =>
+        switch (diagnose(w)) {
+        | None => ()
+        | Some(why) => failf("`%s` unusable as an identifier: %s", w, why)
+        },
     soft_reserved @ usable,
   );
 
 let check_typ_position = () => {
   List.iter(
     ~f=
-    w =>
-      expands_in_typ(w)
-        ? () : failf("`%s` no longer expands in type position", w),
+      w =>
+        expands_in_typ(w)
+          ? () : failf("`%s` no longer expands in type position", w),
     typ_reserved,
   );
   List.iter(
     ~f=
-    w =>
-      expands_in_typ(w)
+      w =>
+        expands_in_typ(w)
           ? failf("`%s` expands in type position; re-tier the warning", w)
           : (),
     typ_usable,
@@ -278,8 +278,8 @@ let creative_idioms_evaluate = () => {
    restore the `0. -. x` workaround guidance in HazelSyntaxNotes and the
    creative pack. */
 let float_negation_supported = () =>
-  List.iter(~f=
-    assert_clean,
+  List.iter(
+    ~f=assert_clean,
     ["-1.5 ==. 0. -. 1.5", "let x: Float = -5 in x", "let x = 2.5 in -x"],
   );
 
@@ -341,7 +341,7 @@ let fenced_blocks = (s: string): list(string) => {
 let doc_packs_clean = () =>
   List.iter(
     ~f=
-    (pack: DocPacks.pack) =>
+      (pack: DocPacks.pack) =>
         List.iter(~f=assert_parses_clean, fenced_blocks(pack.body)),
     DocPacks.all,
   );

@@ -209,7 +209,11 @@ let applies =
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
     | Some(e) =>
-      List.mem(rename_pairs(~info_map, ~target, e), (x, y), ~equal=Poly.equal)
+      List.mem(
+        rename_pairs(~info_map, ~target, e),
+        (x, y),
+        ~equal=Poly.equal,
+      )
     | None => false
     }
   | SwapParams(i) =>

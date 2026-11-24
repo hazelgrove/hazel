@@ -50,13 +50,13 @@ let check_focus =
     );
     List.iter(
       ~f=
-      x =>
-        check(
-          bool,
-          label ++ ": ctx binds " ++ x,
-          true,
+        x =>
+          check(
+            bool,
+            label ++ ": ctx binds " ++ x,
+            true,
             Option.is_some(Ctx.lookup_var(e.e_ctx, x)),
-        ),
+          ),
       bound,
     );
     check(
@@ -247,11 +247,11 @@ let header_symbols = () => {
     let rec walk = (~in_module, ns: list(Web.OutlineTree.node)) =>
       List.iter(
         ~f=
-        (n: Web.OutlineTree.node) =>
-          switch (n.o_kind) {
-          | KTests => walk(~in_module, n.o_children)
-          | kind =>
-            switch (
+          (n: Web.OutlineTree.node) =>
+            switch (n.o_kind) {
+            | KTests => walk(~in_module, n.o_children)
+            | kind =>
+              switch (
                 Option.bind(n.o_id, ~f=id =>
                   Web.SlideView.sym_of(id, outline)
                 ),
@@ -260,20 +260,20 @@ let header_symbols = () => {
                     ~f=snd,
                     Focus.headless_content_deep(~root, id, seg),
                   )
-              ),
-            ) {
-            | (Some(o), Some(s)) when o != s =>
-              incr(exceptions);
-              check(
-                bool,
-                name ++ ": only a module body's last item",
-                true,
-                in_module && o == {js|;|js} && s == {js|⇒|js},
-              );
-            | _ => ()
-            };
+                ),
+              ) {
+              | (Some(o), Some(s)) when o != s =>
+                incr(exceptions);
+                check(
+                  bool,
+                  name ++ ": only a module body's last item",
+                  true,
+                  in_module && o == {js|;|js} && s == {js|⇒|js},
+                );
+              | _ => ()
+              };
               walk(~in_module=Poly.equal(kind, KModule), n.o_children);
-          },
+            },
         ns,
       );
     walk(
@@ -307,7 +307,7 @@ let header_symbols = () => {
   );
   List.iter(
     ~f=
-    ((file, root, n)) =>
+      ((file, root, n)) =>
         check(
           int,
           file,

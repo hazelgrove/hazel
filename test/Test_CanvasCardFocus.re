@@ -5,7 +5,11 @@ open Poly;
 module F = Web.CanvasFocus;
 
 let source =
-  List.Assoc.find_exn(Livelitdemos.Slides.all_slides, "Type Cards / Tic-Tac-Toe", ~equal=Poly.equal).
+  List.Assoc.find_exn(
+    Livelitdemos.Slides.all_slides,
+    "Type Cards / Tic-Tac-Toe",
+    ~equal=Poly.equal,
+  ).
     backup_text;
 
 let evaluate = moves => {
@@ -46,31 +50,41 @@ let evaluate = moves => {
 let compact = s => Str.global_replace(Str.regexp("[ \n\t\r]+"), "", s);
 let value = (s: Sample.t) => compact(F.print_value(s.value));
 let latest = samples =>
-  List.fold(samples, ~init=List.hd_exn(samples), ~f=(best: Sample.t, s: Sample.t) => s.seq > best.seq ? s : best);
+  List.fold(
+    samples, ~init=List.hd_exn(samples), ~f=(best: Sample.t, s: Sample.t) =>
+    s.seq > best.seq ? s : best
+  );
 
 let tests = [
   test_case("live cards agree on the final game state", `Quick, () => {
-    List.iter(~f=
-      ((moves, player, outcome)) => {
-        let (_, st, dynamics, syntax, graph) = evaluate(moves);
-        List.iter(~f=
-          ((key, expected)) => {
-            let id =
-              F.value_site(
-                ~dynamics,
-                ~info_map=st.info_map,
-                ~syntax,
-                ~graph,
-                key,
-              )
-              |> Option.value_exn;
-            let s = latest(Id.Map.find(id, dynamics));
-            check(string, key ++ " after " ++ moves, expected, value(s));
-            check(int, "outer program result", 0, List.length(s.call_stack));
-          },
-          [("Player", player), ("Outcome", outcome)],
-        );
-      },
+    List.iter(
+      ~f=
+        ((moves, player, outcome)) => {
+          let (_, st, dynamics, syntax, graph) = evaluate(moves);
+          List.iter(
+            ~f=
+              ((key, expected)) => {
+                let id =
+                  F.value_site(
+                    ~dynamics,
+                    ~info_map=st.info_map,
+                    ~syntax,
+                    ~graph,
+                    key,
+                  )
+                  |> Option.value_exn;
+                let s = latest(Id.Map.find(id, dynamics));
+                check(string, key ++ " after " ++ moves, expected, value(s));
+                check(
+                  int,
+                  "outer program result",
+                  0,
+                  List.length(s.call_stack),
+                );
+              },
+            [("Player", player), ("Outcome", outcome)],
+          );
+        },
       [
         ("[]", "X", "Playing"),
         ("[At(4), At(0), At(8), At(2), At(1)]", "O", "Playing"),
@@ -86,8 +100,8 @@ let tests = [
       let (z, st, dynamics, syntax, graph) =
         evaluate("[At(4), At(0), At(8), At(2), At(1)]");
       let edge =
-        List.find_exn(~f=
-          (e: Web.CanvasGraph.edge) => e.e_name == "advance",
+        List.find_exn(
+          ~f=(e: Web.CanvasGraph.edge) => e.e_name == "advance",
           graph.edges,
         );
       let within =
@@ -138,24 +152,26 @@ let tests = [
         bool,
         "Player follows the inspected call",
         true,
-        List.exists(~f=
-          (s: Sample.t) =>
-            Sample.Focus.relation(~trimmed=true, ~ap_id=None, focus, s).
-              is_call_cursor,
+        List.exists(
+          ~f=
+            (s: Sample.t) =>
+              Sample.Focus.relation(~trimmed=true, ~ap_id=None, focus, s).
+                is_call_cursor,
           Id.Map.find(player_id, dynamics),
         ),
       );
       let reset = SampleFocusPerform.reset(focused).refractors.sample_focus;
-      List.iter(~f=
-        key => {
-          let chosen = choose(~focus=reset, key);
-          check(
-            int,
-            "live " ++ key ++ " ignores an open function panel",
-            0,
-            List.length(latest(Id.Map.find(chosen, dynamics)).call_stack),
-          );
-        },
+      List.iter(
+        ~f=
+          key => {
+            let chosen = choose(~focus=reset, key);
+            check(
+              int,
+              "live " ++ key ++ " ignores an open function panel",
+              0,
+              List.length(latest(Id.Map.find(chosen, dynamics)).call_stack),
+            );
+          },
         ["Board", "Player", "Outcome"],
       );
     },
@@ -167,8 +183,8 @@ let tests = [
       let (z, statics, dynamics, _, graph) =
         evaluate("[At(4), At(0), At(8), At(2), At(1)]");
       let edge =
-        List.find_exn(~f=
-          (e: Web.CanvasGraph.edge) => e.e_name == "advance",
+        List.find_exn(
+          ~f=(e: Web.CanvasGraph.edge) => e.e_name == "advance",
           graph.edges,
         );
       let original =
@@ -183,8 +199,7 @@ let tests = [
         ...Web.CellEditor.Model.mk(Editor.Model.mk(~root=Exp, z)),
         editor: original,
       };
-      let outline =
-        CorpusUtil.outline_of(Zipper.unselect_and_zip(z));
+      let outline = CorpusUtil.outline_of(Zipper.unselect_and_zip(z));
       let d =
         Web.Divided.open_(
           ~info_map=statics.info_map,
@@ -226,45 +241,47 @@ let tests = [
             },
           },
         };
-      List.iter(~f=
-        (sample: Sample.t) => {
-          let captured =
-            SampleFocusPerform.capture(
-              z,
-              Sample.capture_of_sample(sample),
-              None,
+      List.iter(
+        ~f=
+          (sample: Sample.t) => {
+            let captured =
+              SampleFocusPerform.capture(
+                z,
+                Sample.capture_of_sample(sample),
+                None,
+              );
+            let current = shown(with_zipper(captured));
+            check(
+              bool,
+              "cached view carries the new capture",
+              true,
+              current.editor.state.zipper.refractors.sample_focus
+              == captured.refractors.sample_focus,
             );
-          let current = shown(with_zipper(captured));
-          check(
-            bool,
-            "cached view carries the new capture",
-            true,
-            current.editor.state.zipper.refractors.sample_focus
-            == captured.refractors.sample_focus,
-          );
-          check(
-            bool,
-            "unchanged syntax stays cached",
-            true,
-            phys_equal(initial.editor.syntax, current.editor.syntax),
-          );
-          let reset =
-            shown(with_zipper(SampleFocusPerform.reset(captured)));
-          check(
-            bool,
-            "reset is immediately visible",
-            true,
-            reset.editor.state.zipper.refractors.sample_focus.anchor == None,
-          );
-          check(
-            bool,
-            "subsequent idle render does not revive a capture",
-            true,
-            shown(with_zipper(z)).editor.state.zipper.refractors.sample_focus.
-              anchor
-            == None,
-          );
-        },
+            check(
+              bool,
+              "unchanged syntax stays cached",
+              true,
+              phys_equal(initial.editor.syntax, current.editor.syntax),
+            );
+            let reset =
+              shown(with_zipper(SampleFocusPerform.reset(captured)));
+            check(
+              bool,
+              "reset is immediately visible",
+              true,
+              reset.editor.state.zipper.refractors.sample_focus.anchor == None,
+            );
+            check(
+              bool,
+              "subsequent idle render does not revive a capture",
+              true,
+              shown(with_zipper(z)).editor.state.zipper.refractors.
+                sample_focus.
+                anchor
+              == None,
+            );
+          },
         Util.ListUtil.take(2, samples),
       );
       Web.Page.presentation_master := None;

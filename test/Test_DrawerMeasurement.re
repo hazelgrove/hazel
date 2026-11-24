@@ -82,19 +82,25 @@ let case_ = (~measure, (name, source, drawers, positions, added_rows)) =>
         |> Id.Map.of_list;
       let base = measure(seg, Id.Map.empty);
       let opened = measure(seg, rows);
-      List.iter(~f=
-        ((text, delta)) => {
-          let id = id_of(text);
-          let before = Measured.find_by_id(id, base) |> Option.value_exn;
-          let after = Measured.find_by_id(id, opened) |> Option.value_exn;
-          check(
-            int,
-            text ++ " row",
-            before.origin.row + delta,
-            after.origin.row,
-          );
-          check(int, text ++ " column", before.origin.col, after.origin.col);
-        },
+      List.iter(
+        ~f=
+          ((text, delta)) => {
+            let id = id_of(text);
+            let before = Measured.find_by_id(id, base) |> Option.value_exn;
+            let after = Measured.find_by_id(id, opened) |> Option.value_exn;
+            check(
+              int,
+              text ++ " row",
+              before.origin.row + delta,
+              after.origin.row,
+            );
+            check(
+              int,
+              text ++ " column",
+              before.origin.col,
+              after.origin.col,
+            );
+          },
         positions,
       );
       check(
@@ -115,10 +121,11 @@ let case_ = (~measure, (name, source, drawers, positions, added_rows)) =>
 
 let tests = (
   "Drawer measurement",
-  List.map(~f=
-    case_(~measure=(seg, rows) =>
-      Measured.of_segment(seg, Id.Map.empty, rows)
-    ),
+  List.map(
+    ~f=
+      case_(~measure=(seg, rows) =>
+        Measured.of_segment(seg, Id.Map.empty, rows)
+      ),
     cases,
   ),
 );

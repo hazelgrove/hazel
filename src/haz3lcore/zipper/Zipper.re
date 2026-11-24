@@ -53,7 +53,8 @@ let unzip_to_id =
       | _ => false
       }
     )
-  and seg_contains = (seg: Segment.t): bool => List.exists(~f=p_contains, seg);
+  and seg_contains = (seg: Segment.t): bool =>
+    List.exists(~f=p_contains, seg);
   let split_by = (f, xs) => {
     let rec split = (pre, xs) =>
       switch (xs) {
@@ -155,20 +156,20 @@ let restore_relatives_dirty =
     let ancestors =
       List.map2_exn(
         ~f=
-        ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
-          let a =
+          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+            let a =
               if (phys_equal(oa, na) || compare(oa, na) == 0) {
-              oa;
-            } else {
+                oa;
+              } else {
+                anc_dirty := true;
+                na;
+              };
+            let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
+            if (!Id.Set.is_empty(d)) {
               anc_dirty := true;
-              na;
             };
-          let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
-          if (!Id.Set.is_empty(d)) {
-            anc_dirty := true;
-          };
-          (a, sibs);
-        },
+            (a, sibs);
+          },
         o.ancestors,
         n.ancestors,
       );
@@ -237,14 +238,14 @@ let split_window =
 let ancestors_stale = (ancs: Ancestors.t): bool =>
   List.exists(
     ~f=
-    ((a, (pre, suf)): Ancestors.generation) => {
-      let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
-      !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
-      || !
-           Id.Set.is_empty(
-             Segment.stale_affix_ids(~caret_shape=r', Right, suf),
-           );
-    },
+      ((a, (pre, suf)): Ancestors.generation) => {
+        let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+        !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
+        || !
+             Id.Set.is_empty(
+               Segment.stale_affix_ids(~caret_shape=r', Right, suf),
+             );
+      },
     ancs,
   );
 

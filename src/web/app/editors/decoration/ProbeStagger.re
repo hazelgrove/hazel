@@ -137,9 +137,9 @@ let items_of_container =
   (
     List.sort(
       ~compare=
-      (a: item, b: item) =>
-        a.row == b.row
-          ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
+        (a: item, b: item) =>
+          a.row == b.row
+            ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
       items^,
     ),
     unknown^,
@@ -159,53 +159,53 @@ let solve =
     let occupied: ref(list((int, int, int, int))) = ref([]);
     List.iter(
       ~f=
-      (it: item) => {
-        let rows_spanned =
-          max(
-            1,
-            int_of_float(
+        (it: item) => {
+          let rows_spanned =
+            max(
+              1,
+              int_of_float(
                 Float.round_up(it.h_px /. font_metrics.row_height -. 0.2),
-            ),
-          );
-        let last_row = it.row + rows_spanned - 1;
-        let floor_col = ref(0);
-        for (r in it.row to last_row) {
-          /* quiver decorations claim columns on their row too */
-          let quiver = {
-            let c = RowOffsets.claimed(~row=r);
-            c == 0 ? 0 : c + stack_gap;
+              ),
+            );
+          let last_row = it.row + rows_spanned - 1;
+          let floor_col = ref(0);
+          for (r in it.row to last_row) {
+            /* quiver decorations claim columns on their row too */
+            let quiver = {
+              let c = RowOffsets.claimed(~row=r);
+              c == 0 ? 0 : c + stack_gap;
+            };
+            floor_col :=
+              max(floor_col^, max(row_end(r) + offside_offset, quiver));
           };
-          floor_col :=
-            max(floor_col^, max(row_end(r) + offside_offset, quiver));
-        };
-        let w_cols =
+          let w_cols =
             int_of_float(Float.round_up(it.w_px /. font_metrics.col_width));
-        /* first-fit: slide into the leftmost gap at or after the floor —
-           a display can sit BEFORE one from a row above when the overhang
-           above leaves room (no unnecessary staggering) */
-        let blockers =
-          occupied^
+          /* first-fit: slide into the leftmost gap at or after the floor —
+             a display can sit BEFORE one from a row above when the overhang
+             above leaves room (no unnecessary staggering) */
+          let blockers =
+            occupied^
             |> List.filter(~f=((a, b, _, _)) =>
                  !(last_row < a || b < it.row)
                )
             |> List.map(~f=((_, _, l, r)) => (l, r))
             |> List.sort(~compare=((l1, _), (l2, _)) => compare(l1, l2));
-        let x = ref(floor_col^);
-        List.iter(~f=
-            
-          ((l, r)) =>
-            if (x^ + w_cols + stack_gap <= l) {
-              (); /* fits entirely before this blocker */
-            } else if (x^ < r + stack_gap) {
-              x := r + stack_gap;
-            },
-          blockers,
-        );
-        let left_px =
-          font_metrics.col_width *. float_of_int(x^ - it.origin_col);
-        placed := [(it.el, Printf.sprintf("%.1fpx", left_px)), ...placed^];
-        occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
-      },
+          let x = ref(floor_col^);
+          List.iter(
+            ~f=
+              ((l, r)) =>
+                if (x^ + w_cols + stack_gap <= l) {
+                  (); /* fits entirely before this blocker */
+                } else if (x^ < r + stack_gap) {
+                  x := r + stack_gap;
+                },
+            blockers,
+          );
+          let left_px =
+            font_metrics.col_width *. float_of_int(x^ - it.origin_col);
+          placed := [(it.el, Printf.sprintf("%.1fpx", left_px)), ...placed^];
+          occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
+        },
       items,
     );
   };
@@ -244,14 +244,14 @@ let place_all = (): list(Js.t(Dom_html.element)) => {
 let measure = (els: list(Js.t(Dom_html.element))): Util.AfterLayout.write => {
   List.iter(
     ~f=
-    el =>
-      if (Util.JsUtil.connected(el)) {
+      el =>
+        if (Util.JsUtil.connected(el)) {
           sizes :=
             [
               (el, read_size(el)),
               ...List.Assoc.remove(sizes^, el, ~equal=phys_equal),
             ];
-      },
+        },
     els,
   );
   () => ignore(place_all());
@@ -264,12 +264,12 @@ let update = (~font_metrics: FontMetrics.t): unit => {
   sizes :=
     List.filter(
       ~f=
-      ((el, _)) =>
-        Util.JsUtil.connected(el)
-        || {
-          Util.AfterLayout.unwatch(el);
-          false;
-        },
+        ((el, _)) =>
+          Util.JsUtil.connected(el)
+          || {
+            Util.AfterLayout.unwatch(el);
+            false;
+          },
       sizes^,
     );
   parsed :=

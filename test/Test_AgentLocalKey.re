@@ -535,12 +535,13 @@ let tests = (
           remember_local_key: true,
           local_key_status: LocalBusy,
         };
-        List.iter(~f=
-          action => {
-            let (next, actions) = step(action, busy);
-            check(bool, "model unchanged", true, next == busy);
-            check(bool, "no overlapping operation", true, actions == []);
-          },
+        List.iter(
+          ~f=
+            action => {
+              let (next, actions) = step(action, busy);
+              check(bool, "model unchanged", true, next == busy);
+              check(bool, "no overlapping operation", true, actions == []);
+            },
           AgentGlobals.Update.[
             SetRememberLocalKey(false),
             SetApiKey("new-key"),
@@ -621,14 +622,15 @@ let tests = (
           switch (old) {
           | Sexplib.Sexp.List(fields) =>
             Sexplib.Sexp.List(
-              List.filter(~f=
-                field =>
-                  switch (field) {
-                  | Sexplib.Sexp.List([Atom("local_key_status"), ..._])
-                  | Sexplib.Sexp.List([Atom("remember_local_key"), ..._]) =>
-                    false
-                  | _ => true
-                  },
+              List.filter(
+                ~f=
+                  field =>
+                    switch (field) {
+                    | Sexplib.Sexp.List([Atom("local_key_status"), ..._])
+                    | Sexplib.Sexp.List([Atom("remember_local_key"), ..._]) =>
+                      false
+                    | _ => true
+                    },
                 fields,
               ),
             )

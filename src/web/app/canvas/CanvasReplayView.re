@@ -26,7 +26,8 @@ let btn = (~cls="", ~tip="", label: string, f: unit => unit): Node.t =>
 
 let short = (n: int, s: string): string => {
   let s = String.map(~f=c => c == '\n' ? ' ' : c, s);
-  String.length(s) > n ? String.sub(s, ~pos=0, ~len=n - 1) ++ {js|…|js} : s;
+  String.length(s) > n
+    ? String.sub(s, ~pos=0, ~len=n - 1) ++ {js|…|js} : s;
 };
 
 let current_tools = (p: CanvasTrajectory.player): string =>
@@ -164,7 +165,8 @@ let panel = (): list(Node.t) =>
                 [
                   text(
                     String.length(s.s_started_at) >= 16
-                      ? String.sub(s.s_started_at, ~pos=5, ~len=11) : s.s_started_at,
+                      ? String.sub(s.s_started_at, ~pos=5, ~len=11)
+                      : s.s_started_at,
                   ),
                 ],
               ),

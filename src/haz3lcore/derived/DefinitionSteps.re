@@ -17,20 +17,21 @@ let rec map_at = (path: path, f, seg: Segment.t): Segment.t =>
   switch (path) {
   | [] => f(seg)
   | [(id, child), ...rest] =>
-    List.map(~f=
-      p =>
-        switch (p) {
-        | Piece.Tile(t) when t.id == id =>
-          Piece.Tile({
-            ...t,
-            children:
-              List.mapi(~f=
-                (i, s) => i == child ? map_at(rest, f, s) : s,
-                t.children,
-              ),
-          })
-        | _ => p
-        },
+    List.map(
+      ~f=
+        p =>
+          switch (p) {
+          | Piece.Tile(t) when t.id == id =>
+            Piece.Tile({
+              ...t,
+              children:
+                List.mapi(
+                  ~f=(i, s) => i == child ? map_at(rest, f, s) : s,
+                  t.children,
+                ),
+            })
+          | _ => p
+          },
       seg,
     )
   };
@@ -50,43 +51,50 @@ type item = {
 /* Overwriting a block reparses it with new ids. The declaration's name
    identifies a replacement, so old and new versions never coexist. */
 let declaration_name = (pieces: Segment.t) =>
-  List.find_map(~f=
-    p =>
-      switch (p) {
-      | Piece.Tile({children: [pat, ..._], _} as t)
-          when List.mem(["let", "type", "module"], Tile.token(t, 0), ~equal=Poly.equal) =>
-        let kind = Tile.token(t, 0);
-        switch (core_ws(pat)) {
-        | [Piece.Tile({children: [], _} as nt), ..._] =>
-          switch (Tile.single_token(nt)) {
-          | Some(name)
-              when
-                Token.is_var(name)
-                || Token.is_ctr(name)
-                || Token.is_typ_var(name) =>
-            Some((kind, name))
+  List.find_map(
+    ~f=
+      p =>
+        switch (p) {
+        | Piece.Tile({children: [pat, ..._], _} as t)
+            when
+              List.mem(
+                ["let", "type", "module"],
+                Tile.token(t, 0),
+                ~equal=Poly.equal,
+              ) =>
+          let kind = Tile.token(t, 0);
+          switch (core_ws(pat)) {
+          | [Piece.Tile({children: [], _} as nt), ..._] =>
+            switch (Tile.single_token(nt)) {
+            | Some(name)
+                when
+                  Token.is_var(name)
+                  || Token.is_ctr(name)
+                  || Token.is_typ_var(name) =>
+              Some((kind, name))
+            | _ => None
+            }
           | _ => None
-          }
+          };
         | _ => None
-        };
-      | _ => None
-      },
+        },
     pieces,
   );
 let items = seg => {
   let start = ref(0);
   let spans = item_spans(seg);
   let result =
-    List.map(~f=
-      sp => {
-        let pieces = slice(start^, sp.sp_stop, seg);
-        start := sp.sp_stop;
-        {
-          id: sp.sp_id,
-          name: sp.sp_kind == IDef ? declaration_name(pieces) : None,
-          pieces,
-        };
-      },
+    List.map(
+      ~f=
+        sp => {
+          let pieces = slice(start^, sp.sp_stop, seg);
+          start := sp.sp_stop;
+          {
+            id: sp.sp_id,
+            name: sp.sp_kind == IDef ? declaration_name(pieces) : None,
+            pieces,
+          };
+        },
       spans,
     );
   result == [] && seg != []
@@ -100,8 +108,8 @@ let items = seg => {
     : result;
 };
 let has_defs = seg =>
-  List.exists(~f=
-    sp => sp.sp_kind == IDef,
+  List.exists(
+    ~f=sp => sp.sp_kind == IDef,
     item_spans(~divided_only_tail=true, seg),
   );
 let tail = seg =>
@@ -114,72 +122,76 @@ let tail = seg =>
 let rec shell = (path, before: Segment.t, after: Segment.t) => {
   let blocks = ref([]);
   let result =
-    List.map(~f=
-      p =>
-        switch (p) {
-        | Piece.Tile(t) =>
-          let old =
-            List.find_map(~f=
-              p =>
-                switch (p) {
-                | Piece.Tile(b) when b.id == t.id => Some(b)
-                | _ => None
-                },
-              before,
-            );
-          let old =
-            switch (old) {
-            | Some(_) => old
-            | None =>
-              /* A reparsed module's wrapper also has a new id. Carry its
-                 old members into the new shell so they can be replaced in
-                 place, rather than emptying and rebuilding the module. */
-              let compatible =
-                List.filter_map(~f=
+    List.map(
+      ~f=
+        p =>
+          switch (p) {
+          | Piece.Tile(t) =>
+            let old =
+              List.find_map(
+                ~f=
                   p =>
                     switch (p) {
-                    | Piece.Tile(b)
-                        when
-                          Tile.label(b) == Tile.label(t)
-                          && List.length(b.children)
-                          == List.length(t.children) =>
-                      Some(b)
+                    | Piece.Tile(b) when b.id == t.id => Some(b)
                     | _ => None
                     },
-                  before,
-                );
-              switch (compatible) {
-              | [b] => Some(b)
-              | _ => None
+                before,
+              );
+            let old =
+              switch (old) {
+              | Some(_) => old
+              | None =>
+                /* A reparsed module's wrapper also has a new id. Carry its
+                   old members into the new shell so they can be replaced in
+                   place, rather than emptying and rebuilding the module. */
+                let compatible =
+                  List.filter_map(
+                    ~f=
+                      p =>
+                        switch (p) {
+                        | Piece.Tile(b)
+                            when
+                              Tile.label(b) == Tile.label(t)
+                              && List.length(b.children)
+                              == List.length(t.children) =>
+                          Some(b)
+                        | _ => None
+                        },
+                    before,
+                  );
+                switch (compatible) {
+                | [b] => Some(b)
+                | _ => None
+                };
               };
-            };
-          Piece.Tile({
-            ...t,
-            children:
-              List.mapi(~f=
-                (i, child) => {
-                  let previous =
-                    Option.bind(old, ~f=b => List.nth(b.children, i))
-                    |> Option.value(~default=[]);
-                  let child_path = path @ [(t.id, i)];
-                  if (Tile.has_label(t, ["{", "}"])
-                      && (has_defs(child) || has_defs(previous))) {
-                    let start = previous == [] ? tail(child) : previous;
-                    blocks := blocks^ @ [(child_path, start, child)];
-                    start;
-                  } else if (has_defs(child) || has_defs(previous)) {
-                    child;
-                  } else {
-                    let (s, bs) = shell(child_path, previous, child);
-                    blocks := blocks^ @ bs;
-                    s;
-                  };
-                },
-                t.children,
-              ),
-          });
-        | _ => p
-        },
+            Piece.Tile({
+              ...t,
+              children:
+                List.mapi(
+                  ~f=
+                    (i, child) => {
+                      let previous =
+                        Option.bind(old, ~f=b => List.nth(b.children, i))
+                        |> Option.value(~default=[]);
+                      let child_path = path @ [(t.id, i)];
+                      if (Tile.has_label(t, ["{", "}"])
+                          && (has_defs(child) || has_defs(previous))) {
+                        let start = previous == [] ? tail(child) : previous;
+                        blocks := blocks^ @ [(child_path, start, child)];
+                        start;
+                      } else if (has_defs(child) || has_defs(previous)) {
+                        child;
+                      } else {
+                        let (s, bs) = shell(child_path, previous, child);
+                        blocks := blocks^ @ bs;
+                        s;
+                      };
+                    },
+                  t.children,
+                ),
+            });
+          | _ => p
+          },
       after,
     );
   (result, blocks^);
@@ -201,67 +213,70 @@ let plan = (before: Segment.t, after: Segment.t): list(operation) => {
     let offset = i =>
       take(i, current^)
       |> List.fold(~init=0, ~f=(n, it) => n + List.length(it.pieces));
-    List.iteri(~f=
-      (i, next: item) => {
-        /* A moved item is removed before being inserted at its new site;
-           it must never be present twice with the same syntax ids. */
-        let index =
-          drop(i, current^)
-          |> List.mapi(~f=(j, it: item) => (i + j, it))
-          |> List.find_map(~f=((j, it)) => matches(it, next) ? Some(j) : None);
-        switch (index) {
-        | Some(j) when j != i =>
-          let old = List.nth_exn(current^, j);
-          emit({
-            path,
-            at: offset(j),
-            remove: List.length(old.pieces),
-            insert: [],
-            target: old.id,
-          });
-          current := take(j, current^) @ drop(j + 1, current^);
-        | _ => ()
-        };
-        let matching =
-          switch (List.nth(current^, i)) {
-          | Some(it) when matches(it, next) => Some(it)
-          | Some(it)
-              when
-                !
-                  List.exists(~f=
-                    later => matches(it, later),
-                    drop(i, next_items),
-                  ) =>
-            /* A replaced anonymous statement or renamed declaration is
-               removed in this splice, not left after the new program. */
-            Some(it)
-          | _ => None
+    List.iteri(
+      ~f=
+        (i, next: item) => {
+          /* A moved item is removed before being inserted at its new site;
+             it must never be present twice with the same syntax ids. */
+          let index =
+            drop(i, current^)
+            |> List.mapi(~f=(j, it: item) => (i + j, it))
+            |> List.find_map(~f=((j, it)) =>
+                 matches(it, next) ? Some(j) : None
+               );
+          switch (index) {
+          | Some(j) when j != i =>
+            let old = List.nth_exn(current^, j);
+            emit({
+              path,
+              at: offset(j),
+              remove: List.length(old.pieces),
+              insert: [],
+              target: old.id,
+            });
+            current := take(j, current^) @ drop(j + 1, current^);
+          | _ => ()
           };
-        let old =
-          Option.map(~f=(it: item) => it.pieces, matching)
-          |> Option.value(~default=[]);
-        let (initial, children) = shell(path, old, next.pieces);
-        if (old != initial) {
-          emit({
-            path,
-            at: offset(i),
-            remove: List.length(old),
-            insert: initial,
-            target: next.id,
-          });
-        };
-        current :=
-          take(i, current^)
-          @ [
-            {
-              ...next,
-              pieces: initial,
-            },
-          ]
-          @ drop(i + (matching == None ? 0 : 1), current^);
-        List.iter(~f=((p, b, a)) => block(p, b, a), children);
-        current := List.mapi(~f=(j, it) => j == i ? next : it, current^);
-      },
+          let matching =
+            switch (List.nth(current^, i)) {
+            | Some(it) when matches(it, next) => Some(it)
+            | Some(it)
+                when
+                  !
+                    List.exists(
+                      ~f=later => matches(it, later),
+                      drop(i, next_items),
+                    ) =>
+              /* A replaced anonymous statement or renamed declaration is
+                 removed in this splice, not left after the new program. */
+              Some(it)
+            | _ => None
+            };
+          let old =
+            Option.map(~f=(it: item) => it.pieces, matching)
+            |> Option.value(~default=[]);
+          let (initial, children) = shell(path, old, next.pieces);
+          if (old != initial) {
+            emit({
+              path,
+              at: offset(i),
+              remove: List.length(old),
+              insert: initial,
+              target: next.id,
+            });
+          };
+          current :=
+            take(i, current^)
+            @ [
+              {
+                ...next,
+                pieces: initial,
+              },
+            ]
+            @ drop(i + (matching == None ? 0 : 1), current^);
+          List.iter(~f=((p, b, a)) => block(p, b, a), children);
+          current := List.mapi(~f=(j, it) => j == i ? next : it, current^);
+        },
       next_items,
     );
     let keep = List.length(next_items);

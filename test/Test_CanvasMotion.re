@@ -12,14 +12,15 @@ let camera_independent_motion = () => {
     );
   };
   let world = (320., 180.);
-  List.iter(~f=
-    ((camera, zoom)) =>
-      check(
-        pair(float(0.00001), float(0.00001)),
-        "camera pan and zoom preserve the resting body position",
-        world,
-        position(~camera, ~zoom, ~world),
-      ),
+  List.iter(
+    ~f=
+      ((camera, zoom)) =>
+        check(
+          pair(float(0.00001), float(0.00001)),
+          "camera pan and zoom preserve the resting body position",
+          world,
+          position(~camera, ~zoom, ~world),
+        ),
     [
       ((200., 100.), 1.),
       (((-480.), 240.), 0.4),
@@ -65,35 +66,36 @@ let tests = (
       "overview fits tall and wide graphs below follow's floor",
       `Quick,
       () => {
-        List.iter(~f=
-          ((w, h)) => {
-            let z =
-              Web.CanvasZoom.fit(~width=w, ~height=h, ~aw=638., ~ah=503.);
-            check(
-              bool,
-              "full extent fits with screen-space padding",
-              true,
-              w *. z <= 606. && h *. z <= 471.,
-            );
-            check(
-              bool,
-              "overview is below the old zoom floor",
-              true,
-              z < 0.4,
-            );
-            check(
-              float(0.00001),
-              "persisting the fitted zoom preserves it",
-              z,
-              Web.CanvasZoom.clamp(z),
-            );
-            check(
-              bool,
-              "a small pinch stays near the fitted scale",
-              true,
-              Web.CanvasZoom.clamp(z *. 1.01) < z *. 1.02,
-            );
-          },
+        List.iter(
+          ~f=
+            ((w, h)) => {
+              let z =
+                Web.CanvasZoom.fit(~width=w, ~height=h, ~aw=638., ~ah=503.);
+              check(
+                bool,
+                "full extent fits with screen-space padding",
+                true,
+                w *. z <= 606. && h *. z <= 471.,
+              );
+              check(
+                bool,
+                "overview is below the old zoom floor",
+                true,
+                z < 0.4,
+              );
+              check(
+                float(0.00001),
+                "persisting the fitted zoom preserves it",
+                z,
+                Web.CanvasZoom.clamp(z),
+              );
+              check(
+                bool,
+                "a small pinch stays near the fitted scale",
+                true,
+                Web.CanvasZoom.clamp(z *. 1.01) < z *. 1.02,
+              );
+            },
           [(600., 3000.), (5000., 400.), (9000., 9000.)],
         );
         check(

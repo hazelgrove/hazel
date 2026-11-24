@@ -150,10 +150,10 @@ let inner_lines =
     |> List.concat_map(
          ~f=
            List.map(~f=((l, r)) => {
-           let first = snd(l).origin;
-           let last = snd(r).origin;
-           (first, m_horizontal(~hx, ~first, ~last));
-         }),
+             let first = snd(l).origin;
+             let last = snd(r).origin;
+             (first, m_horizontal(~hx, ~first, ~last));
+           }),
        );
   let verticals =
     shard_rows
@@ -256,36 +256,41 @@ let shards =
     : list(Node.t) =>
   List.concat_map(
     ~f=
-    ((id, mold: Mold.t, shards: list(Shards.shard))) => {
-      let sort = refine_sort(id, mold.out);
-      List.map(~f=
-        ((index: int, measurement: Measured.measurement)) => {
-          let attr =
-            Option.value(attr, ~default=[])
-            @ (
-              switch (dom_prefix) {
-              | Some(prefix) => [
-                  Attr.id(
-                    prefix ++ Id.to_string(id) ++ "-" ++ string_of_int(index),
-                  ),
-                ]
-              | None => []
-              }
-            );
-          ShardDec.simple(
-            ~attr,
-            {
-              font_metrics,
-              measurement,
+      ((id, mold: Mold.t, shards: list(Shards.shard))) => {
+        let sort = refine_sort(id, mold.out);
+        List.map(
+          ~f=
+            ((index: int, measurement: Measured.measurement)) => {
+              let attr =
+                Option.value(attr, ~default=[])
+                @ (
+                  switch (dom_prefix) {
+                  | Some(prefix) => [
+                      Attr.id(
+                        prefix
+                        ++ Id.to_string(id)
+                        ++ "-"
+                        ++ string_of_int(index),
+                      ),
+                    ]
+                  | None => []
+                  }
+                );
+              ShardDec.simple(
+                ~attr,
+                {
+                  font_metrics,
+                  measurement,
                   tips:
                     ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
+                },
+                Option.to_list(base_clss)
+                @ ["indicated", Sort.class_of(sort)],
+              );
             },
-            Option.to_list(base_clss) @ ["indicated", Sort.class_of(sort)],
-          );
-        },
-        shards,
-      );
-    },
+          shards,
+        );
+      },
     tiles,
   );
 
@@ -491,8 +496,8 @@ let completion_clip =
               |> List.map(~f=((_, sm): Shards.shard) => sm.last)
               |> List.fold_left(
                    ~f=
-                   (acc, pt: Point.t) =>
-                     Point.compare(pt, acc) > 0 ? pt : acc,
+                     (acc, pt: Point.t) =>
+                       Point.compare(pt, acc) > 0 ? pt : acc,
                    ~init=p,
                  );
             Some(own_last);
@@ -643,14 +648,14 @@ module Errors = {
       is_warning ? "warnings" : "errors",
       List.map(
         ~f=
-        of_id(
-          ~refine_sort,
-          ~is_warning,
-          ~simple_indication,
-          ~font_metrics,
-          ~syntax,
-          ~completion,
-        ),
+          of_id(
+            ~refine_sort,
+            ~is_warning,
+            ~simple_indication,
+            ~font_metrics,
+            ~syntax,
+            ~completion,
+          ),
         error_ids,
       ),
     );

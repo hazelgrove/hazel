@@ -166,7 +166,7 @@ let vars_of = (e: Exp.t): list(string) =>
        | _ => []
        }
      )
-  |> List.dedup_and_sort(~compare=compare);
+  |> List.dedup_and_sort(~compare);
 
 let typ_names_mentioned = (e: Exp.t): list(string) => {
   let acc = ref([]);
@@ -182,7 +182,7 @@ let typ_names_mentioned = (e: Exp.t): list(string) => {
         },
       e,
     );
-  List.dedup_and_sort(~compare=compare, acc^);
+  List.dedup_and_sort(~compare, acc^);
 };
 
 /* capture by a crossed `use` only — the refusal that remains after
@@ -203,7 +203,7 @@ let typ_names_in = (e: Exp.t): list(string) => {
         },
       e,
     );
-  List.dedup_and_sort(~compare=compare, acc^);
+  List.dedup_and_sort(~compare, acc^);
 };
 
 /* rename the alias BOUND at this TyAlias node to y: the binder
@@ -244,7 +244,9 @@ let var_use_ids = (names: list(string), e: Exp.t): list(Id.t) =>
   e
   |> collect_exp(e' =>
        switch (IdTagged.term_of(e')) {
-       | Var(x) when List.mem(names, x, ~equal=Poly.equal) => [Exp.rep_id(e')]
+       | Var(x) when List.mem(names, x, ~equal=Poly.equal) => [
+           Exp.rep_id(e'),
+         ]
        | _ => []
        }
      );
@@ -255,7 +257,9 @@ let pat_binder_ids = (names: list(string), p: Pat.t): list(Id.t) =>
   p
   |> collect_pat(p' =>
        switch (IdTagged.term_of(p')) {
-       | Var(x) when List.mem(names, x, ~equal=Poly.equal) => [Pat.rep_id(p')]
+       | Var(x) when List.mem(names, x, ~equal=Poly.equal) => [
+           Pat.rep_id(p'),
+         ]
        | _ => []
        }
      );

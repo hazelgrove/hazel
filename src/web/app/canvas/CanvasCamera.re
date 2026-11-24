@@ -51,8 +51,8 @@ let exposure: ref(list((string, float))) = ref([]);
 let exposed_after_ms = 2000.;
 let last_exposure_tick: ref(float) = ref(0.);
 let exposed_keys = (): list(string) =>
-  List.filter_map(~f=
-    ((k, ms)) => ms >= exposed_after_ms ? Some(k) : None,
+  List.filter_map(
+    ~f=((k, ms)) => ms >= exposed_after_ms ? Some(k) : None,
     exposure^,
   );
 let reset_exposure = (): unit => {
@@ -389,8 +389,10 @@ let roi_zoom = (~aw, ~ah): option(float) =>
   } else {
     let xs = List.map(~f=fst, roi^)
     and ys = List.map(~f=snd, roi^);
-    let bw = List.fold(xs, ~init=-1e9, ~f=max) -. List.fold(xs, ~init=1e9, ~f=min)
-    and bh = List.fold(ys, ~init=-1e9, ~f=max) -. List.fold(ys, ~init=1e9, ~f=min);
+    let bw =
+      List.fold(xs, ~init=-1e9, ~f=max) -. List.fold(xs, ~init=1e9, ~f=min)
+    and bh =
+      List.fold(ys, ~init=-1e9, ~f=max) -. List.fold(ys, ~init=1e9, ~f=min);
     let fit =
       min(aw /. (bw +. 2. *. roi_pad), ah /. (bh +. 2. *. roi_pad))
       |> max(zoom_min)
@@ -526,13 +528,18 @@ let note_exposure =
     let hw = aw /. 2. /. z
     and hh = ah /. 2. /. z;
     exposure :=
-      List.map(~f=
-        ((k, (x, y))) => {
-          let inside =
-            x >= cx -. hw && x <= cx +. hw && y >= cy -. hh && y <= cy +. hh;
-          let prev = Option.value(~default=0., List.Assoc.find(exposure^, k, ~equal=Poly.equal));
-          (k, inside ? prev +. dt : prev);
-        },
+      List.map(
+        ~f=
+          ((k, (x, y))) => {
+            let inside =
+              x >= cx -. hw && x <= cx +. hw && y >= cy -. hh && y <= cy +. hh;
+            let prev =
+              Option.value(
+                ~default=0.,
+                List.Assoc.find(exposure^, k, ~equal=Poly.equal),
+              );
+            (k, inside ? prev +. dt : prev);
+          },
         nodes,
       );
   };

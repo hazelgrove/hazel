@@ -2,15 +2,15 @@ open MenhirParser;
 open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
-    // This is syntactic with ignore_wrappers=true
+// This is syntactic with ignore_wrappers=true
 let exp_equal =
-    Equality.(
-      equality({
-        ...syntactic_settings,
-        ignore_parens: true,
-        ignore_projectors: true,
-      })
-    ).
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_projectors: true,
+    })
+  ).
     exp;
 
 let alco_check =

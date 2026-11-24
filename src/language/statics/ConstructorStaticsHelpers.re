@@ -93,8 +93,15 @@ let syn_marks_ctr =
    Ascriptions.re resolves the Var lazily via weak_head_normalize. */
 let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   let is_builtin_alias = (name: string): bool =>
-    List.exists(~f=((n, _)) => String.equal(n, name), BuiltinsADT.type_aliases)
-    && Option.equal(Id.equal, Ctx.lookup_tvar_id(ctx, name), Some(Id.invalid));
+    List.exists(
+      ~f=((n, _)) => String.equal(n, name),
+      BuiltinsADT.type_aliases,
+    )
+    && Option.equal(
+         Id.equal,
+         Ctx.lookup_tvar_id(ctx, name),
+         Some(Id.invalid),
+       );
   switch (Typ.term_of(ty)) {
   | Rec(tp, _) =>
     switch (TPat.tyvar_of_utpat(tp)) {
@@ -156,8 +163,15 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   switch (return_type_name) {
   | Some(name)
       when
-        List.exists(~f=((n, _)) => String.equal(n, name), BuiltinsADT.type_aliases)
-        && Option.equal(Id.equal, Ctx.lookup_tvar_id(ctx, name), Some(Id.invalid)) => ty
+        List.exists(
+          ~f=((n, _)) => String.equal(n, name),
+          BuiltinsADT.type_aliases,
+        )
+        && Option.equal(
+             Id.equal,
+             Ctx.lookup_tvar_id(ctx, name),
+             Some(Id.invalid),
+           ) => ty
   | _ =>
     let compacted = compact_builtin_recs(ctx, ty);
     if (!phys_equal(compacted, ty)) {

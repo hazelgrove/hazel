@@ -17,7 +17,10 @@ let capture =
     try({
       let operations = enabled ? DefinitionSteps.plan(old, accepted) : [];
       let (final, states) =
-        List.fold(operations, ~init=(old, []), ~f=((seg, states), op) => {
+        List.fold(
+          operations,
+          ~init=(old, []),
+          ~f=((seg, states), op) => {
             let next = DefinitionSteps.apply(op, seg);
             /* Identity-only repair travels with the preceding edit, without another
                visual dwell. Durable syntax ids still exactly match the accepted edit. */
@@ -29,7 +32,8 @@ let capture =
                   }
                 : [(next, op.DefinitionSteps.target), ...states];
             (next, states);
-          });
+          },
+        );
       if (enabled && !Segment.equiv_mod_grout(final, accepted)) {
         failwith(
           "definition operations did not reconstruct the accepted edit",
@@ -88,14 +92,18 @@ let capture =
       CanvasBuffer.push_lazy(
         ~label,
         ~avatar=
-          Option.value_map(target, ~default=avatar, ~f=id => Some((id, "edit"))),
+          Option.value_map(target, ~default=avatar, ~f=id =>
+            Some((id, "edit"))
+          ),
         final_model,
       )
     | [(seg, target), ...rest] =>
       CanvasBuffer.push_lazy(
         ~label,
         ~avatar=
-          Option.value_map(target, ~default=avatar, ~f=id => Some((id, "edit"))),
+          Option.value_map(target, ~default=avatar, ~f=id =>
+            Some((id, "edit"))
+          ),
         lazy(snapshot(seg)),
       );
       publish(rest);

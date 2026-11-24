@@ -20,14 +20,17 @@ let rec ids_of_segment =
         (seg: Haz3lcore.Segment.t, acc): list(Haz3lcore.Id.t) =>
   seg
   |> List.fold(~init=acc, ~f=(acc, p: Haz3lcore.Piece.t) =>
-         switch (p) {
-         | Tile(t) =>
-           t.children
-           |> List.fold(~init=[t.id, ...acc], ~f=(acc, c) => ids_of_segment(c, acc))
-         | Grout(g) => [g.id, ...acc]
-         | Secondary(w) => [w.id, ...acc]
-         | Projector(pr) => ids_of_segment([pr.syntax], [pr.id, ...acc])
-         });
+       switch (p) {
+       | Tile(t) =>
+         t.children
+         |> List.fold(~init=[t.id, ...acc], ~f=(acc, c) =>
+              ids_of_segment(c, acc)
+            )
+       | Grout(g) => [g.id, ...acc]
+       | Secondary(w) => [w.id, ...acc]
+       | Projector(pr) => ids_of_segment([pr.syntax], [pr.id, ...acc])
+       }
+     );
 
 let rec check = (seg: Haz3lcore.Segment.t): unit =>
   switch (last_seg^) {
@@ -55,7 +58,7 @@ and check_now = (seg: Haz3lcore.Segment.t): unit => {
     let msg =
       dups
       |> List.map(~f=Haz3lcore.Id.to_string)
-      |> List.dedup_and_sort(~compare=compare)
+      |> List.dedup_and_sort(~compare)
       |> String.concat(~sep=", ");
     if (msg != last_report^) {
       last_report := msg;

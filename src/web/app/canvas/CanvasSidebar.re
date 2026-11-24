@@ -440,21 +440,23 @@ let collapse_filter =
   } else {
     let hidden = r => List.mem(collapsed_modules^, r, ~equal=Poly.equal);
     let member_edges =
-      List.filter(~f=
-        (e: CanvasGraph.edge) =>
-          switch (e.m_path) {
-          | [r, ..._] => hidden(r)
-          | [] => false
-          },
+      List.filter(
+        ~f=
+          (e: CanvasGraph.edge) =>
+            switch (e.m_path) {
+            | [r, ..._] => hidden(r)
+            | [] => false
+            },
         g.edges,
       );
     let member_values =
-      List.filter(~f=
-        (v: CanvasGraph.value) =>
-          switch (v.m_path) {
-          | [r, ..._] => hidden(r)
-          | [] => false
-          },
+      List.filter(
+        ~f=
+          (v: CanvasGraph.value) =>
+            switch (v.m_path) {
+            | [r, ..._] => hidden(r)
+            | [] => false
+            },
         g.values,
       );
     let member_qnames =
@@ -463,13 +465,14 @@ let collapse_filter =
     let is_member_sat = (n: CanvasGraph.tynode): bool =>
       switch (n.sat) {
       | Some(_) =>
-        List.exists(~f=
-          qn => {
-            let suffix = "@" ++ qn;
-            let ln = String.length(n.key)
-            and ls = String.length(suffix);
-            ln >= ls && String.sub(n.key, ~pos=ln - ls, ~len=ls) == suffix;
-          },
+        List.exists(
+          ~f=
+            qn => {
+              let suffix = "@" ++ qn;
+              let ln = String.length(n.key)
+              and ls = String.length(suffix);
+              ln >= ls && String.sub(n.key, ~pos=ln - ls, ~len=ls) == suffix;
+            },
           member_qnames,
         )
       | None => false
@@ -480,41 +483,45 @@ let collapse_filter =
       | [] => is_member_sat(n)
       };
     let counts =
-      List.map(~f=
-        r => {
-          let c =
-            List.length(
-              List.filter(~f=
-                (n: CanvasGraph.tynode) =>
-                  switch (n.m_path) {
-                  | [r', ..._] => r' == r && n.key != "{}@" ++ r
-                  | [] => false
-                  },
-                g.nodes,
-              ),
-            )
-            + List.length(
-                List.filter(~f=
-                  (e: CanvasGraph.edge) =>
-                    switch (e.m_path) {
-                    | [r', ..._] => r' == r
-                    | [] => false
-                    },
-                  g.edges,
+      List.map(
+        ~f=
+          r => {
+            let c =
+              List.length(
+                List.filter(
+                  ~f=
+                    (n: CanvasGraph.tynode) =>
+                      switch (n.m_path) {
+                      | [r', ..._] => r' == r && n.key != "{}@" ++ r
+                      | [] => false
+                      },
+                  g.nodes,
                 ),
               )
-            + List.length(
-                List.filter(~f=
-                  (v: CanvasGraph.value) =>
-                    switch (v.m_path) {
-                    | [r', ..._] => r' == r
-                    | [] => false
-                    },
-                  g.values,
-                ),
-              );
-          (r, c);
-        },
+              + List.length(
+                  List.filter(
+                    ~f=
+                      (e: CanvasGraph.edge) =>
+                        switch (e.m_path) {
+                        | [r', ..._] => r' == r
+                        | [] => false
+                        },
+                    g.edges,
+                  ),
+                )
+              + List.length(
+                  List.filter(
+                    ~f=
+                      (v: CanvasGraph.value) =>
+                        switch (v.m_path) {
+                        | [r', ..._] => r' == r
+                        | [] => false
+                        },
+                    g.values,
+                  ),
+                );
+            (r, c);
+          },
         collapsed_modules^,
       );
     (
@@ -522,13 +529,17 @@ let collapse_filter =
         ...g,
         nodes: List.filter(~f=n => !drop_node(n), g.nodes),
         edges:
-          List.filter(~f=
-            (e: CanvasGraph.edge) => !List.mem(member_edges, e, ~equal=Poly.equal),
+          List.filter(
+            ~f=
+              (e: CanvasGraph.edge) =>
+                !List.mem(member_edges, e, ~equal=Poly.equal),
             g.edges,
           ),
         values:
-          List.filter(~f=
-            (v: CanvasGraph.value) => !List.mem(member_values, v, ~equal=Poly.equal),
+          List.filter(
+            ~f=
+              (v: CanvasGraph.value) =>
+                !List.mem(member_values, v, ~equal=Poly.equal),
             g.values,
           ),
       },
@@ -555,7 +566,8 @@ let canvas_menu_at: ref((float, float)) = ref((0., 0.));
 /* Some((key, type syntax)) when opened on a node */
 let canvas_menu_node: ref(option((string, string))) =
   ref(None: option((string, string)));
-let canvas_menu_definition: ref(option((Id.t, string))) = ref(Stdlib.Option.none);
+let canvas_menu_definition: ref(option((Id.t, string))) =
+  ref(Stdlib.Option.none);
 let canvas_menu_function: ref(bool) = ref(false);
 let last_avatar_pos: ref(option(CanvasLayout.pos)) =
   ref(None: option(CanvasLayout.pos));
@@ -655,7 +667,9 @@ let graph_delta =
   let ka = keys(extract_cached(~test_results, a.statics))
   and kb = keys(extract_cached(~test_results, b.statics));
   List.length(List.filter(~f=k => !List.mem(kb, k, ~equal=Poly.equal), ka))
-  + List.length(List.filter(~f=k => !List.mem(ka, k, ~equal=Poly.equal), kb));
+  + List.length(
+      List.filter(~f=k => !List.mem(ka, k, ~equal=Poly.equal), kb),
+    );
 };
 /* sample-volume telemetry: logged when the total moves meaningfully */
 let last_logged_sample_total: ref(int) = ref(0);
@@ -727,122 +741,141 @@ module LayoutDom = {
     };
   };
   let apply_layout = (l: CanvasLayout.t): unit => {
-    List.iter(~f=
-      (nl: CanvasLayout.node_layout) =>
-        set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
+    List.iter(
+      ~f=
+        (nl: CanvasLayout.node_layout) =>
+          set_pos(CanvasView.node_dom_id(nl.node.key), nl.p.x, nl.p.y),
       l.nodes,
     );
-    List.iter(~f=
-      (el: CanvasLayout.edge_layout) => {
-        let e = el.edge;
-        if (el.endo) {
+    List.iter(
+      ~f=
+        (el: CanvasLayout.edge_layout) => {
+          let e = el.edge;
+          if (el.endo) {
+            switch (
+              Util.JsUtil.get_elem_by_id_opt(
+                "corbit-" ++ CanvasView.sanitize(e.e_name),
+              )
+            ) {
+            | Some(c) =>
+              set_attr(c, "cx", fmt'(el.dst_p.x));
+              set_attr(c, "cy", fmt'(el.dst_p.y));
+            | None => ()
+            };
+          } else {
+            switch (
+              Util.JsUtil.get_elem_by_id_opt(
+                "cpath-" ++ CanvasView.sanitize(e.e_name),
+              )
+            ) {
+            | Some(path_el) =>
+              set_attr(path_el, "d", CanvasLayout.edge_path(~pull=9., el))
+            | None => ()
+            };
+          };
+          set_pos(
+            CanvasView.edge_dom_id(e.e_name),
+            el.label_p.x,
+            el.label_p.y,
+          );
           switch (
             Util.JsUtil.get_elem_by_id_opt(
-              "corbit-" ++ CanvasView.sanitize(e.e_name),
+              "clead-" ++ CanvasView.sanitize(e.e_name),
             )
           ) {
-          | Some(c) =>
-            set_attr(c, "cx", fmt'(el.dst_p.x));
-            set_attr(c, "cy", fmt'(el.dst_p.y));
+          | Some(lel) =>
+            set_attr(lel, "x1", fmt'(el.label_p.x));
+            set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
+            set_attr(lel, "x2", fmt'(el.label_anchor.x));
+            set_attr(lel, "y2", fmt'(el.label_anchor.y));
           | None => ()
           };
-        } else {
-          switch (
-            Util.JsUtil.get_elem_by_id_opt(
-              "cpath-" ++ CanvasView.sanitize(e.e_name),
-            )
-          ) {
-          | Some(path_el) =>
-            set_attr(path_el, "d", CanvasLayout.edge_path(~pull=9., el))
-          | None => ()
-          };
-        };
-        set_pos(
-          CanvasView.edge_dom_id(e.e_name),
-          el.label_p.x,
-          el.label_p.y,
-        );
-        switch (
-          Util.JsUtil.get_elem_by_id_opt(
-            "clead-" ++ CanvasView.sanitize(e.e_name),
-          )
-        ) {
-        | Some(lel) =>
-          set_attr(lel, "x1", fmt'(el.label_p.x));
-          set_attr(lel, "y1", fmt'(el.label_p.y -. 8.));
-          set_attr(lel, "x2", fmt'(el.label_anchor.x));
-          set_attr(lel, "y2", fmt'(el.label_anchor.y));
-        | None => ()
-        };
-      },
+        },
       l.edges,
     );
-    List.iteri(~f=
-      (
-        _i,
-        (a, b, cp, pp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
-      ) => {
-        let pp' = pull_back(pp, cp, 5.);
-        switch (
-          Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
-        ) {
-        | Some(el) =>
-          set_attr(
-            el,
-            "d",
-            CanvasLayout.relation_path(
-              ~nodes=l.nodes,
-              ~from_key=a,
-              ~to_key=b,
-              cp,
-              pp',
-            ),
-          )
-        | None => ()
-        };
-      },
+    List.iteri(
+      ~f=
+        (
+          _i,
+          (a, b, cp, pp): (
+            string,
+            string,
+            CanvasLayout.pos,
+            CanvasLayout.pos,
+          ),
+        ) => {
+          let pp' = pull_back(pp, cp, 5.);
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(CanvasView.formation_dom_id(a, b))
+          ) {
+          | Some(el) =>
+            set_attr(
+              el,
+              "d",
+              CanvasLayout.relation_path(
+                ~nodes=l.nodes,
+                ~from_key=a,
+                ~to_key=b,
+                cp,
+                pp',
+              ),
+            )
+          | None => ()
+          };
+        },
       l.formations,
     );
-    List.iteri(~f=
-      (
-        _i,
-        (a, b, dp, tp): (string, string, CanvasLayout.pos, CanvasLayout.pos),
-      ) => {
-        let tp' = pull_back(tp, dp, 5.);
-        switch (Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))) {
-        | Some(el) =>
-          set_attr(
-            el,
-            "d",
-            CanvasLayout.relation_path(
-              ~nodes=l.nodes,
-              ~from_key=a,
-              ~to_key=b,
-              dp,
-              tp',
-            ),
-          )
-        | None => ()
-        };
-      },
+    List.iteri(
+      ~f=
+        (
+          _i,
+          (a, b, dp, tp): (
+            string,
+            string,
+            CanvasLayout.pos,
+            CanvasLayout.pos,
+          ),
+        ) => {
+          let tp' = pull_back(tp, dp, 5.);
+          switch (
+            Util.JsUtil.get_elem_by_id_opt(CanvasView.dep_dom_id(a, b))
+          ) {
+          | Some(el) =>
+            set_attr(
+              el,
+              "d",
+              CanvasLayout.relation_path(
+                ~nodes=l.nodes,
+                ~from_key=a,
+                ~to_key=b,
+                dp,
+                tp',
+              ),
+            )
+          | None => ()
+          };
+        },
       l.dep_links,
     );
-    List.iter(~f=
-      (vl: CanvasLayout.value_layout) =>
-        set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
+    List.iter(
+      ~f=
+        (vl: CanvasLayout.value_layout) =>
+          set_pos(CanvasView.value_dom_id(vl.value.v_name), vl.p.x, vl.p.y),
       l.values,
     );
     /* hull sausages track exactly (no springs for paths) */
-    List.iter(~f=
-      path =>
-        List.iter(~f=
-          ((id, d, _)) =>
-            switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-            | Some(el) => set_attr(el, "d", d)
-            | None => ()
-            },
-          CanvasView.hull_sausages_at(l, path),
-        ),
+    List.iter(
+      ~f=
+        path =>
+          List.iter(
+            ~f=
+              ((id, d, _)) =>
+                switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+                | Some(el) => set_attr(el, "d", d)
+                | None => ()
+                },
+            CanvasView.hull_sausages_at(l, path),
+          ),
       CanvasView.hull_paths_of(l),
     );
     CanvasJelly.set_targets(CanvasView.hull_targets(l));
@@ -931,25 +964,29 @@ let locate =
     : option(CanvasLayout.pos) => {
   let direct = (id: Id.t): option(CanvasLayout.pos) => {
     let edge =
-      List.find(~f=
-        (el: CanvasLayout.edge_layout) => Id.compare(el.edge.e_id, id) == 0,
+      List.find(
+        ~f=
+          (el: CanvasLayout.edge_layout) =>
+            Id.compare(el.edge.e_id, id) == 0,
         lay.edges,
       )
       |> Option.map(~f=(el: CanvasLayout.edge_layout) => el.label_p);
     let node = () =>
-      List.find(~f=
-        (nl: CanvasLayout.node_layout) =>
-          switch (nl.node.n_id) {
-          | Some(nid) => Id.compare(nid, id) == 0
-          | None => false
-          },
+      List.find(
+        ~f=
+          (nl: CanvasLayout.node_layout) =>
+            switch (nl.node.n_id) {
+            | Some(nid) => Id.compare(nid, id) == 0
+            | None => false
+            },
         lay.nodes,
       )
       |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p);
     let value = () =>
-      List.find(~f=
-        (vl: CanvasLayout.value_layout) =>
-          Id.compare(vl.value.v_id, id) == 0,
+      List.find(
+        ~f=
+          (vl: CanvasLayout.value_layout) =>
+            Id.compare(vl.value.v_id, id) == 0,
         lay.values,
       )
       |> Option.map(~f=(vl: CanvasLayout.value_layout) => vl.p);
@@ -1244,10 +1281,14 @@ let view_impl =
   CanvasEnact.install_testers();
   let offsets =
     globals.settings.canvas_node_offsets
-    |> List.filter_map(~f=(((s, k), d)) => s == slide ? Some((k, d)) : None);
+    |> List.filter_map(~f=(((s, k), d)) =>
+         s == slide ? Some((k, d)) : None
+       );
   let pins =
     globals.settings.canvas_node_pins
-    |> List.filter_map(~f=(((s, k), d)) => s == slide ? Some((k, d)) : None);
+    |> List.filter_map(~f=(((s, k), d)) =>
+         s == slide ? Some((k, d)) : None
+       );
   /* stretch columns to fill the panel when the graph is narrower than it;
      panel width is read from the (pre-patch) DOM, so the first render
      after a panel switch or drag-resize uses the previous width */
@@ -1341,20 +1382,29 @@ let view_impl =
     | _ =>
       Option.value(
         ~default=card_default,
-        List.Assoc.find(globals.settings.sidebar.canvas_card_sizes, (slide, key), ~equal=Poly.equal),
+        List.Assoc.find(
+          globals.settings.sidebar.canvas_card_sizes,
+          (slide, key),
+          ~equal=Poly.equal,
+        ),
       )
     };
   CanvasLayout.card_extents :=
-    List.filter_map(~f=
-      key =>
-        List.exists(~f=(n: CanvasGraph.tynode) => n.key == key, graph.nodes)
-          ? Some((key, card_size(key))) : None,
+    List.filter_map(
+      ~f=
+        key =>
+          List.exists(
+            ~f=(n: CanvasGraph.tynode) => n.key == key,
+            graph.nodes,
+          )
+            ? Some((key, card_size(key))) : None,
       globals.settings.sidebar.canvas_value_nodes,
     );
   let lay = {
     /* pins/offsets for nodes that no longer exist (another program on this
        slide) must not keep a stale frame alive */
-    let node_keys = List.map(~f=(n: CanvasGraph.tynode) => n.key, graph.nodes);
+    let node_keys =
+      List.map(~f=(n: CanvasGraph.tynode) => n.key, graph.nodes);
     let live = ((k, _)) => List.mem(node_keys, k, ~equal=Poly.equal);
     let manual = List.exists(~f=live, offsets) || List.exists(~f=live, pins);
     let aw = Option.value(~default=0., avail_width);
@@ -1414,7 +1464,11 @@ let view_impl =
       | Some(_) => runtime_frame
       | None =>
         manual
-          ? List.Assoc.find(globals.settings.canvas_frames, slide, ~equal=Poly.equal)
+          ? List.Assoc.find(
+              globals.settings.canvas_frames,
+              slide,
+              ~equal=Poly.equal,
+            )
             |> Option.map(~f=((ox, oy, xs, ys)) =>
                  (
                    CanvasLayout.{
@@ -1587,15 +1641,17 @@ let view_impl =
   let selected_edge =
     main_mode
       ? Option.bind(selected_item, ~f=id =>
-          List.find(~f=(e: CanvasGraph.edge) => e.e_id == id, graph.edges))
+          List.find(~f=(e: CanvasGraph.edge) => e.e_id == id, graph.edges)
+        )
       : None;
   let selected_node =
     main_mode
       ? Option.bind(selected_item, ~f=id =>
-          List.find(~f=
-            (n: CanvasGraph.tynode) => n.n_id == Some(id),
+          List.find(
+            ~f=(n: CanvasGraph.tynode) => n.n_id == Some(id),
             graph.nodes,
-          ))
+          )
+        )
       : None;
   let set_focus = (f: option(string)) =>
     globals.inject_global(Set(Sidebar(SetCanvasFocus(f))));
@@ -1614,24 +1670,30 @@ let view_impl =
         };
       switch (
         Option.bind(anchor, ~f=a =>
-          Language.Dynamics.Map.lookup(a, value_editor.dynamics))
+          Language.Dynamics.Map.lookup(a, value_editor.dynamics)
+        )
       ) {
       | Some([_, ..._] as samples) =>
         let sf = editor.editor.state.zipper.refractors.sample_focus;
         let cursor_stack = Language.Sample.Focus.effective_stack(sf);
         let aligned =
           sf.anchor != None
-          && List.exists(~f=
-               (smp: Language.Sample.t) =>
-                 Language.CallStack.equal(smp.call_stack, cursor_stack),
+          && List.exists(
+               ~f=
+                 (smp: Language.Sample.t) =>
+                   Language.CallStack.equal(smp.call_stack, cursor_stack),
                samples,
              );
         if (aligned) {
           [];
         } else {
           let first =
-            List.fold(samples, ~init=List.hd_exn(samples), ~f=(best: Language.Sample.t, smp: Language.Sample.t) =>
-                smp.seq < best.seq ? smp : best);
+            List.fold(
+              samples,
+              ~init=List.hd_exn(samples),
+              ~f=(best: Language.Sample.t, smp: Language.Sample.t) =>
+              smp.seq < best.seq ? smp : best
+            );
           [
             editors_inject(
               Editors.Update.Scratch(
@@ -1701,7 +1763,10 @@ let view_impl =
       | None =>
         /* probe name and name#k, requiring a top-level resolution */
         [name]
-        @ List.map(~f=k => name ++ "#" ++ string_of_int(k), [1, 2, 3, 4, 5])
+        @ List.map(
+            ~f=k => name ++ "#" ++ string_of_int(k),
+            [1, 2, 3, 4, 5],
+          )
         |> List.find(~f=p =>
              switch (HighLevelNodeMap.path_to_id_opt(map, p)) {
              | Some(rid) => top_level(rid)
@@ -1842,29 +1907,34 @@ let view_impl =
       /* a beat may still be morphing or revealing geometry (dash arrays
          left on paths would truncate them as they stretch): the drag takes
          over cleanly */
-      List.iter(~f=
-        id =>
-          switch (Util.JsUtil.get_elem_by_id_opt(id)) {
-          | Some(el) =>
-            let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
-            let len: int = Js.Unsafe.get(anims, "length");
-            for (i in 0 to len - 1) {
+      List.iter(
+        ~f=
+          id =>
+            switch (Util.JsUtil.get_elem_by_id_opt(id)) {
+            | Some(el) =>
+              let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+              let len: int = Js.Unsafe.get(anims, "length");
+              for (i in 0 to len - 1) {
+                ignore(
+                  Js.Unsafe.meth_call(
+                    Js.Unsafe.get(anims, i),
+                    "cancel",
+                    [||],
+                  ),
+                );
+              };
               ignore(
-                Js.Unsafe.meth_call(Js.Unsafe.get(anims, i), "cancel", [||]),
+                Js.Unsafe.meth_call(
+                  el,
+                  "removeAttribute",
+                  [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
+                ),
               );
-            };
-            ignore(
-              Js.Unsafe.meth_call(
-                el,
-                "removeAttribute",
-                [|Js.Unsafe.inject(Js.string("stroke-dasharray"))|],
-              ),
-            );
-            let st = Js.Unsafe.get(el, "style");
-            Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
-            Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
-          | None => ()
-          },
+              let st = Js.Unsafe.get(el, "style");
+              Js.Unsafe.set(st, "strokeDasharray", Js.string(""));
+              Js.Unsafe.set(st, "strokeDashoffset", Js.string(""));
+            | None => ()
+            },
         Util.JsUtil.ids_with_prefix("cpath-")
         @ Util.JsUtil.ids_with_prefix("cform-")
         @ Util.JsUtil.ids_with_prefix("corbit-"),
@@ -1873,7 +1943,10 @@ let view_impl =
     /* pinned nodes update their pin; others accumulate a drag delta */
     let pin = List.Assoc.find(pins, n.key, ~equal=Poly.equal);
     let base =
-      Option.value(~default=(0., 0.), List.Assoc.find(offsets, n.key, ~equal=Poly.equal));
+      Option.value(
+        ~default=(0., 0.),
+        List.Assoc.find(offsets, n.key, ~equal=Poly.equal),
+      );
     let commit = ((dx, dy)) =>
       Effect.Many([
         switch (pin) {
@@ -2043,7 +2116,11 @@ let view_impl =
          the keyboard, ← → step samples), not the definition — whose
          selection would pull focus to the editor */
       let expanded =
-        List.mem(globals.settings.sidebar.canvas_value_nodes, n.key, ~equal=Poly.equal);
+        List.mem(
+          globals.settings.sidebar.canvas_value_nodes,
+          n.key,
+          ~equal=Poly.equal,
+        );
       if (! moved^ && expanded) {
         CanvasView.focus_card_probe(n.key);
       };
@@ -2107,13 +2184,14 @@ let view_impl =
           | [_] => []
           | many =>
             let positions =
-              List.filter_map(~f=
-                sstr =>
-                  lay.nodes
-                  |> List.find(~f=(nl: CanvasLayout.node_layout) =>
-                       ty_syntax(nl.node) == sstr
-                     )
-                  |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
+              List.filter_map(
+                ~f=
+                  sstr =>
+                    lay.nodes
+                    |> List.find(~f=(nl: CanvasLayout.node_layout) =>
+                         ty_syntax(nl.node) == sstr
+                       )
+                    |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
                 many,
               );
             switch (positions) {
@@ -2121,10 +2199,14 @@ let view_impl =
             | ps =>
               let count = float_of_int(List.length(ps));
               let cx =
-                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.x)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) =>
+                  a +. p.x
+                )
                 /. count;
               let cy =
-                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.y)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) =>
+                  a +. p.y
+                )
                 /. count;
               /* between all endpoints, biased toward the inputs:
                  2/3 sources centroid + 1/3 target */
@@ -2303,13 +2385,14 @@ let view_impl =
        component nodes and the alias, instead of auto-docking */
     let former_pins = {
       let comp_pts =
-        List.filter_map(~f=
-          cstr =>
-            lay.nodes
-            |> List.find(~f=(nl: CanvasLayout.node_layout) =>
-                 ty_syntax(nl.node) == cstr
-               )
-            |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
+        List.filter_map(
+          ~f=
+            cstr =>
+              lay.nodes
+              |> List.find(~f=(nl: CanvasLayout.node_layout) =>
+                   ty_syntax(nl.node) == cstr
+                 )
+              |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
           comps,
         );
       /* the former is folded into the alias node now (glyph badge), so
@@ -2398,7 +2481,12 @@ let view_impl =
      the newest rich-renderable sample site of that type */
   let toggle_value_node = (key: string) => {
     let expanding =
-      !List.mem(globals.settings.sidebar.canvas_value_nodes, key, ~equal=Poly.equal);
+      !
+        List.mem(
+          globals.settings.sidebar.canvas_value_nodes,
+          key,
+          ~equal=Poly.equal,
+        );
     /* armed INSIDE the effect: this function is called at render time
        to build the cards' callbacks */
     let arm_beat =
@@ -2454,7 +2542,11 @@ let view_impl =
       };
     set_resizing(true);
     let natural =
-      List.Assoc.find(globals.settings.sidebar.canvas_card_natural, (slide, key), ~equal=Poly.equal);
+      List.Assoc.find(
+        globals.settings.sidebar.canvas_card_natural,
+        (slide, key),
+        ~equal=Poly.equal,
+      );
     /* LIVE follow: the card's box and its view's zoom track the pointer,
        and the whole layout (neighbours pushed, edges re-landed) is
        recomputed with the pending size and applied to the DOM each
@@ -2502,7 +2594,11 @@ let view_impl =
       CanvasLayout.card_extents :=
         [
           (key, (w, h)),
-          ...List.Assoc.remove(CanvasLayout.card_extents^, key, ~equal=Poly.equal),
+          ...List.Assoc.remove(
+               CanvasLayout.card_extents^,
+               key,
+               ~equal=Poly.equal,
+             ),
         ];
       switch (cached_frame^) {
       | Stdlib.Option.Some(fc) =>
@@ -2626,122 +2722,154 @@ let view_impl =
     CanvasEnact.after_render(fit_view);
   };
   CanvasProbe.retain_card_views(
-    List.map(~f=
-      key => "ty/" ++ key,
+    List.map(
+      ~f=key => "ty/" ++ key,
       globals.settings.sidebar.canvas_value_nodes,
     ),
   );
   let cards =
-    List.filter_map(~f=
-      key => {
-        let selected_fn =
-          switch (selected_edge) {
-          | Some(e) => Some(e.e_name)
-          | None => globals.settings.sidebar.canvas_focus
-          };
-        let within =
-          switch (selected_fn) {
-          | Some(name) =>
-            List.find(~f=
-              (e: CanvasGraph.edge) => e.e_name == name,
-              graph.edges,
-            )
-            |> Option.map(~f=(e: CanvasGraph.edge) =>
-                 TermData.extreme_measures(
-                   e.e_id,
-                   editor.editor.syntax.term_data,
-                   editor.editor.syntax.measured,
+    List.filter_map(
+      ~f=
+        key => {
+          let selected_fn =
+            switch (selected_edge) {
+            | Some(e) => Some(e.e_name)
+            | None => globals.settings.sidebar.canvas_focus
+            };
+          let within =
+            switch (selected_fn) {
+            | Some(name) =>
+              List.find(
+                ~f=(e: CanvasGraph.edge) => e.e_name == name,
+                graph.edges,
+              )
+              |> Option.map(~f=(e: CanvasGraph.edge) =>
+                   TermData.extreme_measures(
+                     e.e_id,
+                     editor.editor.syntax.term_data,
+                     editor.editor.syntax.measured,
+                   )
                  )
-               )
-            |> Option.join
-          | None => None
-          };
-        let is_livelit_node =
-          switch (
-            List.find(~f=
-              (n: CanvasGraph.tynode) => n.key == key,
-              graph.nodes,
-            )
-          ) {
-          | Some(n) => Language.UserLivelit.is_livelit_name(n.label)
-          | None => false
-          };
-        let editor = is_livelit_node ? editor : value_editor;
-        let site =
-          CanvasFocus.value_site(
-            ~dynamics=editor.dynamics,
-            ~info_map=editor.statics.info_map,
-            ~graph,
-            ~focus=editor.editor.state.zipper.refractors.sample_focus,
-            ~within?,
-            ~syntax=editor.editor.syntax,
+              |> Option.join
+            | None => None
+            };
+          let is_livelit_node =
+            switch (
+              List.find(
+                ~f=(n: CanvasGraph.tynode) => n.key == key,
+                graph.nodes,
+              )
+            ) {
+            | Some(n) => Language.UserLivelit.is_livelit_name(n.label)
+            | None => false
+            };
+          let editor = is_livelit_node ? editor : value_editor;
+          let site =
+            CanvasFocus.value_site(
+              ~dynamics=editor.dynamics,
+              ~info_map=editor.statics.info_map,
+              ~graph,
+              ~focus=editor.editor.state.zipper.refractors.sample_focus,
+              ~within?,
+              ~syntax=editor.editor.syntax,
+              key,
+            );
+          let content =
+            switch (site) {
+            | Some(id) =>
+              CanvasProbe.card_view(
+                ~globals,
+                ~editor,
+                ~key="ty/" ++ key,
+                ~app=is_livelit_node,
+                id,
+              )
+            | None => None
+            };
+          let content =
+            switch (content) {
+            | Some(c) => c
+            | None =>
+              /* no site of this type has samples the card can stand on */
+              div(
+                ~attrs=[clss(["card-empty"])],
+                [
+                  text(
+                    globals.settings.core.probe_all
+                      ? "no samples" : "no samples yet",
+                  ),
+                ],
+              )
+            };
+          Some((
             key,
-          );
-        let content =
-          switch (site) {
-          | Some(id) =>
-            CanvasProbe.card_view(
-              ~globals,
-              ~editor,
-              ~key="ty/" ++ key,
-              ~app=is_livelit_node,
-              id,
-            )
-          | None => None
-          };
-        let content =
-          switch (content) {
-          | Some(c) => c
-          | None =>
-            /* no site of this type has samples the card can stand on */
-            div(
-              ~attrs=[clss(["card-empty"])],
-              [
-                text(
-                  globals.settings.core.probe_all
-                    ? "no samples" : "no samples yet",
+            (
+              content,
+              card_size(key),
+              List.Assoc.find(
+                globals.settings.sidebar.canvas_card_natural,
+                (slide, key),
+                ~equal=Poly.equal,
+              ),
+              !
+                List.Assoc.mem(
+                  globals.settings.sidebar.canvas_card_sizes,
+                  (slide, key),
+                  ~equal=Poly.equal,
                 ),
-              ],
-            )
-          };
-        Some((
-          key,
-          (
-            content,
-            card_size(key),
-            List.Assoc.find(globals.settings.sidebar.canvas_card_natural, (slide, key), ~equal=Poly.equal),
-            !
-              List.Assoc.mem(globals.settings.sidebar.canvas_card_sizes, (slide, key), ~equal=Poly.equal),
-            /* an app's card opens LIVE (the toggle then means "node") */
-            is_livelit_node
-            != List.mem(globals.settings.sidebar.canvas_card_live, key, ~equal=Poly.equal),
-            toggle_value_node(key),
-            start_card_resize(key),
-            globals.inject_global(Set(Sidebar(ToggleCanvasCardLive(key)))),
-          ),
-        ));
-      },
+              /* an app's card opens LIVE (the toggle then means "node") */
+              is_livelit_node
+              != List.mem(
+                   globals.settings.sidebar.canvas_card_live,
+                   key,
+                   ~equal=Poly.equal,
+                 ),
+              toggle_value_node(key),
+              start_card_resize(key),
+              globals.inject_global(
+                Set(Sidebar(ToggleCanvasCardLive(key))),
+              ),
+            ),
+          ));
+        },
       globals.settings.sidebar.canvas_value_nodes,
     );
   measured_card_content :=
-    List.filter(~f=
-      (((s, key), _)) => s == slide && List.Assoc.mem(cards, key, ~equal=Poly.equal),
+    List.filter(
+      ~f=
+        (((s, key), _)) =>
+          s == slide && List.Assoc.mem(cards, key, ~equal=Poly.equal),
       measured_card_content^,
     );
   let needs_measure = (key, content) =>
-    switch (List.Assoc.find(measured_card_content^, (slide, key), ~equal=Poly.equal)) {
+    switch (
+      List.Assoc.find(
+        measured_card_content^,
+        (slide, key),
+        ~equal=Poly.equal,
+      )
+    ) {
     | Some(previous) =>
       !phys_equal(previous, content)
       || !
-           List.Assoc.mem(globals.settings.sidebar.canvas_card_natural, (slide, key), ~equal=Poly.equal)
+           List.Assoc.mem(
+             globals.settings.sidebar.canvas_card_natural,
+             (slide, key),
+             ~equal=Poly.equal,
+           )
       || !
-           List.Assoc.mem(globals.settings.sidebar.canvas_card_sizes, (slide, key), ~equal=Poly.equal)
+           List.Assoc.mem(
+             globals.settings.sidebar.canvas_card_sizes,
+             (slide, key),
+             ~equal=Poly.equal,
+           )
     | None => true
     };
   let pending_measure =
-    List.filter(~f=
-      ((key, (content, _, _, _, _, _, _, _))) =>
-        needs_measure(key, content),
+    List.filter(
+      ~f=
+        ((key, (content, _, _, _, _, _, _, _))) =>
+          needs_measure(key, content),
       cards,
     );
   /* MEASURE changed card content at its natural size (zoom 1,
@@ -2754,156 +2882,173 @@ let view_impl =
       Js_of_ocaml.
         /* Another queued render may already have measured this content. */
         (
-          List.iter(~f=
-            ((key, (content, _, _, _, _, _, _, _))) =>
-              if (needs_measure(key, content) && resizing_card^ == None) {
-                switch (
-                  Js.Opt.to_option(
-                    Dom_html.document##getElementById(
-                      Js.string(CanvasView.node_dom_id(key)),
-                    ),
-                  )
-                ) {
-                | Some(el) =>
-                  let inner =
-                    el##querySelector(
-                      Js.string(
-                        ".probe-card-rich, .probe-card-plain, .canvas-app",
+          List.iter(
+            ~f=
+              ((key, (content, _, _, _, _, _, _, _))) =>
+                if (needs_measure(key, content) && resizing_card^ == None) {
+                  switch (
+                    Js.Opt.to_option(
+                      Dom_html.document##getElementById(
+                        Js.string(CanvasView.node_dom_id(key)),
                       ),
-                    );
-                  let rich =
-                    Js.Opt.test(
+                    )
+                  ) {
+                  | Some(el) =>
+                    let inner =
                       el##querySelector(
-                        Js.string(".probe-card-rich, .canvas-app"),
-                      ),
-                    );
-                  let is_list =
-                    Js.Opt.test(
-                      el##querySelector(Js.string(".rich-livelit-list")),
-                    );
-                  switch (Js.Opt.to_option(inner)) {
-                  | Some(c) =>
-                    let z = {
-                      let root =
-                        Dom_html.document##querySelector(
-                          Js.string(".canvas-root"),
-                        );
-                      switch (Js.Opt.to_option(root)) {
-                      | Some(r) =>
-                        let cs = Dom_html.window##getComputedStyle(r);
-                        let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
-                        switch (float_of_string_opt(zs)) {
-                        | Some(z) when z > 0.05 => z
-                        | _ => 1.
-                        };
-                      | None => 1.
-                      };
-                    };
-                    /* natural size: content zoom 1 (override the card's
-                       --card-zoom), shrink-wrapped; union of descendants */
-                    let est = Js.Unsafe.coerce(el)##.style;
-                    let saved_card =
-                      Js.to_string(Js.Unsafe.get(est, "cssText"));
-                    Js.Unsafe.set(
-                      est,
-                      "cssText",
-                      Js.string(
-                        saved_card ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
-                      ),
-                    );
-                    let cst = Js.Unsafe.coerce(c)##.style;
-                    let saved = Js.to_string(Js.Unsafe.get(cst, "cssText"));
-                    Js.Unsafe.set(
-                      cst,
-                      "cssText",
-                      Js.string(
-                        saved
-                        ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
-                      ),
-                    );
-                    let r0 = c##getBoundingClientRect;
-                    let x0 = r0##.left
-                    and y0 = r0##.top;
-                    let (x1, y1) = {
-                      let ds = c##querySelectorAll(Js.string("*"));
-                      let mx = ref(x0)
-                      and my = ref(y0);
-                      for (j in 0 to min(ds##.length, 600) - 1) {
-                        switch (Js.Opt.to_option(ds##item(j))) {
-                        | Some(d) =>
-                          let r = d##getBoundingClientRect;
-                          let w = Js.Optdef.get(r##.width, () => 0.);
-                          if (w > 0.) {
-                            mx := Float.max(mx^, r##.right);
-                            my := Float.max(my^, r##.bottom);
+                        Js.string(
+                          ".probe-card-rich, .probe-card-plain, .canvas-app",
+                        ),
+                      );
+                    let rich =
+                      Js.Opt.test(
+                        el##querySelector(
+                          Js.string(".probe-card-rich, .canvas-app"),
+                        ),
+                      );
+                    let is_list =
+                      Js.Opt.test(
+                        el##querySelector(Js.string(".rich-livelit-list")),
+                      );
+                    switch (Js.Opt.to_option(inner)) {
+                    | Some(c) =>
+                      let z = {
+                        let root =
+                          Dom_html.document##querySelector(
+                            Js.string(".canvas-root"),
+                          );
+                        switch (Js.Opt.to_option(root)) {
+                        | Some(r) =>
+                          let cs = Dom_html.window##getComputedStyle(r);
+                          let zs = Js.to_string(Js.Unsafe.get(cs, "zoom"));
+                          switch (float_of_string_opt(zs)) {
+                          | Some(z) when z > 0.05 => z
+                          | _ => 1.
                           };
-                        | None => ()
+                        | None => 1.
                         };
                       };
-                      (mx^, my^);
-                    };
-                    Js.Unsafe.set(cst, "cssText", Js.string(saved));
-                    Js.Unsafe.set(est, "cssText", Js.string(saved_card));
-                    measured_card_content :=
-                      [
-                        ((slide, key), content),
-                        ...List.Assoc.remove(measured_card_content^, (slide, key), ~equal=Poly.equal),
-                      ];
-                    let nw = Float.max(8., (x1 -. x0) /. z)
-                    and nh = Float.max(8., (y1 -. y0) /. z);
-                    let stored =
-                      List.Assoc.find(globals.settings.sidebar.canvas_card_natural, (slide, key), ~equal=Poly.equal);
-                    let changed =
-                      switch (stored) {
-                      | Some((sw, sh)) =>
-                        Float.abs(sw -. nw) > 1.5
-                        || Float.abs(sh -. nh) > 1.5
-                      | None => true
+                      /* natural size: content zoom 1 (override the card's
+                         --card-zoom), shrink-wrapped; union of descendants */
+                      let est = Js.Unsafe.coerce(el)##.style;
+                      let saved_card =
+                        Js.to_string(Js.Unsafe.get(est, "cssText"));
+                      Js.Unsafe.set(
+                        est,
+                        "cssText",
+                        Js.string(
+                          saved_card
+                          ++ "; --card-zoom: 1; --card-bleed-zoom: 1;",
+                        ),
+                      );
+                      let cst = Js.Unsafe.coerce(c)##.style;
+                      let saved =
+                        Js.to_string(Js.Unsafe.get(cst, "cssText"));
+                      Js.Unsafe.set(
+                        cst,
+                        "cssText",
+                        Js.string(
+                          saved
+                          ++ "; position: absolute; width: max-content; height: max-content; max-width: none; max-height: none; overflow: visible;",
+                        ),
+                      );
+                      let r0 = c##getBoundingClientRect;
+                      let x0 = r0##.left
+                      and y0 = r0##.top;
+                      let (x1, y1) = {
+                        let ds = c##querySelectorAll(Js.string("*"));
+                        let mx = ref(x0)
+                        and my = ref(y0);
+                        for (j in 0 to min(ds##.length, 600) - 1) {
+                          switch (Js.Opt.to_option(ds##item(j))) {
+                          | Some(d) =>
+                            let r = d##getBoundingClientRect;
+                            let w = Js.Optdef.get(r##.width, () => 0.);
+                            if (w > 0.) {
+                              mx := Float.max(mx^, r##.right);
+                              my := Float.max(my^, r##.bottom);
+                            };
+                          | None => ()
+                          };
+                        };
+                        (mx^, my^);
                       };
-                    if (changed) {
-                      Effect.Expert.handle_non_dom_event_exn(
-                        globals.inject_global(
-                          Set(
-                            Sidebar(
-                              SetCanvasCardNatural(slide, key, nw, nh),
+                      Js.Unsafe.set(cst, "cssText", Js.string(saved));
+                      Js.Unsafe.set(est, "cssText", Js.string(saved_card));
+                      measured_card_content :=
+                        [
+                          ((slide, key), content),
+                          ...List.Assoc.remove(
+                               measured_card_content^,
+                               (slide, key),
+                               ~equal=Poly.equal,
+                             ),
+                        ];
+                      let nw = Float.max(8., (x1 -. x0) /. z)
+                      and nh = Float.max(8., (y1 -. y0) /. z);
+                      let stored =
+                        List.Assoc.find(
+                          globals.settings.sidebar.canvas_card_natural,
+                          (slide, key),
+                          ~equal=Poly.equal,
+                        );
+                      let changed =
+                        switch (stored) {
+                        | Some((sw, sh)) =>
+                          Float.abs(sw -. nw) > 1.5
+                          || Float.abs(sh -. nh) > 1.5
+                        | None => true
+                        };
+                      if (changed) {
+                        Effect.Expert.handle_non_dom_event_exn(
+                          globals.inject_global(
+                            Set(
+                              Sidebar(
+                                SetCanvasCardNatural(slide, key, nw, nh),
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    };
-                    if (!
-                          List.Assoc.mem(globals.settings.sidebar.canvas_card_sizes, (slide, key), ~equal=Poly.equal)) {
-                      let (w, h) =
-                        if (rich && !is_list) {
-                          /* standard size, the content's proportions */
-                          let long = 168.;
-                          let k = long /. Float.max(nw, nh);
-                          (
-                            Float.max(48., nw *. k +. 8.),
-                            Float.max(48., nh *. k +. 8.),
-                          );
-                        } else if (rich) {
-                          (
-                            Float.max(64., Float.min(360., nw +. 12.)),
-                            Float.max(48., Float.min(260., nh +. 12.)),
-                          );
-                        } else {
-                          (
-                            Float.max(40., Float.min(360., nw +. 22.)),
-                            Float.max(28., Float.min(260., nh +. 16.)),
-                          );
-                        };
-                      Effect.Expert.handle_non_dom_event_exn(
-                        globals.inject_global(
-                          Set(Sidebar(SetCanvasCardSize(slide, key, w, h))),
-                        ),
-                      );
+                        );
+                      };
+                      if (!
+                            List.Assoc.mem(
+                              globals.settings.sidebar.canvas_card_sizes,
+                              (slide, key),
+                              ~equal=Poly.equal,
+                            )) {
+                        let (w, h) =
+                          if (rich && !is_list) {
+                            /* standard size, the content's proportions */
+                            let long = 168.;
+                            let k = long /. Float.max(nw, nh);
+                            (
+                              Float.max(48., nw *. k +. 8.),
+                              Float.max(48., nh *. k +. 8.),
+                            );
+                          } else if (rich) {
+                            (
+                              Float.max(64., Float.min(360., nw +. 12.)),
+                              Float.max(48., Float.min(260., nh +. 12.)),
+                            );
+                          } else {
+                            (
+                              Float.max(40., Float.min(360., nw +. 22.)),
+                              Float.max(28., Float.min(260., nh +. 16.)),
+                            );
+                          };
+                        Effect.Expert.handle_non_dom_event_exn(
+                          globals.inject_global(
+                            Set(
+                              Sidebar(SetCanvasCardSize(slide, key, w, h)),
+                            ),
+                          ),
+                        );
+                      };
+                    | None => ()
                     };
                   | None => ()
                   };
-                | None => ()
-                };
-              },
+                },
             pending_measure,
           )
         )
@@ -2943,7 +3088,11 @@ let view_impl =
             ),
             menu_icon(
               {js|≡|js},
-              List.mem(globals.settings.sidebar.canvas_value_nodes, key, ~equal=Poly.equal)
+              List.mem(
+                globals.settings.sidebar.canvas_value_nodes,
+                key,
+                ~equal=Poly.equal,
+              )
                 ? "show the type node again"
                 : "show a value of this type here (a navigable probe well; rich view when one applies)",
               () =>
@@ -2989,11 +3138,12 @@ let view_impl =
         ),
         div(
           ~attrs=[clss(["cmenu-row"])],
-          List.map(~f=
-            b =>
-              menu_icon(~cls="cmenu-base", b, "type T = " ++ b ++ " in", () =>
-                place_stub_at(~kind="alias", ~comps=[b], at)
-              ),
+          List.map(
+            ~f=
+              b =>
+                menu_icon(~cls="cmenu-base", b, "type T = " ++ b ++ " in", () =>
+                  place_stub_at(~kind="alias", ~comps=[b], at)
+                ),
             ["Int", "Float", "Bool", "String"],
           ),
         ),
@@ -3105,7 +3255,8 @@ let view_impl =
     main_mode
       ? switch (globals.settings.sidebar.canvas_focus_ty) {
         | Some(_) as k => k
-        | None => Option.map(~f=(n: CanvasGraph.tynode) => n.key, selected_node)
+        | None =>
+          Option.map(~f=(n: CanvasGraph.tynode) => n.key, selected_node)
         }
       : globals.settings.sidebar.canvas_focus_ty;
   /* hand a hole-bodied function to the agent as an obligation */
@@ -3263,13 +3414,22 @@ let view_impl =
       | [] => None
       | ns =>
         Some(
-          List.fold(ns, ~init=(Float.infinity, Float.infinity, Float.neg_infinity, Float.neg_infinity), ~f=((x0, y0, x1, y1), nl: CanvasLayout.node_layout) =>
-              (
-                min(x0, nl.p.x -. nl.r),
-                min(y0, nl.p.y -. nl.r),
-                max(x1, nl.p.x +. nl.r),
-                max(y1, nl.p.y +. nl.r +. 18.),
-              )),
+          List.fold(
+            ns,
+            ~init=(
+              Float.infinity,
+              Float.infinity,
+              Float.neg_infinity,
+              Float.neg_infinity,
+            ),
+            ~f=((x0, y0, x1, y1), nl: CanvasLayout.node_layout) =>
+            (
+              min(x0, nl.p.x -. nl.r),
+              min(y0, nl.p.y -. nl.r),
+              max(x1, nl.p.x +. nl.r),
+              max(y1, nl.p.y +. nl.r +. 18.),
+            )
+          ),
         )
       }
     );
@@ -3278,8 +3438,9 @@ let view_impl =
     CanvasCamera.note_exposure(
       ~aw,
       ~ah,
-      List.map(~f=
-        (nl: CanvasLayout.node_layout) => (nl.node.key, (nl.p.x, nl.p.y)),
+      List.map(
+        ~f=
+          (nl: CanvasLayout.node_layout) => (nl.node.key, (nl.p.x, nl.p.y)),
         lay.nodes,
       ),
     )
@@ -3338,13 +3499,16 @@ let view_impl =
       switch (avatar) {
       | Some((p, _)) =>
         lay.nodes
-        |> List.fold(~init=Stdlib.Option.None, ~f=(best, nl: CanvasLayout.node_layout) => {
+        |> List.fold(
+             ~init=Stdlib.Option.None,
+             ~f=(best, nl: CanvasLayout.node_layout) => {
                let d = Float.abs(nl.p.x -. p.x) +. Float.abs(nl.p.y -. p.y);
                switch (best) {
                | Some((bd, _)) when bd <= d => best
                | _ => Some((d, nl.node.key))
                };
-             })
+             },
+           )
         |> Option.map(~f=((_, k)) => " @ " ++ k)
         |> Option.value(~default="")
       | None => ""
@@ -3528,8 +3692,8 @@ let view_impl =
            is the module VALUE, like any other constant */
         let module_value =
           String.length(key) >= 3 && String.sub(key, ~pos=0, ~len=3) == "{}@"
-            ? List.find(~f=
-                (v: CanvasGraph.value) => v.v_key == key,
+            ? List.find(
+                ~f=(v: CanvasGraph.value) => v.v_key == key,
                 graph.values,
               )
             : None;
@@ -3604,21 +3768,25 @@ let view_impl =
       let sample_nodes = (sm: Language.Sample.t) =>
         nodes(sm.value)
         + List.fold(sm.env, ~init=0, ~f=(acc, en: Language.Sample.Env.entry) =>
-              acc
-              + (
-                switch (en.value) {
-                | Val(e) => nodes(e)
-                | Opaque => 1
-                }
-              ));
+            acc
+            + (
+              switch (en.value) {
+              | Val(e) => nodes(e)
+              | Opaque => 1
+              }
+            )
+          );
       let total = ref(0);
       let total_val = ref(0);
       let sites =
         Id.Map.fold(
           (id, ss, acc) => {
-            let n = List.fold(ss, ~init=0, ~f=(a, sm) => a + sample_nodes(sm));
+            let n =
+              List.fold(ss, ~init=0, ~f=(a, sm) => a + sample_nodes(sm));
             let nv =
-              List.fold(ss, ~init=0, ~f=(a, sm: Language.Sample.t) => a + nodes(sm.value));
+              List.fold(ss, ~init=0, ~f=(a, sm: Language.Sample.t) =>
+                a + nodes(sm.value)
+              );
             total := total^ + n;
             total_val := total_val^ + nv;
             [(Id.to_string(id), List.length(ss), n, nv), ...acc];
@@ -3626,7 +3794,9 @@ let view_impl =
           dyn,
           [],
         )
-        |> List.sort(~compare=((_, _, a, _), (_, _, b, _)) => compare(b, a));
+        |> List.sort(~compare=((_, _, a, _), (_, _, b, _)) =>
+             compare(b, a)
+           );
       let top =
         Util.ListUtil.take(5, sites)
         |> List.map(~f=((id, k, n, nv)) =>
@@ -3719,18 +3889,24 @@ let view_impl =
             String.length(sid) >= String.length(prefix)
             && String.sub(sid, ~pos=0, ~len=String.length(prefix)) == prefix
               ? acc
-                @ List.map(~f=
-                    (sm: Language.Sample.t) =>
-                      Printf.sprintf(
-                        "seq=%d step=%d depth=%d %s",
-                        sm.seq,
-                        sm.step_start,
-                        List.length(sm.call_stack),
-                        String.sub(Language.Exp.show(sm.value), ~pos=0, ~len=min(
-                            60,
-                            String.length(Language.Exp.show(sm.value)),
-                          )),
-                      ),
+                @ List.map(
+                    ~f=
+                      (sm: Language.Sample.t) =>
+                        Printf.sprintf(
+                          "seq=%d step=%d depth=%d %s",
+                          sm.seq,
+                          sm.step_start,
+                          List.length(sm.call_stack),
+                          String.sub(
+                            Language.Exp.show(sm.value),
+                            ~pos=0,
+                            ~len=
+                              min(
+                                60,
+                                String.length(Language.Exp.show(sm.value)),
+                              ),
+                          ),
+                        ),
                     ss,
                   )
               : acc;
@@ -3777,8 +3953,8 @@ let view_impl =
                },
                String.concat(~sep=",", t.t_refs),
                String.concat(~sep=",", CanvasGraph.exp_refs(t.t_body)),
-               String.concat(~sep=
-                 ",",
+               String.concat(
+                 ~sep=",",
                  List.map(~f=(e: CanvasGraph.edge) => e.e_name, graph.edges)
                  |> List.filteri(~f=(i, _) => i < 6),
                ),
@@ -3800,10 +3976,12 @@ let view_impl =
        every placement — MAIN mode derives the name from the selection) */
     let focus_edge =
       Option.bind(focused, ~f=name =>
-        List.find(~f=(e: CanvasGraph.edge) => e.e_name == name, graph.edges));
+        List.find(~f=(e: CanvasGraph.edge) => e.e_name == name, graph.edges)
+      );
     let focus_node =
       Option.bind(focused_ty, ~f=key =>
-        List.find(~f=(n: CanvasGraph.tynode) => n.key == key, graph.nodes));
+        List.find(~f=(n: CanvasGraph.tynode) => n.key == key, graph.nodes)
+      );
     let placeholder = (msg: string) =>
       div(~attrs=[clss(["canvas-info-empty"])], [text(msg)]);
     /* VALUES: the focus strip's content; with nothing focused, the
@@ -3892,7 +4070,8 @@ let view_impl =
     let tests_content = {
       let print_body = (t: CanvasGraph.test_info) => {
         let s = CanvasFocus.print_value(t.t_body);
-        String.length(s) > 90 ? String.sub(s, ~pos=0, ~len=88) ++ {js|…|js} : s;
+        String.length(s) > 90
+          ? String.sub(s, ~pos=0, ~len=88) ++ {js|…|js} : s;
       };
       let index_of = (t: CanvasGraph.test_info) => {
         let rec go = (i, xs) =>
@@ -3937,10 +4116,15 @@ let view_impl =
         let rows =
           graph.all_tests
           |> List.filter(~f=(t: CanvasGraph.test_info) =>
-               List.mem(subjects, t.t_id, ~equal=Poly.equal) || List.mem(t.t_refs, e.e_name, ~equal=Poly.equal)
+               List.mem(subjects, t.t_id, ~equal=Poly.equal)
+               || List.mem(t.t_refs, e.e_name, ~equal=Poly.equal)
              )
           |> List.map(~f=t =>
-               row(~subject=List.mem(subjects, t.CanvasGraph.t_id, ~equal=Poly.equal), t)
+               row(
+                 ~subject=
+                   List.mem(subjects, t.CanvasGraph.t_id, ~equal=Poly.equal),
+                 t,
+               )
              );
         switch (rows) {
         | [] => [placeholder("No test mentions " ++ e.e_label ++ ".")]
@@ -3955,10 +4139,11 @@ let view_impl =
       | None =>
         switch (
           Option.bind(selected_item, ~f=id =>
-            List.find(~f=
-              (t: CanvasGraph.test_info) => t.t_id == id,
+            List.find(
+              ~f=(t: CanvasGraph.test_info) => t.t_id == id,
               graph.all_tests,
-            ))
+            )
+          )
         ) {
         | Some(t) => [
             row(~subject=false, t),
@@ -4174,17 +4359,18 @@ let view_impl =
           Attr.create("aria-label", label),
           Attr.on_change((_, v) => action(v)),
         ],
-        List.map(~f=
-          ((value, label)) =>
-            option(
-              ~attrs=
-                [Attr.value(value)]
-                @ (
-                  value == current
-                    ? [Attr.create("selected", "selected")] : []
-                ),
-              [text(label)],
-            ),
+        List.map(
+          ~f=
+            ((value, label)) =>
+              option(
+                ~attrs=
+                  [Attr.value(value)]
+                  @ (
+                    value == current
+                      ? [Attr.create("selected", "selected")] : []
+                  ),
+                [text(label)],
+              ),
           choices,
         ),
       ),
@@ -4369,15 +4555,22 @@ let view_impl =
     let cur_keys =
       List.map(~f=(nl: CanvasLayout.node_layout) => nl.node.key, lay.nodes);
     let removed =
-      List.filter(~f=((k, _)) => !List.mem(cur_keys, k, ~equal=Poly.equal), prev_nodes);
+      List.filter(
+        ~f=((k, _)) => !List.mem(cur_keys, k, ~equal=Poly.equal),
+        prev_nodes,
+      );
     let cur_edge_names =
-      List.map(~f=(el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
+      List.map(
+        ~f=(el: CanvasLayout.edge_layout) => el.edge.e_name,
+        lay.edges,
+      );
     let removed_edge_layouts =
       switch (last_layout^) {
       | Some(prev) when prev_slide == slide =>
-        List.filter(~f=
-          (el: CanvasLayout.edge_layout) =>
-            !List.mem(cur_edge_names, el.edge.e_name, ~equal=Poly.equal),
+        List.filter(
+          ~f=
+            (el: CanvasLayout.edge_layout) =>
+              !List.mem(cur_edge_names, el.edge.e_name, ~equal=Poly.equal),
           prev.edges,
         )
       | _ => []
@@ -4385,9 +4578,10 @@ let view_impl =
     let removed_node_layouts =
       switch (last_layout^) {
       | Some(prev) when prev_slide == slide =>
-        List.filter(~f=
-          (nl: CanvasLayout.node_layout) =>
-            List.Assoc.mem(removed, nl.node.key, ~equal=Poly.equal),
+        List.filter(
+          ~f=
+            (nl: CanvasLayout.node_layout) =>
+              List.Assoc.mem(removed, nl.node.key, ~equal=Poly.equal),
           prev.nodes,
         )
       | _ => []
@@ -4396,34 +4590,38 @@ let view_impl =
     let (changed_nodes, changed_edges) =
       switch (last_layout^) {
       | Some(prev) when prev_slide == slide => (
-          List.filter_map(~f=
-            (nl: CanvasLayout.node_layout) =>
-              switch (
-                List.find(~f=
-                  (pl: CanvasLayout.node_layout) =>
-                    pl.node.key == nl.node.key,
-                  prev.nodes,
-                )
-              ) {
-              | Some(pl) when node_look(pl.node) != node_look(nl.node) =>
-                Some((nl, pl.node))
-              | _ => None
-              },
+          List.filter_map(
+            ~f=
+              (nl: CanvasLayout.node_layout) =>
+                switch (
+                  List.find(
+                    ~f=
+                      (pl: CanvasLayout.node_layout) =>
+                        pl.node.key == nl.node.key,
+                    prev.nodes,
+                  )
+                ) {
+                | Some(pl) when node_look(pl.node) != node_look(nl.node) =>
+                  Some((nl, pl.node))
+                | _ => None
+                },
             lay.nodes,
           ),
-          List.filter_map(~f=
-            (el: CanvasLayout.edge_layout) =>
-              switch (
-                List.find(~f=
-                  (pe: CanvasLayout.edge_layout) =>
-                    pe.edge.e_name == el.edge.e_name,
-                  prev.edges,
-                )
-              ) {
-              | Some(pe) when edge_look(pe.edge) != edge_look(el.edge) =>
-                Some((el, pe.edge))
-              | _ => None
-              },
+          List.filter_map(
+            ~f=
+              (el: CanvasLayout.edge_layout) =>
+                switch (
+                  List.find(
+                    ~f=
+                      (pe: CanvasLayout.edge_layout) =>
+                        pe.edge.e_name == el.edge.e_name,
+                    prev.edges,
+                  )
+                ) {
+                | Some(pe) when edge_look(pe.edge) != edge_look(el.edge) =>
+                  Some((el, pe.edge))
+                | _ => None
+                },
             lay.edges,
           ),
         )
@@ -4433,7 +4631,10 @@ let view_impl =
         && removed != []
         && CanvasBuffer.now() > collapse_fx_until^) {
       if (List.length(removed) <= 4) {
-        List.iter(~f=((_, (x, y))) => CanvasRipple.suction((x, y)), removed);
+        List.iter(
+          ~f=((_, (x, y))) => CanvasRipple.suction((x, y)),
+          removed,
+        );
         CanvasLog.log(
           Printf.sprintf(
             "-%d node(s): %s (suction ripple)",
@@ -4454,26 +4655,28 @@ let view_impl =
        a small splash + grow-in (gesture placements splash bigger at the
        click site and are already stamped, so they're skipped here) */
     let added =
-      List.filter(~f=
-        (nl: CanvasLayout.node_layout) =>
-          !List.Assoc.mem(prev_nodes, nl.node.key, ~equal=Poly.equal)
-          && !List.Assoc.mem(last_placed^, nl.node.key, ~equal=Poly.equal),
+      List.filter(
+        ~f=
+          (nl: CanvasLayout.node_layout) =>
+            !List.Assoc.mem(prev_nodes, nl.node.key, ~equal=Poly.equal)
+            && !List.Assoc.mem(last_placed^, nl.node.key, ~equal=Poly.equal),
         lay.nodes,
       );
     /* value badges (constants, module values) are canvas content too: a
        new one is a terminal of its type's definition act (A2) */
     let (_, prev_values) = last_value_snapshot^;
     let added_values =
-      List.filter(~f=
-        (vl: CanvasLayout.value_layout) =>
-          !List.mem(prev_values, vl.value.v_name, ~equal=Poly.equal),
+      List.filter(
+        ~f=
+          (vl: CanvasLayout.value_layout) =>
+            !List.mem(prev_values, vl.value.v_name, ~equal=Poly.equal),
         lay.values,
       );
     last_value_snapshot :=
       (
         slide,
-        List.map(~f=
-          (vl: CanvasLayout.value_layout) => vl.value.v_name,
+        List.map(
+          ~f=(vl: CanvasLayout.value_layout) => vl.value.v_name,
           lay.values,
         ),
       );
@@ -4496,7 +4699,12 @@ let view_impl =
                |> Util.OptUtil.and_then((nl: CanvasLayout.node_layout) =>
                     nl.node.kind == CanvasGraph.Product
                     && nl.node.parts != []
-                    && !List.Assoc.mem(prev_nodes, nl.node.key, ~equal=Poly.equal)
+                    && !
+                         List.Assoc.mem(
+                           prev_nodes,
+                           nl.node.key,
+                           ~equal=Poly.equal,
+                         )
                       ? Some((nl.node.key, nl.node.parts)) : None
                   );
              Some(
@@ -4518,7 +4726,9 @@ let view_impl =
     let moved =
       lay.nodes
       |> List.filter_map(~f=(nl: CanvasLayout.node_layout) =>
-           switch (List.Assoc.find(prev_nodes, nl.node.key, ~equal=Poly.equal)) {
+           switch (
+             List.Assoc.find(prev_nodes, nl.node.key, ~equal=Poly.equal)
+           ) {
            | Some((px, py))
                when
                  Float.abs(px -. nl.p.x) > 1. || Float.abs(py -. nl.p.y) > 1. =>
@@ -4535,9 +4745,10 @@ let view_impl =
          );
     let big_move =
       List.length(
-        List.filter(~f=
-          ((_, f: CanvasLayout.pos, t: CanvasLayout.pos)) =>
-            Float.abs(f.x -. t.x) > 40. || Float.abs(f.y -. t.y) > 40.,
+        List.filter(
+          ~f=
+            ((_, f: CanvasLayout.pos, t: CanvasLayout.pos)) =>
+              Float.abs(f.x -. t.x) > 40. || Float.abs(f.y -. t.y) > 40.,
           moved,
         ),
       )
@@ -4566,8 +4777,8 @@ let view_impl =
       if (!Animation.staged()) {
         CanvasBuffer.stage_beat(~slow=true, ());
       };
-      List.iter(~f=
-        (nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
+      List.iter(
+        ~f=(nl: CanvasLayout.node_layout) => note_placed(nl.node.key),
         added,
       );
       let pos_of = k =>
@@ -4587,13 +4798,15 @@ let view_impl =
         let is_module = key =>
           String.length(key) >= 3 && String.sub(key, ~pos=0, ~len=3) == "{}@";
         let named =
-          List.filter_map(~f=
-            (n: CanvasGraph.tynode) =>
-              switch (n.kind) {
-              | CanvasGraph.Builtin => None
-              | CanvasGraph.Product => is_module(n.key) ? Some(n.key) : None
-              | _ => Some(n.key)
-              },
+          List.filter_map(
+            ~f=
+              (n: CanvasGraph.tynode) =>
+                switch (n.kind) {
+                | CanvasGraph.Builtin => None
+                | CanvasGraph.Product =>
+                  is_module(n.key) ? Some(n.key) : None
+                | _ => Some(n.key)
+                },
             graph.nodes,
           );
         /* a module leads its members: the agent wrote `module M = {`
@@ -4604,15 +4817,16 @@ let view_impl =
             let first_member =
               List.mapi(~f=(i, key) => (i, key), named)
               |> List.find(~f=((_, key)) =>
-                   List.exists(~f=
-                     (n: CanvasGraph.tynode) =>
-                       n.key == key
-                       && (
-                         switch (n.m_path) {
-                         | [r, ..._] => r == root
-                         | [] => false
-                         }
-                       ),
+                   List.exists(
+                     ~f=
+                       (n: CanvasGraph.tynode) =>
+                         n.key == key
+                         && (
+                           switch (n.m_path) {
+                           | [r, ..._] => r == root
+                           | [] => false
+                           }
+                         ),
                      graph.nodes,
                    )
                  );
@@ -4635,8 +4849,8 @@ let view_impl =
                  || List.mem(e.e_deps, k, ~equal=Poly.equal)
                  || (
                    switch (
-                     List.find(~f=
-                       (pn: CanvasGraph.tynode) => pn.key == e.e_src,
+                     List.find(
+                       ~f=(pn: CanvasGraph.tynode) => pn.key == e.e_src,
                        graph.nodes,
                      )
                    ) {
@@ -4655,52 +4869,58 @@ let view_impl =
         CanvasScore.{
           d_cause: Option.value(~default="edit", CanvasBuffer.shown_label^),
           added:
-            List.map(~f=
-              (nl: CanvasLayout.node_layout) =>
-                CanvasScore.{
-                  key: nl.node.key,
-                  anchor: Option.map(~f=fst, nl.node.sat),
-                  p: nl.p,
-                  order: order_of(nl.node.key),
-                },
+            List.map(
+              ~f=
+                (nl: CanvasLayout.node_layout) =>
+                  CanvasScore.{
+                    key: nl.node.key,
+                    anchor: Option.map(~f=fst, nl.node.sat),
+                    p: nl.p,
+                    order: order_of(nl.node.key),
+                  },
               added,
             )
-            @ List.map(~f=
-                (vl: CanvasLayout.value_layout) =>
-                  CanvasScore.{
-                    key: value_score_key(vl.value.v_name),
-                    anchor: Some(vl.value.v_key),
-                    p: vl.p,
-                    order: order_of(vl.value.v_key),
-                  },
+            @ List.map(
+                ~f=
+                  (vl: CanvasLayout.value_layout) =>
+                    CanvasScore.{
+                      key: value_score_key(vl.value.v_name),
+                      anchor: Some(vl.value.v_key),
+                      p: vl.p,
+                      order: order_of(vl.value.v_key),
+                    },
                 added_values,
               ),
           edges: new_edges,
           removed:
-            List.map(~f=
-              ((k, (x, y))) =>
-                (
-                  k,
-                  CanvasLayout.{
-                    x,
-                    y,
-                  },
-                ),
+            List.map(
+              ~f=
+                ((k, (x, y))) =>
+                  (
+                    k,
+                    CanvasLayout.{
+                      x,
+                      y,
+                    },
+                  ),
               removed,
             ),
           removed_edges:
-            List.map(~f=
-              (el: CanvasLayout.edge_layout) => (el.edge.e_name, el.label_p),
+            List.map(
+              ~f=
+                (el: CanvasLayout.edge_layout) =>
+                  (el.edge.e_name, el.label_p),
               removed_edge_layouts,
             ),
           changed:
-            List.map(~f=
-              ((nl: CanvasLayout.node_layout, _)) => (nl.node.key, nl.p),
+            List.map(
+              ~f=((nl: CanvasLayout.node_layout, _)) => (nl.node.key, nl.p),
               changed_nodes,
             )
-            @ List.map(~f=
-                ((el: CanvasLayout.edge_layout, _)) =>
-                  (el.edge.e_name, el.label_p),
+            @ List.map(
+                ~f=
+                  ((el: CanvasLayout.edge_layout, _)) =>
+                    (el.edge.e_name, el.label_p),
                 changed_edges,
               ),
           moved,
@@ -4727,9 +4947,10 @@ let view_impl =
                 CanvasScore.with_edge_positions(
                   ~pos_of,
                   ~edges=
-                    List.map(~f=
-                      (el: CanvasLayout.edge_layout) =>
-                        (el.edge.e_name, el.src_p, el.dst_p),
+                    List.map(
+                      ~f=
+                        (el: CanvasLayout.edge_layout) =>
+                          (el.edge.e_name, el.src_p, el.dst_p),
                       lay.edges @ removed_edge_layouts,
                     ),
                 ),
@@ -4760,8 +4981,8 @@ let view_impl =
          themselves, so the two enumerations cannot disagree. */
       let (hull_arrivals, hull_geoms) = {
         let node_t =
-          List.map(~f=
-            ((k, t)) => (CanvasView.sanitize(k), t),
+          List.map(
+            ~f=((k, t)) => (CanvasView.sanitize(k), t),
             CanvasScore.appear_times(score),
           );
         let edge_t =
@@ -4778,7 +4999,11 @@ let view_impl =
           String.length(id) > String.length(pre)
           && String.sub(id, ~pos=0, ~len=String.length(pre)) == pre
             ? Some(
-                String.sub(id, ~pos=String.length(pre), ~len=String.length(id) - String.length(pre)),
+                String.sub(
+                  id,
+                  ~pos=String.length(pre),
+                  ~len=String.length(id) - String.length(pre),
+                ),
               )
             : None;
         /* an ancestor copy carries a "--v<path>" suffix */
@@ -4797,9 +5022,11 @@ let view_impl =
             after("hullc-l-", id),
             after("hulls-e-", id),
           ) {
-          | (Some(s), _, _) => List.Assoc.find(node_t, base(s), ~equal=Poly.equal)
+          | (Some(s), _, _) =>
+            List.Assoc.find(node_t, base(s), ~equal=Poly.equal)
           | (_, Some(s), _)
-          | (_, _, Some(s)) => List.Assoc.find(edge_t, base(s), ~equal=Poly.equal)
+          | (_, _, Some(s)) =>
+            List.Assoc.find(edge_t, base(s), ~equal=Poly.equal)
           | _ => None
           };
         let ids =
@@ -4807,26 +5034,30 @@ let view_impl =
         let sausage_ids =
           CanvasView.hull_paths_of(lay)
           |> List.concat_map(~f=path =>
-               List.map(~f=
-                 ((id, _, _)) => id,
+               List.map(
+                 ~f=((id, _, _)) => id,
                  CanvasView.hull_sausages_at(lay, path),
                )
              );
         (
-          List.filter_map(~f=id => Option.map(~f=t => (id, t), time_of(id)), ids),
-          List.filter_map(~f=
-            id => Option.map(~f=t => (id, Option.some(t)), time_of(id)),
+          List.filter_map(
+            ~f=id => Option.map(~f=t => (id, t), time_of(id)),
+            ids,
+          ),
+          List.filter_map(
+            ~f=id => Option.map(~f=t => (id, Option.some(t)), time_of(id)),
             sausage_ids,
           ),
         );
       };
       Animation.set_arrival_schedule(
-        List.map(~f=
-          ((k, t)) =>
-            switch (value_of_score_key(k)) {
-            | Some(v) => (CanvasView.value_dom_id(v), t)
-            | None => (CanvasView.node_dom_id(k), t)
-            },
+        List.map(
+          ~f=
+            ((k, t)) =>
+              switch (value_of_score_key(k)) {
+              | Some(v) => (CanvasView.value_dom_id(v), t)
+              | None => (CanvasView.node_dom_id(k), t)
+              },
           CanvasScore.appear_times(score),
         )
         @ pills
@@ -4875,60 +5106,66 @@ let view_impl =
                }
              );
         let forms =
-          List.concat_map(~f=
-            ((a, b, _, _)) =>
-              List.mem(formed, b, ~equal=Poly.equal)
-                ? [(CanvasView.formation_dom_id(a, b), Stdlib.Option.none)]
-                : pair(a, b, CanvasView.formation_dom_id(a, b)),
+          List.concat_map(
+            ~f=
+              ((a, b, _, _)) =>
+                List.mem(formed, b, ~equal=Poly.equal)
+                  ? [
+                    (CanvasView.formation_dom_id(a, b), Stdlib.Option.none),
+                  ]
+                  : pair(a, b, CanvasView.formation_dom_id(a, b)),
             lay.formations,
           );
         let deps =
-          List.concat_map(~f=
-            ((a, b, _, _)) => pair(a, b, CanvasView.dep_dom_id(a, b)),
+          List.concat_map(
+            ~f=((a, b, _, _)) => pair(a, b, CanvasView.dep_dom_id(a, b)),
             lay.dep_links,
           );
         let (draws, leaders) =
           CanvasScore.effects_abs(score)
-          |> List.fold(~init=([], []), ~f=((ds, ls), (t, _, e: CanvasScore.timed_effect)) =>
-                 switch (e.effect) {
-                 | Draw(name) => (
-                     /* an endofunction's orbit ring cannot be ridden: it
-                        draws on when the ride would have ended */
-                     [
-                       (CanvasView.path_dom_id(name), Stdlib.Option.none),
-                       /* drawn on over the ride's span, so it is whole
-                          before the pill lands */
-                       (CanvasView.orbit_dom_id(name), Option.some(t)),
-                       ...ds,
-                     ],
-                     ls,
-                   )
-                 | Reveal(name) => (
-                     /* a path or, for an endofunction, an orbit ring:
-                        schedule both ids (one exists); the label's leader
-                        comes with the pill */
-                     [
-                       (CanvasView.path_dom_id(name), Option.some(t)),
-                       (CanvasView.orbit_dom_id(name), Option.some(t)),
-                       ...ds,
-                     ],
-                     [
-                       (
-                         "clead-" ++ CanvasView.sanitize(name),
-                         Option.some(t + e.dur),
-                       ),
-                       ...ls,
-                     ],
-                   )
-                 | Pill(name) => (
-                     ds,
-                     [
-                       ("clead-" ++ CanvasView.sanitize(name), Some(t)),
-                       ...ls,
-                     ],
-                   )
-                 | _ => (ds, ls)
-                 });
+          |> List.fold(
+               ~init=([], []),
+               ~f=((ds, ls), (t, _, e: CanvasScore.timed_effect)) =>
+               switch (e.effect) {
+               | Draw(name) => (
+                   /* an endofunction's orbit ring cannot be ridden: it
+                      draws on when the ride would have ended */
+                   [
+                     (CanvasView.path_dom_id(name), Stdlib.Option.none),
+                     /* drawn on over the ride's span, so it is whole
+                        before the pill lands */
+                     (CanvasView.orbit_dom_id(name), Option.some(t)),
+                     ...ds,
+                   ],
+                   ls,
+                 )
+               | Reveal(name) => (
+                   /* a path or, for an endofunction, an orbit ring:
+                      schedule both ids (one exists); the label's leader
+                      comes with the pill */
+                   [
+                     (CanvasView.path_dom_id(name), Option.some(t)),
+                     (CanvasView.orbit_dom_id(name), Option.some(t)),
+                     ...ds,
+                   ],
+                   [
+                     (
+                       "clead-" ++ CanvasView.sanitize(name),
+                       Option.some(t + e.dur),
+                     ),
+                     ...ls,
+                   ],
+                 )
+               | Pill(name) => (
+                   ds,
+                   [
+                     ("clead-" ++ CanvasView.sanitize(name), Some(t)),
+                     ...ls,
+                   ],
+                 )
+               | _ => (ds, ls)
+               }
+             );
         /* a label leader that appears on an EXISTING edge (its pill was
            pushed by the relayout) belongs to the drift, not to a beat's
            default stagger */
@@ -4936,8 +5173,8 @@ let view_impl =
         let old_leaders =
           lay.edges
           |> List.filter_map(~f=(el: CanvasLayout.edge_layout) =>
-               List.exists(~f=
-                 (e: CanvasScore.new_edge) => e.name == el.edge.e_name,
+               List.exists(
+                 ~f=(e: CanvasScore.new_edge) => e.name == el.edge.e_name,
                  new_edges,
                )
                  ? None
@@ -4954,22 +5191,30 @@ let view_impl =
       {
         let t0 = CanvasBuffer.now();
         let cue = k =>
-          switch (List.Assoc.find(CanvasScore.change_times(score), k, ~equal=Poly.equal)) {
+          switch (
+            List.Assoc.find(
+              CanvasScore.change_times(score),
+              k,
+              ~equal=Poly.equal,
+            )
+          ) {
           | Some(t) => t0 +. float_of_int(t)
           | None => t0
           };
         staged :=
           {
             s_nodes:
-              List.map(~f=
-                ((nl: CanvasLayout.node_layout, old)) =>
-                  (nl.node.key, cue(nl.node.key), old),
+              List.map(
+                ~f=
+                  ((nl: CanvasLayout.node_layout, old)) =>
+                    (nl.node.key, cue(nl.node.key), old),
                 changed_nodes,
               ),
             s_edges:
-              List.map(~f=
-                ((el: CanvasLayout.edge_layout, old)) =>
-                  (el.edge.e_name, cue(el.edge.e_name), old),
+              List.map(
+                ~f=
+                  ((el: CanvasLayout.edge_layout, old)) =>
+                    (el.edge.e_name, cue(el.edge.e_name), old),
                 changed_edges,
               ),
           };
@@ -4984,8 +5229,8 @@ let view_impl =
           });
       };
       CanvasLog.log(CanvasScore.to_string(score));
-      List.iter(~f=
-        v => CanvasLog.log("SCORE: " ++ v),
+      List.iter(
+        ~f=v => CanvasLog.log("SCORE: " ++ v),
         CanvasScore.validate(score) @ CanvasScore.coverage(diff, score),
       );
       let zoom = CanvasCamera.zoom_now^;
@@ -5012,34 +5257,44 @@ let view_impl =
 
       let nowt = CanvasBuffer.now();
       let next_state =
-        List.filter_map(~f=
-          (el: CanvasLayout.edge_layout) =>
-            switch (el.edge.e_out_id) {
-            | None => None
-            | Some(out_id) =>
-              let n =
-                switch (Language.Sample.Map.lookup(out_id, editor.dynamics)) {
-                | Some(ss) => List.length(ss)
-                | None => 0
+        List.filter_map(
+          ~f=
+            (el: CanvasLayout.edge_layout) =>
+              switch (el.edge.e_out_id) {
+              | None => None
+              | Some(out_id) =>
+                let n =
+                  switch (Language.Sample.Map.lookup(out_id, editor.dynamics)) {
+                  | Some(ss) => List.length(ss)
+                  | None => 0
+                  };
+                let (prev_n, last_t) =
+                  switch (
+                    List.Assoc.find(
+                      edge_pulse_state^,
+                      el.edge.e_name,
+                      ~equal=Poly.equal,
+                    )
+                  ) {
+                  | Some(st) => st
+                  | None => ((-1), 0.)
+                  };
+                let fire = prev_n >= 0 && n > prev_n && nowt -. last_t > 1000.;
+                if (fire) {
+                  CanvasRipple.pulse_edge(
+                    ~wire=
+                      List.map(
+                        ~f=(p: CanvasLayout.pos) => (p.x, p.y),
+                        el.wire,
+                      ),
+                    (el.src_p.x, el.src_p.y),
+                    (el.c1.x, el.c1.y),
+                    (el.c2.x, el.c2.y),
+                    (el.dst_p.x, el.dst_p.y),
+                  );
                 };
-              let (prev_n, last_t) =
-                switch (List.Assoc.find(edge_pulse_state^, el.edge.e_name, ~equal=Poly.equal)) {
-                | Some(st) => st
-                | None => ((-1), 0.)
-                };
-              let fire = prev_n >= 0 && n > prev_n && nowt -. last_t > 1000.;
-              if (fire) {
-                CanvasRipple.pulse_edge(
-                  ~wire=
-                    List.map(~f=(p: CanvasLayout.pos) => (p.x, p.y), el.wire),
-                  (el.src_p.x, el.src_p.y),
-                  (el.c1.x, el.c1.y),
-                  (el.c2.x, el.c2.y),
-                  (el.dst_p.x, el.dst_p.y),
-                );
-              };
-              Some((el.edge.e_name, (n, fire ? nowt : last_t)));
-            },
+                Some((el.edge.e_name, (n, fire ? nowt : last_t)));
+              },
           lay.edges,
         );
       edge_pulse_state := next_state;
@@ -5047,14 +5302,17 @@ let view_impl =
     /* layout churn: how much did EXISTING nodes move this render?
        (the metric behind "the layout suddenly reshuffled") */
     let moved =
-      List.filter_map(~f=
-        (nl: CanvasLayout.node_layout) =>
-          switch (List.Assoc.find(prev_nodes, nl.node.key, ~equal=Poly.equal)) {
-          | Some((px, py)) =>
-            let d = max(Float.abs(nl.p.x -. px), Float.abs(nl.p.y -. py));
-            d > 21. ? Some(d) : None;
-          | None => None
-          },
+      List.filter_map(
+        ~f=
+          (nl: CanvasLayout.node_layout) =>
+            switch (
+              List.Assoc.find(prev_nodes, nl.node.key, ~equal=Poly.equal)
+            ) {
+            | Some((px, py)) =>
+              let d = max(Float.abs(nl.p.x -. px), Float.abs(nl.p.y -. py));
+              d > 21. ? Some(d) : None;
+            | None => None
+            },
         lay.nodes,
       );
     if (prev_slide == slide && moved != [] && ! drag_active^) {
@@ -5089,8 +5347,10 @@ let view_impl =
     last_node_snapshot :=
       (
         slide,
-        List.map(~f=
-          (nl: CanvasLayout.node_layout) => (nl.node.key, (nl.p.x, nl.p.y)),
+        List.map(
+          ~f=
+            (nl: CanvasLayout.node_layout) =>
+              (nl.node.key, (nl.p.x, nl.p.y)),
           lay.nodes,
         ),
       );
@@ -5099,20 +5359,24 @@ let view_impl =
     /* the edge set for the next render's diff (edges are enacted by the
        score planned above) */
     let cur_edges =
-      List.map(~f=(el: CanvasLayout.edge_layout) => el.edge.e_name, lay.edges);
+      List.map(
+        ~f=(el: CanvasLayout.edge_layout) => el.edge.e_name,
+        lay.edges,
+      );
     last_edge_snapshot := (slide, cur_edges);
   };
   /* telegraph state for CanvasView: rubber-band anchors + grow-in key */
   let connect_pts: list(CanvasLayout.pos) =
     switch (connect) {
     | Some(srcs) =>
-      List.filter_map(~f=
-        sstr =>
-          lay.nodes
-          |> List.find(~f=(nl: CanvasLayout.node_layout) =>
-               ty_syntax(nl.node) == sstr
-             )
-          |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
+      List.filter_map(
+        ~f=
+          sstr =>
+            lay.nodes
+            |> List.find(~f=(nl: CanvasLayout.node_layout) =>
+                 ty_syntax(nl.node) == sstr
+               )
+            |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p),
         srcs,
       )
     | None => []
@@ -5122,8 +5386,8 @@ let view_impl =
   let dep_fan = {
     let fan_for = (name: string) =>
       switch (
-        List.find(~f=
-          (el: CanvasLayout.edge_layout) => el.edge.e_name == name,
+        List.find(
+          ~f=(el: CanvasLayout.edge_layout) => el.edge.e_name == name,
           lay.edges,
         )
       ) {
@@ -5134,16 +5398,19 @@ let view_impl =
           |> List.filter_map(~f=dep => {
                let tgt =
                  switch (
-                   List.find(~f=
-                     (dl: CanvasLayout.edge_layout) => dl.edge.e_name == dep,
+                   List.find(
+                     ~f=
+                       (dl: CanvasLayout.edge_layout) =>
+                         dl.edge.e_name == dep,
                      lay.edges,
                    )
                  ) {
                  | Some(dl) => Some(dl.label_p)
                  | None =>
-                   List.find(~f=
-                     (vl: CanvasLayout.value_layout) =>
-                       vl.value.v_name == dep,
+                   List.find(
+                     ~f=
+                       (vl: CanvasLayout.value_layout) =>
+                         vl.value.v_name == dep,
                      lay.values,
                    )
                    |> Option.map(~f=(vl: CanvasLayout.value_layout) => vl.p)
@@ -5154,7 +5421,8 @@ let view_impl =
         let used_by =
           lay.edges
           |> List.filter_map(~f=(dl: CanvasLayout.edge_layout) =>
-               dl.edge.e_name != name && List.mem(dl.edge.e_deps, name, ~equal=Poly.equal)
+               dl.edge.e_name != name
+               && List.mem(dl.edge.e_deps, name, ~equal=Poly.equal)
                  ? Some((dl.label_p, el.label_p)) : None
              );
         uses @ used_by;
@@ -5229,7 +5497,8 @@ let view_impl =
   };
   let just_placed = {
     let now = CanvasBuffer.now();
-    last_placed := List.filter(~f=((_, t)) => now -. t < 2500., last_placed^);
+    last_placed :=
+      List.filter(~f=((_, t)) => now -. t < 2500., last_placed^);
     List.map(~f=fst, last_placed^);
   };
   /* mode guidance floats OVER the canvas in a zero-height row: putting
@@ -5241,16 +5510,17 @@ let view_impl =
        just names the base type and the graph shows it as a use-site
        satellite like any other */
     let base_chips = (on_pick: string => Effect.t(unit)): list(Node.t) =>
-      List.map(~f=
-        b =>
-          div(
-            ~attrs=[
-              clss(["hint-chip"]),
-              Attr.title("add " ++ b ++ " here"),
-              Attr.on_click(_ => on_pick(b)),
-            ],
-            [text(b)],
-          ),
+      List.map(
+        ~f=
+          b =>
+            div(
+              ~attrs=[
+                clss(["hint-chip"]),
+                Attr.title("add " ++ b ++ " here"),
+                Attr.on_click(_ => on_pick(b)),
+              ],
+              [text(b)],
+            ),
         ["Int", "Float", "Bool", "String"],
       );
     let content =
@@ -5263,7 +5533,8 @@ let view_impl =
       | (Some(srcs), _) => [
           [
             text(
-              String.concat(~sep=", ", srcs) ++ {js| ⟶ click the target, or |js},
+              String.concat(~sep=", ", srcs)
+              ++ {js| ⟶ click the target, or |js},
             ),
           ],
           base_chips(b => set_connect(Some(srcs @ [b]))),
@@ -5275,7 +5546,10 @@ let view_impl =
       | (None, Some(("list", comps))) => [
           [
             text(
-              (comps == [] ? "" : String.concat(~sep=", ", comps) ++ {js| — |js})
+              (
+                comps == []
+                  ? "" : String.concat(~sep=", ", comps) ++ {js| — |js}
+              )
               ++ {js|element: click a node or |js},
             ),
           ],
@@ -5285,7 +5559,10 @@ let view_impl =
       | (None, Some((_, comps))) => [
           [
             text(
-              (comps == [] ? "" : String.concat(~sep=", ", comps) ++ {js| — |js})
+              (
+                comps == []
+                  ? "" : String.concat(~sep=", ", comps) ++ {js| — |js}
+              )
               ++ {js|components: click nodes or |js},
             ),
           ],
@@ -5393,38 +5670,43 @@ let view_impl =
                     CanvasLayout.{
                       ...lay,
                       nodes:
-                        List.map(~f=
-                          (nl: CanvasLayout.node_layout) =>
-                            switch (
-                              List.find(~f=
-                                ((k, t, _)) => k == nl.node.key && now < t,
-                                st.s_nodes,
-                              )
-                            ) {
-                            | Some((_, _, old)) => {
-                                ...nl,
-                                node: old,
-                              }
-                            | None => nl
-                            },
+                        List.map(
+                          ~f=
+                            (nl: CanvasLayout.node_layout) =>
+                              switch (
+                                List.find(
+                                  ~f=
+                                    ((k, t, _)) =>
+                                      k == nl.node.key && now < t,
+                                  st.s_nodes,
+                                )
+                              ) {
+                              | Some((_, _, old)) => {
+                                  ...nl,
+                                  node: old,
+                                }
+                              | None => nl
+                              },
                           lay.nodes,
                         ),
                       edges:
-                        List.map(~f=
-                          (el: CanvasLayout.edge_layout) =>
-                            switch (
-                              List.find(~f=
-                                ((n, t, _)) =>
-                                  n == el.edge.e_name && now < t,
-                                st.s_edges,
-                              )
-                            ) {
-                            | Some((_, _, old)) => {
-                                ...el,
-                                edge: old,
-                              }
-                            | None => el
-                            },
+                        List.map(
+                          ~f=
+                            (el: CanvasLayout.edge_layout) =>
+                              switch (
+                                List.find(
+                                  ~f=
+                                    ((n, t, _)) =>
+                                      n == el.edge.e_name && now < t,
+                                  st.s_edges,
+                                )
+                              ) {
+                              | Some((_, _, old)) => {
+                                  ...el,
+                                  edge: old,
+                                }
+                              | None => el
+                              },
                           lay.edges,
                         ),
                     };
@@ -5434,29 +5716,36 @@ let view_impl =
               switch (leaving^) {
               | Some(l) when now < l.l_until =>
                 let cur =
-                  List.map(~f=
-                    (nl: CanvasLayout.node_layout) => nl.node.key,
+                  List.map(
+                    ~f=(nl: CanvasLayout.node_layout) => nl.node.key,
                     lay.nodes,
                   );
                 let cur_e =
-                  List.map(~f=
-                    (el: CanvasLayout.edge_layout) => el.edge.e_name,
+                  List.map(
+                    ~f=(el: CanvasLayout.edge_layout) => el.edge.e_name,
                     lay.edges,
                   );
                 CanvasLayout.{
                   ...lay,
                   nodes:
                     lay.nodes
-                    @ List.filter(~f=
-                        (nl: CanvasLayout.node_layout) =>
-                          !List.mem(cur, nl.node.key, ~equal=Poly.equal),
+                    @ List.filter(
+                        ~f=
+                          (nl: CanvasLayout.node_layout) =>
+                            !List.mem(cur, nl.node.key, ~equal=Poly.equal),
                         l.l_nodes,
                       ),
                   edges:
                     lay.edges
-                    @ List.filter(~f=
-                        (el: CanvasLayout.edge_layout) =>
-                          !List.mem(cur_e, el.edge.e_name, ~equal=Poly.equal),
+                    @ List.filter(
+                        ~f=
+                          (el: CanvasLayout.edge_layout) =>
+                            !
+                              List.mem(
+                                cur_e,
+                                el.edge.e_name,
+                                ~equal=Poly.equal,
+                              ),
                         l.l_edges,
                       ),
                 };

@@ -164,7 +164,7 @@ let tests = (
     | files =>
       List.map(
         ~f=
-        path =>
+          path =>
             test_case("differential: " ++ path, `Slow, () =>
               check_file(path)
             ),

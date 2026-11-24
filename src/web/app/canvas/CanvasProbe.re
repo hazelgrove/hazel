@@ -28,7 +28,11 @@ let master_perform: ref(option(Haz3lcore.Action.t => Effect.t(unit))) =
   ref(Stdlib.Option.none);
 
 let stored_model = (~globals: Globals.t, key: string): option(string) =>
-  List.Assoc.find(globals.settings.sidebar.canvas_probe_models, key, ~equal=Poly.equal);
+  List.Assoc.find(
+    globals.settings.sidebar.canvas_probe_models,
+    key,
+    ~equal=Poly.equal,
+  );
 
 let view =
     (
@@ -235,8 +239,8 @@ let app_view =
       d;
     };
   switch (
-    List.find(~f=
-      (d: ProjectorView.Model.projector_data) => d.p.id == id,
+    List.find(
+      ~f=(d: ProjectorView.Model.projector_data) => d.p.id == id,
       data,
     )
   ) {
@@ -291,7 +295,11 @@ let card_views: ref(list((card_inputs, option(Node.t)))) = ref([]);
 
 /* Closed cards must not retain old evaluation maps and their closures. */
 let retain_card_views = keys =>
-  card_views := List.filter(~f=((i, _)) => List.mem(keys, i.key, ~equal=Poly.equal), card_views^);
+  card_views :=
+    List.filter(
+      ~f=((i, _)) => List.mem(keys, i.key, ~equal=Poly.equal),
+      card_views^,
+    );
 
 let card_view =
     (
@@ -464,7 +472,9 @@ let value_chip =
          (
            switch (master_perform^) {
            | Stdlib.Option.Some(f) => f
-           | Stdlib.Option.None => (a => globals.inject_global(ActiveEditor(a)))
+           | Stdlib.Option.None => (
+               a => globals.inject_global(ActiveEditor(a))
+             )
            }
          )(
            Project(

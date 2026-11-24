@@ -65,7 +65,9 @@ let label_override =
     switch (find_hit(~hit=hit_param(target), term)) {
     | Some(l) =>
       param_items(l)
-      |> List.find(~f=(it: Pat.t) => List.mem(IdTagged.ids(it), target, ~equal=Poly.equal))
+      |> List.find(~f=(it: Pat.t) =>
+           List.mem(IdTagged.ids(it), target, ~equal=Poly.equal)
+         )
       |> Option.map(~f=(it: Pat.t) =>
            "Remove Parameter"
            ++ (

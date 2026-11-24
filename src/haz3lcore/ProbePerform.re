@@ -128,24 +128,24 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
   let row_to_probes =
     List.fold_right(
       ~f=
-      ((probe_id, _), acc) =>
-        switch (
-          TermData.extreme_measures(
-            probe_id,
-            syntax.term_data,
-            syntax.measured,
-          )
-        ) {
-        | Some((_, end_pt)) =>
-          let existing =
-            IntMap.find_opt(end_pt.row, acc) |> Option.value(~default=[]);
-          IntMap.add(
-            end_pt.row,
-            [(probe_id, end_pt.col), ...existing],
-            acc,
-          );
-        | None => acc
-        },
+        ((probe_id, _), acc) =>
+          switch (
+            TermData.extreme_measures(
+              probe_id,
+              syntax.term_data,
+              syntax.measured,
+            )
+          ) {
+          | Some((_, end_pt)) =>
+            let existing =
+              IntMap.find_opt(end_pt.row, acc) |> Option.value(~default=[]);
+            IntMap.add(
+              end_pt.row,
+              [(probe_id, end_pt.col), ...existing],
+              acc,
+            );
+          | None => acc
+          },
       z.refractors.manuals,
       ~init=IntMap.empty,
     );
@@ -186,21 +186,21 @@ let add_manual_targets =
   let conflicting_ids =
     List.fold_right(
       ~f=
-      ((probe_id, _), acc) =>
-        switch (
-          TermData.extreme_measures(
-            probe_id,
-            syntax.term_data,
-            syntax.measured,
-          )
-        ) {
+        ((probe_id, _), acc) =>
+          switch (
+            TermData.extreme_measures(
+              probe_id,
+              syntax.term_data,
+              syntax.measured,
+            )
+          ) {
           | Some((_, end_pt))
               when List.mem(target_end_rows, end_pt.row, ~equal=Int.equal) => [
-            probe_id,
-            ...acc,
-          ]
-        | _ => acc
-        },
+              probe_id,
+              ...acc,
+            ]
+          | _ => acc
+          },
       z.refractors.manuals,
       ~init=[],
     );
@@ -280,9 +280,9 @@ let add_ids_from_multi_term =
   let ids =
     List.filter(
       ~f=
-      id =>
+        id =>
           !List.mem(manual_ids, id, ~equal=Id.equal)
-        && !Id.Map.mem(id, z.refractors.multis.suppressed),
+          && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
   /* the ⇓ toggle's probe outlives the rebuild; a manual probe on the
@@ -295,26 +295,26 @@ let add_ids_from_multi_term =
   let manual_end_rows =
     List.filter_map(
       ~f=
-      ((id, _)) =>
-        switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-        ) {
-        | Some((_, end_loc)) => Some(end_loc.row)
-        | None => None
-        },
+        ((id, _)) =>
+          switch (
+            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          ) {
+          | Some((_, end_loc)) => Some(end_loc.row)
+          | None => None
+          },
       z.refractors.manuals,
     );
   let ids =
     List.filter(
       ~f=
-      id =>
-        switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-        ) {
+        id =>
+          switch (
+            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          ) {
           | Some((_, end_loc)) =>
             !List.mem(manual_end_rows, end_loc.row, ~equal=Int.equal)
-        | None => true
-        },
+          | None => true
+          },
       ids,
     );
   let ids =
@@ -324,16 +324,16 @@ let add_ids_from_multi_term =
   let new_ephemeral_map =
     List.fold_left(
       ~f=
-      (map, id) =>
-        switch (Id.Map.find_opt(id, old_ephemerals)) {
-        | Some(existing) => Id.Map.add(id, existing, map)
-        | None =>
-          /* the ⇓ probe opens as a drawer */
+        (map, id) =>
+          switch (Id.Map.find_opt(id, old_ephemerals)) {
+          | Some(existing) => Id.Map.add(id, existing, map)
+          | None =>
+            /* the ⇓ probe opens as a drawer */
             let model =
               List.mem(tail, id, ~equal=Poly.equal)
                 ? Some(ProbeProj.tail_model) : None;
-          Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
-        },
+            Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
+          },
       ~init=Id.Map.empty,
       ids,
     );
@@ -536,22 +536,22 @@ let toggle_probe =
 let function_sugar_param_anchors =
     (info_map: Statics.Map.t, def_id: Id.t): list(Id.t) => {
   let anchors = {
-  let* ci = Statics.Map.lookup(def_id, info_map);
+    let* ci = Statics.Map.lookup(def_id, info_map);
     let rec climb = (ancs: list(Id.t)): option(list(Id.t)) =>
-    switch (ancs) {
-    | [] => None
-    | [anc_id, ...rest] =>
-      switch (Statics.Map.lookup(anc_id, info_map)) {
-      | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
-        /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
-        if (Id.equal(def_id, IdTagged.rep_id(def))) {
+      switch (ancs) {
+      | [] => None
+      | [anc_id, ...rest] =>
+        switch (Statics.Map.lookup(anc_id, info_map)) {
+        | Some(InfoExp({user_term: {term: Let(pat, def, _), _}, _})) =>
+          /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
+          if (Id.equal(def_id, IdTagged.rep_id(def))) {
             switch (Pat.function_sugar(pat)) {
             | Some((_, args, _)) => Some(List.map(~f=Pat.rep_id, args))
-          | None => None
-          };
-        } else {
-          None;
-        }
+            | None => None
+            };
+          } else {
+            None;
+          }
         | Some(InfoMod({user_term: {term: ModLet(pat, def), _}, _})) =>
           Id.equal(def_id, IdTagged.rep_id(def))
             ? Option.map(
@@ -559,11 +559,11 @@ let function_sugar_param_anchors =
                 Pat.function_sugar(pat),
               )
             : None
-      | _ => climb(rest)
-      }
-    };
-  climb(Info.ancestors_of(ci));
-};
+        | _ => climb(rest)
+        }
+      };
+    climb(Info.ancestors_of(ci));
+  };
   Option.value(anchors, ~default=[]);
 };
 
@@ -786,7 +786,7 @@ let remove_statics_at =
     manuals =>
       List.filter(
         ~f=
-        ((mid, entry: Refractors.entry)) =>
+          ((mid, entry: Refractors.entry)) =>
             !(
               List.mem(target_ids, mid, ~equal=Id.equal)
               && ProjectorCore.Kind.equal(entry.kind, Statics)

@@ -88,7 +88,8 @@ let merge_target =
       let t = List.nth_exn(path, List.length(path) - 1);
       let line = lowest_line(path);
       let blocked =
-        crossed_rec_binders(line, path) |> List.exists(~f=n => mentions(n, t));
+        crossed_rec_binders(line, path)
+        |> List.exists(~f=n => mentions(n, t));
       let rec host = (path: list(Exp.t)) =>
         switch (path) {
         | [parent, child, ..._] when same_node(child, line) => Some(parent)
@@ -101,7 +102,14 @@ let merge_target =
         | Let(lp, ldef, lbody)
             when same_node(lbody, line) && eq_defs(ldef, t) =>
           switch (let_head_name(lp)) {
-          | Some(nm) when !List.mem(binders_over(Exp.rep_id(t), lbody), nm, ~equal=Poly.equal) => (
+          | Some(nm)
+              when
+                !
+                  List.mem(
+                    binders_over(Exp.rep_id(t), lbody),
+                    nm,
+                    ~equal=Poly.equal,
+                  ) => (
               exp_subtree_ids(t),
               exp_subtree_ids(ldef),
             )
@@ -407,7 +415,9 @@ let drag_candidates =
                     let live = exp_subtree_ids(term);
                     let fresh =
                       exp_subtree_ids(term')
-                      |> List.filter(~f=id => !List.mem(live, id, ~equal=Poly.equal));
+                      |> List.filter(~f=id =>
+                           !List.mem(live, id, ~equal=Poly.equal)
+                         );
                     let d = exp_subtree_ids(def);
                     /* combine raises on length mismatch — guard FIRST
                        (the eager-evaluation gotcha) */
@@ -423,7 +433,9 @@ let drag_candidates =
                         switch (IdTagged.term_of(e)) {
                         | Parens(_) =>
                           IdTagged.ids(e)
-                          |> List.exists(~f=id => List.mem(fresh, id, ~equal=Poly.equal))
+                          |> List.exists(~f=id =>
+                               List.mem(fresh, id, ~equal=Poly.equal)
+                             )
                         | _ => false
                         };
                       switch (find_hit(~hit=fresh_parens, term')) {
@@ -482,8 +494,9 @@ let drag_candidates =
     [Action.Gesture.Up, Down, Left, Right]
     |> List.filter_map(~f=dir => mk(dir))
     |> List.fold(~init=[], ~f=(acc, c: DragCandidate.t) =>
-           List.exists(~f=(c': DragCandidate.t) => c'.target == c.target, acc)
-             ? acc : acc @ [c]);
+         List.exists(~f=(c': DragCandidate.t) => c'.target == c.target, acc)
+           ? acc : acc @ [c]
+       );
   };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a

@@ -82,7 +82,8 @@ let rec tick = (): unit =>
   } else {
     if (! paused^) {
       let now = clock();
-      let (due, rest) = List.partition_tf(~f=((t, _)) => t <= now, pending^);
+      let (due, rest) =
+        List.partition_tf(~f=((t, _)) => t <= now, pending^);
       pending := rest;
       List.sort(~compare=(a, b) => compare(fst(a), fst(b)), due)
       |> List.iter(~f=((_, f)) => f());
@@ -128,8 +129,8 @@ let pause_score = (): unit =>
       |> List.filter(~f=a =>
            Js.to_string(Js.Unsafe.get(a, "playState")) == "running"
          );
-    List.iter(~f=
-      a => ignore(Js.Unsafe.meth_call(a, "pause", [||])),
+    List.iter(
+      ~f=a => ignore(Js.Unsafe.meth_call(a, "pause", [||])),
       paused_anims^,
     );
     CanvasLog.log(
@@ -151,13 +152,14 @@ let resume_score = (): unit =>
     if (CanvasCamera.scored_until^ > since) {
       CanvasCamera.scored_until := CanvasCamera.scored_until^ +. dt;
     };
-    List.iter(~f=
-      a =>
-        /* only what is still paused: play() on a cancelled animation
-           would restart it from the top */
-        if (Js.to_string(Js.Unsafe.get(a, "playState")) == "paused") {
-          ignore(Js.Unsafe.meth_call(a, "play", [||]));
-        },
+    List.iter(
+      ~f=
+        a =>
+          /* only what is still paused: play() on a cancelled animation
+             would restart it from the top */
+          if (Js.to_string(Js.Unsafe.get(a, "playState")) == "paused") {
+            ignore(Js.Unsafe.meth_call(a, "play", [||]));
+          },
       paused_anims^,
     );
     paused_anims := [];
@@ -169,7 +171,9 @@ let sample_path = (path): (float, list((float, float))) => {
   let total: float = Js.Unsafe.meth_call(path, "getTotalLength", [||]);
   let ctm = Js.Unsafe.meth_call(path, "getScreenCTM", [||]);
   let pts =
-    List.init(samples + 1, ~f=i => {
+    List.init(
+      samples + 1,
+      ~f=i => {
         let pt =
           Js.Unsafe.meth_call(
             path,
@@ -185,7 +189,8 @@ let sample_path = (path): (float, list((float, float))) => {
         let x: float = Js.Unsafe.get(sp, "x")
         and y: float = Js.Unsafe.get(sp, "y");
         (x, y);
-      });
+      },
+    );
   (total, pts);
 };
 
@@ -265,7 +270,8 @@ let arm_dash = (el, total: float): float => {
   let strip_px = s => {
     let s = String.strip(s);
     let n = String.length(s);
-    n > 2 && String.sub(s, ~pos=n - 2, ~len=2) == "px" ? String.sub(s, ~pos=0, ~len=n - 2) : s;
+    n > 2 && String.sub(s, ~pos=n - 2, ~len=2) == "px"
+      ? String.sub(s, ~pos=0, ~len=n - 2) : s;
   };
   let nums =
     css
@@ -279,8 +285,8 @@ let arm_dash = (el, total: float): float => {
       let n = int_of_float(Float.round_up(total /. period));
       let on_len = float_of_int(n) *. period;
       (
-        String.concat(~sep=
-          " ",
+        String.concat(
+          ~sep=" ",
           List.init(n, ~f=_ => Printf.sprintf("%.2f %.2f", dot, gap)),
         )
         ++ Printf.sprintf(" 0 %.1f", on_len),
@@ -393,11 +399,12 @@ let owned_hull_ids =
     (~ids: list(string), ~prefix: string, name: string): list(string) => {
   let base = prefix ++ CanvasView.sanitize(name);
   let ancestor = base ++ "--v";
-  List.filter(~f=
-    id =>
-      id == base
-      || String.length(id) > String.length(ancestor)
-      && String.sub(id, ~pos=0, ~len=String.length(ancestor)) == ancestor,
+  List.filter(
+    ~f=
+      id =>
+        id == base
+        || String.length(id) > String.length(ancestor)
+        && String.sub(id, ~pos=0, ~len=String.length(ancestor)) == ancestor,
     ids,
   );
 };
@@ -409,44 +416,47 @@ let hull_copies = (~prefix: string, name: string): list(string) =>
    Cancel only exit effects; the new arrival/movement keeps its timing. */
 let revive = (~nodes: list(string), ~edges: list(string)): unit => {
   let ids =
-    List.concat_map(~f=
-      k =>
-        [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
-        @ hull_copies(~prefix="hullc-n-", k),
+    List.concat_map(
+      ~f=
+        k =>
+          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+          @ hull_copies(~prefix="hullc-n-", k),
       nodes,
     )
-    @ List.concat_map(~f=
-        k =>
-          [
-            CanvasView.path_dom_id(k),
-            CanvasView.edge_dom_id(k),
-            CanvasView.orbit_dom_id(k),
-            "clead-" ++ CanvasView.sanitize(k),
-          ]
-          @ hull_copies(~prefix="hulls-e-", k)
-          @ hull_copies(~prefix="hullc-l-", k),
+    @ List.concat_map(
+        ~f=
+          k =>
+            [
+              CanvasView.path_dom_id(k),
+              CanvasView.edge_dom_id(k),
+              CanvasView.orbit_dom_id(k),
+              "clead-" ++ CanvasView.sanitize(k),
+            ]
+            @ hull_copies(~prefix="hulls-e-", k)
+            @ hull_copies(~prefix="hullc-l-", k),
         edges,
       );
-  List.iter(~f=
-    id =>
-      switch (by_id(id)) {
-      | None => ()
-      | Some(el) =>
-        let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
-        let n: int = Js.Unsafe.get(anims, "length");
-        let restored = ref(false);
-        for (i in 0 to n - 1) {
-          let a = Js.Unsafe.get(anims, i);
-          if (Js.to_string(Js.Unsafe.get(a, "id")) == "canvas-exit") {
-            ignore(Js.Unsafe.meth_call(a, "cancel", [||]));
-            restored := true;
+  List.iter(
+    ~f=
+      id =>
+        switch (by_id(id)) {
+        | None => ()
+        | Some(el) =>
+          let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+          let n: int = Js.Unsafe.get(anims, "length");
+          let restored = ref(false);
+          for (i in 0 to n - 1) {
+            let a = Js.Unsafe.get(anims, i);
+            if (Js.to_string(Js.Unsafe.get(a, "id")) == "canvas-exit") {
+              ignore(Js.Unsafe.meth_call(a, "cancel", [||]));
+              restored := true;
+            };
           };
-        };
-        if (restored^) {
-          clear_dash(el);
-          restore_marker(el, stashed_marker(el));
-        };
-      },
+          if (restored^) {
+            clear_dash(el);
+            restore_marker(el, stashed_marker(el));
+          };
+        },
     ids,
   );
 };
@@ -478,13 +488,17 @@ let enact_edge =
           | None => t0
           | Some(dot) =>
             let part_els =
-              List.filter_map(~f=k => by_id(CanvasView.node_dom_id(k)), parts);
+              List.filter_map(
+                ~f=k => by_id(CanvasView.node_dom_id(k)),
+                parts,
+              );
             let n = float_of_int(List.length(part_els));
             let t_visited = t0 +. visit_ms *. n;
             prelude :=
-              List.mapi(~f=
-                (i, el) =>
-                  (center_of(el), t0 +. visit_ms *. float_of_int(i + 1)),
+              List.mapi(
+                ~f=
+                  (i, el) =>
+                    (center_of(el), t0 +. visit_ms *. float_of_int(i + 1)),
                 part_els,
               )
               @ [(center_of(dot), t_visited +. form_ms)];
@@ -504,12 +518,14 @@ let enact_edge =
                 ("fill", str("backwards")),
               ],
             );
-            List.iter(~f=
-              k =>
-                switch (by_id(CanvasView.formation_dom_id(k, pk))) {
-                | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
-                | None => ()
-                },
+            List.iter(
+              ~f=
+                k =>
+                  switch (by_id(CanvasView.formation_dom_id(k, pk))) {
+                  | Some(line) =>
+                    reveal(~delay=t_visited, ~dur=form_ms, line)
+                  | None => ()
+                  },
               parts,
             );
             t_visited +. form_ms +. 80.;
@@ -562,8 +578,8 @@ let enact_edge =
       };
       let n = float_of_int(List.length(pts) - 1);
       let ride =
-        List.mapi(~f=
-          (i, p) => (p, t_edge +. travel_ms *. float_of_int(i) /. n),
+        List.mapi(
+          ~f=(i, p) => (p, t_edge +. travel_ms *. float_of_int(i) /. n),
           pts,
         );
       Some((prelude^ @ ride, t_edge +. travel_ms));
@@ -602,7 +618,11 @@ let camera_at = (~zoom: float, at: float, sp: (float, float)): unit =>
 let board_center = (el): option((float, float)) => {
   let st = Js.Unsafe.get(el, "style");
   let px = (v: string) =>
-    try(Some(float_of_string(String.sub(v, ~pos=0, ~len=String.length(v) - 2)))) {
+    try(
+      Some(
+        float_of_string(String.sub(v, ~pos=0, ~len=String.length(v) - 2)),
+      )
+    ) {
     | _ => None
     };
   switch (
@@ -633,22 +653,24 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
        );
   Animation.last_arrivals := [];
   /* splashes land as each node blooms */
-  List.iter(~f=
-    ((el, d)) =>
-      switch (board_center(el)) {
-      | Some(p) => later(d +. 60., () => CanvasRipple.splash(~amp=4., p))
-      | None => ()
-      },
+  List.iter(
+    ~f=
+      ((el, d)) =>
+        switch (board_center(el)) {
+        | Some(p) => later(d +. 60., () => CanvasRipple.splash(~amp=4., p))
+        | None => ()
+        },
     arrivals,
   );
   let tour: list(waypoint) =
     List.length(arrivals) > max_tour
       ? []
-      : List.concat_map(~f=
-          ((el, d)) => {
-            let c = center_of(el);
-            [(c, d), (c, d +. visit_hold_ms)];
-          },
+      : List.concat_map(
+          ~f=
+            ((el, d)) => {
+              let c = center_of(el);
+              [(c, d), (c, d +. visit_hold_ms)];
+            },
           arrivals,
         );
   let t_after_tour =
@@ -659,23 +681,28 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
   /* edges, one after another, after the tour */
   let (edge_wps, t_end, done_) =
     if (List.length(edges) <= max_edges) {
-      List.fold(edges, ~init=([], t_after_tour, []), ~f=((wps, t, done_), ne) =>
-          switch (enact_edge(~t0=t, ne)) {
-          | Some((w, t')) => (wps @ w, t', [ne, ...done_])
-          | None => (wps, t, done_)
-          });
+      List.fold(
+        edges, ~init=([], t_after_tour, []), ~f=((wps, t, done_), ne) =>
+        switch (enact_edge(~t0=t, ne)) {
+        | Some((w, t')) => (wps @ w, t', [ne, ...done_])
+        | None => (wps, t, done_)
+        }
+      );
     } else {
       ([], t_after_tour, []);
     };
   let waypoints = tour @ edge_wps;
   /* the camera keeps the avatar in view along the whole timeline: each
      visited node as it blooms, each edge's far end as the ride starts */
-  List.iter(~f=
-    ((c, d)) => camera_at(~zoom, d, c),
+  List.iter(
+    ~f=((c, d)) => camera_at(~zoom, d, c),
     List.filteri(~f=(i, _) => i mod 2 == 0, tour),
   );
   ignore(
-    List.fold(List.rev(done_), ~init=t_after_tour, ~f=(t, ne) => {
+    List.fold(
+      List.rev(done_),
+      ~init=t_after_tour,
+      ~f=(t, ne) => {
         switch (by_id(CanvasView.path_dom_id(ne.ne_name))) {
         | Some(path) =>
           let (_, pts) = sample_path(path);
@@ -686,7 +713,8 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
         | None => ()
         };
         t;
-      }),
+      },
+    ),
   );
   /* the avatar: from where it was, through every waypoint, back to the
      spot the beat gave it (its own FLIP hop is replaced) */
@@ -752,20 +780,21 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
           : Printf.sprintf(
               ", %d edge(s) drawn (%s)",
               List.length(done_),
-              String.concat(~sep=
-                ", ",
+              String.concat(
+                ~sep=", ",
                 List.rev_map(done_, ~f=ne =>
-                    ne.ne_name
-                    ++ (
-                      switch (ne.ne_product) {
-                      | Some((_, parts)) =>
-                        Printf.sprintf(
-                          " via %d-ary product",
-                          List.length(parts),
-                        )
-                      | None => ""
-                      }
-                    )),
+                  ne.ne_name
+                  ++ (
+                    switch (ne.ne_product) {
+                    | Some((_, parts)) =>
+                      Printf.sprintf(
+                        " via %d-ary product",
+                        List.length(parts),
+                      )
+                    | None => ""
+                    }
+                  )
+                ),
               ),
             ),
       ),
@@ -806,7 +835,9 @@ let mean = (ps: list((float, float))): option((float, float)) =>
 let sample_path_board = (path): (float, list((float, float))) => {
   let total: float = Js.Unsafe.meth_call(path, "getTotalLength", [||]);
   let pts =
-    List.init(samples + 1, ~f=i => {
+    List.init(
+      samples + 1,
+      ~f=i => {
         let pt =
           Js.Unsafe.meth_call(
             path,
@@ -816,7 +847,8 @@ let sample_path_board = (path): (float, list((float, float))) => {
         let x: float = Js.Unsafe.get(pt, "x")
         and y: float = Js.Unsafe.get(pt, "y");
         (x, y);
-      });
+      },
+    );
   (total, pts);
 };
 
@@ -897,15 +929,19 @@ let formation =
         ("fill", str("backwards")),
       ],
     );
-    List.iter(~f=
-      k =>
-        switch (by_id(CanvasView.formation_dom_id(k, pk))) {
-        | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
-        | None => ()
-        },
+    List.iter(
+      ~f=
+        k =>
+          switch (by_id(CanvasView.formation_dom_id(k, pk))) {
+          | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
+          | None => ()
+          },
       parts,
     );
-    List.mapi(~f=(i, p) => (p, t +. visit *. float_of_int(i + 1)), part_pts)
+    List.mapi(
+      ~f=(i, p) => (p, t +. visit *. float_of_int(i + 1)),
+      part_pts,
+    )
     @ (
       switch (board_center(dot)) {
       | Some(c) => [(c, t_visited +. 120.)]
@@ -944,12 +980,13 @@ let site_end = (site: CanvasScore.site): option((float, float)) =>
   | site => site_board(site)
   };
 let first_part = (a: CanvasScore.act): option((float, float)) =>
-  List.find_map(~f=
-    (e: CanvasScore.timed_effect) =>
-      switch (e.effect) {
-      | Form(_, [p, ..._]) => node_board(p)
-      | _ => None
-      },
+  List.find_map(
+    ~f=
+      (e: CanvasScore.timed_effect) =>
+        switch (e.effect) {
+        | Form(_, [p, ..._]) => node_board(p)
+        | _ => None
+        },
     a.effects,
   );
 
@@ -958,64 +995,66 @@ let first_part = (a: CanvasScore.act): option((float, float)) =>
 let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
   let wps: ref(list(waypoint)) = ref([]);
   let add = (p, t) => wps := [(p, t), ...wps^];
-  List.iter(~f=
-    ((t, a): (int, CanvasScore.act)) => {
-      let arrive =
-        switch (first_part(a)) {
-        | Some(p) => Some(p)
-        | None => site_board(a.at)
+  List.iter(
+    ~f=
+      ((t, a): (int, CanvasScore.act)) => {
+        let arrive =
+          switch (first_part(a)) {
+          | Some(p) => Some(p)
+          | None => site_board(a.at)
+          };
+        switch (arrive, site_end(a.at)) {
+        | (Some(sp), Some(ep)) =>
+          add(sp, float_of_int(t + a.travel_ms));
+          add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
+        | _ => ()
         };
-      switch (arrive, site_end(a.at)) {
-      | (Some(sp), Some(ep)) =>
-        add(sp, float_of_int(t + a.travel_ms));
-        add(ep, float_of_int(t + CanvasScore.act_len(a) - a.settle_ms));
-      | _ => ()
-      };
-    },
+      },
     s.acts,
   );
-  List.iter(~f=
-    ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
-      let tf = float_of_int(t);
-      switch (e.effect) {
-      | Draw(name) =>
-        switch (by_id(CanvasView.path_dom_id(name))) {
-        | Some(path) =>
-          let (total, pts) = sample_path_board(path);
-          if (total >= 8.) {
-            let n = float_of_int(List.length(pts) - 1);
-            let dur = float_of_int(e.dur);
-            List.iteri(~f=
-              (i, p) => add(p, tf +. dur *. float_of_int(i) /. n),
-              pts,
-            );
+  List.iter(
+    ~f=
+      ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+        let tf = float_of_int(t);
+        switch (e.effect) {
+        | Draw(name) =>
+          switch (by_id(CanvasView.path_dom_id(name))) {
+          | Some(path) =>
+            let (total, pts) = sample_path_board(path);
+            if (total >= 8.) {
+              let n = float_of_int(List.length(pts) - 1);
+              let dur = float_of_int(e.dur);
+              List.iteri(
+                ~f=(i, p) => add(p, tf +. dur *. float_of_int(i) /. n),
+                pts,
+              );
+            };
+          | None => ()
+          }
+        | Form(pk, parts) =>
+          let part_pts = List.filter_map(~f=node_board, parts);
+          let n = List.length(part_pts);
+          let dur = float_of_int(e.dur);
+          let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
+          let t_visited = tf +. visit *. float_of_int(n);
+          List.iteri(
+            ~f=(i, p) => add(p, tf +. visit *. float_of_int(i + 1)),
+            part_pts,
+          );
+          switch (
+            by_id(CanvasView.node_dom_id(pk))
+            |> Util.OptUtil.and_then(board_center)
+          ) {
+          | Some(c) => add(c, t_visited +. 120.)
+          | None => ()
           };
-        | None => ()
-        }
-      | Form(pk, parts) =>
-        let part_pts = List.filter_map(~f=node_board, parts);
-        let n = List.length(part_pts);
-        let dur = float_of_int(e.dur);
-        let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
-        let t_visited = tf +. visit *. float_of_int(n);
-        List.iteri(~f=
-          (i, p) => add(p, tf +. visit *. float_of_int(i + 1)),
-          part_pts,
-        );
-        switch (
-          by_id(CanvasView.node_dom_id(pk))
-          |> Util.OptUtil.and_then(board_center)
-        ) {
-        | Some(c) => add(c, t_visited +. 120.)
-        | None => ()
+        | _ => ()
         };
-      | _ => ()
-      };
-    },
+      },
     CanvasScore.effects_abs(s),
   );
-  List.stable_sort(~compare=
-    ((_, t1), (_, t2)) => compare(t1, t2),
+  List.stable_sort(
+    ~compare=((_, t1), (_, t2)) => compare(t1, t2),
     List.rev(wps^),
   );
 };
@@ -1086,8 +1125,8 @@ let measured_site = (~fallback: (float, float), av): (float, float) => {
   /* a carried body (picked up) sits at its CSS translate as well */
   let (ux, uy) =
     switch (
-      String.split(~on=
-        ' ',
+      String.split(
+        ~on=' ',
         String.strip(
           Js.to_string(
             Js.Unsafe.get(Js.Unsafe.get(body_of(av), "style"), "translate"),
@@ -1124,7 +1163,9 @@ let avatar_timeline =
   | Some(av) when sorted != [] =>
     let end_site =
       List.rev(s.acts)
-      |> List.find_map(~f=((_, a): (int, CanvasScore.act)) => site_end(a.at));
+      |> List.find_map(~f=((_, a): (int, CanvasScore.act)) =>
+           site_end(a.at)
+         );
     let (ex, ey) =
       switch (end_site) {
       | Some(p) => p
@@ -1188,16 +1229,17 @@ let avatar_timeline =
         };
       let pts = [(start, t_start)] @ sorted @ [((ex0, ey0), total0)];
       let show =
-        List.map(~f=
-          (((x, y), t)) =>
-            Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
+        List.map(
+          ~f=
+            (((x, y), t)) =>
+              Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
           pts,
         );
       let n = List.length(show);
       CanvasLog.log(
         "path: "
-        ++ String.concat(~sep=
-             " ",
+        ++ String.concat(
+             ~sep=" ",
              n <= 24
                ? show
                : List.filteri(~f=(i, _) => i < 12, show)
@@ -1207,7 +1249,10 @@ let avatar_timeline =
       );
     };
     ignore(
-      List.fold(sorted, ~init=(start, t_start), ~f=(((px0, py0), t0), ((px1, py1), t1)) => {
+      List.fold(
+        sorted,
+        ~init=(start, t_start),
+        ~f=(((px0, py0), t0), ((px1, py1), t1)) => {
           let d =
             Float.sqrt(
               (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
@@ -1227,7 +1272,8 @@ let avatar_timeline =
             );
           };
           ((px1, py1), t1);
-        }),
+        },
+      ),
     );
     let frames =
       [frame(start, t_start)]
@@ -1313,58 +1359,59 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
      an act that never rode it (its path did not exist yet, or the act was
      cut) would otherwise stay dashed away with its marker stashed */
   later(float_of_int(s.total_ms) +. 350., () =>
-    List.iter(~f=
-      ((prefix, default)) =>
-        Util.JsUtil.ids_with_prefix(prefix)
-        |> List.iter(~f=id =>
-             switch (by_id(id)) {
-             | None => ()
-             | Some(el) =>
-               let hidden_off =
-                 switch (
-                   Js.to_string(
-                     Js.Unsafe.get(
-                       Js.Unsafe.get(el, "style"),
-                       "strokeDashoffset",
-                     ),
-                   )
-                 ) {
-                 | "" => 0.
-                 | v => Option.value(float_of_string_opt(v), ~default=0.)
+    List.iter(
+      ~f=
+        ((prefix, default)) =>
+          Util.JsUtil.ids_with_prefix(prefix)
+          |> List.iter(~f=id =>
+               switch (by_id(id)) {
+               | None => ()
+               | Some(el) =>
+                 let hidden_off =
+                   switch (
+                     Js.to_string(
+                       Js.Unsafe.get(
+                         Js.Unsafe.get(el, "style"),
+                         "strokeDashoffset",
+                       ),
+                     )
+                   ) {
+                   | "" => 0.
+                   | v => Option.value(float_of_string_opt(v), ~default=0.)
+                   };
+                 let marker =
+                   switch (stashed_marker(el)) {
+                   | Some(m) => Some(m)
+                   | None =>
+                     get_attr(el, "marker-end") == Some("none")
+                       ? Some(default) : None
+                   };
+                 let stuck = hidden_off > 0.5 && !has_running_anims(el);
+                 if (stuck) {
+                   /* draw it on now rather than pop it */
+                   animate(
+                     el,
+                     [
+                       [("strokeDashoffset", num(hidden_off))],
+                       [("strokeDashoffset", num(0.))],
+                     ],
+                     [
+                       ("duration", num(320.)),
+                       ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
+                     ],
+                   );
+                   later(
+                     340.,
+                     () => {
+                       restore_marker(el, marker);
+                       clear_dash(el);
+                     },
+                   );
+                 } else if (marker != None) {
+                   restore_marker(el, marker);
                  };
-               let marker =
-                 switch (stashed_marker(el)) {
-                 | Some(m) => Some(m)
-                 | None =>
-                   get_attr(el, "marker-end") == Some("none")
-                     ? Some(default) : None
-                 };
-               let stuck = hidden_off > 0.5 && !has_running_anims(el);
-               if (stuck) {
-                 /* draw it on now rather than pop it */
-                 animate(
-                   el,
-                   [
-                     [("strokeDashoffset", num(hidden_off))],
-                     [("strokeDashoffset", num(0.))],
-                   ],
-                   [
-                     ("duration", num(320.)),
-                     ("easing", str("cubic-bezier(0.65, 0, 0.35, 1)")),
-                   ],
-                 );
-                 later(
-                   340.,
-                   () => {
-                     restore_marker(el, marker);
-                     clear_dash(el);
-                   },
-                 );
-               } else if (marker != None) {
-                 restore_marker(el, marker);
-               };
-             }
-           ),
+               }
+             ),
       [
         ("cform-", "url(#cnv-arrow-sm)"),
         ("cdep-", "url(#cnv-arrow-dep)"),
@@ -1373,178 +1420,187 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     )
   );
   /* the actor: arrive after travel, hold through the effects */
-  List.iter(~f=
-    ((t, a): (int, CanvasScore.act)) => {
-      /* an act that forms a product arrives at its first part (the visits
-         start there); arriving at the arrow first meant a zig-zag out to
-         the parts and back */
-      /* the rig's moods follow the act: travel, land, then the emote */
-      let tf = float_of_int(t);
-      let mood_after =
-        switch (a.emote) {
-        | Edit => "edit"
-        | Erase => "erase"
-        | Think => "think"
-        | Tidy => "tidy"
-        | Look
-        | Rest => ""
-        };
-      later(tf, () => CanvasAvatar.set_mood("travel"));
-      later(tf +. float_of_int(a.travel_ms), () =>
-        CanvasAvatar.set_mood("arrive")
-      );
-      later(
-        tf +. float_of_int(a.travel_ms) +. 420.,
-        () => {
-          CanvasAvatar.set_mood(mood_after);
-          /* the speech bubble calls the action out for the act's stay */
-          let site =
-            switch (a.at) {
-            | Node(k) => label_of^(k)
-            | Edge(n) => {js|ƒ|js} ++ n
-            /* a tidy (drift) act has no one place to name */
-            | Centroid(_)
-            | Point(_)
-            | Here => ""
-            };
-          let stay =
-            float_of_int(CanvasScore.act_len(a) - a.travel_ms) -. 420.;
-          if (a.cause != "" && stay > 200.) {
-            CanvasBubble.say(
-              a.cause ++ (site == "" ? "" : {js| · |js} ++ site),
-              ~ms=stay,
-            );
+  List.iter(
+    ~f=
+      ((t, a): (int, CanvasScore.act)) => {
+        /* an act that forms a product arrives at its first part (the visits
+           start there); arriving at the arrow first meant a zig-zag out to
+           the parts and back */
+        /* the rig's moods follow the act: travel, land, then the emote */
+        let tf = float_of_int(t);
+        let mood_after =
+          switch (a.emote) {
+          | Edit => "edit"
+          | Erase => "erase"
+          | Think => "think"
+          | Tidy => "tidy"
+          | Look
+          | Rest => ""
           };
-        },
-      );
-    },
+        later(tf, () => CanvasAvatar.set_mood("travel"));
+        later(tf +. float_of_int(a.travel_ms), () =>
+          CanvasAvatar.set_mood("arrive")
+        );
+        later(
+          tf +. float_of_int(a.travel_ms) +. 420.,
+          () => {
+            CanvasAvatar.set_mood(mood_after);
+            /* the speech bubble calls the action out for the act's stay */
+            let site =
+              switch (a.at) {
+              | Node(k) => label_of^(k)
+              | Edge(n) => {js|ƒ|js} ++ n
+              /* a tidy (drift) act has no one place to name */
+              | Centroid(_)
+              | Point(_)
+              | Here => ""
+              };
+            let stay =
+              float_of_int(CanvasScore.act_len(a) - a.travel_ms) -. 420.;
+            if (a.cause != "" && stay > 200.) {
+              CanvasBubble.say(
+                a.cause ++ (site == "" ? "" : {js| · |js} ++ site),
+                ~ms=stay,
+              );
+            };
+          },
+        );
+      },
     s.acts,
   );
   /* the effects */
-  List.iter(~f=
-    ((t, a, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
-      let tf = float_of_int(t);
-      switch (e.effect) {
-      | Ripple(site) =>
-        let erase = a.emote == CanvasScore.Erase;
-        later(tf, () =>
-          switch (site_board(site)) {
-          | Some(bp) =>
-            erase
-              ? CanvasRipple.suction(bp) : CanvasRipple.splash(~amp=4., bp)
-          | None => ()
-          }
-        );
-      | Draw(name) =>
-        later(tf, () =>
-          CanvasAvatar.set_mood(
-            a.emote == CanvasScore.Erase ? "erase" : "draw",
-          )
-        );
-        ignore(ride(~t=tf, ~dur=float_of_int(e.dur), name));
-      | Form(pk, parts) =>
-        ignore(formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts))
-      | Vanish(k) =>
-        /* the ghost node (rendered from the previous layout) shrinks
-           away at the cue; its value badge, if any, goes with it */
-        later(tf, () => CanvasAvatar.set_mood("erase"));
-        List.iter(~f=
-          id =>
-            switch (by_id(id)) {
-            | Some(el) => shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
+  List.iter(
+    ~f=
+      ((t, a, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+        let tf = float_of_int(t);
+        switch (e.effect) {
+        | Ripple(site) =>
+          let erase = a.emote == CanvasScore.Erase;
+          later(tf, () =>
+            switch (site_board(site)) {
+            | Some(bp) =>
+              erase
+                ? CanvasRipple.suction(bp) : CanvasRipple.splash(~amp=4., bp)
             | None => ()
-            },
-          [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
-          @ hull_copies(~prefix="hullc-n-", k),
-        );
-      | Erase(name) =>
-        later(tf, () => CanvasAvatar.set_mood("erase"));
-        List.iter(~f=
-          id =>
-            switch (by_id(id)) {
-            | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
-            | None => ()
-            },
-          [CanvasView.path_dom_id(name)]
-          @ hull_copies(~prefix="hulls-e-", name),
-        );
-        List.iter(~f=
-          id =>
-            switch (by_id(id)) {
-            | Some(el) =>
-              shrink_out(~delay=tf +. 120., ~dur=float_of_int(e.dur), el)
-            | None => ()
-            },
-          [
-            CanvasView.edge_dom_id(name),
-            CanvasView.orbit_dom_id(name),
-            "clead-" ++ CanvasView.sanitize(name),
-          ]
-          @ hull_copies(~prefix="hullc-l-", name),
-        );
-      | Change(k) =>
-        /* the view swaps the staged old look for the new one on the next
-           render: ask for it at the cue, and pulse the element */
-        later(
-          tf,
-          () => {
-            request_tick^(0.);
-            List.iter(~f=
+            }
+          );
+        | Draw(name) =>
+          later(tf, () =>
+            CanvasAvatar.set_mood(
+              a.emote == CanvasScore.Erase ? "erase" : "draw",
+            )
+          );
+          ignore(ride(~t=tf, ~dur=float_of_int(e.dur), name));
+        | Form(pk, parts) =>
+          ignore(formation(~t=tf, ~dur=float_of_int(e.dur), pk, parts))
+        | Vanish(k) =>
+          /* the ghost node (rendered from the previous layout) shrinks
+             away at the cue; its value badge, if any, goes with it */
+          later(tf, () => CanvasAvatar.set_mood("erase"));
+          List.iter(
+            ~f=
               id =>
                 switch (by_id(id)) {
-                | Some(el) => pulse_class(el, 900.)
+                | Some(el) =>
+                  shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
                 | None => ()
                 },
-              [
-                CanvasView.node_dom_id(k),
-                CanvasView.edge_dom_id(k),
-                CanvasView.value_dom_id(k),
-              ],
-            );
-          },
-        )
-      | Appear(_)
-      | Reveal(_)
-      | Pill(_)
-      | Drift
-      | Say(_) => ()
-      };
-    },
+            [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
+            @ hull_copies(~prefix="hullc-n-", k),
+          );
+        | Erase(name) =>
+          later(tf, () => CanvasAvatar.set_mood("erase"));
+          List.iter(
+            ~f=
+              id =>
+                switch (by_id(id)) {
+                | Some(el) =>
+                  retract(~delay=tf, ~dur=float_of_int(e.dur), el)
+                | None => ()
+                },
+            [CanvasView.path_dom_id(name)]
+            @ hull_copies(~prefix="hulls-e-", name),
+          );
+          List.iter(
+            ~f=
+              id =>
+                switch (by_id(id)) {
+                | Some(el) =>
+                  shrink_out(~delay=tf +. 120., ~dur=float_of_int(e.dur), el)
+                | None => ()
+                },
+            [
+              CanvasView.edge_dom_id(name),
+              CanvasView.orbit_dom_id(name),
+              "clead-" ++ CanvasView.sanitize(name),
+            ]
+            @ hull_copies(~prefix="hullc-l-", name),
+          );
+        | Change(k) =>
+          /* the view swaps the staged old look for the new one on the next
+             render: ask for it at the cue, and pulse the element */
+          later(
+            tf,
+            () => {
+              request_tick^(0.);
+              List.iter(
+                ~f=
+                  id =>
+                    switch (by_id(id)) {
+                    | Some(el) => pulse_class(el, 900.)
+                    | None => ()
+                    },
+                [
+                  CanvasView.node_dom_id(k),
+                  CanvasView.edge_dom_id(k),
+                  CanvasView.value_dom_id(k),
+                ],
+              );
+            },
+          )
+        | Appear(_)
+        | Reveal(_)
+        | Pill(_)
+        | Drift
+        | Say(_) => ()
+        };
+      },
     CanvasScore.effects_abs(s),
   );
   /* the camera: the score's frames, each leading its act's travel */
-  List.iter(~f=
-    ((t, f): (int, CanvasScore.frame)) =>
-      later(float_of_int(t), () =>
-        switch (CanvasCamera.pane()) {
-        | Some((aw, ah)) =>
-          CanvasLog.log(
-            Printf.sprintf(
-              "camera: scored frame -> (%.0f, %.0f)%s",
-              f.center.x,
-              f.center.y,
-              Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
-                ? Printf.sprintf(
-                    " zoom %.2f -> %.2f",
-                    CanvasCamera.zoom_now^,
-                    f.zoom,
-                  )
-                : "",
-            ),
-          );
-          CanvasCamera.animate(
-            ~aw,
-            ~ah,
-            ~zoom=
-              Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
-                ? Some(f.zoom) : None,
-            ~dur=450.,
-            ~easing=EaseInOut,
-            (f.center.x, f.center.y),
-          );
-        | None => ()
-        }
-      ),
+  List.iter(
+    ~f=
+      ((t, f): (int, CanvasScore.frame)) =>
+        later(float_of_int(t), () =>
+          switch (CanvasCamera.pane()) {
+          | Some((aw, ah)) =>
+            CanvasLog.log(
+              Printf.sprintf(
+                "camera: scored frame -> (%.0f, %.0f)%s",
+                f.center.x,
+                f.center.y,
+                Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+                  ? Printf.sprintf(
+                      " zoom %.2f -> %.2f",
+                      CanvasCamera.zoom_now^,
+                      f.zoom,
+                    )
+                  : "",
+              ),
+            );
+            CanvasCamera.animate(
+              ~aw,
+              ~ah,
+              ~zoom=
+                Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+                  ? Some(f.zoom) : None,
+              ~dur=450.,
+              ~easing=EaseInOut,
+              (f.center.x, f.center.y),
+            );
+          | None => ()
+          }
+        ),
     s.frames,
   );
   CanvasCamera.scored_until :=
@@ -1568,8 +1624,8 @@ let cancel_score = () => {
   paused := false;
   CanvasBuffer.held := false;
   paused_anims := [];
-  List.iter(~f=
-    a => ignore(Js.Unsafe.meth_call(a, "cancel", [||])),
+  List.iter(
+    ~f=a => ignore(Js.Unsafe.meth_call(a, "cancel", [||])),
     canvas_animations(),
   );
   Animation.held := ([], 0.);
@@ -1614,52 +1670,57 @@ let replan_score = (~pos: (float, float), ~lead_in: float=0., ()): unit =>
   switch (current_score^) {
   | Some((s, t0)) when clock() -. t0 < float_of_int(s.total_ms) =>
     let elapsed = clock() -. t0;
-    List.iter(~f=
-      ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
-        let tf = float_of_int(t);
-        let dur = float_of_int(e.dur);
-        switch (e.effect) {
-        | Draw(name) when tf +. dur > elapsed =>
-          CanvasLog.log(
-            Printf.sprintf(
-              "re-plan: ride %s at %.0f+%.0fms, elapsed %.0f -> delay %.0f (score %dms, t0 %.0f, clock %.0f)",
-              name,
-              tf,
-              dur,
-              elapsed,
-              tf -. elapsed,
-              s.total_ms,
-              t0,
-              clock(),
-            ),
-          );
-          switch (by_id(CanvasView.path_dom_id(name))) {
-          | Some(path) =>
-            cancel_anims(path);
-            let total: float =
-              Js.Unsafe.meth_call(path, "getTotalLength", [||]);
-            if (total >= 8.) {
-              let on_len = arm_dash(path, total);
-              set_attr(path, "data-on-len", Printf.sprintf("%.1f", on_len));
-              animate(
-                path,
-                [
-                  [("strokeDashoffset", num(on_len))],
-                  [("strokeDashoffset", num(0.))],
-                ],
-                [
-                  ("duration", num(dur)),
-                  ("delay", num(tf -. elapsed +. lead_in)),
-                  ("easing", str("linear")),
-                  ("fill", str("backwards")),
-                ],
-              );
+    List.iter(
+      ~f=
+        ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
+          let tf = float_of_int(t);
+          let dur = float_of_int(e.dur);
+          switch (e.effect) {
+          | Draw(name) when tf +. dur > elapsed =>
+            CanvasLog.log(
+              Printf.sprintf(
+                "re-plan: ride %s at %.0f+%.0fms, elapsed %.0f -> delay %.0f (score %dms, t0 %.0f, clock %.0f)",
+                name,
+                tf,
+                dur,
+                elapsed,
+                tf -. elapsed,
+                s.total_ms,
+                t0,
+                clock(),
+              ),
+            );
+            switch (by_id(CanvasView.path_dom_id(name))) {
+            | Some(path) =>
+              cancel_anims(path);
+              let total: float =
+                Js.Unsafe.meth_call(path, "getTotalLength", [||]);
+              if (total >= 8.) {
+                let on_len = arm_dash(path, total);
+                set_attr(
+                  path,
+                  "data-on-len",
+                  Printf.sprintf("%.1f", on_len),
+                );
+                animate(
+                  path,
+                  [
+                    [("strokeDashoffset", num(on_len))],
+                    [("strokeDashoffset", num(0.))],
+                  ],
+                  [
+                    ("duration", num(dur)),
+                    ("delay", num(tf -. elapsed +. lead_in)),
+                    ("easing", str("linear")),
+                    ("fill", str("backwards")),
+                  ],
+                );
+              };
+            | None => ()
             };
-          | None => ()
+          | _ => ()
           };
-        | _ => ()
-        };
-      },
+        },
       CanvasScore.effects_abs(s),
     );
     let sorted = waypoints_of(s);
@@ -1749,11 +1810,12 @@ let jump_snapshot = (~zoom: float): unit => {
     @ Util.JsUtil.ids_with_prefix("cedge-")
     @ [CanvasView.avatar_dom_id];
   jump_prev :=
-    List.filter_map(~f=
-      id =>
-        by_id(id)
-        |> Util.OptUtil.and_then(el => to_board(~zoom, center_of(el)))
-        |> Option.map(~f=p => (id, p)),
+    List.filter_map(
+      ~f=
+        id =>
+          by_id(id)
+          |> Util.OptUtil.and_then(el => to_board(~zoom, center_of(el)))
+          |> Option.map(~f=p => (id, p)),
       ids,
     );
   jump_scroll :=
@@ -1768,22 +1830,25 @@ let jump_snapshot = (~zoom: float): unit => {
 };
 let check_jumps = (~zoom: float): unit => {
   let jumps =
-    List.filter_map(~f=
-      ((id, (x0, y0))) =>
-        switch (by_id(id)) {
-        | Some(el) =>
-          switch (to_board(~zoom, center_of(el))) {
-          | Some((x1, y1)) =>
-            let d =
-              Float.sqrt((x1 -. x0) *. (x1 -. x0) +. (y1 -. y0) *. (y1 -. y0));
-            let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
-            let n: int = Js.Unsafe.get(anims, "length");
-            d > 3. && n == 0
-              ? Some(Printf.sprintf("%s %.0fpx", id, d)) : None;
+    List.filter_map(
+      ~f=
+        ((id, (x0, y0))) =>
+          switch (by_id(id)) {
+          | Some(el) =>
+            switch (to_board(~zoom, center_of(el))) {
+            | Some((x1, y1)) =>
+              let d =
+                Float.sqrt(
+                  (x1 -. x0) *. (x1 -. x0) +. (y1 -. y0) *. (y1 -. y0),
+                );
+              let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
+              let n: int = Js.Unsafe.get(anims, "length");
+              d > 3. && n == 0
+                ? Some(Printf.sprintf("%s %.0fpx", id, d)) : None;
+            | None => None
+            }
           | None => None
-          }
-        | None => None
-        },
+          },
       jump_prev^,
     );
   if (jumps != []) {

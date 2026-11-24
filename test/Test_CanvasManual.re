@@ -12,40 +12,44 @@ let move_without_bystanders = () => {
   let g = graph();
   let base = L.layout(~cards=[], g);
   let satellites =
-    List.filter_map(~f=
-      (n: G.tynode) =>
-        switch (n.sat) {
-        | Some(("Pos", _)) => Some(n.key)
-        | _ => None
-        },
+    List.filter_map(
+      ~f=
+        (n: G.tynode) =>
+          switch (n.sat) {
+          | Some(("Pos", _)) => Some(n.key)
+          | _ => None
+          },
       g.nodes,
     );
   check(bool, "fixture includes attached terminals", true, satellites != []);
-  List.iter(~f=
-    ((dx, dy)) => {
-      let next =
-        L.layout(
-          ~cards=[],
-          ~origin_override=Some(base.origin),
-          ~offsets=[("Pos", (dx, dy))],
-          g,
+  List.iter(
+    ~f=
+      ((dx, dy)) => {
+        let next =
+          L.layout(
+            ~cards=[],
+            ~origin_override=Some(base.origin),
+            ~offsets=[("Pos", (dx, dy))],
+            g,
+          );
+        List.iter(
+          ~f=
+            (n: L.node_layout) => {
+              let should_move =
+                n.node.key == "Pos"
+                || List.mem(satellites, n.node.key, ~equal=Poly.equal);
+              let expected: L.pos =
+                should_move
+                  ? {
+                    x: n.p.x +. dx,
+                    y: n.p.y +. dy,
+                  }
+                  : n.p;
+              same("drag: " ++ n.node.key, expected, at(next, n.node.key));
+            },
+          base.nodes,
         );
-      List.iter(~f=
-        (n: L.node_layout) => {
-          let should_move =
-            n.node.key == "Pos" || List.mem(satellites, n.node.key, ~equal=Poly.equal);
-          let expected: L.pos =
-            should_move
-              ? {
-                x: n.p.x +. dx,
-                y: n.p.y +. dy,
-              }
-              : n.p;
-          same("drag: " ++ n.node.key, expected, at(next, n.node.key));
-        },
-        base.nodes,
-      );
-    },
+      },
     [(280., 84.), ((-280.), 140.), (0., (-280.)), (0., 0.)],
   );
 };
@@ -55,7 +59,8 @@ let pinned_and_previously_moved = () => {
   let pos = at(base, "Pos");
   let offsets = [("Deck", (84., 140.))];
   let fixed =
-    List.hd_exn(List.filter(~f=(n: G.tynode) => n.sat != None, g.nodes)).key;
+    List.hd_exn(List.filter(~f=(n: G.tynode) => n.sat != None, g.nodes)).
+      key;
   let fp = at(base, fixed);
   let pins = [("Pos", xy(pos)), (fixed, xy(fp))];
   let before =
@@ -84,11 +89,12 @@ let pinned_and_previously_moved = () => {
     at(before, "Deck"),
     at(after, "Deck"),
   );
-  List.iter(~f=
-    (n: L.node_layout) =>
-      if (n.node.key != "Pos" && n.node.sat == None) {
-        same("pin drag: " ++ n.node.key, n.p, at(after, n.node.key));
-      },
+  List.iter(
+    ~f=
+      (n: L.node_layout) =>
+        if (n.node.key != "Pos" && n.node.sat == None) {
+          same("pin drag: " ++ n.node.key, n.p, at(after, n.node.key));
+        },
     before.nodes,
   );
 };
@@ -107,8 +113,8 @@ let tests = (
           );
         let lay = L.layout(~cards=[], g);
         let edge =
-          List.find_exn(~f=
-            (e: L.edge_layout) => e.edge.e_name == "area",
+          List.find_exn(
+            ~f=(e: L.edge_layout) => e.edge.e_name == "area",
             lay.edges,
           );
         let a = at(lay, "Shape")

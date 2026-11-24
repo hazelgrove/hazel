@@ -213,7 +213,9 @@ let refactor_data =
     | LiftFunction => Some(chord("↑↑"))
     | _ =>
       let glyphs =
-        resolved |> List.filter(~f=((k, _)) => k == kind) |> List.map(~f=snd);
+        resolved
+        |> List.filter(~f=((k, _)) => k == kind)
+        |> List.map(~f=snd);
       let has = g => List.mem(glyphs, g, ~equal=Poly.equal);
       switch (glyphs) {
       | [] => None
@@ -543,12 +545,12 @@ let flatten_sections =
     (sections: list(list(Menu.item(command)))): list(Menu.item(command)) =>
   List.fold_left(
     ~f=
-    (acc, section) =>
-      switch (acc, section) {
-      | (_, []) => acc
-      | ([], items) => items
-      | (acc, items) => acc @ [Menu.divider] @ items
-      },
+      (acc, section) =>
+        switch (acc, section) {
+        | (_, []) => acc
+        | ([], items) => items
+        | (acc, items) => acc @ [Menu.divider] @ items
+        },
     ~init=[],
     sections,
   );

@@ -54,10 +54,10 @@ module Entry = {
     | Sexplib.Sexp.List(lst) =>
       List.rev_map(
         ~f=
-        entry_sexp =>
-          try(Some(t_of_sexp(entry_sexp))) {
-          | _ => None
-          },
+          entry_sexp =>
+            try(Some(t_of_sexp(entry_sexp))) {
+            | _ => None
+            },
         lst,
       )
       |> List.rev

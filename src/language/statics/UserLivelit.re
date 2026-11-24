@@ -70,17 +70,18 @@ let required_members = ["init", "update", "view", "expand"];
 let module_members =
     (items: list(TermBase.Mod.t)): list((string, TermBase.Exp.t)) =>
   List.fold(items, ~init=[], ~f=(acc, item: TermBase.Mod.t) =>
-      switch (item.term) {
-      | ModLet(p, e) =>
-        switch (pat_name(p)) {
-        | Some(name) => [
-            (name, e),
-            ...List.Assoc.remove(acc, name, ~equal=String.equal),
-          ]
-        | None => acc
-        }
-      | _ => acc
-      });
+    switch (item.term) {
+    | ModLet(p, e) =>
+      switch (pat_name(p)) {
+      | Some(name) => [
+          (name, e),
+          ...List.Assoc.remove(acc, name, ~equal=String.equal),
+        ]
+      | None => acc
+      }
+    | _ => acc
+    }
+  );
 
 /* The definition record is the trailing module or tuple, looking through
    helper bindings: `let helper = ... in {...}`. */
@@ -90,7 +91,12 @@ let rec detect = (def: TermBase.Exp.t): result(shape, Mark.livelit_def_error) =>
   | TyAlias(_, _, body) => detect(body)
   | Module(items) =>
     let members = module_members(items);
-    switch (List.filter(~f=r => !List.Assoc.mem(members, r, ~equal=Poly.equal), required_members)) {
+    switch (
+      List.filter(
+        ~f=r => !List.Assoc.mem(members, r, ~equal=Poly.equal),
+        required_members,
+      )
+    ) {
     | [] => Ok(ModuleDef(members))
     | missing => Error(DefMissingMembers(missing))
     };
@@ -171,12 +177,13 @@ let ty_member =
   switch (Typ.term_of(def_ty)) {
   | Prod(tys) =>
     let by_label =
-      List.find_map(~f=
-        ty =>
-          switch (Typ.term_of(ty)) {
-          | TupLabel({term: Label(l), _}, t) when l == label => Some(t)
-          | _ => None
-          },
+      List.find_map(
+        ~f=
+          ty =>
+            switch (Typ.term_of(ty)) {
+            | TupLabel({term: Label(l), _}, t) when l == label => Some(t)
+            | _ => None
+            },
         tys,
       );
     switch (by_label, index) {

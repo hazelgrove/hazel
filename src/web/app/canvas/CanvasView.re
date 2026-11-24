@@ -15,14 +15,15 @@ open Poly;
 let fmt = f => Printf.sprintf("%.1f", f);
 
 let sanitize = (s: string): string =>
-  String.map(~f=
-    c =>
-      switch (c) {
-      | 'a' .. 'z'
-      | 'A' .. 'Z'
-      | '0' .. '9' => c
-      | _ => '-'
-      },
+  String.map(
+    ~f=
+      c =>
+        switch (c) {
+        | 'a' .. 'z'
+        | 'A' .. 'Z'
+        | '0' .. '9' => c
+        | _ => '-'
+        },
     s,
   );
 
@@ -299,7 +300,8 @@ let hull_palette = [|
   "#a4c48d",
   "#e0a186",
 |];
-let hull_color_slots: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(8);
+let hull_color_slots: Stdlib.Hashtbl.t(string, int) =
+  Stdlib.Hashtbl.create(8);
 let hull_color = (root: string): string => {
   let slot =
     switch (Stdlib.Hashtbl.find_opt(hull_color_slots, root)) {
@@ -316,15 +318,15 @@ let hull_former_key = (path: list(string)): string =>
   "{}@" ++ String.concat(~sep=".", path);
 
 let hull_paths_of = (lay: CanvasLayout.t): list(list(string)) =>
-  List.concat_map(~f=
-    (nl: CanvasLayout.node_layout) => hull_prefixes(nl.node.m_path),
+  List.concat_map(
+    ~f=(nl: CanvasLayout.node_layout) => hull_prefixes(nl.node.m_path),
     lay.nodes,
   )
-  @ List.concat_map(~f=
-      (el: CanvasLayout.edge_layout) => hull_prefixes(el.edge.m_path),
+  @ List.concat_map(
+      ~f=(el: CanvasLayout.edge_layout) => hull_prefixes(el.edge.m_path),
       lay.edges,
     )
-  |> List.dedup_and_sort(~compare=compare)
+  |> List.dedup_and_sort(~compare)
   |> List.sort(~compare=(a, b) => compare(List.length(a), List.length(b)));
 
 let hull_circles_at =
@@ -337,8 +339,8 @@ let hull_circles_at =
   let former_key = hull_former_key(path);
   let vsuffix = "--v" ++ sanitize(String.concat(~sep=".", path));
   let former_pos_of = (p: list(string)): option(CanvasLayout.pos) =>
-    List.find(~f=
-      (nl: CanvasLayout.node_layout) => nl.node.key == hull_former_key(p),
+    List.find(
+      ~f=(nl: CanvasLayout.node_layout) => nl.node.key == hull_former_key(p),
       lay.nodes,
     )
     |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p);
@@ -352,75 +354,81 @@ let hull_circles_at =
     14.
     *. float_of_int(
          List.fold(hull_paths, ~init=0, ~f=(m, q) =>
-             hull_is_prefix(fp, q)
-               ? max(m, List.length(q) - List.length(fp)) : m),
+           hull_is_prefix(fp, q)
+             ? max(m, List.length(q) - List.length(fp)) : m
+         ),
        );
   let node_circles =
-    List.filter_map(~f=
-      (nl: CanvasLayout.node_layout) =>
-        if (!hull_is_prefix(path, nl.node.m_path)) {
-          None;
-        } else {
-          let exact = nl.node.m_path == path;
-          /* ANY former keeps its former-size in ancestor copies too */
-          let former_sized =
-            String.length(nl.node.key) >= 3
-            && String.sub(nl.node.key, ~pos=0, ~len=3) == "{}@";
-          /* a module's former circle grows linearly with its member count
-             on a large base (5 px each, +50 at most): the name stays the
-             center of gravity as the module fills */
-          let member_bump =
-            if (former_sized) {
-              let here = (p: list(string)) => p == nl.node.m_path;
-              let n =
-                List.length(
-                  List.filter(~f=
-                    (m: CanvasLayout.node_layout) =>
-                      here(m.node.m_path) && m.node.key != nl.node.key,
-                    lay.nodes,
-                  ),
-                )
-                + List.length(
-                    List.filter(~f=
-                      (e: CanvasLayout.edge_layout) => here(e.edge.m_path),
-                      lay.edges,
+    List.filter_map(
+      ~f=
+        (nl: CanvasLayout.node_layout) =>
+          if (!hull_is_prefix(path, nl.node.m_path)) {
+            None;
+          } else {
+            let exact = nl.node.m_path == path;
+            /* ANY former keeps its former-size in ancestor copies too */
+            let former_sized =
+              String.length(nl.node.key) >= 3
+              && String.sub(nl.node.key, ~pos=0, ~len=3) == "{}@";
+            /* a module's former circle grows linearly with its member count
+               on a large base (5 px each, +50 at most): the name stays the
+               center of gravity as the module fills */
+            let member_bump =
+              if (former_sized) {
+                let here = (p: list(string)) => p == nl.node.m_path;
+                let n =
+                  List.length(
+                    List.filter(
+                      ~f=
+                        (m: CanvasLayout.node_layout) =>
+                          here(m.node.m_path) && m.node.key != nl.node.key,
+                      lay.nodes,
                     ),
-                  );
-              min(50., 5. *. float_of_int(n));
-            } else {
-              0.;
-            };
-          let r =
-            (
-              former_sized
-                ? 62. +. subtree_bump(nl.node.m_path) +. member_bump : 46.
-            )
-            +. depth_pad(nl.node.m_path);
-          Some((
-            "hullc-n-"
-            ++ sanitize(nl.node.key)
-            ++ (exact || nl.node.key == former_key ? "" : vsuffix),
-            nl.p,
-            r,
-          ));
-        },
+                  )
+                  + List.length(
+                      List.filter(
+                        ~f=
+                          (e: CanvasLayout.edge_layout) =>
+                            here(e.edge.m_path),
+                        lay.edges,
+                      ),
+                    );
+                min(50., 5. *. float_of_int(n));
+              } else {
+                0.;
+              };
+            let r =
+              (
+                former_sized
+                  ? 62. +. subtree_bump(nl.node.m_path) +. member_bump : 46.
+              )
+              +. depth_pad(nl.node.m_path);
+            Some((
+              "hullc-n-"
+              ++ sanitize(nl.node.key)
+              ++ (exact || nl.node.key == former_key ? "" : vsuffix),
+              nl.p,
+              r,
+            ));
+          },
       lay.nodes,
     );
   let label_circles =
-    List.concat_map(~f=
-      (el: CanvasLayout.edge_layout) =>
-        if (!hull_is_prefix(path, el.edge.m_path)) {
-          [];
-        } else {
-          let exact = el.edge.m_path == path;
-          let pad = depth_pad(el.edge.m_path);
-          let en = sanitize(el.edge.e_name);
-          let sfx = exact ? "" : vsuffix;
-          let lp = el.label_p;
-          /* the SAUSAGE along the edge is the pseudopod now */
-          ignore(former_pos_of);
-          [("hullc-l-" ++ en ++ sfx, lp, 38. +. pad)];
-        },
+    List.concat_map(
+      ~f=
+        (el: CanvasLayout.edge_layout) =>
+          if (!hull_is_prefix(path, el.edge.m_path)) {
+            [];
+          } else {
+            let exact = el.edge.m_path == path;
+            let pad = depth_pad(el.edge.m_path);
+            let en = sanitize(el.edge.e_name);
+            let sfx = exact ? "" : vsuffix;
+            let lp = el.label_p;
+            /* the SAUSAGE along the edge is the pseudopod now */
+            ignore(former_pos_of);
+            [("hullc-l-" ++ en ++ sfx, lp, 38. +. pad)];
+          },
       lay.edges,
     );
   node_circles @ label_circles;
@@ -445,21 +453,22 @@ let hull_sausages_at =
     (lay: CanvasLayout.t, path: list(string))
     : list((string, string, float)) => {
   let vsuffix = "--v" ++ sanitize(String.concat(~sep=".", path));
-  List.filter_map(~f=
-    (el: CanvasLayout.edge_layout) =>
-      if (!hull_is_prefix(path, el.edge.m_path) || el.endo) {
-        None;
-      } else {
-        let exact = el.edge.m_path == path;
-        let pad =
-          float_of_int(List.length(el.edge.m_path) - List.length(path))
-          *. 14.;
-        Some((
-          "hulls-e-" ++ sanitize(el.edge.e_name) ++ (exact ? "" : vsuffix),
-          hull_sausage_d(el),
-          52. +. 2. *. pad,
-        ));
-      },
+  List.filter_map(
+    ~f=
+      (el: CanvasLayout.edge_layout) =>
+        if (!hull_is_prefix(path, el.edge.m_path) || el.endo) {
+          None;
+        } else {
+          let exact = el.edge.m_path == path;
+          let pad =
+            float_of_int(List.length(el.edge.m_path) - List.length(path))
+            *. 14.;
+          Some((
+            "hulls-e-" ++ sanitize(el.edge.e_name) ++ (exact ? "" : vsuffix),
+            hull_sausage_d(el),
+            52. +. 2. *. pad,
+          ));
+        },
     lay.edges,
   );
 };
@@ -564,8 +573,8 @@ let edge_label =
     let n = List.length(e.tests);
     let passing =
       List.length(
-        List.filter(~f=
-          (t: CanvasGraph.test_info) => t.status == Some(Pass),
+        List.filter(
+          ~f=(t: CanvasGraph.test_info) => t.status == Some(Pass),
           e.tests,
         ),
       );
@@ -625,10 +634,11 @@ let edge_label =
     ],
     [
       text(e.e_label),
-      ...List.map(~f=
-           test_pip(~on_click=(t: CanvasGraph.test_info) =>
-             inject_jump(t.t_id)
-           ),
+      ...List.map(
+           ~f=
+             test_pip(~on_click=(t: CanvasGraph.test_info) =>
+               inject_jump(t.t_id)
+             ),
            e.tests,
          ),
     ],
@@ -652,8 +662,8 @@ let base_glyph = (label: string): option(string) => {
   | None =>
     let n = String.length(label);
     n >= 3 && label.[0] == '[' && label.[n - 1] == ']'
-      ? Option.map(~f=
-          g => "[" ++ g ++ "]",
+      ? Option.map(
+          ~f=g => "[" ++ g ++ "]",
           letter(String.sub(label, ~pos=1, ~len=n - 2)),
         )
       : None;
@@ -923,7 +933,10 @@ let node_view =
             @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
             @ (base != None ? ["node-glyphed"] : [])
             /* grows out of the placement-preview dot */
-            @ (List.mem(just_placed, n.key, ~equal=Poly.equal) ? ["just-placed"] : []),
+            @ (
+              List.mem(just_placed, n.key, ~equal=Poly.equal)
+                ? ["just-placed"] : []
+            ),
           ),
           Attr.create(
             "style",
@@ -959,7 +972,9 @@ let value_view =
     : Node.t => {
   let v = vl.value;
   let hash =
-    String.fold(v.v_name, ~init=7, ~f=(h, c) => (h * 31 + Char.to_int(c)) mod 997);
+    String.fold(v.v_name, ~init=7, ~f=(h, c) =>
+      (h * 31 + Char.to_int(c)) mod 997
+    );
   let period = 90.;
   let phase = float_of_int(hash mod 90);
   div(
@@ -1141,8 +1156,8 @@ let view =
     )
     : Node.t => {
   let radius_of = (k: string): float =>
-    List.find(~f=
-      (nl: CanvasLayout.node_layout) => nl.node.key == k,
+    List.find(
+      ~f=(nl: CanvasLayout.node_layout) => nl.node.key == k,
       lay.nodes,
     )
     |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.r)
@@ -1374,32 +1389,37 @@ let view =
             | ps =>
               let n = float_of_int(List.length(ps));
               let cx =
-                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.x)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) =>
+                  a +. p.x
+                )
                 /. n
               and cy =
-                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.y)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) =>
+                  a +. p.y
+                )
                 /. n;
               /* predicted product pin: matches the commit's weighting */
               let px = (2. *. cx +. x) /. 3.
               and py = (2. *. cy +. y) /. 3.;
-              List.iteri(~f=
-                (i, p: CanvasLayout.pos) => {
-                  let mx = (p.x +. px) /. 2.;
-                  set_d(
-                    "connect-form-" ++ string_of_int(i),
-                    Printf.sprintf(
-                      "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
-                      p.x,
-                      p.y,
-                      mx,
-                      p.y,
-                      mx,
-                      py,
-                      px,
-                      py,
-                    ),
-                  );
-                },
+              List.iteri(
+                ~f=
+                  (i, p: CanvasLayout.pos) => {
+                    let mx = (p.x +. px) /. 2.;
+                    set_d(
+                      "connect-form-" ++ string_of_int(i),
+                      Printf.sprintf(
+                        "M %.1f,%.1f C %.1f,%.1f %.1f,%.1f %.1f,%.1f",
+                        p.x,
+                        p.y,
+                        mx,
+                        p.y,
+                        mx,
+                        py,
+                        px,
+                        py,
+                      ),
+                    );
+                  },
                 ps,
               );
               set_d(
@@ -1438,20 +1458,21 @@ let view =
     svg(
       "svg",
       [clss(["connect-preview"])] @ layer_box(lay),
-      List.mapi(~f=
-        (i, p: CanvasLayout.pos) =>
-          svg(
-            "path",
-            [
-              Attr.id("connect-form-" ++ string_of_int(i)),
-              clss(["connect-form"]),
-              Attr.create(
-                "d",
-                Printf.sprintf("M %s,%s", fmt(p.x), fmt(p.y)),
-              ),
-            ],
-            [],
-          ),
+      List.mapi(
+        ~f=
+          (i, p: CanvasLayout.pos) =>
+            svg(
+              "path",
+              [
+                Attr.id("connect-form-" ++ string_of_int(i)),
+                clss(["connect-form"]),
+                Attr.create(
+                  "d",
+                  Printf.sprintf("M %s,%s", fmt(p.x), fmt(p.y)),
+                ),
+              ],
+              [],
+            ),
         List.length(connect_pts) > 1 ? connect_pts : [],
       )
       @ (
@@ -1554,122 +1575,136 @@ let view =
                       ),
                     ],
                   ),
-                  ...List.concat_map(~f=
-                       path => {
-                         let circles = hull_circles_at(path);
-                         let depth = List.length(path);
-                         let root =
-                           switch (path) {
-                           | [r, ..._] => r
-                           | [] => ""
-                           };
-                         let former =
-                           List.find(~f=
-                             (nl: CanvasLayout.node_layout) =>
-                               nl.node.key == former_key_of(path),
-                             lay.nodes,
-                           );
-                         /* module palette: a root keeps the color it
-                            was first seen with for the whole session
-                            (a later module must not shift the earlier
-                            ones); nested paths share their root's
-                            color (depth = opacity) */
-                         let color = hull_color(root);
-                         [
-                           Node.create_svg(
-                             "g",
-                             ~attrs=[
-                               svg_key("hull:" ++ String.concat(~sep=".", path)),
-                               clss([
-                                 "canvas-hull",
-                                 Printf.sprintf(
-                                   "hull-depth-%d",
-                                   min(depth, 3),
+                  ...List.concat_map(
+                       ~f=
+                         path => {
+                           let circles = hull_circles_at(path);
+                           let depth = List.length(path);
+                           let root =
+                             switch (path) {
+                             | [r, ..._] => r
+                             | [] => ""
+                             };
+                           let former =
+                             List.find(
+                               ~f=
+                                 (nl: CanvasLayout.node_layout) =>
+                                   nl.node.key == former_key_of(path),
+                               lay.nodes,
+                             );
+                           /* module palette: a root keeps the color it
+                              was first seen with for the whole session
+                              (a later module must not shift the earlier
+                              ones); nested paths share their root's
+                              color (depth = opacity) */
+                           let color = hull_color(root);
+                           [
+                             Node.create_svg(
+                               "g",
+                               ~attrs=[
+                                 svg_key(
+                                   "hull:" ++ String.concat(~sep=".", path),
                                  ),
-                               ]),
-                               Attr.create(
-                                 "style",
-                                 "filter: url(#metaball); fill: "
-                                 ++ color
-                                 ++ "; stroke: "
-                                 ++ color
-                                 ++ ";",
-                               ),
-                             ],
-                             List.map(~f=
-                               ((id, d, w)) =>
-                                 Node.create_svg(
-                                   "path",
-                                   ~attrs=[
-                                     svg_key(id),
-                                     Attr.id(id),
-                                     Attr.create("d", d),
-                                     Attr.create("fill", "none"),
-                                     Attr.create("stroke-width", fmt(w)),
-                                     Attr.create("stroke-linecap", "round"),
-                                   ],
-                                   [],
-                                 ),
-                               hull_sausages_at(lay, path),
-                             )
-                             @ List.map(~f=
-                                 ((id, p: CanvasLayout.pos, r)) =>
-                                   Node.create_svg(
-                                     "circle",
-                                     ~attrs=[
-                                       svg_key(id),
-                                       Attr.id(id),
-                                       Attr.create("cx", fmt(p.x)),
-                                       Attr.create("cy", fmt(p.y)),
-                                       Attr.create("r", fmt(r)),
-                                     ],
-                                     [],
+                                 clss([
+                                   "canvas-hull",
+                                   Printf.sprintf(
+                                     "hull-depth-%d",
+                                     min(depth, 3),
                                    ),
-                                 circles,
-                               ),
-                           ),
-                         ]
-                         @ (
-                           switch (former, depth) {
-                           | (Some(nl), 1) =>
-                             let count =
-                               List.Assoc.find(collapsed_counts, root, ~equal=Poly.equal);
-                             /* the node carries the module name now;
-                                expanded hulls show only a small
-                                collapse affordance */
-                             let label =
-                               switch (count) {
-                               | Some(n) =>
-                                 Printf.sprintf(
-                                   "%s (%d) \xe2\x96\xb8",
-                                   root,
-                                   n,
-                                 )
-                               | None => "▾"
-                               };
-                             [
-                               Node.create_svg(
-                                 "text",
-                                 ~attrs=[
-                                   svg_key("hull-label:" ++ root),
-                                   clss(
-                                     ["canvas-hull-label"]
-                                     @ (
-                                       count == None ? [] : ["hull-collapsed"]
+                                 ]),
+                                 Attr.create(
+                                   "style",
+                                   "filter: url(#metaball); fill: "
+                                   ++ color
+                                   ++ "; stroke: "
+                                   ++ color
+                                   ++ ";",
+                                 ),
+                               ],
+                               List.map(
+                                 ~f=
+                                   ((id, d, w)) =>
+                                     Node.create_svg(
+                                       "path",
+                                       ~attrs=[
+                                         svg_key(id),
+                                         Attr.id(id),
+                                         Attr.create("d", d),
+                                         Attr.create("fill", "none"),
+                                         Attr.create("stroke-width", fmt(w)),
+                                         Attr.create(
+                                           "stroke-linecap",
+                                           "round",
+                                         ),
+                                       ],
+                                       [],
                                      ),
-                                   ),
-                                   Attr.create("x", fmt(nl.p.x)),
-                                   Attr.create("y", fmt(nl.p.y -. 62.)),
-                                   Attr.create("text-anchor", "middle"),
-                                   Attr.on_click(_ => on_hull_toggle(root)),
-                                 ],
-                                 [text(label)],
-                               ),
-                             ];
-                           | _ => []
-                           }
-                         );
-                       },
+                                 hull_sausages_at(lay, path),
+                               )
+                               @ List.map(
+                                   ~f=
+                                     ((id, p: CanvasLayout.pos, r)) =>
+                                       Node.create_svg(
+                                         "circle",
+                                         ~attrs=[
+                                           svg_key(id),
+                                           Attr.id(id),
+                                           Attr.create("cx", fmt(p.x)),
+                                           Attr.create("cy", fmt(p.y)),
+                                           Attr.create("r", fmt(r)),
+                                         ],
+                                         [],
+                                       ),
+                                   circles,
+                                 ),
+                             ),
+                           ]
+                           @ (
+                             switch (former, depth) {
+                             | (Some(nl), 1) =>
+                               let count =
+                                 List.Assoc.find(
+                                   collapsed_counts,
+                                   root,
+                                   ~equal=Poly.equal,
+                                 );
+                               /* the node carries the module name now;
+                                  expanded hulls show only a small
+                                  collapse affordance */
+                               let label =
+                                 switch (count) {
+                                 | Some(n) =>
+                                   Printf.sprintf(
+                                     "%s (%d) \xe2\x96\xb8",
+                                     root,
+                                     n,
+                                   )
+                                 | None => "▾"
+                                 };
+                               [
+                                 Node.create_svg(
+                                   "text",
+                                   ~attrs=[
+                                     svg_key("hull-label:" ++ root),
+                                     clss(
+                                       ["canvas-hull-label"]
+                                       @ (
+                                         count == None
+                                           ? [] : ["hull-collapsed"]
+                                       ),
+                                     ),
+                                     Attr.create("x", fmt(nl.p.x)),
+                                     Attr.create("y", fmt(nl.p.y -. 62.)),
+                                     Attr.create("text-anchor", "middle"),
+                                     Attr.on_click(_ => on_hull_toggle(root)),
+                                   ],
+                                   [text(label)],
+                                 ),
+                               ];
+                             | _ => []
+                             }
+                           );
+                         },
                        hull_paths,
                      ),
                 ],
@@ -1681,35 +1716,36 @@ let view =
               Node.create_svg(
                 "svg",
                 ~attrs=[clss(["canvas-depfan"])] @ layer_box(lay),
-                List.map(~f=
-                  ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
-                    let mx = (a.x +. b.x) /. 2.
-                    and my = (a.y +. b.y) /. 2.;
-                    let dx = b.x -. a.x
-                    and dy = b.y -. a.y;
-                    let d = max(1., Float.hypot(dx, dy));
-                    /* slight perpendicular sag so fans don't overlap edges */
-                    let cx = mx -. dy /. d *. 14.
-                    and cy = my +. dx /. d *. 14.;
-                    Node.create_svg(
-                      "path",
-                      ~attrs=[
-                        Attr.create(
-                          "d",
-                          Printf.sprintf(
-                            "M %s %s Q %s %s %s %s",
-                            fmt'(a.x),
-                            fmt'(a.y),
-                            fmt'(cx),
-                            fmt'(cy),
-                            fmt'(b.x),
-                            fmt'(b.y),
+                List.map(
+                  ~f=
+                    ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
+                      let mx = (a.x +. b.x) /. 2.
+                      and my = (a.y +. b.y) /. 2.;
+                      let dx = b.x -. a.x
+                      and dy = b.y -. a.y;
+                      let d = max(1., Float.hypot(dx, dy));
+                      /* slight perpendicular sag so fans don't overlap edges */
+                      let cx = mx -. dy /. d *. 14.
+                      and cy = my +. dx /. d *. 14.;
+                      Node.create_svg(
+                        "path",
+                        ~attrs=[
+                          Attr.create(
+                            "d",
+                            Printf.sprintf(
+                              "M %s %s Q %s %s %s %s",
+                              fmt'(a.x),
+                              fmt'(a.y),
+                              fmt'(cx),
+                              fmt'(cy),
+                              fmt'(b.x),
+                              fmt'(b.y),
+                            ),
                           ),
-                        ),
-                      ],
-                      [],
-                    );
-                  },
+                        ],
+                        [],
+                      );
+                    },
                   dep_fan,
                 ),
               );
@@ -1721,30 +1757,33 @@ let view =
           edges_svg,
         ]
         @ telegraph_nodes
-        @ List.map(~f=
-            (nl: CanvasLayout.node_layout) =>
-              node_view(
-                ~on_node_mousedown,
-                ~on_node_contextmenu,
-                ~on_node_select,
-                ~on_delete_definition,
-                ~just_placed,
-                ~focused_ty,
-                ~card=List.Assoc.find(cards, nl.node.key, ~equal=Poly.equal),
-                ~on_node_dblclick,
-                nl,
-              ),
+        @ List.map(
+            ~f=
+              (nl: CanvasLayout.node_layout) =>
+                node_view(
+                  ~on_node_mousedown,
+                  ~on_node_contextmenu,
+                  ~on_node_select,
+                  ~on_delete_definition,
+                  ~just_placed,
+                  ~focused_ty,
+                  ~card=
+                    List.Assoc.find(cards, nl.node.key, ~equal=Poly.equal),
+                  ~on_node_dblclick,
+                  nl,
+                ),
             lay.nodes,
           )
-        @ List.map(~f=
-            edge_label(
-              ~inject_jump,
-              ~focused,
-              ~on_edge_click,
-              ~on_edge_contextmenu,
-              ~on_delete_definition,
-              ~on_edge_hover,
-            ),
+        @ List.map(
+            ~f=
+              edge_label(
+                ~inject_jump,
+                ~focused,
+                ~on_edge_click,
+                ~on_edge_contextmenu,
+                ~on_delete_definition,
+                ~on_edge_hover,
+              ),
             lay.edges,
           )
         @ {
@@ -1753,8 +1792,8 @@ let view =
             | Some(f) => f
             | None => ((v: CanvasGraph.value) => inject_jump(v.v_id))
             };
-          List.map(~f=
-            value_view(~inject_jump, ~on_value_click=ovc),
+          List.map(
+            ~f=value_view(~inject_jump, ~on_value_click=ovc),
             lay.values,
           );
         }

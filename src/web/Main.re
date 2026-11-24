@@ -299,13 +299,14 @@ let start = default_model => {
                 ScratchMode.Update.Workspace(
                   AgentAction(
                     Agent.Update.Action.ReplayToolCalls(
-                      List.mapi(~f=
-                        (i, (name, args)) =>
-                          OpenRouter.Reply.Model.{
-                            id: "replay-" ++ string_of_int(i),
-                            name,
-                            args,
-                          },
+                      List.mapi(
+                        ~f=
+                          (i, (name, args)) =>
+                            OpenRouter.Reply.Model.{
+                              id: "replay-" ++ string_of_int(i),
+                              name,
+                              args,
+                            },
                         calls,
                       ),
                     ),

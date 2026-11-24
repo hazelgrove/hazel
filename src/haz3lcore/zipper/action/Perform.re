@@ -110,27 +110,27 @@ let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
 let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
   List.fold_left(
     ~f=
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
-      | Tile(t) =>
-        switch (
-          List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
+        | Tile(t) =>
+          switch (
+            List.fold_left(
               ~f=
-            (a, ch) =>
-              switch (last_lb_in_seg(ch)) {
-              | Some(id) => Some(id)
-              | None => a
-              },
+                (a, ch) =>
+                  switch (last_lb_in_seg(ch)) {
+                  | Some(id) => Some(id)
+                  | None => a
+                  },
               ~init=None,
-            t.children,
-          )
-        ) {
-        | Some(id) => Some(id)
-        | None => acc
-        }
-      | _ => acc
-      },
+              t.children,
+            )
+          ) {
+          | Some(id) => Some(id)
+          | None => acc
+          }
+        | _ => acc
+        },
     ~init=None,
     seg,
   );
@@ -138,12 +138,12 @@ let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
 let rec all_lbs_in_seg = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
         | Tile(t) => List.concat_map(~f=all_lbs_in_seg, t.children)
-      | _ => []
-      },
+        | _ => []
+        },
     seg,
   );
 
@@ -156,7 +156,7 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
   | None =>
     List.fold_left(
       ~f=
-      (acc, (_, sibs): Ancestors.generation) =>
+        (acc, (_, sibs): Ancestors.generation) =>
           Option.is_some(acc) ? acc : last_lb_in_seg(fst(sibs)),
       ~init=None,
       z.relatives.ancestors,
@@ -582,8 +582,8 @@ let rec go =
     |> return(Cant_insert)
   | Refactor(k) =>
     Refactor.go(~info_map=statics.info_map, ~term=statics.term, k, z)
-    |> Option.map(~f=
-         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+    |> Option.map(
+         ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
        )
     |> return(Cant_refactor)
   | RefactorGesture(g) =>
@@ -608,8 +608,8 @@ let rec go =
            | None => z'
            }
          )
-      |> Option.map(~f=
-           LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+      |> Option.map(
+           ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
          )
       |> return(Cant_refactor);
     | None => Error(Cant_refactor)
@@ -646,16 +646,16 @@ let rec go =
       let protect =
         List.map(
           ~f=
-          fun
-          | Piece.Grout({id, shape: Convex}) =>
-            Piece.Tile({
-              id,
-              form: Tok(Token.implicit_hole_marker),
-              sort: Exp,
-              shards: [0],
-              children: [],
-            })
-          | p => p,
+            fun
+            | Piece.Grout({id, shape: Convex}) =>
+              Piece.Tile({
+                id,
+                form: Tok(Token.implicit_hole_marker),
+                sort: Exp,
+                shards: [0],
+                children: [],
+              })
+            | p => p,
         );
       LocalReformat.around(
         ~enabled=settings.auto_reindent,
@@ -672,20 +672,20 @@ let rec go =
           Parser.to_zipper(~root, ~zipper_init=z, text)
           |> Option.map(
                ~f=
-               ZipperBase.MapPiece.go(p =>
-                 switch (p) {
-                 | Tile({id, form: Tok(marker), _})
-                     when
+                 ZipperBase.MapPiece.go(p =>
+                   switch (p) {
+                   | Tile({id, form: Tok(marker), _})
+                       when
                          String.equal(marker, Token.implicit_hole_marker)
                          && !List.mem(old_markers^, id, ~equal=Id.equal) => [
-                     Piece.Grout({
-                       id,
-                       shape: Convex,
-                     }),
-                   ]
-                 | p => [p]
-                 }
-               ),
+                       Piece.Grout({
+                         id,
+                         shape: Convex,
+                       }),
+                     ]
+                   | p => [p]
+                   }
+                 ),
              );
         },
       )

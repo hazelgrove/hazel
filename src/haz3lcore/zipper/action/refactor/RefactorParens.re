@@ -201,10 +201,12 @@ let sp_bounds = (~side: Util.Direction.t, path: list(Exp.t)): list(sp_bound) => 
           is(r) ? `Fringe : is(l) ? op(Precedence.plus) : `Opaque
         | (Tuple(xs), Util.Direction.Left) =>
           xs != [] && is(List.hd_exn(xs))
-            ? `Fringe : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
+            ? `Fringe
+            : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
         | (Tuple(xs), Util.Direction.Right) =>
           xs != [] && is(List.nth_exn(xs, List.length(xs) - 1))
-            ? `Fringe : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
+            ? `Fringe
+            : List.exists(~f=is, xs) ? op(Precedence.comma) : `Opaque
         | (Asc(l, _), Util.Direction.Left) => is(l) ? `Fringe : `Delim
         | (Asc(l, _), Util.Direction.Right) =>
           is(l) ? op(Precedence.asc) : `Delim

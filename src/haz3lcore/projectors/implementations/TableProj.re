@@ -43,13 +43,13 @@ let table =
     ~header_cells=
       List.map(
         ~f=
-        h =>
-          Node.th([
-            Node.span(
-              ~attrs=[Attr.classes(["column-label"])],
-              [Node.text(h)],
-            ),
-          ]),
+          h =>
+            Node.th([
+              Node.span(
+                ~attrs=[Attr.classes(["column-label"])],
+                [Node.text(h)],
+              ),
+            ]),
         headers,
       ),
     ~rows=List.map(~f=row_cells(info.utility, view_seg), rows),

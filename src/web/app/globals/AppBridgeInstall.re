@@ -9,7 +9,8 @@ open Language;
 /* Checkpoints handed over by the projector, consumed when the store builds
  * the entry. Kept out of the action payload so the app-view actions are
  * untouched. */
-let pending_checkpoints: Stdlib.Hashtbl.t(Id.t, string) = Stdlib.Hashtbl.create(4);
+let pending_checkpoints: Stdlib.Hashtbl.t(Id.t, string) =
+  Stdlib.Hashtbl.create(4);
 
 let take_checkpoint = (id: Id.t): option(string) => {
   let checkpoint = Stdlib.Hashtbl.find_opt(pending_checkpoints, id);

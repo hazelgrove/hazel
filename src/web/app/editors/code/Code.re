@@ -371,12 +371,12 @@ module ChunkViews = {
    refine_sort per tile; grout/secondary render from pieces alone) */
 let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
   List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
+    switch (p) {
+    | Tile(t) =>
       List.fold(t.children, ~init=[t, ...acc], ~f=(acc, s) =>
         chunk_tiles(s, acc)
-        )
-      | _ => acc
+      )
+    | _ => acc
     }
   );
 
@@ -384,9 +384,9 @@ let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
    children render in other chunks) */
 let token_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
   List.fold(tokens, ~init=[], ~f=(acc, tok: Measured.token) =>
-      switch (tok) {
-      | Whole(p) => chunk_tiles([p], acc)
-      | Shard(t, _) => [t, ...acc]
+    switch (tok) {
+    | Whole(p) => chunk_tiles([p], acc)
+    | Shard(t, _) => [t, ...acc]
     }
   );
 
@@ -395,23 +395,23 @@ let token_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
 let top_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
   List.filter_map(
     ~f=
-    (tok: Measured.token) =>
-      switch (tok) {
-      | Whole(Tile(t))
-      | Shard(t, _) => Some(t)
-      | Whole(_) => None
-      },
+      (tok: Measured.token) =>
+        switch (tok) {
+        | Whole(Tile(t))
+        | Shard(t, _) => Some(t)
+        | Whole(_) => None
+        },
     tokens,
   );
 
 let token_ids = (tokens: list(Measured.token)): list(Id.t) =>
   List.concat_map(
     ~f=
-    (tok: Measured.token) =>
-      switch (tok) {
-      | Whole(p) => Segment.ids_of_piece(p)
-      | Shard(t, _) => [t.id]
-      },
+      (tok: Measured.token) =>
+        switch (tok) {
+        | Whole(p) => Segment.ids_of_piece(p)
+        | Shard(t, _) => [t.id]
+        },
     tokens,
   );
 
