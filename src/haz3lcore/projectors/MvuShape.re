@@ -365,7 +365,7 @@ let rec is_settled = (d: DHExp.t): bool =>
   | Closure(_, d) => is_settled(d)
   | TupLabel(l, d) => is_settled(l) && is_settled(d)
   | ListLit(ds)
-  | Tuple(ds) => List.for_all(is_settled, ds)
+  | Tuple(ds) => List.for_all(~f=is_settled, ds)
   | Ap(Forward, fn, arg) =>
     switch (strip_wrappers(fn).term) {
     | Constructor(_) => is_settled(arg)

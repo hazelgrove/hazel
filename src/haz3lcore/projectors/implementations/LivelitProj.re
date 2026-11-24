@@ -388,7 +388,7 @@ module M: Projector = {
         /* a stuck view (over a model with no value yet) is no newer
            truth to draw: drop the entry and wait for the sample */
         | Ok(html) when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
-          let prior = Hashtbl.find_opt(optimistic, id);
+          let prior = Stdlib.Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
              so the set of syntax states that count as "ours" is
              unchanged; only committing events append their commit. */

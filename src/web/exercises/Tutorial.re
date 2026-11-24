@@ -77,7 +77,8 @@ let probes_folder = "Probes";
 let views_folder = "Views";
 let is_probes_lesson = (p: p('a)): bool =>
   switch (SlidePath.folders(path_of(p))) {
-  | [folder] => folder == probes_folder || folder == views_folder
+  | [folder] =>
+    String.equal(folder, probes_folder) || String.equal(folder, views_folder)
   | _ => false
   };
 

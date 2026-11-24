@@ -682,7 +682,7 @@ module ValueState = {
    an empty hand, still renders beside real ones) */
 let auto_evidence = (ctx: probe_ctx, value: Exp.t, r: packed_renderer): bool =>
   r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
-  || List.exists(
+  || List.exists(~f=
        (s: Sample.t) =>
          r.auto_applies(~statics=Some(ctx.statics), ctx.sort, s.value),
        ctx.dynamics.samples,
@@ -693,7 +693,7 @@ let auto_evidence = (ctx: probe_ctx, value: Exp.t, r: packed_renderer): bool =>
 let auto_renderer =
     (ctx: probe_ctx, ~fits: packed_renderer => bool, value: Exp.t)
     : option(packed_renderer) =>
-  List.find_opt(
+  List.find(~f=
     (r: packed_renderer) =>
       r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
       && auto_evidence(ctx, value, r)
@@ -756,7 +756,7 @@ let chip_view =
     ) {
     | Some(r) =>
       r.init_model(~statics=Some(ctx.statics), ctx.sort, value)
-      |> Option.map(pm => (r, pm))
+      |> Option.map(~f=pm => (r, pm))
     | None => None
     }
   | None => None
@@ -963,7 +963,7 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    List.find_opt(
+    List.find(~f=
       (r: packed_renderer) =>
         r.auto_applies(~statics=info.statics, sort, value),
       renderers,
@@ -1172,7 +1172,7 @@ type view_choice = {
 let view_choices = (ctx: probe_ctx, value: Exp.t): list(view_choice) => {
   let statics = Some(ctx.statics);
   let choices = (r: packed_renderer, views) =>
-    List.map(
+    List.map(~f=
       ((label, pm)) =>
         {
           rid: r.id,
@@ -1185,19 +1185,19 @@ let view_choices = (ctx: probe_ctx, value: Exp.t): list(view_choice) => {
   let views = (r: packed_renderer) =>
     choices(r, r.views(~statics, ctx.sort, value));
   let applicable =
-    List.filter(
+    List.filter(~f=
       (r: packed_renderer) => r.can_handle(~statics, ctx.sort, value),
       renderers,
     );
-  let (auto, never) = List.partition(auto_evidence(ctx, value), applicable);
-  let (tables, never) = List.partition(fills_drawer, never);
-  List.concat_map(views, auto)
-  @ List.concat_map(
+  let (auto, never) = List.partition_tf(~f=auto_evidence(ctx, value), applicable);
+  let (tables, never) = List.partition_tf(~f=fills_drawer, never);
+  List.concat_map(~f=views, auto)
+  @ List.concat_map(~f=
       (r: packed_renderer) =>
         choices(r, r.on_request(~statics, ctx.sort, value)),
       renderers,
     )
-  @ List.concat_map(views, never @ tables);
+  @ List.concat_map(~f=views, never @ tables);
 };
 
 /* The view a sample shows a value with, as (renderer id, name); None is
@@ -1209,7 +1209,7 @@ let current_view =
   switch (chip_view(ctx, ~display, value)) {
   | Some((r, pm)) =>
     r.label(pm, ~statics=Some(ctx.statics), ctx.sort, value)
-    |> Option.map(l => (r.id, l))
+    |> Option.map(~f=l => (r.id, l))
   | None => None
   };
 
@@ -1219,8 +1219,8 @@ let view_rows =
     (ctx: probe_ctx, ~display: sample_display, value: Exp.t)
     : (list(option(view_choice)), int) => {
   let rows: list(option(view_choice)) = [
-    Option.None,
-    ...List.map(c => Some(c), view_choices(ctx, value)),
+    Stdlib.Option.None,
+    ...List.map(~f=c => Some(c), view_choices(ctx, value)),
   ];
   let current =
     switch (current_view(ctx, ~display, value)) {
@@ -1345,8 +1345,8 @@ let view_picker =
             ),
           ],
           [
-            view_icon(List.nth(rows, current)),
-            view_name(List.nth(rows, current)),
+            view_icon(List.nth_exn(rows, current)),
+            view_name(List.nth_exn(rows, current)),
             chevron(~up=is_open),
           ],
         );
@@ -1360,7 +1360,7 @@ let view_picker =
             ),
             Attr.create("role", "option"),
             Attr.create("aria-selected", i == current ? "true" : "false"),
-            press(() => SetView(Option.map(c => c.pm, row))),
+            press(() => SetView(Option.map(~f=c => c.pm, row))),
           ],
           [
             span(
@@ -1372,7 +1372,7 @@ let view_picker =
           ],
         );
       let list =
-        switch (List.mapi(row_view, rows)) {
+        switch (List.mapi(~f=row_view, rows)) {
         | [text_row, ...views] =>
           div(
             ~attrs=[
@@ -1454,7 +1454,7 @@ let view_list_key =
           held(
             ctx.local(
               SetView(
-                Option.map(c => c.pm, Option.join(List.nth_opt(rows, row))),
+                Option.map(~f=c => c.pm, Option.join(List.nth(rows, row))),
               ),
             ),
           )
@@ -1796,7 +1796,7 @@ let sample_view =
         | Some(indicated) =>
           let statics = Some(ctx.statics);
           List.exists(
-            r =>
+            ~f=r =>
               r.can_handle(~statics, ctx.sort, indicated.value)
               || r.on_request(~statics, ctx.sort, indicated.value) != [],
             renderers,
@@ -1940,7 +1940,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
   | Some(idx) =>
     let next_idx_maybe = idx - offset;
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
-      let sample = List.nth(samples, next_idx_maybe);
+      let sample = List.nth_exn(samples, next_idx_maybe);
       Settings.close_view_list();
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
@@ -2142,7 +2142,7 @@ let key_handler =
   let list_key =
     view_list_key(ctx, ~display=drawer_mode_active ? Block : Inline, key);
   switch (key.key) {
-  | _ when Option.is_some(list_key) => Option.get(list_key)
+  | _ when Option.is_some(list_key) => Option.value_exn(list_key)
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
   | D("Escape") when Settings.open_dropdown^ != None =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
@@ -2312,7 +2312,7 @@ let prepare_offside =
       | Some(pm) =>
         switch (find(RichProbe.renderer_id_of_model(pm))) {
         | Some(r) =>
-          List.exists(
+          List.exists(~f=
             (sample: Sample.t) =>
               r.handles(pm, ~statics=Some(statics), sort, sample.value),
             dynamics.samples,
@@ -2321,10 +2321,10 @@ let prepare_offside =
         }
       | None =>
         (model.auto_rich || settings.auto_rich_default)
-        && List.exists(
+        && List.exists(~f=
              (sample: Sample.t) =>
                List.exists(
-                 (r: packed_renderer) =>
+                 ~f=(r: packed_renderer) =>
                    r.auto_applies(
                      ~statics=Some(statics),
                      sort,
@@ -2685,12 +2685,12 @@ let rich_rows =
         (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
-      List.find_opt(
+      List.find(~f=
         (r: packed_renderer) =>
           r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
-      |> Option.map((r: packed_renderer) =>
+      |> Option.map(~f=(r: packed_renderer) =>
            rows(r, ~statics=info.statics, ~model=None, sort, exp)
          )
       |> Option.join

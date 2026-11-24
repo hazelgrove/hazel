@@ -63,10 +63,10 @@ let is_unknown = (ty: Typ.t): bool =>
 let member = (record: Exp.t, label: string): option(Exp.t) =>
   switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
   | Some(fs) =>
-    List.find_map(
+    List.find_map(~f=
       f =>
         switch (MvuShape.of_field(f)) {
-        | Some((l, v)) when l == label => Some(v)
+        | Some((l, v)) when String.equal(l, label) => Some(v)
         | _ => None
         },
       fs,
@@ -78,7 +78,7 @@ let member = (record: Exp.t, label: string): option(Exp.t) =>
    evaluation per definition, keyed by its elaboration's identity */
 let record_memo: ref(list((Exp.t, Exp.t))) = ref([]);
 let record_of = (def_elab: Exp.t): option(Exp.t) =>
-  switch (List.find_opt(((k, _)) => k === def_elab, record_memo^)) {
+  switch (List.find(~f=((k, _)) => phys_equal(k, def_elab), record_memo^)) {
   | Some((_, r)) => Some(r)
   | None =>
     switch (MvuShape.safe_evaluate(def_elab)) {
@@ -117,7 +117,7 @@ let rec names_something = (ty: Typ.t): bool =>
   | Sum(_) => true
   | Parens(t)
   | List(t) => names_something(t)
-  | Prod(ts) => List.exists(names_something, ts)
+  | Prod(ts) => List.exists(~f=names_something, ts)
   | Arrow(a, b) => names_something(a) || names_something(b)
   | _ => false
   };
@@ -141,10 +141,9 @@ let expands_to = (ctx: Ctx.t, expansion_t: Typ.t, ty: Typ.t): bool =>
    named `^name`, and drawing looks the name up), so only the innermost
    binding of a name counts. */
 let in_scope = (ctx: Ctx.t): list(LivelitCtx.raw_livelit) =>
-  List.fold_left(
-    ((seen, acc), e: Ctx.entry) =>
+  List.fold(ctx.entries, ~init=([], []), ~f=((seen, acc), e: Ctx.entry) =>
       switch (e) {
-      | LivelitEntry(ll) when !List.mem(ll.name, seen) => (
+      | LivelitEntry(ll) when !List.mem(seen, ll.name, ~equal=Poly.equal) => (
           [ll.name, ...seen],
           switch (ll.user_def) {
           | Some(_) when !is_unknown(ll.expansion_t) => acc @ [ll]
@@ -152,16 +151,13 @@ let in_scope = (ctx: Ctx.t): list(LivelitCtx.raw_livelit) =>
           },
         )
       | _ => (seen, acc)
-      },
-    ([], []),
-    ctx.entries,
-  )
+      })
   |> snd;
 
 let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
   is_unknown(ty)
     ? []
-    : List.filter(
+    : List.filter(~f=
         (ll: LivelitCtx.raw_livelit) => expands_to(ctx, ll.expansion_t, ty),
         in_scope(ctx),
       );
@@ -173,7 +169,7 @@ let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
    unknown type these are all of them; the list keeps only the ones whose
    view draws the value (on_request). */
 let fits_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
-  List.filter(
+  List.filter(~f=
     (ll: LivelitCtx.raw_livelit) =>
       Typ.is_consistent(ctx, ll.expansion_t, ty)
       && (is_unknown(ty) || !expands_to(ctx, ll.expansion_t, ty)),
@@ -223,7 +219,8 @@ let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
    objects for unchanged values (and a fresh elaboration of an unchanged
    definition), and re-running the view for each of them on every
    keystroke is the cost */
-let same = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
+let same = (a: Exp.t, b: Exp.t): bool =>
+    phys_equal(a, b) || Exp.fast_equal(a, b);
 let html_of =
     (
       ~ctx,
@@ -237,10 +234,10 @@ let html_of =
   | Some(def_elab) =>
     let room: UserLivelit.room = ll.view_takes_ctx ? room : UserLivelit.Free;
     switch (
-      List.find_opt(
+      List.find(~f=
         ((k, _)) =>
-          k.name == ll.name
-          && k.room == room
+          String.equal(k.name, ll.name)
+          && Poly.equal(k.room, room)
           && same(k.raw, raw)
           && same(k.def, def_elab),
         html_memo^,
@@ -339,7 +336,7 @@ let drawn = (ll: LivelitCtx.raw_livelit): drawn => {
 /* the elements of a list value (closed), if it is one */
 let list_elems = (exp: Exp.t): option(list(Exp.t)) =>
   switch (Exp.term_of(MvuShape.close_value(exp))) {
-  | ListLit(items) when items != [] => Some(items)
+  | ListLit(items) when !List.is_empty(items) => Some(items)
   | _ => None
   };
 
@@ -353,13 +350,13 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
           first: drawn(ll),
           raw: exp,
           as_list,
-          alts: List.map(drawn, others),
+          alts: List.map(~f=drawn, others),
         })
       | [] => None
       };
     let direct =
       candidates(statics)
-      |> List.filter(ll => html_of(~ctx, ll, exp) != None);
+      |> List.filter(~f=ll => Option.is_some(html_of(~ctx, ll, exp)));
     switch (direct) {
     | [_, ..._] => found(~as_list=false, direct)
     | [] =>
@@ -370,8 +367,8 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
       ) {
       | (List(elem), Some(items)) =>
         candidates_for(ctx, elem)
-        |> List.filter(ll =>
-             List.for_all(it => html_of(~ctx, ll, it) != None, items)
+        |> List.filter(~f=ll =>
+             List.for_all(~f=it => Option.is_some(html_of(~ctx, ll, it)), items)
            )
         |> found(~as_list=true)
       | _ => None
@@ -390,7 +387,7 @@ let auto_applies = (_: value): bool => true;
 let chosen = (m: model, v: value): drawn =>
   switch (m) {
   | Some(name) =>
-    switch (List.find_opt((d: drawn) => d.name == name, v.alts)) {
+    switch (List.find(~f=(d: drawn) => String.equal(d.name, name), v.alts)) {
     | Some(d) => d
     | None => v.first
     }
@@ -401,7 +398,7 @@ let drawer_rows = (m: model, v: value): int => chosen(m, v).rows;
 let line_rows = (m: model, v: value): int => chosen(m, v).line_rows;
 
 let views = (v: value): list(model) =>
-  List.map((d: drawn) => Some(d.name), [v.first, ...v.alts]);
+  List.map(~f=(d: drawn) => Some(d.name), [v.first, ...v.alts]);
 
 /* A livelit offered on request that draws the value, by name */
 let requested =
@@ -409,9 +406,9 @@ let requested =
     : option(LivelitCtx.raw_livelit) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
-    List.find_opt(
+    List.find(~f=
       (ll: LivelitCtx.raw_livelit) =>
-        ll.name == name && html_of(~ctx, ll, exp) != None,
+        String.equal(ll.name, name) && Option.is_some(html_of(~ctx, ll, exp)),
       fits_for(ctx, ty),
     )
   | _ => None
@@ -423,7 +420,7 @@ let requested =
 let parse_chosen = (~statics, sort: Sort.t, exp: Exp.t, m: model) => {
   let found = parse(~statics, sort, exp);
   switch (m, found) {
-  | (Some(_), Some(v)) when List.mem(m, views(v)) => found
+  | (Some(_), Some(v)) when List.mem(views(v), m, ~equal=Poly.equal) => found
   | (Some(name), _) =>
     switch (requested(~statics, sort, exp, name)) {
     | Some(ll) =>
@@ -447,9 +444,9 @@ let on_request = (~statics, sort: Sort.t, exp: Exp.t): list(model) =>
       | Some(v) => views(v)
       | None => []
       };
-    List.filter_map(
+    List.filter_map(~f=
       (ll: LivelitCtx.raw_livelit) =>
-        !List.mem(Some(ll.name), drawn) && html_of(~ctx, ll, exp) != None
+        !List.mem(drawn, Some(ll.name), ~equal=Poly.equal) && Option.is_some(html_of(~ctx, ll, exp))
           ? Some(Some(ll.name)) : None,
       fits_for(ctx, ty),
     );
@@ -489,9 +486,7 @@ let render =
     | Some((ctx, _)) =>
       switch (Ctx.lookup_livelit(ctx, ll_name)) {
       | Some(ll) when value.as_list =>
-        Option.bind(
-          list_elems(value.raw),
-          items => {
+        Option.bind(list_elems(value.raw), ~f=items => {
             /* the row's elements share the sample's width */
             let room: RichProbe.room =
               switch (room) {
@@ -499,19 +494,14 @@ let render =
                 UserLivelit.Lines(lines, max(1, cols / List.length(items)))
               | UserLivelit.Free => UserLivelit.Free
               };
-            List.fold_right(
-              (it, acc) =>
+            List.fold_right(items, ~f=(it, acc) =>
                 switch (acc, html_of(~ctx, ~room, ll, it)) {
                 | (Some(hs), Some(h)) => Some([h, ...hs])
                 | _ => None
-                },
-              items,
-              Some([]),
-            );
-          },
-        )
+                }, ~init=Some([]));
+          })
       | Some(ll) =>
-        Option.map(h => [h], html_of(~ctx, ~room, ll, value.raw))
+        Option.map(~f=h => [h], html_of(~ctx, ~room, ll, value.raw))
       | None => None
       }
     | _ => None
@@ -526,7 +516,7 @@ let render =
         ),
         Attr.title("^" ++ ll_name ++ " view of this value"),
       ],
-      List.map(HazelDOM.go(seed), htmls),
+      List.map(~f=HazelDOM.go(seed), htmls),
     )
   | None =>
     Node.div(

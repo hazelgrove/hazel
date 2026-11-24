@@ -228,7 +228,7 @@ let pack_renderer =
       },
     init_model: (~statics, sort, exp) =>
       R.parse(~statics, sort, exp)
-      |> Option.map(v => PModel(id, model_id, R.init(v))),
+      |> Option.map(~f=v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
     handles: (pm, ~statics, sort, exp) =>
       switch (cast_model(pm)) {
@@ -236,44 +236,44 @@ let pack_renderer =
       | None => false
       },
     drawer_rows: (~statics, ~model, sort, exp) =>
-      switch (Option.bind(model, cast_model)) {
+      switch (Option.bind(model, ~f=cast_model)) {
       | Some(m) =>
         R.parse_chosen(~statics, sort, exp, m)
-        |> Option.map(v => R.drawer_rows(m, v))
+        |> Option.map(~f=v => R.drawer_rows(m, v))
       | None =>
         R.parse(~statics, sort, exp)
-        |> Option.map(v => R.drawer_rows(R.init(v), v))
+        |> Option.map(~f=v => R.drawer_rows(R.init(v), v))
       },
     line_rows: (~statics, ~model, sort, exp) =>
-      switch (Option.bind(model, cast_model)) {
+      switch (Option.bind(model, ~f=cast_model)) {
       | Some(m) =>
         R.parse_chosen(~statics, sort, exp, m)
-        |> Option.map(v => R.line_rows(m, v))
+        |> Option.map(~f=v => R.line_rows(m, v))
       | None =>
         R.parse(~statics, sort, exp)
-        |> Option.map(v => R.line_rows(R.init(v), v))
+        |> Option.map(~f=v => R.line_rows(R.init(v), v))
       },
     views: (~statics, sort, exp) =>
       switch (R.parse(~statics, sort, exp)) {
       | Some(v) =>
-        List.map(
+        List.map(~f=
           m => (R.label(m, v), PModel(id, model_id, m)),
           R.views(v),
         )
       | None => []
       },
     on_request: (~statics, sort, exp) =>
-      List.filter_map(
+      List.filter_map(~f=
         m =>
           R.parse_chosen(~statics, sort, exp, m)
-          |> Option.map(v => (R.label(m, v), PModel(id, model_id, m))),
+          |> Option.map(~f=v => (R.label(m, v), PModel(id, model_id, m))),
         R.on_request(~statics, sort, exp),
       ),
     label: (pm, ~statics, sort, exp) =>
       switch (cast_model(pm)) {
       | Some(m) =>
         R.parse_chosen(~statics, sort, exp, m)
-        |> Option.map(v => R.label(m, v))
+        |> Option.map(~f=v => R.label(m, v))
       | None => None
       },
     update_model: (pm, pa) =>
@@ -284,10 +284,9 @@ let pack_renderer =
     render_model:
       (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~room, ()) =>
       switch (
-        Option.bind(cast_model(pm), m =>
+        Option.bind(cast_model(pm), ~f=m =>
           R.parse_chosen(~statics=info.statics, sort, exp, m)
-          |> Option.map(v => (m, v))
-        )
+          |> Option.map(~f=v => (m, v)))
       ) {
       | Some((m, value)) =>
         Some(

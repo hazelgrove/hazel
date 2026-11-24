@@ -601,13 +601,14 @@ let expand = fun m -> m
     bool,
     "no redex over a literal",
     true,
-    Haz3lcore.LivelitProj.update_redex(
-      ~ll_name="sum",
-      ~base_value=None,
-      ~model=parse_exp("3"),
-      parse_exp("5"),
-    )
-    == None,
+    Option.is_none(
+      Haz3lcore.LivelitProj.update_redex(
+        ~ll_name="sum",
+        ~base_value=None,
+        ~model=parse_exp("3"),
+        parse_exp("5"),
+      ),
+    ),
   );
 };
 
@@ -766,7 +767,7 @@ shift(p0)";
              there — and Id.Map order depends on the ids the suite has
              minted so far */
           | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
-              when Ctx.lookup_livelit(ctx, "point") != None =>
+              when Option.is_some(Ctx.lookup_livelit(ctx, "point")) =>
             switch (Typ.term_of(ty)) {
             | Var("Point") =>
               switch (samples) {
@@ -790,16 +791,16 @@ shift(p0)";
     | None => fail("no Point-typed site with a P(..) sample")
     | Some((info, value)) =>
       let cands = Haz3lcore.LivelitRenderer.candidates(Some(info));
-      check(bool, "^point is a candidate", true, cands != []);
+      check(bool, "^point is a candidate", true, !List.is_empty(cands));
       let (ctx, _) =
-        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+        Option.value_exn(Haz3lcore.LivelitRenderer.site(Some(info)));
       let html =
-        Haz3lcore.LivelitRenderer.html_of(~ctx, List.hd(cands), value);
+        Haz3lcore.LivelitRenderer.html_of(~ctx, List.hd_exn(cands), value);
       check(
         bool,
         "P(..) renders through wrap and view: " ++ Exp.show(value),
         true,
-        html != None,
+        Option.is_some(html),
       );
     };
   };
@@ -869,7 +870,7 @@ let point_sample =
         (id, samples, acc) =>
           switch (acc, Id.Map.find_opt(id, info_map)) {
           | (None, Some(Info.InfoExp({ty, ctx, _}) as info))
-              when Ctx.lookup_livelit(ctx, "point") != None =>
+              when Option.is_some(Ctx.lookup_livelit(ctx, "point")) =>
             switch (Typ.term_of(ty), samples) {
             | (Var("Point"), [s, ..._]) =>
               let s: Sample.t = s;
@@ -889,7 +890,7 @@ let point_sample =
     | None => fail("no Point-typed site with a P(..) sample")
     | Some((info, value)) =>
       let (ctx, _) =
-        Option.get(Haz3lcore.LivelitRenderer.site(Some(info)));
+        Option.value_exn(Haz3lcore.LivelitRenderer.site(Some(info)));
       switch (Haz3lcore.LivelitRenderer.candidates(Some(info))) {
       | [ll, ..._] => (ctx, ll, value, info)
       | [] => fail("^point is not a candidate")
@@ -902,10 +903,7 @@ let point_sample =
 let edited_view_redraws = () => {
   let drawn = view => {
     let (ctx, ll, value, _) = point_sample(point_program(view));
-    Option.bind(
-      Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value),
-      text_of_html,
-    );
+    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value), ~f=text_of_html);
   };
   check(
     option(string),
@@ -935,7 +933,7 @@ let p0 : Point = "
         ++ " in
 shift(p0)",
       );
-    Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value) != None;
+    Option.is_some(Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value));
   };
   let shows_x = "let view(p: Model): HTML =
     case p | P(x, y) => Text(string_of_int(x)) end";
@@ -1032,10 +1030,7 @@ let view_form_by_type = () => {
 let view_context_in_probes = () => {
   let (ctx, ll, value, _) = point_sample(point_program(ctx_view));
   let in_room = room =>
-    Option.bind(
-      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
-      text_of_html,
-    );
+    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value), ~f=text_of_html);
   check(
     option(string),
     "on the line",
@@ -1071,7 +1066,7 @@ let projector_texts = (projectors: Id.Map.t(_), probes): list(string) =>
       @ (
         switch (Sample.Map.lookup(id, probes)) {
         | Some(samples) =>
-          List.filter_map(
+          List.filter_map(~f=
             (s: Sample.t) => {
               let v = Haz3lcore.MvuShape.close_value(s.value);
               Haz3lcore.MvuShape.is_html(v) ? text_of_html(v) : None;
@@ -1120,10 +1115,7 @@ let told_its_room_fits_the_line = () => {
 let one_arg_view_everywhere = () => {
   let (ctx, ll, value, _) = point_sample(point_program(plain_view));
   let in_room = room =>
-    Option.bind(
-      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
-      text_of_html,
-    );
+    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value), ~f=text_of_html);
   check(
     option(string),
     "on the line",
@@ -1181,7 +1173,7 @@ let var_sample = (text: string, var: string): (Info.t, Exp.t) =>
               Some(Info.InfoExp({user_term: {term: Var(x), _}, _}) as info),
               [s, ..._],
             )
-              when x == var =>
+              when String.equal(x, var) =>
             let s: Sample.t = s;
             Some((info, s.value));
           | _ => acc
@@ -1249,9 +1241,8 @@ let view_as_offers_what_fits = () => {
       R.site(statics),
     ) {
     | (Some(v), Some((ctx, _))) =>
-      Option.bind(Ctx.lookup_livelit(ctx, v.first.name), ll =>
-        Option.bind(R.html_of(~ctx, ll, value), text_of_html)
-      )
+      Option.bind(Ctx.lookup_livelit(ctx, v.first.name), ~f=ll =>
+        Option.bind(R.html_of(~ctx, ll, value), ~f=text_of_html))
     | _ => None
     };
   check(

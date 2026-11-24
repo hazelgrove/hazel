@@ -267,21 +267,25 @@ let takes_context = (view_ty: option(TermBase.Typ.t)): bool => {
     switch (Typ.term_of(strip(ty))) {
     | Var("ViewContext") => true
     | Prod(fields) =>
-      List.sort(
-        compare,
-        List.filter_map(
-          (f: TermBase.Typ.t) =>
-            switch (Typ.term_of(f)) {
-            | TupLabel({term: Label(l), _}, _) => Some(l)
-            | _ => None
-            },
-          fields,
+      List.equal(
+        String.equal,
+        List.sort(
+          ~compare=String.compare,
+          List.filter_map(
+            ~f=
+              (f: TermBase.Typ.t) =>
+                switch (Typ.term_of(f)) {
+                | TupLabel({term: Label(l), _}, _) => Some(l)
+                | _ => None
+                },
+            fields,
+          ),
         ),
+        ["editable", "room"],
       )
-      == ["editable", "room"]
     | _ => false
     };
-  switch (Option.map(ty => Typ.term_of(strip(ty)), view_ty)) {
+  switch (Option.map(~f=ty => Typ.term_of(strip(ty)), view_ty)) {
   | Some(Arrow(arg, _)) =>
     switch (Typ.term_of(strip(arg))) {
     | Prod([_, ctx]) => is_context(ctx)
