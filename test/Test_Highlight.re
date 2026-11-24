@@ -16,8 +16,8 @@ let rows = (seg: Segment.t): list(string) => {
     ~shape_init=Some(Convex),
     seg,
   )
-  |> List.map(((m: Measured.measurement, (l, r))) =>
-       Printf.sprintf(
+  |> List.map(~f=((m: Measured.measurement, (l, r))) =>
+       sprintf(
          "%d %d-%d %s/%s",
          m.origin.row,
          m.origin.col,

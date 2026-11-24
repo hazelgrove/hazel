@@ -4,6 +4,7 @@ open Util.WebUtil;
 open Haz3lcore;
 
 /* Controls and reference entries shared by the probe sidebar and tutorials. */
+[@deriving eq]
 type feature =
   /* toggles */
   | AutoProbe
@@ -30,7 +31,8 @@ type feature =
   /* color legend panel */
   | Legend;
 
-let mem = (flags: list(feature), f: feature) => List.mem(f, flags);
+let mem = (flags: list(feature), f: feature) =>
+  List.mem(flags, f, ~equal=equal_feature);
 
 let kbd = (shortcut: string) =>
   span(~attrs=[clss(["kbd-badge"])], [text(shortcut)]);
@@ -59,7 +61,9 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
   let segment = (label, mode: AutoProbe.t) =>
     div(
       ~attrs=[
-        clss(["segment"] @ (mode == mode_now ? ["active"] : [])),
+        clss(
+          ["segment"] @ (AutoProbe.equal(mode, mode_now) ? ["active"] : []),
+        ),
         Attr.on_pointerdown(_ =>
           globals.inject_global(Set(SetAutoprobe(mode)))
         ),
@@ -91,15 +95,19 @@ let auto_probe_toggle = (~globals: Globals.t, ~is_new: bool) => {
 };
 
 let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
-  let is_single = ProbeProj.Settings.s^.window == Single;
   /* Each segment sets its mode, like Auto Probe's: a toggle flipped the
      mode on a click of the segment already active */
-  let segment = (label, mode: Language.Sample.Window.mode) =>
+  let segment = (label, mode: Language.Sample.Window.mode) => {
+    let active =
+      switch (ProbeProj.Settings.s^.window, mode) {
+      | (Single, Single)
+      | (Many, Many) => true
+      | (Single, Many)
+      | (Many, Single) => false
+      };
     div(
       ~attrs=[
-        clss(
-          ["segment"] @ (is_single == (mode == Single) ? ["active"] : []),
-        ),
+        clss(["segment"] @ (active ? ["active"] : [])),
         Attr.on_pointerdown(_ => {
           ProbeProj.Settings.go(SetWindow(mode));
           explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
@@ -107,6 +115,7 @@ let samples_toggle = (~explain_this_inject, ~is_new: bool) => {
       ],
       [text(label)],
     );
+  };
   div(
     ~attrs=[clss(["toggle-group"] @ (is_new ? ["qr-new"] : []))],
     [
@@ -299,19 +308,19 @@ let qr_table_rows =
   let meta = Util.Os.is_mac^ ? {js|⌘|js} : "Ctrl+";
   let group = (features: list(feature)) =>
     features
-    |> List.filter(f => mem(flags, f))
-    |> List.filter_map(qr_row(~meta, ~new_flags));
+    |> List.filter(~f=f => mem(flags, f))
+    |> List.filter_map(~f=qr_row(~meta, ~new_flags));
   let groups =
     [
       group([AddProbe, SeeVars, Pin, StepInto]),
       group([NavSamples, NavProbes, Resize]),
       group([ExpandProbe, FocusProbe, FocusEditor]),
     ]
-    |> List.filter(g => g != []);
+    |> List.filter(~f=g => !List.is_empty(g));
   switch (groups) {
   | [] => []
   | [first, ...rest] =>
-    first @ List.concat_map(g => [quick_ref_divider, ...g], rest)
+    first @ List.concat_map(rest, ~f=g => [quick_ref_divider, ...g])
   };
 };
 
@@ -336,7 +345,7 @@ let quick_ref_panel =
     icon(IconEmpty, {js|∅ = never evaluated|js})
     @ icon(IconPinHidden, {js|⍟ = hidden by pin|js})
     @ icon(IconOutsideFocus, {js|⊖ = outside focus|js});
-  rows == [] && icons == []
+  List.is_empty(rows) && List.is_empty(icons)
     ? []
     : [
       div(
@@ -345,7 +354,10 @@ let quick_ref_panel =
           div(~attrs=[clss(["title"])], [text("Quick Reference")]),
           Node.table(~attrs=[clss(["qr-table"])], rows),
         ]
-        @ (icons == [] ? [] : [div(~attrs=[clss(["qr-icons"])], icons)]),
+        @ (
+          List.is_empty(icons)
+            ? [] : [div(~attrs=[clss(["qr-icons"])], icons)]
+        ),
       ),
     ];
 };

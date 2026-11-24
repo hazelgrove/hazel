@@ -17,8 +17,8 @@ let ephemeral_on_row =
     (z: Haz3lcore.Zipper.t, syntax: Haz3lcore.CachedSyntax.t, row: int): Id.t =>
   switch (
     Id.Map.bindings(z.refractors.multis.ephemerals)
-    |> List.map(fst)
-    |> List.filter(id =>
+    |> List.map(~f=fst)
+    |> List.filter(~f=id =>
          switch (
            Haz3lcore.TermData.extreme_measures(
              id,
@@ -34,7 +34,7 @@ let ephemeral_on_row =
   | [id] => id
   | ids =>
     fail(
-      Printf.sprintf(
+      sprintf(
         "expected one probe on row %d, found %d",
         row,
         List.length(ids),
@@ -68,7 +68,7 @@ let load = (~unprobed_rows: list(int)=[], code: string): editor => {
   let z =
     z
     |> Haz3lcore.ProbePerform.add_suppression(
-         List.map(ephemeral_on_row(z, syntax), unprobed_rows),
+         List.map(~f=ephemeral_on_row(z, syntax), unprobed_rows),
        )
     |> Haz3lcore.ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
   let (_, state) =
@@ -93,8 +93,7 @@ let samples_of = (ed: editor, id: Id.t): list(Sample.t) =>
 
 let ap_id_of = (ed: editor, id: Id.t): option(Id.t) =>
   Statics.Map.lookup(id, ed.info_map)
-  |> Option.map(Sample.Focus.cur_var_ap)
-  |> Option.join;
+  |> Option.bind(~f=Sample.Focus.cur_var_ap);
 
 /* What a row shows in One mode (as ProbeProj selects it): its aligned
  * sample's value, ⍟ when a pin hides every sample, or ⊖. */
@@ -112,8 +111,8 @@ let shown = (ed: editor, z: Haz3lcore.Zipper.t, row: int): string => {
     );
   switch (Sample.Selection.most_aligned_index(~ap_id, sample_focus, samples)) {
   | Some(i) =>
-    Test_Evaluator_Probes.format_sample_value(List.nth(samples, i).value)
-  | None => samples == [] ? "⍟" : "⊖"
+    Test_Evaluator_Probes.format_sample_value(List.nth_exn(samples, i).value)
+  | None => List.is_empty(samples) ? "⍟" : "⊖"
   };
 };
 
@@ -123,18 +122,13 @@ let click =
   let id = probe_on_row(ed, row);
   Haz3lcore.SampleFocusPerform.capture(
     z,
-    Sample.capture_of_sample(List.nth(samples_of(ed, id), k)),
+    Sample.capture_of_sample(List.nth_exn(samples_of(ed, id), k)),
     ap_id_of(ed, id),
   );
 };
 
 let shows = (ed, z, row, expected) =>
-  check(
-    string,
-    Printf.sprintf("row %d shows", row),
-    expected,
-    shown(ed, z, row),
-  );
+  check(string, sprintf("row %d shows", row), expected, shown(ed, z, row));
 
 /* rows: 0 x, 1 x > 100, 2 100, 3 x < 0, 4 0, 5 x, 7 to 9 the calls */
 let clamp = {|let clamp(x: Int): Int =
@@ -156,26 +150,27 @@ let tests = (
       /* With the calls probed, the pin's span is clamp(150)'s own sample;
          without, it filters by stack. */
       List.iter(
-        unprobed_rows => {
-          let ed = load(~unprobed_rows, clamp);
-          /* P on the x > 100 sample of clamp(150) */
-          let z = click(ed, ed.z, 1, 0);
-          let pin =
-            switch (
-              Haz3lcore.ProbeProj.enclosing_call_pin(
-                List.hd(samples_of(ed, probe_on_row(ed, 1))),
-              )
-            ) {
-            | Some(pin) => pin
-            | None => fail("no enclosing call")
-            };
-          let z = Haz3lcore.SampleFocusPerform.go(z, pin);
-          shows(ed, z, 1, "true");
-          shows(ed, z, 2, "100");
-          /* lines only the other calls reach are hidden by the pin */
-          shows(ed, z, 3, "⍟");
-          shows(ed, z, 5, "⍟");
-        },
+        ~f=
+          unprobed_rows => {
+            let ed = load(~unprobed_rows, clamp);
+            /* P on the x > 100 sample of clamp(150) */
+            let z = click(ed, ed.z, 1, 0);
+            let pin =
+              switch (
+                Haz3lcore.ProbeProj.enclosing_call_pin(
+                  List.hd_exn(samples_of(ed, probe_on_row(ed, 1))),
+                )
+              ) {
+              | Some(pin) => pin
+              | None => fail("no enclosing call")
+              };
+            let z = Haz3lcore.SampleFocusPerform.go(z, pin);
+            shows(ed, z, 1, "true");
+            shows(ed, z, 2, "100");
+            /* lines only the other calls reach are hidden by the pin */
+            shows(ed, z, 3, "⍟");
+            shows(ed, z, 5, "⍟");
+          },
         [[], [7, 8, 9]],
       )
     }),

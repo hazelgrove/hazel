@@ -49,7 +49,7 @@ let opened: t =
     selected_idx: 0,
     path: [],
   });
-let is_open = (m: t): bool => m != None;
+let is_open = (m: t): bool => Option.is_some(m);
 let path = (m: t): list(string) =>
   switch (m) {
   | None => []
@@ -120,10 +120,11 @@ let rec items_at =
   | [] => items
   | [name, ...rest] =>
     let child =
-      List.find_opt(
-        fun
-        | Submenu({label, _}) => label == name
-        | _ => false,
+      List.find(
+        ~f=
+          fun
+          | Submenu({label, _}) => String.equal(label, name)
+          | _ => false,
         items,
       );
     switch (child) {
@@ -177,8 +178,8 @@ let to_visible = (it: item('a)): visible_item('a) =>
 let visible_items =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let p = path(model);
-  let here = items_at(p, items) |> List.map(to_visible);
-  p == [] ? here : [VBack, ...here];
+  let here = items_at(p, items) |> List.map(~f=to_visible);
+  List.is_empty(p) ? here : [VBack, ...here];
 };
 
 let is_visible_selectable = (v: visible_item('a)): bool =>
@@ -190,7 +191,7 @@ let is_visible_selectable = (v: visible_item('a)): bool =>
   };
 
 let count_selectable_visible = (vs: list(visible_item('a))): int =>
-  List.fold_left((n, v) => is_visible_selectable(v) ? n + 1 : n, 0, vs);
+  List.count(vs, ~f=is_visible_selectable);
 
 let nth_selectable_visible =
     (vs: list(visible_item('a)), idx: int): option(visible_item('a)) => {
@@ -347,54 +348,56 @@ let render =
   /* Only selectable rows take an index (disabled ones don't), matching
      nth_selectable_visible, which the keyboard path resolves through. */
   let (_, rendered) =
-    List.fold_left_map(
-      (sel_idx, v) =>
-        switch (v) {
-        | VDivider => (sel_idx, divider_view())
-        | VBack => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip=None,
-              ~decoration=None,
-              ~on_pointerdown=() => inject_menu(BackSubmenu),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              "← Back",
-            ),
-          )
-        | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
-            enabled ? sel_idx + 1 : sel_idx,
-            row_view(
-              ~item_class,
-              ~is_selected=enabled && sel_idx == selected_idx,
-              ~enabled,
-              ~tooltip,
-              ~decoration,
-              ~on_pointerdown=
-                () => enabled ? inject_action(action) : Effect.Ignore,
-              ~on_hover=
-                on_hover && enabled
-                  ? Some(inject_menu(SetSelected(sel_idx))) : None,
-              label,
-            ),
-          )
-        | VSubmenu({label, tooltip, submenu_name}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip,
-              ~decoration=Some("→"),
-              ~on_pointerdown=() => inject_menu(EnterSubmenu(submenu_name)),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              label,
-            ),
-          )
-        },
-      0,
+    List.fold_map(
+      ~f=
+        (sel_idx, v) =>
+          switch (v) {
+          | VDivider => (sel_idx, divider_view())
+          | VBack => (
+              sel_idx + 1,
+              row_view(
+                ~item_class,
+                ~is_selected=sel_idx == selected_idx,
+                ~enabled=true,
+                ~tooltip=None,
+                ~decoration=None,
+                ~on_pointerdown=() => inject_menu(BackSubmenu),
+                ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+                "← Back",
+              ),
+            )
+          | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
+              enabled ? sel_idx + 1 : sel_idx,
+              row_view(
+                ~item_class,
+                ~is_selected=enabled && sel_idx == selected_idx,
+                ~enabled,
+                ~tooltip,
+                ~decoration,
+                ~on_pointerdown=
+                  () => enabled ? inject_action(action) : Effect.Ignore,
+                ~on_hover=
+                  on_hover && enabled
+                    ? Some(inject_menu(SetSelected(sel_idx))) : None,
+                label,
+              ),
+            )
+          | VSubmenu({label, tooltip, submenu_name}) => (
+              sel_idx + 1,
+              row_view(
+                ~item_class,
+                ~is_selected=sel_idx == selected_idx,
+                ~enabled=true,
+                ~tooltip,
+                ~decoration=Some("→"),
+                ~on_pointerdown=
+                  () => inject_menu(EnterSubmenu(submenu_name)),
+                ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+                label,
+              ),
+            )
+          },
+      ~init=0,
       vs,
     );
   rendered;
@@ -432,7 +435,8 @@ let handle_key =
         MenuUpdate(EnterSubmenu(submenu_name))
       | _ => Unhandled
       }
-    | Key.D("ArrowLeft") => path == [] ? Unhandled : MenuUpdate(BackSubmenu)
+    | Key.D("ArrowLeft") =>
+      List.is_empty(path) ? Unhandled : MenuUpdate(BackSubmenu)
     | Key.D("Enter") =>
       switch (selected_item) {
       | Some(VAction({enabled: true, action, _})) => RunAction(action)
@@ -520,8 +524,8 @@ let space_from =
 let direction_of =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
-  vertical: space.below >= menu_height ? `Down : `Up,
-  horizontal: space.right >= menu_width ? `Right : `Left,
+  vertical: Float.(space.below >= menu_height) ? `Down : `Up,
+  horizontal: Float.(space.right >= menu_width) ? `Right : `Left,
 };
 
 let direction_from_elem =
@@ -555,9 +559,11 @@ let fit_direction =
     (~menu_height: float, ~menu_width: float, space: available_space)
     : open_direction => {
   vertical:
-    space.below >= menu_height || space.below >= space.above ? `Down : `Up,
+    Float.(space.below >= menu_height || space.below >= space.above)
+      ? `Down : `Up,
   horizontal:
-    space.right >= menu_width || space.right >= space.left ? `Right : `Left,
+    Float.(space.right >= menu_width || space.right >= space.left)
+      ? `Right : `Left,
 };
 
 /* The editor menu's direction classes (ContextMenu.direction_class), for
@@ -580,12 +586,13 @@ let open_class = (dir: open_direction): string =>
 /* Give `elem` the class for `dir`, dropping the others (None: drop all). */
 let set_open_class =
     (elem: Js.t(Dom_html.element), dir: option(open_direction)): unit => {
-  let keep = Option.map(open_class, dir);
+  let keep = Option.map(~f=open_class, dir);
   List.iter(
-    c =>
-      keep == Some(c)
-        ? elem##.classList##add(Js.string(c))
-        : elem##.classList##remove(Js.string(c)),
+    ~f=
+      c =>
+        Option.equal(String.equal, keep, Some(c))
+          ? elem##.classList##add(Js.string(c))
+          : elem##.classList##remove(Js.string(c)),
     open_classes,
   );
 };

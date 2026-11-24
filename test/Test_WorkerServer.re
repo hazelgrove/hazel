@@ -217,7 +217,7 @@ let fib_19_id = (elab: Exp.t): Id.t => {
     switch (e.term) {
     | Ap(_, _, arg) =>
       switch (strip(arg).term) {
-      | Atom(Int(n)) when Bigint.to_string(n) == "19" =>
+      | Atom(Int(n)) when String.equal(Bigint.to_string(n), "19") =>
         found := Some(Exp.rep_id(e))
       | _ => ()
       }

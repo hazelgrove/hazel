@@ -90,12 +90,13 @@ let with_stable_ids = (name: string, imp: Exp.t): Exp.t => {
           ...term.annotation,
           ids:
             List.map(
-              _ => {
-                incr(count);
-                Id.mk_str(
-                  "builtin " ++ name ++ " " ++ string_of_int(count^),
-                );
-              },
+              ~f=
+                _ => {
+                  incr(count);
+                  Id.mk_str(
+                    "builtin " ++ name ++ " " ++ string_of_int(count^),
+                  );
+                },
               term.annotation.ids,
             ),
         },
@@ -132,7 +133,7 @@ let extend = (map: VarMap.t_(builtin), builtin: builtin): VarMap.t_(builtin) => 
 };
 
 let to_map: list(builtin) => VarMap.t_(builtin) =
-  List.fold_left(extend, VarMap.empty);
+  List.fold_left(~f=extend, ~init=VarMap.empty);
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -170,8 +171,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
       imp: (d: DHExp.t) => {
         let-unbox x = (Atom(k1), d);
         switch (f(x)) {
-        | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
-        | R(_) => None
+        | Ok(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
+        | Error(_) => None
         };
       },
       custom_statics: None,
@@ -193,8 +194,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
             let-unbox x = (Atom(k1), x);
             let-unbox y = (Atom(k2), y);
             switch (f(x, y)) {
-            | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
-            | R(_) => None
+            | Ok(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
+            | Error(_) => None
             };
           }
         ),

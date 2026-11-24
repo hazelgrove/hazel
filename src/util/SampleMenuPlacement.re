@@ -20,7 +20,7 @@ let place = (menu: Js.t(Dom_html.element)): unit =>
       Js.to_string(Dom_html.window##getComputedStyle(menu)##.position);
     /* In flow (position:relative while a rich-probe modal is open), the
      * menu stays where the flow puts it. */
-    if (position == "absolute") {
+    if (String.equal(position, "absolute")) {
       let rect = sample##getBoundingClientRect;
       let dir =
         Menu.fit_direction(
