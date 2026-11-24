@@ -212,7 +212,7 @@ let alias_cycle_tests = {
   let invalid = name =>
     testable(pp, (_, ty) =>
       switch (Typ.term_of(ty)) {
-      | Unknown(Hole(Invalid(n))) => n == name
+      | Unknown(Hole(Invalid(n))) => String.equal(n, name)
       | _ => false
       }
     );

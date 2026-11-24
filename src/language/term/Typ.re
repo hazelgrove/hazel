@@ -477,13 +477,14 @@ let non_contractive = (ty: t): option(TPat.t) => {
 let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
   let mentions: Ctx.kind => bool =
     fun
-    | Singleton(ty) => List.mem(entry.name, free_vars(ty))
+    | Singleton(ty) =>
+      List.mem(free_vars(ty), entry.name, ~equal=String.equal)
     | Abstract => false;
   let stale =
     fun
     | Ctx.TVarEntry(e) => mentions(e.kind)
     | _ => false;
-  if (!mentions(entry.kind) && !List.exists(stale, ctx.entries)) {
+  if (!mentions(entry.kind) && !List.exists(ctx.entries, ~f=stale)) {
     Ctx.extend_tvar(ctx, entry);
   } else {
     let meant =
@@ -502,11 +503,12 @@ let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
       };
     let entries =
       List.map(
-        fun
-        | Ctx.TVarEntry(e) when mentions(e.kind) =>
-          Ctx.TVarEntry(refresh(e))
-        | e => e,
         ctx.entries,
+        ~f=
+          fun
+          | Ctx.TVarEntry(e) when mentions(e.kind) =>
+            Ctx.TVarEntry(refresh(e))
+          | e => e,
       );
     Ctx.extend_tvar(
       {
