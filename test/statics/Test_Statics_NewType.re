@@ -35,6 +35,11 @@ let tests = (
   "Statics.NewType",
   [
     accepts(
+      "alias arguments substitute simultaneously",
+      {|type T(S, A) = S -> A in
+let g : poly A, B -> T(A, B) -> A -> B = abs A, B -> fun t -> t in g|},
+    ),
+    accepts(
       "constructor wraps and pattern unwraps",
       keys
       ++ {|

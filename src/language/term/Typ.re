@@ -607,13 +607,39 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
    the statics: each `tk` is substituted for the corresponding binder
    in `body` in one step. The lists must have equal length; the
    caller is expected to enforce that. */
-let subst_many = (args: list(t), binders: list(TPat.t), body: t): t =>
+let subst_many = (args: list(t), binders: list(TPat.t), body: t): t => {
+  let staged =
+    List.map(
+      binder =>
+        switch (TPat.tyvar_of_utpat(binder)) {
+        | Some(name) =>
+          let fresh = fresh_var(name);
+          (binder, Some((fresh, (Var(fresh): TPat.term) |> TPat.fresh)));
+        | None => (binder, None)
+        },
+      binders,
+    );
+  let renamed =
+    List.fold_left(
+      (body, (binder, fresh)) =>
+        switch (fresh) {
+        | Some((name, _)) => subst(Var(name) |> temp, binder, body)
+        | None => body
+        },
+      body,
+      staged,
+    );
   List.fold_left2(
-    (body, arg, binder) => subst(arg, binder, body),
-    body,
+    (body, arg, (binder, fresh)) =>
+      switch (fresh) {
+      | Some((_, tp)) => subst(arg, tp, body)
+      | None => subst(arg, binder, body)
+      },
+    renamed,
     args,
-    binders,
+    staged,
   );
+};
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
