@@ -3270,7 +3270,7 @@ let segment_cache_tests = [
         bool,
         "hit",
         true,
-        Parser.try_segment_paste("foo", z, ~root=Exp) != None,
+        Option.is_some(Parser.try_segment_paste("foo", z, ~root=Exp)),
       );
     },
   ),
@@ -4420,7 +4420,7 @@ let copy_selection = (z: Zipper.t): string => {
       segment,
     );
   let str = Zipper.trim_selected_text(z, full);
-  if (str == full && z.refractors.manuals == []) {
+  if (String.equal(str, full) && List.is_empty(z.refractors.manuals)) {
     Parser.set_segment_cache(Some(segment), str);
   };
   str;
@@ -4456,10 +4456,8 @@ let paste_both = (~name, ~acts, ~text, ~goal): list(test_case(_)) => [
 
 let crop_plotter_select_all_copy_paste = () => {
   let lesson =
-    List.find(
-      (spec: Web.Tutorial.spec) =>
-        String.ends_with(~suffix="Task - Crop Plotter", spec.title),
-      Web.TutorialText.all,
+    List.find_exn(Web.TutorialText.all, ~f=(spec: Web.Tutorial.spec) =>
+      String.is_suffix(~suffix="Task - Crop Plotter", spec.title)
     );
   let z0 = lesson.your_impl;
   let z1 = perform(z0, [Select(All)]);
@@ -4468,12 +4466,12 @@ let crop_plotter_select_all_copy_paste = () => {
   /* Paste re-indents the pasted region, so compare the lines' content */
   let lines = z =>
     MarkerParse.to_text(z)
-    |> String.split_on_char('\n')
-    |> List.map(String.trim);
+    |> String.split(~on='\n')
+    |> List.map(~f=String.strip);
   let set_col = "let setCol(grove: Grove, col: Col, plant: Plant): Grove =";
   let rec after = (l: string) =>
     fun
-    | [x, y, ..._] when x == l => Some(y)
+    | [x, y, ..._] when String.equal(x, l) => Some(y)
     | [_, ...rest] => after(l, rest)
     | [] => None;
   check(

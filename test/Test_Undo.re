@@ -200,10 +200,10 @@ let tests = (
         let left = act(Move(Local(Left, ByChar)));
         let sel_right = act(Select(Resize(Local(Right, ByChar))));
         let m3 =
-          List.fold_left(
-            apply,
-            m2,
+          List.fold(
             [left, left, left, sel_right, sel_right, sel_right],
+            ~init=m2,
+            ~f=apply,
           );
         let m4 = apply(m3, act(Paste("baz")));
         check(
