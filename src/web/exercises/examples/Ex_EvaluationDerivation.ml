@@ -20,7 +20,7 @@ let exercise : Exercise.t =
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                 -1)(pinned_stack())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-             backup_text = "";
+             backup_text = "\194\191\n";
            };
          setup =
            {
@@ -33,7 +33,7 @@ let exercise : Exercise.t =
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                 -1)(pinned_stack())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-             backup_text = "";
+             backup_text = "\194\191\n";
            };
          rule_set = ALF;
          trees =
@@ -132,7 +132,7 @@ let exercise : Exercise.t =
                             0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                          backup_text =
                            "let isNat = fun a -> a > -1 in if isNat (5 - 3) \
-                            then 1 else 2 \\=/ 1";
+                            then 1 else 2 \\=/ 1\n";
                        };
                      rule = None;
                    },
