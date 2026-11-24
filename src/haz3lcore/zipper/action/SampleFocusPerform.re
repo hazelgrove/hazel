@@ -55,6 +55,10 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
              sightline so below-focus frames aren't lost — symmetric
              with the None branch below. */
           let extended = CallStack.extend(ap_id, data.call_stack);
+          /* The full sightline is kept even when it runs on into a deeper
+             call of the clicked call's function (recursion): the clicked
+             call's lines still show that call, since alignment counts the
+             anchored call as where you are (Selection.alignment_path). */
           ListUtil.is_suffix_of(
             ~eq=CallStack.equal_frame,
             extended,
