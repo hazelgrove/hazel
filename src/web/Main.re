@@ -256,10 +256,9 @@ let start = default_model => {
        crashed, and every reload would crash again. Autosave already skips
        saving then (CrashHandling drops actions during an exception). */
     JsUtil.on_page_leave(() =>
-      if (CrashHandling.current_exception^ == None) {
-        Option.iter(
-          page => HazelDB.kv_journal(() => Page.Store.save(page)),
-          latest_page^,
+      if (Option.is_none(CrashHandling.current_exception^)) {
+        Option.iter(latest_page^, ~f=page =>
+          HazelDB.kv_journal(() => Page.Store.save(page))
         );
       }
     );

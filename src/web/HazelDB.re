@@ -95,9 +95,8 @@ let journal_set = (key: string, value: string): unit =>
 let journal_drop = (key: string): unit =>
   if (Util.Maps.StringMap.mem(key, journaled^)) {
     journaled := Util.Maps.StringMap.remove(key, journaled^);
-    Option.iter(
-      ls => ls##removeItem(Js_of_ocaml.Js.string(journal_prefix ++ key)),
-      local_storage(),
+    Option.iter(local_storage(), ~f=ls =>
+      ls##removeItem(Js_of_ocaml.Js.string(journal_prefix ++ key))
     );
   };
 
@@ -107,7 +106,12 @@ let kv_save = (key: string, value: string): unit =>
   if (saves_suspended^) {
     ();
   } else if (journaling^) {
-    if (Util.Maps.StringMap.find_opt(key, cache^) != Some(value)) {
+    if (!
+          Option.equal(
+            String.equal,
+            Util.Maps.StringMap.find_opt(key, cache^),
+            Some(value),
+          )) {
       journal_set(key, value);
     };
   } else {
@@ -130,14 +134,14 @@ let recover_journal = (): unit =>
   | None => ()
   | Some(ls) =>
     let n = String.length(journal_prefix);
-    List.init(ls##.length, i => Js_of_ocaml.Js.Opt.to_option(ls##key(i)))
-    |> List.filter_map(Option.map(Js_of_ocaml.Js.to_string))
-    |> List.filter(String.starts_with(~prefix=journal_prefix))
-    |> List.iter(k => {
+    List.init(ls##.length, ~f=i => Js_of_ocaml.Js.Opt.to_option(ls##key(i)))
+    |> List.filter_map(~f=k => Option.map(k, ~f=Js_of_ocaml.Js.to_string))
+    |> List.filter(~f=String.is_prefix(~prefix=journal_prefix))
+    |> List.iter(~f=k => {
          let jk = Js_of_ocaml.Js.string(k);
          Js_of_ocaml.Js.Opt.iter(ls##getItem(jk), v =>
            kv_save(
-             String.sub(k, n, String.length(k) - n),
+             String.sub(k, ~pos=n, ~len=String.length(k) - n),
              Js_of_ocaml.Js.to_string(v),
            )
          );

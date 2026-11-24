@@ -703,8 +703,10 @@ let on_page_leave = (f: unit => unit): unit => {
     );
   listen(Dom_html.window, "pagehide", (_: Js.t({..})) => f());
   listen(Dom_html.document, "visibilitychange", (_: Js.t({..})) =>
-    if (Js.to_string(Js.Unsafe.get(Dom_html.document, "visibilityState"))
-        == "hidden") {
+    if (String.equal(
+          Js.to_string(Js.Unsafe.get(Dom_html.document, "visibilityState")),
+          "hidden",
+        )) {
       f();
     }
   );
