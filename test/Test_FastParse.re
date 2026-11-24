@@ -102,14 +102,12 @@ let parens_typed_in = (name, marked, typed) =>
           List.map(Token.to_list(typed), ~f=c => Action.Insert(c)),
         );
       let rec lone = seg =>
-        List.exists(
-          seg,
-          ~f=(p: Piece.t) =>
-            switch (p) {
-            | Tile(t) =>
-              Tile.label(t) == ["("] || List.exists(t.children, ~f=lone)
-            | _ => false
-            },
+        List.exists(seg, ~f=(p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            Tile.label(t) == ["("] || List.exists(t.children, ~f=lone)
+          | _ => false
+          }
         );
       check(
         bool,
