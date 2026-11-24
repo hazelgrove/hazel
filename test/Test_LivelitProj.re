@@ -9,7 +9,7 @@ open Language;
 let placeholder_width = (source: string): int => {
   let z =
     PersistentZipper.parse_text(~source="livelit test", ~root=Exp, source)
-    |> Option.get;
+    |> Option.value_exn;
   let statics =
     CachedStatics.init(
       ~settings=CoreSettings.on,
@@ -19,7 +19,7 @@ let placeholder_width = (source: string): int => {
       z,
     );
   let parsed = MakeTerm.from_zip_for_sem(z, ~root=Exp);
-  let p = Id.Map.find(List.hd(parsed.projector_list), parsed.projectors);
+  let p = Id.Map.find(List.hd_exn(parsed.projector_list), parsed.projectors);
   let info =
     ProjectorInfo.mk_info(
       p,
