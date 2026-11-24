@@ -10,7 +10,7 @@ let same = (name: string, f: unit => 'a): unit =>
     bool,
     name ++ ": a repeat call returns the cached value",
     true,
-    f() === f(),
+    phys_equal(f(), f()),
   );
 
 let tests = (

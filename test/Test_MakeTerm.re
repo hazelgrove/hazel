@@ -402,7 +402,9 @@ let tests =
             switch (Haz3lcore.Zipper.move(Util.Direction.Left, z)) {
             | Some(z) => z
             | None =>
-              Option.get(Haz3lcore.Zipper.move(Util.Direction.Right, z))
+              Option.value_exn(
+                Haz3lcore.Zipper.move(Util.Direction.Right, z),
+              )
             };
           check(
             Alcotest.bool,
@@ -414,8 +416,10 @@ let tests =
             Alcotest.bool,
             "the moved zipper reuses the term",
             true,
-            Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp)
-            === Haz3lcore.MakeTerm.from_zip_for_sem(moved, ~root=Exp),
+            phys_equal(
+              Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp),
+              Haz3lcore.MakeTerm.from_zip_for_sem(moved, ~root=Exp),
+            ),
           );
         }
       ),
@@ -445,8 +449,10 @@ let tests =
             Alcotest.bool,
             "a repeat call returns the same term",
             true,
-            Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp)
-            === Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp),
+            phys_equal(
+              Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp),
+              Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp),
+            ),
           )
         }
       ),
