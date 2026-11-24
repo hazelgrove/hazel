@@ -913,6 +913,23 @@ total|};
       },
     ),
     test_case(
+      "jit: a page's record read by position where the type is unknown is answered as run answers it",
+      `Quick,
+      () => {
+        /* (^ticket(851)) the converters mark a page's record with its labels, as compiled code's tuples are marked, so
+           a pattern by position of a type the statics do not know stops for the interpreter, which binds the labeled
+           entry itself, rather than reading the component */
+        let src = "let f : (x = Int, y = Int) -> Int = fun r -> (fun p -> let (a, b) = p in a - b)(r) in f";
+        let r = () => as_js({|{"x": 5, "y": 2}|});
+        check(
+          string,
+          "as run answers it",
+          json(call(value(src), [r()])),
+          json(call(field(HazelLibCore.jit(src), "value"), [r()])),
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {

@@ -887,7 +887,13 @@ module Direct = {
             ++ String.concat(~sep=", ", vals)
             ++ "]; "
             ++ String.concat(keys)
-            ++ "return a; }";
+            /* (^ticket(851)) its labels by index under the runtime's symbol, as $R.tup keeps them */
+            ++ "a[$L] = ["
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(fields, ~f=((l, _)) => q(HazelJit.label_key(l))),
+               )
+            ++ "]; return a; }";
           },
         )
       | None =>
@@ -1124,6 +1130,7 @@ module Direct = {
      object gets a hidden link, not enumerable, so {...x} and Object.assign do not copy it into a copy the page then
      changes; an object that cannot take one (frozen) gets a WeakMap entry; a compiled value, which no page sees, a plain
      property. (The registry is the page's, shared by every compiled function and every copy of the library on it.) */
+  const $L = Symbol.for("hazel-jit.labels");
   const REG = globalThis.$hazelJitMemo || (globalThis.$hazelJitMemo = new Map());
   const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { s: Symbol("hazel-jit.converted"), f: null }); else if (!m.s) { m.s = Symbol("hazel-jit.converted"); m.f = null; } return m; };
   const $plink = (m, a, b) => { if (Object.isExtensible(a)) Object.defineProperty(a, m.s, { value: b }); else (m.f || (m.f = new WeakMap())).set(a, b); };
