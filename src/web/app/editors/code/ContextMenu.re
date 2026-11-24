@@ -3,6 +3,7 @@ open Util;
 open Util.OptUtil.Syntax;
 open WebUtil;
 open Node;
+open Poly;
 
 /* Editor right-click context menu.
  *
@@ -54,7 +55,7 @@ let pos_style =
     | `Down => caret_bottom +. caret_menu_gap
     | `Up => caret_top -. caret_menu_gap
     };
-  Printf.sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
+  sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
 };
 
 /* ============================================================
@@ -188,9 +189,7 @@ let introduce_data =
       }),
     )
       when
-        Introduce.can_introduce_exp_type(
-          Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
+        Introduce.can_introduce_exp_type(Language.MatchedTyp.head(ctx, ana)) => [
       action_item(
         ~shortcut=Shortcuts.introduce(),
         "Introduce",
@@ -206,9 +205,7 @@ let introduce_data =
       }),
     )
       when
-        Introduce.can_introduce_pat_type(
-          Language.Typ.weak_head_normalize(ctx, ana),
-        ) => [
+        Introduce.can_introduce_pat_type(Language.MatchedTyp.head(ctx, ana)) => [
       action_item(
         ~shortcut=Shortcuts.introduce(),
         "Introduce",
@@ -355,7 +352,7 @@ module Projectors = {
       : list(ProjectorCore.Kind.t) =>
     ListUtil.dedup(
       List.filter_map(
-        is_applicable(z, info_map, ~elaborated),
+        ~f=is_applicable(z, info_map, ~elaborated),
         ProjectorCore.Kind.projectors,
       ),
     );
@@ -371,12 +368,19 @@ module Projectors = {
     let applicable = applicable_kinds(z, info_map, ~elaborated);
     let kinds =
       switch (current_kind) {
-      | Some(k) when !List.mem(k, applicable) => applicable @ [k]
+      | Some(k) when !List.mem(applicable, k, ~equal=Poly.equal) =>
+        applicable @ [k]
       | _ => applicable
       };
     let chosen_livelit =
-      List.find_opt(
-        kind => List.mem(kind, ProjectorCore.Kind.livelit_projectors),
+      List.find(
+        ~f=
+          kind =>
+            List.mem(
+              ProjectorCore.Kind.livelit_projectors,
+              kind,
+              ~equal=Poly.equal,
+            ),
         applicable,
       );
 
@@ -396,7 +400,7 @@ module Projectors = {
       );
     };
 
-    List.map(make_item, kinds);
+    List.map(~f=make_item, kinds);
   };
 };
 
@@ -444,20 +448,21 @@ let get_sections =
     /* Section 5: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map, ~elaborated),
   ]
-  |> List.filter(section => section != []);
+  |> List.filter(~f=section => section != []);
 };
 
 /* Flatten sections by interspersing `Menu.Divider` between non-empty ones. */
 let flatten_sections =
     (sections: list(list(Menu.item(command)))): list(Menu.item(command)) =>
   List.fold_left(
-    (acc, section) =>
-      switch (acc, section) {
-      | (_, []) => acc
-      | ([], items) => items
-      | (acc, items) => acc @ [Menu.divider] @ items
-      },
-    [],
+    ~f=
+      (acc, section) =>
+        switch (acc, section) {
+        | (_, []) => acc
+        | ([], items) => items
+        | (acc, items) => acc @ [Menu.divider] @ items
+        },
+    ~init=[],
     sections,
   );
 
@@ -574,7 +579,7 @@ let view =
       model,
     );
 
-  if (menu_items == []) {
+  if (List.is_empty(menu_items)) {
     div([]);
   } else {
     let direction = get_direction(caret_point, font_metrics);

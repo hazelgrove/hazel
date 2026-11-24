@@ -15,7 +15,7 @@ type t = {
 let free_name = (t: t, base: Var.t): Var.t =>
   Var.free_name(
     base,
-    List.map((e: Ctx.var_entry) => e.name, Ctx.get_var_entries(t.ctx)),
+    List.map(~f=(e: Ctx.var_entry) => e.name, Ctx.get_var_entries(t.ctx)),
   );
 
 let of_ctx_and_env: (Ctx.t, Environment.t(Exp.t)) => t =
@@ -64,10 +64,10 @@ let add_from_pattern = ({ctx, env}: t, pattern: Pat.t, pat_typ: Typ.t) => {
     |> Option.value(~default=ctx);
   let env =
     List.fold_left(
-      Environment.extend,
-      env,
+      ~f=Environment.extend,
+      ~init=env,
       List.map(
-        v => (v, Exp.fresh(Var(v))),
+        ~f=v => (v, Exp.fresh(Var(v))),
         pattern |> Pat.bindings |> Binding.variable_names,
       ),
     );

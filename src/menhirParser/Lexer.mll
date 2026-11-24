@@ -111,8 +111,8 @@ rule token =
     | newline { advance_line lexbuf; token lexbuf}
     | ints as i { INT (Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}
-    | string as s { STRING (String.sub s 1 (String.length s - 2)) }
-    | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
+    | string as s { STRING (String.sub s ~pos:1 ~len:(String.length s - 2)) }
+    | quoted_label as l { QUOTED_LABEL (String.sub l ~pos:1 ~len:(String.length l - 2)) }
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | livelit_ident as l { LIVELIT_IDENT l }
     | "true" { TRUE }
