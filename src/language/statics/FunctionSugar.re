@@ -73,7 +73,7 @@ let detect = (pat: Pat.t): option((Pat.t, list(Pat.t), option(Typ.t))) => {
     | _ => (pat, None)
     };
   match_inner_binder(inner_pat)
-  |> Option.map(((fn, args)) => (fn, args, ret_ty));
+  |> Option.map(~f=((fn, args)) => (fn, args, ret_ty));
 };
 
 /* Build the desugared expression:
@@ -105,11 +105,12 @@ let rewrite =
     };
   let fun_exp =
     List.fold_right(
-      (args, body) =>
-        (Fun(args, body, None, None): Exp.term)
-        |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
       args,
-      def_in_fun,
+      ~f=
+        (args, body) =>
+          (Fun(args, body, None, None): Exp.term)
+          |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+      ~init=def_in_fun,
     );
   let (_, rewrap) = Exp.unwrap(orig_let);
   rewrap(Let(f_name, fun_exp, body));

@@ -21,7 +21,7 @@ let roundtrips = ((name, c: C.t), ()) =>
     bool,
     name ++ " survives exp_of -> of_exp",
     true,
-    C.of_exp(C.exp_of(c)) == Some(c),
+    Option.equal(C.equal, C.of_exp(C.exp_of(c)), Some(c)),
   );
 
 /* Not a full CSS parser — just the properties a malformed color would break:
@@ -41,11 +41,11 @@ let renders = ((name, c: C.t), ()) => {
     bool,
     name ++ ": recognisable head in " ++ css,
     true,
-    String.starts_with(~prefix="oklch(", css)
-    || String.starts_with(~prefix="color-mix(", css)
-    || String.starts_with(~prefix="rgb(", css)
-    || String.starts_with(~prefix="#", css)
-    || css == "oklch(0 0 0 / 0)",
+    String.is_prefix(css, ~prefix="oklch(")
+    || String.is_prefix(css, ~prefix="color-mix(")
+    || String.is_prefix(css, ~prefix="rgb(")
+    || String.is_prefix(css, ~prefix="#")
+    || String.equal(css, "oklch(0 0 0 / 0)"),
   );
 };
 
@@ -71,12 +71,17 @@ let no_scientific_notation = () => {
 /* A hole or a divide-by-zero in the config yields nan/inf. Pin to 0 rather
    than emit CSS the browser will silently reject. */
 let non_finite_is_pinned = () => {
-  check(string, "nan", "oklch(0% 0 0)", C.to_css(C.Oklch(nan, nan, nan)));
+  check(
+    string,
+    "nan",
+    "oklch(0% 0 0)",
+    C.to_css(C.Oklch(Float.nan, Float.nan, Float.nan)),
+  );
   check(
     string,
     "infinity",
     "oklch(0% 0 0)",
-    C.to_css(C.Oklch(infinity, neg_infinity, infinity)),
+    C.to_css(C.Oklch(Float.infinity, Float.neg_infinity, Float.infinity)),
   );
 };
 
@@ -92,7 +97,7 @@ let integral_floats_render_clean = () =>
 
 module M = Language.BuiltinsColor;
 
-let approx = (a: float, b: float) => Float.abs(a -. b) < 0.0001;
+let approx = (a: float, b: float) => Float.(abs(a -. b) < 0.0001);
 
 let oklch_is = (msg, (l, c, h), actual: C.t) =>
   switch (actual) {
@@ -196,7 +201,7 @@ let opaque_forms_pass_through = () => {
     bool,
     "transparent unchanged",
     true,
-    lighten(C.Transparent, 20.) == C.Transparent,
+    C.equal(lighten(C.Transparent, 20.), C.Transparent),
   );
   /* Not just "changed": an adjusted Rgb lands as Oklch, because that is the
      space the adjustment happened in. */
@@ -207,7 +212,7 @@ let opaque_forms_pass_through = () => {
     switch (lighten(C.Rgb(41, 52, 69), 20.)) {
     | Oklch(l, _, _) =>
       let (l0, _, _) = C.oklch_of_rgb((41, 52, 69));
-      Float.abs(l -. (l0 +. 20.)) < 0.001;
+      Float.(abs(l -. (l0 +. 20.)) < 0.001);
     | _ => false
     },
   );
@@ -259,13 +264,13 @@ let srgb_roundtrips = ((name, l, c, h), ()) => {
         tol,
       ),
       true,
-      Float.abs(expected -. got) < tol,
+      Float.(abs(expected -. got) < tol),
     );
   near("lightness", l, l', 0.6);
   near("chroma", c, c', 0.006);
   /* Hue is meaningless at zero chroma, where the round trip may return any
      angle for the same color. */
-  if (c > 0.02) {
+  if (Float.(c > 0.02)) {
     near("hue", h, h', 2.0);
   };
 };
@@ -296,7 +301,12 @@ let hex_parses = () => {
   eq("no hash", "#3366cc", hex("3366cc"));
   eq("uppercase", "#3366cc", hex("#3366CC"));
   eq("rgb()", "#3366cc", hex("rgb(51, 102, 204)"));
-  check(bool, "garbage rejected", true, C.oklch_of_css("nope") == None);
+  check(
+    bool,
+    "garbage rejected",
+    true,
+    Option.is_none(C.oklch_of_css("nope")),
+  );
 };
 
 /* --- HSV ---------------------------------------------------------------
@@ -314,17 +324,23 @@ let hsv_roundtrips_exactly = () => {
   let edges = [0, 1, 127, 128, 254, 255];
   let cube =
     List.concat_map(
-      r => List.concat_map(g => List.map(b => (r, g, b), edges), edges),
+      ~f=
+        r =>
+          List.concat_map(
+            ~f=g => List.map(~f=b => (r, g, b), edges),
+            edges,
+          ),
       edges,
     )
-    @ List.init(52, i => (i * 5, 255 - i * 5, i * 37 mod 256));
+    @ List.init(52, ~f=i => (i * 5, 255 - i * 5, i * 37 mod 256));
   let bad =
     List.filter_map(
-      rgb => {
-        let back = C.rgb_of_hsv(C.hsv_of_rgb(~like=grey, rgb));
-        back == rgb
-          ? None : Some(show_rgb(rgb) ++ " -> " ++ show_rgb(back));
-      },
+      ~f=
+        rgb => {
+          let back = C.rgb_of_hsv(C.hsv_of_rgb(~like=grey, rgb));
+          Poly.equal(back, rgb)
+            ? None : Some(show_rgb(rgb) ++ " -> " ++ show_rgb(back));
+        },
       cube,
     );
   check(list(string), "every rgb survives a trip through hsv", [], bad);
@@ -341,7 +357,7 @@ let degenerate_colors_keep_their_handles = () => {
       bool,
       Printf.sprintf("%s: h %.1f s %.2f", what, h, s),
       true,
-      (h, s) == expected,
+      Poly.equal((h, s), expected),
     );
   };
   hs("black keeps hue and saturation", (200., 0.6), (0, 0, 0));
@@ -354,7 +370,12 @@ let degenerate_colors_keep_their_handles = () => {
 let hsv_hits_the_primaries = () => {
   let eq = (what, expected, hsv) => {
     let got = C.rgb_of_hsv(hsv);
-    check(bool, what ++ " -> " ++ show_rgb(got), true, got == expected);
+    check(
+      bool,
+      what ++ " -> " ++ show_rgb(got),
+      true,
+      Poly.equal(got, expected),
+    );
   };
   eq("red", (255, 0, 0), (0., 1., 1.));
   eq("green", (0, 255, 0), (120., 1., 1.));
@@ -372,13 +393,13 @@ let tests = [
   (
     "Color.roundtrip",
     List.map(
-      ((n, _) as c) => test_case(n, `Quick, roundtrips(c)),
+      ~f=((n, _) as c) => test_case(n, `Quick, roundtrips(c)),
       colors,
     ),
   ),
   (
     "Color.to_css",
-    List.map(((n, _) as c) => test_case(n, `Quick, renders(c)), colors)
+    List.map(~f=((n, _) as c) => test_case(n, `Quick, renders(c)), colors)
     @ [
       test_case("integral floats", `Quick, integral_floats_render_clean),
       test_case("no scientific notation", `Quick, no_scientific_notation),
@@ -389,7 +410,7 @@ let tests = [
   (
     "Color.srgb",
     List.map(
-      ((n, _, _, _) as c) => test_case(n, `Quick, srgb_roundtrips(c)),
+      ~f=((n, _, _, _) as c) => test_case(n, `Quick, srgb_roundtrips(c)),
       srgb_colors,
     )
     @ [test_case("hex and rgb parsing", `Quick, hex_parses)],

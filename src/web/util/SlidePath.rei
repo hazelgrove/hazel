@@ -63,6 +63,7 @@ let folder: t => option(string);
      == {index_in_folder: 0, folder_size: 2}
    folder_position(~current=3, space)
      == {index_in_folder: 1, folder_size: 2} */
+[@deriving eq]
 type folder_position = {
   index_in_folder: int,
   folder_size: int,
