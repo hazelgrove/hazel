@@ -937,7 +937,14 @@
 
 /* --- the stepper's title bar: what's stepped, then its controls --- */
 
+/* the view's width, held at its left edge when the drawer is wider than
+   the view, so the controls stay at its right and the name runs up to
+   them (--main-client-width: DrawerRows.watch_width) */
 .below-wrapper :is(.steps-drawer, .proof-drawer) .steps-bar {
+  position: sticky;
+  left: 0;
+  box-sizing: border-box;
+  width: var(--main-client-width, auto);
   display: flex;
   align-items: center;
   height: var(--row-height-px);
@@ -955,9 +962,12 @@
   align-items: baseline;
   gap: 0.75em;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .below-wrapper .steps-bar .steps-bar-label {
+  flex-shrink: 0;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.12em;
@@ -971,13 +981,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 48ch;
+  min-width: 0;
 }
 
-/* held at the view's right edge when the drawer is wider than the view */
 .below-wrapper .steps-bar .steps-bar-controls {
-  position: sticky;
-  right: 0;
   display: flex;
   align-items: center;
   gap: 0.75em;

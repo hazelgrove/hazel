@@ -59,7 +59,9 @@ let watcher = lazy(AfterLayout.watcher(measure));
 
 /* drawers print values at the editor's visible width: #main's, in
    columns from the main code's left edge, less a two-column margin,
-   reported whenever #main resizes (sidebars included) */
+   reported whenever #main resizes (sidebars included). #main's visible
+   width also goes to the `--main-client-width` CSS var, which a drawer's
+   title bar spans */
 let width_watched = ref(false);
 let watch_width = (~report: int => unit): unit =>
   if (! width_watched^) {
@@ -83,7 +85,17 @@ let watch_width = (~report: int => unit): unit =>
               Float.(col_width > 0.)
                 ? Some(max(20, Float.to_int(px /. col_width) - 2)) : None;
             };
-          () => Option.iter(cols, ~f=report);
+          let client = main##.clientWidth;
+          () => {
+            ignore(
+              main##.style##setProperty(
+                Js.string("--main-client-width"),
+                Js.string(sprintf("%dpx", client)),
+                Js.undefined,
+              ),
+            );
+            Option.iter(cols, ~f=report);
+          };
         };
         AfterLayout.watch(AfterLayout.watcher(read), main);
       },
