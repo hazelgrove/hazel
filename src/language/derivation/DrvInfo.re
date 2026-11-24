@@ -107,7 +107,8 @@ let status = (drv: Drv.Any.t, ~sort: DrvSort.t): status =>
   | TPat({term: Hole(MultiHole(_)), _}) => InHole(MultiHole)
   | Exp({term, _}) =>
     let sorts = sorts_of_exp(Drv.Exp.cls_of_term(term));
-    List.mem(sort, sorts) ? NotInHole : InHole(NoJoin(sort, sorts));
+    List.mem(sorts, sort, ~equal=DrvSort.equal)
+      ? NotInHole : InHole(NoJoin(sort, sorts));
   | _ => NotInHole
   };
 

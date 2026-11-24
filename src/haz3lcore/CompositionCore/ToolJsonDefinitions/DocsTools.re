@@ -35,7 +35,7 @@ let read_docs: API.Json.t =
                     (
                       "enum",
                       `List(
-                        List.map(s => `String(s), DocPacks.topic_names),
+                        List.map(DocPacks.topic_names, ~f=s => `String(s)),
                       ),
                     ),
                     ("description", `String("Which guide to fetch")),

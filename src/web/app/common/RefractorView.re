@@ -58,21 +58,21 @@ let mk_data =
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   Id.Map.bindings(refractors)
-  |> List.filter_map(((id, entry)) =>
+  |> List.filter_map(~f=((id, entry)) =>
        measurement_of_term(id, term_data, measured)
-       |> Option.map(measurement => (id, entry, measurement))
+       |> Option.map(~f=measurement => (id, entry, measurement))
      )
   |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
        row_range(~refractor_rows, id, measurement)
      )
-  |> List.map(((id, entry, measurement)) => {
+  |> List.map(~f=((id, entry, measurement)) => {
        let syntax_piece =
          Option.value(
            TermData.segment(id, term_data)
-           |> Option.map(Segment.unparenthesize)
-           |> Option.map(Segment.trim_secondary(Left))
-           |> Option.map(Segment.trim_secondary(Right))
-           |> Option.map(Segment.parenthesize),
+           |> Option.map(~f=Segment.unparenthesize)
+           |> Option.map(~f=Segment.trim_secondary(Left))
+           |> Option.map(~f=Segment.trim_secondary(Right))
+           |> Option.map(~f=Segment.parenthesize),
            ~default=
              Base.Secondary({
                id: Id.invalid,
@@ -136,8 +136,8 @@ let all =
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(ProjectorView.by_measurement)
-    |> List.map(data =>
+    |> List.sort(~compare=ProjectorView.by_measurement)
+    |> List.map(~f=data =>
          ProjectorView.split_views(
            inject,
            make_active,
@@ -148,8 +148,8 @@ let all =
            refractor_list,
          )
        )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
+    |> List.unzip;
+  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
   [
     div_c(
       "refractors",
