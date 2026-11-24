@@ -69,7 +69,7 @@ let qcheck_symmetric =
       QCheck_Util.arb_typ(~minimal_idents=true, 12),
     ),
     ((a, b)) =>
-    Language.Typ.fast_equal(a, b) == Language.Typ.fast_equal(b, a)
+    Bool.equal(Language.Typ.fast_equal(a, b), Language.Typ.fast_equal(b, a))
   );
 
 /* StaticsBase.fresh_ascription skips normalization when the two types are

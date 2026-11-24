@@ -24,15 +24,34 @@ let syn_marks_match =
 let ctr_ana_typ =
     (ctx: Ctx.t, ty_ana: Typ.t, ctr: Constructor.t): option(Typ.t) => {
   Util.OptUtil.Syntax.(
-    switch (ty_ana) {
-    | {term: Arrow(_, ty_out), _} =>
+    /* Normalize the head so an alias for an arrow (or a parenthesized
+       arrow) is recognized as one. */
+    switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty_ana))) {
+    | Arrow(_, ty_out) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
       let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
       | None => None
       | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
       };
-    | _ =>
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Var(_)
+    | List(_)
+    | Sum(_)
+    | Prod(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Rec(_)
+    | Poly(_)
+    | ProofOf(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | Sig(_) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
       let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
@@ -74,8 +93,14 @@ let syn_marks_ctr =
    Ascriptions.re resolves the Var lazily via weak_head_normalize. */
 let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   let is_builtin_alias = (name: string): bool =>
-    List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
-    && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid);
+    List.exists(BuiltinsADT.type_aliases, ~f=((n, _)) =>
+      String.equal(n, name)
+    )
+    && Option.equal(
+         Id.equal,
+         Ctx.lookup_tvar_id(ctx, name),
+         Some(Id.invalid),
+       );
   switch (Typ.term_of(ty)) {
   | Rec(tp, _) =>
     switch (TPat.tyvar_of_utpat(tp)) {
@@ -85,35 +110,35 @@ let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | Arrow(t1, t2) =>
     let t1' = compact_builtin_recs(ctx, t1);
     let t2' = compact_builtin_recs(ctx, t2);
-    if (t1' === t1 && t2' === t2) {
+    if (phys_equal(t1', t1) && phys_equal(t2', t2)) {
       ty;
     } else {
       Arrow(t1', t2') |> Typ.temp;
     };
   | List(t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       List(t') |> Typ.temp;
     };
   | Prod(ts) =>
-    let ts' = List.map(compact_builtin_recs(ctx), ts);
-    if (List.for_all2((===), ts, ts')) {
+    let ts' = List.map(ts, ~f=compact_builtin_recs(ctx));
+    if (List.for_all2_exn(ts, ts', ~f=phys_equal)) {
       ty;
     } else {
       Prod(ts') |> Typ.temp;
     };
   | TupLabel(l, t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       TupLabel(l, t') |> Typ.temp;
     };
   | Parens(t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       Parens(t') |> Typ.temp;
@@ -137,11 +162,17 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   switch (return_type_name) {
   | Some(name)
       when
-        List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
-        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) => ty
+        List.exists(BuiltinsADT.type_aliases, ~f=((n, _)) =>
+          String.equal(n, name)
+        )
+        && Option.equal(
+             Id.equal,
+             Ctx.lookup_tvar_id(ctx, name),
+             Some(Id.invalid),
+           ) => ty
   | _ =>
     let compacted = compact_builtin_recs(ctx, ty);
-    if (compacted !== ty) {
+    if (!phys_equal(compacted, ty)) {
       compacted;
     } else {
       Typ.normalize(ctx, ty);

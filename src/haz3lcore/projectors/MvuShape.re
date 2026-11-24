@@ -161,7 +161,7 @@ let of_string_list = (d: DHExp.t): option(list(string)) => {
   let d = strip_wrappers(d);
   switch (d.term) {
   | ListLit(items) =>
-    let strings = List.filter_map(of_string, items);
+    let strings = List.filter_map(~f=of_string, items);
     if (List.length(strings) == List.length(items)) {
       Some(strings);
     } else {
@@ -208,7 +208,7 @@ let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 // Error boundary: wrap evaluate to catch exceptions
 let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
   try(Ok(evaluate(exp))) {
-  | exn => Error(Printexc.to_string(exn))
+  | exn => Error(Stdlib.Printexc.to_string(exn))
   };
 
 // === App-shape detection ===
@@ -239,9 +239,10 @@ let of_field = (d: DHExp.t): option((string, DHExp.t)) =>
 // labeled (order is then irrelevant); a partially labeled tuple falls
 // through to the positional reading.
 let of_labeled_app = (elements: list(DHExp.t)): option(app_kind) => {
-  let fields = List.filter_map(of_field, elements);
+  let fields = List.filter_map(~f=of_field, elements);
   let all_labeled = List.length(elements) == 4 && List.length(fields) == 4;
-  let get = name => all_labeled ? List.assoc_opt(name, fields) : None;
+  let get = name =>
+    all_labeled ? List.Assoc.find(fields, name, ~equal=String.equal) : None;
   switch (get("init"), get("update"), get("view"), get("subs")) {
   | (Some(init_model), Some(update_fn), Some(view_fn), Some(subs_fn))
       when is_function(update_fn) && is_function(view_fn) =>
@@ -279,9 +280,10 @@ let looks_like_mvu_app = (exp: DHExp.t): bool =>
 let variant_names = (ty: Language.Typ.t): list(string) => {
   let of_sum = variants =>
     List.filter_map(
-      fun
-      | ConstructorMap.Variant(name, _, _) => Some(name)
-      | ConstructorMap.BadEntry(_) => None,
+      ~f=
+        fun
+        | ConstructorMap.Variant(name, _, _) => Some(name)
+        | ConstructorMap.BadEntry(_) => None,
       variants,
     );
   switch (ty.term) {
@@ -296,7 +298,7 @@ let variant_names = (ty: Language.Typ.t): list(string) => {
 let html_constructor_names: list(string) = variant_names(BuiltinsADT.HTML.t);
 
 let is_html_constructor = (name: string): bool =>
-  List.mem(name, html_constructor_names);
+  List.mem(html_constructor_names, name, ~equal=String.equal);
 
 // Is this value HTML (an application of an HTML constructor, or a nullary
 // one like Br)?

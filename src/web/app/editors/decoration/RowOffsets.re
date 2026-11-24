@@ -9,21 +9,21 @@
    (precedent: Code.MkDeferredLinebreaks). Assumes offside consumers
    render within the same editor pass as the reset. */
 
-let table: Hashtbl.t(int, int) = Hashtbl.create(16);
+let table: Stdlib.Hashtbl.t(int, int) = Stdlib.Hashtbl.create(16);
 
-let reset = (): unit => Hashtbl.reset(table);
+let reset = (): unit => Stdlib.Hashtbl.reset(table);
 
 let claim = (~row: int, ~until_col: int): unit => {
   let prev =
-    switch (Hashtbl.find_opt(table, row)) {
+    switch (Stdlib.Hashtbl.find_opt(table, row)) {
     | Some(c) => c
     | None => 0
     };
-  Hashtbl.replace(table, row, max(prev, until_col));
+  Stdlib.Hashtbl.replace(table, row, max(prev, until_col));
 };
 
 let claimed = (~row: int): int =>
-  switch (Hashtbl.find_opt(table, row)) {
+  switch (Stdlib.Hashtbl.find_opt(table, row)) {
   | Some(c) => c
   | None => 0
   };

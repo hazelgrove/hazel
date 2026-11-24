@@ -9,11 +9,12 @@ open Language;
 /* Checkpoints handed over by the projector, consumed when the store builds
  * the entry. Kept out of the action payload so the app-view actions are
  * untouched. */
-let pending_checkpoints: Hashtbl.t(Id.t, string) = Hashtbl.create(4);
+let pending_checkpoints: Stdlib.Hashtbl.t(Id.t, string) =
+  Stdlib.Hashtbl.create(4);
 
 let take_checkpoint = (id: Id.t): option(string) => {
-  let checkpoint = Hashtbl.find_opt(pending_checkpoints, id);
-  Hashtbl.remove(pending_checkpoints, id);
+  let checkpoint = Stdlib.Hashtbl.find_opt(pending_checkpoints, id);
+  Stdlib.Hashtbl.remove(pending_checkpoints, id);
   checkpoint;
 };
 
@@ -28,13 +29,13 @@ let ensure_app =
   | Some(MvuShape.ElmApp(init_model, update_fn, view_fn, subs_fn)) =>
     let bound =
       switch (AppStore.lookup(id, globals.apps)) {
-      | Some(entry) => entry.source_result === app
+      | Some(entry) => phys_equal(entry.source_result, app)
       | None => false
       };
     if (!bound) {
       switch (checkpoint) {
-      | Some(c) => Hashtbl.replace(pending_checkpoints, id, c)
-      | None => Hashtbl.remove(pending_checkpoints, id)
+      | Some(c) => Stdlib.Hashtbl.replace(pending_checkpoints, id, c)
+      | None => Stdlib.Hashtbl.remove(pending_checkpoints, id)
       };
       Bonsai.Effect.Expert.handle(
         globals.inject_global(
@@ -50,7 +51,7 @@ let install = (~globals: Globals.t): unit => {
     (
       id =>
         AppStore.lookup(id, globals.apps)
-        |> Option.map((entry: AppStore.Entry.t) => entry.html)
+        |> Option.map(~f=(entry: AppStore.Entry.t) => entry.html)
     );
   AppBridge.dispatch :=
     ((id, msg) => globals.inject_global(AppViewMsg(id, msg)));

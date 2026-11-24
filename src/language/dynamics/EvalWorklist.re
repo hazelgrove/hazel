@@ -14,7 +14,7 @@ let is_chain = (exp: Exp.t) =>
 
 let is_inside_function = (info_map: StaticsBase.Map.t, info: Info.t) =>
   Info.ancestors_of(info)
-  |> List.exists(ancestor_id =>
+  |> List.exists(~f=ancestor_id =>
        switch (Id.Map.find_opt(ancestor_id, info_map)) {
        | Some(Info.InfoExp({user_term, _})) =>
          switch (Exp.term_of(user_term)) {
@@ -66,7 +66,7 @@ let remove_streamed_ids =
   | _ =>
     let completed_ids = IncrEval.visible_ids(stream.completed);
     List.filter(
-      id => !List.exists(Id.equal(id), completed_ids),
+      ~f=id => !List.exists(~f=Id.equal(id), completed_ids),
       pending_ids,
     );
   };

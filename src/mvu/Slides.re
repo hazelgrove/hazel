@@ -28,6 +28,6 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Harvest Ledger", [%blob "harvest-streak.hz"]),
     ("Nutrient Tracker", [%blob "nutrient-rotation.hz"]),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        ("MVU / " ++ name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

@@ -1,6 +1,7 @@
 open Util;
 open Haz3lcore;
 open AgentModel;
+open Poly;
 
 module ToolUtils = AgentToolUtils;
 module Utils = AgentUtils;
@@ -70,24 +71,25 @@ let tool_allowed_in_mode =
     (mode: AgentGlobals.Model.session_mode, name: string): bool =>
   switch (mode) {
   | Edit => true
-  | Plan => !List.mem(name, ToolUtils.edit_tool_names)
+  | Plan => !List.mem(ToolUtils.edit_tool_names, name, ~equal=String.equal)
   | Converse =>
-    !List.mem(name, ToolUtils.edit_tool_names)
-    && !List.mem(name, ToolUtils.workbench_tool_names)
-    && !List.mem(name, ToolUtils.overlay_tool_names)
+    !List.mem(ToolUtils.edit_tool_names, name, ~equal=String.equal)
+    && !List.mem(ToolUtils.workbench_tool_names, name, ~equal=String.equal)
+    && !List.mem(ToolUtils.overlay_tool_names, name, ~equal=String.equal)
   };
 
 let enabled_tools =
     (~mode: AgentGlobals.Model.session_mode, prompting: Model.prompting)
     : list(API.Json.t) =>
   List.filter(
-    (tool: API.Json.t) =>
-      switch (ToolUtils.get_name(tool)) {
-      | Some(name) =>
-        !List.mem(name, prompting.disabled_tool_names)
-        && tool_allowed_in_mode(mode, name)
-      | None => true
-      },
+    ~f=
+      (tool: API.Json.t) =>
+        switch (ToolUtils.get_name(tool)) {
+        | Some(name) =>
+          !List.mem(prompting.disabled_tool_names, name, ~equal=String.equal)
+          && tool_allowed_in_mode(mode, name)
+        | None => true
+        },
     CompositionUtils.Public.tools,
   );
 // Exponential backoff
@@ -117,7 +119,7 @@ let request_chat_name =
   let handler = (response: option(API.Json.t)): unit => {
     switch (OpenRouter.Utils.handle_chat(response)) {
     | Some(OpenRouter.Model.Reply(reply)) =>
-      let title = String.trim(reply.content);
+      let title = String.strip(reply.content);
       if (String.length(title) > 0 && String.length(title) < 80) {
         schedule_action(Action.HandleChatNamingResponse(title, chat_id));
       };
@@ -145,7 +147,8 @@ let send_llm_request =
     /* Suppress empty deltas (many providers emit role-only or
        keepalive-style chunks). StreamDelta gating by flight_seq still
        happens in the reducer. */
-    if (content_delta != "" || reasoning_delta != "") {
+    if (!String.equal(content_delta, "")
+        || !String.equal(reasoning_delta, "")) {
       schedule_action(
         Action.StreamDelta(
           chat_id,
@@ -169,11 +172,12 @@ let send_llm_request =
         ...reply,
         usage:
           Option.map(
-            (u: OpenRouter.Reply.Model.usage) =>
-              {
-                ...u,
-                model_id: Some(payload.model_id),
-              },
+            ~f=
+              (u: OpenRouter.Reply.Model.usage) =>
+                {
+                  ...u,
+                  model_id: Some(payload.model_id),
+                },
             reply.usage,
           ),
       };
@@ -216,8 +220,8 @@ let busy_for_send = (model: Model.t): bool =>
 
 let enqueue_while_busy =
     (model: Model.t, chat_id: Id.t, text: string): Model.t => {
-  let trimmed = String.trim(text);
-  if (trimmed == "") {
+  let trimmed = String.strip(text);
+  if (String.equal(trimmed, "")) {
     model;
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
@@ -278,7 +282,7 @@ let dispatch_send =
           ~tools=enabled_tools(~mode=session_mode, model.prompting),
           ~reasoning=?
             Option.map(
-              e => OpenRouter.Payload.Model.Effort(e),
+              ~f=e => OpenRouter.Payload.Model.Effort(e),
               reasoning_effort,
             ),
           (),
@@ -290,7 +294,7 @@ let dispatch_send =
     );
     let current_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
     let tail = Chat.Utils.current_tail(current_chat);
-    if (current_chat.title == "New Chat" && tail.role == User) {
+    if (String.equal(current_chat.title, "New Chat") && tail.role == User) {
       if (Option.is_none(model.awaiting_response)
           && Option.is_none(model.compaction_in_progress)) {
         request_chat_name(
@@ -705,7 +709,7 @@ let do_retry_api_send =
               ),
             ~reasoning=?
               Option.map(
-                e => OpenRouter.Payload.Model.Effort(e),
+                ~f=e => OpenRouter.Payload.Model.Effort(e),
                 settings.agent_globals.reasoning_effort,
               ),
             (),
@@ -798,7 +802,7 @@ let retry_empty_response =
               ),
             ~reasoning=?
               Option.map(
-                e => OpenRouter.Payload.Model.Effort(e),
+                ~f=e => OpenRouter.Payload.Model.Effort(e),
                 settings.agent_globals.reasoning_effort,
               ),
             (),

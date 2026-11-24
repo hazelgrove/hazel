@@ -173,12 +173,13 @@ let rec has_fun = (typ: t) =>
   | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
     List.exists(
-      fun
-      | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
-      | _ => false,
+      ~f=
+        fun
+        | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
+        | _ => false,
       sm,
     )
-  | Prod(tys) => List.exists(has_fun, tys)
+  | Prod(tys) => List.exists(~f=has_fun, tys)
   | ProdExtension(t1, t2) => has_fun(t1) || has_fun(t2)
   | Sig(_) => false
   };
@@ -198,8 +199,8 @@ type source = {
   ty: t,
 };
 
-let add_source =
-  List.map2((id, ty) =>
+let add_source = (ids, tys) =>
+  List.map2_exn(ids, tys, ~f=(id, ty) =>
     {
       id,
       ty,
@@ -207,7 +208,7 @@ let add_source =
   );
 
 /* Strip location information from a list of sources */
-let of_source = List.map((source: source) => source.ty);
+let of_source = List.map(~f=(source: source) => source.ty);
 
 /* How type provenance information should be collated when
    meeting unknown types. This probably requires more thought,
@@ -217,7 +218,7 @@ let meet_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
-  | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
+  | (Hole(h1), Hole(h2)) when Poly.equal(h1, h2) => Hole(h1)
   | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
   | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
   | (SynSwitch, Internal)
@@ -227,13 +228,57 @@ let meet_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
+/* Parens and Projector are transparent: code that inspects the head or
+   shape of a type without normalizing it must look through them. */
+let rec strip_wrappers = (ty: t): t =>
+  switch (term_of(ty)) {
+  | Parens(ty)
+  | Projector(_, ty) => strip_wrappers(ty)
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | TupLabel(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => ty
+  };
+
 let rec match_tup_optional_label = (ty: t) =>
   switch (term_of(ty)) {
-  | Parens(ty) => match_tup_optional_label(ty)
-  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
-  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Parens(ty)
+  | Projector(_, ty) => match_tup_optional_label(ty)
+  | TupLabel(label, t') =>
+    switch (term_of(strip_wrappers(label))) {
+    | Label(name) => Some((Some(name), t'))
+    | Unknown(_) => Some((None, t'))
+    | _ => None
+    }
   | Unknown(_) => Some((None, ty))
-  | _ => None
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | List(_)
+  | Arrow(_)
+  | Sum(_)
+  | Prod(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | Rec(_)
+  | Poly(_)
+  | ProofOf(_)
+  | ProdProjection(_)
+  | ProdExtension(_)
+  | Sig(_) => None
   };
 let match_tup_label = ty => {
   switch (match_tup_optional_label(ty)) {
@@ -249,14 +294,14 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | DrvQuoteTy(_)
   | Label(_)
   | ExplicitNonlabel => []
-  | Var(v) => List.mem(v, bound) ? [] : [v]
+  | Var(v) => List.mem(bound, v, ~equal=String.equal) ? [] : [v]
   | Parens(ty)
   | Projector(_, ty) => free_vars(~bound, ty)
   | List(ty) => free_vars(~bound, ty)
   | ProdExtension(t1, t2)
   | Arrow(t1, t2) => free_vars(~bound, t1) @ free_vars(~bound, t2)
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
-  | Prod(tys) => List.concat_map(free_vars(~bound), tys)
+  | Prod(tys) => List.concat_map(~f=free_vars(~bound), tys)
   | ProdProjection(t1, _) => free_vars(~bound, t1)
   | TupLabel(_, ty) => free_vars(~bound, ty)
   | Rec(x, ty)
@@ -282,16 +327,18 @@ let rec count_unknowns = (ty: t): int =>
   | Var(_) => 0
   | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
   | Prod(tys) =>
-    List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
+    List.fold_left(~f=(acc, ty) => acc + count_unknowns(ty), ~init=0, tys)
   | Sum(sm) =>
     List.fold_left(
-      (acc, variant) =>
-        switch (variant) {
-        | ConstructorMap.BadEntry(_) => acc
-        | Variant(_, _, ty) =>
-          acc + Util.OptUtil.get(() => 0, Option.map(count_unknowns, ty))
-        },
-      0,
+      ~f=
+        (acc, variant) =>
+          switch (variant) {
+          | ConstructorMap.BadEntry(_) => acc
+          | Variant(_, _, ty) =>
+            acc
+            + Util.OptUtil.get(() => 0, Option.map(~f=count_unknowns, ty))
+          },
+      ~init=0,
       sm,
     )
   | Rec(_, ty) => count_unknowns(ty)
@@ -321,7 +368,7 @@ let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 let rec subst = (s: t, x: TPat.t, ty: t): t => {
   let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
     switch (TPat.tyvar_of_utpat(tp2)) {
-    | Some(name) when List.mem(name, free_vars(s)) =>
+    | Some(name) when List.mem(free_vars(s), name, ~equal=String.equal) =>
       let fresh = fresh_var(name);
       let tp2': TPat.t = Var(fresh) |> TPat.fresh;
       let body' = subst(Var(fresh) |> temp, tp2, body);
@@ -340,14 +387,14 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | Arrow(ty1, ty2) =>
       let ty1' = subst(s, x, ty1);
       let ty2' = subst(s, x, ty2);
-      if (ty1' === ty1 && ty2' === ty2) {
+      if (phys_equal(ty1', ty1) && phys_equal(ty2', ty2)) {
         ty;
       } else {
         Grammar.Arrow(ty1', ty2') |> rewrap;
       };
     | Prod(tys) =>
-      let tys' = List.map(subst(s, x), tys);
-      if (List.for_all2((a, b) => a === b, tys, tys')) {
+      let tys' = List.map(~f=subst(s, x), tys);
+      if (List.for_all2_exn(tys, tys', ~f=phys_equal)) {
         ty;
       } else {
         Prod(tys') |> rewrap;
@@ -355,54 +402,66 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | TupLabel(label, t) =>
       let label' = subst(s, x, label);
       let t' = subst(s, x, t);
-      if (label' === label && t' === t) {
+      if (phys_equal(label', label) && phys_equal(t', t)) {
         ty;
       } else {
         TupLabel(label', t') |> rewrap;
       };
     | Sum(sm) =>
-      let sm' = ConstructorMap.map(Option.map(subst(s, x)), sm);
-      if (sm' === sm) {
+      let sm' = ConstructorMap.map(Option.map(~f=subst(s, x)), sm);
+      if (phys_equal(sm', sm)) {
         ty;
       } else {
         Sum(sm') |> rewrap;
       };
-    | Poly(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Poly(tp2, _)
+        when
+          Option.equal(
+            String.equal,
+            TPat.tyvar_of_utpat(x),
+            TPat.tyvar_of_utpat(tp2),
+          ) => ty
     | Poly(tp2, t) =>
       let (tp2', t') = avoid_capture(tp2, t);
       let t'' = subst(s, x, t');
-      if (tp2' === tp2 && t'' === t) {
+      if (phys_equal(tp2', tp2) && phys_equal(t'', t)) {
         ty;
       } else {
         Poly(tp2', t'') |> rewrap;
       };
-    | Rec(tp2, _) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) => ty
+    | Rec(tp2, _)
+        when
+          Option.equal(
+            String.equal,
+            TPat.tyvar_of_utpat(x),
+            TPat.tyvar_of_utpat(tp2),
+          ) => ty
     | Rec(tp2, t) =>
       let (tp2', t') = avoid_capture(tp2, t);
       let t'' = subst(s, x, t');
-      if (tp2' === tp2 && t'' === t) {
+      if (phys_equal(tp2', tp2) && phys_equal(t'', t)) {
         ty;
       } else {
         Rec(tp2', t'') |> rewrap;
       };
     | List(t) =>
       let t' = subst(s, x, t);
-      if (t' === t) {
+      if (phys_equal(t', t)) {
         ty;
       } else {
         List(t') |> rewrap;
       };
-    | Var(y) => str == y ? s : ty
+    | Var(y) => String.equal(str, y) ? s : ty
     | Parens(t) =>
       let t' = subst(s, x, t);
-      if (t' === t) {
+      if (phys_equal(t', t)) {
         ty;
       } else {
         Parens(t') |> rewrap;
       };
     | Projector(data, t) =>
       let t' = subst(s, x, t);
-      if (t' === t) {
+      if (phys_equal(t', t)) {
         ty;
       } else {
         Projector(data, t') |> rewrap;
@@ -410,7 +469,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | ProdProjection(t1, t2) =>
       let t1' = subst(s, x, t1);
       let t2' = subst(s, x, t2);
-      if (t1' === t1 && t2' === t2) {
+      if (phys_equal(t1', t1) && phys_equal(t2', t2)) {
         ty;
       } else {
         ProdProjection(t1', t2') |> rewrap;
@@ -418,7 +477,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     | ProdExtension(t1, t2) =>
       let t1' = subst(s, x, t1);
       let t2' = subst(s, x, t2);
-      if (t1' === t1 && t2' === t2) {
+      if (phys_equal(t1', t1) && phys_equal(t2', t2)) {
         ty;
       } else {
         ProdExtension(t1', t2') |> rewrap;
@@ -444,9 +503,11 @@ let non_contractive = (ty: t): option(TPat.t) => {
     | TupLabel({term: ExplicitNonlabel, _}, ty) => go(bound, ty)
     | Rec(tp, body) =>
       let named =
-        TPat.tyvar_of_utpat(tp) |> Option.map(x => (x, tp)) |> Option.to_list;
+        TPat.tyvar_of_utpat(tp)
+        |> Option.map(~f=x => (x, tp))
+        |> Option.to_list;
       go(named @ bound, body);
-    | Var(x) => List.assoc_opt(x, bound)
+    | Var(x) => List.Assoc.find(bound, x, ~equal=String.equal)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -504,10 +565,12 @@ let fast_equal = Equality.semantic.typ;
 let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(t), label: string): option(t) =>
-  switch (LabeledTuple.find_label(match_tup_label, tys, label)) {
-  | Some({term: TupLabel(_, ty), _}) => Some(ty)
-  | _ => None
-  };
+  List.find_map(tys, ~f=ty =>
+    switch (match_tup_label(ty)) {
+    | Some((l, ty)) when String.equal(l, label) => Some(ty)
+    | _ => None
+    }
+  );
 
 let product_extension = (tys1: list(t), tys2: list(t)): term => {
   let get_lv = (t: t) => {
@@ -518,8 +581,11 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
   };
 
   let new_tys =
-    LabeledTuple.extension(List.map(get_lv, tys1), List.map(get_lv, tys2))
-    |> List.map(((l, ty)) =>
+    LabeledTuple.extension(
+      List.map(~f=get_lv, tys1),
+      List.map(~f=get_lv, tys2),
+    )
+    |> List.map(~f=((l, ty)) =>
          switch (l) {
          | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
          | None => ty
@@ -543,27 +609,30 @@ let remove_duplicate_labels =
     (~duplicate_labels: list(LabeledTuple.label), tys: list(t)): list(t) => {
   let (_, rev_deduplicated) =
     List.fold_left(
-      ((seen_duplicates, rev_deduplicated_types), ty) => {
-        let tup_label = match_tup_label(ty);
-        switch (tup_label) {
-        | Some((l, _))
-            when
-              List.mem(l, duplicate_labels) && List.mem(l, seen_duplicates) => (
-            seen_duplicates,
-            rev_deduplicated_types,
-          )
-        | Some((l, _)) when List.mem(l, duplicate_labels) => (
-            [l, ...seen_duplicates],
-            [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
-              ...rev_deduplicated_types,
-            ],
-          )
-        | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
-        | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
-        };
-      },
-      ([], []),
+      ~f=
+        ((seen_duplicates, rev_deduplicated_types), ty) => {
+          let tup_label = match_tup_label(ty);
+          switch (tup_label) {
+          | Some((l, _))
+              when
+                List.mem(duplicate_labels, l, ~equal=String.equal)
+                && List.mem(seen_duplicates, l, ~equal=String.equal) => (
+              seen_duplicates,
+              rev_deduplicated_types,
+            )
+          | Some((l, _))
+              when List.mem(duplicate_labels, l, ~equal=String.equal) => (
+              [l, ...seen_duplicates],
+              [
+                TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+                ...rev_deduplicated_types,
+              ],
+            )
+          | Some(_) => (seen_duplicates, [ty, ...rev_deduplicated_types])
+          | None => (seen_duplicates, [ty, ...rev_deduplicated_types])
+          };
+        },
+      ~init=([], []),
       tys,
     );
   List.rev(rev_deduplicated);
@@ -622,6 +691,52 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
+/* The field a signature's `let` item declares: `let x : T` gives
+   ("x", Some(T)) and `let x` gives ("x", None), looking through Parens and
+   Projector on both the item and the bound variable. Other patterns
+   declare no field. */
+let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
+  let var_of = (p: Pat.t): option(Var.t) =>
+    switch (Pat.strip_wrappers(p).term) {
+    | Var(name) => Some(name)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Tuple(_)
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Ap(_)
+    | Asc(_) => None
+    };
+  switch (Pat.strip_wrappers(pat).term) {
+  | Var(name) => Some((name, None))
+  | Asc(p, typ) => var_of(p) |> Option.map(~f=name => (name, Some(typ)))
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_) => None
+  };
+};
+
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
    type escapes its scope, keeping global/builtin aliases compact. */
@@ -647,19 +762,21 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Projector(_, t) => normalize(ctx, t)
   | List(t) =>
     let t' = normalize(ctx, t);
-    t === t' ? ty : List(t') |> rewrap;
+    phys_equal(t, t') ? ty : List(t') |> rewrap;
   | Arrow(t1, t2) =>
     let t1' = normalize(ctx, t1);
     let t2' = normalize(ctx, t2);
-    t1 === t1' && t2 === t2' ? ty : Arrow(t1', t2') |> rewrap;
+    phys_equal(t1, t1') && phys_equal(t2, t2')
+      ? ty : Arrow(t1', t2') |> rewrap;
   | Prod(ts) =>
-    let ts' = List.map(normalize(ctx), ts);
+    let ts' = List.map(~f=normalize(ctx), ts);
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(match_tup_label, ts');
     let ts'' =
       List.is_empty(duplicate_labels)
         ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
-    List.length(ts) == List.length(ts'') && List.for_all2((===), ts, ts'')
+    List.length(ts) == List.length(ts'')
+    && List.for_all2_exn(ts, ts'', ~f=phys_equal)
       ? ty : Prod(ts'') |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
@@ -667,16 +784,17 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | TupLabel(label, t) =>
     let label' = normalize(ctx, label);
     let t' = normalize(ctx, t);
-    label === label' && t === t' ? ty : TupLabel(label', t') |> rewrap;
+    phys_equal(label, label') && phys_equal(t, t')
+      ? ty : TupLabel(label', t') |> rewrap;
   | Sum(ts) =>
-    let ts' = ConstructorMap.map(Option.map(normalize(ctx)), ts);
-    ts === ts' ? ty : Sum(ts') |> rewrap;
+    let ts' = ConstructorMap.map(Option.map(~f=normalize(ctx)), ts);
+    phys_equal(ts, ts') ? ty : Sum(ts') |> rewrap;
   | Rec(tpat, t) =>
     let t' = normalize(Ctx.extend_dummy_tvar(ctx, tpat), t);
-    t === t' ? ty : Rec(tpat, t') |> rewrap;
+    phys_equal(t, t') ? ty : Rec(tpat, t') |> rewrap;
   | Poly(name, t) =>
     let t' = normalize(Ctx.extend_dummy_tvar(ctx, name), t);
-    t === t' ? ty : Poly(name, t') |> rewrap;
+    phys_equal(t, t') ? ty : Poly(name, t') |> rewrap;
   | ProofOf(_) => ty
   | Sig(items) =>
     /* Desugar signature to labeled tuple type:
@@ -684,24 +802,23 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
        Type aliases (SigType) don't contribute to the exported type. */
     let fields =
       items
-      |> List.filter_map((item: Sig.t) =>
+      |> List.filter_map(~f=(item: Sig.t) =>
            switch (item.term) {
            | SigLet(pat) =>
              /* Extract name and type from pattern.
                 let x : T => name="x", typ=T
                 let x     => name="x", typ=Unknown */
-             switch (pat.term) {
-             | Asc({term: Var(name), _}, typ) =>
-               Some(
-                 TupLabel(Label(name) |> temp, normalize(ctx, typ)) |> temp,
-               )
-             | Var(name) =>
-               Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
-               )
-             | _ => None
-             }
+             sig_let_field(pat)
+             |> Option.map(~f=((name, typ)) =>
+                  TupLabel(
+                    Label(name) |> temp,
+                    switch (typ) {
+                    | Some(typ) => normalize(ctx, typ)
+                    | None => Unknown(Internal) |> temp
+                    },
+                  )
+                  |> temp
+                )
            | SigType(_, _)
            | Invalid(_)
            | EmptyHole
@@ -724,22 +841,20 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Sig(items) =>
     let fields =
       items
-      |> List.filter_map((item: Sig.t) =>
+      |> List.filter_map(~f=(item: Sig.t) =>
            switch (item.term) {
            | SigLet(pat) =>
-             switch (pat.term) {
-             | Asc({term: Var(name), _}, typ) =>
-               Some(
-                 TupLabel(Label(name) |> temp, desugar_sig(ctx, typ))
-                 |> temp,
-               )
-             | Var(name) =>
-               Some(
-                 TupLabel(Label(name) |> temp, Unknown(Internal) |> temp)
-                 |> temp,
-               )
-             | _ => None
-             }
+             sig_let_field(pat)
+             |> Option.map(~f=((name, typ)) =>
+                  TupLabel(
+                    Label(name) |> temp,
+                    switch (typ) {
+                    | Some(typ) => desugar_sig(ctx, typ)
+                    | None => Unknown(Internal) |> temp
+                    },
+                  )
+                  |> temp
+                )
            | SigType(_, _)
            | Invalid(_)
            | EmptyHole
@@ -754,11 +869,25 @@ let rec desugar_sig = (ctx: Ctx.t, ty: t): t => {
   | Projector(_, t) => desugar_sig(ctx, t)
   | Arrow(t1, t2) =>
     Arrow(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
-  | Prod(ts) => Prod(List.map(desugar_sig(ctx), ts)) |> rewrap
+  | Prod(ts) => Prod(List.map(~f=desugar_sig(ctx), ts)) |> rewrap
   | List(t) => List(desugar_sig(ctx, t)) |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(desugar_sig(ctx, label), desugar_sig(ctx, ty)) |> rewrap
-  | _ => ty
+  | Sum(sm) =>
+    Sum(ConstructorMap.map(Option.map(~f=desugar_sig(ctx)), sm)) |> rewrap
+  | Rec(tpat, t) => Rec(tpat, desugar_sig(ctx, t)) |> rewrap
+  | Poly(tpat, t) => Poly(tpat, desugar_sig(ctx, t)) |> rewrap
+  | ProdProjection(t, label) =>
+    ProdProjection(desugar_sig(ctx, t), label) |> rewrap
+  | ProdExtension(t1, t2) =>
+    ProdExtension(desugar_sig(ctx, t1), desugar_sig(ctx, t2)) |> rewrap
+  | Unknown(_)
+  | Atom(_)
+  | DrvQuoteTy(_)
+  | Var(_)
+  | ExplicitNonlabel
+  | Label(_)
+  | ProofOf(_) => ty
   };
 };
 
@@ -798,13 +927,14 @@ let has_fun_up_to_aliases = (ctx: Ctx.t, ty: t): bool => {
           go(~depth=depth + 1, Ctx.extend_dummy_tvar(ctx, tp), t)
         | Sum(sm) =>
           List.exists(
-            fun
-            | ConstructorMap.Variant(_, _, Some(t)) =>
-              go(~depth=depth + 1, ctx, t)
-            | _ => false,
+            ~f=
+              fun
+              | ConstructorMap.Variant(_, _, Some(t)) =>
+                go(~depth=depth + 1, ctx, t)
+              | _ => false,
             sm,
           )
-        | Prod(tys) => List.exists(go(~depth=depth + 1, ctx), tys)
+        | Prod(tys) => List.exists(~f=go(~depth=depth + 1, ctx), tys)
         | ProdExtension(t1, t2) =>
           go(~depth=depth + 1, ctx, t1) || go(~depth=depth + 1, ctx, t2)
         }
@@ -828,7 +958,7 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
   let rec go = (~depth, ctx: Ctx.t, a: t, b: t): bool =>
     if (depth > 256) {
       false;
-    } else if (a === b || fast_equal(a, b)) {
+    } else if (phys_equal(a, b) || fast_equal(a, b)) {
       true;
     } else {
       let go = go(~depth=depth + 1);
@@ -842,20 +972,20 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
       let a = head(a);
       let b = head(b);
       switch (term_of(a), term_of(b)) {
-      | (Var(n1), Var(n2)) => n1 == n2 /* both unresolvable in ctx */
+      | (Var(n1), Var(n2)) => String.equal(n1, n2) /* both unresolvable in ctx */
       | (List(x), List(y)) => go(ctx, x, y)
       | (Arrow(x1, y1), Arrow(x2, y2)) =>
         go(ctx, x1, x2) && go(ctx, y1, y2)
       | (Prod(xs), Prod(ys)) =>
         List.length(xs) == List.length(ys)
-        && List.for_all2(go(ctx), xs, ys)
+        && List.for_all2_exn(xs, ys, ~f=go(ctx))
       | (TupLabel(l1, x), TupLabel(l2, y)) =>
         fast_equal(l1, l2) && go(ctx, x, y)
       | (Sum(xs), Sum(ys)) => ConstructorMap.equal(go(ctx), xs, ys)
       | (Rec(tp1, x), Rec(tp2, y))
       | (Poly(tp1, x), Poly(tp2, y)) =>
         switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
-        | (Some(n1), Some(n2)) when n1 == n2 =>
+        | (Some(n1), Some(n2)) when String.equal(n1, n2) =>
           go(Ctx.extend_dummy_tvar(ctx, tp1), x, y)
         | _ => fast_equal(a, b)
         }
@@ -880,7 +1010,7 @@ type alias_def =
   | Recursive(t);
 
 let recursive_def = (name: Var.t, def: t): alias_def =>
-  List.exists(String.equal(name), free_vars(def))
+  List.exists(free_vars(def), ~f=String.equal(name))
     ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
 
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
@@ -902,7 +1032,7 @@ let shared_binder =
     lazy(free_vars(~bound=Option.to_list(TPat.tyvar_of_utpat(tp)), body));
   let (free1, free2) = (free(tp1, body1), free(tp2, body2));
   let free_in = (x, free) =>
-    List.exists(String.equal(x), Lazy.force(free));
+    List.mem(Lazy.force(free), x, ~equal=String.equal);
   let rename = (x, tp, body) => subst(Var(x) |> temp, tp, body);
   switch (TPat.tyvar_of_utpat(tp1), TPat.tyvar_of_utpat(tp2)) {
   | (Some(x1), Some(x2)) when String.equal(x1, x2) => (tp1, body1, body2) /* no renaming needed */
@@ -951,7 +1081,7 @@ let rec meet =
         meet_unrolled: (~seen: list((t, t)), t) => option(t),
       )
       : option(t) =>
-    if (List.exists(((r, o)) => equal(r, ty_rec) && equal(o, ty), seen)) {
+    if (List.exists(seen, ~f=((r, o)) => equal(r, ty_rec) && equal(o, ty))) {
       Some(ty_rec);
     } else {
       let* ty_rec' = unroll(ty_rec);
@@ -959,7 +1089,7 @@ let rec meet =
       equal(ty_rec', ty_meet) ? ty_rec : ty_meet;
     };
   switch (term_of(ty1), term_of(ty2)) {
-  | _ when ty1 === ty2 => Some(ty1)
+  | _ when phys_equal(ty1, ty2) => Some(ty1)
   | (_, Parens(ty2))
   | (_, Projector(_, ty2)) => meet'(ty1, ty2)
   | (Parens(ty1), _)
@@ -967,12 +1097,12 @@ let rec meet =
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   | (Unknown(p1), Unknown(p2)) =>
-    p1 == p2
+    Poly.equal(p1, p2)
       ? Some(ty1) : Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
-    if (n1 == n2) {
+    if (String.equal(n1, n2)) {
       Some(ty1);
     } else {
       let ty1' = Ctx.lookup_alias(ctx, n1);
@@ -994,24 +1124,24 @@ let rec meet =
      rest. Anything else falls through to the general Var expansion. */
   | (Var(name), Rec(tp2, _))
       when
-        TPat.tyvar_of_utpat(tp2) == Some(name)
+        Option.equal(String.equal, TPat.tyvar_of_utpat(tp2), Some(name))
         && (
           switch (Ctx.lookup_alias(ctx, name)) {
           | Some({term: Rec(tp1, _), _} as ty_alias) =>
-            TPat.tyvar_of_utpat(tp1) == Some(name)
-            && (ty_alias === ty2 || equal(ty_alias, ty2))
+            Option.equal(String.equal, TPat.tyvar_of_utpat(tp1), Some(name))
+            && (phys_equal(ty_alias, ty2) || equal(ty_alias, ty2))
           | _ => false
           }
         ) =>
     Some(ty1)
   | (Rec(tp1, _), Var(name))
       when
-        TPat.tyvar_of_utpat(tp1) == Some(name)
+        Option.equal(String.equal, TPat.tyvar_of_utpat(tp1), Some(name))
         && (
           switch (Ctx.lookup_alias(ctx, name)) {
           | Some({term: Rec(tp2, _), _} as ty_alias) =>
-            TPat.tyvar_of_utpat(tp2) == Some(name)
-            && (ty_alias === ty1 || equal(ty_alias, ty1))
+            Option.equal(String.equal, TPat.tyvar_of_utpat(tp2), Some(name))
+            && (phys_equal(ty_alias, ty1) || equal(ty_alias, ty1))
           | _ => false
           }
         ) =>
@@ -1044,9 +1174,9 @@ let rec meet =
     let+ ty_body = meet(~seen, Ctx.extend_dummy_tvar(ctx, tp), body1, body2);
     Poly(tp, ty_body) |> temp;
   | (Poly(_), _) => None
-  | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
+  | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => Some(ty1)
   | (Atom(_), _) => None
-  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => Some(ty1)
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when DrvSort.equal(d1, d2) => Some(ty1)
   | (DrvQuoteTy(_), _) => None
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
@@ -1057,9 +1187,9 @@ let rec meet =
   | (Arrow(a1, a2), Arrow(b1, b2)) =>
     let* r1 = meet'(a1, b1);
     let+ r2 = meet'(a2, b2);
-    if (r1 === a1 && r2 === a2) {
+    if (phys_equal(r1, a1) && phys_equal(r2, a2)) {
       ty1;
-    } else if (r1 === b1 && r2 === b2) {
+    } else if (phys_equal(r1, b1) && phys_equal(r2, b2)) {
       ty2;
     } else {
       Grammar.Arrow(r1, r2) |> temp;
@@ -1068,9 +1198,9 @@ let rec meet =
   | (TupLabel(la, a), TupLabel(lb, b)) =>
     let* rl = meet'(la, lb);
     let+ r = meet'(a, b);
-    if (rl === la && r === a) {
+    if (phys_equal(rl, la) && phys_equal(r, a)) {
       ty1;
-    } else if (rl === lb && r === b) {
+    } else if (phys_equal(rl, lb) && phys_equal(r, b)) {
       ty2;
     } else {
       Grammar.TupLabel(rl, r) |> temp;
@@ -1104,9 +1234,9 @@ let rec meet =
   | (Sum(_), _) => None
   | (List(a), List(b)) =>
     let+ r = meet'(a, b);
-    if (r === a) {
+    if (phys_equal(r, a)) {
       ty1;
-    } else if (r === b) {
+    } else if (phys_equal(r, b)) {
       ty2;
     } else {
       Grammar.List(r) |> temp;
@@ -1149,7 +1279,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
     Arrow(match_synswitch(ty1, ty1'), match_synswitch(ty2, ty2')) |> rewrap1
   | (Arrow(_), _) => t1
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    let tys = List.map2(match_synswitch, tys1, tys2);
+    let tys = List.map2_exn(tys1, tys2, ~f=match_synswitch);
     Prod(tys) |> rewrap1;
   | (Prod(_), _) => t1
   | (TupLabel(label1, ty1), TupLabel(label2, ty2)) =>
@@ -1170,13 +1300,13 @@ let rec match_synswitch = (t1: t, t2: t) => {
 
 let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
-    Some(empty),
+    ~f=(acc, ty) => OptUtil.and_then(meet(ctx, ty), acc),
+    ~init=Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  meet(ctx, ty1, ty2) != None;
+  Option.is_some(meet(ctx, ty1, ty2));
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
@@ -1363,8 +1493,8 @@ let rec pretty_print = (ty: t): string =>
     | [t0] => "+" ++ ctr_pretty_print(t0)
     | [t0, ...ts] =>
       List.fold_left(
-        (acc, t) => acc ++ " + " ++ ctr_pretty_print(t),
-        ctr_pretty_print(t0),
+        ~f=(acc, t) => acc ++ " + " ++ ctr_pretty_print(t),
+        ~init=ctr_pretty_print(t0),
         ts,
       )
     }
@@ -1372,8 +1502,8 @@ let rec pretty_print = (ty: t): string =>
   | Prod([t0, ...ts]) =>
     "("
     ++ List.fold_left(
-         (acc, t) => acc ++ ", " ++ pretty_print(t),
-         pretty_print(t0),
+         ~f=(acc, t) => acc ++ ", " ++ pretty_print(t),
+         ~init=pretty_print(t0),
          ts,
        )
     ++ ")"
@@ -1415,7 +1545,9 @@ let rec pretty_print = (ty: t): string =>
       | Invalid(s) => s
       | MultiHole(_) => "?"
       };
-    "{ " ++ String.concat("; ", List.map(sig_item_str, items)) ++ " }";
+    "{ "
+    ++ String.concat(~sep="; ", List.map(~f=sig_item_str, items))
+    ++ " }";
   }
 and ctr_pretty_print =
   fun
@@ -1469,12 +1601,13 @@ let all_ids = (ty: t): list(Id.t) => {
     switch (term_of(ty)) {
     | Sum(variants) =>
       List.iter(
-        fun
-        | ConstructorMap.Variant(_, ann, opt) => {
-            ids := ann.ids @ ids^;
-            Option.iter(collect_ann_ids, opt);
-          }
-        | BadEntry(t) => collect_ann_ids(t),
+        ~f=
+          fun
+          | ConstructorMap.Variant(_, ann, opt) => {
+              ids := ann.ids @ ids^;
+              Option.iter(~f=collect_ann_ids, opt);
+            }
+          | BadEntry(t) => collect_ann_ids(t),
         variants,
       )
     | Arrow(t1, t2)
@@ -1488,7 +1621,7 @@ let all_ids = (ty: t): list(Id.t) => {
     | Projector(_, t)
     | Rec(_, t)
     | Poly(_, t) => collect_ann_ids(t)
-    | Prod(ts) => List.iter(collect_ann_ids, ts)
+    | Prod(ts) => List.iter(~f=collect_ann_ids, ts)
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -1530,10 +1663,10 @@ let rec diff =
         : list(Id.t) => {
   let get_ids = () => all_ids(ty');
   let expand = name =>
-    if (List.exists(String.equal(name), expanded_aliases)) {
+    if (List.exists(expanded_aliases, ~f=String.equal(name))) {
       None;
     } else {
-      ctx |> Option.map(Ctx.lookup_alias(_, name)) |> Option.join;
+      ctx |> Option.map(~f=Ctx.lookup_alias(_, name)) |> Option.join;
     };
   switch (term_of(ty), term_of(ty')) {
   | (Parens(t1), _) => diff(~ctx?, ~expanded_aliases, t1, ty')
@@ -1547,21 +1680,22 @@ let rec diff =
   | (_, Parens(t2)) =>
     let inner = diff(~ctx?, ~expanded_aliases, ty, t2);
     let wrapped_replaced =
-      IdTagged.ids(t2) |> List.exists(id => List.mem(id, inner));
+      IdTagged.ids(t2)
+      |> List.exists(~f=id => List.mem(inner, id, ~equal=Id.equal));
     wrapped_replaced ? IdTagged.ids(ty') @ inner : inner;
   /* Runtime knowing less than statics is not something runtime supplied:
      `?` on the right is unmarked whatever stands on the left. */
   | (_, Unknown(_)) => []
   | (Unknown(_), _) => get_ids()
-  | (Atom(c1), Atom(c2)) when c1 == c2 => []
+  | (Atom(c1), Atom(c2)) when Atom.equal_cls(c1, c2) => []
   | (Atom(_), _) => get_ids()
-  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when d1 == d2 => []
+  | (DrvQuoteTy(d1), DrvQuoteTy(d2)) when DrvSort.equal(d1, d2) => []
   | (DrvQuoteTy(_), _) => get_ids()
-  | (Label(l1), Label(l2)) when l1 == l2 => []
+  | (Label(l1), Label(l2)) when String.equal(l1, l2) => []
   | (Label(_), _) => get_ids()
   | (ExplicitNonlabel, ExplicitNonlabel) => []
   | (ExplicitNonlabel, _) => get_ids()
-  | (Var(v1), Var(v2)) when v1 == v2 => []
+  | (Var(v1), Var(v2)) when String.equal(v1, v2) => []
   | (Var(name), _) =>
     switch (expand(name)) {
     | Some(expanded) =>
@@ -1579,13 +1713,14 @@ let rec diff =
   | (_, Var(name)) =>
     switch (expand(name)) {
     | Some(expanded) =>
-      diff(
-        ~ctx?,
-        ~expanded_aliases=[name, ...expanded_aliases],
-        ty,
-        expanded,
+      List.is_empty(
+        diff(
+          ~ctx?,
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ty,
+          expanded,
+        ),
       )
-      == []
         ? [] : get_ids()
     | None => get_ids()
     }
@@ -1602,7 +1737,7 @@ let rec diff =
     diff(~ctx?, t1a, t2a) @ diff(~ctx?, t1b, t2b)
   | (Arrow(_), _) => get_ids()
   | (Prod(tys1), Prod(tys2)) when List.length(tys1) == List.length(tys2) =>
-    List.map2(diff(~ctx?), tys1, tys2) |> List.concat
+    List.map2_exn(tys1, tys2, ~f=diff(~ctx?)) |> List.concat
   | (Prod(_), _) => get_ids()
   | (TupLabel(l1, t1), TupLabel(l2, t2)) =>
     diff(~ctx?, l1, l2) @ diff(~ctx?, t1, t2)
@@ -1622,31 +1757,32 @@ let rec diff =
         sm1,
         sm2,
       );
-    if (left != []) {
+    if (!List.is_empty(left)) {
       /* A constructor missing on the right makes the whole Sum different. */
       get_ids();
     } else {
       let matched_ids =
         List.concat_map(
-          ((v1, v2)) =>
-            switch (v1, v2) {
-            | (
-                ConstructorMap.Variant(_, _, Some(t1)),
-                ConstructorMap.Variant(_, _, Some(t2)),
-              ) =>
-              diff(~ctx?, t1, t2)
-            | (
-                ConstructorMap.Variant(_, _, None),
-                ConstructorMap.Variant(_, _, None),
-              ) =>
-              []
-            | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
-              diff(~ctx?, t1, t2)
-            | (_, v2) => variant_all_ids(v2)
-            },
+          ~f=
+            ((v1, v2)) =>
+              switch (v1, v2) {
+              | (
+                  ConstructorMap.Variant(_, _, Some(t1)),
+                  ConstructorMap.Variant(_, _, Some(t2)),
+                ) =>
+                diff(~ctx?, t1, t2)
+              | (
+                  ConstructorMap.Variant(_, _, None),
+                  ConstructorMap.Variant(_, _, None),
+                ) =>
+                []
+              | (ConstructorMap.BadEntry(t1), ConstructorMap.BadEntry(t2)) =>
+                diff(~ctx?, t1, t2)
+              | (_, v2) => variant_all_ids(v2)
+              },
           inter,
         );
-      let right_ids = List.concat_map(variant_all_ids, right);
+      let right_ids = List.concat_map(~f=variant_all_ids, right);
       matched_ids @ right_ids;
     };
   | (Sum(_), _) => get_ids()
