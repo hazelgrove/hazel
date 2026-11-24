@@ -192,7 +192,7 @@ module F = (Stepper: STEPPER) => {
             scrut_ty,
             elab_pattern,
           )
-          |> List.filter_map(h =>
+          |> List.filter_map(~f=h =>
                ProofHacks.replace_exp(
                  info_map,
                  elab_scrut,
@@ -205,10 +205,11 @@ module F = (Stepper: STEPPER) => {
              );
         let (sem_ctx, ihs) =
           List.fold_left(
-            ((acc, ihs), h) =>
-              SemanticCtx.add_hypothesis(acc, "ih", h)
-              |> PairUtil.map_snd(x => [(x, h), ...ihs]),
-            (sem_ctx, []),
+            ~f=
+              ((acc, ihs), h) =>
+                SemanticCtx.add_hypothesis(acc, "ih", h)
+                |> PairUtil.map_snd(x => [(x, h), ...ihs]),
+            ~init=(sem_ctx, []),
             inductive_hypotheses,
           );
 
@@ -358,28 +359,29 @@ module F = (Stepper: STEPPER) => {
         WebUtil.div_c(
           "induction-case-hypotheses",
           List.filter_map(
-            fun
-            | (Binding.{name: _, id: _}, exp) => {
-                let rule = ProofRule.exp_to_rule(exp);
-                let conclusion = ProofRule.conclusion_exp(rule);
-                let code =
-                  CodeViewable.view_any(
-                    ~globals,
-                    ~settings=
-                      Haz3lcore.ExpToSegment.Settings.of_core(
-                        ~inline=true,
-                        ~fold_fn_bodies=`Text,
-                        globals.settings.core,
-                      ),
-                    Exp(conclusion),
+            ~f=
+              fun
+              | (Binding.{name: _, id: _}, exp) => {
+                  let rule = ProofRule.exp_to_rule(exp);
+                  let conclusion = ProofRule.conclusion_exp(rule);
+                  let code =
+                    CodeViewable.view_any(
+                      ~globals,
+                      ~settings=
+                        Haz3lcore.ExpToSegment.Settings.of_core(
+                          ~inline=true,
+                          ~fold_fn_bodies=`Text,
+                          globals.settings.core,
+                        ),
+                      Exp(conclusion),
+                    );
+                  Some(
+                    WebUtil.div_c(
+                      "induction-case-hypothesis",
+                      [WebUtil.Node.text("assume "), code],
+                    ),
                   );
-                Some(
-                  WebUtil.div_c(
-                    "induction-case-hypothesis",
-                    [WebUtil.Node.text("assume "), code],
-                  ),
-                );
-              },
+                },
             model.hypotheses
             |> Calc.get_saved_exc(~print="hypotheses not calculated"),
           ),
