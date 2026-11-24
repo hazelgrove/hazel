@@ -809,8 +809,9 @@ and begin_latest_batch = model =>
       model,
       request_id,
       List.map(
-        ((key, why)) =>
-          (key, Error(Language.ProgramResult.UnknownException(why))),
+        ~f=
+          ((key, why)) =>
+            (key, Error(Language.ProgramResult.UnknownException(why))),
         refused,
       ),
       batch,
@@ -911,7 +912,8 @@ let resolve_resident =
     (~key: key, r: Posted.resident)
     : result((Language.Exp.t, Language.EvalInfo.t), string) =>
   switch (resident_slot^) {
-  | Some((k, _, rp)) when k == key && rp.generation != r.generation =>
+  | Some((k, _, rp))
+      when String.equal(k, key) && rp.generation != r.generation =>
     Error(
       Printf.sprintf(
         "resident generation mismatch: have %d, want %d",
@@ -919,7 +921,7 @@ let resolve_resident =
         r.generation,
       ),
     )
-  | Some((k, settings, rp)) when k == key =>
+  | Some((k, settings, rp)) when String.equal(k, key) =>
     switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
     | None => Error("resident elaboration gap")
     | Some(expr) =>
@@ -963,7 +965,7 @@ let handle_sync =
     | Full(root, settings, seg) =>
       let prev =
         switch (resident) {
-        | Some((k, _, rp)) when k == sync.key => Some(rp)
+        | Some((k, _, rp)) when String.equal(k, sync.key) => Some(rp)
         | _ => None
         };
       let rp =
@@ -981,7 +983,7 @@ let handle_sync =
       );
     | Items(changed, roster) =>
       switch (resident) {
-      | Some((k, settings, rp)) when k == sync.key =>
+      | Some((k, settings, rp)) when String.equal(k, sync.key) =>
         switch (
           Haz3lcore.ResidentProgram.sync_items(
             ~settings,
@@ -1048,29 +1050,32 @@ let receive = (posted: Posted.t): received => {
     posted.pieces,
   );
   let layouts =
-    List.filter_map(~f=
-      ((_, v: Posted.value)) =>
-        switch (v.program) {
-        | Pieces(layout) => Some(layout)
-        | Resident(_) => None
-        },
+    List.filter_map(
+      ~f=
+        ((_, v: Posted.value)) =>
+          switch (v.program) {
+          | Pieces(layout) => Some(layout)
+          | Resident(_) => None
+          },
       posted.batch,
     );
   let next = Stdlib.Hashtbl.create(Stdlib.Hashtbl.length(held) + 16);
   List.iter(
-    layout =>
-      List.iter(~f=
-        (s: EvalPieces.slot) =>
-          switch (
-            Stdlib.Hashtbl.find_opt(fresh, s.hash),
-            Stdlib.Hashtbl.find_opt(held, s.hash),
-          ) {
-          | (Some(c), _)
-          | (None, Some(c)) => Stdlib.Hashtbl.replace(next, s.hash, c)
-          | (None, None) => ()
-          },
-        EvalPieces.slots(layout),
-      ),
+    ~f=
+      layout =>
+        List.iter(
+          ~f=
+            (s: EvalPieces.slot) =>
+              switch (
+                Stdlib.Hashtbl.find_opt(fresh, s.hash),
+                Stdlib.Hashtbl.find_opt(held, s.hash),
+              ) {
+              | (Some(c), _)
+              | (None, Some(c)) => Stdlib.Hashtbl.replace(next, s.hash, c)
+              | (None, None) => ()
+              },
+          EvalPieces.slots(layout),
+        ),
     layouts,
   );
   Stdlib.Hashtbl.reset(held);
@@ -1087,12 +1092,12 @@ let receive = (posted: Posted.t): received => {
       switch (resolve_resident(~key, r)) {
       | Ok((expr, eval_info_map)) => Program(expr, eval_info_map)
       | Error(why) => Refused(why)
-      | exception exn => Refused(Printexc.to_string(exn))
+      | exception exn => Refused(Stdlib.Printexc.to_string(exn))
       }
     };
   switch (
     List.map(
-      ((key, v: Posted.value)) => (key, v, compose(key, v)),
+      ~f=((key, v: Posted.value)) => (key, v, compose(key, v)),
       posted.batch,
     )
   ) {
@@ -1100,12 +1105,13 @@ let receive = (posted: Posted.t): received => {
   | composed =>
     let missing =
       List.concat_map(
-        ((_, _, c)) =>
-          switch (c) {
-          | Lacks(keys) => keys
-          | Program(_)
-          | Refused(_) => []
-          },
+        ~f=
+          ((_, _, c)) =>
+            switch (c) {
+            | Lacks(keys) => keys
+            | Program(_)
+            | Refused(_) => []
+            },
         composed,
       );
     !List.is_empty(missing)
@@ -1114,31 +1120,33 @@ let receive = (posted: Posted.t): received => {
           request_id: posted.request_id,
           batch:
             List.filter_map(
-              ((key, v: Posted.value, c)) =>
-                switch (c) {
-                | Program(expr, eval_info_map) =>
-                  Some((
-                    key,
-                    Evaluation.{
-                      expr,
-                      eval_info_map,
-                      prev: v.prev,
-                      stream: v.stream,
-                    },
-                  ))
-                | Lacks(_)
-                | Refused(_) => None
-                },
+              ~f=
+                ((key, v: Posted.value, c)) =>
+                  switch (c) {
+                  | Program(expr, eval_info_map) =>
+                    Some((
+                      key,
+                      Evaluation.{
+                        expr,
+                        eval_info_map,
+                        prev: v.prev,
+                        stream: v.stream,
+                      },
+                    ))
+                  | Lacks(_)
+                  | Refused(_) => None
+                  },
               composed,
             ),
           refused:
-            List.filter_map(~f=
-              ((key, _, c)) =>
-                switch (c) {
-                | Refused(why) => Some((key, why))
-                | Program(_)
-                | Lacks(_) => None
-                },
+            List.filter_map(
+              ~f=
+                ((key, _, c)) =>
+                  switch (c) {
+                  | Refused(why) => Some((key, why))
+                  | Program(_)
+                  | Lacks(_) => None
+                  },
               composed,
             ),
         });

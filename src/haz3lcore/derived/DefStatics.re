@@ -2410,12 +2410,12 @@ let chain_root = (~prev: option(t), e: Exp.t) => {
 let prof: ref(bool) = ref(false);
 let ptime = (label: string, f: unit => 'a): 'a =>
   if (prof^) {
-    let t0 = Sys.time();
+    let t0 = Stdlib.Sys.time();
     let x = f();
     Printf.printf(
       "[staticsProf]   calc.%-18s %6.1fms\n",
       label,
-      (Sys.time() -. t0) *. 1000.,
+      (Stdlib.Sys.time() -. t0) *. 1000.,
     );
     x;
   } else {

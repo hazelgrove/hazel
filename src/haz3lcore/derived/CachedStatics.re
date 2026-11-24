@@ -346,13 +346,13 @@ let prof: ref(bool) = ref(false);
 let ptick: ref(int) = ref(0);
 let ptime = (label: string, f: unit => 'a): 'a =>
   if (prof^) {
-    let t0 = Sys.time();
+    let t0 = Stdlib.Sys.time();
     let x = f();
     Printf.printf(
       "[staticsProf %d] %-24s %6.1fms\n",
       ptick^,
       label,
-      (Sys.time() -. t0) *. 1000.,
+      (Stdlib.Sys.time() -. t0) *. 1000.,
     );
     x;
   } else {

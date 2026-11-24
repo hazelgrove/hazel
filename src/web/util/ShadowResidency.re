@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* W2a SHADOW MODE (plans/w2-worker-residency.md §4.6): main remains
  * authoritative and computes its own statics; each master-statics
@@ -142,7 +143,7 @@ let item_key = (slice: Haz3lcore.Segment.t): option(Id.t) =>
 
 let full_roster = (slices: list(Haz3lcore.Segment.t)) =>
   slices
-  |> List.filter_map(slice =>
+  |> List.filter_map(~f=slice =>
        switch (item_key(slice)) {
        | None => None
        | Some(id) => Some((id, Haz3lcore.ResidentProgram.fingerprint(slice)))
@@ -173,18 +174,21 @@ let graft_summary =
   if (msg.generation == generation^) {
     /* the shipped document's cache entry (DefStatics keeps no
        "last calculated" slot): what its next calc_auto reuses */
-    switch (Option.bind(last_ds^, ds => Haz3lcore.DefStatics.cached(ds.term))) {
+    switch (
+      Option.bind(last_ds^, ~f=ds => Haz3lcore.DefStatics.cached(ds.term))
+    ) {
     | None => ()
     | Some(t) =>
       let synthetic = ids =>
-        List.filter(id => !Id.Set.mem(id, last_piece_ids^), ids);
+        List.filter(~f=id => !Id.Set.mem(id, last_piece_ids^), ids);
       let items =
         t.items
-        |> List.map((it: Haz3lcore.DefStatics.item) =>
+        |> List.map(~f=(it: Haz3lcore.DefStatics.item) =>
              switch (
-               List.find_opt(
-                 (si: Haz3lcore.ResidentProgram.Summary.item_summary) =>
-                   Id.equal(si.s_id, it.d_id),
+               List.find(
+                 ~f=
+                   (si: Haz3lcore.ResidentProgram.Summary.item_summary) =>
+                     Id.equal(si.s_id, it.d_id),
                  theirs.s_items,
                )
              ) {
@@ -255,10 +259,11 @@ let on_summary = (msg: WorkerServer.ServerMessage.summary_msg): unit =>
     graft_summary(msg, theirs);
   | SyncOk(theirs) =>
     recovering := false;
-    switch (List.assoc_opt(msg.generation, pending^)) {
+    switch (List.Assoc.find(pending^, msg.generation, ~equal=Poly.equal)) {
     | None => () /* superseded generation */
     | Some(ours) =>
-      pending := List.remove_assoc(msg.generation, pending^);
+      pending :=
+        List.Assoc.remove(pending^, msg.generation, ~equal=Poly.equal);
       if (Haz3lcore.ResidentProgram.Summary.equal(ours, theirs)) {
         incr(oks);
         if (oks^ == 1) {
@@ -277,15 +282,15 @@ let on_summary = (msg: WorkerServer.ServerMessage.summary_msg): unit =>
           ),
         );
         if (ni == nj) {
-          List.combine(ours.s_items, theirs.s_items)
+          List.zip_exn(ours.s_items, theirs.s_items)
           |> List.iteri(
-               (
-                 i,
-                 (
-                   o: Haz3lcore.ResidentProgram.Summary.item_summary,
-                   t: Haz3lcore.ResidentProgram.Summary.item_summary,
-                 ),
-               ) =>
+               ~f=(
+                    i,
+                    (
+                      o: Haz3lcore.ResidentProgram.Summary.item_summary,
+                      t: Haz3lcore.ResidentProgram.Summary.item_summary,
+                    ),
+                  ) =>
                if (o != t) {
                  log(
                    Printf.sprintf(
@@ -314,24 +319,24 @@ let diff_items = (m: mirror, slices: list(Haz3lcore.Segment.t)) =>
     None;
   } else {
     let (changed, roster) =
-      List.fold_left2(
-        ((changed, roster), (old_slice, (old_id, old_print)), nu) =>
-          if (Haz3lcore.Segment.ptr_eq(old_slice, nu)) {
-            (changed, [(old_id, old_print), ...roster]);
-          } else {
-            switch (item_key(nu)) {
-            | None => (changed, [(old_id, old_print), ...roster])
-            | Some(new_id) =>
-              let print = Haz3lcore.ResidentProgram.fingerprint(nu);
-              (
-                [(old_id, nu, print), ...changed],
-                [(new_id, print), ...roster],
-              );
-            };
-          },
-        ([], []),
-        List.combine(m.m_slices, m.m_roster),
+      List.fold2_exn(
+        List.zip_exn(m.m_slices, m.m_roster),
         slices,
+        ~init=([], []),
+        ~f=((changed, roster), (old_slice, (old_id, old_print)), nu) =>
+        if (Haz3lcore.Segment.ptr_eq(old_slice, nu)) {
+          (changed, [(old_id, old_print), ...roster]);
+        } else {
+          switch (item_key(nu)) {
+          | None => (changed, [(old_id, old_print), ...roster])
+          | Some(new_id) =>
+            let print = Haz3lcore.ResidentProgram.fingerprint(nu);
+            (
+              [(old_id, nu, print), ...changed],
+              [(new_id, print), ...roster],
+            );
+          };
+        }
       );
     Some((List.rev(changed), List.rev(roster)));
   };
@@ -347,11 +352,12 @@ let on_master_statics =
     : unit =>
   if (enabled^) {
     switch (last_ds^) {
-    | Some(prev) when prev === ds => ()
+    | Some(prev) when phys_equal(prev, ds) => ()
     | _ =>
       last_ds := Some(ds);
       let probes =
-        Id.Map.bindings(ds.Haz3lcore.DefStatics.probe_ids) |> List.map(fst);
+        Id.Map.bindings(ds.Haz3lcore.DefStatics.probe_ids)
+        |> List.map(~f=fst);
       let slices = Haz3lcore.MakeTerm.Incr.slices(~root, seg);
       /* recovery inputs: every authoritative pass refreshes them,
          shipped or not */

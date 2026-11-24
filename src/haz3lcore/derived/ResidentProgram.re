@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* W2a worker-resident program state (plans/w2-worker-residency.md).
  *
@@ -52,11 +53,11 @@ let item_id = (seg: Segment.t): option(Id.t) =>
  * edits can keep piece ids stable, and text is the sync contract the
  * load path already round-trips. */
 let fingerprint = (seg: Segment.t): int =>
-  Hashtbl.hash(Printer.of_segment(~holes="?", seg));
+  Stdlib.Hashtbl.hash(Printer.of_segment(~holes="?", seg));
 
 let items_of_segment = (~root: Sort.t, seg: Segment.t): list(item) =>
   MakeTerm.Incr.slices(~root, seg)
-  |> List.filter_map(slice =>
+  |> List.filter_map(~f=slice =>
        switch (item_id(slice)) {
        | None => None
        | Some(id) =>
@@ -69,7 +70,7 @@ let items_of_segment = (~root: Sort.t, seg: Segment.t): list(item) =>
      );
 
 let segment_of_items = (items: list(item)): Segment.t =>
-  List.concat_map(it => it.i_seg, items);
+  List.concat_map(~f=it => it.i_seg, items);
 
 let derive =
     (~settings, ~root, ~probe_ids, ~prev: option(DefStatics.t), items) => {
@@ -79,7 +80,9 @@ let derive =
 };
 
 let probe_map = (probe_ids: list(Id.t)): Id.Map.t(unit) =>
-  List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, probe_ids);
+  List.fold(probe_ids, ~init=Id.Map.empty, ~f=(m, id) =>
+    Id.Map.add(id, (), m)
+  );
 
 let sync_full =
     (
@@ -126,17 +129,17 @@ let sync_items =
   let probe_ids = probe_map(probe_ids);
   let missing =
     changed
-    |> List.find_opt(((id, _, _)) =>
-         !List.exists(it => Id.equal(it.i_id, id), prev.items)
+    |> List.find(~f=((id, _, _)) =>
+         !List.exists(~f=it => Id.equal(it.i_id, id), prev.items)
        );
   switch (missing) {
   | Some((id, _, _)) => Error(UnknownItem(id))
   | None =>
     let items =
       prev.items
-      |> List.map(it =>
+      |> List.map(~f=it =>
            switch (
-             List.find_opt(((id, _, _)) => Id.equal(id, it.i_id), changed)
+             List.find(~f=((id, _, _)) => Id.equal(id, it.i_id), changed)
            ) {
            | Some((_, seg, print)) =>
              /* the replacement slice may lead with a fresh piece:
@@ -152,10 +155,10 @@ let sync_items =
            | None => it
            }
          );
-    let ours = List.map(it => (it.i_id, it.i_print), items);
+    let ours = List.map(~f=it => (it.i_id, it.i_print), items);
     if (List.length(ours) == List.length(roster)
-        && List.for_all2(
-             ((a, ha), (b, hb)) => Id.equal(a, b) && ha == hb,
+        && List.for_all2_exn(
+             ~f=((a, ha), (b, hb)) => Id.equal(a, b) && ha == hb,
              ours,
              roster,
            )) {
@@ -204,20 +207,20 @@ module Summary = {
     s_items: list(item_summary),
   };
 
-  let sorted = ids => List.sort_uniq(Id.compare, ids);
+  let sorted = ids => List.dedup_and_sort(~compare=Id.compare, ids);
 
   let of_def_statics =
       (~generation: int, ~piece_ids: Id.Set.t, ds: DefStatics.t): t => {
     let split = ids => {
       let (anchored, synth) =
-        List.partition(id => Id.Set.mem(id, piece_ids), ids);
+        List.partition_tf(~f=id => Id.Set.mem(id, piece_ids), ids);
       (sorted(anchored), List.length(synth));
     };
     {
       s_generation: generation,
       s_items:
         ds.items
-        |> List.map((it: DefStatics.item) => {
+        |> List.map(~f=(it: DefStatics.item) => {
              let (errs, synth_errs) = split(it.d_error_ids);
              let (warns, synth_warns) = split(it.d_warning_ids);
              {

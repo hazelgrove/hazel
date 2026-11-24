@@ -7,6 +7,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let settings = CoreSettings.on;
 
@@ -28,7 +29,8 @@ let parse = src =>
   };
 
 let errs = (ds: DefStatics.t) =>
-  ds.items |> List.map((it: DefStatics.item) => List.length(it.d_error_ids));
+  ds.items
+  |> List.map(~f=(it: DefStatics.item) => List.length(it.d_error_ids));
 
 let tests = [
   (
@@ -40,7 +42,12 @@ let tests = [
         () => {
           let seg = parse(src);
           let t0 = DefStatics.calc(~settings, MakeTerm.go(seg).term);
-          check(int, "clean baseline", 0, List.fold_left((+), 0, errs(t0)));
+          check(
+            int,
+            "clean baseline",
+            0,
+            List.fold(errs(t0), ~init=0, ~f=(+)),
+          );
           /* production-shaped edit: splice ONLY the renamed item's fresh
              slice; downstream items keep their piece identities */
           let spliced =
@@ -72,7 +79,7 @@ let tests = [
             bool,
             "full propagation sees the new unbound errors",
             true,
-            List.fold_left((+), 0, errs(full)) > 0,
+            List.fold(errs(full), ~init=0, ~f=(+)) > 0,
           );
           /* a clamped chain CANNOT be caught up by a later incremental
              calc — its recorded exports already match, so nothing seeds

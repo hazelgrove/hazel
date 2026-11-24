@@ -8,6 +8,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let settings = CoreSettings.on;
 
@@ -86,9 +87,9 @@ let delta_case = (name, root, src, src') =>
       let seg' = parse(~root, src');
       let items' = ResidentProgram.items_of_segment(~root, seg');
       let changed =
-        List.combine(rp.items, items')
+        List.zip_exn(rp.items, items')
         |> List.filter_map(
-             ((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
+             ~f=((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              old.i_print == nu.i_print
                ? None : Some((old.i_id, nu.i_seg, nu.i_print))
            );
@@ -99,8 +100,9 @@ let delta_case = (name, root, src, src') =>
         List.length(changed),
       );
       let roster =
-        List.combine(rp.items, items')
-        |> List.map(((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
+        List.zip_exn(rp.items, items')
+        |> List.map(
+             ~f=((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              old.i_print == nu.i_print
                ? (old.i_id, old.i_print) : (nu.i_id, nu.i_print)
            );
@@ -148,7 +150,7 @@ let mismatch_case =
         );
       let roster =
         List.map(
-          (it: ResidentProgram.item) => (it.i_id, it.i_print + 1),
+          ~f=(it: ResidentProgram.item) => (it.i_id, it.i_print + 1),
           rp.items,
         );
       switch (
@@ -176,7 +178,7 @@ let corpus_case =
         switch (
           Option.bind(
             CorpusUtil.mega_src("mega-1k.hz"),
-            CorpusUtil.parse(~root=Sort.Exp),
+            ~f=CorpusUtil.parse(~root=Sort.Exp),
           )
         ) {
         | Some(seg) => seg
@@ -207,7 +209,7 @@ let corpus_mod_case =
         switch (
           Option.bind(
             CorpusUtil.mega_src("mega-mod-1k.hz"),
-            CorpusUtil.parse(~root=Sort.Mod),
+            ~f=CorpusUtil.parse(~root=Sort.Mod),
           )
         ) {
         | Some(seg) => seg
@@ -259,13 +261,14 @@ let corpus_mod_delta_case =
           parse(~root=Sort.Mod, src),
         );
       let changed =
-        List.combine(rp.items, items')
-        |> List.map(((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
+        List.zip_exn(rp.items, items')
+        |> List.map(
+             ~f=((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
              (old.i_id, nu.i_seg, nu.i_print)
            );
       let roster =
         List.map(
-          (it: ResidentProgram.item) => (it.i_id, it.i_print),
+          ~f=(it: ResidentProgram.item) => (it.i_id, it.i_print),
           items',
         );
       switch (
@@ -288,15 +291,15 @@ let corpus_mod_delta_case =
         let actual = ResidentProgram.summarize(rp');
         if (!ResidentProgram.Summary.equal(expected, actual)) {
           /* print the differing items for diagnosis */
-          List.combine(expected.s_items, actual.s_items)
+          List.zip_exn(expected.s_items, actual.s_items)
           |> List.iteri(
-               (
-                 i,
-                 (
-                   e: ResidentProgram.Summary.item_summary,
-                   a: ResidentProgram.Summary.item_summary,
-                 ),
-               ) =>
+               ~f=(
+                    i,
+                    (
+                      e: ResidentProgram.Summary.item_summary,
+                      a: ResidentProgram.Summary.item_summary,
+                    ),
+                  ) =>
                if (e != a) {
                  Printf.printf(
                    "item %d: expected errs=%d warns=%d / actual errs=%d warns=%d\n",

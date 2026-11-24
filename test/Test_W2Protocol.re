@@ -5,6 +5,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let settings = CoreSettings.on;
 
@@ -45,7 +46,7 @@ let expect_ok = (msg): ResidentProgram.Summary.t =>
 let has_substr = (needle: string, hay: string): bool =>
   switch (Str.search_forward(Str.regexp_string(needle), hay, 0)) {
   | _ => true
-  | exception Not_found => false
+  | exception Stdlib.Not_found => false
   };
 
 let expect_resync = (name, expected_reason, msg) =>
@@ -65,7 +66,7 @@ let tests = [
           let seg = parse(src);
           let (resident, msg) =
             WorkerServer.handle_sync(None, full_sync(seg));
-          check(bool, "slot filled", true, resident != None);
+          check(bool, "slot filled", true, Option.is_some(resident));
           let expected =
             ResidentProgram.Summary.of_def_statics(
               ~generation=1,
@@ -95,7 +96,7 @@ let tests = [
                 payload: Items([], []),
               },
             );
-          check(bool, "slot untouched", true, resident == None);
+          check(bool, "slot untouched", true, Option.is_none(resident));
           expect_resync("no resident", "no-resident-program", msg);
         },
       ),
@@ -128,17 +129,17 @@ let tests = [
           let items' =
             ResidentProgram.items_of_segment(~root=Exp, parse(src'));
           let changed =
-            List.combine(rp.items, items')
+            List.zip_exn(rp.items, items')
             |> List.filter_map(
-                 ((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
+                 ~f=((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
                  old.i_print == nu.i_print
                    ? None : Some((old.i_id, nu.i_seg, nu.i_print))
                );
           check(int, "one change", 1, List.length(changed));
           let roster =
-            List.combine(rp.items, items')
+            List.zip_exn(rp.items, items')
             |> List.map(
-                 ((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
+                 ~f=((old: ResidentProgram.item, nu: ResidentProgram.item)) =>
                  old.i_print == nu.i_print
                    ? (old.i_id, old.i_print) : (nu.i_id, nu.i_print)
                );
@@ -279,8 +280,8 @@ let tests = [
           let (resident, _) =
             WorkerServer.handle_sync(None, full_sync(parse(src)));
           WorkerServer.resident_slot := resident;
-          Hashtbl.reset(WorkerServer.held);
-          Hashtbl.reset(Web.WorkerClient.held);
+          Stdlib.Hashtbl.reset(WorkerServer.held);
+          Stdlib.Hashtbl.reset(Web.WorkerClient.held);
           let receive = generation => {
             let request: WorkerServer.Request.t = {
               request_id: generation,
@@ -391,7 +392,9 @@ let tests = [
           );
           let has_fake = (t: DefStatics.t) =>
             List.exists(
-              (it: DefStatics.item) => List.mem(fake_err, it.d_error_ids),
+              ~f=
+                (it: DefStatics.item) =>
+                  List.mem(it.d_error_ids, fake_err, ~equal=Poly.equal),
               t.items,
             );
           switch (DefStatics.cached(whole)) {

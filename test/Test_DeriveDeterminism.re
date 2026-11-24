@@ -8,6 +8,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let settings = CoreSettings.on;
 
@@ -51,25 +52,28 @@ let slide_case = ((name, root, p: PersistentZipper.t)) =>
              on only one side, with their Info classes */
           let imap_a = ds_a.DefStatics.merged;
           let imap_b = ds_b.DefStatics.merged;
-          List.combine(a.s_items, b.s_items)
+          List.zip_exn(a.s_items, b.s_items)
           |> List.iteri(
-               (
-                 i,
-                 (
-                   x: ResidentProgram.Summary.item_summary,
-                   y: ResidentProgram.Summary.item_summary,
-                 ),
-               ) =>
+               ~f=(
+                    i,
+                    (
+                      x: ResidentProgram.Summary.item_summary,
+                      y: ResidentProgram.Summary.item_summary,
+                    ),
+                  ) =>
                if (x != y) {
                  let only = (l1, l2) =>
-                   List.filter(id => !List.mem(id, l2), l1);
+                   List.filter(
+                     ~f=id => !List.mem(l2, id, ~equal=Poly.equal),
+                     l1,
+                   );
                  let show = (imap, id) =>
                    Id.to_string(id)
                    ++ "("
                    ++ (
                      switch (Id.Map.find_opt(id, imap)) {
                      | Some(info) =>
-                       Info.show(info) |> String.sub(_, 0, 120)
+                       Info.show(info) |> String.sub(_, ~pos=0, ~len=120)
                      | None => "?"
                      }
                    )
@@ -78,12 +82,18 @@ let slide_case = ((name, root, p: PersistentZipper.t)) =>
                    "ITEM %d errs-only-a: %s | errs-only-b: %s\n",
                    i,
                    String.concat(
-                     ", ",
-                     List.map(show(imap_a), only(x.s_errors, y.s_errors)),
+                     ~sep=", ",
+                     List.map(
+                       ~f=show(imap_a),
+                       only(x.s_errors, y.s_errors),
+                     ),
                    ),
                    String.concat(
-                     ", ",
-                     List.map(show(imap_b), only(y.s_errors, x.s_errors)),
+                     ~sep=", ",
+                     List.map(
+                       ~f=show(imap_b),
+                       only(y.s_errors, x.s_errors),
+                     ),
                    ),
                  );
                }
@@ -103,7 +113,7 @@ let tests = [
   (
     "DeriveDeterminism",
     Web.Init.documentation_slides
-    |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))
-    |> List.map(slide_case),
+    |> List.filter(~f=((name, _, _)) => !CorpusUtil.mega_scale(name))
+    |> List.map(~f=slide_case),
   ),
 ];

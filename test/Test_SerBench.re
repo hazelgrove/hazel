@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* TEMPORARY measurement harness (not a gate): where does the 2.5s
    whole-zipper sexp autosave cost live, and what would PER-ITEM
@@ -60,16 +61,17 @@ let bench_zipper = (name: string, z: Zipper.t) => {
   let n = List.length(seg);
   Printf.printf("  top-level pieces: %d\n", n);
   List.iter(
-    k =>
-      if (k <= n) {
-        let slice = Util.ListUtil.sublist((0, k), seg);
-        let label = Printf.sprintf("segment sexp+string, %d pieces", k);
-        let s =
-          time3(label, () =>
-            Sexplib.Sexp.to_string(Segment.sexp_of_t(slice))
-          );
-        Printf.printf("    (%d sexp chars)\n", String.length(s));
-      },
+    ~f=
+      k =>
+        if (k <= n) {
+          let slice = Util.ListUtil.sublist((0, k), seg);
+          let label = Printf.sprintf("segment sexp+string, %d pieces", k);
+          let s =
+            time3(label, () =>
+              Sexplib.Sexp.to_string(Segment.sexp_of_t(slice))
+            );
+          Printf.printf("    (%d sexp chars)\n", String.length(s));
+        },
     [10, 50, 200],
   );
   /* whole-segment sexp (zipper minus caret bookkeeping) */
