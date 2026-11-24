@@ -815,7 +815,9 @@ let mold_of = (f: t, sort: Sort.t): Mold.t =>
           };
         let want_drv = is_drv(sort);
         switch (
-          List.find_opt((d: def) => is_drv(d.mold.out) == want_drv, defs)
+          List.find(defs, ~f=(d: def) =>
+            Bool.equal(is_drv(d.mold.out), want_drv)
+          )
         ) {
         | Some(d) => d.mold
         | None => first.mold

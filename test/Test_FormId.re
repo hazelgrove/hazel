@@ -233,14 +233,13 @@ let check_classify = (sort: Sort.t, label: Label.t): unit => {
     /* A multi-token family with rows keeps one of its OWN row molds
        rather than the childless Any fallback (Form.mold_of), so that a
        tile with children never wears a mold without inner sorts. */
-    | (Compound(fam), [_, _, ..._]) when Form.defs_of(fam) != [] =>
+    | (Compound(fam), [_, _, ..._]) when !List.is_empty(Form.defs_of(fam)) =>
       check(
         bool,
         "fallback mold is a row of the family: " ++ name,
         true,
-        List.exists(
-          (def: Form.def) => Mold.equal(def.mold, mold),
-          Form.defs_of(fam),
+        List.exists(Form.defs_of(fam), ~f=(def: Form.def) =>
+          Mold.equal(def.mold, mold)
         ),
       );
       check(
@@ -474,9 +473,8 @@ let tests = (
             bool,
             name ++ ": mold is a row of the family",
             true,
-            List.exists(
-              (def: Form.def) => Mold.equal(def.mold, mold),
-              Form.defs_of(fam),
+            List.exists(Form.defs_of(fam), ~f=(def: Form.def) =>
+              Mold.equal(def.mold, mold)
             ),
           );
         };
