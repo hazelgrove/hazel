@@ -9,7 +9,7 @@ open Language;
 let max_columns = 28;
 
 let is_hole = (hole: Id.t, ty: Typ.t): bool =>
-  Typ.rep_id(ty) == hole
+  Id.equal(Typ.rep_id(ty), hole)
   && (
     switch (Typ.term_of(ty)) {
     | Unknown(Hole(EmptyHole)) => true
@@ -82,7 +82,8 @@ let merge_ellipses = (s: string): string => {
   let rec go = (i, acc) =>
     if (i >= String.length(s)) {
       acc;
-    } else if (i + n <= String.length(s) && String.sub(s, i, n) == run) {
+    } else if (i + n <= String.length(s)
+               && String.equal(String.sub(s, ~pos=i, ~len=n), run)) {
       /* drop the `…, ` and look again at the second `…` */
       go(
         i + n - String.length(Abbreviate.flat_ellipses),
@@ -146,7 +147,11 @@ let rec shown = (budget: int, ty: Typ.t): string => {
       };
     let arg =
       shown(budget - columns(ret) - 4 - (parens ? 2 : 0), arg)
-      |> (s => parens && s != Abbreviate.flat_ellipses ? "(" ++ s ++ ")" : s);
+      |> (
+        s =>
+          parens && !String.equal(s, Abbreviate.flat_ellipses)
+            ? "(" ++ s ++ ")" : s
+      );
     arg ++ " -> " ++ ret;
   | _ => abbreviated(budget, ty)
   };

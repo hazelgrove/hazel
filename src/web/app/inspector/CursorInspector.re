@@ -236,7 +236,7 @@ let core_mark_err_view =
     | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
     | InferenceConflict(tys) => [
         text("Inferred conflicting types:"),
-        ...List.map(view_type, tys),
+        ...List.map(~f=view_type, tys),
       ]
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
@@ -820,11 +820,8 @@ let instance_view = (~globals, instance: option(Message.instance)) =>
           @ List.concat(
               ListUtil.join(
                 [text(",")],
-                List.map2(
-                  (a, ty) =>
-                    [code(a), text("="), view_type(~globals, ty)],
-                  names,
-                  args,
+                List.map2_exn(names, args, ~f=(a, ty) =>
+                  [code(a), text("="), view_type(~globals, ty)]
                 ),
               ),
             )

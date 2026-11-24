@@ -219,7 +219,7 @@ let rec matches =
 /* Applying one of implicit polymorphism's hidden type functions is
    elaboration bookkeeping, shown alongside cast steps. */
 let is_implicit_step = (~settings: CoreSettings.Evaluation.t, x: EvalObj.t) =>
-  x.knd == TypFunAp
+  Poly.equal(x.knd, TypFunAp)
   && !settings.show_ascription_steps
   && Id.is_implicit(DHExp.rep_id(x.d_loc));
 

@@ -45,25 +45,24 @@ let hazel_fn_builtin = x => HazelFn(x);
    is wrapped in matching hidden type functions. */
 let type_params = (ty: Typ.t): list(string) =>
   Typ.free_vars(ty)
-  |> List.filter(x => x != "" && Char.lowercase_ascii(x.[0]) == x.[0])
-  |> List.fold_left((acc, x) => List.mem(x, acc) ? acc : acc @ [x], []);
+  |> List.filter(~f=x =>
+       !String.is_empty(x) && Char.equal(Char.lowercase(x.[0]), x.[0])
+     )
+  |> List.fold_left(~init=[], ~f=(acc, x) =>
+       List.mem(acc, x, ~equal=String.equal) ? acc : acc @ [x]
+     );
 
 let generalize_typ = (ty: Typ.t): Typ.t =>
-  List.fold_right(
-    (a, body) => Typ.fresh(Poly(TPat.fresh(Var(a): TPat.term), body)),
-    type_params(ty),
-    ty,
+  List.fold_right(type_params(ty), ~init=ty, ~f=(a, body) =>
+    Typ.fresh(Poly(TPat.fresh(Var(a): TPat.term), body))
   );
 
 let generalize_imp = (~name, ty: Typ.t, imp: Exp.t): Exp.t =>
-  List.fold_right(
-    (a, body) =>
-      IdTagged.mk_internal(
-        [Id.derive_implicit(~salt="builtin-typfun-" ++ a, Id.mk_str(name))],
-        TypFun(TPat.fresh(Var(a): TPat.term), body, None): Exp.term,
-      ),
-    type_params(ty),
-    imp,
+  List.fold_right(type_params(ty), ~init=imp, ~f=(a, body) =>
+    IdTagged.mk_internal(
+      [Id.derive_implicit(~salt="builtin-typfun-" ++ a, Id.mk_str(name))],
+      TypFun(TPat.fresh(Var(a): TPat.term), body, None): Exp.term,
+    )
   );
 
 let ctx_entry_of_builtin: builtin => Ctx.entry =

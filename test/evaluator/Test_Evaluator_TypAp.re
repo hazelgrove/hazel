@@ -83,8 +83,9 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
           "hidden",
           false,
           List.mem(
-            Transition.TypFunAp,
             shown_steps(~show_ascription_steps=false, program),
+            Transition.TypFunAp,
+            ~equal=Poly.equal,
           ),
         );
         check(
@@ -92,8 +93,9 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
           "shown with ascription steps",
           true,
           List.mem(
-            Transition.TypFunAp,
             shown_steps(~show_ascription_steps=true, program),
+            Transition.TypFunAp,
+            ~equal=Poly.equal,
           ),
         );
       },

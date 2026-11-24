@@ -51,7 +51,7 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | InferenceConflict(tys) =>
     prn(
       "Inferred conflicting types: %s",
-      String.concat(", ", List.map(Print.typ, tys)),
+      String.concat(~sep=", ", List.map(tys, ~f=Print.typ)),
     )
   | FreeConstructor(_name) => prn("Constructor is not defined")
   | ExpectationMismatch({ana, syn}) => expectation(ana, syn)

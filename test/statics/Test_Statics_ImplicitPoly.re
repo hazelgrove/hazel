@@ -1,6 +1,7 @@
 open Language;
 open Alcotest;
 open Test_Statics_Prelude;
+open Poly;
 
 module T = FTemp.Typ;
 let a = T.var("a");
@@ -17,17 +18,15 @@ let all_marks = (program: string): list(Mark.t) => {
   let _ =
     Grammar.map_exp_annotation(
       ({ids, _}: IdTagged.IdTag.t) =>
-        List.iter(
-          id =>
-            switch (Statics.Map.lookup(id, s)) {
-            | Some(info) => found := [info, ...found^]
-            | None => ()
-            },
-          ids,
+        List.iter(ids, ~f=id =>
+          switch (Statics.Map.lookup(id, s)) {
+          | Some(info) => found := [info, ...found^]
+          | None => ()
+          }
         ),
       exp,
     );
-  found^ |> List.concat_map(Info.marks_of);
+  found^ |> List.concat_map(~f=Info.marks_of);
 };
 
 let has_conflict = program =>
@@ -41,10 +40,11 @@ let has_conflict = program =>
         "has InferenceConflict",
         true,
         List.exists(
-          fun
-          | Mark.InferenceConflict(_) => true
-          | _ => false,
           marks,
+          ~f=
+            fun
+            | Mark.InferenceConflict(_) => true
+            | _ => false,
         ),
       );
       check(
@@ -52,10 +52,11 @@ let has_conflict = program =>
         "no ExpectationMismatch",
         false,
         List.exists(
-          fun
-          | Mark.ExpectationMismatch(_) => true
-          | _ => false,
           marks,
+          ~f=
+            fun
+            | Mark.ExpectationMismatch(_) => true
+            | _ => false,
         ),
       );
     },

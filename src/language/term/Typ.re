@@ -1031,9 +1031,9 @@ let rec meet =
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
   /* A type hole with an id is a hole somebody can fill (the user, or
      Inference for implicit ones): keep it rather than a nameless copy. */
-  | (Unknown(Hole(EmptyHole)), Unknown(_)) when rep_id(ty1) != Id.invalid =>
+  | (Unknown(Hole(EmptyHole)), Unknown(_)) when !Id.equal(rep_id(ty1), Id.invalid) =>
     Some(ty1)
-  | (Unknown(_), Unknown(Hole(EmptyHole))) when rep_id(ty2) != Id.invalid =>
+  | (Unknown(_), Unknown(Hole(EmptyHole))) when !Id.equal(rep_id(ty2), Id.invalid) =>
     Some(ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)

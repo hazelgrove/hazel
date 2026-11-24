@@ -340,7 +340,7 @@ let of_segment_inner =
   };
 
   let add_grout = (acc: measure_acc, g: Grout.t): measure_acc => {
-    let size = Point.mk(~row=0, ~col=hidden_hole == Some(g.id) ? 0 : 1);
+    let size = Point.mk(~row=0, ~col=Option.equal(Id.equal, hidden_hole, Some(g.id)) ? 0 : 1);
     let (measure, map) = calc_inline(acc.pos, acc.map, size);
     {
       seg: [Piece.Grout(g), ...acc.seg],

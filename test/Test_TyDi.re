@@ -722,8 +722,8 @@ let hidden_hole_test =
         );
       let z =
         TyDiInferred.set_buffer(~settings=CoreSettings.on, statics, z)
-        |> Option.get;
-      let hole = Zipper.hidden_hole(z) |> Option.get;
+        |> Option.value_exn;
+      let hole = Zipper.hidden_hole(z) |> Option.value_exn;
       let measured =
         Measured.of_segment(
           ~hidden_hole=Some(hole),

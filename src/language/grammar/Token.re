@@ -228,7 +228,7 @@ let is_potential_token = t =>
     /* No operator contains a comma, so `:` typed before `,` stays two
        tokens. Molding still treats a saved `:,` as an operator. */
     || is_potential_operator(t)
-    && (t == "," || !String.contains(t, ','))
+    && (String.equal(t, ",") || !String.contains(t, ','))
     || is_string(t)
     || is_comment(t)
     || is_quoted_label(t);
