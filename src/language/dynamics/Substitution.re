@@ -39,7 +39,7 @@ let rec names_fn = (v: Exp.t): bool =>
   | Closure(_, v)
   | TupLabel(_, v)
   | Parens(v) => names_fn(v)
-  | Tuple(vs) => List.exists(names_fn, vs)
+  | Tuple(vs) => List.exists(vs, ~f=names_fn)
   | _ => false
   };
 

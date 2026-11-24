@@ -42,7 +42,7 @@ let count_exps = (p: Exp.t => bool, e: Exp.t): int => {
 
 let is_var = (x, e: Exp.t) =>
   switch (e.term) {
-  | Var(y) => x == y
+  | Var(y) => String.equal(x, y)
   | _ => false
   };
 
@@ -104,24 +104,20 @@ let tests = (
         let values =
           Sample.Map.fold(
             (_, samples, acc) =>
-              List.concat_map(
-                (s: Sample.t) =>
-                  List.filter_map(
-                    (en: Sample.Env.entry) =>
-                      switch (en.value) {
-                      | Val(v) => Some(v)
-                      | Opaque => None
-                      },
-                    s.env,
-                  ),
-                samples,
+              List.concat_map(samples, ~f=(s: Sample.t) =>
+                List.filter_map(s.env, ~f=(en: Sample.Env.entry) =>
+                  switch (en.value) {
+                  | Val(v) => Some(v)
+                  | Opaque => None
+                  }
+                )
               )
               @ acc,
             EvaluatorState.get_probes(state),
             [],
           );
         check(int, "one captured value", 1, List.length(values));
-        List.iter(check_shown_small("sample env value"), values);
+        List.iter(values, ~f=check_shown_small("sample env value"));
       },
     ),
   ],
