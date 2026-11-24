@@ -256,17 +256,18 @@ let pack_renderer =
     views: (~statics, sort, exp) =>
       switch (R.parse(~statics, sort, exp)) {
       | Some(v) =>
-        List.map(~f=
-          m => (R.label(m, v), PModel(id, model_id, m)),
+        List.map(
+          ~f=m => (R.label(m, v), PModel(id, model_id, m)),
           R.views(v),
         )
       | None => []
       },
     on_request: (~statics, sort, exp) =>
-      List.filter_map(~f=
-        m =>
-          R.parse_chosen(~statics, sort, exp, m)
-          |> Option.map(~f=v => (R.label(m, v), PModel(id, model_id, m))),
+      List.filter_map(
+        ~f=
+          m =>
+            R.parse_chosen(~statics, sort, exp, m)
+            |> Option.map(~f=v => (R.label(m, v), PModel(id, model_id, m))),
         R.on_request(~statics, sort, exp),
       ),
     label: (pm, ~statics, sort, exp) =>
@@ -286,7 +287,8 @@ let pack_renderer =
       switch (
         Option.bind(cast_model(pm), ~f=m =>
           R.parse_chosen(~statics=info.statics, sort, exp, m)
-          |> Option.map(~f=v => (m, v)))
+          |> Option.map(~f=v => (m, v))
+        )
       ) {
       | Some((m, value)) =>
         Some(

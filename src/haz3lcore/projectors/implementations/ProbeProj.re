@@ -682,9 +682,10 @@ module ValueState = {
    an empty hand, still renders beside real ones) */
 let auto_evidence = (ctx: probe_ctx, value: Exp.t, r: packed_renderer): bool =>
   r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
-  || List.exists(~f=
-       (s: Sample.t) =>
-         r.auto_applies(~statics=Some(ctx.statics), ctx.sort, s.value),
+  || List.exists(
+       ~f=
+         (s: Sample.t) =>
+           r.auto_applies(~statics=Some(ctx.statics), ctx.sort, s.value),
        ctx.dynamics.samples,
      );
 
@@ -693,11 +694,12 @@ let auto_evidence = (ctx: probe_ctx, value: Exp.t, r: packed_renderer): bool =>
 let auto_renderer =
     (ctx: probe_ctx, ~fits: packed_renderer => bool, value: Exp.t)
     : option(packed_renderer) =>
-  List.find(~f=
-    (r: packed_renderer) =>
-      r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
-      && auto_evidence(ctx, value, r)
-      && fits(r),
+  List.find(
+    ~f=
+      (r: packed_renderer) =>
+        r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+        && auto_evidence(ctx, value, r)
+        && fits(r),
     renderers,
   );
 
@@ -963,9 +965,10 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    List.find(~f=
-      (r: packed_renderer) =>
-        r.auto_applies(~statics=info.statics, sort, value),
+    List.find(
+      ~f=
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, value),
       renderers,
     );
   switch (pick) {
@@ -1172,29 +1175,32 @@ type view_choice = {
 let view_choices = (ctx: probe_ctx, value: Exp.t): list(view_choice) => {
   let statics = Some(ctx.statics);
   let choices = (r: packed_renderer, views) =>
-    List.map(~f=
-      ((label, pm)) =>
-        {
-          rid: r.id,
-          label,
-          pm,
-          badge: r.badge,
-        },
+    List.map(
+      ~f=
+        ((label, pm)) =>
+          {
+            rid: r.id,
+            label,
+            pm,
+            badge: r.badge,
+          },
       views,
     );
   let views = (r: packed_renderer) =>
     choices(r, r.views(~statics, ctx.sort, value));
   let applicable =
-    List.filter(~f=
-      (r: packed_renderer) => r.can_handle(~statics, ctx.sort, value),
+    List.filter(
+      ~f=(r: packed_renderer) => r.can_handle(~statics, ctx.sort, value),
       renderers,
     );
-  let (auto, never) = List.partition_tf(~f=auto_evidence(ctx, value), applicable);
+  let (auto, never) =
+    List.partition_tf(~f=auto_evidence(ctx, value), applicable);
   let (tables, never) = List.partition_tf(~f=fills_drawer, never);
   List.concat_map(~f=views, auto)
-  @ List.concat_map(~f=
-      (r: packed_renderer) =>
-        choices(r, r.on_request(~statics, ctx.sort, value)),
+  @ List.concat_map(
+      ~f=
+        (r: packed_renderer) =>
+          choices(r, r.on_request(~statics, ctx.sort, value)),
       renderers,
     )
   @ List.concat_map(~f=views, never @ tables);
@@ -1796,9 +1802,10 @@ let sample_view =
         | Some(indicated) =>
           let statics = Some(ctx.statics);
           List.exists(
-            ~f=r =>
-              r.can_handle(~statics, ctx.sort, indicated.value)
-              || r.on_request(~statics, ctx.sort, indicated.value) != [],
+            ~f=
+              r =>
+                r.can_handle(~statics, ctx.sort, indicated.value)
+                || r.on_request(~statics, ctx.sort, indicated.value) != [],
             renderers,
           );
         | None => false
@@ -2312,26 +2319,29 @@ let prepare_offside =
       | Some(pm) =>
         switch (find(RichProbe.renderer_id_of_model(pm))) {
         | Some(r) =>
-          List.exists(~f=
-            (sample: Sample.t) =>
-              r.handles(pm, ~statics=Some(statics), sort, sample.value),
+          List.exists(
+            ~f=
+              (sample: Sample.t) =>
+                r.handles(pm, ~statics=Some(statics), sort, sample.value),
             dynamics.samples,
           )
         | None => false
         }
       | None =>
         (model.auto_rich || settings.auto_rich_default)
-        && List.exists(~f=
-             (sample: Sample.t) =>
-               List.exists(
-                 ~f=(r: packed_renderer) =>
-                   r.auto_applies(
-                     ~statics=Some(statics),
-                     sort,
-                     sample.value,
-                   ),
-                 renderers,
-               ),
+        && List.exists(
+             ~f=
+               (sample: Sample.t) =>
+                 List.exists(
+                   ~f=
+                     (r: packed_renderer) =>
+                       r.auto_applies(
+                         ~statics=Some(statics),
+                         sort,
+                         sample.value,
+                       ),
+                   renderers,
+                 ),
              dynamics.samples,
            )
       };
@@ -2685,9 +2695,10 @@ let rich_rows =
         (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
-      List.find(~f=
-        (r: packed_renderer) =>
-          r.auto_applies(~statics=info.statics, sort, exp),
+      List.find(
+        ~f=
+          (r: packed_renderer) =>
+            r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
       |> Option.map(~f=(r: packed_renderer) =>

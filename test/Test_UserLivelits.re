@@ -903,7 +903,10 @@ let point_sample =
 let edited_view_redraws = () => {
   let drawn = view => {
     let (ctx, ll, value, _) = point_sample(point_program(view));
-    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value), ~f=text_of_html);
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value),
+      ~f=text_of_html,
+    );
   };
   check(
     option(string),
@@ -1030,7 +1033,10 @@ let view_form_by_type = () => {
 let view_context_in_probes = () => {
   let (ctx, ll, value, _) = point_sample(point_program(ctx_view));
   let in_room = room =>
-    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value), ~f=text_of_html);
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
+      ~f=text_of_html,
+    );
   check(
     option(string),
     "on the line",
@@ -1066,11 +1072,12 @@ let projector_texts = (projectors: Id.Map.t(_), probes): list(string) =>
       @ (
         switch (Sample.Map.lookup(id, probes)) {
         | Some(samples) =>
-          List.filter_map(~f=
-            (s: Sample.t) => {
-              let v = Haz3lcore.MvuShape.close_value(s.value);
-              Haz3lcore.MvuShape.is_html(v) ? text_of_html(v) : None;
-            },
+          List.filter_map(
+            ~f=
+              (s: Sample.t) => {
+                let v = Haz3lcore.MvuShape.close_value(s.value);
+                Haz3lcore.MvuShape.is_html(v) ? text_of_html(v) : None;
+              },
             samples,
           )
         | None => []
@@ -1115,7 +1122,10 @@ let told_its_room_fits_the_line = () => {
 let one_arg_view_everywhere = () => {
   let (ctx, ll, value, _) = point_sample(point_program(plain_view));
   let in_room = room =>
-    Option.bind(Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value), ~f=text_of_html);
+    Option.bind(
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
+      ~f=text_of_html,
+    );
   check(
     option(string),
     "on the line",
@@ -1242,7 +1252,8 @@ let view_as_offers_what_fits = () => {
     ) {
     | (Some(v), Some((ctx, _))) =>
       Option.bind(Ctx.lookup_livelit(ctx, v.first.name), ~f=ll =>
-        Option.bind(R.html_of(~ctx, ll, value), ~f=text_of_html))
+        Option.bind(R.html_of(~ctx, ll, value), ~f=text_of_html)
+      )
     | _ => None
     };
   check(
