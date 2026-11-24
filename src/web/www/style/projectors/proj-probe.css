@@ -866,6 +866,13 @@
 /* a stepper or proof opens to its whole length, with nothing to scroll,
    and its popups (rule buttons, assumptions) can leave the stripe; it's
    closed off below too, like its top */
+/* a drawer's open proof box (Step, Algebra, …) hangs below its row:
+   above the drawers and probes after it, which would otherwise paint
+   over it */
+.refractors .projector:has(.proof-context-box) {
+  z-index: var(--projector-hover-z);
+}
+
 .below-wrapper:has(.steps-drawer, .proof-drawer) {
   max-height: none;
   overflow: visible;
