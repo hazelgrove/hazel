@@ -362,3 +362,15 @@ Recorded here so the counterexamples are not re-derived later.
   two alias applications came back expanded — the last normalisation site
   leaking `+ None + Some(String, B)` into a `let`-bound function's type after
   M0.5. Equal heads now meet argument-wise and keep the head.
+- **A lambda parameter typed by its context keeps that context.** In
+  `let g : (Int -> Bool) -> Bool = fun f -> f(1) in g`, a synthesis or error
+  slice focused inside the body demands `f`, but `f` is unannotated: its type
+  comes from the analysis of `fun f -> …` against `g`'s annotation.
+  `discharge` sliced the pattern with the body's demands and then dropped the
+  bound variable's demand, so the slice was `let ? = fun f -> f(?) in ?` and
+  lost the annotation. The upward walk (`climb`, shared by `focused` and
+  `ana_up_from`) now turns the residual of an unannotated parameter into a
+  pending analysis demand `residual -> ⬜` (or `residual -> demand` when one is
+  already pending) on the enclosing `fun`, which the enclosing `let` consumes
+  from its annotation: `let ?:((Int -> Bool) -> ?) = fun f -> f(?) in ?`
+  (`lambda-param-typed-by-annotation`, `lambda-param-typed-through-abs`).
