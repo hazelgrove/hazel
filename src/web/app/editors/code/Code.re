@@ -67,7 +67,11 @@ let of_delim' =
         if (is_split) {
           let typed = String.sub(token, ~pos=0, ~len=typed_len);
           let ghost =
-            String.sub(token, ~pos=typed_len, ~len=String.length(token) - typed_len);
+            String.sub(
+              token,
+              ~pos=typed_len,
+              ~len=String.length(token) - typed_len,
+            );
           /* the typed prefix inherits the parent token's color (bare
              text, no wrapper); the remainder gets the ghost styling
              the retired suggestion buffer used */
@@ -143,7 +147,8 @@ let view =
   /* Node.t's None/Some shadow option's, so match structurally */
   let ghost_mark = (id: Id.t, shard: option(int)): bool =>
     List.exists(ghost_marks, ~f=((mid, msh): (Id.t, option(int))) =>
-        Id.equal(mid, id) && msh == shard);
+      Id.equal(mid, id) && msh == shard
+    );
 
   let of_grout = (g: Grout.t): t => {
     let hole =
@@ -183,11 +188,15 @@ let view =
      to the user — keep the incomplete-delimiter color it had before
      the ghost spliced in */
   let tile_ghosted = (t: Piece.tile): bool =>
-    List.exists(ghost_marks, ~f=((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id));
+    List.exists(ghost_marks, ~f=((mid, _): (Id.t, option(int))) =>
+      Id.equal(mid, t.id)
+    );
 
   let typed_len_of = (id: Id.t, i: int): int =>
-    List.fold_left(typed_lens, ~init=-1, ~f=(acc, ((tid, sh), n): ((Id.t, int), int)) =>
-        Id.equal(tid, id) && sh == i ? n : acc);
+    List.fold_left(
+      typed_lens, ~init=-1, ~f=(acc, ((tid, sh), n): ((Id.t, int), int)) =>
+      Id.equal(tid, id) && sh == i ? n : acc
+    );
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(

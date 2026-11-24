@@ -53,7 +53,8 @@ let is_witness_replace = (ins: CanonicalCompletion.insertion): bool =>
 let projectable = (ins: CanonicalCompletion.insertion): bool =>
   ins.delimiters
   |> List.for_all(~f=(d: CanonicalCompletion.delimiter_info) =>
-       d.of_shard != None || d.text == ",");
+       d.of_shard != None || d.text == ","
+     );
 
 let is_grout = (p: Piece.t): bool =>
   switch (p) {
@@ -121,7 +122,8 @@ let project_pieces =
      inner-then-outer closers with the OUTER's commas between them, so
      a comma belongs to the site whose closer FOLLOWS it in the list.
      Each site draws its owed commas in order. */
-  let cursors: Stdlib.Hashtbl.t(Id.t, list(Piece.t)) = Stdlib.Hashtbl.create(4);
+  let cursors: Stdlib.Hashtbl.t(Id.t, list(Piece.t)) =
+    Stdlib.Hashtbl.create(4);
   let owed_of = (site: Id.t): list(Piece.t) =>
     switch (Stdlib.Hashtbl.find_opt(cursors, site)) {
     | Some(ps) => ps
@@ -181,7 +183,8 @@ let project_pieces =
                  switch (d'.of_shard) {
                  | Some((tid, _)) => Some(tid)
                  | None => None
-                 });
+                 }
+               );
           switch (next_site) {
           | Some(site) => Some(next_comma(site))
           | None => Some([])
@@ -234,17 +237,18 @@ let witness_shard =
 let rec replace_tile =
         (seg: Segment.t, ~pid: Id.t, ~repl: Segment.t): Segment.t =>
   List.concat_map(seg, ~f=(p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when Id.equal(t.id, pid) => repl
-      | Tile(t) => [
-          Piece.Tile({
-            ...t,
-            children:
-              List.map(t.children, ~f=c => replace_tile(c, ~pid, ~repl)),
-          }),
-        ]
-      | p => [p]
-      });
+    switch (p) {
+    | Tile(t) when Id.equal(t.id, pid) => repl
+    | Tile(t) => [
+        Piece.Tile({
+          ...t,
+          children:
+            List.map(t.children, ~f=c => replace_tile(c, ~pid, ~repl)),
+        }),
+      ]
+    | p => [p]
+    }
+  );
 
 let mk_inner =
     (
@@ -298,7 +302,8 @@ let mk_inner =
       use_replaces
         ? selected
           |> List.filter_map(~f=((orig, _)) =>
-               is_witness_replace(orig) ? witness_shard(art, orig) : None)
+               is_witness_replace(orig) ? witness_shard(art, orig) : None
+             )
         : [];
     let replaced_ghosted =
       replaces == []
@@ -306,17 +311,23 @@ let mk_inner =
         : selected
           |> List.filter_map(~f=((orig, _)) =>
                is_witness_replace(orig) && witness_shard(art, orig) != None
-                 ? Some(orig) : None);
+                 ? Some(orig) : None
+             );
     let raw =
-      List.fold_left(replaces, ~init=raw, ~f=(raw, (pid, repl, tl, cw)) => {
+      List.fold_left(
+        replaces,
+        ~init=raw,
+        ~f=(raw, (pid, repl, tl, cw)) => {
           typed_lens := [tl, ...typed_lens^];
           caret_witnesses := [cw, ...caret_witnesses^];
           replace_tile(raw, ~pid, ~repl);
-        });
+        },
+      );
     let replace_marks =
       replaces
       |> List.concat_map(~f=((_, repl, _, _)) =>
-           CanonicalCompletion.ghost_marks(repl));
+           CanonicalCompletion.ghost_marks(repl)
+         );
     /* SPLICE runs (everything not a witness replace): real reified
        shards + T1 comma pieces from the artifact; genuine T2 lookahead
        falls back to the suggestion channel's comment pieces */
@@ -342,7 +353,8 @@ let mk_inner =
                  TypeObligations.ghost_pieces(z, ins);
                };
              pieces |> Option.map(~f=pieces => (orig, ins, pieces));
-           });
+           }
+         );
     /* FAIL OPEN around the WHOLE splice/normalize/parse (display-only):
        any exception means no ghost this frame — the raw segment, NO
        marks — but the assist stream (chips/Tab) is preserved, computed
@@ -350,11 +362,14 @@ let mk_inner =
     let forked = () => {
       let (segment, ghost_marks) =
         DisplayFork.splice_sort(raw, ghosts)
-        |> List.fold_left(~init=(raw, replace_marks), ~f=((seg, marks), (_, ins, pieces)) =>
-               switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
-               | Some((seg, more)) => (seg, marks @ more)
-               | None => (seg, marks)
-               });
+        |> List.fold_left(
+             ~init=(raw, replace_marks),
+             ~f=((seg, marks), (_, ins, pieces)) =>
+             switch (CanonicalCompletion.splice_ghost(seg, ~ins, ~pieces)) {
+             | Some((seg, more)) => (seg, marks @ more)
+             | None => (seg, marks)
+             }
+           );
       let segment =
         ghost_marks == []
           ? segment
@@ -408,13 +423,15 @@ let mk_inner =
     let before = List.filteri(rows, ~f=(i, _) => i < caret.row);
     let at = List.nth(rows, caret.row) |> Option.value(~default="");
     let prefix =
-      caret.col <= String.length(at) ? String.sub(at, ~pos=0, ~len=caret.col) : at;
+      caret.col <= String.length(at)
+        ? String.sub(at, ~pos=0, ~len=caret.col) : at;
     String.concat(~sep="\n", before @ [prefix]);
   };
   let has_witness_replace =
     selected
     |> List.exists(~f=((orig, _)) =>
-         is_witness_replace(orig) && witness_shard(art, orig) != None);
+         is_witness_replace(orig) && witness_shard(art, orig) != None
+       );
   let full = build(~use_replaces=true);
   /* only pay the pre-caret check when a witness replace could have
      shifted structure; otherwise the projection can't move pre-caret.

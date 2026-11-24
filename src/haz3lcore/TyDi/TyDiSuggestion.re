@@ -87,7 +87,11 @@ let flat_of_tail = (tail: list(tail_delim)): string =>
 
 /* the head token: content minus the tail's flat rendering */
 let head_of = ({content, tail, _}: t): string =>
-  String.sub(content, ~pos=0, ~len=String.length(content) - String.length(flat_of_tail(tail)));
+  String.sub(
+    content,
+    ~pos=0,
+    ~len=String.length(content) - String.length(flat_of_tail(tail)),
+  );
 
 let compare = (s1: t, s2: t): int => {
   String.compare(s1.content, s2.content);

@@ -48,13 +48,16 @@ type t = {
 let collect_ids = (seg: Segment.t): Stdlib.Hashtbl.t(Id.t, unit) => {
   let tbl = Stdlib.Hashtbl.create(64);
   let rec go = (sg: Segment.t) =>
-    List.iter(sg, ~f=(p: Piece.t) => {
+    List.iter(
+      sg,
+      ~f=(p: Piece.t) => {
         Stdlib.Hashtbl.replace(tbl, Piece.id(p), ());
         switch (p) {
         | Tile(t) => List.iter(t.children, ~f=go)
         | _ => ()
         };
-      });
+      },
+    );
   go(seg);
   tbl;
 };
@@ -72,7 +75,9 @@ let mk = (~obligations: list(TypeObligations.t), seg: Segment.t): t => {
 };
 
 let record_of = (art: t, tid: Id.t): option(CanonicalCompletion.shard_record) =>
-  List.find(art.shard_records, ~f=(r: CanonicalCompletion.shard_record) => Id.equal(r.tile_id, tid));
+  List.find(art.shard_records, ~f=(r: CanonicalCompletion.shard_record) =>
+    Id.equal(r.tile_id, tid)
+  );
 
 /* is a leaf USER material (present as-typed) vs SYSTEM material
    (synthesized by completion/reification)? */
@@ -96,7 +101,9 @@ let prefix_of =
     (art: t, tid: Id.t, i: int): option(IdTagged.IdTag.shard_prefix) =>
   switch (record_of(art, tid)) {
   | Some(r) =>
-    List.find(r.prefixes, ~f=(sp: IdTagged.IdTag.shard_prefix) => sp.shard == i)
+    List.find(r.prefixes, ~f=(sp: IdTagged.IdTag.shard_prefix) =>
+      sp.shard == i
+    )
   | None => None
   };
 
@@ -110,14 +117,17 @@ let typed_len_of = (art: t, tid: Id.t, i: int): option(int) =>
 let find_reified = (art: t, id: Id.t): option(Tile.t) => {
   let rec go = (sg: Segment.t): option(Tile.t) =>
     List.fold_left(sg, ~init=None, ~f=(acc, p: Piece.t) =>
-        switch (acc, p) {
-        | (Some(_), _) => acc
-        | (None, Tile(t)) =>
-          Id.equal(t.id, id)
-            ? Some(t)
-            : List.fold_left(t.children, ~init=None, ~f=(a, c) => a == None ? go(c) : a)
-        | (None, _) => None
-        });
+      switch (acc, p) {
+      | (Some(_), _) => acc
+      | (None, Tile(t)) =>
+        Id.equal(t.id, id)
+          ? Some(t)
+          : List.fold_left(t.children, ~init=None, ~f=(a, c) =>
+              a == None ? go(c) : a
+            )
+      | (None, _) => None
+      }
+    );
   go(art.reified);
 };
 
@@ -137,7 +147,8 @@ let site_owed_pieces = (art: t, site: Id.t): list(Piece.t) =>
            | Tile(t) when Tile.is_comma(t) => true
            | Grout({shape: Convex, _}) => true
            | _ => false
-           })
+           }
+         )
     | None => []
     }
   | None => []

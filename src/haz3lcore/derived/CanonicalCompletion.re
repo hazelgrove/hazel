@@ -476,7 +476,8 @@ let rec deep_reassemble = (seg: Segment.t): Segment.t =>
            children: List.map(t.children, ~f=deep_reassemble),
          })
        | p => p
-       });
+       }
+     );
 
 /* Reassembly keeps the head shard's mold (Tile.reassemble); merging
    shards onto a fallback-molded orphan (e.g. `|` typed at Exp gets
@@ -511,7 +512,8 @@ let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
            children: List.map(t.children, ~f=heal_molds_deep),
          });
        | p => p
-       });
+       }
+     );
 
 /* Full shape normalization for a spliced DISPLAY segment — the same
    phases completion runs (regrout, reassemble, remold, regrout).
@@ -642,13 +644,16 @@ let finish_display =
     };
   let raw_ids = Stdlib.Hashtbl.create(64);
   let rec collect = (sg: Segment.t) =>
-    List.iter(sg, ~f=(p: Piece.t) => {
+    List.iter(
+      sg,
+      ~f=(p: Piece.t) => {
         Stdlib.Hashtbl.replace(raw_ids, Piece.id(p), ());
         switch (p) {
         | Tile(t) => List.iter(t.children, ~f=collect)
         | _ => ()
         };
-      });
+      },
+    );
   collect(raw);
   let minted = (id: Id.t) => !Stdlib.Hashtbl.mem(raw_ids, id);
   let is_space = (p: Piece.t) =>
@@ -677,9 +682,13 @@ let finish_display =
     | [p, ...rest] => [p, ...reorder(rest)]
     };
   let mark_mem = (id: Id.t, sh: option(int)) =>
-    List.exists(marks, ~f=((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && Option.equal(Int.equal, msh, sh));
+    List.exists(marks, ~f=((mid, msh): (Id.t, option(int))) =>
+      Id.equal(mid, id) && Option.equal(Int.equal, msh, sh)
+    );
   let tile_hot = (t: Tile.t) =>
-    List.exists(marks, ~f=((mid, _): (Id.t, option(int))) => Id.equal(mid, t.id));
+    List.exists(marks, ~f=((mid, _): (Id.t, option(int))) =>
+      Id.equal(mid, t.id)
+    );
   /* facing token + system-ness of a piece's edge; None = separator */
   let edge =
       (~hot: bool, p: Piece.t, ~side: Direction.t): option((string, bool)) =>
@@ -1827,7 +1836,8 @@ let find_trailing_site =
                  && span_fits_sort(right, snd(Tile.nibs(tt)).sort);
                }
              | _ => false
-             });
+             }
+           );
       let legal =
         List.init(max(strong_end - cursor, 0), ~f=k => cursor + k)
         |> List.filter(~f=j =>
@@ -1965,89 +1975,68 @@ let place_trailing_shards =
       )
     | Some(pos) =>
       let (seg, ins, agg, abs, _) =
-        List.fold_left(~f=((seg, ins, agg, abs, cursor), (i, piece)) => {
-            let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
-            let clip = {
-              let sort_clip =
-                clippable_sort(l_nib.sort)
-                  ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
-              let wall =
-                Sort.equal(l_nib.sort, Sort.Rul)
-                  ? None : wall_position(seg, ~from=cursor);
-              switch (sort_clip, wall) {
-              | (Some(a), Some(b)) => Some(min(a, b))
-              | (Some(a), None) => Some(a)
-              | (None, w) => w
+        List.fold_left(
+          ~f=
+            ((seg, ins, agg, abs, cursor), (i, piece)) => {
+              let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
+              let clip = {
+                let sort_clip =
+                  clippable_sort(l_nib.sort)
+                    ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
+                let wall =
+                  Sort.equal(l_nib.sort, Sort.Rul)
+                    ? None : wall_position(seg, ~from=cursor);
+                switch (sort_clip, wall) {
+                | (Some(a), Some(b)) => Some(min(a, b))
+                | (Some(a), None) => Some(a)
+                | (None, w) => w
+                };
               };
-            };
-            switch (find_trailing_site(seg, ~cursor, t, i)) {
-            | Some(found) =>
-              let (j, is_witness) =
-                switch (found) {
-                | TrailWitness(j) => (j, true)
-                | TrailJunction(j) => (j, false)
-                };
-              /* the shard replaces the site piece (junction grout or
-                 witness token) in place, inheriting its spacing. The
-                 arrow anchors at the SITE itself: end of the typed
-                 prefix for a witness (the continuation point), origin
-                 of the debris grout for a junction (the actual drop
-                 position, space-side) */
-              let site = List.nth_exn(seg, j);
-              let (before, after) = ListUtil.split_n(j, seg);
-              let anchor = Some(site);
-              let anchor_side = is_witness ? Direction.Right : Direction.Left;
-              let seg = before @ [piece] @ List.tl_exn(after);
-              let witness_prefix =
-                is_witness ? prefix_of_witness(site, i) : None;
-              let abs =
-                switch (witness_prefix) {
-                | Some(sp) => [(t.id, sp), ...abs]
-                | None => abs
-                };
-              let ins =
-                switch (anchor) {
-                | Some(a) => [
-                    {
-                      adjacent_id: Piece.id(a),
-                      side: anchor_side,
-                      splice: None,
-                      delimiters: [
-                        {
-                          text: Tile.token(t, i),
-                          leading_hole: false,
-                          trailing_hole: None,
-                          typed_len:
-                            Option.map(~f=(sp: Language.IdTagged.IdTag.shard_prefix) =>
-                                sp.len, witness_prefix),
-                          of_shard: Some((t.id, i)),
-                        },
-                      ],
-                    },
-                    ...ins,
-                  ]
-                | None => ins
-                };
-              (seg, ins, agg, abs, j + 1);
-            | None =>
-              switch (clip) {
-              | Some(stop) =>
-                let stop = back_over_boundary(seg, stop, cursor);
-                let anchor = original_anchor(seg, stop, t);
-                let seg = insert_at(stop, piece, seg);
+              switch (find_trailing_site(seg, ~cursor, t, i)) {
+              | Some(found) =>
+                let (j, is_witness) =
+                  switch (found) {
+                  | TrailWitness(j) => (j, true)
+                  | TrailJunction(j) => (j, false)
+                  };
+                /* the shard replaces the site piece (junction grout or
+                   witness token) in place, inheriting its spacing. The
+                   arrow anchors at the SITE itself: end of the typed
+                   prefix for a witness (the continuation point), origin
+                   of the debris grout for a junction (the actual drop
+                   position, space-side) */
+                let site = List.nth_exn(seg, j);
+                let (before, after) = ListUtil.split_n(j, seg);
+                let anchor = Some(site);
+                let anchor_side =
+                  is_witness ? Direction.Right : Direction.Left;
+                let seg = before @ [piece] @ List.tl_exn(after);
+                let witness_prefix =
+                  is_witness ? prefix_of_witness(site, i) : None;
+                let abs =
+                  switch (witness_prefix) {
+                  | Some(sp) => [(t.id, sp), ...abs]
+                  | None => abs
+                  };
                 let ins =
                   switch (anchor) {
                   | Some(a) => [
                       {
                         adjacent_id: Piece.id(a),
-                        side: Direction.Right,
+                        side: anchor_side,
                         splice: None,
                         delimiters: [
                           {
                             text: Tile.token(t, i),
                             leading_hole: false,
                             trailing_hole: None,
-                            typed_len: None,
+                            typed_len:
+                              Option.map(
+                                ~f=
+                                  (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                                    sp.len,
+                                witness_prefix,
+                              ),
                             of_shard: Some((t.id, i)),
                           },
                         ],
@@ -2056,91 +2045,11 @@ let place_trailing_shards =
                     ]
                   | None => ins
                   };
-                (seg, ins, agg, abs, stop + 1);
+                (seg, ins, agg, abs, j + 1);
               | None =>
-                /* gluing a closer back across a trailing linebreak
-                   is aesthetic and only right for single-line forms;
-                   a multiline form takes its closer on its own line.
-                   Severance avoidance (below) overrides. */
-                let glue = back_over_boundary(seg, List.length(seg), cursor);
-                let multiline = {
-                  let rec has_lb = j =>
-                    j < glue
-                    && (
-                      switch (List.nth(seg, j)) {
-                      | Some(Piece.Secondary(s))
-                          when Secondary.is_linebreak(s) =>
-                        true
-                      | _ => has_lb(j + 1)
-                      }
-                    );
-                  has_lb(cursor);
-                };
-                /* hole-minimizing append: a convex-right closer
-                   after a span-final trailing operator severs its
-                   operand into a hole; when content follows the
-                   partition, stopping before it is strictly fewer
-                   holes. Concave-right shards tie: keep maximal. */
-                let hole_min_stop = {
-                  let is_trailing_op = (p: Piece.t) =>
-                    switch (p) {
-                    | Tile(tt) =>
-                      Tile.is_complete(tt)
-                      /* only sequence separators are severable: a
-                         statement semi legitimately binds across the
-                         partition boundary; expression operators and
-                         whole forms (a completed if) do not — backing
-                         over them severs material for no hole gain */
-                      && Tile.is_semi(tt)
-                      /* rules are case-content, never severable:
-                         mid-entry `case foo |` keeps its end after
-                         the growing rule */
-                      && !Sort.equal(Tile.mold(tt).out, Sort.Rul)
-                      && (
-                        switch (snd(Tile.nibs(tt)).shape) {
-                        | Concave(_) => true
-                        | Convex => false
-                        }
-                      )
-                    | _ => false
-                    };
-                  let convex_right =
-                    switch (r_nib.shape) {
-                    | Convex => true
-                    | Concave(_) => false
-                    };
-                  if (content_follows && convex_right) {
-                    let rec shrink = j => {
-                      let j' = back_over_boundary(seg, j, cursor);
-                      j' > cursor && is_trailing_op(List.nth_exn(seg, j' - 1))
-                        ? shrink(j' - 1) : j';
-                    };
-                    let stop = shrink(List.length(seg));
-                    if (stop < glue) {
-                      Some
-                        (stop); /* backs past a severing op: semantic */
-                    } else if (!multiline && stop < List.length(seg)) {
-                      Some(stop);
-                    } else {
-                      None;
-                    };
-                  } else {
-                    None;
-                  };
-                };
-                /* plain append glues over trailing secondaries and
-                   debris: a single-line form's closer must not land
-                   after a trailing linebreak (alone on the next or
-                   blank line) when its content ends here */
-                let backed =
-                  !multiline && glue < List.length(seg) ? Some(glue) : None;
-                switch (
-                  switch (hole_min_stop) {
-                  | Some(_) as s => s
-                  | None => backed
-                  }
-                ) {
+                switch (clip) {
                 | Some(stop) =>
+                  let stop = back_over_boundary(seg, stop, cursor);
                   let anchor = original_anchor(seg, stop, t);
                   let seg = insert_at(stop, piece, seg);
                   let ins =
@@ -2165,26 +2074,140 @@ let place_trailing_shards =
                     | None => ins
                     };
                   (seg, ins, agg, abs, stop + 1);
-                | None => (
-                    seg @ [piece],
-                    ins,
-                    agg
-                    @ [
-                      {
-                        text: Tile.token(t, i),
-                        leading_hole: false,
-                        trailing_hole: shard_trailing_hole(t, i),
-                        typed_len: None,
-                        of_shard: Some((t.id, i)),
-                      },
-                    ],
-                    abs,
-                    List.length(seg) + 1,
-                  )
-                };
-              }
-            };
-          }, ~init=(seg, ins, agg, abs, pos + 1), entries);
+                | None =>
+                  /* gluing a closer back across a trailing linebreak
+                     is aesthetic and only right for single-line forms;
+                     a multiline form takes its closer on its own line.
+                     Severance avoidance (below) overrides. */
+                  let glue =
+                    back_over_boundary(seg, List.length(seg), cursor);
+                  let multiline = {
+                    let rec has_lb = j =>
+                      j < glue
+                      && (
+                        switch (List.nth(seg, j)) {
+                        | Some(Piece.Secondary(s))
+                            when Secondary.is_linebreak(s) =>
+                          true
+                        | _ => has_lb(j + 1)
+                        }
+                      );
+                    has_lb(cursor);
+                  };
+                  /* hole-minimizing append: a convex-right closer
+                     after a span-final trailing operator severs its
+                     operand into a hole; when content follows the
+                     partition, stopping before it is strictly fewer
+                     holes. Concave-right shards tie: keep maximal. */
+                  let hole_min_stop = {
+                    let is_trailing_op = (p: Piece.t) =>
+                      switch (p) {
+                      | Tile(tt) =>
+                        Tile.is_complete(tt)
+                        /* only sequence separators are severable: a
+                           statement semi legitimately binds across the
+                           partition boundary; expression operators and
+                           whole forms (a completed if) do not — backing
+                           over them severs material for no hole gain */
+                        && Tile.is_semi(tt)
+                        /* rules are case-content, never severable:
+                           mid-entry `case foo |` keeps its end after
+                           the growing rule */
+                        && !Sort.equal(Tile.mold(tt).out, Sort.Rul)
+                        && (
+                          switch (snd(Tile.nibs(tt)).shape) {
+                          | Concave(_) => true
+                          | Convex => false
+                          }
+                        )
+                      | _ => false
+                      };
+                    let convex_right =
+                      switch (r_nib.shape) {
+                      | Convex => true
+                      | Concave(_) => false
+                      };
+                    if (content_follows && convex_right) {
+                      let rec shrink = j => {
+                        let j' = back_over_boundary(seg, j, cursor);
+                        j' > cursor
+                        && is_trailing_op(List.nth_exn(seg, j' - 1))
+                          ? shrink(j' - 1) : j';
+                      };
+                      let stop = shrink(List.length(seg));
+                      if (stop < glue) {
+                        Some
+                          (stop); /* backs past a severing op: semantic */
+                      } else if (!multiline && stop < List.length(seg)) {
+                        Some(stop);
+                      } else {
+                        None;
+                      };
+                    } else {
+                      None;
+                    };
+                  };
+                  /* plain append glues over trailing secondaries and
+                     debris: a single-line form's closer must not land
+                     after a trailing linebreak (alone on the next or
+                     blank line) when its content ends here */
+                  let backed =
+                    !multiline && glue < List.length(seg)
+                      ? Some(glue) : None;
+                  switch (
+                    switch (hole_min_stop) {
+                    | Some(_) as s => s
+                    | None => backed
+                    }
+                  ) {
+                  | Some(stop) =>
+                    let anchor = original_anchor(seg, stop, t);
+                    let seg = insert_at(stop, piece, seg);
+                    let ins =
+                      switch (anchor) {
+                      | Some(a) => [
+                          {
+                            adjacent_id: Piece.id(a),
+                            side: Direction.Right,
+                            splice: None,
+                            delimiters: [
+                              {
+                                text: Tile.token(t, i),
+                                leading_hole: false,
+                                trailing_hole: None,
+                                typed_len: None,
+                                of_shard: Some((t.id, i)),
+                              },
+                            ],
+                          },
+                          ...ins,
+                        ]
+                      | None => ins
+                      };
+                    (seg, ins, agg, abs, stop + 1);
+                  | None => (
+                      seg @ [piece],
+                      ins,
+                      agg
+                      @ [
+                        {
+                          text: Tile.token(t, i),
+                          leading_hole: false,
+                          trailing_hole: shard_trailing_hole(t, i),
+                          typed_len: None,
+                          of_shard: Some((t.id, i)),
+                        },
+                      ],
+                      abs,
+                      List.length(seg) + 1,
+                    )
+                  };
+                }
+              };
+            },
+          ~init=(seg, ins, agg, abs, pos + 1),
+          entries,
+        );
       (seg, ins, agg, abs);
     };
   };
@@ -2929,7 +2952,9 @@ let derive_insertions' =
     switch (l) {
     | LShard(t, i) =>
       prefix_of(t, i)
-      |> Option.map(~f=(sp: Language.IdTagged.IdTag.shard_prefix) => sp.token_id)
+      |> Option.map(~f=(sp: Language.IdTagged.IdTag.shard_prefix) =>
+           sp.token_id
+         )
     | _ => None
     };
   let walkable = ((l, orig) as leaf: (leaf, bool)): bool =>
@@ -2997,7 +3022,8 @@ let derive_insertions' =
          switch (fst(arr[j])) {
          | LShard(t, i) => Piece.Tile(Tile.shard_of(t, i))
          | LPiece(p) => p
-         });
+         }
+       );
   runs(0, [])
   |> List.filter_map(~f=((a, b)) => {
        let delims =
@@ -3173,7 +3199,9 @@ let for_editor = (seg: Segment.t): completion_result =>
 let projection_for =
     (pairs: list((insertion, Segment.t)), ins: insertion)
     : option(Segment.t) =>
-  pairs |> List.find(~f=((eng, _)) => phys_equal(eng, ins)) |> Option.map(~f=snd);
+  pairs
+  |> List.find(~f=((eng, _)) => phys_equal(eng, ins))
+  |> Option.map(~f=snd);
 
 /* === Ghost splicing (display fork v2) ===
  * Splice ghost pieces into a DISPLAY segment at an insertion's true
@@ -3187,7 +3215,8 @@ let ghost_marks = (pieces: Segment.t): list((Id.t, option(int))) =>
        switch (p) {
        | Tile(t) => t.shards |> List.map(~f=i => (t.id, Some(i)))
        | _ => [(Piece.id(p), None)]
-       });
+       }
+     );
 
 let splice_ghost =
     (seg: Segment.t, ~ins: insertion, ~pieces: Segment.t)
@@ -3227,7 +3256,8 @@ let splice_ghost =
                      children:
                        ListUtil.put_nth(k, pieces @ child, t.children),
                    }),
-                 ])
+                 ]
+               )
           | (Some(k), Direction.Left) =>
             List.nth(t.children, k - 1)
             |> Option.map(~f=child =>
@@ -3237,7 +3267,8 @@ let splice_ghost =
                      children:
                        ListUtil.put_nth(k - 1, child @ pieces, t.children),
                    }),
-                 ])
+                 ]
+               )
           }
         | (_, _) =>
           switch (side) {

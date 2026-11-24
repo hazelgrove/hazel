@@ -53,7 +53,8 @@ let pins = (~tydi=true, code: string): string => {
          |> String.concat(~sep="+"),
          pi.row,
          pi.col,
-       ))
+       )
+     )
   |> String.concat(~sep=" | ");
 };
 
@@ -133,7 +134,8 @@ let tests = [
                  suf
                  ++ " -> ["
                  ++ pins("let a = 2 in\nlet (_ ): " ++ suf ++ "¦")
-                 ++ "]")
+                 ++ "]"
+               )
             |> String.concat(~sep="\n"),
           );
         },

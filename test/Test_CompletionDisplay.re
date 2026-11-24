@@ -103,14 +103,17 @@ let display_state_of =
     parts(z);
   let measured = Measured.of_segment(seg, Id.Map.empty, Id.Map.empty);
   let is_marked = (id: Id.t, sh: option(int)) =>
-    List.exists(marks, ~f=((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh);
+    List.exists(marks, ~f=((mid, msh): (Id.t, option(int))) =>
+      Id.equal(mid, id) && msh == sh
+    );
   /* WITNESS sub-token: a ghost-marked shard (tile, i) carrying a
      typed_len splits into an UNMARKED typed prefix and a MARKED ghost
      remainder — the display shows `i⟪n⟫`, not `⟪in⟫` (the first char
      is the user's). */
   let typed_len_of = (id: Id.t, i: int): option(int) =>
     List.find_map(typed_lens, ~f=(((tid, sh), n): ((Id.t, int), int)) =>
-        Id.equal(tid, id) && sh == i ? Some(n) : None);
+      Id.equal(tid, id) && sh == i ? Some(n) : None
+    );
   let split_witness =
       (id: Id.t, i: int, meas: Measured.measurement)
       : list((bool, bool, Measured.measurement)) =>
@@ -143,35 +146,45 @@ let display_state_of =
   /* reading-order (marked, is_ws, measurement) atoms */
   let rec atoms = (sg: Segment.t): list((bool, bool, Measured.measurement)) =>
     List.concat_map(sg, ~f=(p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let ms = Measured.find_shards(~msg="DisplayState", t, measured);
-          Util.Aba.mk(t.shards, t.children)
-          |> Util.Aba.join(
-               i => split_witness(t.id, i, List.Assoc.find_exn(ms, i, ~equal=Int.equal)),
-               atoms,
-             )
-          |> List.concat;
-        | Grout(g) => [
-            (is_marked(g.id, None), false, Measured.find_g(g, measured)),
-          ]
-        | Secondary(w) => [
-            (is_marked(w.id, None), true, Measured.find_w(w, measured)),
-          ]
-        | Projector(_) => []
-        });
+      switch (p) {
+      | Tile(t) =>
+        let ms = Measured.find_shards(~msg="DisplayState", t, measured);
+        Util.Aba.mk(t.shards, t.children)
+        |> Util.Aba.join(
+             i =>
+               split_witness(
+                 t.id,
+                 i,
+                 List.Assoc.find_exn(ms, i, ~equal=Int.equal),
+               ),
+             atoms,
+           )
+        |> List.concat;
+      | Grout(g) => [
+          (is_marked(g.id, None), false, Measured.find_g(g, measured)),
+        ]
+      | Secondary(w) => [
+          (is_marked(w.id, None), true, Measured.find_w(w, measured)),
+        ]
+      | Projector(_) => []
+      }
+    );
   /* marked runs → ⟪ at first origin, ⟫ at last end; unmarked
      whitespace BRIDGES a run (oracle pads carry no provenance) but
      never extends its end */
   let runs = {
     let (closed, open_) =
-      List.fold_left(atoms(seg), ~init=([], None), ~f=((rs, cur), (m, ws, meas: Measured.measurement)) =>
-          switch (m, cur) {
-          | (false, None) => (rs, None)
-          | (false, Some(r)) => ws ? (rs, Some(r)) : ([r, ...rs], None)
-          | (true, None) => (rs, Some((meas.origin, meas.last)))
-          | (true, Some((o, _))) => (rs, Some((o, meas.last)))
-          });
+      List.fold_left(
+        atoms(seg),
+        ~init=([], None),
+        ~f=((rs, cur), (m, ws, meas: Measured.measurement)) =>
+        switch (m, cur) {
+        | (false, None) => (rs, None)
+        | (false, Some(r)) => ws ? (rs, Some(r)) : ([r, ...rs], None)
+        | (true, None) => (rs, Some((meas.origin, meas.last)))
+        | (true, Some((o, _))) => (rs, Some((o, meas.last)))
+        }
+      );
     List.rev(Option.to_list(open_) @ closed);
   };
   let caret = DisplayCaret.point(~caret_witnesses, measured, zc);
@@ -189,14 +202,18 @@ let display_state_of =
   let mark_list =
     [(caret, 1, "¦")]
     @ List.concat_map(runs, ~f=((o, l): (Util.Point.t, Util.Point.t)) =>
-          [(o, 2, "⟪"), (l, 0, "⟫")]);
+        [(o, 2, "⟪"), (l, 0, "⟫")]
+      );
   let disp =
     mark_list
     |> List.sort(~compare=((p1, pr1, _), (p2, pr2, _)) => {
          let c = Util.Point.compare(p1: Util.Point.t, p2: Util.Point.t);
          c != 0 ? - c : - compare(pr1: int, pr2: int);
        })
-    |> List.fold_left(~init=String.split(text, ~on='\n'), ~f=(rows, (pt, _, s)) => Printer.insert_string(s, pt, rows))
+    |> List.fold_left(
+         ~init=String.split(text, ~on='\n'), ~f=(rows, (pt, _, s)) =>
+         Printer.insert_string(s, pt, rows)
+       )
     |> String.concat(~sep="\n");
   /* suppression comes from THE one policy home */
   let chips_shown = CompletionQuery.chips_displayed(~ghosted, assist);
@@ -205,7 +222,8 @@ let display_state_of =
     |> List.map(~f=(i: CanonicalCompletion.insertion) =>
          i.delimiters
          |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
-         |> String.concat(~sep="+"))
+         |> String.concat(~sep="+")
+       )
     |> String.concat(~sep=" | ");
   show_chips ? disp ++ "   CHIPS[" ++ chips_str ++ "]" : disp;
 };
@@ -255,10 +273,14 @@ let trajectory_live_in = (~lag=0, ~ctx="¦", text: string): string => {
   let z0 = Test_Editing.perform(Zipper.init(), base);
   let states: array(Zipper.t) = {
     let (states, _) =
-      List.fold_left(ins, ~init=([], z0), ~f=((acc, z), a) => {
+      List.fold_left(
+        ins,
+        ~init=([], z0),
+        ~f=((acc, z), a) => {
           let z = Test_Editing.perform(z, [a]);
           ([z, ...acc], z);
-        });
+        },
+      );
     List.rev(states) |> Array.of_list;
   };
   let at = j => j <= 0 ? z0 : states[j - 1];
@@ -301,7 +323,10 @@ let split_first = (needle: string, s: string): option((string, string)) => {
     if (i + nl > sl) {
       None;
     } else if (String.sub(s, ~pos=i, ~len=nl) == needle) {
-      Some((String.sub(s, ~pos=0, ~len=i), String.sub(s, ~pos=i + nl, ~len=sl - i - nl)));
+      Some((
+        String.sub(s, ~pos=0, ~len=i),
+        String.sub(s, ~pos=i + nl, ~len=sl - i - nl),
+      ));
     } else {
       go(i + 1);
     };
@@ -445,7 +470,8 @@ let parity_case = (name: string, ~ctx="¦", ~waiver="", text: string) =>
       let rendered =
         diffs
         |> List.map(~f=((k, c, p)) =>
-             "step " ++ k ++ ":\n  cur=" ++ c ++ "\n  prom=" ++ p)
+             "step " ++ k ++ ":\n  cur=" ++ c ++ "\n  prom=" ++ p
+           )
         |> String.concat(~sep="\n");
       check(string_testable, name, waiver, rendered);
     },
@@ -534,7 +560,8 @@ let view_of = (text: string): list(rendered) => {
   |> List.map(~f=n =>
        read_rendered(
          Js_of_ocaml.Js.Unsafe.inject(Virtual_dom.Vdom.Node.to_raw(n)),
-       ));
+       )
+     );
 };
 
 /* every sub-token split span as `typed⟪ghost⟫ [outer] ⟪remainder⟫` */
@@ -1183,7 +1210,8 @@ string_replace(a, b, c)|},
                   Zipper.init(),
                   Test_Editing.mk("¦\nstring_replace(a, b, c)")
                   @ (
-                    Token.to_list("let ") |> List.map(~f=c => Action.Insert(c))
+                    Token.to_list("let ")
+                    |> List.map(~f=c => Action.Insert(c))
                   ),
                 );
               let seg = Zipper.unselect_and_zip(z);
@@ -1365,7 +1393,9 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             string_testable,
             "tab",
             "<ring_capitalize(> | <n> | <>> | <in >",
-            String.concat(~sep=" | ", [
+            String.concat(
+              ~sep=" | ",
+              [
                 /* T2 variable completion wins over the let's in-chip */
                 payload("let x : String = st¦"),
                 /* engine witness remainder */
@@ -1374,7 +1404,8 @@ case if | ¦   CHIPS[then+else | =>+end]|},
                 payload("case 1 | 2 =¦"),
                 /* no witness in zone: the closer chip */
                 payload("let x = 1 ¦"),
-              ]),
+              ],
+            ),
           );
         },
       ),
@@ -1399,7 +1430,8 @@ case if | ¦   CHIPS[then+else | =>+end]|},
             let owed =
               assist
               |> List.map(~f=(i: CanonicalCompletion.insertion) =>
-                   List.length(i.delimiters))
+                   List.length(i.delimiters)
+                 )
               |> List.fold_left(~init=0, ~f=(+));
             let state =
               Printf.sprintf("%s   OWED[%d]", Test_Editing.printer(z), owed);
@@ -1451,7 +1483,7 @@ case if | ¦   CHIPS[then+else | =>+end]|},
                 ++ String.concat(~sep="\n", states),
               );
             };
-            if (List.length(List.dedup_and_sort(states, ~compare=compare))
+            if (List.length(List.dedup_and_sort(states, ~compare))
                 != List.length(states)) {
               Alcotest.fail(
                 "state repeated: " ++ String.concat(~sep="\n", states),
@@ -1677,15 +1709,18 @@ NONE|},
           let orig = PromiseArtifact.collect_ids(seg);
           let rec first_ghost_hole = (sg: Segment.t): option(Id.t) =>
             List.fold_left(sg, ~init=None, ~f=(acc, p: Piece.t) =>
-                switch (acc, p) {
-                | (Some(_), _) => acc
-                | (None, Grout({id, shape: Convex}))
-                    when !Stdlib.Hashtbl.mem(orig, id) =>
-                  Some(id)
-                | (None, Tile(t)) =>
-                  List.fold_left(t.children, ~init=None, ~f=(a, c) => a == None ? first_ghost_hole(c) : a)
-                | (None, _) => None
-                });
+              switch (acc, p) {
+              | (Some(_), _) => acc
+              | (None, Grout({id, shape: Convex}))
+                  when !Stdlib.Hashtbl.mem(orig, id) =>
+                Some(id)
+              | (None, Tile(t)) =>
+                List.fold_left(t.children, ~init=None, ~f=(a, c) =>
+                  a == None ? first_ghost_hole(c) : a
+                )
+              | (None, _) => None
+              }
+            );
           switch (first_ghost_hole(art.reified)) {
           | None => Alcotest.fail("no presumed hole in the reified artifact")
           | Some(hole_id) =>

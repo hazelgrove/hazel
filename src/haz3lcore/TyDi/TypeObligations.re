@@ -57,7 +57,8 @@ let juxtaposed = (e: Exp.t): option(int) =>
            switch (a) {
            | Exp(_) => true
            | _ => false
-           });
+           }
+         );
     List.length(exps) == List.length(things) && things != []
       ? Some(List.length(exps)) : None;
   | _ => None
@@ -68,14 +69,15 @@ let present_of = (inner: Exp.t, info_map: Statics.Map.t): option(int) =>
   | Tuple(es) =>
     es
     |> List.fold_left(~init=Some(0), ~f=(acc, e) =>
-           switch (acc) {
-           | None => None
-           | Some(k) =>
-             switch (juxtaposed(e)) {
-             | Some(j) => Some(k + j)
-             | None => Some(k + 1)
-             }
-           })
+         switch (acc) {
+         | None => None
+         | Some(k) =>
+           switch (juxtaposed(e)) {
+           | Some(j) => Some(k + j)
+           | None => Some(k + 1)
+           }
+         }
+       )
   | MultiHole(_) => juxtaposed(inner)
   /* empty parens presume too: the common case IS the comma'd
      application, so the promise shows from `(` on; a tuple-typed
@@ -166,12 +168,16 @@ let overfull_grouping =
            | None => false
            }
          | _ => false /* multi-item groups and empties are neutral */
-         })
+         }
+       )
     |> List.length;
   };
   let scored = choose(0, n - 1) |> List.map(~f=cut => (score(cut), cut));
   let best =
-    scored |> List.fold_left(~init=Int.max_value, ~f=(acc, (sc, _)) => min(acc, sc));
+    scored
+    |> List.fold_left(~init=Int.max_value, ~f=(acc, (sc, _)) =>
+         min(acc, sc)
+       );
   switch (scored |> List.filter(~f=((sc, _)) => sc == best)) {
   | [(_, cut)] => Some(cut)
   | _ => None /* ambiguous: no presumption */
@@ -187,7 +193,8 @@ let multihole_items = (inner: Exp.t): option(list(Exp.t)) =>
            switch (a) {
            | Exp(e) => Some(e)
            | _ => None
-           });
+           }
+         );
     List.length(exps) == List.length(things) && exps != []
       ? Some(exps) : None;
   | _ => None
@@ -217,7 +224,8 @@ let of_wrapper =
              site,
              ~present=List.length(tys),
              tys,
-           ))
+           )
+         )
     | _ => None
     }
   | _ => None /* overfull-ambiguous or no presumption */
@@ -353,18 +361,22 @@ let comma_delims = (n: int): list(CanonicalCompletion.delimiter_info) =>
       trailing_hole: Some(Grout.Convex),
       typed_len: None,
       of_shard: None,
-    });
+    }
+  );
 
 let rec find_tile = (site: Id.t, ps: Segment.t): option(Tile.t) =>
   List.fold_left(ps, ~init=None, ~f=(acc, p: Piece.t) =>
-      switch (acc, p) {
-      | (Some(_), _) => acc
-      | (None, Tile(t)) =>
-        Id.equal(t.id, site)
-          ? Some(t)
-          : List.fold_left(t.children, ~init=None, ~f=(acc, child) => acc == None ? find_tile(site, child) : acc)
-      | (None, _) => None
-      });
+    switch (acc, p) {
+    | (Some(_), _) => acc
+    | (None, Tile(t)) =>
+      Id.equal(t.id, site)
+        ? Some(t)
+        : List.fold_left(t.children, ~init=None, ~f=(acc, child) =>
+            acc == None ? find_tile(site, child) : acc
+          )
+    | (None, _) => None
+    }
+  );
 
 /* the sibling list containing a piece, with its index there */
 let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
@@ -378,7 +390,9 @@ let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
         let deeper =
           switch ((p: Piece.t)) {
           | Tile(t) =>
-            List.fold_left(t.children, ~init=None, ~f=(acc, ch) => acc == None ? sibling_ctx(ch, id) : acc)
+            List.fold_left(t.children, ~init=None, ~f=(acc, ch) =>
+              acc == None ? sibling_ctx(ch, id) : acc
+            )
           | _ => None
           };
         deeper == None ? go(i + 1, tl) : deeper;
@@ -391,7 +405,8 @@ let rec sibling_ctx = (ps: Segment.t, id: Id.t): option((Segment.t, int)) => {
 let chosen = (ob: t, grouts: list(Id.t)): list(Id.t) =>
   switch (ob.commas_at) {
   | None => grouts
-  | Some(idxs) => grouts |> List.filteri(~f=(i, _) => List.mem(idxs, i, ~equal=Poly.equal))
+  | Some(idxs) =>
+    grouts |> List.filteri(~f=(i, _) => List.mem(idxs, i, ~equal=Poly.equal))
   };
 
 /* junction sites: concave grout between the site's juxtaposed
@@ -406,7 +421,8 @@ let junction_grouts =
          switch (p) {
          | Grout({id, shape: Concave}) => Some(id)
          | _ => None
-         });
+         }
+       );
   switch (find_tile(site, seg)) {
   | Some({children: [_, ..._] as children, _}) =>
     switch (Util.ListUtil.split_last_opt(children)) {
@@ -444,7 +460,8 @@ let anchor_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
            | Secondary(_)
            | Grout(_) => false
            | _ => true
-           })
+           }
+         )
       |> Option.map(~f=Piece.id)
     | [] => None
     }
@@ -459,7 +476,8 @@ let splice_of_site = (seg: Segment.t, site: Id.t): option(Id.t) => {
   switch (find_tile(site, seg)) {
   | Some(t) =>
     switch (List.rev(t.children)) {
-    | [child, ..._] => Util.ListUtil.last_opt(child) |> Option.map(~f=Piece.id)
+    | [child, ..._] =>
+      Util.ListUtil.last_opt(child) |> Option.map(~f=Piece.id)
     | [] => None
     }
   | None => None
@@ -486,7 +504,8 @@ let present_now = (completed: Segment.t, site: Id.t): option(int) =>
              | Tile(t) when Tile.is_comma(t) => true
              | Grout({shape: Concave, _}) => true
              | _ => false
-             })
+             }
+           )
         |> List.length;
       Some(1 + seps);
     | None => None
@@ -508,7 +527,8 @@ let as_insertions =
          switch (d.of_shard) {
          | Some((tid, _)) => Id.equal(tid, site)
          | None => false
-         });
+         }
+       );
   /* a junction owes its comma AT the junction (chip on the grout,
      no hole — both sides have content); only the trailing deficit
      adds elements at the end */
@@ -516,7 +536,9 @@ let as_insertions =
     let upto =
       existing
       |> List.find(~f=ins => holds_site(ins, ob.site))
-      |> Option.map(~f=(ins: CanonicalCompletion.insertion) => ins.adjacent_id);
+      |> Option.map(~f=(ins: CanonicalCompletion.insertion) =>
+           ins.adjacent_id
+         );
     chosen(ob, junction_grouts(~upto?, seg, ob.site))
     |> List.map(~f=gid =>
          CanonicalCompletion.{
@@ -532,7 +554,8 @@ let as_insertions =
                of_shard: None,
              },
            ],
-         });
+         }
+       );
   };
   /* deficit from the FRESH syntax: `expected` (type fact) minus this
      frame's element count — a typed comma discharges its owed chip
@@ -543,7 +566,10 @@ let as_insertions =
     | None => deficit(ob)
     };
   let (existing, fresh) =
-    List.fold_left(obs, ~init=(existing, []), ~f=((existing, fresh), ob) => {
+    List.fold_left(
+      obs,
+      ~init=(existing, []),
+      ~f=((existing, fresh), ob) => {
         let fresh = junction_chips(ob) @ fresh;
         let trailing = deficit_now(ob);
         if (trailing <= 0) {
@@ -576,7 +602,8 @@ let as_insertions =
                      ...ins,
                      delimiters: weave(ins.delimiters),
                    }
-                   : ins),
+                   : ins
+               ),
             fresh,
           );
         } else {
@@ -598,7 +625,8 @@ let as_insertions =
           | None => (existing, fresh)
           };
         };
-      });
+      },
+    );
   existing @ fresh;
 };
 
@@ -739,7 +767,10 @@ let assist_stream =
  * interior slots, so their chain is unused by syntactic completion. */
 let reify = (obs: list(t), seg: Segment.t): Segment.t => {
   let sites =
-    obs |> List.map(~f=ob => (ob.site, ob)) |> Stdlib.List.to_seq |> Stdlib.Hashtbl.of_seq;
+    obs
+    |> List.map(~f=ob => (ob.site, ob))
+    |> Stdlib.List.to_seq
+    |> Stdlib.Hashtbl.of_seq;
   let owed_pieces = (site: Id.t, n: int): list(Piece.t) => {
     let seed = ref(site);
     let mint = () => {
@@ -747,7 +778,9 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
       seed^;
     };
     List.concat(
-      List.init(n, ~f=_ => {
+      List.init(
+        n,
+        ~f=_ => {
           let comma_id = mint();
           let hole_id = mint();
           [
@@ -763,7 +796,8 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
               shape: Convex,
             }),
           ];
-        }),
+        },
+      ),
     );
   };
   let comma_for = (gid: Id.t): Piece.t =>
@@ -801,10 +835,12 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
                         switch (ob.commas_at) {
                         | None => comma_for(id)
                         | Some(idxs) =>
-                          List.mem(idxs, i, ~equal=Poly.equal) ? comma_for(id) : q
+                          List.mem(idxs, i, ~equal=Poly.equal)
+                            ? comma_for(id) : q
                         };
                       | q => q
-                      });
+                      }
+                    );
                let n = deficit(ob);
                Piece.Tile({
                  ...t,
@@ -816,7 +852,8 @@ let reify = (obs: list(t), seg: Segment.t): Segment.t => {
            | None => Piece.Tile(t)
            };
          | p => p
-         });
+         }
+       );
   go(seg);
 };
 
@@ -847,7 +884,9 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
                   switch (d.of_shard) {
                   | Some((tid, _)) => Id.equal(tid, ob.site)
                   | None => false
-                  }));
+                  }
+                )
+           );
       switch (merged) {
       | Some(ins) => Some(ins.adjacent_id)
       | None => anchor_of_site(seg, ob.site)
@@ -858,7 +897,8 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
         obs
         |> List.filter_map(~f=ob =>
              deficit(ob) > 0
-               ? anchor_of(ob) |> Option.map(~f=a => (a, ", ")) : None)
+               ? anchor_of(ob) |> Option.map(~f=a => (a, ", ")) : None
+           )
       )
       @ (
         obs
@@ -871,8 +911,10 @@ let at_caret = (z: Zipper.t, obs: list(t)): option(string) =>
                          switch (d.of_shard) {
                          | Some((tid, _)) => Id.equal(tid, ob.site)
                          | None => false
-                         })
-                      ? Some(ins.adjacent_id) : None);
+                         }
+                       )
+                      ? Some(ins.adjacent_id) : None
+                  );
              chosen(ob, junction_grouts(~upto?, seg, ob.site))
              |> List.map(~f=gid => (gid, ","));
            })

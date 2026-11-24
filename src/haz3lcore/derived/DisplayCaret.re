@@ -80,22 +80,28 @@ let no_ghost_before_caret =
     : bool => {
   let caret = point(~caret_witnesses, measured, z);
   let marked = (id, sh) =>
-    List.exists(ghost_marks, ~f=((mid, msh): (Id.t, option(int))) => Id.equal(mid, id) && msh == sh);
+    List.exists(ghost_marks, ~f=((mid, msh): (Id.t, option(int))) =>
+      Id.equal(mid, id) && msh == sh
+    );
   let before = (m: Measured.measurement) =>
     Util.Point.compare(m.last, caret) <= 0
     && Util.Point.compare(m.origin, caret) < 0;
   let rec ok = (sg: Segment.t): bool =>
     List.for_all(sg, ~f=(p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let shards = Measured.find_shards(~msg="DisplayCaret", t, measured);
-          List.for_all(t.shards, ~f=i => !marked(t.id, Some(i)) || !before(List.Assoc.find_exn(shards, i, ~equal=Int.equal)))
-          && List.for_all(t.children, ~f=ok);
-        | Grout(g) =>
-          !marked(g.id, None) || !before(Measured.find_g(g, measured))
-        | Secondary(w) =>
-          !marked(w.id, None) || !before(Measured.find_w(w, measured))
-        | Projector(_) => true
-        });
+      switch (p) {
+      | Tile(t) =>
+        let shards = Measured.find_shards(~msg="DisplayCaret", t, measured);
+        List.for_all(t.shards, ~f=i =>
+          !marked(t.id, Some(i))
+          || !before(List.Assoc.find_exn(shards, i, ~equal=Int.equal))
+        )
+        && List.for_all(t.children, ~f=ok);
+      | Grout(g) =>
+        !marked(g.id, None) || !before(Measured.find_g(g, measured))
+      | Secondary(w) =>
+        !marked(w.id, None) || !before(Measured.find_w(w, measured))
+      | Projector(_) => true
+      }
+    );
   ok(seg);
 };

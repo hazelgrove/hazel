@@ -76,7 +76,8 @@ let alphabet: list((int, list(Action.t))) = [
   (3, [mv_r]),
 ];
 
-let total_weight = List.fold_left(alphabet, ~init=0, ~f=(a, (w, _)) => a + w);
+let total_weight =
+  List.fold_left(alphabet, ~init=0, ~f=(a, (w, _)) => a + w);
 
 let pick = (r: int): list(Action.t) => {
   let rec go = (r, l) =>
@@ -143,11 +144,12 @@ let apply = (z: Zipper.t, a: Action.t): applied => {
 /* replay for repro/minimization: rejected actions skip, like the loop */
 let replay = (actions: list(Action.t)): Zipper.t =>
   List.fold_left(actions, ~init=Zipper.init(), ~f=(z, a) =>
-      switch (apply(z, a)) {
-      | Applied(z) => z
-      | Rejected
-      | Raised(_) => z
-      });
+    switch (apply(z, a)) {
+    | Applied(z) => z
+    | Rejected
+    | Raised(_) => z
+    }
+  );
 
 /* ---------- render helpers ---------- */
 
@@ -183,7 +185,8 @@ let raw_pre_caret = (z: Zipper.t): string => {
     | None => ""
     };
   let prefix =
-    caret.col <= String.length(at) ? String.sub(at, ~pos=0, ~len=caret.col) : at;
+    caret.col <= String.length(at)
+      ? String.sub(at, ~pos=0, ~len=caret.col) : at;
   String.concat(~sep="\n", before @ [prefix]);
 };
 
@@ -324,12 +327,17 @@ let check_invariants =
        TyDi buffer; raw/caret_after re-derived from the same zc) */
     switch (Test_CompletionDisplay.display_parts(z)) {
     | exception e =>
-      add("PAD-IDEMPOTENCE (parts raised: " ++ Stdlib.Printexc.to_string(e) ++ ")")
+      add(
+        "PAD-IDEMPOTENCE (parts raised: "
+        ++ Stdlib.Printexc.to_string(e)
+        ++ ")",
+      )
     | (seg, zc, marks, _, _, _, _) =>
       let sel_ids = Selection.selection_ids(zc.selection);
       let chip_marks =
         List.filter(marks, ~f=((id, _): (Id.t, option(int))) =>
-            !List.exists(sel_ids, ~f=Id.equal(id)));
+          !List.exists(sel_ids, ~f=Id.equal(id))
+        );
       if (chip_marks != []) {
         switch (
           CanonicalCompletion.finish_display(
@@ -340,7 +348,9 @@ let check_invariants =
           )
         ) {
         | exception e =>
-          add("PAD-IDEMPOTENCE (raised: " ++ Stdlib.Printexc.to_string(e) ++ ")")
+          add(
+            "PAD-IDEMPOTENCE (raised: " ++ Stdlib.Printexc.to_string(e) ++ ")",
+          )
         | seg2 =>
           if (seg_text(seg) != seg_text(seg2)) {
             add(
@@ -415,10 +425,11 @@ let violations_of = (actions: list(Action.t)): list(string) => {
 
 let has_violation = (needle: string, actions: list(Action.t)): bool =>
   List.exists(violations_of(actions), ~f=v =>
-      switch (Test_CompletionDisplay.split_first(needle, v)) {
-      | Some(_) => true
-      | None => false
-      });
+    switch (Test_CompletionDisplay.split_first(needle, v)) {
+    | Some(_) => true
+    | None => false
+    }
+  );
 
 /* greedy: drop mid-script actions while the last step still fires the
    same invariant (trailing actions were already dropped by truncating
@@ -479,11 +490,12 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
       && String.sub(s, ~pos=0, ~len=String.length(p)) == p;
     let known =
       List.exists(known_classes, ~f=((inv_prefix, sub)) =>
-          starts_with(inv_prefix, inv)
-          && (
-            sub == ""
-            || Option.is_some(Test_CompletionDisplay.split_first(sub, line))
-          ));
+        starts_with(inv_prefix, inv)
+        && (
+          sub == ""
+          || Option.is_some(Test_CompletionDisplay.split_first(sub, line))
+        )
+      );
     if (!known) {
       Stdlib.Buffer.add_string(
         buf,
@@ -506,60 +518,62 @@ let run_fuzz = (~seeds: int, ~steps: int): string => {
     let prev = ref(observe(z^));
     let aborted = ref(false);
     List.iteri(script, ~f=(k0, a) =>
-        if (! aborted^) {
-          let k = k0 + 1;
-          let prefix =
-            script
-            |> List.filteri(~f=(i, _) => i <= k0)
-            |> List.map(~f=label)
-            |> String.concat(~sep=" ");
-          let prev_disp =
-            switch (prev^) {
-            | Some((d, _)) => d
-            | None => "-"
-            };
-          switch (apply(z^, a)) {
-          | Rejected => ()
-          | Raised(msg) =>
+      if (! aborted^) {
+        let k = k0 + 1;
+        let prefix =
+          script
+          |> List.filteri(~f=(i, _) => i <= k0)
+          |> List.map(~f=label)
+          |> String.concat(~sep=" ");
+        let prev_disp =
+          switch (prev^) {
+          | Some((d, _)) => d
+          | None => "-"
+          };
+        switch (apply(z^, a)) {
+        | Rejected => ()
+        | Raised(msg) =>
+          record(
+            ~seed,
+            ~step=k,
+            ~act=a,
+            ~inv="NO-CRASH",
+            ~prev=prev_disp,
+            ~cur="perform raised: " ++ msg,
+            ~prefix,
+          );
+          aborted := true;
+        | Applied(z') =>
+          z := z';
+          switch (check_invariants(~prev=prev^, ~action=a, z')) {
+          | Error(msg) =>
             record(
               ~seed,
               ~step=k,
               ~act=a,
               ~inv="NO-CRASH",
               ~prev=prev_disp,
-              ~cur="perform raised: " ++ msg,
+              ~cur="display raised: " ++ msg,
               ~prefix,
             );
             aborted := true;
-          | Applied(z') =>
-            z := z';
-            switch (check_invariants(~prev=prev^, ~action=a, z')) {
-            | Error(msg) =>
+          | Ok((cur, vs)) =>
+            List.iter(vs, ~f=inv =>
               record(
                 ~seed,
                 ~step=k,
                 ~act=a,
-                ~inv="NO-CRASH",
+                ~inv,
                 ~prev=prev_disp,
-                ~cur="display raised: " ++ msg,
+                ~cur,
                 ~prefix,
-              );
-              aborted := true;
-            | Ok((cur, vs)) =>
-              List.iter(vs, ~f=inv =>
-                  record(
-                    ~seed,
-                    ~step=k,
-                    ~act=a,
-                    ~inv,
-                    ~prev=prev_disp,
-                    ~cur,
-                    ~prefix,
-                  ));
-              prev := Some((cur, raw_promised(z')));
-            };
+              )
+            );
+            prev := Some((cur, raw_promised(z')));
           };
-        });
+        };
+      }
+    );
   };
   Stdlib.Buffer.contents(buf);
 };
@@ -579,59 +593,60 @@ let run_parity_fuzz = (~seeds: int, ~steps: int): string => {
     let z = ref(Zipper.init());
     let aborted = ref(false);
     List.iteri(script, ~f=(k0, a) =>
-        if (! aborted^) {
-          switch (apply(z^, a)) {
-          | Rejected => ()
-          | Raised(_) => aborted := true
-          | Applied(z') =>
-            z := z';
-            let cur =
-              switch (
-                Test_CompletionDisplay.display_state_of(
-                  ~parts=Test_CompletionDisplay.display_parts,
-                  ~chips=false,
-                  z',
-                )
-              ) {
-              | s => Some(s)
-              | exception _ => None
-              };
-            let prom =
-              switch (
-                Test_CompletionDisplay.display_state_of(
-                  ~parts=Test_CompletionDisplay.display_parts_promise,
-                  ~chips=false,
-                  z',
-                )
-              ) {
-              | s => Some(s)
-              | exception _ => None
-              };
-            switch (cur, prom) {
-            | (Some(c), Some(p)) when c != p =>
-              Stdlib.Buffer.add_string(
-                buf,
-                Printf.sprintf(
-                  "seed=%d step=%d\n  cur=%s\n  prom=%s\n",
-                  seed,
-                  k0 + 1,
-                  flat(c),
-                  flat(p),
-                ),
+      if (! aborted^) {
+        switch (apply(z^, a)) {
+        | Rejected => ()
+        | Raised(_) => aborted := true
+        | Applied(z') =>
+          z := z';
+          let cur =
+            switch (
+              Test_CompletionDisplay.display_state_of(
+                ~parts=Test_CompletionDisplay.display_parts,
+                ~chips=false,
+                z',
               )
-            | (Some(_), None) =>
-              Stdlib.Buffer.add_string(
-                buf,
-                Printf.sprintf(
-                  "seed=%d step=%d PROMISE-RAISED\n",
-                  seed,
-                  k0 + 1,
-                ),
-              )
-            | _ => ()
+            ) {
+            | s => Some(s)
+            | exception _ => None
             };
+          let prom =
+            switch (
+              Test_CompletionDisplay.display_state_of(
+                ~parts=Test_CompletionDisplay.display_parts_promise,
+                ~chips=false,
+                z',
+              )
+            ) {
+            | s => Some(s)
+            | exception _ => None
+            };
+          switch (cur, prom) {
+          | (Some(c), Some(p)) when c != p =>
+            Stdlib.Buffer.add_string(
+              buf,
+              Printf.sprintf(
+                "seed=%d step=%d\n  cur=%s\n  prom=%s\n",
+                seed,
+                k0 + 1,
+                flat(c),
+                flat(p),
+              ),
+            )
+          | (Some(_), None) =>
+            Stdlib.Buffer.add_string(
+              buf,
+              Printf.sprintf(
+                "seed=%d step=%d PROMISE-RAISED\n",
+                seed,
+                k0 + 1,
+              ),
+            )
+          | _ => ()
           };
-        });
+        };
+      }
+    );
   };
   Stdlib.Buffer.contents(buf);
 };
@@ -651,7 +666,8 @@ let acts = (spec: string): list(Action.t) =>
        | "L" => mv_l
        | "R" => mv_r
        | s => Action.Insert(s)
-       });
+       }
+     );
 
 /* pinned known-jank: replay a minimized repro, pin the violations its
    last action fires (bisected from fuzz findings via `minimize`). If
@@ -706,11 +722,7 @@ let crash_stage_probe = {
           );
         stage := "insert";
         let rows =
-          Printer.insert_string(
-            "|",
-            caret,
-            String.split(text, ~on='\n'),
-          );
+          Printer.insert_string("|", caret, String.split(text, ~on='\n'));
         stage := "done";
         String.concat(~sep="/", rows);
       }

@@ -232,7 +232,8 @@ let display_broken = (z: Zipper.t): option(string) => {
     );
   let key =
     List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
-      (d.text, d.of_shard));
+      (d.text, d.of_shard)
+    );
   let leads_with = (ds: list(CanonicalCompletion.delimiter_info)) =>
     List.length(ds) >= List.length(owned_delims)
     && key(fst(Util.ListUtil.split_n(List.length(owned_delims), ds)))
@@ -240,7 +241,9 @@ let display_broken = (z: Zipper.t): option(string) => {
   let fail = msg => Some(msg ++ " in:\n" ++ state_string(z));
   switch (
     owned,
-    List.filter(bubbles, ~f=(c: QuiverLayout.positioned_insertion) => c.owned),
+    List.filter(bubbles, ~f=(c: QuiverLayout.positioned_insertion) =>
+      c.owned
+    ),
   ) {
   | ([], []) => None
   | ([], _) => fail("bubble marked owned with nothing owned")

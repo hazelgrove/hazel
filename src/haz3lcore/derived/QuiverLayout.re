@@ -41,10 +41,11 @@ let rec find_piece_ctx =
           switch ((p: Piece.t)) {
           | Tile(t) =>
             List.fold_left(t.children, ~init=None, ~f=(acc, ch) =>
-                switch (acc) {
-                | Some(_) => acc
-                | None => find_piece_ctx(ch, id)
-                })
+              switch (acc) {
+              | Some(_) => acc
+              | None => find_piece_ctx(ch, id)
+              }
+            )
           | _ => None
           };
         switch (deeper) {
@@ -85,7 +86,9 @@ let rest_position =
         ins.splice
         |> Util.OptUtil.and_then(((id, _, sside)) =>
              Measured.find_by_id(id, measured)
-             |> Option.map(~f=(sm: Measured.measurement) => point_of(sm, sside))
+             |> Option.map(~f=(sm: Measured.measurement) =>
+                  point_of(sm, sside)
+                )
            )
       ) {
       | Some(p) => p
@@ -119,10 +122,13 @@ let rest_position =
       let left_edge =
         is_free(p)
           ? prev_content(i)
-            |> Option.map(~f=q => Measured.find_by_id(Piece.id(q), measured))
+            |> Option.map(~f=q =>
+                 Measured.find_by_id(Piece.id(q), measured)
+               )
             |> Option.join
             |> Option.map(~f=(qm: Measured.measurement) =>
-                 (qm.last.row, qm.last.col))
+                 (qm.last.row, qm.last.col)
+               )
           : None;
       let (row, col) =
         switch (left_edge) {
@@ -165,7 +171,8 @@ let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
   |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
-       String.length(d.text) + (Option.is_some(d.trailing_hole) ? 2 : 0))
+       String.length(d.text) + (Option.is_some(d.trailing_hole) ? 2 : 0)
+     )
   |> List.fold_left(~init=0, ~f=(+))
   |> (n => n + max(0, List.length(delimiters) - 1));
 
@@ -193,15 +200,18 @@ let layout_overlaps =
       /* same-tile delimiters stack in shard order (= before in),
          whatever order their records arrived in */
       delimiters:
-        List.stable_sort(first.delimiters @ second.delimiters, ~compare=(
-            x: CanonicalCompletion.delimiter_info,
-            y: CanonicalCompletion.delimiter_info,
-          ) =>
-            switch (x.of_shard, y.of_shard) {
-            | (Some((t1, i1)), Some((t2, i2))) when Id.equal(t1, t2) =>
-              compare(i1, i2)
-            | _ => 0
-            }),
+        List.stable_sort(
+          first.delimiters @ second.delimiters,
+          ~compare=(
+                     x: CanonicalCompletion.delimiter_info,
+                     y: CanonicalCompletion.delimiter_info,
+                   ) =>
+          switch (x.of_shard, y.of_shard) {
+          | (Some((t1, i1)), Some((t2, i2))) when Id.equal(t1, t2) =>
+            compare(i1, i2)
+          | _ => 0
+          }
+        ),
     };
   };
   let rec merge_same = (acc, rest) =>
@@ -250,9 +260,10 @@ let layout =
      first; (anchor, side) as the structural fallback) */
   let is_owned = (ins: CanonicalCompletion.insertion) =>
     List.exists(owned, ~f=(o: CanonicalCompletion.insertion) =>
-        phys_equal(o, ins)
-        || Id.equal(o.adjacent_id, ins.adjacent_id)
-        && Direction.equal(o.side, ins.side));
+      phys_equal(o, ins)
+      || Id.equal(o.adjacent_id, ins.adjacent_id)
+      && Direction.equal(o.side, ins.side)
+    );
   let resting =
     insertions
     |> List.filter(~f=ins => !is_owned(ins))
@@ -266,13 +277,18 @@ let layout =
           shape: None,
           owned: true,
           delimiters:
-            List.concat_map(owned, ~f=(ins: CanonicalCompletion.insertion) => ins.delimiters),
+            List.concat_map(owned, ~f=(ins: CanonicalCompletion.insertion) =>
+              ins.delimiters
+            ),
         },
       ]
     | _ => []
     };
   let sorted =
-    List.stable_sort(caret_bubble @ resting, ~compare=(a: positioned_insertion, b: positioned_insertion) =>
-        compare((a.row, a.col), (b.row, b.col)));
+    List.stable_sort(
+      caret_bubble @ resting,
+      ~compare=(a: positioned_insertion, b: positioned_insertion) =>
+      compare((a.row, a.col), (b.row, b.col))
+    );
   layout_overlaps(~col_width, sorted);
 };

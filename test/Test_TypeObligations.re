@@ -30,10 +30,14 @@ let derive = (code: string): string => {
            switch (ob.commas_at) {
            | None => ""
            | Some(idxs) =>
-             " @" ++ (idxs |> List.map(~f=string_of_int) |> String.concat(~sep=","))
+             " @"
+             ++ (
+               idxs |> List.map(~f=string_of_int) |> String.concat(~sep=",")
+             )
            },
-         ))
-    |> List.sort(~compare=compare)
+         )
+       )
+    |> List.sort(~compare)
     |> String.concat(~sep=" | ")
   };
 };
@@ -104,8 +108,9 @@ let error_clses = (code, ~reify) =>
            switch (Id.Map.find_opt(id, im)) {
            | Some(info) => Info.cls_of(info) |> Cls.show
            | None => "?"
-           })
-      |> List.sort(~compare=compare)
+           }
+         )
+      |> List.sort(~compare)
       |> String.concat(~sep=" | ")
   );
 
@@ -322,7 +327,8 @@ let probe_chips = [
           "obs=[%s] arg=%s existing=[%s] all=[%s]",
           obs
           |> List.map(~f=(ob: TypeObligations.t) =>
-               Printf.sprintf("%d/%d", ob.present, ob.expected))
+               Printf.sprintf("%d/%d", ob.present, ob.expected)
+             )
           |> String.concat(~sep=","),
           arg_shape,
           existing |> List.map(~f=show) |> String.concat(~sep=" | "),
@@ -393,7 +399,8 @@ let stale_tests = {
     |> List.map(~f=(i: CanonicalCompletion.insertion) =>
          i.delimiters
          |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
-         |> String.concat(~sep="+"))
+         |> String.concat(~sep="+")
+       )
     |> String.concat(~sep=" | ");
   let statics_at = (code: string) => {
     let z = Test_Editing.perform(Zipper.init(), Test_Editing.mk(code));

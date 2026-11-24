@@ -225,7 +225,12 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
             switch (l + 1 == r ? List.nth(remolded_mold.in_, l) : None) {
             | Some(s)
                 when
-                  !Option.equal(Sort.equal, List.nth(orig_mold.in_, l), Some(s)) =>
+                  !
+                    Option.equal(
+                      Sort.equal,
+                      List.nth(orig_mold.in_, l),
+                      Some(s),
+                    ) =>
               remold(child, s)
             | _ => child
             };
