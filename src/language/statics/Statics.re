@@ -485,6 +485,575 @@ and uexp_to_info_map =
     );
 
   // This is the case where we aren't a singleton labeled tuple
+  let let_case = (p: Pat.t, def: Exp.t, body: Exp.t) => {
+    let is_recursive = (ctx, p, def, syn: Typ.t) => {
+      switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
+      | (Some(num_vars), Some(num_fns))
+          when num_vars != 0 && num_vars == num_fns =>
+        let norm = Typ.normalize(ctx, syn);
+        switch (norm |> Typ.term_of) {
+        | Prod(syns) when List.length(syns) == num_vars =>
+          syns |> List.for_all(Typ.is_arrow_like)
+        | _ when Typ.is_arrow_like(norm) => num_vars == 1
+        | _ => false
+        };
+      | _ => false
+      };
+    };
+    /* Save module items and RHS variable name before def is shadowed */
+    let module_items =
+      switch (def.term) {
+      | Module(items) => Some(items)
+      | _ => None
+      };
+    let def_rhs_var =
+      switch (def.term) {
+      | Var(v) => Some(v)
+      | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
+      | _ => None
+      };
+    let (p_syn, _, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+    let (def_term, def_rewrap) = Exp.unwrap(def);
+    let def =
+      switch (def_term, Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+      | (Tuple(ds), Prod(tys)) =>
+        Tuple(
+          LabeledTuple.rearrange(
+            Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
+            TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
+          ),
+        )
+        |> def_rewrap
+      | (_, _) => def
+      };
+    let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+    let rec_check_ty =
+      switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
+      | Unknown(SynSwitch) => def_rec_probe.ty
+      | _ => p_syn.ty
+      };
+    let is_rec = is_recursive(ctx, p, def, rec_check_ty);
+    let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
+      if (!is_rec) {
+        let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+        let ty_p_ana = def.ty;
+        let (p_ana', _, _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~ana=ty_p_ana,
+            p,
+            m,
+          );
+        (def, def_elab, p_ana'.ctx, m, ty_p_ana);
+      } else {
+        let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+        let ty_p_ana = def_base.ty;
+        /* Analyze pattern to incorporate def type into ctx */
+        let (p_ana', _, _) =
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=CoCtx.empty,
+            ~ana=ty_p_ana,
+            p,
+            m,
+          );
+        let def_ctx = p_ana'.ctx;
+        let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+        let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+          Typ.term_of(ty_p) == Unknown(SynSwitch)
+          && !Typ.equal(ty_fn1, ty_fn2)
+            ? ty_fn1 : ty_p;
+        };
+        let ana =
+          switch (
+            (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+            p_syn.ty |> Typ.term_of,
+          ) {
+          | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+            let tys =
+              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+            Prod(tys) |> Typ.temp;
+          | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+          };
+        let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+        (def, def_elab, def_ctx, m, ty_p_ana);
+      };
+    /* Inject module type exports into body context */
+    let p_ana_ctx =
+      switch (module_items) {
+      | Some(items) =>
+        switch (ExpandModule.single_bound_var(p)) {
+        | Some(name) =>
+          let exports = ExpandModule.collect_type_exports(ctx, items);
+          switch (exports) {
+          | [] => p_ana_ctx
+          | _ =>
+            let exports_ty = ExpandModule.build_type_exports_type(exports);
+            Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty);
+          };
+        | None => p_ana_ctx
+        }
+      | None =>
+        /* Phase 1b: variable aliasing — propagate TVarEntry from RHS */
+        switch (ExpandModule.single_bound_var(p), def_rhs_var) {
+        | (Some(name), Some(rhs)) =>
+          switch (Ctx.lookup_tvar(ctx, rhs)) {
+          | Some(Singleton(exports_ty)) =>
+            Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+          | _ => p_ana_ctx
+          }
+        | _ => p_ana_ctx
+        }
+      };
+    let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
+    /* add co_ctx to pattern */
+    let (p_ana, p_elab, m) =
+      go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+    let syn_ty_let = body.elab_syn_ty;
+    let Coverage.CheckMatrix.{exhaustiveness, _} =
+      Coverage.check(
+        [Info.pat_constraint(p_ana)],
+        Typ.normalize(ctx, p_ana.ty) |> Typ.unfold_nominals(ctx),
+      );
+    let marks_let =
+      switch (exhaustiveness) {
+      | Exhaustive => []
+      | Inexhaustive(unseen_pattern) => [
+          Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
+        ]
+      };
+    let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
+    let requires_fixf =
+      is_rec
+      && CoCtx.has_any(
+           CoCtx.union([
+             def.co_ctx,
+             CoCtx.mk(ctx, p_ana_ctx, body.co_ctx),
+             pat_typ_refs,
+           ]),
+           Pat.bound_vars(p),
+         );
+    let elab_term =
+      if (!requires_fixf) {
+        let def_elab =
+          LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
+          |> Exp.add_name(Pat.get_var(p));
+        Let(p_elab, def_elab, body_elab) |> rewrap;
+      } else {
+        let def_elab =
+          LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
+          |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
+        let fixf =
+          (FixF(p_elab, def_elab, None): Exp.term)
+          |> IdTagged.fresh_deterministic(Exp.rep_id(uexp));
+        Let(p_elab, fixf, body_elab) |> rewrap;
+      };
+    add(
+      ~elab_term,
+      ~elab_syn_ty=syn_ty_let,
+      ~marks=marks_let,
+      ~co_ctx=
+        CoCtx.union([
+          def.co_ctx,
+          CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+          pat_typ_refs,
+        ]),
+      m,
+    );
+  };
+  let ty_alias_case = (typat: TPat.t, utyp: Typ.t, body: Exp.t) => {
+    /* Desugar Sig types so type aliases like `type T = {let x : Int}`
+       store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
+       context (so meet/join can unify them with module expression
+       types). */
+    let utyp_desugared = Typ.desugar_sig(ctx, utyp);
+    /* `type T = typfun a, b -> body` is the prefix-binder spelling
+       of `type T(a, b) = body` — a single multi-binder `TypFun`.
+       Peel it so the alias takes the `Param`-branch path
+       (params extension, polymorphic constructor schemas,
+       tuple-arrow kind `(Type, …) -> Type`).
+
+       A *curried* form `type T = typfun a -> typfun b -> body`
+       is left intact: each unary `TypFun` stays as its own
+       binder so the alias has the curried kind
+       `Type -> Type -> kind(body)` and accepts curried
+       applications `T(a)(b)`. `peel_typlams` refuses to peel a
+       TypFun whose body is itself a TypFun. */
+    let rec strip_parens = (t: Typ.t): Typ.t =>
+      switch (t.term) {
+      | Parens(inner) => strip_parens(inner)
+      | Unknown(_)
+      | Atom(_)
+      | DrvQuoteTy(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Var(_)
+      | Projector(_)
+      | ProdProjection(_)
+      | List(_)
+      | Arrow(_)
+      | TupLabel(_)
+      | ProdExtension(_)
+      | Prod(_)
+      | Sum(_)
+      | Poly(_)
+      | ProofOf(_)
+      | Sig(_)
+      | TypTuple(_)
+      | TypFun(_)
+      | TypParamAp(_)
+      | Rec(_) => t
+      };
+    let peel_typlams = (typ: Typ.t): (list(TPat.t), Typ.t) => {
+      let stripped = strip_parens(typ);
+      switch (stripped.term) {
+      | TypFun(p, inner) =>
+        let stripped_inner = strip_parens(inner);
+        switch (stripped_inner.term) {
+        | TypFun(_) => ([], typ)
+        | Unknown(_)
+        | Atom(_)
+        | DrvQuoteTy(_)
+        | Label(_)
+        | ExplicitNonlabel
+        | Var(_)
+        | Parens(_)
+        | Projector(_)
+        | ProdProjection(_)
+        | List(_)
+        | Arrow(_)
+        | TupLabel(_)
+        | ProdExtension(_)
+        | Prod(_)
+        | Sum(_)
+        | Poly(_)
+        | ProofOf(_)
+        | Sig(_)
+        | TypTuple(_)
+        | TypParamAp(_)
+        | Rec(_) => (TPat.binders_of(p), stripped_inner)
+        };
+      | Unknown(_)
+      | Atom(_)
+      | DrvQuoteTy(_)
+      | Label(_)
+      | ExplicitNonlabel
+      | Var(_)
+      | Parens(_)
+      | Projector(_)
+      | ProdProjection(_)
+      | List(_)
+      | Arrow(_)
+      | TupLabel(_)
+      | ProdExtension(_)
+      | Prod(_)
+      | Sum(_)
+      | Poly(_)
+      | ProofOf(_)
+      | Sig(_)
+      | TypTuple(_)
+      | TypParamAp(_)
+      | Rec(_) => ([], typ)
+      };
+    };
+    /* If the typat is a bare `Var(name)` and the body has a
+       peelable single multi-binder `TypFun`, rebundle as
+       `Param(head, params)` so the rest of the branch treats this
+       identically to the explicit `type Name(params) = body`
+       spelling. The new `Param` reuses the original `Var` tile id
+       for its head so jump-to-definition lands on the alias
+       name. */
+    let (typat, utyp, utyp_desugared) =
+      switch (typat.term, peel_typlams(utyp_desugared)) {
+      | (Var(name), ([_, ..._] as params, inner_body)) =>
+        let head: TPat.t = {
+          term: Var(name),
+          annotation: typat.annotation,
+        };
+        let new_typat: TPat.t = {
+          term: Param(head, params),
+          annotation: typat.annotation,
+        };
+        let (_, inner_orig) = peel_typlams(utyp);
+        (new_typat, inner_orig, inner_body);
+      /* No rebundle: either typat isn't a `Var` (already a
+         `Param`/`Tuple`/etc.), or `peel_typlams` returned no
+         binders (body isn't a peelable `TypFun`). */
+      | (Var(_), ([], _))
+      | (
+          Param(_, _) | Tuple(_) | Parens(_) | Invalid(_) | EmptyHole |
+          MultiHole(_),
+          _,
+        ) => (
+          typat,
+          utyp,
+          utyp_desugared,
+        )
+      };
+    /* Single source of truth for the alias's kind: stored on the
+       `TVarEntry`, surfaced at the alias-name tpat through
+       `~alias_kind`, and consumed by every downstream
+       `kind_of_typ` lookup of a `Var(name)` reference to this
+       alias. Mirrors the kind `kind_of_typ` derives from the
+       alias body — `(Type, …) -> kind(body)` for the rebundled
+       multi-binder case (with the params bound abstractly in the
+       body's context), or just `kind_of_typ(body)` otherwise (a
+       curried `typfun a -> typfun b -> Sum(...)` body yields
+       `Type -> Type -> Type`). */
+    let alias_body_kind =
+      switch (typat.term) {
+      | Param(_, params) =>
+        let n = List.length(params);
+        let body_ctx =
+          List.fold_left(
+            (ctx, p) =>
+              switch (TPat.tyvar_of_utpat(p)) {
+              | Some(pname) =>
+                Ctx.extend_tvar(
+                  ctx,
+                  {
+                    name: pname,
+                    id: TPat.rep_id(p),
+                    kind: Abstract,
+                    typ_kind: TypKind.Type,
+                  },
+                )
+              | None => ctx
+              },
+            ctx,
+            params,
+          );
+        TypKind.arrows(
+          List.init(n, _ => TypKind.Type),
+          kind_of_typ(body_ctx, utyp_desugared),
+        );
+      | Var(_)
+      | Tuple(_)
+      | Parens(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => kind_of_typ(ctx, utyp_desugared)
+      };
+    /* Visit the (possibly rebundled) typat *after* peeling so the
+       alias-head info entry sees the `Param`/`Var` shape
+       post-rebundle and the computed kind. */
+    let m =
+      utpat_to_info_map(
+        ~at_alias_head=true,
+        ~alias_kind=alias_body_kind,
+        ~ctx,
+        ~ancestors=ancestors_inclusive,
+        typat,
+        m,
+      )
+      |> snd;
+    switch (typat.term) {
+    | Param(head, params)
+        when
+          switch (TPat.head_name_of(head)) {
+          | Some(name) => !Ctx.is_base_typ(name)
+          | None => false
+          } =>
+      let name = TPat.head_name_of(head) |> Option.get;
+      /* Use the head tile's id (not the Param's rep_id, which
+         points at the postfix application tile) as the binding
+         site so jump-to-definition lands on the alias name. */
+      let binding_id = TPat.rep_id(head);
+      let extend_param_ctx = ctx =>
+        List.fold_left(
+          (ctx, param) =>
+            switch (TPat.tyvar_of_utpat(param)) {
+            | Some(param_name) =>
+              Ctx.extend_tvar(
+                ctx,
+                {
+                  name: param_name,
+                  id: TPat.rep_id(param),
+                  kind: Abstract,
+                  typ_kind: TypKind.Type,
+                },
+              )
+            | None => ctx
+            },
+          ctx,
+          params,
+        );
+      /* Single uncurried `TypFun(TPat.Tuple([a, b, …]), body)`
+         for the multi-binder case (no curried `TypFun(a, TypFun(b,
+         body))` chain). The `TypParamAp` reduction zips a
+         `TypTuple` argument against the tuple binder element-wise
+         in one substitution step. */
+      let ty_lam: Typ.t =
+        switch (params) {
+        | [] => utyp_desugared
+        | [single] => TypFun(single, utyp_desugared) |> Typ.temp
+        | _ =>
+          let tuple_binder: TPat.t =
+            (Tuple(params): TPat.term) |> IdTagged.fresh;
+          TypFun(tuple_binder, utyp_desugared) |> Typ.temp;
+        };
+      let (ty_def, ctx_def, ctx_body) =
+        if (List.mem(name, Typ.free_vars(utyp_desugared))) {
+          let ty_rec = Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
+          let ctx_def =
+            Ctx.extend_alias(
+              ctx,
+              name,
+              binding_id,
+              ~typ_kind=alias_body_kind,
+              ty_rec,
+            );
+          (ty_rec, ctx_def, ctx_def);
+        } else {
+          let ctx_body =
+            Ctx.extend_alias(
+              ctx,
+              name,
+              binding_id,
+              ~typ_kind=alias_body_kind,
+              ty_lam,
+            );
+          (ty_lam, ctx, ctx_body);
+        };
+      let ctx_for_def = extend_param_ctx(ctx_def);
+      let ctx_body =
+        switch (Typ.get_sum_constructors(ctx_for_def, utyp_desugared)) {
+        | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
+        | None => ctx_body
+        };
+      let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        go(~ctx=ctx_body, ~ana, body, m);
+      let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
+      let m =
+        utyp_to_info_map(
+          ~ctx=ctx_for_def,
+          ~ancestors=ancestors_inclusive,
+          ~expects=TypExpectation.AnyKindExpected,
+          utyp,
+          m,
+        )
+        |> snd;
+      let typ_refs =
+        ModuleHelpers.collect_module_refs_in_typ(
+          ctx,
+          Typ.rep_id(utyp),
+          utyp,
+        );
+      add(
+        ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
+        ~elab_syn_ty=ty_escape,
+        ~marks=[],
+        ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+        m,
+      );
+    | Var(name) when !Ctx.is_base_typ(name) =>
+      /* Tentatively add the alias as an abstract type when its
+         body mentions itself, so `free_vars` can detect the
+         recursive case before we commit to a `Rec(...)` wrapper.
+         `~typ_kind=alias_body_kind` keeps the alias's kind in
+         context aligned with what the cursor inspector showed at
+         the tpat node. */
+      let (ty_def, ctx_def, ctx_body) =
+        if (List.mem(name, Typ.free_vars(utyp_desugared))) {
+          let ty_rec =
+            Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
+          let ctx_def =
+            Ctx.extend_alias(
+              ctx,
+              name,
+              TPat.rep_id(typat),
+              ~typ_kind=alias_body_kind,
+              ty_rec,
+            );
+          (ty_rec, ctx_def, ctx_def);
+        } else {
+          (
+            utyp_desugared,
+            ctx,
+            Ctx.extend_alias(
+              ctx,
+              name,
+              TPat.rep_id(typat),
+              ~typ_kind=alias_body_kind,
+              utyp_desugared,
+            ),
+          );
+        };
+      let ctx_body =
+        /* Only register new constructors when the alias RHS literally
+           defines a sum (e.g. `type T = + A + B`). For an alias whose
+           RHS is a reference to an existing parameterized constructor
+           (e.g. `type IntOption = Option(Int)`), reusing `add_ctrs`
+           would shadow the polymorphic schemas of Some/None with
+           monomorphic ones, breaking implicit instantiation. */
+        switch (utyp_desugared.term) {
+        | Sum(_) =>
+          switch (Typ.get_sum_constructors(ctx, ty_def)) {
+          | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
+          | None => ctx_body
+          }
+        | _ => ctx_body
+        };
+      let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        go(~ctx=ctx_body, ~ana, body, m);
+      let ty_escape = Typ.subst(ty_def, typat, ty_body);
+      let m =
+        utyp_to_info_map(
+          ~ctx=ctx_def,
+          ~ancestors=ancestors_inclusive,
+          ~expects=TypExpectation.AnyKindExpected,
+          utyp,
+          m,
+        )
+        |> snd;
+      let typ_refs =
+        ModuleHelpers.collect_module_refs_in_typ(
+          ctx,
+          Typ.rep_id(utyp),
+          utyp,
+        );
+      add(
+        ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
+        ~elab_syn_ty=ty_escape,
+        ~marks=[],
+        ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+        m,
+      );
+    | Var(_)
+    | Param(_)
+    | Tuple(_)
+    | Parens(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) =>
+      let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
+        go(~ctx, ~ana, body, m);
+      let m =
+        utyp_to_info_map(
+          ~ctx,
+          ~ancestors=ancestors_inclusive,
+          ~expects=TypExpectation.AnyKindExpected,
+          utyp,
+          m,
+        )
+        |> snd;
+      let typ_refs =
+        ModuleHelpers.collect_module_refs_in_typ(
+          ctx,
+          Typ.rep_id(utyp),
+          utyp,
+        );
+      add(
+        ~elab_term=body_elab,
+        ~elab_syn_ty=ty_body,
+        ~marks=[],
+        ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
+        m,
+      );
+    };
+  };
   let default_case = () => {
     switch (term) {
     | Closure(env, e) =>
@@ -2033,184 +2602,7 @@ and uexp_to_info_map =
         ~co_ctx=rewritten_info.co_ctx,
         m,
       );
-    | Let(p, def, body) =>
-      let is_recursive = (ctx, p, def, syn: Typ.t) => {
-        switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
-        | (Some(num_vars), Some(num_fns))
-            when num_vars != 0 && num_vars == num_fns =>
-          let norm = Typ.normalize(ctx, syn);
-          switch (norm |> Typ.term_of) {
-          | Prod(syns) when List.length(syns) == num_vars =>
-            syns |> List.for_all(Typ.is_arrow_like)
-          | _ when Typ.is_arrow_like(norm) => num_vars == 1
-          | _ => false
-          };
-        | _ => false
-        };
-      };
-      /* Save module items and RHS variable name before def is shadowed */
-      let module_items =
-        switch (def.term) {
-        | Module(items) => Some(items)
-        | _ => None
-        };
-      let def_rhs_var =
-        switch (def.term) {
-        | Var(v) => Some(v)
-        | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
-        | _ => None
-        };
-      let (p_syn, _, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (def_term, def_rewrap) = Exp.unwrap(def);
-      let def =
-        switch (def_term, Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
-        | (Tuple(ds), Prod(tys)) =>
-          Tuple(
-            LabeledTuple.rearrange(
-              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
-              TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
-            ),
-          )
-          |> def_rewrap
-        | (_, _) => def
-        };
-      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
-      let rec_check_ty =
-        switch (Typ.term_of(Typ.normalize(ctx, p_syn.ty))) {
-        | Unknown(SynSwitch) => def_rec_probe.ty
-        | _ => p_syn.ty
-        };
-      let is_rec = is_recursive(ctx, p, def, rec_check_ty);
-      let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
-        if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
-          let ty_p_ana = def.ty;
-          let (p_ana', _, _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~ana=ty_p_ana,
-              p,
-              m,
-            );
-          (def, def_elab, p_ana'.ctx, m, ty_p_ana);
-        } else {
-          let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
-          let ty_p_ana = def_base.ty;
-          /* Analyze pattern to incorporate def type into ctx */
-          let (p_ana', _, _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~ana=ty_p_ana,
-              p,
-              m,
-            );
-          let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
-          };
-          let ana =
-            switch (
-              (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
-              p_syn.ty |> Typ.term_of,
-            ) {
-            | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-              let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-              Prod(tys) |> Typ.temp;
-            | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
-            };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
-          (def, def_elab, def_ctx, m, ty_p_ana);
-        };
-      /* Inject module type exports into body context */
-      let p_ana_ctx =
-        switch (module_items) {
-        | Some(items) =>
-          switch (ExpandModule.single_bound_var(p)) {
-          | Some(name) =>
-            let exports = ExpandModule.collect_type_exports(ctx, items);
-            switch (exports) {
-            | [] => p_ana_ctx
-            | _ =>
-              let exports_ty = ExpandModule.build_type_exports_type(exports);
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty);
-            };
-          | None => p_ana_ctx
-          }
-        | None =>
-          /* Phase 1b: variable aliasing — propagate TVarEntry from RHS */
-          switch (ExpandModule.single_bound_var(p), def_rhs_var) {
-          | (Some(name), Some(rhs)) =>
-            switch (Ctx.lookup_tvar(ctx, rhs)) {
-            | Some(Singleton(exports_ty)) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
-            | _ => p_ana_ctx
-            }
-          | _ => p_ana_ctx
-          }
-        };
-      let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
-      /* add co_ctx to pattern */
-      let (p_ana, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
-      let syn_ty_let = body.elab_syn_ty;
-      let Coverage.CheckMatrix.{exhaustiveness, _} =
-        Coverage.check(
-          [Info.pat_constraint(p_ana)],
-          Typ.normalize(ctx, p_ana.ty) |> Typ.unfold_nominals(ctx),
-        );
-      let marks_let =
-        switch (exhaustiveness) {
-        | Exhaustive => []
-        | Inexhaustive(unseen_pattern) => [
-            Mark.InexhaustiveMatch(syn_ty_let, [], unseen_pattern),
-          ]
-        };
-      let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
-      let requires_fixf =
-        is_rec
-        && CoCtx.has_any(
-             CoCtx.union([
-               def.co_ctx,
-               CoCtx.mk(ctx, p_ana_ctx, body.co_ctx),
-               pat_typ_refs,
-             ]),
-             Pat.bound_vars(p),
-           );
-      let elab_term =
-        if (!requires_fixf) {
-          let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
-            |> Exp.add_name(Pat.get_var(p));
-          Let(p_elab, def_elab, body_elab) |> rewrap;
-        } else {
-          let def_elab =
-            LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
-            |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(p)));
-          let fixf =
-            (FixF(p_elab, def_elab, None): Exp.term)
-            |> IdTagged.fresh_deterministic(Exp.rep_id(uexp));
-          Let(p_elab, fixf, body_elab) |> rewrap;
-        };
-      add(
-        ~elab_term,
-        ~elab_syn_ty=syn_ty_let,
-        ~marks=marks_let,
-        ~co_ctx=
-          CoCtx.union([
-            def.co_ctx,
-            CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
-            pat_typ_refs,
-          ]),
-        m,
-      );
+    | Let(p, def, body) => let_case(p, def, body)
     | Theorem({term: Var(_), _} as p, e1, e2) =>
       let pat_typ_refs = ModuleHelpers.collect_pat_type_refs(ctx, p);
       let (e1', e1_elab, m) = go(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
@@ -2464,396 +2856,7 @@ and uexp_to_info_map =
           branch_ids,
         );
       add(~elab_term, ~elab_syn_ty, ~marks=marks_match', ~co_ctx, m);
-    | TyAlias(typat, utyp, body) =>
-      /* Desugar Sig types so type aliases like `type T = {let x : Int}`
-         store `Prod([TupLabel(...)])` rather than `Sig([...])` in the
-         context (so meet/join can unify them with module expression
-         types). */
-      let utyp_desugared = Typ.desugar_sig(ctx, utyp);
-      /* `type T = typfun a, b -> body` is the prefix-binder spelling
-         of `type T(a, b) = body` — a single multi-binder `TypFun`.
-         Peel it so the alias takes the `Param`-branch path
-         (params extension, polymorphic constructor schemas,
-         tuple-arrow kind `(Type, …) -> Type`).
-
-         A *curried* form `type T = typfun a -> typfun b -> body`
-         is left intact: each unary `TypFun` stays as its own
-         binder so the alias has the curried kind
-         `Type -> Type -> kind(body)` and accepts curried
-         applications `T(a)(b)`. `peel_typlams` refuses to peel a
-         TypFun whose body is itself a TypFun. */
-      let rec strip_parens = (t: Typ.t): Typ.t =>
-        switch (t.term) {
-        | Parens(inner) => strip_parens(inner)
-        | Unknown(_)
-        | Atom(_)
-        | DrvQuoteTy(_)
-        | Label(_)
-        | ExplicitNonlabel
-        | Var(_)
-        | Projector(_)
-        | ProdProjection(_)
-        | List(_)
-        | Arrow(_)
-        | TupLabel(_)
-        | ProdExtension(_)
-        | Prod(_)
-        | Sum(_)
-        | Poly(_)
-        | ProofOf(_)
-        | Sig(_)
-        | TypTuple(_)
-        | TypFun(_)
-        | TypParamAp(_)
-        | Rec(_) => t
-        };
-      let peel_typlams = (typ: Typ.t): (list(TPat.t), Typ.t) => {
-        let stripped = strip_parens(typ);
-        switch (stripped.term) {
-        | TypFun(p, inner) =>
-          let stripped_inner = strip_parens(inner);
-          switch (stripped_inner.term) {
-          | TypFun(_) => ([], typ)
-          | Unknown(_)
-          | Atom(_)
-          | DrvQuoteTy(_)
-          | Label(_)
-          | ExplicitNonlabel
-          | Var(_)
-          | Parens(_)
-          | Projector(_)
-          | ProdProjection(_)
-          | List(_)
-          | Arrow(_)
-          | TupLabel(_)
-          | ProdExtension(_)
-          | Prod(_)
-          | Sum(_)
-          | Poly(_)
-          | ProofOf(_)
-          | Sig(_)
-          | TypTuple(_)
-          | TypParamAp(_)
-          | Rec(_) => (TPat.binders_of(p), stripped_inner)
-          };
-        | Unknown(_)
-        | Atom(_)
-        | DrvQuoteTy(_)
-        | Label(_)
-        | ExplicitNonlabel
-        | Var(_)
-        | Parens(_)
-        | Projector(_)
-        | ProdProjection(_)
-        | List(_)
-        | Arrow(_)
-        | TupLabel(_)
-        | ProdExtension(_)
-        | Prod(_)
-        | Sum(_)
-        | Poly(_)
-        | ProofOf(_)
-        | Sig(_)
-        | TypTuple(_)
-        | TypParamAp(_)
-        | Rec(_) => ([], typ)
-        };
-      };
-      /* If the typat is a bare `Var(name)` and the body has a
-         peelable single multi-binder `TypFun`, rebundle as
-         `Param(head, params)` so the rest of the branch treats this
-         identically to the explicit `type Name(params) = body`
-         spelling. The new `Param` reuses the original `Var` tile id
-         for its head so jump-to-definition lands on the alias
-         name. */
-      let (typat, utyp, utyp_desugared) =
-        switch (typat.term, peel_typlams(utyp_desugared)) {
-        | (Var(name), ([_, ..._] as params, inner_body)) =>
-          let head: TPat.t = {
-            term: Var(name),
-            annotation: typat.annotation,
-          };
-          let new_typat: TPat.t = {
-            term: Param(head, params),
-            annotation: typat.annotation,
-          };
-          let (_, inner_orig) = peel_typlams(utyp);
-          (new_typat, inner_orig, inner_body);
-        /* No rebundle: either typat isn't a `Var` (already a
-           `Param`/`Tuple`/etc.), or `peel_typlams` returned no
-           binders (body isn't a peelable `TypFun`). */
-        | (Var(_), ([], _))
-        | (
-            Param(_, _) | Tuple(_) | Parens(_) | Invalid(_) | EmptyHole |
-            MultiHole(_),
-            _,
-          ) => (
-            typat,
-            utyp,
-            utyp_desugared,
-          )
-        };
-      /* Single source of truth for the alias's kind: stored on the
-         `TVarEntry`, surfaced at the alias-name tpat through
-         `~alias_kind`, and consumed by every downstream
-         `kind_of_typ` lookup of a `Var(name)` reference to this
-         alias. Mirrors the kind `kind_of_typ` derives from the
-         alias body — `(Type, …) -> kind(body)` for the rebundled
-         multi-binder case (with the params bound abstractly in the
-         body's context), or just `kind_of_typ(body)` otherwise (a
-         curried `typfun a -> typfun b -> Sum(...)` body yields
-         `Type -> Type -> Type`). */
-      let alias_body_kind =
-        switch (typat.term) {
-        | Param(_, params) =>
-          let n = List.length(params);
-          let body_ctx =
-            List.fold_left(
-              (ctx, p) =>
-                switch (TPat.tyvar_of_utpat(p)) {
-                | Some(pname) =>
-                  Ctx.extend_tvar(
-                    ctx,
-                    {
-                      name: pname,
-                      id: TPat.rep_id(p),
-                      kind: Abstract,
-                      typ_kind: TypKind.Type,
-                    },
-                  )
-                | None => ctx
-                },
-              ctx,
-              params,
-            );
-          TypKind.arrows(
-            List.init(n, _ => TypKind.Type),
-            kind_of_typ(body_ctx, utyp_desugared),
-          );
-        | Var(_)
-        | Tuple(_)
-        | Parens(_)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => kind_of_typ(ctx, utyp_desugared)
-        };
-      /* Visit the (possibly rebundled) typat *after* peeling so the
-         alias-head info entry sees the `Param`/`Var` shape
-         post-rebundle and the computed kind. */
-      let m =
-        utpat_to_info_map(
-          ~at_alias_head=true,
-          ~alias_kind=alias_body_kind,
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
-          typat,
-          m,
-        )
-        |> snd;
-      switch (typat.term) {
-      | Param(head, params)
-          when
-            switch (TPat.head_name_of(head)) {
-            | Some(name) => !Ctx.is_base_typ(name)
-            | None => false
-            } =>
-        let name = TPat.head_name_of(head) |> Option.get;
-        /* Use the head tile's id (not the Param's rep_id, which
-           points at the postfix application tile) as the binding
-           site so jump-to-definition lands on the alias name. */
-        let binding_id = TPat.rep_id(head);
-        let extend_param_ctx = ctx =>
-          List.fold_left(
-            (ctx, param) =>
-              switch (TPat.tyvar_of_utpat(param)) {
-              | Some(param_name) =>
-                Ctx.extend_tvar(
-                  ctx,
-                  {
-                    name: param_name,
-                    id: TPat.rep_id(param),
-                    kind: Abstract,
-                    typ_kind: TypKind.Type,
-                  },
-                )
-              | None => ctx
-              },
-            ctx,
-            params,
-          );
-        /* Single uncurried `TypFun(TPat.Tuple([a, b, …]), body)`
-           for the multi-binder case (no curried `TypFun(a, TypFun(b,
-           body))` chain). The `TypParamAp` reduction zips a
-           `TypTuple` argument against the tuple binder element-wise
-           in one substitution step. */
-        let ty_lam: Typ.t =
-          switch (params) {
-          | [] => utyp_desugared
-          | [single] => TypFun(single, utyp_desugared) |> Typ.temp
-          | _ =>
-            let tuple_binder: TPat.t =
-              (Tuple(params): TPat.term) |> IdTagged.fresh;
-            TypFun(tuple_binder, utyp_desugared) |> Typ.temp;
-          };
-        let (ty_def, ctx_def, ctx_body) =
-          if (List.mem(name, Typ.free_vars(utyp_desugared))) {
-            let ty_rec = Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(
-                ctx,
-                name,
-                binding_id,
-                ~typ_kind=alias_body_kind,
-                ty_rec,
-              );
-            (ty_rec, ctx_def, ctx_def);
-          } else {
-            let ctx_body =
-              Ctx.extend_alias(
-                ctx,
-                name,
-                binding_id,
-                ~typ_kind=alias_body_kind,
-                ty_lam,
-              );
-            (ty_lam, ctx, ctx_body);
-          };
-        let ctx_for_def = extend_param_ctx(ctx_def);
-        let ctx_body =
-          switch (Typ.get_sum_constructors(ctx_for_def, utyp_desugared)) {
-          | Some(sm) => Ctx.add_ctrs_with_params(ctx_body, name, params, sm)
-          | None => ctx_body
-          };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana, body, m);
-        let ty_escape = Typ.subst(ty_def, Var(name) |> TPat.temp, ty_body);
-        let m =
-          utyp_to_info_map(
-            ~ctx=ctx_for_def,
-            ~ancestors=ancestors_inclusive,
-            ~expects=AnyKindExpected,
-            utyp,
-            m,
-          )
-          |> snd;
-        let typ_refs =
-          ModuleHelpers.collect_module_refs_in_typ(
-            ctx,
-            Typ.rep_id(utyp),
-            utyp,
-          );
-        add(
-          ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
-          ~elab_syn_ty=ty_escape,
-          ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
-          m,
-        );
-      | Var(name) when !Ctx.is_base_typ(name) =>
-        /* Tentatively add the alias as an abstract type when its
-           body mentions itself, so `free_vars` can detect the
-           recursive case before we commit to a `Rec(...)` wrapper.
-           `~typ_kind=alias_body_kind` keeps the alias's kind in
-           context aligned with what the cursor inspector showed at
-           the tpat node. */
-        let (ty_def, ctx_def, ctx_body) =
-          if (List.mem(name, Typ.free_vars(utyp_desugared))) {
-            let ty_rec =
-              Rec(Var(name) |> TPat.fresh, utyp_desugared) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(
-                ctx,
-                name,
-                TPat.rep_id(typat),
-                ~typ_kind=alias_body_kind,
-                ty_rec,
-              );
-            (ty_rec, ctx_def, ctx_def);
-          } else {
-            (
-              utyp_desugared,
-              ctx,
-              Ctx.extend_alias(
-                ctx,
-                name,
-                TPat.rep_id(typat),
-                ~typ_kind=alias_body_kind,
-                utyp_desugared,
-              ),
-            );
-          };
-        let ctx_body =
-          /* Only register new constructors when the alias RHS literally
-             defines a sum (e.g. `type T = + A + B`). For an alias whose
-             RHS is a reference to an existing parameterized constructor
-             (e.g. `type IntOption = Option(Int)`), reusing `add_ctrs`
-             would shadow the polymorphic schemas of Some/None with
-             monomorphic ones, breaking implicit instantiation. */
-          switch (utyp_desugared.term) {
-          | Sum(_) =>
-            switch (Typ.get_sum_constructors(ctx, ty_def)) {
-            | Some(sm) => Ctx.add_ctrs(ctx_body, name, sm)
-            | None => ctx_body
-            }
-          | _ => ctx_body
-          };
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx=ctx_body, ~ana, body, m);
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m =
-          utyp_to_info_map(
-            ~ctx=ctx_def,
-            ~ancestors=ancestors_inclusive,
-            ~expects=AnyKindExpected,
-            utyp,
-            m,
-          )
-          |> snd;
-        let typ_refs =
-          ModuleHelpers.collect_module_refs_in_typ(
-            ctx,
-            Typ.rep_id(utyp),
-            utyp,
-          );
-        add(
-          ~elab_term=unfold_nominals_in_elab(ctx_body, name, body_elab),
-          ~elab_syn_ty=ty_escape,
-          ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
-          m,
-        );
-      | Var(_)
-      | Param(_)
-      | Tuple(_)
-      | Parens(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
-        let ({co_ctx, elab_syn_ty: ty_body, _}: Info.exp, body_elab, m) =
-          go(~ctx, ~ana, body, m);
-        let m =
-          utyp_to_info_map(
-            ~ctx,
-            ~ancestors=ancestors_inclusive,
-            ~expects=AnyKindExpected,
-            utyp,
-            m,
-          )
-          |> snd;
-        let typ_refs =
-          ModuleHelpers.collect_module_refs_in_typ(
-            ctx,
-            Typ.rep_id(utyp),
-            utyp,
-          );
-        add(
-          ~elab_term=body_elab,
-          ~elab_syn_ty=ty_body,
-          ~marks=[],
-          ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
-          m,
-        );
-      };
+    | TyAlias(typat, utyp, body) => ty_alias_case(typat, utyp, body)
     | Use(typ, body) =>
       let (typ, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typ, m);
@@ -2987,7 +2990,13 @@ and uexp_to_info_map =
     | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
-  | _ => default_case()
+  | _ =>
+    switch (term) {
+    | Let(p, def, body) when Option.is_none(FunctionSugar.detect(p)) =>
+      let_case(p, def, body)
+    | TyAlias(typat, utyp, body) => ty_alias_case(typat, utyp, body)
+    | _ => default_case()
+    }
   };
 }
 and upat_to_info_map =
