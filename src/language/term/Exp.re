@@ -75,14 +75,13 @@ let annotation_trace =
   let f = (continue, t: IdTagged.t(_)) => {
     let masks =
       List.map(
-        t.annotation.incomplete,
-        ~f=((_, m: IdTagged.IdTag.incomplete_mask)) =>
-          (
-            m.present,
-            List.map(m.prefixes, ~f=(p: IdTagged.IdTag.shard_prefix) =>
-              (p.shard, p.len)
-            ),
+        t.annotation.incomplete, ~f=((_, m: IdTagged.IdTag.incomplete_mask)) =>
+        (
+          m.present,
+          List.map(m.prefixes, ~f=(p: IdTagged.IdTag.shard_prefix) =>
+            (p.shard, p.len)
           ),
+        )
       );
     acc := [(t.annotation.lexeme, masks), ...acc^];
     continue(t);
