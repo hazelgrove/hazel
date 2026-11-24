@@ -1,7 +1,7 @@
 open Util;
 open Js_of_ocaml;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = Util.font_metrics;
 
 let init = Util.font_metrics_init;

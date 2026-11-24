@@ -49,7 +49,7 @@ let matches_droppable =
   | None => false
   | Some((tid, k)) =>
     delimiters
-    |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+    |> List.exists(~f=(d: CanonicalCompletion.delimiter_info) =>
          switch (d.of_shard) {
          | Some((tid', k')) => Id.equal(tid, tid') && k == k'
          | None => false
@@ -88,10 +88,12 @@ let rest_position =
       let left_edge =
         is_free(p)
           ? Segment.prev_content(~skip=is_free, sg, i)
-            |> Option.map(snd)
-            |> Option.map(q => Measured.find_by_id(Piece.id(q), measured))
+            |> Option.map(~f=snd)
+            |> Option.map(~f=q =>
+                 Measured.find_by_id(Piece.id(q), measured)
+               )
             |> Option.join
-            |> Option.map((qm: Measured.measurement) =>
+            |> Option.map(~f=(qm: Measured.measurement) =>
                  (qm.last.row, qm.last.col)
                )
           : None;
@@ -131,8 +133,8 @@ let padding_nodes =
     row_height: font_metrics.row_height *. chip_font_scale,
   };
   Token.to_list(text)
-  |> List.map(c =>
-       c == Token.implicit_hole_marker
+  |> List.map(~f=c =>
+       String.equal(c, Token.implicit_hole_marker)
          ? EmptyHoleDec.view(chip_metrics, shape) : Node.text(c)
      );
 };
@@ -148,7 +150,7 @@ let delimiter_nodes =
     )
     : list(Node.t) =>
   delimiters
-  |> List.mapi((k, d: CanonicalCompletion.delimiter_info) => {
+  |> List.mapi(~f=(k, d: CanonicalCompletion.delimiter_info) => {
        let (before, after) =
          switch (k, head_padding) {
          | (0, Some(padding)) => padding
@@ -183,12 +185,18 @@ let delimiter_nodes =
          | Some(n) when n > 0 && n < String.length(d.text) => [
              Node.span(
                ~attrs=[Attr.classes(["chip-frac-typed"])],
-               [Node.text(String.sub(d.text, 0, n))],
+               [Node.text(String.sub(d.text, ~pos=0, ~len=n))],
              ),
              Node.span(
                ~attrs=[Attr.classes(["chip-frac-rest"])],
                [
-                 Node.text(String.sub(d.text, n, String.length(d.text) - n)),
+                 Node.text(
+                   String.sub(
+                     d.text,
+                     ~pos=n,
+                     ~len=String.length(d.text) - n,
+                   ),
+                 ),
                ],
              ),
            ]
@@ -337,12 +345,12 @@ let chip_view =
 let delimiters_len =
     (delimiters: list(CanonicalCompletion.delimiter_info)): int =>
   delimiters
-  |> List.map((d: CanonicalCompletion.delimiter_info) =>
+  |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
        String.length(d.text)
        + (Option.is_some(d.trailing_hole) ? 2 : 0)
        + (d.leading_hole ? 2 : 0)
      )
-  |> List.fold_left((+), 0)
+  |> List.fold_left(~f=(+), ~init=0)
   |> (n => n + max(0, List.length(delimiters) - 1));
 
 /* Overlapping same-row chips coalesce into ONE bubble. The merged
@@ -366,23 +374,30 @@ let coalesce_overlaps =
   let finalize = (members: list(positioned_insertion)) => {
     let by_idx =
       List.sort(
-        (a: positioned_insertion, b: positioned_insertion) =>
-          Int.compare(a.idx, b.idx),
+        ~compare=
+          (a: positioned_insertion, b: positioned_insertion) =>
+            Int.compare(a.idx, b.idx),
         members,
       );
     let (owned, others) =
-      List.partition((c: positioned_insertion) => c.owned, by_idx);
+      List.partition_tf(~f=(c: positioned_insertion) => c.owned, by_idx);
     let ordered = owned @ others;
     {
-      ...List.hd(ordered),
-      delimiters: List.concat_map(m => m.delimiters, ordered),
+      ...List.hd_exn(ordered),
+      delimiters: List.concat_map(~f=m => m.delimiters, ordered),
     };
   };
   let by_pos =
       (bs: list((positioned_insertion, list(positioned_insertion)))) =>
     List.sort(
-      ((a: positioned_insertion, _), (b: positioned_insertion, _)) =>
-        compare((a.row, a.col), (b.row, b.col)),
+      ~compare=
+        ((a: positioned_insertion, _), (b: positioned_insertion, _)) =>
+          Tuple2.compare(
+            ~cmp1=Int.compare,
+            ~cmp2=Int.compare,
+            (a.row, a.col),
+            (b.row, b.col),
+          ),
       bs,
     );
   let rec pass = (acc, rest) =>
@@ -390,7 +405,8 @@ let coalesce_overlaps =
     | (_, []) => List.rev(acc)
     | ([], [b, ...tl]) => pass([b], tl)
     | ([(prev, pm), ...acc_tl], [(c, cm), ...tl]) =>
-      prev.row == c.row && left_px(c) < left_px(prev) +. chip_w(prev) +. 4.
+      prev.row == c.row
+      && Float.(left_px(c) < left_px(prev) +. chip_w(prev) +. 4.)
         ? {
           let members = pm @ cm;
           pass([(finalize(members), members), ...acc_tl], tl);
@@ -401,7 +417,7 @@ let coalesce_overlaps =
     let bs' = pass([], by_pos(bs));
     List.length(bs') < List.length(bs) ? fixpoint(bs') : bs';
   };
-  chips |> List.map(c => (c, [c])) |> fixpoint |> List.map(fst);
+  chips |> List.map(~f=c => (c, [c])) |> fixpoint |> List.map(~f=fst);
 };
 
 /* The bubble list the view draws: the owned records as one bubble at
@@ -422,18 +438,20 @@ let bubbles =
      coalesce_insertions — match on that, not physical identity */
   let is_owned = (ins: CanonicalCompletion.insertion) =>
     List.exists(
-      (o: CanonicalCompletion.insertion) =>
-        Id.equal(o.adjacent_id, ins.adjacent_id) && o.side == ins.side,
+      ~f=
+        (o: CanonicalCompletion.insertion) =>
+          Id.equal(o.adjacent_id, ins.adjacent_id)
+          && Direction.equal(o.side, ins.side),
       owned,
     );
   let resting =
     insertions
-    |> List.mapi((idx, ins) =>
+    |> List.mapi(~f=(idx, ins) =>
          is_owned(ins)
            ? (None: option(positioned_insertion))
            : rest_position(~idx, ~seg, measured, ins)
        )
-    |> List.filter_map(x => x);
+    |> List.filter_map(~f=x => x);
   let caret_bubble =
     switch (caret_pos, owned) {
     | (Some((row, col)), [_, ..._]) => [
@@ -445,7 +463,7 @@ let bubbles =
           owned: true,
           delimiters:
             List.concat_map(
-              (ins: CanonicalCompletion.insertion) => ins.delimiters,
+              ~f=(ins: CanonicalCompletion.insertion) => ins.delimiters,
               owned,
             ),
         },
@@ -454,10 +472,11 @@ let bubbles =
     };
   let sorted =
     List.sort(
-      (a: positioned_insertion, b: positioned_insertion) => {
-        let row_cmp = Int.compare(a.row, b.row);
-        row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
-      },
+      ~compare=
+        (a: positioned_insertion, b: positioned_insertion) => {
+          let row_cmp = Int.compare(a.row, b.row);
+          row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
+        },
       caret_bubble @ resting,
     );
   coalesce_overlaps(~font_metrics, sorted);
@@ -495,7 +514,7 @@ let view =
   | bs =>
     let chips =
       bs
-      |> List.map((ins: positioned_insertion) => {
+      |> List.map(~f=(ins: positioned_insertion) => {
            let body =
              delimiter_nodes(
                ~font_metrics,
@@ -520,7 +539,7 @@ let view =
                     one, else the chip holding Put_down's shard */
                  ~live=
                    ins.owned
-                   || owned == []
+                   || List.is_empty(owned)
                    && matches_droppable(droppable, ins.delimiters),
                  ~at_caret=ins.owned,
                  body,

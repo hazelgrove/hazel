@@ -47,7 +47,7 @@ let livelit_projectors: list(t) =
     Keybinding,
     Color,
   ]
-  @ List.map(x => Exo(x), all_of_exo);
+  @ List.map(~f=x => Exo(x), all_of_exo);
 
 /* Note: Probe intentionally excluded - probes use separate action path */
 let projectors: list(t) =
@@ -55,7 +55,7 @@ let projectors: list(t) =
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
-let is_refractor = (kind: t) => List.mem(kind, refractors);
+let is_refractor = (kind: t) => List.mem(refractors, kind, ~equal);
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
@@ -84,9 +84,10 @@ let name = (p: t): string =>
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)
  * so the two cannot drift — a new kind needs only a case in `name` above,
  * which the compiler already requires since that match is exhaustive. */
-let by_name: list((string, t)) = List.map(k => (name(k), k), all);
+let by_name: list((string, t)) = List.map(~f=k => (name(k), k), all);
 
-let of_name_opt = (p: string): option(t) => List.assoc_opt(p, by_name);
+let of_name_opt = (p: string): option(t) =>
+  List.Assoc.find(by_name, p, ~equal=String.equal);
 
 /* Partial: callers must already know the name is a kind. */
 let of_name = (p: string): t =>

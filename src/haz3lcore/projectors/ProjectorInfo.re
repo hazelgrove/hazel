@@ -38,7 +38,7 @@ let utility: ProjectorBase.utility = {
       /* When not inline (projector syntax rewrites like table operations),
          append a trailing newline so the expression doesn't extend to
          the edge of the screen, leaving room for probe values */
-      if (inline != Inline.Inline) {
+      if (!Poly.equal(inline, Inline.Inline)) {
         let newline: Base.piece =
           Secondary({
             content: Whitespace(Token.linebreak),
@@ -89,8 +89,8 @@ let mk_info =
         | Some(r) =>
           Dynamics.Map.lookup(r.probe_id, dynamics)
           |> Option.value(~default=[])
-          |> List.find_opt(s => Sample.ref_matches(r, s))
-          |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+          |> List.find(~f=s => Sample.ref_matches(r, s))
+          |> Option.map(~f=(s: Sample.t) => (s.step_start, s.step_end))
         };
       Some({
         samples,
@@ -107,8 +107,8 @@ let mk_info =
         try(Some(Segment.root_id(Segment.skel(seg), seg))) {
         | _ => None
         };
-      Option.bind(inner_id, id =>
-        Option.bind(elaborated, Exp.find_by_id(id))
+      Option.bind(inner_id, ~f=id =>
+        Option.bind(elaborated, ~f=Exp.find_by_id(id))
       );
     } else {
       None;

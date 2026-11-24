@@ -2,7 +2,6 @@ module Aba = Aba;
 module BonsaiUtil = BonsaiUtil;
 module Bigint = BigInt;
 module Direction = Direction;
-module Either = Either;
 module IntMap = IntMap;
 module IntUtil = IntUtil;
 module ListUtil = ListUtil;
@@ -50,7 +49,7 @@ module SvgUtil = SvgUtil;
 include Sexplib.Std;
 include Ppx_yojson_conv_lib.Yojson_conv.Primitives;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type font_metrics = {
   row_height: float,
   col_width: float,

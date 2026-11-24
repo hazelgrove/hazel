@@ -29,7 +29,8 @@ let pathname = () =>
 let base_path = () => {
   let p = pathname();
   /* Simple string matching for /build/<branch> pattern */
-  if (String.length(p) >= 7 && String.equal(String.sub(p, 0, 7), "/build/")) {
+  if (String.length(p) >= 7
+      && String.equal(String.sub(p, ~pos=0, ~len=7), "/build/")) {
     /* Find the next slash or end of string */
     let rec find_end = i =>
       if (i >= String.length(p) || Char.equal(p.[i], '/')) {
@@ -38,7 +39,7 @@ let base_path = () => {
         find_end(i + 1);
       };
     let end_pos = find_end(7);
-    String.sub(p, 0, end_pos);
+    String.sub(p, ~pos=0, ~len=end_pos);
   } else {
     "";
   };
@@ -51,7 +52,7 @@ let base_url = () => window_origin() ++ base_path();
 let url_param = (k: string): option(string) =>
   try({
     let params = Url.Current.arguments;
-    List.assoc_opt(k, params);
+    List.Assoc.find(params, k, ~equal=String.equal);
   }) {
   | _ => None
   };

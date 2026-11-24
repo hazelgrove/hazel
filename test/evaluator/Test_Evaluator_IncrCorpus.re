@@ -9,13 +9,13 @@ open Haz3lcore;
    skipped; enough must be compared for the test to mean something. */
 
 let rec find_hz = (dir: string): list(string) =>
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | entries =>
     entries
     |> Array.to_list
-    |> List.concat_map(entry => {
+    |> List.concat_map(~f=entry => {
          let path = Filename.concat(dir, entry);
-         switch (Sys.is_directory(path)) {
+         switch (Stdlib.Sys.is_directory(path)) {
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -25,9 +25,9 @@ let rec find_hz = (dir: string): list(string) =>
   };
 
 let read_file = (path: string): string => {
-  let ic = open_in_bin(path);
-  let s = really_input_string(ic, in_channel_length(ic));
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let s = Stdlib.really_input_string(ic, Stdlib.in_channel_length(ic));
+  Stdlib.close_in(ic);
   s;
 };
 
@@ -43,11 +43,12 @@ let tests = (
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]
-          |> List.concat_map(find_hz)
-          |> List.sort_uniq(compare);
+          |> List.concat_map(~f=find_hz)
+          |> List.dedup_and_sort(~compare=String.compare);
         let compared = ref(0);
         List.iter(
-          path => {
+          files,
+          ~f=path => {
             let src =
               read_file(path)
               |> Util.StringUtil.trim_leading
@@ -75,14 +76,13 @@ let tests = (
               };
             };
           },
-          files,
         );
         Printf.eprintf(
           "compared %d literal edits across %d programs\n%!",
           compared^,
           List.length(files),
         );
-        if (files != []) {
+        if (!List.is_empty(files)) {
           check(
             bool,
             Printf.sprintf(

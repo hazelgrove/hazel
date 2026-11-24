@@ -2,6 +2,7 @@ open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Language;
+open Poly;
 
 module GraphData = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -118,7 +119,7 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
       let fallback_label = Printf.sprintf("Series %d", series_index + 1);
       let label =
         switch (string_of_value(label_exp)) {
-        | Some(text) when String.trim(text) != "" => text
+        | Some(text) when !String.equal(String.strip(text), "") => text
         | Some(_) =>
           warn(
             Printf.sprintf(
@@ -272,10 +273,8 @@ let decode_graph_data = (value: DHExp.t): decoded_graph => {
       );
       let (min_x, max_x, min_y, max_y) =
         List.fold_left(
-          (bounds, series_entry: GraphData.series) =>
-            List.fold_left(update_bounds, bounds, series_entry.points),
-          initial,
-          series,
+          series, ~init=initial, ~f=(bounds, series_entry: GraphData.series) =>
+          List.fold_left(series_entry.points, ~init=bounds, ~f=update_bounds)
         );
 
       let normalize_range =
@@ -607,8 +606,8 @@ module Rendering = {
       [
         x_axis,
         y_axis,
-        Node.create_svg("g", ~attrs=[], List.map(render_x_tick, ticks_x)),
-        Node.create_svg("g", ~attrs=[], List.map(render_y_tick, ticks_y)),
+        Node.create_svg("g", ~attrs=[], List.map(~f=render_x_tick, ticks_x)),
+        Node.create_svg("g", ~attrs=[], List.map(~f=render_y_tick, ticks_y)),
       ],
     );
   };
@@ -829,7 +828,7 @@ let warning_indicator = (warnings: list(string)): option(Node.t) =>
   switch (warnings) {
   | [] => None
   | _ =>
-    let tooltip = String.concat("\n", warnings);
+    let tooltip = String.concat(~sep="\n", warnings);
     Some(
       Node.div(
         ~attrs=
