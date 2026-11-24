@@ -17,12 +17,14 @@ let toward : (Int, Int, Bool) -> Int = fun (k, d, wrap) ->
 let free_from : (Int, [Int], Int) -> Int = fun (k, body, tries) ->
   if tries >= n * n then 0 - 1 else if mem(k, body) then free_from(md(k + 1, n * n), body, tries + 1) else k;
 let place : (Int, [Int]) -> Int = fun (seed, body) -> free_from(md(seed, n * n), body, 0);
+# (Matthew: "the final apple for each level should be a special color, and animated in a glowing way --- and we should get a celebration like gnome dig --- and no other fruit should appear before the next level") a level's meals: six in the first, two more in each after #
+let per : Int -> Int = fun lv -> 4 + 2 * lv;
 let start : (Int, Bool) -> Game = fun (seed, wrap) ->
   let body = [10 * n + 8, 10 * n + 7, 10 * n + 6] in
   let s = next(seed + 1) in
-  (body = body, dir = 1, grow = 0, food = place(s, body), seed = s, wrap = wrap, score = 0, over = false, hit = 0, t = 0);
+  (body = body, dir = 1, grow = 0, food = place(s, body), seed = s, wrap = wrap, score = 0, over = false, hit = 0, t = 0, level = 1, left = per(1));
 # ---- One step ---- #
-# want: a direction to turn to, or -1 to go on; turning straight back is not a turn. The head moves a cell; the tail follows unless the snake is growing; a meal is 10 points and three cells to grow #
+# want: a direction to turn to, or -1 to go on; turning straight back is not a turn. The head moves a cell; the tail follows unless the snake is growing; a meal is 10 points and three cells to grow; a level's last, 50 #
 let step : (Game, Int) -> Game = fun (g, want) ->
   if g.over then g else
   let dir = (if want >= 0 && want <= 3 && want != md(g.dir + 2, 4) then want else g.dir) in
@@ -30,13 +32,19 @@ let step : (Game, Int) -> Game = fun (g, want) ->
   let nh = toward(head, dir, g.wrap) in
   let kept = (if g.grow > 0 then g.body else drop_last(g.body)) in
   if nh < 0 || mem(nh, kept) then
-    (body = g.body, dir = dir, grow = g.grow, food = g.food, seed = g.seed, wrap = g.wrap, score = g.score, over = true, hit = 2, t = g.t + 1)
+    (body = g.body, dir = dir, grow = g.grow, food = g.food, seed = g.seed, wrap = g.wrap, score = g.score, over = true, hit = 2, t = g.t + 1, level = g.level, left = g.left)
   else
   let body = nh :: kept in
   let ate = nh == g.food in
   let s = (if ate then next(g.seed) else g.seed) in
-  (body = body, dir = dir, grow = (if g.grow > 0 then g.grow - 1 else 0) + (if ate then 3 else 0), food = (if ate then place(s, body) else g.food), seed = s,
-   wrap = g.wrap, score = g.score + (if ate then 10 else 0), over = false, hit = (if ate then 1 else 0), t = g.t + 1);
+  let left = (if ate then g.left - 1 else g.left) in
+  let cleared = ate && left <= 0 in
+  (body = body, dir = dir, grow = (if g.grow > 0 then g.grow - 1 else 0) + (if ate then 3 else 0), food = (if cleared then 0 - 1 else if ate then place(s, body) else g.food), seed = s,
+   wrap = g.wrap, score = g.score + (if ate then (if cleared then 50 else 10) else 0), over = false, hit = (if cleared then 3 else if ate then 1 else 0), t = g.t + 1, level = g.level, left = left);
+# the next level, after the party: its first meal placed, its count of meals; the snake as it was #
+let next_level : Game -> Game = fun g ->
+  let s = next(g.seed + g.level) in
+  (body = g.body, dir = g.dir, grow = g.grow, food = place(s, g.body), seed = s, wrap = g.wrap, score = g.score, over = false, hit = 0, t = g.t, level = g.level + 1, left = per(g.level + 1));
 # ---- The robot (🤖 Hazel plays) ---- #
 # how much room there is from a cell: a flood over the cells not in the snake, counting until it has found `want` of them, or no more #
 let flood : (Bool, [Int], [Int], [Int], Int, Int) -> Int = fun (wrap, body, frontier, seen, count, want) ->
@@ -86,7 +94,7 @@ let robot : Game -> Int = fun g ->
      let inner = drop_last(after) in
      let safe = reaches(g.wrap, inner, [m], [m], tail) && (g.grow == 0 && m != g.food || flood(g.wrap, inner, [m], [m], 1, long) >= long) in
      let hug = (let b : Int -> Int = fun e -> (let q = toward(m, e, g.wrap) in if q < 0 || mem(q, inner) then 1 else 0) in b(0) + b(1) + b(2) + b(3)) in
-     if safe then 0 - 10 * gap(m, g.food, g.wrap) + 3 * hug + (if d == g.dir then 1 else 0)
+     if safe then 0 - 10 * (if g.food < 0 then 0 else gap(m, g.food, g.wrap)) + 3 * hug + (if d == g.dir then 1 else 0)
      else 0 - 50000 + 10 * flood(g.wrap, kept, [m], [m], 1, long)) in
   let pick : (Int, Int, Int) -> Int = fun (d, bd, bw) -> if d > 3 then bd else (let w = worth(d) in if w > bw then pick(d + 1, d, w) else pick(d + 1, bd, bw)) in
   pick(0, 0 - 1, 0 - 100000)

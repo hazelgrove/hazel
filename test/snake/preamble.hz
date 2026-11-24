@@ -1,4 +1,4 @@
 # Snake's vocabulary, which the module sees #
 # The board: 20 by 20 cells, a cell numbered row by row (row times 20 plus column), row 0 at the top. A direction: 0 up, 1 right, 2 down, 3 left #
-# A game: the snake's cells (its head first), its direction, how many cells it has still to grow, the food's cell, the stream's seed for the next food, whether the walls wrap round to the other side, the points, whether the game is over, what happened this step (0 nothing, 1 a meal, 2 a crash), and the steps #
-type Game = (body = [Int], dir = Int, grow = Int, food = Int, seed = Int, wrap = Bool, score = Int, over = Bool, hit = Int, t = Int) in
+# A game: the snake's cells (its head first), its direction, how many cells it has still to grow, the food's cell, the stream's seed for the next food, whether the walls wrap round to the other side, the points, whether the game is over, what happened this step (0 nothing, 1 a meal, 2 a crash, 3 the level's last meal: the level cleared), the steps, the level, and the meals left to eat in it (the last one golden; none is placed after it, till the next level) #
+type Game = (body = [Int], dir = Int, grow = Int, food = Int, seed = Int, wrap = Bool, score = Int, over = Bool, hit = Int, t = Int, level = Int, left = Int) in

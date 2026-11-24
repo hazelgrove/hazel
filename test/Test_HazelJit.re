@@ -2234,7 +2234,7 @@ let snake_aot =
   game_aot(
     ~dir="snake",
     ~modules=["Snake"],
-    ~tail="\n(start = Snake.start, step = Snake.step, robot = Snake.robot)",
+    ~tail="\n(start = Snake.start, step = Snake.step, robot = Snake.robot, next_level = Snake.next_level)",
     ~mark="SNAKE",
   );
 let bricks_aot =
