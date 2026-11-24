@@ -312,7 +312,8 @@ let sep_like = (run: list(Secondary.t)): list(Secondary.t) => {
         content: Whitespace("\n"),
       },
     ]
-    @ List.init(indent, ~f=_ =>
+    /* Stdlib's init: ids are minted first to last (Core's runs last to first) */
+    @ Stdlib.List.init(indent, _ =>
         {
           Secondary.id: Id.mk(),
           content: Secondary.Whitespace(" "),
@@ -2119,9 +2120,10 @@ let block_swap_down =
 
 let fresh_names = (k: int, program: Exp.t): list(string) => {
   let used = ref(used_names(program));
-  List.init(
+  /* Stdlib's init: names are minted first to last (Core's runs last to first) */
+  Stdlib.List.init(
     k,
-    ~f=_ => {
+    _ => {
       let c = pick_placeholder(used^);
       used := [c, ...used^];
       c;
