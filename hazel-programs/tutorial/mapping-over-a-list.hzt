@@ -57,7 +57,7 @@ topped
 
 @solution
 let garden: [Int] = [250, 180, 50, 200] in
-let topped = map(
+let topped = List.map(
 garden, 
 fun w -> w + 50
 ) in

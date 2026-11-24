@@ -64,7 +64,7 @@ end
 @solution
 # Extracts the first section from a garden path. #
 let grove_name(path: String): String =
-  nth(string_split("/", path), 1)
+  List.nth(String.split("/", path), 1)
 
 
 in

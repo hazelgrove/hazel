@@ -126,7 +126,7 @@ type GradebookEntry =
 in
 
 let midterm_mean : [GradebookEntry] -> Float = fun (gradebook) ->
-  fold_left(gradebook.midterm, fun (acc, x) -> acc +. x, 0.) /. float_of_int(length(gradebook))
+  List.fold_left(gradebook.midterm, fun (acc, x) -> acc +. x, 0.) /. Float.of_int(List.length(gradebook))
 in
 
 let gradebook : [GradebookEntry] =

@@ -83,11 +83,11 @@ end
 
 @solution
 let clean_entry(entry: String): String =
-  let trimmed = string_trim(entry) in
-  let unnumbered = string_replace("#[0-9]+", trimmed, "") in
-  let colons = string_replace(" *-- *", unnumbered, ": ") in
-  let spaced = string_replace("  +", colons, " ") in
-  string_trim(spaced)
+  let trimmed = String.trim(entry) in
+  let unnumbered = String.replace("#[0-9]+", trimmed, "") in
+  let colons = String.replace(" *-- *", unnumbered, ": ") in
+  let spaced = String.replace("  +", colons, " ") in
+  String.trim(spaced)
 
 
 in

@@ -112,8 +112,8 @@ process_string_pair("pre", "hazel")
 @solution
 let process_string_pair : (String, String) -> String = fun p ->
   case p
-  | ("pre", b) => string_sub(b, 0, 3)
-  | ("post", b) => string_sub(b, 3, string_length(b) - 3)
+  | ("pre", b) => String.sub(b, 0, 3)
+  | ("post", b) => String.sub(b, 3, String.length(b) - 3)
   | (_, b) => b
   end
 in

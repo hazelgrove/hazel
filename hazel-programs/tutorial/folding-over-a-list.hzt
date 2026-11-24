@@ -37,7 +37,7 @@ List.fold_left(watering_cans, fun (a, b) ->
 
 @solution
 let watering_cans = [250, 180, 50, 200] in
-fold_left(watering_cans, fun (a, b) ->
+List.fold_left(watering_cans, fun (a, b) ->
 a + b
 , 0)
 

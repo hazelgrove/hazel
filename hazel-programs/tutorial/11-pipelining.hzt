@@ -148,8 +148,8 @@ positive_floats([-1, 2, 1])
 @solution
 let positive_floats : [Int] -> [Float] = fun ns ->
   ns
-  |> filter(_, fun n -> n >= 0)
-  |> map(_, float_of_int)
+  |> List.filter(_, fun n -> n >= 0)
+  |> List.map(_, Float.of_int)
 in
 positive_floats([-1, 2, 1])
 

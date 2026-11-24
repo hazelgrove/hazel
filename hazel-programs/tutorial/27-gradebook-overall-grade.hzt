@@ -140,12 +140,12 @@ in
 
 let clean_and_add_overall_grade = fun (gradebook: [GradebookEntry]) ->
   gradebook
-  |> map(_, fun r -> r ... (student_id=int_of_string(r.student_id),
-    quiz1=float_of_string(r.quiz1),
-    quiz2=float_of_string(r.quiz2),
-    midterm=float_of_string(r.midterm),
-    final=float_of_string(r.final)))
-  |> map(_, fun r ->
+  |> List.map(_, fun r -> r ... (student_id=Int.of_string(r.student_id),
+    quiz1=Float.of_string(r.quiz1),
+    quiz2=Float.of_string(r.quiz2),
+    midterm=Float.of_string(r.midterm),
+    final=Float.of_string(r.final)))
+  |> List.map(_, fun r ->
     let quiz_pct = (r.quiz1 +. r.quiz2) /. 20. *. 100. in
     r ... (overall_grade=(quiz_pct +. r.midterm +. r.final) /. 3.))
 in

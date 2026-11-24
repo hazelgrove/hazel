@@ -76,8 +76,8 @@ let products = ^^table([
   (name="Gizmo", price=4.75, qty=10)
 ]) in
 let with_totals = ^^probe(products
-|> map(_, fun r -> r ... (qty=float_of_int(r.qty)))
-|> map(_, fun r -> r ... (total=r.price *. r.qty))) in
+|> List.map(_, fun r -> r ... (qty=Float.of_int(r.qty)))
+|> List.map(_, fun r -> r ... (total=r.price *. r.qty))) in
 with_totals
 
 @test

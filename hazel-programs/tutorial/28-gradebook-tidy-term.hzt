@@ -140,14 +140,14 @@ in
 
 let tidy_term = fun (gradebook: [GradebookEntry]) ->
   gradebook
-  |> map(_, fun r ->
+  |> List.map(_, fun r ->
     let semester =
-      case string_sub(r.term, 4, 2)
+      case String.sub(r.term, 4, 2)
       | "FA" => Fall
       | _ => Spring
       end
     in
-    omit_labels(r, `term`) ... (year=int_of_string(string_sub(r.term, 0, 4)), semester=semester))
+    omit_labels(r, `term`) ... (year=Int.of_string(String.sub(r.term, 0, 4)), semester=semester))
 in
 
 tidy_term(gradebook)
