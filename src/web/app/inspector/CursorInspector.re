@@ -923,6 +923,10 @@ module ProgramFolds = {
               switch (Id.Map.find_opt(id, syntax.term_data)) {
               | Some(TermData.{root_piece, sort, _}) =>
                 foldable(sort, seg)
+                && List.exists(
+                     p => Piece.id(p) == Piece.id(root_piece),
+                     seg,
+                   )
                   ? [
                     (id, Piece.id(root_piece), sort, seg, List.length(seg)),
                     ...targets,
