@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Canvas focus-strip sample anchors must be ids the evaluator actually
  * samples under probe-all. Covers both definition shapes: explicit-`fun`
@@ -63,10 +64,10 @@ let run =
       );
     let anatomy =
       Web.CanvasGraph.spine(term)
-      |> List.filter_map(
+      |> List.filter_map(~f=
            fun
            | (_, Web.CanvasGraph.ILet(_, _, pat, def))
-               when List.mem("update", Web.CanvasGraph.pat_names(pat)) =>
+               when List.mem(Web.CanvasGraph.pat_names(pat), "update", ~equal=Poly.equal) =>
              Some(Web.CanvasGraph.fun_anatomy(~pat, def))
            | _ => None,
          )
@@ -89,7 +90,7 @@ let check_anatomy_sampled = (name: string, code: string) =>
     () => {
       let ((arg_ids, _whole_ids, out_id), probes) = run(code);
       check(int, "two input anchors", 2, List.length(arg_ids));
-      List.iteri(
+      List.iteri(~f=
         (i, id) =>
           check(
             bool,

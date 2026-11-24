@@ -55,7 +55,7 @@ let tests = [
       let n = ref(0);
       Sample.Map.fold(
         (_, samples, ()) =>
-          List.iter(
+          List.iter(~f=
             (s: Sample.t) => {
               incr(n);
               let str =
@@ -68,7 +68,7 @@ let tests = [
                     );
                   "ok";
                 }) {
-                | e => "EXN " ++ Printexc.to_string(e)
+                | e => "EXN " ++ Stdlib.Printexc.to_string(e)
                 };
               check(string, Printf.sprintf("sample %d", n^), "ok", str);
             },

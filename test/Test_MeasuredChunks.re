@@ -158,8 +158,8 @@ let structure = (name: string, m: M.t): unit => {
         fail'("two chunks under one anchor");
       };
         Stdlib.Hashtbl.replace(anchors, ch.c_anchor, ());
-      List.iter(
-          ~f=
+      List.iter(~f=
+          
         id =>
               Stdlib.Hashtbl.replace(
             homes,
@@ -805,7 +805,7 @@ let tests = (
     ),
     test_case("slides and stdlib parity", `Slow, slides),
   ]
-  @ List.map(
+  @ List.map(~f=
       c => {
         let cache = Measured.Incr.mk_cache();
         Test_DrawerMeasurement.case_(

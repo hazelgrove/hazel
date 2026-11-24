@@ -1,4 +1,5 @@
 open Alcotest;
+open Poly;
 module E = Web.CanvasLayoutExperiments;
 module L = Web.CanvasLayout;
 let item = (key, x, y): E.item => {
@@ -18,7 +19,7 @@ let fixtures = [
 ];
 let same = (msg, a: E.point, b: E.point) =>
   check(pair(float(0.001), float(0.001)), msg, (a.x, a.y), (b.x, b.y));
-let at = (ns, k) => Option.get(E.at(ns, k)).p;
+let at = (ns, k) => Option.value_exn(E.at(ns, k)).p;
 let tests = (
   "Canvas layout experiments",
   [
@@ -40,7 +41,7 @@ let tests = (
           });
         let one = layout([consumer("Carrier")]);
         let at = l =>
-          List.find(
+          List.find_exn(~f=
             (n: L.node_layout) => n.node.key == unknown.key,
             l.L.nodes,
           );
@@ -48,14 +49,14 @@ let tests = (
           option(string),
           "private component has a host",
           Some("Carrier"),
-          Option.map(fst, at(one).node.sat),
+          Option.map(~f=fst, at(one).node.sat),
         );
         let shared = layout([consumer("Carrier"), consumer("Other")]);
         check(
           option(string),
           "shared component remains independent",
           None,
-          Option.map(fst, at(shared).node.sat),
+          Option.map(~f=fst, at(shared).node.sat),
         );
       },
     ),
@@ -75,11 +76,11 @@ let tests = (
           },
           item("peer", 540., 180.),
         ];
-        List.iter(
+        List.iter(~f=
           ((mode, _)) => {
             let result = E.place(mode, fan, [("host", "peer")], []);
             let h = at(result, "host");
-            List.iter(
+            List.iter(~f=
               ((k, dy)) => {
                 let p = at(result, k);
                 same(
@@ -108,7 +109,7 @@ let tests = (
         let g = Test_CanvasGraphFold.graph_of(Test_CanvasGraphFold.prog);
         let l = L.layout_impl(g);
         let e =
-          List.find((e: L.edge_layout) => e.edge.e_name == "step", l.edges);
+          List.find_exn(~f=(e: L.edge_layout) => e.edge.e_name == "step", l.edges);
         check(bool, "separate smooth handles", true, e.c1 != e.c2);
         check(bool, "label stays on its own function", true, e.on_wire);
       },
@@ -125,7 +126,7 @@ let tests = (
             [("a", "b"), ("b", "d")],
             before,
           );
-        List.iter(
+        List.iter(~f=
           (n: E.item) => same(n.key, n.p, at(after, n.key)),
           before,
         );
@@ -133,14 +134,14 @@ let tests = (
           bool,
           "new node clears existing nodes",
           false,
-          List.exists(
-            n => E.overlaps(n, Option.get(E.at(after, "d")), 20.),
+          List.exists(~f=
+            n => E.overlaps(n, Option.value_exn(E.at(after, "d")), 20.),
             before,
           ),
         );
-        let survivors = List.filter((n: E.item) => n.key != "b", after);
+        let survivors = List.filter(~f=(n: E.item) => n.key != "b", after);
         let removed = E.place("stable", survivors, [], after);
-        List.iter(
+        List.iter(~f=
           (n: E.item) => same("delete " ++ n.key, n.p, at(removed, n.key)),
           survivors,
         );
@@ -150,16 +151,16 @@ let tests = (
       "all placements preserve graph membership and finite coordinates",
       `Quick,
       () => {
-      List.iter(
+      List.iter(~f=
         ((mode, _)) => {
           let result = E.place(mode, fixtures, [("a", "b")], []);
           check(
             list(string),
             mode,
             ["a", "b", "c"],
-            List.map((n: E.item) => n.key, result) |> List.sort(compare),
+            List.map(~f=(n: E.item) => n.key, result) |> List.sort(~compare=compare),
           );
-          List.iter(
+          List.iter(~f=
             (n: E.item) =>
               check(
                 bool,
@@ -197,9 +198,9 @@ let tests = (
           y: 100.,
         };
         let ps = E.route(~obstacles=[obstacle], ~src="a", ~dst="b", a, b);
-        same("starts at source", a, List.hd(ps));
-        same("ends at destination", b, List.hd(List.rev(ps)));
-        List.iter(
+        same("starts at source", a, List.hd_exn(ps));
+        same("ends at destination", b, List.hd_exn(List.rev(ps)));
+        List.iter(~f=
           ((u: E.point, v: E.point)) => {
             check(bool, "axis aligned", true, u.x == v.x || u.y == v.y);
             let hit =
@@ -244,7 +245,7 @@ let tests = (
           bool,
           "second route leaves occupied horizontal corridor",
           true,
-          List.exists((p: E.point) => abs_float(p.y -. 100.) > 10., second),
+          List.exists(~f=(p: E.point) => Float.abs(p.y -. 100.) > 10., second),
         );
         let vertical =
           E.route(
@@ -264,13 +265,13 @@ let tests = (
           bool,
           "source stub points out",
           true,
-          List.nth(vertical, 1).y > 140.,
+          List.nth_exn(vertical, 1).y > 140.,
         );
         check(
           bool,
           "destination stub points out",
           true,
-          List.nth(List.rev(vertical), 1).y < 260.,
+          List.nth_exn(List.rev(vertical), 1).y < 260.,
         );
       },
     ),
@@ -287,9 +288,9 @@ let tests = (
               E.scene := "";
             },
           () =>
-            List.iter(
+            List.iter(~f=
               ((mode, _)) =>
-                List.iter(
+                List.iter(~f=
                   wires => {
                     E.mode := mode;
                     E.wires := wires;
@@ -303,11 +304,11 @@ let tests = (
                         ~offsets=[("Pos", (280., 84.))],
                         g,
                       );
-                    List.iter(
+                    List.iter(~f=
                       (n: L.node_layout) =>
                         if (n.node.key != "Pos" && n.node.sat == None) {
                           let other =
-                            List.find(
+                            List.find_exn(~f=
                               (q: L.node_layout) => q.node.key == n.node.key,
                               moved.nodes,
                             );
@@ -325,10 +326,10 @@ let tests = (
                         ~origin_override=Some(base.origin),
                         g,
                       );
-                    List.iter(
+                    List.iter(~f=
                       (n: L.node_layout) => {
                         let other =
-                          List.find(
+                          List.find_exn(~f=
                             (q: L.node_layout) => q.node.key == n.node.key,
                             unchanged.nodes,
                           );

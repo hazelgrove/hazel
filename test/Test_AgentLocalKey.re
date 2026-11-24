@@ -1,5 +1,6 @@
 open Alcotest;
 open Web;
+open Poly;
 
 let step = (action, model) => {
   let scheduled = ref([]);
@@ -86,7 +87,7 @@ let tests = (
               true;
             }
           ) {
-          | Not_found => false
+          | Stdlib.Not_found => false
           },
         );
         check(list(bool), "requests alone do not navigate", [], results^);
@@ -534,13 +535,13 @@ let tests = (
           remember_local_key: true,
           local_key_status: LocalBusy,
         };
-        List.iter(
+        List.iter(~f=
           action => {
             let (next, actions) = step(action, busy);
             check(bool, "model unchanged", true, next == busy);
             check(bool, "no overlapping operation", true, actions == []);
           },
-          [
+          AgentGlobals.Update.[
             SetRememberLocalKey(false),
             SetApiKey("new-key"),
             ForgetLocalApiKey,
@@ -620,7 +621,7 @@ let tests = (
           switch (old) {
           | Sexplib.Sexp.List(fields) =>
             Sexplib.Sexp.List(
-              List.filter(
+              List.filter(~f=
                 field =>
                   switch (field) {
                   | Sexplib.Sexp.List([Atom("local_key_status"), ..._])

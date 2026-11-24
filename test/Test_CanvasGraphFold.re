@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Alias-body formers fold into the alias node: `type Pos = (Int, Int)`
  * is ONE node wearing a "()" badge with two component terminals feeding
@@ -30,13 +31,13 @@ let graph_of = (code: string): Web.CanvasGraph.t =>
 
 let node = (g: Web.CanvasGraph.t, key: string): Web.CanvasGraph.tynode =>
   switch (
-    List.find_opt((n: Web.CanvasGraph.tynode) => n.key == key, g.nodes)
+    List.find(~f=(n: Web.CanvasGraph.tynode) => n.key == key, g.nodes)
   ) {
   | Some(n) => n
   | None => fail("no node " ++ key)
   };
 let has = (g: Web.CanvasGraph.t, key: string): bool =>
-  List.exists((n: Web.CanvasGraph.tynode) => n.key == key, g.nodes);
+  List.exists(~f=(n: Web.CanvasGraph.tynode) => n.key == key, g.nodes);
 
 let tests = [
   test_case(
@@ -49,13 +50,13 @@ let tests = [
       check(int, "two component terminals", 2, List.length(pos.parts));
       check(bool, "no separate former node", false, has(g, "()@Pos"));
       /* the terminals dock at the alias itself */
-      List.iter(
+      List.iter(~f=
         pk =>
           check(
             option(string),
             "part " ++ pk ++ " anchored at Pos",
             Some("Pos"),
-            node(g, pk).sat |> Option.map(fst),
+            node(g, pk).sat |> Option.map(~f=fst),
           ),
         pos.parts,
       );
@@ -91,7 +92,7 @@ let tests = [
         bool,
         "a Product node exists for step's (Pos, Msg) input",
         true,
-        List.exists(
+        List.exists(~f=
           (n: Web.CanvasGraph.tynode) =>
             n.kind == Web.CanvasGraph.Product && n.former == None,
           g.nodes,
@@ -105,9 +106,9 @@ let tests = [
     () => {
       let g = graph_of("type Pos = Int in type Pos = Bool in 1");
       let keys =
-        List.filter(
-          k => String.length(k) >= 3 && String.sub(k, 0, 3) == "Pos",
-          List.map((n: Web.CanvasGraph.tynode) => n.key, g.nodes),
+        List.filter(~f=
+          k => String.length(k) >= 3 && String.sub(k, ~pos=0, ~len=3) == "Pos",
+          List.map(~f=(n: Web.CanvasGraph.tynode) => n.key, g.nodes),
         );
       check(list(string), "keys", ["Pos", "Pos#2"], keys);
     },

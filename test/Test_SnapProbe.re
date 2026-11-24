@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let try_text = (label, text) =>
   test_case(label, `Slow, () =>
@@ -7,22 +8,23 @@ let try_text = (label, text) =>
     | _ => ()
     | exception e =>
       fail(
-        "segment_of_text raised " ++ Printexc.to_string(e) ++ " on: " ++ text,
+        "segment_of_text raised " ++ Stdlib.Printexc.to_string(e) ++ " on: " ++ text,
       )
     }
   );
 
-/* the agent-context view: the program with every top-level definition
-   folded, built from per-item statics (the chat's "View Agent Context") */
+/* the agent's view: the program's map, every definition folded (the
+   chat's "View as agent") */
 let try_context = (label, code) =>
   test_case(label, `Slow, () =>
     switch (Parser.to_zipper(~root=Exp, code)) {
     | None => fail("parse failed")
     | Some(z) =>
-      let editor = Editor.Model.mk(z, ~root=Exp);
-      switch (CompositionView.Public.print(editor, AgentContext.Utils.init())) {
+      let outline =
+        Outline.of_program(~root=Exp, Zipper.unselect_and_zip(z));
+      switch (CompositionView.render(outline, ~opened=[])) {
       | s => check(bool, "nonempty", true, String.length(s) > 0)
-      | exception e => fail("context view raised " ++ Printexc.to_string(e))
+      | exception e => fail("context view raised " ++ Stdlib.Printexc.to_string(e))
       };
     }
   );
@@ -43,7 +45,7 @@ let try_canvas_nodemap = (label, code, ~caret_token) =>
           : (
             switch (Zipper.generalized_neighbors(z)) {
             | (_, Some(Piece.Tile(t)))
-                when List.mem(caret_token, Tile.label(t)) => z
+                when List.mem(Tile.label(t), caret_token, ~equal=Poly.equal) => z
             | _ =>
               switch (Move.by_token(Right, z)) {
               | Some(z') => seek(z', n + 1)
@@ -62,12 +64,12 @@ let try_canvas_nodemap = (label, code, ~caret_token) =>
       switch (HighLevelNodeMap.build_for(z, comp)) {
       | Some(nm) => check(bool, "nonempty", true, Id.Map.cardinal(nm) > 0)
       | None => fail("node map None")
-      | exception e => fail("build_for raised " ++ Printexc.to_string(e))
+      | exception e => fail("build_for raised " ++ Stdlib.Printexc.to_string(e))
       };
       /* and the legacy builder must not raise on a per-item map either */
       switch (HighLevelNodeMap.build(z, comp.info_map)) {
       | _ => ()
-      | exception e => fail("build raised " ++ Printexc.to_string(e))
+      | exception e => fail("build raised " ++ Stdlib.Printexc.to_string(e))
       };
     }
   );
@@ -96,7 +98,7 @@ let canvas_edges_of =
             z,
           );
     let g = Web.CanvasGraph.extract(st);
-    List.iter(
+    List.iter(~f=
       (e: Web.CanvasGraph.edge) =>
         print_endline(
           (comp ? "comp " : "mono ")
@@ -111,8 +113,8 @@ let canvas_edges_of =
       g.edges,
     );
     (
-      List.map((e: Web.CanvasGraph.edge) => e.e_name, g.edges),
-      List.map((v: Web.CanvasGraph.value) => v.v_name, g.values),
+      List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g.edges),
+      List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g.values),
     );
   };
 
@@ -131,22 +133,21 @@ let incremental_member_edges = () => {
   let g1 = Web.CanvasGraph.extract(st1);
   print_endline(
     "before: edges "
-    ++ String.concat(
+    ++ String.concat(~sep=
          ",",
-         List.map((e: Web.CanvasGraph.edge) => e.e_name, g1.edges),
+         List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g1.edges),
        )
     ++ " values "
-    ++ String.concat(
+    ++ String.concat(~sep=
          ",",
-         List.map((v: Web.CanvasGraph.value) => v.v_name, g1.values),
+         List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g1.values),
        ),
   );
   switch (
     Test_AgentTools.run_agent_action(
       prog1,
       Insert(
-        After,
-        "Geo/origin",
+        After("Geo/origin"),
         "let add(a: P, b: P): P =\n  let (ax, ay) = a in\n  let (bx, by) = b in\n  (ax + bx, ay + by)",
       ),
     )
@@ -162,13 +163,13 @@ let incremental_member_edges = () => {
         z2,
       );
     let g2 = Web.CanvasGraph.extract(st2);
-    let edges = List.map((e: Web.CanvasGraph.edge) => e.e_name, g2.edges);
-    let values = List.map((v: Web.CanvasGraph.value) => v.v_name, g2.values);
+    let edges = List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g2.edges);
+    let values = List.map(~f=(v: Web.CanvasGraph.value) => v.v_name, g2.values);
     print_endline(
       "after (incremental): edges "
-      ++ String.concat(",", edges)
+      ++ String.concat(~sep=",", edges)
       ++ " values "
-      ++ String.concat(",", values),
+      ++ String.concat(~sep=",", values),
     );
     /* and fresh, for comparison */
     let z3 = Test_AgentTools.mk_zipper(Printer.of_zipper(~holes="?", z2));
@@ -182,16 +183,16 @@ let incremental_member_edges = () => {
     let g3 = Web.CanvasGraph.extract(st3);
     print_endline(
       "after (fresh): edges "
-      ++ String.concat(
+      ++ String.concat(~sep=
            ",",
-           List.map((e: Web.CanvasGraph.edge) => e.e_name, g3.edges),
+           List.map(~f=(e: Web.CanvasGraph.edge) => e.e_name, g3.edges),
          ),
     );
     check(
       bool,
       "add is an edge after the incremental insert",
       true,
-      List.mem("Geo.add", edges),
+      List.mem(edges, "Geo.add", ~equal=Poly.equal),
     );
   };
 };
@@ -210,19 +211,19 @@ let tests = [
       let (ec, vc) = canvas_edges_of(true, nested_prog);
       print_endline(
         "mono edges: "
-        ++ String.concat(",", em)
+        ++ String.concat(~sep=",", em)
         ++ " values: "
-        ++ String.concat(",", vm),
+        ++ String.concat(~sep=",", vm),
       );
       print_endline(
         "comp edges: "
-        ++ String.concat(",", ec)
+        ++ String.concat(~sep=",", ec)
         ++ " values: "
-        ++ String.concat(",", vc),
+        ++ String.concat(~sep=",", vc),
       );
       check(list(string), "edges agree", em, ec);
       check(list(string), "values agree", vm, vc);
-      check(bool, "add is an edge", true, List.mem("Geo.add", em));
+      check(bool, "add is an edge", true, List.mem(em, "Geo.add", ~equal=Poly.equal));
     },
   ),
   test_case(
@@ -242,12 +243,12 @@ let tests = [
           );
         let g = Web.CanvasGraph.extract(st);
         let edge = n =>
-          List.find_opt((e: Web.CanvasGraph.edge) => e.e_name == n, g.edges);
+          List.find(~f=(e: Web.CanvasGraph.edge) => e.e_name == n, g.edges);
         switch (edge("D.width"), edge("D.nth")) {
         | (Some(w), Some(nth)) =>
           check(string, "width's domain is Room", "D.Room", w.e_src);
           let src =
-            List.find_opt(
+            List.find(~f=
               (n: Web.CanvasGraph.tynode) => n.key == nth.e_src,
               g.nodes,
             );
@@ -268,14 +269,14 @@ let tests = [
         | _ => fail("edges missing")
         };
         /* no inlined-body glyph survives as a node */
-        let keys = List.map((n: Web.CanvasGraph.tynode) => n.key, g.nodes);
+        let keys = List.map(~f=(n: Web.CanvasGraph.tynode) => n.key, g.nodes);
         check(
           bool,
           "no '(Int, Int, [Floor…' glyph",
           false,
-          List.exists(
+          List.exists(~f=
             k =>
-              String.length(k) > 12 && String.sub(k, 0, 12) == "(Int, Int, [",
+              String.length(k) > 12 && String.sub(k, ~pos=0, ~len=12) == "(Int, Int, [",
             keys,
           ),
         );
@@ -296,7 +297,7 @@ let tests = [
         );
       let g = Web.CanvasGraph.extract(st);
       switch (
-        List.find_opt(
+        List.find(~f=
           (e: Web.CanvasGraph.edge) => e.e_name == "Geo.add",
           g.edges,
         )
@@ -305,7 +306,7 @@ let tests = [
       | Some(e) =>
         check(string, "codomain is the alias", "Geo.P", e.dst);
         let src =
-          List.find_opt(
+          List.find(~f=
             (n: Web.CanvasGraph.tynode) => n.key == e.e_src,
             g.nodes,
           );

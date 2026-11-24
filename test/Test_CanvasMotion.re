@@ -1,4 +1,5 @@
 open Alcotest;
+open Poly;
 module A = Web.CanvasAvatar;
 let camera_independent_motion = () => {
   let position = (~camera, ~zoom, ~world) => {
@@ -11,7 +12,7 @@ let camera_independent_motion = () => {
     );
   };
   let world = (320., 180.);
-  List.iter(
+  List.iter(~f=
     ((camera, zoom)) =>
       check(
         pair(float(0.00001), float(0.00001)),
@@ -64,7 +65,7 @@ let tests = (
       "overview fits tall and wide graphs below follow's floor",
       `Quick,
       () => {
-        List.iter(
+        List.iter(~f=
           ((w, h)) => {
             let z =
               Web.CanvasZoom.fit(~width=w, ~height=h, ~aw=638., ~ah=503.);

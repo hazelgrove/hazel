@@ -1,10 +1,10 @@
-/* The agent's tools at a Mod root read the program per item, as at an Exp
-   root: the node map from DefStatics' item chain names every node as the
-   whole-program analysis did, and the tool calls it serves are timed */
+/* The node map from DefStatics' item chain (the canvas reads it per item)
+   names every node of a Mod root as the whole-program analysis does */
 open Alcotest;
 open Haz3lcore;
 open Language;
 open Util;
+open Poly;
 
 /* the node map of a whole-program analysis, as the tools read a Mod root
    before they went per item */
@@ -26,28 +26,28 @@ let whole_node_map = (z: Zipper.t): option(HighLevelNodeMap.t) => {
 let agent_paths = (nm: HighLevelNodeMap.t): list((string, Id.t)) => {
   let named =
     Id.Map.bindings(nm)
-    |> List.map(((id, n: HighLevelNodeMap.node)) =>
+    |> List.map(~f=((id, n: HighLevelNodeMap.node)) =>
          (
            id,
-           String.concat(
+           String.concat(~sep=
              "/",
              HighLevelNodeMap.id_path_to_name_path(n.path, nm),
            ),
          )
        );
   named
-  |> List.map(((id, base)) =>
+  |> List.map(~f=((id, base)) =>
        switch (
-         List.filter_map(((i, b)) => b == base ? Some(i) : None, named)
+         List.filter_map(~f=((i, b)) => b == base ? Some(i) : None, named)
          |> HighLevelNodeMap.sort_ids_in_program_order(nm)
        ) {
        | [_] => (base, id)
        | ids =>
-         let k = Option.get(ListUtil.findi_opt(i => i == id, ids));
+         let k = Option.value_exn(ListUtil.findi_opt(i => i == id, ids));
          (base ++ "#" ++ string_of_int(fst(k) + 1), id);
        }
      )
-  |> List.sort(compare);
+  |> List.sort(~compare=compare);
 };
 
 let parity = (z: Zipper.t) => {
@@ -58,13 +58,22 @@ let parity = (z: Zipper.t) => {
     };
   let whole = get("whole", whole_node_map(z));
   let items =
-    get("per item", CompositionGo.Public.node_map_of(~root=Mod, z));
-  check(list(string), "paths", List.map(fst, whole), List.map(fst, items));
+    get(
+      "per item",
+      HighLevelNodeMap.build_from_items(
+        DefStatics.calc_auto(
+          ~settings=CoreSettings.on,
+          ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+          MakeTerm.semantic_term(~root=Mod, MakeTerm.semantic_source(z)),
+        ),
+      ),
+    );
+  check(list(string), "paths", List.map(~f=fst, whole), List.map(~f=fst, items));
   check(
     list(string),
     "nodes",
-    List.map(((p, id)) => p ++ " " ++ Id.to_string(id), whole),
-    List.map(((p, id)) => p ++ " " ++ Id.to_string(id), items),
+    List.map(~f=((p, id)) => p ++ " " ++ Id.to_string(id), whole),
+    List.map(~f=((p, id)) => p ++ " " ++ Id.to_string(id), items),
   );
 };
 
@@ -108,7 +117,7 @@ let parity_tests = (
       parity(Zipper.unzip(CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz")))
     ),
     test_case("the module-rooted slides", `Slow, () =>
-      List.iter(
+      List.iter(~f=
         ((_, p)) => parity(PersistentZipper.unpersist(p, ~root=Mod)),
         Docslides.Slides.mod_slides,
       )
@@ -116,93 +125,4 @@ let parity_tests = (
   ],
 );
 
-/* tool calls on Mega-Mod 1k with the editor's per-item analysis warm, as
-   the app has it: the action and its diff. HAZEL_BENCH=1 only */
-let bench = () => {
-  let now = JsUtil.precise_timestamp;
-  let z = Zipper.unzip(CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz"));
-  let syntax = CachedSyntax.init(~root=Mod, z);
-  let warm = () =>
-    ignore(
-      CachedStatics.init_compositional(
-        ~settings=CoreSettings.on,
-        ~stitch=x => x,
-        ~root=Mod,
-        z,
-      ),
-    );
-  let run = (name, a: Action.Structural.t) => {
-    let once = () => {
-      warm();
-      let t0 = now();
-      let new_z =
-        switch (
-          Perform.go(
-            ~settings=CoreSettings.on,
-            ~statics=CachedStatics.empty,
-            ~syntax,
-            ~root=Mod,
-            Structural(a),
-            {
-              zipper: z,
-              col_target: None,
-            },
-          )
-        ) {
-        | Ok(z) => z
-        | Error(e) => fail(name ++ ": " ++ Action.Failure.show(e))
-        };
-      let go = now() -. t0;
-      let new_syntax = CachedSyntax.init(~root=Mod, new_z);
-      let t1 = now();
-      ignore(
-        CompositionGo.Public.get_diff(
-          ~settings=CoreSettings.on,
-          ~root=Mod,
-          z,
-          new_z,
-          a,
-          ~old_syntax=syntax,
-          ~new_syntax,
-        ),
-      );
-      (go, now() -. t1);
-    };
-    let runs = List.init(7, _ => once()) |> List.tl;
-    let median = xs =>
-      List.nth(List.sort(compare, xs), List.length(xs) / 2);
-    let (go, diff) = (
-      median(List.map(fst, runs)),
-      median(List.map(snd, runs)),
-    );
-    Printf.printf(
-      "MODROOT-BENCH %s: action %.0f ms, diff %.0f ms, total %.0f ms\n",
-      name,
-      go,
-      diff,
-      go +. diff,
-    );
-  };
-  run(
-    "update_definition",
-    Update(
-      Definition,
-      "Text/int_to_text",
-      "fun n -> if n < 0 then \"-\" ++ go_render(0 - n) else go_render(n)",
-    ),
-  );
-  run("insert_after", Insert(After, "Text/digit", "let zz = 1"));
-};
-
-let bench_tests = (
-  "AgentTools.ModRootBench",
-  [
-    test_case("tool calls on Mega-Mod 1k", `Slow, () =>
-      if (CorpusUtil.bench_enabled) {
-        bench();
-      }
-    ),
-  ],
-);
-
-let tests = [parity_tests, bench_tests];
+let tests = [parity_tests];

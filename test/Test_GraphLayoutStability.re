@@ -1,4 +1,5 @@
 open Alcotest;
+open Poly;
 module GL = Util.GraphLayout;
 
 /* Within-rank ordering is damped (Spec.order_hysteresis): a node passes a
@@ -24,17 +25,17 @@ let edge = ((src, dst): (string, string)): GL.Spec.edge => {
 };
 let spec = (~hysteresis, nodes, edges): GL.Spec.t => {
   ...GL.Spec.default,
-  nodes: List.map(node, nodes),
-  edges: List.map(edge, edges),
+  nodes: List.map(~f=node, nodes),
+  edges: List.map(~f=edge, edges),
   order_hysteresis: hysteresis,
 };
 
 /* ids at a rank, top to bottom */
 let column = (res: GL.result, r: int): list(string) =>
   res.ranks
-  |> List.filter(((_, rk)) => rk == r)
-  |> List.map(fst)
-  |> List.sort((a, b) => {
+  |> List.filter(~f=((_, rk)) => rk == r)
+  |> List.map(~f=fst)
+  |> List.sort(~compare=(a, b) => {
        let y = id =>
          switch (GL.pos_of(res, id)) {
          | Some(p) => p.y
@@ -64,14 +65,14 @@ let tests = [
           nodes: [node("host")],
           attachments: [attach("one"), attach("two")],
         });
-      let a = Option.get(GL.pos_of(res, "one"));
-      let b = Option.get(GL.pos_of(res, "two"));
+      let a = Option.value_exn(GL.pos_of(res, "one"));
+      let b = Option.value_exn(GL.pos_of(res, "two"));
       check(float(0.01), "same input column", a.x, b.x);
       check(
         bool,
         "tight collision-free fan",
         true,
-        abs_float(a.y -. b.y) >= 42. && abs_float(a.y -. b.y) <= 50.,
+        Float.abs(a.y -. b.y) >= 42. && Float.abs(a.y -. b.y) <= 50.,
       );
     },
   ),
@@ -87,7 +88,7 @@ let tests = [
             [("a", "c"), ("a", "d"), ("b", "c"), ("b", "d")],
           ),
         );
-      let y = k => Option.get(GL.pos_of(res, k)).y;
+      let y = k => Option.value_exn(GL.pos_of(res, k)).y;
       check(
         float(0.01),
         "equivalent columns have equal centers",

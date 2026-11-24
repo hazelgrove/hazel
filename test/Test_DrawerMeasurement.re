@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* Ground-truth positions, rather than only flat/incremental parity: both
    implementations can agree while reserving a drawer on the wrong line. */
@@ -61,12 +62,12 @@ let case_ = (~measure, (name, source, drawers, positions, added_rows)) =>
           ~root=Exp,
           source,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let seg = Zipper.zip(z);
       let parsed = MakeTerm.from_zip_for_sem(z, ~root=Exp);
       let id_of = text =>
         Id.Map.bindings(parsed.term_data)
-        |> List.find_map(((id, _)) =>
+        |> List.find_map(~f=((id, _)) =>
              switch (TermData.segment(id, parsed.term_data)) {
              | Some(seg)
                  when compact(Printer.of_segment(~holes="?", seg)) == text =>
@@ -74,18 +75,18 @@ let case_ = (~measure, (name, source, drawers, positions, added_rows)) =>
              | _ => None
              }
            )
-        |> Option.get;
+        |> Option.value_exn;
       let rows =
         drawers
-        |> List.map(((text, n)) => (id_of(text), n))
+        |> List.map(~f=((text, n)) => (id_of(text), n))
         |> Id.Map.of_list;
       let base = measure(seg, Id.Map.empty);
       let opened = measure(seg, rows);
-      List.iter(
+      List.iter(~f=
         ((text, delta)) => {
           let id = id_of(text);
-          let before = Measured.find_by_id(id, base) |> Option.get;
-          let after = Measured.find_by_id(id, opened) |> Option.get;
+          let before = Measured.find_by_id(id, base) |> Option.value_exn;
+          let after = Measured.find_by_id(id, opened) |> Option.value_exn;
           check(
             int,
             text ++ " row",
@@ -114,7 +115,7 @@ let case_ = (~measure, (name, source, drawers, positions, added_rows)) =>
 
 let tests = (
   "Drawer measurement",
-  List.map(
+  List.map(~f=
     case_(~measure=(seg, rows) =>
       Measured.of_segment(seg, Id.Map.empty, rows)
     ),

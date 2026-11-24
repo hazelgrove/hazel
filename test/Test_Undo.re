@@ -82,7 +82,7 @@ let canvas_fixture = (): History.Model.t => {
     | Scratch(sm) => sm
     | _ => failwith("expected scratch")
     };
-  let sp = List.nth(scratch.scratchpads, scratch.current);
+  let sp = List.nth_exn(scratch.scratchpads, scratch.current);
   let sp =
     switch (sp.kind) {
     | Code(code) => {
@@ -119,7 +119,7 @@ let program_of = (model: History.Model.t): Program.t =>
     }
   | _ => failwith("expected scratch")
   };
-let whole_term = model => Program.statics(program_of(model)).term;
+let whole_outline = model => Program.outline(program_of(model));
 let whole_text = model =>
   Program.document(program_of(model))
   |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
@@ -235,7 +235,7 @@ let tests = (
           );
         let m1 = apply(m0, insert("1"));
         let snapshot =
-          List.hd(m1.undo_stack).model.globals.settings.agent_globals;
+          List.hd_exn(m1.undo_stack).model.globals.settings.agent_globals;
         check(
           option(string),
           "snapshots contain no key",
@@ -282,7 +282,7 @@ let tests = (
       `Quick,
       () => {
         let m0 = canvas_fixture();
-        let fid = CorpusUtil.row_by_label(whole_term(m0), "f");
+        let fid = CorpusUtil.row_by_label(whole_outline(m0), "f");
         let m1 = apply(m0, Editors(Scratch(Workspace(FocusDef(fid)))));
         let m2 =
           apply(
@@ -295,7 +295,7 @@ let tests = (
           Globals(Set(Sidebar(SetCanvasPanelHidden(false)))),
           Globals(Set(CanvasTick)),
         ];
-        let m3 = List.fold_left(apply, m2, actions);
+        let m3 = List.fold(actions, ~init=m2, ~f=apply);
         check(
           int,
           "display updates do not push history",
@@ -314,9 +314,12 @@ let tests = (
           bool,
           "restored outline has the deleted definition",
           true,
-          CorpusUtil.row_by_label(whole_term(restored), "f") == fid,
+          Haz3lcore.Id.equal(
+            CorpusUtil.row_by_label(whole_outline(restored), "f"),
+            fid,
+          ),
         );
-        let m4 = List.fold_left(apply, restored, actions);
+        let m4 = List.fold(actions, ~init=restored, ~f=apply);
         check(int, "display updates preserve redo", 1, redo_len(m4));
         let m5 = apply(m4, redo);
         check(
@@ -331,7 +334,7 @@ let tests = (
             )
           ) {
           | _ => true
-          | exception Not_found => false
+          | exception Stdlib.Not_found => false
           },
         );
       },

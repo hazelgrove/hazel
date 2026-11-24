@@ -1,8 +1,9 @@
 open Alcotest;
+open Poly;
 module L = Web.CanvasLayout;
 module G = Web.CanvasGraph;
 let at = (l: L.t, key) =>
-  List.find((n: L.node_layout) => n.node.key == key, l.nodes).p;
+  List.find_exn(~f=(n: L.node_layout) => n.node.key == key, l.nodes).p;
 let xy = (p: L.pos) => (p.x, p.y);
 let same = (label, a: L.pos, b: L.pos) =>
   check(pair(float(0.001), float(0.001)), label, xy(a), xy(b));
@@ -11,7 +12,7 @@ let move_without_bystanders = () => {
   let g = graph();
   let base = L.layout(~cards=[], g);
   let satellites =
-    List.filter_map(
+    List.filter_map(~f=
       (n: G.tynode) =>
         switch (n.sat) {
         | Some(("Pos", _)) => Some(n.key)
@@ -20,7 +21,7 @@ let move_without_bystanders = () => {
       g.nodes,
     );
   check(bool, "fixture includes attached terminals", true, satellites != []);
-  List.iter(
+  List.iter(~f=
     ((dx, dy)) => {
       let next =
         L.layout(
@@ -29,10 +30,10 @@ let move_without_bystanders = () => {
           ~offsets=[("Pos", (dx, dy))],
           g,
         );
-      List.iter(
+      List.iter(~f=
         (n: L.node_layout) => {
           let should_move =
-            n.node.key == "Pos" || List.mem(n.node.key, satellites);
+            n.node.key == "Pos" || List.mem(satellites, n.node.key, ~equal=Poly.equal);
           let expected: L.pos =
             should_move
               ? {
@@ -54,7 +55,7 @@ let pinned_and_previously_moved = () => {
   let pos = at(base, "Pos");
   let offsets = [("Deck", (84., 140.))];
   let fixed =
-    List.hd(List.filter((n: G.tynode) => n.sat != None, g.nodes)).key;
+    List.hd_exn(List.filter(~f=(n: G.tynode) => n.sat != None, g.nodes)).key;
   let fp = at(base, fixed);
   let pins = [("Pos", xy(pos)), (fixed, xy(fp))];
   let before =
@@ -83,7 +84,7 @@ let pinned_and_previously_moved = () => {
     at(before, "Deck"),
     at(after, "Deck"),
   );
-  List.iter(
+  List.iter(~f=
     (n: L.node_layout) =>
       if (n.node.key != "Pos" && n.node.sat == None) {
         same("pin drag: " ++ n.node.key, n.p, at(after, n.node.key));
@@ -106,7 +107,7 @@ let tests = (
           );
         let lay = L.layout(~cards=[], g);
         let edge =
-          List.find(
+          List.find_exn(~f=
             (e: L.edge_layout) => e.edge.e_name == "area",
             lay.edges,
           );
@@ -115,7 +116,7 @@ let tests = (
         let terminal = at(lay, edge.edge.dst);
         let u = L.norm(a, b);
         let distance =
-          abs_float((terminal.y -. a.y) *. u.x -. (terminal.x -. a.x) *. u.y);
+          Float.abs((terminal.y -. a.y) *. u.x -. (terminal.x -. a.x) *. u.y);
         check(
           bool,
           "area's terminal is visibly off the Shape–Scene chord",

@@ -113,7 +113,7 @@ let menhir_roundtrip_test = (name: string, source: string) =>
 
 let menhir_parse = (actual: string) =>
   Grammar.map_exp_annotation(
-    _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+    _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
     Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
   );
 

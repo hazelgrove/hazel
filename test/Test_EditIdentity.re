@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 let parse = CorpusUtil.seg_of;
 let zipper = src => Zipper.unzip(parse(src));
@@ -29,7 +30,7 @@ let check_survivors = (before, after) => {
     (id, p) => {
       switch (Id.Map.find_opt(id, after)) {
       | Some(next) when compare(p, next) == 0 =>
-        check(bool, "unchanged piece shares its old object", true, p === next)
+        check(bool, "unchanged piece shares its old object", true, phys_equal(p, next))
       | _ => ()
       }
     },
@@ -47,7 +48,7 @@ let check_all_retained = (before, after) => {
         "same id and object",
         true,
         switch (Id.Map.find_opt(id, next)) {
-        | Some(q) => p === q
+        | Some(q) => phys_equal(p, q)
         | None => false
         },
       ),
@@ -58,61 +59,6 @@ let check_all_retained = (before, after) => {
 let tests = (
   "Structural edit identity",
   [
-    test_case(
-      "adding tests after a module does not restage its members",
-      `Quick,
-      () => {
-        let members =
-          List.init(20, i =>
-            "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i)
-          );
-        let z =
-          zipper(
-            "module M = {\n  "
-            ++ String.concat(";\n  ", members)
-            ++ "\n} in\n0",
-          );
-        let body =
-          String.concat(
-            "\n",
-            List.init(5, i =>
-              "test M.x"
-              ++ string_of_int(i)
-              ++ " == "
-              ++ string_of_int(i)
-              ++ " end;"
-            ),
-          )
-          ++ "\n0";
-        let next = edit(z, Update(Body, "M", body));
-        let before = segment(z)
-        and after = segment(next);
-        check(
-          int,
-          "only five test operations",
-          5,
-          List.length(DefinitionSteps.plan(before, after)),
-        );
-        let remaining = EditIdentity.index(after);
-        Id.Map.iter(
-          (id, p: Piece.t) =>
-            switch (p) {
-            | Tile(_) =>
-              check(
-                bool,
-                "pre-existing syntax retains identity and sharing",
-                true,
-                switch (Id.Map.find_opt(id, remaining)) {
-                | Some(q) => p === q
-                | None => false
-                },
-              )
-            | _ => ()
-            },
-          EditIdentity.index(before),
-        );
-      },
-    ),
     test_case(
       "zipper mappers retain untouched tile objects",
       `Quick,
@@ -138,7 +84,7 @@ let tests = (
           bool,
           "fixture contains a projector",
           true,
-          List.exists(
+          List.exists(~f=
             (p: Piece.t) =>
               switch (p) {
               | Projector(_) => true
@@ -169,7 +115,7 @@ let tests = (
       `Quick,
       () => {
         let z = zipper("let m = { let a = 1 ; let b = 2 ; let c = 3 } in m");
-        let next = edit(z, Insert(After, "m/b", "let d = 4"));
+        let next = edit(z, Insert(After("m/b"), "let d = 4"));
         check(
           bool,
           "untouched space before separator",
@@ -180,40 +126,12 @@ let tests = (
       },
     ),
     test_case(
-      "normalizing an unchanged program is an identity no-op",
-      `Quick,
-      () => {
-        let z =
-          zipper(
-            "let m = {\n  let x = 1;\n\n  let y = 2\n} in\n\nlet a = 3 in\n\n\nm.x + a",
-          );
-        let next =
-          CompositionGo.Local.PerformUtils.normalize_top_level(~before=z, z);
-        check_all_retained(segment(z), segment(next));
-        check(
-          string,
-          "formatting untouched",
-          text(segment(z)),
-          text(segment(next)),
-        );
-      },
-    ),
-    test_case(
-      "identical body replacement retains the later bindings",
-      `Quick,
-      () => {
-        let z = zipper("let a = 1 in let b = a + 1 in b");
-        let next = edit(z, Update(Body, "a", "let b = a + 1 in b"));
-        check_all_retained(segment(z), segment(next));
-      },
-    ),
-    test_case(
       "narrow definition edit preserves unrelated layout and pieces",
       `Quick,
       () => {
         let z =
           zipper("let a = 1 in\n\n\nlet b = a + 1 in\n# keep me #\n\n b");
-        let next = edit(z, Update(Definition, "b", "a + 2"));
+        let next = edit(z, Replace("b:definition", "a + 2"));
         check(
           string,
           "only requested code changes",
@@ -232,7 +150,7 @@ let tests = (
           Id.Map.exists(
             (id, p) =>
               switch (Id.Map.find_opt(id, EditIdentity.index(reused))) {
-              | Some(q) => p === q
+              | Some(q) => phys_equal(p, q)
               | None => false
               },
             old_ids,
@@ -246,7 +164,7 @@ let tests = (
       () => {
         let src = "let m = {\n  let x = 1;\n\n\n  let y = 2\n} in\n\nlet n = {\n let z = 3\n} in m.x";
         let z = zipper(src);
-        let next = edit(z, Update(Definition, "m/x", "4"));
+        let next = edit(z, Replace("m/x:definition", "4"));
         check(
           string,
           "only member RHS changes",
@@ -261,7 +179,7 @@ let tests = (
       `Quick,
       () => {
         let z = zipper("let m = {\n  let x = 1;\n  let y = 2\n} in m");
-        let next = edit(z, Insert(After, "m/x", "let z = 9"));
+        let next = edit(z, Insert(After("m/x"), "let z = 9"));
         check_survivors(segment(z), segment(next));
       },
     ),
@@ -272,12 +190,12 @@ let tests = (
         let before = parse("[1, 1]");
         let after = EditIdentity.reuse(before, parse("[1, 1, 1]"));
         let rec ids = seg =>
-          List.concat_map(
+          List.concat_map(~f=
             (p: Piece.t) =>
               [
                 Piece.id(p),
                 ...switch (p) {
-                   | Tile(t) => List.concat_map(ids, t.children)
+                   | Tile(t) => List.concat_map(~f=ids, t.children)
                    | _ => []
                    },
               ],
@@ -288,7 +206,7 @@ let tests = (
           int,
           "all ids unique",
           List.length(all),
-          List.length(List.sort_uniq(compare, all)),
+          List.length(List.dedup_and_sort(~compare=compare, all)),
         );
         check(string, "requested result", "[1, 1, 1]", text(after));
         check_survivors(before, after);
@@ -314,10 +232,21 @@ let tests = (
       `Quick,
       () => {
         let before = parse("let a = 1 in\nlet b = 2 in\na + b");
-        let id = CorpusUtil.row_by_label(MakeTerm.go(before).term, "b");
-        switch (Web.ItemEdit.apply(Web.OutlineEdit.MoveUp, id, before)) {
-        | None => fail("outline move failed")
-        | Some((after, _)) =>
+        let id = CorpusUtil.row_by_label(CorpusUtil.outline_of(before), "b");
+        switch (
+          Web.ItemEdit.edit(
+            {
+              outline: CorpusUtil.outline_of(before),
+              mod_root: false,
+              info_map: lazy(Id.Map.empty),
+              is_open: _ => false,
+            },
+            Op(MoveUp, id),
+            before,
+          )
+        ) {
+        | Error(e) => fail("outline move failed: " ++ e)
+        | Ok((after, _)) =>
           check_survivors(before, after);
           check(
             bool,

@@ -1,4 +1,5 @@
 open Alcotest;
+open Poly;
 module T = Web.CanvasTrajectory;
 
 let starting_slide = () => {
@@ -16,7 +17,7 @@ let starting_slide = () => {
       T.dispatch_paste := (s => calls := calls^ @ ["paste:" ++ s]);
       let run = text => {
         calls := [];
-        let (header, _) = Option.get(T.parse(text));
+        let (header, _) = Option.value_exn(T.parse(text));
         T.prepare_replay(header);
         calls^;
       };

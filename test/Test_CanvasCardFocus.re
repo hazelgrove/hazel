@@ -1,10 +1,11 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 module F = Web.CanvasFocus;
 
 let source =
-  List.assoc("Type Cards / Tic-Tac-Toe", Livelitdemos.Slides.all_slides).
+  List.Assoc.find_exn(Livelitdemos.Slides.all_slides, "Type Cards / Tic-Tac-Toe", ~equal=Poly.equal).
     backup_text;
 
 let evaluate = moves => {
@@ -16,7 +17,7 @@ let evaluate = moves => {
     );
   let z =
     PersistentZipper.parse_text(~source="card regression", ~root=Exp, source)
-    |> Option.get;
+    |> Option.value_exn;
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let settings = {
     ...CoreSettings.on,
@@ -45,18 +46,14 @@ let evaluate = moves => {
 let compact = s => Str.global_replace(Str.regexp("[ \n\t\r]+"), "", s);
 let value = (s: Sample.t) => compact(F.print_value(s.value));
 let latest = samples =>
-  List.fold_left(
-    (best: Sample.t, s: Sample.t) => s.seq > best.seq ? s : best,
-    List.hd(samples),
-    samples,
-  );
+  List.fold(samples, ~init=List.hd_exn(samples), ~f=(best: Sample.t, s: Sample.t) => s.seq > best.seq ? s : best);
 
 let tests = [
   test_case("live cards agree on the final game state", `Quick, () => {
-    List.iter(
+    List.iter(~f=
       ((moves, player, outcome)) => {
         let (_, st, dynamics, syntax, graph) = evaluate(moves);
-        List.iter(
+        List.iter(~f=
           ((key, expected)) => {
             let id =
               F.value_site(
@@ -66,7 +63,7 @@ let tests = [
                 ~graph,
                 key,
               )
-              |> Option.get;
+              |> Option.value_exn;
             let s = latest(Id.Map.find(id, dynamics));
             check(string, key ++ " after " ++ moves, expected, value(s));
             check(int, "outer program result", 0, List.length(s.call_stack));
@@ -89,7 +86,7 @@ let tests = [
       let (z, st, dynamics, syntax, graph) =
         evaluate("[At(4), At(0), At(8), At(2), At(1)]");
       let edge =
-        List.find(
+        List.find_exn(~f=
           (e: Web.CanvasGraph.edge) => e.e_name == "advance",
           graph.edges,
         );
@@ -99,18 +96,18 @@ let tests = [
           syntax.term_data,
           syntax.measured,
         )
-        |> Option.get;
+        |> Option.value_exn;
       let board_site =
         Id.Map.bindings(dynamics)
-        |> List.find_map(((id, samples)) =>
+        |> List.find_map(~f=((id, samples)) =>
              switch (TermData.segment(id, syntax.term_data), samples) {
              | (Some(seg), [_, ..._])
                  when compact(Printer.of_segment(~holes="?", seg)) == "next" =>
-               Some((id, List.hd(samples)))
+               Some((id, List.hd_exn(samples)))
              | _ => None
              }
            )
-        |> Option.get;
+        |> Option.value_exn;
       let (id, sample) = board_site;
       let focused =
         SampleFocusPerform.capture(
@@ -129,7 +126,7 @@ let tests = [
           ~focus,
           key,
         )
-        |> Option.get;
+        |> Option.value_exn;
       check(
         bool,
         "keep the chosen Board site",
@@ -141,7 +138,7 @@ let tests = [
         bool,
         "Player follows the inspected call",
         true,
-        List.exists(
+        List.exists(~f=
           (s: Sample.t) =>
             Sample.Focus.relation(~trimmed=true, ~ap_id=None, focus, s).
               is_call_cursor,
@@ -149,7 +146,7 @@ let tests = [
         ),
       );
       let reset = SampleFocusPerform.reset(focused).refractors.sample_focus;
-      List.iter(
+      List.iter(~f=
         key => {
           let chosen = choose(~focus=reset, key);
           check(
@@ -170,7 +167,7 @@ let tests = [
       let (z, statics, dynamics, _, graph) =
         evaluate("[At(4), At(0), At(8), At(2), At(1)]");
       let edge =
-        List.find(
+        List.find_exn(~f=
           (e: Web.CanvasGraph.edge) => e.e_name == "advance",
           graph.edges,
         );
@@ -186,14 +183,16 @@ let tests = [
         ...Web.CellEditor.Model.mk(Editor.Model.mk(~root=Exp, z)),
         editor: original,
       };
+      let outline =
+        CorpusUtil.outline_of(Zipper.unselect_and_zip(z));
       let d =
         Web.Divided.open_(
           ~info_map=statics.info_map,
-          ~term=statics.term,
-          CorpusUtil.row_by_label(statics.term, "advance"),
+          ~outline,
+          CorpusUtil.row_by_label(outline, "advance"),
           Web.Divided.of_whole(whole),
         )
-        |> Option.get;
+        |> Option.value_exn;
       let editors: Web.Editors.Model.t =
         Scratch({
           current: 0,
@@ -205,6 +204,7 @@ let tests = [
                   program: Divided(d),
                   view: Web.SlideView.init,
                   agent: Web.Agent.Utils.init(),
+                  lens: None,
                 }),
               dormant: false,
             },
@@ -214,7 +214,7 @@ let tests = [
         Web.Page.live_presentation_editor(editors, fallback);
       Web.Page.presentation_master := None;
       let initial = shown(original);
-      let samples = Id.Map.find(List.hd(edge.e_arg_ids), dynamics);
+      let samples = Id.Map.find(List.hd_exn(edge.e_arg_ids), dynamics);
       let with_zipper = zipper =>
         Web.CodeWithStatics.Model.{
           ...original,
@@ -226,7 +226,7 @@ let tests = [
             },
           },
         };
-      List.iter(
+      List.iter(~f=
         (sample: Sample.t) => {
           let captured =
             SampleFocusPerform.capture(
@@ -246,7 +246,7 @@ let tests = [
             bool,
             "unchanged syntax stays cached",
             true,
-            initial.editor.syntax === current.editor.syntax,
+            phys_equal(initial.editor.syntax, current.editor.syntax),
           );
           let reset =
             shown(with_zipper(SampleFocusPerform.reset(captured)));
@@ -294,13 +294,13 @@ let tests = [
         bool,
         "ordinary probes can see streamed samples",
         true,
-        Web.EvalResult.Model.dynamics(streaming) === mixed,
+        phys_equal(Web.EvalResult.Model.dynamics(streaming), mixed),
       );
       check(
         bool,
         "cards do not combine runs",
         true,
-        Web.EvalResult.Model.card_dynamics(streaming) === previous,
+        phys_equal(Web.EvalResult.Model.card_dynamics(streaming), previous),
       );
       let completed =
         Web.EvalResult.Update.calculate(
@@ -323,14 +323,16 @@ let tests = [
         bool,
         "cards adopt the entire new result",
         true,
-        Web.EvalResult.Model.card_dynamics(completed)
-        === Web.EvalResult.Model.dynamics(completed),
+        phys_equal(
+          Web.EvalResult.Model.card_dynamics(completed),
+          Web.EvalResult.Model.dynamics(completed),
+        ),
       );
       check(
         bool,
         "previous snapshot is released",
         false,
-        Web.EvalResult.Model.card_dynamics(completed) === previous,
+        phys_equal(Web.EvalResult.Model.card_dynamics(completed), previous),
       );
       ignore(statics);
     },

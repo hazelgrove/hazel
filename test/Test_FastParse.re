@@ -183,8 +183,8 @@ let rec shape = (seg: Segment.t): string =>
           ++ Mold.show(Tile.mold(t))
           ++ ":"
             ++ String.concat(~sep=",", List.map(~f=string_of_int, t.shards))
-          ++ String.concat(
-                 ~sep="",
+          ++ String.concat(~sep=
+                 "",
                  List.map(~f=c => "[" ++ shape(c) ++ "]", t.children),
              )
           ++ ">"
@@ -512,8 +512,8 @@ let tests = (
             (p: Piece.t) =>
               switch (p) {
               | Tile({children, _}) =>
-                List.exists(
-                    ~f=
+                List.exists(~f=
+                    
                       List.exists(~f=q =>
                     switch ((q: Piece.t)) {
                     | Projector(_) => true

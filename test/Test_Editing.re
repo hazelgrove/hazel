@@ -1875,10 +1875,9 @@ a + b¦|},
     `Quick,
     () => {
       let big =
-        List.init(400, i =>
-          "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i) ++ " in"
-        )
-        |> String.concat("\n")
+        List.init(400, ~f=i =>
+          "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i) ++ " in")
+        |> String.concat(~sep="\n")
         |> (defs => defs ++ "\n¦0");
       let mid = parse_zipper(big);
       let time = (f, x) => {

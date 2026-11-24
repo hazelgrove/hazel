@@ -309,10 +309,10 @@ let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
           ++ " (syntax_id "
           ++ Id.to_string(sample.syntax_id)
           ++ ") printed with duplicated (id, shard) pairs: "
-          ++ String.concat(
-                 ~sep=", ",
-               List.map(
-                   ~f=
+          ++ String.concat(~sep=
+                 ", ",
+               List.map(~f=
+                   
                      ((id, i)) =>
                        Id.to_string(id) ++ "#" ++ string_of_int(i),
                  dups,
@@ -639,10 +639,10 @@ let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) =>
           ++ " (syntax_id "
           ++ Id.to_string(sample.syntax_id)
           ++ ") drawer segment has duplicated (id, shard) pairs: "
-          ++ String.concat(
-                 ~sep=", ",
-               List.map(
-                   ~f=
+          ++ String.concat(~sep=
+                 ", ",
+               List.map(~f=
+                   
                      ((id, i)) =>
                        Id.to_string(id) ++ "#" ++ string_of_int(i),
                  dups,

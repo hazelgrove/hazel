@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Regression probe: the agent's node map (HighLevelNodeMap.build, which
    walks Info.ancestors to the program's top level) must build for the
@@ -177,13 +178,13 @@ test Pos.neighbors((0, 0)) == [(0, -1), (0, 1), (1, 0), (-1, 0)] end;
 
 /* the typing parse of a program, once: the dungeon programs are parsed
    by most cases below, and simulated typing is the dominant cost */
-let zipper_cache: Hashtbl.t(string, option(Zipper.t)) = Hashtbl.create(8);
+let zipper_cache: Stdlib.Hashtbl.t(string, option(Zipper.t)) = Stdlib.Hashtbl.create(8);
 let zipper_of = (code: string): option(Zipper.t) =>
-  switch (Hashtbl.find_opt(zipper_cache, code)) {
+  switch (Stdlib.Hashtbl.find_opt(zipper_cache, code)) {
   | Some(z) => z
   | None =>
     let z = Parser.to_zipper(~root=Exp, code);
-    Hashtbl.replace(zipper_cache, code, z);
+    Stdlib.Hashtbl.replace(zipper_cache, code, z);
     z;
   };
 let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
@@ -475,7 +476,7 @@ let error_count = (code: string): int =>
   | Some(z) =>
     let m = mk_statics(z);
     let errs = StaticsBase.Map.error_ids(m);
-    List.iter(e => print_endline("PROBE-ERR " ++ e), ErrorPrint.all(m));
+    List.iter(~f=e => print_endline("PROBE-ERR " ++ e), ErrorPrint.all(m));
     List.length(errs);
   };
 
@@ -515,10 +516,10 @@ let dump_var_type = (code: string, var: string): unit =>
         | Info.InfoExp({user_term: {term: Dot(_, _), _}, ctx, _}) =>
           let names =
             Ctx.get_var_entries(ctx)
-            |> List.map((v: Ctx.var_entry) => v.name);
+            |> List.map(~f=(v: Ctx.var_entry) => v.name);
           print_endline(
             "DUMP dot-ctx vars="
-            ++ String.concat(",", List.filteri((i, _) => i < 8, names))
+            ++ String.concat(~sep=",", List.filteri(~f=(i, _) => i < 8, names))
             ++ " lookup_var("
             ++ var
             ++ ")="
@@ -622,14 +623,14 @@ let module_probes = [
 /* which sub-terms of an item are absent from the item's own map? */
 let rec sub_terms = (e: Exp.t): list(Exp.t) => [
   e,
-  ...List.concat_map(
+  ...List.concat_map(~f=
        sub_terms,
        HighLevelNodeMap.Utils.child_expressions_of_exp(e),
      ),
 ];
 let missing_in_item_maps = (ds: DefStatics.t): unit => {
   let rec go = (prefix, items: list(DefStatics.item)) =>
-    List.iter(
+    List.iter(~f=
       (it: DefStatics.item) => {
         let name =
           switch (Id.Map.find_opt(it.d_id, it.d_map)) {
@@ -641,7 +642,7 @@ let missing_in_item_maps = (ds: DefStatics.t): unit => {
           };
         let missing =
           sub_terms(it.d_node)
-          |> List.filter(e => !Id.Map.mem(Exp.rep_id(e), it.d_map));
+          |> List.filter(~f=e => !Id.Map.mem(Exp.rep_id(e), it.d_map));
         if (missing != []) {
           let ctor = (e: Exp.t) =>
             switch (Exp.term_of(e)) {
@@ -664,9 +665,9 @@ let missing_in_item_maps = (ds: DefStatics.t): unit => {
             ++ ": "
             ++ string_of_int(List.length(missing))
             ++ " missing, first: "
-            ++ String.concat(
+            ++ String.concat(~sep=
                  ",",
-                 List.filteri((i, _) => i < 4, List.map(ctor, missing)),
+                 List.filteri(~f=(i, _) => i < 4, List.map(~f=ctor, missing)),
                ),
           );
         };
@@ -705,15 +706,15 @@ let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
       };
     let paths = (nm: HighLevelNodeMap.t) =>
       Id.Map.bindings(nm)
-      |> List.map(((id, n: HighLevelNodeMapModel.node)) => (id, n.path));
+      |> List.map(~f=((id, n: HighLevelNodeMapModel.node)) => (id, n.path));
     /* compared by NAME path: monolithic statics gives expression members
        a fresh wrapper id per run, so ids under one are never stable */
     let name_paths = (nm: HighLevelNodeMap.t) =>
       Id.Map.bindings(nm)
-      |> List.map(((_, n: HighLevelNodeMapModel.node)) =>
-           String.concat(
+      |> List.map(~f=((_, n: HighLevelNodeMapModel.node)) =>
+           String.concat(~sep=
              "/",
-             List.map(
+             List.map(~f=
                i =>
                  switch (Id.Map.find_opt(i, nm)) {
                  | Some(p: HighLevelNodeMapModel.node) => p.name
@@ -723,21 +724,21 @@ let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
              ),
            )
          )
-      |> List.sort(compare);
+      |> List.sort(~compare=compare);
     let (pm, pi) = (paths(mono), paths(items));
     let (nm_mono, nm_items) = (name_paths(mono), name_paths(items));
-    let name_missing = List.filter(k => !List.mem(k, nm_items), nm_mono);
-    let name_extra = List.filter(k => !List.mem(k, nm_mono), nm_items);
-    List.iter(k => print_endline("PARITY name-missing " ++ k), name_missing);
-    List.iter(k => print_endline("PARITY name-extra " ++ k), name_extra);
+    let name_missing = List.filter(~f=k => !List.mem(nm_items, k, ~equal=Poly.equal), nm_mono);
+    let name_extra = List.filter(~f=k => !List.mem(nm_mono, k, ~equal=Poly.equal), nm_items);
+    List.iter(~f=k => print_endline("PARITY name-missing " ++ k), name_missing);
+    List.iter(~f=k => print_endline("PARITY name-extra " ++ k), name_extra);
     let name_of = (nm: HighLevelNodeMap.t, id) =>
       switch (Id.Map.find_opt(id, nm)) {
       | Some(n: HighLevelNodeMapModel.node) =>
         n.name
         ++ " @"
-        ++ String.concat(
+        ++ String.concat(~sep=
              "/",
-             List.map(
+             List.map(~f=
                i =>
                  switch (Id.Map.find_opt(i, nm)) {
                  | Some(p: HighLevelNodeMapModel.node) => p.name
@@ -748,13 +749,13 @@ let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
            )
       | None => "?"
       };
-    List.iter(
+    List.iter(~f=
       c => print_endline("PARITY fallback " ++ c),
       HighLevelNodeMap.items_fallbacks^,
     );
-    let missing = List.filter(b => !List.mem(b, pi), pm);
-    let extra = List.filter(b => !List.mem(b, pm), pi);
-    List.iter(
+    let missing = List.filter(~f=b => !List.mem(pi, b, ~equal=Poly.equal), pm);
+    let extra = List.filter(~f=b => !List.mem(pm, b, ~equal=Poly.equal), pi);
+    List.iter(~f=
       ((id, _)) =>
         print_endline(
           "PARITY missing-in-items "
@@ -764,7 +765,7 @@ let parity_ds = (code: string, mk_ds: Exp.t => DefStatics.t): (int, int, int) =>
         ),
       missing,
     );
-    List.iter(
+    List.iter(~f=
       ((id, _)) =>
         print_endline(
           "PARITY extra-in-items "
@@ -803,10 +804,10 @@ let node_names = (code: string): list(string) =>
     | None => []
     | Some(nm) =>
       Id.Map.bindings(nm)
-      |> List.map(((_, n: HighLevelNodeMapModel.node)) =>
-           String.concat(
+      |> List.map(~f=((_, n: HighLevelNodeMapModel.node)) =>
+           String.concat(~sep=
              "/",
-             List.map(
+             List.map(~f=
                i =>
                  switch (Id.Map.find_opt(i, nm)) {
                  | Some(p: HighLevelNodeMapModel.node) => p.name
@@ -824,13 +825,13 @@ let member_sep_probe = (last_member: string) => {
   let result =
     Test_AgentTools.apply_and_render(
       program,
-      Insert(After, "M/b", "let c = 3;\nlet d = 4"),
+      Insert(After("M/b"), "let c = 3;\nlet d = 4"),
     );
   let names = node_names(result);
-  let has = p => List.mem(p, names);
+  let has = p => List.mem(names, p, ~equal=Poly.equal);
   if (!(has("M/c") && has("M/d"))) {
     print_endline("RESULT:\n" ++ result);
-    print_endline("NODES: " ++ String.concat(" ", names));
+    print_endline("NODES: " ++ String.concat(~sep=" ", names));
   };
   check(bool, "M/c and M/d are members", true, has("M/c") && has("M/d"));
 };
@@ -858,14 +859,14 @@ let canvas_parity = (code: string): (int, list(string)) =>
         z,
       );
     let sig_of = (g: Web.CanvasGraph.t): list(string) =>
-      List.sort(
+      List.sort(~compare=
         compare,
-        List.map(
+        List.map(~f=
           (n: Web.CanvasGraph.tynode) =>
             "node " ++ n.key ++ (n.n_err ? " ERR" : ""),
           g.nodes,
         )
-        @ List.map(
+        @ List.map(~f=
             (e: Web.CanvasGraph.edge) =>
               "edge "
               ++ e.e_name
@@ -877,7 +878,7 @@ let canvas_parity = (code: string): (int, list(string)) =>
               ++ (e.e_hole ? " HOLE" : ""),
             g.edges,
           )
-        @ List.map(
+        @ List.map(~f=
             (v: Web.CanvasGraph.value) =>
               "value " ++ v.v_name ++ " " ++ v.v_key ++ (v.v_err ? " ERR" : ""),
             g.values,
@@ -888,12 +889,12 @@ let canvas_parity = (code: string): (int, list(string)) =>
       sig_of(Web.CanvasGraph.extract(comp)),
     );
     let diffs =
-      List.map(x => "mono-only " ++ x, List.filter(x => !List.mem(x, b), a))
-      @ List.map(
+      List.map(~f=x => "mono-only " ++ x, List.filter(~f=x => !List.mem(b, x, ~equal=Poly.equal), a))
+      @ List.map(~f=
           x => "items-only " ++ x,
-          List.filter(x => !List.mem(x, a), b),
+          List.filter(~f=x => !List.mem(a, x, ~equal=Poly.equal), b),
         );
-    List.iter(print_endline, diffs);
+    List.iter(~f=print_endline, diffs);
     (List.length(a), diffs);
   };
 let parity_probes = [

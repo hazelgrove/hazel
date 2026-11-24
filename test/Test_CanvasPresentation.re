@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 module B = Web.CanvasBuffer;
 let model = text => {
   let z = CorpusUtil.seg_of(text) |> Zipper.unzip;
@@ -39,7 +40,7 @@ let tests = (
           bool,
           "accepted identities are installed",
           true,
-          B.same_program(Lazy.force(List.hd(B.queue^).b_model), after),
+          B.same_program(Lazy.force(List.hd_exn(B.queue^).b_model), after),
         );
         B.reset();
       },
@@ -51,9 +52,9 @@ let tests = (
         B.reset();
         let before = model("0");
         let src =
-          String.concat(
+          String.concat(~sep=
             " ",
-            List.init(12, i => "type T" ++ string_of_int(i) ++ " = Int in"),
+            List.init(12, ~f=i => "type T" ++ string_of_int(i) ++ " = Int in"),
           )
           ++ " 0";
         let after = model(src);
@@ -82,13 +83,13 @@ let tests = (
           int,
           "every step distinct",
           planned,
-          List.length(List.sort_uniq(compare, seen^)),
+          List.length(List.dedup_and_sort(~compare=compare, seen^)),
         );
         check(
           bool,
           "caught up to exact accepted program",
           true,
-          B.same_program(Option.get(B.shown^), after),
+          B.same_program(Option.value_exn(B.shown^), after),
         );
         B.reset();
       },
@@ -117,7 +118,7 @@ let tests = (
           before,
           after,
         );
-        List.iter(
+        List.iter(~f=
           beat => {
             let shown = Lazy.force(beat.Web.CanvasBuffer.b_model);
             check(
@@ -131,7 +132,7 @@ let tests = (
               bool,
               "Model remains visible",
               true,
-              List.exists(
+              List.exists(~f=
                 (n: Web.CanvasGraph.tynode) => n.key == "Model",
                 graph.nodes,
               ),
@@ -144,7 +145,7 @@ let tests = (
           "final syntax still matches the accepted edit",
           true,
           B.same_program(
-            Lazy.force(List.hd(List.rev(B.queue^)).b_model),
+            Lazy.force(List.hd_exn(List.rev(B.queue^)).b_model),
             after,
           ),
         );

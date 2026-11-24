@@ -2,6 +2,7 @@ open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
+open Poly;
 
 // == Helpers ==
 
@@ -57,7 +58,7 @@ let rec is_valid_html = (exp: Exp.t): bool => {
     switch (Haz3lcore.MvuShape.strip_wrappers(body).term) {
     | Tuple([_attrs, children]) =>
       switch (Haz3lcore.MvuShape.strip_wrappers(children).term) {
-      | ListLit(items) => List.for_all(is_valid_html, items)
+      | ListLit(items) => List.for_all(~f=is_valid_html, items)
       | _ => false
       }
     | _ => false
@@ -278,11 +279,11 @@ let svg_tag_routing =
     `Quick,
     () => {
       let is_svg = Haz3lcore.HazelDOM.is_svg_tag;
-      List.iter(
+      List.iter(~f=
         t => check(bool, t ++ " routes to SVG namespace", true, is_svg(t)),
         ["svg", "circle", "path", "text", "g", "linearGradient"],
       );
-      List.iter(
+      List.iter(~f=
         t => check(bool, t ++ " stays HTML", false, is_svg(t)),
         ["div", "span", "a", "script", "style", "canvas"],
       );
@@ -787,7 +788,7 @@ let cmd_cmdbatch_has_list_body =
               2,
               List.length(items),
             );
-            List.iter(
+            List.iter(~f=
               item => assert_constructor("CmdBatch item", "Log", item),
               items,
             );
@@ -1493,7 +1494,7 @@ let checkpoint_function_model_accepted =
     () => {
       let (init_model, _, view_fn, _) = app_of(function_model_program);
       assert_roundtrips("function model", init_model);
-      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      let s = Option.value_exn(Haz3lcore.MvuShape.serialize_model(init_model));
       switch (Haz3lcore.MvuShape.restore_model(~view_fn, s)) {
       | None => fail("checkpoint should be restored")
       | Some((model, html)) =>
@@ -1607,7 +1608,7 @@ let checkpoint_captured_env_rejected =
     () => {
       let env = Environment.of_list([("y", Exp.int(3))]);
       let body = Exp.fn(Pat.var("x"), Exp.var("y"), None, None);
-      List.iter(
+      List.iter(~f=
         ((label, e)) => {
           check(
             Alcotest.bool,
@@ -1658,7 +1659,7 @@ let checkpoint_restore_accepted =
     `Quick,
     () => {
       let (init_model, _, view_fn, _) = app_of(checkpoint_program);
-      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      let s = Option.value_exn(Haz3lcore.MvuShape.serialize_model(init_model));
       switch (Haz3lcore.MvuShape.restore_model(~view_fn, s)) {
       | None => fail("checkpoint should be restored")
       | Some((model, html)) =>
@@ -1675,7 +1676,7 @@ let checkpoint_restore_rejected_by_changed_view =
     () => {
       let (init_model, _, _, _) = app_of(checkpoint_program);
       let (_, _, view_fn_v2, _) = app_of(checkpoint_program_v2);
-      let s = Option.get(Haz3lcore.MvuShape.serialize_model(init_model));
+      let s = Option.value_exn(Haz3lcore.MvuShape.serialize_model(init_model));
       check(
         Alcotest.bool,
         "discarded",

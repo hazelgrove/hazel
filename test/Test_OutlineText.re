@@ -3153,6 +3153,7 @@ let structural_table = () => {
     meta: meta ? Down : Up,
     ctrl: ctrl ? Down : Up,
     alt: Up,
+    target_tag: None,
   };
   let of_ = key => E.structural(E.press_of(~composing=false, key));
   check(

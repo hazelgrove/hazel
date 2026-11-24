@@ -360,8 +360,9 @@ module SModel = Web.ScratchMode.Model;
    all the open cells and miss the rollback bug. */
 let divided_model = () => {
   let seg = seg_of("let a = 1 in let b = 2 in b");
-  let (term, info_map) = statics_of(seg);
-  let id = row_by_label(term, "a");
+  let (outline, info_map) = statics_of(seg);
+  let term = MakeTerm.go(seg).term;
+  let id = row_by_label(outline, "a");
   let editor = Focus.cell_of_seg(seg);
   let editor = {
     ...editor,
@@ -375,8 +376,13 @@ let divided_model = () => {
     },
   };
   let d =
-    Option.get(
-      Web.Divided.open_(~info_map, ~term, id, Web.Divided.of_whole(editor)),
+    Option.value_exn(
+      Web.Divided.open_(
+        ~info_map,
+        ~outline,
+        id,
+        Web.Divided.of_whole(editor),
+      ),
     );
   (
     SModel.{
@@ -397,13 +403,14 @@ let divided_model = () => {
                 ],
               },
               agent: Web.Agent.Utils.init(),
+              lens: None,
             }),
           dormant: false,
         },
       ],
     },
     id,
-    row_by_label(term, "b"),
+    row_by_label(outline, "b"),
   );
 };
 
@@ -429,7 +436,7 @@ let agent_segment = seg =>
   agent(Web.Agent.Update.Action.LoadSegmentIntoEditor(seg));
 
 let program = (model: SModel.t) =>
-  switch (List.hd(model.scratchpads).kind) {
+  switch (List.hd_exn(model.scratchpads).kind) {
   | Code({program, _}) => program
   | _ => failwith("expected code scratchpad")
   };
@@ -446,7 +453,7 @@ let agent_focus_sync = () => {
   let (model, a, _) = divided_model();
   /* A local edit lives only in the cell, then the agent changes b. */
   let model =
-    switch (List.hd(model.scratchpads).kind) {
+    switch (List.hd_exn(model.scratchpads).kind) {
     | Code({program: Divided(d), _} as code) =>
       let d =
         Web.Divided.update_cell(
@@ -462,7 +469,7 @@ let agent_focus_sync = () => {
         ...model,
         scratchpads: [
           {
-            ...List.hd(model.scratchpads),
+            ...List.hd_exn(model.scratchpads),
             kind:
               Code({
                 ...code,
@@ -473,14 +480,17 @@ let agent_focus_sync = () => {
       };
     | _ => failwith("expected a divided program")
     };
-  let local = List.hd(cells(model));
+  let local = List.hd_exn(cells(model));
   let live = Web.Program.document(program(model));
   let updated =
     step(
       agent(
         Web.Agent.Update.Action.DirectEdit(
-          "update_definition",
-          `Assoc([("path", `String("b")), ("code", `String("20"))]),
+          "replace",
+          `Assoc([
+            ("target", `String("b:definition")),
+            ("code", `String("20")),
+          ]),
         ),
       ),
       model,
@@ -489,7 +499,7 @@ let agent_focus_sync = () => {
     bool,
     "unchanged open cell keeps its editor",
     true,
-    List.hd(cells(updated)).e_body === local.e_body,
+    phys_equal(List.hd_exn(cells(updated)).e_body, local.e_body),
   );
   let closed = close_all(updated);
   check(
@@ -514,7 +524,7 @@ let agent_focus_sync = () => {
     string,
     "open cell refreshed",
     "30",
-    text_of(Focus.zip_of_cell(List.hd(cells(updated)).e_body)),
+    text_of(Focus.zip_of_cell(List.hd_exn(cells(updated)).e_body)),
   );
   check(
     bool,
@@ -529,7 +539,7 @@ let agent_focus_sync = () => {
     bool,
     "stream tick keeps the program",
     true,
-    program(streamed) === program(model),
+    phys_equal(program(streamed), program(model)),
   );
   check(
     bool,
@@ -543,13 +553,15 @@ let agent_focus_delete = () => {
   let (model, a, _) = divided_model();
   let seg = Web.Program.document(program(model));
   let (deleted, _) =
-    Option.get(Web.ItemEdit.apply(Web.OutlineEdit.Delete, a, seg));
+    Web.ItemEdit.run(~mod_root=false, seg, [Delete(a)])
+    |> Result.ok
+    |> Option.value_exn;
   let updated = step(agent_segment(deleted), model);
   check(
     bool,
     "deleted open definition closes",
     true,
-    !List.exists((e: Web.ScratchCell.t) => e.e_id == a, cells(updated)),
+    !List.exists(~f=(e: Web.ScratchCell.t) => e.e_id == a, cells(updated)),
   );
   check(
     bool,

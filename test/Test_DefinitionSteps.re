@@ -1,19 +1,16 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 let parse = CorpusUtil.seg_of;
 let check_plan = (before, after) => {
   let steps = DefinitionSteps.plan(before, after);
   let final =
-    List.fold_left(
-      (seg, step) => {
+    List.fold(steps, ~init=before, ~f=(seg, step) => {
         let next = DefinitionSteps.apply(step, seg);
         /* Each intermediate is real syntax, not an overlay on the final term. */
         ignore(MakeTerm.go(DefinitionSteps.materialize(next)));
         next;
-      },
-      before,
-      steps,
-    );
+      });
   check(
     bool,
     "operations reconstruct accepted syntax and ids",
@@ -39,16 +36,15 @@ let tests = (
           );
         let steps = check_plan(before, after);
         ignore(
-          List.fold_left(
-            (seg, op) => {
+          List.fold(steps, ~init=before, ~f=(seg, op) => {
               let next = DefinitionSteps.apply(op, seg);
               let names =
                 DefinitionSteps.items(next)
-                |> List.filter_map((it: DefinitionSteps.item) => it.name);
+                |> List.filter_map(~f=(it: DefinitionSteps.item) => it.name);
               check(
                 int,
                 "each named definition appears once",
-                List.length(List.sort_uniq(compare, names)),
+                List.length(List.dedup_and_sort(~compare=compare, names)),
                 List.length(names),
               );
               check(
@@ -56,15 +52,12 @@ let tests = (
                 "types stay present throughout",
                 ["A", "B"],
                 names
-                |> List.filter_map(((kind, name)) =>
+                |> List.filter_map(~f=((kind, name)) =>
                      kind == "type" ? Some(name) : None
                    ),
               );
               next;
-            },
-            before,
-            steps,
-          ),
+            }),
         );
       },
     ),
@@ -103,20 +96,16 @@ let tests = (
           List.length(steps) >= 3,
         );
         let states =
-          List.fold_left(
-            ((seg, states), op) => {
+          List.fold(steps, ~init=(parse("0"), []), ~f=((seg, states), op) => {
               let next = DefinitionSteps.apply(op, seg);
               (next, states @ [next]);
-            },
-            (parse("0"), []),
-            steps,
-          )
+            })
           |> snd;
         check(
           bool,
           "a real state contains A before B",
           true,
-          List.exists(
+          List.exists(~f=
             seg => {
               let text = CorpusUtil.text_of(seg);
               String.contains(text, 'A') && !String.contains(text, 'B');
@@ -140,8 +129,7 @@ let tests = (
           );
         let steps = check_plan(before, after);
         ignore(
-          List.fold_left(
-            (seg, op) => {
+          List.fold(steps, ~init=before, ~f=(seg, op) => {
               let next = DefinitionSteps.apply(op, seg);
               let text = CorpusUtil.text_of(next);
               check(
@@ -157,10 +145,7 @@ let tests = (
                 String.contains(text, 'B'),
               );
               next;
-            },
-            before,
-            steps,
-          ),
+            }),
         );
       },
     ),
@@ -178,7 +163,7 @@ let tests = (
           "module shell and members have distinct operations",
           true,
           List.length(
-            List.filter(
+            List.filter(~f=
               (op: DefinitionSteps.operation) => op.path != [],
               steps,
             ),
@@ -194,16 +179,16 @@ let tests = (
         let original = parse("type A = Int in type B = Int in 0");
         let spans = DefinitionSpans.item_spans(original);
         let parts =
-          List.map(
+          List.map(~f=
             (s: DefinitionSpans.item_span) =>
               DefinitionSpans.slice(s.sp_start, s.sp_stop, original),
             spans,
           );
         let reordered =
-          List.nth(parts, 1) @ List.nth(parts, 0) @ List.nth(parts, 2);
+          List.nth_exn(parts, 1) @ List.nth_exn(parts, 0) @ List.nth_exn(parts, 2);
         ignore(check_plan(original, reordered));
         ignore(
-          check_plan(reordered, List.nth(parts, 0) @ List.nth(parts, 2)),
+          check_plan(reordered, List.nth_exn(parts, 0) @ List.nth_exn(parts, 2)),
         );
       },
     ),

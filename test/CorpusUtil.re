@@ -367,7 +367,7 @@ let contains = (needle: string, hay: string): bool => {
 };
 
 let sorted_ids = (ids: list(Id.t)): list(string) =>
-  List.sort_uniq(compare, List.map(Id.to_string, ids));
+  List.dedup_and_sort(~compare=compare, List.map(~f=Id.to_string, ids));
 
 /* the simulated-typing parser is quadratic in program size and
    re-materializes every ^^livelit use per keystroke: past this point a

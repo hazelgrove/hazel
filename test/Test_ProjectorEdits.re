@@ -2,6 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open CardTypes;
+open Poly;
 
 /* Exercise the same read -> choose -> SetSyntax -> read path as the card
    picker. Projector syntax has a storage wrapper in addition to any
@@ -17,12 +18,12 @@ let info = p =>
 
 let edit_card = (z, update) => {
   let parsed = MakeTerm.from_zip_for_sem(z, ~root=Exp);
-  let id = List.hd(parsed.projector_list);
+  let id = List.hd_exn(parsed.projector_list);
   let p = Id.Map.find(id, parsed.projectors);
   let before_info = info(p);
   let expected =
     CardProj.update(CardProj.SyntaxTerm.get(before_info), update);
-  let seg = CardProj.SyntaxTerm.put(before_info, expected) |> Option.get;
+  let seg = CardProj.SyntaxTerm.put(before_info, expected) |> Option.value_exn;
   let z =
     ProjectorPerform.go(
       parsed.term_data,
@@ -33,13 +34,14 @@ let edit_card = (z, update) => {
       ~elaborated=parsed.term,
       ~root=Exp,
     )
-    |> Result.get_ok;
+    |> Result.ok
+    |> Option.value_exn;
   let after = MakeTerm.from_zip_for_sem(z, ~root=Exp);
   check(
     bool,
     "projector identity retained",
     true,
-    Id.equal(id, List.hd(after.projector_list)),
+    Id.equal(id, List.hd_exn(after.projector_list)),
   );
   let actual =
     CardProj.SyntaxTerm.get(info(Id.Map.find(id, after.projectors)));
@@ -54,8 +56,8 @@ let case_ = (name, source, updates) =>
     () => {
       let z =
         PersistentZipper.parse_text(~source="card picker", ~root=Exp, source)
-        |> Option.get;
-      ignore(List.fold_left(edit_card, z, updates));
+        |> Option.value_exn;
+      ignore(List.fold(updates, ~init=z, ~f=edit_card));
     },
   );
 

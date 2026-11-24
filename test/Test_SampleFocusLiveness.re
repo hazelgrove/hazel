@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* A sample-focus capture at an un-refractored anchor (as made by the
  * canvas focus strip) must survive Editor.calculate's probe housekeeping
