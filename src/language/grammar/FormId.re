@@ -278,12 +278,12 @@ let delims: list(Token.t) =
 
 /* Prefixes of the grammar's operator delimiters, the operators included */
 let is_operator_prefix: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+  let tbl: Stdlib.Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(64);
   delims
-  |> List.filter(Token.is_potential_operator)
-  |> List.concat_map(Token.prefixes)
-  |> List.iter(t => Hashtbl.replace(tbl, t, ()));
-  t => Hashtbl.mem(tbl, t);
+  |> List.filter(~f=Token.is_potential_operator)
+  |> List.concat_map(~f=Token.prefixes)
+  |> List.iter(~f=t => Stdlib.Hashtbl.replace(tbl, t, ()));
+  t => Stdlib.Hashtbl.mem(tbl, t);
 };
 
 /* Could this string be one token? Character classes decide, except for a
@@ -300,11 +300,17 @@ let is_potential_token = (t: Token.t): bool =>
   if (Token.is_potential_operator(t)) {
     let n = String.length(t);
     let rec prefix_op_after = i =>
-      i < n && (t.[i] == '-' || t.[i] == '!' || prefix_op_after(i + 1));
+      i < n
+      && (
+        Char.equal(t.[i], '-')
+        || Char.equal(t.[i], '!')
+        || prefix_op_after(i + 1)
+      );
     /* Type application's `@<` and `>` act as brackets (`>` closes one),
        so a run around them never clumps: `f@<A>@<B>` keeps `>` `@<`. */
     let bracket_like =
-      t.[0] == '>' || Util.StringUtil.match(Util.StringUtil.regexp("@<"), t);
+      Char.equal(t.[0], '>')
+      || Util.StringUtil.match(Util.StringUtil.regexp("@<"), t);
     Token.length(t) == 1
     || !String.contains(t, ',')
     && !String.contains(t, ';')

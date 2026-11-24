@@ -6048,10 +6048,10 @@ let legacy_token_test =
     "saved legacy :, token still loads and molds",
     `Quick,
     () => {
-      let rec seg = (s: Segment.t): Segment.t => List.map(piece, s)
+      let rec seg = (s: Segment.t): Segment.t => List.map(s, ~f=piece)
       and piece = (p: Piece.t): Piece.t =>
         switch (p) {
-        | Tile(t) when Tile.label(t) == ["%"] =>
+        | Tile(t) when List.equal(String.equal, Tile.label(t), ["%"]) =>
           Tile({
             ...t,
             form: Form.Tok(":,"),
@@ -6059,7 +6059,7 @@ let legacy_token_test =
         | Tile(t) =>
           Tile({
             ...t,
-            children: List.map(seg, t.children),
+            children: List.map(t.children, ~f=seg),
           })
         | p => p
         };
@@ -6214,24 +6214,23 @@ let token_splitting_tests = [
     `Quick,
     () => {
       Form.delims
-      |> List.filter(Token.is_potential_operator)
-      |> List.concat_map(Token.prefixes)
-      |> List.iter(t => check(bool, t, true, Form.is_potential_token(t)));
+      |> List.filter(~f=Token.is_potential_operator)
+      |> List.concat_map(~f=Token.prefixes)
+      |> List.iter(~f=t => check(bool, t, true, Form.is_potential_token(t)));
       /* any single operator character is a token by itself */
-      List.iter(
-        t => check(bool, t, true, Form.is_potential_token(t)),
-        ["%", "~", "&", "\\", "≠"],
+      List.iter(["%", "~", "&", "\\", "≠"], ~f=t =>
+        check(bool, t, true, Form.is_potential_token(t))
       );
       /* separators, a following `-`/`!`, and type application's
          brackets split a run */
       List.iter(
-        t => check(bool, t, false, Form.is_potential_token(t)),
         [":,", "+-", "=-", "--", "!!", ">==", ",,", ";;", ">@<", "@<>"],
+        ~f=t =>
+        check(bool, t, false, Form.is_potential_token(t))
       );
       /* other unrecognized runs stay one (unknown) token */
-      List.iter(
-        t => check(bool, t, true, Form.is_potential_token(t)),
-        [":=", "===", "<>", "@@@", "->>", "**"],
+      List.iter([":=", "===", "<>", "@@@", "->>", "**"], ~f=t =>
+        check(bool, t, true, Form.is_potential_token(t))
       );
     },
   ),
