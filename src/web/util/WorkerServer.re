@@ -468,17 +468,14 @@ let post_streams_if_due =
     )
     : stream_pacing => {
   let now = JsUtil.precise_timestamp();
-  if (now < pacing.due) {
+  if (Float.(now < pacing.due)) {
     pacing;
   } else {
-    List.iter(
-      ((key, update)) => post_stream_update(model, request_id, key, update),
-      List.rev(pacing.held),
+    List.iter(List.rev(pacing.held), ~f=((key, update)) =>
+      post_stream_update(model, request_id, key, update)
     );
-    Option.iter(
-      ((key, evaluation)) =>
-        flush_stream_update(model, request_id, key, evaluation),
-      running,
+    Option.iter(running, ~f=((key, evaluation)) =>
+      flush_stream_update(model, request_id, key, evaluation)
     );
     let gap = Float.min(2. *. pacing.gap, stream_max_gap_ms);
     {
@@ -514,7 +511,7 @@ let slice_queue: Queue.t(unit => unit) = Queue.create();
 let slice_port: ref(option(Js.Unsafe.any)) = ref(None);
 
 let schedule_async = (callback: unit => unit): unit => {
-  Queue.push(callback, slice_queue);
+  Queue.enqueue(slice_queue, callback);
   let port =
     switch (slice_port^) {
     | Some(port) => port
@@ -524,7 +521,7 @@ let schedule_async = (callback: unit => unit): unit => {
       Js.Unsafe.set(
         Js.Unsafe.get(channel, "port1"),
         "onmessage",
-        Js.wrap_callback(_ => Queue.pop(slice_queue, ())),
+        Js.wrap_callback(_ => Queue.dequeue_exn(slice_queue, ())),
       );
       let port = Js.Unsafe.get(channel, "port2");
       slice_port := Some(port);

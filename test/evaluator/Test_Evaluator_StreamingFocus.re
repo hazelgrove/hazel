@@ -77,14 +77,12 @@ let samples_of = (dynamics: Dynamics.Map.t, id: Id.t): list(Sample.t) =>
 /* The manual probes, ordered by how deep their samples' stacks run. */
 let probes_by_depth = (s: streamed): list(Id.t) => {
   let depth = id =>
-    List.fold_left(
-      (acc, x: Sample.t) => max(acc, List.length(x.call_stack)),
-      0,
-      samples_of(s.final, id),
+    List.fold(samples_of(s.final, id), ~init=0, ~f=(acc, x: Sample.t) =>
+      max(acc, List.length(x.call_stack))
     );
   s.z.refractors.manuals
-  |> List.map(fst)
-  |> List.sort((a, b) => compare(depth(a), depth(b)));
+  |> List.map(~f=fst)
+  |> List.sort(~compare=(a, b) => Int.compare(depth(a), depth(b)));
 };
 
 let upkeep = (~complete, ~dynamics, s: streamed, z: Haz3lcore.Zipper.t) =>
@@ -103,11 +101,11 @@ let pinned = (z: Haz3lcore.Zipper.t) =>
 /* The first partial result that is not empty but would drop the pin. */
 let partial_without_pin = (s: streamed, z: Haz3lcore.Zipper.t) =>
   switch (
-    List.find_opt(
-      dynamics =>
-        !Id.Map.is_empty(dynamics)
-        && pinned(Haz3lcore.ProbeFocus.drop_dead_pin(~dynamics, z)) == None,
-      s.partials,
+    List.find(s.partials, ~f=dynamics =>
+      !Id.Map.is_empty(dynamics)
+      && Option.is_none(
+           pinned(Haz3lcore.ProbeFocus.drop_dead_pin(~dynamics, z)),
+         )
     )
   ) {
   | Some(dynamics) => dynamics
@@ -117,8 +115,9 @@ let partial_without_pin = (s: streamed, z: Haz3lcore.Zipper.t) =>
 /* The call made by a probed application, as ProbeProj frames it. */
 let frame_of = (ap_id: Id.t, sample: Sample.t): CallStack.frame => {
   id: ap_id,
-  name: Option.bind(sample.frame, (f: CallStack.frame) => f.name),
-  fn_def_id: Option.bind(sample.frame, (f: CallStack.frame) => f.fn_def_id),
+  name: Option.bind(sample.frame, ~f=(f: CallStack.frame) => f.name),
+  fn_def_id:
+    Option.bind(sample.frame, ~f=(f: CallStack.frame) => f.fn_def_id),
 };
 
 let step_into = (s: streamed, ap_id: Id.t, sample: Sample.t) =>
@@ -145,7 +144,7 @@ let shown = (dynamics, z: Haz3lcore.Zipper.t, id: Id.t): option(Sample.t) => {
       samples_of(dynamics, id),
     );
   Sample.Selection.most_aligned_index(~ap_id=None, focus, samples)
-  |> Option.map(List.nth(samples));
+  |> Option.map(~f=List.nth_exn(samples));
 };
 
 let value_of = (sample: option(Sample.t)): string =>
@@ -176,7 +175,7 @@ late|},
           | [call_id, body_id] => (call_id, body_id)
           | _ => fail("expected two probes")
           };
-        let last = List.nth(samples_of(s.final, call_id), 4);
+        let last = List.nth_exn(samples_of(s.final, call_id), 4);
         let pin_stack = [frame_of(call_id, last), ...last.call_stack];
         let z =
           Haz3lcore.SampleFocusPerform.toggle_pin_call(s.z, pin_stack, None);
@@ -185,21 +184,23 @@ late|},
           bool,
           "a partial result judged as finished drops the pin",
           true,
-          pinned(upkeep(~complete=true, ~dynamics=partial, s, z)) == None,
+          Option.is_none(
+            pinned(upkeep(~complete=true, ~dynamics=partial, s, z)),
+          ),
         );
         let z = upkeep(~complete=false, ~dynamics=partial, s, z);
         check(
           bool,
           "while streaming the pin stays",
           true,
-          pinned(z) == Some(pin_stack),
+          Poly.equal(pinned(z), Some(pin_stack)),
         );
         let z = upkeep(~complete=true, ~dynamics=s.final, s, z);
         check(
           bool,
           "on the result the pin stays",
           true,
-          pinned(z) == Some(pin_stack),
+          Poly.equal(pinned(z), Some(pin_stack)),
         );
         check(
           string,
@@ -227,7 +228,7 @@ run(early, [30, 40, 50])|},
           | [call_id, body_id] => (call_id, body_id)
           | _ => fail("expected two probes")
           };
-        let fourth = List.nth(samples_of(s.final, call_id), 3);
+        let fourth = List.nth_exn(samples_of(s.final, call_id), 3);
         let z = step_into(s, call_id, fourth);
         let stepped = pinned(z);
         let partial = partial_without_pin(s, z);
@@ -235,21 +236,23 @@ run(early, [30, 40, 50])|},
           bool,
           "a partial result judged as finished drops the step",
           true,
-          pinned(upkeep(~complete=true, ~dynamics=partial, s, z)) == None,
+          Option.is_none(
+            pinned(upkeep(~complete=true, ~dynamics=partial, s, z)),
+          ),
         );
         let z = upkeep(~complete=false, ~dynamics=partial, s, z);
         check(
           bool,
           "while streaming the step stays",
           true,
-          pinned(z) == stepped,
+          Poly.equal(pinned(z), stepped),
         );
         let z = upkeep(~complete=true, ~dynamics=s.final, s, z);
         check(
           bool,
           "on the result the step stays",
           true,
-          pinned(z) == stepped,
+          Poly.equal(pinned(z), stepped),
         );
         check(
           string,
@@ -278,17 +281,18 @@ let early = run(0, [1, 2]) in
           | [run_id, call_id] => (run_id, call_id)
           | _ => fail("expected two probes")
           };
-        let z = step_into(s, run_id, List.hd(samples_of(s.final, run_id)));
+        let z =
+          step_into(s, run_id, List.hd_exn(samples_of(s.final, run_id)));
         let z = Haz3lcore.ProbePerform.set_pending_probe([call_id], z);
         /* streamed so far: update's calls from `early` only */
         let partial =
           switch (
-            List.find_opt(
-              d => {
-                let calls = samples_of(d, call_id);
-                calls != [] && List.length(calls) <= 2;
-              },
+            List.find(
               s.partials,
+              ~f=d => {
+                let calls = samples_of(d, call_id);
+                !List.is_empty(calls) && List.length(calls) <= 2;
+              },
             )
           ) {
           | Some(d) => d
@@ -299,14 +303,14 @@ let early = run(0, [1, 2]) in
           bool,
           "while streaming the request waits",
           true,
-          z'.refractors.pending_probe_cursor != None,
+          Option.is_some(z'.refractors.pending_probe_cursor),
         );
         let z' = upkeep(~complete=true, ~dynamics=s.final, s, z');
         check(
           bool,
           "on the result the request resolves",
           true,
-          z'.refractors.pending_probe_cursor == None,
+          Option.is_none(z'.refractors.pending_probe_cursor),
         );
         check(
           string,

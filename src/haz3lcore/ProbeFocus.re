@@ -273,7 +273,7 @@ let editor_effects =
       z: Zipper.t,
     )
     : Zipper.t => {
-  let when_complete = f => complete ? f : Fun.id;
+  let when_complete = f => complete ? f : Fn.id;
   z
   |> ProbePerform.remove_colliding_probes(~syntax)
   |> when_complete(drop_dead_pin(~dynamics))
