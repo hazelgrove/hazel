@@ -1,6 +1,7 @@
 open Util;
 open Calc.Syntax;
 open Language;
+open Poly;
 
 /* proofs step with proof rules on, every step kept */
 let proof_core = (core: CoreSettings.t): CoreSettings.t => {
@@ -103,17 +104,19 @@ module Model = {
     let total = float_of_int(List.length(thms));
     let correct =
       List.fold_left(
+        ~f=
         (acc, id) =>
           acc
           +. (
             switch (Id.Map.find_opt(id, model.thm_map)) {
             | Some(thm) =>
-              StepperView.Model.get_validity(thm.stepper_view) == Some(true)
+                StepperView.Model.get_validity(thm.stepper_view)
+                == Some(true)
                 ? 1.0 : 0.0
             | None => 0.0
             }
           ),
-        0.0,
+        ~init=0.0,
         thms,
       );
     Some((correct, total));
@@ -141,7 +144,7 @@ module Update = {
     | TheoremUpdate(n, action) =>
       let id_and_thm = {
         open OptUtil.Syntax;
-        let* id = List.nth_opt(model.thms |> Calc.get_saved([]), n);
+        let* id = List.nth(model.thms |> Calc.get_saved([]), n);
         let* thm = Id.Map.find_opt(id, model.thm_map);
         Some((id, thm));
       };
@@ -196,13 +199,14 @@ module Update = {
           };
         let theorems =
           List.map(
+            ~f=
             ((a, b, c, d)) => {
               let d' = ProofRule.exp_to_rule(d);
               (a, b, c, d');
             },
             theorems,
           );
-        List.map(((id, _, _, _)) => id, theorems) |> List.rev;
+        List.rev_map(~f=((id, _, _, _)) => id, theorems);
       }
       |> Calc.old_if_same'(thms);
 
@@ -215,7 +219,7 @@ module Update = {
         | None => []
         | Some(x) => x.theorems
       )
-      |> List.map(((a, b, c, d)) => {
+      |> List.map(~f=((a, b, c, d)) => {
            let d' =
              ProofRule.exp_to_rule(
                d |> Substitution.in_exp(Environment.empty),
@@ -223,6 +227,7 @@ module Update = {
            (a, b, c, d');
          })
       |> List.fold_left(
+           ~f=
            (acc, (id, name, env', rule: ProofRule.t)) =>
              Id.Map.update(
                id,
@@ -252,8 +257,8 @@ module Update = {
                      |> Statics.Map.ctx_of(id)
                      |> Option.value(~default=Ctx.empty)
                      |> List.fold_left(
-                          Ctx.extend,
-                          _,
+                            ~f=Ctx.extend,
+                            ~init=_,
                           rule.bindings |> List.rev,
                         );
                    };
@@ -288,7 +293,7 @@ module Update = {
                },
                acc,
              ),
-           thm_map,
+           ~init=thm_map,
          );
 
     Model.{
@@ -307,7 +312,7 @@ module Focus = {
   let get_cursor_info = (~inject, ~focus: t, model: Model.t) => {
     let id_and_thm = {
       open OptUtil.Syntax;
-      let* id = List.nth_opt(model.thms |> Calc.get_saved([]), focus |> fst);
+      let* id = List.nth(model.thms |> Calc.get_saved([]), focus |> fst);
       let* thm = Id.Map.find_opt(id, model.thm_map);
       Some((id, thm));
     };
@@ -450,8 +455,10 @@ module View = {
     | [] => []
     | xs =>
       List.mapi(
+        ~f=
         (idx, id) => {
-          let Model.{stepper_view, name, _} = Id.Map.find(id, model.thm_map);
+            let Model.{stepper_view, name, _} =
+              Id.Map.find(id, model.thm_map);
           let status =
             switch (StepperView.Model.get_validity(stepper_view)) {
             | Some(true) =>

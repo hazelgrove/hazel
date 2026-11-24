@@ -16,10 +16,10 @@ let set_pending_probe = (ids: list(Id.t), z: Zipper.t): Zipper.t => {
  * fallback) are honored only in auto mode; pinning switches to manual and
  * suppresses them. New automatic paths MUST gate on `auto_focus(z)`. */
 let auto_focus = (z: Zipper.t): bool =>
-  z.refractors.sample_focus.pinned_stack == None;
+  Option.is_none(z.refractors.sample_focus.pinned_stack);
 
 let has_probe = (id: Id.t, z: Zipper.t): bool =>
-  List.assoc_opt(id, z.refractors.manuals) != None
+  Option.is_some(List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal))
   || Id.Map.mem(id, z.refractors.multis.ephemerals);
 
 /* Carry over the ephemeral entry's model; a fresh default would visibly reset
@@ -27,7 +27,7 @@ let has_probe = (id: Id.t, z: Zipper.t): bool =>
 let promote_to_manual = (id: Id.t, z: Zipper.t): Zipper.t => {
   let model =
     Id.Map.find_opt(id, z.refractors.multis.ephemerals)
-    |> Option.map((e: Refractors.entry) => e.model);
+    |> Option.map(~f=(e: Refractors.entry) => e.model);
   Zipper.add_manual(~model?, id, Probe, z);
 };
 
@@ -36,7 +36,7 @@ let maybe_rm_pin = (ids: list(Id.t)): (Zipper.t => Zipper.t) =>
     SampleFocusPerform.update_pinned_call(z, p =>
       switch (p) {
       | Some([{id: hd_id, _}, ..._] as call_stack) =>
-        List.mem(hd_id, ids) && !has_probe(hd_id, z)
+        List.mem(ids, hd_id, ~equal=Id.equal) && !has_probe(hd_id, z)
           ? None : Some(call_stack)
       | x => x
       }
@@ -68,24 +68,24 @@ let rm_multi =
         multis: {
           ids:
             Id.Map.filter(
-              (id, _) => !List.mem(id, target_ids),
+              (id, _) => !List.mem(target_ids, id, ~equal=Id.equal),
               z.refractors.multis.ids,
             ),
           suppressed:
             Id.Map.filter(
-              (id, _) => !List.mem(id, target_ids),
+              (id, _) => !List.mem(target_ids, id, ~equal=Id.equal),
               z.refractors.multis.suppressed,
             ),
           ephemerals:
             Id.Map.filter(
-              (id', _) => !List.mem(id', target_ids),
+              (id', _) => !List.mem(target_ids, id', ~equal=Id.equal),
               z.refractors.multis.ephemerals,
             ),
         },
       }
     )
     |> maybe_rm_pin(
-         List.concat_map(ids_from_term(~syntax, ~info_map), target_ids),
+         List.concat_map(~f=ids_from_term(~syntax, ~info_map), target_ids),
        );
   /* skip reset when reset=false (clear_autoprobe), to avoid a style flash */
   reset ? maybe_reset_cursor(z) : z;
@@ -93,7 +93,11 @@ let rm_multi =
 
 let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_manuals(
-    map => List.filter(((id, _)) => !List.mem(id, ids), map),
+    map =>
+      List.filter(
+        ~f=((id, _)) => !List.mem(ids, id, ~equal=Id.equal),
+        map,
+      ),
     z,
   )
   |> maybe_rm_pin(ids)
@@ -103,6 +107,7 @@ let rm_manual = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
 let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
   let row_to_probes =
     List.fold_right(
+      ~f=
       ((probe_id, _), acc) =>
         switch (
           TermData.extreme_measures(
@@ -122,7 +127,7 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
         | None => acc
         },
       z.refractors.manuals,
-      IntMap.empty,
+      ~init=IntMap.empty,
     );
 
   let ids_to_remove =
@@ -133,8 +138,8 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
         | [_] => acc
         | _ =>
           let sorted =
-            List.sort(((_, a), (_, b)) => compare(b, a), probes);
-          let to_remove = List.tl(sorted) |> List.map(fst);
+            List.sort(~compare=((_, a), (_, b)) => compare(b, a), probes);
+          let to_remove = List.tl_exn(sorted) |> List.map(~f=fst);
           to_remove @ acc;
         },
       row_to_probes,
@@ -150,13 +155,14 @@ let add_manual_targets =
   /* Get ending rows for all new probe targets */
   let target_end_rows =
     target_ids
-    |> List.filter_map(id =>
+    |> List.filter_map(~f=id =>
          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-         |> Option.map(((_, end_pt: Point.t)) => end_pt.row)
+         |> Option.map(~f=((_, end_pt: Point.t)) => end_pt.row)
        );
 
   let conflicting_ids =
     List.fold_right(
+      ~f=
       ((probe_id, _), acc) =>
         switch (
           TermData.extreme_measures(
@@ -165,21 +171,22 @@ let add_manual_targets =
             syntax.measured,
           )
         ) {
-        | Some((_, end_pt)) when List.mem(end_pt.row, target_end_rows) => [
+          | Some((_, end_pt))
+              when List.mem(target_end_rows, end_pt.row, ~equal=Int.equal) => [
             probe_id,
             ...acc,
           ]
         | _ => acc
         },
       z.refractors.manuals,
-      [],
+      ~init=[],
     );
 
   let z = rm_manual(conflicting_ids, z);
   let z =
     List.fold_left(
-      (z, id) => Zipper.add_manual(id, Probe, z),
-      z,
+      ~f=(z, id) => Zipper.add_manual(id, Probe, z),
+      ~init=z,
       target_ids,
     );
 
@@ -213,31 +220,45 @@ let toggle_manual =
 let add_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_suppressed(
     suppressed =>
-      List.fold_left((map, id) => Id.Map.add(id, (), map), suppressed, ids),
+      List.fold_left(
+        ~f=(map, id) => Id.Map.add(id, (), map),
+        ~init=suppressed,
+        ids,
+      ),
     z,
   );
 
 let rm_suppression = (ids: list(Id.t), z: Zipper.t): Zipper.t =>
   Zipper.update_suppressed(
-    suppressed => Id.Map.filter((id, _) => !List.mem(id, ids), suppressed),
+    suppressed =>
+      Id.Map.filter(
+        (id, _) => !List.mem(ids, id, ~equal=Id.equal),
+        suppressed,
+      ),
     z,
   );
 
 let add_ids_from_multi_term =
     (~syntax: CachedSyntax.t, ~info_map: Statics.Map.t, z: Zipper.t): Zipper.t => {
-  let auto_ids = Id.Map.bindings(z.refractors.multis.ids) |> List.map(fst);
-  let all_ids = List.concat_map(ids_from_term(~syntax, ~info_map), auto_ids);
+  let auto_ids =
+    Id.Map.bindings(z.refractors.multis.ids) |> List.map(~f=fst);
+  let all_ids =
+    List.concat_map(~f=ids_from_term(~syntax, ~info_map), auto_ids);
   let z =
     Zipper.update_suppressed(
       suppressed =>
-        Id.Map.filter((id, _) => List.mem(id, all_ids), suppressed),
+        Id.Map.filter(
+          (id, _) => List.mem(all_ids, id, ~equal=Id.equal),
+          suppressed,
+        ),
       z,
     );
-  let manual_ids = List.map(fst, z.refractors.manuals);
+  let manual_ids = List.map(~f=fst, z.refractors.manuals);
   let ids =
     List.filter(
+      ~f=
       id =>
-        !List.mem(id, manual_ids)
+          !List.mem(manual_ids, id, ~equal=Id.equal)
         && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
@@ -250,6 +271,7 @@ let add_ids_from_multi_term =
     };
   let manual_end_rows =
     List.filter_map(
+      ~f=
       ((id, _)) =>
         switch (
           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
@@ -261,11 +283,13 @@ let add_ids_from_multi_term =
     );
   let ids =
     List.filter(
+      ~f=
       id =>
         switch (
           TermData.extreme_measures(id, syntax.term_data, syntax.measured)
         ) {
-        | Some((_, end_loc)) => !List.mem(end_loc.row, manual_end_rows)
+          | Some((_, end_loc)) =>
+            !List.mem(manual_end_rows, end_loc.row, ~equal=Int.equal)
         | None => true
         },
       ids,
@@ -275,6 +299,7 @@ let add_ids_from_multi_term =
   /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
     List.fold_left(
+      ~f=
       (map, id) =>
         switch (Id.Map.find_opt(id, old_ephemerals)) {
         | Some(existing) => Id.Map.add(id, existing, map)
@@ -283,7 +308,7 @@ let add_ids_from_multi_term =
           let model = List.mem(id, tail) ? Some(ProbeProj.tail_model) : None;
           Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
         },
-      Id.Map.empty,
+      ~init=Id.Map.empty,
       ids,
     );
   /* Keep the previous ephemerals ref when unchanged: a fresh map makes CachedSyntax rebuild Measured (O(program)) every frame (gates on `multis.ephemerals !==`). */
@@ -300,8 +325,8 @@ let add_ids_from_multi_term =
   /* Gated on auto_focus: in manual focus mode, don't auto-capture new
      ephemerals; the tail probe never takes the focus. */
   let new_ids =
-    List.filter(
-      id => !Id.Map.mem(id, old_ephemerals) && !List.mem(id, tail),
+    List.filter(~f=
+      id => !Id.Map.mem(id, old_ephemerals) && !List.mem(tail, id, ~equal=Poly.equal),
       ids,
     );
   switch (new_ids) {
@@ -333,8 +358,8 @@ let add_multi =
           ...refractors.multis,
           ids:
             List.fold_left(
-              (map, id) => Id.Map.add(id, (), map),
-              z.refractors.multis.ids,
+              ~f=(map, id) => Id.Map.add(id, (), map),
+              ~init=z.refractors.multis.ids,
               target_ids,
             ),
         },
@@ -345,7 +370,7 @@ let add_multi =
   if (set_pending_cursor) {
     /* same target_ids as multis.ids, so ephemeral ids match for sample lookup */
     let ephemeral_ids =
-      List.concat_map(ids_from_term(~syntax, ~info_map), target_ids);
+      List.concat_map(~f=ids_from_term(~syntax, ~info_map), target_ids);
     let sorted_ids = sort_ids_lexically(~syntax, ephemeral_ids);
     set_pending_probe(sorted_ids, z);
   } else {
@@ -492,7 +517,7 @@ let function_sugar_param_anchors =
           /* Anchor params only when def_id is THIS let's def (the fn body); if it's the `in` body (a call site) the params are someone else's. Stop at the first let either way. */
           if (Id.equal(def_id, IdTagged.rep_id(def))) {
             switch (Pat.function_sugar(pat)) {
-            | Some((_, args, _)) => Some(List.map(Pat.rep_id, args))
+            | Some((_, args, _)) => Some(List.map(~f=Pat.rep_id, args))
             | None => None
             };
           } else {
@@ -616,8 +641,7 @@ let step_into_body =
   /* Function-sugar params live in the surface binder, not under body_id; anchor the param patterns too. */
   let param_anchors = function_sugar_param_anchors(info_map, body_id);
   let z =
-    List.fold_left(
-      (z: Zipper.t, args_id) =>
+    List.fold_left(param_anchors, ~init=z, ~f=(z: Zipper.t, args_id) =>
         switch (probe_status(args_id, info_map, z.refractors)) {
         | Multi
         | Manual(_)
@@ -625,9 +649,7 @@ let step_into_body =
         | Ephemeral(_) => z
         | Suppressed(_)
         | Non => add_multi(args_id, ~syntax, ~info_map, z)
-        },
-      z,
-      param_anchors,
+      }
     );
 
   /* Use the real captured frame (name + dynamic fn_def_id), not a synthesized id-only one, so the pin/focus is precise. */
@@ -689,8 +711,8 @@ let toggle_statics =
     let target_ids = target_subterm_ids(id, info_map);
     let add_statics = z =>
       List.fold_left(
-        (z, id) => Zipper.add_manual(id, Statics, z),
-        z,
+        ~f=(z, id) => Zipper.add_manual(id, Statics, z),
+        ~init=z,
         target_ids,
       );
     switch (probe_status(id, info_map, z.refractors)) {
@@ -713,8 +735,8 @@ let place_statics_at =
     let target_ids = target_subterm_ids(id, info_map);
     let add_statics = z =>
       List.fold_left(
-        (z, tid) => Zipper.add_manual(tid, Statics, z),
-        z,
+        ~f=(z, tid) => Zipper.add_manual(tid, Statics, z),
+        ~init=z,
         target_ids,
       );
     switch (probe_status(id, info_map, z.refractors)) {
@@ -734,8 +756,12 @@ let remove_statics_at =
   Zipper.update_manuals(
     manuals =>
       List.filter(
+        ~f=
         ((mid, entry: Refractors.entry)) =>
-          !(List.mem(mid, target_ids) && entry.kind == Statics),
+            !(
+              List.mem(target_ids, mid, ~equal=Id.equal)
+              && ProjectorCore.Kind.equal(entry.kind, Statics)
+            ),
         manuals,
       ),
     z,
@@ -865,7 +891,7 @@ let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
-  switch (List.assoc_opt(id, z.refractors.manuals)) {
+  switch (List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal)) {
   | Some(entry: Refractors.entry) => Some(entry.kind)
   | None =>
     switch (Id.Map.find_opt(id, z.refractors.multis.ephemerals)) {
@@ -876,4 +902,4 @@ let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
 };
 
 let can_probe = (id: Id.t, info_map: Statics.Map.t): bool =>
-  target_subterm_ids(id, info_map) != [];
+  !List.is_empty(target_subterm_ids(id, info_map));

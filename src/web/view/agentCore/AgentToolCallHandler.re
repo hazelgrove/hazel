@@ -90,6 +90,7 @@ let apply_overlay_action =
   };
   let (new_z, paths_to_expand, n_changed, unresolved) =
     List.fold_left(
+        ~f=
       ((z, expanded, n_changed, unresolved), path) =>
         switch (resolve_path(~root, seg, path)) {
         | Some(id) =>
@@ -101,15 +102,17 @@ let apply_overlay_action =
           }
         | None => (z, expanded, n_changed, [path, ...unresolved])
         },
-      (z, [], 0, []),
+        ~init=(z, [], 0, []),
       paths,
     );
-  if (List.length(paths) > 0 && n_changed == 0) {
+    if (!List.is_empty(paths) && n_changed == 0) {
     let unresolved_sfx =
       switch (unresolved) {
       | [] => ""
       | ps =>
-        " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
+          " Unresolved path(s): "
+          ++ String.concat(~sep=", ", List.rev(ps))
+          ++ "."
       };
     Error(
       Failure.Info(
@@ -138,7 +141,7 @@ let apply_overlay_action =
        doesn't name stays closed */
     let outline = Outline.of_program(~root, Zipper.unselect_and_zip(new_z));
     let opened =
-      List.filter_map(
+      List.filter_map(~f=
         path =>
           switch (Outline.resolve(outline, path)) {
           | Ok(e) => Some(AgentContext.Model.of_outline(e))
@@ -225,6 +228,7 @@ let update =
         )
       }
     };
+
   | WorkbenchAction(workbench_action) =>
     let action = AgentWorkbench.Update.Action.BackendAction(workbench_action);
     let chat_system =
@@ -364,7 +368,7 @@ let update =
                 z,
               )
             };
-          z_opt |> Option.map(z' => (z', true));
+          z_opt |> Option.map(~f=z' => (z', true));
         },
       ~paths,
       ~agent,

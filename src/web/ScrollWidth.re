@@ -101,8 +101,8 @@ let update =
     let stale =
       switch (last_key^) {
       | Some((m, rsm, v, sf, fm, w, vr)) =>
-        m !== measured
-        || rsm !== refractor_rows
+      !phys_equal(m, measured)
+      || !phys_equal(rsm, refractor_rows)
         || v != version
         || sf != sample_focus
         || fm != font_metrics

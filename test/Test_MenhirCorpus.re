@@ -40,7 +40,7 @@ let known_gaps: list((string, string)) =
     ),
   ]
   @ List.map(
-      name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
+      ~f=name => (name, "menhir grammar gap (Test_FastParseCorpus ledger)"),
       Test_FastParseCorpus.known_gaps,
     );
 
@@ -51,16 +51,16 @@ let corpus_roots = [
 ];
 
 let rec find_hz = (dir: string): list(string) =>
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | entries =>
     entries
     |> Array.to_list
-    |> List.concat_map(entry => {
+    |> List.concat_map(~f=entry => {
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
          /* the mega/bench perf corpora: composed from already-swept
             sources and too slow here; FastParseCorpus covers them */
-         | true when List.mem(Filename.basename(path), ["mega", "bench"]) =>
+         | true when List.mem(["mega", "bench"], Filename.basename(path), ~equal=Poly.equal) =>
            []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
@@ -71,10 +71,10 @@ let rec find_hz = (dir: string): list(string) =>
   };
 
 let read_file = (path: string): string => {
-  let ic = open_in_bin(path);
-  let n = in_channel_length(ic);
-  let s = really_input_string(ic, n);
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let n = Stdlib.in_channel_length(ic);
+  let s = Stdlib.really_input_string(ic, n);
+  Stdlib.close_in(ic);
   s;
 };
 
@@ -111,9 +111,10 @@ let check_file = (path: string): unit => {
           MenhirParser.Conversion.Exp.of_menhir_ast(ast),
         ),
       )
-    | exception e => Error(Printexc.to_string(e))
+    | exception e => Error(Exn.to_string(e))
     };
-  let gap = List.assoc_opt(path |> Filename.basename, known_gaps);
+  let gap =
+    List.Assoc.find(known_gaps, path |> Filename.basename, ~equal=Poly.equal);
   switch (mk, mh, gap) {
   | (_, _, Some(_reason)) => () /* known gap: tolerated, tracked above */
   | (Some(mk), Ok(mh), None) =>
@@ -128,15 +129,20 @@ let tests = (
   "MenhirCorpus",
   {
     let files =
-      corpus_roots |> List.concat_map(find_hz) |> List.sort_uniq(compare);
+      corpus_roots
+      |> List.concat_map(~f=find_hz)
+      |> List.dedup_and_sort(~compare=Poly.compare);
     switch (files) {
     | [] => [
         test_case("corpus unavailable (sandboxed run)", `Quick, () => ()),
       ]
     | files =>
       List.map(
+        ~f=
         path =>
-          test_case("differential: " ++ path, `Slow, () => check_file(path)),
+            test_case("differential: " ++ path, `Slow, () =>
+              check_file(path)
+            ),
         files,
       )
     };

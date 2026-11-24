@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* Print static errors to a string */
 
@@ -28,7 +29,7 @@ module Print = {
   let typ = (ty: Typ.t): string => term(Typ(Typ.surface_names(ty)));
 };
 
-let prn = Printf.sprintf;
+let prn = sprintf;
 
 /* A message the cursor inspector also shows, as parts: printed to a string
    here, rendered to a view there. */
@@ -151,8 +152,8 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Expecting branches to have consistent types but got types: %s",
       {
         let tys = Typ.of_source(tys);
-        List.map(ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
-        |> String.concat(", ");
+        List.map(~f=ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
+        |> String.concat(~sep=", ");
       },
     )
   | NoMeet(wrap, _tys) =>
@@ -185,7 +186,7 @@ let drv_error: DrvInfo.error => string =
     prn(
       "Expecting terms to have a derivation sort of %s but got potential derivation sorts: %s",
       DrvSort.to_string(expect),
-      List.map(DrvSort.to_string, actuals) |> String.concat(", "),
+      List.map(~f=DrvSort.to_string, actuals) |> String.concat(~sep=", "),
     );
 
 let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
@@ -201,12 +202,12 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | BuiltinError(ProjectLabelsMissingLabels(labels)) =>
     prn(
       "Projected tuple does not have the following labels: %s",
-      String.concat(", ", labels),
+      String.concat(~sep=", ", labels),
     )
   | BuiltinError(MissingLabels(labels)) =>
     prn(
       "Tuple does not have the following labels: %s",
-      String.concat(", ", labels),
+      String.concat(~sep=", ", labels),
     )
   | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) =>
     prn(
@@ -312,13 +313,13 @@ let typ_mark_string: Mark.t => string =
     prn(
       "Label %s is not valid. Valid labels are: %s",
       name,
-      String.concat(", ", labels),
+      String.concat(~sep=", ", labels),
     )
   | TypDuplicateLabels(labels, ty) =>
     prn(
       "Duplicate labels in type %s: %s",
       Print.typ(ty),
-      String.concat(", ", labels),
+      String.concat(~sep=", ", labels),
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
@@ -507,8 +508,8 @@ let all = (info_map: Statics.Map.t): list(string) => {
     info_map,
     [],
   )
-  |> List.sort_uniq(compare)
-  |> List.map(info => {
+  |> List.dedup_and_sort(~compare=Poly.compare)
+  |> List.map(~f=info => {
        let term = term_string_of(info);
        format_error(
          term,

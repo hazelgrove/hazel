@@ -14,8 +14,8 @@ let qcheck_map_annotation_test =
         );
       let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
-        (==),
-        Grammar.map_exp_annotation(Fun.id, core_exp),
+        Poly.equal,
+        Grammar.map_exp_annotation(Fn.id, core_exp),
         core_exp,
       );
     },
@@ -218,6 +218,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
+          ~f=
           (cls: Exp.cls) =>
             switch (cls) {
             | Projector // Excluding projectors from cls
@@ -244,6 +245,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Pat.show_cls, Fmt.string), Pat.equal_cls);
         List.iter(
+          ~f=
           cls =>
             check(
               cls_testable,
@@ -263,6 +265,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Typ.show_cls, Fmt.string), Typ.equal_cls);
         List.iter(
+          ~f=
           (cls: Typ.cls) => {
             switch (cls) {
             | Constructor
@@ -288,6 +291,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
+          ~f=
           cls =>
             check(
               cls_testable,

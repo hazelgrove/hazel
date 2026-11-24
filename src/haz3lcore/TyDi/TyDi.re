@@ -1,6 +1,7 @@
 open Util.OptUtil.Syntax;
 open TyDiSuggestion;
 open Language;
+open Poly;
 
 /* Minimum number of characters required before showing completions.
  * Adjust this value to control when suggestions first appear. */
@@ -23,7 +24,7 @@ let suggest_witnesses =
       };
     let result = CanonicalCompletion.for_editor(~root, seg);
     result.insertions
-    |> List.filter_map((i: CanonicalCompletion.insertion) =>
+    |> List.filter_map(~f=(i: CanonicalCompletion.insertion) =>
          Id.equal(i.adjacent_id, id) && i.side == Util.Direction.Right
            ? switch (i.delimiters) {
              | [{typed_len: Some(n), text, _}, ..._]
@@ -60,6 +61,7 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
   switch (ci) {
   | InfoExp({dot_labels, _}) when dot_labels != [] =>
     List.map(
+      ~f=
       label =>
         TyDiSuggestion.{
           content: label,
@@ -75,6 +77,7 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
     })
       when labels != [] =>
     List.map(
+      ~f=
       label =>
         TyDiSuggestion.{
           content: label,
@@ -97,13 +100,14 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
     let forms =
       TyDiForms.suggest_leading(ci)
       @ TyDiForms.suggest_operand(ci)
-      |> List.sort(TyDiSuggestion.compare);
+      |> List.sort(~compare=TyDiSuggestion.compare);
     let ctx_suggestions =
       TyDiCtx.suggest_variable(ci)
       @ TyDiCtx.suggest_lookahead_variable(ci)
-      |> List.sort(TyDiSuggestion.compare);
+      |> List.sort(~compare=TyDiSuggestion.compare);
     let operators =
-      TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
+      TyDiForms.suggest_operator(ci)
+      |> List.sort(~compare=TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
       suggest_witnesses(~root, ~seg?, z) @ forms @ ctx_suggestions @ operators;
@@ -145,10 +149,10 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
   let candidate_suffix =
     String.sub(
       candidate,
-      String.length(current),
-      String.length(candidate) - String.length(current),
+      ~pos=String.length(current),
+      ~len=String.length(candidate) - String.length(current),
     );
-  candidate_suffix == "" ? None : Some(candidate_suffix);
+  String.equal(candidate_suffix, "") ? None : Some(candidate_suffix);
 };
 
 /* Returns the text content of the suggestion buffer */
@@ -181,13 +185,14 @@ let set_buffer =
     };
   let suggestions =
     suggestions
-    |> List.filter(({content, _}: TyDiSuggestion.t) =>
-         String.starts_with(~prefix=tok_to_left, content)
+    |> List.filter(~f=({content, _}: TyDiSuggestion.t) =>
+         String.is_prefix(content, ~prefix=tok_to_left)
        );
   /* expectation-backed suggestions bypass the length gate: a 1-char
      prefix of a delimiter the syntax expects is high-signal */
   let expectation_backed =
     List.exists(
+      ~f=
       ({strategy, _}: TyDiSuggestion.t) =>
         strategy == Any(FromMissingShards),
       suggestions,
@@ -202,7 +207,9 @@ let set_buffer =
    * come from different pipelines and may be ordered differently. */
   let has_exact_match =
     List.exists(
-      ({content, _}: TyDiSuggestion.t) => content == tok_to_left,
+      ~f=
+        ({content, _}: TyDiSuggestion.t) =>
+          String.equal(content, tok_to_left),
       suggestions,
     );
   let* _ = has_exact_match ? None : Some();

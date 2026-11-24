@@ -67,18 +67,20 @@ let mk = (ctx_before: Ctx.t, ctx_after, co_ctx: t): t => {
 let union: list(t) => t =
   co_ctxs => {
     List.fold_left(
+      ~f=
       (acc, co_ctx) =>
         List.fold_left(
+            ~f=
           (acc, (name, entries)) =>
             if (VarMap.contains(acc, name)) {
               VarMap.update(acc, name, existing => existing @ entries);
             } else {
               VarMap.extend(acc, (name, entries));
             },
-          acc,
+            ~init=acc,
           co_ctx,
         ),
-      VarMap.empty,
+      ~init=VarMap.empty,
       co_ctxs,
     );
   };
@@ -97,7 +99,7 @@ let singleton = (name, id, expected_ty): t => [
 
 let meet: (Ctx.t, list(entry)) => Typ.t =
   (ctx, entries) => {
-    let expected_tys = List.map(entry => entry.expected_ty, entries);
+    let expected_tys = List.map(~f=entry => entry.expected_ty, entries);
     switch (
       Typ.meet_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, expected_tys)
     ) {
@@ -109,11 +111,12 @@ let meet: (Ctx.t, list(entry)) => Typ.t =
 let contains_hole = (co_ctx: t): bool => contains(co_ctx, "$hole");
 
 let has_any = (co_ctx: t, vs: list(Var.t)): bool =>
-  List.exists(v => contains(co_ctx, v), vs);
+  List.exists(~f=v => contains(co_ctx, v), vs);
 
 let of_bindings = (bindings: Binding.s): t =>
   union(
     List.map(
+    ~f=
       (b: Binding.t) =>
         singleton(b.name, b.id, Typ.fresh(Unknown(Internal))),
       bindings,

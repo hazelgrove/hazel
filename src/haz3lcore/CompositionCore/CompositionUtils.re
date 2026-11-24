@@ -12,7 +12,7 @@ type action_wrapper =
   | Failure(string);
 
 /* read_docs is offered only when the pack registry is non-empty */
-let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+  let docs_tools = List.is_empty(DocPacks.all) ? [] : [DocsTools.read_docs];
 let tools =
   [ViewTools.open_, ViewTools.close]
   @ docs_tools
@@ -60,7 +60,7 @@ let get_optional_string = (args: API.Json.t, field: string): option(string) => {
 };
 
 let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
-  let k = ProjectorKind.of_name(String.trim(s));
+    let k = ProjectorKind.of_name(String.strip(s));
   if (ProjectorKind.is_refractor(k)) {
     raise(
       Failure(
@@ -76,7 +76,7 @@ let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
 let clean_path = (path: string): string => {
   let path =
     switch (StringUtil.plain_search(CompositionView.marker, path, 0)) {
-    | i when i >= 0 => String.sub(path, 0, i)
+    | i when i >= 0 => String.sub(path, ~pos=0, ~len=i)
     | _ => path
     };
   let n = String.length(path);
@@ -88,7 +88,7 @@ let clean_path = (path: string): string => {
       go(escaped ? i + 2 : i + 1);
     };
   go(0);
-  String.trim(Stdlib.Buffer.contents(b));
+  String.strip(Stdlib.Buffer.contents(b));
 };
 
 let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>

@@ -180,10 +180,10 @@ module DirectEncoding: ENCODING = {
   open Js_of_ocaml;
   type request = ClientMessage.t;
   type response = ServerMessage.t;
-  let encode_request = Fun.id;
-  let decode_request = Fun.id;
-  let encode_response = Fun.id;
-  let decode_response = Fun.id;
+  let encode_request = Fn.id;
+  let decode_request = Fn.id;
+  let encode_response = Fn.id;
+  let decode_response = Fn.id;
   /* No serialized form, so estimate the in-memory footprint by an iterative
    * walk with a visited set (a relative measure, not exact bytes). */
   let size_fn =
@@ -281,8 +281,8 @@ let error_response = exn =>
     print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
     Error(Language.ProgramResult.EvaulatorError(reason));
   | exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+    print_endline("EXN:" ++ Exn.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Exn.to_string(exn)));
   };
 
 /* the worker's own per-key incremental caches (async path) */
@@ -432,9 +432,10 @@ let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
 let take_planned_reuse =
     (expr: Language.Exp.t)
     : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
-  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
-  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
-  Option.map(snd, found);
+  let found = List.find(planned_reuse^, ~f=((e, _)) => phys_equal(e, expr));
+  planned_reuse :=
+    List.filter(planned_reuse^, ~f=((e, _)) => !phys_equal(e, expr));
+  Option.map(found, ~f=snd);
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
@@ -507,7 +508,7 @@ let post_batch_result = (model, request_id, completed) =>
         eval_time: eval_total^,
       }),
     );
-    switch (Option.bind(CoverageHook.snapshot, snapshot => snapshot())) {
+    switch (Option.bind(CoverageHook.snapshot, ~f=snapshot => snapshot())) {
     | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
     | None => ()
     };
@@ -638,7 +639,7 @@ let post_reuse_plan = (model, request: Evaluation.t) =>
         /* the evaluation keeps the full plan; the client gets what it
            reads, as with streams */
         initial:
-          List.map(
+          List.map(~f=
             item => {
               let (key, plan) = predict_reuse_for_request(item);
               (key, slim_entries(plan));

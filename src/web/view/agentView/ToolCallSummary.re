@@ -30,9 +30,9 @@ let category_class = (c: category): string =>
 let max_free_text_len = 40;
 
 let truncate_free_text = (s: string): string => {
-  let s = String.trim(s);
+  let s = String.strip(s);
   if (String.length(s) > max_free_text_len) {
-    String.sub(s, 0, max_free_text_len) ++ "…";
+    String.sub(s, ~pos=0, ~len=max_free_text_len) ++ "…";
   } else {
     s;
   };
@@ -49,7 +49,7 @@ let join_paths = (paths: list(string)): string =>
 
 let get_field = (args: API.Json.t, key: string): option(API.Json.t) =>
   switch (args) {
-  | `Assoc(pairs) => List.assoc_opt(key, pairs)
+  | `Assoc(pairs) => List.Assoc.find(pairs, key, ~equal=String.equal)
   | _ => None
   };
 
@@ -65,6 +65,7 @@ let get_string_list_field =
   | Some(`List(items)) =>
     let strs =
       List.filter_map(
+        ~f=
         fun
         | `String(s) => Some(s)
         | _ => None,
@@ -166,25 +167,25 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       | Some(task_json) => get_string_field(task_json, "title")
       | None => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "add_new_subtask_to_active_task" =>
     let title =
       switch (get_field(args, "subtask")) {
       | Some(st_json) => get_string_field(st_json, "title")
       | None => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "set_active_task"
   | "set_active_subtask" =>
     let title = get_string_field(args, "title");
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "mark_active_subtask_complete" =>
     let summary = get_string_field(args, "summary");
-    workbench(~signifier=Option.map(truncate_free_text, summary));
+    workbench(~signifier=Option.map(~f=truncate_free_text, summary));
   | "mark_active_task_failed"
   | "mark_active_subtask_failed" =>
     let reason = get_string_field(args, "reason");
-    workbench(~signifier=Option.map(truncate_free_text, reason));
+    workbench(~signifier=Option.map(~f=truncate_free_text, reason));
   | "reorder_subtasks_in_active_task" =>
     let count =
       switch (get_string_list_field(args, "subtasks_ordering")) {
@@ -208,11 +209,11 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       | (None, Some(d)) => Some(d)
       | (None, None) => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, sig_text));
+    workbench(~signifier=Option.map(~f=truncate_free_text, sig_text));
   | "delete_task"
   | "delete_subtask" =>
     let title = get_string_field(args, "title");
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | _ => None
   };
 };

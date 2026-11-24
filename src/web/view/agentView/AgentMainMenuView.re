@@ -157,10 +157,10 @@ let view =
     switch (float_of_string_opt(price)) {
     | Some(p) =>
       let per_million = p *. 1000000.0;
-      if (per_million == 0.0) {
+      if (Float.equal(per_million, 0.0)) {
         "Free";
       } else {
-        "$" ++ Printf.sprintf("%.4f", per_million);
+        "$" ++ sprintf("%.4f", per_million);
       };
     | None => "Unknown"
     };
@@ -368,7 +368,7 @@ let view =
                 ) => {
               let is_active =
                 switch (agent_globals.active_llm) {
-                | Some(active) => active.id == llm.id
+                | Some(active) => String.equal(active.id, llm.id)
                 | None => false
                 };
               let classes =
@@ -423,7 +423,7 @@ let view =
               );
             };
 
-            if (List.length(agent_globals.available_llms) == 0) {
+            if (List.is_empty(agent_globals.available_llms)) {
               div(
                 ~attrs=[clss(["llm-list-container"])],
                 [
@@ -437,16 +437,19 @@ let view =
               // Preserve the curated declaration order (most capable → cheapest).
               let recommended =
                 List.filter_map(
+                  ~f=
                   ((id, _tagline)) =>
-                    List.find_opt(
+                      List.find(
+                        ~f=
                       (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
-                        llm.id == id,
+                            String.equal(llm.id, id),
                       agent_globals.available_llms,
                     ),
                   OpenRouter.AvailableLLMs.recommended_entries,
                 );
               let master_sorted =
                 List.sort(
+                  ~compare=
                   (
                     a: OpenRouter.AvailableLLMs.Model.llm_info,
                     b: OpenRouter.AvailableLLMs.Model.llm_info,
@@ -457,6 +460,7 @@ let view =
               let filter = agent_globals.model_filter;
               let master_filtered =
                 List.filter(
+                  ~f=
                   (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
                     let name_match =
                       String.length(filter) == 0
@@ -474,7 +478,7 @@ let view =
               div(
                 ~attrs=[clss(["llm-sections"])],
                 (
-                  List.length(recommended) == 0
+                  List.is_empty(recommended)
                     ? []
                     : [
                       section_header("Recommended by the FP Lab"),
@@ -489,6 +493,7 @@ let view =
                           div(
                             ~attrs=[clss(["llm-list"])],
                             List.map(
+                              ~f=
                               (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
                                 render_llm_item(
                                   ~tagline=?
@@ -569,7 +574,7 @@ let view =
                       ]),
                     ],
                     [
-                      List.length(master_filtered) == 0
+                      List.is_empty(master_filtered)
                         ? div(
                             ~attrs=[clss(["llm-empty"])],
                             [
@@ -583,7 +588,7 @@ let view =
                           )
                         : div(
                             ~attrs=[clss(["llm-list"])],
-                            List.map(render_llm_item, master_filtered),
+                            List.map(~f=render_llm_item, master_filtered),
                           ),
                     ],
                   ),

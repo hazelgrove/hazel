@@ -16,7 +16,7 @@ let is_non_content = (p: Piece.t): bool =>
 
 /* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
-  List.filter(p => !is_non_content(p));
+  List.filter(~f=p => !is_non_content(p));
 
 /* Context (effective_prev, next, effective_next) per piece, one pass;
  * the effective_* fields skip linebreaks. Convex grout counts as
@@ -80,7 +80,7 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
       List.rev([
         Piece.Tile({
           ...t,
-          shards: List.init(Tile.arity(t), i => i),
+          shards: List.init(Tile.arity(t), ~f=i => i),
           children: t.children @ [shallow_complete_segment(rest)],
           /* Note: Potentially wrong number of children */
         }),
@@ -183,6 +183,7 @@ let is_incomplete_case_rule = (p: Piece.t): bool =>
 /* Check if a segment has any contentful pieces (not just whitespace/grout) */
 let has_content = (seg: Segment.t): bool =>
   List.exists(
+    ~f=
     fun
     | Piece.Secondary(s) =>
       !Secondary.is_space(s) && !Secondary.is_linebreak(s)
@@ -200,7 +201,7 @@ let is_complete_case_rule_with_body = (p: Piece.t): bool =>
     shards == [0, 1]
     /* Body is children[1], check if it has content */
     && List.length(children) >= 2
-    && has_content(List.nth(children, 1))
+    && has_content(List.nth_exn(children, 1))
   | _ => false
   };
 
@@ -361,7 +362,7 @@ and walk =
           prev_is_lb ? level : level + 2
         | (None, _) when not_top => base + 2
         /* Check effective_next (skipping linebreaks) for case rule */
-        | _ when Option.map(Piece.is_case_rule, effective_next) == Some(true) => base
+        | _ when Option.map(~f=Piece.is_case_rule, effective_next) == Some(true) => base
         | (_, Some(next)) when Piece.is_case_rule(next) => base
         /* a fresh line past a member list's last member is the next
            member's; only the `}` line goes back to the braces, and a
@@ -385,7 +386,8 @@ and walk =
         | (_, Some(_)) => level
         };
       switch (target_id) {
-      | Some(id) when Id.equal(w.id, id) => raise(Found_indent(indent))
+            | Some(id) when Id.equal(w.id, id) =>
+              raise(Found_indent(indent))
       | Some(_) => (indent, map) /* target mode: skip map add */
       | None => (indent, Id.Map.add(w.id, indent, map))
       };
@@ -417,7 +419,7 @@ and walk =
       switch (target_id) {
       | Some(_) =>
         /* target mode: just recurse, don't accumulate */
-        List.iteri((j, c) => ignore(child(j, c)), t.children);
+        List.iteri(~f=(j, c) => ignore(child(j, c)), t.children);
         (level, map);
       | None =>
         let (_, map) =
@@ -460,17 +462,19 @@ and walk =
   map;
 };
 
+
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   seg
   |> partitions
   |> List.fold_left(
+       ~f=
        (map, part) =>
          Id.Map.union(
            (_, a, _) => Some(a),
            go(~not_top=false, ~closer=false, 0, part),
            map,
          ),
-       Id.Map.empty,
+       ~init=Id.Map.empty,
      );
 
 /* Look up indentation for a single linebreak by ID.
@@ -480,7 +484,7 @@ let level_of = (~target_id: Id.t, seg: Segment.t): int =>
     {
       seg
       |> partitions
-      |> List.iter(part =>
+      |> List.iter(~f=part =>
            ignore(go(~not_top=false, ~closer=false, ~target_id, 0, part))
          );
       0;
@@ -538,7 +542,9 @@ let fix_leading_indentation =
         Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
       let rest_without_leading_spaces = drop_leading_spaces(rest);
       let spaces =
-        List.init(indent, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+        List.init(indent, ~f=_ =>
+          Piece.Secondary(Secondary.mk_space(Id.mk()))
+        );
       [Piece.Secondary(w), ...spaces] @ level(rest_without_leading_spaces);
     | [p, ...rest] => [p, ...level(rest)]
     };
@@ -553,7 +559,9 @@ let fix_indentation_in_segment =
 
 /* Create space pieces for a given indent level */
 let make_indent_spaces = (indent_level: int): Segment.t =>
-  List.init(indent_level, _ => Piece.Secondary(Secondary.mk_space(Id.mk())));
+  List.init(indent_level, ~f=_ =>
+    Piece.Secondary(Secondary.mk_space(Id.mk()))
+  );
 
 /* Whole-buffer re-indentation (the Format(Indent) action; also runs
  * before spacing normalization in Format(Spacing)). Rewrites only the

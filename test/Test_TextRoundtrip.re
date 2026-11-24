@@ -68,11 +68,11 @@ let slide_roundtrip_case =
    deferred so the suite doesn't hold every slide's zipper at once. */
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))
-  |> List.map(((name, root, p: PersistentZipper.t)) =>
+  |> List.filter(~f=((name, _, _)) => !CorpusUtil.mega_scale(name))
+  |> List.map(~f=((name, root, p: PersistentZipper.t)) =>
        (name, root, () => PersistentZipper.unpersist(p, ~root))
      )
-  |> List.map(slide_roundtrip_case);
+  |> List.map(~f=slide_roundtrip_case);
 
 /* The .hzt lessons are authored as text too, so every section of each one
    must be a fixed point: what TutorialText parsed and the editor reprints
@@ -81,15 +81,15 @@ let doc_slide_cases =
    `hazel tutorial-verify --verbose` prints the diff. */
 let tutorial_lesson_cases =
   Web.TutorialText.all
-  |> List.concat_map((spec: Web.Tutorial.spec) =>
+  |> List.concat_map(~f=(spec: Web.Tutorial.spec) =>
        [
          (spec.title ++ " (impl)", Sort.Exp, () => spec.your_impl),
          (spec.title ++ " (tests)", Sort.Exp, () => spec.hidden_tests.tests),
          ...Option.to_list(spec.solution)
-            |> List.map(z => (spec.title ++ " (solution)", Sort.Exp, () => z)),
+            |> List.map(~f=z => (spec.title ++ " (solution)", Sort.Exp, () => z)),
        ]
      )
-  |> List.map(slide_roundtrip_case);
+  |> List.map(~f=slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
   test_case(
@@ -213,7 +213,8 @@ let arb_exp_roundtrip =
       let text = render_exp_as_text(exp);
       switch (MarkerParse.of_text(~root=Exp, text)) {
       | None => false
-      | Some(z) => MarkerParse.to_text(z) == roundtripped_text(z)
+      | Some(z) =>
+        String.equal(MarkerParse.to_text(z), roundtripped_text(z))
       };
     },
   );

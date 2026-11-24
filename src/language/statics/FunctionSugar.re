@@ -49,6 +49,8 @@ let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
     (
       f_name,
       List.fold_right(
+      args,
+      ~f=
         (args, body) =>
           (Fun(args, body, None, None): Exp.term)
           |> IdTagged.fresh_deterministic(Pat.rep_id(args)),

@@ -192,7 +192,7 @@ module F = (Stepper: STEPPER) => {
             scrut_ty,
             elab_pattern,
           )
-          |> List.filter_map(h =>
+          |> List.filter_map(~f=h =>
                ProofHacks.replace_exp(
                  info_map,
                  elab_scrut,
@@ -205,10 +205,11 @@ module F = (Stepper: STEPPER) => {
              );
         let (sem_ctx, ihs) =
           List.fold_left(
+            ~f=
             ((acc, ihs), h) =>
               SemanticCtx.add_hypothesis(acc, "ih", h)
               |> PairUtil.map_snd(x => [(x, h), ...ihs]),
-            (sem_ctx, []),
+            ~init=(sem_ctx, []),
             inductive_hypotheses,
           );
 
@@ -359,6 +360,7 @@ module F = (Stepper: STEPPER) => {
         WebUtil.div_c(
           "induction-case-hypotheses",
           List.filter_map(
+            ~f=
             fun
             | (Binding.{name: _, id: _}, exp) => {
                 let rule = ProofRule.exp_to_rule(exp);

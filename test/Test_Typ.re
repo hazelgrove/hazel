@@ -415,7 +415,7 @@ let unshadow_tests = {
             "name, binder",
             [("T", Id.to_string(outer)), ("U", Id.to_string(inner))],
             Typ.binding_sites_in(~ctx, [ty], ty)
-            |> List.map(((name, id)) => (name, Id.to_string(id))),
+            |> List.map(~f=((name, id)) => (name, Id.to_string(id))),
           );
         },
       ),
@@ -451,7 +451,7 @@ let unshadow_tests = {
               ("T", Id.to_string(inner)),
             ],
             Typ.binding_sites_in(~ctx, [ty], ty)
-            |> List.map(((name, id)) => (name, Id.to_string(id))),
+            |> List.map(~f=((name, id)) => (name, Id.to_string(id))),
           );
         },
       ),
@@ -469,7 +469,7 @@ let diff_tests = (
         ~count=1000,
         QCheck_Util.arb_typ(~minimal_idents=true, 7),
         typ =>
-        Typ.diff(typ, typ) == []
+        List.is_empty(Typ.diff(typ, typ))
       ),
     ),
     test_case(
@@ -1443,22 +1443,18 @@ let meet_rec_binder_tests = {
      become the other type's bound variable. Each pair is met both ways. */
   let binder_capture_cases = {
     let ctx =
-      List.fold_left(
-        (ctx, name) => Ctx.extend_alias(ctx, name, Id.invalid, F.Typ.int()),
-        ctx,
-        ["x", "b"],
+      List.fold_left(["x", "b"], ~init=ctx, ~f=(ctx, name) =>
+        Ctx.extend_alias(ctx, name, Id.invalid, F.Typ.int())
       );
     let consistent = (name, ty1, ty2, expected) =>
       test_case(name, `Quick, () =>
-        List.iter(
-          ((ty1, ty2)) =>
+        List.iter([(ty1, ty2), (ty2, ty1)], ~f=((ty1, ty2)) =>
             check(
               bool,
               name,
               expected,
               Option.is_some(Typ.meet(ctx, ty1, ty2)),
-            ),
-          [(ty1, ty2), (ty2, ty1)],
+          )
         )
       );
     let hole_rec = body => F.Typ.rec_(F.TPat.empty_hole(), body);

@@ -8,17 +8,18 @@ module Map = {
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
-    ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
+    ids |> List.fold_left(~f=(m, id) => Id.Map.add(id, info, m), ~init=m);
 
   let add_missing_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids
     |> List.fold_left(
+         ~f=
          (m, id) =>
            switch (Id.Map.find_opt(id, m)) {
            | Some(_) => m
            | None => Id.Map.add(id, info, m)
            },
-         m,
+         ~init=m,
        );
 
   let error_ids = (info_map: t): list(Id.t) =>
@@ -26,7 +27,8 @@ module Map = {
       (id, info, acc) =>
         /* Second clause is to eliminate non-representative ids,
          * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+        Info.is_error(info) && Id.equal(id, Info.id_of(info))
+          ? [id, ...acc] : acc,
       info_map,
       [],
     );
@@ -35,8 +37,8 @@ module Map = {
       (id, info, acc) =>
         acc
         |> (
-          Info.is_warning(info) && id == Info.id_of(info)
-            ? List.cons(id) : Fun.id
+          Info.is_warning(info) && Id.equal(id, Info.id_of(info))
+            ? List.cons(id) : Fn.id
         ),
       info_map,
       [],
@@ -46,7 +48,7 @@ module Map = {
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx |> CoCtx.names |> List.map(n => Ctx.binding_of(ctx, n))
+      co_ctx |> CoCtx.names |> List.map(~f=n => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -443,7 +445,7 @@ let fold_patterns_with_modes =
             [elab, ...elabs],
           )
         ),
-      (ctx, [], [], m, [], []),
+    ~init=(ctx, [], [], m, [], []),
       ps,
       modes,
     );

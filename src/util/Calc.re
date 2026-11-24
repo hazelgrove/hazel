@@ -20,13 +20,14 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
 
 let combine_list = (xs: list(t('a))): t(list('a)) =>
   List.fold_left(
+    ~f=
     (acc, x) =>
       switch (acc, x) {
       | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
       | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
         NewValue([x, ...acc])
       },
-    OldValue([]),
+    ~init=OldValue([]),
     xs |> List.rev,
   );
 
@@ -84,7 +85,7 @@ exception PendingValue;
 let get_saved_exc = (~print=?, x: saved('a)): 'a =>
   switch (x) {
   | Pending =>
-    let _ = Option.map(print_endline, print);
+    let _ = Option.map(~f=print_endline, print);
     raise(PendingValue);
   | Calculated(x) => x
   };
@@ -149,7 +150,7 @@ let save = (x: t('a)): saved('a) =>
 // Helper functions:
 
 let old_if_same' =
-    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+    (~eq: ('a, 'a) => bool=Poly.equal, x: saved('a), y: t('a)): t('a) =>
   switch (y, x) {
   | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
   | (NewValue(y), _) => NewValue(y)

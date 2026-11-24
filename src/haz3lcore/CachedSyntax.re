@@ -66,10 +66,10 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
   Option.value(
     TermData.segment(id, term_data)
-    |> Option.map(Segment.unparenthesize)
-    |> Option.map(Segment.trim_secondary(Left))
-    |> Option.map(Segment.trim_secondary(Right))
-    |> Option.map(Segment.parenthesize),
+    |> Option.map(~f=Segment.unparenthesize)
+    |> Option.map(~f=Segment.trim_secondary(Left))
+    |> Option.map(~f=Segment.trim_secondary(Right))
+    |> Option.map(~f=Segment.parenthesize),
     ~default=
       Base.Secondary({
         id: Id.invalid,
@@ -332,7 +332,7 @@ let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
   | (None, None) => true
-  | (Some(x), Some(y)) => x === y
+  | (Some(x), Some(y)) => phys_equal(x, y)
   | _ => false
   };
 
@@ -390,7 +390,7 @@ let calculate =
     refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old);
   } else {
     let selection_ids = Selection.selection_ids(z.selection);
-    selection_ids == old.selection_ids
+    List.equal(Id.equal, selection_ids, old.selection_ids)
       ? old
       : {
         ...old,

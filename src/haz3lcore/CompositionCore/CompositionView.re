@@ -2,6 +2,7 @@ open Util;
 module Trivia = Secondary;
 open Language;
 
+
 /* The agent's view of the program (plans/editing-in-the-large.html, "What
    the agent sees"): a code map, the program with its definitions' bodies
    spliced to ⋯ and annotations in comments, then the entries the agent
@@ -118,22 +119,22 @@ let print_measured =
 /* text safe inside a `# … #` comment */
 let comment_safe = (s: string): string =>
   s
-  |> String.map(c => c == '\n' ? ' ' : c)
+  |> String.map(~f=c => c == '\n' ? ' ' : c)
   |> StringUtil.replace(StringUtil.regexp("#"), _, {js|♯|js});
 
 /* opens every comment the view adds, so none reads as the program's */
 let marker = {js|#›|js};
 
 let comment = (parts: list(string)): string =>
-  switch (List.filter(p => p != "", parts)) {
+  switch (List.filter(~f=p => p != "", parts)) {
   | [] => ""
-  | parts => marker ++ " " ++ String.concat({js| · |js}, parts) ++ " #"
+  | parts => marker ++ " " ++ String.concat(~sep={js| · |js}, parts) ++ " #"
   };
 
 /* a path's last element */
 let last_elem = (path: string): string =>
   switch (String.rindex_opt(path, '/')) {
-  | Some(i) => String.sub(path, i + 1, String.length(path) - i - 1)
+  | Some(i) => String.sub(path, ~pos=i + 1, ~len=String.length(path) - i - 1)
   | None => path
   };
 
@@ -144,7 +145,7 @@ let plural = (n: int, one: string, many: string): string =>
 
 let test_status = (facts: facts, test: Id.t): option(TestStatus.t) =>
   Option.bind(facts.tests, (tr: TestResults.t) =>
-    TestMap.lookup(test, tr.test_map) |> Option.map(TestMap.joint_status)
+    TestMap.lookup(test, tr.test_map) |> Option.map(~f=TestMap.joint_status)
   );
 
 let status_mark = (s: TestStatus.t): string =>

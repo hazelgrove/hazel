@@ -45,6 +45,7 @@ type entry = {
 let registry: list((string, entry)) = {
   let entries = (category, gating, names) =>
     List.map(
+      ~f=
       name =>
         (
           name,
@@ -58,7 +59,7 @@ let registry: list((string, entry)) = {
   entries("View", Ungated, ["open", "close"])
   /* mirrors the conditional offer in CompositionUtils.tools */
   @ (
-    Haz3lcore.DocPacks.all == []
+    List.is_empty(Haz3lcore.DocPacks.all)
       ? [] : entries("Docs", Ungated, ["read_docs"])
   )
   @ entries(
@@ -115,14 +116,14 @@ let registry: list((string, entry)) = {
 };
 
 let category_of_tool = (name: string): string =>
-  switch (List.assoc_opt(name, registry)) {
+  switch (List.Assoc.find(registry, name, ~equal=String.equal)) {
   | Some(entry) => entry.category
   | None => "Other"
   };
 
 let names_with_gating = (g: gating): list(string) =>
   List.filter_map(
-    ((name, entry)) => entry.gating == g ? Some(name) : None,
+    ~f=((name, entry)) => Poly.equal(entry.gating, g) ? Some(name) : None,
     registry,
   );
 

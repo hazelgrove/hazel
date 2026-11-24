@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
@@ -11,8 +12,9 @@ module Persist = ScratchPersist;
 let slide_key = (~is_documentation, model: Model.t): string =>
   Persist.content_key(
     ScratchModel.prefix(~is_documentation),
-    List.nth(model.scratchpads, model.current).name,
+    List.nth_exn(model.scratchpads, model.current).name,
   );
+
 
 module Update = {
   open Updated;
@@ -56,14 +58,14 @@ module Update = {
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
             ~prefix=ScratchModel.prefix(~is_documentation),
-            ~name=List.nth(model.scratchpads, model.current).name,
+            ~name=List.nth_exn(model.scratchpads, model.current).name,
             a,
             code,
           );
         Model.with_current_kind(Code(code), model);
       }
     | DrvAction(a) =>
-      switch (List.nth(model.scratchpads, model.current).kind) {
+      switch (List.nth_exn(model.scratchpads, model.current).kind) {
       | Drv(m) =>
         let* new_m =
           DerivationExerciseMode.Update.update(
@@ -86,7 +88,9 @@ module Update = {
         ~is_documentation,
         a,
         model,
+
       )
+
     };
   };
 
@@ -105,7 +109,7 @@ module Update = {
       );
 
     let kind: Scratchpad.kind =
-      switch (List.nth(model.scratchpads, model.current).kind) {
+      switch (List.nth_exn(model.scratchpads, model.current).kind) {
       | Code(code) =>
         Code(
           Workspace.calculate(
@@ -150,7 +154,7 @@ module Selection = {
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
       : cursor(Update.t) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     let cursor =
       switch (selection, scratchpad.kind) {
       | (Cell(selection), Code({program: Whole(editor), _})) =>
@@ -264,17 +268,17 @@ module Selection = {
 
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     switch (scratchpad.kind) {
     | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
-      |> Option.map(((x, y)) =>
+      |> Option.map(~f=((x, y)) =>
            (Update.Workspace(CellAction(x)), Cell(y))
          )
     | Code({program: Divided(d), _}) => jump_in_divided(tile, d)
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
+      |> Option.map(~f=((x, y)) => (Update.DrvAction(x), Drv(y)))
     };
   };
 
@@ -482,7 +486,7 @@ module Selection = {
     };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     switch (selection, scratchpad.kind) {
     | (Drv(sel), Drv(m)) =>
       DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, m)
@@ -542,7 +546,7 @@ module View = {
         ~selected: option(Selection.t),
         model: Model.t,
       ) => {
-    let current = List.nth(model.scratchpads, model.current);
+    let current = List.nth_exn(model.scratchpads, model.current);
     if (current.dormant) {
       [
         /* shown until hydration, which blocks on large slides; the same
@@ -1182,7 +1186,7 @@ module View = {
           ~signal=i => inject(Deck(SwitchSlide(i))),
           model.current,
           List.map(
-            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            ~f=(s: Scratchpad.t) => SlidePath.of_string(s.name),
             model.scratchpads,
           ),
         ),

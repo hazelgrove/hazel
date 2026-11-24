@@ -1,6 +1,7 @@
 open Util;
 open Calc.Syntax;
 open Language;
+open Poly;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -96,12 +97,12 @@ module Model = {
   let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+    |> Option.map(~f=(d: Dynamics.t) => d.probe_map);
 
   let test_results = (model: t): option(TestResults.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
+    |> Option.map(~f=(d: Dynamics.t) => d.test_results);
 
   let dynamics = (model: t): Dynamics.Map.t =>
     switch (probe_results(model)) {
@@ -550,7 +551,7 @@ module Update = {
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) => {
+             Option.map(~f=((exp, editor)) => {
                let display_exp = prune_for_display(exp);
                let settings = settings |> Calc.get_value;
                /* statics from the value itself (not its printed text), and
@@ -726,9 +727,10 @@ module View = {
       | Some((exp, _)) => value_truncated(exp)
       | None => false
       };
-    let editor = Option.map(snd, editor);
+    let editor = Option.map(~f=snd, editor);
     let code_view =
       Option.map(
+        ~f=
         (editor: CodeSelectable.Model.t) =>
           CodeSelectable.View.view(
             ~signal=
@@ -966,6 +968,7 @@ module View = {
     WebUtil.div_c(
       "test-decos",
       List.filter_map(
+        ~f=
         ((id, insts)) =>
           switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
           | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
@@ -1034,7 +1037,7 @@ module View = {
               model.theorems,
             );
       let theorems =
-        List.length(theorems) == 0
+        List.is_empty(theorems)
           ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 

@@ -130,8 +130,7 @@ module Exp = {
   include DrvTermBase.Exp;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
+    List.hd_exn(ids);
   };
 
   let term_of: t => term = IdTagged.term_of;
@@ -221,8 +220,7 @@ module Pat = {
   include DrvTermBase.Pat;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
+    List.hd_exn(ids);
   };
 
   let term_of: t => term = IdTagged.term_of;
@@ -282,8 +280,7 @@ module Typ = {
   include DrvTermBase.Typ;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
+    List.hd_exn(ids);
   };
 
   let term_of: t => term = IdTagged.term_of;
@@ -329,8 +326,7 @@ module TPat = {
   include DrvTermBase.TPat;
 
   let rep_id = ({annotation: {ids, _}, _}: t) => {
-    assert(ids != []);
-    List.hd(ids);
+    List.hd_exn(ids);
   };
 
   let term_of: t => term = IdTagged.term_of;
@@ -427,7 +423,7 @@ module Any = {
                   | Hole(_) => raise(HoleFound)
                   | _ => cont(tpat)
                   },
-              ~f_any=Fun.id,
+              ~f_any=Fn.id,
               any,
             ),
           );

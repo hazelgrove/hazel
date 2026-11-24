@@ -1,5 +1,6 @@
 open Util;
 open Js_of_ocaml;
+open Poly;
 
 /* This implements arbitrary gpu-accelerated css position
  * and scale transition animations via the the FLIP technique
@@ -59,13 +60,13 @@ module Js = {
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
 
   let check_visible = (client_height, inner_height, box: box): bool => {
-    let viewHeight = max(client_height, inner_height);
-    !(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
+    let viewHeight = Float.max(client_height, inner_height);
+    !Float.(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
   };
 
   let keyframes_unsafe = (keyframes: list(keyframe)): Js.t(Js.js_array('a)) =>
     keyframes
-    |> List.map(((prop: string, value: string)) =>
+    |> List.map(~f=((prop: string, value: string)) =>
          Js.Unsafe.obj([|(prop, Js.Unsafe.inject(Js.string(value)))|])
        )
     |> Array.of_list
@@ -95,10 +96,9 @@ module Js = {
     );
 
   let animate = ({options, keyframes}, elem: Js.t(Dom_html.element)) =>
-    if (keyframes != []) {
+    if (!List.is_empty(keyframes)) {
       switch (animate_unsafe(keyframes, options, elem)) {
-      | exception exn =>
-        print_endline("Animation: " ++ Printexc.to_string(exn))
+      | exception exn => print_endline("Animation: " ++ Exn.to_string(exn))
       | () => ()
       };
     };
@@ -152,6 +152,7 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let client_height = client_height();
   let inner_height = inner_height();
   List.filter_map(
+    ~f=
     (tr: transition_internal) => {
       switch (JsUtil.get_elem_by_id_opt(tr.id)) {
       | None => None
@@ -169,11 +170,12 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
  * render phase, after recalc but before repaint */
 let go = (): unit =>
   if (tracked_elems^ != []) {
-    tracked_elems^ |> filter_visible_elements |> List.iter(animate_elem);
+    tracked_elems^ |> filter_visible_elements |> List.iter(~f=animate_elem);
     tracked_elems := [];
   };
 
-/* a glide (125ms, Actions.move) restarted mid-glide reads as decoration lag */
+/* the caret glide is 125ms (Actions.move); a new request while the
+   previous glide is still in flight reads as decoration lag */
 let last_caret_glide: ref(float) = ref(0.);
 let caret_glide_available = (): bool => {
   let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();
@@ -190,10 +192,11 @@ let caret_glide_available = (): bool => {
 let request = (transitions: list(transition)): unit => {
   tracked_elems :=
     List.map(
+      ~f=
       ({id, animate}: transition) =>
         {
           id,
-          box: Option.map(box_of, JsUtil.get_elem_by_id_opt(id)),
+            box: Option.map(~f=box_of, JsUtil.get_elem_by_id_opt(id)),
           animate,
         },
       transitions,
@@ -204,7 +207,7 @@ let request = (transitions: list(transition)): unit => {
 module Keyframes = {
   let transform_translate = (top: float, left: float): keyframe => (
     "transform",
-    Printf.sprintf("translate(%fpx, %fpx)", left, top),
+    sprintf("translate(%fpx, %fpx)", left, top),
   );
 
   let translate = (init: box, final: box): list(keyframe) => {
@@ -216,7 +219,7 @@ module Keyframes = {
 
   let transform_scale_uniform = (scale: float): keyframe => (
     "transform",
-    Printf.sprintf("scale(%f, %f)", scale, scale),
+    sprintf("scale(%f, %f)", scale, scale),
   );
 
   let scale_from_zero: list(keyframe) = [

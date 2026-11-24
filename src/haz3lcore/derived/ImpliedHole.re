@@ -45,9 +45,9 @@ let at_caret =
         switch (piece) {
         | Tile(t) =>
           let* child =
-            List.nth_opt(t.children, Tile.child_index_before(t, shard));
+            List.nth(t.children, Tile.child_index_before(t, shard));
           switch (
-            List.find_opt(p => !Piece.is_secondary(p), List.rev(child))
+            List.find(~f=p => !Piece.is_secondary(p), List.rev(child))
           ) {
           | Some(p) =>
             let* info = Id.Map.find_opt(Piece.id(p), statics.info_map);

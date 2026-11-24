@@ -112,7 +112,7 @@ let nibs = (~index, mold: t): Nibs.t => {
   /* Inner-shard nibs pull their sort from mold.in_. If remolding has
      assigned a tile a mold whose arity doesn't match its shards (seen in
      practice for some in-progress derivation tiles, e.g. `(` `,` `)`
-     before the segment is fully reassembled), `List.nth` would throw.
+     before the segment is fully reassembled), there is no sort to read.
      We fall back to `Any` so the tile still renders while upstream
      remolding stabilizes. */
   let l =
@@ -120,20 +120,14 @@ let nibs = (~index, mold: t): Nibs.t => {
       ? l
       : Nib.{
           shape: Shape.concave(),
-          sort:
-            try(List.nth(in_, index - 1)) {
-            | Failure(_) => Sort.Any
-            },
+          sort: Option.value(List.nth(in_, index - 1), ~default=Sort.Any),
         };
   let r =
     index == List.length(in_)
       ? r
       : Nib.{
           shape: Shape.concave(),
-          sort:
-            try(List.nth(in_, index)) {
-            | Failure(_) => Sort.Any
-            },
+          sort: Option.value(List.nth(in_, index), ~default=Sort.Any),
         };
   (l, r);
 };

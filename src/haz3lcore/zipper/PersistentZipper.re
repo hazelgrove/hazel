@@ -30,9 +30,9 @@ let of_text = (text: string): t => {
   backup_text: text,
 };
 
-/* Slide-source ingestion: indentation is the text's own spaces, so a
-   committed .hz file keeps its indentation; only line endings are
-   normalized */
+/* Slide-source ingestion: indentation is the text's own spaces (the
+   editor no longer computes it at layout), so a committed .hz file keeps
+   its indentation; only line endings are normalized */
 let of_slide_text = (text: string): t =>
   of_text(
     text
@@ -85,7 +85,7 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       ++ " chars): "
       ++ why
       ++ " | head: "
-      ++ String.sub(text, 0, min(60, String.length(text))),
+      ++ String.sub(text, ~pos=0, ~len=min(60, String.length(text))),
     );
     switch (MarkerParse.of_text(~root, text)) {
     | None => None
@@ -116,7 +116,7 @@ let from_backup_text = (backup_text: string, ~root): Zipper.t =>
   };
 
 let unpersist = (persisted: t, ~root) =>
-  if (persisted.zipper == "") {
+  if (String.equal(persisted.zipper, "")) {
     from_backup_text(persisted.backup_text, ~root);
   } else {
     try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {

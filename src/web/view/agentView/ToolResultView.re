@@ -35,6 +35,7 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-list"])],
         List.mapi(
+          ~f=
           (i, item) =>
             div(
               ~attrs=[clss(["arg-list-item"])],
@@ -53,6 +54,7 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-object"])],
         List.map(
+          ~f=
           ((key, value)) =>
             div(
               ~attrs=[clss(["arg-field"])],
@@ -72,6 +74,7 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
     div(
       ~attrs=[clss(["tool-call-args-pretty"])],
       List.map(
+        ~f=
         ((key, value)) =>
           div(
             ~attrs=[clss(["arg-field"])],

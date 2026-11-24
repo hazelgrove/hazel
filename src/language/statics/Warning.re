@@ -42,7 +42,7 @@ let rec_type = (binder: TPat.t, ty): list(list_item) =>
   |> Option.to_list;
 
 let var_is_unused = (co_ctx, name): list(list_item) =>
-  String.starts_with(~prefix="_", name)
+  String.is_prefix(name, ~prefix="_")
   || CoCtx.contains_hole(co_ctx)
   || Option.is_some(CoCtx.lookup(co_ctx, name))
     ? [] : [Pat(UnusedVar(name))];

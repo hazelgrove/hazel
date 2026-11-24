@@ -1,6 +1,7 @@
 open Util;
 open Haz3lcore;
 open AgentModel;
+open Poly;
 
 module Utils = AgentUtils;
 module Action = AgentAction;
@@ -34,7 +35,7 @@ let handle_llm_response =
       cell_editor |> Updated.return_quiet,
     )
   | _ =>
-    let is_empty = String.trim(reply.content) == "";
+    let is_empty = String.strip(reply.content) == "";
     let reasoning_duration_ms =
       Option.is_some(reply.reasoning) ? thinking_ms : None;
 
@@ -142,8 +143,8 @@ let handle_llm_response =
           );
         let model_with_tool_msgs =
           List.fold_left(
-            (m, msg) => Utils.append_message(~chat_id, msg, m),
-            model_after_tools,
+            ~f=(m, msg) => Utils.append_message(~chat_id, msg, m),
+            ~init=model_after_tools,
             tool_msgs,
           );
         let chat =

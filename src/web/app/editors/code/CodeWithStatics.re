@@ -1,5 +1,6 @@
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -68,7 +69,7 @@ module Model = {
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
-      |> Option.map(({piece, _}: Indicated.piece) => piece),
+      |> Option.map(~f=({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
         () => {
@@ -158,7 +159,7 @@ module Update = {
         && editor.root == Sort.Exp
           ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
       ) {
-      | Some(st) when stitch(st.term) === st.term => st
+      | Some(st) when phys_equal(stitch(st.term), st.term) => st
       | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>

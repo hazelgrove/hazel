@@ -65,6 +65,7 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
    tile inside. */
 let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
   List.map(
+    ~f=
     Base.map_piece(~f_piece=(rec_call, p: piece) =>
       switch (p) {
       | Tile(t) when Tile.has_label(t, [implicit_hole]) =>

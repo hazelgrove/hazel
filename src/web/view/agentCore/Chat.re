@@ -72,7 +72,7 @@ module Utils = {
 
   let api_messages_of_messages =
       (messages: list(Message.Model.t)): list(OpenRouter.Message.Model.t) => {
-    List.filter_map(Message.Utils.api_message_of_message, messages);
+    List.filter_map(~f=Message.Utils.api_message_of_message, messages);
   };
 
   let json_of_messages =
@@ -87,7 +87,7 @@ module Utils = {
       ),
       (
         "messages",
-        `List(List.map(Message.Utils.json_of_message, messages)),
+        `List(List.map(~f=Message.Utils.json_of_message, messages)),
       ),
     ]);
   };
@@ -108,8 +108,9 @@ module Utils = {
     // Note: It should hold that the caller knows the passed message id will have a parent
     let parent =
       List.find_map(
+        ~f=
         (message: Message.Model.t) =>
-          if (List.mem(message_id, message.children)) {
+            if (List.mem(message.children, message_id, ~equal=Poly.equal)) {
             Some(message);
           } else {
             None;
@@ -371,6 +372,7 @@ module Utils = {
       msgs;
     } else {
       List.mapi(
+        ~f=
         (i, m: OpenRouter.Message.Model.t) =>
           i == anchor_idx
             ? {
@@ -393,6 +395,7 @@ module Utils = {
     let messages = get(chat);
     let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
       List.fold_left(
+        ~f=
         (
           (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
           msg: Message.Model.t,
@@ -413,9 +416,14 @@ module Utils = {
               Some(i)
             | _ => last_compaction_idx
             };
-          (i + 1, last_agent_idx', last_agent_tokens', last_compaction_idx');
+            (
+              i + 1,
+              last_agent_idx',
+              last_agent_tokens',
+              last_compaction_idx',
+            );
         },
-        (0, None, None, None),
+        ~init=(0, None, None, None),
         messages,
       );
     switch (last_compaction_idx, last_agent_idx, last_agent_tokens) {

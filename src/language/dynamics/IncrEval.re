@@ -193,6 +193,7 @@ let is_runtime_dependency = EvalInfo.is_runtime_dependency;
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
+    ~f=
     (projected, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         projected;
@@ -209,6 +210,7 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_left(
+    ~f=
     (acc, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         acc;
@@ -231,6 +233,7 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   env
   |> Environment.to_list
   |> List.fold_left(
+       ~f=
        (acc, (name, _)) =>
          Maps.StringMap.add(
            name,
@@ -241,13 +244,13 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
            },
            acc,
          ),
-       empty_reuse_map,
+       ~init=empty_reuse_map,
      );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
   List.fold_left(
-    (acc, name) => Maps.StringMap.remove(name, acc),
-    reuse_map,
+    ~f=(acc, name) => Maps.StringMap.remove(name, acc),
+    ~init=reuse_map,
     Pat.bound_vars(pat),
   );
 
@@ -291,17 +294,17 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.concat;
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([ListIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([ListIndex(arity, i), ...path], p))
+      |> List.concat;
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat) |> List.to_seq |> Maps.StringMap.of_seq;
+  go([], pat) |> Maps.StringMap.of_list;
 };
 
 let with_pat_provenance =
@@ -333,7 +336,8 @@ let reuse_check =
     : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
+  let* () =
+    OptUtil.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
@@ -349,7 +353,11 @@ let reuse_check =
     /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
        operator @@ -> @@@) change display and stuck-application semantics,
        so they must invalidate reuse too */
-    && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
+    && List.equal(
+         Option.equal(String.equal),
+         Exp.lexeme_trace(entry.prev_elab),
+         Exp.lexeme_trace(info.elab_term),
+       );
   let* () = OptUtil.some_if(elab_same, ());
 
   let* () =

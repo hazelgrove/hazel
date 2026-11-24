@@ -1,6 +1,7 @@
 open Util;
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* === Deletion-inverse scoreboard ===
    (plans/completion-heuristics.md, "Scoreboard v2 spec")
@@ -50,6 +51,7 @@ let build = (text: string): Zipper.t =>
 /* Token stream, whitespace/grout-insensitive, shards in place */
 let rec tokens = (seg: Segment.t): list(string) =>
   List.concat_map(
+    ~f=
     (p: Piece.t) =>
       switch (p) {
       | Secondary(_)
@@ -75,14 +77,16 @@ let targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
-          List.iter(walk, t.children);
+            List.iter(~f=walk, t.children);
           if (Tile.arity(t) > 1) {
             switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
             | shards =>
               List.iter(
+                  ~f=
                 ((i, m: Measured.measurement)) =>
                   acc := [(Tile.token(t, i), m.last), ...acc^],
                 shards,
@@ -123,7 +127,11 @@ let perform_soft = (z: Zipper.t, acts: list(Action.t)): option(Zipper.t) => {
     | exception _ => None
     };
   };
-  List.fold_left((z, a) => Option.bind(z, z => step(z, a)), Some(z), acts);
+  List.fold_left(
+    ~f=(z, a) => Option.bind(z, ~f=z => step(z, a)),
+    ~init=Some(z),
+    acts,
+  );
 };
 
 let completed_tokens = (z: Zipper.t): list(string) => {
@@ -171,13 +179,15 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
   let shards = targets(z0);
   let shards =
     prefix_only
-      ? List.filter(((tok, _)) => Token.length(tok) > 1, shards) : shards;
+      ? List.filter(~f=((tok, _)) => Token.length(tok) > 1, shards)
+      : shards;
   List.fold_left(
+    ~f=
     (acc, (tok, pt: Point.t)) => {
       let k = prefix_only ? 1 : Token.length(tok);
       let acts =
         [Action.Move(Point(pt, None))]
-        @ List.init(k, _ => Action.Destruct(Local(Left, ByChar)));
+          @ List.init(k, ~f=_ => Action.Destruct(Local(Left, ByChar)));
       switch (perform_soft(z0, acts)) {
       | None =>
         print_endline(
@@ -199,7 +209,8 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
           tokens(Zipper.unselect_and_zip(~erase_buffer=true, z'));
         let replacement =
           prefix_only
-            ? Some(String.sub(tok, 0, Token.length(tok) - 1)) : None;
+              ? Some(String.sub(tok, ~pos=0, ~len=Token.length(tok) - 1))
+              : None;
         if (!evidence_intact(~replacement, original, mutated, tok)) {
           print_endline(
             Printf.sprintf(
@@ -209,7 +220,7 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
               tok,
               pt.row,
               pt.col,
-              String.concat(" ", mutated),
+                String.concat(~sep=" ", mutated),
             ),
           );
           {
@@ -229,7 +240,7 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
                 tok,
                 pt.row,
                 pt.col,
-                String.concat(" ", got),
+                  String.concat(~sep=" ", got),
               ),
             );
           };
@@ -241,7 +252,7 @@ let run_class = (~prefix_only: bool, name: string, text: string): outcome => {
         };
       };
     },
-    {
+    ~init={
       restored: 0,
       destroyed: 0,
       total: 0,
@@ -259,15 +270,17 @@ let closer_targets = (z: Zipper.t): list((Token.t, Point.t)) => {
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
-          List.iter(walk, t.children);
+            List.iter(~f=walk, t.children);
           let n = Tile.arity(t);
           if (n > 1) {
             switch (Measured.find_shards(~msg="scoreboard", t, measured)) {
             | shards =>
               List.iter(
+                  ~f=
                 ((i, m: Measured.measurement)) =>
                   if (i == n - 1) {
                     acc := [(Tile.token(t, i), m.last), ...acc^];
@@ -299,16 +312,17 @@ let run_pairs = (name: string, text: string): joint_outcome => {
     a.row < b.row || a.row == b.row && a.col < b.col;
   let pairs =
     closers
-    |> List.concat_map(((t1, p1)) =>
+    |> List.concat_map(~f=((t1, p1)) =>
          closers
-         |> List.filter_map(((t2, p2)) =>
+         |> List.filter_map(~f=((t2, p2)) =>
               lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
             )
        );
   List.fold_left(
+    ~f=
     (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
       let del = tok =>
-        List.init(Token.length(tok), _ =>
+          List.init(Token.length(tok), ~f=_ =>
           Action.Destruct(Action.Local(Left, ByChar))
         );
       let acts =
@@ -352,7 +366,7 @@ let run_pairs = (name: string, text: string): joint_outcome => {
               name,
               inc > 0 ? "INCOMPLETE" : "MISS",
               where,
-              String.concat(" ", got),
+                String.concat(~sep=" ", got),
             ),
           );
         };
@@ -363,7 +377,7 @@ let run_pairs = (name: string, text: string): joint_outcome => {
         };
       };
     },
-    {
+    ~init={
       j_restored: 0,
       j_incomplete: 0,
       j_total: 0,
@@ -390,9 +404,9 @@ type accept_outcome = {
 let entries_of =
     (seg: Segment.t): list((Id.t, Util.Direction.t, string, Id.t)) =>
   CanonicalCompletion.for_editor(~root=Exp, seg).insertions
-  |> List.concat_map((i: CanonicalCompletion.insertion) =>
+  |> List.concat_map(~f=(i: CanonicalCompletion.insertion) =>
        i.delimiters
-       |> List.filter_map((d: CanonicalCompletion.delimiter_info) =>
+       |> List.filter_map(~f=(d: CanonicalCompletion.delimiter_info) =>
             switch (d.of_shard) {
             | Some((tid, _)) => Some((i.adjacent_id, i.side, d.text, tid))
             | None => None
@@ -407,17 +421,18 @@ let run_accept = (name: string, text: string): accept_outcome => {
     a.row < b.row || a.row == b.row && a.col < b.col;
   let pairs =
     closers
-    |> List.concat_map(((t1, p1)) =>
+    |> List.concat_map(~f=((t1, p1)) =>
          closers
-         |> List.filter_map(((t2, p2)) =>
+         |> List.filter_map(~f=((t2, p2)) =>
               lt(p1, p2) ? Some(((t1, p1), (t2, p2))) : None
             )
        );
   let del = tok =>
-    List.init(Token.length(tok), _ =>
+    List.init(Token.length(tok), ~f=_ =>
       Action.Destruct(Action.Local(Left, ByChar))
     );
   List.fold_left(
+    ~f=
     (acc, ((tok_l, pt_l: Point.t), (tok_r, pt_r: Point.t))) => {
       let acts =
         [Action.Move(Point(pt_r, None))]
@@ -434,17 +449,21 @@ let run_accept = (name: string, text: string): accept_outcome => {
         let entries = entries_of(seg);
         let tiles =
           entries
-          |> List.map(((_, _, _, tid)) => tid)
-          |> List.sort_uniq(compare);
+            |> List.map(~f=((_, _, _, tid)) => tid)
+            |> List.dedup_and_sort(~compare=Id.compare);
         List.length(tiles) < 2
           ? acc
           /* per-tile single acceptance */
           : {
             let acc =
               List.fold_left(
+                  ~f=
                 (acc, tid) =>
                   switch (
-                    perform_soft(z', [Action.ApplyCompletion(One(tid))])
+                        perform_soft(
+                          z',
+                          [Action.ApplyCompletion(One(tid))],
+                        )
                   ) {
                   | None => {
                       ...acc,
@@ -460,12 +479,14 @@ let run_accept = (name: string, text: string): accept_outcome => {
                       );
                     let survivors =
                       entries
-                      |> List.filter(((_, _, _, t)) => !Id.equal(t, tid));
+                          |> List.filter(~f=((_, _, _, t)) =>
+                               !Id.equal(t, tid)
+                             );
                     let ok =
                       survivors
-                      |> List.for_all(((a, sd, tx, _)) =>
+                          |> List.for_all(~f=((a, sd, tx, _)) =>
                            entries2
-                           |> List.exists(((a', sd', tx', _)) =>
+                               |> List.exists(~f=((a', sd', tx', _)) =>
                                 Id.equal(a, a') && sd == sd' && tx == tx'
                               )
                          );
@@ -474,7 +495,8 @@ let run_accept = (name: string, text: string): accept_outcome => {
                         Printf.sprintf(
                           "[%s/accept] SHIFTED applying %s at %d:%d+%d:%d",
                           name,
-                          Id.to_string(tid) |> String.sub(_, 0, 8),
+                              Id.to_string(tid)
+                              |> String.sub(_, ~pos=0, ~len=8),
                           pt_l.row,
                           pt_l.col,
                           pt_r.row,
@@ -489,7 +511,7 @@ let run_accept = (name: string, text: string): accept_outcome => {
                       a_total: acc.a_total + 1,
                     };
                   },
-                acc,
+                  ~init=acc,
                 tiles,
               );
             /* reverse-trace full sequence: accept in reverse insertion
@@ -500,26 +522,33 @@ let run_accept = (name: string, text: string): accept_outcome => {
               );
             let order =
               entries
-              |> List.map(((_, _, _, tid)) => tid)
+                |> List.map(~f=((_, _, _, tid)) => tid)
               |> List.fold_left(
-                   (seen, t) => List.mem(t, seen) ? seen : seen @ [t],
-                   [],
+                     ~f=
+                       (seen, t) =>
+                         List.mem(seen, t, ~equal=Id.equal)
+                           ? seen : seen @ [t],
+                     ~init=[],
                  )
               |> List.rev;
             let final =
               List.fold_left(
+                  ~f=
                 (zo, tid) =>
                   switch (zo) {
                   | None => None
                   | Some(z) =>
                     switch (
-                      perform_soft(z, [Action.ApplyCompletion(One(tid))])
+                          perform_soft(
+                            z,
+                            [Action.ApplyCompletion(One(tid))],
+                          )
                     ) {
                     | Some(z2) => Some(z2)
                     | None => Some(z) /* already discharged en route */
                     }
                   },
-                Some(z'),
+                  ~init=Some(z'),
                 order,
               );
             let converged =
@@ -549,7 +578,7 @@ let run_accept = (name: string, text: string): accept_outcome => {
           };
       };
     },
-    {
+    ~init={
       a_stable: 0,
       a_shifted: 0,
       a_failed: 0,
@@ -580,12 +609,12 @@ let accept_pins = [
 
 let accept_tests =
   accept_pins
-  |> List.map(((name, pin)) =>
+  |> List.map(~f=((name, pin)) =>
        test_case(
          name ++ " accept",
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let o = run_accept(name, text);
            let shown =
              Printf.sprintf(
@@ -621,12 +650,12 @@ let pair_pins = [
 
 let pair_tests =
   pair_pins
-  |> List.map(((name, pin)) =>
+  |> List.map(~f=((name, pin)) =>
        test_case(
          name ++ " pairs",
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let o = run_pairs(name, text);
            let shown =
              Printf.sprintf(
@@ -660,12 +689,12 @@ let pins = [
 
 let scoreboard_tests =
   pins
-  |> List.map(((name, full_pin, prefix_pin)) =>
+  |> List.map(~f=((name, full_pin, prefix_pin)) =>
        test_case(
          name,
          `Slow,
          () => {
-           let text = List.assoc(name, corpus);
+           let text = List.Assoc.find_exn(corpus, name, ~equal=String.equal);
            let full = run_class(~prefix_only=false, name, text);
            let prefix = run_class(~prefix_only=true, name, text);
            let show = o =>

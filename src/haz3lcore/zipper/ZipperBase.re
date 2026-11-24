@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 include CaretBase;
 
@@ -40,7 +41,7 @@ let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
     x =>
       [
         (id, Refractors.mk_entry(~model?, kind)),
-        ...List.filter(((id', _)) => id' != id, x),
+        ...List.filter(~f=((id', _)) => id' != id, x),
       ],
     z,
   );
@@ -125,7 +126,7 @@ module MapPiece = {
 
   /* what [f] leaves alone comes back as the same objects */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    let next = seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let next = seg |> List.concat_map(~f=p => f(p)) |> List.map(~f=of_piece(f));
     Segment.ptr_eq(seg, next) ? seg : next;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
@@ -157,8 +158,8 @@ module MapPiece = {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
+        List.map(~f=of_segment(f), fst(ancestor.children)),
+        List.map(~f=of_segment(f), snd(ancestor.children)),
       ),
     };
   };
@@ -170,7 +171,7 @@ module MapPiece = {
   );
 
   let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(f), ancestors);
+    List.map(~f=of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {
@@ -203,7 +204,7 @@ module MapPiece = {
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
-    let sibs = (List.concat_map(f, l), List.concat_map(f, r));
+    let sibs = (List.concat_map(~f, l), List.concat_map(~f, r));
     put_siblings(sibs, z);
   };
 
@@ -250,8 +251,8 @@ module MapSegment = {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
+        List.map(~f=of_segment(f), fst(ancestor.children)),
+        List.map(~f=of_segment(f), snd(ancestor.children)),
       ),
     };
   };
@@ -263,7 +264,7 @@ module MapSegment = {
   );
 
   let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(f), ancestors);
+    List.map(~f=of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {

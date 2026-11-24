@@ -6,7 +6,7 @@
    roots (`M` in `M.T`): its free variables that are bound as values. */
 let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
   Typ.free_vars(typ)
-  |> List.filter_map(name =>
+  |> List.filter_map(~f=name =>
        switch (Ctx.lookup_var(ctx, name)) {
        | Some(_) =>
          Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
@@ -25,7 +25,7 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
       collect_pat_type_refs(ctx, p),
     ])
   | Tuple(ps)
-  | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
+  | ListLit(ps) => CoCtx.union(List.map(~f=collect_pat_type_refs(ctx), ps))
   | Cons(p1, p2)
   | TupLabel(p1, p2)
   | Ap(p1, p2) =>
@@ -42,7 +42,7 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
    are expanded in the exported member types. */
 let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
   items
-  |> List.filter_map((item: Mod.t) =>
+  |> List.filter_map(~f=(item: Mod.t) =>
        switch (item.term) {
        | ModType({term: Var(n), _}, _) => Some(n)
        | _ => None
@@ -52,7 +52,7 @@ let declared_type_names = (items: list(Mod.t)): list(Var.t) =>
 
 /* Whether a later item declares type member [name] again. */
 let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
-  List.exists(String.equal(name), declared_type_names(later));
+  List.exists(~f=String.equal(name), declared_type_names(later));
 
 /* What the signature expects of each member, read in the body's context:
    an outer alias named like a type the body [declared] is expanded, so the
@@ -60,9 +60,9 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 let expected_members =
     (~ctx: Ctx.t, ~declared: list(Var.t), ana_items: list(Sig.t))
     : list(Sig.member) => {
-  let expand = name => List.exists(String.equal(name), declared);
+  let expand = name => List.exists(~f=String.equal(name), declared);
   Sig.members(ana_items)
-  |> List.map((m: Sig.member) =>
+  |> List.map(~f=(m: Sig.member) =>
        switch (m) {
        | Val(name, ty) => Sig.Val(name, Typ.normalize(~expand, ctx, ty))
        | TypeManifest(name, ty) =>
@@ -70,6 +70,7 @@ let expected_members =
        }
      );
 };
+
 
 /* An expectation on a binder pattern and the names it holds to it. */
 type pat_expectation = {
@@ -116,7 +117,7 @@ let rec expected_pat_type =
   switch (pat.term) {
   | Var(x) =>
     Sig.find_value(expected, x)
-    |> Option.map(ty =>
+    |> Option.map(~f=ty =>
          {
            ty,
            names: [x],
@@ -127,19 +128,19 @@ let rec expected_pat_type =
   | Projector(_, p) => go(p)
   | TupLabel({term: Label(l), _}, p) =>
     go(p)
-    |> Option.map(e =>
+    |> Option.map(~f=e =>
          {
            ...e,
            ty: TupLabel(Label(l) |> Typ.temp, e.ty) |> Typ.temp,
          }
        )
   | Tuple(ps) =>
-    let es = List.map(go, ps);
-    List.exists(Option.is_some, es)
+    let es = List.map(~f=go, ps);
+    List.exists(~f=Option.is_some, es)
       ? Some({
           ty:
             Prod(
-              List.map(
+              List.map(~f=
                 Option.fold(
                   ~none=Unknown(SynSwitch) |> Typ.temp,
                   ~some=(e: pat_expectation) =>
@@ -150,16 +151,16 @@ let rec expected_pat_type =
             )
             |> Typ.temp,
           names:
-            List.concat_map(
+            List.concat_map(~f=
               Option.fold(~none=[], ~some=(e: pat_expectation) => e.names),
               es,
             ),
         })
       : None;
   | Cons(p1, p2) =>
-    meet_expectations(~ctx, [Option.map(list_of, go(p1)), go(p2)])
+    meet_expectations(~ctx, [Option.map(~f=list_of, go(p1)), go(p2)])
   | ListLit(ps) =>
-    meet_expectations(~ctx, List.map(p => Option.map(list_of, go(p)), ps))
+    meet_expectations(~ctx, List.map(~f=p => Option.map(~f=list_of, go(p)), ps))
   | TupLabel(_, _)
   | Ap(_, _)
   | Invalid(_)
@@ -193,7 +194,7 @@ let missing_items =
     (~ana_items: list(Sig.t), have: list(Sig.t)): list(Sig.t) => {
   let have = Sig.members(have);
   ana_items
-  |> List.filter(item =>
+  |> List.filter(~f=item =>
        switch (Sig.member_of_item(item)) {
        | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
        | Some(TypeManifest(t, _)) =>
@@ -207,7 +208,7 @@ let missing_items =
    hole in a binding position of a `let` pattern, or a hole module or type
    name. Holes in definitions and annotations do not count. */
 let has_hole_binder = (items: list(Mod.t)): bool =>
-  List.exists(
+  List.exists(~f=
     (item: Mod.t) =>
       switch (item.term) {
       | EmptyHole
@@ -220,6 +221,7 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
       | ModVal(_)
       | Invalid(_) => false
       },
+
     items,
   );
 
@@ -256,16 +258,16 @@ let sealed =
     )
     : list(Sig.t) => {
   have
-  |> List.map(item =>
+  |> List.map(~f=item =>
        switch (Sig.member_of_item(item)) {
-       | Some(Val(x, ty)) when List.exists(String.equal(x), checked) =>
+       | Some(Val(x, ty)) when List.exists(~f=String.equal(x), checked) =>
          switch (Sig.find_value(expected, x)) {
          | Some(expected) =>
            Sig.map_typ(_ => StaticsBase.fixed_typ(ctx, expected, ty), item)
          | None => item
          }
        | Some(TypeManifest(name, _))
-           when List.exists(String.equal(name), mismatched_types) =>
+           when List.exists(~f=String.equal(name), mismatched_types) =>
          switch (Sig.find_type_def(expected, name)) {
          | Some(expected) => Sig.map_typ(_ => expected, item)
          | None => item

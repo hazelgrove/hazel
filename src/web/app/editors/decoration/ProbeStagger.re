@@ -37,7 +37,7 @@ let row_ends_attr = (measured: Measured.t): Attr.t => {
     | None => "0"
     }
   )
-  |> String.concat(",")
+  |> String.concat(~sep=",")
   |> Attr.create(row_ends_attr_name);
 };
 
@@ -58,7 +58,7 @@ let row_ends_of_container = (el: Js.t(Dom_html.element)): array(int) =>
     el##getAttribute(Js.string(row_ends_attr_name)),
     () => [||],
     s =>
-      switch (List.find_opt(((c, a, _)) => c === el && a === s, parsed^)) {
+      switch (List.find(~f=((c, a, _)) => c === el && a === s, parsed^)) {
       | Some((_, _, ends)) => ends
       | None =>
         let ends = parse_row_ends(s);
@@ -132,6 +132,7 @@ let items_of_container =
   };
   (
     List.sort(
+    ~compare=
       (a: item, b: item) =>
         a.row == b.row
           ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
@@ -153,12 +154,13 @@ let solve =
     /* (first row, last row, left col, right col) of placed displays */
     let occupied: ref(list((int, int, int, int))) = ref([]);
     List.iter(
+      ~f=
       (it: item) => {
         let rows_spanned =
           max(
             1,
             int_of_float(
-              Float.ceil(it.h_px /. font_metrics.row_height -. 0.2),
+                Float.round_up(it.h_px /. font_metrics.row_height -. 0.2),
             ),
           );
         let last_row = it.row + rows_spanned - 1;
@@ -167,17 +169,20 @@ let solve =
           floor_col := max(floor_col^, row_end(r) + offside_offset);
         };
         let w_cols =
-          int_of_float(Float.ceil(it.w_px /. font_metrics.col_width));
+            int_of_float(Float.round_up(it.w_px /. font_metrics.col_width));
         /* first-fit: slide into the leftmost gap at or after the floor —
            a display can sit BEFORE one from a row above when the overhang
            above leaves room (no unnecessary staggering) */
         let blockers =
           occupied^
-          |> List.filter(((a, b, _, _)) => !(last_row < a || b < it.row))
-          |> List.map(((_, _, l, r)) => (l, r))
-          |> List.sort(((l1, _), (l2, _)) => compare(l1, l2));
+            |> List.filter(~f=((a, b, _, _)) =>
+                 !(last_row < a || b < it.row)
+               )
+            |> List.map(~f=((_, _, l, r)) => (l, r))
+            |> List.sort(~compare=((l1, _), (l2, _)) => compare(l1, l2));
         let x = ref(floor_col^);
         List.iter(
+            ~f=
           ((l, r)) =>
             if (x^ + w_cols + stack_gap <= l) {
               (); /* fits entirely before this blocker */

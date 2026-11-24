@@ -29,12 +29,12 @@ let chips_of = (input: string): list((int, int, string)) => {
     ~owned=CompletionQuery.chips_at_caret(~root=Exp, ~seg=engine_seg, z),
     engine_seg,
   )
-  |> List.map((c: QuiverDec.positioned_insertion) =>
+  |> List.map(~f=(c: QuiverDec.positioned_insertion) =>
        (
          c.row,
          c.col,
          c.delimiters
-         |> List.map((d: CanonicalCompletion.delimiter_info) =>
+         |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
               d.text
               ++ (
                 switch (d.typed_len) {
@@ -43,15 +43,15 @@ let chips_of = (input: string): list((int, int, string)) => {
                 }
               )
             )
-         |> String.concat(" "),
+         |> String.concat(~sep=" "),
        )
      );
 };
 
 let show = chips =>
   chips
-  |> List.map(((r, c, s)) => Printf.sprintf("(%d,%d)[%s]", r, c, s))
-  |> String.concat(" ");
+  |> List.map(~f=((r, c, s)) => Printf.sprintf("(%d,%d)[%s]", r, c, s))
+  |> String.concat(~sep=" ");
 
 let chip_case = (~name, ~input, ~expected) =>
   test_case(name, `Quick, () =>
@@ -61,14 +61,19 @@ let chip_case = (~name, ~input, ~expected) =>
 let flagpole_edges =
   test_case("flagpole joins every caret profile", `Quick, () => {
     List.iter(
+      ~f=
       font_metrics =>
         List.iter(
+            ~f=
           side =>
             List.iter(
+                  ~f=
               shape =>
                 List.iter(
+                        ~f=
                   row =>
                     List.iter(
+                              ~f=
                       col => {
                         let geometry =
                           QuiverDec.flagpole_geometry(
@@ -79,13 +84,20 @@ let flagpole_edges =
                           );
                         /* Read the rendered caret path's first horizontal edge, independently
                            of the flagpole positioning code. Include fractional font sizes. */
-                        switch (CaretDec.caret_base_path(side, shape)) {
-                        | [Util.SvgUtil.Path.M({x, y}), H_({dx}), ..._] =>
+                                  switch (
+                                    CaretDec.caret_base_path(side, shape)
+                                  ) {
+                                  | [
+                                      Util.SvgUtil.Path.M({x, y}),
+                                      H_({dx}),
+                                      ..._,
+                                    ] =>
                           let origin_x =
                             float_of_int(col)
                             *. font_metrics.FontMetrics.col_width;
                           let origin_y =
-                            float_of_int(row) *. font_metrics.row_height;
+                                      float_of_int(row)
+                                      *. font_metrics.row_height;
                           check(
                             float(1e-8),
                             "left edge",
@@ -105,7 +117,9 @@ let flagpole_edges =
                             geometry.top +. geometry.height,
                           );
                         | _ =>
-                          fail("Caret must start with a horizontal top edge")
+                                    fail(
+                                      "Caret must start with a horizontal top edge",
+                                    )
                         };
                       },
                       [0, 7],

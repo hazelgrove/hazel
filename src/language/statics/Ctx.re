@@ -89,24 +89,27 @@ let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
 
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
+    ~f=
     fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
     | _ => None,
     ctx.entries,
   );
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
+    ~f=
     fun
-    | TVarEntry(v) when v.name == name => Some(v.id)
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.id)
     | _ => None,
     ctx.entries,
   );
 
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
+    ~f=
     fun
-    | LivelitEntry(v) when v.name == name => Some(v)
+      | LivelitEntry(v) when String.equal(v.name, name) => Some(v)
     | _ => None,
     ctx.entries,
   );
@@ -120,8 +123,9 @@ let get_id: entry => Id.t =
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
+    ~f=
     fun
-    | VarEntry(v) when v.name == name => Some(v)
+      | VarEntry(v) when String.equal(v.name, name) => Some(v)
     | _ => None,
     ctx.entries,
   );
@@ -138,9 +142,10 @@ let newest_var_or_ctr =
         ],
       ) =>
   List.find_map(
+    ~f=
     fun
-    | VarEntry(v) when v.name == name => Some(`Var(v))
-    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
+      | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
+      | ConstructorEntry(c) when String.equal(c.name, name) => Some(`Ctr(c))
     | _ => None,
     ctx.entries,
   );
@@ -165,8 +170,9 @@ let newest_tvar_or_var =
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
+    ~f=
     fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
+      | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
     | _ => None,
     ctx.entries,
   );
@@ -199,10 +205,10 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
   prepend_entries(
     ctx,
     List.filter_map(
+      ~f=
       fun
       | ConstructorMap.Variant(ctr, ann, typ) => {
-          assert(ann.ids != []);
-          let ctr_id = List.hd(ann.ids);
+            let ctr_id = List.hd_exn(ann.ids);
           Some(
             ConstructorEntry({
               name: ctr,
@@ -255,7 +261,7 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   };
 };
 
-module VarSet = Set.Make(Var);
+module VarSet = Stdlib.Set.Make(Var);
 
 /* Removes shadowed variables from the context */
 let filter_shadowed = (ctx: t): t =>
@@ -278,23 +284,25 @@ let filter_shadowed = (ctx: t): t =>
              : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
          }
        },
-       ([], VarSet.empty, VarSet.empty),
+         ~init=([], VarSet.empty, VarSet.empty),
      )
   |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
 
 let filter_stepper_filter_variables = (ctx: t): t =>
   ctx.entries
-  |> List.filter(entry =>
+  |> List.filter(~f=entry =>
        switch (entry) {
        | VarEntry({name, _})
        | ConstructorEntry({name, _})
        | LivelitEntry({name, _})
-       | TVarEntry({name, _}) => !String.starts_with(~prefix="$", name)
+       | TVarEntry({name, _}) => !String.is_prefix(~prefix="$", name)
        }
+
      )
   |> of_entries(~use_mode=ctx.use_mode);
 
-let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
+let is_base_typ = (name: string): bool =>
+  List.exists(~f=String.equal(name), Token.base_typs);
 
 let empty_pre_elaboration =
   of_entries(~use_mode=Some(Operators.default_mode), []);
@@ -315,6 +323,7 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
 
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(
+    ~f=
     fun
     | VarEntry(v) => Some(v)
     | _ => None,

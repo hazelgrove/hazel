@@ -22,7 +22,7 @@ let view =
     switch (editors) {
     | Scratch(m)
     | Documentation(m) =>
-      let scratchpad = List.nth(m.scratchpads, m.current);
+      let scratchpad = List.nth_exn(m.scratchpads, m.current);
       switch (scratchpad.kind) {
       | ScratchMode.Scratchpad.Code({program, agent, _}) =>
         let editor = Program.whole_memo(program);

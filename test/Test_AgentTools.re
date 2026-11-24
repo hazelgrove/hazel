@@ -4,6 +4,7 @@ open Language;
 open Action;
 open CompositionActions;
 open Util;
+open Poly;
 
 let mk_zipper = (code: string): Zipper.t => {
   switch (Parser.to_zipper(~root=Exp, code)) {
@@ -65,6 +66,7 @@ let run_insert_at_program_boundary =
       col_target: None,
     },
   );
+
 };
 
 /** Test-only string compare for rendered programs: keep [[StringUtil]] minimal;
@@ -78,10 +80,10 @@ let normalize_rendered_for_compare = (s: string): string => {
   s
   |> StringUtil.replace(StringUtil.regexp("\r\n"), _, "\n")
   |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n")
-  |> String.split_on_char('\n')
-  |> List.map(trim_horizontal_edges_line)
-  |> String.concat("\n")
-  |> String.trim
+  |> String.split(~on='\n')
+  |> List.map(~f=trim_horizontal_edges_line)
+  |> String.concat(~sep="\n")
+  |> String.strip
   |> StringUtil.replace(StringUtil.regexp("[\\s]+"), _, " ");
 };
 
@@ -102,7 +104,7 @@ let check_rendered = (name: string, expected: string, actual: string) => {
 let check_rendered_exact = (name: string, expected: string, actual: string) => {
   check(
     testable(Fmt.string, (a, b) =>
-      String.equal(String.trim(a), String.trim(b))
+      String.equal(String.strip(a), String.strip(b))
     ),
     name,
     expected,
@@ -1446,7 +1448,7 @@ let invalid_path_tests = (
       "deeply repeated path segments fail without applying edit (regression: agent bug 3)",
       `Quick,
       () => {
-        let long_path = String.concat("/", List.init(40, _ => "a"));
+        let long_path = String.concat(~sep="/", List.init(40, ~f=_ => "a"));
         expect_any_failure(
           "let a = 1 in a",
           Replace(long_path ++ ":definition", "2"),
@@ -1552,7 +1554,7 @@ let resolved = (code: string, path: string): option(string) => {
 /* every entry's canonical path, in program order */
 let paths_of = (code: string): list(string) => {
   let seg = Zipper.unselect_and_zip(mk_zipper(code));
-  List.map(
+  List.map(~f=
     ((_, p)) => EntryPath.to_string(p),
     EntryPath.entries(~root=Exp, seg),
   );
@@ -1683,12 +1685,14 @@ let high_level_node_map_tests = (
       "types and lets after a type chain",
       `Quick,
       () => {
+
         check(
           list(string),
           "paths",
           ["Board", "initial_board", "=>"],
           paths_of("type Board = Int in let initial_board : Board = 1 in ?"),
         );
+
         check(
           list(string),
           "chess",
@@ -1753,7 +1757,7 @@ let composition_view_print_tests = {
    ============================================================ */
 
 let mk_json_args = (pairs: list((string, string))): API.Json.t => {
-  `Assoc(List.map(((k, v)) => (k, `String(v)), pairs));
+  `Assoc(List.map(~f=((k, v)) => (k, `String(v)), pairs));
 };
 
 let composition_utils_tests = (
@@ -2415,7 +2419,7 @@ let blast_amount(i: Item): Int =
               Insert(After("Creatures/Items/name"), code),
             )
           ) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2762,6 +2766,7 @@ let agent_context_tests = (
   "AgentContext",
   [
     test_case(
+
       "path M resolves for capitalized module",
       `Quick,
       () => {
@@ -2904,7 +2909,7 @@ let error_print_tests = (
         let z = mk_zipper("let a : Int = true in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has errors", true, List.length(errors) > 0);
+        check(bool, "has errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
@@ -2914,7 +2919,7 @@ let error_print_tests = (
         let z = mk_zipper("let a = xyz in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has unbound errors", true, List.length(errors) > 0);
+        check(bool, "has unbound errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
@@ -2981,6 +2986,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (API.Json.dot("type", tool)) {
             | Some(`String("function")) => ()
@@ -3005,6 +3011,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (API.Json.dot("function", tool)) {
             | Some(func) =>
@@ -3037,7 +3044,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.tools;
-        let first_tool = List.nth(tools, 0);
+        let first_tool = List.nth_exn(tools, 0);
         switch (get_tool_name(first_tool)) {
         | Some("open") => ()
         | Some(name) =>
@@ -3052,6 +3059,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_description(tool)) {
             | Some(desc) =>
@@ -3073,8 +3081,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.tools;
-        let names = List.filter_map(get_tool_name, tools);
-        let unique_names = List.sort_uniq(String.compare, names);
+        let names = List.filter_map(~f=get_tool_name, tools);
+        let unique_names = List.dedup_and_sort(~compare=String.compare, names);
         check(
           int,
           "all names unique",
@@ -3091,9 +3099,11 @@ let tool_json_tests = (
         let edit_tool_names = ["replace", "delete", "move", "rename"];
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
-            | Some(name) when List.mem(name, edit_tool_names) =>
+              | Some(name)
+                  when List.mem(edit_tool_names, name, ~equal=Poly.equal) =>
               switch (API.Json.dot("function", tool)) {
               | Some(func) =>
                 switch (API.Json.dot("parameters", func)) {
@@ -3102,6 +3112,7 @@ let tool_json_tests = (
                   | Some(`List(required)) =>
                     let has_target =
                       List.exists(
+                          ~f=
                         r =>
                           switch (r) {
                           | `String("target") => true
@@ -3137,9 +3148,11 @@ let tool_json_tests = (
         ];
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
-            | Some(name) when List.mem(name, probe_tool_names) =>
+              | Some(name)
+                  when List.mem(probe_tool_names, name, ~equal=Poly.equal) =>
               switch (API.Json.dot("function", tool)) {
               | Some(func) =>
                 switch (API.Json.dot("parameters", func)) {
@@ -3148,6 +3161,7 @@ let tool_json_tests = (
                   | Some(`List(required)) =>
                     let has_paths =
                       List.exists(
+                          ~f=
                         r =>
                           switch (r) {
                           | `String("paths") => true
@@ -3173,25 +3187,27 @@ let tool_json_tests = (
       "tool registry covers exactly the declared tools",
       `Quick,
       () => {
-        let declared = List.filter_map(get_tool_name, CompositionUtils.tools);
-        let registered = List.map(fst, Web.Agent.ToolUtils.registry);
+        let declared = List.filter_map(~f=get_tool_name, CompositionUtils.tools);
+        let registered = List.map(~f=fst, Web.Agent.ToolUtils.registry);
         List.iter(
+          ~f=
           name =>
             check(
               bool,
               "registry entry for " ++ name,
               true,
-              List.mem(name, registered),
+                List.mem(registered, name, ~equal=Poly.equal),
             ),
           declared,
         );
         List.iter(
+          ~f=
           name =>
             check(
               bool,
               "declared tool for registry entry " ++ name,
               true,
-              List.mem(name, declared),
+                List.mem(declared, name, ~equal=Poly.equal),
             ),
           registered,
         );
@@ -3856,7 +3872,12 @@ let contains_str = (~needle: string, haystack: string): bool => {
   let nl = String.length(needle)
   and hl = String.length(haystack);
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (
+      String.equal(String.sub(haystack, ~pos=i, ~len=nl), needle)
+      || go(i + 1)
+    );
   nl == 0 || go(0);
 };
 
@@ -3872,6 +3893,7 @@ let expect_failure_mentioning =
   | Ok(_) => Alcotest.fail("Expected failure: " ++ name)
   | Error(Action.Failure.Composition_action_failure(msg)) =>
     List.iter(
+      ~f=
       needle =>
         check(
           bool,
@@ -4509,18 +4531,23 @@ let fn_sugar_tests = (
    ============================================================ */
 
 let leading_newline = (s: string): bool =>
-  String.length(s) > 0 && s.[0] == '\n';
+  String.length(s) > 0 && Char.equal(s.[0], '\n');
 
 let trailing_newlines = (s: string): int => {
   let rec go = (i, acc) =>
-    i >= 0 && s.[i] == '\n' ? go(i - 1, acc + 1) : acc;
+    i >= 0 && Char.equal(s.[i], '\n') ? go(i - 1, acc + 1) : acc;
   go(String.length(s) - 1, 0);
 };
 
 let contains_sub = (haystack: string, needle: string): bool => {
   let (hl, nl) = (String.length(haystack), String.length(needle));
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (
+      String.equal(String.sub(haystack, ~pos=i, ~len=nl), needle)
+      || go(i + 1)
+    );
   nl == 0 || go(0);
 };
 
@@ -4911,7 +4938,7 @@ let module_member_tests = (
            re-selecting the new 400-term definition to revalidate its
            projectors (Select.term) walks it token by token. */
         let big =
-          String.concat(" + ", List.init(400, i => string_of_int(i)));
+          String.concat(~sep=" + ", List.init(400, ~f=string_of_int));
         switch (
           run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
@@ -4930,7 +4957,7 @@ let module_member_tests = (
       () => {
         /* Bare comma tuple: Menhir-rejected even with hole completion.
            New code is read by the batch parser only */
-        let big = String.concat(", ", List.init(900, i => string_of_int(i)));
+        let big = String.concat(~sep=", ", List.init(900, ~f=i => string_of_int(i)));
         switch (
           run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {

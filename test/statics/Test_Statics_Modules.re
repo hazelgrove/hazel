@@ -1692,7 +1692,7 @@ let test_shorthand_member_mismatch_on_definition =
       Alcotest.(check(bool))(
         "definition marked",
         true,
-        List.exists(
+        List.exists(~f=
           is_mismatch,
           marks_at(
             src,
@@ -1799,7 +1799,7 @@ let test_typfun_binder_info_consistent =
         Language.Id.Map.bindings(
           statics(parse_exp(typfun_binder_source("X"))),
         )
-        |> List.filter_map(((_, info: Language.Info.t)) =>
+        |> List.filter_map(~f=((_, info: Language.Info.t)) =>
              switch (info) {
              | InfoTPat({user_term: {term: Var("X"), _}, marks, message, _}) =>
                Some((marks, message))
@@ -1810,7 +1810,7 @@ let test_typfun_binder_info_consistent =
         "every X binder is OK",
         true,
         !List.is_empty(infos)
-        && List.for_all(
+        && List.for_all(~f=
              fun
              | ([], Some(Language.Message.TPatOk(_))) => true
              | _ => false,
@@ -1960,7 +1960,7 @@ let f = fun (x : M.P.U) -> x in f|};
         };
       switch (
         Language.Id.Map.bindings(statics(parse_exp(src)))
-        |> List.find_map(((_, info)) => message_of_path_to("P", info))
+        |> List.find_map(~f=((_, info)) => message_of_path_to("P", info))
       ) {
       | Some(Some(Language.Message.TypOk(Type(ty)))) =>
         Alcotest.check(
@@ -2059,7 +2059,7 @@ let test_type_member_matches_through_alias =
     "A type member matches a declaration that names it through an alias",
     `Quick,
     () =>
-    List.iter(
+    List.iter(~f=
       source =>
         Alcotest.(check(int))(source, 0, List.length(marks_of(source))),
       [
@@ -2210,7 +2210,7 @@ let test_annotated_member_checked_against_signature =
       Alcotest.(check(bool))(
         "Int expected, Bool annotated, on the annotation",
         true,
-        List.exists(is_int_vs(Bool), marks_at(src, is_annotation)),
+        List.exists(~f=is_int_vs(Bool), marks_at(src, is_annotation)),
       );
     },
   );
@@ -2226,13 +2226,13 @@ let test_annotated_member_checked_alongside_type_member =
       Alcotest.(check(bool))(
         "the type member and the annotation",
         true,
-        List.exists(
+        List.exists(~f=
           fun
           | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
           | _ => false,
           marks,
         )
-        && List.exists(is_int_vs(Bool), marks_at(src, is_annotation)),
+        && List.exists(~f=is_int_vs(Bool), marks_at(src, is_annotation)),
       );
     },
   );
@@ -2254,7 +2254,7 @@ let test_unannotated_component_keeps_definition_type =
         fun
         | InfoExp({user_term: {term: Var("b"), _}, _}) => true
         | _ => false;
-      List.exists(is_atom_vs(String, Int), marks_at(src, is_b))
+      List.exists(~f=is_atom_vs(String, Int), marks_at(src, is_b))
         ? Alcotest.fail("#2742 is fixed: drop the skip") : Alcotest.skip();
     },
   );
@@ -2311,7 +2311,7 @@ let test_folded_sig_pattern_checked_alike =
               },
           plain,
         );
-      let marks = e => statics(e) |> errors |> List.concat_map(snd);
+      let marks = e => statics(e) |> errors |> List.concat_map(~f=snd);
       Alcotest.(check(bool))(
         "the written one has marks",
         false,
@@ -2343,7 +2343,7 @@ let test_evaluated_module_binding_recloses_earlier_members =
       Alcotest.(check(bool))(
         "f(true) is Bool against Int",
         true,
-        switch (statics(exp) |> errors |> List.concat_map(snd)) {
+        switch (statics(exp) |> errors |> List.concat_map(~f=snd)) {
         | [m] => is_int_vs(Bool, m)
         | _ => false
         },
@@ -2362,7 +2362,7 @@ let test_outer_alias_member_exported_expanded =
         );
       let body_ty =
         Language.Id.Map.bindings(statics(exp))
-        |> List.find_map(((_, info: Language.Info.t)) =>
+        |> List.find_map(~f=((_, info: Language.Info.t)) =>
              switch (info) {
              | InfoExp({user_term: {term: Module(_), _}, elab_syn_ty, _}) =>
                Some(elab_syn_ty)
@@ -2500,7 +2500,7 @@ let marked_sig_item = (source): option(Language.Sig.t) => {
         | InfoSig({user_term, marks: [_, ..._], _})
             when
               !
-                List.exists(
+                List.exists(~f=
                   (i: Language.Sig.t) =>
                     Language.Sig.rep_id(i) == Language.Sig.rep_id(user_term),
                   acc,
@@ -2534,7 +2534,7 @@ let test_duplicate_value_member_on_later_item =
       let later =
         switch (
           marked_sig_item({|type S = { let x : Int; let x : Bool } in 1|})
-          |> Option.map(Language.Sig.member_of_item)
+          |> Option.map(~f=Language.Sig.member_of_item)
         ) {
         | Some(Some(Val("x", ty))) =>
           switch (Language.Typ.term_of(ty)) {
@@ -2594,8 +2594,8 @@ let test_later_declaration_is_not_the_member =
       Alcotest.(check(bool))(
         "a duplicate mark and an Int-vs-Bool mismatch",
         true,
-        List.exists(duplicate_value("x"), marks)
-        && List.exists(is_int_vs(Bool), marks)
+        List.exists(~f=duplicate_value("x"), marks)
+        && List.exists(~f=is_int_vs(Bool), marks)
         && List.length(marks) == 2,
       );
     },
@@ -2640,8 +2640,8 @@ let test_sig_let_not_a_name_declares_nothing =
       Alcotest.(check(bool))(
         "the item mark and a missing member",
         true,
-        List.exists(not_a_name, marks)
-        && List.exists(
+        List.exists(~f=not_a_name, marks)
+        && List.exists(~f=
              (m: Language.Mark.t) =>
                switch (m) {
                | ModuleMemberNotFound({name: "a", _}) => true
@@ -2652,6 +2652,63 @@ let test_sig_let_not_a_name_declares_nothing =
         && List.length(marks) == 2,
       );
     },
+
+/* Module definitions wrapped in Parens or a projector */
+let test_qualified_type_parenthesized_module =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized module definition",
+    {|module M = ({ type T = Int }) in let y : M.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_folded_module =
+  fully_consistent_typecheck(
+    "Qualified type access: folded module definition",
+    {|module M = ^^fold({ type T = Int }) in let y : M.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized module alias",
+    {|module M = { type T = Int } in module N = (M) in let y : N.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_nested_module =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized nested module definition",
+    {|module M = { module Inner = ({ type T = Int }) } in let y : M.Inner.T = 2 in y + 0|},
+    Some(int()),
+  );
+
+let test_qualified_type_parenthesized_nested_alias =
+  fully_consistent_typecheck(
+    "Qualified type access: parenthesized nested module alias",
+    {|module G = { type P = Int } in module S = { module H = (G) } in let y : S.H.P = 2 in y + 0|},
+    Some(int()),
+  );
+
+/* Signature items whose bound variable is wrapped in Parens or a projector */
+let test_sig_parenthesized_var =
+  fully_consistent_typecheck(
+    "Sig item with parenthesized variable",
+    {|let s1 : { let (x) : Int } = { let x = 42 } in s1.x|},
+    Some(int()),
+  );
+
+let test_sig_folded_var =
+  fully_consistent_typecheck(
+    "Sig item with folded variable",
+    {|let s1 : { let ^^fold(x) : Int } = { let x = 42 } in s1.x|},
+    Some(int()),
+  );
+
+let test_sig_parenthesized_ascription =
+  fully_consistent_typecheck(
+    "Sig item with parenthesized ascription",
+    {|let s1 : { let (x : Int) } = { let x = 42 } in s1.x|},
+    Some(int()),
   );
 
 let tests = (
@@ -2890,5 +2947,15 @@ let tests = (
     test_renamed_alias_leaves_module_parameter_paths,
     test_renamed_alias_leaves_signature_member_paths,
     test_renamed_alias_leaves_module_member_paths,
+
+    /* Parenthesized / folded module definitions */
+    test_qualified_type_parenthesized_module,
+    test_qualified_type_folded_module,
+    test_qualified_type_parenthesized_alias,
+    test_qualified_type_parenthesized_nested_module,
+    test_qualified_type_parenthesized_nested_alias,
+    test_sig_parenthesized_var,
+    test_sig_folded_var,
+    test_sig_parenthesized_ascription,
   ],
 );

@@ -14,7 +14,7 @@ module View = {
     let num_rows = List.length(Measured.piece_rows(measured));
     let empty_row = row => {
       let result =
-        List.nth_opt(List.rev(Measured.piece_rows(measured)), row);
+        List.nth(List.rev(Measured.piece_rows(measured)), row);
       switch (result) {
       | Some(value) =>
         switch (value) {
@@ -65,7 +65,7 @@ module View = {
      Returns "\n" for empty rows, or the line number (absolute or relative) with newline.
      */
     let index_to_text = (i): string => {
-      let line_number = List.nth(processed_list, i);
+      let line_number = List.nth_exn(processed_list, i);
       line_number == 0
         ? "\n"  // if this is a line we want to skip
         : {
@@ -101,7 +101,7 @@ module View = {
         [
           Node.span(
             ~attrs=[Attr.classes(["code-text", "line-numbers-text"])],
-            List.init(num_rows, (i): Node.t => {index_to_span(i)}),
+            List.init(num_rows, ~f=(i): Node.t => {index_to_span(i)}),
           ),
         ],
       ),

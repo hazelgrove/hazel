@@ -1,6 +1,7 @@
 open Util;
 open Language;
 
+
 /* The assistant's structural tools on the editing kernel (plans/
    editing-in-the-large.html, phase 4). Each tool is an adapter: it
    resolves its path (EntryPath) against the program as the reply's
@@ -64,7 +65,7 @@ let statics_for =
 /* ---- the code a call brings ---- */
 
 /* form delimiters that lex like names: as a binder, the code misreads */
-let reserved_words: list(Token.t) = List.filter(Token.is_var, Form.delims);
+let reserved_words: list(Token.t) = List.filter(~f=Token.is_var, Form.delims);
 
 let reserved_binder = (code: string): option(string) => {
   let word = c =>
@@ -90,8 +91,8 @@ let reserved_binder = (code: string): option(string) => {
     switch (words) {
     | [intro, w, ..._]
         when
-          List.mem(intro, ["let", "fun", "type"])
-          && List.mem(w, reserved_words) =>
+          List.mem(["let", "fun", "type"], intro, ~equal=Poly.equal)
+          && List.mem(reserved_words, w, ~equal=Poly.equal) =>
       Some(w)
     | [_, ...rest] => scan(rest)
     | [] => None
@@ -273,7 +274,7 @@ let plan = (~target=?, what, ops) => {
    meant */
 let elsewhere = (p: program, el: string): list(string) =>
   P.entries(~root=p.root, p.seg)
-  |> List.filter_map(((_, path: P.t)) =>
+  |> List.filter_map(~f=((_, path: P.t)) =>
        switch (List.rev(path.elems)) {
        | [last, _, ..._] when P.elem_to_string(last) == el =>
          Some(P.to_string(path))
@@ -284,29 +285,25 @@ let elsewhere = (p: program, el: string): list(string) =>
 /* " Did you mean `a`, `b`?" for [paths], up to 3 */
 let did_you_mean = (paths: list(string)): string =>
   switch (
-    List.fold_left(
-      (acc, c) => List.mem(c, acc) ? acc : acc @ [c],
-      [],
-      paths,
-    )
+    List.fold(paths, ~init=[], ~f=(acc, c) => List.mem(acc, c, ~equal=Poly.equal) ? acc : acc @ [c])
   ) {
   | [] => ""
   | paths =>
     " Did you mean "
-    ++ String.concat(
+    ++ String.concat(~sep=
          ", ",
-         List.map(c => "`" ++ c ++ "`", ListUtil.take(3, paths)),
+         List.map(~f=c => "`" ++ c ++ "`", ListUtil.take(3, paths)),
        )
     ++ "?"
   };
 
 let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
-  Option.map(P.to_string, P.describe(~root, seg, id));
+  Option.map(~f=P.to_string, P.describe(~root, seg, id));
 
 /* [msg] for [path] written as code, `f(x)` or `test f(x) end` (a paren
    or a space outside its hints' quotes), with what a path is */
 let code_hint = (path: string, msg: string): string => {
-  let path = String.trim(path);
+  let path = String.strip(path);
   let rec go = (i, quoted) =>
     i < String.length(path)
     && (
@@ -320,8 +317,8 @@ let code_hint = (path: string, msg: string): string => {
   go(0, false)
     ? msg
       ++ (
-        String.ends_with(~suffix=".", msg)
-        || String.ends_with(~suffix="?", msg)
+        String.is_suffix(~suffix=".", msg)
+        || String.is_suffix(~suffix="?", msg)
           ? " " : ". "
       )
       ++ "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map)."
@@ -433,7 +430,7 @@ let name_problem = (kind: P.kind, s: string): option(string) =>
 /* [binder]'s uses in [seg] by [info_map]: tokens of [seg] */
 let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
   Rename.references(~info_map, binder)
-  |> List.filter(id => K.is_token(~root, id, seg));
+  |> List.filter(~f=id => K.is_token(~root, id, seg));
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
@@ -460,10 +457,10 @@ let binders_in =
       (acc, p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
-          let acc = List.fold_left(go, acc, t.children);
+          let acc = List.fold(t.children, ~init=acc, ~f=go);
           switch (
             Tile.single_token(t),
-            Option.bind(Id.Map.find_opt(t.id, info_map), Info.binder_name),
+            Option.bind(Id.Map.find_opt(t.id, info_map), ~f=Info.binder_name),
           ) {
           | (Some(x), Some(_)) => [(x, t.id), ...acc]
           | _ => acc
@@ -966,13 +963,13 @@ let run_call = (p: program, call: call): result((plan, K.change), string) => {
 /* the entries the change made that [before] didn't have, by path: those
    new in the level of each row it added */
 let added_paths = (~root, before: Segment.t, after: Segment.t, rows) =>
-  List.concat_map(
+  List.concat_map(~f=
     row =>
       switch (P.find(~root, after, row)) {
       | Some(steps) =>
         let (lv, _) = ListUtil.last(steps);
         Array.to_list(lv.spans)
-        |> List.filter((sp: S.span) =>
+        |> List.filter(~f=(sp: S.span) =>
              P.find(~root, before, sp.anchor) == None
            )
         |> List.filter_map((sp: S.span) =>
@@ -1906,9 +1903,9 @@ module Reply = {
     ++ " before, "
     ++ string_of_int(n1)
     ++ " after), in: "
-    ++ String.concat(
+    ++ String.concat(~sep=
          ", ",
-         List.map(
+         List.map(~f=
            ((g, n)) => g ++ " (" ++ string_of_int(n) ++ ")",
            groups,
          ),
@@ -1979,6 +1976,7 @@ module Reply = {
         switch (r.checks.dangling_uses ? dangling(r, final) : None) {
         | Some(f) => Error(f)
         | None =>
+
           switch (
             List.find_map(check => check(r, final), [capture, rebinding])
           ) {
@@ -2028,7 +2026,7 @@ module Reply = {
         program: seg,
         statics: final,
         reports:
-          List.map(
+          List.map(~f=
             (m: made) => {
               let said = report(~root=r.root, m);
               let sep = String.contains(said, '\n') ? "\n" : " ";

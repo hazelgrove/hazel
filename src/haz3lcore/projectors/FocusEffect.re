@@ -178,7 +178,7 @@ let keep_focus = (): unit => {
   switch (active_element()) {
   | Some(el) when is_live_offside(el) =>
     let id = Js.to_string(el##.id);
-    kept := id == "" ? None : Some(id);
+    kept := String.equal(id, "") ? None : Some(id);
     blur_expected := false;
   | _ =>
     switch (returning_probe()) {
@@ -188,6 +188,7 @@ let keep_focus = (): unit => {
          or deleted), or something else took focus on purpose */
       kept := None;
       blur_expected := false;
+
     }
   };
   pressed_elsewhere := false;

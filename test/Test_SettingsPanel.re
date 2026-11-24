@@ -9,6 +9,7 @@ let old_blob = () => {
     | List(items) =>
       List(
         List.filter_map(
+          ~f=
           (item: Sexplib.Sexp.t) =>
             switch (item) {
             | List([Atom("settings_folded"), ..._]) => None
@@ -25,7 +26,10 @@ let old_blob = () => {
     i
     + String.length(needle) <= String.length(text)
     && (
-      String.sub(text, i, String.length(needle)) == needle
+      String.equal(
+        String.sub(text, ~pos=i, ~len=String.length(needle)),
+        needle,
+      )
       || has(i + 1, needle)
     );
   check(bool, "no fold state saved", false, has(0, "settings_folded"));

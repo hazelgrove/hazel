@@ -10,12 +10,12 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
     switch (Js_error.of_exn(exn)) {
     | Some(e) =>
       Firebug.console##error_2(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
         Js.string(Option.value(~default="", Js_error.stack(e))),
       )
     | None =>
       Firebug.console##error(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
       )
     }
   );
@@ -55,6 +55,7 @@ let overlay_change =
     )
     : (option(string), option(string), option(AgentToolResult.diff)) =>
   switch (action) {
+
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
@@ -125,7 +126,7 @@ let execute_one_tool_call =
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
         report_tool_exn(tool_call.name, exn);
-        Error(Failure.Info(Printexc.to_string(exn)));
+        Error(Failure.Info(Exn.to_string(exn)));
       }
     ) {
     | Ok((model, editor)) =>

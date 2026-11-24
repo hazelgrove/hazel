@@ -323,7 +323,7 @@ module Transition = (EV: EV_MODE) => {
         | MatchedArrow(t1, t2) => MatchedArrow(go_typ(t1), go_typ(t2))
         | MatchedProd(t1, t2) => MatchedProd(go_typ(t1), go_typ(t2))
         | MatchedSum(t1, t2) => MatchedSum(go_typ(t1), go_typ(t2))
-        | Ctx(es) => Ctx(List.map(go_exp, es))
+        | Ctx(es) => Ctx(List.map(~f=go_exp, es))
         | Cons(p, ctx) =>
           switch (Drv.Exp.term_of(go_exp(ctx))) {
           | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
@@ -335,7 +335,7 @@ module Transition = (EV: EV_MODE) => {
             Drv.Exp.term_of(go_exp(e2)),
           ) {
           | (Ctx(es1), Ctx(es2)) =>
-            Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
+            Ctx(List.fold_left(~f=Drv.Exp.cons_ctx, ~init=es2, es1))
           | _ => Concat(go_exp(e1), go_exp(e2))
           }
         | Type(t) => Type(go_typ(t))
@@ -357,7 +357,7 @@ module Transition = (EV: EV_MODE) => {
         | Fix(x, e) => Fix(go_pat(x), go_exp(e))
         | Fun(x, e) => Fun(go_pat(x), go_exp(e))
         | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
-        | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Tuple(es) => Tuple(List.map(~f=go_exp, es))
         | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
         | Triv => Triv
         | PrjL(e) => PrjL(go_exp(e))
@@ -503,7 +503,7 @@ module Transition = (EV: EV_MODE) => {
       // | `Environment =>
       let. _ = otherwise(env, Var(x) |> rewrap);
       switch (Environment.lookup(env, x)) {
-      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
+      | Some({term: Var(y), _}) when String.equal(x, y) => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
         let is_value =
           switch (d |> Exp.term_of) {
@@ -547,7 +547,10 @@ module Transition = (EV: EV_MODE) => {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
-          env |> List.rev |> List.map(((s, _)) => s) |> String.concat(", ")
+          env
+          |> List.rev
+          |> List.map(~f=((s, _)) => s)
+          |> String.concat(~sep=", ")
         };
       };
 
@@ -617,7 +620,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
-    | FixF(dp, d1, None) when mode == `Environment =>
+    | FixF(dp, d1, None) when Poly.equal(mode, `Environment) =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
@@ -636,6 +639,7 @@ module Transition = (EV: EV_MODE) => {
         | None =>
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
+            ~f=
             (Binding.{name: v, id: _}) =>
               (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
             Pat.bindings(dp),
@@ -795,7 +799,7 @@ module Transition = (EV: EV_MODE) => {
               at: None,
             });
           };
-        | FunNoEnv(dp, d3) when mode == `Substitution =>
+        | FunNoEnv(dp, d3) when Poly.equal(mode, `Substitution) =>
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
@@ -822,7 +826,7 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          if (ident == "print") {
+          if (String.equal(ident, "print")) {
             /* Println for probes study */
             Step({
               expr: tuple([]),
@@ -863,7 +867,7 @@ module Transition = (EV: EV_MODE) => {
           let n_args =
             List.length(
               List.filter(
-                fun
+                ~f=fun
                 | {term: Deferral(_), _} => true
                 | _ => false: Exp.t => bool,
                 d4s,
@@ -880,9 +884,9 @@ module Transition = (EV: EV_MODE) => {
               switch ((deferred: list(Exp.t))) {
               | [] => []
               | [{term: Deferral(_), _}, ...deferred] =>
-                /* I can use List.hd and List.tl here because let-unbox ensure that
+                /* I can use List.hd_exn and List.tl_exn here because let-unbox ensure that
                    there are the correct number of args */
-                [List.hd(args), ...go(deferred, List.tl(args))]
+                [List.hd_exn(args), ...go(deferred, List.tl_exn(args))]
               | [x, ...deferred] => [x, ...go(deferred, args)]
               };
             go(d4s, args);
@@ -956,10 +960,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n = (Atom(in_ty), d1');
         let expr =
           switch (f(n)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
           };
@@ -1022,7 +1026,10 @@ module Transition = (EV: EV_MODE) => {
           | None => Indet
           | Some(true) =>
             Step({
-              expr: generated(Atom(Bool(poly_op == Equals))),
+              expr:
+                generated(
+                  Atom(Bool(Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
@@ -1030,7 +1037,10 @@ module Transition = (EV: EV_MODE) => {
             })
           | Some(false) =>
             Step({
-              expr: generated(Atom(Bool(poly_op != Equals))),
+              expr:
+                generated(
+                  Atom(Bool(!Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: false,
@@ -1043,10 +1053,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n2 = (Atom(in_ty2), d2);
         let expr =
           switch (f(n1, n2)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
           };
@@ -1085,9 +1095,10 @@ module Transition = (EV: EV_MODE) => {
           | Tuple(ds) =>
             let projected =
               List.filter_map(
+                ~f=
                 d => {
                   switch (Exp.match_tup_label(d)) {
-                  | Some((s, e)) when name == s => Some(e)
+                    | Some((s, e)) when String.equal(name, s) => Some(e)
                   | _ => None
                   }
                 },
@@ -1124,7 +1135,7 @@ module Transition = (EV: EV_MODE) => {
               : Indet
           | ListLit(ds) =>
             let mapped =
-              List.map(d => generated(Dot(d, generated(lab))), ds);
+              List.map(~f=d => generated(Dot(d, generated(lab))), ds);
             let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
@@ -1162,6 +1173,7 @@ module Transition = (EV: EV_MODE) => {
       let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
         tuple(
           List.map(
+            ~f=
             ((lab, d)) =>
               switch (lab) {
               | Some(l) => tup_label(label(l), d)
@@ -1269,7 +1281,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^ || mode == `Substitution) {
+      if (needs_closure^ || Poly.equal(mode, `Substitution)) {
         Constructor;
       } else {
         Step({
@@ -1555,7 +1567,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind(s) => String.cat("substitution for ", s)
+  | LetBind(s) => "substitution for " ++ s
   | TheoremBind => "theorem substitution"
   | RecordTheorem => "record theorem"
   | Seq => "sequence"

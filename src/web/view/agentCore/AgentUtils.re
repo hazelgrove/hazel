@@ -1,9 +1,10 @@
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
+open Poly;
 
 let init = (): Model.t => {
-  let system_prompt = CompositionPrompt.self |> String.concat("\n");
+  let system_prompt = String.concat(~sep="\n", CompositionPrompt.self);
   let dev_notes = {|Development mode active. Follow developer instructions precisely. Be concise. No first-person pronouns.|};
   /* reset_transients is the source of truth for the transient fields below. */
   Model.reset_transients({
@@ -121,6 +122,7 @@ let llm_context_snapshot_text =
       cws,
       chat,
     );
+
   Message.Utils.context_snapshot_body_for_llm(
     ~session_mode,
     view,

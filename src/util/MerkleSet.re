@@ -35,7 +35,7 @@ let empty: t('a) = {
 
 /* 32 bits: js_of_ocaml's ints are 32-bit */
 let singleton = (x: 'a): t('a) => {
-  hash: 1 lsl (Hashtbl.hash(x) land 31),
+  hash: 1 lsl (Stdlib.Hashtbl.hash(x) land 31),
   node: Leaf(x),
 };
 

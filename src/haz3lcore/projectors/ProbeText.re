@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Poly;
 
 /* Text-only probe display for LLM/agent consumption.
  * Outputs program text with probed expressions wrapped in Unicode
@@ -25,6 +26,7 @@ let get_probes_by_line =
     (refractors: Zipper.Refractor.RefractorList.t, measured: Measured.t)
     : IntMap.t(list(Id.t)) =>
   List.fold_right(
+    ~f=
     ((tile_id, entry: Zipper.Refractor.entry), acc) =>
       if (entry.kind != Probe) {
         acc;
@@ -41,8 +43,8 @@ let get_probes_by_line =
         | None => acc
         };
       },
+    ~init=IntMap.empty,
     refractors,
-    IntMap.empty,
   );
 
 /* Longest grapheme prefix of `s` fitting within `cols` display columns. */
@@ -119,18 +121,18 @@ let probe_values =
       let selected = ListUtil.take(max_samples, samples);
       let formatted =
         List.map(
-          (s: Sample.t) => format_value(~max_length=40, s.value),
+          ~f=(s: Sample.t) => format_value(~max_length=40, s.value),
           selected,
         );
       switch (formatted) {
       | [] => None
       | [single] => Some(single)
-      | multiple => Some(String.concat(value_separator, multiple))
+      | multiple => Some(String.concat(~sep=value_separator, multiple))
       };
     };
   };
 
-  List.filter_map(format_one, probe_ids);
+  List.filter_map(~f=format_one, probe_ids);
 };
 
 /* Format probe values for a line */
@@ -144,7 +146,9 @@ let format_probe_values =
   switch (probe_values(~window, ~probe_map, probe_ids)) {
   | [] => ""
   | values =>
-    value_spacing ++ value_divider ++ String.concat(value_separator, values)
+    value_spacing
+    ++ value_divider
+    ++ String.concat(~sep=value_separator, values)
   };
 
 /* Main entry point: generate text representation of program with probes */
@@ -189,9 +193,10 @@ let of_segment =
       base_text;
     } else {
       /* Split into lines and append probe values */
-      let lines = String.split_on_char('\n', base_text);
+      let lines = String.split(base_text, ~on='\n');
       let augmented_lines =
         List.mapi(
+          ~f=
           (line_num: int, line: string): string => {
             switch (IntMap.find_opt(line_num, probes_by_line)) {
             | None => line
@@ -203,7 +208,7 @@ let of_segment =
           },
           lines,
         );
-      String.concat("\n", augmented_lines);
+      String.concat(~sep="\n", augmented_lines);
     };
   };
 };

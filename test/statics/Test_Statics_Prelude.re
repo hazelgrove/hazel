@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
@@ -54,12 +55,13 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
       && Typ.fast_equal(f1.ty, f2.ty)
       && List.equal(String.equal, f1.members, f2.members)
     | (DuplicateVar(n1, t1), DuplicateVar(n2, t2)) =>
-      n1 == n2 && Typ.fast_equal(t1, t2)
-    | (BadToken(s1), BadToken(s2)) => s1 == s2
+      String.equal(n1, n2) && Typ.fast_equal(t1, t2)
+    | (BadToken(s1), BadToken(s2)) => String.equal(s1, s2)
     | (BadLabel(a1), BadLabel(a2)) => Any.fast_equal(a1, a2)
     | (InvalidLabel(l1, ls1), InvalidLabel(l2, ls2)) =>
-      l1 == l2 && ls1 == ls2
-    | (UnexpectedLabelSort(l1), UnexpectedLabelSort(l2)) => l1 == l2
+      String.equal(l1, l2) && ls1 == ls2
+    | (UnexpectedLabelSort(l1), UnexpectedLabelSort(l2)) =>
+      String.equal(l1, l2)
     | (
         TupleLabelError({
           malformed_labels: m1,
@@ -101,7 +103,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
         IsLivelitName({name: n1, exp_t: e1}),
         IsLivelitName({name: n2, exp_t: e2}),
       ) =>
-      n1 == n2 && Typ.fast_equal(e1, e2)
+      String.equal(n1, n2) && Typ.fast_equal(e1, e2)
     | (BadTrivAp(t1), BadTrivAp(t2)) => Typ.fast_equal(t1, t2)
     | (DotOperatorRequiresTuple, DotOperatorRequiresTuple) => true
     | (TupleExtensionRequiresTuples, TupleExtensionRequiresTuples) => true
@@ -141,7 +143,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
     | (Redundant, Redundant) => true
     | (ExpectedConstructor, ExpectedConstructor) => true
-    | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => a == b
+    | (TypFreeTypeVariable(a), TypFreeTypeVariable(b)) => String.equal(a, b)
     | (TypDuplicateConstructor(c1), TypDuplicateConstructor(c2)) =>
       Constructor.equal(c1, c2)
     | (TypDuplicateLabels(ls1, t1), TypDuplicateLabels(ls2, t2)) =>
@@ -154,7 +156,7 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TypWantConstructorFoundAp, TypWantConstructorFoundAp) => true
     | (TypParseFailure, TypParseFailure) => true
     | (TPatShadowsType(s1, src1), TPatShadowsType(s2, src2)) =>
-      s1 == s2 && src1 == src2
+      String.equal(s1, s2) && src1 == src2
     | (TPatNotAVar(e1), TPatNotAVar(e2)) => e1 == e2
     | _ => false
     };
@@ -209,7 +211,7 @@ let parse_exp = (s: string) => {
 let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
-      switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+      switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
       | Some(info) =>
         switch (Info.marks_of(info), Info.warnings_of(info)) {
         | ([], []) => None
@@ -217,11 +219,14 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
         | ([], ws) => Some(Warnings(ws))
         | ([_, ..._], [_, ..._]) =>
           Alcotest.fail(
-            "Both marks and warnings on the id: " ++ Id.show(List.hd(ids)),
+            "Both marks and warnings on the id: "
+            ++ Id.show(List.hd_exn(ids)),
           )
         }
       | None =>
-        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+        Alcotest.fail(
+          "No info found for the id: " ++ Id.show(List.hd_exn(ids)),
+        )
       }
     },
     exp,
@@ -288,7 +293,7 @@ let annotated_tree_test =
     testable_typ,
     "Expected Type",
     expected_typ(expected_type),
-    Option.get(type_of(~static_map=s, term)),
+    Option.value_exn(type_of(~static_map=s, term)),
   );
 };
 
@@ -299,7 +304,8 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
 
       Alcotest.check(
         neg(list(testable_issue)),
@@ -314,13 +320,14 @@ let inconsistent_typecheck = (name, exp) => {
 let synthesized_type = (~normalize=false, static_map, exp) =>
   type_of(~static_map, exp)
   |> Option.map(
-       normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
+       ~f=normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fn.id,
      );
 
 let check_fully_consistent = (~normalize=false, serialized, expected) => {
   let exp = parse_exp(serialized);
   let s = statics(exp);
-  let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+      let errors =
+        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
   Alcotest.check(list(testable_issue), "Static Errors", [], errors);
   Alcotest.check(
     Alcotest.option(testable_typ),

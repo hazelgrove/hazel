@@ -26,8 +26,9 @@ let tests = (
   [
     test_case("Real computation steps are Proper", `Quick, () => {
       List.iter(
-        k =>
-          check(bool, show_step_kind(k) ++ " proper", true, is_proper(k)),
+        ~f=
+          k =>
+            check(bool, show_step_kind(k) ++ " proper", true, is_proper(k)),
         [
           FunAp,
           DeferredAp,
@@ -46,20 +47,21 @@ let tests = (
     test_case(
       "Bookkeeping steps are Administrative and non-delegating", `Quick, () => {
       List.iter(
-        k => {
-          check(
-            bool,
-            show_step_kind(k) ++ " administrative",
-            false,
-            is_proper(k),
-          );
-          check(
-            bool,
-            show_step_kind(k) ++ " non-delegating",
-            false,
-            may_delegate(k),
-          );
-        },
+        ~f=
+          k => {
+            check(
+              bool,
+              show_step_kind(k) ++ " administrative",
+              false,
+              is_proper(k),
+            );
+            check(
+              bool,
+              show_step_kind(k) ++ " non-delegating",
+              false,
+              may_delegate(k),
+            );
+          },
         [
           WrapClosure,
           FixClosure,
@@ -75,13 +77,14 @@ let tests = (
       `Quick,
       () => {
         List.iter(
-          k =>
-            check(
-              bool,
-              show_step_kind(k) ++ " may delegate",
-              true,
-              may_delegate(k),
-            ),
+          ~f=
+            k =>
+              check(
+                bool,
+                show_step_kind(k) ++ " may delegate",
+                true,
+                may_delegate(k),
+              ),
           [Ascription, AscriptionAp, AscriptionTypAp],
         );
         /* The delegating class is exactly the ascription family: any rule
@@ -92,7 +95,7 @@ let tests = (
           "no delegating kinds outside the ascription family",
           false,
           List.exists(
-            may_delegate,
+            ~f=may_delegate,
             [
               FunAp,
               DeferredAp,

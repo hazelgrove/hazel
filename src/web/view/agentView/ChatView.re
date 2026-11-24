@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Icons;
+open Poly;
 
 let view =
     (
@@ -292,6 +293,7 @@ let view =
             div(
               ~attrs=[clss(["history-chat-list"])],
               List.map(
+                ~f=
                 (chat: Chat.Model.t) => {
                   let is_active = chat.id == chat_system.current;
                   let classes =
