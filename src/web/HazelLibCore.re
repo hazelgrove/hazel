@@ -745,7 +745,7 @@ module Direct = {
      its whole subtree is converted, both ways at once (page to compiled and compiled to page), so a value handed back
      (the state a page got from one call, given to the next) or a part shared with one converted before costs one
      lookup. Hazel's values are never changed, so a memo stays right as long as a page does not change an object it
-     gave or got (the rule for a page). The memos are weak, by type, and shared by every compiled function on the page.
+     gave or got (the rule for a page). The memos are by type, kept as links on the objects (so they go when the objects go), and shared by every compiled function on the page.
      A node with no converted form (a hole, a mark: not yet) would be a leaf here, held whole, converted-closed by
      itself. */
   let rec tkey = (recs: list((string, string)), t: Typ.t): string =>
@@ -1118,12 +1118,20 @@ module Direct = {
   const $Uout = v => Array.isArray(v) && v.length === 0 ? null : fail();
   const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { h: f(v[i]), t: r }; return r; };
   const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.t) { if (typeof p !== "object" || !("h" in p)) fail(); a.push(f(p.h)); } return a; };
+  /* (^ticket(795), ^report(63) #runs) a type's memo as links on the objects themselves, not two WeakMaps: on the games'
+     own runs the WeakMaps' lookups and inserts, and the collector's work for them, were most of the jit's crossing
+     (Mahjong solitaire's run: 15.4 ms through the jit with WeakMaps, 6.1 ms with links, 6.4 ms ahead of time). A page's
+     object gets a hidden link, not enumerable, so {...x} and Object.assign do not copy it into a copy the page then
+     changes; an object that cannot take one (frozen) gets a WeakMap entry; a compiled value, which no page sees, a plain
+     property. (The registry is the page's, shared by every compiled function and every copy of the library on it.) */
   const REG = globalThis.$hazelJitMemo || (globalThis.$hazelJitMemo = new Map());
-  const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { i: new WeakMap(), o: new WeakMap() }); return m; };
-  const $mi = (m, x, build) => { if (x === null || typeof x !== "object") return build(x); const c = m.i.get(x); if (c !== undefined) return c;
-    const r = build(x); m.i.set(x, r); if (r !== null && typeof r === "object") m.o.set(r, x); return r; };
-  const $mo = (m, y, build) => { if (y === null || typeof y !== "object") return build(y); const p = m.o.get(y); if (p !== undefined) return p;
-    const r = build(y); m.o.set(y, r); if (r !== null && typeof r === "object") m.i.set(r, y); return r; };
+  const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { s: Symbol("hazel-jit.converted"), f: null }); else if (!m.s) { m.s = Symbol("hazel-jit.converted"); m.f = null; } return m; };
+  const $plink = (m, a, b) => { if (Object.isExtensible(a)) Object.defineProperty(a, m.s, { value: b }); else (m.f || (m.f = new WeakMap())).set(a, b); };
+  const $pseen = (m, a) => { const c = a[m.s]; return c !== undefined ? c : m.f ? m.f.get(a) : undefined; };
+  const $mi = (m, x, build) => { if (x === null || typeof x !== "object") return build(x); const c = $pseen(m, x); if (c !== undefined) return c;
+    const r = build(x); $plink(m, x, r); if (r !== null && typeof r === "object") r[m.s] = x; return r; };
+  const $mo = (m, y, build) => { if (y === null || typeof y !== "object") return build(y); const p = y[m.s]; if (p !== undefined) return p;
+    const r = build(y); y[m.s] = r; if (r !== null && typeof r === "object") $plink(m, r, y); return r; };
 |};
   /* the factory: given the compiled function and the old way (slow), the function a page calls; None when the types
      give nothing to go by */

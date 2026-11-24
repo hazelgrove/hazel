@@ -866,6 +866,53 @@ total|};
       },
     ),
     test_case(
+      "jit: a page's changed copy of an answer crosses as the copy; a frozen object crosses",
+      `Quick,
+      () => {
+        /* (^ticket(795)) the memo links a page's object to its compiled value by a hidden property, not enumerable, so
+           {...answer} does not carry it into a copy the page then changes, as Gnome world copies World.step's answer;
+           and an object that cannot take the link (frozen) still crosses, through a WeakMap */
+        let step =
+          field(
+            HazelLibCore.jit(
+              "let step : (x = Int, y = Int) -> (x = Int, y = Int) = fun g -> (x = g.x + 1, y = g.y * 2) in step",
+            ),
+            "value",
+          );
+        let a = call(step, [as_js({|{"x": 1, "y": 1}|})]);
+        let b =
+          Js.Unsafe.fun_call(
+            Js.Unsafe.js_expr(
+              "(a => { const b = { ...a }; b.y = 100; return b; })",
+            ),
+            [|a|],
+          );
+        check(
+          string,
+          "the copy's answer",
+          {|{"x":3,"y":200}|},
+          json(call(step, [b])),
+        );
+        let frozen =
+          Js.Unsafe.fun_call(
+            Js.Unsafe.js_expr("Object.freeze"),
+            [|as_js({|{"x": 5, "y": 5}|})|],
+          );
+        check(
+          string,
+          "a frozen object",
+          {|{"x":6,"y":10}|},
+          json(call(step, [frozen])),
+        );
+        check(
+          string,
+          "and again",
+          {|{"x":6,"y":10}|},
+          json(call(step, [frozen])),
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {
