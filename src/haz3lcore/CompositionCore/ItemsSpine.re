@@ -1,5 +1,6 @@
 open Language;
 open Language.Statics;
+open Poly;
 
 /* Items-mode statics for the tool path. DefStatics analyzes every item
    alone, so an item's infos know no ancestors beyond the item root — but
@@ -60,30 +61,18 @@ let rec stamp_module_ids = (m: Map.t, e: Exp.t): Map.t =>
     let m =
       switch (Id.Map.find_opt(Exp.rep_id(e), m)) {
       | Some(info) =>
-        List.fold_left(
-          (m, id) => Id.Map.mem(id, m) ? m : Id.Map.add(id, info, m),
-          m,
-          IdTagged.ids(e),
-        )
+        List.fold(IdTagged.ids(e), ~init=m, ~f=(m, id) => Id.Map.mem(id, m) ? m : Id.Map.add(id, info, m))
       | None => m
       };
-    List.fold_left(
-      (m, it: Mod.t) =>
+    List.fold(items, ~init=m, ~f=(m, it: Mod.t) =>
         switch (it.term) {
         | ModLet(_, e)
         | ModExp(e)
         | ModuleMod(_, e) => stamp_module_ids(m, e)
         | _ => m
-        },
-      m,
-      items,
-    );
+        });
   | _ =>
-    List.fold_left(
-      stamp_module_ids,
-      m,
-      HighLevelNodeMap.Utils.child_expressions_of_exp(e),
-    )
+    List.fold(HighLevelNodeMap.Utils.child_expressions_of_exp(e), ~init=m, ~f=stamp_module_ids)
   };
 
 let merged_with_spine = (ds: DefStatics.t): Map.t => {
@@ -92,15 +81,10 @@ let merged_with_spine = (ds: DefStatics.t): Map.t => {
      member maps, which the member pass handles with the longer spine. */
   let rec go =
           (spine: list(Id.t), items: list(DefStatics.item), m: Map.t): Map.t =>
-    List.fold_left(
-      ((m, spine), it: DefStatics.item) => {
+    List.fold(items, ~init=(m, spine), ~f=((m, spine), it: DefStatics.item) => {
         let skip =
-          List.fold_left(
-            (acc, mem: DefStatics.item) =>
-              Id.Map.union((_, a, _) => Some(a), acc, mem.d_map),
-            Id.Map.empty,
-            it.d_members,
-          );
+          List.fold(it.d_members, ~init=Id.Map.empty, ~f=(acc, mem: DefStatics.item) =>
+              Id.Map.union((_, a, _) => Some(a), acc, mem.d_map));
         let m =
           spine == []
             ? m
@@ -120,10 +104,7 @@ let merged_with_spine = (ds: DefStatics.t): Map.t => {
               );
         let m = go([it.d_id, ...spine], it.d_members, m);
         (m, [it.d_id, ...spine]);
-      },
-      (m, spine),
-      items,
-    )
+      })
     |> fst;
   stamp_module_ids(go([], ds.items, ds.merged), ds.term);
 };

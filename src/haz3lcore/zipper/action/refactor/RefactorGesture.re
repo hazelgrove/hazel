@@ -6,6 +6,7 @@ open RefactorBase;
 open RefactorMove;
 open RefactorLift;
 open RefactorRegistry;
+open Poly;
 
 let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
@@ -15,7 +16,7 @@ let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
     if (n < 2) {
       [];
     } else {
-      let l = List.nth(path, n - 1);
+      let l = List.nth_exn(path, n - 1);
       switch (def_line_of(l)) {
       | None => []
       | Some((l_dl, _)) =>
@@ -26,11 +27,11 @@ let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
         let shadow_x =
           switch (dep_run_walk(path)) {
           | Some({block_dls, stop: StopLine(_, dl), _})
-              when !(block_dls |> List.for_all(m => lines_swappable(dl, m))) =>
-            let block_names = block_dls |> List.concat_map(line_exp_names);
+              when !(block_dls |> List.for_all(~f=m => lines_swappable(dl, m))) =>
+            let block_names = block_dls |> List.concat_map(~f=line_exp_names);
             let colliding =
               line_exp_names(dl)
-              |> List.filter(x => List.mem(x, block_names));
+              |> List.filter(~f=x => List.mem(block_names, x, ~equal=Poly.equal));
             switch (dl) {
             | LetLine(xp, _) => pat_binder_ids(colliding, xp)
             | TypeLine(_) => []
@@ -38,10 +39,10 @@ let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
           | _ => []
           };
         /* 2. parent-form walls */
-        let direct = List.nth(path, n - 2);
+        let direct = List.nth_exn(path, n - 2);
         let (par, c) =
           switch (IdTagged.term_of(direct)) {
-          | Parens(_) when n >= 3 => (List.nth(path, n - 3), direct)
+          | Parens(_) when n >= 3 => (List.nth_exn(path, n - 3), direct)
           | _ => (direct, l)
           };
         let parent_wall =
@@ -60,14 +61,14 @@ let hoist_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
 
             let p_minus =
               replace_node(~at=Exp.rep_id(l), ~with_=fresh(EmptyHole), par);
-            l_names |> List.exists(x => free_in(x, p_minus))
+            l_names |> List.exists(~f=x => free_in(x, p_minus))
               ? var_use_ids(l_names, p_minus) : [];
           | (Fun(fp, fbody, _, _), _)
               when same_node(fbody, c) && same_node(c, l) =>
             /* the line's name collides with a lambda param */
 
             let colliding =
-              l_names |> List.filter(x => List.mem(x, pat_var_names(fp)));
+              l_names |> List.filter(~f=x => List.mem(pat_var_names(fp), x, ~equal=Poly.equal));
             colliding == [] ? [] : pat_binder_ids(colliding, fp);
           | _ => []
           };
@@ -81,7 +82,7 @@ let sink_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | None => []
   | Some(path) =>
-    let l = List.nth(path, List.length(path) - 1);
+    let l = List.nth_exn(path, List.length(path) - 1);
     switch (def_line_of(l)) {
     | None => []
     | Some((l_dl, lbody)) =>
@@ -92,7 +93,7 @@ let sink_blockers = (~target: Id.t, program: Exp.t): list(Id.t) =>
            or shadows us (its binder) */
         let dep_uses = var_use_ids(l_names, line_material(m_dl));
         let colliding =
-          line_exp_names(m_dl) |> List.filter(x => List.mem(x, l_names));
+          line_exp_names(m_dl) |> List.filter(~f=x => List.mem(l_names, x, ~equal=Poly.equal));
         let shadow =
           switch (m_dl) {
           | LetLine(xp, _) => pat_binder_ids(colliding, xp)
@@ -118,8 +119,8 @@ let gesture_blockers =
     | Up =>
       lift_wall_blockers(~target, term)
       @ hoist_blockers(~target, term)
-      |> List.sort_uniq(compare)
-    | Down => sink_blockers(~target, term) |> List.sort_uniq(compare)
+      |> List.dedup_and_sort(~compare=compare)
+    | Down => sink_blockers(~target, term) |> List.dedup_and_sort(~compare=compare)
     | _ => []
     }
   };
@@ -194,7 +195,7 @@ let gesture =
         switch (find_hit(~hit=hit_add_param(target), term)) {
         | Some(l) =>
           switch (param_paren(l)) {
-          | Some(paren) => List.mem(target, IdTagged.ids(paren))
+          | Some(paren) => List.mem(IdTagged.ids(paren), target, ~equal=Poly.equal)
           | None => false
           }
         | None => false

@@ -1,6 +1,7 @@
 /* Function lifting and gesture diagnostics (blockers). */
 open Language;
 open RefactorBase;
+open Poly;
 
 /* === Lift to helper (abstract over the enclosing binders) ===
  * The grabbed definition — plus the contiguous block of dependency
@@ -34,24 +35,24 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
   | None => None
   | Some(path) =>
     let n = List.length(path);
-    let c = List.nth(path, n - 1);
+    let c = List.nth_exn(path, n - 1);
     switch (IdTagged.term_of(c)) {
     | Let(cp, _, cbody) when let_head_name(cp) != None =>
-      let g = Option.get(let_head_name(cp));
+      let g = Option.value_exn(let_head_name(cp));
       /* the convoy walk; at the ceiling the enclosure decides */
       let site =
         switch (dep_run_walk(path)) {
         | Some({block, stop: StopCeiling(i, anc), _}) =>
-          let top = List.hd(block);
+          let top = List.hd_exn(block);
           switch (IdTagged.term_of(anc)) {
           | Fun(fp, fbody, _, _) when same_node(fbody, top) && i >= 1 =>
             let (outer, parens) =
-              switch (IdTagged.term_of(List.nth(path, i - 1))) {
+              switch (IdTagged.term_of(List.nth_exn(path, i - 1))) {
               | Parens(_) when i >= 2 => (
-                  List.nth(path, i - 2),
-                  Some(List.nth(path, i - 1)),
+                  List.nth_exn(path, i - 2),
+                  Some(List.nth_exn(path, i - 1)),
                 )
-              | _ => (List.nth(path, i - 1), None)
+              | _ => (List.nth_exn(path, i - 1), None)
               };
             switch (IdTagged.term_of(outer)) {
             | Let(_, odef, _)
@@ -72,9 +73,14 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
             | _ => None
             };
           | Let(op, odef, _) when same_node(odef, top) =>
-            switch (FunctionSugar.detect(op)) {
+            switch (Pat.function_sugar(op)) {
             | Some((_, args, _)) =>
-              Some((anc, LiftSugar, block, pat_var_names(args) |> List.rev))
+              Some((
+                anc,
+                LiftSugar,
+                block,
+                List.concat_map(args, ~f=pat_var_names) |> List.rev,
+              ))
             | None => None
             }
           | _ => None
@@ -84,19 +90,19 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
       switch (site) {
       | None => None
       | Some((outer, enc, block, params)) =>
-        let defs = block |> List.filter_map(nd => def_line_of(nd));
+        let defs = block |> List.filter_map(~f=nd => def_line_of(nd));
         let crossed =
           params
-          |> List.filter(x =>
+          |> List.filter(~f=x =>
                defs
-               |> List.exists(((dl, _)) => free_in(x, line_material(dl)))
+               |> List.exists(~f=((dl, _)) => free_in(x, line_material(dl)))
              );
-        let carried = block |> List.filter(nd => !same_node(nd, c));
+        let carried = block |> List.filter(~f=nd => !same_node(nd, c));
         let wall_names =
           switch (IdTagged.term_of(outer), enc) {
           | (Let(op, _, _), LiftFun(_)) => pat_var_names(op)
           | (Let(op, _, _), LiftSugar) =>
-            switch (FunctionSugar.detect(op)) {
+            switch (Pat.function_sugar(op)) {
             | Some((fn, _, _)) => pat_var_names(fn)
             | None => pat_var_names(op)
             }
@@ -104,7 +110,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
           };
         let outer_minus =
           replace_node(
-            ~at=Exp.rep_id(List.hd(block)),
+            ~at=Exp.rep_id(List.hd_exn(block)),
             ~with_=fresh(EmptyHole),
             outer,
           );
@@ -117,7 +123,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
         };
         let carried_names =
           carried
-          |> List.concat_map(nd =>
+          |> List.concat_map(~f=nd =>
                switch (def_line_of(nd)) {
                | Some((dl, _)) => line_exp_names(dl)
                | None => []
@@ -128,7 +134,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
         let ok_dep_below =
           wall(
             var_use_ids(
-              carried_names |> List.filter(x => free_in(x, cbody)),
+              carried_names |> List.filter(~f=x => free_in(x, cbody)),
               cbody,
             ),
           );
@@ -137,7 +143,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
         let ok_shadow =
           wall(
             [g, ...crossed]
-            |> List.filter(x => binds_somewhere(x, cbody))
+            |> List.filter(~f=x => binds_somewhere(x, cbody))
             |> (names => names == [] ? [] : binder_ids_in(names, cbody)),
           );
         /* the enclosure's own binder mentioned in the block:
@@ -145,9 +151,9 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
         let ok_recursion =
           wall(
             defs
-            |> List.concat_map(((dl, _)) =>
+            |> List.concat_map(~f=((dl, _)) =>
                  wall_names
-                 |> List.exists(o => free_in(o, line_material(dl)))
+                 |> List.exists(~f=o => free_in(o, line_material(dl)))
                    ? var_use_ids(wall_names, line_material(dl)) : []
                ),
           );
@@ -159,7 +165,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
           );
         let ok_typ =
           carried
-          |> List.for_all(nd =>
+          |> List.for_all(~f=nd =>
                switch (def_line_of(nd)) {
                | Some((dl, _)) =>
                  !mentions_typ_names(line_typ_names(dl), cbody)
@@ -172,7 +178,7 @@ let lift_site = (~target: Id.t, program: Exp.t): option(lift_site_t) =>
         && ok_recursion
         && ok_capture
         && ok_typ
-        && !List.mem(g, wall_names)
+        && !List.mem(wall_names, g, ~equal=Poly.equal)
           ? Some({
               ls_outer: outer,
               ls_enc: enc,
@@ -204,11 +210,11 @@ let lift_function_impl: impl = {
     switch (lift_site(~target, program)) {
     | None => None
     | Some(site) =>
-      let c = List.nth(site.ls_block, List.length(site.ls_block) - 1);
+      let c = List.nth_exn(site.ls_block, List.length(site.ls_block) - 1);
       switch (IdTagged.term_of(c)) {
       | Let(cp, cdef, cbody) =>
-        let g = Option.get(let_head_name(cp));
-        let carried = site.ls_block |> List.filter(nd => !same_node(nd, c));
+        let g = Option.value_exn(let_head_name(cp));
+        let carried = site.ls_block |> List.filter(~f=nd => !same_node(nd, c));
         let sep_lead = i => i == 0 ? ([], []) : (space(), []);
         /* the helper INTERIOR: carried dep lines wrap C's def */
         /* multiline helper (andrew): with carried lets inside, the
@@ -226,11 +232,9 @@ let lift_function_impl: impl = {
           };
         let inner_sep = () => base_sep() @ space() @ space();
         let carried' =
-          carried |> List.map(nd => with_secondary((inner_sep(), []), nd));
+          carried |> List.map(~f=nd => with_secondary((inner_sep(), []), nd));
         let interior =
-          List.fold_left(
-            (inner, nd) => def_line_rebuild(nd, inner),
-            carried == []
+          List.fold(List.rev(carried'), ~init=carried == []
               ? with_secondary(
                   (space(), []),
                   cdef |> strip_leading |> strip_trailing,
@@ -238,9 +242,7 @@ let lift_function_impl: impl = {
               : with_secondary(
                   (inner_sep(), []),
                   cdef |> strip_leading |> strip_trailing,
-                ),
-            List.rev(carried'),
-          );
+                ), ~f=(inner, nd) => def_line_rebuild(nd, inner));
         /* the closing `in` on its own line for multiline helpers */
         let interior =
           carried == []
@@ -256,7 +258,7 @@ let lift_function_impl: impl = {
             fresh(
               Tuple(
                 xs
-                |> List.mapi((i, x) =>
+                |> List.mapi(~f=(i, x) =>
                      {
                        ...fresh(Var(x)),
                        annotation: {
@@ -270,7 +272,7 @@ let lift_function_impl: impl = {
           };
         let var_pats = () =>
           site.ls_crossed
-          |> List.mapi((i, x) =>
+          |> List.mapi(~f=(i, x) =>
                {
                  ...fresh_pat(Var(x)),
                  annotation: {
@@ -299,7 +301,7 @@ let lift_function_impl: impl = {
             cbody,
           );
         /* the vacated region: C's body takes the BLOCK TOP's slot */
-        let top = List.hd(site.ls_block);
+        let top = List.hd_exn(site.ls_block);
         let cbody'' = Slot.occupy(top.annotation.secondary, cbody');
         let (helper_pat, helper_def) =
           switch (site.ls_enc) {
@@ -376,7 +378,7 @@ let lift_function_impl: impl = {
             }
           | LiftSugar => Some(cbody'')
           };
-        switch (Option.bind(odef_new, rebuild_outer)) {
+        switch (Option.bind(odef_new, ~f=rebuild_outer)) {
         | None => None
         | Some((new_let, focus)) =>
           rewrite_node(
@@ -384,11 +386,11 @@ let lift_function_impl: impl = {
             ~rewrite=_ => Some((new_let, focus)),
             program,
           )
-          |> Option.map(((prog', f)) =>
+          |> Option.map(~f=((prog', f)) =>
                (
                  carry_attached_docs(
                    ~line_ids=
-                     (site.ls_block |> List.map(Exp.rep_id))
+                     (site.ls_block |> List.map(~f=Exp.rep_id))
                      @ [Exp.rep_id(site.ls_outer)],
                    ~pre=program,
                    prog',

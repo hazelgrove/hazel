@@ -49,11 +49,11 @@ let unzip_to_id =
     Id.equal(Piece.id(p), id)
     || (
       switch (p) {
-      | Tile(t) => List.exists(seg_contains, t.children)
+      | Tile(t) => List.exists(~f=seg_contains, t.children)
       | _ => false
       }
     )
-  and seg_contains = (seg: Segment.t): bool => List.exists(p_contains, seg);
+  and seg_contains = (seg: Segment.t): bool => List.exists(~f=p_contains, seg);
   let split_by = (f, xs) => {
     let rec split = (pre, xs) =>
       switch (xs) {
@@ -95,7 +95,7 @@ let unzip_to_id =
     | Some(_) => None
     };
   go(seg, [])
-  |> Option.map(relatives =>
+  |> Option.map(~f=relatives =>
        {
          selection: Selection.mk([]),
          relatives,

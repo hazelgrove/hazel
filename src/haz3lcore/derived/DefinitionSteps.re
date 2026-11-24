@@ -3,6 +3,7 @@
    retain the accepted edit's piece ids and can be applied independently to
    the presentation program. Nested blocks grow inside their parent shell. */
 open DefinitionSpans;
+open Poly;
 type path = list((Id.t, int));
 type operation = {
   path,
@@ -16,14 +17,14 @@ let rec map_at = (path: path, f, seg: Segment.t): Segment.t =>
   switch (path) {
   | [] => f(seg)
   | [(id, child), ...rest] =>
-    List.map(
+    List.map(~f=
       p =>
         switch (p) {
         | Piece.Tile(t) when t.id == id =>
           Piece.Tile({
             ...t,
             children:
-              List.mapi(
+              List.mapi(~f=
                 (i, s) => i == child ? map_at(rest, f, s) : s,
                 t.children,
               ),
@@ -49,11 +50,11 @@ type item = {
 /* Overwriting a block reparses it with new ids. The declaration's name
    identifies a replacement, so old and new versions never coexist. */
 let declaration_name = (pieces: Segment.t) =>
-  List.find_map(
+  List.find_map(~f=
     p =>
       switch (p) {
       | Piece.Tile({children: [pat, ..._], _} as t)
-          when List.mem(Tile.token(t, 0), ["let", "type", "module"]) =>
+          when List.mem(["let", "type", "module"], Tile.token(t, 0), ~equal=Poly.equal) =>
         let kind = Tile.token(t, 0);
         switch (core_ws(pat)) {
         | [Piece.Tile({children: [], _} as nt), ..._] =>
@@ -76,7 +77,7 @@ let items = seg => {
   let start = ref(0);
   let spans = item_spans(seg);
   let result =
-    List.map(
+    List.map(~f=
       sp => {
         let pieces = slice(start^, sp.sp_stop, seg);
         start := sp.sp_stop;
@@ -99,26 +100,26 @@ let items = seg => {
     : result;
 };
 let has_defs = seg =>
-  List.exists(
+  List.exists(~f=
     sp => sp.sp_kind == IDef,
     item_spans(~divided_only_tail=true, seg),
   );
 let tail = seg =>
   item_spans(seg)
-  |> List.filter(sp => sp.sp_kind != IDef)
-  |> List.concat_map(sp => slice(sp.sp_start, sp.sp_stop, seg));
+  |> List.filter(~f=sp => sp.sp_kind != IDef)
+  |> List.concat_map(~f=sp => slice(sp.sp_start, sp.sp_stop, seg));
 
 /* Use old child blocks in a changed/new parent shell, then update those
    blocks in their own operations. Ordinary expressions remain one edit. */
 let rec shell = (path, before: Segment.t, after: Segment.t) => {
   let blocks = ref([]);
   let result =
-    List.map(
+    List.map(~f=
       p =>
         switch (p) {
         | Piece.Tile(t) =>
           let old =
-            List.find_map(
+            List.find_map(~f=
               p =>
                 switch (p) {
                 | Piece.Tile(b) when b.id == t.id => Some(b)
@@ -134,7 +135,7 @@ let rec shell = (path, before: Segment.t, after: Segment.t) => {
                  old members into the new shell so they can be replaced in
                  place, rather than emptying and rebuilding the module. */
               let compatible =
-                List.filter_map(
+                List.filter_map(~f=
                   p =>
                     switch (p) {
                     | Piece.Tile(b)
@@ -155,10 +156,10 @@ let rec shell = (path, before: Segment.t, after: Segment.t) => {
           Piece.Tile({
             ...t,
             children:
-              List.mapi(
+              List.mapi(~f=
                 (i, child) => {
                   let previous =
-                    Option.bind(old, b => List.nth_opt(b.children, i))
+                    Option.bind(old, ~f=b => List.nth(b.children, i))
                     |> Option.value(~default=[]);
                   let child_path = path @ [(t.id, i)];
                   if (Tile.has_label(t, ["{", "}"])
@@ -193,24 +194,24 @@ let plan = (before: Segment.t, after: Segment.t): list(operation) => {
     let current = ref(old_items);
     let unique_name = name =>
       name != None
-      && List.length(List.filter(it => it.name == name, old_items)) == 1
-      && List.length(List.filter(it => it.name == name, next_items)) == 1;
+      && List.length(List.filter(~f=it => it.name == name, old_items)) == 1
+      && List.length(List.filter(~f=it => it.name == name, next_items)) == 1;
     let matches = (a: item, b: item) =>
       a.id == b.id || a.name == b.name && unique_name(a.name);
     let offset = i =>
       take(i, current^)
-      |> List.fold_left((n, it) => n + List.length(it.pieces), 0);
-    List.iteri(
+      |> List.fold(~init=0, ~f=(n, it) => n + List.length(it.pieces));
+    List.iteri(~f=
       (i, next: item) => {
         /* A moved item is removed before being inserted at its new site;
            it must never be present twice with the same syntax ids. */
         let index =
           drop(i, current^)
-          |> List.mapi((j, it: item) => (i + j, it))
-          |> List.find_map(((j, it)) => matches(it, next) ? Some(j) : None);
+          |> List.mapi(~f=(j, it: item) => (i + j, it))
+          |> List.find_map(~f=((j, it)) => matches(it, next) ? Some(j) : None);
         switch (index) {
         | Some(j) when j != i =>
-          let old = List.nth(current^, j);
+          let old = List.nth_exn(current^, j);
           emit({
             path,
             at: offset(j),
@@ -222,12 +223,12 @@ let plan = (before: Segment.t, after: Segment.t): list(operation) => {
         | _ => ()
         };
         let matching =
-          switch (List.nth_opt(current^, i)) {
+          switch (List.nth(current^, i)) {
           | Some(it) when matches(it, next) => Some(it)
           | Some(it)
               when
                 !
-                  List.exists(
+                  List.exists(~f=
                     later => matches(it, later),
                     drop(i, next_items),
                   ) =>
@@ -237,7 +238,7 @@ let plan = (before: Segment.t, after: Segment.t): list(operation) => {
           | _ => None
           };
         let old =
-          Option.map((it: item) => it.pieces, matching)
+          Option.map(~f=(it: item) => it.pieces, matching)
           |> Option.value(~default=[]);
         let (initial, children) = shell(path, old, next.pieces);
         if (old != initial) {
@@ -258,15 +259,15 @@ let plan = (before: Segment.t, after: Segment.t): list(operation) => {
             },
           ]
           @ drop(i + (matching == None ? 0 : 1), current^);
-        List.iter(((p, b, a)) => block(p, b, a), children);
-        current := List.mapi((j, it) => j == i ? next : it, current^);
+        List.iter(~f=((p, b, a)) => block(p, b, a), children);
+        current := List.mapi(~f=(j, it) => j == i ? next : it, current^);
       },
       next_items,
     );
     let keep = List.length(next_items);
     while (List.length(current^) > keep) {
       let i = List.length(current^) - 1;
-      let old = List.nth(current^, i);
+      let old = List.nth_exn(current^, i);
       emit({
         path,
         at: offset(i),

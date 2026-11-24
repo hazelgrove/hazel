@@ -211,9 +211,9 @@ let rec set_lb_indents = (targets: Id.Map.t(int), seg: Segment.t): Segment.t => 
         };
       [p] @ spaces @ set_lb_indents(targets, rest);
     | [Piece.Tile(t) as p, ...rest] =>
-      let children = List.map(set_lb_indents(targets), t.children);
+      let children = List.map(~f=set_lb_indents(targets), t.children);
       let p =
-        List.for_all2(Segment.ptr_eq, t.children, children)
+        List.for_all2_exn(~f=Segment.ptr_eq, t.children, children)
           ? p
           : Piece.Tile({
               ...t,
@@ -323,14 +323,13 @@ let go_refactor = (~enabled: bool, z: Zipper.t): Zipper.t =>
     let canon = Indentation.level_map(full);
     let targets =
       collect_lb_indents(full)
-      |> List.filter_map(((id, cur)) =>
+      |> List.filter_map(~f=((id, cur)) =>
            switch (Id.Map.find_opt(id, canon)) {
            | Some(lvl) when lvl != cur => Some((id, lvl))
            | _ => None
            }
          )
-      |> List.to_seq
-      |> Id.Map.of_seq;
+      |> Id.Map.of_list;
     Id.Map.is_empty(targets)
       ? z : ZipperBase.MapSegment.go(set_lb_indents(targets), z);
   };

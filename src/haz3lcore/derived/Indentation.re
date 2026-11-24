@@ -545,7 +545,7 @@ let fix_leading_indentation =
         Id.Map.find_opt(w.id, indent_map) |> Option.value(~default=0);
       let rest_without_leading_spaces = drop_leading_spaces(rest);
       let spaces =
-        List.init(indent, ~f=_ =>
+        Stdlib.List.init(indent, _ =>
           Piece.Secondary(Secondary.mk_space(Id.mk()))
         );
       [Piece.Secondary(w), ...spaces] @ level(rest_without_leading_spaces);

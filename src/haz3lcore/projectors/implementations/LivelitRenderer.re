@@ -2,6 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 open Language;
+open Poly;
 
 /* LivelitRenderer — RichProbe renderer that shows a sampled value through
    the VIEW of a user-defined livelit whose expansion type is the value's
@@ -44,7 +45,7 @@ let is_unknown = (ty: Typ.t): bool =>
 let member = (record: Exp.t, label: string): option(Exp.t) =>
   switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
   | Some(fs) =>
-    List.find_map(
+    List.find_map(~f=
       f =>
         switch (MvuShape.of_field(f)) {
         | Some((l, v)) when l == label => Some(v)
@@ -59,7 +60,7 @@ let member = (record: Exp.t, label: string): option(Exp.t) =>
    evaluation per definition, keyed by its elaboration's identity */
 let record_memo: ref(list((Exp.t, Exp.t))) = ref([]);
 let record_of = (def_elab: Exp.t): option(Exp.t) =>
-  switch (List.find_opt(((k, _)) => k === def_elab, record_memo^)) {
+  switch (List.find(~f=((k, _)) => phys_equal(k, def_elab), record_memo^)) {
   | Some((_, r)) => Some(r)
   | None =>
     switch (MvuShape.safe_evaluate(def_elab)) {
@@ -98,7 +99,7 @@ let rec names_something = (ty: Typ.t): bool =>
   | Sum(_) => true
   | Parens(t)
   | List(t) => names_something(t)
-  | Prod(ts) => List.exists(names_something, ts)
+  | Prod(ts) => List.exists(~f=names_something, ts)
   | Arrow(a, b) => names_something(a) || names_something(b)
   | _ => false
   };
@@ -120,7 +121,7 @@ let expands_to = (ctx: Ctx.t, expansion_t: Typ.t, ty: Typ.t): bool =>
 let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
   is_unknown(ty)
     ? []
-    : List.filter_map(
+    : List.filter_map(~f=
         (e: Ctx.entry) =>
           switch (e) {
           | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
@@ -164,13 +165,13 @@ let model_of =
 let html_memo: ref(list(((Exp.t, string), option(Exp.t)))) = ref([]);
 let html_of = (~ctx, ll: LivelitCtx.raw_livelit, raw: Exp.t): option(Exp.t) =>
   switch (
-    List.find_opt(
+    List.find(~f=
       ((k, _)) =>
         snd(k) == ll.name
         /* by identity, else by value: a re-evaluation hands out fresh
            sample objects for unchanged values, and re-running the
            view for each of them on every keystroke is the cost */
-        && (fst(k) === raw || Exp.fast_equal(fst(k), raw)),
+        && (phys_equal(fst(k), raw) || Exp.fast_equal(fst(k), raw)),
       html_memo^,
     )
   ) {
@@ -237,7 +238,7 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
     let direct =
-      List.find_map(
+      List.find_map(~f=
         (ll: LivelitCtx.raw_livelit) =>
           switch (html_of(~ctx, ll, exp)) {
           | Some(_) =>
@@ -260,9 +261,9 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
         list_elems(exp),
       ) {
       | (List(elem), Some(items)) =>
-        List.find_map(
+        List.find_map(~f=
           (ll: LivelitCtx.raw_livelit) =>
-            List.for_all(it => html_of(~ctx, ll, it) != None, items)
+            List.for_all(~f=it => html_of(~ctx, ll, it) != None, items)
               ? Some({
                   ll_name: ll.name,
                   rows: rows_of(ll),
@@ -310,18 +311,13 @@ let render =
     | Some((ctx, _)) =>
       switch (Ctx.lookup_livelit(ctx, value.ll_name)) {
       | Some(ll) when value.as_list =>
-        Option.bind(list_elems(value.raw), items =>
-          List.fold_right(
-            (it, acc) =>
+        Option.bind(list_elems(value.raw), ~f=items =>
+          List.fold_right(items, ~f=(it, acc) =>
               switch (acc, html_of(~ctx, ll, it)) {
               | (Some(hs), Some(h)) => Some([h, ...hs])
               | _ => None
-              },
-            items,
-            Some([]),
-          )
-        )
-      | Some(ll) => Option.map(h => [h], html_of(~ctx, ll, value.raw))
+              }, ~init=Some([])))
+      | Some(ll) => Option.map(~f=h => [h], html_of(~ctx, ll, value.raw))
       | None => None
       }
     | _ => None
@@ -336,7 +332,7 @@ let render =
         ),
         Attr.title("^" ++ value.ll_name ++ " view of this value"),
       ],
-      List.map(HazelDOM.go(seed), htmls),
+      List.map(~f=HazelDOM.go(seed), htmls),
     )
   | None =>
     Node.div(

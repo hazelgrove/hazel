@@ -3,13 +3,14 @@
 open Language;
 open RefactorBase;
 open RefactorParens;
+open Poly;
 
 let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
   let moved: Exp.t = fresh(Let(p, def, fresh(EmptyHole)));
   let ok = f =>
     !free_in(f, def)
     && occurrences_of(f, body)
-    |> List.for_all(o => !typ_captured_by_use_at(Exp.rep_id(o), moved, body));
+    |> List.for_all(~f=o => !typ_captured_by_use_at(Exp.rep_id(o), moved, body));
   (
     switch (let_head_name(p)) {
     | Some(f) => ok(f)
@@ -91,14 +92,14 @@ let inline_let_impl: impl = {
                 | _ => (x, def)
                 }
               | None =>
-                let f = Option.get(sugar_fn_name(p));
+                let f = Option.value_exn(sugar_fn_name(p));
                 let rec arg_of = (p: Pat.t) =>
                   switch (IdTagged.term_of(p)) {
                   | Ap(_, argp) => Some(argp)
                   | Asc(inner, _) => arg_of(inner)
                   | _ => None
                   };
-                let argp = Option.get(arg_of(p));
+                let argp = Option.value_exn(arg_of(p));
                 let param: Pat.t =
                   switch (IdTagged.term_of(argp)) {
                   | Tuple(_) => pad(fresh_pat(Parens(argp)))
@@ -124,14 +125,14 @@ let inline_let_impl: impl = {
                 | _ => (f, lam)
                 };
               };
-            let avoid = vars_of(def) |> List.filter(v => free_in(v, def));
+            let avoid = vars_of(def) |> List.filter(~f=v => free_in(v, def));
             let used = ref(used_names(program));
             /* Per-occurrence parens: static precedence check at each
                splice point (splice_parens_needed) */
             let bare_ids =
               needs_parens(def)
                 ? occurrences_of(x, body)
-                  |> List.filter_map(occ =>
+                  |> List.filter_map(~f=occ =>
                        splice_parens_needed(
                          ~program,
                          ~at=Exp.rep_id(occ),
@@ -139,9 +140,9 @@ let inline_let_impl: impl = {
                        )
                          ? None : Some(Exp.rep_id(occ))
                      )
-                : occurrences_of(x, body) |> List.map(Exp.rep_id);
+                : occurrences_of(x, body) |> List.map(~f=Exp.rep_id);
             let parens_for = occ =>
-              needs_parens(def) && !List.mem(Exp.rep_id(occ), bare_ids);
+              needs_parens(def) && !List.mem(bare_ids, Exp.rep_id(occ), ~equal=Poly.equal);
             /* a crossed same-name alias is freshened rather than
                refused (see freshen_crossed_aliases) */
             let body = freshen_crossed_aliases(~x, ~moved=def, body);
@@ -206,10 +207,10 @@ let inline_let_impl: impl = {
 /* the textually-first unshadowed occurrence (pre-order; children_of
  * yields children left-to-right) */
 let first_occurrence = (x: string, body: Exp.t): option(Exp.t) => {
-  let unshadowed = occurrences_of(x, body) |> List.map(Exp.rep_id);
+  let unshadowed = occurrences_of(x, body) |> List.map(~f=Exp.rep_id);
   let rec go = (e: Exp.t): option(Exp.t) =>
-    List.mem(Exp.rep_id(e), unshadowed)
-      ? Some(e) : children_of(e) |> List.find_map(go);
+    List.mem(unshadowed, Exp.rep_id(e), ~equal=Poly.equal)
+      ? Some(e) : children_of(e) |> List.find_map(~f=go);
   go(body);
 };
 
@@ -220,13 +221,13 @@ let binders_over = (occ_id: Id.t, body: Exp.t): list(string) =>
   | None => []
   | Some(path) =>
     path
-    |> List.concat_map((e: Exp.t) =>
+    |> List.concat_map(~f=(e: Exp.t) =>
          switch (IdTagged.term_of(e)) {
          | Let(p, _, _)
          | Fun(p, _, _, _)
          | FixF(p, _, _) => pat_var_names(p)
          | Match(_, rules) =>
-           rules |> List.concat_map(((rp, _)) => pat_var_names(rp))
+           rules |> List.concat_map(~f=((rp, _)) => pat_var_names(rp))
          | _ => []
          }
        )
@@ -244,7 +245,7 @@ let feed_site =
     : option((Exp.t, string, option(Id.t))) => {
   let of_let = (l: Exp.t, occ: option(Id.t)) =>
     switch (IdTagged.term_of(l)) {
-    | Let(p, _, _) => let_head_name(p) |> Option.map(x => (l, x, occ))
+    | Let(p, _, _) => let_head_name(p) |> Option.map(~f=x => (l, x, occ))
     | _ => None
     };
   /* the innermost let whose DEF subtree holds the target: grabbing
@@ -273,7 +274,7 @@ let feed_site =
      random subterm must not feed the enclosing let) */
   let hit_def_root = (e: Exp.t): bool =>
     switch (IdTagged.term_of(e)) {
-    | Let(_, def, _) => List.mem(target, IdTagged.ids(def))
+    | Let(_, def, _) => List.mem(IdTagged.ids(def), target, ~equal=Poly.equal)
     | _ => false
     };
   switch (find_hit(~hit=hit_let(target), program)) {
@@ -352,16 +353,16 @@ let feed_plan =
           switch (occ_pref) {
           | Some(oid) =>
             occs
-            |> List.find_opt((o: Exp.t) => List.mem(oid, IdTagged.ids(o)))
+            |> List.find(~f=(o: Exp.t) => List.mem(IdTagged.ids(o), oid, ~equal=Poly.equal))
           | None => first_occurrence(x, body)
           };
         switch (occ) {
         | None => None
         | Some(occ) =>
-          let free = vars_of(def) |> List.filter(v => free_in(v, def));
+          let free = vars_of(def) |> List.filter(~f=v => free_in(v, def));
           let captured =
             binders_over(Exp.rep_id(occ), body)
-            |> List.exists(b => List.mem(b, free))
+            |> List.exists(~f=b => List.mem(free, b, ~equal=Poly.equal))
             || typ_captured_by_use_at(Exp.rep_id(occ), def, body);
           captured ? None : Some(Feed(l, def, occ));
         };
@@ -395,7 +396,7 @@ let feed_prepare = (~prefer_def_host=false, ~info_map, ~target, program) =>
         strip_comments(refresh_ids(def)),
         occ,
       );
-    let at_use = occ |> IdTagged.ids |> List.mem(target);
+    let at_use = List.mem(IdTagged.ids(occ), target, ~equal=Id.equal);
     let focus =
       at_use
         /* invoked at the use: caret follows the clone (the
@@ -440,7 +441,7 @@ let typ_mentions = (names: list(string), t: Typ.t): bool => {
       ~f_typ=
         (cont, t: Typ.t) => {
           switch (IdTagged.term_of(t)) {
-          | Var(y) when List.mem(y, names) => found := true
+          | Var(y) when List.mem(names, y, ~equal=Poly.equal) => found := true
           | _ => ()
           };
           cont(t);
@@ -469,7 +470,7 @@ let contains_use = (e: Exp.t): bool => {
 
 let strip_typ_comments = (t: Typ.t): Typ.t => {
   let keep = (ws: list(Secondary.t)) =>
-    ws |> List.filter(w => !is_comment_piece(w));
+    ws |> List.filter(~f=w => !is_comment_piece(w));
   Typ.map_term(
     ~f_typ=
       (cont, t: Typ.t) => {
@@ -539,7 +540,7 @@ let subst_alias = (~first: ref(bool), t: string, def: Typ.t, e: Exp.t): Exp.t =>
           /* rebound below: uses under these binders are the inner
              alias's, not ours */
           | Rec(tp, _)
-          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => ty
+          | Poly(tp, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => ty
           | _ => cont(ty)
           },
       ty,
@@ -550,11 +551,11 @@ let subst_alias = (~first: ref(bool), t: string, def: Typ.t, e: Exp.t): Exp.t =>
         switch (IdTagged.term_of(e)) {
         /* a rebinding tyalias shadows its body, but its own def
            still sees the outer name */
-        | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) => {
+        | TyAlias(tp, d, b) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => {
             ...e,
             term: TyAlias(tp, in_typ(d), b),
           }
-        | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+        | TypFun(tp, _, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => e
         | _ => cont(e)
         },
     ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
@@ -601,7 +602,7 @@ let count_typ_uses = (t: string, body: Exp.t): int => {
             n := n^ + 1;
             u;
           | Rec(tp, _)
-          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => u
+          | Poly(tp, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => u
           | _ => cont(u)
           },
       ty,
@@ -611,13 +612,13 @@ let count_typ_uses = (t: string, body: Exp.t): int => {
       ~f_exp=
         (cont, e: Exp.t) =>
           switch (IdTagged.term_of(e)) {
-          | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) =>
+          | TyAlias(tp, d, b) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) =>
             let _ = in_typ(d);
             {
               ...e,
               term: TyAlias(tp, d, b),
             };
-          | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+          | TypFun(tp, _, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => e
           | _ => cont(e)
           },
       ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
@@ -665,7 +666,7 @@ let subst_alias_one =
             seen := seen^ + 1;
             seen^ == visit_target ? at_use(u) : u;
           | Rec(tp, _)
-          | Poly(tp, _) when List.mem(t, tpat_names(tp)) => u
+          | Poly(tp, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => u
           | _ => cont(u)
           },
       ty,
@@ -674,11 +675,11 @@ let subst_alias_one =
     ~f_exp=
       (cont, e: Exp.t) =>
         switch (IdTagged.term_of(e)) {
-        | TyAlias(tp, d, b) when List.mem(t, tpat_names(tp)) => {
+        | TyAlias(tp, d, b) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => {
             ...e,
             term: TyAlias(tp, in_typ(d), b),
           }
-        | TypFun(tp, _, _) when List.mem(t, tpat_names(tp)) => e
+        | TypFun(tp, _, _) when List.mem(tpat_names(tp), t, ~equal=Poly.equal) => e
         | _ => cont(e)
         },
     ~f_typ=(_cont, ty: Typ.t) => in_typ(ty),
@@ -748,9 +749,11 @@ let pat_unused = (~info_map: Statics.Map.t, p: Pat.t): bool =>
   switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
   | Some(InfoPat({warnings, _})) =>
     warnings
-    |> List.exists((w: Warning.list_item) =>
+    |> List.exists(~f=(w: Warning.list_item) =>
          switch (w) {
          | Pat(UnusedVar(_)) => true
+         | TPat(_)
+         | Typ(_) => false
          }
        )
   | _ => false
@@ -901,22 +904,22 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
   | None => None
   | Some(path) =>
     let n = List.length(path);
-    let t = List.nth(path, n - 1);
+    let t = List.nth_exn(path, n - 1);
     let head_of_ap =
       n >= 2
       && (
         switch (IdTagged.term_of(t)) {
         | Var(_)
         | Constructor(_) =>
-          switch (IdTagged.term_of(List.nth(path, n - 2))) {
+          switch (IdTagged.term_of(List.nth_exn(path, n - 2))) {
           | Ap(Forward, f, _) => same_node(f, t)
           | _ => false
           }
         | _ => false
         }
       );
-    let path = head_of_ap ? List.filteri((i, _) => i < n - 1, path) : path;
-    let t = List.nth(path, List.length(path) - 1);
+    let path = head_of_ap ? List.filteri(~f=(i, _) => i < n - 1, path) : path;
+    let t = List.nth_exn(path, List.length(path) - 1);
     /* extracting a let's ENTIRE def just manufactures an alias pair
        (`let x = def in let orig = x`) — the whole-reference rule
        again. Parens wrappers are transparent for this check. */
@@ -924,9 +927,9 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
       let rec check = (k: int, child: Exp.t) =>
         k >= 0
         && (
-          switch (IdTagged.term_of(List.nth(path, k))) {
+          switch (IdTagged.term_of(List.nth_exn(path, k))) {
           | Let(_, def, _) => same_node(def, child)
-          | Parens(_) => check(k - 1, List.nth(path, k))
+          | Parens(_) => check(k - 1, List.nth_exn(path, k))
           | _ => false
           }
         );
@@ -934,8 +937,8 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
     };
     let blocked_ancestor =
       path
-      |> List.filteri((i, _) => i < List.length(path) - 1)
-      |> List.exists((a: Exp.t) =>
+      |> List.filteri(~f=(i, _) => i < List.length(path) - 1)
+      |> List.exists(~f=(a: Exp.t) =>
            switch (IdTagged.term_of(a)) {
            | Dot(_)
            | MultiHole(_) => true
@@ -988,7 +991,7 @@ let extract_let_impl: impl = {
       switch (IdTagged.term_of(host)) {
       | Let(lp, ldef, lbody) when same_node(lbody, line) && eq_defs(ldef, t) =>
         switch (let_head_name(lp)) {
-        | Some(n) when !List.mem(n, binders_over(Exp.rep_id(t), lbody)) =>
+        | Some(n) when !List.mem(binders_over(Exp.rep_id(t), lbody), n, ~equal=Poly.equal) =>
           let s = Slot.of_exp(t);
           let use = Slot.give(s, fresh(Var(n)));
           rewrite_node(
@@ -1050,7 +1053,7 @@ let extract_let_impl: impl = {
             };
           let ancestor_sep =
             prefix_to([], path)
-            |> List.find_map((a: Exp.t) => {
+            |> List.find_map(~f=(a: Exp.t) => {
                  let al = sep_like(Slot.of_exp(a).lead);
                  has_newline(al) ? Some(al) : None;
                });
@@ -1091,10 +1094,10 @@ let extract_let_impl: impl = {
     switch (extract_path(~target, program)) {
     | None => None
     | Some(path) =>
-      let t = List.nth(path, List.length(path) - 1);
+      let t = List.nth_exn(path, List.length(path) - 1);
       let line = lowest_line(path);
       let blocked =
-        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+        crossed_rec_binders(line, path) |> List.exists(~f=n => mentions(n, t));
       switch (blocked ? None : glom(~path, line, t)) {
       | Some(r) => Some(r)
       | None =>
@@ -1118,7 +1121,7 @@ let free_marked = (~info_map: Statics.Map.t, e: Exp.t): bool =>
   switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
   | Some(InfoExp({marks, _})) =>
     marks
-    |> List.exists((m: Mark.t) =>
+    |> List.exists(~f=(m: Mark.t) =>
          switch (m) {
          | Free(_) => true
          | _ => false
@@ -1176,9 +1179,9 @@ let rename_sites_unfiltered =
     | Some(f) =>
       let params =
         pat_var_names(p)
-        |> List.sort_uniq(compare)
-        |> List.filter(v => v != f);
-      [(f, [def, body])] @ (params |> List.map(v => (v, [def])));
+        |> List.dedup_and_sort(~compare=compare)
+        |> List.filter(~f=v => v != f);
+      [(f, [def, body])] @ (params |> List.map(~f=v => (v, [def])));
     | None =>
       switch (let_head_name(p)) {
       | Some(y) =>
@@ -1193,15 +1196,15 @@ let rename_sites_unfiltered =
     }
   | Fun(p, body, _, _) =>
     pat_var_names(p)
-    |> List.sort_uniq(compare)
-    |> List.map(y => (y, [body]))
+    |> List.dedup_and_sort(~compare=compare)
+    |> List.map(~f=y => (y, [body]))
   | Match(_, rules) =>
     rules
-    |> List.concat_map(((p, body)) =>
-         List.mem(target, pat_subtree_ids(p))
+    |> List.concat_map(~f=((p, body)) =>
+         List.mem(pat_subtree_ids(p), target, ~equal=Poly.equal)
            ? pat_var_names(p)
-             |> List.sort_uniq(compare)
-             |> List.map(y => (y, [body]))
+             |> List.dedup_and_sort(~compare=compare)
+             |> List.map(~f=y => (y, [body]))
            : []
        )
   | _ => []
@@ -1217,18 +1220,18 @@ let rename_sites = (~target: Id.t, e: Exp.t): list((string, list(Exp.t))) => {
     | Fun(p, _, _, _) => [p]
     | Match(_, rules) =>
       rules
-      |> List.filter_map(((p, _)) =>
-           List.mem(target, pat_subtree_ids(p)) ? Some(p) : None
+      |> List.filter_map(~f=((p, _)) =>
+           List.mem(pat_subtree_ids(p), target, ~equal=Poly.equal) ? Some(p) : None
          )
     | _ => []
     };
   switch (
     pats
-    |> List.concat_map(pat_var_id_sites)
-    |> List.find_opt(((_, ids)) => List.mem(target, ids))
+    |> List.concat_map(~f=pat_var_id_sites)
+    |> List.find(~f=((_, ids)) => List.mem(ids, target, ~equal=Poly.equal))
   ) {
   | Some((y, _)) =>
-    rename_sites_unfiltered(~target, e) |> List.filter(((y', _)) => y' == y)
+    rename_sites_unfiltered(~target, e) |> List.filter(~f=((y', _)) => y' == y)
   | None => []
   };
 };
@@ -1241,14 +1244,14 @@ let rename_pairs =
     (~info_map: Statics.Map.t, ~target: Id.t, e: Exp.t)
     : list((string, string)) =>
   rename_sites(~target, e)
-  |> List.concat_map(((y, regions)) =>
+  |> List.concat_map(~f=((y, regions)) =>
        regions
-       |> List.concat_map(free_vars_in(~info_map))
-       |> List.sort_uniq(compare)
-       |> List.filter(x => x != y)
-       |> List.map(x => (x, y))
+       |> List.concat_map(~f=free_vars_in(~info_map))
+       |> List.dedup_and_sort(~compare=compare)
+       |> List.filter(~f=x => x != y)
+       |> List.map(~f=x => (x, y))
      )
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare=compare);
 
 /* rewrite free occurrences of x to y, skipping scopes where y is
  * rebound (they'd capture to the wrong binder); bound x's are already
@@ -1293,18 +1296,15 @@ let rename_free_impl = (x: string, y: string): impl => {
             e =>
               switch (
                 rename_sites(~target, e)
-                |> List.find_opt(((y', _)) => y' == y)
+                |> List.find(~f=((y', _)) => y' == y)
               ) {
               | Some((_, regions)) =>
                 let count = ref(0);
                 let ren = rename_free_in(~info_map, ~count, x, y);
                 let e' =
                   regions
-                  |> List.fold_left(
-                       (e, r: Exp.t) =>
-                         replace_node(~at=Exp.rep_id(r), ~with_=ren(r), e),
-                       e,
-                     );
+                  |> List.fold(~init=e, ~f=(e, r: Exp.t) =>
+                         replace_node(~at=Exp.rep_id(r), ~with_=ren(r), e));
                 /* caret stays on the binder token (where the user
                    was editing in the repair flow) */
                 let focus = {
@@ -1314,16 +1314,16 @@ let rename_free_impl = (x: string, y: string): impl => {
                     | Fun(p, _, _, _) => [p]
                     | Match(_, rules) =>
                       rules
-                      |> List.filter_map(((p, _)) =>
-                           List.mem(target, pat_subtree_ids(p))
+                      |> List.filter_map(~f=((p, _)) =>
+                           List.mem(pat_subtree_ids(p), target, ~equal=Poly.equal)
                              ? Some(p) : None
                          )
                     | _ => []
                     };
                   switch (
                     pats
-                    |> List.concat_map(pat_var_id_sites)
-                    |> List.find_opt(((n, _)) => n == y)
+                    |> List.concat_map(~f=pat_var_id_sites)
+                    |> List.find(~f=((n, _)) => n == y)
                   ) {
                   | Some((_, [id, ..._])) => id
                   | _ => Exp.rep_id(e')
@@ -1344,7 +1344,7 @@ let contains_typ_id = (target: Id.t, e: Exp.t): bool => {
     Exp.map_term(
       ~f_typ=
         (cont, t: Typ.t) => {
-          if (List.mem(target, IdTagged.ids(t))) {
+          if (List.mem(IdTagged.ids(t), target, ~equal=Poly.equal)) {
             found := true;
           };
           cont(t);
@@ -1360,28 +1360,28 @@ let typ_extract_site =
     (~target: Id.t, program: Exp.t): option((list(Exp.t), Typ.t)) => {
   let owns = (e: Exp.t) =>
     contains_typ_id(target, e)
-    && !(children_of(e) |> List.exists(contains_typ_id(target)));
+    && !(children_of(e) |> List.exists(~f=contains_typ_id(target)));
   switch (find_path(~hit=owns, program)) {
   | None => None
   | Some(path) =>
-    let host = List.nth(path, List.length(path) - 1);
+    let host = List.nth_exn(path, List.length(path) - 1);
     let t = ref(None);
     let _ =
       Exp.map_term(
         ~f_typ=
           (cont, ty: Typ.t) => {
-            if (t^ == None && List.mem(target, IdTagged.ids(ty))) {
+            if (t^ == None && List.mem(IdTagged.ids(ty), target, ~equal=Poly.equal)) {
               t := Some(ty);
             };
             cont(ty);
           },
         host,
       );
-    t^ |> Option.map(ty => (path, ty));
+    t^ |> Option.map(~f=ty => (path, ty));
   };
 };
 let alias_extractable = (path: list(Exp.t), ty: Typ.t): bool => {
-  let host = List.nth(path, List.length(path) - 1);
+  let host = List.nth_exn(path, List.length(path) - 1);
   let whole_alias_def =
     switch (IdTagged.term_of(host)) {
     | TyAlias(_, d, _) => IdTagged.rep_id(d) == IdTagged.rep_id(ty)
@@ -1407,13 +1407,13 @@ let extract_alias_impl: impl = {
       let line = lowest_line(path);
       let blocked =
         crossed_typ_binders(line, path)
-        |> List.exists(n => typ_mentions([n], ty));
+        |> List.exists(~f=n => typ_mentions([n], ty));
       if (blocked) {
         None;
       } else {
         let name =
           pick_placeholder(
-            ~transform=String.capitalize_ascii,
+            ~transform=String.capitalize,
             used_names(program) @ typ_names_in(program),
           );
         let s = typ_slot(ty);
@@ -1494,7 +1494,7 @@ let rec x_atomic = (e: Exp.t): bool =>
   | Parens(x) => x_atomic(x)
   | TupLabel(l, x) => x_atomic(l) && x_atomic(x)
   | Tuple(xs)
-  | ListLit(xs) => List.for_all(x_atomic, xs)
+  | ListLit(xs) => List.for_all(~f=x_atomic, xs)
   | _ => false
   };
 
@@ -1529,7 +1529,7 @@ let x_one_op = (e: Exp.t): bool =>
   | UnOp(_, a) => x_atomic(a)
   | TypAp(a, _) => x_atomic(a)
   | Ap(_, f, arg) =>
-    x_atomic(f) && arg_components(arg) |> List.for_all(x_atomic)
+    x_atomic(f) && arg_components(arg) |> List.for_all(~f=x_atomic)
   | _ => false
   };
 
@@ -1544,11 +1544,11 @@ let rec x_reduced = (e: Exp.t): bool =>
     /* containers: each component atomic or one op; containers of
        containers recurse */
     | Tuple(xs)
-    | ListLit(xs) => xs |> List.for_all(x_component_reduced)
+    | ListLit(xs) => xs |> List.for_all(~f=x_component_reduced)
     | TupLabel(_, x) => x_component_reduced(x)
     | Ap(_, f, arg) when ctor_headed(e) =>
       ignore(f);
-      arg_components(arg) |> List.for_all(x_component_reduced);
+      arg_components(arg) |> List.for_all(~f=x_component_reduced);
     /* opaque units: interiors untouched; strict head must be atomic */
     | Fun(_)
     | TypFun(_) => true
@@ -1564,10 +1564,10 @@ and x_component_reduced = (e: Exp.t): bool =>
     switch (IdTagged.term_of(e)) {
     | Parens(x) => x_component_reduced(x)
     | Tuple(xs)
-    | ListLit(xs) => xs |> List.for_all(x_component_reduced)
+    | ListLit(xs) => xs |> List.for_all(~f=x_component_reduced)
     | TupLabel(_, x) => x_component_reduced(x)
     | Ap(_, _, arg) when ctor_headed(e) =>
-      arg_components(arg) |> List.for_all(x_component_reduced)
+      arg_components(arg) |> List.for_all(~f=x_component_reduced)
     | _ => false
     }
   );
@@ -1641,7 +1641,7 @@ let explode_impl: impl = {
                 }
               | Tuple(xs) => {
                   ...arg,
-                  term: Tuple(List.map(ensure_atom, xs)),
+                  term: Tuple(List.map(~f=ensure_atom, xs)),
                 }
               | _ => ensure_atom(arg)
               }
@@ -1656,11 +1656,11 @@ let explode_impl: impl = {
                   }
                 | Tuple(xs) => {
                     ...x,
-                    term: Tuple(List.map(component, xs)),
+                    term: Tuple(List.map(~f=component, xs)),
                   }
                 | ListLit(xs) => {
                     ...x,
-                    term: ListLit(List.map(component, xs)),
+                    term: ListLit(List.map(~f=component, xs)),
                   }
                 | TupLabel(l, inner) => {
                     ...x,
@@ -1693,7 +1693,7 @@ let explode_impl: impl = {
                 }
               | Tuple(xs) => {
                   ...arg,
-                  term: Tuple(List.map(component, xs)),
+                  term: Tuple(List.map(~f=component, xs)),
                 }
               | _ => component(arg)
               }
@@ -1754,14 +1754,10 @@ let explode_impl: impl = {
                 term: Let(p, def', body),
               };
               let result =
-                List.fold_right(
-                  ((n, d), acc) =>
+                List.fold_right(bs, ~f=((n, d), acc) =>
                     fresh(
                       Let(pad(fresh_pat(Var(n))), pad(d), with_sep(acc)),
-                    ),
-                  bs,
-                  inner,
-                );
+                    ), ~init=inner);
               Some((result, Pat.rep_id(p)));
             };
           | _ => None
@@ -1781,15 +1777,15 @@ let implode_parent = (~y_id: Id.t, program: Exp.t): option(Id.t) =>
   switch (find_path(~hit=e => Exp.rep_id(e) == y_id, program)) {
   | Some(path) when List.length(path) >= 2 =>
     let n = List.length(path);
-    let y = List.nth(path, n - 1);
-    let parent = List.nth(path, n - 2);
+    let y = List.nth_exn(path, n - 1);
+    let parent = List.nth_exn(path, n - 2);
     switch (IdTagged.term_of(parent), IdTagged.term_of(y)) {
     | (Let(pp, _, pbody), Let(_, _, ybody))
         when same_node(pbody, y) && sugar_fn_name(pp) == None =>
       switch (let_head_name(pp)) {
       | Some(x) =>
         switch (occurrences_of(x, pbody)) {
-        | [occ] when !List.mem(Exp.rep_id(occ), exp_subtree_ids(ybody)) =>
+        | [occ] when !List.mem(exp_subtree_ids(ybody), Exp.rep_id(occ), ~equal=Poly.equal) =>
           Some(Exp.rep_id(parent))
         | _ => None
         }
@@ -1804,7 +1800,7 @@ let implode_step = (~info_map, ~y_id: Id.t, program: Exp.t): option(Exp.t) =>
   switch (implode_parent(~y_id, program)) {
   | Some(pid) =>
     inline_let_impl.prepare(~info_map, ~target=pid, program)
-    |> Option.map(fst)
+    |> Option.map(~f=fst)
   | None => None
   };
 
@@ -1849,7 +1845,7 @@ let rename_typ_pairs =
           switch (find_path(~hit=same_node(e), program)) {
           | Some(path) =>
             path
-            |> List.concat_map((a: Exp.t) =>
+            |> List.concat_map(~f=(a: Exp.t) =>
                  switch (IdTagged.term_of(a)) {
                  | TyAlias(atp, _, _)
                  | TypFun(atp, _, _) => tpat_names(atp)
@@ -1859,10 +1855,10 @@ let rename_typ_pairs =
           | None => []
           };
         typ_names_mentioned(body)
-        |> List.filter(x =>
-             x != t && !List.mem(x, enclosing) && mentions_typ_free(x, body)
+        |> List.filter(~f=x =>
+             x != t && !List.mem(enclosing, x, ~equal=Poly.equal) && mentions_typ_free(x, body)
            )
-        |> List.map(x => (x, t));
+        |> List.map(~f=x => (x, t));
       | _ => []
       }
     | _ => []

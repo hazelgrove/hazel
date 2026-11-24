@@ -2,6 +2,7 @@ open Language;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 
 /* ProbePill — the pure geometry/typography of a probe sample pill,
    shared between ProbeProj's interactive samples and standalone

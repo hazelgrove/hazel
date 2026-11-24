@@ -4,6 +4,7 @@ open Language;
 open RefactorBase;
 open RefactorParens;
 open RefactorInline;
+open Poly;
 
 let eta_reduce_impl: impl = {
   label: "Eta-Reduce",
@@ -52,7 +53,7 @@ let eta_expand_impl: impl = {
                   let sep_lead = i => i == 0 ? ([], []) : (space(), []);
                   let var_pats =
                     names
-                    |> List.mapi((i, n) =>
+                    |> List.mapi(~f=(i, n) =>
                          {
                            ...fresh_pat(Var(n)),
                            annotation: {
@@ -73,7 +74,7 @@ let eta_expand_impl: impl = {
                       fresh(
                         Tuple(
                           ns
-                          |> List.mapi((i, n) =>
+                          |> List.mapi(~f=(i, n) =>
                                {
                                  ...fresh(Var(n)),
                                  annotation: {
@@ -97,7 +98,7 @@ let eta_expand_impl: impl = {
                   let lam = fresh(Fun(param, body, None, None));
                   Some((
                     parens ? fresh(Parens(lam)) : lam,
-                    Pat.rep_id(List.hd(var_pats)),
+                    Pat.rep_id(List.hd_exn(var_pats)),
                   ));
                 | _ => None
                 }
@@ -125,7 +126,7 @@ let rec is_value_literal = (e: Exp.t): bool =>
   | Atom(_)
   | Constructor(_, _) => true
   | ListLit(xs)
-  | Tuple(xs) => xs |> List.for_all(is_value_literal)
+  | Tuple(xs) => xs |> List.for_all(~f=is_value_literal)
   | TupLabel(_, x) => is_value_literal(x)
   | Parens(x) => is_value_literal(x)
   | Ap(Forward, f, arg) =>
@@ -144,7 +145,7 @@ let space_commas = (e: Exp.t): Exp.t =>
       (cont, e: Exp.t) => {
         let spaced = xs =>
           xs
-          |> List.mapi((i, x: Exp.t) =>
+          |> List.mapi(~f=(i, x: Exp.t) =>
                i == 0
                  ? x
                  : {
@@ -191,7 +192,7 @@ let reduce_prepare =
       ~rewrite=
         e =>
           build(e)
-          |> Option.map(((built, focus)) =>
+          |> Option.map(~f=((built, focus)) =>
                (parens ? fresh(Parens(built)) : built, focus)
              ),
       program,
@@ -212,7 +213,7 @@ let evaluate_in_place_impl: impl = {
          values — any use evaluates indeterminate and fails the
          value gate. */
       let ctx =
-        Id.Map.find_opt(Exp.rep_id(e), info_map) |> Option.map(Info.ctx_of);
+        Id.Map.find_opt(Exp.rep_id(e), info_map) |> Option.map(~f=Info.ctx_of);
       let elab =
         CachedStatics.init_from_term(
           ~settings=CoreSettings.on,
@@ -257,7 +258,7 @@ let beta_parts = (e: Exp.t): option((Pat.t, Exp.t, Exp.t)) =>
       | Fun(p, body, _, _) => Some((p, body))
       | _ => None
       };
-    fn(f) |> Option.map(((p, body)) => (p, arg, body));
+    fn(f) |> Option.map(~f=((p, body)) => (p, arg, body));
   | _ => None
   };
 
@@ -278,7 +279,7 @@ let hit_beta = (target: Id.t, e: Exp.t): bool =>
             | _ => []
             }
           );
-        List.mem(target, fn_ids(f));
+        List.mem(fn_ids(f), target, ~equal=Poly.equal);
       | _ => false
       }
     )
@@ -287,7 +288,7 @@ let hit_beta = (target: Id.t, e: Exp.t): bool =>
 let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
   let build = (e: Exp.t): option((Exp.t, Id.t)) =>
     beta_parts(e)
-    |> Option.map(((p, arg, body)) => {
+    |> Option.map(~f=((p, arg, body)) => {
          let p = pad(p);
          let def = pad(arg |> strip_leading |> strip_trailing);
          /* landing block: a multiline construct breaks after the
@@ -364,7 +365,7 @@ let unfold_site = (~info_map, ~target, program): option(Id.t) =>
     | None =>
       switch (find_path(~hit=hit_node(target), program)) {
       | Some(path) when List.length(path) >= 2 =>
-        ap_of(List.nth(path, List.length(path) - 2))
+        ap_of(List.nth_exn(path, List.length(path) - 2))
       | _ => None
       }
     };
@@ -426,9 +427,8 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
   let elementwise = (ps, vs) =>
     List.length(ps) != List.length(vs)
       ? NoMatch
-      : List.combine(ps, vs)
-        |> List.fold_left(
-             (acc, (p, v)) =>
+      : List.zip_exn(ps, vs)
+        |> List.fold(~init=Matched([]), ~f=(acc, (p, v)) =>
                switch (acc) {
                | Matched(bs) =>
                  switch (match_value(p, v)) {
@@ -436,9 +436,7 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
                  | r => r
                  }
                | r => r
-               },
-             Matched([]),
-           );
+               });
   switch (IdTagged.term_of(p), IdTagged.term_of(v)) {
   | (Parens(p'), _) => match_value(p', v)
   | (_, Parens(v')) => match_value(p, v')
@@ -473,7 +471,7 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
         ...v,
         term:
           ListLit(
-            vrest |> List.mapi((i, el) => i == 0 ? strip_leading(el) : el),
+            vrest |> List.mapi(~f=(i, el) => i == 0 ? strip_leading(el) : el),
           ),
       };
       switch (match_value(ph, v0)) {
@@ -560,7 +558,7 @@ let reduce_if_impl: impl = {
       switch (IdTagged.term_of(e)) {
       | If(c, t, alt) =>
         lit_bool(c)
-        |> Option.map(b => {
+        |> Option.map(~f=b => {
              let branch = (b ? t : alt) |> strip_leading |> strip_trailing;
              (branch, Exp.rep_id(branch));
            })
@@ -587,7 +585,7 @@ let case_to_lets = (~landing: bool, ~target, program): option((Exp.t, Id.t)) => 
     switch (IdTagged.term_of(e)) {
     | Match(scrut, rules) =>
       pick_arm(scrut, rules)
-      |> Option.map(((bs, body)) => {
+      |> Option.map(~f=((bs, body)) => {
            let sep =
              landing ? Some(intro_sep(~program, ~at=Exp.rep_id(e))) : None;
            let body = body |> strip_leading |> strip_trailing;
@@ -632,15 +630,11 @@ let reduce_case_impl: impl = {
       | Match(scrut, rules) =>
         switch (pick_arm(scrut, rules)) {
         | Some((bs, _)) =>
-          let binder_ids = bs |> List.map(((x, _)) => Pat.rep_id(x));
+          let binder_ids = bs |> List.map(~f=((x, _)) => Pat.rep_id(x));
           binder_ids
-          |> List.fold_left(
-               (acc, bid) =>
-                 Option.bind(acc, ((prog, _)) =>
-                   inline_let_impl.prepare(~info_map, ~target=bid, prog)
-                 ),
-               case_to_lets(~landing=false, ~target, program),
-             );
+          |> List.fold(~init=case_to_lets(~landing=false, ~target, program), ~f=(acc, bid) =>
+                 Option.bind(acc, ~f=((prog, _)) =>
+                   inline_let_impl.prepare(~info_map, ~target=bid, prog)));
         | None => None
         }
       | _ => None
@@ -753,18 +747,14 @@ let beta_reduce_impl: impl = {
                 List.rev(acc^);
               };
               binder_ids
-              |> List.fold_left(
-                   (acc, bid) =>
-                     Option.bind(acc, ((prog, _)) =>
-                       inline_let_impl.prepare(~info_map, ~target=bid, prog)
-                     ),
-                   split_let_prepare(
+              |> List.fold(~init=split_let_prepare(
                      ~landing=false,
                      ~info_map,
                      ~target=binder_id,
                      prog',
-                   ),
-                 );
+                   ), ~f=(acc, bid) =>
+                     Option.bind(acc, ~f=((prog, _)) =>
+                       inline_let_impl.prepare(~info_map, ~target=bid, prog)));
             | _ => None
             }
           | None => None

@@ -61,7 +61,7 @@ let livelit_def_ids = (info_map: Statics.Map.t): list(Id.t) =>
       switch (info) {
       | Info.InfoExp({user_term, _}) =>
         switch (user_term.term) {
-        | Let(pat, def, _) when UserLivelit.binder_name(pat) != None =>
+        | Let(pat, def, _) when Option.is_some(UserLivelit.binder_name(pat)) =>
           let rec strip = (e: Exp.t) =>
             switch (e.term) {
             | Parens(e) => strip(e)
@@ -81,8 +81,8 @@ let livelit_def_ids = (info_map: Statics.Map.t): list(Id.t) =>
 let all_probeable_ids = (info_map: Statics.Map.t): Id.Map.t(unit) => {
   let views = livelit_def_ids(info_map);
   let inside_view = (info: Info.t): bool =>
-    views != []
-    && List.exists(a => List.mem(a, views), Info.ancestors_of(info));
+    !List.is_empty(views)
+    && List.exists(~f=a => List.mem(views, a, ~equal=Poly.equal), Info.ancestors_of(info));
   Id.Map.fold(
     (id, info, acc) =>
       should_probe(info) && !inside_view(info)
@@ -149,17 +149,13 @@ let compute_targets =
           | None => [(id, [])]
           }
         };
-      List.fold_left(
-        (acc, (id, refs)) => {
+      List.fold(entries, ~init=acc, ~f=(acc, (id, refs)) => {
           let spec: Sample.capture_spec = {
             refs,
             full: Id.Map.mem(id, full_ids),
           };
           Id.Map.add(id, spec, acc);
-        },
-        acc,
-        entries,
-      );
+        });
     },
     effective_probe_ids,
     Id.Map.empty,
@@ -183,19 +179,15 @@ let projector_probe_ids =
 /* the dynamics-requesting projectors anywhere in [seg] */
 let projector_probe_ids_of_segment = (seg: Segment.t): Id.Map.t(unit) => {
   let rec go = (acc, seg: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
+    List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
         switch (p) {
-        | Tile(t) => List.fold_left(go, acc, t.children)
+        | Tile(t) => List.fold(t.children, ~init=acc, ~f=go)
         | Projector(pr) =>
           let (module P) = ProjectorInit.to_module(pr.kind);
           go(P.dynamics ? Id.Map.add(pr.id, (), acc) : acc, [pr.syntax]);
         | Grout(_)
         | Secondary(_) => acc
-        },
-      acc,
-      seg,
-    );
+        });
   go(Id.Map.empty, seg);
 };
 
@@ -283,7 +275,7 @@ let with_targets =
      and change-detection on the statics RECORD — rebuilding it each
      time made every eval tick look like a program change */
   Id.Map.equal(Sample.equal_capture_spec, targets, s.targets)
-  && Id.Map.equal((==), pins, s.pins)
+  && Id.Map.equal(Unit.equal, pins, s.pins)
     ? s
     : {
       ...s,

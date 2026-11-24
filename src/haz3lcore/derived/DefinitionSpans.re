@@ -1,5 +1,7 @@
 /* Shared piece-level definition boundaries for focus, editing and presentation.
    No printing or reparsing: stable syntax ids survive each splice. */
+open Poly;
+
 let ends_with_in = (t: Base.tile): bool =>
   switch (List.rev(Tile.label(t))) {
   | ["in", ..._] => true
@@ -56,7 +58,7 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
   let ind = ref(0);
   let lead = ref(true);
   let rec go = (ps: Segment.t) =>
-    List.iter(
+    List.iter(~f=
       (p: Piece.t) => {
         if (Piece.id(p) == id) {
           raise(Indent(ind^));
@@ -71,7 +73,7 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
           }
         | Tile(t) =>
           lead := false;
-          List.iter(
+          List.iter(~f=
             ch => {
               go(ch);
               lead := false;
@@ -90,12 +92,12 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
 };
 
 let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
-  List.exists(
+  List.exists(~f=
     (p: Piece.t) =>
       Piece.id(p) == target
       || (
         switch (p) {
-        | Tile(t) => List.exists(seg_contains_id(target), t.children)
+        | Tile(t) => List.exists(~f=seg_contains_id(target), t.children)
         | _ => false
         }
       ),

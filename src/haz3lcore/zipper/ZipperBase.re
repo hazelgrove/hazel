@@ -249,7 +249,7 @@ module MapSegment = {
     switch (piece) {
     | Tile(t) =>
       let next = of_tile(f, t);
-      next === t ? piece : Tile(next);
+      phys_equal(next, t) ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece

@@ -338,7 +338,7 @@ module SampleLength = {
 
   let set = (lengths: t, id: int, length: int): t => [
     (id, length),
-    ...List.remove_assoc(id, lengths),
+    ...List.Assoc.remove(lengths, id, ~equal=Poly.equal),
   ];
 };
 
@@ -2417,7 +2417,7 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
       ~pinned_interval=ctx.dynamics.pinned_interval,
       values,
     )
-    |> List.fold(~init=None, ~f=(best, s: Sample.t) =>
+    |> List.fold(~init=(None: option(Sample.t)), ~f=(best, s: Sample.t) =>
            switch (best) {
            | Some(b: Sample.t) when b.seq >= s.seq => best
            | _ => Some(s)

@@ -243,7 +243,7 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | InvalidLivelitDef(DefMissingMembers(missing)) =>
     prn(
       "Livelit definition is missing members: %s",
-      String.concat(", ", missing),
+      String.concat(~sep=", ", missing),
     )
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))

@@ -8,6 +8,7 @@ open RefactorInline;
 open RefactorMove;
 open RefactorReduce;
 open RefactorLift;
+open Poly;
 
 let impl: Action.refactor => impl =
   fun
@@ -204,10 +205,11 @@ let applies =
     | None => false
     }
   | RenameTypFree(x, t) =>
-    rename_typ_pairs(~target, program) |> List.mem((x, t))
+    List.mem(rename_typ_pairs(~target, program), (x, t), ~equal=Poly.equal)
   | RenameFree(x, y) =>
     switch (find_hit(~hit=hit_rename(target), program)) {
-    | Some(e) => rename_pairs(~info_map, ~target, e) |> List.mem((x, y))
+    | Some(e) =>
+      List.mem(rename_pairs(~info_map, ~target, e), (x, y), ~equal=Poly.equal)
     | None => false
     }
   | SwapParams(i) =>
@@ -322,7 +324,7 @@ let applies =
       let line = lowest_line(path);
       !(
         crossed_typ_binders(line, path)
-        |> List.exists(n => typ_mentions([n], ty))
+        |> List.exists(~f=n => typ_mentions([n], ty))
       );
     | _ => false
     }
@@ -483,7 +485,7 @@ let go =
         };
       };
       let candidates = [focus, target] @ ancestors;
-      switch (List.find_map(place, candidates)) {
+      switch (List.find_map(~f=place, candidates)) {
       | Some(z'') => Some(z'')
       | None =>
         let z' = mk(Zipper.unzip(seg));

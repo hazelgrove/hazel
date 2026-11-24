@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Language.Statics;
 open OptUtil.Syntax;
+open Poly;
 
 module Utils = {
   let exp_to_info = (term: Exp.t, info_map: Id.Map.t(Info.t)): Info.t => {
@@ -152,7 +153,7 @@ module Utils = {
                  statics, so the ancestor chain reaches this Let via the
                  synthetic Fun wrapper rather than pat/def/body directly;
                  any chain position is necessarily inside the binding. */
-              if (Option.is_some(FunctionSugar.detect(pat))
+              if (Option.is_some(Pat.function_sugar(pat))
                   || Id.equal(def_id, Info.id_of(departure_point))
                   || Id.equal(body_id, Info.id_of(departure_point))
                   || Id.equal(pat_id, Info.id_of(departure_point))) {
@@ -297,7 +298,12 @@ module MoveOffWhitespaceHelper = {
     | Some({piece, _}) =>
       Piece.is_secondary(piece)
       || Piece.is_grout(piece)
-      || Piece.is_convex(piece)
+      || (
+        switch (Piece.shapes(piece)) {
+        | Some((Convex, Convex)) => true
+        | _ => false
+        }
+      )
     | None => false
     };
   };
@@ -638,7 +644,7 @@ let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
     program order, among several that share the same name path (shadowing).
     A `#` not followed by a positive integer is treated as part of the name. */
 let split_disambiguator = (path: string): (string, option(int)) => {
-  switch (String.rindex_opt(path, '#')) {
+  switch (String.rindex(path, '#')) {
   | None => (path, None)
   | Some(i) =>
     let base = String.sub(path, ~pos=0, ~len=i);
@@ -731,76 +737,6 @@ let path_to_syntax_projector_target_id_opt =
   };
 };
 
-let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
-  // Prefer matching the **last** path segment (binding name) so nested bindings
-  // like outer/t rank above top-level outer when the user typed "t".
-  let path_names = split_path(path);
-
-  let path_str = path;
-  let want_last = ListUtil.last_opt(path_names) |> Option.value(~default="");
-
-  /* suffix_dist, list_dist, char_dist, neg_depth (deeper wins on tie). */
-  let distance_for_node = (node: node): (int, int, int, int) => {
-    let candidate_names = id_path_to_name_path(node.path, node_map);
-    let cand_last =
-      ListUtil.last_opt(candidate_names) |> Option.value(~default="");
-    let suffix_dist = StringUtil.levenshtein_distance(want_last, cand_last);
-    let list_dist =
-      StringUtil.levenshtein_list_distance(path_names, candidate_names);
-    let candidate_str = String.concat(~sep="/", candidate_names);
-    let char_dist = StringUtil.levenshtein_distance(path_str, candidate_str);
-    let neg_depth = - List.length(node.path);
-    (suffix_dist, list_dist, char_dist, neg_depth);
-  };
-
-  let is_better =
-      (
-        (s1, l1, c1, d1): (int, int, int, int),
-        (s2, l2, c2, d2): (int, int, int, int),
-      )
-      : bool =>
-    if (s1 < s2) {
-      true;
-    } else if (s1 > s2) {
-      false;
-    } else if (l1 < l2) {
-      true;
-    } else if (l1 > l2) {
-      false;
-    } else if (c1 < c2) {
-      true;
-    } else if (c1 > c2) {
-      false;
-    } else {
-      d1 < d2;
-    };
-
-  switch (Id.Map.bindings(node_map)) {
-  /* Called from error-handling paths (path_to_id failure branch); must not raise. */
-  | [] => ""
-  | bindings =>
-    let (first_id, first_node) = List.hd_exn(bindings);
-    let d0 = distance_for_node(first_node);
-    let initial_acc = (first_id, first_node, d0);
-
-    let (best_id, _best_node, _best_dist) =
-      List.fold(List.tl_exn(bindings), ~init=initial_acc, ~f=((acc_id, acc_node, acc_d), (id, node)) => {
-          let d = distance_for_node(node);
-          if (is_better(d, acc_d)) {
-            (id, node, d);
-          } else {
-            (acc_id, acc_node, acc_d);
-          };
-        });
-
-    let path = find(node_map, best_id).path;
-    String.concat(~sep=
-      "/",
-      List.map(~f=(id: Id.t) => id_to_name(node_map, id), path),
-    );
-  };
-};
-
 /** All binding paths in [[node_map]] rendered as their slash-joined name
     strings, sorted for stable output. Used for failure diagnostics so the
     agent can self-correct rather than guess. */
@@ -845,10 +781,9 @@ let path_to_id = (node_map: t, path: string): Id.t => {
   let matches = matches_for_path(node_map, split_path(base));
   switch (matches, occurrence) {
   | ([], _) =>
-    let closest = closest_valid_path_to_ill_path(node_map, base);
     let suffix_hint =
       switch (unique_suffix_match(node_map, base)) {
-      | Some(qualified) when !String.equal(qualified, closest) =>
+      | Some(qualified) =>
         "\nOr the fully qualified nested path \"" ++ qualified ++ "\"."
       | _ => ""
       };
@@ -863,9 +798,6 @@ let path_to_id = (node_map: t, path: string): Id.t => {
         "Path \""
         ++ path
         ++ "\" not found in node map"
-        ++ "\nPerhaps you meant \""
-        ++ closest
-        ++ "\"?"
         ++ suffix_hint
         ++ "\nNested bindings use paths like outer/inner (not just the inner name)."
         ++ available_str,
@@ -928,7 +860,8 @@ let rec build = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) =>
      scaffolding stripped) the answer is "no map here", not a crash —
      callers holding a compositional record use [build_for] */
   try(build_whole(zipper, info_map)) {
-  | Not_found => None
+  | Stdlib.Not_found
+  | Not_found_s(_) => None
   }
 and build_whole = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   // Move to a valid, non-secondary, non-grout, non-convex term
@@ -1027,7 +960,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
         | Some(i) =>
           switch (build_children(i, at, acc, map)) {
           | nm => nm
-          | exception Not_found =>
+          | exception (Stdlib.Not_found | Not_found_s(_)) =>
             items_fallbacks := ["inner", ...items_fallbacks^];
             acc;
           }
@@ -1048,7 +981,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
           | Some(ti) =>
             switch (build_children(ti, node_path, acc, map)) {
             | nm => nm
-            | exception Not_found => acc
+            | exception (Stdlib.Not_found | Not_found_s(_)) => acc
             }
           | None => acc
           };
@@ -1204,7 +1137,7 @@ let build_for = (z: Zipper.t, statics: CachedStatics.t): option(t) =>
     /* pure in the items record; the canvas asks twice per render and
        renders on every update */
     switch (items_memo^) {
-    | Some((ds', m)) when ds' === ds => m
+    | Some((ds', m)) when phys_equal(ds', ds) => m
     | _ =>
       let m = build_from_items(ds);
       items_memo := Some((ds, m));

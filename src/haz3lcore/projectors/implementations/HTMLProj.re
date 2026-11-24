@@ -2,6 +2,7 @@ open Util;
 open ProjectorBase;
 open Language;
 open IdTagged.FreshGrammar;
+open Poly;
 
 // The HTML projector: one projector, two commit modes, picked by what the
 // projected expression's live value turns out to be.
@@ -63,7 +64,7 @@ let drag_cursor_classes = [
 
 let set_drag_cursor = (cls: option(string)): unit => {
   let body = Js_of_ocaml.Dom_html.document##.body;
-  List.iter(
+  List.iter(~f=
     c => body##.classList##remove(Js_of_ocaml.Js.string(c)),
     drag_cursor_classes,
   );
@@ -115,8 +116,8 @@ let target_of = evt =>
 // Checkpoint writes are debounced per app: a model is persisted once the app
 // has been idle this long, never per message.
 let checkpoint_delay_ms = 2000.0;
-let checkpoint_timers: Hashtbl.t(Id.t, Js_of_ocaml.Dom_html.timeout_id) =
-  Hashtbl.create(4);
+let checkpoint_timers: Stdlib.Hashtbl.t(Id.t, Js_of_ocaml.Dom_html.timeout_id) =
+  Stdlib.Hashtbl.create(4);
 
 /* (Re)arm the idle timer for `id`. When it fires, ask the store for a
  * checkpoint (None if the model holds closures) and, if it differs from
@@ -129,14 +130,14 @@ let schedule_checkpoint =
       ~save: option(string) => Ui_effect.t(unit),
     )
     : unit => {
-  switch (Hashtbl.find_opt(checkpoint_timers, id)) {
+  switch (Stdlib.Hashtbl.find_opt(checkpoint_timers, id)) {
   | Some(timer) => Js_of_ocaml.Dom_html.window##clearTimeout(timer)
   | None => ()
   };
   let timer =
     Js_of_ocaml.Dom_html.window##setTimeout(
       Js_of_ocaml.Js.wrap_callback(() => {
-        Hashtbl.remove(checkpoint_timers, id);
+        Stdlib.Hashtbl.remove(checkpoint_timers, id);
         let checkpoint = AppBridge.checkpoint^(id);
         if (checkpoint != current) {
           Bonsai.Effect.Expert.handle(save(checkpoint));
@@ -144,7 +145,7 @@ let schedule_checkpoint =
       }),
       checkpoint_delay_ms,
     );
-  Hashtbl.replace(checkpoint_timers, id, timer);
+  Stdlib.Hashtbl.replace(checkpoint_timers, id, timer);
 };
 
 /* The live value of the projected syntax, if the probe has recorded one.
@@ -156,16 +157,12 @@ let live_value = (info: ProjectorBase.info): option(DHExp.t) =>
   switch (info.dynamics) {
   | None => None
   | Some({samples, _}) =>
-    List.fold_left(
-      (acc, s: Sample.t) =>
+    List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) =>
         switch (acc) {
         | Some(best: Sample.t) when best.seq >= s.seq => acc
         | _ => Some(s)
-        },
-      None,
-      samples,
-    )
-    |> Option.map((s: Sample.t) => MvuShape.strip_wrappers(s.value))
+        })
+    |> Option.map(~f=(s: Sample.t) => MvuShape.strip_wrappers(s.value))
   };
 
 module M: Projector = {
@@ -396,7 +393,7 @@ module M: Projector = {
       | Some(anchor) =>
         let (x, y) = client_pos(evt);
         let delta = (d: float, cell: float) =>
-          int_of_float(Float.round(d /. cell));
+          int_of_float(Stdlib.Float.round(d /. cell));
         let cols =
           anchor.axes.horizontal
             ? max(

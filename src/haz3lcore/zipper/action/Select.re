@@ -549,7 +549,7 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
           Piece.id(l),
           Zipper.unselect_and_zip(z),
         )
-        |> Option.map(zp =>
+        |> Option.map(~f=zp =>
              {
                ...zp,
                refractors: z.refractors,

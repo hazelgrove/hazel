@@ -38,8 +38,8 @@ module M: Projector = {
             (row: list((string, string))) =>
               Language.IdTagged.FreshGrammar.Exp.(
                 tuple(
-                  List.map(
-                      ~f=
+                  List.map(~f=
+                      
                     ((header: string, value: string)) =>
                       tup_label(
                         label(StringUtil.sanitize_for_label(header)),
@@ -63,8 +63,8 @@ module M: Projector = {
             (row: list(string)) =>
               Language.IdTagged.FreshGrammar.Exp.(
                 tuple(
-                  List.map(
-                      ~f=
+                  List.map(~f=
+                      
                     (value: string) =>
                       string(
                         StringUtil.sanitize_for_string_expression(value),

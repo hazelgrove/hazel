@@ -72,7 +72,7 @@ let rec subscribe = (ctx: context, sub: DHExp.t): list(sub_handle) => {
 
     | Some(("SubBatch", body)) =>
       switch (of_list(body)) {
-      | Some(subs) => List.concat(List.map(subscribe(ctx), subs))
+      | Some(subs) => List.concat(List.map(~f=subscribe(ctx), subs))
       | None => []
       }
 
@@ -194,7 +194,7 @@ let rec subscribe = (ctx: context, sub: DHExp.t): list(sub_handle) => {
 // Cleanup all active subscriptions
 let cleanup = (handles: active_subs): unit => {
   Js_of_ocaml.(
-    List.iter(
+    List.iter(~f=
       handle =>
         switch (handle) {
         | IntervalHandle(id) => Dom_html.window##clearInterval(id)

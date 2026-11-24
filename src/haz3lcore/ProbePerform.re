@@ -170,7 +170,7 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
      rm_manual unconditionally applies its no-probes cursor reset, and this
      runs every calculate — it was wiping sample-focus captures made at
      un-refractored anchors (the canvas wells) on the next frame. */
-  ids_to_remove == [] ? z : rm_manual(ids_to_remove, z);
+  List.is_empty(ids_to_remove) ? z : rm_manual(ids_to_remove, z);
 };
 
 let add_manual_targets =

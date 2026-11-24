@@ -777,11 +777,7 @@ let num_rows = (m: t): int => m.total_rows;
 
 /* tiles live per chunk, a split tile in two */
 let num_tiles = (m: t): int =>
-  Array.fold_left(
-    (n, ch) => n + Id.Map.cardinal(ch.c_flat.tiles),
-    0,
-    m.chunks,
-  )
+  Array.fold(m.chunks, ~init=0, ~f=(n, ch) => n + Id.Map.cardinal(ch.c_flat.tiles))
   - Id.Map.cardinal(m.split);
 
 /* single-chunk measurement, without the incremental cache */

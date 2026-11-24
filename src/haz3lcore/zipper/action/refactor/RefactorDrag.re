@@ -8,6 +8,7 @@ open RefactorMove;
 open RefactorReduce;
 open RefactorRegistry;
 open RefactorGesture;
+open Poly;
 
 let emerge_source =
     (~info_map, ~target, kind: Action.refactor, term): list(Id.t) =>
@@ -84,10 +85,10 @@ let merge_target =
   | ExtractLet =>
     switch (extract_path(~target, term)) {
     | Some(path) =>
-      let t = List.nth(path, List.length(path) - 1);
+      let t = List.nth_exn(path, List.length(path) - 1);
       let line = lowest_line(path);
       let blocked =
-        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+        crossed_rec_binders(line, path) |> List.exists(~f=n => mentions(n, t));
       let rec host = (path: list(Exp.t)) =>
         switch (path) {
         | [parent, child, ..._] when same_node(child, line) => Some(parent)
@@ -100,7 +101,7 @@ let merge_target =
         | Let(lp, ldef, lbody)
             when same_node(lbody, line) && eq_defs(ldef, t) =>
           switch (let_head_name(lp)) {
-          | Some(nm) when !List.mem(nm, binders_over(Exp.rep_id(t), lbody)) => (
+          | Some(nm) when !List.mem(binders_over(Exp.rep_id(t), lbody), nm, ~equal=Poly.equal) => (
               exp_subtree_ids(t),
               exp_subtree_ids(ldef),
             )
@@ -227,7 +228,7 @@ let drag_anchor =
     | Some(m) =>
       switch (IdTagged.term_of(m), arm_index_at(target, m)) {
       | (Match(_, rules), Some(j)) when j < List.length(rules) =>
-        let (rp, _) = List.nth(rules, j);
+        let (rp, _) = List.nth_exn(rules, j);
         /* the grabbed arm is index j; it swaps with i/i+1 — anchor
            the arm the user grabbed either way */
         ignore(i);
@@ -247,7 +248,7 @@ let drag_anchor =
       switch (IdTagged.term_of(l)) {
       | Let(_, def, body) =>
         first_occurrence(x, body)
-        |> Option.map(o => (Exp.rep_id(def), Exp.rep_id(o)))
+        |> Option.map(~f=o => (Exp.rep_id(def), Exp.rep_id(o)))
       | _ => None
       }
     | None => None
@@ -281,7 +282,7 @@ let drag_candidates =
       | Some(k) when id == target =>
         switch (Measured.find_shards_by_id(id, m)) {
         | Some(shards) =>
-          switch (List.assoc_opt(k, shards)) {
+          switch (List.Assoc.find(shards, k, ~equal=Poly.equal)) {
           | Some(meas) => Some(meas)
           | None => Measured.find_by_id(id, m)
           }
@@ -332,7 +333,7 @@ let drag_candidates =
               |> Option.value(~default=(target, target));
             let to_pos = (id: Id.t) =>
               shard_meas(id, cand_measured)
-              |> Option.map((m: Measured.measurement) => m.origin);
+              |> Option.map(~f=(m: Measured.measurement) => m.origin);
             switch (
               shard_meas(from_id, measured),
               /* the grabbed id can vanish in a candidate (rare); the
@@ -406,13 +407,13 @@ let drag_candidates =
                     let live = exp_subtree_ids(term);
                     let fresh =
                       exp_subtree_ids(term')
-                      |> List.filter(id => !List.mem(id, live));
+                      |> List.filter(~f=id => !List.mem(live, id, ~equal=Poly.equal));
                     let d = exp_subtree_ids(def);
                     /* combine raises on length mismatch — guard FIRST
                        (the eager-evaluation gotcha) */
                     let zip = ids =>
                       List.length(ids) == List.length(d)
-                        ? List.combine(ids, d) : [];
+                        ? List.zip_exn(ids, d) : [];
                     switch (zip(fresh)) {
                     | [] =>
                       /* reparse demanded a paren wrapper: the parens
@@ -422,7 +423,7 @@ let drag_candidates =
                         switch (IdTagged.term_of(e)) {
                         | Parens(_) =>
                           IdTagged.ids(e)
-                          |> List.exists(id => List.mem(id, fresh))
+                          |> List.exists(~f=id => List.mem(fresh, id, ~equal=Poly.equal))
                         | _ => false
                         };
                       switch (find_hit(~hit=fresh_parens, term')) {
@@ -442,7 +443,7 @@ let drag_candidates =
               /* a spawned clone's track ends at the CLONE (the
                  occurrence's ids no longer exist in the candidate) */
               let tgt =
-                switch (emerge |> List.find_opt(((_, d)) => d == from_id)) {
+                switch (emerge |> List.find(~f=((_, d)) => d == from_id)) {
                 | Some((clone_id, _)) =>
                   switch (to_pos(clone_id)) {
                   | Some(p) => DragCandidate.frame_point(frame, p)
@@ -479,13 +480,10 @@ let drag_candidates =
        dispatch re-derives. The occurrence-inside-def spot is dead
        for drag until the commit path can carry a resolution. */
     [Action.Gesture.Up, Down, Left, Right]
-    |> List.filter_map(dir => mk(dir))
-    |> List.fold_left(
-         (acc, c: DragCandidate.t) =>
-           List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
-             ? acc : acc @ [c],
-         [],
-       );
+    |> List.filter_map(~f=dir => mk(dir))
+    |> List.fold(~init=[], ~f=(acc, c: DragCandidate.t) =>
+           List.exists(~f=(c': DragCandidate.t) => c'.target == c.target, acc)
+             ? acc : acc @ [c]);
   };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a
