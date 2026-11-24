@@ -2213,14 +2213,16 @@ let dig_aot =
   game_aot(
     ~dir="dig",
     ~modules=["Dig", "Scene"],
-    ~tail="\n(start = Dig.start, step = Dig.step, robot = Dig.robot, scene = Scene.scene, landing = Scene.landing)",
+    ~tail=
+      "\n(start = Dig.start, step = Dig.step, robot = Dig.robot, scene = Scene.scene, landing = Scene.landing)",
     ~mark="DIG",
   );
 let starwave_aot =
   game_aot(
     ~dir="starwave",
     ~modules=["StarWave"],
-    ~tail="\n(start = StarWave.start, step = StarWave.step, robot = StarWave.robot)",
+    ~tail=
+      "\n(start = StarWave.start, step = StarWave.step, robot = StarWave.robot)",
     ~mark="STARWAVE",
   );
 let trails_aot =
@@ -2234,7 +2236,8 @@ let snake_aot =
   game_aot(
     ~dir="snake",
     ~modules=["Snake"],
-    ~tail="\n(start = Snake.start, step = Snake.step, robot = Snake.robot, next_level = Snake.next_level)",
+    ~tail=
+      "\n(start = Snake.start, step = Snake.step, robot = Snake.robot, next_level = Snake.next_level)",
     ~mark="SNAKE",
   );
 let bricks_aot =
