@@ -1290,12 +1290,15 @@ module CustomStaticsHead = {
       name,
       `Quick,
       () => {
-        let marks = List.concat_map(snd, errors(statics(parse_exp(src))));
+        let marks =
+          List.concat_map(~f=snd, errors(statics(parse_exp(src))));
         let reported =
           List.exists(
-            fun
-            | Language.Mark.BuiltinError(ToLvsMissingLabelsOnTuple(_)) => true
-            | _ => false,
+            ~f=
+              fun
+              | Language.Mark.BuiltinError(ToLvsMissingLabelsOnTuple(_)) =>
+                true
+              | _ => false,
             marks,
           );
         Alcotest.(check(bool))(

@@ -12,14 +12,14 @@ module BoolMap =
   MapUtil.Make({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = bool;
-    let compare = compare;
+    let compare = Bool.compare;
   });
 
 module FloatMap =
   MapUtil.Make({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = float;
-    let compare = compare;
+    let compare = Float.compare;
   });
 
 module StringMap =

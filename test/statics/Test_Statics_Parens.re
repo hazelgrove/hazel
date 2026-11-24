@@ -34,19 +34,20 @@ let tests = (
       `Quick,
       () =>
       List.iter(
-        src => {
-          let pat =
-            switch (parse_exp("fun " ++ src ++ " -> ?").term) {
-            | Fun(p, _, _, _) => p
-            | _ => fail("expected a lambda for: " ++ src)
-            };
-          check(
-            string,
-            src,
-            "Constructor application",
-            Language.Pat.show_cls(Language.Pat.cls_of_term(pat.term)),
-          );
-        },
+        ~f=
+          src => {
+            let pat =
+              switch (parse_exp("fun " ++ src ++ " -> ?").term) {
+              | Fun(p, _, _, _) => p
+              | _ => fail("expected a lambda for: " ++ src)
+              };
+            check(
+              string,
+              src,
+              "Constructor application",
+              Language.Pat.show_cls(Language.Pat.cls_of_term(pat.term)),
+            );
+          },
         ["Some(x)", "(Some)(x)", "^^fold(Some)(x)"],
       )
     ),
