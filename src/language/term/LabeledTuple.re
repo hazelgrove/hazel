@@ -22,7 +22,7 @@ let match_labels: (label, label) => bool =
     // Empty label is a placeholder for checking any label
     | ("", _)
     | (_, "") => true
-    | (_, _) => label1 == label2
+    | (_, _) => String.equal(label1, label2)
     };
   };
 
@@ -34,13 +34,13 @@ let separate_and_keep_labels:
   (list(option(label)), list('a))
  =
   (get_label, es) => (
-    List.map(e => Option.map(fst, get_label(e)), es),
+    List.map(es, ~f=e => Option.map(get_label(e), ~f=fst)),
     es,
   );
 
 // Keeps the labels in x that exist in y. Maintains the order from x.
 let intersect = (xs: list(label), ys: list(label)) => {
-  List.filter_map(x => List.find_opt(equal_label(x), ys), xs);
+  List.filter_map(~f=x => List.find(~f=equal_label(x), ys), xs);
 };
 
 // Takes a list of strings and returns a list of duplicates
@@ -49,14 +49,15 @@ let get_duplicate_labels_base: list(label) => list(label) =
   labels => {
     let (duplicates, _seen) =
       List.fold_left(
-        ((dupes, seen), label) =>
-          if (List.exists(l => label == l, seen)) {
-            List.exists(l => label == l, dupes)
-              ? (dupes, seen) : (dupes @ [label], seen);
-          } else {
-            (dupes, seen @ [label]);
-          },
-        ([], []),
+        ~f=
+          ((dupes, seen), label) =>
+            if (List.exists(~f=l => String.equal(label, l), seen)) {
+              List.exists(~f=l => String.equal(label, l), dupes)
+                ? (dupes, seen) : (dupes @ [label], seen);
+            } else {
+              (dupes, seen @ [label]);
+            },
+        ~init=([], []),
         labels,
       );
     duplicates;
@@ -73,22 +74,20 @@ let get_duplicate_labels:
     | []
     | [_] => []
     | _ =>
-      let seen = Hashtbl.create(8);
+      let seen = Stdlib.Hashtbl.create(8);
       let dupes = ref([]);
-      List.iter(
-        e =>
-          switch (get_label(e)) {
-          | Some((l, _)) =>
-            switch (Hashtbl.find_opt(seen, l)) {
-            | None => Hashtbl.add(seen, l, false)
-            | Some(false) =>
-              Hashtbl.replace(seen, l, true);
-              dupes := [l, ...dupes^];
-            | Some(true) => ()
-            }
-          | None => ()
-          },
-        es,
+      List.iter(es, ~f=e =>
+        switch (get_label(e)) {
+        | Some((l, _)) =>
+          switch (Stdlib.Hashtbl.find_opt(seen, l)) {
+          | None => Stdlib.Hashtbl.add(seen, l, false)
+          | Some(false) =>
+            Stdlib.Hashtbl.replace(seen, l, true);
+            dupes := [l, ...dupes^];
+          | Some(true) => ()
+          }
+        | None => ()
+        }
       );
       List.rev(dupes^);
     };
@@ -109,24 +108,28 @@ let rec rearrange_base:
   list((option(label), 'b))
  =
   (~show_b=?, l1: list(option(label)), l2: list((option(label), 'b))) => {
-    let l1_labels = List.filter_map(Fun.id, l1);
-    let l2_labels = List.filter_map(fst, l2);
+    let l1_labels = List.filter_map(~f=Fn.id, l1);
+    let l2_labels = List.filter_map(~f=fst, l2);
     let common_labels = intersect(l1_labels, l2_labels);
 
     switch (l1, l2) {
     | ([], _) => l2
     | (_, []) => []
     | ([Some(expected_label), ...remaining_expectations], remaining) =>
-      let maybe_found = List.assoc_opt(Some(expected_label), remaining);
+      let maybe_found =
+        ListUtil.find_with_rest(
+          ((label, b)) =>
+            Option.some_if(
+              Option.equal(String.equal, label, Some(expected_label)),
+              b,
+            ),
+          remaining,
+        );
 
       switch (maybe_found) {
-      | Some(found) =>
+      | Some((found, rest)) =>
         [(Some(expected_label), found)]
-        @ rearrange_base(
-            ~show_b?,
-            remaining_expectations,
-            List.remove_assoc(Some(expected_label), remaining),
-          )
+        @ rearrange_base(~show_b?, remaining_expectations, rest)
       | None =>
         let (
           pre: list((option(label), 'b)),
@@ -135,7 +138,8 @@ let rec rearrange_base:
         ) =
           ListUtil.split(remaining, ((label: option(label), _)) => {
             switch (label) {
-            | Some(label) => !List.mem(label, common_labels)
+            | Some(label) =>
+              !List.mem(common_labels, label, ~equal=String.equal)
             | None => true
             }
           });
@@ -156,7 +160,8 @@ let rec rearrange_base:
       ) =
         ListUtil.split(remaining, ((label: option(label), _)) => {
           switch (label) {
-          | Some(label) => !List.mem(label, common_labels)
+          | Some(label) =>
+            !List.mem(common_labels, label, ~equal=String.equal)
           | None => true
           }
         });
@@ -194,31 +199,33 @@ let rearrange:
       // TODO: Error handling in case of bad arguments
       let l1' = fst(separate_and_keep_labels(get_label1, l1));
       let (l2_labels, l2_vals) = separate_and_keep_labels(get_label2, l2);
-      let l2' = List.combine(l2_labels, l2_vals);
+      let l2' = List.zip_exn(l2_labels, l2_vals);
       let l2_reordered = rearrange_base(l1', l2');
       List.map(
-        ((optional_label, b)) =>
-          switch (optional_label) {
-          | Some(label) =>
-            switch (get_label2(b)) {
-            | Some(_) => b
-            | None => constructor(label, b)
-            }
-          | None => b
-          },
+        ~f=
+          ((optional_label, b)) =>
+            switch (optional_label) {
+            | Some(label) =>
+              switch (get_label2(b)) {
+              | Some(_) => b
+              | None => constructor(label, b)
+              }
+            | None => b
+            },
         l2_reordered,
       );
     };
 
 let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
   (filt, es, label) => {
-    List.find_opt(
-      e => {
-        switch (filt(e)) {
-        | Some((s, _)) => s == label
-        | None => false
-        }
-      },
+    List.find(
+      ~f=
+        e => {
+          switch (filt(e)) {
+          | Some((s, _)) => String.equal(s, label)
+          | None => false
+          }
+        },
       es,
     );
   };
@@ -242,43 +249,50 @@ let extension =
     )
     : list((option(label), 'a)) => {
   /* Maintain the order of the labels from e1_entries, but use the values from e2_entries if present */
-  module StringMap = Map.Make(String);
+  module StringMap = Stdlib.Map.Make(String);
   let e2_map =
     List.fold_left(
-      (acc, (lab, d)) =>
-        switch (lab) {
-        | Some(l) => StringMap.add(l, d, acc)
-        | None => acc
-        },
-      StringMap.empty,
+      ~f=
+        (acc, (lab, d)) =>
+          switch (lab) {
+          | Some(l) => StringMap.add(l, d, acc)
+          | None => acc
+          },
+      ~init=StringMap.empty,
       e2_entries,
     );
 
   let merged_entries =
     List.map(
-      ((lab, d1)) =>
-        switch (lab) {
-        | Some(l) =>
-          switch (StringMap.find_opt(l, e2_map)) {
-          | Some(d2) => (Some(l), d2)
-          | None => (Some(l), d1)
-          }
-        | None => (None, d1)
-        },
+      ~f=
+        ((lab, d1)) =>
+          switch (lab) {
+          | Some(l) =>
+            switch (StringMap.find_opt(l, e2_map)) {
+            | Some(d2) => (Some(l), d2)
+            | None => (Some(l), d1)
+            }
+          | None => (None, d1)
+          },
       e1_entries,
     )
     /* Add any new labels from e2_entries that weren't in e1_entries */
     @ List.filter_map(
-        ((lab, d2)) =>
-          switch (lab) {
-          | Some(l) =>
-            if (List.exists(((l1, _)) => l1 == Some(l), e1_entries)) {
-              None;
-            } else {
-              Some((Some(l), d2));
-            }
-          | None => Some((None, d2))
-          },
+        ~f=
+          ((lab, d2)) =>
+            switch (lab) {
+            | Some(l) =>
+              if (List.exists(
+                    ~f=
+                      ((l1, _)) => Option.equal(String.equal, l1, Some(l)),
+                    e1_entries,
+                  )) {
+                None;
+              } else {
+                Some((Some(l), d2));
+              }
+            | None => Some((None, d2))
+            },
         e2_entries,
       );
 
