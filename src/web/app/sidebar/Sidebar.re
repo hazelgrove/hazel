@@ -370,8 +370,8 @@ let view =
           Haz3lcore.ProblemCollection.{
             label,
             sources:
-              List.map(
-                  ~f=
+              List.map(~f=
+                  
                 (e: CodeWithStatics.Model.t) =>
                   Haz3lcore.ProblemCollection.{
                     statics: e.statics,

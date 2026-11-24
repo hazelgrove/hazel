@@ -577,7 +577,7 @@ let go_impl = (): unit => {
         switch (nums) {
         | [dot, gap, ..._] when dot +. gap > 0. && dot +. gap < 40. =>
           let period = dot +. gap;
-          let n = int_of_float(ceil(total /. period));
+          let n = int_of_float(Float.round_up(total /. period));
           let on_len = float_of_int(n) *. period;
           (
             String.concat(~sep=

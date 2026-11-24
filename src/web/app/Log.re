@@ -34,7 +34,7 @@ module Entry = {
     let t0 = JsUtil.timestamp();
     let s = (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string;
     let ms = JsUtil.timestamp() -. t0;
-    if (ms > 50.) {
+    if (Float.(ms > 50.)) {
       Js_of_ocaml.Firebug.console##warn(
         Js_of_ocaml.Js.string(
           Printf.sprintf(

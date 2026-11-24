@@ -12,6 +12,7 @@
    with hysteresis, replacing the old zoom-out-only auto-fit. */
 
 open Js_of_ocaml;
+open Poly;
 
 let pan_slack = CanvasRipple.pan_slack;
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
@@ -30,9 +31,9 @@ let inflight: ref(option(((float, float), float))) =
 let same_target = ((cx, cy): (float, float), z: float): bool =>
   switch (inflight^) {
   | Some(((ix, iy), iz)) =>
-    abs_float(ix -. cx) < 2.
-    && abs_float(iy -. cy) < 2.
-    && abs_float(iz -. z) < 0.01
+    Float.abs(ix -. cx) < 2.
+    && Float.abs(iy -. cy) < 2.
+    && Float.abs(iz -. z) < 0.01
   | None => false
   };
 /* while we write scroll (plus a grace tail) scroll events are ours */
@@ -50,7 +51,7 @@ let exposure: ref(list((string, float))) = ref([]);
 let exposed_after_ms = 2000.;
 let last_exposure_tick: ref(float) = ref(0.);
 let exposed_keys = (): list(string) =>
-  List.filter_map(
+  List.filter_map(~f=
     ((k, ms)) => ms >= exposed_after_ms ? Some(k) : None,
     exposure^,
   );
@@ -355,7 +356,7 @@ let touch = ((x, y): (float, float)): unit => {
     roi := [];
   };
   roi_last_touch := now();
-  if (!List.mem((x, y), roi^)) {
+  if (!List.mem(roi^, (x, y), ~equal=Poly.equal)) {
     roi := [(x, y), ...roi^];
   };
 };
@@ -370,11 +371,11 @@ let in_dead_zone = (~aw, ~ah, (px, py): (float, float)): bool =>
   | None => true
   | Some((cx, cy)) =>
     let z = zoom_now^;
-    abs_float(px -. cx) < dead_zone_frac
+    Float.abs(px -. cx) < dead_zone_frac
     *. aw
     /. 2.
     /. z
-    && abs_float(py -. cy) < dead_zone_frac
+    && Float.abs(py -. cy) < dead_zone_frac
     *. ah
     /. 2.
     /. z;
@@ -386,10 +387,10 @@ let roi_zoom = (~aw, ~ah): option(float) =>
   if (now() < user_zoom_until^ || List.length(roi^) < 2) {
     None;
   } else {
-    let xs = List.map(fst, roi^)
-    and ys = List.map(snd, roi^);
-    let bw = List.fold_left(max, -1e9, xs) -. List.fold_left(min, 1e9, xs)
-    and bh = List.fold_left(max, -1e9, ys) -. List.fold_left(min, 1e9, ys);
+    let xs = List.map(~f=fst, roi^)
+    and ys = List.map(~f=snd, roi^);
+    let bw = List.fold(xs, ~init=-1e9, ~f=max) -. List.fold(xs, ~init=1e9, ~f=min)
+    and bh = List.fold(ys, ~init=-1e9, ~f=max) -. List.fold(ys, ~init=1e9, ~f=min);
     let fit =
       min(aw /. (bw +. 2. *. roi_pad), ah /. (bh +. 2. *. roi_pad))
       |> max(zoom_min)
@@ -412,8 +413,8 @@ let roi_center = (): option((float, float)) =>
   | pts =>
     let n = float_of_int(List.length(pts));
     Some((
-      List.fold_left((a, (x, _)) => a +. x, 0., pts) /. n,
-      List.fold_left((a, (_, y)) => a +. y, 0., pts) /. n,
+      List.fold(pts, ~init=0., ~f=(a, (x, _)) => a +. x) /. n,
+      List.fold(pts, ~init=0., ~f=(a, (_, y)) => a +. y) /. n,
     ));
   };
 
@@ -427,7 +428,7 @@ let rec follow = (~aw: float, ~ah: float, dest: (float, float)): unit => {
        wheel zoom pins the zoom */
     let z = zoom_now^;
     let want_zoom =
-      now() < user_zoom_until^ || abs_float(zfit -. z) < 0.08
+      now() < user_zoom_until^ || Float.abs(zfit -. z) < 0.08
         ? None : Some(zfit);
     let target_z = Option.value(~default=z, want_zoom);
     if ((!whole_visible(~aw, ~ah) || want_zoom != None)
@@ -525,11 +526,11 @@ let note_exposure =
     let hw = aw /. 2. /. z
     and hh = ah /. 2. /. z;
     exposure :=
-      List.map(
+      List.map(~f=
         ((k, (x, y))) => {
           let inside =
             x >= cx -. hw && x <= cx +. hw && y >= cy -. hh && y <= cy +. hh;
-          let prev = Option.value(~default=0., List.assoc_opt(k, exposure^));
+          let prev = Option.value(~default=0., List.Assoc.find(exposure^, k, ~equal=Poly.equal));
           (k, inside ? prev +. dt : prev);
         },
         nodes,

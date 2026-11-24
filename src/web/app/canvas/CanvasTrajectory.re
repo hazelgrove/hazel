@@ -25,6 +25,7 @@
    __simulateRun(json, speed) (a replay that IS recorded, for testing). */
 
 open Js_of_ocaml;
+open Poly;
 
 type event =
   | Reply(list((string, Yojson.Safe.t))) /* (tool name, arguments) */
@@ -114,12 +115,12 @@ let summary_to_json = (s: summary): Yojson.Safe.t =>
   ]);
 
 let str = (fields, k) =>
-  switch (List.assoc_opt(k, fields)) {
+  switch (List.Assoc.find(fields, k, ~equal=Poly.equal)) {
   | Some(`String(s)) => s
   | _ => ""
   };
 let num = (fields, k) =>
-  switch (List.assoc_opt(k, fields)) {
+  switch (List.Assoc.find(fields, k, ~equal=Poly.equal)) {
   | Some(`Float(f)) => f
   | Some(`Int(i)) => float_of_int(i)
   | _ => 0.
@@ -136,12 +137,12 @@ let summary_of_json = (j: Yojson.Safe.t): option(summary) =>
       s_secs: num(f, "secs"),
       s_replies: int_of_float(num(f, "replies")),
       s_kept:
-        switch (List.assoc_opt("kept", f)) {
+        switch (List.Assoc.find(f, "kept", ~equal=Poly.equal)) {
         | Some(`Bool(b)) => b
         | _ => false
         },
       s_live:
-        switch (List.assoc_opt("live", f)) {
+        switch (List.Assoc.find(f, "live", ~equal=Poly.equal)) {
         | Some(`Bool(b)) => b
         | _ => false
         },
@@ -155,19 +156,19 @@ let index = (): list(summary) =>
   | Some(text) =>
     switch (Yojson.Safe.from_string(text)) {
     | exception _ => []
-    | `List(items) => List.filter_map(summary_of_json, items)
+    | `List(items) => List.filter_map(~f=summary_of_json, items)
     | _ => []
     }
   };
 let save_index = (s: list(summary)): unit =>
   HazelDB.kv_save(
     index_key,
-    Yojson.Safe.to_string(`List(List.map(summary_to_json, s))),
+    Yojson.Safe.to_string(`List(List.map(~f=summary_to_json, s))),
   );
 
 let n_replies = (events: list(stamped)): int =>
   List.length(
-    List.filter(
+    List.filter(~f=
       s =>
         switch (s.ev) {
         | Reply(_) => true
@@ -196,8 +197,7 @@ let run_to_json = (r: run): Yojson.Safe.t => {
     (
       "events",
       `List(
-        List.rev_map(
-          ({t, ev}) =>
+        List.rev_map(r.events, ~f=({t, ev}) =>
             switch (ev) {
             | Reply(calls) =>
               `Assoc([
@@ -206,7 +206,7 @@ let run_to_json = (r: run): Yojson.Safe.t => {
                 (
                   "tools",
                   `List(
-                    List.map(
+                    List.map(~f=
                       ((name, args)) =>
                         `Assoc([("name", `String(name)), ("args", args)]),
                       calls,
@@ -228,9 +228,7 @@ let run_to_json = (r: run): Yojson.Safe.t => {
                 ("kind", `String("prompt")),
                 ("text", `String(text)),
               ])
-            },
-          r.events,
-        ),
+            }),
       ),
     ),
   ]);
@@ -245,7 +243,7 @@ let save_run = (~live: bool, r: run): unit => {
     Yojson.Safe.to_string(run_to_json(r)),
   );
   let kept =
-    switch (List.find_opt(x => x.s_id == r.header.id, index())) {
+    switch (List.find(~f=x => x.s_id == r.header.id, index())) {
     | Some(x) => x.s_kept
     | None => false
     };
@@ -259,17 +257,13 @@ let save_run = (~live: bool, r: run): unit => {
     s_kept: kept,
     s_live: live,
   };
-  let all = [s, ...List.filter(x => x.s_id != s.s_id, index())];
+  let all = [s, ...List.filter(~f=x => x.s_id != s.s_id, index())];
   /* the cap spares kept traces */
   let (keep, drop) =
-    List.fold_left(
-      ((k, d), x) =>
+    List.fold(all, ~init=([], []), ~f=((k, d), x) =>
         List.length(k) < keep_last || x.s_kept
-          ? (k @ [x], d) : (k, d @ [x]),
-      ([], []),
-      all,
-    );
-  List.iter(x => HazelDB.kv_delete(trace_key(x.s_id)), drop);
+          ? (k @ [x], d) : (k, d @ [x]));
+  List.iter(~f=x => HazelDB.kv_delete(trace_key(x.s_id)), drop);
   save_index(keep);
 };
 let last_checkpoint: ref(float) = ref(0.);
@@ -309,7 +303,7 @@ let begin_run = (~prompt: string): run => {
       prompt,
       program:
         switch (program_text^()) {
-        | Some(p) when String.trim(p) == "" || String.trim(p) == "?" => None
+        | Some(p) when String.strip(p) == "" || String.strip(p) == "?" => None
         | p => p
         },
       pane: pane_size(),
@@ -325,7 +319,7 @@ let begin_run = (~prompt: string): run => {
     ++ (
       prompt == ""
         ? ""
-        : " — " ++ String.sub(prompt, 0, min(40, String.length(prompt)))
+        : " — " ++ String.sub(prompt, ~pos=0, ~len=min(40, String.length(prompt)))
     ),
   );
   on_change^();
@@ -342,7 +336,7 @@ let rec schedule_finalize = (r: run): unit =>
       () => {
         r.finalize_pending = false;
         switch (current^) {
-        | Some(cur) when cur === r =>
+        | Some(cur) when phys_equal(cur, r) =>
           let idle =
             switch (r.events) {
             | [{ev: Busy(false), _}, ..._] => true
@@ -430,27 +424,27 @@ let latest_json = (): string =>
 let events_of_json = (j: Yojson.Safe.t): list(stamped) =>
   switch (j) {
   | `List(items) =>
-    List.filter_map(
+    List.filter_map(~f=
       item =>
         switch (item) {
         | `Assoc(fields) =>
           let t = num(fields, "t");
-          switch (List.assoc_opt("kind", fields)) {
+          switch (List.Assoc.find(fields, "kind", ~equal=Poly.equal)) {
           | Some(`String("reply")) =>
             let tools =
-              switch (List.assoc_opt("tools", fields)) {
+              switch (List.Assoc.find(fields, "tools", ~equal=Poly.equal)) {
               | Some(`List(ts)) =>
-                List.filter_map(
+                List.filter_map(~f=
                   tj =>
                     switch (tj) {
                     | `Assoc(tf) =>
-                      switch (List.assoc_opt("name", tf)) {
+                      switch (List.Assoc.find(tf, "name", ~equal=Poly.equal)) {
                       | Some(`String(name)) =>
                         Some((
                           name,
                           Option.value(
                             ~default=`Assoc([]),
-                            List.assoc_opt("args", tf),
+                            List.Assoc.find(tf, "args", ~equal=Poly.equal),
                           ),
                         ))
                       | _ => None
@@ -467,7 +461,7 @@ let events_of_json = (j: Yojson.Safe.t): list(stamped) =>
             });
           | Some(`String("busy")) =>
             let on =
-              switch (List.assoc_opt("on", fields)) {
+              switch (List.Assoc.find(fields, "on", ~equal=Poly.equal)) {
               | Some(`Bool(b)) => b
               | _ => false
               };
@@ -500,7 +494,7 @@ let parse = (text: string): option((option(header), list(stamped))) =>
   | `List(_) as j => Some((None, events_of_json(j)))
   | `Assoc(f) =>
     let pane =
-      switch (List.assoc_opt("pane", f)) {
+      switch (List.Assoc.find(f, "pane", ~equal=Poly.equal)) {
       | Some(`List([`Int(w), `Int(h)])) => (w, h)
       | _ => (0, 0)
       };
@@ -511,13 +505,13 @@ let parse = (text: string): option((option(header), list(stamped))) =>
         slide: str(f, "slide"),
         prompt: str(f, "prompt"),
         program:
-          switch (List.assoc_opt("program", f)) {
+          switch (List.Assoc.find(f, "program", ~equal=Poly.equal)) {
           | Some(`String(p)) => Some(p)
           | _ => None
           },
         pane,
       }),
-      Option.value(~default=`List([]), List.assoc_opt("events", f))
+      Option.value(~default=`List([]), List.Assoc.find(f, "events", ~equal=Poly.equal))
       |> events_of_json,
     ));
   | _ => None
@@ -543,7 +537,7 @@ let prepare_replay = (header: option(header)): unit =>
   | Some({program, slide, _}) =>
     CanvasLog.log("replay: fresh slide with the program from " ++ slide);
     dispatch_new_slide^();
-    Option.iter(prog => dispatch_paste^(prog), program);
+    Option.iter(~f=prog => dispatch_paste^(prog), program);
   | None => () /* legacy event-only recordings have no starting state */
   };
 
@@ -581,7 +575,7 @@ let dispatch = (s: stamped): unit =>
     CanvasLog.log(
       Printf.sprintf(
         "replay: reply with %s",
-        String.concat(", ", List.map(fst, calls)),
+        String.concat(~sep=", ", List.map(~f=fst, calls)),
       ),
     );
     dispatch_reply^(calls);
@@ -741,7 +735,7 @@ let replay = (~speed: float=1., ~record: bool=false, text: string): unit =>
     | _ => ()
     };
     let speed = speed <= 0. ? 1. : speed;
-    let total = List.fold_left((m, s) => max(m, s.t), 0., steps);
+    let total = List.fold(steps, ~init=0., ~f=(m, s) => max(m, s.t));
     let n = n_replies(steps);
     let label =
       Printf.sprintf(
@@ -772,7 +766,7 @@ let replay = (~speed: float=1., ~record: bool=false, text: string): unit =>
       },
     );
     let p = {
-      steps: Array.of_list(List.sort((a, b) => compare(a.t, b.t), steps)),
+      steps: Array.of_list(List.sort(~compare=(a, b) => compare(a.t, b.t), steps)),
       idx: 0,
       speed,
       paused: false,
@@ -848,7 +842,7 @@ let refresh_repo_traces = (): unit =>
           switch (Yojson.Safe.from_string(text)) {
           | exception _ => []
           | `List(items) =>
-            List.filter_map(
+            List.filter_map(~f=
               fun
               | `Assoc(f) => Some(str(f, "name"))
               | _ => None,
@@ -864,7 +858,7 @@ let refresh_repo_traces = (): unit =>
 refresh_hook := refresh_repo_traces;
 
 let sanitize_name = (s: string): string =>
-  String.map(
+  String.map(~f=
     c =>
       switch (c) {
       | 'a' .. 'z'
@@ -881,13 +875,13 @@ let sanitize_name = (s: string): string =>
 let file_name = (s: summary): string => {
   let when_ =
     String.length(s.s_started_at) >= 19
-      ? String.sub(s.s_started_at, 0, 19) : s.s_started_at;
+      ? String.sub(s.s_started_at, ~pos=0, ~len=19) : s.s_started_at;
   sanitize_name(s.s_slide) ++ "-" ++ sanitize_name(when_) ++ ".json";
 };
 
 let keep = (id: string): unit =>
   switch (
-    List.find_opt(s => s.s_id == id, index()),
+    List.find(~f=s => s.s_id == id, index()),
     HazelDB.kv_get(trace_key(id)),
   ) {
   | (Some(s), Some(body)) =>
@@ -913,7 +907,7 @@ let keep = (id: string): unit =>
       (ok, _) => {
         if (ok) {
           save_index(
-            List.map(
+            List.map(~f=
               x =>
                 x.s_id == id
                   ? {
@@ -939,7 +933,7 @@ let keep = (id: string): unit =>
 
 let delete = (id: string): unit => {
   HazelDB.kv_delete(trace_key(id));
-  save_index(List.filter(s => s.s_id != id, index()));
+  save_index(List.filter(~f=s => s.s_id != id, index()));
   on_change^();
 };
 

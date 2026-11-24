@@ -13,6 +13,7 @@
    here fights the vdom. */
 
 open Js_of_ocaml;
+open Poly;
 
 let travel_ms = 700.; /* domain -> codomain */
 let settle_ms = 220.; /* codomain -> the pill */
@@ -43,7 +44,7 @@ let set_attr = (el, a: string, v: string): unit =>
   ignore(Js.Unsafe.meth_call(el, "setAttribute", [|str(a), str(v)|]));
 let get_attr = (el, a: string): option(string) =>
   Js.Opt.to_option(Js.Unsafe.meth_call(el, "getAttribute", [|str(a)|]))
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 let has_running_anims = (el): bool => {
   let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
   let n: int = Js.Unsafe.get(anims, "length");
@@ -81,10 +82,10 @@ let rec tick = (): unit =>
   } else {
     if (! paused^) {
       let now = clock();
-      let (due, rest) = List.partition(((t, _)) => t <= now, pending^);
+      let (due, rest) = List.partition_tf(~f=((t, _)) => t <= now, pending^);
       pending := rest;
-      List.sort((a, b) => compare(fst(a), fst(b)), due)
-      |> List.iter(((_, f)) => f());
+      List.sort(~compare=(a, b) => compare(fst(a), fst(b)), due)
+      |> List.iter(~f=((_, f)) => f());
     };
     ignore(Js.Unsafe.global##setTimeout(Js.Unsafe.callback(tick), 16.));
   };
@@ -99,8 +100,8 @@ let canvas_animations = (): list(Js.Unsafe.any) => {
   let all =
     Js.Unsafe.meth_call(Js.Unsafe.global##.document, "getAnimations", [||]);
   let n: int = Js.Unsafe.get(all, "length");
-  List.init(n, i => Js.Unsafe.get(all, i))
-  |> List.filter(a => {
+  List.init(n, ~f=i => Js.Unsafe.get(all, i))
+  |> List.filter(~f=a => {
        let effect = Js.Unsafe.get(a, "effect");
        Js.Opt.test(effect)
        && {
@@ -124,10 +125,10 @@ let pause_score = (): unit =>
     pause_started := CanvasBuffer.now();
     paused_anims :=
       canvas_animations()
-      |> List.filter(a =>
+      |> List.filter(~f=a =>
            Js.to_string(Js.Unsafe.get(a, "playState")) == "running"
          );
-    List.iter(
+    List.iter(~f=
       a => ignore(Js.Unsafe.meth_call(a, "pause", [||])),
       paused_anims^,
     );
@@ -150,7 +151,7 @@ let resume_score = (): unit =>
     if (CanvasCamera.scored_until^ > since) {
       CanvasCamera.scored_until := CanvasCamera.scored_until^ +. dt;
     };
-    List.iter(
+    List.iter(~f=
       a =>
         /* only what is still paused: play() on a cancelled animation
            would restart it from the top */
@@ -168,9 +169,7 @@ let sample_path = (path): (float, list((float, float))) => {
   let total: float = Js.Unsafe.meth_call(path, "getTotalLength", [||]);
   let ctm = Js.Unsafe.meth_call(path, "getScreenCTM", [||]);
   let pts =
-    List.init(
-      samples + 1,
-      i => {
+    List.init(samples + 1, ~f=i => {
         let pt =
           Js.Unsafe.meth_call(
             path,
@@ -186,8 +185,7 @@ let sample_path = (path): (float, list((float, float))) => {
         let x: float = Js.Unsafe.get(sp, "x")
         and y: float = Js.Unsafe.get(sp, "y");
         (x, y);
-      },
-    );
+      });
   (total, pts);
 };
 
@@ -200,7 +198,7 @@ let animate =
     : unit => {
   let kf =
     frames
-    |> List.map(props => Js.Unsafe.obj(Array.of_list(props)))
+    |> List.map(~f=props => Js.Unsafe.obj(Array.of_list(props)))
     |> Array.of_list
     |> Js.array;
   ignore(
@@ -265,25 +263,25 @@ let arm_dash = (el, total: float): float => {
       ),
     );
   let strip_px = s => {
-    let s = String.trim(s);
+    let s = String.strip(s);
     let n = String.length(s);
-    n > 2 && String.sub(s, n - 2, 2) == "px" ? String.sub(s, 0, n - 2) : s;
+    n > 2 && String.sub(s, ~pos=n - 2, ~len=2) == "px" ? String.sub(s, ~pos=0, ~len=n - 2) : s;
   };
   let nums =
     css
-    |> String.split_on_char(',')
-    |> List.concat_map(String.split_on_char(' '))
-    |> List.filter_map(s => float_of_string_opt(strip_px(s)));
+    |> String.split(~on=',')
+    |> List.concat_map(~f=String.split(~on=' '))
+    |> List.filter_map(~f=s => float_of_string_opt(strip_px(s)));
   let (pattern, on_len) =
     switch (nums) {
     | [dot, gap, ..._] when dot +. gap > 0. && dot +. gap < 40. =>
       let period = dot +. gap;
-      let n = int_of_float(ceil(total /. period));
+      let n = int_of_float(Float.round_up(total /. period));
       let on_len = float_of_int(n) *. period;
       (
-        String.concat(
+        String.concat(~sep=
           " ",
-          List.init(n, _ => Printf.sprintf("%.2f %.2f", dot, gap)),
+          List.init(n, ~f=_ => Printf.sprintf("%.2f %.2f", dot, gap)),
         )
         ++ Printf.sprintf(" 0 %.1f", on_len),
         on_len,
@@ -395,11 +393,11 @@ let owned_hull_ids =
     (~ids: list(string), ~prefix: string, name: string): list(string) => {
   let base = prefix ++ CanvasView.sanitize(name);
   let ancestor = base ++ "--v";
-  List.filter(
+  List.filter(~f=
     id =>
       id == base
       || String.length(id) > String.length(ancestor)
-      && String.sub(id, 0, String.length(ancestor)) == ancestor,
+      && String.sub(id, ~pos=0, ~len=String.length(ancestor)) == ancestor,
     ids,
   );
 };
@@ -411,13 +409,13 @@ let hull_copies = (~prefix: string, name: string): list(string) =>
    Cancel only exit effects; the new arrival/movement keeps its timing. */
 let revive = (~nodes: list(string), ~edges: list(string)): unit => {
   let ids =
-    List.concat_map(
+    List.concat_map(~f=
       k =>
         [CanvasView.node_dom_id(k), CanvasView.value_dom_id(k)]
         @ hull_copies(~prefix="hullc-n-", k),
       nodes,
     )
-    @ List.concat_map(
+    @ List.concat_map(~f=
         k =>
           [
             CanvasView.path_dom_id(k),
@@ -429,7 +427,7 @@ let revive = (~nodes: list(string), ~edges: list(string)): unit => {
           @ hull_copies(~prefix="hullc-l-", k),
         edges,
       );
-  List.iter(
+  List.iter(~f=
     id =>
       switch (by_id(id)) {
       | None => ()
@@ -480,11 +478,11 @@ let enact_edge =
           | None => t0
           | Some(dot) =>
             let part_els =
-              List.filter_map(k => by_id(CanvasView.node_dom_id(k)), parts);
+              List.filter_map(~f=k => by_id(CanvasView.node_dom_id(k)), parts);
             let n = float_of_int(List.length(part_els));
             let t_visited = t0 +. visit_ms *. n;
             prelude :=
-              List.mapi(
+              List.mapi(~f=
                 (i, el) =>
                   (center_of(el), t0 +. visit_ms *. float_of_int(i + 1)),
                 part_els,
@@ -506,7 +504,7 @@ let enact_edge =
                 ("fill", str("backwards")),
               ],
             );
-            List.iter(
+            List.iter(~f=
               k =>
                 switch (by_id(CanvasView.formation_dom_id(k, pk))) {
                 | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
@@ -564,7 +562,7 @@ let enact_edge =
       };
       let n = float_of_int(List.length(pts) - 1);
       let ride =
-        List.mapi(
+        List.mapi(~f=
           (i, p) => (p, t_edge +. travel_ms *. float_of_int(i) /. n),
           pts,
         );
@@ -604,7 +602,7 @@ let camera_at = (~zoom: float, at: float, sp: (float, float)): unit =>
 let board_center = (el): option((float, float)) => {
   let st = Js.Unsafe.get(el, "style");
   let px = (v: string) =>
-    try(Some(float_of_string(String.sub(v, 0, String.length(v) - 2)))) {
+    try(Some(float_of_string(String.sub(v, ~pos=0, ~len=String.length(v) - 2)))) {
     | _ => None
     };
   switch (
@@ -627,15 +625,15 @@ let max_tour = 12;
 let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
   let arrivals =
     Animation.last_arrivals^
-    |> List.filter(((id, _)) =>
-         String.length(id) >= 6 && String.sub(id, 0, 6) == "cnode-"
+    |> List.filter(~f=((id, _)) =>
+         String.length(id) >= 6 && String.sub(id, ~pos=0, ~len=6) == "cnode-"
        )
-    |> List.filter_map(((id, d)) =>
-         by_id(id) |> Option.map(el => (el, float_of_int(d)))
+    |> List.filter_map(~f=((id, d)) =>
+         by_id(id) |> Option.map(~f=el => (el, float_of_int(d)))
        );
   Animation.last_arrivals := [];
   /* splashes land as each node blooms */
-  List.iter(
+  List.iter(~f=
     ((el, d)) =>
       switch (board_center(el)) {
       | Some(p) => later(d +. 60., () => CanvasRipple.splash(~amp=4., p))
@@ -646,7 +644,7 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
   let tour: list(waypoint) =
     List.length(arrivals) > max_tour
       ? []
-      : List.concat_map(
+      : List.concat_map(~f=
           ((el, d)) => {
             let c = center_of(el);
             [(c, d), (c, d +. visit_hold_ms)];
@@ -661,28 +659,23 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
   /* edges, one after another, after the tour */
   let (edge_wps, t_end, done_) =
     if (List.length(edges) <= max_edges) {
-      List.fold_left(
-        ((wps, t, done_), ne) =>
+      List.fold(edges, ~init=([], t_after_tour, []), ~f=((wps, t, done_), ne) =>
           switch (enact_edge(~t0=t, ne)) {
           | Some((w, t')) => (wps @ w, t', [ne, ...done_])
           | None => (wps, t, done_)
-          },
-        ([], t_after_tour, []),
-        edges,
-      );
+          });
     } else {
       ([], t_after_tour, []);
     };
   let waypoints = tour @ edge_wps;
   /* the camera keeps the avatar in view along the whole timeline: each
      visited node as it blooms, each edge's far end as the ride starts */
-  List.iter(
+  List.iter(~f=
     ((c, d)) => camera_at(~zoom, d, c),
-    List.filteri((i, _) => i mod 2 == 0, tour),
+    List.filteri(~f=(i, _) => i mod 2 == 0, tour),
   );
   ignore(
-    List.fold_left(
-      (t, ne) => {
+    List.fold(List.rev(done_), ~init=t_after_tour, ~f=(t, ne) => {
         switch (by_id(CanvasView.path_dom_id(ne.ne_name))) {
         | Some(path) =>
           let (_, pts) = sample_path(path);
@@ -693,10 +686,7 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
         | None => ()
         };
         t;
-      },
-      t_after_tour,
-      List.rev(done_),
-    ),
+      }),
   );
   /* the avatar: from where it was, through every waypoint, back to the
      spot the beat gave it (its own FLIP hop is replaced) */
@@ -720,18 +710,18 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
     let start =
       switch (CanvasBuffer.avatar_prev^) {
       | Some(p) => p
-      | None => fst(List.hd(waypoints))
+      | None => fst(List.hd_exn(waypoints))
       };
     let frames =
       [frame(start, 0.)]
-      @ List.map(((p, at)) => frame(p, at), waypoints)
+      @ List.map(~f=((p, at)) => frame(p, at), waypoints)
       @ [
         [("transform", str("translate(0px, 0px)")), ("offset", num(1.))],
       ];
     /* per-keyframe easing: one ease over the whole timeline made the
        first travel crawl and the middle rush */
     let frames =
-      List.map(kf => kf @ [("easing", str("ease-in-out"))], frames);
+      List.map(~f=kf => kf @ [("easing", str("ease-in-out"))], frames);
     {
       let anims = Js.Unsafe.meth_call(av, "getAnimations", [||]);
       let n: int = Js.Unsafe.get(anims, "length");
@@ -762,10 +752,9 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
           : Printf.sprintf(
               ", %d edge(s) drawn (%s)",
               List.length(done_),
-              String.concat(
+              String.concat(~sep=
                 ", ",
-                List.rev_map(
-                  ne =>
+                List.rev_map(done_, ~f=ne =>
                     ne.ne_name
                     ++ (
                       switch (ne.ne_product) {
@@ -776,9 +765,7 @@ let enact_beat = (~zoom: float, edges: list(new_edge)): unit => {
                         )
                       | None => ""
                       }
-                    ),
-                  done_,
-                ),
+                    )),
               ),
             ),
       ),
@@ -810,8 +797,8 @@ let mean = (ps: list((float, float))): option((float, float)) =>
   | _ =>
     let n = float_of_int(List.length(ps));
     Some((
-      List.fold_left((s, (x, _)) => s +. x, 0., ps) /. n,
-      List.fold_left((s, (_, y)) => s +. y, 0., ps) /. n,
+      List.fold(ps, ~init=0., ~f=(s, (x, _)) => s +. x) /. n,
+      List.fold(ps, ~init=0., ~f=(s, (_, y)) => s +. y) /. n,
     ));
   };
 
@@ -819,9 +806,7 @@ let mean = (ps: list((float, float))): option((float, float)) =>
 let sample_path_board = (path): (float, list((float, float))) => {
   let total: float = Js.Unsafe.meth_call(path, "getTotalLength", [||]);
   let pts =
-    List.init(
-      samples + 1,
-      i => {
+    List.init(samples + 1, ~f=i => {
         let pt =
           Js.Unsafe.meth_call(
             path,
@@ -831,8 +816,7 @@ let sample_path_board = (path): (float, list((float, float))) => {
         let x: float = Js.Unsafe.get(pt, "x")
         and y: float = Js.Unsafe.get(pt, "y");
         (x, y);
-      },
-    );
+      });
   (total, pts);
 };
 
@@ -880,7 +864,7 @@ let ride = (~t: float, ~dur: float, name: string): list(waypoint) =>
         },
       );
       let n = float_of_int(List.length(pts) - 1);
-      List.mapi((i, p) => (p, t +. dur *. float_of_int(i) /. n), pts);
+      List.mapi(~f=(i, p) => (p, t +. dur *. float_of_int(i) /. n), pts);
     };
   };
 
@@ -892,7 +876,7 @@ let formation =
   switch (by_id(CanvasView.node_dom_id(pk))) {
   | None => []
   | Some(dot) =>
-    let part_pts = List.filter_map(node_board, parts);
+    let part_pts = List.filter_map(~f=node_board, parts);
     let n = List.length(part_pts);
     /* the dot grows over the last part of the act's duration (a
        compressed score shortens the visits and the growth alike) */
@@ -913,7 +897,7 @@ let formation =
         ("fill", str("backwards")),
       ],
     );
-    List.iter(
+    List.iter(~f=
       k =>
         switch (by_id(CanvasView.formation_dom_id(k, pk))) {
         | Some(line) => reveal(~delay=t_visited, ~dur=form_ms, line)
@@ -921,7 +905,7 @@ let formation =
         },
       parts,
     );
-    List.mapi((i, p) => (p, t +. visit *. float_of_int(i + 1)), part_pts)
+    List.mapi(~f=(i, p) => (p, t +. visit *. float_of_int(i + 1)), part_pts)
     @ (
       switch (board_center(dot)) {
       | Some(c) => [(c, t_visited +. 120.)]
@@ -947,20 +931,20 @@ let path_point = (name, pick) =>
 let site_board = (site: CanvasScore.site): option((float, float)) =>
   switch (site) {
   | Node(k) => node_board(k)
-  | Centroid(ks) => mean(List.filter_map(node_board, ks))
+  | Centroid(ks) => mean(List.filter_map(~f=node_board, ks))
   | Point(p) => Some((p.x, p.y))
-  | Edge(name) => path_point(name, List.hd)
+  | Edge(name) => path_point(name, List.hd_exn)
   | Here => None
   };
 /* an edge act ends where the ride ends (the codomain) */
 let site_end = (site: CanvasScore.site): option((float, float)) =>
   switch (site) {
   | Edge(name) =>
-    path_point(name, pts => List.nth(pts, List.length(pts) - 1))
+    path_point(name, pts => List.nth_exn(pts, List.length(pts) - 1))
   | site => site_board(site)
   };
 let first_part = (a: CanvasScore.act): option((float, float)) =>
-  List.find_map(
+  List.find_map(~f=
     (e: CanvasScore.timed_effect) =>
       switch (e.effect) {
       | Form(_, [p, ..._]) => node_board(p)
@@ -974,7 +958,7 @@ let first_part = (a: CanvasScore.act): option((float, float)) =>
 let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
   let wps: ref(list(waypoint)) = ref([]);
   let add = (p, t) => wps := [(p, t), ...wps^];
-  List.iter(
+  List.iter(~f=
     ((t, a): (int, CanvasScore.act)) => {
       let arrive =
         switch (first_part(a)) {
@@ -990,7 +974,7 @@ let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
     },
     s.acts,
   );
-  List.iter(
+  List.iter(~f=
     ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
       let tf = float_of_int(t);
       switch (e.effect) {
@@ -1001,7 +985,7 @@ let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
           if (total >= 8.) {
             let n = float_of_int(List.length(pts) - 1);
             let dur = float_of_int(e.dur);
-            List.iteri(
+            List.iteri(~f=
               (i, p) => add(p, tf +. dur *. float_of_int(i) /. n),
               pts,
             );
@@ -1009,12 +993,12 @@ let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
         | None => ()
         }
       | Form(pk, parts) =>
-        let part_pts = List.filter_map(node_board, parts);
+        let part_pts = List.filter_map(~f=node_board, parts);
         let n = List.length(part_pts);
         let dur = float_of_int(e.dur);
         let visit = n > 0 ? (dur -. form_ms) /. float_of_int(n) : 0.;
         let t_visited = tf +. visit *. float_of_int(n);
-        List.iteri(
+        List.iteri(~f=
           (i, p) => add(p, tf +. visit *. float_of_int(i + 1)),
           part_pts,
         );
@@ -1030,7 +1014,7 @@ let waypoints_of = (s: CanvasScore.score): list(waypoint) => {
     },
     CanvasScore.effects_abs(s),
   );
-  List.stable_sort(
+  List.stable_sort(~compare=
     ((_, t1), (_, t2)) => compare(t1, t2),
     List.rev(wps^),
   );
@@ -1060,14 +1044,14 @@ let rec headings = (~t_from: float, ws: list(waypoint)): unit =>
    transform + any CSS translate a pick-up left, minus the box offset */
 let measured_site = (~fallback: (float, float), av): (float, float) => {
   let px = v =>
-    switch (float_of_string_opt(String.trim(v))) {
+    switch (float_of_string_opt(String.strip(v))) {
     | Some(f) => f
     | None =>
       let n = String.length(v);
       n > 2
         ? Option.value(
             ~default=0.,
-            float_of_string_opt(String.sub(v, 0, n - 2)),
+            float_of_string_opt(String.sub(v, ~pos=0, ~len=n - 2)),
           )
         : 0.;
     };
@@ -1086,13 +1070,13 @@ let measured_site = (~fallback: (float, float), av): (float, float) => {
       ),
     );
   let (tx, ty) =
-    switch (String.index_opt(tf, '(')) {
+    switch (String.index(tf, '(')) {
     | Some(i) when String.length(tf) > i + 1 =>
-      let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
+      let inner = String.sub(tf, ~pos=i + 1, ~len=String.length(tf) - i - 2);
       switch (
         inner
-        |> String.split_on_char(',')
-        |> List.filter_map(s => float_of_string_opt(String.trim(s)))
+        |> String.split(~on=',')
+        |> List.filter_map(~f=s => float_of_string_opt(String.strip(s)))
       ) {
       | [_, _, _, _, tx, ty] => (tx, ty)
       | _ => (0., 0.)
@@ -1102,15 +1086,15 @@ let measured_site = (~fallback: (float, float), av): (float, float) => {
   /* a carried body (picked up) sits at its CSS translate as well */
   let (ux, uy) =
     switch (
-      String.split_on_char(
+      String.split(~on=
         ' ',
-        String.trim(
+        String.strip(
           Js.to_string(
             Js.Unsafe.get(Js.Unsafe.get(body_of(av), "style"), "translate"),
           ),
         ),
       )
-      |> List.filter_map(v => Some(px(v)))
+      |> List.filter_map(~f=v => Some(px(v)))
     ) {
     | [x, y] => (x, y)
     | [x] => (x, 0.)
@@ -1140,11 +1124,11 @@ let avatar_timeline =
   | Some(av) when sorted != [] =>
     let end_site =
       List.rev(s.acts)
-      |> List.find_map(((_, a): (int, CanvasScore.act)) => site_end(a.at));
+      |> List.find_map(~f=((_, a): (int, CanvasScore.act)) => site_end(a.at));
     let (ex, ey) =
       switch (end_site) {
       | Some(p) => p
-      | None => fst(List.nth(sorted, List.length(sorted) - 1))
+      | None => fst(List.nth_exn(sorted, List.length(sorted) - 1))
       };
     let t_from =
       switch (from) {
@@ -1157,11 +1141,11 @@ let avatar_timeline =
     let start =
       switch (from) {
       | Some((p, _)) => p
-      | None => measured_site(~fallback=fst(List.hd(sorted)), av)
+      | None => measured_site(~fallback=fst(List.hd_exn(sorted)), av)
       };
     /* a re-plan continues from now: only the waypoints still ahead */
     let sorted =
-      switch (List.filter(((_, t)) => t >= t_from, sorted)) {
+      switch (List.filter(~f=((_, t)) => t >= t_from, sorted)) {
       | [] => [((ex, ey), float_of_int(s.total_ms))]
       | l => l
       };
@@ -1177,7 +1161,7 @@ let avatar_timeline =
       "top",
       Js.string(Printf.sprintf("%.1fpx", ey +. CanvasView.avatar_dy)),
     );
-    let (_, t_last) = List.nth(sorted, List.length(sorted) - 1);
+    let (_, t_last) = List.nth_exn(sorted, List.length(sorted) - 1);
     let total_ms = max(float_of_int(s.total_ms), t_last) +. settle_ms;
     let frame = ((x, y), at) => [
       (
@@ -1195,16 +1179,16 @@ let avatar_timeline =
          time is a jump; say so in the journal with where and when. The whole
          path is journaled compactly too (a replay reads it back). */
 
-      let (_, t_last0) = List.nth(sorted, List.length(sorted) - 1);
+      let (_, t_last0) = List.nth_exn(sorted, List.length(sorted) - 1);
       let total0 = max(float_of_int(s.total_ms), t_last0) +. settle_ms;
       let (ex0, ey0) =
         switch (end_site) {
         | Some(p) => p
-        | None => fst(List.nth(sorted, List.length(sorted) - 1))
+        | None => fst(List.nth_exn(sorted, List.length(sorted) - 1))
         };
       let pts = [(start, t_start)] @ sorted @ [((ex0, ey0), total0)];
       let show =
-        List.map(
+        List.map(~f=
           (((x, y), t)) =>
             Printf.sprintf("%.1f:%.0f,%.0f", t /. 1000., x, y),
           pts,
@@ -1212,21 +1196,20 @@ let avatar_timeline =
       let n = List.length(show);
       CanvasLog.log(
         "path: "
-        ++ String.concat(
+        ++ String.concat(~sep=
              " ",
              n <= 24
                ? show
-               : List.filteri((i, _) => i < 12, show)
+               : List.filteri(~f=(i, _) => i < 12, show)
                  @ [Printf.sprintf("...%d more...", n - 24)]
-                 @ List.filteri((i, _) => i >= n - 12, show),
+                 @ List.filteri(~f=(i, _) => i >= n - 12, show),
            ),
       );
     };
     ignore(
-      List.fold_left(
-        (((px0, py0), t0), ((px1, py1), t1)) => {
+      List.fold(sorted, ~init=(start, t_start), ~f=(((px0, py0), t0), ((px1, py1), t1)) => {
           let d =
-            sqrt(
+            Float.sqrt(
               (px1 -. px0) *. (px1 -. px0) +. (py1 -. py0) *. (py1 -. py0),
             );
           if (d > 40. && d /. max(1., t1 -. t0) > 2.) {
@@ -1244,14 +1227,11 @@ let avatar_timeline =
             );
           };
           ((px1, py1), t1);
-        },
-        (start, t_start),
-        sorted,
-      ),
+        }),
     );
     let frames =
       [frame(start, t_start)]
-      @ List.map(((p, at)) => frame(p, at), sorted)
+      @ List.map(~f=((p, at)) => frame(p, at), sorted)
       @ [
         [
           ("transform", str("translate(0px, 0px)")),
@@ -1333,10 +1313,10 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
      an act that never rode it (its path did not exist yet, or the act was
      cut) would otherwise stay dashed away with its marker stashed */
   later(float_of_int(s.total_ms) +. 350., () =>
-    List.iter(
+    List.iter(~f=
       ((prefix, default)) =>
         Util.JsUtil.ids_with_prefix(prefix)
-        |> List.iter(id =>
+        |> List.iter(~f=id =>
              switch (by_id(id)) {
              | None => ()
              | Some(el) =>
@@ -1393,7 +1373,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     )
   );
   /* the actor: arrive after travel, hold through the effects */
-  List.iter(
+  List.iter(~f=
     ((t, a): (int, CanvasScore.act)) => {
       /* an act that forms a product arrives at its first part (the visits
          start there); arriving at the arrow first meant a zig-zag out to
@@ -1441,7 +1421,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     s.acts,
   );
   /* the effects */
-  List.iter(
+  List.iter(~f=
     ((t, a, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
       let tf = float_of_int(t);
       switch (e.effect) {
@@ -1468,7 +1448,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
         /* the ghost node (rendered from the previous layout) shrinks
            away at the cue; its value badge, if any, goes with it */
         later(tf, () => CanvasAvatar.set_mood("erase"));
-        List.iter(
+        List.iter(~f=
           id =>
             switch (by_id(id)) {
             | Some(el) => shrink_out(~delay=tf, ~dur=float_of_int(e.dur), el)
@@ -1479,7 +1459,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
         );
       | Erase(name) =>
         later(tf, () => CanvasAvatar.set_mood("erase"));
-        List.iter(
+        List.iter(~f=
           id =>
             switch (by_id(id)) {
             | Some(el) => retract(~delay=tf, ~dur=float_of_int(e.dur), el)
@@ -1488,7 +1468,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           [CanvasView.path_dom_id(name)]
           @ hull_copies(~prefix="hulls-e-", name),
         );
-        List.iter(
+        List.iter(~f=
           id =>
             switch (by_id(id)) {
             | Some(el) =>
@@ -1509,7 +1489,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
           tf,
           () => {
             request_tick^(0.);
-            List.iter(
+            List.iter(~f=
               id =>
                 switch (by_id(id)) {
                 | Some(el) => pulse_class(el, 900.)
@@ -1533,7 +1513,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
     CanvasScore.effects_abs(s),
   );
   /* the camera: the score's frames, each leading its act's travel */
-  List.iter(
+  List.iter(~f=
     ((t, f): (int, CanvasScore.frame)) =>
       later(float_of_int(t), () =>
         switch (CanvasCamera.pane()) {
@@ -1543,7 +1523,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
               "camera: scored frame -> (%.0f, %.0f)%s",
               f.center.x,
               f.center.y,
-              abs_float(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+              Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
                 ? Printf.sprintf(
                     " zoom %.2f -> %.2f",
                     CanvasCamera.zoom_now^,
@@ -1556,7 +1536,7 @@ let play = (~zoom: float, s: CanvasScore.score): unit => {
             ~aw,
             ~ah,
             ~zoom=
-              abs_float(f.zoom -. CanvasCamera.zoom_now^) > 0.02
+              Float.abs(f.zoom -. CanvasCamera.zoom_now^) > 0.02
                 ? Some(f.zoom) : None,
             ~dur=450.,
             ~easing=EaseInOut,
@@ -1588,7 +1568,7 @@ let cancel_score = () => {
   paused := false;
   CanvasBuffer.held := false;
   paused_anims := [];
-  List.iter(
+  List.iter(~f=
     a => ignore(Js.Unsafe.meth_call(a, "cancel", [||])),
     canvas_animations(),
   );
@@ -1603,7 +1583,7 @@ let cancel_score = () => {
   @ Util.JsUtil.ids_with_prefix("cdep-")
   @ Util.JsUtil.ids_with_prefix("corbit-")
   @ Util.JsUtil.ids_with_prefix("clead-")
-  |> List.iter(id =>
+  |> List.iter(~f=id =>
        switch (by_id(id)) {
        | Some(el) =>
          let style = Js.Unsafe.get(el, "style");
@@ -1634,7 +1614,7 @@ let replan_score = (~pos: (float, float), ~lead_in: float=0., ()): unit =>
   switch (current_score^) {
   | Some((s, t0)) when clock() -. t0 < float_of_int(s.total_ms) =>
     let elapsed = clock() -. t0;
-    List.iter(
+    List.iter(~f=
       ((t, _, e): (int, CanvasScore.act, CanvasScore.timed_effect)) => {
         let tf = float_of_int(t);
         let dur = float_of_int(e.dur);
@@ -1769,11 +1749,11 @@ let jump_snapshot = (~zoom: float): unit => {
     @ Util.JsUtil.ids_with_prefix("cedge-")
     @ [CanvasView.avatar_dom_id];
   jump_prev :=
-    List.filter_map(
+    List.filter_map(~f=
       id =>
         by_id(id)
         |> Util.OptUtil.and_then(el => to_board(~zoom, center_of(el)))
-        |> Option.map(p => (id, p)),
+        |> Option.map(~f=p => (id, p)),
       ids,
     );
   jump_scroll :=
@@ -1788,14 +1768,14 @@ let jump_snapshot = (~zoom: float): unit => {
 };
 let check_jumps = (~zoom: float): unit => {
   let jumps =
-    List.filter_map(
+    List.filter_map(~f=
       ((id, (x0, y0))) =>
         switch (by_id(id)) {
         | Some(el) =>
           switch (to_board(~zoom, center_of(el))) {
           | Some((x1, y1)) =>
             let d =
-              sqrt((x1 -. x0) *. (x1 -. x0) +. (y1 -. y0) *. (y1 -. y0));
+              Float.sqrt((x1 -. x0) *. (x1 -. x0) +. (y1 -. y0) *. (y1 -. y0));
             let anims = Js.Unsafe.meth_call(el, "getAnimations", [||]);
             let n: int = Js.Unsafe.get(anims, "length");
             d > 3. && n == 0
@@ -1807,14 +1787,14 @@ let check_jumps = (~zoom: float): unit => {
       jump_prev^,
     );
   if (jumps != []) {
-    CanvasLog.log("JUMP: " ++ String.concat(", ", jumps));
+    CanvasLog.log("JUMP: " ++ String.concat(~sep=", ", jumps));
   };
   switch (jump_scroll^, CanvasCamera.scroll_el()) {
   | (Some((sl0, st0)), Some(el)) =>
     let el = Js.Unsafe.coerce(el);
     let sl: float = el##.scrollLeft
     and st: float = el##.scrollTop;
-    if ((abs_float(sl -. sl0) > 2. || abs_float(st -. st0) > 2.)
+    if ((Float.abs(sl -. sl0) > 2. || Float.abs(st -. st0) > 2.)
         && CanvasCamera.inflight^ == None) {
       CanvasLog.log(
         Printf.sprintf("JUMP: camera (%.0f, %.0f) px", sl -. sl0, st -. st0),
@@ -1875,7 +1855,7 @@ let install_testers = (): unit => {
       "__constellationStats",
       Js.Unsafe.callback(() =>
         Js.string(
-          String.concat("\n", List.rev(CanvasBuffer.turn_summaries^)),
+          String.concat(~sep="\n", List.rev(CanvasBuffer.turn_summaries^)),
         )
       ),
     );
@@ -1911,7 +1891,7 @@ let install_testers = (): unit => {
               ne_product:
                 Some((
                   Js.to_string(pk),
-                  String.split_on_char('|', Js.to_string(parts)),
+                  String.split(~on='|', Js.to_string(parts)),
                 )),
             },
           ],

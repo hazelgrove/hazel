@@ -8,6 +8,7 @@
    Cost: one O(n) hashtbl pass per render; only speaks on breakage.
    Throttled to one report per distinct id set so a persistent dup
    doesn't spam every frame. */
+open Poly;
 
 let last_report: ref(string) = ref("");
 /* renders that leave the buffer alone (canvas ticks, agent chatter)
@@ -18,39 +19,33 @@ let last_seg: ref(option(Haz3lcore.Segment.t)) = ref(None);
 let rec ids_of_segment =
         (seg: Haz3lcore.Segment.t, acc): list(Haz3lcore.Id.t) =>
   seg
-  |> List.fold_left(
-       (acc, p: Haz3lcore.Piece.t) =>
+  |> List.fold(~init=acc, ~f=(acc, p: Haz3lcore.Piece.t) =>
          switch (p) {
          | Tile(t) =>
            t.children
-           |> List.fold_left(
-                (acc, c) => ids_of_segment(c, acc),
-                [t.id, ...acc],
-              )
+           |> List.fold(~init=[t.id, ...acc], ~f=(acc, c) => ids_of_segment(c, acc))
          | Grout(g) => [g.id, ...acc]
          | Secondary(w) => [w.id, ...acc]
          | Projector(pr) => ids_of_segment([pr.syntax], [pr.id, ...acc])
-         },
-       acc,
-     );
+         });
 
 let rec check = (seg: Haz3lcore.Segment.t): unit =>
   switch (last_seg^) {
-  | Some(s) when s === seg => ()
+  | Some(s) when phys_equal(s, seg) => ()
   | _ =>
     last_seg := Some(seg);
     check_now(seg);
   }
 and check_now = (seg: Haz3lcore.Segment.t): unit => {
   let ids = ids_of_segment(seg, []);
-  let seen = Hashtbl.create(List.length(ids));
+  let seen = Stdlib.Hashtbl.create(List.length(ids));
   let dups =
     ids
-    |> List.filter(id =>
-         if (Hashtbl.mem(seen, id)) {
+    |> List.filter(~f=id =>
+         if (Stdlib.Hashtbl.mem(seen, id)) {
            true;
          } else {
-           Hashtbl.add(seen, id, ());
+           Stdlib.Hashtbl.add(seen, id, ());
            false;
          }
        );
@@ -59,9 +54,9 @@ and check_now = (seg: Haz3lcore.Segment.t): unit => {
   | _ =>
     let msg =
       dups
-      |> List.map(Haz3lcore.Id.to_string)
-      |> List.sort_uniq(compare)
-      |> String.concat(", ");
+      |> List.map(~f=Haz3lcore.Id.to_string)
+      |> List.dedup_and_sort(~compare=compare)
+      |> String.concat(~sep=", ");
     if (msg != last_report^) {
       last_report := msg;
       Js_of_ocaml.Firebug.console##error(

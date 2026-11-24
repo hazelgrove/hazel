@@ -7,6 +7,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
+open Poly;
 
 let clss = Attr.classes;
 
@@ -24,8 +25,8 @@ let btn = (~cls="", ~tip="", label: string, f: unit => unit): Node.t =>
   );
 
 let short = (n: int, s: string): string => {
-  let s = String.map(c => c == '\n' ? ' ' : c, s);
-  String.length(s) > n ? String.sub(s, 0, n - 1) ++ {js|…|js} : s;
+  let s = String.map(~f=c => c == '\n' ? ' ' : c, s);
+  String.length(s) > n ? String.sub(s, ~pos=0, ~len=n - 1) ++ {js|…|js} : s;
 };
 
 let current_tools = (p: CanvasTrajectory.player): string =>
@@ -33,7 +34,7 @@ let current_tools = (p: CanvasTrajectory.player): string =>
     "";
   } else {
     switch (p.steps[p.idx - 1].ev) {
-    | Reply(calls) => String.concat(", ", List.map(fst, calls))
+    | Reply(calls) => String.concat(~sep=", ", List.map(~f=fst, calls))
     | Busy(true) => "thinking"
     | Busy(false) => "idle"
     | Tick => "streaming"
@@ -163,7 +164,7 @@ let panel = (): list(Node.t) =>
                 [
                   text(
                     String.length(s.s_started_at) >= 16
-                      ? String.sub(s.s_started_at, 5, 11) : s.s_started_at,
+                      ? String.sub(s.s_started_at, ~pos=5, ~len=11) : s.s_started_at,
                   ),
                 ],
               ),
@@ -274,7 +275,7 @@ let panel = (): list(Node.t) =>
                   [text("no recorded runs yet")],
                 ),
               ]
-              : List.map(row_saved, saved),
+              : List.map(~f=row_saved, saved),
           ),
           div(
             ~attrs=[clss(["traces-head", "traces-sub"])],
@@ -300,7 +301,7 @@ let panel = (): list(Node.t) =>
                   [text("nothing listed (dev server only)")],
                 ),
               ]
-              : List.map(row_repo, CanvasTrajectory.repo_traces^),
+              : List.map(~f=row_repo, CanvasTrajectory.repo_traces^),
           ),
         ],
       ),

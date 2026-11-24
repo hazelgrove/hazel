@@ -562,15 +562,15 @@ let update_code =
     | Divided(d)
         when
           switch (Divided.cells(d)) {
-          | [e] => e.e_id == fid
+          | [e] => Id.equal(e.e_id, fid)
           | _ => false
           } =>
       code |> return_quiet
     | _ =>
-      view(
-        (term, _, v) =>
+      outline_view(
+        (outline, _, v) =>
           SlideView.pin(
-            ~term,
+            ~outline,
             fid,
             {
               ...v,

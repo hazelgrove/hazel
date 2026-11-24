@@ -1,5 +1,7 @@
 /* Opt-in layout lab. Research engines do not change the default. Placement consumes geometry,
    not editor state; histories are scoped to a slide and a variant. */
+open Poly;
+
 type point = {
   x: float,
   y: float,
@@ -24,7 +26,7 @@ let modes = [
   ("cola", "CoLa modules"),
   ("cola-live", "CoLa anchored growth"),
 ];
-let research = k => List.mem(k, ["elk", "elk-down", "cola", "cola-live"]);
+let research = k => List.mem(["elk", "elk-down", "cola", "cola-live"], k, ~equal=Poly.equal);
 let revision = ref(0);
 let on_result = ref(() => ());
 let awaiting_fit = ref(false);
@@ -33,103 +35,88 @@ let wires = ref("curves");
 let scene = ref("");
 let generation = ref(0);
 let histories: ref(list((string, list(item)))) = ref([]);
-let known = s => List.mem_assoc(s, modes);
+let known = s => List.Assoc.mem(modes, s, ~equal=Poly.equal);
 let history_key = () => scene^ ++ "/" ++ mode^;
 let previous = () =>
-  Option.value(~default=[], List.assoc_opt(history_key(), histories^));
+  Option.value(~default=[], List.Assoc.find(histories^, history_key(), ~equal=Poly.equal));
 let reset = () => {
-  histories := List.remove_assoc(history_key(), histories^);
+  histories := List.Assoc.remove(histories^, history_key(), ~equal=Poly.equal);
   incr(generation);
 };
 let remember = items => {
   histories :=
     [
       (history_key(), items),
-      ...List.filteri(
+      ...List.filteri(~f=
            (i, _) => i < 20,
-           List.remove_assoc(history_key(), histories^),
+           List.Assoc.remove(histories^, history_key(), ~equal=Poly.equal),
          ),
     ];
 };
-let snap = x => Float.round(x /. 14.) *. 14.;
+let snap = x => Stdlib.Float.round(x /. 14.) *. 14.;
 let distance = (a: point, b: point) => Float.hypot(a.x -. b.x, a.y -. b.y);
-let at = (items, key) => List.find_opt((n: item) => n.key == key, items);
+let at = (items, key) => List.find(~f=(n: item) => n.key == key, items);
 let overlaps = (a: item, b: item, pad) =>
-  abs_float(a.p.x -. b.p.x) < (a.w +. b.w)
+  Float.abs(a.p.x -. b.p.x) < (a.w +. b.w)
   /. 2.
   +. pad
-  && abs_float(a.p.y -. b.p.y) < (a.h +. b.h)
+  && Float.abs(a.p.y -. b.p.y) < (a.h +. b.h)
   /. 2.
   +. pad;
 let links_of = (items, links) =>
   links
-  @ List.filter_map(
-      (n: item) => Option.map(a => (n.key, a), n.anchor),
+  @ List.filter_map(~f=
+      (n: item) => Option.map(~f=a => (n.key, a), n.anchor),
       items,
     );
 let groups = (items, links) => {
   let rec grow = ks => {
     let next =
-      List.sort_uniq(
+      List.dedup_and_sort(~compare=
         compare,
         ks
-        @ List.concat_map(
+        @ List.concat_map(~f=
             ((a, b)) =>
-              List.mem(a, ks) ? [b] : List.mem(b, ks) ? [a] : [],
+              List.mem(ks, a, ~equal=Poly.equal) ? [b] : List.mem(ks, b, ~equal=Poly.equal) ? [a] : [],
             links,
           ),
       )
-      |> List.filter(k => at(items, k) != None);
-    next == List.sort_uniq(compare, ks) ? next : grow(next);
+      |> List.filter(~f=k => at(items, k) != None);
+    next == List.dedup_and_sort(~compare=compare, ks) ? next : grow(next);
   };
-  List.fold_left(
-    (acc, n: item) =>
-      List.exists(List.mem(n.key), acc) ? acc : acc @ [grow([n.key])],
-    [],
-    items,
-  );
+  List.fold(items, ~init=[], ~f=(acc, n: item) =>
+      List.exists(~f=c => List.mem(c, n.key, ~equal=Poly.equal), acc)
+        ? acc : acc @ [grow([n.key])]);
 };
 /* Remove rows occupied only by other components, then shelf-pack component
    rectangles. This is a deliberately stateless comparison to stable growth. */
 let packed = (items, links) => {
   let blocks =
-    List.map(
+    List.map(~f=
       keys => {
-        let ns = List.filter((n: item) => List.mem(n.key, keys), items);
+        let ns = List.filter(~f=(n: item) => List.mem(keys, n.key, ~equal=Poly.equal), items);
         let minx =
-          List.fold_left(
-            (x, n: item) => min(x, n.p.x -. n.w /. 2.),
-            infinity,
-            ns,
-          );
+          List.fold(ns, ~init=Float.infinity, ~f=(x, n: item) => min(x, n.p.x -. n.w /. 2.));
         /* Remove only genuinely empty strips. Rows in different columns
            may overlap in y; forcing a gap between every y-coordinate would
            turn a compact graph into a staircase. */
         let intervals =
-          List.map(
+          List.map(~f=
             (n: item) => (n.p.y -. n.h /. 2., n.p.y +. n.h /. 2.),
             ns,
           )
-          |> List.sort(compare);
+          |> List.sort(~compare=compare);
         let (_, gaps) =
-          List.fold_left(
-            ((end_y, gaps), (lo, hi)) =>
+          List.fold(intervals, ~init=(Float.neg_infinity, []), ~f=((end_y, gaps), (lo, hi)) =>
               (
                 max(end_y, hi),
-                lo -. end_y > 100. && end_y != neg_infinity
+                lo -. end_y > 100. && end_y != Float.neg_infinity
                   ? gaps @ [(lo, lo -. end_y -. 100.)] : gaps,
-              ),
-            (neg_infinity, []),
-            intervals,
-          );
+              ));
         let miny =
-          List.fold_left(
-            (v, n: item) => min(v, n.p.y -. n.h /. 2.),
-            infinity,
-            ns,
-          );
+          List.fold(ns, ~init=Float.infinity, ~f=(v, n: item) => min(v, n.p.y -. n.h /. 2.));
         let ns =
-          List.map(
+          List.map(~f=
             (n: item) =>
               {
                 ...n,
@@ -138,42 +125,25 @@ let packed = (items, links) => {
                   y:
                     n.p.y
                     -. miny
-                    -. List.fold_left(
-                         (v, (at, amount)) => n.p.y >= at ? v +. amount : v,
-                         0.,
-                         gaps,
-                       ),
+                    -. List.fold(gaps, ~init=0., ~f=(v, (at, amount)) => n.p.y >= at ? v +. amount : v),
                 },
               },
             ns,
           );
 
         let w =
-          List.fold_left(
-            (v, n: item) => max(v, n.p.x +. n.w /. 2.),
-            0.,
-            ns,
-          );
+          List.fold(ns, ~init=0., ~f=(v, n: item) => max(v, n.p.x +. n.w /. 2.));
         let h =
-          List.fold_left(
-            (v, n: item) => max(v, n.p.y +. n.h /. 2.),
-            0.,
-            ns,
-          );
+          List.fold(ns, ~init=0., ~f=(v, n: item) => max(v, n.p.y +. n.h /. 2.));
         (ns, w, h);
       },
       groups(items, links),
     );
   let area =
-    List.fold_left(
-      (a, (_, w, h)) => a +. (w +. 60.) *. (h +. 60.),
-      0.,
-      blocks,
-    );
-  let target = max(650., sqrt(area *. 1.5));
+    List.fold(blocks, ~init=0., ~f=(a, (_, w, h)) => a +. (w +. 60.) *. (h +. 60.));
+  let target = max(650., Float.sqrt(area *. 1.5));
   let (_, _, _, out) =
-    List.fold_left(
-      ((x, y, rowh, acc), (ns, w, h)) => {
+    List.fold(blocks, ~init=(70., 70., 0., []), ~f=((x, y, rowh, acc), (ns, w, h)) => {
         let (x, y, rowh) =
           x > 70. && x +. w > target
             ? (70., y +. rowh +. 70., 0.) : (x, y, rowh);
@@ -182,7 +152,7 @@ let packed = (items, links) => {
           y,
           max(rowh, h),
           acc
-          @ List.map(
+          @ List.map(~f=
               (n: item) =>
                 {
                   ...n,
@@ -194,10 +164,7 @@ let packed = (items, links) => {
               ns,
             ),
         );
-      },
-      (70., 70., 0., []),
-      blocks,
-    );
+      });
   out;
 };
 /* Keep per-use terminals with their host rather than spending a grid cell
@@ -205,7 +172,7 @@ let packed = (items, links) => {
 let grid = (items, links) => {
   let rec root = (seen, n: item) =>
     switch (n.anchor) {
-    | Some(k) when !List.mem(k, seen) =>
+    | Some(k) when !List.mem(seen, k, ~equal=Poly.equal) =>
       switch (at(items, k)) {
       | Some(host) => root([n.key, ...seen], host)
       | None => n.key
@@ -214,36 +181,20 @@ let grid = (items, links) => {
     };
   let keys = groups(items, links) |> List.concat;
   let roots =
-    List.filter_map(k => Option.map(n => root([], n), at(items, k)), keys)
-    |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
+    List.filter_map(~f=k => Option.map(~f=n => root([], n), at(items, k)), keys)
+    |> List.fold(~init=[], ~f=(acc, k) => List.mem(acc, k, ~equal=Poly.equal) ? acc : acc @ [k]);
   let clusters =
-    List.map(
+    List.map(~f=
       k => {
-        let ns = List.filter((n: item) => root([], n) == k, items);
+        let ns = List.filter(~f=(n: item) => root([], n) == k, items);
         let x0 =
-          List.fold_left(
-            (v, n: item) => min(v, n.p.x -. n.w /. 2.),
-            infinity,
-            ns,
-          )
+          List.fold(ns, ~init=Float.infinity, ~f=(v, n: item) => min(v, n.p.x -. n.w /. 2.))
         and y0 =
-          List.fold_left(
-            (v, n: item) => min(v, n.p.y -. n.h /. 2.),
-            infinity,
-            ns,
-          );
+          List.fold(ns, ~init=Float.infinity, ~f=(v, n: item) => min(v, n.p.y -. n.h /. 2.));
         let w =
-          List.fold_left(
-            (v, n: item) => max(v, n.p.x +. n.w /. 2. -. x0),
-            0.,
-            ns,
-          )
+          List.fold(ns, ~init=0., ~f=(v, n: item) => max(v, n.p.x +. n.w /. 2. -. x0))
         and h =
-          List.fold_left(
-            (v, n: item) => max(v, n.p.y +. n.h /. 2. -. y0),
-            0.,
-            ns,
-          );
+          List.fold(ns, ~init=0., ~f=(v, n: item) => max(v, n.p.y +. n.h /. 2. -. y0));
         (ns, x0, y0, w, h);
       },
       roots,
@@ -252,24 +203,16 @@ let grid = (items, links) => {
     max(
       2,
       int_of_float(
-        ceil(sqrt(float_of_int(List.length(clusters)) *. 1.3)),
+        Float.round_up(Float.sqrt(float_of_int(List.length(clusters)) *. 1.3)),
       ),
     );
   let w =
-    List.fold_left(
-      (v, (_, _, _, w, _)) => max(v, w +. 75.),
-      196.,
-      clusters,
-    )
+    List.fold(clusters, ~init=196., ~f=(v, (_, _, _, w, _)) => max(v, w +. 75.))
   and h =
-    List.fold_left(
-      (v, (_, _, _, _, h)) => max(v, h +. 70.),
-      154.,
-      clusters,
-    );
-  List.mapi(
+    List.fold(clusters, ~init=154., ~f=(v, (_, _, _, _, h)) => max(v, h +. 70.));
+  List.mapi(~f=
     (i, (ns, x0, y0, _, _)) =>
-      List.map(
+      List.map(~f=
         (n: item) =>
           {
             ...n,
@@ -287,9 +230,9 @@ let grid = (items, links) => {
 };
 let stable = (items, links, old) => {
   let kept =
-    List.filter_map(
+    List.filter_map(~f=
       (n: item) =>
-        Option.map(
+        Option.map(~f=
           (p: item) =>
             {
               ...n,
@@ -302,13 +245,12 @@ let stable = (items, links, old) => {
   if (kept == []) {
     packed(items, links);
   } else {
-    List.fold_left(
-      (placed, n: item) =>
+    List.fold(items, ~init=kept, ~f=(placed, n: item) =>
         if (at(placed, n.key) != None) {
           placed;
         } else {
           let peers =
-            List.filter_map(
+            List.filter_map(~f=
               ((a, b)) =>
                 a == n.key
                   ? at(placed, b) : b == n.key ? at(placed, a) : None,
@@ -322,26 +264,22 @@ let stable = (items, links, old) => {
               }
               : {
                 x:
-                  List.fold_left((s, p: item) => s +. p.p.x, 0., peers)
+                  List.fold(peers, ~init=0., ~f=(s, p: item) => s +. p.p.x)
                   /. float_of_int(List.length(peers)),
                 y:
-                  List.fold_left((s, p: item) => s +. p.p.y, 0., peers)
+                  List.fold(peers, ~init=0., ~f=(s, p: item) => s +. p.p.y)
                   /. float_of_int(List.length(peers)),
               };
           let candidates =
-            List.init(12, r =>
-              List.init(
-                12,
-                i => {
+            List.init(12, ~f=r =>
+              List.init(12, ~f=i => {
                   let angle = float_of_int(i) *. Float.pi /. 6.;
                   let radius = float_of_int(r + 1) *. 84.;
                   {
-                    x: snap(max(84., desired.x +. cos(angle) *. radius)),
-                    y: snap(max(84., desired.y +. sin(angle) *. radius)),
+                    x: snap(max(84., desired.x +. Float.cos(angle) *. radius)),
+                    y: snap(max(84., desired.y +. Float.sin(angle) *. radius)),
                   };
-                },
-              )
-            )
+                }))
             |> List.concat;
           let score = p => {
             let candidate = {
@@ -349,19 +287,11 @@ let stable = (items, links, old) => {
               p,
             };
             let hits =
-              List.fold_left(
-                (s, q) => overlaps(candidate, q, 24.) ? s +. 1000000. : s,
-                0.,
-                placed,
-              );
+              List.fold(placed, ~init=0., ~f=(s, q) => overlaps(candidate, q, 24.) ? s +. 1000000. : s);
             hits +. distance(p, desired) +. 0.05 *. (p.x +. p.y);
           };
           let best =
-            List.fold_left(
-              (a, b) => score(b) < score(a) ? b : a,
-              List.hd(candidates),
-              List.tl(candidates),
-            );
+            List.fold(List.tl_exn(candidates), ~init=List.hd_exn(candidates), ~f=(a, b) => score(b) < score(a) ? b : a);
           placed
           @ [
             {
@@ -369,10 +299,7 @@ let stable = (items, links, old) => {
               p: best,
             },
           ];
-        },
-      kept,
-      items,
-    );
+        });
   };
 };
 /* Bounded relaxation, settled before animation. Old positions exert a soft
@@ -382,18 +309,18 @@ let relaxed = (items, links, old) => {
   let current = ref(start);
   for (_ in 1 to 28) {
     current :=
-      List.map(
+      List.map(~f=
         (n: item) => {
           let target = Option.value(~default=n, at(old, n.key));
           let fx = ref((target.p.x -. n.p.x) *. 0.13)
           and fy = ref((target.p.y -. n.p.y) *. 0.13);
-          List.iter(
+          List.iter(~f=
             (q: item) =>
               if (q.key != n.key && overlaps(n, q, 35.)) {
                 let dx = n.p.x -. q.p.x
                 and dy = n.p.y -. q.p.y;
-                let ox = (n.w +. q.w) /. 2. +. 35. -. abs_float(dx)
-                and oy = (n.h +. q.h) /. 2. +. 35. -. abs_float(dy);
+                let ox = (n.w +. q.w) /. 2. +. 35. -. Float.abs(dx)
+                and oy = (n.h +. q.h) /. 2. +. 35. -. Float.abs(dy);
                 if (ox < oy) {
                   fx := fx^ +. (dx >= 0. ? 1. : (-1.)) *. ox *. 0.3;
                 } else {
@@ -402,7 +329,7 @@ let relaxed = (items, links, old) => {
               },
             current^,
           );
-          List.iter(
+          List.iter(~f=
             ((a, b)) => {
               let other =
                 a == n.key
@@ -430,7 +357,7 @@ let relaxed = (items, links, old) => {
         current^,
       );
   };
-  List.map(
+  List.map(~f=
     (n: item) =>
       {
         ...n,
@@ -485,12 +412,12 @@ let engine_place = (kind, items, links, old, clusters, topology) => {
               ),
               ("kind", `String(kind)),
               ("topology", topology),
-              ("items", `List(List.map(node, items))),
-              ("old", `List(List.map(node, old))),
+              ("items", `List(List.map(~f=node, items))),
+              ("old", `List(List.map(~f=node, old))),
               (
                 "links",
                 `List(
-                  List.map(
+                  List.map(~f=
                     ((a, b)) => `List([`String(a), `String(b)]),
                     links,
                   ),
@@ -499,8 +426,8 @@ let engine_place = (kind, items, links, old, clusters, topology) => {
               (
                 "clusters",
                 `List(
-                  List.map(
-                    ks => `List(List.map(k => `String(k), ks)),
+                  List.map(~f=
+                    ks => `List(List.map(~f=k => `String(k), ks)),
                     clusters,
                   ),
                 ),
@@ -530,7 +457,7 @@ let engine_place = (kind, items, links, old, clusters, topology) => {
           };
         let positions =
           Yojson.Safe.Util.to_list(result)
-          |> List.map(j => {
+          |> List.map(~f=j => {
                let get = k => Yojson.Safe.Util.member(k, j);
                (
                  Yojson.Safe.Util.to_string(get("key")),
@@ -545,14 +472,14 @@ let engine_place = (kind, items, links, old, clusters, topology) => {
         };
         positions == []
           ? fallback
-          : List.map(
+          : List.map(~f=
               (n: item) =>
                 {
                   ...n,
                   p:
                     Option.value(
                       ~default=n.p,
-                      List.assoc_opt(n.key, positions),
+                      List.Assoc.find(positions, n.key, ~equal=Poly.equal),
                     ),
                 },
               items,
@@ -570,41 +497,37 @@ let engine_place = (kind, items, links, old, clusters, topology) => {
 let place = (~clusters=[], ~labels=[], kind, items, links, old) => {
   let topology =
     `List([
-      `List(List.map(k => `String(k), labels)),
-      `List(List.map((n: item) => `String(n.key), items)),
+      `List(List.map(~f=k => `String(k), labels)),
+      `List(List.map(~f=(n: item) => `String(n.key), items)),
       `List(
-        List.map(((a, b)) => `List([`String(a), `String(b)]), links),
+        List.map(~f=((a, b)) => `List([`String(a), `String(b)]), links),
       ),
     ]);
 
   let rec root = (seen, n: item) =>
     switch (n.anchor) {
-    | Some(k) when !List.mem(k, seen) =>
+    | Some(k) when !List.mem(seen, k, ~equal=Poly.equal) =>
       switch (at(items, k)) {
       | Some(host) => root([n.key, ...seen], host)
       | None => n.key
       }
     | _ => n.key
     };
-  let root_of = k => Option.map(n => root([], n), at(items, k));
-  let roots = List.filter((n: item) => root([], n) == n.key, items);
+  let root_of = k => Option.map(~f=n => root([], n), at(items, k));
+  let roots = List.filter(~f=(n: item) => root([], n) == n.key, items);
   let units =
-    List.map(
+    List.map(~f=
       (host: item) => {
         let members =
-          List.filter((n: item) => root([], n) == host.key, items);
+          List.filter(~f=(n: item) => root([], n) == host.key, items);
         let (left, top, right, bottom) =
-          List.fold_left(
-            ((left, top, right, bottom), n: item) =>
+          List.fold(members, ~init=(Float.infinity, Float.infinity, Float.neg_infinity, Float.neg_infinity), ~f=((left, top, right, bottom), n: item) =>
               (
                 min(left, n.p.x -. n.w /. 2.),
                 min(top, n.p.y -. n.h /. 2.),
                 max(right, n.p.x +. n.w /. 2.),
                 max(bottom, n.p.y +. n.h /. 2.),
-              ),
-            (infinity, infinity, neg_infinity, neg_infinity),
-            members,
-          );
+              ));
         {
           ...host,
           p: {
@@ -620,15 +543,15 @@ let place = (~clusters=[], ~labels=[], kind, items, links, old) => {
     );
   let links =
     links_of(items, links)
-    |> List.filter_map(((a, b)) =>
+    |> List.filter_map(~f=((a, b)) =>
          switch (root_of(a), root_of(b)) {
          | (Some(a), Some(b)) when a != b => Some((a, b))
          | _ => None
          }
        )
-    |> List.sort_uniq(compare);
+    |> List.dedup_and_sort(~compare=compare);
   let old_units =
-    List.filter_map(
+    List.filter_map(~f=
       (n: item) =>
         switch (at(old, n.key), at(items, n.key)) {
         | (Some(previous), Some(host)) =>
@@ -657,15 +580,15 @@ let place = (~clusters=[], ~labels=[], kind, items, links, old) => {
         units,
         links,
         old_units,
-        List.map(
-          ks => List.filter_map(root_of, ks) |> List.sort_uniq(compare),
+        List.map(~f=
+          ks => List.filter_map(~f=root_of, ks) |> List.dedup_and_sort(~compare=compare),
           clusters,
         ),
         topology,
       )
     | _ => units
     };
-  List.map(
+  List.map(~f=
     (n: item) => {
       let k = root([], n);
       switch (at(units, k), at(result, k)) {
@@ -714,7 +637,7 @@ let route =
     | Some(n) =>
       let dx = p.x -. n.p.x
       and dy = p.y -. n.p.y;
-      abs_float(dx) >= abs_float(dy)
+      Float.abs(dx) >= Float.abs(dy)
         ? {
           x: p.x +. (dx >= 0. ? stub : -. stub),
           y: p.y,
@@ -743,26 +666,26 @@ let route =
     y: (a.y +. b.y) /. 2.,
   };
   let near =
-    List.sort(
+    List.sort(~compare=
       (u: item, v: item) =>
         compare(distance(u.p, mid), distance(v.p, mid)),
       obstacles,
     )
-    |> List.filteri((i, _) => i < 8);
+    |> List.filteri(~f=(i, _) => i < 8);
   let xs =
     xs
-    @ List.concat_map(
+    @ List.concat_map(~f=
         (n: item) => [n.p.x -. n.w /. 2. -. 24., n.p.x +. n.w /. 2. +. 24.],
         near,
       )
   and ys =
     ys
-    @ List.concat_map(
+    @ List.concat_map(~f=
         (n: item) => [n.p.y -. n.h /. 2. -. 24., n.p.y +. n.h /. 2. +. 24.],
         near,
       );
   let candidates =
-    List.map(
+    List.map(~f=
       x =>
         [
           a,
@@ -780,7 +703,7 @@ let route =
         ],
       xs,
     )
-    @ List.map(
+    @ List.map(~f=
         y =>
           [
             a,
@@ -800,7 +723,7 @@ let route =
       );
   let score = ps => {
     let nonzero =
-      segments(ps) |> List.filter(((p, q)) => distance(p, q) > 0.01);
+      segments(ps) |> List.filter(~f=((p, q)) => distance(p, q) > 0.01);
     let rec turns = ss =>
       switch (ss) {
       | [(p, q), (r, s), ...rest] =>
@@ -809,11 +732,9 @@ let route =
         +. turns([(r, s), ...rest]);
       | _ => 0.
       };
-    List.fold_left(
-      (score, (u: point, v: point)) => {
+    List.fold(segments(ps), ~init=turns(nonzero), ~f=(score, (u: point, v: point)) => {
         let hits =
-          List.fold_left(
-            (hits, n: item) =>
+          List.fold(obstacles, ~init=0., ~f=(hits, n: item) =>
               if (n.key == src && u == a || n.key == dst && v == b) {
                 hits;
               } else {
@@ -822,7 +743,7 @@ let route =
                 and top = n.p.y -. n.h /. 2. -. pad
                 and bottom = n.p.y +. n.h /. 2. +. pad;
                 let hit =
-                  abs_float(u.x -. v.x) < 0.01
+                  Float.abs(u.x -. v.x) < 0.01
                     ? u.x > left
                       && u.x < right
                       && max(u.y, v.y) > top
@@ -832,29 +753,24 @@ let route =
                       && max(u.x, v.x) > left
                       && min(u.x, v.x) < right;
                 hits +. (hit ? 100000. : 0.);
-              },
-            0.,
-            obstacles,
-          );
+              });
         let overlap =
           u == a || v == b
             ? 0.
-            : List.fold_left(
-                (sum, path) =>
-                  List.fold_left(
-                    (sum, (p: point, q: point)) => {
+            : List.fold(occupied, ~init=0., ~f=(sum, path) =>
+                  List.fold(segments(path), ~init=sum, ~f=(sum, (p: point, q: point)) => {
                       let length =
-                        abs_float(u.x -. v.x) < 0.01
-                        && abs_float(p.x -. q.x) < 0.01
-                        && abs_float(u.x -. p.x) < 8.
+                        Float.abs(u.x -. v.x) < 0.01
+                        && Float.abs(p.x -. q.x) < 0.01
+                        && Float.abs(u.x -. p.x) < 8.
                           ? max(
                               0.,
                               min(max(u.y, v.y), max(p.y, q.y))
                               -. max(min(u.y, v.y), min(p.y, q.y)),
                             )
-                          : abs_float(u.y -. v.y) < 0.01
-                            && abs_float(p.y -. q.y) < 0.01
-                            && abs_float(u.y -. p.y) < 8.
+                          : Float.abs(u.y -. v.y) < 0.01
+                            && Float.abs(p.y -. q.y) < 0.01
+                            && Float.abs(u.y -. p.y) < 8.
                               ? max(
                                   0.,
                                   min(max(u.x, v.x), max(p.x, q.x))
@@ -862,18 +778,10 @@ let route =
                                 )
                               : 0.;
                       sum +. max(0., length -. 12.) *. 30.;
-                    },
-                    sum,
-                    segments(path),
-                  ),
-                0.,
-                occupied,
-              );
+                    }));
         let crossings =
-          List.fold_left(
-            (sum, path) =>
-              List.fold_left(
-                (sum, (p: point, q: point)) => {
+          List.fold(occupied, ~init=0., ~f=(sum, path) =>
+              List.fold(segments(path), ~init=sum, ~f=(sum, (p: point, q: point)) => {
                   let cross = (a: point, b: point, c: point) =>
                     (b.x -. a.x)
                     *. (c.y -. a.y)
@@ -887,28 +795,15 @@ let route =
                     *. cross(p, q, v) < 0.
                       ? 40. : 0.
                   );
-                },
-                sum,
-                segments(path),
-              ),
-            0.,
-            occupied,
-          );
+                }));
         score +. distance(u, v) +. hits +. overlap +. crossings;
-      },
-      turns(nonzero),
-      segments(ps),
-    );
+      });
   };
-  List.fold_left(
-    (best, ps) => score(ps) < score(best) ? ps : best,
-    List.hd(candidates),
-    List.tl(candidates),
-  );
+  List.fold(List.tl_exn(candidates), ~init=List.hd_exn(candidates), ~f=(best, ps) => score(ps) < score(best) ? ps : best);
 };
 let along = (points, t) => {
   let segs = segments(points);
-  let total = List.fold_left((v, (a, b)) => v +. distance(a, b), 0., segs);
+  let total = List.fold(segs, ~init=0., ~f=(v, (a, b)) => v +. distance(a, b));
   let rec walk = (ss, remaining) =>
     switch (ss) {
     | [(a, b), ...rest] =>

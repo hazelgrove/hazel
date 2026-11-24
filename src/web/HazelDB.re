@@ -250,7 +250,7 @@ let clear_all = (~callback=() => (), ()): unit => {
     };
   };
   with_db(db =>
-    List.iter(
+    List.iter(~f=
       make_store => {
         let store = make_store(db);
         let transaction = store##.transaction;

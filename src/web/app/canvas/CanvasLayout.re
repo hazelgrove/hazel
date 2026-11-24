@@ -8,6 +8,7 @@
    horizontal-tangent cubic béziers; single-argument endofunctions render
    as orbits. Motion between layouts is smoothed by the id-keyed FLIP in
    Animation.re, so this recomputes from scratch. */
+open Poly;
 
 type pos = {
   x: float,
@@ -74,7 +75,7 @@ let from_lab = (p: Lab.point): pos => {
   x: p.x,
   y: p.y,
 };
-let wire_at = (ps, t) => Lab.along(List.map(to_lab, ps), t) |> from_lab;
+let wire_at = (ps, t) => Lab.along(List.map(~f=to_lab, ps), t) |> from_lab;
 let edge_path = (~pull=0., el: edge_layout) =>
   if (el.wire != []) {
     let reversed = List.rev(el.wire);
@@ -92,7 +93,7 @@ let edge_path = (~pull=0., el: edge_layout) =>
         ]);
       | _ => el.wire
       };
-    Lab.path(List.map(to_lab, points));
+    Lab.path(List.map(~f=to_lab, points));
   } else {
     let d =
       max(1., Float.hypot(el.dst_p.x -. el.c2.x, el.dst_p.y -. el.c2.y));
@@ -109,19 +110,19 @@ let edge_path = (~pull=0., el: edge_layout) =>
     );
   };
 let obstacles = (~cards=[], nodes) =>
-  List.map(
+  List.map(~f=
     (n: node_layout) => {
       let (w, h) =
         Option.value(
           ~default=(2. *. n.r +. 24., 2. *. n.r +. 34.),
-          List.assoc_opt(n.node.key, cards),
+          List.Assoc.find(cards, n.node.key, ~equal=Poly.equal),
         );
       Lab.{
         key: n.node.key,
         p: to_lab(n.p),
         w,
         h,
-        anchor: Option.map(fst, n.node.sat),
+        anchor: Option.map(~f=fst, n.node.sat),
       };
     },
     nodes,
@@ -129,7 +130,7 @@ let obstacles = (~cards=[], nodes) =>
 let placement_cache = ref(("", [], [], []));
 /* dot-grid pitch (kept in sync with canvas.css --canvas-grid) */
 let grid = 14.;
-let snap = (v: float): float => Float.round(v /. grid) *. grid;
+let snap = (v: float): float => Stdlib.Float.round(v /. grid) *. grid;
 
 let base_radius = 20.;
 
@@ -149,7 +150,7 @@ let node_radius = (~fan: int, n: CanvasGraph.tynode): float => {
 
 let strip_brackets = (k: string): option(string) =>
   if (String.length(k) >= 2 && k.[0] == '[') {
-    Some(String.sub(k, 1, String.length(k) - 2));
+    Some(String.sub(k, ~pos=1, ~len=String.length(k) - 2));
   } else {
     None;
   };
@@ -163,7 +164,7 @@ let cubic_mid = (s: pos, c1: pos, c2: pos, d: pos): pos => {
 let norm = (a: pos, b: pos): pos => {
   let dx = b.x -. a.x
   and dy = b.y -. a.y;
-  let l = max(1., sqrt(dx *. dx +. dy *. dy));
+  let l = max(1., Float.sqrt(dx *. dx +. dy *. dy));
   {
     x: dx /. l,
     y: dy /. l,
@@ -215,15 +216,15 @@ let route_link =
     y: a.y +. (b.y -. a.y) *. t,
   };
   let local =
-    List.exists(
+    List.exists(~f=
       (n: node_layout) =>
         n.node.key == from_key
-        && Option.map(fst, n.node.sat) == Some(to_key)
+        && Option.map(~f=fst, n.node.sat) == Some(to_key)
         || n.node.key == to_key
-        && Option.map(fst, n.node.sat) == Some(from_key),
+        && Option.map(~f=fst, n.node.sat) == Some(from_key),
       nodes,
     );
-  local && abs_float(b.x -. a.x) > 24.
+  local && Float.abs(b.x -. a.x) > 24.
     ? (
       {
         x: a.x +. (b.x -. a.x) *. 0.45,
@@ -252,12 +253,12 @@ let link_d = (a: pos, c1: pos, c2: pos, b: pos): string =>
 
 let relation_path = (~nodes, ~from_key, ~to_key, a, b) => {
   let local =
-    List.exists(
+    List.exists(~f=
       (n: node_layout) =>
         n.node.key == from_key
-        && Option.map(fst, n.node.sat) == Some(to_key)
+        && Option.map(~f=fst, n.node.sat) == Some(to_key)
         || n.node.key == to_key
-        && Option.map(fst, n.node.sat) == Some(from_key),
+        && Option.map(~f=fst, n.node.sat) == Some(from_key),
       nodes,
     );
   if (Lab.wires^ == "circuit" && !local) {
@@ -290,9 +291,9 @@ let declutter =
     )
     : list(node_layout) => {
   let clear = 12.;
-  let tbl: Hashtbl.t(string, pos) = Hashtbl.create(32);
-  List.iter(
-    (nl: node_layout) => Hashtbl.replace(tbl, nl.node.key, nl.p),
+  let tbl: Stdlib.Hashtbl.t(string, pos) = Stdlib.Hashtbl.create(32);
+  List.iter(~f=
+    (nl: node_layout) => Stdlib.Hashtbl.replace(tbl, nl.node.key, nl.p),
     nodes,
   );
   let anchor_of = (nl: node_layout): option(string) =>
@@ -301,47 +302,47 @@ let declutter =
     | None => None
     };
   let movable = (nl: node_layout): bool =>
-    !List.mem(nl.node.key, fixed) && anchor_of(nl) == None;
-  let parity: Hashtbl.t(string, float) = Hashtbl.create(32);
-  List.iteri(
+    !List.mem(fixed, nl.node.key, ~equal=Poly.equal) && anchor_of(nl) == None;
+  let parity: Stdlib.Hashtbl.t(string, float) = Stdlib.Hashtbl.create(32);
+  List.iteri(~f=
     (i, nl: node_layout) =>
-      Hashtbl.replace(parity, nl.node.key, i mod 2 == 0 ? 1. : (-1.)),
+      Stdlib.Hashtbl.replace(parity, nl.node.key, i mod 2 == 0 ? 1. : (-1.)),
     nodes,
   );
   for (_ in 1 to 6) {
-    let delta: Hashtbl.t(string, (float, float)) = Hashtbl.create(16);
-    List.iter(
+    let delta: Stdlib.Hashtbl.t(string, (float, float)) = Stdlib.Hashtbl.create(16);
+    List.iter(~f=
       ((ka, kb)) =>
-        switch (Hashtbl.find_opt(tbl, ka), Hashtbl.find_opt(tbl, kb)) {
+        switch (Stdlib.Hashtbl.find_opt(tbl, ka), Stdlib.Hashtbl.find_opt(tbl, kb)) {
         | (Some(a), Some(b)) =>
           let dx = b.x -. a.x
           and dy = b.y -. a.y;
-          let len = sqrt(dx *. dx +. dy *. dy);
+          let len = Float.sqrt(dx *. dx +. dy *. dy);
           if (len > 1.) {
             let (ux, uy) = (dx /. len, dy /. len);
             let (nx, ny) = (-. uy, ux);
-            List.iter(
+            List.iter(~f=
               (nl: node_layout) =>
                 if (nl.node.key != ka && nl.node.key != kb && movable(nl)) {
-                  let p = Hashtbl.find(tbl, nl.node.key);
+                  let p = Stdlib.Hashtbl.find(tbl, nl.node.key);
                   let r = radius_of(nl.node.key);
                   let px = p.x -. a.x
                   and py = p.y -. a.y;
                   let along = px *. ux +. py *. uy;
                   let side = px *. nx +. py *. ny;
                   let need = r +. clear;
-                  if (along > r && along < len -. r && abs_float(side) < need) {
+                  if (along > r && along < len -. r && Float.abs(side) < need) {
                     let dir =
-                      abs_float(side) < 0.5
-                        ? Hashtbl.find(parity, nl.node.key)
+                      Float.abs(side) < 0.5
+                        ? Stdlib.Hashtbl.find(parity, nl.node.key)
                         : side >= 0. ? 1. : (-1.);
-                    let m = need -. abs_float(side);
+                    let m = need -. Float.abs(side);
                     let (ox, oy) =
                       Option.value(
                         ~default=(0., 0.),
-                        Hashtbl.find_opt(delta, nl.node.key),
+                        Stdlib.Hashtbl.find_opt(delta, nl.node.key),
                       );
-                    Hashtbl.replace(
+                    Stdlib.Hashtbl.replace(
                       delta,
                       nl.node.key,
                       (ox +. dir *. nx *. m, oy +. dir *. ny *. m),
@@ -355,10 +356,10 @@ let declutter =
         },
       chords,
     );
-    Hashtbl.iter(
+    Stdlib.Hashtbl.iter(
       (k, (ox, oy)) => {
-        let p = Hashtbl.find(tbl, k);
-        Hashtbl.replace(
+        let p = Stdlib.Hashtbl.find(tbl, k);
+        Stdlib.Hashtbl.replace(
           tbl,
           k,
           {
@@ -369,14 +370,14 @@ let declutter =
       },
       delta,
     );
-    List.iter(
+    List.iter(~f=
       (nl: node_layout) =>
         switch (anchor_of(nl)) {
         | Some(a) =>
-          switch (Hashtbl.find_opt(delta, a)) {
+          switch (Stdlib.Hashtbl.find_opt(delta, a)) {
           | Some((ox, oy)) =>
-            let p = Hashtbl.find(tbl, nl.node.key);
-            Hashtbl.replace(
+            let p = Stdlib.Hashtbl.find(tbl, nl.node.key);
+            Stdlib.Hashtbl.replace(
               tbl,
               nl.node.key,
               {
@@ -391,11 +392,11 @@ let declutter =
       nodes,
     );
   };
-  List.map(
+  List.map(~f=
     (nl: node_layout) =>
       {
         ...nl,
-        p: Hashtbl.find(tbl, nl.node.key),
+        p: Stdlib.Hashtbl.find(tbl, nl.node.key),
       },
     nodes,
   );
@@ -406,58 +407,53 @@ let declutter =
    the user's later drag remains rigid and never relocates bystanders. */
 let separate_docked_chords =
     (~chords: list((string, string)), nodes: list(node_layout)) => {
-  let positions = Hashtbl.create(32);
-  List.iter(
-    (nl: node_layout) => Hashtbl.replace(positions, nl.node.key, nl.p),
+  let positions = Stdlib.Hashtbl.create(32);
+  List.iter(~f=
+    (nl: node_layout) => Stdlib.Hashtbl.replace(positions, nl.node.key, nl.p),
     nodes,
   );
-  List.map(
+  List.map(~f=
     (nl: node_layout) => {
       let p =
-        List.fold_left(
-          (p: pos, (ka, kb)) =>
+        List.fold(chords, ~init=nl.p, ~f=(p: pos, (ka, kb)) =>
             switch (
               nl.node.kind,
               nl.node.sat,
-              Hashtbl.find_opt(positions, ka),
-              Hashtbl.find_opt(positions, kb),
+              Stdlib.Hashtbl.find_opt(positions, ka),
+              Stdlib.Hashtbl.find_opt(positions, kb),
             ) {
             | (Builtin, Some((anchor, _)), Some(a), Some(b))
                 when
                   nl.node.key != ka
                   && nl.node.key != kb
                   && (anchor == ka || anchor == kb) =>
-              let length = sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
+              let length = Float.sqrt((b.x -. a.x) ** 2. +. (b.y -. a.y) ** 2.);
               let u = norm(a, b);
               let along = (p.x -. a.x) *. u.x +. (p.y -. a.y) *. u.y;
               let side = (p.y -. a.y) *. u.x -. (p.x -. a.x) *. u.y;
               if (length > 1.
                   && along > 0.
                   && along < length
-                  && abs_float(side) < nl.r
+                  && Float.abs(side) < nl.r
                   +. 12.) {
                 let candidate = dir => {
                   x: p.x -. u.y *. dir *. 42.,
                   y: p.y +. u.x *. dir *. 42.,
                 };
                 let clearance = (q: pos) =>
-                  List.fold_left(
-                    (score, other: node_layout) =>
+                  List.fold(nodes, ~init=Float.max_finite_value, ~f=(score, other: node_layout) =>
                       other.node.key == nl.node.key
                         ? score
                         : min(
                             score,
-                            sqrt(
+                            Float.sqrt(
                               (q.x -. other.p.x)
                               ** 2.
                               +. (q.y -. other.p.y)
                               ** 2.,
                             )
                             -. other.r,
-                          ),
-                    max_float,
-                    nodes,
-                  );
+                          ));
                 let above = candidate(-1.)
                 and below = candidate(1.);
                 clearance(above) >= clearance(below) ? above : below;
@@ -465,10 +461,7 @@ let separate_docked_chords =
                 p;
               };
             | _ => p
-            },
-          nl.p,
-          chords,
-        );
+            });
       {
         ...nl,
         p,
@@ -482,29 +475,29 @@ let separate_docked_chords =
    inherit their anchor's movement; an explicit satellite pin stays put. */
 let apply_manual_positions = (~offsets, ~pins, nodes: list(node_layout)) => {
   let rec displacement = (seen, nl: node_layout): (float, float) =>
-    if (List.mem(nl.node.key, seen)) {
+    if (List.mem(seen, nl.node.key, ~equal=Poly.equal)) {
       (0., 0.);
     } else {
-      switch (List.assoc_opt(nl.node.key, pins)) {
+      switch (List.Assoc.find(pins, nl.node.key, ~equal=Poly.equal)) {
       | Some((x, y)) => (snap(x) -. nl.p.x, snap(y) -. nl.p.y)
       | None =>
         let (dx, dy) =
           Option.value(
             ~default=(0., 0.),
-            List.assoc_opt(nl.node.key, offsets),
+            List.Assoc.find(offsets, nl.node.key, ~equal=Poly.equal),
           );
         let (ax, ay) =
           switch (nl.node.sat) {
           | Some((anchor, _)) =>
-            List.find_opt((n: node_layout) => n.node.key == anchor, nodes)
-            |> Option.map(n => displacement([nl.node.key, ...seen], n))
+            List.find(~f=(n: node_layout) => n.node.key == anchor, nodes)
+            |> Option.map(~f=n => displacement([nl.node.key, ...seen], n))
             |> Option.value(~default=(0., 0.))
           | None => (0., 0.)
           };
         (dx +. ax, dy +. ay);
       };
     };
-  List.map(
+  List.map(~f=
     (nl: node_layout) => {
       let (dx, dy) = displacement([], nl);
       {
@@ -560,27 +553,27 @@ let layout_impl =
     || experiment == "dependencies"
       ? y_scale : 1.;
   let card_of = (k: string): option((float, float)) =>
-    List.assoc_opt(k, cards);
+    List.Assoc.find(cards, k, ~equal=Poly.equal);
   /* A one-use unknown component is a terminal, not an independent row.
      Shared or function-connected types retain their own layout role. */
   let g = {
     ...g,
     nodes:
-      List.map(
+      List.map(~f=
         (n: CanvasGraph.tynode) => {
           let consumers =
-            List.filter_map(
+            List.filter_map(~f=
               (host: CanvasGraph.tynode) =>
                 host.key != n.key
                 && (
-                  List.mem(n.key, host.parts) || List.mem(n.key, host.deps)
+                  List.mem(host.parts, n.key, ~equal=Poly.equal) || List.mem(host.deps, n.key, ~equal=Poly.equal)
                 )
                   ? Some(host.key) : None,
               g.nodes,
             )
-            |> List.sort_uniq(compare);
+            |> List.dedup_and_sort(~compare=compare);
           let has_function =
-            List.exists(
+            List.exists(~f=
               (e: CanvasGraph.edge) => e.e_src == n.key || e.dst == n.key,
               g.edges,
             );
@@ -598,23 +591,23 @@ let layout_impl =
   /* ---- classify: grid vs docked ---- */
   let fan = (k: string): int =>
     List.length(
-      List.filter(
+      List.filter(~f=
         (e: CanvasGraph.edge) => e.e_src == k || e.dst == k,
         g.edges,
       ),
     );
   let is_loop_product = (n: CanvasGraph.tynode): bool =>
     n.kind == Product
-    && List.exists(
+    && List.exists(~f=
          (e: CanvasGraph.edge) =>
-           e.e_src == n.key && List.mem(e.dst, n.parts),
+           e.e_src == n.key && List.mem(n.parts, e.dst, ~equal=Poly.equal),
          g.edges,
        );
   let loop_anchor = (n: CanvasGraph.tynode): string =>
     switch (
-      List.find_opt(
+      List.find(~f=
         (e: CanvasGraph.edge) =>
-          e.e_src == n.key && List.mem(e.dst, n.parts),
+          e.e_src == n.key && List.mem(n.parts, e.dst, ~equal=Poly.equal),
         g.edges,
       )
     ) {
@@ -622,7 +615,7 @@ let layout_impl =
     | None => ""
     };
   let is_former = (n: CanvasGraph.tynode): bool =>
-    String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@";
+    String.length(n.key) >= 3 && String.sub(n.key, ~pos=0, ~len=3) == "{}@";
   /* a module's internals (any depth) cluster around the OUTERMOST
      module's former: internal aliases, nested formers — the hull closes
      around the cluster */
@@ -638,7 +631,7 @@ let layout_impl =
       };
     };
   let docked: list((CanvasGraph.tynode, string, dock)) =
-    List.filter_map(
+    List.filter_map(~f=
       (n: CanvasGraph.tynode) =>
         switch (n.sat) {
         | Some((anchor, output)) =>
@@ -646,7 +639,7 @@ let layout_impl =
         | None when is_loop_product(n) =>
           Some((n, loop_anchor(n), DockLoop))
         | None when module_anchor(n) != None =>
-          Some((n, Option.get(module_anchor(n)), DockMember))
+          Some((n, Option.value_exn(module_anchor(n)), DockMember))
         | None =>
           /* derived [T] docks beneath T when T is itself on the grid */
           /* only lightly-used [T] tucks beneath its element; a derived
@@ -655,7 +648,7 @@ let layout_impl =
           switch (n.kind, strip_brackets(n.key)) {
           | (Derived, Some(ik)) when fan(n.key) <= 2 =>
             switch (
-              List.find_opt((m: CanvasGraph.tynode) => m.key == ik, g.nodes)
+              List.find(~f=(m: CanvasGraph.tynode) => m.key == ik, g.nodes)
             ) {
             | Some(m) when m.sat == None && !is_loop_product(m) =>
               Some((n, ik, DockDeriv))
@@ -667,13 +660,13 @@ let layout_impl =
       g.nodes,
     );
   let docked_keys =
-    List.map(((n: CanvasGraph.tynode, _, _)) => n.key, docked);
+    List.map(~f=((n: CanvasGraph.tynode, _, _)) => n.key, docked);
   let grid_nodes =
-    List.filter(
-      (n: CanvasGraph.tynode) => !List.mem(n.key, docked_keys),
+    List.filter(~f=
+      (n: CanvasGraph.tynode) => !List.mem(docked_keys, n.key, ~equal=Poly.equal),
       g.nodes,
     );
-  let grid_keys = List.map((n: CanvasGraph.tynode) => n.key, grid_nodes);
+  let grid_keys = List.map(~f=(n: CanvasGraph.tynode) => n.key, grid_nodes);
   /* ---- placement: delegate to the GraphLayout engine ----
      Rank constraints: alias-body deps (hidden ones included — they still
      order columns), derived [T] after its element, and function flow
@@ -681,11 +674,11 @@ let layout_impl =
   let r_of = (n: CanvasGraph.tynode): float =>
     node_radius(~fan=fan(n.key), n);
   let dep_edges =
-    List.concat_map(
+    List.concat_map(~f=
       (n: CanvasGraph.tynode) =>
         n.deps
-        |> List.filter(d => d != n.key)
-        |> List.map(d =>
+        |> List.filter(~f=d => d != n.key)
+        |> List.map(~f=d =>
              Util.GraphLayout.Spec.{
                src: d,
                dst: n.key,
@@ -695,7 +688,7 @@ let layout_impl =
       grid_nodes,
     );
   let derived_edges =
-    List.filter_map(
+    List.filter_map(~f=
       (n: CanvasGraph.tynode) =>
         switch (strip_brackets(n.key)) {
         | Some(ik) when ik != n.key =>
@@ -711,7 +704,7 @@ let layout_impl =
       grid_nodes,
     );
   let flow_edges =
-    List.filter_map(
+    List.filter_map(~f=
       (e: CanvasGraph.edge) =>
         e.e_src != e.dst
           ? Some(
@@ -725,23 +718,19 @@ let layout_impl =
       g.edges,
     );
   let function_clearance = (key, anchor) =>
-    List.fold_left(
-      (space, e: CanvasGraph.edge) =>
+    List.fold(g.edges, ~init=0., ~f=(space, e: CanvasGraph.edge) =>
         e.e_src == key && e.dst == anchor || e.e_src == anchor && e.dst == key
           ? max(
               space,
               max(48., float_of_int(String.length(e.e_name)) *. 7.4 +. 24.)
               +. 62.,
             )
-          : space,
-      0.,
-      g.edges,
-    );
+          : space);
   /* Endomorphism labels stack above their hub. Reserve their column;
      tuple-to-alias feedback labels instead have their own edge corridor. */
   let legend_count = (k: string): int =>
     List.length(
-      List.filter(
+      List.filter(~f=
         (e: CanvasGraph.edge) => e.e_src == k && e.dst == k,
         g.edges,
       ),
@@ -752,7 +741,7 @@ let layout_impl =
     n == 0 ? 0. : float_of_int(n) *. 24. +. 28.;
   };
   let attachments =
-    List.map(
+    List.map(~f=
       ((n: CanvasGraph.tynode, anchor, d)) => {
         let (prefer, dist) =
           switch (d) {
@@ -791,11 +780,11 @@ let layout_impl =
      for left-to-right reading and so the two hubs never share a column.
      (Loop products stay unranked — feedback must not stretch columns.) */
   let former_rank_edges =
-    List.concat_map(
+    List.concat_map(~f=
       (n: CanvasGraph.tynode) =>
         switch (n.kind, n.sat) {
         | (Product, Some((alias, _))) =>
-          List.map(
+          List.map(~f=
             pk =>
               Util.GraphLayout.Spec.{
                 src: pk,
@@ -806,7 +795,7 @@ let layout_impl =
           )
         /* folded former: the alias's own components rank before it */
         | (Alias, _) when n.parts != [] =>
-          List.map(
+          List.map(~f=
             pk =>
               Util.GraphLayout.Spec.{
                 src: pk,
@@ -822,12 +811,12 @@ let layout_impl =
   /* formation links (component → product) are ordering-only: they pull
      a product's components toward its row without constraining columns */
   let formation_edges =
-    List.concat_map(
+    List.concat_map(~f=
       (n: CanvasGraph.tynode) =>
         n.kind == CanvasGraph.Product
         || n.kind == CanvasGraph.Alias
         && n.parts != []
-          ? List.map(
+          ? List.map(~f=
               pk =>
                 Util.GraphLayout.Spec.{
                   src: pk,
@@ -842,15 +831,15 @@ let layout_impl =
   /* member functions pull their module former toward the types they
      touch: unranked ordering edges (row attraction, no column rank) */
   let module_flow_pull =
-    List.concat_map(
+    List.concat_map(~f=
       (e: CanvasGraph.edge) =>
         switch (e.m_path) {
         | [root, ..._] =>
           let fk = "{}@" ++ root;
-          List.mem(fk, grid_keys)
-            ? List.filter_map(
+          List.mem(grid_keys, fk, ~equal=Poly.equal)
+            ? List.filter_map(~f=
                 ((k, ranked)) =>
-                  k != fk && List.mem(k, grid_keys)
+                  k != fk && List.mem(grid_keys, k, ~equal=Poly.equal)
                     ? Some(
                         Util.GraphLayout.Spec.{
                           src: k,
@@ -872,7 +861,7 @@ let layout_impl =
      grid: a freshly placed node would otherwise claim a row and shove
      every auto-laid node down */
   let unrank =
-    List.map((e: Util.GraphLayout.Spec.edge) =>
+    List.map(~f=(e: Util.GraphLayout.Spec.edge) =>
       {
         ...e,
         ranked: false,
@@ -886,18 +875,18 @@ let layout_impl =
     @ formation_edges
     @ type_edges(module_flow_pull);
   let spec_touches = (k: string): bool =>
-    List.exists(
+    List.exists(~f=
       (e: Util.GraphLayout.Spec.edge) => e.src == k || e.dst == k,
       all_spec_edges,
     )
-    || List.exists(
+    || List.exists(~f=
          (a: Util.GraphLayout.Spec.attachment) => a.host == k,
          attachments,
        );
   let free_keys =
-    List.filter_map(
+    List.filter_map(~f=
       (n: CanvasGraph.tynode) =>
-        List.mem_assoc(n.key, pins) && !spec_touches(n.key)
+        List.Assoc.mem(pins, n.key, ~equal=Poly.equal) && !spec_touches(n.key)
           ? Some(n.key) : None,
       grid_nodes,
     );
@@ -906,9 +895,9 @@ let layout_impl =
   let res =
     Util.GraphLayout.layout({
       nodes:
-        List.filter_map(
+        List.filter_map(~f=
           (n: CanvasGraph.tynode) =>
-            List.mem(n.key, free_keys)
+            List.mem(free_keys, n.key, ~equal=Poly.equal)
               ? None
               : Some(
                   Util.GraphLayout.Spec.{
@@ -931,10 +920,10 @@ let layout_impl =
       order_hysteresis: 0.6,
     });
   let placed_layouts: list(node_layout) =
-    List.filter_map(
+    List.filter_map(~f=
       (n: CanvasGraph.tynode) =>
         Util.GraphLayout.pos_of(res, n.key)
-        |> Option.map((p: Util.GraphLayout.pos) =>
+        |> Option.map(~f=(p: Util.GraphLayout.pos) =>
              {
                node: n,
                p: {
@@ -948,11 +937,11 @@ let layout_impl =
     )
     /* free-floating pinned nodes: position straight from the pin (the
        pins pass below re-applies the same value) */
-    @ List.filter_map(
+    @ List.filter_map(~f=
         (n: CanvasGraph.tynode) =>
-          List.mem(n.key, free_keys)
-            ? List.assoc_opt(n.key, pins)
-              |> Option.map(((x, y)) =>
+          List.mem(free_keys, n.key, ~equal=Poly.equal)
+            ? List.Assoc.find(pins, n.key, ~equal=Poly.equal)
+              |> Option.map(~f=((x, y)) =>
                    {
                      node: n,
                      p: {
@@ -972,7 +961,7 @@ let layout_impl =
   Util.PerfTimer.record("layout/solve", Util.PerfTimer.now() -. t_solve);
   let t_nodes = Util.PerfTimer.now();
   let node_layouts =
-    List.map(
+    List.map(~f=
       (nl: node_layout) =>
         {
           ...nl,
@@ -988,12 +977,12 @@ let layout_impl =
      alias-body deps → alias) */
   let node_layouts = {
     let chords =
-      List.map((e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
-      @ List.concat_map(
+      List.map(~f=(e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
+      @ List.concat_map(~f=
           (n: CanvasGraph.tynode) =>
             switch (n.kind) {
             | Product =>
-              List.map(pk => (pk, n.key), n.parts)
+              List.map(~f=pk => (pk, n.key), n.parts)
               @ (
                 switch (n.sat) {
                 | Some((anchor, _)) => [(n.key, anchor)]
@@ -1001,10 +990,10 @@ let layout_impl =
                 }
               )
             | Alias =>
-              List.map(pk => (pk, n.key), n.parts)
-              @ List.filter_map(
+              List.map(~f=pk => (pk, n.key), n.parts)
+              @ List.filter_map(~f=
                   d =>
-                    d != n.key && !List.mem(d, n.hidden_deps)
+                    d != n.key && !List.mem(n.hidden_deps, d, ~equal=Poly.equal)
                       ? Some((d, n.key)) : None,
                   n.deps,
                 )
@@ -1018,19 +1007,19 @@ let layout_impl =
           g.nodes,
         );
     let circle_r = (k: string): float =>
-      List.find_opt((nl: node_layout) => nl.node.key == k, node_layouts)
-      |> Option.map((nl: node_layout) => nl.r)
+      List.find(~f=(nl: node_layout) => nl.node.key == k, node_layouts)
+      |> Option.map(~f=(nl: node_layout) => nl.r)
       |> Option.value(~default=base_radius);
     declutter(~chords, ~fixed=free_keys, ~radius_of=circle_r, node_layouts)
     |> separate_docked_chords(~chords);
   };
   let node_layouts = {
     let items =
-      List.map(
+      List.map(~f=
         (n: node_layout) => {
           let orbit_count =
             List.length(
-              List.filter(
+              List.filter(~f=
                 (e: CanvasGraph.edge) =>
                   e.e_src == n.node.key && e.dst == n.node.key,
                 g.edges,
@@ -1044,11 +1033,8 @@ let layout_impl =
                 max(94., 2. *. n.r +. extra +. 44.),
               ),
               Lab.research(experiment)
-              || List.mem(
-                   experiment,
-                   ["packed", "stable", "grid", "relaxed"],
-                 )
-                ? List.assoc_opt(n.node.key, card_extents^ @ cards) : None,
+              || List.mem(["packed", "stable", "grid", "relaxed"], experiment, ~equal=Poly.equal)
+                ? List.Assoc.find(card_extents^ @ cards, n.node.key, ~equal=Poly.equal) : None,
             );
           Lab.{
             key: n.node.key,
@@ -1056,20 +1042,20 @@ let layout_impl =
             w: w +. 20.,
             h: h +. 20.,
             anchor:
-              List.find_opt(
+              List.find(~f=
                 (a: Util.GraphLayout.Spec.attachment) => a.id == n.node.key,
                 attachments,
               )
-              |> Option.map((a: Util.GraphLayout.Spec.attachment) => a.host),
+              |> Option.map(~f=(a: Util.GraphLayout.Spec.attachment) => a.host),
           };
         },
         node_layouts,
       );
     let links =
-      List.map((e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
-      @ List.concat_map(
+      List.map(~f=(e: CanvasGraph.edge) => (e.e_src, e.dst), g.edges)
+      @ List.concat_map(~f=
           (n: CanvasGraph.tynode) =>
-            List.map(
+            List.map(~f=
               k => (n.key, k),
               n.deps
               @ n.parts
@@ -1084,11 +1070,11 @@ let layout_impl =
         );
     let signature =
       Lab.scene^ ++ "/" ++ experiment ++ string_of_int(Lab.generation^);
-    let keys = List.map((n: Lab.item) => n.key, items);
+    let keys = List.map(~f=(n: Lab.item) => n.key, items);
     let topology = Lab.links_of(items, links);
     let (old_scope, old_keys, old_links, cached) = placement_cache^;
     let clusters =
-      List.filter_map(
+      List.filter_map(~f=
         (n: CanvasGraph.tynode) =>
           switch (n.m_path) {
           | [root, ..._] => Some(root)
@@ -1096,11 +1082,11 @@ let layout_impl =
           },
         g.nodes,
       )
-      |> List.sort_uniq(compare)
-      |> List.map(root =>
+      |> List.dedup_and_sort(~compare=compare)
+      |> List.map(~f=root =>
            [
              "{}@" ++ root,
-             ...List.filter_map(
+             ...List.filter_map(~f=
                   (n: CanvasGraph.tynode) =>
                     switch (n.m_path) {
                     | [r, ..._] when r == root => Some(n.key)
@@ -1115,7 +1101,7 @@ let layout_impl =
         let result =
           Lab.place(
             ~clusters,
-            ~labels=List.map((e: CanvasGraph.edge) => e.e_name, g.edges),
+            ~labels=List.map(~f=(e: CanvasGraph.edge) => e.e_name, g.edges),
             experiment,
             items,
             links,
@@ -1125,10 +1111,7 @@ let layout_impl =
         result;
       } else if (!(
                    Lab.research(experiment)
-                   || List.mem(
-                        experiment,
-                        ["packed", "stable", "grid", "relaxed"],
-                      )
+                   || List.mem(["packed", "stable", "grid", "relaxed"], experiment, ~equal=Poly.equal)
                  )) {
         Lab.place("components", items, links, []);
       } else if (old_scope == signature
@@ -1141,7 +1124,7 @@ let layout_impl =
         placement_cache := (signature, keys, topology, placed);
         placed;
       };
-    List.map(
+    List.map(~f=
       (n: node_layout) =>
         switch (Lab.at(placed, n.node.key)) {
         | Some(p) => {
@@ -1154,16 +1137,16 @@ let layout_impl =
     );
   };
   let node_layouts = apply_manual_positions(~offsets, ~pins, node_layouts);
-  let placed: Hashtbl.t(string, (pos, float)) = Hashtbl.create(16);
-  List.iter(
-    (nl: node_layout) => Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
+  let placed: Stdlib.Hashtbl.t(string, (pos, float)) = Stdlib.Hashtbl.create(16);
+  List.iter(~f=
+    (nl: node_layout) => Stdlib.Hashtbl.replace(placed, nl.node.key, (nl.p, nl.r)),
     node_layouts,
   );
   let pos_of = (k: string): option(pos) =>
-    Hashtbl.find_opt(placed, k) |> Option.map(fst);
+    Stdlib.Hashtbl.find_opt(placed, k) |> Option.map(~f=fst);
   let radius_of = (k: string): float =>
-    Hashtbl.find_opt(placed, k)
-    |> Option.map(snd)
+    Stdlib.Hashtbl.find_opt(placed, k)
+    |> Option.map(~f=snd)
     |> Option.value(~default=base_radius);
   /* edge endpoints land on the node's rim: the circle, or for a card
      the point where the ray toward `b` leaves its rectangle */
@@ -1202,13 +1185,13 @@ let layout_impl =
     | _ => None
     };
   let formations =
-    List.concat_map(
+    List.concat_map(~f=
       (n: CanvasGraph.tynode) =>
         switch (n.kind) {
         | Product =>
           (
-            List.sort_uniq(compare, n.parts)
-            |> List.filter_map(pk => rim_pair(pk, n.key))
+            List.dedup_and_sort(~compare=compare, n.parts)
+            |> List.filter_map(~f=pk => rim_pair(pk, n.key))
           )
           /* alias-body formers dock at their alias and feed it */
           @ (
@@ -1219,14 +1202,14 @@ let layout_impl =
           )
         /* folded former: components feed the alias node directly */
         | Alias when n.parts != [] =>
-          List.sort_uniq(compare, n.parts)
-          |> List.filter_map(pk => rim_pair(pk, n.key))
+          List.dedup_and_sort(~compare=compare, n.parts)
+          |> List.filter_map(~f=pk => rim_pair(pk, n.key))
         | Derived =>
           /* a docked [T] node forms from its element type */
           switch (strip_brackets(n.key)) {
           | Some(ik)
               when
-                List.exists((m: CanvasGraph.tynode) => m.key == ik, g.nodes) =>
+                List.exists(~f=(m: CanvasGraph.tynode) => m.key == ik, g.nodes) =>
             rim_pair(ik, n.key) |> Option.to_list
           | _ => []
           }
@@ -1235,13 +1218,13 @@ let layout_impl =
       g.nodes,
     );
   let dep_links =
-    List.concat_map(
+    List.concat_map(~f=
       (n: CanvasGraph.tynode) =>
         switch (n.kind) {
         | Alias =>
           n.deps
-          |> List.filter(d => d != n.key && !List.mem(d, n.hidden_deps))
-          |> List.filter_map(dk => rim_pair(dk, n.key))
+          |> List.filter(~f=d => d != n.key && !List.mem(n.hidden_deps, d, ~equal=Poly.equal))
+          |> List.filter_map(~f=dk => rim_pair(dk, n.key))
         | _ => []
         },
       g.nodes,
@@ -1253,25 +1236,25 @@ let layout_impl =
     y: margin,
   };
   let loop_product_edges: list((string, string)) =
-    List.filter_map(
+    List.filter_map(~f=
       ((n: CanvasGraph.tynode, anchor, d)) =>
         d == DockLoop ? Some((n.key, anchor)) : None,
       docked,
     );
-  let orbit_seen: Hashtbl.t(string, int) = Hashtbl.create(4);
+  let orbit_seen: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(4);
   Util.PerfTimer.record("layout/nodes", Util.PerfTimer.now() -. t_nodes);
   let edge_layouts =
-    List.map(
+    List.map(~f=
       (e: CanvasGraph.edge) => {
         let src_p = Option.value(~default=fallback, pos_of(e.e_src));
         let dst_p = Option.value(~default=fallback, pos_of(e.dst));
         let endo = e.e_src == e.dst;
-        let is_loop = List.mem((e.e_src, e.dst), loop_product_edges);
+        let is_loop = List.mem(loop_product_edges, (e.e_src, e.dst), ~equal=Poly.equal);
         let orbit_rank =
           if (endo) {
             let k =
-              Option.value(~default=0, Hashtbl.find_opt(orbit_seen, e.dst));
-            Hashtbl.replace(orbit_seen, e.dst, k + 1);
+              Option.value(~default=0, Stdlib.Hashtbl.find_opt(orbit_seen, e.dst));
+            Stdlib.Hashtbl.replace(orbit_seen, e.dst, k + 1);
             k;
           } else {
             0;
@@ -1325,7 +1308,7 @@ let layout_impl =
               },
               e.dst,
             );
-          let span = abs_float(d.x -. s.x);
+          let span = Float.abs(d.x -. s.x);
           let rise = min(28., span *. 0.14);
           let c1 = {
             x: s.x +. sign *. span *. 0.33,
@@ -1365,11 +1348,11 @@ let layout_impl =
             x: dst_p.x -. sign *. half_w_of(e.dst),
             y: dst_p.y,
           };
-          let bend = max(24., min(90., abs_float(d.x -. s.x) *. 0.5));
+          let bend = max(24., min(90., Float.abs(d.x -. s.x) *. 0.5));
           /* straight: an S with horizontal handles (declutter has moved
              the nodes off the chord); a same-column arrow runs down the
              column */
-          let same_col = abs_float(d.x -. s.x) < 60.;
+          let same_col = Float.abs(d.x -. s.x) < 60.;
           let c1 = {
             x: same_col ? s.x : s.x +. sign *. bend,
             y: s.y,
@@ -1411,37 +1394,37 @@ let layout_impl =
   let routed = ref([]);
   let edge_layouts =
     circuit
-      ? List.map(
+      ? List.map(~f=
           (el: edge_layout) =>
             if (el.endo) {
               el;
             } else {
               let src =
-                List.find(
+                List.find_exn(~f=
                   (n: node_layout) => n.node.key == el.edge.e_src,
                   node_layouts,
                 );
               let dst =
-                List.find(
+                List.find_exn(~f=
                   (n: node_layout) => n.node.key == el.edge.dst,
                   node_layouts,
                 );
               let horizontal =
-                abs_float(dst.p.x -. src.p.x)
-                >= abs_float(dst.p.y -. src.p.y)
+                Float.abs(dst.p.x -. src.p.x)
+                >= Float.abs(dst.p.y -. src.p.y)
                 *. 0.7;
               /* Distinct incident functions use distinct rim ports. A
                  shared destination must not imply a long shared trunk. */
               let port = (node: node_layout, other: node_layout, source) => {
                 let coordinate = (p: pos) => horizontal ? p.y : p.x;
                 let incident =
-                  List.filter(
+                  List.filter(~f=
                     (e: CanvasGraph.edge) =>
                       e.e_src != e.dst
                       && (source ? e.e_src : e.dst) == node.node.key,
                     g.edges,
                   )
-                  |> List.sort((a: CanvasGraph.edge, b: CanvasGraph.edge) => {
+                  |> List.sort(~compare=(a: CanvasGraph.edge, b: CanvasGraph.edge) => {
                        let coord = (e: CanvasGraph.edge) =>
                          coordinate(
                            Option.value(
@@ -1454,11 +1437,11 @@ let layout_impl =
                      });
                 let count = List.length(incident);
                 let index =
-                  List.mapi(
+                  List.mapi(~f=
                     (i, e: CanvasGraph.edge) => (e.e_name, i),
                     incident,
                   )
-                  |> List.assoc_opt(el.edge.e_name)
+                  |> (l => List.Assoc.find(l, el.edge.e_name, ~equal=Poly.equal))
                   |> Option.value(~default=0);
                 let fraction =
                   count <= 1
@@ -1481,7 +1464,7 @@ let layout_impl =
                     : other.p.y >= node.p.y ? 1. : (-1.);
                 let side =
                   card_of(node.node.key) == None
-                    ? sqrt(1. -. fraction *. fraction) : 1.;
+                    ? Float.sqrt(1. -. fraction *. fraction) : 1.;
                 horizontal
                   ? {
                     x: node.p.x +. sign *. w /. 2. *. side,
@@ -1504,8 +1487,8 @@ let layout_impl =
                   to_lab(s),
                   to_lab(d),
                 )
-                |> List.map(from_lab);
-              routed := [List.map(to_lab, route), ...routed^];
+                |> List.map(~f=from_lab);
+              routed := [List.map(~f=to_lab, route), ...routed^];
               let mid = wire_at(route, 0.5);
               {
                 ...el,
@@ -1533,13 +1516,13 @@ let layout_impl =
       max(24., float_of_int(String.length(el.edge.e_name)) *. 3.7 +. 12.);
     let placed_labels: ref(list((pos, float))) = ref([]);
     let label_hits_label = (p: pos, w: float): bool =>
-      List.exists(
+      List.exists(~f=
         ((q, qw)) =>
-          abs_float(q.x -. p.x) < w +. qw && abs_float(q.y -. p.y) < 20.,
+          Float.abs(q.x -. p.x) < w +. qw && Float.abs(q.y -. p.y) < 20.,
         placed_labels^,
       );
     let label_hits_node = (p: pos, w: float): bool =>
-      List.exists(
+      List.exists(~f=
         (nl: node_layout) => {
           let cx = min(max(nl.p.x, p.x -. w), p.x +. w)
           and cy = min(max(nl.p.y, p.y -. 18.), p.y +. 2.);
@@ -1550,7 +1533,7 @@ let layout_impl =
     /* orbit rings are obstacles too: a chip sitting ON the ring line
        reads as part of the circle */
     let orbit_rings =
-      List.filter_map(
+      List.filter_map(~f=
         (el: edge_layout) =>
           el.endo
             ? Some((
@@ -1564,13 +1547,13 @@ let layout_impl =
         edge_layouts,
       );
     let label_hits_ring = (p: pos, w: float): bool =>
-      List.exists(
+      List.exists(~f=
         ((c: pos, ring_r: float)) => {
           let cx = min(max(c.x, p.x -. w), p.x +. w)
           and cy = min(max(c.y, p.y -. 18.), p.y +. 2.);
           let d = Float.hypot(c.x -. cx, c.y -. cy);
           /* box straddles or touches the ring band */
-          abs_float(d -. ring_r) < 12. || d < ring_r && ring_r -. d < 26.;
+          Float.abs(d -. ring_r) < 12. || d < ring_r && ring_r -. d < 26.;
         },
         orbit_rings,
       );
@@ -1608,7 +1591,7 @@ let layout_impl =
        (Learned from andrew's manual arrangements.) Ordinary edges keep
        on-edge labels, dodging via the candidate search. */
     let is_loop_edge = (el: edge_layout): bool =>
-      List.mem((el.edge.e_src, el.edge.dst), loop_product_edges);
+      List.mem(loop_product_edges, (el.edge.e_src, el.edge.dst), ~equal=Poly.equal);
     /* legend membership is GEOMETRIC: a loop label stacks only while
        its arc is too short to carry it — stretch the edge (drag the
        product away) and the label comes back to live on it. Orbits
@@ -1623,17 +1606,17 @@ let layout_impl =
       +. 32.
         ? Some(el.edge.dst) : None;
     let hubs =
-      List.filter_map(hub_of, edge_layouts) |> List.sort_uniq(compare);
-    let stacked: Hashtbl.t(string, pos) = Hashtbl.create(8);
-    List.iter(
+      List.filter_map(~f=hub_of, edge_layouts) |> List.dedup_and_sort(~compare=compare);
+    let stacked: Stdlib.Hashtbl.t(string, pos) = Stdlib.Hashtbl.create(8);
+    List.iter(~f=
       hub => {
         let members =
           edge_layouts
-          |> List.filter(el => hub_of(el) == Some(hub))
+          |> List.filter(~f=el => hub_of(el) == Some(hub))
           /* orbit labels first, then loops by their product height */
           /* bottom-up: loop with the closest product first, orbit label
              topmost (matches how the arcs nest visually) */
-          |> List.stable_sort((a: edge_layout, b: edge_layout) =>
+          |> List.stable_sort(~compare=(a: edge_layout, b: edge_layout) =>
                switch (a.endo, b.endo) {
                | (true, false) => 1
                | (false, true) => (-1)
@@ -1647,8 +1630,7 @@ let layout_impl =
              when they actually sit in the column above the hub (they
              prefer up-LEFT precisely to keep this column free) */
           let ring_top =
-            List.fold_left(
-              (acc, el: edge_layout) =>
+            List.fold(edge_layouts, ~init=hp.y -. radius_of(hub), ~f=(acc, el: edge_layout) =>
                 el.endo && el.edge.dst == hub
                   ? min(
                       acc,
@@ -1662,12 +1644,9 @@ let layout_impl =
                     )
                   : el.edge.dst == hub
                     && is_loop_edge(el)
-                    && abs_float(el.src_p.x -. hp.x) < 56.
-                      ? min(acc, el.src_p.y -. 14.) : acc,
-              hp.y -. radius_of(hub),
-              edge_layouts,
-            );
-          List.iteri(
+                    && Float.abs(el.src_p.x -. hp.x) < 56.
+                      ? min(acc, el.src_p.y -. 14.) : acc);
+          List.iteri(~f=
             (i, el: edge_layout) => {
               let base =
                 snap(ring_top -. 14. -. grid /. 2. -. 9.) +. grid /. 2. +. 9.;
@@ -1675,7 +1654,7 @@ let layout_impl =
                 x: snap(hp.x),
                 y: base -. float_of_int(i) *. 28.,
               };
-              Hashtbl.replace(stacked, el.edge.e_name, p);
+              Stdlib.Hashtbl.replace(stacked, el.edge.e_name, p);
               placed_labels := [(p, label_half(el)), ...placed_labels^];
             },
             members,
@@ -1684,9 +1663,9 @@ let layout_impl =
       },
       hubs,
     );
-    List.map(
+    List.map(~f=
       (el: edge_layout) => {
-        switch (Hashtbl.find_opt(stacked, el.edge.e_name)) {
+        switch (Stdlib.Hashtbl.find_opt(stacked, el.edge.e_name)) {
         | Some(p) => {
             ...el,
             label_p: p,
@@ -1771,7 +1750,7 @@ let layout_impl =
           let fits_on_wire = !el.endo && chord -. 2. *. w >= 2. *. (9. +. 14.);
           let on_wire_p =
             if (fits_on_wire) {
-              List.map(
+              List.map(~f=
                 t => {
                   let c = curve_at(t);
                   {
@@ -1781,13 +1760,13 @@ let layout_impl =
                 },
                 [0.5, 0.42, 0.58, 0.34, 0.66, 0.28, 0.72],
               )
-              |> List.find_opt((c: pos) =>
+              |> List.find(~f=(c: pos) =>
                    (
                      el.wire == []
-                     || List.exists(
+                     || List.exists(~f=
                           ((a: pos, b: pos)) =>
-                            abs_float(a.y -. b.y) < 0.1
-                            && abs_float(c.y -. a.y) < 0.1
+                            Float.abs(a.y -. b.y) < 0.1
+                            && Float.abs(c.y -. a.y) < 0.1
                             && c.x
                             -. w > min(a.x, b.x)
                             +. 10.
@@ -1828,7 +1807,7 @@ let layout_impl =
             let on_curve =
               el.endo
                 ? []
-                : List.map(
+                : List.map(~f=
                     curve_at,
                     [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74],
                   );
@@ -1848,17 +1827,17 @@ let layout_impl =
   /* ---- values orbit their type's node: anchor = host center, vr
      staggers rings when a type has several constants ---- */
   let value_layouts = {
-    let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
-    List.map(
+    let seen: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(8);
+    List.map(~f=
       (v: CanvasGraph.value) => {
         let anchor = Option.value(~default=fallback, pos_of(v.v_key));
         let idx =
-          switch (Hashtbl.find_opt(seen, v.v_key)) {
+          switch (Stdlib.Hashtbl.find_opt(seen, v.v_key)) {
           | Some(n) =>
-            Hashtbl.replace(seen, v.v_key, n + 1);
+            Stdlib.Hashtbl.replace(seen, v.v_key, n + 1);
             n + 1;
           | None =>
-            Hashtbl.replace(seen, v.v_key, 0);
+            Stdlib.Hashtbl.replace(seen, v.v_key, 0);
             0;
           };
         {
@@ -1877,52 +1856,32 @@ let layout_impl =
   let pad = 26.;
   let (min_x, min_y, max_x, max_y) = {
     let b =
-      List.fold_left(
-        ((x0, y0, x1, y1), nl: node_layout) =>
+      List.fold(node_layouts, ~init=(Float.infinity, Float.infinity, Float.neg_infinity, Float.neg_infinity), ~f=((x0, y0, x1, y1), nl: node_layout) =>
           (
             min(x0, nl.p.x -. nl.r),
             min(y0, nl.p.y -. nl.r),
             max(x1, nl.p.x +. nl.r),
             max(y1, nl.p.y +. nl.r +. 16.) /* name label below the node */
-          ),
-        (infinity, infinity, neg_infinity, neg_infinity),
-        node_layouts,
-      );
+          ));
     let b =
-      List.fold_left(
-        (bounds, el: edge_layout) =>
-          List.fold_left(
-            ((x0, y0, x1, y1), p: pos) =>
-              (min(x0, p.x), min(y0, p.y), max(x1, p.x), max(y1, p.y)),
-            bounds,
-            el.wire,
-          ),
-        b,
-        edge_layouts,
-      );
+      List.fold(edge_layouts, ~init=b, ~f=(bounds, el: edge_layout) =>
+          List.fold(el.wire, ~init=bounds, ~f=((x0, y0, x1, y1), p: pos) =>
+              (min(x0, p.x), min(y0, p.y), max(x1, p.x), max(y1, p.y))));
     let b =
-      List.fold_left(
-        ((x0, y0, x1, y1), el: edge_layout) =>
+      List.fold(edge_layouts, ~init=b, ~f=((x0, y0, x1, y1), el: edge_layout) =>
           (
             min(x0, el.label_p.x -. 62.),
             min(y0, el.label_p.y -. 18.),
             max(x1, el.label_p.x +. 62.),
             max(y1, el.label_p.y +. 4.),
-          ),
-        b,
-        edge_layouts,
-      );
-    List.fold_left(
-      ((x0, y0, x1, y1), vl: value_layout) =>
+          ));
+    List.fold(value_layouts, ~init=b, ~f=((x0, y0, x1, y1), vl: value_layout) =>
         (
           min(x0, vl.p.x -. vl.vr),
           min(y0, vl.p.y -. vl.vr),
           max(x1, vl.p.x +. vl.vr),
           max(y1, vl.p.y +. vl.vr),
-        ),
-      b,
-      value_layouts,
-    );
+        ));
   };
   if (node_layouts == []) {
     {
@@ -1954,7 +1913,7 @@ let layout_impl =
       | None
           when
             Lab.research(experiment)
-            || List.mem(experiment, ["stable", "relaxed", "grid", "packed"]) => (
+            || List.mem(["stable", "relaxed", "grid", "packed"], experiment, ~equal=Poly.equal) => (
           0.,
           0.,
         )
@@ -1966,7 +1925,7 @@ let layout_impl =
     };
     {
       nodes:
-        List.map(
+        List.map(~f=
           (nl: node_layout) =>
             {
               ...nl,
@@ -1975,11 +1934,11 @@ let layout_impl =
           node_layouts,
         ),
       edges:
-        List.map(
+        List.map(~f=
           (el: edge_layout) =>
             {
               ...el,
-              wire: List.map(sh, el.wire),
+              wire: List.map(~f=sh, el.wire),
               src_p: sh(el.src_p),
               dst_p: sh(el.dst_p),
               c1: sh(el.c1),
@@ -1990,7 +1949,7 @@ let layout_impl =
           edge_layouts,
         ),
       values:
-        List.map(
+        List.map(~f=
           (vl: value_layout) =>
             {
               ...vl,
@@ -1999,44 +1958,36 @@ let layout_impl =
           value_layouts,
         ),
       formations:
-        List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), formations),
+        List.map(~f=((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), formations),
       dep_links:
-        List.map(((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
+        List.map(~f=((ka, kb, a, b)) => (ka, kb, sh(a), sh(b)), dep_links),
       /* panned-up content can put the extent above the origin; svg
          size attrs reject negatives (overlays overflow: visible). The
          board also reaches past any card's right/bottom edge (cards do
          not enter the extent that positions the graph, so a card can't
          shift it — but it must be scrollable to). */
       width:
-        List.fold_left(
-          (acc, (k, (w, _))) =>
+        List.fold(cards, ~init=max(0., max_x +. dx +. pad), ~f=(acc, (k, (w, _))) =>
             switch (
-              List.find_opt(
+              List.find(~f=
                 (nl: node_layout) => nl.node.key == k,
                 node_layouts,
               )
             ) {
             | Some(nl) => max(acc, nl.p.x +. dx +. w /. 2. +. pad)
             | None => acc
-            },
-          max(0., max_x +. dx +. pad),
-          cards,
-        ),
+            }),
       height:
-        List.fold_left(
-          (acc, (k, (_, h))) =>
+        List.fold(cards, ~init=max(0., max_y +. dy +. pad), ~f=(acc, (k, (_, h))) =>
             switch (
-              List.find_opt(
+              List.find(~f=
                 (nl: node_layout) => nl.node.key == k,
                 node_layouts,
               )
             ) {
             | Some(nl) => max(acc, nl.p.y +. dy +. h /. 2. +. pad)
             | None => acc
-            },
-          max(0., max_y +. dy +. pad),
-          cards,
-        ),
+            }),
       origin: {
         x: dx,
         y: dy,
@@ -2098,7 +2049,7 @@ let layout =
   };
   let same = (k: layout_key) =>
     k.k_experiment == experiment
-    && k.k_graph === g
+    && phys_equal(k.k_graph, g)
     && k.k_x == x_scale
     && k.k_y == y_scale
     && k.k_center == center_within
@@ -2106,7 +2057,7 @@ let layout =
     && k.k_offsets == offsets
     && k.k_pins == pins
     && k.k_cards == cards;
-  switch (List.find_opt(((k, _)) => same(k), layout_memo^)) {
+  switch (List.find(~f=((k, _)) => same(k), layout_memo^)) {
   | Some((_, r)) =>
     incr(layout_memo_hits);
     r;
@@ -2135,7 +2086,7 @@ let layout =
     layout_ms := layout_ms^ +. (now() -. t0);
     Util.PerfTimer.record("canvas-layout", now() -. t0);
     layout_memo :=
-      [(key, r), ...List.filteri((i, _) => i < 5, layout_memo^)];
+      [(key, r), ...List.filteri(~f=(i, _) => i < 5, layout_memo^)];
     r;
   };
 };

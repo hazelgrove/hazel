@@ -1,6 +1,7 @@
 open Util;
 open Js_of_ocaml;
 open Haz3lcore;
+open Poly;
 
 /* Drag-to-refactor: a pointer front-end to the gesture system
    (plans/refactor-drag.md). Candidates come from
@@ -231,7 +232,7 @@ let overlay_under_el = (s: session): Js.t(Dom_html.element) =>
 
 let remove_overlay = () =>
   [overlay_id, overlay_under_id]
-  |> List.iter(id =>
+  |> List.iter(~f=id =>
        switch (
          Js.Opt.to_option(Dom_html.document##getElementById(Js.string(id)))
        ) {
@@ -309,7 +310,7 @@ let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
     | None => []
     | Some((tid, shard)) =>
       CodeFlip.anchored_decos()
-      |> List.filter_map(((id, sh, node)) =>
+      |> List.filter_map(~f=((id, sh, node)) =>
            id == tid && (shard == None || sh == None || sh == shard)
              ? Some(node) : None
          )
@@ -331,7 +332,7 @@ let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
 
 let apply_local_give = (s: session, g: vec): unit => {
   s.local_give
-  |> List.iter(anim =>
+  |> List.iter(~f=anim =>
        switch (Js.Unsafe.meth_call(anim, "cancel", [||])) {
        | exception _ => ()
        | _ => ()
@@ -341,13 +342,13 @@ let apply_local_give = (s: session, g: vec): unit => {
   if (g.x == 0. && g.y == 0.) {
     let prev = s.local_give_g;
     if (!(prev.x == 0. && prev.y == 0.)) {
-      lean_nodes(s) |> List.iter(node => rebound(node, prev));
+      lean_nodes(s) |> List.iter(~f=node => rebound(node, prev));
     };
   };
   s.local_give_g = g;
   if (!(g.x == 0. && g.y == 0.)) {
     lean_nodes(s)
-    |> List.iter(node => {
+    |> List.iter(~f=node => {
          let keyframes =
            Js.Unsafe.obj([|
              (
@@ -492,8 +493,8 @@ let draw = (s: session) => {
   };
   let xml_escape = (t: string): string =>
     t
-    |> String.to_seq
-    |> Seq.map(c =>
+    |> String.to_list
+    |> List.map(~f=c =>
          switch (c) {
          | '&' => "&amp;"
          | '<' => "&lt;"
@@ -501,19 +502,18 @@ let draw = (s: session) => {
          | c => String.make(1, c)
          }
        )
-    |> List.of_seq
-    |> String.concat("");
+    |> String.concat(~sep="");
   /* incoming tokens: REAL-styled token spans (same classes as
      Code.view emits, inside a .code wrapper so the whole stylesheet
      pipeline applies) running the standard grow-in, scrubbed by t */
   let ghosts =
     switch (s.winner) {
     | Some(w) when s.t > 0.02 =>
-      switch (List.nth_opt(s.cands, w)) {
+      switch (List.nth(s.cands, w)) {
       | Some(c) when c.enters != [] =>
         let spans =
           c.enters
-          |> List.map(((_, text, cls, dest, origin)) => {
+          |> List.map(~f=((_, text, cls, dest, origin)) => {
                /* with an origin: a CLONE splitting off its source —
                   full-size, full-opacity, position-only (D2
                   emergeMode=clone; the copy already "exists" under
@@ -541,7 +541,7 @@ let draw = (s: session) => {
                  xml_escape(text),
                );
              })
-          |> String.concat("");
+          |> String.concat(~sep="");
         Printf.sprintf(
           {|<div class="code" style="position:fixed;inset:0;pointer-events:none">%s</div>|},
           spans,
@@ -550,11 +550,11 @@ let draw = (s: session) => {
       }
     | _ => ""
     };
-  let parts = s.cands |> List.mapi(seg);
+  let parts = s.cands |> List.mapi(~f=seg);
   let mk_svg = body =>
     Printf.sprintf({|<svg width="100%%" height="100%%">%s</svg>|}, body);
-  let tracks = parts |> List.map(fst) |> String.concat("\n");
-  let labels = parts |> List.map(snd) |> String.concat("\n");
+  let tracks = parts |> List.map(~f=fst) |> String.concat(~sep="\n");
+  let labels = parts |> List.map(~f=snd) |> String.concat(~sep="\n");
   overlay_under_el(s)##.innerHTML := Js.string(mk_svg(tracks));
   overlay_el()##.innerHTML := Js.string(mk_svg(labels) ++ ghosts);
 };
@@ -567,7 +567,7 @@ let now_ms = (): float => Js.Unsafe.global##.performance##now();
 
 let cancel_anims = (anims: list(Js.Unsafe.any)): unit =>
   anims
-  |> List.iter(a =>
+  |> List.iter(~f=a =>
        switch (Js.Unsafe.meth_call(a, "cancel", [||])) {
        | exception _ => ()
        | _ => ()
@@ -575,7 +575,7 @@ let cancel_anims = (anims: list(Js.Unsafe.any)): unit =>
      );
 
 let scrub_clear = (s: session): unit => {
-  s.scrub_anims |> List.iter(((_, anims)) => cancel_anims(anims));
+  s.scrub_anims |> List.iter(~f=((_, anims)) => cancel_anims(anims));
   s.scrub_anims = [];
   s.scrub_active = None;
 };
@@ -608,9 +608,9 @@ let paused_anim =
 /* decos re-queried fresh from the (post-patch) DOM */
 let deco_moves = (c: cand): list((Js.t(Dom.node), float, float)) =>
   CodeFlip.anchored_decos()
-  |> List.filter_map(((id, shard, node)) =>
+  |> List.filter_map(~f=((id, shard, node)) =>
        c.deco_delta((id, shard))
-       |> Option.map(((dx, dy)) => (node, dx, dy))
+       |> Option.map(~f=((dx, dy)) => (node, dx, dy))
      );
 
 /* the caret rides the grabbed token's scrub (movement kinds only —
@@ -623,10 +623,10 @@ let caret_moves = (c: cand): list((Js.t(Dom.node), float, float)) =>
 
 let make_anims = (c: cand): list(Js.Unsafe.any) => {
   let moves =
-    (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
+    (c.moved |> List.map(~f=((_, node, dx, dy)) => (node, dx, dy)))
     @ deco_moves(c)
     @ caret_moves(c)
-    |> List.filter_map(((node, dx, dy)) =>
+    |> List.filter_map(~f=((node, dx, dy)) =>
          paused_anim(
            node,
            Js.Unsafe.obj([|
@@ -646,7 +646,7 @@ let make_anims = (c: cand): list(Js.Unsafe.any) => {
        );
   let fades =
     c.exits
-    |> List.filter_map(node =>
+    |> List.filter_map(~f=node =>
          paused_anim(
            node,
            Js.Unsafe.obj([|
@@ -687,7 +687,7 @@ let anim_t = (anims: list(Js.Unsafe.any)): float =>
    must CONTINUE motion, never restart it */
 let relax_exits = (c: cand, t: float): unit =>
   c.exits
-  |> List.iter(node => {
+  |> List.iter(~f=node => {
        let keyframes =
          Js.Unsafe.obj([|
            (
@@ -734,10 +734,10 @@ let relax_exits = (c: cand, t: float): unit =>
 let relax_from = (c: cand, t: float): unit =>
   if (t > 0.01) {
     relax_exits(c, t);
-    (c.moved |> List.map(((_, node, dx, dy)) => (node, dx, dy)))
+    (c.moved |> List.map(~f=((_, node, dx, dy)) => (node, dx, dy)))
     @ deco_moves(c)
     @ caret_moves(c)
-    |> List.iter(((node, dx, dy)) => {
+    |> List.iter(~f=((node, dx, dy)) => {
          let keyframes =
            Js.Unsafe.obj([|
              (
@@ -790,14 +790,14 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
        revisiting a track left the shared tokens frozen under the
        other track's identity). Exactly one track's animations exist
        at any time; the relax bridges the visual gap. */
-    switch (List.assoc_opt(prev, s.scrub_anims)) {
+    switch (List.Assoc.find(s.scrub_anims, prev, ~equal=Poly.equal)) {
     | Some(anims) =>
-      switch (List.nth_opt(s.cands, prev)) {
+      switch (List.nth(s.cands, prev)) {
       | Some(c) => relax_from(c, anim_t(anims))
       | None => ()
       };
       cancel_anims(anims);
-      s.scrub_anims = List.remove_assoc(prev, s.scrub_anims);
+      s.scrub_anims = List.Assoc.remove(s.scrub_anims, prev, ~equal=Poly.equal);
     | None => ()
     }
   | (None, _) => ()
@@ -806,11 +806,11 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
   | None => s.scrub_active = None
   | Some(w) =>
     let anims =
-      switch (List.assoc_opt(w, s.scrub_anims)) {
+      switch (List.Assoc.find(s.scrub_anims, w, ~equal=Poly.equal)) {
       | Some(anims) => anims
       | None =>
         let anims =
-          switch (List.nth_opt(s.cands, w)) {
+          switch (List.nth(s.cands, w)) {
           | Some(c) => make_anims(c)
           | None => []
           };
@@ -818,7 +818,7 @@ let scrub_to = (s: session, winner: option(int), t: float): unit => {
         anims;
       };
     let time = t *. scrub_duration;
-    anims |> List.iter(a => Js.Unsafe.set(a, "currentTime", time));
+    anims |> List.iter(~f=a => Js.Unsafe.set(a, "currentTime", time));
     s.scrub_active = Some(w);
   };
 };
@@ -844,21 +844,20 @@ let resolve = (s: session, p: vec): unit => {
         : max(0., min(1., ((p.x -. ax) *. dx +. (p.y -. ay) *. dy) /. len2));
     let px = ax +. t *. dx
     and py = ay +. t *. dy;
-    let gap = sqrt((p.x -. px) ** 2. +. (p.y -. py) ** 2.);
+    let gap = Float.sqrt((p.x -. px) ** 2. +. (p.y -. py) ** 2.);
     /* pull-direction affinity: cosine between (pointer - start) and
        the track direction */
-    let plen = sqrt((p.x -. ax) ** 2. +. (p.y -. ay) ** 2.);
-    let tlen = sqrt(len2);
+    let plen = Float.sqrt((p.x -. ax) ** 2. +. (p.y -. ay) ** 2.);
+    let tlen = Float.sqrt(len2);
     let cos_sim =
       plen < 6. || tlen == 0.
         ? 0. : ((p.x -. ax) *. dx +. (p.y -. ay) *. dy) /. (plen *. tlen);
     (t, gap -. direction_pull *. max(0., cos_sim), cos_sim);
   };
-  let scored = s.cands |> List.mapi((i, c) => (i, c, track(c)));
+  let scored = s.cands |> List.mapi(~f=(i, c) => (i, c, track(c)));
   let best =
     scored
-    |> List.fold_left(
-         (acc, (i, c, (t, gap, cos))) => {
+    |> List.fold(~init=Stdlib.Option.None, ~f=(acc, (i, c, (t, gap, cos))) => {
            let bonus = s.winner == Some(i) ? stickiness : 0.;
            /* ALIGNMENT GATE: a track engages only when the pull
               points along it (andrew: pulling away from the sole
@@ -874,9 +873,7 @@ let resolve = (s: session, p: vec): unit => {
              | _ => Some((i, c, t, gap -. bonus))
              };
            };
-         },
-         None,
-       );
+         });
   switch (best) {
   | Some((i, c, t, _)) =>
     let t = sharpen(t);
@@ -891,7 +888,7 @@ let resolve = (s: session, p: vec): unit => {
          toward the hand, clearly wanting to stay. */
       let rx = p.x -. s.down_at.x -. t *. (c.tgt.x -. c.cur.x)
       and ry = p.y -. s.down_at.y -. t *. (c.tgt.y -. c.cur.y);
-      let dist = sqrt(rx *. rx +. ry *. ry);
+      let dist = Float.sqrt(rx *. rx +. ry *. ry);
       let mag = give_damp(dist);
       apply_local_give(
         s,
@@ -910,7 +907,7 @@ let resolve = (s: session, p: vec): unit => {
        INSTANT — no dwell): reaching the target via the track commits
        and re-enumerates */
     let d =
-      sqrt(
+      Float.sqrt(
         (p.x -. s.down_at.x -. (c.tgt.x -. c.cur.x))
         ** 2.
         +. (p.y -. s.down_at.y -. (c.tgt.y -. c.cur.y))
@@ -918,13 +915,13 @@ let resolve = (s: session, p: vec): unit => {
       );
     if (chaining && d <= snap_radius && t >= snap_min_t) {
       CodeFlip.set_drag_offsets(
-        c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
+        c.moved |> List.map(~f=((k, _, dx, dy)) => (k, (dx, dy))),
       );
       if (c.enters != []) {
         CodeFlip.set_drag_enter(1.0);
       };
       CodeFlip.set_emerge_src(c.emerge_src);
-      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+      CodeFlip.adopt(s.scrub_anims |> List.concat_map(~f=snd));
       s.scrub_anims = [];
       s.scrub_active = None;
       s.winner = None;
@@ -944,7 +941,7 @@ let resolve = (s: session, p: vec): unit => {
 
     let ddx = p.x -. s.down_at.x
     and ddy = p.y -. s.down_at.y;
-    let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+    let dist = Float.sqrt(ddx *. ddx +. ddy *. ddy);
     let mag = give_damp(dist);
     apply_local_give(
       s,
@@ -968,7 +965,7 @@ let end_session = () => {
   | Some(s) =>
     switch (s.scrub_active) {
     | Some(w) =>
-      switch (List.assoc_opt(w, s.scrub_anims), List.nth_opt(s.cands, w)) {
+      switch (List.Assoc.find(s.scrub_anims, w, ~equal=Poly.equal), List.nth(s.cands, w)) {
       | (Some(anims), Some(c)) => relax_from(c, anim_t(anims))
       | _ => ()
       }
@@ -982,7 +979,7 @@ let end_session = () => {
       },
     );
     scrub_clear(s);
-    s.listeners |> List.iter(Dom.removeEventListener);
+    s.listeners |> List.iter(~f=Dom.removeEventListener);
   | None => ()
   };
   Dom_html.document##.body##.style##.cursor := Js.string("");
@@ -1007,7 +1004,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
   | Some(s) =>
     let p = local(s, e);
     if (!s.began) {
-      let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
+      let d = Float.sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
         s.began = true;
         Dom_html.document##.body##.style##.cursor := Js.string("grabbing");
@@ -1026,7 +1023,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
          shake */
       let ddx = p.x -. s.down_at.x
       and ddy = p.y -. s.down_at.y;
-      let dist = sqrt(ddx *. ddx +. ddy *. ddy);
+      let dist = Float.sqrt(ddx *. ddx +. ddy *. ddy);
       let mag = give_damp(dist);
       apply_local_give(
         s,
@@ -1052,7 +1049,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       CodeFlip.shake_dead_press(~segment=?s.segment, ());
     };
     switch (
-      s.winner |> Option.map(i => List.nth_opt(s.cands, i)) |> Option.join
+      s.winner |> Option.map(~f=i => List.nth(s.cands, i)) |> Option.join
     ) {
     | Some(c) when s.t >= commit_t =>
       /* handoff: the commit's FLIP starts each token from its
@@ -1060,7 +1057,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
          die exactly when the flights take over */
       CodeFlip.set_drag_offsets(
         c.moved
-        |> List.map(((k, _, dx, dy)) => (k, (dx *. s.t, dy *. s.t))),
+        |> List.map(~f=((k, _, dx, dy)) => (k, (dx *. s.t, dy *. s.t))),
       );
       if (c.scroll_rows > 0) {
         CodeFlip.set_scroll_bump(~rows=c.scroll_rows, ~near=s.text_box);
@@ -1075,7 +1072,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
          positionally against the post-commit segment and continues
          the remaining (1 - t) of each flight. */
       CodeFlip.set_emerge_src(c.emerge_src);
-      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+      CodeFlip.adopt(s.scrub_anims |> List.concat_map(~f=snd));
       s.scrub_anims = [];
       s.scrub_active = None;
       s.commit(c.dir);
@@ -1159,7 +1156,7 @@ let live_pairs = (segment: Segment.t): list((CodeFlip.key, Js.t(Dom.node))) =>
   | Some(caret) =>
     switch (
       Js.Opt.to_option(caret##.parentNode)
-      |> Option.map(deco => Js.Opt.to_option(deco##.parentNode))
+      |> Option.map(~f=deco => Js.Opt.to_option(deco##.parentNode))
       |> Option.join
     ) {
     | None => []
@@ -1212,7 +1209,7 @@ let sync =
       let moved_for =
           (frame: Refactor.DragCandidate.frame, cand_m: Measured.t) =>
         pairs
-        |> List.filter_map(((k, node)) =>
+        |> List.filter_map(~f=((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas_end_aligned(~other=measured, cand_m, k),
@@ -1239,26 +1236,26 @@ let sync =
       let rec token_texts =
               (seg: Segment.t): list((CodeFlip.key, string, string)) =>
         seg
-        |> List.concat_map((piece: Piece.t) =>
+        |> List.concat_map(~f=(piece: Piece.t) =>
              switch (piece) {
              | Tile(t) =>
                let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
                let sort_cls = Sort.class_of(Tile.mold(t).out);
                (
                  t.shards
-                 |> List.filter_map(i =>
-                      switch (List.nth_opt(Tile.label(t), i)) {
+                 |> List.filter_map(~f=i =>
+                      switch (List.nth(Tile.label(t), i)) {
                       | Some(txt) =>
                         let cls =
                           ["token", sort_cls, plurality]
                           @ (Token.is_keyword(txt) ? ["keyword"] : [])
-                          |> String.concat(" ");
+                          |> String.concat(~sep=" ");
                         Some((CodeFlip.Shard(t.id, i), txt, cls));
                       | None => None
                       }
                     )
                )
-               @ List.concat_map(token_texts, t.children);
+               @ List.concat_map(~f=token_texts, t.children);
              | Grout(_)
              | Secondary(_)
              | Projector(_) => []
@@ -1274,7 +1271,7 @@ let sync =
             cand_m: Measured.t,
           ) =>
         token_texts(cand_seg)
-        |> List.filter_map(((k, text, cls)) =>
+        |> List.filter_map(~f=((k, text, cls)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
@@ -1290,10 +1287,10 @@ let sync =
                let origin =
                  switch (k) {
                  | Shard(kid, i) =>
-                   switch (List.assoc_opt(kid, emerge)) {
+                   switch (List.Assoc.find(emerge, kid, ~equal=Poly.equal)) {
                    | Some(from_id) =>
                      CodeFlip.find_meas(measured, Shard(from_id, i))
-                     |> Option.map((m: Measured.measurement) =>
+                     |> Option.map(~f=(m: Measured.measurement) =>
                           px_of(m.origin)
                         )
                    | None => None
@@ -1307,7 +1304,7 @@ let sync =
       /* tokens present live but absent in the candidate */
       let exits_for = (cand_m: Measured.t) =>
         pairs
-        |> List.filter_map(((k, node)) =>
+        |> List.filter_map(~f=((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
@@ -1358,7 +1355,7 @@ let sync =
         | Some(tid) =>
           let find = exact =>
             pairs
-            |> List.find_map(((k, n)) =>
+            |> List.find_map(~f=((k, n)) =>
                  switch (k) {
                  | CodeFlip.Shard(id, i)
                      when id == tid && (!exact || Some(i) == grab_shard) =>
@@ -1383,14 +1380,14 @@ let sync =
               !want_exact || Some(i) == grab_shard ? Some((dx, dy)) : None
             | _ => None
             };
-          switch (moved |> List.find_map(of_key(true))) {
+          switch (moved |> List.find_map(~f=of_key(true))) {
           | Some(d) => Some(d)
-          | None => moved |> List.find_map(of_key(false))
+          | None => moved |> List.find_map(~f=of_key(false))
           };
         };
       let cands =
         Refactor.drag_candidates(~info_map, ~term, ~measured, ~shape_map, z)
-        |> List.map((c: Refactor.DragCandidate.t) => {
+        |> List.map(~f=(c: Refactor.DragCandidate.t) => {
              let moved = moved_for(c.frame, c.measured);
              {
                dir: c.dir,
@@ -1403,7 +1400,7 @@ let sync =
                deco_delta: deco_delta_for(c.frame, c.measured),
                exits: exits_for(c.measured),
                enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
-               emerge_src: c.emerge |> List.map(snd),
+               emerge_src: c.emerge |> List.map(~f=snd),
                caret_delta: caret_delta_of(moved),
              };
            });
@@ -1428,7 +1425,7 @@ let sync =
       let here = Zipper.Caret.point(measured, z) == goal;
       let changed =
         switch (stale) {
-        | Some(z0) => !(z0 === z)
+        | Some(z0) => !(phys_equal(z0, z))
         | None => false
         };
       if (here || changed) {
@@ -1446,8 +1443,8 @@ let sync =
          term to catch up. */
       let changed =
         switch (z0, t0) {
-        | (Some(z0), Some(t0)) => !(z0 === z) && !(t0 === term)
-        | (Some(z0), None) => !(z0 === z)
+        | (Some(z0), Some(t0)) => !(phys_equal(z0, z)) && !(phys_equal(t0, term))
+        | (Some(z0), None) => !(phys_equal(z0, z))
         | (None, _) => true
         };
       if (changed) {

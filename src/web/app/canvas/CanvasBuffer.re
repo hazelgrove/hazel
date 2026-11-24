@@ -12,6 +12,7 @@
    Pacing engages only within a burst window after agent tool activity. */
 
 open Js_of_ocaml;
+open Poly;
 
 /* dwell = how long a shown beat holds before the next releases:
    weighted by the size of the change it introduced (a five-definition
@@ -189,8 +190,8 @@ let note_agent_busy = (busy: bool): unit => {
           ? "-"
           : Printf.sprintf(
               "avg %.1fs max %.1fs",
-              List.fold_left((+.), 0., t.lags) /. float_of_int(n) /. 1000.,
-              List.fold_left(max, 0., t.lags) /. 1000.,
+              List.fold(t.lags, ~init=0., ~f=(+.)) /. float_of_int(n) /. 1000.,
+              List.fold(t.lags, ~init=0., ~f=max) /. 1000.,
             ),
       );
     CanvasLog.log(summary);
@@ -249,16 +250,16 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
      camera move between capture and play cannot bend the path start. */
   avatar_prev :=
     Util.JsUtil.get_elem_by_id_opt("canvas-avatar")
-    |> Option.map(el => {
+    |> Option.map(~f=el => {
          let px = (v: string) =>
-           switch (float_of_string_opt(String.trim(v))) {
+           switch (float_of_string_opt(String.strip(v))) {
            | Some(f) => f
            | None =>
              let n = String.length(v);
              n > 2
                ? Option.value(
                    ~default=0.,
-                   float_of_string_opt(String.sub(v, 0, n - 2)),
+                   float_of_string_opt(String.sub(v, ~pos=0, ~len=n - 2)),
                  )
                : 0.;
            };
@@ -283,13 +284,13 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
            );
          /* matrix(a, b, c, d, tx, ty) */
          let (tx, ty) =
-           switch (String.index_opt(tf, '(')) {
+           switch (String.index(tf, '(')) {
            | Some(i) when String.length(tf) > i + 1 =>
-             let inner = String.sub(tf, i + 1, String.length(tf) - i - 2);
+             let inner = String.sub(tf, ~pos=i + 1, ~len=String.length(tf) - i - 2);
              let nums =
                inner
-               |> String.split_on_char(',')
-               |> List.filter_map(s => float_of_string_opt(String.trim(s)));
+               |> String.split(~on=',')
+               |> List.filter_map(~f=s => float_of_string_opt(String.strip(s)));
              switch (nums) {
              | [_, _, _, _, tx, ty] => (tx, ty)
              | _ => (0., 0.)
@@ -327,7 +328,7 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
         Util.JsUtil.ids_with_prefix("cnode-")
         @ Util.JsUtil.ids_with_prefix("cedge-")
         @ Util.JsUtil.ids_with_prefix("cval-")
-        |> List.map(
+        |> List.map(~f=
              Animation.Actions.move(~scale, ~delay, ~stagger, ~move_dur),
            )
       )
@@ -335,7 +336,7 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
         /* a playing score owns the avatar's path; a generic hop would
            replace it mid-flight */
         Util.JsUtil.ids_with_prefix("canvas-avatar")
-        |> List.map(Animation.Actions.move_slow(~scale))
+        |> List.map(~f=Animation.Actions.move_slow(~scale))
       ),
     );
   };
@@ -344,7 +345,7 @@ let stage_beat = (~lead: bool=false, ~slow: bool=false, ()): unit => {
 /* Definition operations are lossless. Catch up is the explicit way to skip. */
 
 let same_program = (a: CodeWithStatics.Model.t, b: CodeWithStatics.Model.t) =>
-  a.editor.state.zipper === b.editor.state.zipper
+  phys_equal(a.editor.state.zipper, b.editor.state.zipper)
   || Haz3lcore.Segment.equiv_mod_grout(
        Haz3lcore.Zipper.unselect_and_zip(a.editor.state.zipper),
        Haz3lcore.Zipper.unselect_and_zip(b.editor.state.zipper),
@@ -459,7 +460,7 @@ let observe =
       !Haz3lcore.Id.Map.is_empty(live.statics.info_map)
       && (
         switch (last_seen^) {
-        | Some(s) => !(s === live)
+        | Some(s) => !(phys_equal(s, live))
         | None => true
         }
       );
@@ -559,7 +560,7 @@ let observe =
         | exn =>
           CanvasLog.log(
             "presentation: snapshot failed; caught up to accepted program: "
-            ++ Printexc.to_string(exn),
+            ++ Stdlib.Printexc.to_string(exn),
           );
           (live, []);
         };

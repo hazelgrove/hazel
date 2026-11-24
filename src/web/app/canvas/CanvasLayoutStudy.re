@@ -1,14 +1,16 @@
 /* Read-only comparisons on the exact same extracted graph. No view setting
    or saved position is mutated by this notebook/export facility. */
+open Poly;
+
 module G = CanvasGraph;
 module L = CanvasLayout;
 let components = (g: G.t) => {
-  let keys = List.map((n: G.tynode) => n.key, g.nodes);
+  let keys = List.map(~f=(n: G.tynode) => n.key, g.nodes);
   let links =
-    List.map((e: G.edge) => (e.e_src, e.dst), g.edges)
-    @ List.concat_map(
+    List.map(~f=(e: G.edge) => (e.e_src, e.dst), g.edges)
+    @ List.concat_map(~f=
         (n: G.tynode) =>
-          List.map(
+          List.map(~f=
             k => (n.key, k),
             n.deps
             @ n.parts
@@ -29,42 +31,39 @@ let components = (g: G.t) => {
       );
   let rec grow = group => {
     let more =
-      List.concat_map(
+      List.concat_map(~f=
         ((a, b)) =>
-          List.mem(a, group) ? [b] : List.mem(b, group) ? [a] : [],
+          List.mem(group, a, ~equal=Poly.equal) ? [b] : List.mem(group, b, ~equal=Poly.equal) ? [a] : [],
         links,
       )
-      |> List.filter(k => List.mem(k, keys));
-    let next = List.sort_uniq(compare, group @ more);
+      |> List.filter(~f=k => List.mem(keys, k, ~equal=Poly.equal));
+    let next = List.dedup_and_sort(~compare=compare, group @ more);
     List.length(next) == List.length(group) ? group : grow(next);
   };
-  List.fold_left(
-    (groups, k) =>
-      List.exists(List.mem(k), groups) ? groups : groups @ [grow([k])],
-    [],
-    keys,
-  );
+  List.fold(keys, ~init=[], ~f=(groups, k) =>
+      List.exists(~f=g => List.mem(g, k, ~equal=Poly.equal), groups)
+        ? groups : groups @ [grow([k])]);
 };
 let subgraph = (g: G.t, keys) => {
   ...g,
-  nodes: List.filter((n: G.tynode) => List.mem(n.key, keys), g.nodes),
+  nodes: List.filter(~f=(n: G.tynode) => List.mem(keys, n.key, ~equal=Poly.equal), g.nodes),
   edges:
-    List.filter(
-      (e: G.edge) => List.mem(e.e_src, keys) && List.mem(e.dst, keys),
+    List.filter(~f=
+      (e: G.edge) => List.mem(keys, e.e_src, ~equal=Poly.equal) && List.mem(keys, e.dst, ~equal=Poly.equal),
       g.edges,
     ),
-  values: List.filter((v: G.value) => List.mem(v.v_key, keys), g.values),
+  values: List.filter(~f=(v: G.value) => List.mem(keys, v.v_key, ~equal=Poly.equal), g.values),
 };
 let translate = (dx, dy, l: L.t): L.t => {
   let p = (p: L.pos): L.pos => {
     x: p.x +. dx,
     y: p.y +. dy,
   };
-  let links = List.map(((a, b, s, d)) => (a, b, p(s), p(d)));
+  let links = List.map(~f=((a, b, s, d)) => (a, b, p(s), p(d)));
   {
     ...l,
     nodes:
-      List.map(
+      List.map(~f=
         (n: L.node_layout) =>
           {
             ...n,
@@ -73,7 +72,7 @@ let translate = (dx, dy, l: L.t): L.t => {
         l.nodes,
       ),
     edges:
-      List.map(
+      List.map(~f=
         (e: L.edge_layout) =>
           {
             ...e,
@@ -81,14 +80,14 @@ let translate = (dx, dy, l: L.t): L.t => {
             dst_p: p(e.dst_p),
             c1: p(e.c1),
             c2: p(e.c2),
-            wire: List.map(p, e.wire),
+            wire: List.map(~f=p, e.wire),
             label_p: p(e.label_p),
             label_anchor: p(e.label_anchor),
           },
         l.edges,
       ),
     values:
-      List.map(
+      List.map(~f=
         (v: L.value_layout) =>
           {
             ...v,
@@ -102,16 +101,16 @@ let translate = (dx, dy, l: L.t): L.t => {
 };
 let packed = (g: G.t) => {
   let blocks =
-    components(g) |> List.map(keys => L.layout_impl(subgraph(g, keys)));
+    components(g) |> List.map(~f=keys => L.layout_impl(subgraph(g, keys)));
   let area =
-    List.fold_left((a, l: L.t) => a +. l.width *. l.height, 0., blocks);
-  let target = max(600., sqrt(area *. 1.5));
+    List.fold(blocks, ~init=0., ~f=(a, l: L.t) => a +. l.width *. l.height);
+  let target = max(600., Float.sqrt(area *. 1.5));
   let x = ref(0.)
   and y = ref(0.)
   and height = ref(0.)
   and width = ref(0.);
   let placed =
-    List.map(
+    List.map(~f=
       (l: L.t) => {
         if (x^ > 0. && x^ +. l.width > target) {
           y := y^ +. height^ +. 28.;
@@ -127,11 +126,11 @@ let packed = (g: G.t) => {
       blocks,
     );
   L.{
-    nodes: List.concat_map((l: t) => l.nodes, placed),
-    edges: List.concat_map((l: t) => l.edges, placed),
-    values: List.concat_map((l: t) => l.values, placed),
-    formations: List.concat_map((l: t) => l.formations, placed),
-    dep_links: List.concat_map((l: t) => l.dep_links, placed),
+    nodes: List.concat_map(~f=(l: t) => l.nodes, placed),
+    edges: List.concat_map(~f=(l: t) => l.edges, placed),
+    values: List.concat_map(~f=(l: t) => l.values, placed),
+    formations: List.concat_map(~f=(l: t) => l.formations, placed),
+    dep_links: List.concat_map(~f=(l: t) => l.dep_links, placed),
     width: width^,
     height: y^ +. height^,
     origin: {
@@ -148,12 +147,12 @@ let json = (l: L.t): Yojson.Safe.t => {
     (
       "nodes",
       `List(
-        List.map(
+        List.map(~f=
           (n: L.node_layout) =>
             `Assoc([
               ("key", `String(n.node.key)),
               ("label", `String(n.node.label)),
-              ("module", `List(List.map(s => `String(s), n.node.m_path))),
+              ("module", `List(List.map(~f=s => `String(s), n.node.m_path))),
               ("p", p(n.p)),
               ("r", `Float(n.r)),
             ]),
@@ -164,7 +163,7 @@ let json = (l: L.t): Yojson.Safe.t => {
     (
       "edges",
       `List(
-        List.map(
+        List.map(~f=
           (e: L.edge_layout) =>
             `Assoc([
               ("name", `String(e.edge.e_name)),
@@ -173,7 +172,7 @@ let json = (l: L.t): Yojson.Safe.t => {
               ("dst", `String(e.edge.dst)),
               ("s", p(e.src_p)),
               ("d", p(e.dst_p)),
-              ("wire", `List(List.map(p, e.wire))),
+              ("wire", `List(List.map(~f=p, e.wire))),
               ("c1", p(e.c1)),
               ("c2", p(e.c2)),
               ("labelAt", p(e.label_p)),
@@ -188,7 +187,7 @@ let json = (l: L.t): Yojson.Safe.t => {
     (
       "links",
       `List(
-        List.map(
+        List.map(~f=
           ((a, b, s, d)) =>
             `Assoc([
               ("src", `String(a)),

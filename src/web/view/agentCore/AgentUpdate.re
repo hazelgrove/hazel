@@ -96,7 +96,7 @@ let update =
       reply,
       chat_id,
       model.main_llm_seq,
-      0,
+      None,
       model,
       editor,
       settings,

@@ -116,5 +116,7 @@ let uses_program = (action: t): bool =>
   | RunSlashCommandFetchCredits(_)
   | RunSlashCommandFetchUsage(_)
   | AppendSlashCommandOutput(_)
+  | ViewAsAgent(_)
+  | LeaveAgentView
   | StreamDelta(_) => false
   };

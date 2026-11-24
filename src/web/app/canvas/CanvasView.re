@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
+open Poly;
 
 /* CanvasView — SVG/HTML rendering of a laid-out CanvasGraph. Edges live in
    an underlying SVG (horizontal-tangent béziers; orbits for single-arg
@@ -14,7 +15,7 @@ open Util.WebUtil;
 let fmt = f => Printf.sprintf("%.1f", f);
 
 let sanitize = (s: string): string =>
-  String.map(
+  String.map(~f=
     c =>
       switch (c) {
       | 'a' .. 'z'
@@ -168,7 +169,7 @@ let edge_svg =
        the arrowhead's tip lands on the rim point */
 
     let marker =
-      List.mem("edge-focused", cls)
+      List.mem(cls, "edge-focused", ~equal=Poly.equal)
         ? "url(#cnv-arrow-focus)" : "url(#cnv-arrow)";
     [
       svg(
@@ -298,33 +299,33 @@ let hull_palette = [|
   "#a4c48d",
   "#e0a186",
 |];
-let hull_color_slots: Hashtbl.t(string, int) = Hashtbl.create(8);
+let hull_color_slots: Stdlib.Hashtbl.t(string, int) = Stdlib.Hashtbl.create(8);
 let hull_color = (root: string): string => {
   let slot =
-    switch (Hashtbl.find_opt(hull_color_slots, root)) {
+    switch (Stdlib.Hashtbl.find_opt(hull_color_slots, root)) {
     | Some(i) => i
     | None =>
-      let i = Hashtbl.length(hull_color_slots);
-      Hashtbl.replace(hull_color_slots, root, i);
+      let i = Stdlib.Hashtbl.length(hull_color_slots);
+      Stdlib.Hashtbl.replace(hull_color_slots, root, i);
       i;
     };
   hull_palette[slot mod Array.length(hull_palette)];
 };
 
 let hull_former_key = (path: list(string)): string =>
-  "{}@" ++ String.concat(".", path);
+  "{}@" ++ String.concat(~sep=".", path);
 
 let hull_paths_of = (lay: CanvasLayout.t): list(list(string)) =>
-  List.concat_map(
+  List.concat_map(~f=
     (nl: CanvasLayout.node_layout) => hull_prefixes(nl.node.m_path),
     lay.nodes,
   )
-  @ List.concat_map(
+  @ List.concat_map(~f=
       (el: CanvasLayout.edge_layout) => hull_prefixes(el.edge.m_path),
       lay.edges,
     )
-  |> List.sort_uniq(compare)
-  |> List.sort((a, b) => compare(List.length(a), List.length(b)));
+  |> List.dedup_and_sort(~compare=compare)
+  |> List.sort(~compare=(a, b) => compare(List.length(a), List.length(b)));
 
 let hull_circles_at =
     (
@@ -334,13 +335,13 @@ let hull_circles_at =
     )
     : list((string, CanvasLayout.pos, float)) => {
   let former_key = hull_former_key(path);
-  let vsuffix = "--v" ++ sanitize(String.concat(".", path));
+  let vsuffix = "--v" ++ sanitize(String.concat(~sep=".", path));
   let former_pos_of = (p: list(string)): option(CanvasLayout.pos) =>
-    List.find_opt(
+    List.find(~f=
       (nl: CanvasLayout.node_layout) => nl.node.key == hull_former_key(p),
       lay.nodes,
     )
-    |> Option.map((nl: CanvasLayout.node_layout) => nl.p);
+    |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.p);
   /* ancestor copies of descendant circles grow with the depth
      difference so a parent blob always contains its sub-blobs with
      visible padding */
@@ -350,16 +351,12 @@ let hull_circles_at =
   let subtree_bump = (fp: list(string)): float =>
     14.
     *. float_of_int(
-         List.fold_left(
-           (m, q) =>
+         List.fold(hull_paths, ~init=0, ~f=(m, q) =>
              hull_is_prefix(fp, q)
-               ? max(m, List.length(q) - List.length(fp)) : m,
-           0,
-           hull_paths,
-         ),
+               ? max(m, List.length(q) - List.length(fp)) : m),
        );
   let node_circles =
-    List.filter_map(
+    List.filter_map(~f=
       (nl: CanvasLayout.node_layout) =>
         if (!hull_is_prefix(path, nl.node.m_path)) {
           None;
@@ -368,7 +365,7 @@ let hull_circles_at =
           /* ANY former keeps its former-size in ancestor copies too */
           let former_sized =
             String.length(nl.node.key) >= 3
-            && String.sub(nl.node.key, 0, 3) == "{}@";
+            && String.sub(nl.node.key, ~pos=0, ~len=3) == "{}@";
           /* a module's former circle grows linearly with its member count
              on a large base (5 px each, +50 at most): the name stays the
              center of gravity as the module fills */
@@ -377,14 +374,14 @@ let hull_circles_at =
               let here = (p: list(string)) => p == nl.node.m_path;
               let n =
                 List.length(
-                  List.filter(
+                  List.filter(~f=
                     (m: CanvasLayout.node_layout) =>
                       here(m.node.m_path) && m.node.key != nl.node.key,
                     lay.nodes,
                   ),
                 )
                 + List.length(
-                    List.filter(
+                    List.filter(~f=
                       (e: CanvasLayout.edge_layout) => here(e.edge.m_path),
                       lay.edges,
                     ),
@@ -410,7 +407,7 @@ let hull_circles_at =
       lay.nodes,
     );
   let label_circles =
-    List.concat_map(
+    List.concat_map(~f=
       (el: CanvasLayout.edge_layout) =>
         if (!hull_is_prefix(path, el.edge.m_path)) {
           [];
@@ -434,7 +431,7 @@ let hull_circles_at =
 let hull_targets =
     (lay: CanvasLayout.t): list((string, CanvasLayout.pos, float)) => {
   let paths = hull_paths_of(lay);
-  List.concat_map(hull_circles_at(lay, paths), paths);
+  List.concat_map(~f=hull_circles_at(lay, paths), paths);
 };
 
 /* member-edge SAUSAGES: the edge curve itself joins the metaball as a
@@ -447,8 +444,8 @@ let hull_sausage_d = (el: CanvasLayout.edge_layout): string =>
 let hull_sausages_at =
     (lay: CanvasLayout.t, path: list(string))
     : list((string, string, float)) => {
-  let vsuffix = "--v" ++ sanitize(String.concat(".", path));
-  List.filter_map(
+  let vsuffix = "--v" ++ sanitize(String.concat(~sep=".", path));
+  List.filter_map(~f=
     (el: CanvasLayout.edge_layout) =>
       if (!hull_is_prefix(path, el.edge.m_path) || el.endo) {
         None;
@@ -567,7 +564,7 @@ let edge_label =
     let n = List.length(e.tests);
     let passing =
       List.length(
-        List.filter(
+        List.filter(~f=
           (t: CanvasGraph.test_info) => t.status == Some(Pass),
           e.tests,
         ),
@@ -628,7 +625,7 @@ let edge_label =
     ],
     [
       text(e.e_label),
-      ...List.map(
+      ...List.map(~f=
            test_pip(~on_click=(t: CanvasGraph.test_info) =>
              inject_jump(t.t_id)
            ),
@@ -655,9 +652,9 @@ let base_glyph = (label: string): option(string) => {
   | None =>
     let n = String.length(label);
     n >= 3 && label.[0] == '[' && label.[n - 1] == ']'
-      ? Option.map(
+      ? Option.map(~f=
           g => "[" ++ g ++ "]",
-          letter(String.sub(label, 1, n - 2)),
+          letter(String.sub(label, ~pos=1, ~len=n - 2)),
         )
       : None;
   };
@@ -711,7 +708,7 @@ let node_view =
   let d = nl.r *. 2.;
   let tooltip =
     (n.kind == Product ? n.key : n.label)
-    ++ (n.ctrs == [] ? "" : " = " ++ String.concat(" + ", n.ctrs))
+    ++ (n.ctrs == [] ? "" : " = " ++ String.concat(~sep=" + ", n.ctrs))
     ++ (
       switch (n.former, n.ctrs, n.n_ty) {
       | (Some(_), [], Some(body)) => " = " ++ body
@@ -759,7 +756,7 @@ let node_view =
     clss(["clickable"]),
   ];
   let is_module =
-    String.length(n.key) >= 3 && String.sub(n.key, 0, 3) == "{}@";
+    String.length(n.key) >= 3 && String.sub(n.key, ~pos=0, ~len=3) == "{}@";
   /* module types show their {} glyph inside with the NAME below; an
      alias whose body is a former ("()", "[]", "+") wears that glyph as
      a badge the same way */
@@ -926,7 +923,7 @@ let node_view =
             @ (focused_ty == Some(n.key) ? ["node-focused"] : [])
             @ (base != None ? ["node-glyphed"] : [])
             /* grows out of the placement-preview dot */
-            @ (List.mem(n.key, just_placed) ? ["just-placed"] : []),
+            @ (List.mem(just_placed, n.key, ~equal=Poly.equal) ? ["just-placed"] : []),
           ),
           Attr.create(
             "style",
@@ -962,11 +959,7 @@ let value_view =
     : Node.t => {
   let v = vl.value;
   let hash =
-    String.fold_left(
-      (h, c) => (h * 31 + Char.code(c)) mod 997,
-      7,
-      v.v_name,
-    );
+    String.fold(v.v_name, ~init=7, ~f=(h, c) => (h * 31 + Char.to_int(c)) mod 997);
   let period = 90.;
   let phase = float_of_int(hash mod 90);
   div(
@@ -1148,11 +1141,11 @@ let view =
     )
     : Node.t => {
   let radius_of = (k: string): float =>
-    List.find_opt(
+    List.find(~f=
       (nl: CanvasLayout.node_layout) => nl.node.key == k,
       lay.nodes,
     )
-    |> Option.map((nl: CanvasLayout.node_layout) => nl.r)
+    |> Option.map(~f=(nl: CanvasLayout.node_layout) => nl.r)
     |> Option.value(~default=CanvasLayout.base_radius);
   let mk_marker = (~id, ~size, ~cls) =>
     svg(
@@ -1226,10 +1219,10 @@ let view =
       "svg",
       [clss(["canvas-edges"])] @ layer_box(lay),
       [defs]
-      @ List.mapi(dep_link_svg(~nodes=lay.nodes), lay.dep_links)
-      @ List.mapi(formation_svg(~nodes=lay.nodes), lay.formations)
-      @ List.concat_map(leader_svg, lay.edges)
-      @ List.concat_map(edge_svg(~focused, ~radius_of), lay.edges),
+      @ List.mapi(~f=dep_link_svg(~nodes=lay.nodes), lay.dep_links)
+      @ List.mapi(~f=formation_svg(~nodes=lay.nodes), lay.formations)
+      @ List.concat_map(~f=leader_svg, lay.edges)
+      @ List.concat_map(~f=edge_svg(~focused, ~radius_of), lay.edges),
     );
   /* target==currentTarget: only true background events (nodes/labels
      are their own targets; the edges svg is pointer-events: none) */
@@ -1381,15 +1374,15 @@ let view =
             | ps =>
               let n = float_of_int(List.length(ps));
               let cx =
-                List.fold_left((a, p: CanvasLayout.pos) => a +. p.x, 0., ps)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.x)
                 /. n
               and cy =
-                List.fold_left((a, p: CanvasLayout.pos) => a +. p.y, 0., ps)
+                List.fold(ps, ~init=0., ~f=(a, p: CanvasLayout.pos) => a +. p.y)
                 /. n;
               /* predicted product pin: matches the commit's weighting */
               let px = (2. *. cx +. x) /. 3.
               and py = (2. *. cy +. y) /. 3.;
-              List.iteri(
+              List.iteri(~f=
                 (i, p: CanvasLayout.pos) => {
                   let mx = (p.x +. px) /. 2.;
                   set_d(
@@ -1445,7 +1438,7 @@ let view =
     svg(
       "svg",
       [clss(["connect-preview"])] @ layer_box(lay),
-      List.mapi(
+      List.mapi(~f=
         (i, p: CanvasLayout.pos) =>
           svg(
             "path",
@@ -1561,7 +1554,7 @@ let view =
                       ),
                     ],
                   ),
-                  ...List.concat_map(
+                  ...List.concat_map(~f=
                        path => {
                          let circles = hull_circles_at(path);
                          let depth = List.length(path);
@@ -1571,7 +1564,7 @@ let view =
                            | [] => ""
                            };
                          let former =
-                           List.find_opt(
+                           List.find(~f=
                              (nl: CanvasLayout.node_layout) =>
                                nl.node.key == former_key_of(path),
                              lay.nodes,
@@ -1586,7 +1579,7 @@ let view =
                            Node.create_svg(
                              "g",
                              ~attrs=[
-                               svg_key("hull:" ++ String.concat(".", path)),
+                               svg_key("hull:" ++ String.concat(~sep=".", path)),
                                clss([
                                  "canvas-hull",
                                  Printf.sprintf(
@@ -1603,7 +1596,7 @@ let view =
                                  ++ ";",
                                ),
                              ],
-                             List.map(
+                             List.map(~f=
                                ((id, d, w)) =>
                                  Node.create_svg(
                                    "path",
@@ -1619,7 +1612,7 @@ let view =
                                  ),
                                hull_sausages_at(lay, path),
                              )
-                             @ List.map(
+                             @ List.map(~f=
                                  ((id, p: CanvasLayout.pos, r)) =>
                                    Node.create_svg(
                                      "circle",
@@ -1640,7 +1633,7 @@ let view =
                            switch (former, depth) {
                            | (Some(nl), 1) =>
                              let count =
-                               List.assoc_opt(root, collapsed_counts);
+                               List.Assoc.find(collapsed_counts, root, ~equal=Poly.equal);
                              /* the node carries the module name now;
                                 expanded hulls show only a small
                                 collapse affordance */
@@ -1688,7 +1681,7 @@ let view =
               Node.create_svg(
                 "svg",
                 ~attrs=[clss(["canvas-depfan"])] @ layer_box(lay),
-                List.map(
+                List.map(~f=
                   ((a: CanvasLayout.pos, b: CanvasLayout.pos)) => {
                     let mx = (a.x +. b.x) /. 2.
                     and my = (a.y +. b.y) /. 2.;
@@ -1728,7 +1721,7 @@ let view =
           edges_svg,
         ]
         @ telegraph_nodes
-        @ List.map(
+        @ List.map(~f=
             (nl: CanvasLayout.node_layout) =>
               node_view(
                 ~on_node_mousedown,
@@ -1737,13 +1730,13 @@ let view =
                 ~on_delete_definition,
                 ~just_placed,
                 ~focused_ty,
-                ~card=List.assoc_opt(nl.node.key, cards),
+                ~card=List.Assoc.find(cards, nl.node.key, ~equal=Poly.equal),
                 ~on_node_dblclick,
                 nl,
               ),
             lay.nodes,
           )
-        @ List.map(
+        @ List.map(~f=
             edge_label(
               ~inject_jump,
               ~focused,
@@ -1760,7 +1753,7 @@ let view =
             | Some(f) => f
             | None => ((v: CanvasGraph.value) => inject_jump(v.v_id))
             };
-          List.map(
+          List.map(~f=
             value_view(~inject_jump, ~on_value_click=ovc),
             lay.values,
           );

@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Poly;
 
 /* The dot lattice, promoted from a repeated CSS background to a 2D
    canvas so dots can MOVE: placing a node splashes a compression wave
@@ -188,7 +189,7 @@ let field_box = (): option((float, float, float, float)) =>
     for (j in 0 to h - 1) {
       let row = j * w;
       for (i in 0 to w - 1) {
-        if (abs_float(u[row + i]) > eps) {
+        if (Float.abs(u[row + i]) > eps) {
           if (i < i0^) {
             i0 := i;
           };
@@ -242,9 +243,9 @@ let ensure_grid = (cw: int, ch: int): unit => {
      removed near the panel edge used to have its suction eaten at
      birth) */
   let w =
-    int_of_float(Float.ceil(float_of_int(cw) /. cell)) + 3 + 2 * sponge_band;
+    int_of_float(Float.round_up(float_of_int(cw) /. cell)) + 3 + 2 * sponge_band;
   let h =
-    int_of_float(Float.ceil(float_of_int(ch) /. cell)) + 3 + 2 * sponge_band;
+    int_of_float(Float.round_up(float_of_int(ch) /. cell)) + 3 + 2 * sponge_band;
   if (w != gw^ || h != gh^) {
     /* PRESERVE in-flight waves across resizes: the pane height changes
        whenever the focus strip opens/closes — including the very frame
@@ -255,8 +256,8 @@ let ensure_grid = (cw: int, ch: int): unit => {
     and oh = gh^;
     let ou = u_cur^
     and op = u_prev^;
-    let nu = Array.make(w * h, 0.)
-    and np = Array.make(w * h, 0.);
+    let nu = Array.create(~len=w * h, 0.)
+    and np = Array.create(~len=w * h, 0.);
     if (ow > 0) {
       for (j in 0 to min(h, oh) - 1) {
         for (i in 0 to min(w, ow) - 1) {
@@ -278,13 +279,13 @@ let anchor = (sl: float, st: float): unit => {
   let margin = float_of_int(sponge_band) *. cell;
   let target_x = sl -. cell -. margin
   and target_y = st -. cell -. margin;
-  let dx = int_of_float(Float.round((target_x -. origin_x^) /. cell))
-  and dy = int_of_float(Float.round((target_y -. origin_y^) /. cell));
+  let dx = int_of_float(Stdlib.Float.round((target_x -. origin_x^) /. cell))
+  and dy = int_of_float(Stdlib.Float.round((target_y -. origin_y^) /. cell));
   if (dx != 0 || dy != 0) {
     let w = gw^
     and h = gh^;
     let shift = (a: array(float)): array(float) => {
-      let b = Array.make(w * h, 0.);
+      let b = Array.create(~len=w * h, 0.);
       for (j in 0 to h - 1) {
         for (i in 0 to w - 1) {
           let si = i + dx
@@ -311,8 +312,8 @@ let deposit = (cx: float, cy: float, amp: float): unit =>
   if (gw^ > 0) {
     let fx = (cx -. origin_x^) /. cell
     and fy = (cy -. origin_y^) /. cell;
-    let ci = int_of_float(Float.round(fx))
-    and cj = int_of_float(Float.round(fy));
+    let ci = int_of_float(Stdlib.Float.round(fx))
+    and cj = int_of_float(Stdlib.Float.round(fy));
     if (legacy^) {
       for (j in cj - 1 to cj + 1) {
         for (i in ci - 1 to ci + 1) {
@@ -324,7 +325,7 @@ let deposit = (cx: float, cy: float, amp: float): unit =>
       };
     } else {
       let sg = deposit_sigma^;
-      let r = int_of_float(Float.ceil(sg *. 2.5));
+      let r = int_of_float(Float.round_up(sg *. 2.5));
       for (j in cj - r to cj + r) {
         for (i in ci - r to ci + r) {
           if (i >= 0 && i < gw^ && j >= 0 && j < gh^) {
@@ -402,7 +403,7 @@ let step_sim = (substeps: int): unit => {
     let n = Array.length(u);
     let i = ref(0);
     while (i^ < n) {
-      let a = abs_float(u[i^]);
+      let a = Float.abs(u[i^]);
       if (a > m^) {
         m := a;
       };
@@ -419,8 +420,8 @@ let displacement_at = (cx: float, cy: float): (float, float) =>
   if (gw^ == 0) {
     (0., 0.);
   } else if (legacy^) {
-    let i = int_of_float(Float.round((cx -. origin_x^) /. cell))
-    and j = int_of_float(Float.round((cy -. origin_y^) /. cell));
+    let i = int_of_float(Stdlib.Float.round((cx -. origin_x^) /. cell))
+    and j = int_of_float(Stdlib.Float.round((cy -. origin_y^) /. cell));
     if (i < 1 || i >= gw^ - 1 || j < 1 || j >= gh^ - 1) {
       (0., 0.);
     } else {
@@ -432,8 +433,8 @@ let displacement_at = (cx: float, cy: float): (float, float) =>
   } else {
     let fx = (cx -. origin_x^) /. cell
     and fy = (cy -. origin_y^) /. cell;
-    let i0 = int_of_float(Float.floor(fx))
-    and j0 = int_of_float(Float.floor(fy));
+    let i0 = int_of_float(Float.round_down(fx))
+    and j0 = int_of_float(Float.round_down(fy));
     if (i0 < 1 || i0 >= gw^ - 2 || j0 < 1 || j0 >= gh^ - 2) {
       (0., 0.);
     } else {
@@ -522,7 +523,7 @@ let pulse_at = (p: pulse, t) =>
     : {
       let p =
         CanvasLayoutExperiments.along(
-          List.map(
+          List.map(~f=
             ((x, y)) =>
               CanvasLayoutExperiments.{
                 x,
@@ -601,7 +602,7 @@ let get_dot_sprite = (fill: string, dpr: float): Js.Unsafe.any => {
         "createElement",
         [|Js.Unsafe.inject(Js.string("canvas"))|],
       );
-    let px_size = int_of_float(Float.ceil(sprite_size *. dpr));
+    let px_size = int_of_float(Float.round_up(sprite_size *. dpr));
     Js.Unsafe.set(c, "width", px_size);
     Js.Unsafe.set(c, "height", px_size);
     let cx =
@@ -668,10 +669,10 @@ let geom_unchanged = (cw, ch, sl, st, z): bool =>
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
 let parse_px = (s: string): option(float) => {
-  let s = String.trim(s);
+  let s = String.strip(s);
   let s =
-    String.length(s) > 2 && String.sub(s, String.length(s) - 2, 2) == "px"
-      ? String.sub(s, 0, String.length(s) - 2) : s;
+    String.length(s) > 2 && String.sub(s, ~pos=String.length(s) - 2, ~len=2) == "px"
+      ? String.sub(s, ~pos=0, ~len=String.length(s) - 2) : s;
   float_of_string_opt(s);
 };
 
@@ -734,13 +735,13 @@ let rec draw = (): unit => {
           )##getPropertyValue(
             Js.string("zoom"),
           );
-        switch (float_of_string_opt(String.trim(Js.to_string(v)))) {
+        switch (float_of_string_opt(String.strip(Js.to_string(v)))) {
         | Some(f) when f > 0.01 => f
         | _ => zoom^
         };
       };
     };
-    let zoom_settling = abs_float(vis_zoom -. zoom^) > 0.002;
+    let zoom_settling = Float.abs(vis_zoom -. zoom^) > 0.002;
     let z = max(0.05, vis_zoom);
     let bw = int_of_float(float_of_int(cw) *. dpr)
     and bh = int_of_float(float_of_int(ch) *. dpr);
@@ -760,7 +761,7 @@ let rec draw = (): unit => {
     /* suction lifecycle: while pulling, the analytic term below moves
        the dots; on expiry, plant the rebound bump in the medium */
     if (suctions^ != []) {
-      List.iter(
+      List.iter(~f=
         (su: suction_t) =>
           if (t -. su.su_t0 > suction_pull_ms) {
             let (mx, my) = su.su_p;
@@ -774,8 +775,8 @@ let rec draw = (): unit => {
                 "suction rebound: content=(%.0f,%.0f) cell=(%d,%d) grid=(%d,%d)",
                 cx,
                 cy,
-                int_of_float(Float.round((cx -. origin_x^) /. cell)),
-                int_of_float(Float.round((cy -. origin_y^) /. cell)),
+                int_of_float(Stdlib.Float.round((cx -. origin_x^) /. cell)),
+                int_of_float(Stdlib.Float.round((cy -. origin_y^) /. cell)),
                 gw^,
                 gh^,
               ),
@@ -784,7 +785,7 @@ let rec draw = (): unit => {
         suctions^,
       );
       suctions :=
-        List.filter(
+        List.filter(~f=
           (su: suction_t) => t -. su.su_t0 <= suction_pull_ms,
           suctions^,
         );
@@ -826,8 +827,7 @@ let rec draw = (): unit => {
          span (pulse positions are computed again below; they are few) */
       let live_box = {
         let su_box =
-          List.fold_left(
-            (acc, su: suction_t) => {
+          List.fold(suctions^, ~init=Stdlib.Option.None, ~f=(acc, su: suction_t) => {
               let age = (t -. su.su_t0) /. suction_pull_ms;
               if (age >= 0. && age <= 1.) {
                 let (mx, my) = su.su_p;
@@ -837,16 +837,11 @@ let rec draw = (): unit => {
               } else {
                 acc;
               };
-            },
-            None,
-            suctions^,
-          );
+            });
         let pulse_box =
-          List.fold_left(
-            (acc, p: pulse) => {
+          List.fold(pulses^, ~init=Stdlib.Option.None, ~f=(acc, p: pulse) => {
               let tt = (t -. p.t0) /. pulse_ms;
-              List.fold_left(
-                (acc, back) => {
+              List.fold([0., 0.06, 0.12, 0.18], ~init=acc, ~f=(acc, back) => {
                   let tk = fmax(0., tt -. back);
                   let (mx, my) = pulse_at(p, tk);
                   let cx = mx *. z +. pan_slack
@@ -855,14 +850,8 @@ let rec draw = (): unit => {
                     acc,
                     Some((cx -. 4., cy -. 4., cx +. 4., cy +. 4.)),
                   );
-                },
-                acc,
-                [0., 0.06, 0.12, 0.18],
-              );
-            },
-            None,
-            pulses^,
-          );
+                });
+            });
         switch (box_union(box_union(field_box(), su_box), pulse_box)) {
         | None => None
         | Some((x0, y0, x1, y1)) =>
@@ -969,7 +958,7 @@ let rec draw = (): unit => {
       };
       /* per-frame analytic suction terms: (content center, strength) */
       let su_terms =
-        List.filter_map(
+        List.filter_map(~f=
           (su: suction_t) => {
             let age = (t -. su.su_t0) /. suction_pull_ms;
             if (age >= 0. && age <= 1.) {
@@ -990,10 +979,10 @@ let rec draw = (): unit => {
         and m1x = (rx1 +. reach +. sl -. pan_slack) /. z;
         let m0y = (ry0 -. reach +. st -. pan_slack) /. z
         and m1y = (ry1 +. reach +. st -. pan_slack) /. z;
-        let i0 = int_of_float(Float.floor(m0x /. step))
-        and i1 = int_of_float(Float.ceil(m1x /. step));
-        let j0 = int_of_float(Float.floor(m0y /. step))
-        and j1 = int_of_float(Float.ceil(m1y /. step));
+        let i0 = int_of_float(Float.round_down(m0x /. step))
+        and i1 = int_of_float(Float.round_up(m1x /. step));
+        let j0 = int_of_float(Float.round_down(m0y /. step))
+        and j1 = int_of_float(Float.round_up(m1y /. step));
         for (jy in j0 to j1) {
           for (ix in i0 to i1) {
             /* the fine pass skips points shared with the current grid
@@ -1007,8 +996,7 @@ let rec draw = (): unit => {
               let (dx, dy) = displacement_at(cx, cy);
               /* analytic inward pull toward any active suction */
               let (dx, dy) =
-                List.fold_left(
-                  ((ax, ay), (scx, scy, amp)) => {
+                List.fold(su_terms, ~init=(dx, dy), ~f=((ax, ay), (scx, scy, amp)) => {
                     let ddx = scx -. cx
                     and ddy = scy -. cy;
                     let d = Float.hypot(ddx, ddy);
@@ -1021,10 +1009,7 @@ let rec draw = (): unit => {
                     let w = min(w, d);
                     d < 1.
                       ? (ax, ay) : (ax +. ddx /. d *. w, ay +. ddy /. d *. w);
-                  },
-                  (dx, dy),
-                  su_terms,
-                );
+                  });
               let sx = cx +. dx -. sl
               and sy = cy +. dy -. st;
               let a = alpha *. fade1(sx, mw) *. fade1(sy, mh);
@@ -1055,9 +1040,9 @@ let rec draw = (): unit => {
       draw_pass(g^, 1., ~skip_coarse=false);
       /* pulses ride on top of the lattice */
       let (live_pulses, done_pulses) =
-        List.partition((p: pulse) => t -. p.t0 < pulse_ms, pulses^);
+        List.partition_tf(~f=(p: pulse) => t -. p.t0 < pulse_ms, pulses^);
       pulses := live_pulses;
-      List.iter(
+      List.iter(~f=
         (p: pulse) => {
           let (mx, my) = pulse_at(p, 1.);
           let (cx, cy) = model_to_content((mx, my));
@@ -1065,11 +1050,11 @@ let rec draw = (): unit => {
         },
         done_pulses,
       );
-      List.iter(
+      List.iter(~f=
         (p: pulse) => {
           let tt = (t -. p.t0) /. pulse_ms;
           /* head + three tail samples fading behind */
-          List.iteri(
+          List.iteri(~f=
             (k, back) => {
               let tk = max(0., tt -. back);
               let (mx, my) = pulse_at(p, tk);
@@ -1101,7 +1086,7 @@ let rec draw = (): unit => {
                 ();
               };
             },
-            List.init(4, k => float_of_int(k) *. 0.06),
+            List.init(4, ~f=k => float_of_int(k) *. 0.06),
           );
         },
         live_pulses,

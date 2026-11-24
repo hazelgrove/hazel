@@ -12,6 +12,7 @@
    duration. The player calls [say]. */
 
 open Js_of_ocaml;
+open Poly;
 
 let source: ref(string) = ref("");
 /* the window's start into the source, advanced each tick */
@@ -47,7 +48,7 @@ let advance = (): string => {
     if (last_start - pos^ > 3 * window_chars) {
       pos := last_start - window_chars;
     };
-    String.sub(source^, pos^, window_chars);
+    String.sub(source^, ~pos=pos^, ~len=window_chars);
   };
 };
 
@@ -55,22 +56,22 @@ let advance = (): string => {
 let clean_cut = (s: string): string => {
   let n = String.length(s);
   let rec trim_head = i =>
-    if (i < n && Char.code(s.[i]) land 0xC0 == 0x80) {
+    if (i < n && Char.to_int(s.[i]) land 0xC0 == 0x80) {
       trim_head(i + 1);
     } else {
       i;
     };
   let h = trim_head(0);
   let rec trim_tail = j =>
-    if (j > h && Char.code(s.[j - 1]) land 0xC0 == 0x80) {
+    if (j > h && Char.to_int(s.[j - 1]) land 0xC0 == 0x80) {
       trim_tail(j - 1);
-    } else if (j > h && Char.code(s.[j - 1]) land 0xC0 == 0xC0) {
+    } else if (j > h && Char.to_int(s.[j - 1]) land 0xC0 == 0xC0) {
       j - 1;
     } else {
       j;
     };
   let t = trim_tail(n);
-  t > h ? String.sub(s, h, t - h) : "";
+  t > h ? String.sub(s, ~pos=h, ~len=t - h) : "";
 };
 
 /* ---- speech ---- */
@@ -104,7 +105,7 @@ let mode_class = (m: mode): string =>
   };
 let set_mode_class = (el, m: mode): unit => {
   let cl = Js.Unsafe.get(el, "classList");
-  List.iter(
+  List.iter(~f=
     c =>
       ignore(
         Js.Unsafe.meth_call(
@@ -241,7 +242,7 @@ let speech_path =
   let edge_len = ((ix, _)) => Float.abs(ix) > 0.5 ? w : h;
   let segs =
     Array.to_list(
-      Array.mapi(
+      Array.mapi(~f=
         (k, ((cx, cy), (ix, iy), (ox, oy))) =>
           if (k == tail) {
             let back = min(13., 0.45 *. edge_len((ix, iy)))
@@ -268,9 +269,9 @@ let speech_path =
   "M "
   ++ start
   ++ " "
-  ++ String.concat(" ", List.tl(segs))
+  ++ String.concat(~sep=" ", List.tl_exn(segs))
   ++ " "
-  ++ List.hd(segs)
+  ++ List.hd_exn(segs)
   ++ " Z";
 };
 
@@ -340,20 +341,20 @@ let place = (): unit =>
           | Hidden =>
             let a = max(1., w /. 2. -. 7.)
             and b = max(1., h /. 2. -. 5.);
-            let re = 1. /. sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
+            let re = 1. /. Float.sqrt(dx *. dx /. (a *. a) +. dy *. dy /. (b *. b));
             let ccx = tipx +. dx *. (17. +. re)
             and ccy = tipy +. dy *. (17. +. re);
             (ccx -. w /. 2., ccy -. h /. 2.);
           };
         let key =
-          String.concat(
+          String.concat(~sep=
             "/",
-            List.map(f1, [left, top, w, h, tipx, tipy, sx, sy])
+            List.map(~f=f1, [left, top, w, h, tipx, tipy, sx, sy])
             @ [mode_class(m)],
           );
         let previous =
           Js.Optdef.to_option(Js.Unsafe.get(bub, "__canvasBubblePlacement"))
-          |> Option.map(Js.to_string);
+          |> Option.map(~f=Js.to_string);
         if (previous != Some(key)) {
           Js.Unsafe.set(bub, "__canvasBubblePlacement", Js.string(key));
           set_style(bub, "left", f1(left) ++ "px");
@@ -375,7 +376,7 @@ let place = (): unit =>
                coordinates stay body-local for the rig's bounding circle. */
             set_style(t, "left", f1((-300.) -. left) ++ "px");
             set_style(t, "top", f1((-300.) -. top) ++ "px");
-            List.iter(
+            List.iter(~f=
               ((sel, along, rad)) =>
                 switch (child(t, sel)) {
                 | Some(c) =>

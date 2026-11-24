@@ -549,10 +549,10 @@ module Update = {
           switch (dynamics |> Calc.get_saved(None)) {
           | Some(old) =>
             let fresh_ids =
-              List.map(fst, fresh.Dynamics.test_results.test_map);
+              List.map(~f=fst, fresh.Dynamics.test_results.test_map);
             let carried =
-              List.filter(
-                ((id, _)) => !List.mem(id, fresh_ids),
+              List.filter(~f=
+                ((id, _)) => !List.mem(fresh_ids, id, ~equal=Poly.equal),
                 old.Dynamics.test_results.test_map,
               );
             Some({
@@ -670,7 +670,7 @@ module Update = {
       completed_dynamics:
         switch (Calc.get_value(result)) {
         | ProgramResult.ResultOk(_) =>
-          Option.map(
+          Option.map(~f=
             (d: Dynamics.t) => d.probe_map,
             Calc.get_value(dynamics),
           )

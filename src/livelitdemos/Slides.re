@@ -18,7 +18,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       ("Range Picker", [%blob "range-picker.hz"]),
       ("Dial", [%blob "dial.hz"]),
     ]
-    |> List.map(((name, text)) => ("Livelits / " ++ name, text))
+    |> List.map(~f=((name, text)) => ("Livelits / " ++ name, text))
   )
   @ (
     /* type cards on the canvas: every type has a view; the app is a
@@ -29,8 +29,8 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       ("Trip Planner", [%blob "trip-planner.hz"]),
       ("Greenhouse", [%blob "greenhouse.hz"]),
     ]
-    |> List.map(((name, text)) => ("Type Cards / " ++ name, text))
+    |> List.map(~f=((name, text)) => ("Type Cards / " ++ name, text))
   )
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );

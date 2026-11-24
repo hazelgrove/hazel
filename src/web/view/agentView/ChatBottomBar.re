@@ -143,7 +143,7 @@ let view =
 
   let demo_menu = chat_system.ui.demo_menu;
   let demo_items =
-    List.map(
+    List.map(~f=
       group =>
         Menu.submenu_item(
           ~tooltip=
@@ -151,8 +151,8 @@ let view =
               ? "Requires an existing program" : "Start on a fresh scratchpad",
           group,
           DemoPrompts.all
-          |> List.filter((p: DemoPrompts.t) => p.group == group)
-          |> List.map((p: DemoPrompts.t) =>
+          |> List.filter(~f=(p: DemoPrompts.t) => p.group == group)
+          |> List.map(~f=(p: DemoPrompts.t) =>
                Menu.action_item(p.title, p.prompt)
              ),
         ),

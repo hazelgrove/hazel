@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 /* A canvas sample well IS a probe: the focus strip renders each anchor id
    through ProbeProj's own cooked view — same DOM structure and CSS, same
@@ -24,10 +25,10 @@ let probe_kind: ProjectorCore.Kind.t = Probe;
    did nothing and no sample read as selected. CanvasSidebar installs
    the master dispatcher each render. */
 let master_perform: ref(option(Haz3lcore.Action.t => Effect.t(unit))) =
-  ref(Option.none);
+  ref(Stdlib.Option.none);
 
 let stored_model = (~globals: Globals.t, key: string): option(string) =>
-  List.assoc_opt(key, globals.settings.sidebar.canvas_probe_models);
+  List.Assoc.find(globals.settings.sidebar.canvas_probe_models, key, ~equal=Poly.equal);
 
 let view =
     (
@@ -47,10 +48,10 @@ let view =
   /* anchor syntax: same recipe as RefractorView.mk_data */
   let syntax_piece =
     TermData.segment(id, syntax.term_data)
-    |> Option.map(Segment.unparenthesize)
-    |> Option.map(Segment.trim_secondary(Left))
-    |> Option.map(Segment.trim_secondary(Right))
-    |> Option.map(Segment.parenthesize);
+    |> Option.map(~f=Segment.unparenthesize)
+    |> Option.map(~f=Segment.trim_secondary(Left))
+    |> Option.map(~f=Segment.trim_secondary(Right))
+    |> Option.map(~f=Segment.parenthesize);
   switch (syntax_piece) {
   | None => None
   | Some(syntax_piece) =>
@@ -97,8 +98,8 @@ let view =
     };
     let perform = (a: Haz3lcore.Action.t) =>
       switch (master_perform^) {
-      | Option.Some(f) => f(a)
-      | Option.None => globals.inject_global(ActiveEditor(a))
+      | Stdlib.Option.Some(f) => f(a)
+      | Stdlib.Option.None => globals.inject_global(ActiveEditor(a))
       };
     let parent = (a: ProjectorBase.external_action) =>
       switch (a) {
@@ -161,7 +162,7 @@ let view =
    follows. Same construction as the projector panel's cards. */
 let is_app_site = (~editor: CodeWithStatics.Model.t, id: Id.t): bool => {
   let syntax = editor.editor.syntax;
-  List.mem(id, syntax.projector_list)
+  List.mem(syntax.projector_list, id, ~equal=Poly.equal)
   && (
     switch (Id.Map.find_opt(id, syntax.projectors)) {
     | Some(p) => p.kind == ProjectorCore.Kind.Livelit
@@ -182,7 +183,7 @@ let app_data_memo:
       ),
     ),
   ) =
-  ref(Option.none);
+  ref(Stdlib.Option.none);
 
 let app_view =
     (~globals: Globals.t, ~editor: CodeWithStatics.Model.t, id: Id.t)
@@ -191,8 +192,8 @@ let app_view =
   let zipper = editor.editor.state.zipper;
   let perform = (a: Haz3lcore.Action.t) =>
     switch (master_perform^) {
-    | Option.Some(f) => f(a)
-    | Option.None => globals.inject_global(ActiveEditor(a))
+    | Stdlib.Option.Some(f) => f(a)
+    | Stdlib.Option.None => globals.inject_global(ActiveEditor(a))
     };
   /* An app edit resumes live values. Captured sample positions belong
      to the previous evaluation: retaining them can make the cards
@@ -206,11 +207,11 @@ let app_view =
      dynamics, focus): every app card on every render asks */
   let data =
     switch (app_data_memo^) {
-    | Option.Some((sy, st, dy, sf, d))
+    | Stdlib.Option.Some((sy, st, dy, sf, d))
         when
-          sy === syntax
-          && st === editor.statics.info_map
-          && dy === editor.dynamics
+          phys_equal(sy, syntax)
+          && phys_equal(st, editor.statics.info_map)
+          && phys_equal(dy, editor.dynamics)
           && sf == zipper.refractors.sample_focus => d
     | _ =>
       let d =
@@ -234,7 +235,7 @@ let app_view =
       d;
     };
   switch (
-    List.find_opt(
+    List.find(~f=
       (d: ProjectorView.Model.projector_data) => d.p.id == id,
       data,
     )
@@ -290,7 +291,7 @@ let card_views: ref(list((card_inputs, option(Node.t)))) = ref([]);
 
 /* Closed cards must not retain old evaluation maps and their closures. */
 let retain_card_views = keys =>
-  card_views := List.filter(((i, _)) => List.mem(i.key, keys), card_views^);
+  card_views := List.filter(~f=((i, _)) => List.mem(keys, i.key, ~equal=Poly.equal), card_views^);
 
 let card_view =
     (
@@ -314,14 +315,14 @@ let card_view =
     settings_version: Haz3lcore.ProbeProj.Settings.version^,
     app_version: app ? Haz3lcore.LivelitProj.optimistic_version^ : 0,
   };
-  switch (List.find_opt(((i, _)) => i.key == key, card_views^)) {
+  switch (List.find(~f=((i, _)) => i.key == key, card_views^)) {
   | Some((i, content))
       when
         i.id == id
         && i.app == app
-        && i.syntax === inputs.syntax
-        && i.statics === inputs.statics
-        && i.dynamics === inputs.dynamics
+        && phys_equal(i.syntax, inputs.syntax)
+        && phys_equal(i.statics, inputs.statics)
+        && phys_equal(i.dynamics, inputs.dynamics)
         && Language.Sample.Focus.equal(i.focus, inputs.focus)
         && i.model == inputs.model
         && i.core_settings == inputs.core_settings
@@ -337,7 +338,7 @@ let card_view =
     card_views :=
       [
         (inputs, content),
-        ...List.filter(((i, _)) => i.key != key, card_views^),
+        ...List.filter(~f=((i, _)) => i.key != key, card_views^),
       ];
     content;
   };
@@ -378,12 +379,12 @@ let value_chip =
   let id = sample.syntax_id;
   let syntax_piece =
     TermData.segment(id, syntax.term_data)
-    |> Option.map(Segment.unparenthesize)
-    |> Option.map(Segment.trim_secondary(Left))
-    |> Option.map(Segment.trim_secondary(Right))
-    |> Option.map(Segment.parenthesize);
+    |> Option.map(~f=Segment.unparenthesize)
+    |> Option.map(~f=Segment.trim_secondary(Left))
+    |> Option.map(~f=Segment.trim_secondary(Right))
+    |> Option.map(~f=Segment.parenthesize);
   syntax_piece
-  |> Option.map(syntax_piece => {
+  |> Option.map(~f=syntax_piece => {
        let entry = Refractors.mk_entry(probe_kind);
        let p = Refractors.to_projector(syntax_piece, id, entry);
        let info =
@@ -462,8 +463,8 @@ let value_chip =
        let jump =
          (
            switch (master_perform^) {
-           | Option.Some(f) => f
-           | Option.None => (a => globals.inject_global(ActiveEditor(a)))
+           | Stdlib.Option.Some(f) => f
+           | Stdlib.Option.None => (a => globals.inject_global(ActiveEditor(a)))
            }
          )(
            Project(

@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 /* Sidebar panel for projectors docked via ProjectorCore.Placement.Sidebar.
  * One card per docked projector, in syntax order; the code site keeps a
@@ -83,7 +84,7 @@ let view = (~globals: Globals.t, ~editor: CodeWithStatics.Model.t): Node.t => {
       projector_data,
       editor.editor.syntax.projector_list,
     )
-    |> List.map(((p, view)) => card(~globals, p, view, ~inject));
+    |> List.map(~f=((p, view)) => card(~globals, p, view, ~inject));
   div(
     ~attrs=[Attr.id("projector-panel")],
     [

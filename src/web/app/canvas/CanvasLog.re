@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Poly;
 
 /* CanvasLog — a copy-pasteable journal of canvas pacing events (beats,
    queue depth, arrivals, auto-fit, avatar moves), for correlating a
@@ -48,7 +49,7 @@ let record_layout = (line: string): unit => {
   layouts := [line, ...layouts^];
   layouts_count := layouts_count^ + 1;
   if (layouts_count^ > layout_cap) {
-    layouts := List.filteri((i, _) => i < layout_cap, layouts^);
+    layouts := List.filteri(~f=(i, _) => i < layout_cap, layouts^);
     layouts_count := layout_cap;
   };
 };
@@ -64,7 +65,7 @@ let push = (line: string): unit => {
   entries := [line, ...entries^];
   count := count^ + 1;
   if (count^ > cap) {
-    entries := List.filteri((i, _) => i < cap, entries^);
+    entries := List.filteri(~f=(i, _) => i < cap, entries^);
     count := cap;
   };
 };
@@ -111,8 +112,8 @@ let ls_set = (k: string, v: string): unit =>
 let flush = (): unit =>
   if (dirty^) {
     dirty := false;
-    ls_set(ls_key_log, String.concat("\n", List.rev(entries^)));
-    ls_set(ls_key_trace, String.concat("\n", List.rev(layouts^)));
+    ls_set(ls_key_log, String.concat(~sep="\n", List.rev(entries^)));
+    ls_set(ls_key_trace, String.concat(~sep="\n", List.rev(layouts^)));
   };
 
 /* ---- perf heartbeat: main-thread stalls via the longtask observer ----
@@ -130,7 +131,7 @@ let install_longtask_observer = (): unit =>
           Js.Unsafe.callback((list: Js.t(Js.Unsafe.any)) => {
             let entries: array(Js.t(Js.Unsafe.any)) =
               Js.to_array(Js.Unsafe.meth_call(list, "getEntries", [||]));
-            Array.iter(
+            Array.iter(~f=
               e => {
                 let d: float = Js.Unsafe.coerce(e)##.duration;
                 lt_count := lt_count^ + 1;
@@ -232,14 +233,14 @@ let install = (): unit =>
       Js.Unsafe.global,
       "__constellationLogText",
       Js.Unsafe.callback(() =>
-        Js.string(String.concat("\n", List.rev(entries^)))
+        Js.string(String.concat(~sep="\n", List.rev(entries^)))
       ),
     );
     Js.Unsafe.set(
       Js.Unsafe.global,
       "__constellationLayoutTrace",
       Js.Unsafe.callback(() =>
-        Js.string(String.concat("\n", List.rev(layouts^)))
+        Js.string(String.concat(~sep="\n", List.rev(layouts^)))
       ),
     );
     Js.Unsafe.set(

@@ -1,5 +1,7 @@
 /* Overview and direct manipulation share a zoom range. Automatic follow
    has its own, higher readability floor in CanvasCamera/CanvasScore. */
+open Poly;
+
 let min_zoom = 0.01;
 let max_zoom = 2.5;
 let clamp = (z: float): float => max(min_zoom, min(max_zoom, z));

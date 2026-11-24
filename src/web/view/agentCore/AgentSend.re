@@ -472,7 +472,7 @@ let presentation_stopped: ref(list(Id.t)) = ref([]);
 let schedule_flush_pending_if_idle_for_chat =
     (model_after: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
     : unit =>
-  if (busy_for_send(model_after) || List.mem(chat_id, presentation_stopped^)) {
+  if (busy_for_send(model_after) || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
     ();
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
@@ -500,7 +500,7 @@ let send_message =
     };
   if (user_trying_new_round) {
     presentation_stopped :=
-      List.filter(id => id != chat_id, presentation_stopped^);
+      List.filter(~f=id => id != chat_id, presentation_stopped^);
   };
   if (user_trying_new_round && busy_for_send(model)) {
     (
@@ -601,7 +601,7 @@ let stop_agentic_loop =
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
   if (!flush_pending) {
     presentation_stopped :=
-      List.sort_uniq(
+      List.dedup_and_sort(~compare=
         Id.compare,
         [model.chat_system.current, ...presentation_stopped^],
       );
@@ -686,7 +686,7 @@ let flush_pending_send =
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) =>
-  if (busy_for_send(model) || List.mem(chat_id, presentation_stopped^)) {
+  if (busy_for_send(model) || List.mem(presentation_stopped^, chat_id, ~equal=Poly.equal)) {
     (model, editor |> Updated.return);
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);

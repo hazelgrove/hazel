@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Poly;
 
 /* CanvasJelly — inertia for the module metaballs.
 
@@ -31,9 +32,9 @@ type spring = {
 
 /* ease-out-expo, the movers' curve (Animation.easeOutExpo) */
 let ease = (u: float): float =>
-  u >= 1. ? 1. : 1. -. Float.pow(2., (-10.) *. u);
+  u >= 1. ? 1. : 1. -. Float.( ** )(2., (-10.) *. u);
 
-let springs: Hashtbl.t(string, spring) = Hashtbl.create(64);
+let springs: Stdlib.Hashtbl.t(string, spring) = Stdlib.Hashtbl.create(64);
 let running = ref(false);
 let last_t = ref(0.);
 
@@ -57,7 +58,7 @@ let rec tick = (): unit => {
   last_t := t;
   let energy = ref(0.);
   let dead: ref(list(string)) = ref([]);
-  Hashtbl.iter(
+  Stdlib.Hashtbl.iter(
     (id, s) => {
       switch (s.glide) {
       | Some((gx, gy, t0, dur)) =>
@@ -86,10 +87,10 @@ let rec tick = (): unit => {
       };
       energy :=
         energy^
-        +. abs_float(s.tx -. s.x)
-        +. abs_float(s.ty -. s.y)
+        +. Float.abs(s.tx -. s.x)
+        +. Float.abs(s.ty -. s.y)
         +. 0.05
-        *. (abs_float(s.vx) +. abs_float(s.vy));
+        *. (Float.abs(s.vx) +. Float.abs(s.vy));
       switch (Util.JsUtil.get_elem_by_id_opt(id)) {
       | Some(el) =>
         set_attr(el, "cx", s.x);
@@ -99,8 +100,8 @@ let rec tick = (): unit => {
     },
     springs,
   );
-  List.iter(id => Hashtbl.remove(springs, id), dead^);
-  if (energy^ > 0.8 && Hashtbl.length(springs) > 0) {
+  List.iter(~f=id => Stdlib.Hashtbl.remove(springs, id), dead^);
+  if (energy^ > 0.8 && Stdlib.Hashtbl.length(springs) > 0) {
     let _ =
       Js.Unsafe.meth_call(
         Js.Unsafe.global##.window,
@@ -110,7 +111,7 @@ let rec tick = (): unit => {
     ();
   } else {
     /* settle exactly on target before sleeping */
-    Hashtbl.iter(
+    Stdlib.Hashtbl.iter(
       (id, s) => {
         s.x = s.tx;
         s.y = s.ty;
@@ -152,13 +153,13 @@ let set_targets =
       ts: list((string, CanvasLayout.pos, float)),
     )
     : unit => {
-  Hashtbl.iter((_, s) => s.seen = false, springs);
-  List.iter(
+  Stdlib.Hashtbl.iter((_, s) => s.seen = false, springs);
+  List.iter(~f=
     ((id, p: CanvasLayout.pos, r)) =>
-      switch (Hashtbl.find_opt(springs, id)) {
+      switch (Stdlib.Hashtbl.find_opt(springs, id)) {
       | Some(s) =>
         let moved =
-          abs_float(p.x -. s.tx) > 0.5 || abs_float(p.y -. s.ty) > 0.5;
+          Float.abs(p.x -. s.tx) > 0.5 || Float.abs(p.y -. s.ty) > 0.5;
         if (moved) {
           switch (glide) {
           | Some((t0, dur)) => s.glide = Some((s.x, s.y, t0, dur))
@@ -170,7 +171,7 @@ let set_targets =
         s.r = r;
         s.seen = true;
       | None =>
-        Hashtbl.replace(
+        Stdlib.Hashtbl.replace(
           springs,
           id,
           {
@@ -190,7 +191,7 @@ let set_targets =
   );
   /* circles gone from the layout: drop their springs */
   let dead =
-    Hashtbl.fold((id, s, acc) => s.seen ? acc : [id, ...acc], springs, []);
-  List.iter(id => Hashtbl.remove(springs, id), dead);
+    Stdlib.Hashtbl.fold((id, s, acc) => s.seen ? acc : [id, ...acc], springs, []);
+  List.iter(~f=id => Stdlib.Hashtbl.remove(springs, id), dead);
   kick();
 };

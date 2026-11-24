@@ -121,7 +121,7 @@ let apply =
         model,
       )
     );
-  if (Util.PerfTimer.now() -. t_upd > 100.) {
+  if (Float.(Util.PerfTimer.now() -. t_upd > 100.)) {
     Util.PerfTimer.record("slow-update/" ++ kind(action), 0.);
   };
   /* every action, by kind: the perf journal's re-render census (a score
@@ -146,7 +146,7 @@ let apply =
     );
   /* a calculate phase over 100 ms is a stall the journal should name by
      its action (eval results landing, agent tool results, edits) */
-  if (Util.PerfTimer.now() -. t_calc > 100.) {
+  if (Float.(Util.PerfTimer.now() -. t_calc > 100.)) {
     Util.PerfTimer.record("slow-calc/" ++ kind(action), 0.);
   };
 

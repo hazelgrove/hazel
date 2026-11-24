@@ -4,6 +4,7 @@ open Node;
 open Util.WebUtil;
 open Js_of_ocaml;
 open Widgets;
+open Poly;
 
 /* the agent's preferences, its view's switches (for ablations; each
    changes what a request sends) and its edit checks */
@@ -202,7 +203,7 @@ let view =
           | input => Js.to_string(input##.value)
           },
       );
-    if (!key_busy && String.length(String.trim(api_key_input)) > 0) {
+    if (!key_busy && String.length(String.strip(api_key_input)) > 0) {
       let set_api_key_action =
         Globals.Action.SetAgentGlobals(
           AgentGlobals.Update.SetApiKey(api_key_input),

@@ -13,7 +13,8 @@ let insist_window_ms = 1100.;
 let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
 let insist_armed = signature =>
   switch (insist_pending^) {
-  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | Some((s, t)) =>
+    Poly.equal(s, signature) && Float.(insist_now() -. t < insist_window_ms)
   | None => false
   };
 type editor_id = string;

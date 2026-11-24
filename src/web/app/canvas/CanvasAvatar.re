@@ -18,6 +18,7 @@
 
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
+open Poly;
 
 let look_key = "constellation.avatarLook";
 
@@ -37,7 +38,7 @@ let storage_get = (k: string): option(string) =>
           [|Js.Unsafe.inject(Js.string(k))|],
         ),
       )
-      |> Option.map(Js.to_string)
+      |> Option.map(~f=Js.to_string)
     }
   ) {
   | _ => None
@@ -105,7 +106,7 @@ let set_mood = (m: string): unit => {
   | None => ()
   | Some(b) =>
     let cl = Js.Unsafe.get(b, "classList");
-    List.iter(
+    List.iter(~f=
       x =>
         ignore(
           Js.Unsafe.meth_call(
@@ -135,7 +136,7 @@ let set_heading = (deg: float): unit =>
   heading_hint := Some(deg *. Float.pi /. 180.);
 let heading_of =
     ((x0, y0): (float, float), (x1, y1): (float, float)): float =>
-  atan2(y1 -. y0, x1 -. x0) *. 180. /. Float.pi;
+  Float.atan2(y1 -. y0, x1 -. x0) *. 180. /. Float.pi;
 
 /* how far the segment about to be traveled goes (board px): the beam
    reaches further for a long trip, as the mockup's did */
@@ -167,7 +168,7 @@ let pen_tip = (): option((float, float)) =>
           [|Js.Unsafe.inject(Js.string(a))|],
         ),
       )
-      |> Option.map(Js.to_string);
+      |> Option.map(~f=Js.to_string);
     switch (
       attr("data-on-len") |> Util.OptUtil.and_then(float_of_string_opt)
     ) {
@@ -181,14 +182,14 @@ let pen_tip = (): option((float, float)) =>
         );
       let off: string = Js.to_string(Js.Unsafe.get(st, "strokeDashoffset"));
       let px = (v: string) =>
-        switch (float_of_string_opt(String.trim(v))) {
+        switch (float_of_string_opt(String.strip(v))) {
         | Some(f) => f
         | None =>
           let n = String.length(v);
           n > 2
             ? Option.value(
                 ~default=0.,
-                float_of_string_opt(String.trim(String.sub(v, 0, n - 2))),
+                float_of_string_opt(String.strip(String.sub(v, ~pos=0, ~len=n - 2))),
               )
             : 0.;
         };
@@ -244,18 +245,15 @@ let base_r = 11.; /* the triangle spans 22 px; a type node is 40+ */
 
 let rig: rig = {
   v:
-    Array.init(
-      3,
-      i => {
+    Array.init(3, ~f=i => {
         let a = -. Float.pi /. 2. +. float_of_int(i) *. tau /. 3.;
         {
-          x: cos(a) *. base_r,
-          y: sin(a) *. base_r,
+          x: Float.cos(a) *. base_r,
+          y: Float.sin(a) *. base_r,
           vx: 0.,
           vy: 0.,
         };
-      },
-    ),
+      }),
   t: Random.float(10.),
   rot: 0.,
   rot_v: 0.,
@@ -278,7 +276,7 @@ let held: ref(option(int)) = ref(None);
 let held_shift: ref((float, float)) = ref((0., 0.));
 let grab = ((mx, my): (float, float)): unit => {
   let best = ref(0)
-  and bd = ref(infinity);
+  and bd = ref(Float.infinity);
   for (i in 0 to 2) {
     let d = Float.hypot(rig.v[i].x -. mx, rig.v[i].y -. my);
     if (d < bd^) {
@@ -466,7 +464,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
                [|Js.Unsafe.inject(Js.string(".canvas-root"))|],
              ),
            )
-           |> Option.map(root => (b, root))
+           |> Option.map(~f=root => (b, root))
          )
     ) {
     | Some((b, root)) =>
@@ -504,7 +502,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   rig.speed = lerp(rig.speed, min(inst, 600.), min(1., dt *. 10.));
   let moving = rig.speed > 25.;
   if (Float.hypot(mdx, mdy) > 0.6) {
-    let want = atan2(mdy, mdx);
+    let want = Float.atan2(mdy, mdx);
     let da = ref(want -. rig.heading);
     while (da^ > Float.pi) {
       da := da^ -. tau;
@@ -556,7 +554,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     /* swing to a rest pose after landing, "shedding momentum": an
        underdamped spring, kicked harder after a faster trip */
     let third = tau /. 3.;
-    settle_home := Float.round(rig.rot /. third) *. third;
+    settle_home := Stdlib.Float.round(rig.rot /. third) *. third;
     settle_until := rig.t +. 1.6;
     let dir = settle_home^ >= rig.rot ? 1. : (-1.);
     rig.rot_v = dir *. (2.5 +. 5. *. min(1., rig.speed /. 220.));
@@ -568,8 +566,8 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     *. dt;
   rig.aspect = rig.aspect +. rig.aspect_v *. dt;
   /* breathing with a slowly drifting amplitude; never quite still */
-  let amp = 0.12 *. (0.75 +. 0.25 *. sin(rig.t *. 0.37));
-  let breathe = 1. +. amp *. sin(rig.t *. 2.0);
+  let amp = 0.12 *. (0.75 +. 0.25 *. Float.sin(rig.t *. 0.37));
+  let breathe = 1. +. amp *. Float.sin(rig.t *. 2.0);
   let r = ref(base_r *. breathe);
   let k = ref(170.)
   and k_follow = ref(170.);
@@ -589,7 +587,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     k := 240.;
     k_follow := 55.;
   } else if (thinking) {
-    rig.rot = rig.rot +. dt *. 1.6 *. (1. +. 0.25 *. sin(rig.t *. 0.7));
+    rig.rot = rig.rot +. dt *. 1.6 *. (1. +. 0.25 *. Float.sin(rig.t *. 0.7));
     r := r^ *. 1.15;
   } else if (editing) {
     rig.rot = rig.rot +. dt *. 0.5;
@@ -598,7 +596,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
     /* just landed: an underdamped swing about the rest pose fixed at
        landing (k 60, zeta 0.3: two or three visible overshoots) */
     let k = 60.;
-    let d = 2. *. sqrt(k) *. 0.3;
+    let d = 2. *. Float.sqrt(k) *. 0.3;
     rig.rot_v =
       rig.rot_v +. ((settle_home^ -. rig.rot) *. k -. rig.rot_v *. d) *. dt;
     rig.rot = rig.rot +. rig.rot_v *. dt;
@@ -613,9 +611,9 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   };
   /* the rig's center: on the node while editing (the anchor hangs
      above-right of the site by (14, -34)), a gentle bob otherwise */
-  let (ox, oy) = editing ? ((-14.), 34.) : (0., 1.4 *. sin(rig.t *. 2.4));
-  let hc = cos(rig.heading +. Float.pi /. 2.)
-  and hs = sin(rig.heading +. Float.pi /. 2.);
+  let (ox, oy) = editing ? ((-14.), 34.) : (0., 1.4 *. Float.sin(rig.t *. 2.4));
+  let hc = Float.cos(rig.heading +. Float.pi /. 2.)
+  and hs = Float.sin(rig.heading +. Float.pi /. 2.);
   switch (held^) {
   | Some(g) =>
     /* carried: the grabbed vertex holds still under the pointer; the
@@ -636,7 +634,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
         and ty = gv.y +. 15.;
         side := -. side^;
         let kk = 60.;
-        let dd = 2. *. sqrt(kk) *. 0.25;
+        let dd = 2. *. Float.sqrt(kk) *. 0.25;
         n.vx = n.vx +. ((tx -. n.x) *. kk -. n.vx *. dd) *. dt;
         n.vy = n.vy +. ((ty -. n.y) *. kk -. n.vy *. dd) *. dt;
         n.x = n.x +. n.vx *. dt;
@@ -646,8 +644,8 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   | None =>
     for (i in 0 to 2) {
       let a = -. Float.pi /. 2. +. float_of_int(i) *. tau /. 3. +. rig.rot;
-      let lx = cos(a) *. r^
-      and ly = sin(a) *. r^;
+      let lx = Float.cos(a) *. r^
+      and ly = Float.sin(a) *. r^;
       /* squash along the heading frame */
       let ax = lx *. hc +. ly *. hs
       and ay = (-. lx *. hs +. ly *. hc) *. (traveling ? 1. : rig.aspect);
@@ -655,12 +653,12 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
       and ty = ref(ax *. hs +. ay *. hc +. oy);
       if (traveling && i == 0) {
         let ahead = 16. *. stretch;
-        tx := tx^ +. cos(rig.heading) *. ahead;
-        ty := ty^ +. sin(rig.heading) *. ahead;
+        tx := tx^ +. Float.cos(rig.heading) *. ahead;
+        ty := ty^ +. Float.sin(rig.heading) *. ahead;
       };
       let n = rig.v[i];
       let kk = i == 0 ? k^ : k_follow^;
-      let dd = 2. *. sqrt(kk) *. 0.95;
+      let dd = 2. *. Float.sqrt(kk) *. 0.95;
       n.vx = n.vx +. ((tx^ -. n.x) *. kk -. n.vx *. dd) *. dt;
       n.vy = n.vy +. ((ty^ -. n.y) *. kk -. n.vy *. dd) *. dt;
       n.x = n.x +. n.vx *. dt;
@@ -723,7 +721,7 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
   /* the chat's brand icon mirrors the live rig (the last one in the
      chat; earlier ones keep the state they froze in) */
   let (fresh, last) = mirrors();
-  List.iter(m => draw_rig(m, ~thinking, ~err), fresh);
+  List.iter(~f=m => draw_rig(m, ~thinking, ~err), fresh);
   switch (last) {
   | Some(m) => draw_rig(m, ~thinking, ~err)
   | None => ()
@@ -750,12 +748,12 @@ let step = (b: option(Js.t(Dom_html.element)), now_ms: float): unit => {
         "M %s %s L %s %s A %s %s 0 0 1 %s %s Z",
         f1(lead.x),
         f1(lead.y),
-        f1(lead.x +. cos(h -. spread) *. reach),
-        f1(lead.y +. sin(h -. spread) *. reach),
+        f1(lead.x +. Float.cos(h -. spread) *. reach),
+        f1(lead.y +. Float.sin(h -. spread) *. reach),
         f1(reach),
         f1(reach),
-        f1(lead.x +. cos(h +. spread) *. reach),
-        f1(lead.y +. sin(h +. spread) *. reach),
+        f1(lead.x +. Float.cos(h +. spread) *. reach),
+        f1(lead.y +. Float.sin(h +. spread) *. reach),
       ),
     );
     set(beam, "opacity", f1(beam_alpha^));
@@ -800,7 +798,7 @@ let svg = (tag, attrs, kids) => Node.create_svg(tag, ~attrs, kids);
 
 let rig_view = (): Node.t => {
   ensure_loop();
-  let three = f => List.init(3, f);
+  let three = f => List.init(3, ~f=f);
   Node.div(
     ~attrs=[Attr.classes(["rig-box"])],
     [
@@ -901,14 +899,10 @@ let rig_view = (): Node.t => {
 let bounding_circle = (): (float, float, float) =>
   if (is_rig()) {
     let n = float_of_int(Array.length(rig.v));
-    let cx = Array.fold_left((a, v) => a +. v.x, 0., rig.v) /. n
-    and cy = Array.fold_left((a, v) => a +. v.y, 0., rig.v) /. n;
+    let cx = Array.fold(rig.v, ~init=0., ~f=(a, v) => a +. v.x) /. n
+    and cy = Array.fold(rig.v, ~init=0., ~f=(a, v) => a +. v.y) /. n;
     let reach =
-      Array.fold_left(
-        (m, v) => max(m, Float.hypot(v.x -. cx, v.y -. cy)),
-        0.,
-        rig.v,
-      );
+      Array.fold(rig.v, ~init=0., ~f=(m, v) => max(m, Float.hypot(v.x -. cx, v.y -. cy)));
     (cx, cy, reach +. (last_thinking^ ? 6.7 : 3.6) +. 2.);
   } else {
     switch (body()) {
@@ -925,7 +919,7 @@ let bounding_circle = (): (float, float, float) =>
 let brand_icon = (): Node.t =>
   if (is_rig()) {
     ensure_loop(); /* the chat may be the only place the rig is shown */
-    let three = f => List.init(3, f);
+    let three = f => List.init(3, ~f=f);
     Node.create_svg(
       "svg",
       ~attrs=[

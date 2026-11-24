@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -456,7 +457,7 @@ module Update = {
         | None => saved_key
         };
       let remembered = Option.is_some(saved_key) && saved_key == api_key;
-      Option.iter(_ => schedule_action(RefreshModels), api_key);
+      Option.iter(~f=_ => schedule_action(RefreshModels), api_key);
       schedule_action(FinishOpenRouterConnection);
       {
         ...model,
@@ -491,7 +492,7 @@ module Update = {
         };
       }
     | SaveLocalApiKey =>
-      Option.iter(
+      Option.iter(~f=
         key =>
           AgentLocalKey.save(key, ok =>
             schedule_action(SetLocalKeyStatus(ok ? LocalSaved : LocalError))
@@ -556,7 +557,7 @@ module Update = {
         local_key_status: LocalError,
       }
     | SetApiKey(api_key) =>
-      let api_key = String.trim(api_key);
+      let api_key = String.strip(api_key);
       if (api_key == "" || key_busy(model)) {
         model;
       } else {
@@ -576,7 +577,7 @@ module Update = {
         };
       };
     | RefreshModels =>
-      Option.iter(
+      Option.iter(~f=
         api_key => {
           OpenRouter.AvailableLLMs.Utils.get_models(
             ~key=api_key, ~handler=response => {

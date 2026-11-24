@@ -86,7 +86,7 @@ let chonky_path_base =
    single-row token shape. */
 let tab_path_base =
     ((l, r), x_offset, length: float, rows: int): list(SvgUtil.Path.cmd) => {
-  List.flatten(
+  List.concat(
     SvgUtil.Path.[
       [
         M({
@@ -176,8 +176,8 @@ let relative_tab =
     ~absolute=false,
     tab_path(
       (
-        Option.map(Nib.Shape.direction_of(Left), l),
-        Option.map(Nib.Shape.direction_of(Right), r),
+        Option.map(~f=Nib.Shape.direction_of(Left), l),
+        Option.map(~f=Nib.Shape.direction_of(Right), r),
       ),
       measurement.last.col - measurement.origin.col,
       rows,

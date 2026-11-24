@@ -163,8 +163,8 @@ module Model = {
         List.map(
           ~f=
           (config_type: config_type) =>
-            List.find_map(
-                ~f=
+            List.find_map(~f=
+                
               s =>
                     String.equal(fst(s), persistence_key(config_type))
                   ? Some(get_persistent(s)) : None,

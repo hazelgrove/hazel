@@ -17,7 +17,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Pipeline Depth", [%blob "pipeline-depth.hz"]),
     ("View Widgets", [%blob "view-widgets.hz"]),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (
          "Constellation / " ++ name,
          Haz3lcore.PersistentZipper.of_slide_text(text),

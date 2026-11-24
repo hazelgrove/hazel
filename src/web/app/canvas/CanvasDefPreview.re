@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Haz3lcore;
+open Poly;
 
 /* Read-only rendering of a definition's body for the info panel in the
    placements where the editor is elsewhere (sidebar, split). Memoized on
@@ -11,7 +12,7 @@ let memo: ref(option((Segment.t, Id.t, Node.t))) =
 let view =
     (~globals: Globals.t, ~key: Segment.t, ~id: Id.t, def: Segment.t): Node.t =>
   switch (memo^) {
-  | Some((k, i, n)) when k === key && i == id => n
+  | Some((k, i, n)) when phys_equal(k, key) && i == id => n
   | _ =>
     let n =
       Node.div(

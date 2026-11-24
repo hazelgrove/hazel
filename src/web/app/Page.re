@@ -974,7 +974,7 @@ let presentation_master:
       ),
     ),
   ) =
-  ref(Option.none);
+  ref(Stdlib.Option.none);
 let live_presentation_editor =
     (editors: Editors.Model.t, fallback: CodeWithStatics.Model.t)
     : CodeWithStatics.Model.t =>
@@ -989,10 +989,10 @@ let live_presentation_editor =
       switch (presentation_master^) {
       | Some((e, st, dyn, sf, ed))
           when
-            e === whole.editor
-            && st === whole.statics
-            && dyn === dynamics
-            && sf === focus => ed
+            phys_equal(e, whole.editor)
+            && phys_equal(st, whole.statics)
+            && phys_equal(dyn, dynamics)
+            && phys_equal(sf, focus) => ed
       | _ =>
         let z = whole.editor.state.zipper;
         let ed = {
@@ -1450,7 +1450,7 @@ module View = {
     let focused_entries =
       presenting
         ? switch (CanvasBuffer.selected^) {
-          | Some(id) => [(id, Option.none)]
+          | Some(id) => [(id, Stdlib.Option.none)]
           | None => []
           }
         : (
