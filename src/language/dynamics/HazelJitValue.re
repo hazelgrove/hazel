@@ -251,32 +251,45 @@ and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
       | (None, _) => (None, to_js(v))
       }
     );
-  let arr = Js.array(Array.of_list(List.map(parts, ~f=snd)));
-  List.iter(parts, ~f=((l, js)) =>
-    switch (l) {
-    | Some(l) => Js.Unsafe.set(arr, Js.string(HazelJit.label_key(l)), js)
-    | None => ()
-    }
-  );
-  /* (^ticket(851)) the labels by index under the runtime's symbol, as $R.tup keeps them, so a pattern by position in
-     compiled code can tell a labeled entry */
-  if (List.exists(parts, ~f=((l, _)) => Option.is_some(l))) {
-    Js.Unsafe.set(
-      arr,
-      Js.Unsafe.js_expr("Symbol.for(\"hazel-jit.labels\")"),
-      Js.array(
-        Array.of_list(
-          List.map(parts, ~f=((l, _)) =>
-            switch (l) {
-            | Some(l) => inject(Js.string(HazelJit.label_key(l)))
-            | None => inject(Js.null)
-            }
+  /* (^ticket(847), idea A) every entry labeled: a plain object, its keys in order, as compiled code holds a record */
+  if (!List.is_empty(parts)
+      && List.for_all(parts, ~f=((l, _)) => Option.is_some(l))) {
+    let o = Js.Unsafe.obj([||]);
+    List.iter(parts, ~f=((l, js)) =>
+      switch (l) {
+      | Some(l) => Js.Unsafe.set(o, Js.string(HazelJit.label_key(l)), js)
+      | None => ()
+      }
+    );
+    inject(o);
+  } else {
+    let arr = Js.array(Array.of_list(List.map(parts, ~f=snd)));
+    List.iter(parts, ~f=((l, js)) =>
+      switch (l) {
+      | Some(l) => Js.Unsafe.set(arr, Js.string(HazelJit.label_key(l)), js)
+      | None => ()
+      }
+    );
+    /* (^ticket(851)) the labels by index under the runtime's symbol, as $R.tup keeps them, so a pattern by position in
+       compiled code can tell a labeled entry */
+    if (List.exists(parts, ~f=((l, _)) => Option.is_some(l))) {
+      Js.Unsafe.set(
+        arr,
+        Js.Unsafe.js_expr("Symbol.for(\"hazel-jit.labels\")"),
+        Js.array(
+          Array.of_list(
+            List.map(parts, ~f=((l, _)) =>
+              switch (l) {
+              | Some(l) => inject(Js.string(HazelJit.label_key(l)))
+              | None => inject(Js.null)
+              }
+            ),
           ),
         ),
-      ),
-    );
+      );
+    };
+    inject(arr);
   };
-  inject(arr);
 };
 
 /* ---- back from JS */
@@ -395,6 +408,7 @@ let rec of_js =
     )
   | "object" when is_null(v) => G.Exp.list_lit([])
   | "object" when is_array(v) => of_tuple(~seen, ts, ty, v)
+  | "object" when is_record(ty, v) => of_record(~seen, ts, ty, v)
   | "object" when has(v, "c") =>
     let name = Js.to_string(Js.Unsafe.coerce(get(v, "c")));
     /* (ticket 768: the astrology rules' answer in mixed mode, CI run 44339771193) a constructor met in compiled code
@@ -452,6 +466,52 @@ let rec of_js =
     G.Exp.list_lit(walk(v, []));
   | t => unsupported("a JS " ++ t ++ " in the answer")
   };
+}
+/* (^ticket(847), idea A) a plain object as a record: when the expected type is a product with every entry labeled; with
+   no type, when it is not shaped as a list's cell (exactly h and t) or a constructor (c, a string, and perhaps v) */
+and is_record = (ty: option(Typ.t), v: Js.Unsafe.any): bool =>
+  switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
+  | Some(Prod([_, ..._] as tys)) =>
+    List.for_all(tys, ~f=t => Option.is_some(Typ.match_tup_label(t)))
+  | Some(Prod([]) | List(_) | Sum(_)) => false
+  | _ =>
+    Js.to_bool(
+      Js.Unsafe.fun_call(
+        Js.Unsafe.pure_js_expr(
+          {|(t => { const ks = Object.keys(t); if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(k => k === "c" || k === "v")) return false; return true; })|},
+        ),
+        [|v|],
+      ),
+    )
+  }
+and of_record =
+    (~seen, ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t => {
+  let keys =
+    Js.to_array(
+      Js.Unsafe.meth_call(
+        Js.Unsafe.get(Js.Unsafe.global, "Object"),
+        "keys",
+        [|v|],
+      ),
+    )
+    |> Array.to_list
+    |> List.map(~f=k => Js.to_string(k));
+  let typed: list((string, Typ.t)) =
+    switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
+    | Some(Prod(tys)) =>
+      List.filter_map(tys, ~f=(t: Typ.t) => Typ.match_tup_label(t))
+    | _ => []
+    };
+  G.Exp.tuple(
+    List.map(
+      keys,
+      ~f=k => {
+        let l = HazelJit.label_of_key(k);
+        let t = List.Assoc.find(typed, ~equal=String.equal, l);
+        G.Exp.tup_label(G.Exp.label(l), of_js(~seen, ts, t, get(v, k)));
+      },
+    ),
+  );
 }
 /* A JS array as a tuple: by the expected product type, its labels and each component's type; with none, the labels the
    array carries (a property holding the very value at an index is that index's label) */
@@ -548,6 +608,9 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
     for (var i = 0; i < a.length; i++) { var d = diff(a[i], b[i]); if (d !== null) ch.push([i, d]); }
     return ch.length ? {t: ch} : null;
   }
+  if (Array.isArray(b)) return {n: b};
+  var rec = function (t) { var ks = Object.keys(t); if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(function (k) { return k === "c" || k === "v"; })) return false; return true; };
+  if (rec(a) || rec(b)) return {n: b};   // (^ticket(847)) a record: replaced whole
   if (Object.hasOwn(a, "c")) {
     if (!Object.hasOwn(b, "c") || a.c !== b.c || Object.hasOwn(a, "v") !== Object.hasOwn(b, "v")) return {n: b};
     if (!Object.hasOwn(a, "v")) return null;

@@ -168,6 +168,19 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
         | d => d
         }
       )
+  /* (^ticket(847), idea A) every entry labeled: a record, a plain object with those keys, compared field by field */
+  | Tuple([_, ..._] as es)
+      when List.for_all(es, ~f=e => Option.is_some(Exp.match_tup_label(e))) =>
+    typeof(js) != "object" || is_null(js) || is_array(js)
+      ? Some("a record of " ++ string_of_int(List.length(es)) ++ " fields")
+      : List.fold_left(es, ~init=None, ~f=(acc, e: Exp.t) =>
+          switch (acc, Exp.match_tup_label(e)) {
+          | (Some(_), _) => acc
+          | (None, Some((l, e'))) =>
+            agree(e', get(js, HazelJit.label_key(l)))
+          | (None, None) => Some("a label")
+          }
+        )
   | Tuple(es) =>
     !is_array(js)
     || num(get(js, "length")) != float_of_int(List.length(es))

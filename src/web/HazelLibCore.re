@@ -831,6 +831,23 @@ module Direct = {
   };
   /* a page's value x (a JS expression) as compiled code's, of type t; recs: the recursive types' names in scope, each
      with its converter's key */
+  /* (^ticket(847)) a field's type a plain value's, and its label a key compiled code keeps as it is */
+  let rec atom_type = (t: Typ.t): bool =>
+    switch (Typ.term_of(t)) {
+    | Parens(t) => atom_type(t)
+    | Atom(Int | Nat | SInt | Float | Bool | String) => true
+    | _ => false
+    };
+  let rec int_type = (t: Typ.t): bool =>
+    switch (Typ.term_of(t)) {
+    | Parens(t) => int_type(t)
+    | Atom(Int | Nat) => true
+    | _ => false
+    };
+  let plain_fields = (fields: list((string, Typ.t))): bool =>
+    List.for_all(fields, ~f=((l, t)) =>
+      atom_type(t) && String.equal(HazelJit.label_key(l), l)
+    );
   let rec inn =
           (st: st, recs: list((string, string)), t: Typ.t, x: string)
           : string =>
@@ -858,44 +875,49 @@ module Direct = {
     | Prod(ts) =>
       switch (labeled(ts)) {
       | Some(fields) =>
-        through(
-          st,
-          recs,
-          t,
-          "$mi",
-          x,
-          v => {
-            let vals =
-              List.map(fields, ~f=((l, t)) =>
-                inn(st, recs, t, v ++ "[" ++ q(l) ++ "]")
-              );
-            let keys =
-              List.mapi(fields, ~f=(i, (l, _)) =>
-                "a["
-                ++ q(HazelJit.label_key(l))
-                ++ "] = a["
-                ++ string_of_int(i)
-                ++ "]; "
-              );
+        /* (^ticket(847), idea A, trial) a record is a plain object in compiled code too: one whose fields are all plain
+           values (numbers, booleans, strings) under keys compiled code keeps as they are crosses as the page's own
+           object, its fields checked, no copy and nothing to remember; any other, a new object, through the memo */
+        if (plain_fields(fields)) {
+          let v = fresh(st, "r");
+          "$id("
+          ++ x
+          ++ ", "
+          ++ v
+          ++ " => ("
+          ++ v
+          ++ " === null || typeof "
+          ++ v
+          ++ " !== \"object\" || Array.isArray("
+          ++ v
+          ++ ") ? fail() : 0, "
+          ++ String.concat(
+               List.map(fields, ~f=((l, t)) =>
+                 inn(st, recs, t, v ++ "[" ++ q(l) ++ "]") ++ ", "
+               ),
+             )
+          ++ v
+          ++ "))";
+        } else {
+          through(st, recs, t, "$mi", x, v =>
             "{ if ("
             ++ v
             ++ " === null || typeof "
             ++ v
             ++ " !== \"object\" || Array.isArray("
             ++ v
-            ++ ")) fail(); const a = ["
-            ++ String.concat(~sep=", ", vals)
-            ++ "]; "
-            ++ String.concat(keys)
-            /* (^ticket(851)) its labels by index under the runtime's symbol, as $R.tup keeps them */
-            ++ "a[$L] = ["
+            ++ ")) fail(); return {"
             ++ String.concat(
                  ~sep=", ",
-                 List.map(fields, ~f=((l, _)) => q(HazelJit.label_key(l))),
+                 List.map(fields, ~f=((l, t)) =>
+                   q(HazelJit.label_key(l))
+                   ++ ": "
+                   ++ inn(st, recs, t, v ++ "[" ++ q(l) ++ "]")
+                 ),
                )
-            ++ "]; return a; }";
-          },
-        )
+            ++ "}; }"
+          );
+        }
       | None =>
         through(
           st,
@@ -1004,30 +1026,74 @@ module Direct = {
       let n = string_of_int(List.length(ts));
       switch (labeled(ts)) {
       | Some(fields) =>
-        through(
-          st,
-          recs,
-          t,
-          "$mo",
-          y,
-          v => {
-            let fs =
-              List.mapi(fields, ~f=(i, (l, t)) =>
-                q(l)
-                ++ ": "
-                ++ out(st, recs, t, v ++ "[" ++ string_of_int(i) ++ "]")
-              );
-            "Array.isArray("
+        /* (^ticket(847), idea A) compiled code's record, an object: one of plain values goes to the page as it is (an
+           Int past 2^53, a BigInt, makes a copy, as a number); any other, a new object through the memo */
+        if (plain_fields(fields)) {
+          let v = fresh(st, "r");
+          let at = l => v ++ "[" ++ q(l) ++ "]";
+          let ints =
+            List.filter_map(fields, ~f=((l, t)) =>
+              int_type(t)
+                ? Some("typeof " ++ at(l) ++ " === \"number\"") : None
+            );
+          let others =
+            List.filter_map(fields, ~f=((l, t)) =>
+              int_type(t) ? None : Some(out(st, recs, t, at(l)) ++ ", ")
+            );
+          let copy =
+            "({"
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(fields, ~f=((l, t)) =>
+                   q(l) ++ ": " ++ out(st, recs, t, at(l))
+                 ),
+               )
+            ++ "})";
+          "$id("
+          ++ y
+          ++ ", "
+          ++ v
+          ++ " => "
+          ++ v
+          ++ " === null || typeof "
+          ++ v
+          ++ " !== \"object\" || Array.isArray("
+          ++ v
+          ++ ") ? fail() : ("
+          ++ (
+            List.is_empty(ints) ? "true" : String.concat(~sep=" && ", ints)
+          )
+          ++ ") ? ("
+          ++ String.concat(others)
+          ++ v
+          ++ ") : "
+          ++ copy
+          ++ ")";
+        } else {
+          through(st, recs, t, "$mo", y, v =>
+            "{ if ("
             ++ v
-            ++ ") && "
+            ++ " === null || typeof "
             ++ v
-            ++ ".length === "
-            ++ n
-            ++ " ? {"
-            ++ String.concat(~sep=", ", fs)
-            ++ "} : fail()";
-          },
-        )
+            ++ " !== \"object\" || Array.isArray("
+            ++ v
+            ++ ")) fail(); return {"
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(fields, ~f=((l, t)) =>
+                   q(l)
+                   ++ ": "
+                   ++ out(
+                        st,
+                        recs,
+                        t,
+                        v ++ "[" ++ q(HazelJit.label_key(l)) ++ "]",
+                      )
+                 ),
+               )
+            ++ "}; }"
+          );
+        }
       | None =>
         through(
           st,
@@ -1131,6 +1197,7 @@ module Direct = {
      changes; an object that cannot take one (frozen) gets a WeakMap entry; a compiled value, which no page sees, a plain
      property. (The registry is the page's, shared by every compiled function and every copy of the library on it.) */
   const $L = Symbol.for("hazel-jit.labels");
+  const $id = (x, f) => f(x);   // (^ticket(847): a record of plain values, checked and passed as it is)
   const REG = globalThis.$hazelJitMemo || (globalThis.$hazelJitMemo = new Map());
   const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { s: Symbol("hazel-jit.converted"), f: null }); else if (!m.s) { m.s = Symbol("hazel-jit.converted"); m.f = null; } return m; };
   const $plink = (m, a, b) => { if (Object.isExtensible(a)) Object.defineProperty(a, m.s, { value: b }); else (m.f || (m.f = new WeakMap())).set(a, b); };

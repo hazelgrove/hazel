@@ -69,7 +69,15 @@ module Runtime = {
   /* (^ticket(851)) a labeled tuple keeps its labels by index (a key, or null where unlabeled) under this symbol, which
      Object.keys, JSON and the comparisons do not see; tup, the label builtins and HazelJitValue.tuple set it */
   L: Symbol.for("hazel-jit.labels"),
-  tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; vs[this.L] = ls; return vs; },
+  /* (^ticket(847), idea A, on trial/847-records-objects) a tuple whose every entry is labeled is a plain object, its keys in
+     the type's order, as a page holds a record, so a page's record crosses as it is; a tuple with some labels, or none, is
+     an array as before (its labels as properties, and under L) */
+  tup(vs, ls) { if (ls.length > 0 && ls.every(l => l !== null)) { const o = {}; for (let i = 0; i < ls.length; i++) o[ls[i]] = vs[i]; return o; }
+    for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; vs[this.L] = ls; return vs; },
+  /* (^ticket(847)) a record: a plain object that is not a list's cell (exactly h and t) nor a constructor (c, a string, and
+     perhaps v). A record whose fields are exactly those reads as one of them: decision 2 of ^report(54) #records */
+  isrec(t) { if (t === null || typeof t !== "object" || Array.isArray(t)) return false; const ks = Object.keys(t);
+    if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(k => k === "c" || k === "v")) return false; return true; },
   /* (^ticket(851)) a pattern by position, (a, b), met a tuple with a label at one of those positions: the statics label
      such a pattern when the matched type is labeled, so this is a type they did not know, and the interpreter binds the
      labeled entry itself (x = 5, not 5), where compiled code would read the component; so the run is the interpreter's */
@@ -80,6 +88,7 @@ module Runtime = {
   dot(t, k) {
     if (Array.isArray(t)) return t[k];
     if (t === null) return null;
+    if (typeof t === "object" && Object.prototype.hasOwnProperty.call(t, k)) return t[k];   // (^ticket(847)) a record's field
     if (typeof t === "object" && "h" in t) { const xs = []; for (let p = t; p !== null; p = p.t) xs.push(this.dot(p.h, k));
       let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; }
     this.indet("a projection by " + k);
@@ -87,6 +96,7 @@ module Runtime = {
   /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
      property that is not an index labels the first unlabeled index holding the very same value */
   labels(t) {
+    if (!Array.isArray(t)) return Object.keys(t);   // (^ticket(847)) a record: every entry labeled, in order
     const kept = t[this.L]; if (kept !== undefined) return kept;
     const ls = t.map(() => null);
     for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue;
@@ -96,11 +106,12 @@ module Runtime = {
   /* (^ticket(761)) a tuple extended, e1 ... e2, as LabeledTuple.extension: e1's components in order, a label e2 also has
      taking e2's value; then e2's unlabeled components and its labels e1 lacks. Not tuples: the interpreter's is stuck. */
   ext(a, b) {
-    if (!Array.isArray(a) || !Array.isArray(b)) this.indet("a tuple extension of something not a tuple");
-    const la = this.labels(a), lb = this.labels(b), by = new Map(), vs = [], ls = [];
-    lb.forEach((l, i) => { if (l !== null) by.set(l, b[i]); });
-    la.forEach((l, i) => { vs.push(l !== null && by.has(l) ? by.get(l) : a[i]); ls.push(l); });
-    lb.forEach((l, i) => { if (l === null || !la.includes(l)) { vs.push(b[i]); ls.push(l); } });
+    const ok = x => Array.isArray(x) || this.isrec(x);
+    if (!ok(a) || !ok(b)) this.indet("a tuple extension of something not a tuple");
+    const la = this.labels(a), lb = this.labels(b), va = Array.isArray(a) ? a : Object.values(a), vb = Array.isArray(b) ? b : Object.values(b), by = new Map(), vs = [], ls = [];
+    lb.forEach((l, i) => { if (l !== null) by.set(l, vb[i]); });
+    la.forEach((l, i) => { vs.push(l !== null && by.has(l) ? by.get(l) : va[i]); ls.push(l); });
+    lb.forEach((l, i) => { if (l === null || !la.includes(l)) { vs.push(vb[i]); ls.push(l); } });
     return this.tup(vs, ls);
   },
   eq(a, b) {
@@ -108,6 +119,9 @@ module Runtime = {
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
     if (Array.isArray(a)) { if (!Array.isArray(b) || a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (!this.eq(a[i], b[i])) return false; return true; }
+    if (Array.isArray(b)) return false;
+    if (this.isrec(a)) { if (!this.isrec(b)) return false; const ka = Object.keys(a); if (ka.length !== Object.keys(b).length) return false;   // (^ticket(847))
+      for (const k of ka) if (!Object.prototype.hasOwnProperty.call(b, k) || !this.eq(a[k], b[k])) return false; return true; }
     if ("c" in a) return ("c" in b) && a.c === b.c && this.eq(a.v, b.v);
     let p = a, q = b;
     while (p !== null && q !== null) { if (!this.eq(p.h, q.h)) return false; p = p.t; q = q.t; }
@@ -228,33 +242,40 @@ module Runtime = {
     },
     string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
     string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
-    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t,
+    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t !== null && typeof t === "object" && !("h" in t && "t" in t && Object.keys(t).length === 2) && !(typeof t.c === "string" && Object.keys(t).every(k => k === "c" || k === "v")) ? Object.values(t) : t,
     /* (^ticket(761)) BuiltinsTupleOperations' label builtins: a tuple, then label literals ({lab: name}); a label the
        tuple lacks stops the run (the interpreter's projection is stuck there), as an invalid operation's does */
-    project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
-    select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
-      ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); vs[Symbol.for("hazel-jit.labels")] = ls.map(({ lab }) => lab); return vs; },
+    project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (t === null || typeof t !== "object" || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
+    select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (t === null || typeof t !== "object" || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
+      if (ls.length) { const o = {}; ls.forEach(({ lab }, i) => { o[lab] = vs[i]; }); return o; } return vs; },   // (^ticket(847)) every entry labeled: a record
     /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
        (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
     from_lvs: l => { const vs = [], ks = [];
       for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
         ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
-      ks.forEach((k, i) => { vs[k] = vs[i]; }); vs[Symbol.for("hazel-jit.labels")] = ks; return vs; },
+      if (ks.length) { const o = {}; ks.forEach((k, i) => { o[k] = vs[i]; }); return o; } return vs; },   // (^ticket(847)) every entry labeled: a record
     /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
        value = v), in order (BuiltinsTupleOperations); an unlabeled entry, or not a tuple, and the interpreter's is stuck */
     to_lvs: t => {
       const stuck = () => { const e = new Error("hazel-jit: indeterminate: to_lvs"); e.$indet = "to_lvs"; throw e; };
+      // (^ticket(847)) a record: its keys in order, each entry a record (label, value) too
+      if (t !== null && typeof t === "object" && !Array.isArray(t)) { const ks = Object.keys(t); let r = null;
+        for (let i = ks.length - 1; i >= 0; i--) { const k = ks[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k; r = { h: { label: name, value: t[k] }, t: r }; } return r; }
       if (!Array.isArray(t)) stuck();
       const ls = t.map(() => null);
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
       if (ls.some(l => l === null)) stuck();
       let r = null;
       for (let i = t.length - 1; i >= 0; i--) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
-        const e = [name, t[i]]; e.label = name; e.value = t[i]; r = { h: e, t: r }; }
+        r = { h: { label: name, value: t[i] }, t: r }; }
       return r; },
-    omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
+    omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), vs = [], out = [];
+      // (^ticket(847)) a record's labels are its keys; what is left, every entry labeled, is a record again
+      if (t !== null && typeof t === "object" && !Array.isArray(t)) { const o = {}; let n = 0; for (const k of Object.keys(t)) if (!drop.has(k)) { o[k] = t[k]; n++; } return n ? o : []; }
+      const tl = t.map(() => null);
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
       t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
+      if (out.length && out.every(l => l !== null)) { const o = {}; out.forEach((l, i) => { o[l] = vs[i]; }); return o; }
       out.forEach((l, i) => { if (l !== null) vs[l] = vs[i]; }); if (out.some(l => l !== null)) vs[Symbol.for("hazel-jit.labels")] = out; return vs; },
     /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
        value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
@@ -627,13 +648,17 @@ let rec pat =
     let guard =
       switch (positional) {
       | [] => []
+      /* (^ticket(847)) a record, an object, has every entry labeled: read by position, it is the interpreter's too */
       | is => [
-          v
+          "Array.isArray("
+          ++ v
+          ++ ") ? ("
+          ++ v
           ++ "[$R.L] === undefined || $R.nolab("
           ++ v
           ++ ", ["
           ++ String.concat(~sep=", ", List.rev_map(is, ~f=string_of_int))
-          ++ "])",
+          ++ "])) : $R.indet(\"a pattern by position against a labeled entry\")",
         ]
       };
     (guard @ tests, binds, lex);
@@ -806,26 +831,40 @@ and exp_inner =
     };
     let arr =
       "[" ++ String.concat(~sep=", ", List.map(parts, ~f=snd)) ++ "]";
-    List.exists(parts, ~f=((l, _)) => Option.is_some(l))
-      ? "$R.tup("
-        ++ arr
-        ++ ", ["
+    /* (^ticket(847), idea A) every entry labeled: an object literal, its keys in order, as a page holds a record */
+    List.for_all(parts, ~f=((l, _)) => Option.is_some(l))
+    && !List.is_empty(parts)
+      ? "({"
         ++ String.concat(
              ~sep=", ",
-             List.map(parts, ~f=((l, _)) =>
+             List.map(parts, ~f=((l, e)) =>
                switch (l) {
-               | Some(name) => js_string(label_key(name))
-               | None => "null"
+               | Some(name) => js_string(label_key(name)) ++ ": " ++ e
+               | None => e
                }
              ),
            )
-        ++ "])"
-      : arr;
+        ++ "})"
+      : List.exists(parts, ~f=((l, _)) => Option.is_some(l))
+          ? "$R.tup("
+            ++ arr
+            ++ ", ["
+            ++ String.concat(
+                 ~sep=", ",
+                 List.map(parts, ~f=((l, _)) =>
+                   switch (l) {
+                   | Some(name) => js_string(label_key(name))
+                   | None => "null"
+                   }
+                 ),
+               )
+            ++ "])"
+          : arr;
   | TupLabel(l, e') when is_nonlabel(l) => "[" ++ go(e') ++ "]"
   | TupLabel(l, e') =>
     switch (label_of(l)) {
     | Some(name) =>
-      "$R.tup([" ++ go(e') ++ "], [" ++ js_string(label_key(name)) ++ "])"
+      "({" ++ js_string(label_key(name)) ++ ": " ++ go(e') ++ "})"
     | None => unsupported("a tuple label that is not a name")
     }
   | Dot(e1, l) =>
