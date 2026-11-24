@@ -66,7 +66,14 @@ module Runtime = {
   let source = {|{
   append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
     let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
-  tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; return vs; },
+  /* (^ticket(851)) a labeled tuple keeps its labels by index (a key, or null where unlabeled) under this symbol, which
+     Object.keys, JSON and the comparisons do not see; tup, the label builtins and HazelJitValue.tuple set it */
+  L: Symbol.for("hazel-jit.labels"),
+  tup(vs, ls) { for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; vs[this.L] = ls; return vs; },
+  /* (^ticket(851)) a pattern by position, (a, b), met a tuple with a label at one of those positions: the statics label
+     such a pattern when the matched type is labeled, so this is a type they did not know, and the interpreter binds the
+     labeled entry itself (x = 5, not 5), where compiled code would read the component; so the run is the interpreter's */
+  nolab(v, is) { const ls = v[this.L]; for (const i of is) if (ls[i] !== null && ls[i] !== undefined) this.indet("a pattern by position against a labeled entry"); return true; },
   /* (^ticket(761); the slides' check, CI run 44184122601) e.k, as Transition's Dot: a tuple's component; through a list,
      each element's (a table's column, t.get_acne in the b2t2 examples), so a list of rows gives a list; anything else, the
      interpreter's projection is stuck */
@@ -80,6 +87,7 @@ module Runtime = {
   /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
      property that is not an index labels the first unlabeled index holding the very same value */
   labels(t) {
+    const kept = t[this.L]; if (kept !== undefined) return kept;
     const ls = t.map(() => null);
     for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue;
       const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
@@ -225,13 +233,13 @@ module Runtime = {
        tuple lacks stops the run (the interpreter's projection is stuck there), as an invalid operation's does */
     project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
     select_labels: ([t, ...ls]) => { const vs = ls.map(({ lab }) => { if (!Array.isArray(t) || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; });
-      ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); return vs; },
+      ls.forEach(({ lab }, i) => { vs[lab] = vs[i]; }); vs[Symbol.for("hazel-jit.labels")] = ls.map(({ lab }) => lab); return vs; },
     /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
        (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
     from_lvs: l => { const vs = [], ks = [];
       for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
         ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
-      ks.forEach((k, i) => { vs[k] = vs[i]; }); return vs; },
+      ks.forEach((k, i) => { vs[k] = vs[i]; }); vs[Symbol.for("hazel-jit.labels")] = ks; return vs; },
     /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
        value = v), in order (BuiltinsTupleOperations); an unlabeled entry, or not a tuple, and the interpreter's is stuck */
     to_lvs: t => {
@@ -247,7 +255,7 @@ module Runtime = {
     omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), tl = t.map(() => null), vs = [], out = [];
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = tl.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) tl[i] = k; }
       t.forEach((v, i) => { if (tl[i] === null || !drop.has(tl[i])) { vs.push(v); out.push(tl[i]); } });
-      out.forEach((l, i) => { if (l !== null) vs[l] = vs[i]; }); return vs; },
+      out.forEach((l, i) => { if (l !== null) vs[l] = vs[i]; }); if (out.some(l => l !== null)) vs[Symbol.for("hazel-jit.labels")] = out; return vs; },
     /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
        value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
        every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
@@ -583,31 +591,52 @@ let rec pat =
     let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".t");
     ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
   | Tuple(ps) =>
-    List.fold_left(
-      ps,
-      ~init=([], [], lex, 0),
-      ~f=((tests, binds, lex, i), p: Pat.t) => {
-        let (key, p) =
-          switch (Pat.term_of(p)) {
-          | TupLabel(l, p') when pat_is_nonlabel(l) => (
-              v ++ "[" ++ string_of_int(i) ++ "]",
-              p',
-            )
-          | TupLabel(l, p') =>
-            switch (pat_label_of(l)) {
-            | Some(name) => (
-                v ++ "[" ++ js_string(label_key(name)) ++ "]",
+    let (tests, binds, lex, _, positional) =
+      List.fold_left(
+        ps,
+        ~init=([], [], lex, 0, []),
+        ~f=((tests, binds, lex, i, positional), p: Pat.t) => {
+          let (key, p, positional) =
+            switch (Pat.term_of(p)) {
+            | TupLabel(l, p') when pat_is_nonlabel(l) => (
+                v ++ "[" ++ string_of_int(i) ++ "]",
                 p',
+                [i, ...positional],
               )
-            | None => unsupported("a tuple label that is not a name")
-            }
-          | _ => (v ++ "[" ++ string_of_int(i) ++ "]", p)
-          };
-        let (t, b, lex) = pat(st, scope, lex, p, key);
-        (tests @ t, binds @ b, lex, i + 1);
-      },
-    )
-    |> (((t, b, lex, _)) => (t, b, lex))
+            | TupLabel(l, p') =>
+              switch (pat_label_of(l)) {
+              | Some(name) => (
+                  v ++ "[" ++ js_string(label_key(name)) ++ "]",
+                  p',
+                  positional,
+                )
+              | None => unsupported("a tuple label that is not a name")
+              }
+            | _ => (
+                v ++ "[" ++ string_of_int(i) ++ "]",
+                p,
+                [i, ...positional],
+              )
+            };
+          let (t, b, lex) = pat(st, scope, lex, p, key);
+          (tests @ t, binds @ b, lex, i + 1, positional);
+        },
+      );
+    /* (^ticket(851)) the entries read by position must be unlabeled in the value too, or the run is the interpreter's
+       ($R.nolab); an unlabeled tuple has no labels kept, so the usual case is one property read */
+    let guard =
+      switch (positional) {
+      | [] => []
+      | is => [
+          v
+          ++ "[$R.L] === undefined || $R.nolab("
+          ++ v
+          ++ ", ["
+          ++ String.concat(~sep=", ", List.rev_map(is, ~f=string_of_int))
+          ++ "])",
+        ]
+      };
+    (guard @ tests, binds, lex);
   | TupLabel(l, p') when pat_is_nonlabel(l) =>
     pat(st, scope, lex, p', v ++ "[0]")
   | TupLabel(l, p') =>

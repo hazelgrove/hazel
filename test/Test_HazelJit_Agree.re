@@ -61,7 +61,10 @@ let indet_reached = (message: string, result: Exp.t): bool => {
     contains(shown, "Undefined")
     || String.length(what) >= String.length(by)
     && String.sub(what, ~pos=0, ~len=String.length(by)) == by
-    && contains(shown, "(Dot");
+    && contains(shown, "(Dot")
+    /* (^ticket(851)) a pattern by position met a labeled entry, which the interpreter binds whole: the run is the
+       interpreter's, whatever it answers */
+    || what == "a pattern by position against a labeled entry";
   };
 };
 

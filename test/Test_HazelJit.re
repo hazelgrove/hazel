@@ -765,6 +765,45 @@ let mixed_tests = [
   ),
 ];
 
+/* (^ticket(851)) a pattern by position: against an unlabeled tuple, and against a record whose type the statics know (they
+   label the pattern), compiled code agrees; against a record of a type they do not know, the interpreter binds the labeled
+   entry (x = 5) and its subtraction is stuck, so the compiled run stops for the interpreter instead of answering 3 */
+let positional_src = "let f = fun r -> let (a, b) = r in a - b in ";
+let positional_tests = [
+  agreement(
+    "a pattern by position, an unlabeled tuple",
+    positional_src ++ "f((5, 2))",
+  ),
+  agreement(
+    "a pattern by position, a record of declared type",
+    "let f : (x = Int, y = Int) -> Int = fun r -> let (a, b) = r in a - b in f((x = 5, y = 2))",
+  ),
+  agreement(
+    "a pattern by position in a function's parameter, an unlabeled tuple",
+    "let g = fun (a, b) -> a * 10 + b in g((4, 2))",
+  ),
+  test_case(
+    "a pattern by position, a record of unknown type: the run stops for the interpreter",
+    `Quick,
+    () =>
+    switch (
+      run_js(
+        HazelJit.Runtime.source,
+        compiled_src(positional_src ++ "f((x = 5, y = 2))"),
+      )
+    ) {
+    | _ => fail("answered past a labeled entry read by position")
+    | exception (Js_error.Exn(e)) =>
+      check(
+        string,
+        "the error",
+        "hazel-jit: indeterminate: a pattern by position against a labeled entry",
+        Js_error.message(e),
+      )
+    }
+  ),
+];
+
 let label_tests = [
   agreement(
     "a reverse application, and one to a constructor",
@@ -862,6 +901,7 @@ let tests = (
   @ string_builtin_tests
   @ step_limit_tests
   @ undefined_tests
+  @ positional_tests
   @ label_tests
   @ unicode_string_tests
   @ mixed_tests
