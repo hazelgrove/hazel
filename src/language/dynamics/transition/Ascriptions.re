@@ -47,7 +47,7 @@ let set_ctx = (ctx: Ctx.t) => ctx_ref := ctx;
    push (transition_multiple) can give a part back unchanged; a stepwise
    one wraps each part in a new ascription. */
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
-  List.for_all2((d, d') => d === d', ds, ds');
+  List.for_all2_exn(ds, ds', ~f=(d, d') => phys_equal(d, d'));
 
 /* Whether [ty_rec], resolved in [ctx] and unrolled, is consistent with
    [ty]. A self-loop has no unrolling and is consistent with nothing. */
@@ -89,7 +89,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
-      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+      |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
@@ -104,7 +104,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
       let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
-      inner' === inner
+      phys_equal(inner', inner)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -114,7 +114,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
-        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+        List.map2_exn(es, tys, ~f=(e, ty) =>
+          recur(Asc(e, ty) |> DHExp.fresh)
+        );
       unchanged(es, es')
         ? Some(e)
         : Some(
@@ -137,7 +139,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      let ds' = List.map(~f=d => recur(Asc(d, ty) |> DHExp.fresh), ds);
       unchanged(ds, ds')
         ? Some(e)
         : Some(
@@ -149,7 +151,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(d1, d2), List(ty)) =>
       let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
       let d2' = recur(Asc(d2, t) |> DHExp.fresh);
-      d1' === d1 && d2' === d2
+      phys_equal(d1', d1) && phys_equal(d2', d2)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -193,7 +195,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
+              ~f=((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -213,7 +215,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (entry) {
       | Some(Some(t')) =>
         let payload' = recur(Asc(payload, t') |> DHExp.fresh);
-        payload' === payload
+        phys_equal(payload', payload)
           ? Some(e)
           : Some(
               IdTagged.fast_copy(
@@ -229,7 +231,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        value) ascribed to a sum that has it takes the sum as its type;
        an application pushes the ascription into the payload */
     | (Constructor(c, None), Sum(m))
-        when ConstructorMap.get_entry(c, m) == Some(None) =>
+        when Poly.equal(ConstructorMap.get_entry(c, m), Some(None)) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -240,7 +242,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Ap(Forward, {term: Constructor(c, None), _} as con, payload),
         Sum(m),
       )
-        when ConstructorMap.get_entry(c, m) != None =>
+        when Option.is_some(ConstructorMap.get_entry(c, m)) =>
       switch (ConstructorMap.get_entry(c, m)) {
       | Some(Some(t')) =>
         Some(
