@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /* Live/batch parity for the observation trace
  * (plans/observation-trace.md): state.probes is maintained incrementally
@@ -28,13 +29,16 @@ let eval_both = (code: string): (Sample.Map.t, Sample.Map.t) => {
 };
 
 let frame_key = (f: option(CallStack.frame)) =>
-  Option.map((f: CallStack.frame) => (f.id, f.fn_def_id), f);
+  Option.map(~f=(f: CallStack.frame) => (f.id, f.fn_def_id), f);
 
 let sample_eq = (a: Sample.t, b: Sample.t): bool =>
-  a.syntax_id == b.syntax_id
+  Id.equal(a.syntax_id, b.syntax_id)
   && DHExp.fast_equal(a.value, b.value)
-  && CallStack.ids_of_stack(a.call_stack)
-  == CallStack.ids_of_stack(b.call_stack)
+  && List.equal(
+       Id.equal,
+       CallStack.ids_of_stack(a.call_stack),
+       CallStack.ids_of_stack(b.call_stack),
+     )
   && a.args == b.args
   && frame_key(a.frame) == frame_key(b.frame)
   && a.step_start == b.step_start
@@ -54,7 +58,7 @@ let describe = (s: Sample.t): string =>
 
 let check_parity = (label: string, code: string) => {
   let (inline, folded) = eval_both(code);
-  let keys = m => m |> Id.Map.bindings |> List.map(fst);
+  let keys = m => m |> Id.Map.bindings |> List.map(~f=fst);
   check(
     int,
     label ++ ": same probe ids",
@@ -62,22 +66,23 @@ let check_parity = (label: string, code: string) => {
     List.length(keys(folded)),
   );
   List.iter(
-    id => {
-      let get = m => Id.Map.find_opt(id, m) |> Option.value(~default=[]);
-      let (si, sf) = (get(inline), get(folded));
-      if (List.length(si) != List.length(sf)
-          || !List.for_all2(sample_eq, si, sf)) {
-        fail(
-          label
-          ++ ": mismatch at probe "
-          ++ Id.to_string(id)
-          ++ "\n  inline: "
-          ++ String.concat(" ", List.map(describe, si))
-          ++ "\n  folded: "
-          ++ String.concat(" ", List.map(describe, sf)),
-        );
-      };
-    },
+    ~f=
+      id => {
+        let get = m => Id.Map.find_opt(id, m) |> Option.value(~default=[]);
+        let (si, sf) = (get(inline), get(folded));
+        if (List.length(si) != List.length(sf)
+            || !List.for_all2_exn(si, sf, ~f=sample_eq)) {
+          fail(
+            label
+            ++ ": mismatch at probe "
+            ++ Id.to_string(id)
+            ++ "\n  inline: "
+            ++ String.concat(~sep=" ", List.map(~f=describe, si))
+            ++ "\n  folded: "
+            ++ String.concat(~sep=" ", List.map(~f=describe, sf)),
+          );
+        };
+      },
     keys(inline),
   );
 };
