@@ -1148,7 +1148,7 @@ let insert_tests = (
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in let c = 3 in?",
+          "let a = 1 in let b = 2 in let c = 3 in ?",
           render_zipper(z),
         )
       | Error(err) =>
