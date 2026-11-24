@@ -6224,8 +6224,7 @@ let token_splitting_tests = [
       /* separators, a following `-`/`!`, and type application's
          brackets split a run */
       List.iter(
-        [":,", "+-", "=-", "--", "!!", ">==", ",,", ";;", ">@<", "@<>"],
-        ~f=t =>
+        [":,", "+-", "=-", "--", "!!", ">==", ",,", ";;", ">@<", "@<>"], ~f=t =>
         check(bool, t, false, Form.is_potential_token(t))
       );
       /* other unrecognized runs stay one (unknown) token */
