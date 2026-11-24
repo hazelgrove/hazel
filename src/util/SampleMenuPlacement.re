@@ -16,27 +16,19 @@ let place = (menu: Js.t(Dom_html.element)): unit =>
   switch (JsUtil.find_ancestor_with_class(menu, "sample")) {
   | None => ()
   | Some(sample) =>
-    let position =
-      Js.to_string(Dom_html.window##getComputedStyle(menu)##.position);
-    /* In flow (position:relative while a rich-probe modal is open), the
-     * menu stays where the flow puts it. */
-    if (String.equal(position, "absolute")) {
-      let rect = sample##getBoundingClientRect;
-      let dir =
-        Menu.fit_direction(
-          ~menu_height=float_of_int(menu##.offsetHeight),
-          ~menu_width=float_of_int(menu##.offsetWidth) +. inset,
-          Menu.space_from(
-            ~anchor_top=rect##.top,
-            ~anchor_bot=rect##.bottom,
-            ~anchor_left=rect##.left,
-            ~anchor_right=rect##.right,
-          ),
-        );
-      Menu.set_open_class(menu, Some(dir));
-    } else {
-      Menu.set_open_class(menu, None);
-    };
+    let rect = sample##getBoundingClientRect;
+    let dir =
+      Menu.fit_direction(
+        ~menu_height=float_of_int(menu##.offsetHeight),
+        ~menu_width=float_of_int(menu##.offsetWidth) +. inset,
+        Menu.space_from(
+          ~anchor_top=rect##.top,
+          ~anchor_bot=rect##.bottom,
+          ~anchor_left=rect##.left,
+          ~anchor_right=rect##.right,
+        ),
+      );
+    Menu.set_open_class(menu, Some(dir));
   };
 
 let update_all = (): unit => {
