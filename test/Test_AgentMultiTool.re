@@ -119,9 +119,9 @@ let test_two_workbench_tools_two_results = () => {
   let has_llm_response =
     List.exists(
       ~f=
-      fun
-      | Agent.Update.Action.HandleLLMResponse(_) => true
-      | _ => false,
+        fun
+        | Agent.Update.Action.HandleLLMResponse(_) => true
+        | _ => false,
       scheduled,
     );
   check(

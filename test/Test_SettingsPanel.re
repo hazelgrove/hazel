@@ -10,11 +10,11 @@ let old_blob = () => {
       List(
         List.filter_map(
           ~f=
-          (item: Sexplib.Sexp.t) =>
-            switch (item) {
-            | List([Atom("settings_folded"), ..._]) => None
-            | other => Some(drop(other))
-            },
+            (item: Sexplib.Sexp.t) =>
+              switch (item) {
+              | List([Atom("settings_folded"), ..._]) => None
+              | other => Some(drop(other))
+              },
           items,
         ),
       )
@@ -52,20 +52,21 @@ let own_rows_once = () => {
     SettingsPanel.sections(~globals, ~editors_inject=_ =>
       Virtual_dom.Vdom.Effect.Ignore
     )
-    |> List.concat_map((s: NutMenu.section) => s.s_rows);
+    |> List.concat_map(~f=(s: NutMenu.section) => s.s_rows);
   let count = setting =>
     List.length(
       List.filter(
-        (row: NutMenu.row) =>
-          switch (row) {
-          | Toggle(t) => t.setting == setting
-          | _ => false
-          },
+        ~f=
+          (row: NutMenu.row) =>
+            switch (row) {
+            | Toggle(t) => Poly.equal(t.setting, setting)
+            | _ => false
+            },
         rows,
       ),
     );
   List.iter(
-    ((name, setting)) => check(int, name, 1, count(setting)),
+    ~f=((name, setting)) => check(int, name, 1, count(setting)),
     [
       ("Program value", Settings.Update.TailProbe),
       ("Outline arrows", Settings.Update.OutlineArrows),
@@ -82,11 +83,13 @@ let program_value_opens_tail = () => {
   let tail_open = (m: History.Model.t) => {
     let trail =
       List.find_map(
-        (n: OutlineTree.node) => n.o_kind == KTrail ? n.o_id : None,
+        ~f=
+          (n: OutlineTree.node) =>
+            Poly.equal(n.o_kind, KTrail) ? n.o_id : None,
         OutlineTree.rows(Program.outline(Cells.program(m))),
       )
-      |> Option.get;
-    Divided.cell(trail, Cells.divided(m)) != None;
+      |> Option.value_exn;
+    Option.is_some(Divided.cell(trail, Cells.divided(m)));
   };
   let m = toggle(Cells.run(Cells.mk(), Refresh));
   check(bool, "off", false, m.current.globals.settings.tail_probe);

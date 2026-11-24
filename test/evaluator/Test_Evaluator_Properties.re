@@ -555,41 +555,41 @@ let fill = (template: string, a: int, b: int, c: int): string =>
 
 let incremental_recursive_lets_tests =
   List.map(recursive_templates, ~f=((name, template)) =>
-      test_case(
+    test_case(
       "Incremental eval agrees with fresh eval after a literal edit: " ++ name,
-        `Quick,
-        () =>
-        List.iter(
+      `Quick,
+      () =>
+      List.iter(
         [(17, 23, 3), (17, 5, 4), (41, 23, 4), (41, 5, 3)],
         ~f=((a, b, c)) => {
-            let exp = parse_exp(fill(template, a, b, c));
-            let lits = collect_int_lits(exp);
+          let exp = parse_exp(fill(template, a, b, c));
+          let lits = collect_int_lits(exp);
           List.iter([a, b, c], ~f=v =>
-                switch (
+            switch (
               List.findi(lits, ~f=(_, (_, n)) =>
                 Bigint.equal(n, Bigint.of_int(v))
-                  )
-                ) {
+              )
+            ) {
             | Some((literal_index, _)) =>
-                  check_incremental_against_fresh_after_edit(
-                    ~values_only=true,
-                    ~literal_index,
-                    ~testable=testable_core_exp,
-                    ~msg=
-                      Printf.sprintf(
-                        "%s, editing %d: incremental and fresh agree",
-                        fill(template, a, b, c),
-                        v,
-                      ),
-                    ~require_comparison=true,
-                    exp,
-                  )
-                | None =>
-                  failf("no literal %d in %s", v, fill(template, a, b, c))
+              check_incremental_against_fresh_after_edit(
+                ~values_only=true,
+                ~literal_index,
+                ~testable=testable_core_exp,
+                ~msg=
+                  Printf.sprintf(
+                    "%s, editing %d: incremental and fresh agree",
+                    fill(template, a, b, c),
+                    v,
+                  ),
+                ~require_comparison=true,
+                exp,
+              )
+            | None =>
+              failf("no literal %d in %s", v, fill(template, a, b, c))
             }
-            );
-          },
-        )
+          );
+        },
+      )
     )
   );
 

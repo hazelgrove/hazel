@@ -160,21 +160,23 @@ let regrout_debug_tests = [
       /* Show each piece */
       List.iteri(
         ~f=
-        (i, p) => {
-          let desc =
-            switch (p) {
-            | Piece.Tile(t) =>
+          (i, p) => {
+            let desc =
+              switch (p) {
+              | Piece.Tile(t) =>
                 "Tile(" ++ String.concat(~sep=",", Tile.label(t)) ++ ")"
-            | Piece.Grout(g) =>
-              "Grout(" ++ (g.shape == Convex ? "Convex" : "Concave") ++ ")"
-            | Piece.Secondary(s) =>
-              "Secondary("
-              ++ (Secondary.is_linebreak(s) ? "linebreak" : "other")
-              ++ ")"
-            | Piece.Projector(_) => "Projector"
-            };
-          print_endline("  [" ++ string_of_int(i) ++ "]: " ++ desc);
-        },
+              | Piece.Grout(g) =>
+                "Grout("
+                ++ (Poly.equal(g.shape, Convex) ? "Convex" : "Concave")
+                ++ ")"
+              | Piece.Secondary(s) =>
+                "Secondary("
+                ++ (Secondary.is_linebreak(s) ? "linebreak" : "other")
+                ++ ")"
+              | Piece.Projector(_) => "Projector"
+              };
+            print_endline("  [" ++ string_of_int(i) ++ "]: " ++ desc);
+          },
         seg,
       );
 
@@ -201,48 +203,48 @@ let regrout_debug_tests = [
       /* Look at the structure */
       List.iteri(
         ~f=
-        (i, p) => {
-          switch (p) {
-          | Piece.Tile(t) =>
-            print_endline(
-              "  ["
-              ++ string_of_int(i)
-              ++ "]: Tile("
+          (i, p) => {
+            switch (p) {
+            | Piece.Tile(t) =>
+              print_endline(
+                "  ["
+                ++ string_of_int(i)
+                ++ "]: Tile("
                 ++ String.concat(~sep=",", Tile.label(t))
-              ++ ") shards=["
+                ++ ") shards=["
                 ++ String.concat(
                      ~sep=",",
                      List.map(~f=string_of_int, t.shards),
                    )
-              ++ "] children="
-              ++ string_of_int(List.length(t.children))
-              ++ " is_complete="
-              ++ string_of_bool(Tile.is_complete(t)),
-            );
-            /* Print each child */
-            List.iteri(
+                ++ "] children="
+                ++ string_of_int(List.length(t.children))
+                ++ " is_complete="
+                ++ string_of_bool(Tile.is_complete(t)),
+              );
+              /* Print each child */
+              List.iteri(
                 ~f=
-              (ci, child) => {
-                print_endline(
-                  "    child["
-                  ++ string_of_int(ci)
-                  ++ "]: "
-                  ++ print_seg(child),
-                )
-              },
-              t.children,
-            );
-          | Piece.Secondary(s) =>
-            print_endline(
-              "  ["
-              ++ string_of_int(i)
-              ++ "]: Secondary("
-              ++ (Secondary.is_linebreak(s) ? "linebreak" : "space/other")
-              ++ ")",
-            )
-          | _ => print_endline("  [" ++ string_of_int(i) ++ "]: other")
-          }
-        },
+                  (ci, child) => {
+                    print_endline(
+                      "    child["
+                      ++ string_of_int(ci)
+                      ++ "]: "
+                      ++ print_seg(child),
+                    )
+                  },
+                t.children,
+              );
+            | Piece.Secondary(s) =>
+              print_endline(
+                "  ["
+                ++ string_of_int(i)
+                ++ "]: Secondary("
+                ++ (Secondary.is_linebreak(s) ? "linebreak" : "space/other")
+                ++ ")",
+              )
+            | _ => print_endline("  [" ++ string_of_int(i) ++ "]: other")
+            }
+          },
         seg,
       );
 
@@ -254,29 +256,29 @@ let regrout_debug_tests = [
       );
       List.iteri(
         ~f=
-        (i, (subseg, incomplete)) => {
-          print_endline("  Partition " ++ string_of_int(i) ++ ":");
-          print_endline("    content: " ++ print_seg(subseg));
-          print_endline(
-            "    incomplete: " ++ string_of_int(List.length(incomplete)),
-          );
-          List.iter(
+          (i, (subseg, incomplete)) => {
+            print_endline("  Partition " ++ string_of_int(i) ++ ":");
+            print_endline("    content: " ++ print_seg(subseg));
+            print_endline(
+              "    incomplete: " ++ string_of_int(List.length(incomplete)),
+            );
+            List.iter(
               ~f=
-            (t: Tile.t) => {
-              print_endline(
-                "      - "
+                (t: Tile.t) => {
+                  print_endline(
+                    "      - "
                     ++ String.concat(~sep=",", Tile.label(t))
-                ++ " shards=["
+                    ++ " shards=["
                     ++ String.concat(
                          ~sep=",",
                          List.map(~f=string_of_int, t.shards),
                        )
-                ++ "]",
-              )
-            },
-            incomplete,
-          );
-        },
+                    ++ "]",
+                  )
+                },
+              incomplete,
+            );
+          },
         partitions,
       );
 
@@ -1361,22 +1363,22 @@ let probe_raw = (acts: list(Action.t)): string => {
   let tiles =
     List.filter_map(
       ~f=
-      (pc: Piece.t) =>
-        switch (pc) {
-        | Tile(t) =>
-          Some(
-            Printf.sprintf(
-              "%s[%s]",
+        (pc: Piece.t) =>
+          switch (pc) {
+          | Tile(t) =>
+            Some(
+              Printf.sprintf(
+                "%s[%s]",
                 String.concat(~sep="", Tile.effective_label(t)),
                 String.concat(
                   ~sep=",",
                   List.map(~f=string_of_int, t.shards),
                 ),
-            ),
-          )
-        | Grout(g) => Some(g.shape == Convex ? "?" : "~")
-        | _ => None
-        },
+              ),
+            )
+          | Grout(g) => Some(Poly.equal(g.shape, Convex) ? "?" : "~")
+          | _ => None
+          },
       seg,
     );
   Printf.sprintf(
@@ -1913,7 +1915,9 @@ let clippable_guard_tests = {
     labels
     |> List.filter(~f=l =>
          Form.base_molds(l)
-         |> List.exists(~f=(m: Mold.t) => m.out == s || m.out == Sort.Any)
+         |> List.exists(~f=(m: Mold.t) =>
+              m.out == s || Sort.equal(m.out, Sort.Any)
+            )
        )
     |> List.length;
   let table =

@@ -23,13 +23,13 @@ let tests = (
             Sexplib.Sexp.List(
               List.filter(
                 ~f=
-                fun
-                | Sexplib.Sexp.List([
-                    Sexplib.Sexp.Atom("content_is_payload"),
-                    ..._,
-                  ]) =>
-                  false
-                | _ => true,
+                  fun
+                  | Sexplib.Sexp.List([
+                      Sexplib.Sexp.Atom("content_is_payload"),
+                      ..._,
+                    ]) =>
+                    false
+                  | _ => true,
                 fields,
               ),
             )
@@ -345,33 +345,33 @@ let tests = (
         AgentSend.max_eval_wait_attempts := 3;
         List.iter(
           ~f=
-          dynamics => {
-            CodeWithStatics.StaticsDebounce.force_on_next := true;
-            AgentSend.eval_wait_attempts := 0;
-            let settings = {
-              ...Settings.Model.init,
-              core: {
-                ...CoreSettings.on,
-                dynamics,
-              },
-            };
-            let scheduled = ref([]);
-            let (agent, _) =
-              AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
-                scheduled := [a, ...scheduled^]
-              );
-            check(
-              bool,
-              "send remains pending",
-              true,
+            dynamics => {
+              CodeWithStatics.StaticsDebounce.force_on_next := true;
+              AgentSend.eval_wait_attempts := 0;
+              let settings = {
+                ...Settings.Model.init,
+                core: {
+                  ...CoreSettings.on,
+                  dynamics,
+                },
+              };
+              let scheduled = ref([]);
+              let (agent, _) =
+                AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
+                  scheduled := [a, ...scheduled^]
+                );
+              check(
+                bool,
+                "send remains pending",
+                true,
                 Option.equal(
                   Id.equal,
                   agent.pending_dispatch_send,
                   Some(chat_id),
                 ),
-            );
-            check(int, "retry scheduled", 1, List.length(scheduled^));
-          },
+              );
+              check(int, "retry scheduled", 1, List.length(scheduled^));
+            },
           [true, false],
         );
         AgentSend.max_eval_wait_attempts := saved_budget;

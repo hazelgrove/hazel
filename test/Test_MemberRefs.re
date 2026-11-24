@@ -2,6 +2,7 @@ open Util;
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* `M.x` and `M.T` as references to the member (Info.binding_site): F12,
    the inspector's reading and highlights, on the editor's compositional
@@ -27,7 +28,7 @@ let compositional = (~root, z: Zipper.t): Statics.Map.t =>
 /* the whole program's at once */
 let monolithic = (~root, z: Zipper.t): Statics.Map.t => {
   let term =
-    if (root == Sort.Mod) {
+    if (Sort.equal(root, Sort.Mod)) {
       let (seg, masks) =
         MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
       MakeTerm.Incr.term_of_root(~masks, ~root, seg);
@@ -58,10 +59,10 @@ let point = (~off=0, src: string, needle: string): Point.t => {
             col: c + off,
           }: Point.t
         )
-      | exception Not_found => find(row + 1, rest)
+      | exception Stdlib.Not_found => find(row + 1, rest)
       }
     };
-  find(0, String.split_on_char('\n', src));
+  find(0, String.split(~on='\n', src));
 };
 
 /* [src] with the caret at [needle], [off] columns in */
@@ -97,12 +98,12 @@ let place = (~root, src, z: Zipper.t, id: Id.t): string => {
   let measured = CachedSyntax.init(~root, z).measured;
   switch (Measured.find_by_id(id, measured)) {
   | Some(m) =>
-    let line = List.nth(String.split_on_char('\n', src), m.origin.row);
+    let line = List.nth_exn(String.split(~on='\n', src), m.origin.row);
     Printf.sprintf(
       "%d:%d %s",
       m.origin.row,
       m.origin.col,
-      String.trim(line),
+      String.strip(line),
     );
   | None => "unmeasured"
   };
@@ -130,8 +131,8 @@ let f12 = (~off=0, ~root, src, needle): string => {
   ) {
   | Ok(z) =>
     let pt = Zipper.Caret.point(CachedSyntax.init(~root, z).measured, z);
-    let line = List.nth(String.split_on_char('\n', src), pt.row);
-    Printf.sprintf("%d:%d %s", pt.row, pt.col, String.trim(line));
+    let line = List.nth_exn(String.split(~on='\n', src), pt.row);
+    Printf.sprintf("%d:%d %s", pt.row, pt.col, String.strip(line));
   | Error(f) => Action.Failure.show(f)
   };
 };
@@ -159,54 +160,56 @@ let roots = [(Sort.Mod, m_src), (Sort.Exp, e_src)];
 
 let go_to_definition = () =>
   List.iter(
-    ((root, src)) => {
-      let r = " [" ++ Sort.show(root) ++ "]";
-      check(
-        string,
-        "M.a's a" ++ r,
-        "1:6 let a = 1;",
-        f12(~off=2, ~root, src, "M.a"),
-      );
-      check(
-        string,
-        "M.T's T" ++ r,
-        "3:7 type T = Int;",
-        f12(~off=2, ~root, src, "M.T"),
-      );
-      check(
-        string,
-        "M.a's M" ++ r,
-        "0:7 module M = {",
-        f12(~off=0, ~root, src, "M.a"),
-      );
-    },
+    ~f=
+      ((root, src)) => {
+        let r = " [" ++ Sort.show(root) ++ "]";
+        check(
+          string,
+          "M.a's a" ++ r,
+          "1:6 let a = 1;",
+          f12(~off=2, ~root, src, "M.a"),
+        );
+        check(
+          string,
+          "M.T's T" ++ r,
+          "3:7 type T = Int;",
+          f12(~off=2, ~root, src, "M.T"),
+        );
+        check(
+          string,
+          "M.a's M" ++ r,
+          "0:7 module M = {",
+          f12(~off=0, ~root, src, "M.a"),
+        );
+      },
     roots,
   );
 
 let nested = () =>
   List.iter(
-    ((what, mk)) => {
-      let root = Sort.Mod;
-      let names_at = (needle, off, expected) => {
-        let z = at(~off, ~root, nested_src, needle);
+    ~f=
+      ((what, mk)) => {
+        let root = Sort.Mod;
+        let names_at = (needle, off, expected) => {
+          let z = at(~off, ~root, nested_src, needle);
+          check(
+            string,
+            what ++ ": " ++ needle ++ " +" ++ string_of_int(off),
+            expected,
+            names(~info_map=mk(~root, z), ~root, nested_src, z),
+          );
+        };
+        names_at("Outer.Inner.x", 12, "3:8 let x = true");
+        names_at("Outer.Inner.x", 6, "1:9 module Inner = {");
+        names_at("Outer.Inner.T", 12, "2:9 type T = Bool;");
+        names_at("Outer.Inner.T", 6, "1:9 module Inner = {");
         check(
           string,
-          what ++ ": " ++ needle ++ " +" ++ string_of_int(off),
-          expected,
-          names(~info_map=mk(~root, z), ~root, nested_src, z),
+          "F12 on Outer.Inner.x's x",
+          "3:8 let x = true",
+          f12(~off=12, ~root, nested_src, "Outer.Inner.x"),
         );
-      };
-      names_at("Outer.Inner.x", 12, "3:8 let x = true");
-      names_at("Outer.Inner.x", 6, "1:9 module Inner = {");
-      names_at("Outer.Inner.T", 12, "2:9 type T = Bool;");
-      names_at("Outer.Inner.T", 6, "1:9 module Inner = {");
-      check(
-        string,
-        "F12 on Outer.Inner.x's x",
-        "3:8 let x = true",
-        f12(~off=12, ~root, nested_src, "Outer.Inner.x"),
-      );
-    },
+      },
     both,
   );
 
@@ -241,73 +244,82 @@ let resolution = () => {
     ("a labeled tuple's label", "let t = (x = 1);\nt.x", "t.x", "nothing"),
   ];
   List.iter(
-    ((what, mk)) =>
-      List.iter(
-        ((case, src, needle, expected)) => {
-          /* the caret on the label */
-          let z =
-            at(~off=String.index(needle, '.') + 1, ~root=Mod, src, needle);
-          check(
-            string,
-            what ++ ": " ++ case,
-            expected,
-            names(~info_map=mk(~root=Sort.Mod, z), ~root=Mod, src, z),
-          );
-        },
-        cases,
-      ),
+    ~f=
+      ((what, mk)) =>
+        List.iter(
+          ~f=
+            ((case, src, needle, expected)) => {
+              /* the caret on the label */
+              let z =
+                at(
+                  ~off=String.index_exn(needle, '.') + 1,
+                  ~root=Mod,
+                  src,
+                  needle,
+                );
+              check(
+                string,
+                what ++ ": " ++ case,
+                expected,
+                names(~info_map=mk(~root=Sort.Mod, z), ~root=Mod, src, z),
+              );
+            },
+          cases,
+        ),
     both,
   );
 };
 
 let inspector = () =>
   List.iter(
-    ((what, mk)) => {
-      List.iter(
-        ((root, src)) => {
-          let r = " " ++ what ++ " [" ++ Sort.show(root) ++ "]";
-          let z = at(~off=2, ~root, src, "M.a");
-          check(
-            string,
-            "M.a's a" ++ r,
-            "Variable reference : Int",
-            inspect(~info_map=mk(~root, z), z),
-          );
-          let z = at(~off=2, ~root, src, "M.T");
-          check(
-            string,
-            "M.T's T" ++ r,
-            "Type variable = Int",
-            inspect(~info_map=mk(~root, z), z),
-          );
-        },
-        roots,
-      );
-      /* through a nested module */
-      let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.x");
-      check(
-        string,
-        "Outer.Inner.x's x " ++ what,
-        "Variable reference : Bool",
-        inspect(~info_map=mk(~root=Sort.Mod, z), z),
-      );
-      let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.T");
-      check(
-        string,
-        "Outer.Inner.T's T " ++ what,
-        "Type variable = Bool",
-        inspect(~info_map=mk(~root=Sort.Mod, z), z),
-      );
-      /* a tuple's label stays a label */
-      let src = "let t = (x = 1) in\nt.x";
-      let z = at(~off=2, ~root=Exp, src, "t.x");
-      check(
-        string,
-        "t.x's x " ++ what,
-        "Label : Int",
-        inspect(~info_map=mk(~root=Sort.Exp, z), z),
-      );
-    },
+    ~f=
+      ((what, mk)) => {
+        List.iter(
+          ~f=
+            ((root, src)) => {
+              let r = " " ++ what ++ " [" ++ Sort.show(root) ++ "]";
+              let z = at(~off=2, ~root, src, "M.a");
+              check(
+                string,
+                "M.a's a" ++ r,
+                "Variable reference : Int",
+                inspect(~info_map=mk(~root, z), z),
+              );
+              let z = at(~off=2, ~root, src, "M.T");
+              check(
+                string,
+                "M.T's T" ++ r,
+                "Type variable = Int",
+                inspect(~info_map=mk(~root, z), z),
+              );
+            },
+          roots,
+        );
+        /* through a nested module */
+        let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.x");
+        check(
+          string,
+          "Outer.Inner.x's x " ++ what,
+          "Variable reference : Bool",
+          inspect(~info_map=mk(~root=Sort.Mod, z), z),
+        );
+        let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.T");
+        check(
+          string,
+          "Outer.Inner.T's T " ++ what,
+          "Type variable = Bool",
+          inspect(~info_map=mk(~root=Sort.Mod, z), z),
+        );
+        /* a tuple's label stays a label */
+        let src = "let t = (x = 1) in\nt.x";
+        let z = at(~off=2, ~root=Exp, src, "t.x");
+        check(
+          string,
+          "t.x's x " ++ what,
+          "Label : Int",
+          inspect(~info_map=mk(~root=Sort.Exp, z), z),
+        );
+      },
     both,
   );
 
@@ -315,30 +327,39 @@ let inspector = () =>
    does the label; the top-level `a` stays out */
 let highlights = () =>
   List.iter(
-    ((root, src)) => {
-      let hl = (needle, off) => {
-        let z = at(~off, ~root, src, needle);
-        let info_map = compositional(~root, z);
-        Statics.Map.var_highlight_ids(info_map, indicated(~info_map, z))
-        |> List.map(id =>
-             switch (
-               Measured.find_by_id(id, CachedSyntax.init(~root, z).measured)
-             ) {
-             | Some(m) => [
-                 Printf.sprintf("%d:%d", m.origin.row, m.origin.col),
-               ]
-             /* the module's export tuple, which no token shows */
-             | None => []
-             }
-           )
-        |> List.concat
-        |> List.sort(compare)
-        |> String.concat(" ");
-      };
-      let r = " [" ++ Sort.show(root) ++ "]";
-      check(string, "from the member" ++ r, "1:6 2:10 7:16", hl("a = 1", 0));
-      check(string, "from M.a's a" ++ r, "1:6 2:10 7:16", hl("M.a", 2));
-    },
+    ~f=
+      ((root, src)) => {
+        let hl = (needle, off) => {
+          let z = at(~off, ~root, src, needle);
+          let info_map = compositional(~root, z);
+          Statics.Map.var_highlight_ids(info_map, indicated(~info_map, z))
+          |> List.map(~f=id =>
+               switch (
+                 Measured.find_by_id(
+                   id,
+                   CachedSyntax.init(~root, z).measured,
+                 )
+               ) {
+               | Some(m) => [
+                   Printf.sprintf("%d:%d", m.origin.row, m.origin.col),
+                 ]
+               /* the module's export tuple, which no token shows */
+               | None => []
+               }
+             )
+          |> List.concat
+          |> List.sort(~compare)
+          |> String.concat(~sep=" ");
+        };
+        let r = " [" ++ Sort.show(root) ++ "]";
+        check(
+          string,
+          "from the member" ++ r,
+          "1:6 2:10 7:16",
+          hl("a = 1", 0),
+        );
+        check(string, "from M.a's a" ++ r, "1:6 2:10 7:16", hl("M.a", 2));
+      },
     roots,
   );
 

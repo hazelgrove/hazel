@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* the outline's text mode (OutlineEdit): what each key does on each kind
    of line, as data, over a real program's rows; and the saves, ops and
@@ -48,18 +49,19 @@ let find_line = (lines: array(E.entry), which: string): int => {
       | (_, KTests | KStmt | KTrail) => false
       | (l, _) => r.r_node.o_label == l
       }
-    | Of_new(_) => which == "+"
+    | Of_new(_) => String.equal(which, "+")
     };
   let found =
     which == {js|⇒|js}
       ? Option.map(
-          i => Array.length(lines) - 1 - i,
-          Array.find_index(
-            is,
-            Array.of_list(List.rev(Array.to_list(lines))),
-          ),
+          ~f=i => Array.length(lines) - 1 - i,
+          Array.findi(
+            Array.of_list(List.rev(Array.to_list(lines))), ~f=(_, x) =>
+            is(x)
+          )
+          |> Option.map(~f=fst),
         )
-      : Array.find_index(is, lines);
+      : Array.findi(lines, ~f=(_, x) => is(x)) |> Option.map(~f=fst);
   switch (found) {
   | Some(i) => i
   | None => fail("no line " ++ which)
@@ -115,7 +117,7 @@ let press =
   let ls = lines(~of_, ~collapsed, ~folds?, ~text=t, ());
   E.decide(
     ~lines=ls,
-    ~at=Option.get(E.find(ls, line)),
+    ~at=Option.value_exn(E.find(ls, line)),
     ~t,
     ~caret={
       in_field: field,
@@ -395,36 +397,36 @@ let enter = () => {
   );
   let tests =
     List.filter_map(
-      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
   check(
     outcome,
     "a test: one below it",
-    NewTest(NewTestBelow, List.nth(tests, 0)),
+    NewTest(NewTestBelow, List.nth_exn(tests, 0)),
     press("1", k("Enter")),
   );
   check(
     outcome,
     "tests, expanded: first of the run",
-    NewTest(NewTestAbove, List.nth(tests, 0)),
+    NewTest(NewTestAbove, List.nth_exn(tests, 0)),
     press("tests", k("Enter")),
   );
   check(
     outcome,
     "tests, folded: after the run",
-    NewTest(NewTestBelow, List.nth(tests, 1)),
+    NewTest(NewTestBelow, List.nth_exn(tests, 1)),
     press(~collapsed=["tests"], "tests", k("Enter")),
   );
   let stmt =
     List.find_map(
-      (n: O.node) => n.o_kind == KStmt ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
   check(
     outcome,
     "a statement: a new definition below",
-    E.Go(New(Option.get(stmt), Below), 0, None),
+    E.Go(New(Option.value_exn(stmt), Below), 0, None),
     press(";", k("Enter")),
   );
   check(
@@ -635,7 +637,7 @@ let ops = () => {
   let d = k(~meta=true, ~code="KeyD", "d");
   check(outcome, "⌘D", Op(Duplicate, id("alpha")), press("alpha", d));
   check(outcome, "⌘D on a test", Op(Duplicate, id("2")), press("2", d));
-  check(outcome, {js|⌘D on ⇒|js}, Flash, press({js|⇒|js}, d));
+  check(outcome, {js|⌘D on ⇒|js}, E.Flash, press({js|⇒|js}, d));
   check(
     outcome,
     {js|⌘⌫ on ⇒|js},
@@ -653,26 +655,26 @@ let shift_tab = k(~shift=true, "Tab");
 let nesting = () => {
   let tests =
     List.filter_map(
-      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
   let semi =
     List.find_map(
-      (n: O.node) => n.o_kind == KStmt ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
       O.flatten(O.rows(term)),
     )
-    |> Option.get;
+    |> Option.value_exn;
   List.iter(
-    ((label, want, got)) => check(outcome, label, want, got),
+    ~f=((label, want, got)) => check(outcome, label, want, got),
     [
       (
         "Tab: a run's first test into the module above it",
-        E.Op(Indent, List.nth(tests, 0)),
+        E.Op(Indent, List.nth_exn(tests, 0)),
         press("1", tab),
       ),
       (
         "into a folded one too",
-        Op(Indent, List.nth(tests, 0)),
+        Op(Indent, List.nth_exn(tests, 0)),
         press(~collapsed=["Geo"], "1", tab),
       ),
       (
@@ -680,18 +682,18 @@ let nesting = () => {
         Op(Indent, id("beta")),
         press("beta", tab),
       ),
-      ("a statement", Op(Indent, semi), press(";", tab)),
+      ("a statement", E.Op(Indent, semi), press(";", tab)),
       (
         "a member into the member above",
         Op(Indent, id("unit")),
         press("unit", tab),
       ),
-      ("nothing above: flashes", Flash, press("alpha", tab)),
-      ("first in a body", Flash, press("inner", tab)),
-      ("a type above", Flash, press("Geo", tab)),
-      ("a test above", Flash, press("2", tab)),
-      ("a tests label isn't an item", Flash, press("tests", tab)),
-      ({js|⇒|js}, Flash, press({js|⇒|js}, tab)),
+      ("nothing above: flashes", E.Flash, press("alpha", tab)),
+      ("first in a body", E.Flash, press("inner", tab)),
+      ("a type above", E.Flash, press("Geo", tab)),
+      ("a test above", E.Flash, press("2", tab)),
+      ("a tests label isn't an item", E.Flash, press("tests", tab)),
+      ({js|⇒|js}, E.Flash, press({js|⇒|js}, tab)),
       (
         {js|⇧Tab: a module's last member out|js},
         Op(Outdent, id("unit")),
@@ -702,11 +704,11 @@ let nesting = () => {
         Op(Outdent, id("inner")),
         press("inner", shift_tab),
       ),
-      ("a member that isn't last", Flash, press("origin", shift_tab)),
-      ("the top level", Flash, press("alpha", shift_tab)),
-      ("a top-level test", Flash, press("2", shift_tab)),
-      ({js|a body's ⇒|js}, Flash, press({js|beta⇒|js}, shift_tab)),
-      ({js|⌥Tab: nothing|js}, Swallow, press("1", k(~alt=true, "Tab"))),
+      ("a member that isn't last", E.Flash, press("origin", shift_tab)),
+      ("the top level", E.Flash, press("alpha", shift_tab)),
+      ("a top-level test", E.Flash, press("2", shift_tab)),
+      ({js|a body's ⇒|js}, E.Flash, press({js|beta⇒|js}, shift_tab)),
+      ({js|⌥Tab: nothing|js}, E.Swallow, press("1", k(~alt=true, "Tab"))),
     ],
   );
 };
@@ -725,7 +727,7 @@ let nesting_lines = () => {
     );
   let enter = k("Enter");
   List.iter(
-    ((label, want, got)) => check(outcome, label, want, got),
+    ~f=((label, want, got)) => check(outcome, label, want, got),
     [
       (
         "below a module: Tab takes it in, last",
@@ -747,7 +749,7 @@ let nesting_lines = () => {
         Shift(New(id("beta"), Last)),
         at(New(id("beta"), Below), tab),
       ),
-      ("below a type: flashes", Flash, at(New(id("Shape"), Below), tab)),
+      ("below a type: flashes", E.Flash, at(New(id("Shape"), Below), tab)),
       (
         {js|last in a function, above its ⇒: ⇧Tab takes it out|js},
         Shift(New(id("beta"), Below)),
@@ -783,7 +785,7 @@ let nesting_lines = () => {
         Shift(New(id("beta"), Below)),
         at(New(id("inner"), Below), shift_tab),
       ),
-      ("the top level", Flash, at(New(id("alpha"), Below), shift_tab)),
+      ("the top level", E.Flash, at(New(id("alpha"), Below), shift_tab)),
       (
         "Enter, blank, last in a module: out",
         Shift(New(id("Geo"), Below)),
@@ -846,7 +848,7 @@ let empty_modules = () => {
     );
   let enter = k("Enter");
   List.iter(
-    ((label, want, got)) => check(outcome, label, want, got),
+    ~f=((label, want, got)) => check(outcome, label, want, got),
     [
       (
         "Enter on an empty module: first inside it",
@@ -961,7 +963,7 @@ let live_keys = () => {
     );
   let shift = k(~shift=true);
   List.iter(
-    ((label, want, got)) => check(outcome, label, want, got),
+    ~f=((label, want, got)) => check(outcome, label, want, got),
     [
       (
         {js|Shift+←: the selection|js},
@@ -1094,8 +1096,9 @@ let live_keys = () => {
 /* clipboard text that can be part of a name; where a word ends */
 let fragments_and_words = () => {
   List.iter(
-    ((label, text, want)) =>
-      check(option(string), label, want, E.fragment(text)),
+    ~f=
+      ((label, text, want)) =>
+        check(option(string), label, want, E.fragment(text)),
     [
       ("a name's characters", "Bar_2'", Some("Bar_2'")),
       ("a copied line's newline trimmed", "  bar\n", Some("bar")),
@@ -1108,18 +1111,19 @@ let fragments_and_words = () => {
     ],
   );
   List.iter(
-    ((name, at, side, want)) =>
-      check(
-        int,
-        Printf.sprintf(
-          "%s from %d %s",
-          name,
-          at,
-          side == Util.Direction.Left ? "left" : "right",
+    ~f=
+      ((name, at, side, want)) =>
+        check(
+          int,
+          Printf.sprintf(
+            "%s from %d %s",
+            name,
+            at,
+            side == Util.Direction.Left ? "left" : "right",
+          ),
+          want,
+          E.word_edge(name, at, side),
         ),
-        want,
-        E.word_edge(name, at, side),
-      ),
     [
       ("foo_bar", 7, Util.Direction.Left, 0),
       ("fooBar", 6, Left, 0),
@@ -1239,7 +1243,7 @@ module M = {
   let term = Web.Program.outline(p);
   let blank = label => C.blank_body(p, CorpusUtil.row_by_label(term, label));
   List.iter(
-    ((label, want)) => check(bool, label, want, blank(label)),
+    ~f=((label, want)) => check(bool, label, want, blank(label)),
     [
       ("a", true),
       ("b", false),
@@ -1292,7 +1296,7 @@ let reset = () => {
   C.cursor := None;
   C.flash := 0;
   C.created := None;
-  Hashtbl.remove(
+  Stdlib.Hashtbl.remove(
     Web.ScratchPersist.slide_folds,
     Web.ScratchPersist.content_key("scratch", "t"),
   );
@@ -1304,14 +1308,17 @@ let new_tests = () => {
   let term = Web.Program.outline(code.program);
   let tests =
     List.filter_map(
-      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
-  let first = List.nth(tests, 0);
+  let first = List.nth_exn(tests, 0);
   C.text :=
     Some(
       E.at(
-        Row(Option.get(O.label_path(first, term)), Some(Item(first))),
+        Row(
+          Option.value_exn(O.label_path(first, term)),
+          Some(Item(first)),
+        ),
       ),
     );
   let code' = run(DefOp(NewTestBelow, first), code);
@@ -1333,7 +1340,7 @@ a|js},
     option(string),
     "the caret on the new test, the second",
     Some("2"),
-    Option.map((n: O.node) => n.o_label, caret_on(code')),
+    Option.map(~f=(n: O.node) => n.o_label, caret_on(code')),
   );
   C.text := None;
   C.cursor := None;
@@ -1344,9 +1351,9 @@ a|js},
     true,
     C.cursor^
     == O.label_path(
-         List.hd(
+         List.hd_exn(
            List.filter_map(
-             (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+             ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
              O.flatten(O.rows(Web.Program.outline(code''.program))),
            ),
          ),
@@ -1369,18 +1376,18 @@ let fresh_def = (): Id.t =>
 /* the new definition's name and the caret in it, as the editor has them */
 let live_of = (code: Web.ScratchModel.Scratchpad.code) =>
   C.live_name(code.program, fresh_def())
-  |> Option.map((l: E.live) => (l.l_name, l.l_at));
+  |> Option.map(~f=(l: E.live) => (l.l_name, l.l_at));
 
 /* keys on a new definition's line, in order: none its own undo step */
 let typing = (line, edits, code) =>
-  List.fold_left(
-    (code, e) => {
+  List.fold(
+    edits,
+    ~init=code,
+    ~f=(code, e) => {
       let u = update(Type(line, e), code);
       check(bool, "not an undo step of its own", false, u.historic);
       u.model;
     },
-    code,
-    edits,
   );
 
 let at_name = testable(Fmt.(option(pair(string, int))), (==));
@@ -1589,8 +1596,14 @@ let nesting_ops = () => {
   let term = Web.Program.outline(code.program);
   let ck = Web.ScratchPersist.content_key("scratch", "t");
   let m_path =
-    Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term));
-  Hashtbl.replace(Web.ScratchPersist.slide_folds, ck, [(m_path, true)]);
+    Option.value_exn(
+      O.label_path(CorpusUtil.row_by_label(term, "M"), term),
+    );
+  Stdlib.Hashtbl.replace(
+    Web.ScratchPersist.slide_folds,
+    ck,
+    [(m_path, true)],
+  );
   /* the caret on [label]'s row, at column 2 */
   let on = (code: Web.ScratchModel.Scratchpad.code, label) => {
     let term = Web.Program.outline(code.program);
@@ -1598,7 +1611,7 @@ let nesting_ops = () => {
     C.text :=
       Some(
         E.at(
-          Row(Option.get(O.label_path(id, term)), Some(Item(id))),
+          Row(Option.value_exn(O.label_path(id, term)), Some(Item(id))),
           ~col=2,
         ),
       );
@@ -1639,11 +1652,11 @@ let nesting_ops = () => {
       KModule,
     ),
   );
-  check(bool, "no cell opened", true, scheduled^ == []);
+  check(bool, "no cell opened", true, List.is_empty(scheduled^));
   let out = run(DefOp(Outdent, on(in_.model, "bee")), in_.model);
   check(string, {js|⇧Tab: out again|js}, printed(src), text_of(out));
   check(at_name, "the caret along", Some(("bee", 2)), caret(out));
-  Hashtbl.remove(Web.ScratchPersist.slide_folds, ck);
+  Stdlib.Hashtbl.remove(Web.ScratchPersist.slide_folds, ck);
   reset();
 };
 
@@ -1652,11 +1665,12 @@ let nesting_ops = () => {
 let shift = (from: E.line, to_: E.line, code) => {
   C.text :=
     Option.map(
-      (t: E.t) =>
-        {
-          ...t,
-          line: to_,
-        },
+      ~f=
+        (t: E.t) =>
+          {
+            ...t,
+            line: to_,
+          },
       C.text^,
     );
   update(Shift(from, to_), code);
@@ -1682,7 +1696,7 @@ let module_lines = () => {
     bool,
     "Enter after a module's name: first inside it",
     true,
-    inside == New(m.f_id, First),
+    Poly.equal(inside, New(m.f_id, First)),
   );
   check(
     bool,
@@ -1891,8 +1905,9 @@ let live_in_stack = () => {
     switch (code.program) {
     | Divided(dv) =>
       Option.map(
-        (e: Web.ScratchCell.t) =>
-          CorpusUtil.text_of(Web.ScratchFocus.zip_of_cell(e.e_header)),
+        ~f=
+          (e: Web.ScratchCell.t) =>
+            CorpusUtil.text_of(Web.ScratchFocus.zip_of_cell(e.e_header)),
         Web.Divided.cell(d, dv),
       )
     | Whole(_) => None
@@ -1920,7 +1935,10 @@ let live_in_stack = () => {
     bool,
     "pinned",
     true,
-    List.exists((p: Web.SlideView.pin) => p.p_id == d, code.view.pins),
+    List.exists(
+      ~f=(p: Web.SlideView.pin) => Id.equal(p.p_id, d),
+      code.view.pins,
+    ),
   );
   reset();
 };
@@ -1938,10 +1956,8 @@ let live_undo = () => {
   C.text := Some(E.at(line));
   let m = U.run(m, outline(Create(line, "")));
   let m =
-    List.fold_left(
-      (m, c) => U.run(m, outline(Type(line, Insert(c)))),
-      m,
-      ["n", "e", "w"],
+    List.fold(["n", "e", "w"], ~init=m, ~f=(m, c) =>
+      U.run(m, outline(Type(line, Insert(c))))
     );
   check(
     string,
@@ -1979,11 +1995,8 @@ let undo_after_drop = () => {
       f_kw: "",
     };
     let m =
-      String.fold_left(
-        (m, c) =>
-          U.run(m, outline(Type(line, Insert(String.make(1, c))))),
-        m,
-        name,
+      String.fold(name, ~init=m, ~f=(m, c) =>
+        U.run(m, outline(Type(line, Insert(String.make(1, c)))))
       );
     (m, () => U.run(m, outline(Settle(line, f, Leave))));
   };
@@ -2032,7 +2045,7 @@ a + b|js},
    end, as the editor has them */
 let selection_of = (code: Web.ScratchModel.Scratchpad.code) =>
   C.live_name(code.program, fresh_def())
-  |> Option.map((l: E.live) => (l.l_name, l.l_at, l.l_anchor));
+  |> Option.map(~f=(l: E.live) => (l.l_name, l.l_at, l.l_anchor));
 let at_sel = option(triple(string, int, int));
 
 /* what the editor holding the name has selected */
@@ -2222,7 +2235,7 @@ let keys_wait = () => {
       H.keydown(~code="KeyQ", "q"),
     ),
   );
-  check(bool, "nothing typed yet", true, edits^ == []);
+  check(bool, "nothing typed yet", true, List.is_empty(edits^));
   check(
     bool,
     "held for the new line",
@@ -2247,7 +2260,7 @@ let copy_and_delete = () => {
         ...
           E.at(
             Row(
-              Option.get(O.label_path(row(label), term)),
+              Option.value_exn(O.label_path(row(label), term)),
               Some(Item(row(label))),
             ),
             ~col=1,
@@ -2267,9 +2280,10 @@ let copy_and_delete = () => {
     true,
     switch (caret) {
     | Some((id, 1)) =>
-      id != row("a")
+      !Id.equal(id, row("a"))
       && O.node_of(id, Web.Program.outline(copied.program))
-      |> Option.map((n: O.node) => n.o_label) == Some("a")
+      |> Option.map(~f=(n: O.node) => n.o_label)
+      |> Poly.equal(Some("a"))
     | _ => false
     },
   );
@@ -2279,7 +2293,7 @@ let copy_and_delete = () => {
     option(string),
     "deleted: the caret on the next row",
     Some("b"),
-    Option.map((n: O.node) => n.o_label, caret_on(deleted)),
+    Option.map(~f=(n: O.node) => n.o_label, caret_on(deleted)),
   );
   on("a");
   ignore(run(DefOp(MoveUp, row("a")), code));
@@ -2305,10 +2319,9 @@ let row_mode_fold = () => {
   let press = label => {
     cursor :=
       Option.map(
-        (r: Web.OutlineSidebar.visible_row) => r.r_path,
-        Array.find_opt(
-          (r: Web.OutlineSidebar.visible_row) => r.r_node.o_label == label,
-          visible,
+        ~f=(r: Web.OutlineSidebar.visible_row) => r.r_path,
+        Array.find(visible, ~f=(r: Web.OutlineSidebar.visible_row) =>
+          r.r_node.o_label == label
         ),
       );
     folded := [];
@@ -2324,13 +2337,18 @@ let row_mode_fold = () => {
   };
   let beta = press("beta");
   check(bool, "beta folds", true, beta == Option.to_list(cursor^));
-  check(bool, "alpha has nothing to fold", true, press("alpha") == []);
+  check(
+    bool,
+    "alpha has nothing to fold",
+    true,
+    List.is_empty(press("alpha")),
+  );
 };
 
 /* a run of tests, folded by default: ⌥F, → and Enter open it, ← goes
    to its parent, ↓ past its tests; opened, ← folds it, → and ↓ go in */
 let run_fold_keys = () => {
-  let run = Option.get(O.run_of(id("1"), term));
+  let run = Option.value_exn(O.run_of(id("1"), term));
   let path = label => O.label_path(id(label), term);
   let press = (~folds, key) => {
     let cursor = ref(Some(run));
@@ -2360,9 +2378,9 @@ let run_fold_keys = () => {
     testable(
       Fmt.of_to_string(((ps, c)) =>
         "flipped ["
-        ++ String.concat("; ", List.map(O.show_path, ps))
+        ++ String.concat(~sep="; ", List.map(~f=O.show_path, ps))
         ++ "], cursor "
-        ++ Option.fold(~none="none", ~some=O.show_path, c)
+        ++ Option.value_map(c, ~default="none", ~f=O.show_path)
       ),
       (==),
     );
@@ -2411,13 +2429,11 @@ let run_text = () => {
     bool,
     "its tests aren't lines",
     false,
-    Array.exists(
-      (e: E.entry) =>
-        switch (e) {
-        | Of_row(r) => r.r_node.o_kind == KTest
-        | Of_new(_) => false
-        },
-      ls,
+    Array.exists(ls, ~f=(e: E.entry) =>
+      switch (e) {
+      | Of_row(r) => Poly.equal(r.r_node.o_kind, KTest)
+      | Of_new(_) => false
+      }
     ),
   );
   let go = (which, col, target) => E.Go(line_of(ls, which), col, target);
@@ -2448,7 +2464,7 @@ let run_text = () => {
   check(
     outcome,
     "⌥F opens it",
-    Fold(Option.get(O.run_of(id("1"), term))),
+    Fold(Option.value_exn(O.run_of(id("1"), term))),
     press(~folds=[], "tests", k(~alt=true, ~code="KeyF", {js|ƒ|js})),
   );
 };
@@ -2459,11 +2475,11 @@ let new_test_opens_run = () => {
   let folded = path =>
     O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
   let label = (code: Web.ScratchModel.Scratchpad.code) =>
-    Option.map((n: O.node) => n.o_label, caret_on(code));
+    Option.map(~f=(n: O.node) => n.o_label, caret_on(code));
   let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
   let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
-  let tests = Option.get(O.run_of(row("1"), term));
+  let tests = Option.value_exn(O.run_of(row("1"), term));
   check(bool, "folded to start", true, folded(tests));
   C.text := Some(E.at(Row(tests, Some(Run(row("1"))))));
   let code' = run(DefOp(NewTestBelow, row("2")), code);
@@ -2480,7 +2496,9 @@ let new_test_opens_run = () => {
   let lone = CorpusUtil.row_by_label(term, "1");
   C.text :=
     Some(
-      E.at(Row(Option.get(O.label_path(lone, term)), Some(Item(lone)))),
+      E.at(
+        Row(Option.value_exn(O.label_path(lone, term)), Some(Item(lone))),
+      ),
     );
   let code' = run(DefOp(NewTestBelow, lone), code);
   let term' = Web.Program.outline(code'.program);
@@ -2489,7 +2507,9 @@ let new_test_opens_run = () => {
     "a lone test's new neighbour: their run opened",
     false,
     folded(
-      Option.get(O.run_of(CorpusUtil.row_by_label(term', "2"), term')),
+      Option.value_exn(
+        O.run_of(CorpusUtil.row_by_label(term', "2"), term'),
+      ),
     ),
   );
   check(option(string), "the caret on it", Some("2"), label(code'));
@@ -2501,9 +2521,9 @@ let new_test_opens_run = () => {
 let lone_test_ops = () => {
   /* the items' order, not the gaps the kernel lays out */
   let squeezed = code =>
-    String.split_on_char('\n', text_of(code))
-    |> List.filter(l => String.trim(l) != "")
-    |> String.concat("\n");
+    String.split(~on='\n', text_of(code))
+    |> List.filter(~f=l => !String.equal(String.strip(l), ""))
+    |> String.concat(~sep="\n");
   let folded = path =>
     O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
   let code = code_of("let a = 1 in\nlet b = 2 in\ntest a == 1 end;\nb");
@@ -2513,7 +2533,7 @@ let lone_test_ops = () => {
     bool,
     "its run starts folded",
     true,
-    folded(Option.get(O.run_of(lone, term))),
+    folded(Option.value_exn(O.run_of(lone, term))),
   );
   let moved = run(DefOp(MoveUp, lone), code);
   check(
@@ -2523,7 +2543,7 @@ let lone_test_ops = () => {
     squeezed(moved),
   );
   let term' = Web.Program.outline(moved.program);
-  let path = Option.get(O.run_of(lone, term'));
+  let path = Option.value_exn(O.run_of(lone, term'));
   check(bool, "its run opened", false, folded(path));
   check(
     bool,
@@ -2549,34 +2569,36 @@ let test_menus = () => {
   let on = H.handlers(~ops, ());
   let labels = rows =>
     List.filter_map(
-      (r: Web.OutlineSidebar.menu_row) =>
-        switch (r) {
-        | Item(label, _, _) => Some(label)
-        | Divider => None
-        },
+      ~f=
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(label, _, _) => Some(label)
+          | Divider => None
+          },
       rows,
     );
   let act = (rows, label) =>
     List.iter(
-      (r: Web.OutlineSidebar.menu_row) =>
-        switch (r) {
-        | Item(l, _, act) when l == label => ignore(act())
-        | _ => ()
-        },
+      ~f=
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(l, _, act) when l == label => ignore(act())
+          | _ => ()
+          },
       rows,
     );
   let tests =
     List.filter_map(
-      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      ~f=(n: O.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       O.flatten(O.rows(term)),
     );
-  let (first, last) = (List.nth(tests, 0), List.nth(tests, 1));
+  let (first, last) = (List.nth_exn(tests, 0), List.nth_exn(tests, 1));
   let on_test = Web.OutlineSidebar.menu_rows(~on, On_item(first, KTest));
   check(
     bool,
     "a test's menu",
     true,
-    List.mem("New test below", labels(on_test)),
+    List.mem(labels(on_test), "New test below", ~equal=Poly.equal),
   );
   act(on_test, "New test below");
   check(bool, "below it", true, ops^ == [(NewTestBelow, first)]);
@@ -2585,10 +2607,11 @@ let test_menus = () => {
     "not a definition's",
     false,
     List.mem(
-      "New test below",
       labels(
         Web.OutlineSidebar.menu_rows(~on, On_item(id("alpha"), KConst)),
       ),
+      "New test below",
+      ~equal=Poly.equal,
     ),
   );
   ops := [];
@@ -2624,8 +2647,8 @@ let lone_run_row_ops = () => {
   let term = Web.Program.outline(code.program);
   let row = CorpusUtil.row_by_label(term);
   let lone = row("1");
-  let lone_run = Option.get(O.run_of(lone, term));
-  let pair_run = Option.get(O.run_of(row("2"), term));
+  let lone_run = Option.value_exn(O.run_of(lone, term));
+  let pair_run = Option.value_exn(O.run_of(row("2"), term));
   let ops =
     testable(
       Fmt.list(Fmt.of_to_string(((o, _)) => E.show_def_op(o))),
@@ -2661,15 +2684,16 @@ let lone_run_row_ops = () => {
     (Delete, H.keydown("Delete")),
   ];
   List.iter(
-    ((o, key)) => {
-      check(
-        ops,
-        "row mode: " ++ E.show_def_op(o),
-        [(o, lone)],
-        row_key(lone_run, key),
-      );
-      check(ops, "a longer run's row: none", [], row_key(pair_run, key));
-    },
+    ~f=
+      ((o, key)) => {
+        check(
+          ops,
+          "row mode: " ++ E.show_def_op(o),
+          [(o, lone)],
+          row_key(lone_run, key),
+        );
+        check(ops, "a longer run's row: none", [], row_key(pair_run, key));
+      },
     keys,
   );
   /* text mode: the key on [run]'s ghost line */
@@ -2681,20 +2705,27 @@ let lone_run_row_ops = () => {
     (Delete, k(~meta=true, "Backspace")),
   ];
   List.iter(
-    ((o, key)) => {
-      check(
-        outcome,
-        "text mode: " ++ E.show_def_op(o),
-        Op(o, lone),
-        press(~of_=term, ~folds=[], ~on=line(lone_run, lone), "", key),
-      );
-      check(
-        outcome,
-        "a longer run's line: a flash",
-        Flash,
-        press(~of_=term, ~folds=[], ~on=line(pair_run, row("2")), "", key),
-      );
-    },
+    ~f=
+      ((o, key)) => {
+        check(
+          outcome,
+          "text mode: " ++ E.show_def_op(o),
+          Op(o, lone),
+          press(~of_=term, ~folds=[], ~on=line(lone_run, lone), "", key),
+        );
+        check(
+          outcome,
+          "a longer run's line: a flash",
+          Flash,
+          press(
+            ~of_=term,
+            ~folds=[],
+            ~on=line(pair_run, row("2")),
+            "",
+            key,
+          ),
+        );
+      },
     text_keys,
   );
   /* the menu */
@@ -2702,15 +2733,17 @@ let lone_run_row_ops = () => {
   let on = H.handlers(~ops=asked, ());
   let menu = Web.OutlineSidebar.menu_rows(~on, On_run(lone, lone, false));
   List.iter(
-    label =>
-      List.iter(
-        (r: Web.OutlineSidebar.menu_row) =>
-          switch (r) {
-          | Item(l, _, act) when l == label => ignore(act())
-          | _ => ()
-          },
-        menu,
-      ),
+    ~f=
+      label =>
+        List.iter(
+          ~f=
+            (r: Web.OutlineSidebar.menu_row) =>
+              switch (r) {
+              | Item(l, _, act) when l == label => ignore(act())
+              | _ => ()
+              },
+          menu,
+        ),
     ["Move up", "Move down", "Duplicate", "Delete"],
   );
   check(
@@ -2724,19 +2757,20 @@ let lone_run_row_ops = () => {
     "a longer run's menu: no item ops",
     false,
     List.exists(
-      (r: Web.OutlineSidebar.menu_row) =>
-        switch (r) {
-        | Item("Duplicate", _, _) => true
-        | _ => false
-        },
+      ~f=
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item("Duplicate", _, _) => true
+          | _ => false
+          },
       Web.OutlineSidebar.menu_rows(~on, On_run(row("2"), row("3"), false)),
     ),
   );
   /* the ops applied: the row keeps the cursor, folded */
   let squeezed = code =>
-    String.split_on_char('\n', text_of(code))
-    |> List.filter(l => String.trim(l) != "")
-    |> String.concat("\n");
+    String.split(~on='\n', text_of(code))
+    |> List.filter(~f=l => !String.equal(String.strip(l), ""))
+    |> String.concat(~sep="\n");
   let folded = path =>
     O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
   let after = (o, code') => {
@@ -2747,13 +2781,13 @@ let lone_run_row_ops = () => {
       bool,
       E.show_def_op(o) ++ ": the cursor on its run",
       true,
-      run != None && C.cursor^ == run,
+      Option.is_some(run) && C.cursor^ == run,
     );
     check(
       bool,
       E.show_def_op(o) ++ ": still folded",
       true,
-      folded(Option.get(run)),
+      folded(Option.value_exn(run)),
     );
   };
   C.cursor := Some(lone_run);
@@ -2787,7 +2821,7 @@ let lone_run_row_ops = () => {
     squeezed(copied),
   );
   let term' = Web.Program.outline(copied.program);
-  let run' = Option.get(O.run_of(lone, term'));
+  let run' = Option.value_exn(O.run_of(lone, term'));
   check(
     bool,
     "duplicated: the caret on its run, now of two",
@@ -2828,7 +2862,8 @@ let esc_leaves = () => {
   let code = code_of(src);
   let term = Web.Program.outline(code.program);
   let a = CorpusUtil.row_by_label(term, "a");
-  let line = E.Row(Option.get(O.label_path(a, term)), Some(Item(a)));
+  let line =
+    E.Row(Option.value_exn(O.label_path(a, term)), Some(Item(a)));
   /* the key's save has left text mode already */
   let esc = typed => {
     reset();
@@ -2851,7 +2886,12 @@ let esc_leaves = () => {
     printed("let c = 1 in\nlet b = c + 1 in\nb"),
     text_of(saved.model),
   );
-  check(bool, "row mode, no flash", true, C.text^ == None && C.flash^ == 0);
+  check(
+    bool,
+    "row mode, no flash",
+    true,
+    Option.is_none(C.text^) && C.flash^ == 0,
+  );
   check(
     bool,
     "the cursor on its row",
@@ -2870,7 +2910,7 @@ let esc_leaves = () => {
     bool,
     "row mode, its row flashing",
     true,
-    C.text^ == None && C.flash^ == 1,
+    Option.is_none(C.text^) && C.flash^ == 1,
   );
   let (line, code) = live_line(two);
   let code = typing(line, [Insert("B")], code);
@@ -2887,7 +2927,12 @@ let esc_leaves = () => {
     printed(two),
     text_of(gone.model),
   );
-  check(bool, "flashed, row mode", true, C.flash^ == 1 && C.text^ == None);
+  check(
+    bool,
+    "flashed, row mode",
+    true,
+    C.flash^ == 1 && Option.is_none(C.text^),
+  );
   let (line, code) = live_line(two);
   let code = typing(line, [Insert("c")], code);
   let d = fresh_def();
@@ -2919,14 +2964,15 @@ let esc_leaves = () => {
 let live_rechecks = () => {
   let (line, code) = live_line(two);
   let code = typing(line, [Insert("B")], code);
-  let error = () => Option.bind(C.text^, (t: E.t) => t.error);
+  let error = () => Option.bind(C.text^, ~f=(t: E.t) => t.error);
   C.text :=
     Option.map(
-      (t: E.t) =>
-        {
-          ...t,
-          error: Some("value names start lowercase"),
-        },
+      ~f=
+        (t: E.t) =>
+          {
+            ...t,
+            error: Some("value names start lowercase"),
+          },
       C.text^,
     );
   let code = typing(line, [Insert("x")], code);
@@ -2960,7 +3006,9 @@ let rename_rechecks = () => {
   /* a stand-in: a capital first won't do */
   let check_name = (t: E.t) =>
     switch (t.pending) {
-    | Some(s) when s != "" && Char.uppercase_ascii(s.[0]) == s.[0] =>
+    | Some(s)
+        when
+          !String.equal(s, "") && Char.equal(Char.uppercase(s.[0]), s.[0]) =>
       Some(reason)
     | _ => None
     };
@@ -2973,7 +3021,7 @@ let rename_rechecks = () => {
         H.keydown(~code?, k),
       ),
     );
-  let error = () => Option.bind(text^, (t: E.t) => t.error);
+  let error = () => Option.bind(text^, ~f=(t: E.t) => t.error);
   key(~code="KeyB", "b");
   check(option(string), "still won't do: shown", Some(reason), error());
   key("Backspace");
@@ -3001,7 +3049,10 @@ let kind_undo = () => {
         Save(
           {
             sv_line:
-              Row(Option.get(O.label_path(row, term)), Some(Item(row))),
+              Row(
+                Option.value_exn(O.label_path(row, term)),
+                Some(Item(row)),
+              ),
             sv_text: "module M",
             sv_col: 1,
           },
@@ -3020,7 +3071,7 @@ let kind_undo = () => {
     bool,
     "its keyword leaves as a new definition's does",
     true,
-    C.created^ == Some((row, "module ")),
+    Poly.equal(C.created^, Some((row, "module "))),
   );
   let m = U.run(m, Globals(Undo));
   check(string, "⌘Z: a value again", before, program(m));
@@ -3044,7 +3095,7 @@ let structural_table = () => {
       (==),
     );
   List.iter(
-    ((name, p, expected)) => check(s, name, expected, E.structural(p)),
+    ~f=((name, p, expected)) => check(s, name, expected, E.structural(p)),
     [
       ({js|⌥↑|js}, k(~alt=true, "ArrowUp"), Some(E.Item(MoveUp))),
       ({js|⌥↓|js}, k(~alt=true, "ArrowDown"), Some(Item(MoveDown))),
@@ -3126,10 +3177,10 @@ let strict_rows = () => {
   let leave = Virtual_dom.Vdom.Effect.of_sync_fun(() => (), ());
   let zoom_out = Virtual_dom.Vdom.Effect.of_sync_fun(() => (), ());
   let rec holds = (e, eff: Virtual_dom.Vdom.Effect.t(unit)) =>
-    eff === e
+    phys_equal(eff, e)
     || (
       switch (eff) {
-      | Virtual_dom.Vdom.Effect.Many(l) => List.exists(holds(e), l)
+      | Virtual_dom.Vdom.Effect.Many(l) => List.exists(~f=holds(e), l)
       | _ => false
       }
     );
@@ -3174,7 +3225,7 @@ let strict_rows = () => {
     if (cursor^ != start) {
       say("move");
     };
-    if (text^ != None) {
+    if (Option.is_some(text^)) {
       say("text");
     };
     if (holds(leave, eff)) {
@@ -3185,102 +3236,120 @@ let strict_rows = () => {
     };
     switch (eff) {
     | Virtual_dom.Vdom.Effect.Ignore => ()
-    | _ when did^ == [] => say("acts")
+    | _ when List.is_empty(did^) => say("acts")
     | _ => ()
     };
     List.rev(did^);
   };
   let key = H.keydown;
   List.iter(
-    mac => {
-      Util.Os.is_mac := mac;
-      let on_ = (mac ? "Mac: " : "PC: ") ++ "row mode: ";
-      List.iter(
-        ((name, expected, k)) =>
-          check(list(string), on_ ++ name, expected, row(k)),
-        [
-          ({js|↓|js}, ["move"], key("ArrowDown")),
-          ({js|⇧↓|js}, [], key(~shift=true, "ArrowDown")),
-          ({js|⇧↑|js}, [], key(~shift=true, "ArrowUp")),
-          ({js|⌘↓|js}, [], key(~cmd=true, "ArrowDown")),
-          ({js|⌥↓|js}, ["MoveDown"], key(~alt=true, "ArrowDown")),
-          ({js|⇧⌥↓|js}, [], key(~alt=true, ~shift=true, "ArrowDown")),
-          ({js|⌘D|js}, ["Duplicate"], key(~cmd=true, ~code="KeyD", "d")),
-          (
-            {js|⇧⌘D|js},
-            [],
-            key(~cmd=true, ~shift=true, ~code="KeyD", "D"),
-          ),
-          ({js|⌘⌫|js}, ["Delete"], key(~cmd=true, "Backspace")),
-          ({js|⌥⌘⌫|js}, [], key(~cmd=true, ~alt=true, "Backspace")),
-          ("Delete", ["Delete"], key("Delete")),
-          ({js|⇧Delete|js}, [], key(~shift=true, "Delete")),
-          (
-            {js|⌥F|js},
-            ["fold"],
-            key(~alt=true, ~code="KeyF", {js|ƒ|js}),
-          ),
-          (
-            {js|⇧⌥F|js},
-            [],
-            key(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
-          ),
-          (
-            {js|⌥O|js},
-            ["leave"],
-            key(~alt=true, ~code="KeyO", {js|ø|js}),
-          ),
-          (
-            {js|⌥⌘O|js},
-            [],
-            key(~alt=true, ~cmd=true, ~code="KeyO", {js|ø|js}),
-          ),
-          ({js|⌥⌘.|js}, [], key(~alt=true, ~cmd=true, ".")),
-          ({js|Ctrl⇧F10|js}, [], key(~cmd=true, ~shift=true, "F10")),
-          ("Esc", ["leave"], key("Escape")),
-          ({js|⇧Esc, as ever|js}, ["leave"], key(~shift=true, "Escape")),
-          ("Space", ["open"], key(" ")),
-          ({js|⇧Space|js}, [], key(~shift=true, " ")),
-          ("Enter", ["acts"], key("Enter")),
-          ({js|⌥Enter|js}, [], key(~alt=true, "Enter")),
-          ("Home", ["move"], key("Home")),
-          ({js|⇧Home|js}, [], key(~shift=true, "Home")),
-          ({js|⇧PageDown|js}, [], key(~shift=true, "PageDown")),
-          ({js|⌥←|js}, ["zoom out"], key(~alt=true, "ArrowLeft")),
-          ({js|⇧⌥←|js}, [], key(~alt=true, ~shift=true, "ArrowLeft")),
-          ({js|⌘Enter|js}, ["text"], key(~cmd=true, "Enter")),
-          ({js|⇧⌘Enter|js}, [], key(~cmd=true, ~shift=true, "Enter")),
-          ("F2", ["text"], key("F2")),
-          ({js|⇧F2|js}, [], key(~shift=true, "F2")),
-          /* the other key: Ctrl on a Mac, ⊞ elsewhere */
-          (
-            "the other key+D",
-            [],
-            mac
-              ? key(~ctrl=true, ~code="KeyD", "d")
-              : key(~meta=true, ~code="KeyD", "d"),
-          ),
-          (
-            {js|the other key+⌫|js},
-            [],
-            mac
-              ? key(~ctrl=true, "Backspace") : key(~meta=true, "Backspace"),
-          ),
-          (
-            "the other key+.",
-            [],
-            mac ? key(~ctrl=true, ".") : key(~meta=true, "."),
-          ),
-          (
-            {js|the other key+⌘D|js},
-            [],
-            mac
-              ? key(~ctrl=true, ~cmd=true, ~code="KeyD", "d")
-              : key(~meta=true, ~cmd=true, ~code="KeyD", "d"),
-          ),
-        ],
-      );
-    },
+    ~f=
+      mac => {
+        Util.Os.is_mac := mac;
+        let on_ = (mac ? "Mac: " : "PC: ") ++ "row mode: ";
+        List.iter(
+          ~f=
+            ((name, expected, k)) =>
+              check(list(string), on_ ++ name, expected, row(k)),
+          [
+            ({js|↓|js}, ["move"], key("ArrowDown")),
+            ({js|⇧↓|js}, [], key(~shift=true, "ArrowDown")),
+            ({js|⇧↑|js}, [], key(~shift=true, "ArrowUp")),
+            ({js|⌘↓|js}, [], key(~cmd=true, "ArrowDown")),
+            ({js|⌥↓|js}, ["MoveDown"], key(~alt=true, "ArrowDown")),
+            (
+              {js|⇧⌥↓|js},
+              [],
+              key(~alt=true, ~shift=true, "ArrowDown"),
+            ),
+            (
+              {js|⌘D|js},
+              ["Duplicate"],
+              key(~cmd=true, ~code="KeyD", "d"),
+            ),
+            (
+              {js|⇧⌘D|js},
+              [],
+              key(~cmd=true, ~shift=true, ~code="KeyD", "D"),
+            ),
+            ({js|⌘⌫|js}, ["Delete"], key(~cmd=true, "Backspace")),
+            ({js|⌥⌘⌫|js}, [], key(~cmd=true, ~alt=true, "Backspace")),
+            ("Delete", ["Delete"], key("Delete")),
+            ({js|⇧Delete|js}, [], key(~shift=true, "Delete")),
+            (
+              {js|⌥F|js},
+              ["fold"],
+              key(~alt=true, ~code="KeyF", {js|ƒ|js}),
+            ),
+            (
+              {js|⇧⌥F|js},
+              [],
+              key(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
+            ),
+            (
+              {js|⌥O|js},
+              ["leave"],
+              key(~alt=true, ~code="KeyO", {js|ø|js}),
+            ),
+            (
+              {js|⌥⌘O|js},
+              [],
+              key(~alt=true, ~cmd=true, ~code="KeyO", {js|ø|js}),
+            ),
+            ({js|⌥⌘.|js}, [], key(~alt=true, ~cmd=true, ".")),
+            ({js|Ctrl⇧F10|js}, [], key(~cmd=true, ~shift=true, "F10")),
+            ("Esc", ["leave"], key("Escape")),
+            (
+              {js|⇧Esc, as ever|js},
+              ["leave"],
+              key(~shift=true, "Escape"),
+            ),
+            ("Space", ["open"], key(" ")),
+            ({js|⇧Space|js}, [], key(~shift=true, " ")),
+            ("Enter", ["acts"], key("Enter")),
+            ({js|⌥Enter|js}, [], key(~alt=true, "Enter")),
+            ("Home", ["move"], key("Home")),
+            ({js|⇧Home|js}, [], key(~shift=true, "Home")),
+            ({js|⇧PageDown|js}, [], key(~shift=true, "PageDown")),
+            ({js|⌥←|js}, ["zoom out"], key(~alt=true, "ArrowLeft")),
+            (
+              {js|⇧⌥←|js},
+              [],
+              key(~alt=true, ~shift=true, "ArrowLeft"),
+            ),
+            ({js|⌘Enter|js}, ["text"], key(~cmd=true, "Enter")),
+            ({js|⇧⌘Enter|js}, [], key(~cmd=true, ~shift=true, "Enter")),
+            ("F2", ["text"], key("F2")),
+            ({js|⇧F2|js}, [], key(~shift=true, "F2")),
+            /* the other key: Ctrl on a Mac, ⊞ elsewhere */
+            (
+              "the other key+D",
+              [],
+              mac
+                ? key(~ctrl=true, ~code="KeyD", "d")
+                : key(~meta=true, ~code="KeyD", "d"),
+            ),
+            (
+              {js|the other key+⌫|js},
+              [],
+              mac
+                ? key(~ctrl=true, "Backspace") : key(~meta=true, "Backspace"),
+            ),
+            (
+              "the other key+.",
+              [],
+              mac ? key(~ctrl=true, ".") : key(~meta=true, "."),
+            ),
+            (
+              {js|the other key+⌘D|js},
+              [],
+              mac
+                ? key(~ctrl=true, ~cmd=true, ~code="KeyD", "d")
+                : key(~meta=true, ~cmd=true, ~code="KeyD", "d"),
+            ),
+          ],
+        );
+      },
     [true, false],
   );
   Util.Os.is_mac := was_mac;
@@ -3299,47 +3368,60 @@ let strict_text = () => {
   };
   let in_field = (~col=2, p) => press(~field=true, ~col, "beta", p);
   List.iter(
-    ((name, expected, p)) => check(outcome, name, expected, in_field(p)),
+    ~f=
+      ((name, expected, p)) => check(outcome, name, expected, in_field(p)),
     [
-      ({js|⇧↓ selects|js}, Field, k(~shift=true, "ArrowDown")),
-      ({js|⇧→ too|js}, Field, k(~shift=true, "ArrowRight")),
-      ({js|⌥↓|js}, Op(MoveDown, beta), k(~alt=true, "ArrowDown")),
-      ({js|⇧⌥↓|js}, Field, k(~alt=true, ~shift=true, "ArrowDown")),
-      ({js|⌘D|js}, Op(Duplicate, beta), k(~meta=true, ~code="KeyD", "d")),
+      ({js|⇧↓ selects|js}, E.Field, k(~shift=true, "ArrowDown")),
+      ({js|⇧→ too|js}, E.Field, k(~shift=true, "ArrowRight")),
+      ({js|⌥↓|js}, E.Op(MoveDown, beta), k(~alt=true, "ArrowDown")),
+      ({js|⇧⌥↓|js}, E.Field, k(~alt=true, ~shift=true, "ArrowDown")),
+      (
+        {js|⌘D|js},
+        E.Op(Duplicate, beta),
+        k(~meta=true, ~code="KeyD", "d"),
+      ),
       (
         {js|⇧⌘D|js},
         Field,
         k(~meta=true, ~shift=true, ~code="KeyD", "D"),
       ),
-      ({js|⌘⌫|js}, Op(Delete, beta), k(~meta=true, "Backspace")),
-      ({js|⌥⌘⌫|js}, Swallow, k(~alt=true, ~meta=true, "Backspace")),
-      ({js|⇧⌘⌫|js}, Swallow, k(~shift=true, ~meta=true, "Backspace")),
-      ({js|⌥⌫, a word|js}, Field, k(~alt=true, "Backspace")),
-      ("Delete, a character", Field, k("Delete")),
-      ({js|⌥F|js}, Fold(path), k(~alt=true, ~code="KeyF", {js|ƒ|js})),
+      ({js|⌘⌫|js}, E.Op(Delete, beta), k(~meta=true, "Backspace")),
+      ({js|⌥⌘⌫|js}, E.Swallow, k(~alt=true, ~meta=true, "Backspace")),
+      (
+        {js|⇧⌘⌫|js},
+        E.Swallow,
+        k(~shift=true, ~meta=true, "Backspace"),
+      ),
+      ({js|⌥⌫, a word|js}, E.Field, k(~alt=true, "Backspace")),
+      ("Delete, a character", E.Field, k("Delete")),
+      ({js|⌥F|js}, E.Fold(path), k(~alt=true, ~code="KeyF", {js|ƒ|js})),
       (
         {js|⇧⌥F|js},
         Field,
         k(~alt=true, ~shift=true, ~code="KeyF", {js|Ï|js}),
       ),
       ({js|⌘.|js}, Menu, k(~meta=true, ".")),
-      ({js|⌥⌘.|js}, Field, k(~alt=true, ~meta=true, ".")),
+      ({js|⌥⌘.|js}, E.Field, k(~alt=true, ~meta=true, ".")),
       ({js|⇧F10|js}, Menu, k(~shift=true, "F10")),
       ({js|⌥O|js}, Exit, k(~alt=true, ~code="KeyO", {js|ø|js})),
-      ({js|⌥⌘O|js}, Field, k(~alt=true, ~meta=true, ~code="KeyO", "o")),
-      ("Ctrl+D on a Mac", Field, k(~ctrl=true, ~code="KeyD", "d")),
-      ({js|Ctrl+⌫ on a Mac|js}, Field, k(~ctrl=true, "Backspace")),
-      ("Ctrl+. on a Mac", Field, k(~ctrl=true, ".")),
+      (
+        {js|⌥⌘O|js},
+        E.Field,
+        k(~alt=true, ~meta=true, ~code="KeyO", "o"),
+      ),
+      ("Ctrl+D on a Mac", E.Field, k(~ctrl=true, ~code="KeyD", "d")),
+      ({js|Ctrl+⌫ on a Mac|js}, E.Field, k(~ctrl=true, "Backspace")),
+      ("Ctrl+. on a Mac", E.Field, k(~ctrl=true, ".")),
       ({js|⌘Enter|js}, Save(Leave), k(~meta=true, "Enter")),
       ({js|⇧Enter|js}, Save(Leave), k(~shift=true, "Enter")),
-      ({js|⇧⌘Enter|js}, Swallow, k(~shift=true, ~meta=true, "Enter")),
-      ({js|⌥⌘Enter|js}, Swallow, k(~alt=true, ~meta=true, "Enter")),
+      ({js|⇧⌘Enter|js}, E.Swallow, k(~shift=true, ~meta=true, "Enter")),
+      ({js|⌥⌘Enter|js}, E.Swallow, k(~alt=true, ~meta=true, "Enter")),
       (
         {js|Ctrl+⌘↓ on a Mac|js},
         Field,
         k(~ctrl=true, ~meta=true, "ArrowDown"),
       ),
-      ({js|Ctrl+↓ on a Mac|js}, Field, k(~ctrl=true, "ArrowDown")),
+      ({js|Ctrl+↓ on a Mac|js}, E.Field, k(~ctrl=true, "ArrowDown")),
     ],
   );
   /* a new line: not an item to move, copy or fold yet */
@@ -3348,25 +3430,30 @@ let strict_text = () => {
     press(~on=New(beta, Below), ~fresh=f, ~live=named("x", 1), "+", p);
   let drop =
     switch (on_new(k(~meta=true, "Backspace"))) {
-    | Drop(d, _) => d == f.f_id
+    | Drop(d, _) => Id.equal(d, f.f_id)
     | _ => false
     };
   check(bool, {js|new line: ⌘⌫ drops it|js}, true, drop);
   List.iter(
-    ((name, expected, p)) =>
-      check(outcome, "new line: " ++ name, expected, on_new(p)),
+    ~f=
+      ((name, expected, p)) =>
+        check(outcome, "new line: " ++ name, expected, on_new(p)),
     [
-      ({js|⌥⌘⌫|js}, Swallow, k(~alt=true, ~meta=true, "Backspace")),
-      ({js|⌥↓|js}, Flash, k(~alt=true, "ArrowDown")),
-      ({js|⇧⌥↓|js}, Swallow, k(~alt=true, ~shift=true, "ArrowDown")),
-      ({js|⌘D|js}, Flash, k(~meta=true, ~code="KeyD", "d")),
-      ({js|⇧⌘D|js}, Page, k(~meta=true, ~shift=true, ~code="KeyD", "D")),
-      ({js|⌥F|js}, Flash, k(~alt=true, ~code="KeyF", {js|ƒ|js})),
+      ({js|⌥⌘⌫|js}, E.Swallow, k(~alt=true, ~meta=true, "Backspace")),
+      ({js|⌥↓|js}, E.Flash, k(~alt=true, "ArrowDown")),
+      ({js|⇧⌥↓|js}, E.Swallow, k(~alt=true, ~shift=true, "ArrowDown")),
+      ({js|⌘D|js}, E.Flash, k(~meta=true, ~code="KeyD", "d")),
+      (
+        {js|⇧⌘D|js},
+        E.Page,
+        k(~meta=true, ~shift=true, ~code="KeyD", "D"),
+      ),
+      ({js|⌥F|js}, E.Flash, k(~alt=true, ~code="KeyF", {js|ƒ|js})),
       ({js|⌘.|js}, Menu, k(~meta=true, ".")),
-      ({js|⌥⌘.|js}, Page, k(~alt=true, ~meta=true, ".")),
+      ({js|⌥⌘.|js}, E.Page, k(~alt=true, ~meta=true, ".")),
       ({js|⌥O|js}, Exit, k(~alt=true, ~code="KeyO", {js|ø|js})),
-      ({js|⌥⌘O|js}, Page, k(~alt=true, ~meta=true, ~code="KeyO", "o")),
-      ({js|⇧⌘Enter|js}, Swallow, k(~shift=true, ~meta=true, "Enter")),
+      ({js|⌥⌘O|js}, E.Page, k(~alt=true, ~meta=true, ~code="KeyO", "o")),
+      ({js|⇧⌘Enter|js}, E.Swallow, k(~shift=true, ~meta=true, "Enter")),
       (
         {js|⇧→ selects|js},
         Type(Select(Right, Char)),
@@ -3392,47 +3479,51 @@ let strict_text_platforms = () => {
   let ops =
     testable(
       Fmt.of_to_string(l =>
-        String.concat("; ", List.map(((o, _)) => E.show_def_op(o), l))
+        String.concat(
+          ~sep="; ",
+          List.map(~f=((o, _)) => E.show_def_op(o), l),
+        )
       ),
       (==),
     );
   List.iter(
-    mac => {
-      Util.Os.is_mac := mac;
-      let on_ = (mac ? "Mac: " : "PC: ") ++ "text mode: ";
-      let ctrl = (~code=?, k) => H.keydown(~ctrl=true, ~code?, k);
-      let d = ctrl(~code="KeyD", "d");
-      check(
-        ops,
-        on_ ++ "Ctrl+D",
-        mac ? [] : [(E.Duplicate, beta)],
-        ops_of(d),
-      );
-      check(
-        ops,
-        on_ ++ {js|Ctrl+⌫|js},
-        mac ? [] : [(E.Delete, beta)],
-        ops_of(ctrl("Backspace")),
-      );
-      check(
-        ops,
-        on_ ++ {js|⌘ (⊞) +D|js},
-        mac ? [(E.Duplicate, beta)] : [],
-        ops_of(H.keydown(~meta=true, ~code="KeyD", "d")),
-      );
-      check(
-        ops,
-        on_ ++ {js|⌥↓|js},
-        [(E.MoveDown, beta)],
-        ops_of(H.keydown(~alt=true, "ArrowDown")),
-      );
-      check(
-        ops,
-        on_ ++ {js|⇧⌥↓|js},
-        [],
-        ops_of(H.keydown(~alt=true, ~shift=true, "ArrowDown")),
-      );
-    },
+    ~f=
+      mac => {
+        Util.Os.is_mac := mac;
+        let on_ = (mac ? "Mac: " : "PC: ") ++ "text mode: ";
+        let ctrl = (~code=?, k) => H.keydown(~ctrl=true, ~code?, k);
+        let d = ctrl(~code="KeyD", "d");
+        check(
+          ops,
+          on_ ++ "Ctrl+D",
+          mac ? [] : [(E.Duplicate, beta)],
+          ops_of(d),
+        );
+        check(
+          ops,
+          on_ ++ {js|Ctrl+⌫|js},
+          mac ? [] : [(E.Delete, beta)],
+          ops_of(ctrl("Backspace")),
+        );
+        check(
+          ops,
+          on_ ++ {js|⌘ (⊞) +D|js},
+          mac ? [(E.Duplicate, beta)] : [],
+          ops_of(H.keydown(~meta=true, ~code="KeyD", "d")),
+        );
+        check(
+          ops,
+          on_ ++ {js|⌥↓|js},
+          [(E.MoveDown, beta)],
+          ops_of(H.keydown(~alt=true, "ArrowDown")),
+        );
+        check(
+          ops,
+          on_ ++ {js|⇧⌥↓|js},
+          [],
+          ops_of(H.keydown(~alt=true, ~shift=true, "ArrowDown")),
+        );
+      },
     [true, false],
   );
   Util.Os.is_mac := was_mac;

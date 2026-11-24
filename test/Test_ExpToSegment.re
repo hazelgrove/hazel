@@ -1661,22 +1661,22 @@ let perturb_spaces = (seed: int, text: string): string => {
   };
   String.iter(
     ~f=
-    c => {
+      c => {
         if (Char.equal(c, '"')) {
-        in_string := ! in_string^;
-      };
-        if (Char.equal(c, ' ') && ! in_string^) {
-        switch (next()) {
-        | 0 => emit("  ")
-        | 1 => emit("\n")
-        | 2 => emit(" \n ")
-        | 3 => emit(" #c# ")
-        | _ => emit(" ")
+          in_string := ! in_string^;
         };
-      } else {
-        emit(String.make(1, c));
-      };
-    },
+        if (Char.equal(c, ' ') && ! in_string^) {
+          switch (next()) {
+          | 0 => emit("  ")
+          | 1 => emit("\n")
+          | 2 => emit(" \n ")
+          | 3 => emit(" #c# ")
+          | _ => emit(" ")
+          };
+        } else {
+          emit(String.make(1, c));
+        };
+      },
     text,
   );
   String.concat(~sep="", List.rev(out^));

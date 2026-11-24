@@ -326,13 +326,12 @@ let synthesized_type = (~normalize=false, static_map, exp) =>
 let check_fully_consistent = (~normalize=false, serialized, expected) => {
   let exp = parse_exp(serialized);
   let s = statics(exp);
-      let errors =
-        List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
+  let errors = List.map(~f=ms => Marks(ms), List.map(~f=snd, errors(s)));
   Alcotest.check(list(testable_issue), "Static Errors", [], errors);
   Alcotest.check(
     Alcotest.option(testable_typ),
     serialized,
-    Option.map(expected_typ, expected),
+    Option.map(~f=expected_typ, expected),
     synthesized_type(~normalize, s, exp),
   );
 };
@@ -365,7 +364,7 @@ let synthesizes = (~normalize=false, name, serialized, expected) =>
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
-        Option.map(expected_typ, expected),
+        Option.map(~f=expected_typ, expected),
         synthesized_type(~normalize, statics(exp), exp),
       );
     },

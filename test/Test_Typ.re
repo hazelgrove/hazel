@@ -459,7 +459,7 @@ let unshadow_tests = {
   );
 };
 
-let testable_id = testable(Fmt.using(Id.show, Fmt.string), (==));
+let testable_id = testable(Fmt.using(Id.show, Fmt.string), Id.equal);
 let diff_tests = (
   "Typ.diff",
   [
@@ -913,7 +913,7 @@ let sig_tests = {
             option(typ),
             "x projects to Int",
             Some(ti),
-            switch (Option.map(Typ.term_of, Typ.meet(ctx, s, s))) {
+            switch (Option.map(~f=Typ.term_of, Typ.meet(ctx, s, s))) {
             | Some(Sig(Closed(items))) =>
               Sig.find_value(Sig.members(ClosedSig.items(items)), "x")
             | _ => None
@@ -1308,7 +1308,7 @@ let fun_in_tests = {
   let to_int = F.Typ.arrow(ti, ti);
   let sm = (x, ty) => F.Sig.sig_module(F.MPat.asc(F.MPat.var(x), ty));
   let members = (found: option(Typ.fun_in)) =>
-    Option.map((f: Typ.fun_in) => f.members, found);
+    Option.map(~f=(f: Typ.fun_in) => f.members, found);
   (
     "Typ.fun_in",
     [
@@ -1449,11 +1449,11 @@ let meet_rec_binder_tests = {
     let consistent = (name, ty1, ty2, expected) =>
       test_case(name, `Quick, () =>
         List.iter([(ty1, ty2), (ty2, ty1)], ~f=((ty1, ty2)) =>
-            check(
-              bool,
-              name,
-              expected,
-              Option.is_some(Typ.meet(ctx, ty1, ty2)),
+          check(
+            bool,
+            name,
+            expected,
+            Option.is_some(Typ.meet(ctx, ty1, ty2)),
           )
         )
       );
@@ -1607,7 +1607,7 @@ let recursive_def_tests = {
             option(testable_id),
             "the loop's binder is the alias's",
             Some(TPat.rep_id(alias)),
-            Option.map(TPat.rep_id, loop),
+            Option.map(~f=TPat.rep_id, loop),
           );
         },
       ),

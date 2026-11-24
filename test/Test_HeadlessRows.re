@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* every outline row opens as its own item: a ⇒ or `;` row as a headless
    cell holding just its expression or statement, a definition under its
@@ -159,29 +160,26 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     };
   }
   and of_mod = (items: list(Mod.t)): int =>
-    List.fold_left(
-      (n, m: Mod.t) =>
-        n
-        + (
-          switch (m.term) {
-          | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
-          | ModType(tpat, typ) => type_row(Mod.rep_id(m), tpat, typ)
-          | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
-          | ModExp(e) =>
-            switch (strip(e).term) {
-            | EmptyHole => 0
-            | _ =>
-              add(Mod.rep_id(m), Headless(Exp.rep_id(e)));
-              1;
-            }
-          | ModVal(_)
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_) => 0
+    List.fold(items, ~init=0, ~f=(n, m: Mod.t) =>
+      n
+      + (
+        switch (m.term) {
+        | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
+        | ModType(tpat, typ) => type_row(Mod.rep_id(m), tpat, typ)
+        | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
+        | ModExp(e) =>
+          switch (strip(e).term) {
+          | EmptyHole => 0
+          | _ =>
+            add(Mod.rep_id(m), Headless(Exp.rep_id(e)));
+            1;
           }
-        ),
-      0,
-      items,
+        | ModVal(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => 0
+        }
+      )
     );
   ignore(of_exp(~top=true, term));
   out^;
@@ -192,16 +190,17 @@ let projected_ids = (seg: Segment.t): Id.Map.t(unit) => {
   let out = ref(Id.Map.empty);
   let rec go = (~under, seg: Segment.t) =>
     List.iter(
-      (p: Piece.t) => {
-        if (under) {
-          out := Id.Map.add(Piece.id(p), (), out^);
-        };
-        switch (p) {
-        | Tile(t) => List.iter(go(~under), t.children)
-        | Projector(pr) => go(~under=true, [pr.syntax])
-        | _ => ()
-        };
-      },
+      ~f=
+        (p: Piece.t) => {
+          if (under) {
+            out := Id.Map.add(Piece.id(p), (), out^);
+          };
+          switch (p) {
+          | Tile(t) => List.iter(~f=go(~under), t.children)
+          | Projector(pr) => go(~under=true, [pr.syntax])
+          | _ => ()
+          };
+        },
       seg,
     );
   go(~under=false, seg);
@@ -242,13 +241,16 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
   let seg =
     switch (CorpusUtil.parse(~root, src)) {
     | Some(seg) => seg
-    | None => Option.get(CorpusUtil.typed_seg(~root, src))
+    | None => Option.value_exn(CorpusUtil.typed_seg(~root, src))
     };
   let term = MakeTerm.Incr.term_of_root(~root, seg);
   let outline = CorpusUtil.outline_of(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let data =
-    (root == Sort.Mod ? MakeTerm.go_mod_root(seg) : MakeTerm.go(seg)).
+    (
+      Sort.equal(root, Sort.Mod)
+        ? MakeTerm.go_mod_root(seg) : MakeTerm.go(seg)
+    ).
       term_data;
   let wants = wants(term);
   let projected = projected_ids(seg);
@@ -284,14 +286,14 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
       seg,
     );
   let note = (row, whys) =>
-    if (whys != []) {
+    if (!List.is_empty(whys)) {
       broken :=
         [
           Printf.sprintf(
             "%s: %s: %s",
             name,
             row,
-            String.concat("; ", List.rev(whys)),
+            String.concat(~sep="; ", List.rev(whys)),
           ),
           ...broken^,
         ];
@@ -301,12 +303,12 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     incr(rows);
     let whys = ref([]);
     let fail = why => whys := [why, ...whys^];
-    if (Id.Map.find_opt(id, refused) != Some(Focus.Directive)) {
+    if (!Poly.equal(Id.Map.find_opt(id, refused), Some(Focus.Directive))) {
       fail("not refused as a use");
     };
     switch (V.realize(~info_map, ~outline, pin, Whole(whole))) {
-    | exception e => fail("raised " ++ Printexc.to_string(e))
-    | (v, Whole(_)) when v.pins == [] => ()
+    | exception e => fail("raised " ++ Stdlib.Printexc.to_string(e))
+    | (v, Whole(_)) when List.is_empty(v.pins) => ()
     | _ => fail("opened")
     };
     note(row, whys^);
@@ -316,7 +318,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     let whys = ref([]);
     let fail = why => whys := [why, ...whys^];
     let under =
-      List.exists(id => Id.Map.mem(id, projected), Segment.ids(body));
+      List.exists(~f=id => Id.Map.mem(id, projected), Segment.ids(body));
     switch (Id.Map.find_opt(id, refused), under) {
     | (None, false)
     | (Some(Focus.Projected), true) => ()
@@ -326,8 +328,8 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     | (None, true) => fail("not refused under a projector")
     };
     switch (V.realize(~info_map, ~outline, pin, Whole(whole))) {
-    | exception e => fail("raised " ++ Printexc.to_string(e))
-    | (v, Whole(_)) when under && v.pins == [] => incr(n_projected)
+    | exception e => fail("raised " ++ Stdlib.Printexc.to_string(e))
+    | (v, Whole(_)) when under && List.is_empty(v.pins) => incr(n_projected)
     | (_, Whole(_)) => fail("didn't open")
     | (_, Divided(_)) when under => fail("opened under a projector")
     | (_, Divided(d)) =>
@@ -349,7 +351,10 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
           } else if (Segment.ids(trim(got)) != Segment.ids(trim(want))) {
             fail(what ++ " holds other pieces");
           };
-        Option.iter(h => same("header", Focus.header_text(e), h), header);
+        Option.iter(
+          ~f=h => same("header", Focus.header_text(e), h),
+          header,
+        );
         same("body", Focus.body_text(e), body);
       | cells => fail(Printf.sprintf("%d cells", List.length(cells)))
       };
@@ -366,46 +371,26 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     note(row, whys^);
   };
   List.iter(
-    (n: O.node) =>
-      switch (n.o_id, n.o_kind) {
-      | (Some(id), kind) =>
-        let row = n.o_label ++ " " ++ kind_name(kind);
-        let pin = V.pin(~outline, id, V.init);
-        switch (Id.Map.find_opt(id, wants)) {
-        | None => failwith(name ++ ": no term for " ++ row)
-        | Some(Shut) => check_shut(~row, ~id, ~pin)
-        | Some(Headless(b)) =>
-          let sym = kind == KTrail ? {js|⇒|js} : ";";
-          check_row(
-            ~row,
-            ~id,
-            ~pin,
-            ~expect=e => e.e_kind == Headless(sym),
-            ~header=None,
-            ~body=span(b),
-          );
-        | Some(Def(h, b)) =>
-          check_row(
-            ~row,
-            ~id,
-            ~pin,
-            ~expect=is_def,
-            ~header=Some(span(h)),
-            ~body=span(b),
-          )
-        | Some(Module(h, b)) =>
-          switch (braced(span(b))) {
-          | Some(members) =>
+    ~f=
+      (n: O.node) =>
+        switch (n.o_id, n.o_kind) {
+        | (Some(id), kind) =>
+          let row = n.o_label ++ " " ++ kind_name(kind);
+          let pin = V.pin(~outline, id, V.init);
+          switch (Id.Map.find_opt(id, wants)) {
+          | None => failwith(name ++ ": no term for " ++ row)
+          | Some(Shut) => check_shut(~row, ~id, ~pin)
+          | Some(Headless(b)) =>
+            let sym = Poly.equal(kind, KTrail) ? {js|⇒|js} : ";";
             check_row(
               ~row,
               ~id,
               ~pin,
-              ~expect=e => e.e_kind == Members,
-              ~header=Some(span(h)),
-              ~body=members,
-            )
-          /* `{}` has no members to show: its definition */
-          | None =>
+              ~expect=e => Poly.equal(e.e_kind, Headless(sym)),
+              ~header=None,
+              ~body=span(b),
+            );
+          | Some(Def(h, b)) =>
             check_row(
               ~row,
               ~id,
@@ -414,36 +399,64 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
               ~header=Some(span(h)),
               ~body=span(b),
             )
-          }
-        };
-      /* a tests container opens its run as one cell */
-      | (None, KTests) =>
-        let kids = List.filter_map((k: O.node) => k.o_id, n.o_children);
-        let stmt = id =>
-          switch (Id.Map.find_opt(id, wants)) {
-          | Some(Headless(b)) => range(b)
-          | _ => failwith(name ++ ": a test row without its statement")
+          | Some(Module(h, b)) =>
+            switch (braced(span(b))) {
+            | Some(members) =>
+              check_row(
+                ~row,
+                ~id,
+                ~pin,
+                ~expect=e => Poly.equal(e.e_kind, Members),
+                ~header=Some(span(h)),
+                ~body=members,
+              )
+            /* `{}` has no members to show: its definition */
+            | None =>
+              check_row(
+                ~row,
+                ~id,
+                ~pin,
+                ~expect=is_def,
+                ~header=Some(span(h)),
+                ~body=span(b),
+              )
+            }
           };
-        let (level, l, _) = stmt(List.hd(kids));
-        let (_, _, r) = stmt(Util.ListUtil.last(kids));
-        check_row(
-          ~row="tests",
-          ~id=List.hd(kids),
-          ~pin=V.pin(~outline, ~run=true, List.hd(kids), V.init),
-          ~expect=
-            e =>
-              switch (e.e_kind) {
-              | Run(ids) => List.for_all(k => List.mem(k, ids), kids)
-              | Def(_)
-              | Members
-              | Headless(_) => false
-              },
-          ~header=None,
-          ~body=Util.ListUtil.slice(l, r - l, level),
-        );
-      | (None, _) => ()
-      },
-    List.filteri((i, _) => i mod sample == 0, O.flatten(O.rows(outline))),
+        /* a tests container opens its run as one cell */
+        | (None, KTests) =>
+          let kids = List.filter_map(~f=(k: O.node) => k.o_id, n.o_children);
+          let stmt = id =>
+            switch (Id.Map.find_opt(id, wants)) {
+            | Some(Headless(b)) => range(b)
+            | _ => failwith(name ++ ": a test row without its statement")
+            };
+          let (level, l, _) = stmt(List.hd_exn(kids));
+          let (_, _, r) = stmt(Util.ListUtil.last(kids));
+          check_row(
+            ~row="tests",
+            ~id=List.hd_exn(kids),
+            ~pin=V.pin(~outline, ~run=true, List.hd_exn(kids), V.init),
+            ~expect=
+              e =>
+                switch (e.e_kind) {
+                | Run(ids) =>
+                  List.for_all(
+                    ~f=k => List.mem(ids, k, ~equal=Poly.equal),
+                    kids,
+                  )
+                | Def(_)
+                | Members
+                | Headless(_) => false
+                },
+            ~header=None,
+            ~body=Util.ListUtil.slice(l, r - l, level),
+          );
+        | (None, _) => ()
+        },
+    List.filteri(
+      ~f=(i, _) => i mod sample == 0,
+      O.flatten(O.rows(outline)),
+    ),
   );
   /* and every item the walk expects has its row */
   let shown = O.row_ids(outline);
@@ -462,7 +475,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
 };
 
 let report = (s: survey) =>
-  List.iter(b => Printf.printf("BROKEN %s\n", b), s.broken);
+  List.iter(~f=b => Printf.printf("BROKEN %s\n", b), s.broken);
 
 /* shapes the corpus has, and some it lacks */
 let shapes = [
@@ -516,13 +529,20 @@ let shapes = [
 ];
 
 let shape_rows = () => {
-  let surveys = List.map(((name, src, _)) => survey(~name, src), shapes);
-  List.iter(report, surveys);
-  List.iter2(
-    ((name, _, projected), s) => {
-      check(int, name ++ ": broken rows", 0, List.length(s.broken));
-      check(int, name ++ ": rows under a projector", projected, s.projected);
-    },
+  let surveys =
+    List.map(~f=((name, src, _)) => survey(~name, src), shapes);
+  List.iter(~f=report, surveys);
+  List.iter2_exn(
+    ~f=
+      ((name, _, projected), s) => {
+        check(int, name ++ ": broken rows", 0, List.length(s.broken));
+        check(
+          int,
+          name ++ ": rows under a projector",
+          projected,
+          s.projected,
+        );
+      },
     shapes,
     surveys,
   );
@@ -532,17 +552,20 @@ let shape_rows = () => {
 let corpus = () => {
   let programs =
     List.map(
-      ((path, src)) => (path, Sort.Exp, 1, src),
+      ~f=((path, src)) => (path, Sort.Exp, 1, src),
       CorpusUtil.slide_corpus(),
     )
     @ List.map(
-        ((file, root)) =>
-          (file, root, 4, Option.get(CorpusUtil.mega_src(file))),
+        ~f=
+          ((file, root)) =>
+            (file, root, 4, Option.value_exn(CorpusUtil.mega_src(file))),
         [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
       );
   let (rows, projected, broken) =
-    List.fold_left(
-      ((rows, projected, broken), (name, root, sample, src)) => {
+    List.fold(
+      programs,
+      ~init=(0, 0, 0),
+      ~f=((rows, projected, broken), (name, root, sample, src)) => {
         let s = survey(~root, ~sample, ~name, src);
         report(s);
         (
@@ -551,8 +574,6 @@ let corpus = () => {
           broken + List.length(s.broken),
         );
       },
-      (0, 0, 0),
-      programs,
     );
   Printf.printf(
     "HeadlessRows: %d programs, %d rows, %d under a projector, %d broken\n",

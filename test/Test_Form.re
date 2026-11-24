@@ -6,8 +6,8 @@ open Haz3lcore;
 let prefix_forms = (): list(string) => {
   let labels =
     Form.forms
-    |> List.map(((_, def: Form.def)) => def.label)
-    |> List.sort_uniq(List.compare(String.compare));
+    |> List.map(~f=((_, def: Form.def)) => def.label)
+    |> List.dedup_and_sort(~compare=List.compare(String.compare));
   let rec prefixes = (label: Label.t): list(Label.t) =>
     switch (List.rev(label)) {
     | []
@@ -17,14 +17,18 @@ let prefix_forms = (): list(string) => {
       [shorter, ...prefixes(shorter)];
     };
   labels
-  |> List.concat_map(label =>
+  |> List.concat_map(~f=label =>
        prefixes(label)
-       |> List.filter(prefix => !List.is_empty(Form.compound_defs(prefix)))
-       |> List.map(prefix =>
-            String.concat(" ", label) ++ " -> " ++ String.concat(" ", prefix)
+       |> List.filter(~f=prefix =>
+            !List.is_empty(Form.compound_defs(prefix))
+          )
+       |> List.map(~f=prefix =>
+            String.concat(~sep=" ", label)
+            ++ " -> "
+            ++ String.concat(~sep=" ", prefix)
           )
      )
-  |> List.sort_uniq(String.compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 };
 
 let tests = (

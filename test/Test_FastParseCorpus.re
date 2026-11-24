@@ -176,12 +176,12 @@ let tests = (
         let (ok, bail, worst) =
           List.fold_left(
             ~f=
-            ((ok, bail, worst), path) => {
-              /* mirror the production load path (of_slide_text keeps
-                 committed indentation; the reader strips only the file's
-                 final newline — other edge whitespace is content) */
-              let src =
-                read_file(path) |> Util.StringUtil.strip_final_newline;
+              ((ok, bail, worst), path) => {
+                /* mirror the production load path (of_slide_text keeps
+                   committed indentation; the reader strips only the file's
+                   final newline — other edge whitespace is content) */
+                let src =
+                  read_file(path) |> Util.StringUtil.strip_final_newline;
                 let f0 = Stdlib.Sys.time();
                 let known_gap =
                   List.mem(
@@ -195,30 +195,30 @@ let tests = (
                     Filename.basename(path),
                   )
                     ? Sort.Mod : Sort.Exp;
-              let r =
-                known_gap
-                  ? None
-                  : FastParse.of_text(
-                      ~materialize=Triggers.invoked_projector,
-                      ~collect_refractors=true,
-                      ~root,
-                      src,
-                    );
+                let r =
+                  known_gap
+                    ? None
+                    : FastParse.of_text(
+                        ~materialize=Triggers.invoked_projector,
+                        ~collect_refractors=true,
+                        ~root,
+                        src,
+                      );
                 let ms = (Stdlib.Sys.time() -. f0) *. 1000.;
-              let worst =
-                ms > snd(worst) ? (Filename.basename(path), ms) : worst;
-              switch (r) {
-              | Some(_) => (ok + 1, bail, worst)
-              | None when known_gap => (ok, bail, worst)
-              | None =>
+                let worst =
+                  ms > snd(worst) ? (Filename.basename(path), ms) : worst;
+                switch (r) {
+                | Some(_) => (ok + 1, bail, worst)
+                | None when known_gap => (ok, bail, worst)
+                | None =>
                   printf(
-                  "BAIL %s: %s\n",
-                  path,
-                  Option.value(FastParse.bail_note^, ~default="?"),
-                );
-                (ok, bail + 1, worst);
-              };
-            },
+                    "BAIL %s: %s\n",
+                    path,
+                    Option.value(FastParse.bail_note^, ~default="?"),
+                  );
+                  (ok, bail + 1, worst);
+                };
+              },
             ~init=(0, 0, ("", 0.)),
             files,
           );

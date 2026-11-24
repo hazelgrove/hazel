@@ -2,6 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open CorpusUtil;
+open Poly;
 
 /* outline rename, as typed on the row's line: the binder, its references
    and `M.x` labels change; a capturing rename is refused; a kind keyword
@@ -19,7 +20,7 @@ let rename = (~root=Sort.Exp, src, label, name) => {
     name,
     seg,
   )
-  |> Result.map(text_of);
+  |> Result.map(~f=text_of);
 };
 
 let renamed = (~root=Sort.Exp, src, label, name, expected) =>
@@ -123,7 +124,7 @@ let names = () => {
   renamed("type T = Int in 1", "T", "t", "type t = Int in 1");
   /* the wildcard, literals, any form's keyword, qualified names */
   List.iter(
-    name => refused("let foo = 1 in foo", "foo", name),
+    ~f=name => refused("let foo = 1 in foo", "foo", name),
     ["_", "true", "end", "rec", "theorem", "M.x", "$x"],
   );
   renamed("let foo = 1 in foo", "foo", "foo_2'", "let foo_2' = 1 in foo_2'");
@@ -133,7 +134,7 @@ let names = () => {
 let messages = () => {
   let src = "let foo = 1 in\nlet bar = foo + 1 in\nbar + foo";
   List.iter(
-    ((name, why)) => refused_as(src, "foo", name, why),
+    ~f=((name, why)) => refused_as(src, "foo", name, why),
     [
       ("let", "let is a keyword"),
       ("module", "module is a keyword"),
@@ -329,18 +330,19 @@ let folded = () => {
   let count = ref(0);
   let rec fold = (seg: Segment.t): Segment.t =>
     List.map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == ["foo"] =>
-          incr(count);
-          count^ == 2 ? Piece.Projector(ProjectorCore.mk(Fold, p, "")) : p;
-        | Tile(t) =>
-          Piece.Tile({
-            ...t,
-            children: List.map(fold, t.children),
-          })
-        | p => p
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == ["foo"] =>
+            incr(count);
+            count^ == 2 ? Piece.Projector(ProjectorCore.mk(Fold, p, "")) : p;
+          | Tile(t) =>
+            Piece.Tile({
+              ...t,
+              children: List.map(~f=fold, t.children),
+            })
+          | p => p
+          },
       seg,
     );
   let seg = fold(seg);
@@ -349,12 +351,13 @@ let folded = () => {
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let rec inside = (seg: Segment.t): list(string) =>
     List.concat_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Projector({syntax: Tile(t), _}) => Tile.label(t)
-        | Tile(t) => List.concat_map(inside, t.children)
-        | _ => []
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Projector({syntax: Tile(t), _}) => Tile.label(t)
+          | Tile(t) => List.concat_map(~f=inside, t.children)
+          | _ => []
+          },
       seg,
     );
   switch (

@@ -39,13 +39,14 @@ let tests = (
           List.is_empty(pairs),
         );
         List.iter(
-          ((rec_binder, alias)) =>
-            check(
-              string,
-              "the rec binder's id",
-              Id.to_string(alias),
-              Id.to_string(rec_binder),
-            ),
+          ~f=
+            ((rec_binder, alias)) =>
+              check(
+                string,
+                "the rec binder's id",
+                Id.to_string(alias),
+                Id.to_string(rec_binder),
+              ),
           pairs,
         );
       },

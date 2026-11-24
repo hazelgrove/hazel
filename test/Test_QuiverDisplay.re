@@ -62,28 +62,28 @@ let flagpole_edges =
   test_case("flagpole joins every caret profile", `Quick, () => {
     List.iter(
       ~f=
-      font_metrics =>
-        List.iter(
+        font_metrics =>
+          List.iter(
             ~f=
-          side =>
-            List.iter(
-                  ~f=
-              shape =>
+              side =>
                 List.iter(
+                  ~f=
+                    shape =>
+                      List.iter(
                         ~f=
-                  row =>
-                    List.iter(
+                          row =>
+                            List.iter(
                               ~f=
-                      col => {
-                        let geometry =
-                          QuiverDec.flagpole_geometry(
-                            ~font_metrics,
-                            ~row,
-                            ~col,
-                            ~caret_form=Some((side, shape)),
-                          );
-                        /* Read the rendered caret path's first horizontal edge, independently
-                           of the flagpole positioning code. Include fractional font sizes. */
+                                col => {
+                                  let geometry =
+                                    QuiverDec.flagpole_geometry(
+                                      ~font_metrics,
+                                      ~row,
+                                      ~col,
+                                      ~caret_form=Some((side, shape)),
+                                    );
+                                  /* Read the rendered caret path's first horizontal edge, independently
+                                     of the flagpole positioning code. Include fractional font sizes. */
                                   switch (
                                     CaretDec.caret_base_path(side, shape)
                                   ) {
@@ -92,44 +92,44 @@ let flagpole_edges =
                                       H_({dx}),
                                       ..._,
                                     ] =>
-                          let origin_x =
-                            float_of_int(col)
-                            *. font_metrics.FontMetrics.col_width;
-                          let origin_y =
+                                    let origin_x =
+                                      float_of_int(col)
+                                      *. font_metrics.FontMetrics.col_width;
+                                    let origin_y =
                                       float_of_int(row)
                                       *. font_metrics.row_height;
-                          check(
-                            float(1e-8),
-                            "left edge",
-                            origin_x +. x *. font_metrics.col_width,
-                            geometry.left,
-                          );
-                          check(
-                            float(1e-8),
-                            "caret width",
-                            dx *. font_metrics.col_width,
-                            geometry.width,
-                          );
-                          check(
-                            float(1e-8),
-                            "meets the top without overlap",
-                            origin_y +. y *. font_metrics.row_height,
-                            geometry.top +. geometry.height,
-                          );
-                        | _ =>
+                                    check(
+                                      float(1e-8),
+                                      "left edge",
+                                      origin_x +. x *. font_metrics.col_width,
+                                      geometry.left,
+                                    );
+                                    check(
+                                      float(1e-8),
+                                      "caret width",
+                                      dx *. font_metrics.col_width,
+                                      geometry.width,
+                                    );
+                                    check(
+                                      float(1e-8),
+                                      "meets the top without overlap",
+                                      origin_y +. y *. font_metrics.row_height,
+                                      geometry.top +. geometry.height,
+                                    );
+                                  | _ =>
                                     fail(
                                       "Caret must start with a horizontal top edge",
                                     )
-                        };
-                      },
-                      [0, 7],
-                    ),
-                  [0, 1, 4, 9],
+                                  };
+                                },
+                              [0, 7],
+                            ),
+                        [0, 1, 4, 9],
+                      ),
+                  [None, Some(Util.Direction.Left), Some(Right)],
                 ),
-              [None, Some(Util.Direction.Left), Some(Right)],
-            ),
-          [Util.Direction.Left, Right],
-        ),
+            [Util.Direction.Left, Right],
+          ),
       [
         font_metrics,
         FontMetrics.{

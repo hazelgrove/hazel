@@ -90,29 +90,29 @@ let perform =
     );
   List.fold_left(
     ~f=
-    (z: Zipper.t, a: Action.t) =>
-      switch (perform(a, z, ~root=Exp)) {
-      | Ok(z) =>
-        /* Term construction must be total on every reachable editor state
-         * (statics/display consume it after every action). Checking here
-         * (rather than only on the pre-state of the NEXT action) means the
-         * final state of every test is covered too. derive builds the term
-         * unless the source is unchanged from the last state derived. */
-        switch (derive(~settings, z)) {
-        | _ => z
-        | exception e =>
-          print_endline("Zipper: " ++ Zipper.show(z));
-          Alcotest.fail(
-            "Malformed state after action "
-            ++ Action.show(a)
-            ++ ": "
+      (z: Zipper.t, a: Action.t) =>
+        switch (perform(a, z, ~root=Exp)) {
+        | Ok(z) =>
+          /* Term construction must be total on every reachable editor state
+           * (statics/display consume it after every action). Checking here
+           * (rather than only on the pre-state of the NEXT action) means the
+           * final state of every test is covered too. derive builds the term
+           * unless the source is unchanged from the last state derived. */
+          switch (derive(~settings, z)) {
+          | _ => z
+          | exception e =>
+            print_endline("Zipper: " ++ Zipper.show(z));
+            Alcotest.fail(
+              "Malformed state after action "
+              ++ Action.show(a)
+              ++ ": "
               ++ Exn.to_string(e),
-          );
-        }
-      | Error(err) =>
-        print_endline("Zipper: " ++ Zipper.show(z));
-        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
-      },
+            );
+          }
+        | Error(err) =>
+          print_endline("Zipper: " ++ Zipper.show(z));
+          Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
+        },
     ~init=zip,
     actions,
   );
@@ -2649,11 +2649,11 @@ else f|});
 let rec seg_has_incomplete = (seg: Segment.t): bool =>
   List.exists(
     ~f=
-    fun
-    | Piece.Tile(t) =>
+      fun
+      | Piece.Tile(t) =>
         !Tile.is_complete(t)
         || List.exists(~f=seg_has_incomplete, t.children)
-    | _ => false,
+      | _ => false,
     seg,
   );
 
@@ -3089,16 +3089,17 @@ let select_term = (~root, ~n, init: string): string => {
         col_target: None,
       },
     );
-  let lines = String.split_on_char('\n', before);
+  let lines = String.split(~on='\n', before);
   let pt: Point.t = {
     row: List.length(lines) - 1,
     col: String.length(ListUtil.last(lines)),
   };
   switch (
-    List.fold_left(
-      (z, a) => Stdlib.Result.bind(z, z => go(z, a)),
-      go(z, Move(Point(pt, None))),
-      List.init(n, _ => Action.Select(Term(Current))),
+    List.fold(
+      List.init(n, ~f=_ => Action.Select(Term(Current))),
+      ~init=go(z, Move(Point(pt, None))),
+      ~f=(z, a) =>
+      Stdlib.Result.bind(z, z => go(z, a))
     )
   ) {
   | Ok(z) => printer(z)
@@ -3113,7 +3114,7 @@ let cmd_d = (~root, ~name, ~n, ~init, ~goal) =>
 
 let counter = (~root) =>
   "module Counter = {\n  let start = 0;\n  let next = ¦start + 1;\n  let after = next + 1\n}"
-  ++ (root == Sort.Mod ? ";\n" : " in\n")
+  ++ (Sort.equal(root, Sort.Mod) ? ";\n" : " in\n")
   ++ "Counter.after";
 
 /* a member grows to its module, as a definition grows to its body */
@@ -3248,53 +3249,53 @@ let shard_theft_tests = [
       let _ =
         List.fold_left(
           ~f=
-          (z, c) => {
-            let z' = perform(z, [Action.Insert(c)]);
-            let text = printer(z');
-            let bp = Zipper.local_missing_shards(z');
-            let bp_labels =
-              bp
+            (z, c) => {
+              let z' = perform(z, [Action.Insert(c)]);
+              let text = printer(z');
+              let bp = Zipper.local_missing_shards(z');
+              let bp_labels =
+                bp
                 |> List.map(~f=(t: Tile.t) =>
                      String.concat(~sep=",", Tile.label(t))
                    )
                 |> String.concat(~sep="; ");
-            let global_seg = Relatives.zip(z'.relatives);
-            let global_bp =
-              Segment.global_missing_shards(global_seg)
+              let global_seg = Relatives.zip(z'.relatives);
+              let global_bp =
+                Segment.global_missing_shards(global_seg)
                 |> List.map(~f=(t: Tile.t) =>
                      String.concat(~sep=",", Tile.label(t))
                    )
                 |> String.concat(~sep="; ");
-            let anc_info =
-              switch (z'.relatives.ancestors) {
-              | [] => "no ancestor"
-              | [(a, _), ..._] =>
+              let anc_info =
+                switch (z'.relatives.ancestors) {
+                | [] => "no ancestor"
+                | [(a, _), ..._] =>
                   let label = String.concat(~sep=",", Ancestor.label(a));
-                let (sl, sr) = a.shards;
-                let shards =
+                  let (sl, sr) = a.shards;
+                  let shards =
                     sl
                     @ sr
                     |> List.map(~f=string_of_int)
                     |> String.concat(~sep=",");
-                Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
-              };
-            let (ls, rs) = z'.relatives.siblings;
-            let l_summary =
+                  Printf.sprintf("ancestor: %s shards=[%s]", label, shards);
+                };
+              let (ls, rs) = z'.relatives.siblings;
+              let l_summary =
                 ls |> List.map(~f=piece_summary) |> String.concat(~sep=", ");
-            let r_summary =
+              let r_summary =
                 rs |> List.map(~f=piece_summary) |> String.concat(~sep=", ");
-            Printf.printf(
-              "After '%s': %s | local=[%s] | global=[%s] | %s\n  L=[%s]\n  R=[%s]\n",
-              c,
-              text,
-              bp_labels,
-              global_bp,
-              anc_info,
-              l_summary,
-              r_summary,
-            );
-            z';
-          },
+              Printf.printf(
+                "After '%s': %s | local=[%s] | global=[%s] | %s\n  L=[%s]\n  R=[%s]\n",
+                c,
+                text,
+                bp_labels,
+                global_bp,
+                anc_info,
+                l_summary,
+                r_summary,
+              );
+              z';
+            },
           ~init=z0,
           chars,
         );
@@ -3466,14 +3467,14 @@ let rec find_tiles_by_label =
         (label: list(string), seg: Segment.t): list(Tile.t) =>
   List.concat_map(
     ~f=
-    fun
-    | Piece.Tile(t) => {
-        let matches = Tile.has_label(t, label) ? [t] : [];
-        let child_matches =
+      fun
+      | Piece.Tile(t) => {
+          let matches = Tile.has_label(t, label) ? [t] : [];
+          let child_matches =
             List.concat_map(~f=find_tiles_by_label(label), t.children);
-        matches @ child_matches;
-      }
-    | _ => [],
+          matches @ child_matches;
+        }
+      | _ => [],
     seg,
   );
 
@@ -3487,13 +3488,14 @@ let test_tile_sorts =
     () => {
       let z = acts |> perform(Zipper.init());
       switch (find_tiles_by_label(label, Zipper.zip(z))) {
-      | [] => Alcotest.fail("No tile labeled " ++ String.concat(" ", label))
+      | [] =>
+        Alcotest.fail("No tile labeled " ++ String.concat(~sep=" ", label))
       | tiles =>
         check(
           testable(Fmt.(list(string)), List.equal(String.equal)),
           "mold sorts",
-          List.map(Sort.show, sorts),
-          List.map((t: Tile.t) => Sort.show(Tile.mold(t).out), tiles),
+          List.map(~f=Sort.show, sorts),
+          List.map(~f=(t: Tile.t) => Sort.show(Tile.mold(t).out), tiles),
         )
       };
     },
@@ -3524,8 +3526,8 @@ let remold_sort_tests = [
 let owed_delimiters = (z: Zipper.t): list(list(string)) =>
   Zipper.unselect_and_zip(~erase_buffer=true, z)
   |> Segment.incomplete_tiles_deep
-  |> List.concat_map(Tile.missing_shards)
-  |> List.map(Tile.effective_label);
+  |> List.concat_map(~f=Tile.missing_shards)
+  |> List.map(~f=Tile.effective_label);
 
 /* The printed state, and the delimiters owed across the program. Compared
    as a set: which delimiters are owed is the property, not their order. */
@@ -3556,7 +3558,7 @@ let test_owed =
   );
 
 let backspace = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Destruct(Local(Left, ByChar)));
+  List.init(n, ~f=_ => Action.Destruct(Local(Left, ByChar)));
 
 /* Module and signature bodies mold their keywords in their own sorts, so
    a `let` there owes only what its item form owes. */
@@ -3666,7 +3668,7 @@ let test_same_term_as_ltr = (~name, ~acts, ~goal): test_case(_) =>
       let ltr =
         goal
         |> Token.to_list
-        |> List.filter(c => !String.equal(c, caret_char))
+        |> List.filter(~f=c => !String.equal(c, caret_char))
         |> Token.of_list
         |> string_to_ltr_actions
         |> perform(Zipper.init());
@@ -5318,11 +5320,11 @@ let cross_boundary_tests = [
       let has_comment =
         List.exists(
           ~f=
-          (p: Piece.t) =>
-            switch (p) {
-            | Secondary(s) => Secondary.is_comment(s)
-            | _ => false
-            },
+            (p: Piece.t) =>
+              switch (p) {
+              | Secondary(s) => Secondary.is_comment(s)
+              | _ => false
+              },
           seg,
         );
       check(Alcotest.bool, "comment piece exists", true, has_comment);
@@ -5338,11 +5340,11 @@ let cross_boundary_tests = [
       let has_comment =
         List.exists(
           ~f=
-          (p: Piece.t) =>
-            switch (p) {
-            | Secondary(s) => Secondary.is_comment(s)
-            | _ => false
-            },
+            (p: Piece.t) =>
+              switch (p) {
+              | Secondary(s) => Secondary.is_comment(s)
+              | _ => false
+              },
           seg,
         );
       check(Alcotest.bool, "comment piece exists", true, has_comment);
@@ -5358,11 +5360,11 @@ let cross_boundary_tests = [
       let has_comment =
         List.exists(
           ~f=
-          (p: Piece.t) =>
-            switch (p) {
-            | Secondary(s) => Secondary.is_comment(s)
-            | _ => false
-            },
+            (p: Piece.t) =>
+              switch (p) {
+              | Secondary(s) => Secondary.is_comment(s)
+              | _ => false
+              },
           seg,
         );
       check(Alcotest.bool, "comment piece exists", true, has_comment);
@@ -6321,19 +6323,19 @@ let pending_delim_tests = [
 let rec find_tile = (tok: string, seg: Segment.t): option(Tile.t) =>
   List.fold_left(
     ~f=
-    (acc, p: Piece.t) =>
-      switch (acc, p) {
-      | (Some(_), _) => acc
-      | (None, Tile(t)) when Tile.has_label(t, [tok]) => Some(t)
-      | (None, Tile(t)) =>
-        List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (acc, p) {
+        | (Some(_), _) => acc
+        | (None, Tile(t)) when Tile.has_label(t, [tok]) => Some(t)
+        | (None, Tile(t)) =>
+          List.fold_left(
             ~f=
               (acc, kid) => Option.is_none(acc) ? find_tile(tok, kid) : acc,
             ~init=None,
-          t.children,
-        )
-      | (None, _) => None
-      },
+            t.children,
+          )
+        | (None, _) => None
+        },
     ~init=None,
     seg,
   );

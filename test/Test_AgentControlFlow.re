@@ -186,11 +186,11 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     List.length(
       List.filter(
         ~f=
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
         ),
@@ -218,11 +218,11 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     List.length(
       List.filter(
         ~f=
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         msgs,
       ),
     );
@@ -239,8 +239,8 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     !
       List.exists(
         ~f=
-        c =>
-          StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
+          c =>
+            StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
         List.map(~f=(m: Message.Model.t) => m.content, msgs),
       ),
   );
@@ -305,7 +305,7 @@ let test_stop_then_flush_queue_sends_user_after_cancel = () => {
   );
   let after_drain = drain_scheduled(after_stop, scheduled, ~max_rounds=8);
   let chat = ChatSystem.Utils.find_chat(chat_id, after_drain.chat_system);
-  check(bool, "queue drained", true, chat.pending_send_queue == []);
+  check(bool, "queue drained", true, List.is_empty(chat.pending_send_queue));
   let cs = linear_contents(after_drain, chat_id);
   let i_cancel =
     index_of_substring("Agent response cancelled", cs)
@@ -338,7 +338,12 @@ let test_send_while_busy_enqueues = () => {
     true,
     chat.pending_send_queue == ["queued_while_busy_token"],
   );
-  check(bool, "no dispatch deferred while busy", true, scheduled^ == []);
+  check(
+    bool,
+    "no dispatch deferred while busy",
+    true,
+    List.is_empty(scheduled^),
+  );
   check(
     int,
     "queued message not appended to transcript",
@@ -728,9 +733,9 @@ let test_eval_gate_waits_while_pending = () => {
     true,
     List.exists(
       ~f=
-      fun
+        fun
         | Agent.Update.Action.DispatchSend(id) => Id.equal(id, chat_id)
-      | _ => false,
+        | _ => false,
       scheduled^,
     ),
   );
@@ -748,7 +753,7 @@ let test_eval_gate_gives_up_after_budget = () => {
     bool,
     "pending flag consumed",
     true,
-    agent'.pending_dispatch_send == None,
+    Option.is_none(agent'.pending_dispatch_send),
   );
 };
 
@@ -778,13 +783,13 @@ let test_eval_gate_settled_dispatches = () => {
     bool,
     "pending flag consumed without retry",
     true,
-    agent'.pending_dispatch_send == None
+    Option.is_none(agent'.pending_dispatch_send)
     && !
          List.exists(
            ~f=
-           fun
-           | Agent.Update.Action.DispatchSend(_) => true
-           | _ => false,
+             fun
+             | Agent.Update.Action.DispatchSend(_) => true
+             | _ => false,
            scheduled^,
          ),
   );

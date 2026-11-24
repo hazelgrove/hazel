@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* after each edit step, DefStatics computed from the previous step matches
    a cold calc and monolithic statics, and seeded evaluation a cold one */
@@ -50,7 +51,7 @@ let edit_op = (~open_=false, op: Web.OutlineEdit.def_op, path) =>
     switch (CorpusUtil.outline_op(~root, ~is_open=_ => open_, op, row, seg)) {
     | Ok((seg, _)) => seg
     | Error(why) =>
-      fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
+      fail("op failed at " ++ String.concat(~sep="/", path) ++ ": " ++ why)
     };
   });
 let op = (o, path) => edit_op(o, path);
@@ -77,10 +78,11 @@ let graft = (ds: DefStatics.t) =>
 
 let tests_of = (state: EvaluatorState.t) =>
   List.sort(
-    compare,
+    ~compare,
     List.map(
-      ((id, rs)) =>
-        (Id.show(id), TestStatus.show(TestMap.joint_status(rs))),
+      ~f=
+        ((id, rs)) =>
+          (Id.show(id), TestStatus.show(TestMap.joint_status(rs))),
       state.tests,
     ),
   );
@@ -107,7 +109,7 @@ let script =
   let exact = (i, s: step, ~prev=?, ds: DefStatics.t, (cache, value)) => {
     let name = "step " ++ string_of_int(i);
     Option.iter(
-      n => check(int, name ++ " analyzed", n, DefStatics.last_analyzed^),
+      ~f=n => check(int, name ++ " analyzed", n, DefStatics.last_analyzed^),
       s.analyzed,
     );
     check(
@@ -142,15 +144,16 @@ let script =
         );
       };
       Option.iter(
-        prev =>
-          if (s.changes_value) {
-            check(
-              bool,
-              name ++ " changes the value",
-              false,
-              same(prev, cold),
-            );
-          },
+        ~f=
+          prev =>
+            if (s.changes_value) {
+              check(
+                bool,
+                name ++ " changes the value",
+                false,
+                same(prev, cold),
+              );
+            },
         value,
       );
       (state.incr_eval, Some(cold));
@@ -163,14 +166,14 @@ let script =
   /* step 0: the cold calc */
   let threaded = exact(0, noop, ds, (IncrEval.empty, None));
   ignore(
-    List.fold_left(
-      ((i, seg, prev, threaded), s: step) => {
+    List.fold(
+      steps,
+      ~init=(1, seg, ds, threaded),
+      ~f=((i, seg, prev, threaded), s: step) => {
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
         (i + 1, seg, ds, exact(i, s, ~prev, ds, threaded));
       },
-      (1, seg, ds, threaded),
-      steps,
     ),
   );
 };
@@ -187,30 +190,31 @@ let mega = (~root, ~eval=true, ~delta=false, file, steps, ()) =>
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
-      | None => ()
-      | Some(seg) =>
-        let calc = seg =>
-          try(
-            ignore(
-              DefStatics.calc_auto(
-                ~settings=CoreSettings.on,
-                MakeTerm.Incr.term_of(seg),
-              ),
-            )
-          ) {
-          | DefStaticsCheck.Divergence(ds) =>
-            fail(path ++ ": " ++ String.concat("; ", ds))
+    ~f=
+      ((path, src)) =>
+        switch (CorpusUtil.parse(src)) {
+        | None => ()
+        | Some(seg) =>
+          let calc = seg =>
+            try(
+              ignore(
+                DefStatics.calc_auto(
+                  ~settings=CoreSettings.on,
+                  MakeTerm.Incr.term_of(seg),
+                ),
+              )
+            ) {
+            | DefStaticsCheck.Divergence(ds) =>
+              fail(path ++ ": " ++ String.concat(~sep="; ", ds))
+            };
+          calc(seg);
+          let (edited, changed) =
+            CorpusUtil.edit_token(~needle="1", ~repl="2", seg);
+          if (changed) {
+            calc(edited);
           };
-        calc(seg);
-        let (edited, changed) =
-          CorpusUtil.edit_token(~needle="1", ~repl="2", seg);
-        if (changed) {
-          calc(edited);
-        };
-        incr(checked);
-      },
+          incr(checked);
+        },
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there to check", true, checked^ >= 40);
@@ -226,7 +230,7 @@ let separate_slots = () => {
     bool,
     "two documents, two keys",
     false,
-    Exp.rep_id(a) == Exp.rep_id(b),
+    Id.equal(Exp.rep_id(a), Exp.rep_id(b)),
   );
   let ta = DefStatics.calc_auto(~settings=CoreSettings.on, a);
   ignore(DefStatics.calc_auto(~settings=CoreSettings.on, b));
@@ -235,7 +239,7 @@ let separate_slots = () => {
     "the first document's calc is still cached",
     true,
     switch (DefStatics.cached(a)) {
-    | Some(t) => t === ta
+    | Some(t) => phys_equal(t, ta)
     | None => false
     },
   );
@@ -270,29 +274,35 @@ let items_leave_binders_unflagged = () => {
     let ds = DefStatics.calc(~settings, term);
     let binders =
       List.concat_map(
-        (it: DefStatics.item) =>
-          List.concat_map(
-            fun
-            | Ctx.VarEntry({id, _}) => [
-                id,
-                ...DefStatics.fun_wrapper_ids(it.d_node, id),
-              ]
-            | _ => [],
-            it.d_exports,
-          ),
+        ~f=
+          (it: DefStatics.item) =>
+            List.concat_map(
+              ~f=
+                fun
+                | Ctx.VarEntry({id, _}) => [
+                    id,
+                    ...DefStatics.fun_wrapper_ids(it.d_node, id),
+                  ]
+                | _ => [],
+              it.d_exports,
+            ),
         ds.items,
       );
     let flagged =
       List.concat_map(
-        (it: DefStatics.item) =>
-          List.filter(id => List.mem(id, binders), it.d_warning_ids),
+        ~f=
+          (it: DefStatics.item) =>
+            List.filter(
+              ~f=id => List.mem(binders, id, ~equal=Poly.equal),
+              it.d_warning_ids,
+            ),
         ds.items,
       );
-    check(list(string), what, [], List.map(Id.show, flagged));
+    check(list(string), what, [], List.map(~f=Id.show, flagged));
   };
   let exp = src => MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
   List.iter(
-    ((what, src)) => check_calc(what, exp(src)),
+    ~f=((what, src)) => check_calc(what, exp(src)),
     [
       (
         "unused definitions",
@@ -316,19 +326,24 @@ let items_leave_binders_unflagged = () => {
     ),
   );
   List.iter(
-    ((path, src)) =>
-      Option.iter(
-        seg => check_calc(path, MakeTerm.Incr.term_of(seg)),
-        CorpusUtil.parse(src),
-      ),
+    ~f=
+      ((path, src)) =>
+        Option.iter(
+          ~f=seg => check_calc(path, MakeTerm.Incr.term_of(seg)),
+          CorpusUtil.parse(src),
+        ),
     CorpusUtil.slide_corpus(),
   );
   List.iter(
-    ((root, file)) =>
-      check_calc(
-        file,
-        MakeTerm.Incr.term_of_root(~root, CorpusUtil.mega_seg(~root, file)),
-      ),
+    ~f=
+      ((root, file)) =>
+        check_calc(
+          file,
+          MakeTerm.Incr.term_of_root(
+            ~root,
+            CorpusUtil.mega_seg(~root, file),
+          ),
+        ),
     [(Sort.Exp, "mega-1k.hz"), (Sort.Mod, "mega-mod-1k.hz")],
   );
 };
@@ -469,13 +484,14 @@ let probe_capture_parity = (): unit => {
     | None => fail("no info at " ++ Id.show(id))
     };
   List.iter(
-    id =>
-      check(
-        bool,
-        "witness as monolithic",
-        witnessed(map_m, id),
-        witnessed(ds.merged, id),
-      ),
+    ~f=
+      id =>
+        check(
+          bool,
+          "witness as monolithic",
+          witnessed(map_m, id),
+          witnessed(ds.merged, id),
+        ),
     [root, q_id],
   );
   /* guards against the spine patch re-reading its own output */
@@ -483,7 +499,7 @@ let probe_capture_parity = (): unit => {
     switch (Statics.Map.lookup_exp(root, t.merged)) {
     | Some(info) =>
       CoCtx.to_list(info.co_ctx)
-      |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
+      |> List.fold(~init=0, ~f=(n, (_, es)) => n + List.length(es))
     | None => (-1)
     };
   let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
@@ -1019,7 +1035,7 @@ let sealed = (~root=?, ~eval=?, src, steps) =>
 let sealed_modules = [
   test_case("a sealed module's ids, met and not", `Quick, () =>
     List.iter(
-      src => keys_as_monolithic(src, ()),
+      ~f=src => keys_as_monolithic(src, ()),
       [
         "type U = Int in\nmodule M : {type T = Int; let x : (T, U); let f : T -> Bool} = {\n  type T = Int;\n  let x = (1, 2);\n  let f(t) = t == 1\n} in\nM.f(fst(M.x))",
         /* a member missing, a type member defined otherwise */

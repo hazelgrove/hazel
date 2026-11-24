@@ -29,7 +29,7 @@ let serializer: Js.Unsafe.any =
         });
         Object.keys(props).sort().forEach(function (k) {
           var v = props[k];
-          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
+          if (phys_equal(typeof v, 'string') || phys_equal(typeof v, 'number') || phys_equal(typeof v, 'boolean'))
             fields.push(k + ':' + JSON.stringify(String(v)));
         });
         Object.keys(props.style || {}).sort().forEach(function (k) {
@@ -115,21 +115,22 @@ let check_html =
     List.length(chunks),
   );
   List.iter(
-    node =>
-      if (!
-            String.starts_with(
-              ~prefix="<span class=\"code-chunk\">",
-              serialize(~inner=false, node),
-            )) {
-        fail(name ++ ": a chunk is not one span.code-chunk");
-      },
+    ~f=
+      node =>
+        if (!
+              String.is_prefix(
+                ~prefix="<span class=\"code-chunk\">",
+                serialize(~inner=false, node),
+              )) {
+          fail(name ++ ": a chunk is not one span.code-chunk");
+        },
     chunks,
   );
   check(
     string,
     name ++ ": html",
-    String.concat("", List.map(serialize(~inner=false), whole)),
-    String.concat("", List.map(serialize(~inner=true), chunks)),
+    String.concat(~sep="", List.map(~f=serialize(~inner=false), whole)),
+    String.concat(~sep="", List.map(~f=serialize(~inner=true), chunks)),
   );
 };
 
@@ -156,17 +157,20 @@ let same_html =
 
 let programs = (~root, programs, ()) =>
   List.iter(
-    ((name, src)) => same_html(~root, name, CorpusUtil.seg_of(~root, src)),
+    ~f=
+      ((name, src)) =>
+        same_html(~root, name, CorpusUtil.seg_of(~root, src)),
     programs,
   );
 
 let incomplete = () =>
   List.iter(
-    ((name, src)) =>
-      switch (CorpusUtil.typed_seg(src)) {
-      | Some(seg) => same_html(name, seg)
-      | None => fail("untypeable program: " ++ name)
-      },
+    ~f=
+      ((name, src)) =>
+        switch (CorpusUtil.typed_seg(src)) {
+        | Some(seg) => same_html(name, seg)
+        | None => fail("untypeable program: " ++ name)
+        },
     CorpusUtil.incomplete_programs,
   );
 
@@ -221,8 +225,10 @@ let rerender = (~root, seg: Segment.t, edits: list((string, string))) => {
     chunks;
   };
   ignore(
-    List.fold_left(
-      ((seg, before), (needle, repl)) => {
+    List.fold(
+      edits,
+      ~init=(seg, render("before", seg)),
+      ~f=((seg, before), (needle, repl)) => {
         let (seg', found) =
           CorpusUtil.edit_token(
             ~at=`First,
@@ -243,17 +249,12 @@ let rerender = (~root, seg: Segment.t, edits: list((string, string))) => {
           int,
           needle ++ ": chunks re-rendered",
           1,
-          List.fold_left2(
-            (n, a, b) => a === b ? n : n + 1,
-            0,
-            before,
-            after,
+          List.fold2_exn(before, after, ~init=0, ~f=(n, a, b) =>
+            phys_equal(a, b) ? n : n + 1
           ),
         );
         (seg', after);
       },
-      (seg, render("before", seg)),
-      edits,
     ),
   );
 };
@@ -297,7 +298,7 @@ let two_editors = () => {
   let (a, b) = (editor(), editor());
   let (a0, b0) = (a(), b());
   let (a1, b1) = (a(), b());
-  let same = (xs, ys) => List.for_all2((===), xs, ys);
+  let same = (xs, ys) => List.for_all2_exn(~f=phys_equal, xs, ys);
   check(bool, "the first editor's nodes kept", true, same(a0, a1));
   check(bool, "the second editor's nodes kept", true, same(b0, b1));
 };
@@ -307,11 +308,12 @@ let corpus = (~root=Sort.Exp, file, ()) =>
 
 let slides = () =>
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
-      | Some(seg) => same_html(path, seg)
-      | None => ()
-      },
+    ~f=
+      ((path, src)) =>
+        switch (CorpusUtil.parse(src)) {
+        | Some(seg) => same_html(path, seg)
+        | None => ()
+        },
     CorpusUtil.slide_corpus(),
   );
 

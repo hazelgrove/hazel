@@ -2,6 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Util;
 open Web;
+open Poly;
 
 /* a reply's structural calls on the editing kernel: one transaction, its
    results by canonical path; tests addressed by hint; move */
@@ -17,14 +18,14 @@ let text = (z: Zipper.t): string => Printer.of_zipper(~holes="?", z);
 let call = (i, name, args): OpenRouter.Reply.Model.tool_call => {
   id: "call-" ++ string_of_int(i),
   name,
-  args: `Assoc(List.map(((k, v)) => (k, `String(v)), args)),
+  args: `Assoc(List.map(~f=((k, v)) => (k, `String(v)), args)),
 };
 
 let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
   Chat.Utils.linearize(
     ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
   )
-  |> List.filter_map((m: Message.Model.t) =>
+  |> List.filter_map(~f=(m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr)
        | _ => None
@@ -98,24 +99,25 @@ let reply =
       calls: list((string, list((string, string)))),
     )
     : (string, list(AgentToolResult.tool_result)) =>
-  List.hd(
+  List.hd_exn(
     replies(
       ~settings?,
       ~root?,
       code,
-      [List.mapi((i, (n, a)) => call(i, n, a), calls)],
+      [List.mapi(~f=(i, (n, a)) => call(i, n, a), calls)],
     ),
   );
 
 /* an example's calls as a reply's */
 let example_calls = (calls: list(ToolExamples.call)) =>
   List.mapi(
-    (i, c: ToolExamples.call): OpenRouter.Reply.Model.tool_call =>
-      {
-        id: "call-" ++ string_of_int(i),
-        name: c.tool,
-        args: `Assoc(c.args),
-      },
+    ~f=
+      (i, c: ToolExamples.call): OpenRouter.Reply.Model.tool_call =>
+        {
+          id: "call-" ++ string_of_int(i),
+          name: c.tool,
+          args: `Assoc(c.args),
+        },
     calls,
   );
 
@@ -132,8 +134,8 @@ let same_text = (what, want, got) =>
   check(
     string,
     what,
-    String.concat(" ", String.split_on_char('\n', want)),
-    String.concat(" ", String.split_on_char('\n', got)),
+    String.concat(~sep=" ", String.split(~on='\n', want)),
+    String.concat(~sep=" ", String.split(~on='\n', got)),
   );
 
 let geo = "let area = fun s -> s * s in\nlet total = fun xs -> 0 in\nmodule Geo = { let perimeter = 4 } in\n?";
@@ -290,18 +292,21 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
         list(bool),
         "all applied",
         [true, true, true],
-        List.map((tr: AgentToolResult.tool_result) => tr.success, results),
+        List.map(
+          ~f=(tr: AgentToolResult.tool_result) => tr.success,
+          results,
+        ),
       );
-      mentions("insert's result", "Added b.", List.hd(results).content);
+      mentions("insert's result", "Added b.", List.hd_exn(results).content);
       mentions(
         "update's result",
         "Replaced b:definition.",
-        List.nth(results, 1).content,
+        List.nth_exn(results, 1).content,
       );
       mentions(
         "the last result",
         "Static errors: none.",
-        List.nth(results, 2).content,
+        List.nth_exn(results, 2).content,
       );
     },
   ),
@@ -354,7 +359,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
           ],
         );
       same_text("program unchanged", code, program);
-      let second = List.nth(results, 1);
+      let second = List.nth_exn(results, 1);
       check(bool, "the erring call failed", false, second.success);
       mentions(
         "its result",
@@ -362,7 +367,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
         second.content,
       );
       mentions("its result", "a:", second.content);
-      mentions("the first", "Rolled back.", List.hd(results).content);
+      mentions("the first", "Rolled back.", List.hd_exn(results).content);
     },
   ),
   test_case(
@@ -382,7 +387,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
           ],
         );
       same_text("program unchanged", code, program);
-      let second = List.nth(results, 1);
+      let second = List.nth_exn(results, 1);
       check(bool, "the call adding it failed", false, second.success);
       mentions("its result", "1 before, 1 after", second.content);
       mentions("its result", "- b:", second.content);
@@ -403,7 +408,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
       mentions(
         "result",
         "Static errors: 1 (1 before), none new.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -433,7 +438,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
           ],
         );
       same_text("applied with its error", "let a = true + 1 in a", program);
-      mentions("result", "New:", List.hd(results).content);
+      mentions("result", "New:", List.hd_exn(results).content);
       let (program, _) =
         reply(
           ~settings=
@@ -478,7 +483,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
         "applied",
         true,
         List.for_all(
-          (tr: AgentToolResult.tool_result) => tr.success,
+          ~f=(tr: AgentToolResult.tool_result) => tr.success,
           results,
         ),
       );
@@ -493,7 +498,7 @@ hint "add to empty" test add_task("a", []) == ["a"] end;
           "let a = 1 in a",
           [("insert", [("after", "a"), ("code", "let b = 2 in")])],
         );
-      switch (List.hd(results).steps) {
+      switch (List.hd_exn(results).steps) {
       | [step] =>
         check(string, "op", "insert", step.op);
         check(option(string), "its entry", Some("b"), step.into);
@@ -513,7 +518,7 @@ let deletes_and_renames = [
       let (program, results) =
         reply(code, [("delete", [("target", "a")])]);
       same_text("program unchanged", code, program);
-      let r = List.hd(results);
+      let r = List.hd_exn(results);
       check(bool, "refused", false, r.success);
       mentions("result", "a, used at b, c", r.content);
     },
@@ -541,16 +546,19 @@ let deletes_and_renames = [
       let seg = Zipper.unselect_and_zip(z);
       let rec toks = (seg: Segment.t): list((Id.t, string)) =>
         List.concat_map(
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile({form: Tok(s), id, _}) => [(id, s)]
-            | Tile(t) => List.concat_map(toks, t.children)
-            | _ => []
-            },
+          ~f=
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile({form: Tok(s), id, _}) => [(id, s)]
+              | Tile(t) => List.concat_map(~f=toks, t.children)
+              | _ => []
+              },
           seg,
         );
       let ids_of = (seg, name) =>
-        toks(seg) |> List.filter(((_, s)) => s == name) |> List.map(fst);
+        toks(seg)
+        |> List.filter(~f=((_, s)) => s == name)
+        |> List.map(~f=fst);
       let before = ids_of(seg, "total");
       switch (
         CompositionGo.go(
@@ -567,8 +575,8 @@ let deletes_and_renames = [
         check(
           list(string),
           "same ids, renamed",
-          List.map(Id.to_string, before),
-          List.map(Id.to_string, ids_of(seg', "sum")),
+          List.map(~f=Id.to_string, before),
+          List.map(~f=Id.to_string, ids_of(seg', "sum")),
         );
       | Error(e) => fail(Action.Failure.show(e))
       };
@@ -582,7 +590,7 @@ let deletes_and_renames = [
       let (program, results) =
         reply(code, [("rename", [("target", "b"), ("to", "a")])]);
       same_text("program unchanged", code, program);
-      mentions("result", "Not renamed to a", List.hd(results).content);
+      mentions("result", "Not renamed to a", List.hd_exn(results).content);
     },
   ),
   test_case(
@@ -602,7 +610,7 @@ let deletes_and_renames = [
 /* a reply of one call on [code]: the program after and its result */
 let one = (code, tool, args) => {
   let (program, results) = reply(code, [(tool, args)]);
-  (program, List.hd(results));
+  (program, List.hd_exn(results));
 };
 
 let bound_renames = [
@@ -777,7 +785,11 @@ let tests_by_hint = [
           ],
         );
       mentions("program", "double(1) == 2", program);
-      mentions("result", "Replaced \"doubles\".", List.hd(results).content);
+      mentions(
+        "result",
+        "Replaced \"doubles\".",
+        List.hd_exn(results).content,
+      );
     },
   ),
   test_case(
@@ -807,7 +819,7 @@ let tests_by_hint = [
           "let a = 1 in a",
           [("insert", [("after", "a"), ("code", "test a == 1 end")])],
         );
-      mentions("result", "Added test#1.", List.hd(results).content);
+      mentions("result", "Added test#1.", List.hd_exn(results).content);
     },
   ),
 ];
@@ -822,7 +834,7 @@ let moves = [
       mentions(
         "program",
         "let perimeter = 4; let area = fun s -> s * s",
-        String.concat(" ", String.split_on_char('\n', program)),
+        String.concat(~sep=" ", String.split(~on='\n', program)),
       );
       check(
         bool,
@@ -833,7 +845,7 @@ let moves = [
       mentions(
         "result",
         "Moved area last in Geo (now Geo/area).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -885,8 +897,8 @@ let moves = [
         check(
           option(string),
           "same anchor",
-          Option.map(Id.to_string, anchor(seg)),
-          Option.map(Id.to_string, anchor(Zipper.unselect_and_zip(z'))),
+          Option.map(~f=Id.to_string, anchor(seg)),
+          Option.map(~f=Id.to_string, anchor(Zipper.unselect_and_zip(z'))),
         )
       | Error(e) => fail(Action.Failure.show(e))
       };
@@ -930,7 +942,7 @@ let moves = [
             ),
           ],
         );
-      mentions("result", "exactly one of", List.hd(results).content);
+      mentions("result", "exactly one of", List.hd_exn(results).content);
     },
   ),
 ];
@@ -993,7 +1005,12 @@ let test_results = [
           _ =>
           ()
         );
-      check(bool, "pending", true, AgentToolExec.Tests.pending^ != None);
+      check(
+        bool,
+        "pending",
+        true,
+        Option.is_some(AgentToolExec.Tests.pending^),
+      );
       let after = evaluated(ce'.model);
       let chat_system =
         AgentToolExec.Tests.report(
@@ -1001,18 +1018,23 @@ let test_results = [
           EvalResult.Model.test_results(after.result),
           agent'.chat_system,
         );
-      check(bool, "taken", true, AgentToolExec.Tests.pending^ == None);
+      check(
+        bool,
+        "taken",
+        true,
+        Option.is_none(AgentToolExec.Tests.pending^),
+      );
       let result =
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, chat_system),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | ToolResult(tr) => Some(tr.content)
              | _ => None
              }
            )
-        |> List.hd;
+        |> List.hd_exn;
       mentions(
         "result",
         "Tests changed: test#1 failing → passing.",
@@ -1041,14 +1063,14 @@ let feedback = [
       mentions(
         "result",
         "`code` contains `\\n` as two characters; write real line breaks (and plain quotes).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       check(
         list(bool),
         "escapes outside strings only",
         [true, true, false, false],
         List.map(
-          CompositionGo.escaped,
+          ~f=CompositionGo.escaped,
           [
             "let b = 2 in\\nb",
             "hint \\\"x\\\" test true end",
@@ -1080,7 +1102,7 @@ let feedback = [
             ),
           ],
         );
-      let content = List.hd(results).content;
+      let content = List.hd_exn(results).content;
       mentions(
         "result",
         "The code does not parse at line 1, column 15, near `type Task = { title: String, done:`.",
@@ -1101,7 +1123,7 @@ let feedback = [
         bool,
         "no record hint elsewhere",
         false,
-        has("records", List.hd(results).content),
+        has("records", List.hd_exn(results).content),
       );
     },
   ),
@@ -1131,7 +1153,7 @@ let feedback = [
       mentions(
         "result",
         "Replaced W/pad, kept the comment above it.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (program, _) =
         reply(
@@ -1170,7 +1192,7 @@ let feedback = [
         call(0, "insert", [("after", "a"), ("code", "let b = 1 +")]),
       ];
       let first = ((_, trs)) =>
-        (List.hd(trs): AgentToolResult.tool_result).content;
+        (List.hd_exn(trs): AgentToolResult.tool_result).content;
       let last_agent = (agent: Agent.Model.t) =>
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(
@@ -1178,38 +1200,47 @@ let feedback = [
             agent.chat_system,
           ),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | Agent(_) => Some(m.content)
              | _ => None
              }
            )
-        |> ListUtil.last_opt;
+        |> List.last;
       let notice = AgentToolExec.Repeats.notice;
       let (rs, agent) = run("let a = 1 in a", [bad, bad, other, bad, bad]);
       check(
         list(bool),
         "noticed: only the same as the last",
         [false, true, false, false, true],
-        List.map(r => String.starts_with(~prefix=notice, first(r)), rs),
+        List.map(~f=r => String.is_prefix(~prefix=notice, first(r)), rs),
       );
       check(
         bool,
         "not stopped",
         false,
-        Option.fold(~none=false, ~some=has("Stopped"), last_agent(agent)),
+        Option.value_map(
+          last_agent(agent),
+          ~default=false,
+          ~f=has("Stopped"),
+        ),
       );
       let (_, agent) =
         run(
           "let a = 1 in a",
-          List.init(AgentToolExec.Repeats.limit, _ => bad),
+          List.init(AgentToolExec.Repeats.limit, ~f=_ => bad),
         );
       mentions(
         "the note to the user",
         "Stopped: the agent sent the same calls 5 times in a row",
         Option.value(last_agent(agent), ~default=""),
       );
-      check(bool, "turn ended", true, agent.awaiting_response == None);
+      check(
+        bool,
+        "turn ended",
+        true,
+        Option.is_none(agent.awaiting_response),
+      );
     },
   ),
   test_case(
@@ -1267,13 +1298,13 @@ let feedback = [
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, chat_system),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | ToolResult(tr) => Some(tr.content)
              | _ => None
              }
            )
-        |> List.hd;
+        |> List.hd_exn;
       mentions(
         "result",
         "Tests changed: \"zero\" passing → failing. Failing: \"zero\" (newly), test#1.",
@@ -1288,80 +1319,95 @@ let feedback = [
 let prompt_examples = [
   test_case("the tool examples", `Quick, () =>
     List.iter(
-      (e: ToolExamples.example) => {
-        let (_, results) =
-          List.hd(replies(e.program, [example_calls(e.calls)]));
-        List.iteri(
-          (i, tr: AgentToolResult.tool_result) => {
-            let c = List.nth(e.calls, i);
-            switch (e.results) {
-            | Some(rs) =>
-              let want = List.nth(rs, i);
-              tr.success
-                ? mentions(e.intent, c.tool ++ ": " ++ want, tr.content)
-                : mentions(e.intent, want, tr.content);
-            | None =>
-              check(bool, e.intent ++ ": " ++ tr.content, true, tr.success)
-            };
-          },
-          results,
-        );
-        check(
-          int,
-          e.intent ++ ": all ran",
-          List.length(e.calls),
-          List.length(results),
-        );
-      },
+      ~f=
+        (e: ToolExamples.example) => {
+          let (_, results) =
+            List.hd_exn(replies(e.program, [example_calls(e.calls)]));
+          List.iteri(
+            ~f=
+              (i, tr: AgentToolResult.tool_result) => {
+                let c = List.nth_exn(e.calls, i);
+                switch (e.results) {
+                | Some(rs) =>
+                  let want = List.nth_exn(rs, i);
+                  tr.success
+                    ? mentions(e.intent, c.tool ++ ": " ++ want, tr.content)
+                    : mentions(e.intent, want, tr.content);
+                | None =>
+                  check(
+                    bool,
+                    e.intent ++ ": " ++ tr.content,
+                    true,
+                    tr.success,
+                  )
+                };
+              },
+            results,
+          );
+          check(
+            int,
+            e.intent ++ ": all ran",
+            List.length(e.calls),
+            List.length(results),
+          );
+        },
       ToolExamples.all,
     )
   ),
   test_case("the few-shot example", `Quick, () =>
     List.iter(
-      (e: Eg_RecFib.example) => {
-        Option.iter(
-          view =>
-            Test_AgentView.golden(
-              e.asks ++ ": the start",
-              view,
-              Test_AgentView.render(~evaluate=true, e.program),
-            ),
-          e.start,
-        );
-        let steps =
-          replies(
-            e.program,
-            List.map(
-              (s: Eg_RecFib.step) => example_calls(s.calls),
-              e.steps,
-            ),
-          );
-        List.iter2(
-          (s: Eg_RecFib.step, (program, results)) => {
-            List.iter(
-              (tr: AgentToolResult.tool_result) =>
-                check(
-                  bool,
-                  e.asks ++ ": " ++ tr.tool_call.name ++ ": " ++ tr.content,
-                  true,
-                  tr.success,
+      ~f=
+        (e: Eg_RecFib.example) => {
+          Option.iter(
+            ~f=
+              view =>
+                Test_AgentView.golden(
+                  e.asks ++ ": the start",
+                  view,
+                  Test_AgentView.render(~evaluate=true, e.program),
                 ),
-              results,
+            e.start,
+          );
+          let steps =
+            replies(
+              e.program,
+              List.map(
+                ~f=(s: Eg_RecFib.step) => example_calls(s.calls),
+                e.steps,
+              ),
             );
-            switch (s.sees) {
-            | Some((view, opened)) =>
-              Test_AgentView.golden(
-                e.asks,
-                view,
-                Test_AgentView.render(~evaluate=true, ~opened, program),
-              )
-            | None => ()
-            };
-          },
-          e.steps,
-          steps,
-        );
-      },
+          List.iter2_exn(
+            ~f=
+              (s: Eg_RecFib.step, (program, results)) => {
+                List.iter(
+                  ~f=
+                    (tr: AgentToolResult.tool_result) =>
+                      check(
+                        bool,
+                        e.asks
+                        ++ ": "
+                        ++ tr.tool_call.name
+                        ++ ": "
+                        ++ tr.content,
+                        true,
+                        tr.success,
+                      ),
+                  results,
+                );
+                switch (s.sees) {
+                | Some((view, opened)) =>
+                  Test_AgentView.golden(
+                    e.asks,
+                    view,
+                    Test_AgentView.render(~evaluate=true, ~opened, program),
+                  )
+                | None => ()
+                };
+              },
+            e.steps,
+            steps,
+          );
+        },
       Eg_RecFib.examples,
     )
   ),
@@ -1384,22 +1430,24 @@ let prompt_examples = [
         replies(
           debug_program,
           List.map(
-            c => example_calls([c]),
+            ~f=c => example_calls([c]),
             [debug_probe, debug_fix, debug_unprobe],
           ),
         );
       List.iter(
-        ((_, results)) =>
-          List.iter(
-            (tr: AgentToolResult.tool_result) =>
-              check(
-                bool,
-                tr.tool_call.name ++ ": " ++ tr.content,
-                true,
-                tr.success,
-              ),
-            results,
-          ),
+        ~f=
+          ((_, results)) =>
+            List.iter(
+              ~f=
+                (tr: AgentToolResult.tool_result) =>
+                  check(
+                    bool,
+                    tr.tool_call.name ++ ": " ++ tr.content,
+                    true,
+                    tr.success,
+                  ),
+              results,
+            ),
         steps,
       );
       mentions(
@@ -1420,7 +1468,8 @@ let repro = [
     `Quick,
     () => {
       let insert = (place, code) => ("insert", [place, ("code", code)]);
-      let reply = calls => List.mapi((i, (n, a)) => call(i, n, a), calls);
+      let reply = calls =>
+        List.mapi(~f=(i, (n, a)) => call(i, n, a), calls);
       let redoc =
         reply([
           (
@@ -1471,7 +1520,7 @@ let repro = [
           ],
         );
       let result = (k, i) =>
-        List.nth(snd(List.nth(steps, k)), i).AgentToolResult.content;
+        List.nth_exn(snd(List.nth_exn(steps, k)), i).AgentToolResult.content;
       mentions(
         "entries without `in`",
         "Entries in one `code` need `in` between them (`;` in a module); leave it off the last.",
@@ -1576,7 +1625,7 @@ translate([1], 1)|},
       mentions(
         "result",
         "Replaced translate:definition.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (program, _) =
         reply(
@@ -1723,7 +1772,7 @@ let endings = [
       mentions(
         "its result",
         "Added celsius, f. The last line became the result (`=>`).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (program, _) =
         reply(
@@ -1759,7 +1808,7 @@ let endings = [
       mentions(
         "its result",
         "The code became the result (`f:definition`).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (program, results) =
         reply(
@@ -1779,7 +1828,7 @@ let endings = [
       mentions(
         "its result",
         "Added f/y. The last line became the result (`f/=>`).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -1796,7 +1845,7 @@ let endings = [
       mentions(
         "its result",
         "Added b, stmt#1. The last line became a statement (stmt#1); to change the result, replace `=>`.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (_, results) =
         reply(
@@ -1811,7 +1860,7 @@ let endings = [
       mentions(
         "inside a block",
         "(f/stmt#1); to change the result, replace `f/=>`.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -1821,7 +1870,7 @@ let endings = [
     () => {
       let hint = "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map).";
       let code = "let a = 1 in\ntest a == 1 end;\na";
-      let first = calls => List.hd(snd(reply(code, calls))).content;
+      let first = calls => List.hd_exn(snd(reply(code, calls))).content;
       mentions("a call", hint, first([("delete", [("target", "a(1)")])]));
       mentions(
         "a test's code",
@@ -1843,7 +1892,7 @@ let sent = (agent: Agent.Model.t): list(string) =>
   Chat.Utils.linearize(
     ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
   )
-  |> List.filter_map((m: Message.Model.t) =>
+  |> List.filter_map(~f=(m: Message.Model.t) =>
        switch (m.role, m.api_message) {
        | (ToolResult(_), Some(api)) => Some(api.content)
        | _ => None
@@ -1885,8 +1934,8 @@ let messages = [
             ],
           ],
         );
-      same_text("program unchanged", shapes_v, fst(List.hd(outs)));
-      let content = List.hd(snd(List.hd(outs))).content;
+      same_text("program unchanged", shapes_v, fst(List.hd_exn(outs)));
+      let content = List.hd_exn(snd(List.hd_exn(outs))).content;
       mentions(
         "the summary",
         "Not applied: it would add 3 static errors (0 before, 3 after), in: area (2), \"circle area\" (1).\nChanging Shape breaks uses in: area, \"circle area\"; change them in the same reply.\n- area: ",
@@ -1901,7 +1950,7 @@ let messages = [
         string,
         "what the agent is sent",
         content,
-        List.hd(sent(agent)),
+        List.hd_exn(sent(agent)),
       );
     },
   ),
@@ -1935,8 +1984,8 @@ let messages = [
             ],
           ],
         );
-      let results = snd(List.hd(outs));
-      let content = i => List.nth(results, i).AgentToolResult.content;
+      let results = snd(List.hd_exn(outs));
+      let content = i => List.nth_exn(results, i).AgentToolResult.content;
       mentions(
         "the refusal",
         "Not applied: this reply's edits together would add 3 static errors",
@@ -1997,10 +2046,10 @@ let messages = [
         );
       let content =
         String.concat(
-          "\n",
+          ~sep="\n",
           List.map(
-            (tr: AgentToolResult.tool_result) => tr.content,
-            snd(List.hd(outs)),
+            ~f=(tr: AgentToolResult.tool_result) => tr.content,
+            snd(List.hd_exn(outs)),
           ),
         );
       mentions(
@@ -2028,7 +2077,7 @@ let messages = [
       mentions(
         "the hint",
         "\n`update:definition` starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (_, results) =
         reply(
@@ -2047,7 +2096,7 @@ let messages = [
         bool,
         "not when the code has one",
         false,
-        has("dropped", List.hd(results).content),
+        has("dropped", List.hd_exn(results).content),
       );
     },
   ),
@@ -2063,7 +2112,7 @@ let messages = [
       mentions(
         "its result",
         "Static errors: none. The program's result is empty (`?`).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (_, results) =
         reply(
@@ -2074,7 +2123,7 @@ let messages = [
         bool,
         "not when it has one",
         false,
-        has("is empty", List.hd(results).content),
+        has("is empty", List.hd_exn(results).content),
       );
     },
   ),
@@ -2088,15 +2137,17 @@ let messages = [
           reply(code, [("delete", [("target", target)])]);
         check(
           bool,
-          target ++ " resolves: " ++ List.hd(results).content,
+          target ++ " resolves: " ++ List.hd_exn(results).content,
           true,
-          List.hd(results).success,
+          List.hd_exn(results).success,
         );
       };
       ok({|"rect area" #› 1 use #|});
       ok({|\"rect area\"|});
       let refused = target =>
-        List.hd(snd(reply(code, [("delete", [("target", target)])]))).
+        List.hd_exn(
+          snd(reply(code, [("delete", [("target", target)])])),
+        ).
           content;
       mentions("a misspelling", "Did you mean `area`?", refused("aera"));
       mentions(
@@ -2132,7 +2183,7 @@ let messages = [
       mentions(
         "its result",
         "There are now 2 entries named \"rect area\" in the program's top level: \"rect area\"#1, \"rect area\"#2.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (_, results) =
         reply(
@@ -2151,7 +2202,7 @@ let messages = [
         bool,
         "not for one replacing its own",
         false,
-        has("There are now", List.hd(results).content),
+        has("There are now", List.hd_exn(results).content),
       );
     },
   ),
@@ -2177,7 +2228,7 @@ let messages = [
       mentions(
         "its result",
         "Replaced check:definition.\n- && (\n- f(3) == 3\n- )\nStatic errors",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),

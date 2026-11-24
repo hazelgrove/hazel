@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* ItemSpans at every level of the corpora (module members and definition
    bodies included): slices partition each level, base_col is the line's
@@ -13,17 +14,17 @@ module S = ItemSpans;
    them */
 let stdlib_corpus = (): list((string, string)) => {
   let dir =
-    Sys.file_exists("hazel-programs/stdlib")
+    Stdlib.Sys.file_exists("hazel-programs/stdlib")
       ? "hazel-programs/stdlib" : "../hazel-programs/stdlib";
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | files =>
     files
     |> Array.to_list
-    |> List.filter(f => Filename.check_suffix(f, ".hz"))
-    |> List.sort(compare)
-    |> List.filter_map(f => {
+    |> List.filter(~f=f => Filename.check_suffix(f, ".hz"))
+    |> List.sort(~compare)
+    |> List.filter_map(~f=f => {
          let path = Filename.concat(dir, f);
-         Option.map(src => (path, src), CorpusUtil.read_file(path));
+         Option.map(~f=src => (path, src), CorpusUtil.read_file(path));
        })
   | exception _ => []
   };
@@ -95,34 +96,36 @@ let exp_shapes = [
 ];
 
 /* every piece's line indentation, in one walk */
-let indents = (seg: Segment.t): Hashtbl.t(Id.t, int) => {
-  let tbl = Hashtbl.create(1024);
+let indents = (seg: Segment.t): Stdlib.Hashtbl.t(Id.t, int) => {
+  let tbl = Stdlib.Hashtbl.create(1024);
   let ind = ref(0);
   let lead = ref(true);
   let rec go = (ps: Segment.t) =>
     List.iter(
-      (p: Piece.t) => {
-        Hashtbl.replace(tbl, Piece.id(p), ind^);
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          ind := 0;
-          lead := true;
-        | Secondary(w) when Secondary.is_space(w) =>
-          if (lead^) {
-            ind := ind^ + 1;
-          }
-        | Tile(t) =>
-          lead := false;
-          List.iter(
-            ch => {
-              go(ch);
-              lead := false;
-            },
-            t.children,
-          );
-        | _ => lead := false
-        };
-      },
+      ~f=
+        (p: Piece.t) => {
+          Stdlib.Hashtbl.replace(tbl, Piece.id(p), ind^);
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) =>
+            ind := 0;
+            lead := true;
+          | Secondary(w) when Secondary.is_space(w) =>
+            if (lead^) {
+              ind := ind^ + 1;
+            }
+          | Tile(t) =>
+            lead := false;
+            List.iter(
+              ~f=
+                ch => {
+                  go(ch);
+                  lead := false;
+                },
+              t.children,
+            );
+          | _ => lead := false
+          };
+        },
       ps,
     );
   go(seg);
@@ -152,12 +155,19 @@ let kind_name = (k: S.kind) =>
   };
 
 let sub = (arr: array(Piece.t), a: int, b: int): string =>
-  CorpusUtil.text_of(Array.to_list(Array.sub(arr, a, max(0, b - a))));
+  CorpusUtil.text_of(
+    Array.to_list(Array.sub(arr, ~pos=a, ~len=max(0, b - a))),
+  );
 
 /* one level: its slices partition it, each core lies in its slice, and
    base_col is the indentation of the line the core starts on */
 let check_level =
-    (~name: string, ~indent_of: Hashtbl.t(Id.t, int), t: tally, lv: S.level) => {
+    (
+      ~name: string,
+      ~indent_of: Stdlib.Hashtbl.t(Id.t, int),
+      t: tally,
+      lv: S.level,
+    ) => {
   t.levels = t.levels + 1;
   let len = Array.length(lv.pieces);
   let n = Array.length(lv.spans);
@@ -168,18 +178,23 @@ let check_level =
       ...t.diffs,
     ];
   Array.iteri(
-    (k, sp: S.span) => {
-      let lo_ok = k == 0 ? sp.lo == 0 : sp.lo == lv.spans[k - 1].hi;
-      let hi_ok = k < n - 1 || sp.hi == len;
-      let (c0, c1) = sp.core;
-      if (!lo_ok || !hi_ok || !(sp.lo <= c0 && c0 <= c1 && c1 <= sp.hi)) {
-        diff(Printf.sprintf("span %d breaks the partition", k));
-      };
-      let id = Piece.id(lv.pieces[c0]);
-      if (Hashtbl.find_opt(indent_of, id) != Some(sp.base_col)) {
-        diff(Printf.sprintf("span %d: base_col %d", k, sp.base_col));
-      };
-    },
+    ~f=
+      (k, sp: S.span) => {
+        let lo_ok = k == 0 ? sp.lo == 0 : sp.lo == lv.spans[k - 1].hi;
+        let hi_ok = k < n - 1 || sp.hi == len;
+        let (c0, c1) = sp.core;
+        if (!lo_ok || !hi_ok || !(sp.lo <= c0 && c0 <= c1 && c1 <= sp.hi)) {
+          diff(Printf.sprintf("span %d breaks the partition", k));
+        };
+        let id = Piece.id(lv.pieces[c0]);
+        if (!
+              Poly.equal(
+                Stdlib.Hashtbl.find_opt(indent_of, id),
+                Some(sp.base_col),
+              )) {
+          diff(Printf.sprintf("span %d: base_col %d", k, sp.base_col));
+        };
+      },
     lv.spans,
   );
 };
@@ -191,30 +206,30 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
   let rec walk = (lv: S.level) => {
     check_level(~name, ~indent_of, t, lv);
     Array.iteri(
-      (k, _) => {
-        Option.iter(walk, S.children(lv, k));
-        Option.iter(walk, S.block(lv, k));
-      },
+      ~f=
+        (k, _) => {
+          Option.iter(~f=walk, S.children(lv, k));
+          Option.iter(~f=walk, S.block(lv, k));
+        },
       lv.spans,
     );
   };
   let top = S.top(~root, seg);
   walk(top);
   /* an expression level cuts no worse than top_items: at its cuts only */
-  if (root != Sort.Mod) {
+  if (!Sort.equal(root, Sort.Mod)) {
     let cuts =
-      List.fold_left(
-        ((acc, at), s) =>
-          ([at + List.length(s), ...acc], at + List.length(s)),
-        ([], 0),
-        Segment.top_items(seg),
+      List.fold(Segment.top_items(seg), ~init=([], 0), ~f=((acc, at), s) =>
+        ([at + List.length(s), ...acc], at + List.length(s))
       )
       |> fst;
     Array.iter(
-      (sp: S.span) =>
-        if (sp.hi < List.length(seg) && !List.mem(sp.hi, cuts)) {
-          t.diffs = [name ++ ": a cut top_items lacks", ...t.diffs];
-        },
+      ~f=
+        (sp: S.span) =>
+          if (sp.hi < List.length(seg)
+              && !List.mem(cuts, sp.hi, ~equal=Poly.equal)) {
+            t.diffs = [name ++ ": a cut top_items lacks", ...t.diffs];
+          },
       top.spans,
     );
   };
@@ -231,21 +246,26 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
             let (lv', k') = Util.ListUtil.last(p);
             let here = List.length(p) == List.length(path);
             here
-            && lv' === lv
+            && phys_equal(lv', lv)
             && k' == k
             || below
             && List.length(p) > List.length(path)
-            && lv'.spans[k'].anchor == id
+            && Id.equal(lv'.spans[k'].anchor, id)
             && (
-              switch (List.nth_opt(p, List.length(path) - 1)) {
-              | Some((l, j)) => l === lv && j == k
+              switch (List.nth(p, List.length(path) - 1)) {
+              | Some((l, j)) => phys_equal(l, lv) && j == k
               | None => false
               }
             );
           | None => false
           };
         if (!lands(~below=false, sp.anchor)
-            || !Option.fold(~none=true, ~some=lands(~below=true), sp.first)) {
+            || !
+                 Option.value_map(
+                   sp.first,
+                   ~default=true,
+                   ~f=lands(~below=true),
+                 )) {
           t.diffs = [name ++ ": find misses a span", ...t.diffs];
         };
       },
@@ -270,17 +290,18 @@ let report = (what: string, t: tally) => {
     t.spans,
     List.length(t.diffs),
   );
-  List.iter(d => Printf.printf("DIFF %s\n", d), List.rev(t.diffs));
+  List.iter(~f=d => Printf.printf("DIFF %s\n", d), List.rev(t.diffs));
 };
 
 let run = (programs: list((string, Sort.t, string))): tally => {
   let t = tally();
   List.iter(
-    ((name, root, src)) =>
-      switch (parse(~root, src)) {
-      | Some(seg) => check_program(t, ~name, ~root, seg)
-      | None => t.diffs = [name ++ ": unparseable", ...t.diffs]
-      },
+    ~f=
+      ((name, root, src)) =>
+        switch (parse(~root, src)) {
+        | Some(seg) => check_program(t, ~name, ~root, seg)
+        | None => t.diffs = [name ++ ": unparseable", ...t.diffs]
+        },
     programs,
   );
   t;
@@ -289,13 +310,16 @@ let run = (programs: list((string, Sort.t, string))): tally => {
 let shapes = () => {
   let t =
     run(
-      List.map(((n, s)) => (n, Sort.Exp, s), exp_shapes)
-      @ List.map(((n, s)) => (n, Sort.Exp, s), CorpusUtil.edge_programs)
+      List.map(~f=((n, s)) => (n, Sort.Exp, s), exp_shapes)
       @ List.map(
-          ((n, s, _)) => (n, Sort.Exp, s),
+          ~f=((n, s)) => (n, Sort.Exp, s),
+          CorpusUtil.edge_programs,
+        )
+      @ List.map(
+          ~f=((n, s, _)) => (n, Sort.Exp, s),
           Test_HeadlessRows.shapes,
         )
-      @ List.map(((n, s)) => (n, Sort.Mod, s), letin_members),
+      @ List.map(~f=((n, s)) => (n, Sort.Mod, s), letin_members),
     );
   report("shapes", t);
   check(int, "diffs", 0, List.length(t.diffs));
@@ -307,14 +331,14 @@ let shapes = () => {
     "kinds",
     ["stmt", "def", "stmt"],
     Array.to_list(
-      Array.map((sp: S.span) => kind_name(sp.kind), top.spans),
+      Array.map(~f=(sp: S.span) => kind_name(sp.kind), top.spans),
     ),
   );
   check(
     list(string),
     "slices",
     ["let x = 1 in x;", "\nlet y = 2;", "\ny"],
-    List.map(CorpusUtil.text_of, S.slices(top)),
+    List.map(~f=CorpusUtil.text_of, S.slices(top)),
   );
   let stmt = top.spans[0];
   check(
@@ -322,8 +346,8 @@ let shapes = () => {
     "anchored at its `;`, first at its `let`",
     true,
     Piece.is_semi(top.pieces[snd(stmt.core)])
-    && stmt.anchor == Piece.id(top.pieces[snd(stmt.core)])
-    && stmt.first == Some(Piece.id(top.pieces[0])),
+    && Id.equal(stmt.anchor, Piece.id(top.pieces[snd(stmt.core)]))
+    && Option.equal(Id.equal, stmt.first, Some(Piece.id(top.pieces[0]))),
   );
 };
 
@@ -331,42 +355,48 @@ let shapes = () => {
    let chain stays one item */
 let chains = () => {
   let kinds = (lv: S.level) =>
-    Array.to_list(Array.map((sp: S.span) => kind_name(sp.kind), lv.spans));
+    Array.to_list(
+      Array.map(~f=(sp: S.span) => kind_name(sp.kind), lv.spans),
+    );
   let seg =
     CorpusUtil.seg_of(
       ~root=Mod,
       "module Holes = {\n  let a = 1 in\n  let b = 2 in\n  a + b\n};\nHoles",
     );
   let top = S.top(~root=Mod, seg);
-  let members = Option.get(S.children(top, 0));
+  let members = Option.value_exn(S.children(top, 0));
   check(list(string), "one member", ["stmt"], kinds(members));
-  let chain = Option.get(S.children(members, 0));
-  check(bool, "an expression level", true, chain.sort == Sort.Exp);
+  let chain = Option.value_exn(S.children(members, 0));
+  check(bool, "an expression level", true, Sort.equal(chain.sort, Sort.Exp));
   check(
     bool,
     "under the member",
     true,
-    chain.owner == Chain(members.spans[0].anchor),
+    Poly.equal(chain.owner, Chain(members.spans[0].anchor)),
   );
   check(list(string), "its items", ["def", "def", "tail"], kinds(chain));
   check(
     list(string),
     "its slices",
     ["let a = 1 in", "\n  let b = 2 in", "\n  a + b"],
-    List.map(CorpusUtil.text_of, S.slices(chain)),
+    List.map(~f=CorpusUtil.text_of, S.slices(chain)),
   );
   check(
     bool,
     "a plain statement has none",
     true,
-    S.children(top, 1) == None,
+    Option.is_none(S.children(top, 1)),
   );
   let let_b = chain.spans[1].anchor;
   check(
     int,
     "find reaches a chain's item",
     3,
-    Option.fold(~none=0, ~some=List.length, S.find(~root=Mod, let_b, seg)),
+    Option.value_map(
+      S.find(~root=Mod, let_b, seg),
+      ~default=0,
+      ~f=List.length,
+    ),
   );
   /* a module literal in a let chain has its members */
   let seg =
@@ -374,14 +404,14 @@ let chains = () => {
       ~root=Mod,
       "module H = {\n  let a = 1 in\n  module N = {\n    let c = 3\n  } in\n  a + N.c\n};\nH",
     );
-  let members = Option.get(S.children(S.top(~root=Mod, seg), 0));
-  let chain = Option.get(S.children(members, 0));
+  let members = Option.value_exn(S.children(S.top(~root=Mod, seg), 0));
+  let chain = Option.value_exn(S.children(members, 0));
   check(list(string), "the chain", ["def", "def", "tail"], kinds(chain));
   check(
     list(string),
     "the module in it",
     ["def"],
-    kinds(Option.get(S.children(chain, 1))),
+    kinds(Option.value_exn(S.children(chain, 1))),
   );
   /* a definition's body is not split: its lets are a block, on demand */
   let seg =
@@ -389,14 +419,19 @@ let chains = () => {
       ~root=Mod,
       "module M = {\n  let summarize = fun xs ->\n    let total = 1 in\n    total;\n  let k = 2\n};\nM.k",
     );
-  let members = Option.get(S.children(S.top(~root=Mod, seg), 0));
+  let members = Option.value_exn(S.children(S.top(~root=Mod, seg), 0));
   check(list(string), "members", ["def", "def"], kinds(members));
-  check(bool, "no child level", true, S.children(members, 0) == None);
+  check(
+    bool,
+    "no child level",
+    true,
+    Option.is_none(S.children(members, 0)),
+  );
   check(
     list(string),
     "its block",
     ["def", "tail"],
-    kinds(Option.get(S.block(members, 0))),
+    kinds(Option.value_exn(S.block(members, 0))),
   );
 };
 
@@ -405,14 +440,14 @@ let chains = () => {
    it is whole lines */
 let layout = (lv: S.level): list(string) =>
   Array.to_list(lv.spans)
-  |> List.map((sp: S.span) => {
+  |> List.map(~f=(sp: S.span) => {
        let (lo, term, hi) = sp.slot;
        let (c0, c1) = sp.core;
        Printf.sprintf(
          "%s `%s` %s`%s|%s|%s` %d",
          kind_name(sp.kind),
          sub(lv.pieces, c0, c1),
-         sp.lines == None ? "" : "=",
+         Option.is_none(sp.lines) ? "" : "=",
          sub(lv.pieces, lo, c0),
          sub(lv.pieces, c0, term),
          sub(lv.pieces, term, hi),
@@ -482,7 +517,7 @@ let direct = () => {
       "def `let y = 2` =`  |let y = 2;|\n` 2",
       "def `let z = 3` =`  |let z = 3|\n` 2",
     ],
-    layout(Option.get(S.children(top, 1))),
+    layout(Option.value_exn(S.children(top, 1))),
   );
 };
 
@@ -490,7 +525,7 @@ let incomplete = () => {
   let t =
     run(
       List.map(
-        ((n, s)) => (n, Sort.Exp, s),
+        ~f=((n, s)) => (n, Sort.Exp, s),
         CorpusUtil.incomplete_programs,
       ),
     );
@@ -501,13 +536,15 @@ let incomplete = () => {
 let corpus = () => {
   let t =
     run(
-      List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+      List.map(~f=((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
       @ List.map(
-          ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
+          ~f=
+            ((f, root)) =>
+              (f, root, Option.value_exn(CorpusUtil.mega_src(f))),
           /* Mega 2k and 4k repeat their shapes */
           [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
         )
-      @ List.map(((p, s)) => (p, Sort.Mod, s), stdlib_corpus()),
+      @ List.map(~f=((p, s)) => (p, Sort.Mod, s), stdlib_corpus()),
     );
   report("corpus", t);
   check(int, "diffs", 0, List.length(t.diffs));
@@ -523,13 +560,17 @@ let memo = () => {
   };
   let before = all(seg);
   let b0 = S.built^;
-  let again = all(List.map(p => p, seg));
+  let again = all(List.map(~f=p => p, seg));
   check(int, "a fresh list of the same pieces builds nothing", b0, S.built^);
   check(
     bool,
     "the same levels",
     true,
-    List.for_all2(((l, _), (l', _)) => l === l', before, again),
+    List.for_all2_exn(
+      ~f=((l, _), (l', _)) => phys_equal(l, l'),
+      before,
+      again,
+    ),
   );
   let (edited, found) =
     CorpusUtil.edit_token(
@@ -544,7 +585,10 @@ let memo = () => {
   let after = all(edited);
   check(int, "the top level and one module's members", 2, S.built^ - b1);
   let levels = l =>
-    List.sort_uniq(compare, List.map(((lv: S.level, _)) => lv.owner, l));
+    List.dedup_and_sort(
+      ~compare,
+      List.map(~f=((lv: S.level, _)) => lv.owner, l),
+    );
   check(
     int,
     "same levels",
@@ -559,63 +603,68 @@ let memo = () => {
    apart: there Read may cut */
 let read_finished = () => {
   let programs =
-    List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+    List.map(~f=((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
     @ List.map(
-        ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
+        ~f=
+          ((f, root)) =>
+            (f, root, Option.value_exn(CorpusUtil.mega_src(f))),
         /* Mega 2k and 4k repeat their shapes */
         [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
       )
-    @ List.map(((p, s)) => (p, Sort.Mod, s), stdlib_corpus())
+    @ List.map(~f=((p, s)) => (p, Sort.Mod, s), stdlib_corpus())
     @ List.filter_map(
-        name =>
-          Option.map(
-            s => ("stdlib copy " ++ name, Sort.Mod, s),
-            ModHarness.stdlib(name),
-          ),
+        ~f=
+          name =>
+            Option.map(
+              ~f=s => ("stdlib copy " ++ name, Sort.Mod, s),
+              ModHarness.stdlib(name),
+            ),
         ["List.hz", "Option.hz"],
       )
-    @ List.map(((n, s)) => (n, Sort.Mod, s), letin_members)
-    @ List.map(((n, s)) => (n, Sort.Exp, s), exp_shapes)
-    @ List.map(((n, s)) => (n, Sort.Exp, s), CorpusUtil.edge_programs);
+    @ List.map(~f=((n, s)) => (n, Sort.Mod, s), letin_members)
+    @ List.map(~f=((n, s)) => (n, Sort.Exp, s), exp_shapes)
+    @ List.map(~f=((n, s)) => (n, Sort.Exp, s), CorpusUtil.edge_programs);
   let levels = ref(0);
   let unfinished = ref(0);
   List.iter(
-    ((name, root, src)) =>
-      switch (parse(~root, src)) {
-      | None => fail(name ++ ": unparseable")
-      | Some(seg) when Segment.incomplete_tiles_deep(seg) != [] =>
-        incr(unfinished)
-      | Some(seg) =>
-        let rec same = (w: S.level, r: S.level) => {
-          incr(levels);
-          check(
-            bool,
-            name ++ ": the same spans",
-            true,
-            w.spans == r.spans && w.owner == r.owner && !r.cut,
-          );
-          Array.iteri(
-            (k, _) =>
-              switch (S.children(w, k), S.children(r, k)) {
-              | (Some(w), Some(r)) => same(w, r)
-              | (None, None) => ()
-              | _ => fail(name ++ ": a child level in one division only")
-              },
-            w.spans,
-          );
-        };
-        same(S.top(~root, seg), S.top(~ends=Read, ~root, seg));
-        let fb = MakeTerm.Incr.fell_back^;
-        let read = ends =>
-          MakeTerm.Incr.go_incr(
-            ~ends,
-            ~root,
-            ~cache=MakeTerm.Incr.mk_cache(),
-            seg,
-          );
-        Test_MakeTermIncr.records_agree(name, read(Written), read(Read));
-        check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
-      },
+    ~f=
+      ((name, root, src)) =>
+        switch (parse(~root, src)) {
+        | None => fail(name ++ ": unparseable")
+        | Some(seg) when !List.is_empty(Segment.incomplete_tiles_deep(seg)) =>
+          incr(unfinished)
+        | Some(seg) =>
+          let rec same = (w: S.level, r: S.level) => {
+            incr(levels);
+            check(
+              bool,
+              name ++ ": the same spans",
+              true,
+              w.spans == r.spans && w.owner == r.owner && !r.cut,
+            );
+            Array.iteri(
+              ~f=
+                (k, _) =>
+                  switch (S.children(w, k), S.children(r, k)) {
+                  | (Some(w), Some(r)) => same(w, r)
+                  | (None, None) => ()
+                  | _ => fail(name ++ ": a child level in one division only")
+                  },
+              w.spans,
+            );
+          };
+          same(S.top(~root, seg), S.top(~ends=Read, ~root, seg));
+          let fb = MakeTerm.Incr.fell_back^;
+          let read = ends =>
+            MakeTerm.Incr.go_incr(
+              ~ends,
+              ~root,
+              ~cache=MakeTerm.Incr.mk_cache(),
+              seg,
+            );
+          Test_MakeTermIncr.records_agree(name, read(Written), read(Read));
+          check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+        },
     programs,
   );
   Printf.printf(
@@ -634,7 +683,7 @@ let read_finished = () => {
 let read_typing = () => {
   module MA = ModHarness;
   let root = Sort.Mod;
-  let src = Option.get(MA.stdlib("List.hz"));
+  let src = Option.value_exn(MA.stdlib("List.hz"));
   let z0 = MA.load(~root, src);
   let statics = MA.statics_of(~root, z0);
   let step = (z, a) =>
@@ -655,7 +704,7 @@ let read_typing = () => {
       z0,
       Move(
         Point(
-          Option.get(
+          Option.value_exn(
             MA.point_of(
               ~k=0,
               ~off=String.length("    end;"),
@@ -670,17 +719,19 @@ let read_typing = () => {
   let cache = MakeTerm.Incr.mk_cache();
   /* List's member level */
   let members = (lv: S.level) =>
-    List.init(Array.length(lv.spans), k => k)
-    |> List.find_map(k =>
-         lv.spans[k].body == None ? None : S.children(lv, k)
+    List.init(Array.length(lv.spans), ~f=k => k)
+    |> List.find_map(~f=k =>
+         Option.is_none(lv.spans[k].body) ? None : S.children(lv, k)
        )
-    |> Option.get;
+    |> Option.value_exn;
   let typed = "\nlet q = (1 + 2";
   let parses = ref([]);
   ignore(
-    List.fold_left(
-      (z, i) => {
-        let c = String.sub(typed, i, 1);
+    List.fold(
+      List.init(String.length(typed), ~f=i => i),
+      ~init=z,
+      ~f=(z, i) => {
+        let c = String.sub(typed, ~pos=i, ~len=1);
         let z = step(z, Insert(c));
         let seg = Zipper.unselect_and_zip(z);
         let fb = MakeTerm.Incr.fell_back^;
@@ -698,7 +749,7 @@ let read_typing = () => {
         );
         let wl = members(S.top(~root, seg));
         let rl = members(S.top(~ends=Read, ~root, seg));
-        if (Segment.incomplete_tiles(wl.seg) != []) {
+        if (!List.is_empty(Segment.incomplete_tiles(wl.seg))) {
           /* an open form: Written runs it to the module's end, Read ends
              it at its member line, as completion does */
           check(bool, c ++ ": cut", true, rl.cut);
@@ -717,13 +768,11 @@ let read_typing = () => {
             bool,
             c ++ ": Read stops at the member line",
             false,
-            String.contains(String.trim(q_text(rl)), '\n'),
+            String.contains(String.strip(q_text(rl)), '\n'),
           );
         };
         z;
       },
-      z,
-      List.init(String.length(typed), i => i),
     ),
   );
   /* once the first open form stands, each key parses its member and
@@ -731,7 +780,7 @@ let read_typing = () => {
   let per_key = List.rev(parses^);
   Printf.printf(
     "typing a member near List's top, parses per key at Read: %s\n",
-    String.concat(" ", List.map(string_of_int, per_key)),
+    String.concat(~sep=" ", List.map(~f=string_of_int, per_key)),
   );
   check(
     list(int),

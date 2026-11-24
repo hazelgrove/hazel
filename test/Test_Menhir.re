@@ -308,7 +308,7 @@ let qcheck_menhir_serialized_equivalent_test =
 let marker_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.MarkerParse.of_text(s, ~root=Exp)),
+      Option.value_exn(Haz3lcore.MarkerParse.of_text(s, ~root=Exp)),
       ~root=Exp,
     ).
       term,

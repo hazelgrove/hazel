@@ -1,5 +1,6 @@
 open Alcotest;
 open Web;
+open Poly;
 
 /* The typing debounce's policy (StaticsTiming) on a fake page: a clock,
    timers, frames and pending input the tests drive */
@@ -7,7 +8,7 @@ open Web;
 module Fake = {
   type timer = int;
   let clock = ref(0.);
-  let input_at = ref(neg_infinity);
+  let input_at = ref(Float.neg_infinity);
   let pending = ref(false);
   let policy_ = ref(StaticsTiming.Idle);
   /* (id, due, callback) */
@@ -26,11 +27,11 @@ module Fake = {
     ids^;
   };
   let clear_timeout = id =>
-    timers := List.filter(((i, _, _)) => i != id, timers^);
+    timers := List.filter(~f=((i, _, _)) => !Poly.equal(i, id), timers^);
 
   let reset = (policy: StaticsTiming.policy) => {
     clock := 0.;
-    input_at := neg_infinity;
+    input_at := Float.neg_infinity;
     pending := false;
     policy_ := policy;
     timers := [];
@@ -41,17 +42,15 @@ module Fake = {
   let paint = () => {
     let fs = painted^;
     painted := [];
-    List.iter(f => f(), fs);
+    List.iter(~f=f => f(), fs);
   };
   let next_due = () =>
-    List.fold_left(
-      (m, (_, d, _)) => Some(Option.fold(~none=d, ~some=Float.min(d), m)),
-      None,
-      timers^,
+    List.fold(timers^, ~init=None, ~f=(m, (_, d, _)) =>
+      Some(Option.value_map(m, ~default=d, ~f=Float.min(d)))
     );
   /* the timers due by now, earliest first; one that waits sets another */
   let rec fire_due = () =>
-    switch (List.find_opt(((_, d, _)) => Some(d) == next_due(), timers^)) {
+    switch (List.find(~f=((_, d, _)) => Some(d) == next_due(), timers^)) {
     | Some((i, d, f)) when d <= clock^ =>
       clear_timeout(i);
       f();
@@ -96,21 +95,21 @@ let simulate =
     };
   let rec loop = (keys, left) => {
     let now = Fake.clock^;
-    let (waiting, later) = List.partition(k => k <= now, keys);
+    let (waiting, later) = List.partition_tf(~f=k => k <= now, keys);
     let asked = refreshes^;
-    if (timer_first && waiting != []) {
+    if (timer_first && !List.is_empty(waiting)) {
       Fake.pending := true;
       Fake.fire_due();
       Fake.pending := false;
     };
     let first = refreshes^ > asked;
-    if (waiting != []) {
+    if (!List.is_empty(waiting)) {
       Fake.input_at := now;
     };
     Fake.fire_due();
     let actions =
       (first ? [Refresh] : [])
-      @ List.map(_ => Key, waiting)
+      @ List.map(~f=_ => Key, waiting)
       @ (refreshes^ > asked && !first ? [Refresh] : []);
     switch (actions) {
     | [] =>
@@ -128,30 +127,29 @@ let simulate =
       };
     | _ =>
       let forced =
-        List.fold_left(
-          (forced, a) =>
-            switch (
-              switch (a) {
-              | Key => D.consume(~is_edited=true, ~schedule_refresh)
-              | Refresh =>
-                D.force_on_next := true;
-                D.consume(~is_edited=false, ~schedule_refresh);
-              }
-            ) {
-            | StaticsMode.Force => true
-            | Defer
-            | Normal => forced
-            },
-          false,
-          actions,
+        List.fold(actions, ~init=false, ~f=(forced, a) =>
+          switch (
+            switch (a) {
+            | Key => D.consume(~is_edited=true, ~schedule_refresh)
+            | Refresh =>
+              D.force_on_next := true;
+              D.consume(~is_edited=false, ~schedule_refresh);
+            }
+          ) {
+          | StaticsMode.Force => true
+          | Defer
+          | Normal => forced
+          }
         );
       if (forced) {
         ran := ran^ @ [now];
       };
       Fake.clock :=
-        now +. (waiting != [] ? frame_ms : 0.) +. (forced ? statics_ms : 0.);
+        now
+        +. (!List.is_empty(waiting) ? frame_ms : 0.)
+        +. (forced ? statics_ms : 0.);
       Fake.paint();
-      waiting != [] && left > 0
+      !List.is_empty(waiting) && left > 0
         ? loop(later @ [Fake.clock^ +. gap], left - 1) : loop(later, left);
     };
   };
@@ -160,20 +158,21 @@ let simulate =
 };
 
 let ms = list(float(0.5));
-let every = (~gap, n) => Open(List.init(n, i => float_of_int(i) *. gap));
+let every = (~gap, n) => Open(List.init(n, ~f=i => float_of_int(i) *. gap));
 let policies = StaticsTiming.[Fixed, Idle];
 
 /* 10 keys 110ms apart on a small program (40ms frames): once, the
    debounce after the last key, either way */
 let small_program = () =>
   List.iter(
-    policy =>
-      check(
-        ms,
-        StaticsTiming.show_policy(policy),
-        [990. +. 225.],
-        simulate(~policy, ~frame_ms=40., every(~gap=110., 10)),
-      ),
+    ~f=
+      policy =>
+        check(
+          ms,
+          StaticsTiming.show_policy(policy),
+          [990. +. 225.],
+          simulate(~policy, ~frame_ms=40., every(~gap=110., 10)),
+        ),
     policies,
   );
 
@@ -218,15 +217,17 @@ let closed_loop = () => {
 let paused = () => {
   let sim = (policy, frame_ms) =>
     simulate(~policy, ~frame_ms, every(~gap=1100., 4));
-  let at = after => List.init(4, i => float_of_int(i) *. 1100. +. after(i));
+  let at = after =>
+    List.init(4, ~f=i => float_of_int(i) *. 1100. +. after(i));
   List.iter(
-    policy =>
-      check(
-        ms,
-        StaticsTiming.show_policy(policy) ++ ", 40ms frames",
-        at(_ => 225.),
-        sim(policy, 40.),
-      ),
+    ~f=
+      policy =>
+        check(
+          ms,
+          StaticsTiming.show_policy(policy) ++ ", 40ms frames",
+          at(_ => 225.),
+          sim(policy, 40.),
+        ),
     policies,
   );
   check(

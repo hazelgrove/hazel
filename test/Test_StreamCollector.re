@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* at every chunk of a yielding evaluation, the incremental stream
    collector agrees with the full-walk one */
@@ -35,7 +36,7 @@ let stream_collector_parity = (): unit => {
         "chunk "
         ++ string_of_int(chunks^)
         ++ ": the incremental collector's "
-        ++ String.concat(" and ", ds)
+        ++ String.concat(~sep=" and ", ds)
         ++ " differ from the walk's",
       )
     };

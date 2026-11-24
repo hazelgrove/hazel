@@ -1,6 +1,7 @@
 open Util;
 open Haz3lcore;
 open Language;
+open Poly;
 
 module O = Web.OutlineTree;
 
@@ -18,21 +19,22 @@ let settings: CoreSettings.t = {
 /* tokens in order, whitespace and grout aside, shards in place */
 let rec tokens = (seg: Segment.t): list(string) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_)
-      | Projector(_) => []
-      | Tile(t) =>
-        let rec interleave = (ls, chs) =>
-          switch (ls, chs) {
-          | ([], _) => []
-          | ([l, ...ls], []) => [l, ...interleave(ls, [])]
-          | ([l, ...ls], [c, ...chs]) =>
-            [l, ...tokens(c)] @ interleave(ls, chs)
-          };
-        interleave(Tile.effective_label(t), t.children);
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(_)
+        | Grout(_)
+        | Projector(_) => []
+        | Tile(t) =>
+          let rec interleave = (ls, chs) =>
+            switch (ls, chs) {
+            | ([], _) => []
+            | ([l, ...ls], []) => [l, ...interleave(ls, [])]
+            | ([l, ...ls], [c, ...chs]) =>
+              [l, ...tokens(c)] @ interleave(ls, chs)
+            };
+          interleave(Tile.effective_label(t), t.children);
+        },
     seg,
   );
 
@@ -41,11 +43,12 @@ let load = (~root: Sort.t, src: string): Zipper.t =>
 
 let key_of = (p: O.path): string =>
   String.concat(
-    "/",
+    ~sep="/",
     List.map(
-      (s: O.path_seg) =>
-        (s.s_label == "" ? "⇒" : s.s_label)
-        ++ (s.s_occ > 0 ? "#" ++ string_of_int(s.s_occ) : ""),
+      ~f=
+        (s: O.path_seg) =>
+          (String.equal(s.s_label, "") ? "⇒" : s.s_label)
+          ++ (s.s_occ > 0 ? "#" ++ string_of_int(s.s_occ) : ""),
       p,
     ),
   );
@@ -66,7 +69,7 @@ let text_of = (z: Zipper.t): string =>
 let counter_mod = "module Counter = {\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after";
 
 let read_any = (paths: list(string)): option(string) =>
-  List.find_map(CorpusUtil.read_file, paths);
+  List.find_map(~f=CorpusUtil.read_file, paths);
 
 /* the standard library's sources, when this tree has them (stdlib
    branches), else copies in test/programs */
@@ -80,17 +83,19 @@ let stdlib = (name: string): option(string) =>
 
 let rows_of = (outline: O.t): list((string, Id.t)) =>
   O.flatten(O.rows(outline))
-  |> List.filter_map((n: O.node) =>
+  |> List.filter_map(~f=(n: O.node) =>
        switch (n.o_id) {
-       | Some(id) when n.o_kind != KTrail && n.o_kind != KTests =>
-         Option.map(p => (key_of(p), id), O.label_path(id, outline))
+       | Some(id)
+           when
+             !Poly.equal(n.o_kind, KTrail) && !Poly.equal(n.o_kind, KTests) =>
+         Option.map(~f=p => (key_of(p), id), O.label_path(id, outline))
        | _ => None
        }
      );
 
 /* the point of the [k]-th occurrence of [needle], [off] columns in */
 let point_of = (~k=0, ~off=0, src: string, needle: string): option(Point.t) => {
-  let lines = String.split_on_char('\n', src);
+  let lines = String.split(~on='\n', src);
   let rec find = (row, k, lines) =>
     switch (lines) {
     | [] => None
@@ -99,7 +104,7 @@ let point_of = (~k=0, ~off=0, src: string, needle: string): option(Point.t) => {
         switch (Str.search_forward(Str.regexp_string(needle), l, from)) {
         | c when k == 0 => `Found(c)
         | c => cols(c + 1, k - 1)
-        | exception Not_found => `Left(k)
+        | exception Stdlib.Not_found => `Left(k)
         };
       switch (cols(0, k)) {
       | `Found(c) =>
@@ -134,7 +139,7 @@ let perform_why =
   ) {
   | Ok(z) => Ok(z)
   | Error(f) => Error(Action.Failure.show(f))
-  | exception e => Error("raised " ++ Printexc.to_string(e))
+  | exception e => Error("raised " ++ Stdlib.Printexc.to_string(e))
   };
 
 /* [src] loaded, the caret at [needle] (+[off]), then [acts] performed;
@@ -147,19 +152,17 @@ let act_st =
   switch (point_of(~k, ~off, src, needle)) {
   | None => (Error("no " ++ needle), statics)
   | Some(pt) => (
-      List.fold_left(
-        (z, a) =>
-          Stdlib.Result.bind(z, z =>
-            perform_why(
-              ~root,
-              ~syntax=CachedSyntax.init(~root, z),
-              ~statics,
-              z,
-              a,
-            )
-          ),
-        Ok(z0),
-        [Action.Move(Point(pt, None)), ...acts],
+      List.fold(
+        [Action.Move(Point(pt, None)), ...acts], ~init=Ok(z0), ~f=(z, a) =>
+        Stdlib.Result.bind(z, z =>
+          perform_why(
+            ~root,
+            ~syntax=CachedSyntax.init(~root, z),
+            ~statics,
+            z,
+            a,
+          )
+        )
       ),
       statics,
     )

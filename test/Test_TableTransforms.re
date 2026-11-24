@@ -35,12 +35,12 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
     list_lit(
       List.map(
         ~f=
-        fields =>
-          parens(
+          fields =>
+            parens(
               tuple(
                 List.map(~f=((l, v)) => tup_label(label(l), v), fields),
               ),
-          ),
+            ),
         rows,
       ),
     )
@@ -587,7 +587,7 @@ let packed_renderer_tests = {
           bool,
           "initial menu_state is None",
           true,
-          extract_model(m0).menu_state == None,
+          Option.is_none(extract_model(m0).menu_state),
         );
         let m1 = renderer.update_model(m0, pack_action(ShowMenu(1)));
         switch (extract_model(m1).menu_state) {
@@ -602,7 +602,7 @@ let packed_renderer_tests = {
           bool,
           "menu_state is None after CloseMenu",
           true,
-          extract_model(m2).menu_state == None,
+          Option.is_none(extract_model(m2).menu_state),
         );
       },
     ),

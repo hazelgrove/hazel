@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* a jump to a tile outside every open cell opens the item holding it */
 
@@ -14,12 +15,13 @@ let jump = () => {
   let row = CorpusUtil.row_by_label(CorpusUtil.outline_of(~root=Mod, seg));
   let bad =
     switch (
-      List.find_opt(
-        id =>
-          switch (Id.Map.find_opt(id, ds.merged)) {
-          | Some(info) => Info.is_error(info)
-          | None => false
-          },
+      List.find(
+        ~f=
+          id =>
+            switch (Id.Map.find_opt(id, ds.merged)) {
+            | Some(info) => Info.is_error(info)
+            | None => false
+            },
         DefStatics.all_error_ids(ds),
       )
     ) {
@@ -57,7 +59,9 @@ let jump = () => {
       bool,
       "a opens",
       true,
-      Web.Divided.open_(~info_map=ds.merged, ~outline, row("a"), d) != None,
+      Option.is_some(
+        Web.Divided.open_(~info_map=ds.merged, ~outline, row("a"), d),
+      ),
     );
   | Some(_) => fail("unexpected action")
   | None => fail("no target")

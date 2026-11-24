@@ -173,8 +173,18 @@ let test_slim_entries = (): test_case(_) =>
       | None => fail("entry dropped")
       | Some(e) =>
         check(int, "seq kept", 7, e.seq);
-        check(bool, "value dropped", true, e.value.term == EmptyHole);
-        check(bool, "elab dropped", true, e.prev_elab.term == EmptyHole);
+        check(
+          bool,
+          "value dropped",
+          true,
+          Poly.equal(e.value.term, EmptyHole),
+        );
+        check(
+          bool,
+          "elab dropped",
+          true,
+          Poly.equal(e.prev_elab.term, EmptyHole),
+        );
       };
     },
   );
@@ -201,7 +211,7 @@ let request = (exp: Exp.t): (WorkerServer.key, WorkerServer.Evaluation.value) =>
  * leaves, with [prev] as the worker's resident cache. */
 let run = (~prev=IncrEval.empty, exp: Exp.t) => {
   let (key, value) as item = request(exp);
-  Hashtbl.replace(WorkerServer.resident, key, prev);
+  Stdlib.Hashtbl.replace(WorkerServer.resident, key, prev);
   let (_, plan) = WorkerServer.predict_reuse_for_request(item);
   switch (
     Evaluator.evaluate(

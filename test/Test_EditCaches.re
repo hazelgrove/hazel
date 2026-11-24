@@ -1,6 +1,7 @@
 open Alcotest;
 open Web;
 open Haz3lcore;
+open Poly;
 
 /* An outline op builds a new editor for its program, and a paste
    re-indents its lines by mapping the whole program. The editor takes the
@@ -14,28 +15,29 @@ module UC = Test_UndoCaches;
 
 /* Mega 4k; at a Mod root, its modules end in `;` */
 let mega_4k = (~root: Sort.t) => {
-  let src = Option.get(CorpusUtil.mega_src("mega-4k.hz"));
-  root == Mod
-    ? String.split_on_char('\n', src)
+  let src = Option.value_exn(CorpusUtil.mega_src("mega-4k.hz"));
+  Poly.equal(root, Mod)
+    ? String.split(~on='\n', src)
       |> List.map(
-           fun
-           | "} in" => "};"
-           | "let final = MetaRunner.run_all(()) in" => "let final = MetaRunner.run_all(());"
-           | l => l,
+           ~f=
+             fun
+             | "} in" => "};"
+             | "let final = MetaRunner.run_all(()) in" => "let final = MetaRunner.run_all(());"
+             | l => l,
          )
-      |> String.concat("\n")
+      |> String.concat(~sep="\n")
     : src;
 };
 
 /* a module's rows, in order */
 let rows = (m, name: string): list(string) =>
   switch (
-    List.find_opt(
-      (n: OutlineTree.node) => n.o_label == name,
+    List.find(
+      ~f=(n: OutlineTree.node) => n.o_label == name,
       OutlineTree.rows(OM.term(m)),
     )
   ) {
-  | Some(n) => List.map((n: OutlineTree.node) => n.o_label, n.o_children)
+  | Some(n) => List.map(~f=(n: OutlineTree.node) => n.o_label, n.o_children)
   | None => fail("no module " ++ name)
   };
 
@@ -109,7 +111,7 @@ let op_context = (~root: Sort.t, ()) => {
 };
 
 let block =
-  List.init(20, i =>
+  List.init(20, ~f=i =>
     i == 0
       ? "let pa01 = fun (x: Int) -> x + 1;"
       : Printf.sprintf(
@@ -119,7 +121,7 @@ let block =
           i,
         )
   )
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 /* List before and after 20 definitions pasted on a line of their own
    after List.length's `end;`: its member parses before (the cache is the
@@ -219,8 +221,8 @@ let map_keeps = () => {
     bool,
     "its own pieces",
     true,
-    fst(mapped.relatives.siblings) === fst(z.relatives.siblings)
-    && snd(mapped.relatives.siblings) === snd(z.relatives.siblings),
+    phys_equal(fst(mapped.relatives.siblings), fst(z.relatives.siblings))
+    && phys_equal(snd(mapped.relatives.siblings), snd(z.relatives.siblings)),
   );
 };
 

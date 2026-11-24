@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* the editing kernel's ops and sources on small programs */
 
@@ -12,18 +13,22 @@ let text_of = CorpusUtil.text_of;
 let head = (name: string, seg: Segment.t): Id.t => {
   let rec find = (seg: Segment.t) =>
     List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when SpineNav.is_def_head(t) =>
-          switch (
-            List.filter(p => !Piece.is_secondary(p), SpineNav.pat_of(t))
-          ) {
-          | [Tile(n), ..._] when Tile.label(n) == [name] => Some(t.id)
-          | _ => List.find_map(find, t.children)
-          }
-        | Tile(t) => List.find_map(find, t.children)
-        | _ => None
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when SpineNav.is_def_head(t) =>
+            switch (
+              List.filter(
+                ~f=p => !Piece.is_secondary(p),
+                SpineNav.pat_of(t),
+              )
+            ) {
+            | [Tile(n), ..._] when Tile.label(n) == [name] => Some(t.id)
+            | _ => List.find_map(~f=find, t.children)
+            }
+          | Tile(t) => List.find_map(~f=find, t.children)
+          | _ => None
+          },
       seg,
     );
   switch (find(seg)) {
@@ -35,19 +40,20 @@ let head = (name: string, seg: Segment.t): Id.t => {
 /* tile ids, deep, secondary pieces aside */
 let rec tile_ids = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) => [t.id, ...List.concat_map(tile_ids, t.children)]
-      | Grout(g) => [g.id]
-      | Projector(pr) => [pr.id, ...tile_ids([pr.syntax])]
-      | Secondary(_) => []
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => [t.id, ...List.concat_map(~f=tile_ids, t.children)]
+        | Grout(g) => [g.id]
+        | Projector(pr) => [pr.id, ...tile_ids([pr.syntax])]
+        | Secondary(_) => []
+        },
     seg,
   );
 
 /* the term part [pt] of [head]'s entry is rooted at, as a path names it */
 let part = (~root=Sort.Exp, pt, head, seg): K.target =>
-  Term(Option.get(EntryPath.part_of(~root, seg, head, pt)));
+  Term(Option.value_exn(EntryPath.part_of(~root, seg, head, pt)));
 
 let run = (~root=Sort.Exp, seg, ops) =>
   switch (K.transaction(~root, seg, ops)) {
@@ -164,7 +170,10 @@ b|js},
     bool,
     "a token is no entry",
     true,
-    refused(seg, [Insert(After(a), Token("q"))]).reason == NotAToken,
+    Poly.equal(
+      refused(seg, [Insert(After(a), Token("q"))]).reason,
+      NotAToken,
+    ),
   );
 };
 
@@ -178,14 +187,22 @@ let copy = () => {
     c,
   );
   let before = tile_ids(seg);
-  let added = List.hd(List.hd(c.steps).added);
-  check(bool, "the copy's row is fresh", false, List.mem(added, before));
+  let added = List.hd_exn(List.hd_exn(c.steps).added);
+  check(
+    bool,
+    "the copy's row is fresh",
+    false,
+    List.mem(before, added, ~equal=Poly.equal),
+  );
   check(
     int,
     "fresh ids only for the copy",
     List.length(tile_ids(c.program)) - List.length(before),
     List.length(
-      List.filter(id => !List.mem(id, before), tile_ids(c.program)),
+      List.filter(
+        ~f=id => !List.mem(before, id, ~equal=Poly.equal),
+        tile_ids(c.program),
+      ),
     ),
   );
 };
@@ -280,14 +297,15 @@ let replace = () => {
     switch (cs) {
     | [Tile({children: [kid], _}), ..._] =>
       List.find_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) when Tile.is_case_rule(t) => Some(t.id)
-          | _ => None
-          },
+        ~f=
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) when Tile.is_case_rule(t) => Some(t.id)
+            | _ => None
+            },
         kid,
       )
-      |> Option.get
+      |> Option.value_exn
     | _ => fail("no case")
     };
   expect(
@@ -313,7 +331,7 @@ let token = () => {
     bool,
     "keeps its id",
     true,
-    List.mem(use, tile_ids(c.program))
+    List.mem(tile_ids(c.program), use, ~equal=Poly.equal)
     && tile_ids(c.program) == tile_ids(seg),
   );
   let m = seg_of("let m = {} in 1");
@@ -332,9 +350,14 @@ let token = () => {
     bool,
     "the head keeps its id",
     true,
-    List.mem(h, tile_ids(c.program)),
+    List.mem(tile_ids(c.program), h, ~equal=Poly.equal),
   );
-  check(bool, "and its name", true, List.mem(name, tile_ids(c.program)));
+  check(
+    bool,
+    "and its name",
+    true,
+    List.mem(tile_ids(c.program), name, ~equal=Poly.equal),
+  );
   let fold = seg_of("let a = 1 in\nlet b = a + 1 in\nb");
   check(
     bool,
@@ -360,13 +383,19 @@ let delete = () => {
     bool,
     "a block's result stays",
     true,
-    refused(seg, [Delete(CorpusUtil.last_tile("b", seg))]).reason == Result,
+    Poly.equal(
+      refused(seg, [Delete(CorpusUtil.last_tile("b", seg))]).reason,
+      Result,
+    ),
   );
 };
 
 /* the ids [moved] had, all in [after] (its separator aside) */
 let keeps = (moved: Segment.t, after: Segment.t) =>
-  List.for_all(id => List.mem(id, tile_ids(after)), tile_ids(moved));
+  List.for_all(
+    ~f=id => List.mem(tile_ids(after), id, ~equal=Poly.equal),
+    tile_ids(moved),
+  );
 
 let entry_pieces = (~mod_root, id, seg) =>
   switch (EntryLayout.locate(~mod_root, id, seg)) {
@@ -384,7 +413,7 @@ let move = () => {
     "ids kept",
     true,
     tile_ids(c.program)
-    |> List.sort(compare) == (tile_ids(seg) |> List.sort(compare)),
+    |> List.sort(~compare) == (tile_ids(seg) |> List.sort(~compare)),
   );
   check(
     bool,
@@ -392,7 +421,7 @@ let move = () => {
     true,
     switch (c.steps) {
     | [{moved: [(id, Before(next), After(to_))], _}] =>
-      id == a && next == b && to_ == b
+      Id.equal(id, a) && next == b && to_ == b
     | _ => false
     },
   );
@@ -486,7 +515,7 @@ let move = () => {
     bool,
     "a test keeps its ids",
     true,
-    List.mem(test, tile_ids(tc.program)),
+    List.mem(tile_ids(tc.program), test, ~equal=Poly.equal),
   );
   let f = seg_of("let a = 1 in\nlet f = fun x -> x in\nf(a)");
   let fa = run(f, [Move(head("a", f), LastIn(Body(head("f", f))))]);
@@ -517,7 +546,7 @@ let transaction = () => {
       ],
     );
   check(int, "the refused op", 1, r.op);
-  check(bool, "its reason", true, r.reason == Result);
+  check(bool, "its reason", true, Poly.equal(r.reason, Result));
   let c =
     run(
       seg,
@@ -529,7 +558,7 @@ let transaction = () => {
     string,
     "each step's program",
     "let a = 1 in\n\nlet c = 3 in\n\nlet b = a + 1 in\nb",
-    text_of(List.hd(c.steps).program),
+    text_of(List.hd_exn(c.steps).program),
   );
 };
 
@@ -538,7 +567,11 @@ let locality = () => {
   let src = "let a = 1 in\nmodule M = {\n  let x = 1;\n  let y = 2\n} in\nlet b = 2 in\nb";
   let seg = seg_of(src);
   let c = run(seg, [Move(head("x", seg), After(head("y", seg)))]);
-  let kept = List.filter(p => List.exists(q => q === p, c.program), seg);
+  let kept =
+    List.filter(
+      ~f=p => List.exists(~f=q => phys_equal(q, p), c.program),
+      seg,
+    );
   check(
     int,
     "all top-level pieces but the module's",
@@ -551,9 +584,9 @@ let locality = () => {
    program, the last the op's own */
 let entrywise = () => {
   let texts = (c: K.change) =>
-    List.map((s: K.step) => text_of(s.program), c.steps);
+    List.map(~f=(s: K.step) => text_of(s.program), c.steps);
   let counts = (c: K.change) =>
-    List.map((s: K.step) => List.length(s.added), c.steps);
+    List.map(~f=(s: K.step) => List.length(s.added), c.steps);
   let seg = seg_of(chain);
   let c =
     run(
@@ -613,7 +646,7 @@ let entrywise = () => {
     list(int),
     "the first removes what it replaced",
     [1, 0],
-    List.map((s: K.step) => List.length(s.removed), c.steps),
+    List.map(~f=(s: K.step) => List.length(s.removed), c.steps),
   );
   let seg = seg_of(chain);
   check(
@@ -678,7 +711,7 @@ let definition_layout = () => {
           def("scale", one),
           Text(
             "fun sc ->\n  "
-            ++ String.concat("\n  ", String.split_on_char('\n', cased)),
+            ++ String.concat(~sep="\n  ", String.split(~on='\n', cased)),
           ),
         ),
       ],

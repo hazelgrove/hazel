@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* The agent's view (CompositionView): the map and open entries with their
    overlays, as golden strings; the open set by id across a rename; what a
@@ -47,11 +48,12 @@ let run = (z: Zipper.t, st: CachedStatics.t) => {
 
 let ids_of = (o: Outline.t, paths: list(string)): list(Id.t) =>
   List.map(
-    p =>
-      switch (Outline.resolve(o, p)) {
-      | Ok(e) => e.id
-      | Error(e) => Alcotest.fail(e)
-      },
+    ~f=
+      p =>
+        switch (Outline.resolve(o, p)) {
+        | Ok(e) => e.id
+        | Error(e) => Alcotest.fail(e)
+        },
     paths,
   );
 
@@ -98,11 +100,11 @@ let golden = (name, expected, actual) =>
    HAZEL_GOLDEN=1 writes it instead */
 let golden_file = (name: string, actual: string): unit => {
   let path = "test/golden/" ++ name;
-  let path = Sys.file_exists(path) ? path : "golden/" ++ name;
-  if (Sys.getenv_opt("HAZEL_GOLDEN") == Some("1")) {
-    let oc = open_out_bin(path);
-    output_string(oc, actual ++ "\n");
-    close_out(oc);
+  let path = Stdlib.Sys.file_exists(path) ? path : "golden/" ++ name;
+  if (Poly.equal(Stdlib.Sys.getenv_opt("HAZEL_GOLDEN"), Some("1"))) {
+    let oc = Stdlib.open_out_bin(path);
+    Stdlib.output_string(oc, actual ++ "\n");
+    Stdlib.close_out(oc);
   } else {
     switch (CorpusUtil.read_file(path)) {
     | Some(s) => golden(name, Util.StringUtil.strip_final_newline(s), actual)
@@ -376,7 +378,7 @@ m.a|},
       "agent-view-mega-1k.txt",
       render(
         ~opened=["GroveNames/grove_name", "CropPlotter"],
-        Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+        Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
       ),
     )
   ),
@@ -414,7 +416,7 @@ let open_set_tests = [
         list(string),
         "open under its new name",
         ["sum"],
-        List.map((e: AgentContext.Model.entry) => e.path, m'.opened),
+        List.map(~f=(e: AgentContext.Model.entry) => e.path, m'.opened),
       );
       check(
         bool,
@@ -517,7 +519,7 @@ let open_set_tests = [
         list(string),
         "paths kept",
         ["a", "M/f"],
-        List.map((e: AgentContext.Model.entry) => e.path, m.opened),
+        List.map(~f=(e: AgentContext.Model.entry) => e.path, m.opened),
       );
     },
   ),
@@ -570,7 +572,7 @@ let record_tests = [
       let agent = W.Agent.Utils.init();
       let cws = cws_of("let a = 1 in\nlet b = a + 1 in\nb");
       let (_, messages, chat) = send(agent, cws);
-      let r = Option.get(Util.ListUtil.last_opt(chat.sent));
+      let r = Option.value_exn(Util.ListUtil.last_opt(chat.sent));
       check(
         string,
         "view = the payload's context",
@@ -595,8 +597,18 @@ let record_tests = [
       let (_, _, chat) = send(agent, cws);
       switch (chat.sent) {
       | [first, second] =>
-        check(bool, "first holds text", true, first.program != Unchanged);
-        check(bool, "second refers back", true, second.program == Unchanged);
+        check(
+          bool,
+          "first holds text",
+          true,
+          !Poly.equal(first.program, Unchanged),
+        );
+        check(
+          bool,
+          "second refers back",
+          true,
+          Poly.equal(second.program, Unchanged),
+        );
         check(
           option(string),
           "second reads the text",
@@ -634,12 +646,12 @@ let record_tests = [
           |> W.ChatSystem.Update.get,
       };
       let (_, _, chat) = send(agent, cws);
-      let r = Option.get(Util.ListUtil.last_opt(chat.sent));
+      let r = Option.value_exn(Util.ListUtil.last_opt(chat.sent));
       check(
         list(string),
         "opened",
         ["b"],
-        List.map((e: AgentContext.Model.entry) => e.path, r.opened),
+        List.map(~f=(e: AgentContext.Model.entry) => e.path, r.opened),
       );
       check(
         bool,
@@ -660,8 +672,8 @@ let record_tests = [
       check(
         string,
         "view",
-        List.hd(chat.sent).view,
-        List.hd(back.sent).view,
+        List.hd_exn(chat.sent).view,
+        List.hd_exn(back.sent).view,
       );
     },
   ),
@@ -687,23 +699,23 @@ let record_tests = [
         request: None,
       };
       let rs =
-        List.fold_left(
-          (rs, i) =>
-            W.SentView.add(
-              ~after_text=_ => None,
-              ~last_tool=None,
-              rs,
-              {
-                ...b,
-                b_text: string_of_int(i / 10),
-              },
-              r(i),
-            ),
-          [],
-          List.init(W.SentView.max_records + 50, i => i),
+        List.fold(
+          List.init(W.SentView.max_records + 50, ~f=i => i),
+          ~init=[],
+          ~f=(rs, i) =>
+          W.SentView.add(
+            ~after_text=_ => None,
+            ~last_tool=None,
+            rs,
+            {
+              ...b,
+              b_text: string_of_int(i / 10),
+            },
+            r(i),
+          )
         );
       check(int, "kept", W.SentView.max_records, List.length(rs));
-      let first = List.hd(rs);
+      let first = List.hd_exn(rs);
       check(
         option(string),
         "the oldest kept has its text",
@@ -730,7 +742,7 @@ let slide = (~src=lens_src, ~opened: list(string), ()) => {
     );
   let agent =
     switch (
-      opened == []
+      List.is_empty(opened)
         ? Ok(AgentContext.Update.CloseAll)
         : AgentContext.Update.resolve(o, OpenPaths(opened))
     ) {
@@ -787,7 +799,7 @@ let lens_tests = [
             "cells for b and c",
             ["b", "c"],
             List.filter_map(
-              (e: W.ScratchCell.t) => W.ScratchCell.header_name(e),
+              ~f=(e: W.ScratchCell.t) => W.ScratchCell.header_name(e),
               W.Divided.cells(d),
             ),
           )
@@ -795,8 +807,13 @@ let lens_tests = [
         };
       | None => fail("no lens")
       };
-      check(bool, "program untouched", true, code'.program === code.program);
-      check(bool, "view untouched", true, code'.view === code.view);
+      check(
+        bool,
+        "program untouched",
+        true,
+        phys_equal(code'.program, code.program),
+      );
+      check(bool, "view untouched", true, phys_equal(code'.view, code.view));
     },
   ),
   test_case(
@@ -811,7 +828,7 @@ let lens_tests = [
           bool,
           "the view, as sent",
           true,
-          String.starts_with(~prefix={js|#› program map|js}, sent)
+          String.is_prefix(~prefix={js|#› program map|js}, sent)
           && Util.StringUtil.plain_search({js|let a = ⋯ in|js}, sent, 0)
           >= 0,
         );
@@ -838,8 +855,18 @@ let lens_tests = [
         | Error(e) => fail(e)
         };
       let code'' = step(FocusToggle(a), code');
-      check(bool, "program untouched", true, code''.program === code.program);
-      check(bool, "view untouched", true, code''.view === code.view);
+      check(
+        bool,
+        "program untouched",
+        true,
+        phys_equal(code''.program, code.program),
+      );
+      check(
+        bool,
+        "view untouched",
+        true,
+        phys_equal(code''.view, code.view),
+      );
     },
   ),
   test_case(
@@ -852,7 +879,12 @@ let lens_tests = [
         |> step(AgentAction(ViewAsAgent(chat_id, Some(1))))
         |> step(AgentAction(LeaveAgentView));
       check(bool, "no lens", true, Option.is_none(code'.lens));
-      check(bool, "program untouched", true, code'.program === code.program);
+      check(
+        bool,
+        "program untouched",
+        true,
+        phys_equal(code'.program, code.program),
+      );
     },
   ),
   test_case(
@@ -865,7 +897,7 @@ let lens_tests = [
         option(bool),
         "live",
         Some(true),
-        Option.map((l: W.AgentLens.t) => l.live, code.lens),
+        Option.map(~f=(l: W.AgentLens.t) => l.live, code.lens),
       );
       /* the agent sends again */
       let (agent, _, _) = send(code.agent, cws_of(lens_src));
@@ -878,7 +910,7 @@ let lens_tests = [
         option(int),
         "the second request",
         Some(2),
-        Option.map((l: W.AgentLens.t) => l.seq, code.lens),
+        Option.map(~f=(l: W.AgentLens.t) => l.seq, code.lens),
       );
     },
   ),
@@ -896,7 +928,7 @@ let lens_tests = [
         list(bool),
         "M open; f and N closed",
         [false, true, true],
-        List.map(snd, W.AgentLens.map_folds(~module_depth=1, term)),
+        List.map(~f=snd, W.AgentLens.map_folds(~module_depth=1, term)),
       );
     },
   ),
@@ -922,7 +954,7 @@ total([1, 2])|};
 let map_lens = () => {
   let (code, chat_id) = slide(~src=map_src, ~opened=["sq"], ());
   let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
-  let l = Option.get(code.lens);
+  let l = Option.value_exn(code.lens);
   let l = {
     ...l,
     map:
@@ -942,14 +974,14 @@ let map_lens = () => {
 };
 
 let without_notes = (text: string): string =>
-  String.split_on_char('\n', text)
-  |> List.map(line =>
+  String.split(~on='\n', text)
+  |> List.map(~f=line =>
        switch (Util.StringUtil.plain_search({js|  #›|js}, line, 0)) {
-       | i when i >= 0 => String.sub(line, 0, i)
+       | i when i >= 0 => String.sub(line, ~pos=0, ~len=i)
        | _ => line
        }
      )
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 
 let has = (s, m) => Util.StringUtil.plain_search(m, s, 0) >= 0;
 
@@ -968,14 +1000,14 @@ let map_tests = [
             0,
           )
         ) {
-        | i when i >= 0 => String.sub(l.sent, 0, i)
+        | i when i >= 0 => String.sub(l.sent, ~pos=0, ~len=i)
         | _ => l.sent
         };
       let sent =
-        String.split_on_char('\n', sent)
-        |> List.tl
-        |> List.tl
-        |> String.concat("\n");
+        String.split(~on='\n', sent)
+        |> List.tl_exn
+        |> List.tl_exn
+        |> String.concat(~sep="\n");
       let shown = W.AgentLensMap.text(l.map);
       check(string, "the code", without_notes(sent), without_notes(shown));
       check(bool, "the agent saw use counts", true, has(sent, "3 uses"));
@@ -1002,18 +1034,18 @@ total([1, 2])|},
       let o = Outline.of_program(~root=Exp, W.Program.document(l.program));
       let folded =
         List.find_map(
-          (e: Outline.entry) => e.kind == Test ? e.test : None,
+          ~f=(e: Outline.entry) => Poly.equal(e.kind, Test) ? e.test : None,
           o.entries,
         )
-        |> Option.get;
+        |> Option.value_exn;
       check(
         option(bool),
         "it passed",
         Some(true),
         Option.map(
-          s => s == TestStatus.Pass,
+          ~f=s => s == TestStatus.Pass,
           TestMap.lookup(folded, results.test_map)
-          |> Option.map(TestMap.joint_status),
+          |> Option.map(~f=TestMap.joint_status),
         ),
       );
       check(
@@ -1045,22 +1077,23 @@ total([1, 2])|},
       let map = l.map.editor.editor;
       let held =
         Segment.ids(W.AgentLensMap.segment(l.map))
-        |> List.map(id => (id, ()))
+        |> List.map(~f=id => (id, ()))
         |> Id.Map.of_list;
       check(int, "the program's errors", 2, List.length(st.error_ids));
       check(int, "one shown", 1, List.length(map.statics.error_ids));
       List.iter(
-        id => {
-          check(bool, "on the map", true, Id.Map.mem(id, held));
-          check(
-            bool,
-            "drawn there",
-            true,
-            Option.is_some(
-              TermData.root_tile(id, map.editor.syntax.term_data),
-            ),
-          );
-        },
+        ~f=
+          id => {
+            check(bool, "on the map", true, Id.Map.mem(id, held));
+            check(
+              bool,
+              "drawn there",
+              true,
+              Option.is_some(
+                TermData.root_tile(id, map.editor.syntax.term_data),
+              ),
+            );
+          },
         map.statics.error_ids,
       );
       /* the other, in a folded body, is its entry's note */
@@ -1078,15 +1111,16 @@ total([1, 2])|},
     () => {
       let (code, l) = map_lens();
       let caret = (code: W.ScratchModel.Scratchpad.code) =>
-        Option.get(code.lens).map.editor.editor.editor.state.zipper.caret;
+        Option.value_exn(code.lens).map.editor.editor.editor.state.zipper.
+          caret;
       let text = (code: W.ScratchModel.Scratchpad.code) =>
-        W.AgentLensMap.text(Option.get(code.lens).map);
+        W.AgentLensMap.text(Option.value_exn(code.lens).map);
       let edit = step(LensMap(MainEditor(Perform(Insert("x")))), code);
       check(
         bool,
         "an insert drops",
         true,
-        Option.get(edit.lens).map === l.map,
+        phys_equal(Option.value_exn(edit.lens).map, l.map),
       );
       let cut =
         step(
@@ -1097,7 +1131,7 @@ total([1, 2])|},
         bool,
         "a delete drops",
         true,
-        Option.get(cut.lens).map === l.map,
+        phys_equal(Option.value_exn(cut.lens).map, l.map),
       );
       let moved =
         step(
@@ -1110,7 +1144,7 @@ total([1, 2])|},
         bool,
         "the program untouched",
         true,
-        moved.program === code.program,
+        phys_equal(moved.program, code.program),
       );
     },
   ),
@@ -1240,7 +1274,7 @@ let toggle_tests = [
             chat_id,
           );
         let (agent, _) = W.AgentSend.main_request(~request, chat_id, agent);
-        Option.get(
+        Option.value_exn(
           Util.ListUtil.last_opt(
             W.ChatSystem.Utils.find_chat(chat_id, agent.chat_system).sent,
           ),
@@ -1298,7 +1332,7 @@ let drive =
       /* the reply's thinking, by turn and place */
       ~think=(_, _) => reasoning,
       ~usage=?,
-      ~text=(_, _, calls) => calls == [] ? "Done." : "",
+      ~text=(_, _, calls) => List.is_empty(calls) ? "Done." : "",
       turns: list((string, list(list((string, Yojson.Safe.t))))),
     )
     : (list(string), W.Agent.Model.t) => {
@@ -1325,7 +1359,7 @@ let drive =
     );
   W.AgentSend.defer_dispatch_send := (thunk => thunk());
   W.AgentSend.max_eval_wait_attempts := 0;
-  let queue = Queue.create();
+  let queue = Stdlib.Queue.create();
   let agent = W.Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   /* named, so no naming request goes out */
@@ -1343,53 +1377,56 @@ let drive =
   let step = (a: W.Agent.Update.Action.t) => {
     let (agent', ce') =
       W.Agent.Update.update(a, agent^, ce^, api_settings, a =>
-        Queue.add(a, queue)
+        Stdlib.Queue.add(a, queue)
       );
     agent := agent';
     ce := ce'.model;
   };
   let drain = () =>
-    while (!Queue.is_empty(queue)) {
-      switch (Queue.pop(queue)) {
+    while (!Stdlib.Queue.is_empty(queue)) {
+      switch (Stdlib.Queue.pop(queue)) {
       /* the replies below stand in for the stream */
       | StreamDelta(_) => ()
       | a => step(a)
       };
     };
   List.iteri(
-    (t, (says, replies)) => {
-      step(SendMessage(W.Message.Utils.mk_user_message(says), chat_id));
-      drain();
-      List.iteri(
-        (i, calls) => {
-          let reply: Util.OpenRouter.Reply.Model.t = {
-            content: text(t, i, calls),
-            tool_calls:
-              List.mapi(
-                (j, (name, args)): Util.OpenRouter.Reply.Model.tool_call =>
-                  {
-                    id: Printf.sprintf("call-%d-%d-%d", t, i, j),
-                    name,
-                    args,
-                  },
-                calls,
-              ),
-            usage,
-            reasoning: think(t, i),
-          };
-          step(
-            HandleLLMResponse(
-              reply,
-              chat_id,
-              agent^.main_llm_seq,
-              Some(6000),
-            ),
-          );
-          drain();
-        },
-        replies,
-      );
-    },
+    ~f=
+      (t, (says, replies)) => {
+        step(SendMessage(W.Message.Utils.mk_user_message(says), chat_id));
+        drain();
+        List.iteri(
+          ~f=
+            (i, calls) => {
+              let reply: Util.OpenRouter.Reply.Model.t = {
+                content: text(t, i, calls),
+                tool_calls:
+                  List.mapi(
+                    ~f=
+                      (j, (name, args)): Util.OpenRouter.Reply.Model.tool_call =>
+                        {
+                          id: Printf.sprintf("call-%d-%d-%d", t, i, j),
+                          name,
+                          args,
+                        },
+                    calls,
+                  ),
+                usage,
+                reasoning: think(t, i),
+              };
+              step(
+                HandleLLMResponse(
+                  reply,
+                  chat_id,
+                  agent^.main_llm_seq,
+                  Some(6000),
+                ),
+              );
+              drain();
+            },
+          replies,
+        );
+      },
     turns,
   );
   let (sc, dd, mw) = saved;
@@ -1400,7 +1437,7 @@ let drive =
 };
 
 let targets = paths =>
-  `Assoc([("targets", `List(List.map(p => `String(p), paths)))]);
+  `Assoc([("targets", `List(List.map(~f=p => `String(p), paths)))]);
 
 let chat_of = (agent: W.Agent.Model.t) =>
   W.ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system);
@@ -1408,8 +1445,8 @@ let chat_of = (agent: W.Agent.Model.t) =>
 let messages_of = (body: string): list(string) =>
   switch (Yojson.Safe.from_string(body)) {
   | `Assoc(fs) =>
-    switch (List.assoc_opt("messages", fs)) {
-    | Some(`List(ms)) => List.map(Yojson.Safe.to_string, ms)
+    switch (List.Assoc.find(fs, "messages", ~equal=Poly.equal)) {
+    | Some(`List(ms)) => List.map(~f=Yojson.Safe.to_string, ms)
     | _ => []
     }
   | _ => []
@@ -1417,16 +1454,16 @@ let messages_of = (body: string): list(string) =>
 
 /* every section, depth first */
 let rec flatten = (ss: list(T.section)): list(T.section) =>
-  List.concat_map((s: T.section) => [s, ...flatten(s.children)], ss);
+  List.concat_map(~f=(s: T.section) => [s, ...flatten(s.children)], ss);
 
 /* the sections' JSON as sent, in order */
 let sent_lines = (ss: list(T.section)): list(string) =>
-  List.concat_map(T.lines, ss);
+  List.concat_map(~f=T.lines, ss);
 
 let kind = testable(T.pp_kind, (==));
 
 let of_kind = (k: T.kind, ss) =>
-  List.filter((s: T.section) => s.kind == k, flatten(ss));
+  List.filter(~f=(s: T.section) => s.kind == k, flatten(ss));
 
 let trajectory_tests = [
   test_case(
@@ -1445,13 +1482,14 @@ let trajectory_tests = [
       check(int, "requests", 4, List.length(bodies));
       check(int, "records", 4, List.length(chat.sent));
       List.iteri(
-        (i, body) =>
-          check(
-            option(string),
-            Printf.sprintf("request %d", i + 1),
-            Some(body),
-            T.body(chat, i + 1),
-          ),
+        ~f=
+          (i, body) =>
+            check(
+              option(string),
+              Printf.sprintf("request %d", i + 1),
+              Some(body),
+              T.body(chat, i + 1),
+            ),
         bodies,
       );
     },
@@ -1466,7 +1504,7 @@ let trajectory_tests = [
           ("thanks", [[]]),
         ]);
       let chat = chat_of(agent);
-      let t = Option.get(T.build(chat, 3));
+      let t = Option.value_exn(T.build(chat, 3));
       let last = Util.ListUtil.last(bodies);
       check(string, "the body", last, t.body);
       let raws = sent_lines(t.sections);
@@ -1490,11 +1528,11 @@ let trajectory_tests = [
         "each context",
         true,
         subseq(
-          List.map(b => Util.ListUtil.last(messages_of(b)), bodies),
+          List.map(~f=b => Util.ListUtil.last(messages_of(b)), bodies),
           raws,
         ),
       );
-      let kinds = List.map((s: T.section) => s.kind, t.sections);
+      let kinds = List.map(~f=(s: T.section) => s.kind, t.sections);
       check(
         bool,
         "prompt, tools, request first",
@@ -1506,20 +1544,23 @@ let trajectory_tests = [
         list(string),
         "the call's arguments, exactly",
         [{|{"targets":["b"]}|}],
-        List.map((c: T.section) => c.text, calls),
+        List.map(~f=(c: T.section) => c.text, calls),
       );
       check(
         list(bool),
         "contexts folded",
         [true, true, true],
-        List.map((s: T.section) => s.folded, of_kind(Context, t.sections)),
+        List.map(
+          ~f=(s: T.section) => s.folded,
+          of_kind(Context, t.sections),
+        ),
       );
       check(
         list(bool),
         "only this request's context is in it",
         [false, false, true],
         List.map(
-          (s: T.section) => s.in_request,
+          ~f=(s: T.section) => s.in_request,
           of_kind(Context, t.sections),
         ),
       );
@@ -1536,58 +1577,73 @@ let trajectory_tests = [
         ]);
       let chat = chat_of(agent);
       List.iteri(
-        (i, body) => {
-          let t = Option.get(T.window(chat, i + 1));
-          let messages =
-            List.filter(
-              (s: T.section) =>
-                s.kind != Tools && s.kind != Request && s.kind != Response,
-              t.sections,
-            );
-          check(
-            list(kind),
-            "then exactly one response",
-            [Response],
-            List.map(
-              (s: T.section) => s.kind,
+        ~f=
+          (i, body) => {
+            let t = Option.value_exn(T.window(chat, i + 1));
+            let messages =
               List.filter(
-                (s: T.section) => s.kind == Response,
-                flatten(t.sections),
-              ),
-            ),
-          );
-          check(kind, "last", Response, Util.ListUtil.last(t.sections).kind);
-          check(string, "the body", body, t.body);
-          check(
-            list(string),
-            Printf.sprintf("request %d's messages, in order", i + 1),
-            messages_of(body),
-            sent_lines(messages),
-          );
-          check(
-            int,
-            "one context",
-            1,
-            List.length(of_kind(Context, messages)),
-          );
-          check(
-            bool,
-            "all in the request",
-            true,
-            List.for_all((s: T.section) => s.in_request, flatten(messages)),
-          );
-          check(
-            list(string),
-            "copied as sent: the body's messages only",
-            messages_of(body),
-            sent_lines(
-              List.filter(
-                (s: T.section) => s.kind != Tools && s.kind != Request,
+                ~f=
+                  (s: T.section) =>
+                    !Poly.equal(s.kind, Tools)
+                    && !Poly.equal(s.kind, Request)
+                    && !Poly.equal(s.kind, Response),
                 t.sections,
+              );
+            check(
+              list(kind),
+              "then exactly one response",
+              [Response],
+              List.map(
+                ~f=(s: T.section) => s.kind,
+                List.filter(
+                  ~f=(s: T.section) => Poly.equal(s.kind, Response),
+                  flatten(t.sections),
+                ),
               ),
-            ),
-          );
-        },
+            );
+            check(
+              kind,
+              "last",
+              Response,
+              Util.ListUtil.last(t.sections).kind,
+            );
+            check(string, "the body", body, t.body);
+            check(
+              list(string),
+              Printf.sprintf("request %d's messages, in order", i + 1),
+              messages_of(body),
+              sent_lines(messages),
+            );
+            check(
+              int,
+              "one context",
+              1,
+              List.length(of_kind(Context, messages)),
+            );
+            check(
+              bool,
+              "all in the request",
+              true,
+              List.for_all(
+                ~f=(s: T.section) => s.in_request,
+                flatten(messages),
+              ),
+            );
+            check(
+              list(string),
+              "copied as sent: the body's messages only",
+              messages_of(body),
+              sent_lines(
+                List.filter(
+                  ~f=
+                    (s: T.section) =>
+                      !Poly.equal(s.kind, Tools)
+                      && !Poly.equal(s.kind, Request),
+                  t.sections,
+                ),
+              ),
+            );
+          },
         bodies,
       );
     },
@@ -1602,89 +1658,93 @@ let trajectory_tests = [
           ("thanks", [[]]),
         ]);
       let chat = chat_of(agent);
-      let t = Option.get(T.build(chat, 2));
+      let t = Option.value_exn(T.build(chat, 2));
       let turns = of_kind(User, t.sections);
       check(
         list(string),
         "the turns, at the top",
         ["User · 2 rounds"],
         List.filter_map(
-          (s: T.section) => s.kind == User ? Some(s.label) : None,
+          ~f=
+            (s: T.section) =>
+              Poly.equal(s.kind, User) ? Some(s.label) : None,
           t.sections,
         ),
       );
-      check(bool, "its turn open", false, List.hd(turns).folded);
+      check(bool, "its turn open", false, List.hd_exn(turns).folded);
       let rounds = of_kind(Round, t.sections);
       check(
         list(string),
         "the rounds",
         ["Round 1 · 1 tool call", "Round 2 · this request"],
-        List.map((s: T.section) => s.label, rounds),
+        List.map(~f=(s: T.section) => s.label, rounds),
       );
       check(
         list(bool),
         "only the selected round open",
         [true, false],
-        List.map((s: T.section) => s.folded, rounds),
+        List.map(~f=(s: T.section) => s.folded, rounds),
       );
       /* round 1: its context, then the reply and the call's result */
       check(
         list(kind),
         "round 1",
         [Context, Assistant, Result],
-        List.map((s: T.section) => s.kind, List.hd(rounds).children),
+        List.map(~f=(s: T.section) => s.kind, List.hd_exn(rounds).children),
       );
       /* request 2's reply came back after it: shown, not in it */
-      let reply = List.nth(rounds, 1).children;
+      let reply = List.nth_exn(rounds, 1).children;
       check(
         list(kind),
         "round 2: its context, then its reply",
         [Context, Assistant],
-        List.map((s: T.section) => s.kind, reply),
+        List.map(~f=(s: T.section) => s.kind, reply),
       );
       check(
         list(bool),
         "the reply not in this request",
         [true, false],
-        List.map((s: T.section) => s.in_request, reply),
+        List.map(~f=(s: T.section) => s.in_request, reply),
       );
       check(
         bool,
         "and labelled so",
         true,
-        String.ends_with(
+        String.is_suffix(
           ~suffix="after this request",
-          List.nth(reply, 1).label,
+          List.nth_exn(reply, 1).label,
         ),
       );
-      let r1 = List.hd(rounds).children;
+      let r1 = List.hd_exn(rounds).children;
       check(
         list(bool),
         "calls and results folded, the assistant's text not",
         [false, true, true],
         List.map(
-          (s: T.section) => s.folded,
+          ~f=(s: T.section) => s.folded,
           of_kind(Assistant, r1) @ of_kind(Call, r1) @ of_kind(Result, r1),
         ),
       );
       /* the last request: the first turn folded, the second open */
-      let last = Option.get(T.build(chat, 3));
+      let last = Option.value_exn(T.build(chat, 3));
       check(
         list(bool),
         "earlier turns fold",
         [true, false],
         List.filter_map(
-          (s: T.section) => s.kind == User ? Some(s.folded) : None,
+          ~f=
+            (s: T.section) =>
+              Poly.equal(s.kind, User) ? Some(s.folded) : None,
           last.sections,
         ),
       );
       /* the window groups too, in the body's order */
-      let w = Option.get(T.window(chat, 3));
+      let w = Option.value_exn(T.window(chat, 3));
       check(
         list(string),
         "the window's rounds",
         ["Round 1 · 1 tool call", "Round 2", "Round 3 · this request"],
-        List.map((s: T.section) => s.label, of_kind(Round, w.sections)),
+        List.map(~f=(s: T.section) => s.label, of_kind(Round, w.sections)),
       );
     },
   ),
@@ -1715,11 +1775,11 @@ let trajectory_tests = [
         "no body carries the thinking",
         false,
         List.exists(
-          b => Util.StringUtil.plain_search(thought, b, 0) >= 0,
+          ~f=b => Util.StringUtil.plain_search(thought, b, 0) >= 0,
           bodies,
         ),
       );
-      let t = Option.get(T.build(chat, 2));
+      let t = Option.value_exn(T.build(chat, 2));
       let rounds = of_kind(Round, t.sections);
       check(
         list(list(kind)),
@@ -1729,7 +1789,9 @@ let trajectory_tests = [
           [Context, Thinking, Assistant, Usage],
         ],
         List.map(
-          (r: T.section) => List.map((s: T.section) => s.kind, r.children),
+          ~f=
+            (r: T.section) =>
+              List.map(~f=(s: T.section) => s.kind, r.children),
           rounds,
         ),
       );
@@ -1741,15 +1803,15 @@ let trajectory_tests = [
           {js|Thinking · 6s · received, not sent back|js},
           {js|Thinking · 6s · received, not sent back|js},
         ],
-        List.map((s: T.section) => s.label, thinking),
+        List.map(~f=(s: T.section) => s.label, thinking),
       );
-      check(string, "as received", thought, List.hd(thinking).text);
+      check(string, "as received", thought, List.hd_exn(thinking).text);
       check(
         bool,
         "received, so not sent",
         true,
         List.for_all(
-          (s: T.section) => !s.sent && !s.in_request,
+          ~f=(s: T.section) => !s.sent && !s.in_request,
           thinking @ of_kind(Usage, t.sections),
         ),
       );
@@ -1757,7 +1819,7 @@ let trajectory_tests = [
         string,
         "usage on its line",
         {js|19.9k in · 212 out · cached: 15.9k · 0.012300 cr|js},
-        List.hd(of_kind(Usage, t.sections)).brief,
+        List.hd_exn(of_kind(Usage, t.sections)).brief,
       );
       check(
         bool,
@@ -1765,14 +1827,16 @@ let trajectory_tests = [
         false,
         Util.StringUtil.plain_search(thought, T.to_lines(t), 0) >= 0,
       );
-      let w = Option.get(T.window(chat, 2));
+      let w = Option.value_exn(T.window(chat, 2));
       check(
         bool,
         "in the exact window, only in its response",
         true,
         List.for_all(
-          (s: T.section) =>
-            s.kind == Response || of_kind(Thinking, [s]) == [],
+          ~f=
+            (s: T.section) =>
+              Poly.equal(s.kind, Response)
+              || List.is_empty(of_kind(Thinking, [s])),
           w.sections,
         ),
       );
@@ -1798,7 +1862,7 @@ let trajectory_tests = [
           ],
         );
       let chat = chat_of(agent);
-      let w = Option.get(T.window(chat, 2));
+      let w = Option.value_exn(T.window(chat, 2));
       let response = Util.ListUtil.last(w.sections);
       check(
         string,
@@ -1816,9 +1880,9 @@ let trajectory_tests = [
         list(kind),
         "its thinking, then its reply",
         [Thinking, Assistant],
-        List.map((s: T.section) => s.kind, response.children),
+        List.map(~f=(s: T.section) => s.kind, response.children),
       );
-      let thinking = List.hd(response.children);
+      let thinking = List.hd_exn(response.children);
       check(string, "this reply's thinking", thought(0, 1), thinking.text);
       check(
         string,
@@ -1827,7 +1891,7 @@ let trajectory_tests = [
         thinking.label,
       );
       check(bool, "open", false, thinking.folded);
-      let reply = List.nth(response.children, 1);
+      let reply = List.nth_exn(response.children, 1);
       check(
         string,
         "the reply, kept",
@@ -1838,21 +1902,24 @@ let trajectory_tests = [
         list(string),
         "its call",
         [{js|open · c|js}],
-        List.map((s: T.section) => s.label, reply.children),
+        List.map(~f=(s: T.section) => s.label, reply.children),
       );
       check(
         list(string),
         "no other thinking",
         [thought(0, 1)],
-        List.map((s: T.section) => s.text, of_kind(Thinking, w.sections)),
+        List.map(
+          ~f=(s: T.section) => s.text,
+          of_kind(Thinking, w.sections),
+        ),
       );
       check(
         bool,
         "the context: replaced next request",
         true,
-        String.ends_with(
+        String.is_suffix(
           ~suffix="replaced by the next request's snapshot",
-          List.hd(of_kind(Context, w.sections)).label,
+          List.hd_exn(of_kind(Context, w.sections)).label,
         ),
       );
       check(bool, "replied", true, w.replied);
@@ -1870,7 +1937,7 @@ let trajectory_tests = [
         );
       let chat = chat_of(agent);
       check(int, "requests", 2, List.length(bodies));
-      let w = Option.get(T.window(chat, 2));
+      let w = Option.value_exn(T.window(chat, 2));
       check(bool, "not replied", false, w.replied);
       let last = Util.ListUtil.last(w.sections);
       check(
@@ -1884,17 +1951,19 @@ let trajectory_tests = [
         "no response, no thinking",
         [],
         List.map(
-          (s: T.section) => s.kind,
+          ~f=(s: T.section) => s.kind,
           of_kind(Response, w.sections) @ of_kind(Thinking, w.sections),
         ),
       );
       check(
         list(string),
         "the body's messages",
-        messages_of(List.nth(bodies, 1)),
+        messages_of(List.nth_exn(bodies, 1)),
         sent_lines(
           List.filter(
-            (s: T.section) => s.kind != Tools && s.kind != Request,
+            ~f=
+              (s: T.section) =>
+                !Poly.equal(s.kind, Tools) && !Poly.equal(s.kind, Request),
             w.sections,
           ),
         ),
@@ -1966,19 +2035,19 @@ let trajectory_tests = [
       );
       let (_, agent) =
         drive([("open b", [[("open", targets(["b"]))], []])]);
-      let t = Option.get(T.build(chat_of(agent), 2));
+      let t = Option.value_exn(T.build(chat_of(agent), 2));
       check(
         list(string),
         "the call's line in the trajectory",
         [{js|open · b|js}],
-        List.map((s: T.section) => s.label, of_kind(Call, t.sections)),
+        List.map(~f=(s: T.section) => s.label, of_kind(Call, t.sections)),
       );
-      let result = List.hd(of_kind(Result, t.sections));
+      let result = List.hd_exn(of_kind(Result, t.sections));
       check(
         bool,
         "the result's first line",
         true,
-        result.brief != ""
+        !String.equal(result.brief, "")
         && !String.contains(result.brief, '\n')
         && Util.StringUtil.plain_search(result.brief, result.text, 0) == 0,
       );
@@ -1996,7 +2065,7 @@ let trajectory_tests = [
         "a trajectory",
         true,
         Option.is_some(
-          Option.bind(code.lens, (l: W.AgentLens.t) => l.trajectory),
+          Option.bind(code.lens, ~f=(l: W.AgentLens.t) => l.trajectory),
         ),
       );
       let code =
@@ -2007,14 +2076,20 @@ let trajectory_tests = [
         option(bool),
         "still Trajectory",
         Some(true),
-        Option.map((l: W.AgentLens.t) => l.mode == Trajectory, code.lens),
+        Option.map(
+          ~f=(l: W.AgentLens.t) => Poly.equal(l.mode, Trajectory),
+          code.lens,
+        ),
       );
       let code = step(LensMode(Stacked), code);
       check(
         option(bool),
         "Stacked drops it",
         Some(true),
-        Option.map((l: W.AgentLens.t) => l.trajectory == None, code.lens),
+        Option.map(
+          ~f=(l: W.AgentLens.t) => Option.is_none(l.trajectory),
+          code.lens,
+        ),
       );
     },
   ),
@@ -2024,8 +2099,9 @@ let trajectory_tests = [
     () => {
       let (code, chat_id) = slide(~opened=["b"], ());
       let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
-      let r = Option.get(Util.ListUtil.last_opt(chat_of(code.agent).sent));
-      let l = Option.get(code.lens);
+      let r =
+        Option.value_exn(Util.ListUtil.last_opt(chat_of(code.agent).sent));
+      let l = Option.value_exn(code.lens);
       check(
         bool,
         "inside the context as sent",
@@ -2048,7 +2124,7 @@ let trajectory_tests = [
       let n = 35;
       let (bodies, agent) =
         drive(
-          List.init(n / 2 + 1, i =>
+          List.init(n / 2 + 1, ~f=i =>
             (
               "turn " ++ string_of_int(i),
               [[("open", targets([i mod 2 == 0 ? "b" : "c"]))], []],
@@ -2064,17 +2140,19 @@ let trajectory_tests = [
             ...chat,
             sent:
               List.map(
-                (r: W.SentView.t) =>
-                  {
-                    ...r,
-                    request: None,
-                  },
+                ~f=
+                  (r: W.SentView.t) =>
+                    {
+                      ...r,
+                      request: None,
+                    },
                 chat.sent,
               ),
           }),
         );
-      let total = List.fold_left((n, b) => n + String.length(b), 0, bodies);
-      if (Sys.getenv_opt("HAZEL_MEASURE") == Some("1")) {
+      let total =
+        List.fold(bodies, ~init=0, ~f=(n, b) => n + String.length(b));
+      if (Poly.equal(Stdlib.Sys.getenv_opt("HAZEL_MEASURE"), Some("1"))) {
         let t0 = Util.JsUtil.timestamp();
         ignore(T.build(chat, List.length(bodies)));
         Printf.printf(
@@ -2085,7 +2163,7 @@ let trajectory_tests = [
           "%d requests: bodies %d bytes (largest %d); chat sexp %d, of it the request fields %d\n",
           List.length(bodies),
           total,
-          List.fold_left((m, b) => max(m, String.length(b)), 0, bodies),
+          List.fold(bodies, ~init=0, ~f=(m, b) => max(m, String.length(b))),
           records,
           records - without,
         );
@@ -2124,11 +2202,8 @@ let thinking_tests = [
       let run = (deltas, finished) =>
         Th.ms(
           ~finished,
-          List.fold_left(
-            (t, (now, reasoning, other)) =>
-              Th.observe(~now, ~reasoning, ~other, t),
-            Th.init,
-            deltas,
+          List.fold(deltas, ~init=Th.init, ~f=(t, (now, reasoning, other)) =>
+            Th.observe(~now, ~reasoning, ~other, t)
           ),
         );
       check(
@@ -2178,10 +2253,11 @@ let thinking_tests = [
         (
           (~payload as _, ~key as _, ~on_chunk, ~on_done) => {
             List.iter(
-              ((t, c)) => {
-                now := t;
-                on_chunk(chunk(c));
-              },
+              ~f=
+                ((t, c)) => {
+                  now := t;
+                  on_chunk(chunk(c));
+                },
               [
                 (100., {|{"choices":[{"delta":{"role":"assistant"}}]}|}),
                 (200., {|{"choices":[{"delta":{"reasoning":"Open b"}}]}|}),
@@ -2251,12 +2327,13 @@ let thinking_tests = [
         "the retry carries no assistant message",
         false,
         List.exists(
-          m =>
-            Util.StringUtil.plain_search({|"role":"assistant"|}, m, 0) >= 0,
-          messages_of(List.nth(bodies, 1)),
+          ~f=
+            m =>
+              Util.StringUtil.plain_search({|"role":"assistant"|}, m, 0) >= 0,
+          messages_of(List.nth_exn(bodies, 1)),
         ),
       );
-      let t = Option.get(T.build(chat, 2));
+      let t = Option.value_exn(T.build(chat, 2));
       check(
         list(list(kind)),
         "the first round keeps the attempt's thinking and usage",
@@ -2265,7 +2342,9 @@ let thinking_tests = [
           [Context, Thinking, Assistant, Usage],
         ],
         List.map(
-          (r: T.section) => List.map((s: T.section) => s.kind, r.children),
+          ~f=
+            (r: T.section) =>
+              List.map(~f=(s: T.section) => s.kind, r.children),
           of_kind(Round, t.sections),
         ),
       );
@@ -2273,7 +2352,7 @@ let thinking_tests = [
         string,
         "as received",
         thought,
-        List.hd(of_kind(Thinking, t.sections)).text,
+        List.hd_exn(of_kind(Thinking, t.sections)).text,
       );
     },
   ),

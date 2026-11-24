@@ -115,17 +115,17 @@ let probe_line_test =
 
       List.iter(
         ~f=
-        ((line, expected_values)) => {
-          let actual_values =
-            IntMap.find_opt(line, actual_by_line)
-            |> Option.value(~default=[]);
-          check(
-            list(string),
+          ((line, expected_values)) => {
+            let actual_values =
+              IntMap.find_opt(line, actual_by_line)
+              |> Option.value(~default=[]);
+            check(
+              list(string),
               sprintf("Line %d", line),
-            expected_values,
-            actual_values,
-          );
-        },
+              expected_values,
+              actual_values,
+            );
+          },
         expected,
       );
     },
@@ -143,17 +143,17 @@ let probe_count_test =
 
       List.iter(
         ~f=
-        ((line, expected_count)) => {
-          let actual_values =
-            IntMap.find_opt(line, actual_by_line)
-            |> Option.value(~default=[]);
-          check(
-            int,
+          ((line, expected_count)) => {
+            let actual_values =
+              IntMap.find_opt(line, actual_by_line)
+              |> Option.value(~default=[]);
+            check(
+              int,
               sprintf("Line %d sample count", line),
-            expected_count,
-            List.length(actual_values),
-          );
-        },
+              expected_count,
+              List.length(actual_values),
+            );
+          },
         expected,
       );
     },

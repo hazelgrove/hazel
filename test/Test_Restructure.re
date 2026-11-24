@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open CorpusUtil;
+open Poly;
 
 /* outline restructure ops across block kinds, run as the outline runs
    them (ItemEdit.edit), checked on the resulting program */
@@ -18,13 +19,13 @@ let edit =
     : option((Segment.t, option(Id.t))) => {
   let outline = CorpusUtil.outline_of(~root, seg);
   let ctx: R.ctx = {
-    mod_root: root == Sort.Mod,
+    mod_root: Sort.equal(root, Sort.Mod),
     outline,
     info_map: lazy(Language.Statics.Map.empty),
     is_open: id =>
       !closed && Web.OutlineTree.expanded(~folds=[], id, outline),
   };
-  Result.to_option(R.edit(ctx, e(row_by_label(outline, label)), seg));
+  Result.ok(R.edit(ctx, e(row_by_label(outline, label)), seg));
 };
 
 let ok = (desc, result: option('a)): 'a =>
@@ -35,22 +36,23 @@ let ok = (desc, result: option('a)): 'a =>
 
 /* the program [src] after [e] on [label]; None where it's refused */
 let run = (~root=Sort.Exp, ~closed=?, e, label, src): option(Segment.t) =>
-  Option.map(fst, edit(~root, ~closed?, e, label, seg_of(~root, src)));
+  Option.map(~f=fst, edit(~root, ~closed?, e, label, seg_of(~root, src)));
 
 /* a result against [expected] (None: refused), as the parser prints it */
 let expect = (~root=Sort.Exp, desc, expected, got: option(Segment.t)) =>
   check(
     option(string),
     desc,
-    Option.map(t => text_of(seg_of(~root, t)), expected),
-    Option.map(text_of, got),
+    Option.map(~f=t => text_of(seg_of(~root, t)), expected),
+    Option.map(~f=text_of, got),
   );
 
 /* rows of (what it shows, program, row label, edit, program after) */
 let cases = rows =>
   List.iter(
-    ((desc, src, label, e, expected)) =>
-      expect(desc, expected, run(e, label, src)),
+    ~f=
+      ((desc, src, label, e, expected)) =>
+        expect(desc, expected, run(e, label, src)),
     rows,
   );
 
@@ -59,12 +61,13 @@ let cases = rows =>
 let outline = (~root=Sort.Exp, src: string): list(string) => {
   let rec labels = (ns: list(Web.OutlineTree.node)) =>
     List.concat_map(
-      (n: Web.OutlineTree.node) =>
-        switch (n.o_label, labels(n.o_children)) {
-        | ("", _) => []
-        | (l, []) => [l]
-        | (l, kids) => [l ++ "{" ++ String.concat(",", kids) ++ "}"]
-        },
+      ~f=
+        (n: Web.OutlineTree.node) =>
+          switch (n.o_label, labels(n.o_children)) {
+          | ("", _) => []
+          | (l, []) => [l]
+          | (l, kids) => [l ++ "{" ++ String.concat(~sep=",", kids) ++ "}"]
+          },
       ns,
     );
   labels(
@@ -81,36 +84,37 @@ let top_level = () => {
     "b",
   );
   List.iter(
-    ((label, o, expected)) =>
-      expect(
-        label ++ " " ++ Web.OutlineEdit.show_def_op(o),
-        Option.map(String.concat("\n"), expected),
-        run(op(o), label, String.concat("\n", [a, b, t, tail])),
-      ),
+    ~f=
+      ((label, o, expected)) =>
+        expect(
+          label ++ " " ++ Web.OutlineEdit.show_def_op(o),
+          Option.map(~f=String.concat(~sep="\n"), expected),
+          run(op(o), label, String.concat(~sep="\n", [a, b, t, tail])),
+        ),
     [
       /* an implicit hole, not `?` */
       (
         "a",
-        NewBelow,
+        Web.OutlineEdit.NewBelow,
         Some([a, "", {js|let new_def = ¿ in|js}, "", b, t, tail]),
       ),
       (
         "a",
-        NewTypeBelow,
+        Web.OutlineEdit.NewTypeBelow,
         Some([a, "", {js|type NewType = ¿ in|js}, "", b, t, tail]),
       ),
       (
         "a",
-        NewModuleBelow,
+        Web.OutlineEdit.NewModuleBelow,
         Some([a, "", "module NewModule = {} in", "", b, t, tail]),
       ),
-      ("a", Duplicate, Some([a, "", a, "", b, t, tail])),
-      ("a", MoveDown, Some([b, "", a, "", t, tail])),
-      ("a", MoveUp, None),
-      ("b", MoveUp, Some([b, "", a, "", t, tail])),
-      ("b", Delete, Some([a, "", t, tail])),
-      ("1", MoveUp, Some([a, "", t, "", b, "", tail])),
-      ("1", Delete, Some([a, b, "", tail])),
+      ("a", Web.OutlineEdit.Duplicate, Some([a, "", a, "", b, t, tail])),
+      ("a", Web.OutlineEdit.MoveDown, Some([b, "", a, "", t, tail])),
+      ("a", Web.OutlineEdit.MoveUp, None),
+      ("b", Web.OutlineEdit.MoveUp, Some([b, "", a, "", t, tail])),
+      ("b", Web.OutlineEdit.Delete, Some([a, "", t, tail])),
+      ("1", Web.OutlineEdit.MoveUp, Some([a, "", t, "", b, "", tail])),
+      ("1", Web.OutlineEdit.Delete, Some([a, b, "", tail])),
     ],
   );
 };
@@ -209,12 +213,13 @@ M.a|js},
     let name = R.name_slot(~mod_root=false, target, seg);
     let rec hole = (seg: Segment.t) =>
       List.exists(
-        (p: Piece.t) =>
-          switch (p) {
-          | Grout(_) => Some(Piece.id(p)) == name
-          | Tile(t) => List.exists(hole, t.children)
-          | _ => false
-          },
+        ~f=
+          (p: Piece.t) =>
+            switch (p) {
+            | Grout(_) => Option.equal(Id.equal, Some(Piece.id(p)), name)
+            | Tile(t) => List.exists(~f=hole, t.children)
+            | _ => false
+            },
         seg,
       );
     check(bool, "it lands on the new member", true, hole(seg));
@@ -244,32 +249,34 @@ let unterminated_tail = () => {
   /* U's members as the outline reads them back, also at the top of a
      module-rooted program */
   List.iter(
-    ((root, src)) => {
-      check(
-        list(string),
-        "members before",
-        ["U{a,z}"],
-        outline(~root, src),
-      );
-      List.iter(
-        ((label, o, expected)) =>
-          check(
-            list(string),
-            Web.OutlineEdit.show_def_op(o),
-            expected,
-            outline(
-              ~root,
-              text_of(ok(label, run(~root, op(o), label, src))),
-            ),
-          ),
-        [
-          ("z", MoveUp, ["U{z,a}"]),
-          ("a", MoveDown, ["U{z,a}"]),
-          ("z", Duplicate, ["U{a,z,z}"]),
-          ("z", NewBelow, ["U{a,z,new_def}"]),
-        ],
-      );
-    },
+    ~f=
+      ((root, src)) => {
+        check(
+          list(string),
+          "members before",
+          ["U{a,z}"],
+          outline(~root, src),
+        );
+        List.iter(
+          ~f=
+            ((label, o, expected)) =>
+              check(
+                list(string),
+                Web.OutlineEdit.show_def_op(o),
+                expected,
+                outline(
+                  ~root,
+                  text_of(ok(label, run(~root, op(o), label, src))),
+                ),
+              ),
+          [
+            ("z", Web.OutlineEdit.MoveUp, ["U{z,a}"]),
+            ("a", Web.OutlineEdit.MoveDown, ["U{z,a}"]),
+            ("z", Web.OutlineEdit.Duplicate, ["U{a,z,z}"]),
+            ("z", Web.OutlineEdit.NewBelow, ["U{a,z,new_def}"]),
+          ],
+        );
+      },
     [
       (Sort.Exp, src),
       (Mod, "module U = {\n  let a = 1;\n  let z = fun x -> x\n};\nU.a"),
@@ -411,15 +418,37 @@ let let_body = () => {
     check(list(string), desc, expected, outline(t));
     t;
   };
-  let t = outlined("x", MoveDown, "move down", ["M{z,x{y}}"]);
+  let t =
+    outlined("x", Web.OutlineEdit.MoveDown, "move down", ["M{z,x{y}}"]);
   check(bool, "x moves whole", true, contains("y + 1\n}", t));
-  ignore(outlined("z", MoveUp, "move up", ["M{z,x{y}}"]));
-  ignore(outlined("x", Duplicate, "duplicate", ["M{x{y},x{y},z}"]));
-  ignore(outlined("x", NewBelow, "new below", ["M{x{y},new_def,z}"]));
-  let t = outlined("x", Delete, "delete", ["M{z}"]);
+  ignore(outlined("z", Web.OutlineEdit.MoveUp, "move up", ["M{z,x{y}}"]));
+  ignore(
+    outlined(
+      "x",
+      Web.OutlineEdit.Duplicate,
+      "duplicate",
+      ["M{x{y},x{y},z}"],
+    ),
+  );
+  ignore(
+    outlined(
+      "x",
+      Web.OutlineEdit.NewBelow,
+      "new below",
+      ["M{x{y},new_def,z}"],
+    ),
+  );
+  let t = outlined("x", Web.OutlineEdit.Delete, "delete", ["M{z}"]);
   check(bool, "delete takes the body", false, contains("y + 1", t));
-  ignore(outlined("y", NewBelow, "inner new below", ["M{x{y,new_def},z}"]));
-  ignore(outlined("y", Delete, "inner delete", ["M{x,z}"]));
+  ignore(
+    outlined(
+      "y",
+      Web.OutlineEdit.NewBelow,
+      "inner new below",
+      ["M{x{y,new_def},z}"],
+    ),
+  );
+  ignore(outlined("y", Web.OutlineEdit.Delete, "inner delete", ["M{x,z}"]));
   expect(
     "the inner let can't leave its member",
     None,
@@ -802,15 +831,16 @@ let into_value_module = () => {
   );
   /* out, then back in where it was */
   List.iter(
-    ((root, src, label, up, out)) => {
-      let step = (up, seg) =>
-        fst(
-          ok(label, edit(~root, op(up ? MoveUp : MoveDown), label, seg)),
-        );
-      let seg = step(up, seg_of(~root, src));
-      expect(~root, label ++ " out", Some(out), Some(seg));
-      check(string, label ++ " back in", src, text_of(step(!up, seg)));
-    },
+    ~f=
+      ((root, src, label, up, out)) => {
+        let step = (up, seg) =>
+          fst(
+            ok(label, edit(~root, op(up ? MoveUp : MoveDown), label, seg)),
+          );
+        let seg = step(up, seg_of(~root, src));
+        expect(~root, label ++ " out", Some(out), Some(seg));
+        check(string, label ++ " back in", src, text_of(step(!up, seg)));
+      },
     [
       (
         Sort.Exp,
@@ -1050,13 +1080,14 @@ let unshown_module = () => {
   let head = name =>
     switch (
       List.find_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile({children: [pat, ..._], _} as t)
-              when String.trim(text_of(pat)) == name =>
-            Some(t.id)
-          | _ => None
-          },
+        ~f=
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile({children: [pat, ..._], _} as t)
+                when String.strip(text_of(pat)) == name =>
+              Some(t.id)
+            | _ => None
+            },
         seg,
       )
     ) {
@@ -1231,39 +1262,42 @@ M.a|js},
   ]);
   /* the op lands on the new test's row, numbered in its run */
   List.iter(
-    ((desc, src)) =>
-      switch (edit(op(NewTestBelow), "2", seg_of(src))) {
-      | Some((seg, Some(target))) =>
-        let rows =
-          Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(seg))));
-        let run =
-          switch (
-            List.find_opt(
-              (n: Web.OutlineTree.node) => n.o_kind == KTests,
-              rows,
-            )
-          ) {
-          | Some(n) => n.o_children
-          | None => fail(desc ++ ": no run")
-          };
-        check(
-          list(string),
-          desc ++ ": the run, renumbered",
-          ["1", "2", "3", "4"],
-          List.map((n: Web.OutlineTree.node) => n.o_label, run),
-        );
-        check(
-          list(string),
-          desc ++ ": the new row is 3",
-          ["3"],
-          List.filter_map(
-            (n: Web.OutlineTree.node) =>
-              n.o_id == Some(target) ? Some(n.o_label) : None,
-            run,
-          ),
-        );
-      | _ => fail(desc ++ ": refused or no row")
-      },
+    ~f=
+      ((desc, src)) =>
+        switch (edit(op(NewTestBelow), "2", seg_of(src))) {
+        | Some((seg, Some(target))) =>
+          let rows =
+            Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(seg))));
+          let run =
+            switch (
+              List.find(
+                ~f=(n: Web.OutlineTree.node) => Poly.equal(n.o_kind, KTests),
+                rows,
+              )
+            ) {
+            | Some(n) => n.o_children
+            | None => fail(desc ++ ": no run")
+            };
+          check(
+            list(string),
+            desc ++ ": the run, renumbered",
+            ["1", "2", "3", "4"],
+            List.map(~f=(n: Web.OutlineTree.node) => n.o_label, run),
+          );
+          check(
+            list(string),
+            desc ++ ": the new row is 3",
+            ["3"],
+            List.filter_map(
+              ~f=
+                (n: Web.OutlineTree.node) =>
+                  Option.equal(Id.equal, n.o_id, Some(target))
+                    ? Some(n.o_label) : None,
+              run,
+            ),
+          );
+        | _ => fail(desc ++ ": refused or no row")
+        },
     [
       (
         "top level",
@@ -1372,7 +1406,9 @@ let nesting = () => {
   let outline = CorpusUtil.outline_of(stmt);
   let semi =
     List.find_map(
-      (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
+      ~f=
+        (n: Web.OutlineTree.node) =>
+          Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
       Web.OutlineTree.(flatten(rows(outline))),
     );
   let ctx: R.ctx = {
@@ -1384,9 +1420,8 @@ let nesting = () => {
   expect(
     "a statement",
     Some("module M = {\n  let y = 3;\n\n  1 + 1\n} in\n\nM.y"),
-    Option.bind(semi, id =>
-      Result.to_option(R.edit(ctx, op(Indent, id), stmt))
-      |> Option.map(fst)
+    Option.bind(semi, ~f=id =>
+      Result.ok(R.edit(ctx, op(Indent, id), stmt)) |> Option.map(~f=fst)
     ),
   );
   /* a module-rooted program's members, and a signed module */
@@ -1421,7 +1456,10 @@ let nesting = () => {
       bool,
       "it lands on b",
       true,
-      target == Some(row_by_label(CorpusUtil.outline_of(seg), "b")),
+      Poly.equal(
+        target,
+        Some(row_by_label(CorpusUtil.outline_of(seg), "b")),
+      ),
     )
   | None => fail("b refused")
   };
@@ -1710,10 +1748,10 @@ let shifted_chain = () => {
     );
   let stmt = (seg: Segment.t) =>
     Web.OutlineTree.(flatten(rows(CorpusUtil.outline_of(~root, seg))))
-    |> List.find_map((n: Web.OutlineTree.node) =>
-         n.o_kind == KStmt ? n.o_id : None
+    |> List.find_map(~f=(n: Web.OutlineTree.node) =>
+         Poly.equal(n.o_kind, KStmt) ? n.o_id : None
        )
-    |> Option.get;
+    |> Option.value_exn;
   let move = seg => {
     let outline = CorpusUtil.outline_of(~root, seg);
     let ctx: R.ctx = {
@@ -1723,15 +1761,15 @@ let shifted_chain = () => {
       is_open: _ => true,
     };
     Option.map(
-      ((s, _)) => text_of(s),
-      Result.to_option(R.edit(ctx, op(MoveDown, stmt(seg)), seg)),
+      ~f=((s, _)) => text_of(s),
+      Result.ok(R.edit(ctx, op(MoveDown, stmt(seg)), seg)),
     );
   };
   /* the outline finds the row before the edit */
   ignore(Web.ScratchFocus.find_path(~root, stmt(seg), seg));
   /* a space typed into `let a = 1;`, the rest of the program kept */
   let space =
-    switch (List.find(Piece.is_space, seg)) {
+    switch (List.find_exn(~f=Piece.is_space, seg)) {
     | Secondary(w) =>
       Piece.Secondary({
         ...w,
@@ -1739,7 +1777,7 @@ let shifted_chain = () => {
       })
     | _ => fail("no space")
     };
-  let typed = [List.hd(seg), space, ...List.tl(seg)];
+  let typed = [List.hd_exn(seg), space, ...List.tl_exn(seg)];
   check(
     option(string),
     "as on a program read afresh",
@@ -1834,21 +1872,25 @@ let refused_delete_cursor = (): unit => {
   let outline = CorpusUtil.outline_of(seg);
   let rows = Web.OutlineTree.flatten(Web.OutlineTree.rows(outline));
   let path = (n: Web.OutlineTree.node) =>
-    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, outline));
+    Option.bind(n.o_id, ~f=id => Web.OutlineTree.label_path(id, outline));
   /* f's ⇒ row; the program's own comes after it */
   let result =
-    List.find((n: Web.OutlineTree.node) => n.o_kind == KTrail, rows);
+    List.find_exn(
+      ~f=(n: Web.OutlineTree.node) => Poly.equal(n.o_kind, KTrail),
+      rows,
+    );
   let visible =
     Array.of_list(
       List.map(
-        (n: Web.OutlineTree.node): Web.OutlineSidebar.visible_row =>
-          {
-            r_path: Option.get(path(n)),
-            r_node: n,
-            r_name: n.o_label,
-            r_parent: None,
-            r_expanded: n.o_children != [],
-          },
+        ~f=
+          (n: Web.OutlineTree.node): Web.OutlineSidebar.visible_row =>
+            {
+              r_path: Option.value_exn(path(n)),
+              r_node: n,
+              r_name: n.o_label,
+              r_parent: None,
+              r_expanded: !List.is_empty(n.o_children),
+            },
         rows,
       ),
     );

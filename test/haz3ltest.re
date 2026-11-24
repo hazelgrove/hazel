@@ -5,7 +5,7 @@ Stdlib.Printexc.register_printer(exn => {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
   | DefStaticsCheck.Divergence(ds) =>
-    Some("DefStatics diverges: " ++ String.concat("; ", ds))
+    Some("DefStatics diverges: " ++ String.concat(~sep="; ", ds))
   | _ => None
   }
 });
@@ -13,7 +13,10 @@ Stdlib.Printexc.register_printer(exn => {
 /* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
    checks below; the full suite runs them on every edit. A test whose own
    assertion is the statics check arms it itself (DefStaticsCheck.armed) */
-let quick = Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
+let quick =
+  Array.exists(Stdlib.Sys.argv, ~f=a =>
+    String.equal(a, "-q") || String.equal(a, "--quick-tests")
+  );
 
 if (!quick) {
   /* every edit checks sparse normalization against the global pass */

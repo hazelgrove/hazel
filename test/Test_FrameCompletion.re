@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* The inspector's chip lookup and TyDi complete the frame's segment, the
    one the editor's syntax holds (CompletionQuery.engine_seg), so they hit
@@ -23,7 +24,12 @@ let misses = (f: unit => 'a): ('a, int) => {
 let frame = (z: Zipper.t): (CachedSyntax.t, CachedStatics.t) => {
   let syntax = CachedSyntax.init(~root=Exp, z);
   let source = CachedSyntax.semantic_source(z, syntax);
-  check(bool, "the syntax's segment is current", true, source != None);
+  check(
+    bool,
+    "the syntax's segment is current",
+    true,
+    Option.is_some(source),
+  );
   let statics =
     CachedStatics.init_compositional(
       ~settings,
@@ -41,33 +47,34 @@ let frame = (z: Zipper.t): (CachedSyntax.t, CachedStatics.t) => {
 let zips_agree_case =
   test_case("zips agree at every caret", `Quick, () =>
     List.iter(
-      text => {
-        let z0 = Option.get(MarkerParse.of_text(~root=Exp, text));
-        let s0 = MakeTerm.semantic_source(z0);
-        let rec walk = (z: Zipper.t, fuel) => {
-          check(bool, "the same", true, MakeTerm.semantic_source(z) == s0);
-          switch (
-            fuel > 0
-              ? Perform.go(
-                  ~settings,
-                  ~statics=CachedStatics.empty,
-                  ~syntax=CachedSyntax.init(z),
-                  ~root=Exp,
-                  Move(Local(Right, ByChar)),
-                  {
-                    zipper: z,
-                    col_target: None,
-                  },
-                )
-              : Error(Action.Failure.Cant_move)
-          ) {
-          | Ok(z) => 1 + walk(z, fuel - 1)
-          | Error(_) => 1
+      ~f=
+        text => {
+          let z0 = Option.value_exn(MarkerParse.of_text(~root=Exp, text));
+          let s0 = MakeTerm.semantic_source(z0);
+          let rec walk = (z: Zipper.t, fuel) => {
+            check(bool, "the same", true, MakeTerm.semantic_source(z) == s0);
+            switch (
+              fuel > 0
+                ? Perform.go(
+                    ~settings,
+                    ~statics=CachedStatics.empty,
+                    ~syntax=CachedSyntax.init(z),
+                    ~root=Exp,
+                    Move(Local(Right, ByChar)),
+                    {
+                      zipper: z,
+                      col_target: None,
+                    },
+                  )
+                : Error(Action.Failure.Cant_move)
+            ) {
+            | Ok(z) => 1 + walk(z, fuel - 1)
+            | Error(_) => 1
+            };
           };
-        };
-        let carets = walk(Zipper.caret_to_start(z0), String.length(text));
-        check(bool, "every caret", true, 2 * carets > String.length(text));
-      },
+          let carets = walk(Zipper.caret_to_start(z0), String.length(text));
+          check(bool, "every caret", true, 2 * carets > String.length(text));
+        },
       [
         "(let x : Int = 1\nlet y = 2 in y)",
         "module M = {\n  let a = (1 + 2;\n  let b = 3\n} in M.b",
@@ -87,11 +94,16 @@ let engine_seg_cases = [
         bool,
         "current: the syntax's own",
         true,
-        CompletionQuery.engine_seg(~syntax, z) === syntax.segment,
+        phys_equal(CompletionQuery.engine_seg(~syntax, z), syntax.segment),
       );
       let moved = Test_Editing.perform(z, [Move(Local(Left, ByChar))]);
       let seg = CompletionQuery.engine_seg(~syntax, moved);
-      check(bool, "moved: a fresh zip", false, seg === syntax.segment);
+      check(
+        bool,
+        "moved: a fresh zip",
+        false,
+        phys_equal(seg, syntax.segment),
+      );
       check(
         bool,
         "moved: the semantic source",
@@ -123,7 +135,7 @@ let snapshot_case =
     () => {
       let z = zipper("(let x : Int = ¦\nlet y = 2 in y)");
       let (syntax, statics) = frame(z);
-      let completion = Option.get(statics.completion);
+      let completion = Option.value_exn(statics.completion);
       let at = source =>
         expected_type(
           ImpliedHole.at_caret(
@@ -195,7 +207,7 @@ let inspector_case = (input, expected) =>
       let (info', n') =
         misses(() => ImpliedHole.at_caret(~root=Exp, ~statics, z));
       check(bool, "a fresh zip misses", true, n' > 0);
-      let id = Option.map(Language.Info.id_of);
+      let id = Option.map(~f=Language.Info.id_of);
       check(bool, "the same hole", true, id(info) == id(info'));
       check(
         string,
@@ -222,7 +234,7 @@ let tydi_case = (input, expected) =>
         list(string),
         "witnesses",
         expected,
-        List.map((s: TyDiSuggestion.t) => s.content, suggestions),
+        List.map(~f=(s: TyDiSuggestion.t) => s.content, suggestions),
       );
       let (suggestions', n') =
         misses(() => TyDi.suggest_witnesses(~root=Exp, z));
@@ -288,7 +300,7 @@ let edit_cases = [
         model.syntax.segment == Zipper.unselect_and_zip(z),
       );
       let seg = CompletionQuery.engine_seg(~syntax=model.syntax, z);
-      check(bool, "current", true, seg === model.syntax.segment);
+      check(bool, "current", true, phys_equal(seg, model.syntax.segment));
       let (_, n) =
         misses(() => CanonicalCompletion.complete_items(~sort=Exp, seg));
       check(int, "TyDi completed the same pieces", 0, n);

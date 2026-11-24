@@ -249,7 +249,7 @@ let display_broken = (z: Zipper.t): option(string) => {
             a: QuiverDec.positioned_insertion,
             b: QuiverDec.positioned_insertion,
           ) =>
-          compare((a.row, a.col), (b.row, b.col)),
+            compare((a.row, a.col), (b.row, b.col)),
         bs,
       );
     let rec overlaps = l =>
@@ -413,7 +413,7 @@ let curated = [
       true,
       type_string(Zipper.init(), "?) x\na) ?")
       |> positions
-      |> List.exists(~f=z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
   ),
   test_case(
@@ -426,7 +426,7 @@ let curated = [
       true,
       type_string(dedent(type_string(Zipper.init(), " [ (\n")), "+ 1")
       |> positions
-      |> List.exists(~f=z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
   ),
   /* a keyword's prefix starting the line starts something new, so the
@@ -595,24 +595,24 @@ let padding_tests =
   ]
   @ List.concat_map(
       ~f=
-      n => {
-        let spaces = String.make(n, ' ');
-        let pad = n == 0 ? " " : "";
-        [
-          padding_case(
-            "let x =" ++ spaces ++ "¦\nlet y = 2 in y",
-            pad ++ "? in",
-            "let x =" ++ (n == 0 ? " " : spaces) ++ "? in¦\nlet y = 2 in y",
-          ),
-          padding_case(
-            "if true then" ++ spaces ++ "¦\nlet y = 2 in y",
-            pad ++ "? else",
-            "if true then"
-            ++ (n == 0 ? " " : spaces)
-            ++ "? else¦\nlet y = 2 in y",
-          ),
-        ];
-      },
+        n => {
+          let spaces = String.make(n, ' ');
+          let pad = n == 0 ? " " : "";
+          [
+            padding_case(
+              "let x =" ++ spaces ++ "¦\nlet y = 2 in y",
+              pad ++ "? in",
+              "let x =" ++ (n == 0 ? " " : spaces) ++ "? in¦\nlet y = 2 in y",
+            ),
+            padding_case(
+              "if true then" ++ spaces ++ "¦\nlet y = 2 in y",
+              pad ++ "? else",
+              "if true then"
+              ++ (n == 0 ? " " : spaces)
+              ++ "? else¦\nlet y = 2 in y",
+            ),
+          ];
+        },
       [0, 1, 2, 4],
     );
 

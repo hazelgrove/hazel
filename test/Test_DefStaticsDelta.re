@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* DefStatics updates a chain's bookkeeping where items changed: after
    member edits (literals, retypes, renames, adds, removes, moves within
@@ -29,8 +30,10 @@ let script =
     );
   let seg = CorpusUtil.seg_of(~root, src);
   ignore(
-    List.fold_left(
-      ((i, seg, prev), s: Test_DefStaticsParity.step) => {
+    List.fold(
+      steps,
+      ~init=(1, seg, calc(seg)),
+      ~f=((i, seg, prev), s: Test_DefStaticsParity.step) => {
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
         let name = "step " ++ string_of_int(i);
@@ -50,8 +53,6 @@ let script =
         };
         (i + 1, seg, ds);
       },
-      (1, seg, calc(seg)),
-      steps,
     ),
   );
 };
@@ -64,8 +65,13 @@ let typed = (~root, src, after, keys, ()) => {
     MakeTerm.semantic_term(~root, MakeTerm.semantic_source(z));
   let z0 = MC.at_line(~root, src, after);
   ignore(
-    List.fold_left(
-      ((z, prev, typed), c) => {
+    List.fold(
+      List.map(
+        ~f=String.make(1),
+        Stdlib.List.of_seq(Stdlib.String.to_seq(keys)),
+      ),
+      ~init=(z0, DefStatics.calc(~settings, term_of(z0)), ""),
+      ~f=((z, prev, typed), c) => {
         let z = MC.perform(~root, z, Insert(c));
         let typed = typed ++ c;
         let ds = DefStatics.calc(~settings, ~prev, term_of(z));
@@ -84,8 +90,6 @@ let typed = (~root, src, after, keys, ()) => {
         );
         (z, ds, typed);
       },
-      (z0, DefStatics.calc(~settings, term_of(z0)), ""),
-      List.map(String.make(1), List.of_seq(String.to_seq(keys))),
     ),
   );
 };
@@ -288,21 +292,19 @@ let clean_heads = () => {
     switch (DefStatics.strip(t).term) {
     | Module(items) =>
       List.concat_map(
-        (m: Mod.t) =>
-          switch (m.term) {
-          | ModuleMod(_, {term: Module(ms), _}) => ms
-          | _ => []
-          },
+        ~f=
+          (m: Mod.t) =>
+            switch (m.term) {
+            | ModuleMod(_, {term: Module(ms), _}) => ms
+            | _ => []
+            },
         items,
       )
     | _ => fail("not a module root")
     };
   let kept =
-    List.fold_left2(
-      (n, a, b) => a === b ? n + 1 : n,
-      0,
-      members(t0),
-      members(t1),
+    List.fold2_exn(members(t0), members(t1), ~init=0, ~f=(n, a, b) =>
+      phys_equal(a, b) ? n + 1 : n
     );
   check(
     int,
@@ -316,14 +318,14 @@ let clean_heads = () => {
   check(int, "structural head compares", 4, DefStatics.head_compares^);
   check(int, "sums recomputed", 3, DefStatics.summed^);
   let module_members = (ds: DefStatics.t) =>
-    List.concat_map((it: DefStatics.item) => it.d_members, ds.items);
+    List.concat_map(~f=(it: DefStatics.item) => it.d_members, ds.items);
   let same_nodes =
-    List.fold_left2(
-      (n, a: DefStatics.item, b: DefStatics.item) =>
-        a.d_node === b.d_node ? n + 1 : n,
-      0,
+    List.fold2_exn(
       module_members(ds0),
       module_members(ds1),
+      ~init=0,
+      ~f=(n, a: DefStatics.item, b: DefStatics.item) =>
+      phys_equal(a.d_node, b.d_node) ? n + 1 : n
     );
   check(
     int,
@@ -354,7 +356,10 @@ let co_union_is_union = () => {
     Id.Map.fold(
       (_, info, acc) =>
         switch (info) {
-        | Info.InfoExp({co_ctx, _}) when co_ctx != [] => [co_ctx, ...acc]
+        | Info.InfoExp({co_ctx, _}) when !List.is_empty(co_ctx) => [
+            co_ctx,
+            ...acc,
+          ]
         | _ => acc
         },
       ds.merged,
@@ -362,34 +367,37 @@ let co_union_is_union = () => {
     );
   let show = (co: CoCtx.t) =>
     String.concat(
-      " ",
+      ~sep=" ",
       List.map(
-        ((n, es: list(CoCtx.entry))) =>
-          n
-          ++ ":"
-          ++ String.concat(
-               ",",
-               List.map((e: CoCtx.entry) => Id.str8(e.id), es),
-             ),
+        ~f=
+          ((n, es: list(CoCtx.entry))) =>
+            n
+            ++ ":"
+            ++ String.concat(
+                 ~sep=",",
+                 List.map(~f=(e: CoCtx.entry) => Id.str8(e.id), es),
+               ),
         co,
       ),
     );
   let n = ref(0);
   List.iteri(
-    (i, a) =>
-      List.iteri(
-        (j, b) =>
-          if ((i + j) mod 7 == 0) {
-            incr(n);
-            check(
-              string,
-              "union",
-              show(CoCtx.union([a, b])),
-              show(DefStatics.co_union(a, b)),
-            );
-          },
-        cos,
-      ),
+    ~f=
+      (i, a) =>
+        List.iteri(
+          ~f=
+            (j, b) =>
+              if ((i + j) mod 7 == 0) {
+                incr(n);
+                check(
+                  string,
+                  "union",
+                  show(CoCtx.union([a, b])),
+                  show(DefStatics.co_union(a, b)),
+                );
+              },
+          cos,
+        ),
     cos,
   );
   check(bool, "pairs checked", true, n^ > 100);
@@ -437,25 +445,30 @@ let tests = (
     ),
   ]
   @ List.map(
-      ((name, root, src, after, keys)) =>
-        test_case(
-          "typed, an id moved into a member: " ++ name,
-          `Quick,
-          typed(~root, src, after, keys),
-        ),
+      ~f=
+        ((name, root, src, after, keys)) =>
+          test_case(
+            "typed, an id moved into a member: " ++ name,
+            `Quick,
+            typed(~root, src, after, keys),
+          ),
       moved_ids,
     )
   @ List.map(
-      ((path, src)) =>
-        test_case(
-          Filename.basename(path),
-          `Quick,
-          script(
-            ~root=Mod,
-            src,
-            [token_if(~at=`First, "0", "5"), token_if(~at=`Last, "1", "2")],
+      ~f=
+        ((path, src)) =>
+          test_case(
+            Filename.basename(path),
+            `Quick,
+            script(
+              ~root=Mod,
+              src,
+              [
+                token_if(~at=`First, "0", "5"),
+                token_if(~at=`Last, "1", "2"),
+              ],
+            ),
           ),
-        ),
       Test_ItemSpans.stdlib_corpus(),
     ),
 );

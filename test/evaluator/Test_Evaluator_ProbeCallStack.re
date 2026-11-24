@@ -367,11 +367,11 @@ let step_into_frame_tests = [
         let dump =
           List.map(
             ~f=
-            (s: Sample.t) =>
-              switch (frame_fn_def_id(s)) {
-              | None => "noFnDef"
-              | Some(id) => term_kind(info_map, id)
-              },
+              (s: Sample.t) =>
+                switch (frame_fn_def_id(s)) {
+                | None => "noFnDef"
+                | Some(id) => term_kind(info_map, id)
+                },
             samples,
           )
           |> String.concat(~sep=",");
@@ -518,8 +518,8 @@ in apply(add(_, 10), 5)|},
           );
         switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
         | [(id, [s, ..._])] =>
-          let info = Option.get(Statics.Map.lookup(id, info_map));
-          Sample.Focus.cur_var_ap(info) == Some(id)
+          let info = Option.value_exn(Statics.Map.lookup(id, info_map));
+          Poly.equal(Sample.Focus.cur_var_ap(info), Some(id))
           && Haz3lcore.ProbeProj.can_step_into(info, s);
         | _ => fail("Expected one probe with samples")
         };
@@ -564,7 +564,7 @@ in apply(add(_, 10), 5)|},
         );
       switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
       | [(_, [s, ..._])] =>
-        let def = Option.get(frame_fn_def_id(s));
+        let def = Option.value_exn(frame_fn_def_id(s));
         check(
           bool,
           "not the function's own id",
@@ -576,7 +576,8 @@ in apply(add(_, 10), 5)|},
           "resolves to a function",
           true,
           switch (
-            Option.bind(Haz3lcore.ProbePerform.fn_def_in(info_map, def), id =>
+            Option.bind(
+              Haz3lcore.ProbePerform.fn_def_in(info_map, def), ~f=id =>
               Statics.Map.lookup(id, info_map)
             )
           ) {

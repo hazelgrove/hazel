@@ -99,16 +99,17 @@ let parens_typed_in = (name, marked, typed) =>
       let z =
         Test_Editing.perform(
           Test_TabDispatch.padding_zipper(marked),
-          List.map(c => Action.Insert(c), Token.to_list(typed)),
+          List.map(~f=c => Action.Insert(c), Token.to_list(typed)),
         );
       let rec lone = seg =>
         List.exists(
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile(t) =>
-              Tile.label(t) == ["("] || List.exists(lone, t.children)
-            | _ => false
-            },
+          ~f=
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) =>
+                Tile.label(t) == ["("] || List.exists(~f=lone, t.children)
+              | _ => false
+              },
           seg,
         );
       check(
@@ -130,10 +131,11 @@ let typed_in = (name, marked, typed) =>
       let z =
         Test_Editing.perform(
           Test_TabDispatch.padding_zipper(marked),
-          List.map(c => Action.Insert(c), Token.to_list(typed)),
+          List.map(~f=c => Action.Insert(c), Token.to_list(typed)),
         );
       let loaded =
-        Util.StringUtil.plain_split(marked, "¦") |> String.concat(typed);
+        Util.StringUtil.plain_split(marked, "¦")
+        |> String.concat(~sep=typed);
       check(
         bool,
         "MakeTerm reads the typed and loaded text identically: " ++ name,
@@ -146,7 +148,9 @@ let typed_in = (name, marked, typed) =>
             exp
         )(
           MakeTerm.go(Zipper.unselect_and_zip(z)).term,
-          MakeTerm.go(Option.get(Parser.to_segment(loaded, ~root=Exp))).
+          MakeTerm.go(
+            Option.value_exn(Parser.to_segment(loaded, ~root=Exp)),
+          ).
             term,
         ),
       );
@@ -159,7 +163,7 @@ let rejected = (name, txt) =>
       bool,
       "fast path bails: " ++ name,
       true,
-      FastParse.of_text(~root=Exp, txt) == None,
+      Option.is_none(FastParse.of_text(~root=Exp, txt)),
     )
   });
 
@@ -167,26 +171,28 @@ let rejected = (name, txt) =>
    grout shapes, secondaries' contents */
 let rec shape = (seg: Segment.t): string =>
   String.concat(
-    "",
+    ~sep="",
     List.map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          "<"
-          ++ Form.show(t.form)
-          ++ ":"
-          ++ Mold.show(Tile.mold(t))
-          ++ ":"
-          ++ String.concat(",", List.map(string_of_int, t.shards))
-          ++ String.concat(
-               "",
-               List.map(c => "[" ++ shape(c) ++ "]", t.children),
-             )
-          ++ ">"
-        | Grout(g) => Grout.show_shape(g.shape)
-        | Secondary(w) => Language.Secondary.show_secondary_content(w.content)
-        | Projector(pr) => "P" ++ shape([pr.syntax])
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            "<"
+            ++ Form.show(t.form)
+            ++ ":"
+            ++ Mold.show(Tile.mold(t))
+            ++ ":"
+            ++ String.concat(~sep=",", List.map(~f=string_of_int, t.shards))
+            ++ String.concat(
+                 ~sep="",
+                 List.map(~f=c => "[" ++ shape(c) ++ "]", t.children),
+               )
+            ++ ">"
+          | Grout(g) => Grout.show_shape(g.shape)
+          | Secondary(w) =>
+            Language.Secondary.show_secondary_content(w.content)
+          | Projector(pr) => "P" ++ shape([pr.syntax])
+          },
       seg,
     ),
   );
@@ -207,7 +213,7 @@ let paste_parity = (~sort: Sort.t, (root, src, needle, clip), ()) => {
         z0,
         Move(
           Point(
-            Option.get(
+            Option.value_exn(
               MA.point_of(~off=String.length(needle), src, needle),
             ),
             None,
@@ -248,8 +254,8 @@ let mod_paste_cases = {
   let top = "let a = 1;\nlet b = 2;\na";
   let defs =
     String.concat(
-      "",
-      List.init(5, i => Printf.sprintf("\nlet x%d = %d + 1;", i, i)),
+      ~sep="",
+      List.init(5, ~f=i => Printf.sprintf("\nlet x%d = %d + 1;", i, i)),
     );
   [
     ("definitions into a module body", (Sort.Mod, lit, "let a = 1;", defs)),
@@ -293,8 +299,8 @@ let exp_paste_cases = {
   let chain = "let a = 1 in\na";
   let defs =
     String.concat(
-      "",
-      List.init(3, i => Printf.sprintf("\nlet x%d = %d + 1 in", i, i)),
+      ~sep="",
+      List.init(3, ~f=i => Printf.sprintf("\nlet x%d = %d + 1 in", i, i)),
     );
   [
     (
@@ -334,14 +340,14 @@ let tests = (
           let rec go = s =>
             List.exists(
               ~f=
-              (p: Piece.t) =>
-                pred(p)
-                || (
-                  switch (p) {
+                (p: Piece.t) =>
+                  pred(p)
+                  || (
+                    switch (p) {
                     | Tile({children, _}) => List.exists(~f=go, children)
-                  | _ => false
-                  }
-                ),
+                    | _ => false
+                    }
+                  ),
               s,
             );
           go(seg);
@@ -427,12 +433,13 @@ let tests = (
           ++ " + 2 in\n  b;\nf(1)";
         let members =
           List.filter(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) => Tile.label(t) == ["let", "="]
-              | _ => false
-              },
-            Option.get(Parser.to_segment(src, ~root=Mod)),
+            ~f=
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile(t) => Tile.label(t) == ["let", "="]
+                | _ => false
+                },
+            Option.value_exn(Parser.to_segment(src, ~root=Mod)),
           );
         check(int, "members", 1, List.length(members));
       },
@@ -466,22 +473,22 @@ let tests = (
         let has_projector =
           List.exists(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
-                List.exists(
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile({children, _}) =>
+                  List.exists(
                     ~f=
                       List.exists(~f=q =>
-                    switch ((q: Piece.t)) {
-                    | Projector(_) => true
-                    | _ => false
-                    }
-                  ),
-                  children,
-                )
-              | Projector(_) => true
-              | _ => false
-              },
+                        switch ((q: Piece.t)) {
+                        | Projector(_) => true
+                        | _ => false
+                        }
+                      ),
+                    children,
+                  )
+                | Projector(_) => true
+                | _ => false
+                },
             seg,
           );
         check(bool, "projector piece present", true, has_projector);
@@ -568,17 +575,17 @@ let tests = (
           "wrapped projector materialized",
           true,
           List.exists(parsed.segment, ~f=(p: Piece.t) =>
-              switch (p) {
-              | Tile({children, _}) =>
+            switch (p) {
+            | Tile({children, _}) =>
               List.exists(children, ~f=child =>
                 List.exists(child, ~f=(p: Piece.t) =>
-                    switch (p) {
-                    | Projector({kind: Slider, _}) => true
-                    | _ => false
-                    }
+                  switch (p) {
+                  | Projector({kind: Slider, _}) => true
+                  | _ => false
+                  }
                 )
-                )
-              | _ => false
+              )
+            | _ => false
             }
           ),
         );
@@ -663,7 +670,12 @@ let tests = (
             ~root=Exp,
           );
         let (before_caret, _) = z.relatives.siblings;
-        check(bool, "nothing precedes the caret", true, before_caret == []);
+        check(
+          bool,
+          "nothing precedes the caret",
+          true,
+          List.is_empty(before_caret),
+        );
       },
     ),
     test_case("mod root wraps and unwraps", `Quick, () => {
@@ -671,7 +683,7 @@ let tests = (
         bool,
         "member chunk fast-paths at Mod root",
         true,
-        FastParse.of_text(~root=Mod, "let x = 1") != None,
+        Option.is_some(FastParse.of_text(~root=Mod, "let x = 1")),
       )
     }),
     test_case("graph module chunk: verbatim + fast", `Quick, () => {
@@ -703,17 +715,19 @@ let tests = (
     }),
   ]
   @ List.map(
-      ((name, case)) =>
-        test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
+      ~f=
+        ((name, case)) =>
+          test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
       mod_paste_cases,
     )
   @ List.map(
-      ((name, case)) =>
-        test_case(
-          "Exp paste: " ++ name,
-          `Quick,
-          paste_parity(~sort=Exp, case),
-        ),
+      ~f=
+        ((name, case)) =>
+          test_case(
+            "Exp paste: " ++ name,
+            `Quick,
+            paste_parity(~sort=Exp, case),
+          ),
       exp_paste_cases,
     ),
 );

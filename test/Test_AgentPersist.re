@@ -50,11 +50,11 @@ let legacy_tool_result = () => {
         List(
           List.filter_map(
             ~f=
-            x =>
-              switch (x) {
-              | List([Atom("content_is_payload"), _]) => None
-              | _ => Some(old(x))
-              },
+              x =>
+                switch (x) {
+                | List([Atom("content_is_payload"), _]) => None
+                | _ => Some(old(x))
+                },
             xs,
           ),
         )
@@ -104,12 +104,12 @@ let tests = (
           |> Test_AgentTools.render_zipper;
         List.iter(
           ~f=
-          t =>
-            Test_AgentTools.check_rendered(
-              "snapshot",
-              "let a = 1 in a",
+            t =>
+              Test_AgentTools.check_rendered(
+                "snapshot",
+                "let a = 1 in a",
                 render(Option.value_exn(t)),
-            ),
+              ),
           [tr.before_text, tr.after_text],
         );
         let diff = Option.value_exn(tr.diff);
@@ -161,11 +161,11 @@ let tests = (
           |> CompositionView.print_segment;
         List.iter(
           ~f=
-          ((root, text)) => {
+            ((root, text)) => {
               let old = Option.value_exn(FastParse.of_text(~root, text));
-            let restored = AgentToolResult.segment_of_diff_text(text);
-            check(string, "diff preview", render(old), render(restored));
-          },
+              let restored = AgentToolResult.segment_of_diff_text(text);
+              check(string, "diff preview", render(old), render(restored));
+            },
           [
             (Sort.Exp, "let x = 1 in"),
             (Sort.Exp, "let x = 1 in\n"),
@@ -209,7 +209,7 @@ let tests = (
           bool,
           "tool registry restored",
           true,
-          round.prompting.tools == Haz3lcore.CompositionUtils.tools,
+          Poly.equal(round.prompting.tools, Haz3lcore.CompositionUtils.tools),
         );
         /* every chat's root prompt message restored with its api copy */
         let prompts_ok =

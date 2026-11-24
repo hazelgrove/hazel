@@ -1,6 +1,7 @@
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open Poly;
 
 /* Signature-type builders. Items must be listed in synthesized (source)
    order: Typ.fast_equal compares signature items positionally. */
@@ -13,17 +14,20 @@ let closed_sig_ = items =>
   Language.Typ.temp(Sig(Closed(Language.ClosedSig.of_items(items))));
 
 let marks_of = (source): list(Language.Mark.t) =>
-  statics(parse_exp(source)) |> errors |> List.concat_map(snd);
+  statics(parse_exp(source)) |> errors |> List.concat_map(~f=snd);
 
 /* The marks on the nodes satisfying [pred]; fails if no node does. */
 let marks_at = (source, pred: Language.Info.t => bool): list(Language.Mark.t) =>
   switch (
     Language.Id.Map.bindings(statics(parse_exp(source)))
-    |> List.filter(((_, info)) => pred(info))
+    |> List.filter(~f=((_, info)) => pred(info))
   ) {
   | [] => Alcotest.fail("No node matches the predicate in " ++ source)
   | matches =>
-    List.concat_map(((_, info)) => Language.Info.marks_of(info), matches)
+    List.concat_map(
+      ~f=((_, info)) => Language.Info.marks_of(info),
+      matches,
+    )
   };
 
 /* The expression infos on the nodes satisfying [pred]; fails if no node
@@ -32,7 +36,7 @@ let exp_infos_at =
     (source, pred: Language.Info.t => bool): list(Language.Info.exp) =>
   switch (
     Language.Id.Map.bindings(statics(parse_exp(source)))
-    |> List.filter_map(((_, info: Language.Info.t)) =>
+    |> List.filter_map(~f=((_, info: Language.Info.t)) =>
          switch (info) {
          | InfoExp(e) when pred(info) => Some(e)
          | _ => None
@@ -46,7 +50,11 @@ let exp_infos_at =
 /* Assert that some mark in the program satisfies [pred]. */
 let has_mark_test = (name, source, pred: Language.Mark.t => bool) =>
   Alcotest.test_case(name, `Quick, () =>
-    Alcotest.(check(bool))(name, true, List.exists(pred, marks_of(source)))
+    Alcotest.(check(bool))(
+      name,
+      true,
+      List.exists(~f=pred, marks_of(source)),
+    )
   );
 
 /* Exactly one mark in the whole program, and it satisfies [pred]. */
@@ -96,10 +104,11 @@ let test_member_not_found_on_label =
         "label marked",
         true,
         List.exists(
-          fun
-          | Language.Mark.ModuleMemberNotFound({name: "y", members: ["x"]}) =>
-            true
-          | _ => false,
+          ~f=
+            fun
+            | Language.Mark.ModuleMemberNotFound({name: "y", members: ["x"]}) =>
+              true
+            | _ => false,
           marks_at(src, is_label("y")),
         ),
       );
@@ -119,7 +128,7 @@ let test_member_label_is_the_member =
       let src = {|let m = { let x = 1 } in m.x|};
       let label =
         exp_infos_at(src, is_label("x"))
-        |> List.for_all((info: Language.Info.exp) =>
+        |> List.for_all(~f=(info: Language.Info.exp) =>
              switch (info.cls, Language.Typ.term_of(info.ty)) {
              | (Exp(Label), Atom(Int)) => true
              | _ => false
@@ -127,7 +136,7 @@ let test_member_label_is_the_member =
            );
       let projection =
         exp_infos_at(src, is_dot)
-        |> List.for_all((info: Language.Info.exp) =>
+        |> List.for_all(~f=(info: Language.Info.exp) =>
              switch (info.cls) {
              | Exp(ModuleProjection) => true
              | _ => false
@@ -145,7 +154,7 @@ let test_tuple_projection_class =
     () => {
       let class_of_dot = src =>
         exp_infos_at(src, is_dot)
-        |> List.map((info: Language.Info.exp) => info.cls);
+        |> List.map(~f=(info: Language.Info.exp) => info.cls);
       Alcotest.(check(bool))(
         "tuple",
         true,
@@ -169,9 +178,10 @@ let test_tuple_label_not_found_on_label =
           "label marked: " ++ src,
           true,
           List.exists(
-            fun
-            | Language.Mark.LabelNotFound("y", ["x"]) => true
-            | _ => false,
+            ~f=
+              fun
+              | Language.Mark.LabelNotFound("y", ["x"]) => true
+              | _ => false,
             marks_at(src, is_label("y")),
           ),
         );
@@ -179,7 +189,7 @@ let test_tuple_label_not_found_on_label =
           "dot unmarked, with a message: " ++ src,
           true,
           exp_infos_at(src, is_dot)
-          |> List.for_all((info: Language.Info.exp) =>
+          |> List.for_all(~f=(info: Language.Info.exp) =>
                switch (info.marks, info.message) {
                | ([], Exp(TupleLabelNotFound("y", ["x"]))) => true
                | _ => false
@@ -201,7 +211,7 @@ let test_tuple_label_at_element_type =
          named x is the projection's. */
       let label_type = src =>
         exp_infos_at(src, is_label("x"))
-        |> List.map((info: Language.Info.exp) =>
+        |> List.map(~f=(info: Language.Info.exp) =>
              Language.Typ.term_of(info.ty)
            );
       Alcotest.(check(bool))(
@@ -231,7 +241,7 @@ let test_type_member_as_value_dot_message =
       let src = {|let m = { type T = Int } in m.T|};
       let agrees =
         exp_infos_at(src, is_dot)
-        |> List.for_all((info: Language.Info.exp) =>
+        |> List.for_all(~f=(info: Language.Info.exp) =>
              switch (info.message) {
              | Exp(ModuleMemberIsType("T")) => true
              | _ => false
@@ -259,7 +269,7 @@ let test_type_member_as_value_dot_not_missing =
         Language.Id.Map.bindings(
           statics(parse_exp({|let m = { type T = Int } in m.T|})),
         )
-        |> List.filter_map(((_, info: Language.Info.t)) =>
+        |> List.filter_map(~f=((_, info: Language.Info.t)) =>
              switch (info) {
              | InfoExp({user_term: {term: Dot(_), _}, message, _}) =>
                Some(message)
@@ -353,7 +363,7 @@ let test_holes_assume_missing_members =
   Alcotest.test_case(
     "A hole binder or item stands in for the missing members", `Quick, () =>
     List.iter(
-      source => check_fully_consistent(source, Some(int())),
+      ~f=source => check_fully_consistent(source, Some(int())),
       [
         {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
         {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
@@ -378,7 +388,7 @@ let test_signature_hole_member_is_unknown =
     `Quick,
     () =>
     List.iter(
-      ((source, ty)) => check_fully_consistent(source, Some(ty)),
+      ~f=((source, ty)) => check_fully_consistent(source, Some(ty)),
       [
         (
           {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y + 1|},
@@ -434,9 +444,10 @@ let test_error_non_binder_holes_do_not_assume =
     () => {
       let missing_y = src =>
         List.exists(
-          fun
-          | Language.Mark.ModuleMissingMembers(["y"]) => true
-          | _ => false,
+          ~f=
+            fun
+            | Language.Mark.ModuleMissingMembers(["y"]) => true
+            | _ => false,
           marks_of(src),
         );
       Alcotest.(check(bool))(
@@ -526,7 +537,7 @@ let test_nested_user_annotation_kept =
       Alcotest.(check(bool))(
         "the definition is not marked against Int",
         false,
-        List.exists(is_int_vs(Bool), marks),
+        List.exists(~f=is_int_vs(Bool), marks),
       );
     },
   );
@@ -547,7 +558,7 @@ let component_mismatch_test = (name, source, syn_cls) =>
       Alcotest.(check(bool))(
         "component marked",
         true,
-        List.exists(is_int_vs(syn_cls), marks_of(source)),
+        List.exists(~f=is_int_vs(syn_cls), marks_of(source)),
       );
       Alcotest.(check(bool))(
         "module unmarked",
@@ -628,9 +639,10 @@ let test_refutable_item_pattern_reported_on_item =
         "inexhaustive, on the item",
         true,
         List.exists(
-          fun
-          | Language.Mark.InexhaustiveMatch(_) => true
-          | _ => false,
+          ~f=
+            fun
+            | Language.Mark.InexhaustiveMatch(_) => true
+            | _ => false,
           marks_at(src, is_item),
         ),
       );
@@ -646,7 +658,7 @@ let test_bare_item_parent_is_the_module =
       let s = statics(exp);
       let parent_of_sum =
         Language.Id.Map.bindings(s)
-        |> List.find_map(((id, info: Language.Info.t)) =>
+        |> List.find_map(~f=((id, info: Language.Info.t)) =>
              switch (info) {
              | InfoExp({user_term: {term: BinOp(_), _}, _}) =>
                Some(Language.Statics.Map.parent_term_of(s, id))
@@ -698,10 +710,10 @@ let test_item_scope_references_are_variables =
         };
       let refs =
         Language.Id.Map.bindings(s)
-        |> List.concat_map(((_, info: Language.Info.t)) =>
+        |> List.concat_map(~f=((_, info: Language.Info.t)) =>
              switch (info) {
              | InfoMod({scope_co_ctx, _}) =>
-               List.concat_map(snd, scope_co_ctx)
+               List.concat_map(~f=snd, scope_co_ctx)
              | _ => []
              }
            );
@@ -709,7 +721,7 @@ let test_item_scope_references_are_variables =
       Alcotest.(check(bool))(
         "every reference is a variable",
         true,
-        List.for_all(is_var_ref, refs),
+        List.for_all(~f=is_var_ref, refs),
       );
     },
   );
@@ -948,8 +960,9 @@ let test_item_types =
         switch (exp.term) {
         | Module(items) =>
           List.map(
-            (item: Language.Mod.t) =>
-              Language.Statics.Map.ty_of(Language.Mod.rep_id(item), s),
+            ~f=
+              (item: Language.Mod.t) =>
+                Language.Statics.Map.ty_of(Language.Mod.rep_id(item), s),
             items,
           )
         | _ => []
@@ -979,11 +992,14 @@ let test_item_infos_are_module_items =
         switch (exp.term) {
         | Module(items) =>
           List.filter_map(
-            (item: Language.Mod.t) =>
-              switch (Language.Id.Map.find_opt(Language.Mod.rep_id(item), s)) {
-              | Some(InfoMod({cls, _})) => Some(cls)
-              | _ => None
-              },
+            ~f=
+              (item: Language.Mod.t) =>
+                switch (
+                  Language.Id.Map.find_opt(Language.Mod.rep_id(item), s)
+                ) {
+                | Some(InfoMod({cls, _})) => Some(cls)
+                | _ => None
+                },
             items,
           )
         | _ => []
@@ -1127,15 +1143,16 @@ let test_type_member_mismatch_on_the_definition =
       Alcotest.(check(bool))(
         "true marked against Int",
         true,
-        List.exists(is_int_vs(Bool), marks_of(src)),
+        List.exists(~f=is_int_vs(Bool), marks_of(src)),
       );
       Alcotest.(check(bool))(
         "Bool marked",
         true,
         List.exists(
-          fun
-          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
-          | _ => false,
+          ~f=
+            fun
+            | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+            | _ => false,
           marks_at(
             src,
             fun
@@ -1161,9 +1178,10 @@ let test_type_member_mismatch_with_right_definition =
         "the type member",
         true,
         List.exists(
-          fun
-          | Language.Mark.ModuleTypeMemberMismatch(_) => true
-          | _ => false,
+          ~f=
+            fun
+            | Language.Mark.ModuleTypeMemberMismatch(_) => true
+            | _ => false,
           marks,
         ),
       );
@@ -1268,12 +1286,13 @@ let test_modules_and_labeled_tuples_are_distinct =
     `Quick,
     () =>
     List.iter(
-      source =>
-        Alcotest.(check(bool))(
-          source,
-          false,
-          List.is_empty(marks_of(source)),
-        ),
+      ~f=
+        source =>
+          Alcotest.(check(bool))(
+            source,
+            false,
+            List.is_empty(marks_of(source)),
+          ),
       [
         {|let m : (x=Int) = { let x = "hello" } in m|},
         {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|},
@@ -1487,7 +1506,7 @@ let f : poly a -> (a, { type U = a; let u : U }) -> a = ? in f|};
       let s = statics(parse_exp(src));
       let not_closed =
         Language.Id.Map.bindings(s)
-        |> List.filter_map(((_, info: Language.Info.t)) =>
+        |> List.filter_map(~f=((_, info: Language.Info.t)) =>
              switch (info) {
              | InfoTyp({user_term, ty, ctx, _})
                  when
@@ -1692,8 +1711,8 @@ let test_shorthand_member_mismatch_on_definition =
       Alcotest.(check(bool))(
         "definition marked",
         true,
-        List.exists(~f=
-          is_mismatch,
+        List.exists(
+          ~f=is_mismatch,
           marks_at(
             src,
             fun
@@ -1810,10 +1829,11 @@ let test_typfun_binder_info_consistent =
         "every X binder is OK",
         true,
         !List.is_empty(infos)
-        && List.for_all(~f=
-             fun
-             | ([], Some(Language.Message.TPatOk(_))) => true
-             | _ => false,
+        && List.for_all(
+             ~f=
+               fun
+               | ([], Some(Language.Message.TPatOk(_))) => true
+               | _ => false,
              infos,
            ),
       );
@@ -2059,9 +2079,10 @@ let test_type_member_matches_through_alias =
     "A type member matches a declaration that names it through an alias",
     `Quick,
     () =>
-    List.iter(~f=
-      source =>
-        Alcotest.(check(int))(source, 0, List.length(marks_of(source))),
+    List.iter(
+      ~f=
+        source =>
+          Alcotest.(check(int))(source, 0, List.length(marks_of(source))),
       [
         {|type B = Bool in let m : { type A = B } = { type A = Bool } in m|},
         {|type B = Bool in let m : { type A = Bool } = { type A = B } in m|},
@@ -2226,10 +2247,11 @@ let test_annotated_member_checked_alongside_type_member =
       Alcotest.(check(bool))(
         "the type member and the annotation",
         true,
-        List.exists(~f=
-          fun
-          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
-          | _ => false,
+        List.exists(
+          ~f=
+            fun
+            | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+            | _ => false,
           marks,
         )
         && List.exists(~f=is_int_vs(Bool), marks_at(src, is_annotation)),
@@ -2500,9 +2522,13 @@ let marked_sig_item = (source): option(Language.Sig.t) => {
         | InfoSig({user_term, marks: [_, ..._], _})
             when
               !
-                List.exists(~f=
-                  (i: Language.Sig.t) =>
-                    Language.Sig.rep_id(i) == Language.Sig.rep_id(user_term),
+                List.exists(
+                  ~f=
+                    (i: Language.Sig.t) =>
+                      Poly.equal(
+                        Language.Sig.rep_id(i),
+                        Language.Sig.rep_id(user_term),
+                      ),
                   acc,
                 ) => [
             user_term,
@@ -2641,17 +2667,19 @@ let test_sig_let_not_a_name_declares_nothing =
         "the item mark and a missing member",
         true,
         List.exists(~f=not_a_name, marks)
-        && List.exists(~f=
-             (m: Language.Mark.t) =>
-               switch (m) {
-               | ModuleMemberNotFound({name: "a", _}) => true
-               | _ => false
-               },
+        && List.exists(
+             ~f=
+               (m: Language.Mark.t) =>
+                 switch (m) {
+                 | ModuleMemberNotFound({name: "a", _}) => true
+                 | _ => false
+                 },
              marks,
            )
         && List.length(marks) == 2,
       );
     },
+  );
 
 /* Module definitions wrapped in Parens or a projector */
 let test_qualified_type_parenthesized_module =
@@ -2947,7 +2975,6 @@ let tests = (
     test_renamed_alias_leaves_module_parameter_paths,
     test_renamed_alias_leaves_signature_member_paths,
     test_renamed_alias_leaves_module_member_paths,
-
     /* Parenthesized / folded module definitions */
     test_qualified_type_parenthesized_module,
     test_qualified_type_folded_module,

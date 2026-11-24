@@ -53,7 +53,7 @@ let run_insert_at_program_boundary =
       new_code: string,
     ) => {
   let z =
-    root == Sort.Exp
+    Sort.equal(root, Sort.Exp)
       ? mk_zipper(code) : Zipper.unzip(CorpusUtil.seg_of(~root, code));
   Perform.go(
     ~settings=CoreSettings.on,
@@ -66,7 +66,6 @@ let run_insert_at_program_boundary =
       col_target: None,
     },
   );
-
 };
 
 /** Test-only string compare for rendered programs: keep [[StringUtil]] minimal;
@@ -161,7 +160,7 @@ let apply_chain_render =
 /* a reply on [code] with no calls yet, on the kernel */
 let reply_on = (~root=Sort.Exp, code: string): CompositionGo.Reply.t => {
   let seg =
-    root == Sort.Exp
+    Sort.equal(root, Sort.Exp)
       ? Zipper.unselect_and_zip(mk_zipper(code))
       : CorpusUtil.seg_of(~root, code);
   let statics_of =
@@ -465,9 +464,9 @@ let replace_definition_tests = (
         /* round 2's E3: the whole tail chain written as joined's
            definition */
         let seg =
-          Option.get(
+          Option.value_exn(
             EntryLayout.parse(
-              Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+              Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
             ),
           );
         let statics_of =
@@ -1543,7 +1542,7 @@ let resolved = (code: string, path: string): option(string) => {
     | [(x, _), ..._] => Some(x)
     | [] =>
       Option.map(
-        EntryPath.to_string,
+        ~f=EntryPath.to_string,
         EntryPath.describe(~root=Exp, seg, f.id),
       )
     };
@@ -1554,8 +1553,8 @@ let resolved = (code: string, path: string): option(string) => {
 /* every entry's canonical path, in program order */
 let paths_of = (code: string): list(string) => {
   let seg = Zipper.unselect_and_zip(mk_zipper(code));
-  List.map(~f=
-    ((_, p)) => EntryPath.to_string(p),
+  List.map(
+    ~f=((_, p)) => EntryPath.to_string(p),
     EntryPath.entries(~root=Exp, seg),
   );
 };
@@ -1685,7 +1684,6 @@ let high_level_node_map_tests = (
       "types and lets after a type chain",
       `Quick,
       () => {
-
         check(
           list(string),
           "paths",
@@ -1830,13 +1828,16 @@ let composition_utils_tests = (
           && Result.is_error(parse("insert", [("code", "let c = 3")])),
         );
         List.iter(
-          old =>
-            check(
-              bool,
-              old ++ " is gone",
-              true,
-              Result.is_error(parse(old, [("path", "a"), ("code", "1")])),
-            ),
+          ~f=
+            old =>
+              check(
+                bool,
+                old ++ " is gone",
+                true,
+                Result.is_error(
+                  parse(old, [("path", "a"), ("code", "1")]),
+                ),
+              ),
           [
             "update_definition",
             "update_body",
@@ -2336,7 +2337,8 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2353,7 +2355,8 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2370,7 +2373,8 @@ let sequential_operations_tests = (
         let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("Outer/M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2766,13 +2770,17 @@ let agent_context_tests = (
   "AgentContext",
   [
     test_case(
-
       "path M resolves for capitalized module",
       `Quick,
       () => {
         let node_map =
           build_node_map("module M = { let x = 1; let y = 2 } in M.x + M.y");
-        check(bool, "path M resolves", true, path_id(node_map, "M") != None);
+        check(
+          bool,
+          "path M resolves",
+          true,
+          Option.is_some(path_id(node_map, "M")),
+        );
       },
     ),
   ],
@@ -2789,44 +2797,46 @@ let self_reference_errors = () => {
   let mentions = (needle, e) => CorpusUtil.contains(needle, e);
   let body = "module RunningSums = {\n  let running_max = 3;\n  let twice = RunningSums.running_max * 2\n}";
   List.iter(
-    ((root: Sort.t, code)) => {
-      let term =
-        switch (Parser.to_zipper(~root, code)) {
-        | Some(z) => MakeTerm.from_zip_for_sem(z, ~root).term
-        | None => fail("Failed to parse: " ++ code)
-        };
-      List.iter(
-        ((what, info_map)) => {
-          let what = Sort.show(root) ++ " " ++ what;
-          let errors = ErrorPrint.all(info_map);
-          check(
-            bool,
-            what ++ ": says why",
-            true,
-            List.exists(mentions(want), errors),
-          );
-          check(
-            list(string),
-            what ++ ": nothing else",
-            [],
-            List.filter(e => !mentions(want, e), errors),
-          );
-        },
-        [
-          (
-            "monolithic",
-            fst(Statics.mk(CoreSettings.on, DefStatics.ctx0, term)),
-          ),
-          (
-            "DefStatics",
-            DefStatics.calc(~settings=CoreSettings.on, term).merged,
-          ),
-        ],
-      );
-    },
+    ~f=
+      ((root: Sort.t, code)) => {
+        let term =
+          switch (Parser.to_zipper(~root, code)) {
+          | Some(z) => MakeTerm.from_zip_for_sem(z, ~root).term
+          | None => fail("Failed to parse: " ++ code)
+          };
+        List.iter(
+          ~f=
+            ((what, info_map)) => {
+              let what = Sort.show(root) ++ " " ++ what;
+              let errors = ErrorPrint.all(info_map);
+              check(
+                bool,
+                what ++ ": says why",
+                true,
+                List.exists(~f=mentions(want), errors),
+              );
+              check(
+                list(string),
+                what ++ ": nothing else",
+                [],
+                List.filter(~f=e => !mentions(want, e), errors),
+              );
+            },
+          [
+            (
+              "monolithic",
+              fst(Statics.mk(CoreSettings.on, DefStatics.ctx0, term)),
+            ),
+            (
+              "DefStatics",
+              DefStatics.calc(~settings=CoreSettings.on, term).merged,
+            ),
+          ],
+        );
+      },
     [
-      (Exp, body ++ " in\nRunningSums.twice"),
-      (Mod, body ++ ";\nRunningSums.twice"),
+      (Sort.Exp, body ++ " in\nRunningSums.twice"),
+      (Sort.Mod, body ++ ";\nRunningSums.twice"),
     ],
   );
   let errors = ErrorPrint.all(mk_statics(mk_zipper("let y = Nope.x in y")));
@@ -2834,7 +2844,7 @@ let self_reference_errors = () => {
     bool,
     "another module's name stays undefined",
     true,
-    List.exists(mentions("Constructor is not defined"), errors),
+    List.exists(~f=mentions("Constructor is not defined"), errors),
   );
 };
 
@@ -2847,7 +2857,7 @@ let printed_parens = () => {
       code ++ " says " ++ expected,
       true,
       List.exists(
-        CorpusUtil.contains(expected),
+        ~f=CorpusUtil.contains(expected),
         ErrorPrint.all(mk_statics(mk_zipper(code))),
       ),
     );
@@ -2987,20 +2997,20 @@ let tool_json_tests = (
         let tools = CompositionUtils.tools;
         List.iter(
           ~f=
-          (tool: API.Json.t) => {
-            switch (API.Json.dot("type", tool)) {
-            | Some(`String("function")) => ()
-            | _ => Alcotest.fail("Tool missing type=function")
-            };
-            switch (API.Json.dot("function", tool)) {
-            | Some(func) =>
-              switch (API.Json.dot("name", func)) {
-              | Some(`String(_)) => ()
-              | _ => Alcotest.fail("Tool function missing name")
-              }
-            | None => Alcotest.fail("Tool missing function field")
-            };
-          },
+            (tool: API.Json.t) => {
+              switch (API.Json.dot("type", tool)) {
+              | Some(`String("function")) => ()
+              | _ => Alcotest.fail("Tool missing type=function")
+              };
+              switch (API.Json.dot("function", tool)) {
+              | Some(func) =>
+                switch (API.Json.dot("name", func)) {
+                | Some(`String(_)) => ()
+                | _ => Alcotest.fail("Tool function missing name")
+                }
+              | None => Alcotest.fail("Tool missing function field")
+              };
+            },
           tools,
         );
       },
@@ -3012,20 +3022,20 @@ let tool_json_tests = (
         let tools = CompositionUtils.tools;
         List.iter(
           ~f=
-          (tool: API.Json.t) => {
-            switch (API.Json.dot("function", tool)) {
-            | Some(func) =>
-              switch (API.Json.dot("parameters", func)) {
-              | Some(params) =>
-                switch (API.Json.dot("type", params)) {
-                | Some(`String("object")) => ()
-                | _ => Alcotest.fail("Parameters missing type=object")
+            (tool: API.Json.t) => {
+              switch (API.Json.dot("function", tool)) {
+              | Some(func) =>
+                switch (API.Json.dot("parameters", func)) {
+                | Some(params) =>
+                  switch (API.Json.dot("type", params)) {
+                  | Some(`String("object")) => ()
+                  | _ => Alcotest.fail("Parameters missing type=object")
+                  }
+                | None => Alcotest.fail("Function missing parameters")
                 }
-              | None => Alcotest.fail("Function missing parameters")
+              | None => Alcotest.fail("Tool missing function")
               }
-            | None => Alcotest.fail("Tool missing function")
-            }
-          },
+            },
           tools,
         );
       },
@@ -3060,18 +3070,18 @@ let tool_json_tests = (
         let tools = CompositionUtils.tools;
         List.iter(
           ~f=
-          (tool: API.Json.t) => {
-            switch (get_tool_description(tool)) {
-            | Some(desc) =>
-              check(
-                bool,
-                "description non-empty",
-                true,
-                String.length(desc) > 0,
-              )
-            | None => Alcotest.fail("get_tool_description returned None")
-            }
-          },
+            (tool: API.Json.t) => {
+              switch (get_tool_description(tool)) {
+              | Some(desc) =>
+                check(
+                  bool,
+                  "description non-empty",
+                  true,
+                  String.length(desc) > 0,
+                )
+              | None => Alcotest.fail("get_tool_description returned None")
+              }
+            },
           tools,
         );
       },
@@ -3082,7 +3092,8 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         let names = List.filter_map(~f=get_tool_name, tools);
-        let unique_names = List.dedup_and_sort(~compare=String.compare, names);
+        let unique_names =
+          List.dedup_and_sort(~compare=String.compare, names);
         check(
           int,
           "all names unique",
@@ -3100,36 +3111,41 @@ let tool_json_tests = (
         let tools = CompositionUtils.tools;
         List.iter(
           ~f=
-          (tool: API.Json.t) => {
-            switch (get_tool_name(tool)) {
+            (tool: API.Json.t) => {
+              switch (get_tool_name(tool)) {
               | Some(name)
                   when List.mem(edit_tool_names, name, ~equal=Poly.equal) =>
-              switch (API.Json.dot("function", tool)) {
-              | Some(func) =>
-                switch (API.Json.dot("parameters", func)) {
-                | Some(params) =>
-                  switch (API.Json.dot("required", params)) {
-                  | Some(`List(required)) =>
-                    let has_target =
-                      List.exists(
+                switch (API.Json.dot("function", tool)) {
+                | Some(func) =>
+                  switch (API.Json.dot("parameters", func)) {
+                  | Some(params) =>
+                    switch (API.Json.dot("required", params)) {
+                    | Some(`List(required)) =>
+                      let has_target =
+                        List.exists(
                           ~f=
-                        r =>
-                          switch (r) {
-                          | `String("target") => true
-                          | _ => false
-                          },
-                        required,
+                            r =>
+                              switch (r) {
+                              | `String("target") => true
+                              | _ => false
+                              },
+                          required,
+                        );
+                      check(
+                        bool,
+                        name ++ " requires target",
+                        true,
+                        has_target,
                       );
-                    check(bool, name ++ " requires target", true, has_target);
-                  | _ => Alcotest.fail(name ++ " missing required field")
+                    | _ => Alcotest.fail(name ++ " missing required field")
+                    }
+                  | None => Alcotest.fail(name ++ " missing parameters")
                   }
-                | None => Alcotest.fail(name ++ " missing parameters")
+                | None => Alcotest.fail(name ++ " missing function")
                 }
-              | None => Alcotest.fail(name ++ " missing function")
+              | _ => ()
               }
-            | _ => ()
-            }
-          },
+            },
           tools,
         );
       },
@@ -3149,36 +3165,36 @@ let tool_json_tests = (
         let tools = CompositionUtils.tools;
         List.iter(
           ~f=
-          (tool: API.Json.t) => {
-            switch (get_tool_name(tool)) {
+            (tool: API.Json.t) => {
+              switch (get_tool_name(tool)) {
               | Some(name)
                   when List.mem(probe_tool_names, name, ~equal=Poly.equal) =>
-              switch (API.Json.dot("function", tool)) {
-              | Some(func) =>
-                switch (API.Json.dot("parameters", func)) {
-                | Some(params) =>
-                  switch (API.Json.dot("required", params)) {
-                  | Some(`List(required)) =>
-                    let has_paths =
-                      List.exists(
+                switch (API.Json.dot("function", tool)) {
+                | Some(func) =>
+                  switch (API.Json.dot("parameters", func)) {
+                  | Some(params) =>
+                    switch (API.Json.dot("required", params)) {
+                    | Some(`List(required)) =>
+                      let has_paths =
+                        List.exists(
                           ~f=
-                        r =>
-                          switch (r) {
-                          | `String("paths") => true
-                          | _ => false
-                          },
-                        required,
-                      );
-                    check(bool, name ++ " requires paths", true, has_paths);
-                  | _ => Alcotest.fail(name ++ " missing required field")
+                            r =>
+                              switch (r) {
+                              | `String("paths") => true
+                              | _ => false
+                              },
+                          required,
+                        );
+                      check(bool, name ++ " requires paths", true, has_paths);
+                    | _ => Alcotest.fail(name ++ " missing required field")
+                    }
+                  | None => Alcotest.fail(name ++ " missing parameters")
                   }
-                | None => Alcotest.fail(name ++ " missing parameters")
+                | None => Alcotest.fail(name ++ " missing function")
                 }
-              | None => Alcotest.fail(name ++ " missing function")
+              | _ => ()
               }
-            | _ => ()
-            }
-          },
+            },
           tools,
         );
       },
@@ -3187,28 +3203,29 @@ let tool_json_tests = (
       "tool registry covers exactly the declared tools",
       `Quick,
       () => {
-        let declared = List.filter_map(~f=get_tool_name, CompositionUtils.tools);
+        let declared =
+          List.filter_map(~f=get_tool_name, CompositionUtils.tools);
         let registered = List.map(~f=fst, Web.Agent.ToolUtils.registry);
         List.iter(
           ~f=
-          name =>
-            check(
-              bool,
-              "registry entry for " ++ name,
-              true,
+            name =>
+              check(
+                bool,
+                "registry entry for " ++ name,
+                true,
                 List.mem(registered, name, ~equal=Poly.equal),
-            ),
+              ),
           declared,
         );
         List.iter(
           ~f=
-          name =>
-            check(
-              bool,
-              "declared tool for registry entry " ++ name,
-              true,
+            name =>
+              check(
+                bool,
+                "declared tool for registry entry " ++ name,
+                true,
                 List.mem(declared, name, ~equal=Poly.equal),
-            ),
+              ),
           registered,
         );
       },
@@ -3492,7 +3509,12 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("let x : Int = 1 in x");
-        check(bool, "x present", true, path_id(node_map, "x") != None);
+        check(
+          bool,
+          "x present",
+          true,
+          Option.is_some(path_id(node_map, "x")),
+        );
       },
     ),
     test_case(
@@ -3500,8 +3522,18 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("type T = Int in let x : T = 1 in x");
-        check(bool, "x present", true, path_id(node_map, "x") != None);
-        check(bool, "T present", true, path_id(node_map, "T") != None);
+        check(
+          bool,
+          "x present",
+          true,
+          Option.is_some(path_id(node_map, "x")),
+        );
+        check(
+          bool,
+          "T present",
+          true,
+          Option.is_some(path_id(node_map, "T")),
+        );
       },
     ),
     test_case(
@@ -3516,7 +3548,7 @@ let ascribed_binding_tests = (
           bool,
           "x present at end of type chain",
           true,
-          path_id(node_map, "x") != None,
+          Option.is_some(path_id(node_map, "x")),
         );
       },
     ),
@@ -3530,13 +3562,13 @@ let ascribed_binding_tests = (
           bool,
           "outer/inner present",
           true,
-          path_id(node_map, "outer/inner") != None,
+          Option.is_some(path_id(node_map, "outer/inner")),
         );
         check(
           bool,
           "bare inner not ambiguously at top level",
           true,
-          path_id(node_map, "inner") == None,
+          Option.is_none(path_id(node_map, "inner")),
         );
       },
     ),
@@ -3713,37 +3745,37 @@ let ascribed_binding_tests = (
           bool,
           "Color present",
           true,
-          path_id(node_map, "Color") != None,
+          Option.is_some(path_id(node_map, "Color")),
         );
         check(
           bool,
           "PieceType present",
           true,
-          path_id(node_map, "PieceType") != None,
+          Option.is_some(path_id(node_map, "PieceType")),
         );
         check(
           bool,
           "Piece present",
           true,
-          path_id(node_map, "Piece") != None,
+          Option.is_some(path_id(node_map, "Piece")),
         );
         check(
           bool,
           "Square present",
           true,
-          path_id(node_map, "Square") != None,
+          Option.is_some(path_id(node_map, "Square")),
         );
         check(
           bool,
           "Board present",
           true,
-          path_id(node_map, "Board") != None,
+          Option.is_some(path_id(node_map, "Board")),
         );
         check(
           bool,
           "initial_board present",
           true,
-          path_id(node_map, "initial_board") != None,
+          Option.is_some(path_id(node_map, "initial_board")),
         );
       },
     ),
@@ -3779,7 +3811,7 @@ let ascribed_binding_tests = (
         ) {
         | Error(e) => Alcotest.fail("delete failed: " ++ e)
         | Ok(r) =>
-          let m = List.hd(CompositionGo.Reply.made(r));
+          let m = List.hd_exn(CompositionGo.Reply.made(r));
           check(
             option(pair(string, option(string))),
             "old entry, no new one",
@@ -3894,13 +3926,13 @@ let expect_failure_mentioning =
   | Error(Action.Failure.Composition_action_failure(msg)) =>
     List.iter(
       ~f=
-      needle =>
-        check(
-          bool,
-          name ++ " mentions \"" ++ needle ++ "\" in: " ++ msg,
-          true,
-          contains_str(~needle, msg),
-        ),
+        needle =>
+          check(
+            bool,
+            name ++ " mentions \"" ++ needle ++ "\" in: " ++ msg,
+            true,
+            contains_str(~needle, msg),
+          ),
       needles,
     )
   | Error(err) =>
@@ -4074,29 +4106,32 @@ let rename_and_path_safety_tests = (
           bool,
           "bare shadowed path is None",
           true,
-          path_id(node_map, "x") == None,
+          Option.is_none(path_id(node_map, "x")),
         );
         let id1 = path_id(node_map, "x#1");
         let id2 = path_id(node_map, "x#2");
-        check(bool, "x#1 resolves", true, id1 != None);
-        check(bool, "x#2 resolves", true, id2 != None);
+        check(bool, "x#1 resolves", true, Option.is_some(id1));
+        check(bool, "x#2 resolves", true, Option.is_some(id2));
         check(bool, "x#1 and x#2 differ", true, id1 != id2);
         let order =
           List.map(
-            (e: Outline.entry) => Some(e.id),
+            ~f=(e: Outline.entry) => Some(e.id),
             Outline.all(node_map),
           );
         check(
           list(option(testable(Fmt.of_to_string(Id.str3), Id.equal))),
           "x#1, then x#2, in program order",
           [id1, id2],
-          List.filter(id => id == id1 || id == id2, order),
+          List.filter(
+            ~f=id => Poly.equal(id, id1) || Poly.equal(id, id2),
+            order,
+          ),
         );
         check(
           bool,
           "out-of-range occurrence is None",
           true,
-          path_id(node_map, "x#3") == None,
+          Option.is_none(path_id(node_map, "x#3")),
         );
       },
     ),
@@ -4106,13 +4141,14 @@ let rename_and_path_safety_tests = (
       () => {
         let msg = path_error("let x = 1 in let x = 2 in x", "x");
         List.iter(
-          needle =>
-            check(
-              bool,
-              "mentions " ++ needle ++ ": " ++ msg,
-              true,
-              contains_str(~needle, msg),
-            ),
+          ~f=
+            needle =>
+              check(
+                bool,
+                "mentions " ++ needle ++ ": " ++ msg,
+                true,
+                contains_str(~needle, msg),
+              ),
           ["ambiguous", "x#1", "x#2"],
         );
       },
@@ -4126,7 +4162,7 @@ let rename_and_path_safety_tests = (
           bool,
           "unique path resolves",
           true,
-          path_id(node_map, "b") != None,
+          Option.is_some(path_id(node_map, "b")),
         );
       },
     ),
@@ -4316,7 +4352,7 @@ let fn_sugar_tests = (
           bool,
           "full rendered pattern is not a path",
           true,
-          path_id(node_map, "contains((xs, y))") == None,
+          Option.is_none(path_id(node_map, "contains((xs, y))")),
         );
       },
     ),
@@ -4325,15 +4361,25 @@ let fn_sugar_tests = (
       `Quick,
       () => {
         let nm1 = build_node_map("let inc(x) = x + 1 in inc(1)");
-        check(bool, "one-param path", true, path_id(nm1, "inc") != None);
+        check(
+          bool,
+          "one-param path",
+          true,
+          Option.is_some(path_id(nm1, "inc")),
+        );
         let nm0 = build_node_map("let f() = 3 in f()");
-        check(bool, "zero-param path", true, path_id(nm0, "f") != None);
+        check(
+          bool,
+          "zero-param path",
+          true,
+          Option.is_some(path_id(nm0, "f")),
+        );
         let nm_asc = build_node_map("let g(x): Int = x in g(1)");
         check(
           bool,
           "return-annotated path",
           true,
-          path_id(nm_asc, "g") != None,
+          Option.is_some(path_id(nm_asc, "g")),
         );
       },
     ),
@@ -4346,10 +4392,20 @@ let fn_sugar_tests = (
           bool,
           "bare shared name is None",
           true,
-          path_id(node_map, "f") == None,
+          Option.is_none(path_id(node_map, "f")),
         );
-        check(bool, "f#1 resolves", true, path_id(node_map, "f#1") != None);
-        check(bool, "f#2 resolves", true, path_id(node_map, "f#2") != None);
+        check(
+          bool,
+          "f#1 resolves",
+          true,
+          Option.is_some(path_id(node_map, "f#1")),
+        );
+        check(
+          bool,
+          "f#2 resolves",
+          true,
+          Option.is_some(path_id(node_map, "f#2")),
+        );
         expect_failure_mentioning(
           "let f(x) = x in let f = 1 in f",
           Replace("f:definition", "9"),
@@ -4519,7 +4575,9 @@ let fn_sugar_tests = (
           bool,
           "def target resolves",
           true,
-          Web.AgentToolCallHandler.definition_id(~root=Exp, seg, "f") != None,
+          Option.is_some(
+            Web.AgentToolCallHandler.definition_id(~root=Exp, seg, "f"),
+          ),
         );
       },
     ),
@@ -4957,7 +5015,8 @@ let module_member_tests = (
       () => {
         /* Bare comma tuple: Menhir-rejected even with hole completion.
            New code is read by the batch parser only */
-        let big = String.concat(~sep=", ", List.init(900, ~f=i => string_of_int(i)));
+        let big =
+          String.concat(~sep=", ", List.init(900, ~f=i => string_of_int(i)));
         switch (
           run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
@@ -5039,9 +5098,9 @@ let apply_at_mod_root = (~code=mod_root_program, a: Action.Structural.t) =>
 
 /* [mod_root_program] with [line] replaced by [by] (a list: none deletes) */
 let mod_root_with = (line: string, by: list(string)): string =>
-  String.split_on_char('\n', mod_root_program)
-  |> List.concat_map(l => l == line ? by : [l])
-  |> String.concat("\n");
+  String.split(~on='\n', mod_root_program)
+  |> List.concat_map(~f=l => l == line ? by : [l])
+  |> String.concat(~sep="\n");
 
 let mod_root_tests = (
   "AgentTools.ModRoot",

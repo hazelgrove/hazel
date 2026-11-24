@@ -62,7 +62,7 @@ let check_monotonicity = (name: string, src: string): unit => {
     } else {
       let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
-      if (len < prev_len && violation^ == None) {
+      if (len < prev_len && Option.is_none(violation^)) {
         violation :=
           Some(
             sprintf(
@@ -132,10 +132,10 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
 let monotonicity_tests =
   List.map(
     ~f=
-    ((name, src)) =>
-      test_case("monotonicity: " ++ name, `Quick, () =>
-        check_monotonicity(name, src)
-      ),
+      ((name, src)) =>
+        test_case("monotonicity: " ++ name, `Quick, () =>
+          check_monotonicity(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -305,7 +305,7 @@ let check_hard_cap = (name: string, src: string): unit => {
     } else {
       let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
-      if (len > budget && violation^ == None) {
+      if (len > budget && Option.is_none(violation^)) {
         violation :=
           Some(
             sprintf(
@@ -331,10 +331,10 @@ let check_hard_cap = (name: string, src: string): unit => {
 let hard_cap_tests =
   List.map(
     ~f=
-    ((name, src)) =>
-      test_case("hard cap: " ++ name, `Quick, () =>
-        check_hard_cap(name, src)
-      ),
+      ((name, src)) =>
+        test_case("hard cap: " ++ name, `Quick, () =>
+          check_hard_cap(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -518,13 +518,13 @@ let module_abbreviation_tests = [
         check(Alcotest.int, "label count", 3, List.length(labels));
         List.iter(
           ~f=
-          (label: string) =>
-            check(
-              Alcotest.bool,
-              "label not empty",
-              true,
-              String.length(label) > 0,
-            ),
+            (label: string) =>
+              check(
+                Alcotest.bool,
+                "label not empty",
+                true,
+                String.length(label) > 0,
+              ),
           labels,
         );
       | _ => fail("expected tuple after abbreviation")

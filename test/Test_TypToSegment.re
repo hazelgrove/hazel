@@ -513,18 +513,19 @@ let parens_tests = [
 /* The tiles of a segment that print one token, by id, with that token. */
 let rec token_tiles = (s: Segment.t): list((Id.t, string)) =>
   List.concat_map(
-    fun
-    | Piece.Tile(t) =>
-      (
-        switch (Tile.label(t)) {
-        | [token] => [(t.id, token)]
-        | _ => []
-        }
-      )
-      @ token_tiles(List.concat(t.children))
-    | Grout(_)
-    | Secondary(_)
-    | Projector(_) => [],
+    ~f=
+      fun
+      | Piece.Tile(t) =>
+        (
+          switch (Tile.label(t)) {
+          | [token] => [(t.id, token)]
+          | _ => []
+          }
+        )
+        @ token_tiles(List.concat(t.children))
+      | Grout(_)
+      | Secondary(_)
+      | Projector(_) => [],
     s,
   );
 
@@ -532,9 +533,10 @@ let rec token_tiles = (s: Segment.t): list((Id.t, string)) =>
 let tokens_at = (segment, ids) => {
   let printed = token_tiles(segment);
   List.filter_map(
-    ((_, id)) =>
-      List.find_opt(((t, _)) => Id.compare(t, id) == 0, printed)
-      |> Option.map(snd),
+    ~f=
+      ((_, id)) =>
+        List.find(~f=((t, _)) => Id.compare(t, id) == 0, printed)
+        |> Option.map(~f=snd),
     ids,
   );
 };
@@ -561,14 +563,19 @@ let var_id_tests = [
       check(
         list(string),
         "the tokens at the reported ids",
-        List.map(fst, binders),
+        List.map(~f=fst, binders),
         tokens_at(segment, binders),
       );
       check(
         int,
         "a distinct id for each binder",
         List.length(binders),
-        List.length(List.sort_uniq(Id.compare, List.map(snd, binders))),
+        List.length(
+          List.dedup_and_sort(
+            ~compare=Id.compare,
+            List.map(~f=snd, binders),
+          ),
+        ),
       );
     },
   ),
@@ -590,11 +597,12 @@ let var_id_tests = [
       check(
         list(string),
         "the tokens at the reported ids",
-        List.map(fst, vars),
+        List.map(~f=fst, vars),
         List.filter_map(
-          ((_, id)) =>
-            List.find_opt(((t, _)) => Id.compare(t, id) == 0, printed)
-            |> Option.map(snd),
+          ~f=
+            ((_, id)) =>
+              List.find(~f=((t, _)) => Id.compare(t, id) == 0, printed)
+              |> Option.map(~f=snd),
           vars,
         ),
       );

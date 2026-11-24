@@ -33,7 +33,7 @@ let shows_no_renamed_name = (what, shown) =>
     list(string),
     what,
     [],
-    List.filter(s => String.contains(s, '#'), shown),
+    List.filter(~f=s => String.contains(s, '#'), shown),
   );
 
 /* Whether one of [code]'s messages matches [pattern]. */
@@ -42,13 +42,13 @@ let reports = (code: string, pattern: string) => {
   let matches = m =>
     switch (Str.search_forward(Str.regexp(pattern), m, 0)) {
     | _ => true
-    | exception Not_found => false
+    | exception Stdlib.Not_found => false
     };
   check(
     bool,
-    String.concat("\n", messages),
+    String.concat(~sep="\n", messages),
     true,
-    List.exists(matches, messages),
+    List.exists(~f=matches, messages),
   );
 };
 
@@ -57,25 +57,28 @@ let tests = (
   [
     test_case("a message never shows a renamed binder's name", `Quick, () =>
       List.iter(
-        code => shows_no_renamed_name(code, ErrorPrint.all(info_map(code))),
+        ~f=
+          code =>
+            shows_no_renamed_name(code, ErrorPrint.all(info_map(code))),
         shadowing,
       )
     ),
     test_case("a node's type never shows a renamed binder's name", `Quick, () =>
       List.iter(
-        code =>
-          shows_no_renamed_name(
-            code,
-            Id.Map.fold(
-              (_, info: Info.t, shown) =>
-                switch (info) {
-                | InfoExp({ty, _}) => [ErrorPrint.Print.typ(ty), ...shown]
-                | _ => shown
-                },
-              info_map(code),
-              [],
+        ~f=
+          code =>
+            shows_no_renamed_name(
+              code,
+              Id.Map.fold(
+                (_, info: Info.t, shown) =>
+                  switch (info) {
+                  | InfoExp({ty, _}) => [ErrorPrint.Print.typ(ty), ...shown]
+                  | _ => shown
+                  },
+                info_map(code),
+                [],
+              ),
             ),
-          ),
         shadowing,
       )
     ),

@@ -43,8 +43,8 @@ let slash_command_tests = [
       );
       List.iter(
         ~f=
-        ((_, desc)) =>
-          check_bool("desc non-empty", true, String.length(desc) > 0),
+          ((_, desc)) =>
+            check_bool("desc non-empty", true, String.length(desc) > 0),
         xs,
       );
     },
@@ -314,7 +314,7 @@ let chat_context_meter_tests = [
         bool,
         "no meter until post-compaction agent reply",
         true,
-        Chat.Utils.context_meter_prompt_tokens(chat) == None,
+        Option.is_none(Chat.Utils.context_meter_prompt_tokens(chat)),
       );
     },
   ),
@@ -415,14 +415,14 @@ let agent_workbench_tests = [
           ~subtasks=[sub("s1"), sub("s2"), sub("s3")],
         );
       let model =
-        List.fold_left(
-          apply,
-          W.Utils.MainUtils.init(),
+        List.fold(
           [
-            CreateNewTask(task),
+            W.Update.Action.BackendAction.CreateNewTask(task),
             MarkActiveSubtaskComplete("did s1"),
             MarkActiveSubtaskFailed("s2 failed"),
           ],
+          ~init=W.Utils.MainUtils.init(),
+          ~f=apply,
         );
       let t =
         W.Utils.TaskUtils.find_task(model, "Parent")
@@ -433,11 +433,12 @@ let agent_workbench_tests = [
         "each subtask's own summary",
         [Some("did s1"), Some("s2 failed"), None],
         List.map(
-          (s: W.Model.subtask) =>
-            Option.map(
-              (c: W.Model.completion_info) => c.summary,
-              s.completion_info,
-            ),
+          ~f=
+            (s: W.Model.subtask) =>
+              Option.map(
+                ~f=(c: W.Model.completion_info) => c.summary,
+                s.completion_info,
+              ),
           W.Utils.TaskUtils.ordered_subtasks_of(t),
         ),
       );
@@ -471,12 +472,12 @@ let chat_messages_for_openrouter_tests = [
       let has_compact =
         List.exists(
           ~f=
-          (m: Message.Model.t) =>
-            switch (m.role) {
+            (m: Message.Model.t) =>
+              switch (m.role) {
               | Message.Model.System(Message.Model.CompactionSummary(_)) =>
                 true
-            | _ => false
-            },
+              | _ => false
+              },
           ms,
         );
       check_bool("includes compaction summary", true, has_compact);
@@ -1182,7 +1183,7 @@ let tool_call_summary_tests = [
     () => {
       let args = `Assoc([("target", `String("fib"))]);
       List.iter(
-        name => check_category(name, Edit, mk_tc(~name, ~args)),
+        ~f=name => check_category(name, Edit, mk_tc(~name, ~args)),
         ["insert", "replace", "delete", "move", "rename"],
       );
     },
@@ -1229,7 +1230,7 @@ let tool_call_summary_tests = [
     () => {
       let r =
         ToolCallSummary.of_tool_call(mk_tc(~name="nope", ~args=`Assoc([])));
-      check_bool("None", true, r == None);
+      check_bool("None", true, Option.is_none(r));
     },
   ),
   test_case(
@@ -1456,7 +1457,7 @@ let stream_accumulator_tests = [
       check_string("second delta", "world", d2.content_delta);
       let r = finalize_reply(acc);
       check_string("final content", "hello world", r.content);
-      check_bool("no reasoning", true, r.reasoning == None);
+      check_bool("no reasoning", true, Option.is_none(r.reasoning));
       check_int("no tool calls", 0, List.length(r.tool_calls));
     },
   ),
@@ -1491,7 +1492,7 @@ let stream_accumulator_tests = [
         feed_json(acc, {|{"choices":[{"delta":{"reasoning":"alone"}}]}|});
       let r = finalize_reply(acc);
       check_string("content takes over", "alone", r.content);
-      check_bool("reasoning cleared", true, r.reasoning == None);
+      check_bool("reasoning cleared", true, Option.is_none(r.reasoning));
     },
   ),
   test_case(

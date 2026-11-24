@@ -56,14 +56,14 @@ let group_by_row =
     : IntMap.t(list(positioned_insertion)) =>
   List.fold_left(
     ~f=
-    (acc, ins) =>
-      IntMap.update(
-        ins.row,
-        fun
-        | None => Some([ins])
-        | Some(existing) => Some([ins, ...existing]),
-        acc,
-      ),
+      (acc, ins) =>
+        IntMap.update(
+          ins.row,
+          fun
+          | None => Some([ins])
+          | Some(existing) => Some([ins, ...existing]),
+          acc,
+        ),
     ~init=IntMap.empty,
     insertions,
   );
@@ -99,41 +99,41 @@ let mockup = (seg: Segment.t): string => {
     let result_lines =
       List.mapi(
         ~f=
-        (row_idx, line) => {
-          switch (IntMap.find_opt(row_idx, by_row)) {
-          | None => line
-          | Some(row_insertions) =>
-            /* Sort insertions by column (right to left for insertion) */
-            let sorted =
-              List.sort(
+          (row_idx, line) => {
+            switch (IntMap.find_opt(row_idx, by_row)) {
+            | None => line
+            | Some(row_insertions) =>
+              /* Sort insertions by column (right to left for insertion) */
+              let sorted =
+                List.sort(
                   ~compare=(a, b) => Int.compare(b.col, a.col),
-                row_insertions,
-              );
+                  row_insertions,
+                );
 
-            /* Insert dots at each position (right to left to preserve indices) */
-            let line_with_dots =
-              List.fold_left(
+              /* Insert dots at each position (right to left to preserve indices) */
+              let line_with_dots =
+                List.fold_left(
                   ~f=
-                (current_line, ins) => {
-                  let grapheme_idx =
-                    Token.column_to_grapheme_index(current_line, ins.col);
-                  Token.insert_nth(grapheme_idx, dot, current_line);
-                },
+                    (current_line, ins) => {
+                      let grapheme_idx =
+                        Token.column_to_grapheme_index(current_line, ins.col);
+                      Token.insert_nth(grapheme_idx, dot, current_line);
+                    },
                   ~init=line,
-                sorted,
-              );
+                  sorted,
+                );
 
-            /* Get display texts for each insertion */
-            let all_texts =
-              sorted
-              |> List.rev  /* restore left-to-right order */
+              /* Get display texts for each insertion */
+              let all_texts =
+                sorted
+                |> List.rev  /* restore left-to-right order */
                 |> List.map(~f=ins => format_delimiters(ins.delimiters))
                 |> String.concat(~sep=" ");
 
-            /* Add offside comment: 4 spaces after content */
-            line_with_dots ++ "    // " ++ all_texts;
-          }
-        },
+              /* Add offside comment: 4 spaces after content */
+              line_with_dots ++ "    // " ++ all_texts;
+            }
+          },
         lines,
       );
 

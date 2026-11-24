@@ -18,7 +18,7 @@ let steps = (exp: Exp.t) =>
 
 let module_bind_steps = (x: string, exp: Exp.t) =>
   steps(exp)
-  |> List.filter(step =>
+  |> List.filter(~f=step =>
        switch (EvaluatorStep.get_step_kind(step)) {
        | ModuleBind(y) => String.equal(x, y)
        | _ => false
@@ -152,7 +152,7 @@ let tests = (
       () => {
         let discard_step = exp =>
           steps(exp)
-          |> List.find_opt(step =>
+          |> List.find(~f=step =>
                switch (EvaluatorStep.get_step_kind(step)) {
                | ModuleDiscardExp => true
                | _ => false
@@ -164,7 +164,7 @@ let tests = (
           | (None, [first, ..._]) when fuel > 0 =>
             Option.bind(
               EvaluatorStep.take_step(first),
-              to_discard(fuel - 1),
+              ~f=to_discard(fuel - 1),
             )
           | (None, _) => None
           };
@@ -179,11 +179,12 @@ let tests = (
             switch (Exp.term_of(exp)) {
             | Module(items) =>
               List.find_map(
-                (item: Mod.t) =>
-                  switch (item.term) {
-                  | ModExp(e) => Some(Exp.rep_id(e))
-                  | _ => None
-                  },
+                ~f=
+                  (item: Mod.t) =>
+                    switch (item.term) {
+                    | ModExp(e) => Some(Exp.rep_id(e))
+                    | _ => None
+                    },
                 items,
               )
             | _ => None
@@ -260,28 +261,30 @@ let tests = (
                  )
               |> Haz3lcore.Segment.ids;
             List.iter(
-              step =>
-                check(
-                  bool,
-                  Transition.show_step_kind(
-                    EvaluatorStep.get_step_kind(step),
-                  )
-                  ++ " is anchored on rendered syntax",
-                  true,
-                  List.exists(
-                    Id.equal(EvaluatorStep.get_step_id(step)),
-                    rendered,
+              ~f=
+                step =>
+                  check(
+                    bool,
+                    Transition.show_step_kind(
+                      EvaluatorStep.get_step_kind(step),
+                    )
+                    ++ " is anchored on rendered syntax",
+                    true,
+                    List.exists(
+                      ~f=Id.equal(EvaluatorStep.get_step_id(step)),
+                      rendered,
+                    ),
                   ),
-                ),
               steps,
             );
             if (fuel > 0) {
-              EvaluatorStep.take_step(first) |> Option.iter(go(fuel - 1));
+              EvaluatorStep.take_step(first) |> Option.iter(~f=go(fuel - 1));
             };
           };
         List.iter(
-          source =>
-            go(20, elaborate(parse_exp(source)) |> Exp.replace_all_ids),
+          ~f=
+            source =>
+              go(20, elaborate(parse_exp(source)) |> Exp.replace_all_ids),
           [
             {|{ (); let x = 1 + 1; let y = x * 2 }|},
             {|{ let x = 1 + 1; (); let y = x * 2 }|},

@@ -154,7 +154,7 @@ let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
     /* Module items carry surface ids of their own. */
     switch (e.term) {
     | Module(items) =>
-      List.iter(item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
+      List.iter(~f=item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
     | _ => ()
     };
     continue(e);
@@ -998,11 +998,11 @@ let c = {
       | [_first, ...rest] =>
         List.filter_map(
           ~f=
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModLet(_, _) => Some(Mod.rep_id(item))
-            | _ => None
-            },
+            (item: Mod.t) =>
+              switch (item.term) {
+              | ModLet(_, _) => Some(Mod.rep_id(item))
+              | _ => None
+              },
           rest,
         )
       | [] => []
@@ -1021,7 +1021,10 @@ let c = {
    * (in `incr.entries`) and union all rep_ids. */
   let visible = visible_ids_for(~prev=incr1, exp2);
   let missing =
-    List.filter(~f=id => !List.mem(visible, id, ~equal=Poly.equal), c_inner_modlet_ids);
+    List.filter(
+      ~f=id => !List.mem(visible, id, ~equal=Poly.equal),
+      c_inner_modlet_ids,
+    );
   check(
     int,
     "all inner ModLet ids of module c land in the visible set",
@@ -1155,7 +1158,12 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_visible = () => {
     };
   let (_, _, incr1) = eval_incr(exp1);
   let visible = visible_ids_for(~prev=incr1, exp2);
-  check(bool, "Atom 0 is in visible set", true, List.mem(visible, zero_id, ~equal=Poly.equal));
+  check(
+    bool,
+    "Atom 0 is in visible set",
+    true,
+    List.mem(visible, zero_id, ~equal=Poly.equal),
+  );
   check(
     bool,
     "Module {} is in visible set",
@@ -1401,7 +1409,11 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 2: `1 + 2` is in visible_ids (subsumed by a reused ancestor)",
     true,
-    List.mem(visible_ids_for(~prev=incr1, exp2), plus_1_2_id, ~equal=Poly.equal),
+    List.mem(
+      visible_ids_for(~prev=incr1, exp2),
+      plus_1_2_id,
+      ~equal=Poly.equal,
+    ),
   );
   /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
    * (and the parent's parent) must be recalculated. The evaluator descends
@@ -1476,7 +1488,11 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
     bool,
     "Body `x` is visible on run 2 (resolves to inner let, not edited outer)",
     true,
-    List.mem(visible_ids_for(~prev=incr1, exp2), body_x_id, ~equal=Poly.equal),
+    List.mem(
+      visible_ids_for(~prev=incr1, exp2),
+      body_x_id,
+      ~equal=Poly.equal,
+    ),
   );
 };
 

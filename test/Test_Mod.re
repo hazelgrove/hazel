@@ -99,7 +99,8 @@ let parts_tests = {
   let p = F.Pat.var("x");
   let mp = F.MPat.var("M");
   let tp = F.TPat.var("T");
-  let id_of = part => Option.map(Any.rep_id, part) |> Option.map(Id.show);
+  let id_of = part =>
+    Option.map(~f=Any.rep_id, part) |> Option.map(~f=Id.show);
   let check_parts = (name, item, ~pat, ~def) => {
     check(option(string), name ++ ": pat", pat, id_of(Mod.pat(item)));
     check(option(string), name ++ ": def", def, id_of(Mod.def(item)));
@@ -164,11 +165,12 @@ let of_exp_tests = {
             switch (exp.term) {
             | Module(items) =>
               List.filter_map(
-                (item: Mod.t) =>
-                  switch (item.term) {
-                  | ModExp(e) => Some((Mod.rep_id(item), Exp.rep_id(e)))
-                  | _ => None
-                  },
+                ~f=
+                  (item: Mod.t) =>
+                    switch (item.term) {
+                    | ModExp(e) => Some((Mod.rep_id(item), Exp.rep_id(e)))
+                    | _ => None
+                    },
                 items,
               )
             | _ => []
@@ -182,7 +184,7 @@ let of_exp_tests = {
           check(
             list(pair(id, id)),
             "shared ids",
-            List.map(((i, _)) => (i, i), item_and_exp_ids),
+            List.map(~f=((i, _)) => (i, i), item_and_exp_ids),
             item_and_exp_ids,
           );
         },

@@ -773,7 +773,6 @@ let x : A = 1 in
       "an alias that reaches itself through another alias terminates",
       `Quick,
       () =>
-
       ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
     ),
     test_case(

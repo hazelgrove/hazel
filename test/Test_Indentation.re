@@ -1009,7 +1009,7 @@ let enter_at = (~root, ~name, ~init, ~goal): test_case(_) =>
         | [before, after] => (before, after)
         | _ => fail("one caret: " ++ init)
         };
-      let lines = String.split_on_char('\n', before);
+      let lines = String.split(~on='\n', before);
       let pt: Point.t = {
         row: List.length(lines) - 1,
         col: String.length(ListUtil.last(lines)),

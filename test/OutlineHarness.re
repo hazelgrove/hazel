@@ -21,7 +21,7 @@ let visible =
       (path, n) =>
         switch (folds) {
         | Some(folds) => O.folded(~folds, path, n.o_kind)
-        | None => List.mem(n.o_label, collapsed)
+        | None => List.mem(collapsed, n.o_label, ~equal=Poly.equal)
         },
     O.rows(outline),
   );

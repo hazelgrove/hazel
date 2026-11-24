@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* value pruning marks its elisions, so a value the worker already cut
    down still reads as truncated */
@@ -9,7 +10,7 @@ let exp_of = (src: string): Exp.t =>
   MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
 
 let ints = n =>
-  "[" ++ String.concat(", ", List.init(n, string_of_int)) ++ "]";
+  "[" ++ String.concat(~sep=", ", List.init(n, ~f=string_of_int)) ++ "]";
 
 let constructor_value = () => {
   let (pruned, truncated) =
@@ -49,7 +50,7 @@ let own_holes = () => {
   let e = exp_of("(?, 1, [?])");
   let (pruned, truncated) = TermPrune.prune(~budget=100, e);
   check(bool, "not truncated", false, truncated);
-  check(bool, "intact", true, pruned === e);
+  check(bool, "intact", true, phys_equal(pruned, e));
   check(bool, "no elision", false, TermPrune.has_elision(e));
   check(
     bool,

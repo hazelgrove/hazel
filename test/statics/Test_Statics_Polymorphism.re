@@ -59,11 +59,12 @@ let y : Int = id@<Color> in y|};
           [arrow(var("Color"), var("Color"))],
           statics(parse_exp(source))
           |> errors
-          |> List.concat_map(snd)
+          |> List.concat_map(~f=snd)
           |> List.filter_map(
-               fun
-               | Language.Mark.ExpectationMismatch({syn, _}) => Some(syn)
-               | _ => None,
+               ~f=
+                 fun
+                 | Language.Mark.ExpectationMismatch({syn, _}) => Some(syn)
+                 | _ => None,
              ),
         );
       },
@@ -158,10 +159,11 @@ let y : Int = id@<Color> in y|};
           "each use finds the binder",
           true,
           List.for_all(
-            fun
-            | Some(id) =>
-              List.exists(b => Language.Id.compare(id, b) == 0, binders)
-            | None => false,
+            ~f=
+              fun
+              | Some(id) =>
+                List.exists(~f=b => Language.Id.compare(id, b) == 0, binders)
+              | None => false,
             sites,
           ),
         );

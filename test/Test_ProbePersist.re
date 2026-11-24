@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 module Persist = Web.ScratchPersist;
 module Model = Web.ScratchModel.Model;
 
@@ -17,7 +18,7 @@ let load = (prefix: string): Model.t =>
     prefix,
     ~settings,
     ~default_names=
-      List.map(fst, snd(Lazy.force(Web.Init.startup).documentation)),
+      List.map(~f=fst, snd(Lazy.force(Web.Init.startup).documentation)),
     ~default_current=0,
   );
 
@@ -28,7 +29,7 @@ let current_code = (m: Model.t): Web.ScratchModel.Scratchpad.code =>
   };
 
 let current_name = (m: Model.t): string =>
-  List.nth(m.scratchpads, m.current).name;
+  List.nth_exn(m.scratchpads, m.current).name;
 
 /* [m] with [e] whole as its current slide's program */
 let with_whole = (e: Web.CellEditor.Model.t, m: Model.t): Model.t =>
@@ -42,7 +43,7 @@ let with_whole = (e: Web.CellEditor.Model.t, m: Model.t): Model.t =>
 
 let key_roundtrip = () => {
   let seg = CorpusUtil.seg_of("let x = 1 in\nx + 2");
-  let probes = [(List.hd(Segment.ids(seg)), probe)];
+  let probes = [(List.hd_exn(Segment.ids(seg)), probe)];
   Persist.write_side("probetest", "keys", side =>
     {
       ...side,
@@ -69,7 +70,7 @@ let save_then_load = () => {
   let m = load("probetest");
   let editor = Web.Program.whole(current_code(m).program);
   let z = editor.editor.editor.state.zipper;
-  let anchor = List.hd(Segment.ids(Zipper.unselect_and_zip(z)));
+  let anchor = List.hd_exn(Segment.ids(Zipper.unselect_and_zip(z)));
   let z =
     ZipperBase.update_refractors(z, r =>
       Refractors.{
@@ -91,9 +92,10 @@ let save_then_load = () => {
       bool,
       "the probe comes back on the per-item load",
       true,
-      List.mem_assoc(
-        anchor,
+      List.Assoc.mem(
         editor.editor.editor.state.zipper.refractors.manuals,
+        anchor,
+        ~equal=Poly.equal,
       ),
     );
   | Drv(_) => fail("loaded a derivation slide")
@@ -109,8 +111,8 @@ let bad_roster_drops_items = () => {
   let ns = Persist.items_ns("rostertest", name);
   let items = () =>
     Util.Maps.StringMap.bindings(Web.HazelDB.cache^)
-    |> List.filter(((k, _)) => String.starts_with(~prefix=ns, k));
-  check(bool, "the save wrote items", true, items() != []);
+    |> List.filter(~f=((k, _)) => String.is_prefix(~prefix=ns, k));
+  check(bool, "the save wrote items", true, !List.is_empty(items()));
   Web.HazelDB.kv_save(ns ++ ItemPersist.roster_key, "(not a roster");
   let _ = Persist.load_scratchpad(~settings, "rostertest", name);
   check(int, "no item keys left", 0, List.length(items()));
@@ -144,7 +146,7 @@ let idle_save_writes_nothing = () => {
     bool,
     "the first save wrote the caret",
     true,
-    Web.HazelDB.kv_get(caret) != None,
+    Option.is_some(Web.HazelDB.kv_get(caret)),
   );
   Web.HazelDB.kv_remove(caret);
   Persist.save_current("idletest", with_whole(e2, m));
@@ -152,7 +154,7 @@ let idle_save_writes_nothing = () => {
     bool,
     "the idle save skipped",
     true,
-    Web.HazelDB.kv_get(caret) == None,
+    Option.is_none(Web.HazelDB.kv_get(caret)),
   );
 };
 

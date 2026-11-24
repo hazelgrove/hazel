@@ -109,12 +109,12 @@ module Cells = {
         ~dynamics=false,
         m,
       );
-    List.fold_left(run, m, scheduled^);
+    List.fold(scheduled^, ~init=m, ~f=run);
   };
 
   let program = (m: History.Model.t): Program.t =>
     switch (m.current.editors) {
-    | Scratch(s) => Option.get(ScratchModel.Model.current_program(s))
+    | Scratch(s) => Option.value_exn(ScratchModel.Model.current_program(s))
     | _ => failwith("not a deck")
     };
 
@@ -131,20 +131,21 @@ module Cells = {
     Editors(Scratch(Workspace(a)));
 
   let body = (m: History.Model.t, id: Haz3lcore.Id.t): string =>
-    Option.get(Divided.cell(id, divided(m))).e_body.editor.editor.state.
+    Option.value_exn(Divided.cell(id, divided(m))).e_body.editor.editor.
+      state.
       zipper
     |> Haz3lcore.Zipper.zip
     |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
 
   let focus = (m: History.Model.t) =>
     Option.map(
-      ((e: ScratchCell.t, side)) => (e.e_id, side),
+      ~f=((e: ScratchCell.t, side)) => (e.e_id, side),
       Divided.focused(divided(m)),
     );
 };
 
 let focused = (m, id, side: ScratchCell.side) =>
-  Cells.focus(m) == Some((id, side));
+  Poly.equal(Cells.focus(m), Some((id, side)));
 
 let tests = (
   "Undo",
@@ -283,7 +284,7 @@ let tests = (
           bool,
           "b closed",
           true,
-          Divided.cell(b, Cells.divided(m)) == None,
+          Option.is_none(Divided.cell(b, Cells.divided(m))),
         );
       },
     ),
@@ -305,11 +306,11 @@ let tests = (
            focuses, while the stack is selected */
         let keys_to = (m, id) => {
           let d = Cells.divided(m);
-          Divided.cell(id, d) != None
-          && Divided.active(d) == Some((id, Body))
+          Option.is_some(Divided.cell(id, d))
+          && Poly.equal(Divided.active(d), Some((id, Body)))
           && focused(m, id, Body)
           && stack_selected(m)
-          && Haz3lcore.FocusEffect.scheduled^ == Some(Cell);
+          && Poly.equal(Haz3lcore.FocusEffect.scheduled^, Some(Cell));
         };
         Haz3lcore.FocusEffect.scheduled := None;
         let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
@@ -317,7 +318,7 @@ let tests = (
           bool,
           "b closed",
           true,
-          Divided.cell(b, Cells.divided(m)) == None,
+          Option.is_none(Divided.cell(b, Cells.divided(m))),
         );
         check(bool, "its keys go to a", true, keys_to(m, a));
         /* an unfocused cell closing above the focused one moves its
@@ -348,7 +349,7 @@ let tests = (
           bool,
           "a is open again",
           true,
-          Divided.cell(a, Cells.divided(m)) != None,
+          Option.is_some(Divided.cell(a, Cells.divided(m))),
         );
         check(bool, "b has the focus", true, focused(m, b, Body));
         let m = Cells.run(m, insert("9"));
@@ -379,15 +380,15 @@ let tests = (
            and the DOM focus follows unless something else holds it */
         let keys_to = (m: History.Model.t, id) => {
           let d = Cells.divided(m);
-          Divided.cell(id, d) != None
-          && Divided.active(d) == Some((id, Body))
+          Option.is_some(Divided.cell(id, d))
+          && Poly.equal(Divided.active(d), Some((id, Body)))
           && (
             switch (m.current.selection) {
             | Scratch(Stack(_)) => true
             | _ => false
             }
           )
-          && Haz3lcore.FocusEffect.scheduled^ == Some(CellIfLost);
+          && Poly.equal(Haz3lcore.FocusEffect.scheduled^, Some(CellIfLost));
         };
         Haz3lcore.FocusEffect.scheduled := None;
         let m = Cells.run(m, undo);
@@ -431,7 +432,7 @@ let tests = (
             | _ => false
             }
           )
-          && Haz3lcore.FocusEffect.scheduled^ == Some(CellIfLost),
+          && Poly.equal(Haz3lcore.FocusEffect.scheduled^, Some(CellIfLost)),
         );
       },
     ),
@@ -555,7 +556,7 @@ let tests = (
         let m0 =
           apply(mk_model(), Globals(UpdateVisibleRows(rows(0, 40))));
         /* Adding a slide is undoable and switches to the new slide */
-        let m1 = apply(m0, Editors(Scratch(AddSlide)));
+        let m1 = apply(m0, Editors(Scratch(Deck(AddSlide))));
         check(
           bool,
           "switched to another slide",
