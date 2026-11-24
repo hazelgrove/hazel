@@ -428,16 +428,7 @@ let text_code = (segment): Node.t =>
         [
           div(
             ~attrs=[Attr.classes(["token", "Exp"])],
-            [
-              Node.text(
-                Printer.of_segment(
-                  ~holes="?",
-                  ~indent="",
-                  ~is_single_line=true,
-                  segment,
-                ),
-              ),
-            ],
+            [Node.text(Printer.of_segment(~holes="?", segment))],
           ),
         ],
       ),
