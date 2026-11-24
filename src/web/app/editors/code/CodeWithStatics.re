@@ -63,9 +63,9 @@ module Model = {
       Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
       |> Option.map(
            ~f=
-           Language.Info.as_member_reference(
-             ~info_map=model.statics.info_map,
-           ),
+             Language.Info.as_member_reference(
+               ~info_map=model.statics.info_map,
+             ),
          ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:

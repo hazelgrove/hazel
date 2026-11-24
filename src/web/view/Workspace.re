@@ -17,14 +17,14 @@ let statics_ready = (program: Program.t): bool => {
   let info_map = Program.statics(program).info_map;
   List.exists(
     ~f=
-    (n: OutlineTree.node) =>
+      (n: OutlineTree.node) =>
         !String.equal(n.o_label, "")
-      && (
-        switch (n.o_id) {
-        | Some(id) => Id.Map.mem(id, info_map)
-        | None => false
-        }
-      ),
+        && (
+          switch (n.o_id) {
+          | Some(id) => Id.Map.mem(id, info_map)
+          | None => false
+          }
+        ),
     OutlineTree.flatten(OutlineTree.rows(Program.outline(program))),
   );
 };
@@ -149,7 +149,7 @@ let item_of =
     : option(Haz3lcore.DefStatics.item) =>
   List.find(
     ~f=
-    (it: Haz3lcore.DefStatics.item) =>
+      (it: Haz3lcore.DefStatics.item) =>
         Id.equal(it.d_id, e.e_id) || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
     ds.items,
   );
@@ -250,7 +250,7 @@ let fresh_info_map =
     ~ctx_in?,
     ~probe_ids=Program.probe_ids(program),
     fresh_term(program),
-      ).
+  ).
     info_map;
 
 /* the program after an outline edit: statics seeded now (the outline
@@ -292,13 +292,13 @@ let with_segment =
     statics_of(
       ~settings,
       ~ctx_in=?ctx_in(code),
-          ~probe_ids=
+      ~probe_ids=
         CachedStatics.probe_ids_of_zipper(fresh.editor.editor.state.zipper),
-          MakeTerm.semantic_term(
-            ~root,
-            ~shared=fresh.editor.editor.syntax.t_cache,
-            new_seg,
-          ),
+      MakeTerm.semantic_term(
+        ~root,
+        ~shared=fresh.editor.editor.syntax.t_cache,
+        new_seg,
+      ),
     );
   let editor: CellEditor.Model.t = {
     editor: {
@@ -561,13 +561,13 @@ let update_code =
             | Divided(d) =>
               List.find(
                 ~f=
-                (e: ScratchCell.t) =>
-                  switch (e.e_kind) {
+                  (e: ScratchCell.t) =>
+                    switch (e.e_kind) {
                     | Run(ids) => List.mem(ids, fid, ~equal=Poly.equal)
-                  | Def(_)
-                  | Members
-                  | Headless(_) => false
-                  },
+                    | Def(_)
+                    | Members
+                    | Headless(_) => false
+                    },
                 Divided.cells(d),
               )
             | Whole(_) => None
@@ -666,12 +666,13 @@ let update_code =
     let applied =
       switch (code.world, code.lib) {
       | (Some(slide), _) =>
-        Option.map(~f=
-          lib =>
-            LibraryDoc.apply_segment(
-              Printer.of_segment(~holes="?", lib),
-              lib,
-            ),
+        Option.map(
+          ~f=
+            lib =>
+              LibraryDoc.apply_segment(
+                Printer.of_segment(~holes="?", lib),
+                lib,
+              ),
           WorldSlide.library_edit(~slide, Program.document(code.program)),
         )
       | (None, Some(ed)) => Some(LibraryDoc.apply_editor(ed))
@@ -718,7 +719,8 @@ let update_code =
     let statics = Program.statics(code.program);
     let info_map =
       Id.Map.is_empty(statics.info_map)
-        ? fresh_info_map(~settings, ~ctx_in=?ctx_in(code), code.program) : statics.info_map;
+        ? fresh_info_map(~settings, ~ctx_in=?ctx_in(code), code.program)
+        : statics.info_map;
     realize(~info_map, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
@@ -731,7 +733,8 @@ let update_code =
           Persist.resolve_view(
             switch (
               Option.bind(code.world, ~f=slide =>
-                OutlineTree.label_path(slide, outline))
+                OutlineTree.label_path(slide, outline)
+              )
             ) {
             | Some(root) => Persist.into_world(slide_key, root, saved)
             | None => saved
@@ -1038,9 +1041,9 @@ let calculate_program =
           Divided.cells(d),
           ~init=Program.probe_ids(Divided(d)),
           ~f=(acc, e: ScratchCell.t) =>
-            switch (is_tail_cell(e) ? tail_root(e) : None) {
-            | Some(id) => Id.Map.add(id, (), acc)
-            | None => acc
+          switch (is_tail_cell(e) ? tail_root(e) : None) {
+          | Some(id) => Id.Map.add(id, (), acc)
+          | None => acc
           }
         );
       let (d, ds) =
@@ -1240,23 +1243,26 @@ let calculate_program =
                the whole slide is the slide's own cost again */
             | (_, Some(ds)) when is_world_cell(e) => item_of(ds, e)
             | (_, None) when is_world_cell(e) =>
-              Option.bind(Haz3lcore.DefStatics.cached(
+              Option.bind(
+                Haz3lcore.DefStatics.cached(
                   ~ctx_in=?ctx,
                   Divided.statics(d).term,
-                ), ~f=ds =>
-                item_of(ds, e))
+                ),
+                ~f=ds =>
+                item_of(ds, e)
+              )
             | _ => None
             };
           let project = (c: CellEditor.Model.t) =>
             Option.map(
               ~f=
-              item =>
-                project_cell_statics(
-                  ~settings,
-                  ~item,
-                  ~engine_warnings=Lazy.force(frame_warns),
-                  c,
-                ),
+                item =>
+                  project_cell_statics(
+                    ~settings,
+                    ~item,
+                    ~engine_warnings=Lazy.force(frame_warns),
+                    c,
+                  ),
               item,
             );
           let (proj_header, proj_body) = (
@@ -1371,7 +1377,10 @@ let calculate_slide =
     : code => {
   /* restore a loaded slide's saved caret: the Move runs as its own
      follow-up action, after this calculate builds measured */
-  switch (Stdlib.Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
+  switch (
+    Stdlib.Hashtbl.find_opt(Persist.pending_caret, slide_key),
+    code.world,
+  ) {
   /* a world slide's, once its members' cell is open */
   | (Some(p), Some(slide)) =>
     switch (code.program) {
@@ -1441,13 +1450,14 @@ let calculate =
   /* the library, checked, with the slide's samples (its probes are in
      the slide's run); edited, it applies once typing pauses */
   let lib =
-    Option.map(~f=
-      LibraryDoc.calculate(
-        ~settings,
-        ~is_edited,
-        ~statics_mode,
-        ~dynamics=EvalResult.Model.dynamics(Program.result(code.program)),
-      ),
+    Option.map(
+      ~f=
+        LibraryDoc.calculate(
+          ~settings,
+          ~is_edited,
+          ~statics_mode,
+          ~dynamics=EvalResult.Model.dynamics(Program.result(code.program)),
+        ),
       code.lib,
     );
   Option.iter(~f=ed => LibraryDoc.kept := Some(ed), lib);

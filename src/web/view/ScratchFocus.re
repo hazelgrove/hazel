@@ -96,15 +96,15 @@ let test_before_semi =
   Option.bind(tile_ctx(~root, semi, seg), ~f=((level, i, _)) =>
     List.find_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t)
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t)
               when
                 String.equal(Tile.token(t, 0), "test")
                 || String.equal(Tile.token(t, 0), "hint") =>
-          Some(t.id)
-        | _ => None
-        },
+            Some(t.id)
+          | _ => None
+          },
       List.rev(ListUtil.take(i, level)),
     )
   );
@@ -162,14 +162,14 @@ let run_along =
         let members =
           List.concat_map(
             ~f=
-            k =>
-              switch (span_test(st.lv, k)) {
+              k =>
+                switch (span_test(st.lv, k)) {
                 | Some(t) when !Id.equal(t, st.lv.spans[k].anchor) => [
-                  t,
-                  st.lv.spans[k].anchor,
-                ]
-              | _ => [st.lv.spans[k].anchor]
-              },
+                    t,
+                    st.lv.spans[k].anchor,
+                  ]
+                | _ => [st.lv.spans[k].anchor]
+                },
             List.init(b - a + 1, ~f=k => a + k),
           );
         Some((List.rev([st, ...above]), a, b, (members, b - a + 1)));
@@ -408,7 +408,7 @@ let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
                 t,
                 List.mapi(
                   ~f=
-                  (i, kid) =>
+                    (i, kid) =>
                       Segment.ptr_eq(kid, List.nth_exn(c.children, i))
                         ? List.nth_exn(o.children, i) : go(kid),
                   t.children,
@@ -435,12 +435,12 @@ let captured_ctx =
   let rec seg_info = (seg: Segment.t) =>
     List.find_map(
       ~f=
-      (p: Piece.t) =>
-        switch (info_of(Piece.id(p)), p) {
-        | (Some(_) as info, _) => info
+        (p: Piece.t) =>
+          switch (info_of(Piece.id(p)), p) {
+          | (Some(_) as info, _) => info
           | (None, Tile(t)) => List.find_map(~f=seg_info, t.children)
-        | (None, _) => None
-        },
+          | (None, _) => None
+          },
       seg,
     );
   switch (seg_info(def_seg), info_of(fid)) {
@@ -534,21 +534,21 @@ let mk_def_entry =
         when is_def_head(t) || String.equal(Tile.token(t, 0), "theorem") =>
       Option.map(
         ~f=
-        def_seg => {
-          let kw = Tile.token(t, 0);
-          /* a `type … = …` alias takes a Typ body and a TPat header */
+          def_seg => {
+            let kw = Tile.token(t, 0);
+            /* a `type … = …` alias takes a Typ body and a TPat header */
             let is_type = String.equal(kw, "type");
-          mk_cell(
-            ~info_map,
-            ~root,
-            ~master,
-            ~cell_root=is_type ? Typ : Exp,
-            ~header=(is_type ? TPat : Pat, pat_of(t)),
+            mk_cell(
+              ~info_map,
+              ~root,
+              ~master,
+              ~cell_root=is_type ? Typ : Exp,
+              ~header=(is_type ? TPat : Pat, pat_of(t)),
               ~kind=Def({binds_module: String.equal(kw, "module")}),
-            t.id,
-            def_seg,
-          );
-        },
+              t.id,
+              def_seg,
+            );
+          },
         def_at((level, i, t)),
       )
     | _ => None
@@ -598,15 +598,15 @@ let mk_members_entry =
   | Some((up, level, i, t)) when !unfinished(up) =>
     Option.map(
       ~f=
-      mk_cell(
-        ~info_map,
-        ~root,
-        ~master,
-        ~cell_root=Mod,
-        ~header=(Pat, pat_of(t)),
-        ~kind=Members,
-        fid,
-      ),
+        mk_cell(
+          ~info_map,
+          ~root,
+          ~master,
+          ~cell_root=Mod,
+          ~header=(Pat, pat_of(t)),
+          ~kind=Members,
+          fid,
+        ),
       Option.bind(def_at((level, i, t)), ~f=brace_child),
     )
   | _ => None
@@ -671,39 +671,39 @@ let refusals =
           (~under: option(Lazy.t(option(list(step)))), level: Segment.t) =>
     List.iter(
       ~f=
-      (p: Piece.t) => {
-        let id = Piece.id(p);
-        let path = () => Option.bind(under, ~f=Lazy.force);
-        if (want(id)) {
-          switch (path()) {
-          | Some(path)
-              when Option.is_none(locate_along(id, below(path, id))) =>
-            out := Id.Map.add(id, Projected, out^)
-          | _ => ()
+        (p: Piece.t) => {
+          let id = Piece.id(p);
+          let path = () => Option.bind(under, ~f=Lazy.force);
+          if (want(id)) {
+            switch (path()) {
+            | Some(path)
+                when Option.is_none(locate_along(id, below(path, id))) =>
+              out := Id.Map.add(id, Projected, out^)
+            | _ => ()
+            };
           };
-        };
-        switch (p) {
-        | Tile(t) =>
-          if (want(id) && !Tile.is_complete(t) && Option.is_none(path())) {
-            out := Id.Map.add(id, Unfinished, out^);
-          };
-          if (want(id) && is_use(t)) {
-            out := Id.Map.add(id, Directive, out^);
-          };
+          switch (p) {
+          | Tile(t) =>
+            if (want(id) && !Tile.is_complete(t) && Option.is_none(path())) {
+              out := Id.Map.add(id, Unfinished, out^);
+            };
+            if (want(id) && is_use(t)) {
+              out := Id.Map.add(id, Directive, out^);
+            };
             List.iter(~f=walk(~under), t.children);
-        | Projector(pr) =>
-          let inner =
-            lazy(
-              switch (path()) {
-              | Some(path) => Some(below(path, id))
-              | None => find_path(~root, id, seg)
-              }
-            );
-          walk(~under=Some(inner), [pr.syntax]);
-        | Grout(_)
-        | Secondary(_) => ()
-        };
-      },
+          | Projector(pr) =>
+            let inner =
+              lazy(
+                switch (path()) {
+                | Some(path) => Some(below(path, id))
+                | None => find_path(~root, id, seg)
+                }
+              );
+            walk(~under=Some(inner), [pr.syntax]);
+          | Grout(_)
+          | Secondary(_) => ()
+          };
+        },
       level,
     );
   walk(~under=None, seg);

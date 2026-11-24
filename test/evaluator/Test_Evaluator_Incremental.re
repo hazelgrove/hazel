@@ -998,11 +998,11 @@ let c = {
       | [_first, ...rest] =>
         List.filter_map(
           ~f=
-          (item: Mod.t) =>
-            switch (item.term) {
-            | ModLet(_, _) => Some(Mod.rep_id(item))
-            | _ => None
-            },
+            (item: Mod.t) =>
+              switch (item.term) {
+              | ModLet(_, _) => Some(Mod.rep_id(item))
+              | _ => None
+              },
           rest,
         )
       | [] => []

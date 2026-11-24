@@ -56,7 +56,8 @@ let checked = (~path, seg) => {
     );
   let folders =
     List.init(List.length(path) - 1, ~f=i =>
-      WorldTree.folder_id(Util.ListUtil.take(i + 1, path)));
+      WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
+    );
   let trail = folders @ [WorldTree.slide_id(path)];
   let elab =
     WorldTree.run_elab(
@@ -86,11 +87,14 @@ let checked = (~path, seg) => {
         | Gone => []
         };
       List.length(
-        List.filter(~f=id => List.mem(mine, id, ~equal=Poly.equal), DefStatics.all_error_ids(ds)),
+        List.filter(
+          ~f=id => List.mem(mine, id, ~equal=Poly.equal),
+          DefStatics.all_error_ids(ds),
+        ),
       );
     },
     /* by result: ids differ between parses */
-    List.sort(~compare=compare, List.map(~f=snd, P.tests_of(state))),
+    List.sort(~compare, List.map(~f=snd, P.tests_of(state))),
   );
 };
 
@@ -188,7 +192,10 @@ module Scratch = {
     | _ => fail("not a module")
     };
   let named = (name, e) =>
-    List.find_exn(~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal), items(e));
+    List.find_exn(
+      ~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal),
+      items(e),
+    );
   let names = e => List.concat_map(~f=WorldTree.binds, items(e));
   let body = i => Option.value_exn(WorldTree.def_of(i));
   let doc = named("Documentation", whole);
@@ -265,7 +272,7 @@ let summary = () => {
     list(string),
     "what it defines",
     ["bad", "f", "x"],
-    List.sort(~compare=compare, s.defines),
+    List.sort(~compare, s.defines),
   );
   check(list(string), "what it uses", ["List"], s.uses);
 };
@@ -284,13 +291,14 @@ let corpus = () => {
     ["Documentation", dir, name];
   };
   let entries =
-    List.map(~f=
-      ((path, root, src)) =>
-        (
-          place(path),
-          List.mem(loaded, path, ~equal=Poly.equal)
-            ? World.members_of(~root, CorpusUtil.seg_of(~root, src)) : None,
-        ),
+    List.map(
+      ~f=
+        ((path, root, src)) =>
+          (
+            place(path),
+            List.mem(loaded, path, ~equal=Poly.equal)
+              ? World.members_of(~root, CorpusUtil.seg_of(~root, src)) : None,
+          ),
       slides,
     );
   let (w, t_assemble) =
@@ -304,18 +312,20 @@ let corpus = () => {
       t_check,
     ),
   );
-  List.iter(~f=
-    path => {
-      let (_, root, src) = List.find_exn(~f=((p, _, _)) => p == path, slides);
-      let (e, t) =
-        Test_MemberForm.checked(~root, CorpusUtil.seg_of(~root, src));
-      check(
-        pair(int, list(string)),
-        path,
-        (e, List.sort(~compare=compare, List.map(~f=snd, t))),
-        checked(~path=place(path), w),
-      );
-    },
+  List.iter(
+    ~f=
+      path => {
+        let (_, root, src) =
+          List.find_exn(~f=((p, _, _)) => p == path, slides);
+        let (e, t) =
+          Test_MemberForm.checked(~root, CorpusUtil.seg_of(~root, src));
+        check(
+          pair(int, list(string)),
+          path,
+          (e, List.sort(~compare, List.map(~f=snd, t))),
+          checked(~path=place(path), w),
+        );
+      },
     loaded,
   );
 };

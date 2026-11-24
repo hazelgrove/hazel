@@ -92,13 +92,13 @@ let grammar = () => {
   );
   List.iter(
     ~f=
-    src =>
-      check(
-        bool,
-        src ++ " is refused",
-        true,
-        Result.is_error(P.parse(src)),
-      ),
+      src =>
+        check(
+          bool,
+          src ++ " is refused",
+          true,
+          Result.is_error(P.parse(src)),
+        ),
     ["", "M/", "M//x", "\"open", "x#0", "x#", "x:foo", "x:body/y", "a b"],
   );
 };
@@ -366,27 +366,27 @@ let round_trip = (~root, name, seg) => {
   let all = P.entries(~root, seg);
   List.iter(
     ~f=
-    ((id, p)) => {
-      let s = P.to_string(p);
-      switch (P.parse(s)) {
-      | Ok(p') when p' == p => ()
-      | _ => Alcotest.fail(name ++ ": " ++ s ++ " does not read back")
-      };
-      switch (P.resolve(~root, seg, p)) {
+      ((id, p)) => {
+        let s = P.to_string(p);
+        switch (P.parse(s)) {
+        | Ok(p') when p' == p => ()
+        | _ => Alcotest.fail(name ++ ": " ++ s ++ " does not read back")
+        };
+        switch (P.resolve(~root, seg, p)) {
         | Ok(f) when Id.equal(f.id, id) => ()
-      | Ok(_) => Alcotest.fail(name ++ ": " ++ s ++ " resolves elsewhere")
+        | Ok(_) => Alcotest.fail(name ++ ": " ++ s ++ " resolves elsewhere")
         | Error(e) =>
           Alcotest.fail(name ++ ": " ++ s ++ ": " ++ P.message(e))
-      };
-      switch (P.describe(~root, seg, id)) {
-      | Some(p') when p' == p => ()
-      | Some(p') =>
-        Alcotest.fail(
-          name ++ ": " ++ s ++ " described as " ++ P.to_string(p'),
-        )
-      | None => Alcotest.fail(name ++ ": " ++ s ++ " not found")
-      };
-    },
+        };
+        switch (P.describe(~root, seg, id)) {
+        | Some(p') when p' == p => ()
+        | Some(p') =>
+          Alcotest.fail(
+            name ++ ": " ++ s ++ " described as " ++ P.to_string(p'),
+          )
+        | None => Alcotest.fail(name ++ ": " ++ s ++ " not found")
+        };
+      },
     all,
   );
   List.length(all);
@@ -398,8 +398,8 @@ let small_round_trips = () => {
   ignore(round_trip(~root=Mod, "Mod root", seg_of(~root=Mod, mod_src)));
   List.iter(
     ~f=
-    ((name, src)) =>
-      ignore(round_trip(~root=Mod, name, seg_of(~root=Mod, src))),
+      ((name, src)) =>
+        ignore(round_trip(~root=Mod, name, seg_of(~root=Mod, src))),
     Test_ItemSpans.letin_members,
   );
   List.iter(
@@ -428,9 +428,10 @@ let corpora = (): list((string, Sort.t, Segment.t)) => {
     ),
   ]
   @ List.filter_map(
-      ~f=((path, root, src)) =>
-        CorpusUtil.contains("documentation/module", path)
-          ? Some((path, root, seg_of(~root, src))) : None,
+      ~f=
+        ((path, root, src)) =>
+          CorpusUtil.contains("documentation/module", path)
+            ? Some((path, root, seg_of(~root, src))) : None,
       CorpusUtil.slide_corpus(),
     );
 };
@@ -438,10 +439,10 @@ let corpora = (): list((string, Sort.t, Segment.t)) => {
 let corpus_round_trips = () =>
   List.iter(
     ~f=
-    ((name, root, seg)) => {
-      let n = round_trip(~root, name, seg);
-      Printf.printf("%s: %d entries round-trip\n", name, n);
-    },
+      ((name, root, seg)) => {
+        let n = round_trip(~root, name, seg);
+        Printf.printf("%s: %d entries round-trip\n", name, n);
+      },
     corpora(),
   );
 

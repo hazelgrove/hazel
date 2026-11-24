@@ -58,7 +58,7 @@ let find_line = (lines: array(E.entry), which: string): int => {
           Array.findi(
             Array.of_list(List.rev(Array.to_list(lines))), ~f=(_, x) =>
             is(x)
-        )
+          )
           |> Option.map(~f=fst),
         )
       : Array.findi(lines, ~f=(_, x) => is(x)) |> Option.map(~f=fst);
@@ -1067,8 +1067,8 @@ let live_keys = () => {
 let fragments_and_words = () => {
   List.iter(
     ~f=
-    ((label, text, want)) =>
-      check(option(string), label, want, E.fragment(text)),
+      ((label, text, want)) =>
+        check(option(string), label, want, E.fragment(text)),
     [
       ("a name's characters", "Bar_2'", Some("Bar_2'")),
       ("a copied line's newline trimmed", "  bar\n", Some("bar")),
@@ -1082,18 +1082,18 @@ let fragments_and_words = () => {
   );
   List.iter(
     ~f=
-    ((name, at, side, want)) =>
-      check(
-        int,
-        Printf.sprintf(
-          "%s from %d %s",
-          name,
-          at,
-          side == Util.Direction.Left ? "left" : "right",
+      ((name, at, side, want)) =>
+        check(
+          int,
+          Printf.sprintf(
+            "%s from %d %s",
+            name,
+            at,
+            side == Util.Direction.Left ? "left" : "right",
+          ),
+          want,
+          E.word_edge(name, at, side),
         ),
-        want,
-        E.word_edge(name, at, side),
-      ),
     [
       ("foo_bar", 7, Util.Direction.Left, 0),
       ("fooBar", 6, Left, 0),
@@ -1636,11 +1636,11 @@ let shift = (from: E.line, to_: E.line, code) => {
   C.text :=
     Option.map(
       ~f=
-      (t: E.t) =>
-        {
-          ...t,
-          line: to_,
-        },
+        (t: E.t) =>
+          {
+            ...t,
+            line: to_,
+          },
       C.text^,
     );
   update(Shift(from, to_), code);
@@ -1876,8 +1876,8 @@ let live_in_stack = () => {
     | Divided(dv) =>
       Option.map(
         ~f=
-        (e: Web.ScratchCell.t) =>
-          CorpusUtil.text_of(Web.ScratchFocus.zip_of_cell(e.e_header)),
+          (e: Web.ScratchCell.t) =>
+            CorpusUtil.text_of(Web.ScratchFocus.zip_of_cell(e.e_header)),
         Web.Divided.cell(d, dv),
       )
     | Whole(_) => None
@@ -2400,9 +2400,9 @@ let run_text = () => {
     "its tests aren't lines",
     false,
     Array.exists(ls, ~f=(e: E.entry) =>
-        switch (e) {
+      switch (e) {
       | Of_row(r) => Poly.equal(r.r_node.o_kind, KTest)
-        | Of_new(_) => false
+      | Of_new(_) => false
       }
     ),
   );
@@ -2540,21 +2540,21 @@ let test_menus = () => {
   let labels = rows =>
     List.filter_map(
       ~f=
-      (r: Web.OutlineSidebar.menu_row) =>
-        switch (r) {
-        | Item(label, _, _) => Some(label)
-        | Divider => None
-        },
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(label, _, _) => Some(label)
+          | Divider => None
+          },
       rows,
     );
   let act = (rows, label) =>
     List.iter(
       ~f=
-      (r: Web.OutlineSidebar.menu_row) =>
-        switch (r) {
-        | Item(l, _, act) when l == label => ignore(act())
-        | _ => ()
-        },
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(l, _, act) when l == label => ignore(act())
+          | _ => ()
+          },
       rows,
     );
   let tests =
@@ -2938,11 +2938,11 @@ let live_rechecks = () => {
   C.text :=
     Option.map(
       ~f=
-      (t: E.t) =>
-        {
-          ...t,
-          error: Some("value names start lowercase"),
-        },
+        (t: E.t) =>
+          {
+            ...t,
+            error: Some("value names start lowercase"),
+          },
       C.text^,
     );
   let code = typing(line, [Insert("x")], code);

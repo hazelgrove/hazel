@@ -997,11 +997,11 @@ and parenthesize_typ =
         MultiHole(
           List.map(
             ~f=
-            parenthesize_any(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-            ),
+              parenthesize_any(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+              ),
             xs,
           ),
         ),
@@ -1072,21 +1072,21 @@ and parenthesize_rul =
       parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e),
       List.map(
         ~f=
-        ((p, e)) =>
-          (
-            parenthesize_pat(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              p,
+          ((p, e)) =>
+            (
+              parenthesize_pat(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                p,
+              ),
+              parenthesize(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                e,
+              ),
             ),
-            parenthesize(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              e,
-            ),
-          ),
         ps,
       ),
     )
@@ -2179,12 +2179,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -2609,8 +2609,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             e
             @ (
               List.map2_exn(ids, rs, ~f=(id, (p, e)) =>
-                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                  @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses))
               )
               |> List.concat
@@ -2954,12 +2954,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -3083,12 +3083,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -3397,12 +3397,12 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, x) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...x,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...x,
               ]
             ),
           )
@@ -3539,12 +3539,12 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -3786,12 +3786,12 @@ let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
     (cont, node) =>
-        cont({
+      cont({
         ...node,
-          annotation: {
+        annotation: {
           ...node.annotation,
           ids: List.map(~f=distinct, node.annotation.ids),
-          },
+        },
       });
   Typ.map_term(~f_typ=f, ~f_tpat=f, ty);
 };

@@ -95,7 +95,10 @@ let encode_scratch_slide = (model: Model.t): unit => {
   switch (scratchpad.kind) {
   | Code(code) =>
     let c = WorldSlide.own_editor(code) |> CellEditor.Model.to_string;
-    JsUtil.QueryParams.set_param("root", Option.is_none(code.world) ? "exp" : "mod");
+    JsUtil.QueryParams.set_param(
+      "root",
+      Option.is_none(code.world) ? "exp" : "mod",
+    );
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   | Drv(_) => ()
   };

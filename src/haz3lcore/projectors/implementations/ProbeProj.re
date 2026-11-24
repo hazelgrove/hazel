@@ -855,24 +855,24 @@ let value_view =
         | None when ctx.auto_rich_on =>
           switch (
             List.find(renderers, ~f=(r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(ctx.sort, sample.value)
-                  || List.exists(
+              r.can_handle(ctx.sort, sample.value)
+              /* a vacuous match (empty hand) still renders when a
+                 SIBLING sample at this site is real evidence */
+              && (
+                r.auto_applies(ctx.sort, sample.value)
+                || List.exists(
                      ~f=(s: Sample.t) => r.auto_applies(ctx.sort, s.value),
-                       ctx.dynamics.samples,
-                     )
+                     ctx.dynamics.samples,
+                   )
+              )
+              && (
+                ctx.auto_unbounded
+                || (
+                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  | Some(n) => n <= inline_rows_cap
+                  | None => true
+                  }
                 )
-                && (
-                  ctx.auto_unbounded
-                  || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
-                    | Some(n) => n <= inline_rows_cap
-                    | None => true
-                    }
-                  )
               )
             )
           ) {
@@ -1264,16 +1264,16 @@ let sample_call_display =
         let arg_rows =
           List.mapi(
             ~f=
-            (i, elem) =>
-              arg_row(
-                ~var_info=
+              (i, elem) =>
+                arg_row(
+                  ~var_info=
                     switch (List.nth(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(elem),
-              ),
+                    | Some(v) => v
+                    | None => None
+                    },
+                  ~is_last=i == num_elems - 1,
+                  render_exp(elem),
+                ),
             elements,
           );
         [
@@ -1971,13 +1971,13 @@ let prepare_offside =
       && Option.is_none(model.active_renderer)
       && List.exists(
            ~f=
-           (sample: Sample.t) =>
-             List.exists(
+             (sample: Sample.t) =>
+               List.exists(
                  ~f=
                    (r: packed_renderer) =>
                      r.auto_applies(sort, sample.value),
-               renderers,
-             ),
+                 renderers,
+               ),
            dynamics.samples,
          );
     let ctx = {
@@ -2197,11 +2197,11 @@ let live_offside_view =
       let group_views =
         List.map(
           ~f=
-          samples =>
-            Node.div(
-              ~attrs=[Attr.classes(["sample-group"])],
+            samples =>
+              Node.div(
+                ~attrs=[Attr.classes(["sample-group"])],
                 List.map(~f=sample_view, samples),
-            ),
+              ),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */

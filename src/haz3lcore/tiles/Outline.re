@@ -81,9 +81,9 @@ let rec is_fun = (def: Segment.t): bool => {
   let tuple =
     List.exists(
       ~f=
-      fun
-      | Piece.Tile(t) => Tile.is_comma(t)
-      | _ => false,
+        fun
+        | Piece.Tile(t) => Tile.is_comma(t)
+        | _ => false,
       def,
     );
   switch (content(def)) {
@@ -313,9 +313,9 @@ let find = (o: t, id: Id.t): option((list(entry), entry)) => {
   let rec go = (above, es: list(entry)) =>
     List.find_map(
       ~f=
-      e =>
+        e =>
           Id.equal(e.id, id) || Id.equal(e.anchor, id)
-          ? Some((List.rev(above), e)) : go([e, ...above], e.children),
+            ? Some((List.rev(above), e)) : go([e, ...above], e.children),
       es,
     );
   go([], o.entries);

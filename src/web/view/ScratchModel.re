@@ -154,18 +154,18 @@ module Model = {
     scratchpads:
       List.map(
         ~f=
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code(code) =>
-            let code' = f(sp.name, code);
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code(code) =>
+              let code' = f(sp.name, code);
               phys_equal(code', code)
-              ? sp
-              : {
-                ...sp,
-                kind: Code(code'),
-              };
-          | Drv(_) => sp
-          },
+                ? sp
+                : {
+                  ...sp,
+                  kind: Code(code'),
+                };
+            | Drv(_) => sp
+            },
         model.scratchpads,
       ),
   };
@@ -189,11 +189,11 @@ module Model = {
     let view_of = name =>
       List.find_map(
         ~f=
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code({view, _}) when sp.name == name => Some(view)
-          | _ => None
-          },
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code({view, _}) when sp.name == name => Some(view)
+            | _ => None
+            },
         from.scratchpads,
       );
     map_code(
@@ -216,11 +216,11 @@ module Model = {
     let program_of = name =>
       List.find_map(
         ~f=
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code({program, _}) when sp.name == name => Some(program)
-          | _ => None
-          },
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code({program, _}) when sp.name == name => Some(program)
+            | _ => None
+            },
         from.scratchpads,
       );
     map_code(

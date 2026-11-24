@@ -428,9 +428,9 @@ module rec Exp: {
       let exps =
         List.filter_map(
           ~f=
-          fun
-          | Language.Grammar.Exp(e) => Some(e)
-          | _ => None,
+            fun
+            | Language.Grammar.Exp(e) => Some(e)
+            | _ => None,
           es,
         );
       switch (List.length(exps) == List.length(es), exps) {
@@ -563,16 +563,16 @@ and Typ: {
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
         List.map(
           ~f=
-          (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
-            switch (sumterm) {
-            | Variant(name, typ) =>
-              Variant(
-                name,
-                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+            (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
+              switch (sumterm) {
+              | Variant(name, typ) =>
+                Variant(
+                  name,
+                  ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
                   Option.map(~f=of_menhir_ast, typ),
-              )
-            | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
-            },
+                )
+              | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
+              },
           sumterms,
         );
       sum(converted_terms);
@@ -616,9 +616,9 @@ and Typ: {
       let typs =
         List.filter_map(
           ~f=
-          fun
-          | Language.Grammar.Typ(t) => Some(t)
-          | _ => None,
+            fun
+            | Language.Grammar.Typ(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(typs) == List.length(ts), typs) {
@@ -644,14 +644,14 @@ and Typ: {
       let sumterms =
         List.map(
           ~f=
-          (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
-            switch (variant) {
-            | Variant(name, _, None) => Variant(name, None)
+            (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
+              switch (variant) {
+              | Variant(name, _, None) => Variant(name, None)
               | Variant(name, _, Some(t)) =>
                 Variant(name, Some(of_core(t)))
-            | BadEntry(t) => BadEntry(of_core(t))
-            }
-          },
+              | BadEntry(t) => BadEntry(of_core(t))
+              }
+            },
           constructors,
         );
       SumTyp(sumterms);
@@ -696,9 +696,9 @@ and TPat: {
       let tpats =
         List.filter_map(
           ~f=
-          fun
-          | Language.Grammar.TPat(t) => Some(t)
-          | _ => None,
+            fun
+            | Language.Grammar.TPat(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(tpats) == List.length(ts), tpats) {
@@ -772,9 +772,9 @@ and Pat: {
       let pats =
         List.filter_map(
           ~f=
-          fun
-          | Language.Grammar.Pat(p) => Some(p)
-          | _ => None,
+            fun
+            | Language.Grammar.Pat(p) => Some(p)
+            | _ => None,
           ps,
         );
       switch (List.length(pats) == List.length(ps), pats) {

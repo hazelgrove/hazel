@@ -555,7 +555,7 @@ let fill = (template: string, a: int, b: int, c: int): string =>
 
 let incremental_recursive_lets_tests =
   List.map(recursive_templates, ~f=((name, template)) =>
-  test_case(
+    test_case(
       "Incremental eval agrees with fresh eval after a literal edit: " ++ name,
       `Quick,
       () =>

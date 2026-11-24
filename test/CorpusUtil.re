@@ -87,8 +87,8 @@ let root_of = (path: string): Sort.t => {
   let stem = Stdlib.Filename.remove_extension(Filename.basename(path));
   let exp =
     !List.mem(String.split(~on='/', dir), "world", ~equal=Poly.equal)
-    || List.exists(~f=
-         ((s, _, exp)) => s == stem && exp,
+    || List.exists(
+         ~f=((s, _, exp)) => s == stem && exp,
          WorldFolder.order_of(dir),
        );
   exp ? Exp : Mod;
@@ -127,18 +127,18 @@ let slide_corpus = (): list((string, Sort.t, string)) => {
     Stdlib.Sys.file_exists("hazel-programs")
       ? "hazel-programs" : "../hazel-programs";
   find(~in_world=false, ~top=false, root)
-  |> List.sort(~compare=compare)
+  |> List.sort(~compare)
   |> List.filter_map(~f=((path, sort)) =>
        Option.map(
          ~f=
-         src =>
-           (
-             path,
-             sort,
-             src
-             |> Util.StringUtil.trim_leading
-             |> Util.StringUtil.strip_final_newline,
-           ),
+           src =>
+             (
+               path,
+               sort,
+               src
+               |> Util.StringUtil.trim_leading
+               |> Util.StringUtil.strip_final_newline,
+             ),
          read_file(path),
        )
      );
@@ -218,11 +218,11 @@ let edit_token =
   let is_match = (t: Tile.t) => Tile.label(t) == [needle];
   let rec matches = (seg: Segment.t): int =>
     List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when is_match(t) => n + 1
-        | Tile(t) =>
+      switch (p) {
+      | Tile(t) when is_match(t) => n + 1
+      | Tile(t) =>
         List.fold(t.children, ~init=n, ~f=(n, kid) => n + matches(kid))
-        | _ => n
+      | _ => n
       }
     );
   let chosen =
@@ -298,12 +298,12 @@ let tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (seg: Segment.t) =>
     List.find_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [label] => Some(t.id)
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == [label] => Some(t.id)
           | Tile(t) => List.find_map(~f=find, t.children)
-        | _ => None
-        },
+          | _ => None
+          },
       seg,
     );
   switch (find(seg)) {
@@ -316,14 +316,14 @@ let tile = (label: string, seg: Segment.t): Id.t => {
 let last_tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (acc, seg: Segment.t) =>
     List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
+      switch (p) {
+      | Tile(t) =>
         List.fold(
-            t.children,
+          t.children,
           ~init=Tile.label(t) == [label] ? Some(t.id) : acc,
           ~f=find,
-          )
-        | _ => acc
+        )
+      | _ => acc
       }
     );
   switch (find(None, seg)) {

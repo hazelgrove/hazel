@@ -461,5 +461,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  });
+  })
 };

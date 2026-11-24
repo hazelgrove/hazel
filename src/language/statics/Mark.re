@@ -174,10 +174,10 @@ let is_syntax_error = (sort: Sort.t, marks: list(t)): bool =>
   | Typ =>
     List.exists(
       ~f=
-      fun
-      | BadToken(_)
-      | TypParseFailure => true
-      | _ => false,
+        fun
+        | BadToken(_)
+        | TypParseFailure => true
+        | _ => false,
       marks,
     )
   | _ => false

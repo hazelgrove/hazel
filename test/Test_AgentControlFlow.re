@@ -186,11 +186,11 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     List.length(
       List.filter(
         ~f=
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
         ),
@@ -218,11 +218,11 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     List.length(
       List.filter(
         ~f=
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         msgs,
       ),
     );
@@ -239,8 +239,8 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     !
       List.exists(
         ~f=
-        c =>
-          StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
+          c =>
+            StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
         List.map(~f=(m: Message.Model.t) => m.content, msgs),
       ),
   );
@@ -733,9 +733,9 @@ let test_eval_gate_waits_while_pending = () => {
     true,
     List.exists(
       ~f=
-      fun
+        fun
         | Agent.Update.Action.DispatchSend(id) => Id.equal(id, chat_id)
-      | _ => false,
+        | _ => false,
       scheduled^,
     ),
   );
@@ -789,9 +789,9 @@ let test_eval_gate_settled_dispatches = () => {
     && !
          List.exists(
            ~f=
-           fun
-           | Agent.Update.Action.DispatchSend(_) => true
-           | _ => false,
+             fun
+             | Agent.Update.Action.DispatchSend(_) => true
+             | _ => false,
            scheduled^,
          ),
   );

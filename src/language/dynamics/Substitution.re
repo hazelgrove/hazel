@@ -103,7 +103,8 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(~fns, env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
           let (env', p') = in_pat(~fns, env, env, p);
-          Theorem(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2)) |> rewrap;
+          Theorem(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2))
+          |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(~fns, env, env, pat);
           Forall(pat', in_exp(~fns, env', e)) |> rewrap;
@@ -333,7 +334,9 @@ and in_typ = (~fns=Inline, env: Environment.t(Exp.t), typ: Typ.t) =>
           Sig(Open(List.map(~f=Sig.map_typ(in_typ(~fns, env)), items)))
           |> rewrap
         | Sig(Closed(items)) =>
-          Sig(Closed(ClosedSig.map(Sig.map_typ(in_typ(~fns, env)), items)))
+          Sig(
+            Closed(ClosedSig.map(Sig.map_typ(in_typ(~fns, env)), items)),
+          )
           |> rewrap
         };
       },

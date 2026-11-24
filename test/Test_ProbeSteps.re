@@ -112,19 +112,19 @@ let samples = (state: EvaluatorState.t): list(Sample.t) =>
 let keeps_f = (state: EvaluatorState.t): bool =>
   List.exists(
     ~f=
-    (s: Sample.t) =>
-      List.exists(
+      (s: Sample.t) =>
+        List.exists(
           ~f=
-        (en: Sample.Env.entry) =>
+            (en: Sample.Env.entry) =>
               String.equal(en.binding.name, "f")
-          && (
-            switch (en.value) {
-            | Val(_) => true
-            | Opaque => false
-            }
-          ),
-        s.env,
-      ),
+              && (
+                switch (en.value) {
+                | Val(_) => true
+                | Opaque => false
+                }
+              ),
+          s.env,
+        ),
     samples(state),
   );
 

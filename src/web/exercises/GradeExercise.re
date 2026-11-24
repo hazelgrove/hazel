@@ -30,11 +30,11 @@ let count_verified_tree = (verified: DrvGrading.VerifiedTree.t): (int, int) => {
   let all_nodes = verified |> List.concat_map(~f=Util.Tree.flatten);
   List.fold_left(
     ~f=
-    ((c, t), info: DrvGrading.VerifiedTree.info) =>
-      switch (info.res) {
-      | Correct => (c + 1, t + 1)
-      | _ => (c, t + 1)
-      },
+      ((c, t), info: DrvGrading.VerifiedTree.info) =>
+        switch (info.res) {
+        | Correct => (c + 1, t + 1)
+        | _ => (c, t + 1)
+        },
     ~init=(0, 0),
     all_nodes,
   );

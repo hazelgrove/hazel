@@ -17,8 +17,8 @@ let builtins =
 let builtins =
   List.sort(
     ~compare=
-    (a: builtin, b: builtin) =>
-      String.compare(name_of_builtin(b), name_of_builtin(a)),
+      (a: builtin, b: builtin) =>
+        String.compare(name_of_builtin(b), name_of_builtin(a)),
     builtins,
   );
 
@@ -32,11 +32,12 @@ let _ = to_map(builtins);
 let prim = "$prim";
 
 let (top_level, prims) =
-  List.partition_tf(~f=
-    fun
-    | Fn({custom_statics: Some(_), _})
-    | Fn({name: "from_lvs", _}) => true
-    | _ => false,
+  List.partition_tf(
+    ~f=
+      fun
+      | Fn({custom_statics: Some(_), _})
+      | Fn({name: "from_lvs", _}) => true
+      | _ => false,
     builtins,
   );
 
@@ -45,12 +46,13 @@ let prim_entry: Ctx.entry =
     name: prim,
     typ:
       Fresh.Typ.prod(
-        List.map(~f=
-          b =>
-            Fresh.Typ.tup_label(
-              Fresh.Typ.label(name_of_builtin(b)),
-              typ_of_builtin(b),
-            ),
+        List.map(
+          ~f=
+            b =>
+              Fresh.Typ.tup_label(
+                Fresh.Typ.label(name_of_builtin(b)),
+                typ_of_builtin(b),
+              ),
           prims,
         ),
       ),
@@ -60,11 +62,12 @@ let prim_entry: Ctx.entry =
 
 let prim_value: Exp.t =
   Fresh.Exp.tuple(
-    List.map(~f=
-      b => {
-        let (name, imp) = imp_of_builtin(b);
-        Fresh.Exp.tup_label(Fresh.Exp.label(name), imp);
-      },
+    List.map(
+      ~f=
+        b => {
+          let (name, imp) = imp_of_builtin(b);
+          Fresh.Exp.tup_label(Fresh.Exp.label(name), imp);
+        },
       prims,
     ),
   );
@@ -72,8 +75,14 @@ let prim_value: Exp.t =
 /* BuiltinFun(name)'s type, for statics: most names are not in the ctx */
 let builtin_typ: string => option(Typ.t) = {
   let table = Stdlib.Hashtbl.create(List.length(builtins));
-  List.iter(~f=
-    b => Stdlib.Hashtbl.replace(table, name_of_builtin(b), typ_of_builtin(b)),
+  List.iter(
+    ~f=
+      b =>
+        Stdlib.Hashtbl.replace(
+          table,
+          name_of_builtin(b),
+          typ_of_builtin(b),
+        ),
     builtins,
   );
   Stdlib.Hashtbl.find_opt(table);
@@ -130,7 +139,9 @@ let install_library =
     : unit => {
   library_entries := entries;
   library_names :=
-    List.fold(names, ~init=Util.Maps.StringMap.empty, ~f=(m, x) => Util.Maps.StringMap.add(x, (), m));
+    List.fold(names, ~init=Util.Maps.StringMap.empty, ~f=(m, x) =>
+      Util.Maps.StringMap.add(x, (), m)
+    );
   library_env_for := env_for;
   library_modules := [];
   Stdlib.Hashtbl.reset(ctx_by_mode);
@@ -175,7 +186,8 @@ let env_for: Exp.t => Environment.t(Exp.t) = {
   let last = ref(None);
   d =>
     switch (last^) {
-    | Some((d', f, env)) when phys_equal(d', d) && phys_equal(f, library_env_for^) => env
+    | Some((d', f, env))
+        when phys_equal(d', d) && phys_equal(f, library_env_for^) => env
     | _ =>
       let env = library_env_for^(mentioned(~keep=is_library_name, d));
       last := Some((d, library_env_for^, env));
@@ -195,14 +207,15 @@ let env_init = (): Environment.t(Exp.t) =>
 
 /* whether env_init binds [name], without evaluating the library */
 let predefined = (name: Var.t): bool =>
-  Option.is_some(Environment.lookup(env_base, name)) || is_library_name(name);
+  Option.is_some(Environment.lookup(env_base, name))
+  || is_library_name(name);
 
 let library_module_name = (v: Exp.t): option(Var.t) =>
   switch (v.term) {
   | Module([item, ..._]) =>
     let id = Mod.rep_id(item);
-    List.find_map(~f=
-      ((x, first)) => Id.equal(first, id) ? Some(x) : None,
+    List.find_map(
+      ~f=((x, first)) => Id.equal(first, id) ? Some(x) : None,
       library_modules^,
     );
   | _ => None

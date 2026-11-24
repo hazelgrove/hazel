@@ -125,12 +125,12 @@ in f(5)|};
         let cursor_stack =
           List.map(
             ~f=
-            (f: CallStack.frame): CallStack.frame =>
-              {
-                id: f.id,
-                name: None,
-                fn_def_id: None,
-              },
+              (f: CallStack.frame): CallStack.frame =>
+                {
+                  id: f.id,
+                  name: None,
+                  fn_def_id: None,
+                },
             s.call_stack,
           );
         let cursor = mk_cursor(~pinned=Some(cursor_stack), cursor_stack);
@@ -169,12 +169,12 @@ in f(1); f(2)|};
       let pin_stack =
         List.map(
           ~f=
-          (f: CallStack.frame): CallStack.frame =>
-            {
-              id: f.id,
-              name: None,
-              fn_def_id: None,
-            },
+            (f: CallStack.frame): CallStack.frame =>
+              {
+                id: f.id,
+                name: None,
+                fn_def_id: None,
+              },
           first.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
@@ -245,12 +245,12 @@ in f(1); f(2)|};
       let pin_stack =
         List.map(
           ~f=
-          (f: CallStack.frame): CallStack.frame =>
-            {
-              id: f.id,
-              name: None,
-              fn_def_id: None,
-            },
+            (f: CallStack.frame): CallStack.frame =>
+              {
+                id: f.id,
+                name: None,
+                fn_def_id: None,
+              },
           s1.call_stack,
         );
       let cursor = mk_cursor(~pinned=Some(pin_stack), pin_stack);
@@ -541,39 +541,39 @@ in ^^probe(f(1))
        * cause most_aligned_index to find exactly that sample. */
       List.iteri(
         ~f=
-        (i, inner_sample: Sample.t) => {
-          check(
-            bool,
-            "inner sample should have 1-frame call stack",
-            true,
-            List.length(inner_sample.call_stack) == 1,
-          );
-            let app_id = List.hd_exn(inner_sample.call_stack).id;
-          let cursor = mk_cursor(~indicated_call=Some(app_id), []);
-          let result =
-            Sample.Selection.most_aligned_index(
-              ~ap_id=None,
-              cursor,
-              inner_samples,
-            );
-          switch (result) {
-          | Some(idx) =>
-              let found = List.nth_exn(inner_samples, idx);
+          (i, inner_sample: Sample.t) => {
             check(
               bool,
-                sprintf(
-                "sample %d: aligned sample should match clicked call",
-                i,
-              ),
+              "inner sample should have 1-frame call stack",
               true,
-                List.hd_exn(found.call_stack).id == app_id,
+              List.length(inner_sample.call_stack) == 1,
             );
-          | None =>
-            fail(
+            let app_id = List.hd_exn(inner_sample.call_stack).id;
+            let cursor = mk_cursor(~indicated_call=Some(app_id), []);
+            let result =
+              Sample.Selection.most_aligned_index(
+                ~ap_id=None,
+                cursor,
+                inner_samples,
+              );
+            switch (result) {
+            | Some(idx) =>
+              let found = List.nth_exn(inner_samples, idx);
+              check(
+                bool,
+                sprintf(
+                  "sample %d: aligned sample should match clicked call",
+                  i,
+                ),
+                true,
+                List.hd_exn(found.call_stack).id == app_id,
+              );
+            | None =>
+              fail(
                 sprintf("sample %d: should find an aligned inner sample", i),
-            )
-          };
-        },
+              )
+            };
+          },
         inner_samples,
       );
     },
@@ -728,17 +728,17 @@ in ^^probe(f(42))|};
       /* Find the call probe (wrapping f(42)) and inner probe (on x) */
       let call_probe_id =
         List.find_exn(probe_ids, ~f=id => {
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
-            | None => false
-            }
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(info) => Option.is_some(Sample.Focus.cur_var_ap(info))
+          | None => false
+          }
         });
       let inner_probe_id =
         List.find_exn(probe_ids, ~f=id => {
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(info) => Sample.Focus.cur_var_ap(info) == None
-            | None => false
-            }
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(info) => Sample.Focus.cur_var_ap(info) == None
+          | None => false
+          }
         });
       /* Get ap_id from call probe's statics */
       let ap_id =
@@ -876,9 +876,9 @@ run(0, [1, 2, 3])|};
       let sample =
         List.fold_left(
           ~f=
-          (best: Sample.t, s: Sample.t) =>
-            List.length(s.call_stack) > List.length(best.call_stack)
-              ? s : best,
+            (best: Sample.t, s: Sample.t) =>
+              List.length(s.call_stack) > List.length(best.call_stack)
+                ? s : best,
           ~init=List.hd_exn(samples),
           samples,
         );
@@ -1108,11 +1108,11 @@ in List.fold_left([10, 20, 30], go, 0)|},
       let stale_stack: CallStack.t =
         List.map(
           ~f=
-          (f: CallStack.frame) =>
-            {
-              ...f,
-              id: Id.mk(),
-            },
+            (f: CallStack.frame) =>
+              {
+                ...f,
+                id: Id.mk(),
+              },
           last.call_stack,
         );
       let stale_anchor = {
@@ -1156,7 +1156,7 @@ in fact(4)|};
       let (call_probes, body_probes) =
         List.partition_tf(
           ~f=
-          ((_, ss)) =>
+            ((_, ss)) =>
               List.exists(~f=(s: Sample.t) => Option.is_some(s.args), ss),
           probes,
         );
@@ -1173,8 +1173,8 @@ in fact(4)|};
       let by_depth = (ss: list(Sample.t)) =>
         List.sort(
           ~compare=
-          (a: Sample.t, b: Sample.t) =>
-            compare(List.length(a.call_stack), List.length(b.call_stack)),
+            (a: Sample.t, b: Sample.t) =>
+              compare(List.length(a.call_stack), List.length(b.call_stack)),
           ss,
         );
       let call_samples = by_depth(call_samples);

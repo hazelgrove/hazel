@@ -118,8 +118,8 @@ let check_file = (path: string): unit => {
     };
   let gap =
     List.find(known_gaps, ~f=((suffix, _)) =>
-        String.is_suffix(path, ~suffix)
-      );
+      String.is_suffix(path, ~suffix)
+    );
   switch (mk, mh, gap) {
   | _ when empty => () /* a fresh slide: nothing to compare */
   | (_, _, Some(_reason)) => () /* known gap: tolerated, tracked above */
@@ -145,7 +145,7 @@ let tests = (
     | files =>
       List.map(
         ~f=
-        path =>
+          path =>
             test_case("differential: " ++ path, `Slow, () =>
               check_file(path)
             ),

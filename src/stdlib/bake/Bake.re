@@ -6,7 +6,8 @@
    app shows as the library document */
 open Haz3lcore;
 
-let read = path => Stdlib.In_channel.with_open_bin(path, Stdlib.In_channel.input_all);
+let read = path =>
+  Stdlib.In_channel.with_open_bin(path, Stdlib.In_channel.input_all);
 
 let write_base64 = (path, v) =>
   Stdlib.Out_channel.with_open_bin(path, oc =>
@@ -47,10 +48,8 @@ let () =
         Printf.sprintf(
           "bake: entries %dKB, definitions %dKB; segment %s",
           String.length(baked.entries) / 1024,
-          Array.fold(
-            baked.defs,
-            ~init=0,
-            ~f=(n, d: Language.Library.def) => n + String.length(d.elab),
+          Array.fold(baked.defs, ~init=0, ~f=(n, d: Language.Library.def) =>
+            n + String.length(d.elab)
           )
           / 1024,
           kb(segment),

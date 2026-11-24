@@ -117,19 +117,19 @@ and entry_rows = (~top: bool, e: O.entry): list(node) => {
   | Def =>
     switch (e.names, O.parts(e.lv, e.k)) {
     | ([(name, tok), ...more], Some((_, def))) =>
-        let binder = (tok, Sort.Pat);
+      let binder = (tok, Sort.Pat);
       let more = List.map(~f=fst, more);
-        let below = below(e, def);
-        let (kind, kids) =
-          if (e.fn) {
-            (KFn, block_rows(below));
-          } else if (e.literal) {
-            (KModule, rows_of(~top=false, below));
-          } else if (starts_abstraction(def)) {
-            (KConst, []);
-          } else {
-            (KConst, rows_of(~top=false, below));
-          };
+      let below = below(e, def);
+      let (kind, kids) =
+        if (e.fn) {
+          (KFn, block_rows(below));
+        } else if (e.literal) {
+          (KModule, rows_of(~top=false, below));
+        } else if (starts_abstraction(def)) {
+          (KConst, []);
+        } else {
+          (KConst, rows_of(~top=false, below));
+        };
       [row(~id, ~label=name, ~binder, ~more, ~kids, kind)];
     | _ => []
     }
@@ -300,19 +300,19 @@ let name_tests = (ns: list(node)): list(node) => {
   let rec go = (ns: list(node)) =>
     List.map(
       ~f=
-      n =>
-        switch (n.o_kind) {
+        n =>
+          switch (n.o_kind) {
           | KTest =>
             incr(k);
             {
-            ...n,
+              ...n,
               o_label: Option.value(n.o_hint, ~default=string_of_int(k^)),
             };
-        | _ => {
-            ...n,
-            o_children: go(n.o_children),
-          }
-        },
+          | _ => {
+              ...n,
+              o_children: go(n.o_children),
+            }
+          },
       ns,
     );
   go(ns);
@@ -359,9 +359,9 @@ let find = (fid: Id.t, o: t): option((list(node), node)) => {
   let rec go = (above, ns: list(node)) =>
     List.find_map(
       ~f=
-      n =>
+        n =>
           Option.equal(Id.equal, n.o_id, Some(fid))
-          ? Some((List.rev(above), n)) : go([n, ...above], n.o_children),
+            ? Some((List.rev(above), n)) : go([n, ...above], n.o_children),
       ns,
     );
   go([], rows(o));
@@ -454,30 +454,30 @@ let segs = (ns: list(node)): list((node, path_seg)) => {
   let prev = ref("");
   List.map(
     ~f=
-    n => {
-      let l =
-        switch (n.o_kind) {
-        | KTest => "test@" ++ prev^
-        | KTests => "tests@" ++ prev^
-        | _ => n.o_label
-        };
+      n => {
+        let l =
+          switch (n.o_kind) {
+          | KTest => "test@" ++ prev^
+          | KTests => "tests@" ++ prev^
+          | _ => n.o_label
+          };
         let k = Stdlib.Hashtbl.find_opt(seen, l) |> Option.value(~default=0);
         Stdlib.Hashtbl.replace(seen, l, k + 1);
-      switch (n.o_kind) {
-      | KTest
-      | KTests
-      | KUse => ()
+        switch (n.o_kind) {
+        | KTest
+        | KTests
+        | KUse => ()
         | _ when String.equal(n.o_label, "") => ()
-      | _ => prev := n.o_label
-      };
-      (
-        n,
-        {
-          s_label: l,
-          s_occ: k,
-        },
-      );
-    },
+        | _ => prev := n.o_label
+        };
+        (
+          n,
+          {
+            s_label: l,
+            s_occ: k,
+          },
+        );
+      },
     ns,
   );
 };
@@ -487,8 +487,8 @@ let segs = (ns: list(node)): list((node, path_seg)) => {
 let find_path = (fid: Id.t, o: t): option(list((node, path_seg))) =>
   Option.map(
     ~f=
-    ((above, n)) =>
-      snd(
+      ((above, n)) =>
+        snd(
           List.fold_map(above @ [n], ~init=rows(o), ~f=(siblings, m) =>
             (
               m.o_children,
@@ -497,8 +497,8 @@ let find_path = (fid: Id.t, o: t): option(list((node, path_seg))) =>
                 List.Assoc.find_exn(segs(siblings), m, ~equal=phys_equal),
               ),
             )
+          ),
         ),
-      ),
     find(fid, o),
   );
 
@@ -569,11 +569,11 @@ let flipped = (~folds: folds, path: path, o: t): option(bool) =>
 /* the headerless rows' ids (⇒ and `;`) */
 let headless_row_ids = (o: t): Id.Map.t(unit) =>
   List.fold(flatten(rows(o)), ~init=Id.Map.empty, ~f=(acc, n) =>
-      switch (n.o_id) {
+    switch (n.o_id) {
     | Some(id)
         when Poly.equal(n.o_kind, KTrail) || Poly.equal(n.o_kind, KStmt) =>
-        Id.Map.add(id, (), acc)
-      | _ => acc
+      Id.Map.add(id, (), acc)
+    | _ => acc
     }
   );
 

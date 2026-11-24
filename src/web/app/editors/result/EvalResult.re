@@ -420,7 +420,8 @@ module Update = {
             program:
               EvalSplit.program(
                 ~probe_all=settings.probe_all,
-                ~external_ids=List.map(~f=fst, Id.Map.bindings(extra_targets)),
+                ~external_ids=
+                  List.map(~f=fst, Id.Map.bindings(extra_targets)),
                 ~targets=Calc.get_value(targets),
                 ~run?,
                 statics,
@@ -744,23 +745,23 @@ module View = {
     let code_view =
       Option.map(
         ~f=
-        (editor: CodeSelectable.Model.t) =>
-          CodeSelectable.View.view(
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(Evaluation())),
-            ~edit_mode=
-              EditMode.Editable({
-                inject: a => inject(EvalEditorAction(a)),
-                escape: _ => Ui_effect.Ignore,
-                escape_vertical: None,
-                take_focus: _ => Ui_effect.Ignore,
-                focus: selected ? Some() : None,
-              }),
-            ~globals,
-            ~dynamics=editor.dynamics,
-            editor,
-          ),
+          (editor: CodeSelectable.Model.t) =>
+            CodeSelectable.View.view(
+              ~signal=
+                fun
+                | MakeActive => signal(MakeActive(Evaluation())),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: a => inject(EvalEditorAction(a)),
+                  escape: _ => Ui_effect.Ignore,
+                  escape_vertical: None,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected ? Some() : None,
+                }),
+              ~globals,
+              ~dynamics=editor.dynamics,
+              editor,
+            ),
         editor,
       );
     let exn_view =
@@ -982,11 +983,11 @@ module View = {
       "test-decos",
       List.filter_map(
         ~f=
-        ((id, insts)) =>
-          switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-          | None => None
-          },
+          ((id, insts)) =>
+            switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
+            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+            | None => None
+            },
         test_results.test_map,
       ),
     );

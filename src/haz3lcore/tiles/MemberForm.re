@@ -48,29 +48,30 @@ let of_exp_root = (seg: Segment.t): option(Segment.t) => {
   let ok =
     Array.for_all(
       ~f=
-      (s: ItemSpans.span) =>
-        switch (s.kind) {
-        | Tail => true
-        | Use => false
-        | Stmt =>
-          Option.iter(~f=i => Stdlib.Hashtbl.replace(seps, i, ()), s.sep);
-          true;
-        | Def =>
-          let rec find = i =>
-            i >= s.hi
-              ? None
-              : Id.equal(Piece.id(lv.pieces[i]), s.anchor) ? Some(i) : find(i + 1);
-          switch (Option.map(~f=i => (i, lv.pieces[i]), find(s.lo))) {
-          | Some((
-              i,
-              Piece.Tile({form: Compound(fam), shards: [0, 1, 2], _}),
-            ))
-              when Option.is_some(member_family(fam)) =>
-            Stdlib.Hashtbl.replace(heads, i, ());
+        (s: ItemSpans.span) =>
+          switch (s.kind) {
+          | Tail => true
+          | Use => false
+          | Stmt =>
+            Option.iter(~f=i => Stdlib.Hashtbl.replace(seps, i, ()), s.sep);
             true;
-          | _ => false
-          };
-        },
+          | Def =>
+            let rec find = i =>
+              i >= s.hi
+                ? None
+                : Id.equal(Piece.id(lv.pieces[i]), s.anchor)
+                    ? Some(i) : find(i + 1);
+            switch (Option.map(~f=i => (i, lv.pieces[i]), find(s.lo))) {
+            | Some((
+                i,
+                Piece.Tile({form: Compound(fam), shards: [0, 1, 2], _}),
+              ))
+                when Option.is_some(member_family(fam)) =>
+              Stdlib.Hashtbl.replace(heads, i, ());
+              true;
+            | _ => false
+            };
+          },
       lv.spans,
     );
   ok
@@ -98,7 +99,8 @@ let of_exp_root = (seg: Segment.t): option(Segment.t) => {
                 }),
               ]
             | p => [p]
-            }),
+            }
+          ),
         ),
       )
     : None;

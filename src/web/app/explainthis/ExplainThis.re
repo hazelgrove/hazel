@@ -135,11 +135,11 @@ let mk_translation_doc =
       let (nodes, mapping) =
         List.fold_left(
           ~f=
-          ((msg, mapping), item) => {
-            let (translated_item, mapping) =
-              translate_inline(item, [], mapping, ~inject);
-            (List.concat([msg, translated_item]), mapping);
-          },
+            ((msg, mapping), item) => {
+              let (translated_item, mapping) =
+                translate_inline(item, [], mapping, ~inject);
+              (List.concat([msg, translated_item]), mapping);
+            },
           ~init=([], mapping),
           items,
         );
@@ -187,112 +187,112 @@ let mk_translation_doc =
           : (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ~f=
-      ((msg, mapping), elem) => {
-        switch (elem) {
-        | Omd.Paragraph(_, d) =>
-          /* Each markdown paragraph renders as its own <p> so that blank
-             lines in the source produce visible paragraph breaks.
-             (Soft line breaks inside a paragraph are already handled by
-             [translate_inline] as <br>.) */
+        ((msg, mapping), elem) => {
+          switch (elem) {
+          | Omd.Paragraph(_, d) =>
+            /* Each markdown paragraph renders as its own <p> so that blank
+               lines in the source produce visible paragraph breaks.
+               (Soft line breaks inside a paragraph are already handled by
+               [translate_inline] as <br>.) */
             let (p_nodes, mapping) =
               translate_inline(d, [], mapping, ~inject);
-          (List.append(msg, [Node.p(p_nodes)]), mapping);
-        | Omd.Heading(_, level, d) =>
-          let (inline_nodes, mapping) =
-            translate_inline(d, [], mapping, ~inject);
-          let heading_node =
-            switch (level) {
-            | 1 => Node.h1(inline_nodes)
-            | 2 => Node.h2(inline_nodes)
-            | 3 => Node.h3(inline_nodes)
-            | 4 => Node.h4(inline_nodes)
-            | 5 => Node.h5(inline_nodes)
-            | _ => Node.h6(inline_nodes)
-            };
-          (List.append(msg, [heading_node]), mapping);
+            (List.append(msg, [Node.p(p_nodes)]), mapping);
+          | Omd.Heading(_, level, d) =>
+            let (inline_nodes, mapping) =
+              translate_inline(d, [], mapping, ~inject);
+            let heading_node =
+              switch (level) {
+              | 1 => Node.h1(inline_nodes)
+              | 2 => Node.h2(inline_nodes)
+              | 3 => Node.h3(inline_nodes)
+              | 4 => Node.h4(inline_nodes)
+              | 5 => Node.h5(inline_nodes)
+              | _ => Node.h6(inline_nodes)
+              };
+            (List.append(msg, [heading_node]), mapping);
           | Omd.Thematic_break(_) => (
               List.append(msg, [Node.hr()]),
               mapping,
             )
-        | Omd.Code_block(_, lang, code) =>
-          let core = globals.settings.core;
-          let plain = () => Node.pre([Node.code([Node.text(code)])]);
-          let hazel_settings =
+          | Omd.Code_block(_, lang, code) =>
+            let core = globals.settings.core;
+            let plain = () => Node.pre([Node.code([Node.text(code)])]);
+            let hazel_settings =
               switch (String.strip(lang)) {
-            | "hazel" => Some(core)
-            | "hazelnoeval" =>
-              Some({
-                ...core,
-                dynamics: false,
-              })
-            | "hazelnostatics" =>
-              Some({
-                ...core,
-                statics: false,
-                dynamics: false,
-              })
-            | _ => None
-            };
-          let code_node =
-            switch (hazel_settings) {
-            | None => plain()
-            | Some(settings) =>
-              switch (memo_parse(code)) {
+              | "hazel" => Some(core)
+              | "hazelnoeval" =>
+                Some({
+                  ...core,
+                  dynamics: false,
+                })
+              | "hazelnostatics" =>
+                Some({
+                  ...core,
+                  statics: false,
+                  dynamics: false,
+                })
+              | _ => None
+              };
+            let code_node =
+              switch (hazel_settings) {
               | None => plain()
-              | Some(zipper) =>
-                let globals = {
-                  ...globals,
-                  settings: {
-                    ...globals.settings,
-                    core: settings,
-                  },
-                };
-                CellEditor.View.view(
-                  ~globals,
-                  ~signal=_ => Ui_effect.Ignore,
-                  ~inject=_ => Ui_effect.Ignore,
-                  ~selected=None,
-                  ~caption=None,
-                  ~locked=true,
-                  zipper
-                  |> Editor.Model.mk(~root=Exp)
-                  |> CellEditor.Model.mk
-                  |> CellEditor.Update.calculate(
-                       ~settings,
-                       ~is_edited=true,
-                       ~stitch=x => x,
-                       ~queue_worker=None,
-                     ),
-                );
-              }
-            };
-          (List.append(msg, [code_node]), mapping);
-        | Omd.List(_, list_type, list_spacing, items) =>
-          let translate_item = (d, mapping) =>
-            switch (list_spacing, d) {
-            | (Omd.Tight, [Omd.Paragraph(_, inline)]) =>
-              translate_inline(inline, [], mapping, ~inject)
-            | _ => translate_block(d, mapping)
-            };
-          let (bullets, mapping) =
-            List.fold_left(
+              | Some(settings) =>
+                switch (memo_parse(code)) {
+                | None => plain()
+                | Some(zipper) =>
+                  let globals = {
+                    ...globals,
+                    settings: {
+                      ...globals.settings,
+                      core: settings,
+                    },
+                  };
+                  CellEditor.View.view(
+                    ~globals,
+                    ~signal=_ => Ui_effect.Ignore,
+                    ~inject=_ => Ui_effect.Ignore,
+                    ~selected=None,
+                    ~caption=None,
+                    ~locked=true,
+                    zipper
+                    |> Editor.Model.mk(~root=Exp)
+                    |> CellEditor.Model.mk
+                    |> CellEditor.Update.calculate(
+                         ~settings,
+                         ~is_edited=true,
+                         ~stitch=x => x,
+                         ~queue_worker=None,
+                       ),
+                  );
+                }
+              };
+            (List.append(msg, [code_node]), mapping);
+          | Omd.List(_, list_type, list_spacing, items) =>
+            let translate_item = (d, mapping) =>
+              switch (list_spacing, d) {
+              | (Omd.Tight, [Omd.Paragraph(_, inline)]) =>
+                translate_inline(inline, [], mapping, ~inject)
+              | _ => translate_block(d, mapping)
+              };
+            let (bullets, mapping) =
+              List.fold_left(
                 ~f=
-              ((nodes, mapping), d) => {
-                let (n, mapping) = translate_item(d, mapping);
-                (List.append(nodes, [Node.li(n)]), mapping);
-              },
+                  ((nodes, mapping), d) => {
+                    let (n, mapping) = translate_item(d, mapping);
+                    (List.append(nodes, [Node.li(n)]), mapping);
+                  },
                 ~init=([], mapping),
-              items,
-            );
-          let list_node =
-            switch (list_type) {
-            | Omd.Ordered(_, _) => Node.ol(bullets)
-            | Omd.Bullet(_) => Node.ul(bullets)
-            };
-          (List.append(msg, [list_node]), mapping);
-        | _ => (msg, mapping)
-        }
-      },
+                items,
+              );
+            let list_node =
+              switch (list_type) {
+              | Omd.Ordered(_, _) => Node.ol(bullets)
+              | Omd.Bullet(_) => Node.ul(bullets)
+              };
+            (List.append(msg, [list_node]), mapping);
+          | _ => (msg, mapping)
+          }
+        },
       ~init=([], mapping),
       doc,
     );
@@ -377,21 +377,21 @@ let expander_deco =
         ],
         List.map(
           ~f=
-          ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
-            let code_view = CodeViewable.view_segment(~globals, segment);
-            let classes =
+            ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
+              let code_view = CodeViewable.view_segment(~globals, segment);
+              let classes =
                 Poly.equal(id, doc.id)
-                ? ["selected"] @ get_clss(segment) : get_clss(segment);
-            let update_group_selection = _ =>
-              inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
-            Node.div(
+                  ? ["selected"] @ get_clss(segment) : get_clss(segment);
+              let update_group_selection = _ =>
+                inject(ExplainThisUpdate.UpdateGroupSelection(group.id, id));
+              Node.div(
                 ~attrs=[
                   clss(classes),
                   Attr.on_click(update_group_selection),
                 ],
-              [code_view],
-            );
-          },
+                [code_view],
+              );
+            },
           options,
         ),
       );
@@ -448,49 +448,49 @@ let example_view =
         ~attrs=[Attr.id("examples")],
         List.mapi(
           ~f=
-          (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
-            let feedback =
-              globals.settings.explainThis.show_feedback
-                ? [
-                  example_feedback_view(
-                    ~inject,
-                    group_id,
-                    form_id,
-                    sub_id,
-                    model,
+            (_, {term, message, sub_id, _}: ExplainThisForm.example) => {
+              let feedback =
+                globals.settings.explainThis.show_feedback
+                  ? [
+                    example_feedback_view(
+                      ~inject,
+                      group_id,
+                      form_id,
+                      sub_id,
+                      model,
+                    ),
+                  ]
+                  : [];
+              div(
+                ~attrs=[clss(["example"])],
+                [
+                  CellEditor.View.view(
+                    ~globals,
+                    ~signal=_ => Ui_effect.Ignore,
+                    ~inject=_ => Ui_effect.Ignore,
+                    ~selected=None,
+                    ~caption=None,
+                    ~locked=true,
+                    {
+                      Lazy.force(term)
+                      |> Zipper.unzip
+                      |> Editor.Model.mk(~root=Exp)
+                      |> CellEditor.Model.mk
+                      |> CellEditor.Update.calculate(
+                           ~settings=globals.settings.core,
+                           ~is_edited=true,
+                           ~stitch=x => x,
+                           ~queue_worker=None,
+                         );
+                    },
                   ),
-                ]
-                : [];
-            div(
-              ~attrs=[clss(["example"])],
-              [
-                CellEditor.View.view(
-                  ~globals,
-                  ~signal=_ => Ui_effect.Ignore,
-                  ~inject=_ => Ui_effect.Ignore,
-                  ~selected=None,
-                  ~caption=None,
-                  ~locked=true,
-                  {
-                    Lazy.force(term)
-                    |> Zipper.unzip
-                    |> Editor.Model.mk(~root=Exp)
-                    |> CellEditor.Model.mk
-                    |> CellEditor.Update.calculate(
-                         ~settings=globals.settings.core,
-                         ~is_edited=true,
-                         ~stitch=x => x,
-                         ~queue_worker=None,
-                       );
-                  },
-                ),
-                div(
-                  ~attrs=[clss(["explanation"])],
-                  [text(message)] @ feedback,
-                ),
-              ],
-            );
-          },
+                  div(
+                    ~attrs=[clss(["explanation"])],
+                    [text(message)] @ feedback,
+                  ),
+                ],
+              );
+            },
           examples,
         ),
       ),
@@ -645,33 +645,33 @@ let decide_deduction =
             |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
             |> List.map(
                  ~f=
-                 Base.map_piece(~f_piece=(cont, piece) => {
-                   switch (piece) {
-                   | Tile({children: [], _} as t)
-                       when
-                         switch (Tile.mold(t).nibs) {
+                   Base.map_piece(~f_piece=(cont, piece) => {
+                     switch (piece) {
+                     | Tile({children: [], _} as t)
+                         when
+                           switch (Tile.mold(t).nibs) {
                            | ({shape: Convex, _}, {shape: Convex, _}) =>
                              true
-                         | _ => false
-                         } =>
+                           | _ => false
+                           } =>
                        let label = Tile.label(t) |> List.hd_exn;
-                     let (_, syntax) = RuleVerify.Map.find(label, map);
-                     /* display-only markdown-link label swap; only
-                      * to_string reads this tile downstream */
-                     Tile({
-                       ...t,
-                       form:
-                         Form.Tok(
-                           Printf.sprintf(
-                             "[*%s*](%s)",
-                             label,
-                             syntax |> Drv.Any.rep_id |> Id.to_string,
+                       let (_, syntax) = RuleVerify.Map.find(label, map);
+                       /* display-only markdown-link label swap; only
+                        * to_string reads this tile downstream */
+                       Tile({
+                         ...t,
+                         form:
+                           Form.Tok(
+                             Printf.sprintf(
+                               "[*%s*](%s)",
+                               label,
+                               syntax |> Drv.Any.rep_id |> Id.to_string,
+                             ),
                            ),
-                         ),
-                     });
-                   | _ => cont(piece)
-                   }
-                 }),
+                       });
+                     | _ => cont(piece)
+                     }
+                   }),
                )
             |> Segment.to_string(
                  ~projector_to_segment=Triggers.projector_to_invoke,

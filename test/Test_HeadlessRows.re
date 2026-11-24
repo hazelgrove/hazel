@@ -161,24 +161,24 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
   }
   and of_mod = (items: list(Mod.t)): int =>
     List.fold(items, ~init=0, ~f=(n, m: Mod.t) =>
-        n
-        + (
-          switch (m.term) {
-          | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
-          | ModType(tpat, typ) => type_row(Mod.rep_id(m), tpat, typ)
-          | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
-          | ModExp(e) =>
-            switch (strip(e).term) {
-            | EmptyHole => 0
-            | _ =>
-              add(Mod.rep_id(m), Headless(Exp.rep_id(e)));
-              1;
-            }
-          | ModVal(_)
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_) => 0
+      n
+      + (
+        switch (m.term) {
+        | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
+        | ModType(tpat, typ) => type_row(Mod.rep_id(m), tpat, typ)
+        | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
+        | ModExp(e) =>
+          switch (strip(e).term) {
+          | EmptyHole => 0
+          | _ =>
+            add(Mod.rep_id(m), Headless(Exp.rep_id(e)));
+            1;
           }
+        | ModVal(_)
+        | Invalid(_)
+        | EmptyHole
+        | MultiHole(_) => 0
+        }
       )
     );
   ignore(of_exp(~top=true, term));
@@ -191,16 +191,16 @@ let projected_ids = (seg: Segment.t): Id.Map.t(unit) => {
   let rec go = (~under, seg: Segment.t) =>
     List.iter(
       ~f=
-      (p: Piece.t) => {
-        if (under) {
-          out := Id.Map.add(Piece.id(p), (), out^);
-        };
-        switch (p) {
+        (p: Piece.t) => {
+          if (under) {
+            out := Id.Map.add(Piece.id(p), (), out^);
+          };
+          switch (p) {
           | Tile(t) => List.iter(~f=go(~under), t.children)
-        | Projector(pr) => go(~under=true, [pr.syntax])
-        | _ => ()
-        };
-      },
+          | Projector(pr) => go(~under=true, [pr.syntax])
+          | _ => ()
+          };
+        },
       seg,
     );
   go(~under=false, seg);
@@ -372,46 +372,25 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
   };
   List.iter(
     ~f=
-    (n: O.node) =>
-      switch (n.o_id, n.o_kind) {
-      | (Some(id), kind) =>
-        let row = n.o_label ++ " " ++ kind_name(kind);
-        let pin = V.pin(~outline, id, V.init);
-        switch (Id.Map.find_opt(id, wants)) {
-        | None => failwith(name ++ ": no term for " ++ row)
-        | Some(Shut) => check_shut(~row, ~id, ~pin)
-        | Some(Headless(b)) =>
+      (n: O.node) =>
+        switch (n.o_id, n.o_kind) {
+        | (Some(id), kind) =>
+          let row = n.o_label ++ " " ++ kind_name(kind);
+          let pin = V.pin(~outline, id, V.init);
+          switch (Id.Map.find_opt(id, wants)) {
+          | None => failwith(name ++ ": no term for " ++ row)
+          | Some(Shut) => check_shut(~row, ~id, ~pin)
+          | Some(Headless(b)) =>
             let sym = Poly.equal(kind, KTrail) ? {js|⇒|js} : ";";
-          check_row(
-            ~row,
-            ~id,
-            ~pin,
-              ~expect=e => Poly.equal(e.e_kind, Headless(sym)),
-            ~header=None,
-            ~body=span(b),
-          );
-        | Some(Def(h, b)) =>
-          check_row(
-            ~row,
-            ~id,
-            ~pin,
-            ~expect=is_def,
-            ~header=Some(span(h)),
-            ~body=span(b),
-          )
-        | Some(Module(h, b)) =>
-          switch (braced(span(b))) {
-          | Some(members) =>
             check_row(
               ~row,
               ~id,
               ~pin,
-                ~expect=e => Poly.equal(e.e_kind, Members),
-              ~header=Some(span(h)),
-              ~body=members,
-            )
-          /* `{}` has no members to show: its definition */
-          | None =>
+              ~expect=e => Poly.equal(e.e_kind, Headless(sym)),
+              ~header=None,
+              ~body=span(b),
+            );
+          | Some(Def(h, b)) =>
             check_row(
               ~row,
               ~id,
@@ -420,39 +399,60 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
               ~header=Some(span(h)),
               ~body=span(b),
             )
-          }
-        };
-      /* a tests container opens its run as one cell */
-      | (None, KTests) =>
-          let kids = List.filter_map(~f=(k: O.node) => k.o_id, n.o_children);
-        let stmt = id =>
-          switch (Id.Map.find_opt(id, wants)) {
-          | Some(Headless(b)) => range(b)
-          | _ => failwith(name ++ ": a test row without its statement")
+          | Some(Module(h, b)) =>
+            switch (braced(span(b))) {
+            | Some(members) =>
+              check_row(
+                ~row,
+                ~id,
+                ~pin,
+                ~expect=e => Poly.equal(e.e_kind, Members),
+                ~header=Some(span(h)),
+                ~body=members,
+              )
+            /* `{}` has no members to show: its definition */
+            | None =>
+              check_row(
+                ~row,
+                ~id,
+                ~pin,
+                ~expect=is_def,
+                ~header=Some(span(h)),
+                ~body=span(b),
+              )
+            }
           };
+        /* a tests container opens its run as one cell */
+        | (None, KTests) =>
+          let kids = List.filter_map(~f=(k: O.node) => k.o_id, n.o_children);
+          let stmt = id =>
+            switch (Id.Map.find_opt(id, wants)) {
+            | Some(Headless(b)) => range(b)
+            | _ => failwith(name ++ ": a test row without its statement")
+            };
           let (level, l, _) = stmt(List.hd_exn(kids));
-        let (_, _, r) = stmt(Util.ListUtil.last(kids));
-        check_row(
-          ~row="tests",
+          let (_, _, r) = stmt(Util.ListUtil.last(kids));
+          check_row(
+            ~row="tests",
             ~id=List.hd_exn(kids),
             ~pin=V.pin(~outline, ~run=true, List.hd_exn(kids), V.init),
-          ~expect=
-            e =>
-              switch (e.e_kind) {
+            ~expect=
+              e =>
+                switch (e.e_kind) {
                 | Run(ids) =>
                   List.for_all(
                     ~f=k => List.mem(ids, k, ~equal=Poly.equal),
                     kids,
                   )
-              | Def(_)
-              | Members
-              | Headless(_) => false
-              },
-          ~header=None,
-          ~body=Util.ListUtil.slice(l, r - l, level),
-        );
-      | (None, _) => ()
-      },
+                | Def(_)
+                | Members
+                | Headless(_) => false
+                },
+            ~header=None,
+            ~body=Util.ListUtil.slice(l, r - l, level),
+          );
+        | (None, _) => ()
+        },
     List.filteri(
       ~f=(i, _) => i mod sample == 0,
       O.flatten(O.rows(outline)),
@@ -534,15 +534,15 @@ let shape_rows = () => {
   List.iter(~f=report, surveys);
   List.iter2_exn(
     ~f=
-    ((name, _, projected), s) => {
-      check(int, name ++ ": broken rows", 0, List.length(s.broken));
+      ((name, _, projected), s) => {
+        check(int, name ++ ": broken rows", 0, List.length(s.broken));
         check(
           int,
           name ++ ": rows under a projector",
           projected,
           s.projected,
         );
-    },
+      },
     shapes,
     surveys,
   );
@@ -557,7 +557,7 @@ let corpus = () => {
     )
     @ List.map(
         ~f=
-        ((file, root)) =>
+          ((file, root)) =>
             (file, root, 4, Option.value_exn(CorpusUtil.mega_src(file))),
         [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
       );

@@ -28,7 +28,9 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
   switch (items) {
   | [] => Some(tail)
   | [item, ...rest] =>
-    Option.bind(chain(rest, tail), ~f=body => {
+    Option.bind(
+      chain(rest, tail),
+      ~f=body => {
         let link = (term: Exp.term): Exp.t =>
           IdTagged.mk_internal([Mod.rep_id(item)], term);
         switch (item.term) {
@@ -41,7 +43,8 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
         | Invalid(_)
         | ModVal(_) => Some(body)
         };
-      })
+      },
+    )
   };
 
 /* the elaborated chain's definitions in order: a loop, not recursion,
@@ -71,7 +74,7 @@ let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
        let deps =
          Builtins.mentioned(~keep=Stdlib.Hashtbl.mem(latest), def)
          |> List.map(~f=Stdlib.Hashtbl.find(latest))
-         |> List.dedup_and_sort(~compare=compare);
+         |> List.dedup_and_sort(~compare);
        Stdlib.Hashtbl.replace(latest, name, i);
        Library.{
          name,
@@ -163,7 +166,11 @@ let of_text =
   | Ok({segment, _}) =>
     switch (MakeTerm.Incr.term_of_mod(segment).term) {
     | Module(items) =>
-      of_items(~strict, ~hash=Stdlib.Digest.to_hex(Stdlib.Digest.string(text)), items)
+      of_items(
+        ~strict,
+        ~hash=Stdlib.Digest.to_hex(Stdlib.Digest.string(text)),
+        items,
+      )
       |> Result.map(~f=({baked, errors, _}) => (baked, errors, segment))
     | _ => Error("the library did not parse as module items")
     }

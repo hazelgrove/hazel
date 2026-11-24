@@ -1962,14 +1962,15 @@ let coercion_tests = {
               ]),
             ),
           ];
-          List.iter(~f=
-            ((a, b)) =>
-              check(
-                opt_typ,
-                "same as meet",
-                Typ.meet(ctx, a, b),
-                coercion(a, b),
-              ),
+          List.iter(
+            ~f=
+              ((a, b)) =>
+                check(
+                  opt_typ,
+                  "same as meet",
+                  Typ.meet(ctx, a, b),
+                  coercion(a, b),
+                ),
             pairs,
           );
         },

@@ -67,22 +67,22 @@ let check_parity = (label: string, code: string) => {
   );
   List.iter(
     ~f=
-    id => {
-      let get = m => Id.Map.find_opt(id, m) |> Option.value(~default=[]);
-      let (si, sf) = (get(inline), get(folded));
-      if (List.length(si) != List.length(sf)
+      id => {
+        let get = m => Id.Map.find_opt(id, m) |> Option.value(~default=[]);
+        let (si, sf) = (get(inline), get(folded));
+        if (List.length(si) != List.length(sf)
             || !List.for_all2_exn(si, sf, ~f=sample_eq)) {
-        fail(
-          label
-          ++ ": mismatch at probe "
-          ++ Id.to_string(id)
-          ++ "\n  inline: "
+          fail(
+            label
+            ++ ": mismatch at probe "
+            ++ Id.to_string(id)
+            ++ "\n  inline: "
             ++ String.concat(~sep=" ", List.map(~f=describe, si))
-          ++ "\n  folded: "
+            ++ "\n  folded: "
             ++ String.concat(~sep=" ", List.map(~f=describe, sf)),
-        );
-      };
-    },
+          );
+        };
+      },
     keys(inline),
   );
 };

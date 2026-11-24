@@ -218,18 +218,18 @@ let project =
     : list(P.entry) =>
   List.filter_map(
     ~f=
-    ((id, info)) =>
+      ((id, info)) =>
         List.exists(~f=Id.equal(id), skip)
-        ? None
-        : EvalInfo.entry_of_info(acc.witnessing, info)
+          ? None
+          : EvalInfo.entry_of_info(acc.witnessing, info)
             |> Option.map(~f=(e: EvalInfo.entry) =>
-               P.{
-                 id,
-                 elab: elab_of(t, e.elab_term),
-                 co_ctx: e.co_ctx,
-                 probe_targets: e.probe_targets,
-               }
-             ),
+                 P.{
+                   id,
+                   elab: elab_of(t, e.elab_term),
+                   co_ctx: e.co_ctx,
+                   probe_targets: e.probe_targets,
+                 }
+               ),
     infos,
   );
 
@@ -347,13 +347,13 @@ let roots_piece =
       let t = Stdlib.Hashtbl.create(16);
       Option.iter(
         ~f=
-        ((_, rows)) =>
-          List.iter(
+          ((_, rows)) =>
+            List.iter(
               ~f=
-            ((id, overlay, entries)) =>
+                ((id, overlay, entries)) =>
                   Stdlib.Hashtbl.replace(t, id, (overlay, entries)),
-            rows,
-          ),
+              rows,
+            ),
         before,
       );
       t;
@@ -413,12 +413,12 @@ let roots_piece =
         Roots(skip, rows),
         Roots(List.map(~f=((id, _, entries)) => (id, entries), rows)),
         List.fold(rows, ~init=0, ~f=(n, (_, overlay, _)) =>
-            n
-            + List.length(
-                List.filter(
+          n
+          + List.length(
+              List.filter(
                 ~f=((id, _)) => !List.exists(~f=Id.equal(id), skip),
-                  overlay,
-                ),
+                overlay,
+              ),
             )
         ),
         key,
@@ -603,12 +603,15 @@ let empty_piece =
 let dropped_keys =
     (it: DefStatics.item, s: DefStatics.sum, ~shadowed: list(Id.t)): int => {
   let has = id =>
-    Id.Map.mem(id, it.d_map) || List.Assoc.mem(s.s_overlay, id, ~equal=Poly.equal);
+    Id.Map.mem(id, it.d_map)
+    || List.Assoc.mem(s.s_overlay, id, ~equal=Poly.equal);
   Id.Map.cardinal(it.d_map)
   + List.length(
       List.filter(~f=((id, _)) => !Id.Map.mem(id, it.d_map), s.s_overlay),
     )
-  - List.length(List.filter(~f=has, List.dedup_and_sort(~compare=compare, shadowed)));
+  - List.length(
+      List.filter(~f=has, List.dedup_and_sort(~compare, shadowed)),
+    );
 };
 
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
@@ -644,12 +647,12 @@ let rec chain =
   let ids = Stdlib.Hashtbl.create(List.length(items));
   List.iter(
     ~f=
-    (it: DefStatics.item) =>
+      (it: DefStatics.item) =>
         if (Stdlib.Hashtbl.mem(ids, it.d_id)) {
-        raise(Unsplittable("an item id twice in a chain"));
-      } else {
+          raise(Unsplittable("an item id twice in a chain"));
+        } else {
           Stdlib.Hashtbl.replace(ids, it.d_id, ());
-      },
+        },
     items,
   );
   let cache = {
@@ -823,8 +826,8 @@ let rec chain =
     | Some(Inside(c)) => Some(cut_whole(it, s, src, ~inner_cut=Some(c)))
     };
   let cuts =
-    List.filter_map(~f=
-      Fun.id,
+    List.filter_map(
+      ~f=Fun.id,
       List.map2_exn(~f=cut_item, List.zip_exn(items, sums), srcs),
     );
   let roots =
@@ -906,7 +909,8 @@ let split =
     : P.layout => {
   let ds =
     switch (DefStatics.last(statics.term)) {
-    | Some(ds) when Option.is_some(run) || phys_equal(ds.merged, statics.info_map) => ds
+    | Some(ds)
+        when Option.is_some(run) || phys_equal(ds.merged, statics.info_map) => ds
     | _ => raise(Unsplittable("no analysis of these statics"))
     };
   /* the program is the top chain, finished as DefStatics.whole_elab */

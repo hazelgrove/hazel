@@ -28,10 +28,10 @@ let same_graph = (): same => {
     );
   let paired = (a: Obj.t, b: Obj.t): bool =>
     phys_equal(
-    Js_of_ocaml.Js.Unsafe.meth_call(
-      memo,
-      "get",
-      [|Js_of_ocaml.Js.Unsafe.inject(a)|],
+      Js_of_ocaml.Js.Unsafe.meth_call(
+        memo,
+        "get",
+        [|Js_of_ocaml.Js.Unsafe.inject(a)|],
       ),
       b,
     );
@@ -441,7 +441,7 @@ let exact_tests =
   ]
   @ List.map(
       ~f=
-      ((name, root, src, after, keys)) =>
+        ((name, root, src, after, keys)) =>
           test_case(
             "typed: " ++ name,
             `Quick,
@@ -453,19 +453,19 @@ let exact_tests =
     test_case("edge and mid-typing programs", `Quick, () =>
       List.iter(
         ~f=
-        ((name, src)) =>
-          switch (CorpusUtil.parse(src)) {
-          | Some(seg) =>
-            fresh_worker();
+          ((name, src)) =>
+            switch (CorpusUtil.parse(src)) {
+            | Some(seg) =>
+              fresh_worker();
               let st =
                 statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg));
-            check_exact(
-              name,
-              st,
-              composed(WorkerServer.receive(post(request_of(st)))),
-            );
-          | None => ()
-          },
+              check_exact(
+                name,
+                st,
+                composed(WorkerServer.receive(post(request_of(st)))),
+              );
+            | None => ()
+            },
         CorpusUtil.edge_programs @ CorpusUtil.incomplete_programs,
       )
     ),
@@ -476,12 +476,12 @@ let token_id = (needle: string, seg: Segment.t): Id.t => {
   let rec go = (seg: Segment.t) =>
     List.find_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [needle] => Some(t.id)
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == [needle] => Some(t.id)
           | Tile(t) => List.find_map(~f=go, t.children)
-        | _ => None
-        },
+          | _ => None
+          },
       seg,
     );
   switch (go(seg)) {
@@ -495,11 +495,11 @@ let owner = (id: Id.t, ds: DefStatics.t): Id.t => {
   let rec find = (items: list(DefStatics.item)) =>
     List.find_map(
       ~f=
-      (it: DefStatics.item) =>
-        switch (find(it.d_members)) {
-        | Some(_) as found => found
-        | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
-        },
+        (it: DefStatics.item) =>
+          switch (find(it.d_members)) {
+          | Some(_) as found => found
+          | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
+          },
       items,
     );
   switch (find(ds.items)) {
@@ -748,14 +748,14 @@ let compare_results = (name, a, b) => {
     );
     List.iter2_exn(
       ~f=
-      ((id, xs), (_, ys)) =>
-        check(
-          bool,
-          name ++ ": samples at " ++ id,
-          true,
-          List.length(xs) == List.length(ys)
+        ((id, xs), (_, ys)) =>
+          check(
+            bool,
+            name ++ ": samples at " ++ id,
+            true,
+            List.length(xs) == List.length(ys)
             && List.for_all2_exn(~f=Exp.fast_equal_with_lexemes, xs, ys),
-        ),
+          ),
       ps,
       ps',
     );
@@ -784,16 +784,17 @@ let same_results = (name, st: CachedStatics.t) => {
 let results = () => {
   let n = ref(0);
   List.iter(
-    ~f=((path, root, src)) =>
-      switch (CorpusUtil.parse(~root, src)) {
-      | Some(seg) =>
-        same_results(
-          path,
-          statics_of(MakeTerm.Incr.term_of_root(~root, seg)),
-        );
-        incr(n);
-      | None => ()
-      },
+    ~f=
+      ((path, root, src)) =>
+        switch (CorpusUtil.parse(~root, src)) {
+        | Some(seg) =>
+          same_results(
+            path,
+            statics_of(MakeTerm.Incr.term_of_root(~root, seg)),
+          );
+          incr(n);
+        | None => ()
+        },
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there", true, n^ >= 40);
@@ -801,13 +802,13 @@ let results = () => {
      ⇓ probe samples the whole module, ~20s to evaluate and compare */
   List.iter(
     ~f=
-    ((name, root, src)) =>
-      same_results(
-        name,
-        statics_of(
-          MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src)),
+      ((name, root, src)) =>
+        same_results(
+          name,
+          statics_of(
+            MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src)),
+          ),
         ),
-      ),
     [
       ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
       ("lib (Mod)", Sort.Mod, Delta.lib),
@@ -849,10 +850,18 @@ let id_in = (path, e: Exp.t) => {
     | Module(items) => items
     | _ => fail("not a module")
     };
-  List.fold(path, ~init=([], e), ~f=((ids, e), name) => {
-      let i = List.find_exn(~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal), items(e));
+  List.fold(
+    path,
+    ~init=([], e),
+    ~f=((ids, e), name) => {
+      let i =
+        List.find_exn(
+          ~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal),
+          items(e),
+        );
       ([Mod.rep_id(i), ...ids], Option.value_exn(WorldTree.def_of(i)));
-    })
+    },
+  )
   |> fst
   |> List.rev;
 };
@@ -931,7 +940,8 @@ let world = () => {
   let seg = CorpusUtil.seg_of(~root=Mod, world_src);
   let intro = ["Documentation", "Intro"];
   let (st, encoded) = run("the slide", ~zoom=intro, seg);
-  let holes = List.nth_exn(id_in(["Documentation", "Holes"], st.elaborated), 1);
+  let holes =
+    List.nth_exn(id_in(["Documentation", "Holes"], st.elaborated), 1);
   check(
     bool,
     "the sealed one, empty",
@@ -1026,7 +1036,8 @@ let shipped_world = () =>
     let path = Deck.path(name);
     let zoom = _ =>
       List.init(List.length(path) - 1, ~f=i =>
-        WorldTree.folder_id(Util.ListUtil.take(i + 1, path)))
+        WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
+      )
       @ [Deck.slide_id(name)];
     let run = (label, seg) => {
       let (_, rs, encoded, v) = world_run_at(~zoom, seg);

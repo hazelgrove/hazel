@@ -128,11 +128,11 @@ let hold = (request: Request.t): unit => {
   Stdlib.Hashtbl.reset(held);
   List.iter(
     ~f=
-    ((_, v: Request.value)) =>
-      List.iter(
+      ((_, v: Request.value)) =>
+        List.iter(
           ~f=((hash, _)) => Stdlib.Hashtbl.replace(held, hash, ()),
-        v.program.pieces,
-      ),
+          v.program.pieces,
+        ),
     request.batch,
   );
 };
@@ -146,32 +146,32 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
     batch:
       List.map(
         ~f=
-        ((key, v: Request.value)) =>
-          (
-            key,
-            Posted.{
-              layout: v.program.layout,
-              prev: v.prev,
-              stream: v.stream,
-            },
-          ),
+          ((key, v: Request.value)) =>
+            (
+              key,
+              Posted.{
+                layout: v.program.layout,
+                prev: v.prev,
+                stream: v.stream,
+              },
+            ),
         request.batch,
       ),
     pieces:
       List.concat_map(
         ~f=
-        ((_, v: Request.value)) =>
-          List.filter(
+          ((_, v: Request.value)) =>
+            List.filter(
               ~f=
-            ((hash, _)) =>
+                ((hash, _)) =>
                   (full || !Stdlib.Hashtbl.mem(held, hash))
                   && !Stdlib.Hashtbl.mem(seen, hash)
-              && {
+                  && {
                     Stdlib.Hashtbl.replace(seen, hash, ());
-                true;
-              },
-            v.program.pieces,
-          ),
+                    true;
+                  },
+              v.program.pieces,
+            ),
         request.batch,
       ),
   };
@@ -312,36 +312,36 @@ let restart_worker = (): unit => {
 let start_eval_timeout = latest => {
   clear_timer(eval_timeout_id);
   set_deadline(eval_timeout_id, ~delay_ms=eval_timeout_ms, () =>
-          with_latest(
-            latest.request.request_id,
-            latest => {
-              restart_worker();
-              fail_latest(latest);
-            },
-          )
-    );
+    with_latest(
+      latest.request.request_id,
+      latest => {
+        restart_worker();
+        fail_latest(latest);
+      },
+    )
+  );
 };
 
 let rec start_ack_timeout = (~cold_start, latest) => {
   clear_timer(ack_timeout_id);
   let duration = cold_start ? ack_cold_start_timeout_ms : ack_timeout_ms;
   set_deadline(ack_timeout_id, ~delay_ms=duration, () =>
-          with_latest(latest.request.request_id, latest =>
-            if (latest.ack_retries >= max_ack_retries) {
-              restart_worker();
-              fail_latest(latest);
-            } else {
-              let latest = {
-                ...latest,
-                ack_retries: latest.ack_retries + 1,
-              };
-              latest_request := Some(latest);
-              restart_worker();
-              post_evaluate(get_worker(), latest.request);
-              start_ack_timeout(~cold_start=true, latest);
-            }
-          )
-    );
+    with_latest(latest.request.request_id, latest =>
+      if (latest.ack_retries >= max_ack_retries) {
+        restart_worker();
+        fail_latest(latest);
+      } else {
+        let latest = {
+          ...latest,
+          ack_retries: latest.ack_retries + 1,
+        };
+        latest_request := Some(latest);
+        restart_worker();
+        post_evaluate(get_worker(), latest.request);
+        start_ack_timeout(~cold_start=true, latest);
+      }
+    )
+  );
 };
 
 /* asked again after posting every piece: fail it rather than loop */

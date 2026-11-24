@@ -84,9 +84,9 @@ let is_nary =
       |> List.map(~f=snd)
       |> List.for_all(
            ~f=
-           fun
-           | (F(f), []) => is_delim(f)
-           | _ => false,
+             fun
+             | (F(f), []) => is_delim(f)
+             | _ => false,
          )) {
     kids |> List.map(~f=is_sort) |> OptUtil.sequence;
   } else {
@@ -129,15 +129,15 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     kids
     |> List.map(
          ~f=
-         fun
-         | Grammar.Mod(m) => flatten_mod(m)
+           fun
+           | Grammar.Mod(m) => flatten_mod(m)
            | Grammar.Exp(e) => [Mod.of_exp(e)]
            | other => [
                Mod.of_exp(
-             IdTagged.mk_internal(
+                 IdTagged.mk_internal(
                    [Id.derive(~salt="mod-other", Any.rep_id(other))],
                    MultiHole([other]): Exp.term,
-             ),
+                 ),
                ),
              ],
        )
@@ -161,9 +161,9 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     kids
     |> List.map(
          ~f=
-         fun
-         | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | other => [Sig.fresh(MultiHole([other]))],
+           fun
+           | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
+           | other => [Sig.fresh(MultiHole([other]))],
        )
     |> List.concat
   | SigLet(_)
@@ -179,16 +179,16 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
     (ts: list(tile))
     |> List.map(
          ~f=fun
-         | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
-         | _ => None: tile => option(TermBase.pat_t),
+            | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
+            | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
   and+ clauses =
     kids
     |> List.map(
          ~f=fun
-         | Exp(clause) => Some(clause)
-         | _ => None: TermBase.any_t => option(TermBase.exp_t),
+            | Exp(clause) => Some(clause)
+            | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -199,18 +199,18 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
     ts
     |> List.map(
          ~f=
-         fun
-         | (_, (F(Compound(Rule)), [Grammar.Drv(Pat(p))])) => Some(p)
-         | _ => None,
+           fun
+           | (_, (F(Compound(Rule)), [Grammar.Drv(Pat(p))])) => Some(p)
+           | _ => None,
        )
     |> OptUtil.sequence
   and+ clauses =
     kids
     |> List.map(
          ~f=
-         fun
-         | Grammar.Drv(Exp(clause)) => Some(clause)
-         | _ => None,
+           fun
+           | Grammar.Drv(Exp(clause)) => Some(clause)
+           | _ => None,
        )
     |> OptUtil.sequence;
   Aba.mk(ps, clauses);
@@ -941,22 +941,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             ListLit(
               List.map(
                 ~f=
-                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
-                  let (e, rewrap) = IdTagged.unwrap(list_item);
-                  switch (e) {
-                  | TupLabel(_) =>
-                    rewrap(
-                      Tuple([
-                        derived(
-                          ~salt="tuplabel-item",
-                          list_item.annotation.ids,
-                          e,
-                        ),
-                      ]): TermBase.exp_term,
-                    )
-                  | _ => list_item
-                  };
-                },
+                  (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                    let (e, rewrap) = IdTagged.unwrap(list_item);
+                    switch (e) {
+                    | TupLabel(_) =>
+                      rewrap(
+                        Tuple([
+                          derived(
+                            ~salt="tuplabel-item",
+                            list_item.annotation.ids,
+                            e,
+                          ),
+                        ]): TermBase.exp_term,
+                      )
+                    | _ => list_item
+                    };
+                  },
                 es,
               ),
             ),
@@ -2013,24 +2013,24 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
 let reconsolidate =
     (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
   List.fold(adopted, ~init=td0, ~f=(td, id) =>
-      switch (Id.Map.find_opt(id, m)) {
-      | None => td
-      | Some(term) =>
-        let rep = Language.Any.rep_id(term);
-        switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
-        | (Some(rep_data), Some(old_data)) =>
-          Id.Map.add(
-            id,
-            TermData.{
-              ...rep_data,
-              root_piece: old_data.root_piece,
-              sort: old_data.sort,
-            },
-            td,
-          )
-        | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
-        | (None, _) => td
-        };
+    switch (Id.Map.find_opt(id, m)) {
+    | None => td
+    | Some(term) =>
+      let rep = Language.Any.rep_id(term);
+      switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
+      | (Some(rep_data), Some(old_data)) =>
+        Id.Map.add(
+          id,
+          TermData.{
+            ...rep_data,
+            root_piece: old_data.root_piece,
+            sort: old_data.sort,
+          },
+          td,
+        )
+      | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
+      | (None, _) => td
+      };
     }
   );
 
@@ -2663,22 +2663,22 @@ module Incr = {
       : TermData.t =>
     List.fold(
       adopted, ~init=td, ~f=(td, (id, rep, own: option(TermData.data))) =>
-        switch (Id.Map.find_opt(rep, td)) {
-        | Some(rd) =>
-          Id.Map.add(
-            id,
-            switch (own) {
-            | Some(o) =>
-              TermData.{
-                ...rd,
-                root_piece: o.root_piece,
-                sort: o.sort,
-              }
-            | None => rd
-            },
-            td,
-          )
-        | None => td
+      switch (Id.Map.find_opt(rep, td)) {
+      | Some(rd) =>
+        Id.Map.add(
+          id,
+          switch (own) {
+          | Some(o) =>
+            TermData.{
+              ...rd,
+              root_piece: o.root_piece,
+              sort: o.sort,
+            }
+          | None => rd
+          },
+          td,
+        )
+      | None => td
       }
     );
 
@@ -2843,14 +2843,14 @@ module Incr = {
     let top_adopted =
       List.filter_map(
         ~f=
-        id =>
-          switch (Id.Map.find_opt(id, m)) {
-          | Some(term) =>
-            let rep = Language.Any.rep_id(term);
-            Id.Set.mem(rep, tops)
-              ? Some((id, rep, Id.Map.find_opt(id, td))) : None;
-          | None => None
-          },
+          id =>
+            switch (Id.Map.find_opt(id, m)) {
+            | Some(term) =>
+              let rep = Language.Any.rep_id(term);
+              Id.Set.mem(rep, tops)
+                ? Some((id, rep, Id.Map.find_opt(id, td))) : None;
+            | None => None
+            },
         adopted,
       );
     if (member) {
@@ -2899,34 +2899,34 @@ module Incr = {
     let entries =
       List.mapi(
         ~f=
-        (k, (key, ps)) => {
+          (k, (key, ps)) => {
             let p = Stdlib.Hashtbl.find_opt(prev_tbl, key);
             let s = Stdlib.Hashtbl.find_opt(shared_tbl, key);
-          switch (p, s) {
-          | (Some(e), _) when same_item(e.f_pieces, ps) => (key, e)
-          | (_, Some(e)) when same_item(e.f_pieces, ps) =>
+            switch (p, s) {
+            | (Some(e), _) when same_item(e.f_pieces, ps) => (key, e)
+            | (_, Some(e)) when same_item(e.f_pieces, ps) =>
               Option.iter(~f=p => gone := subtree(p) @ gone^, p);
-            come := subtree(e) @ come^;
-            (key, e);
-          | _ =>
-            let (e, d) =
-              parse_item_full(
-                ~root,
-                ~member,
-                ~graft,
-                ~masks,
-                ~count,
-                ~prev=p,
-                ~shared=s,
-                lv,
-                k,
-                ps,
-              );
-            gone := d.gone @ gone^;
-            come := d.come @ come^;
-            (key, e);
-          };
-        },
+              come := subtree(e) @ come^;
+              (key, e);
+            | _ =>
+              let (e, d) =
+                parse_item_full(
+                  ~root,
+                  ~member,
+                  ~graft,
+                  ~masks,
+                  ~count,
+                  ~prev=p,
+                  ~shared=s,
+                  lv,
+                  k,
+                  ps,
+                );
+              gone := d.gone @ gone^;
+              come := d.come @ come^;
+              (key, e);
+            };
+          },
         Option.value(keyed, ~default=ItemSpans.keyed(lv)),
       );
     let cur = table(entries);
@@ -3087,10 +3087,10 @@ module Incr = {
       };
     Option.iter(
       ~f=
-      ((_, _, _, _, _, (frame, level_map, _), _)) => {
-        term_data := Id.Map.union((_, f, _) => Some(f), frame, term_data^);
-        map := Id.Map.union((_, l, _) => Some(l), level_map, map^);
-      },
+        ((_, _, _, _, _, (frame, level_map, _), _)) => {
+          term_data := Id.Map.union((_, f, _) => Some(f), frame, term_data^);
+          map := Id.Map.union((_, l, _) => Some(l), level_map, map^);
+        },
       members,
     );
     consolidate_adopted();
@@ -3183,13 +3183,13 @@ module Incr = {
         let keyed =
           List.mapi(
             ~f=
-            (i, (key, s)) =>
-              (
-                key,
-                (i == 0 ? sub(sp.lo, c0) : [])
-                @ s
-                @ (i == last ? sub(c1, stop) : []),
-              ),
+              (i, (key, s)) =>
+                (
+                  key,
+                  (i == 0 ? sub(sp.lo, c0) : [])
+                  @ s
+                  @ (i == last ? sub(c1, stop) : []),
+                ),
             keyed,
           );
         let pk = kids_of(prev, sp.anchor);

@@ -111,7 +111,8 @@ module Update = {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m)
     | World(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth_exn(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) =>
+      List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     | Config(m) => (List.nth_exn(m.configs, m.current) |> snd).editor
     };
@@ -133,26 +134,26 @@ module Update = {
         let stack: list((option(string), list(CodeEditable.Model.t))) =
           List.map(
             ~f=
-            (e: ScratchCell.t) =>
-              (
-                Some(
+              (e: ScratchCell.t) =>
+                (
+                  Some(
                     Option.value(
                       ScratchCell.header_name(e),
                       ~default="cell",
                     ),
+                  ),
+                  /* header too: binder and signature errors live there.
+                     a ⇒ or `;` cell shows none, and its empty one is a hole */
+                  (
+                    switch (e.e_kind) {
+                    | Def(_)
+                    | Members => [e.e_header.editor]
+                    | Headless(_)
+                    | Run(_) => []
+                    }
+                  )
+                  @ [e.e_body.editor],
                 ),
-                /* header too: binder and signature errors live there.
-                   a ⇒ or `;` cell shows none, and its empty one is a hole */
-                (
-                  switch (e.e_kind) {
-                  | Def(_)
-                  | Members => [e.e_header.editor]
-                  | Headless(_)
-                  | Run(_) => []
-                  }
-                )
-                @ [e.e_body.editor],
-              ),
             cells,
           );
         /* cells first: the panel dedups by id, so a problem shows in its

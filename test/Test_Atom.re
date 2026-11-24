@@ -14,7 +14,7 @@ let tests = (
         let names = List.map(~f=fst, fns);
         List.iter(
           ~f=
-          expected =>
+            expected =>
               check(
                 bool,
                 "has " ++ expected,

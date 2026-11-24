@@ -54,7 +54,7 @@ let env_for_of = (defs: array(def)): (list(Var.t) => Environment.t(Exp.t)) => {
   let envs = Stdlib.Hashtbl.create(16);
   names => {
     let is = List.filter_map(~f=Stdlib.Hashtbl.find_opt(last), names);
-    let is = List.dedup_and_sort(~compare=compare, is);
+    let is = List.dedup_and_sort(~compare, is);
     switch (Stdlib.Hashtbl.find_opt(envs, is)) {
     | Some(env) => env
     | None =>

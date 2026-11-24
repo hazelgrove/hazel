@@ -185,13 +185,13 @@ let recursive_tests = [
         /* First (outermost) should contain all others */
         List.iter(
           ~f=
-          (inner: Sample.t) =>
-            check(
-              bool,
-              "Outer contains inner",
-              true,
-              contains(first, inner),
-            ),
+            (inner: Sample.t) =>
+              check(
+                bool,
+                "Outer contains inner",
+                true,
+                contains(first, inner),
+              ),
           rest,
         )
       | _ => () /* Not enough samples */

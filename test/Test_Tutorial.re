@@ -51,19 +51,19 @@ let solution_cases =
   lessons
   |> List.filter_map(~f=(spec: Tutorial.spec) =>
        Option.map(spec.solution, ~f=solution =>
-           test_case(
-             spec.title ++ " @solution passes its tests",
-             `Quick,
-             () => {
-               let results = test_results_with(spec, solution);
-               check(bool, "has tests", true, results.total > 0);
-               check(
-                 int,
-                 TestResults.test_summary_str(results),
-                 results.total,
-                 results.passing,
-               );
-             },
+         test_case(
+           spec.title ++ " @solution passes its tests",
+           `Quick,
+           () => {
+             let results = test_results_with(spec, solution);
+             check(bool, "has tests", true, results.total > 0);
+             check(
+               int,
+               TestResults.test_summary_str(results),
+               results.total,
+               results.passing,
+             );
+           },
          )
        )
      );
@@ -76,16 +76,16 @@ let tests = [
       test_case("every lesson names exactly one folder", `Quick, () =>
         List.iter(
           ~f=
-          (p: SlidePath.t) =>
-            check(
-              bool,
-              "one non-empty folder segment: " ++ SlidePath.to_string(p),
-              true,
-              switch (SlidePath.folders(p)) {
+            (p: SlidePath.t) =>
+              check(
+                bool,
+                "one non-empty folder segment: " ++ SlidePath.to_string(p),
+                true,
+                switch (SlidePath.folders(p)) {
                 | [f] => !String.equal(f, "")
-              | _ => false
-              },
-            ),
+                | _ => false
+                },
+              ),
           paths,
         )
       ),
@@ -101,11 +101,11 @@ let tests = [
             |> List.map(~f=folder_of)
             |> List.fold_left(
                  ~f=
-                 (acc, f) =>
-                   switch (List.rev(acc)) {
+                   (acc, f) =>
+                     switch (List.rev(acc)) {
                      | [last, ..._] when String.equal(last, f) => acc
-                   | _ => acc @ [f]
-                   },
+                     | _ => acc @ [f]
+                     },
                  ~init=[],
                ),
           )
@@ -140,26 +140,26 @@ let tests = [
           let segs = List.map(~f=SlidePath.segments, paths);
           List.iter(
             ~f=
-            a =>
-              List.iter(
+              a =>
+                List.iter(
                   ~f=
-                b =>
-                  check(
-                    bool,
-                    "not a proper prefix: "
+                    b =>
+                      check(
+                        bool,
+                        "not a proper prefix: "
                         ++ String.concat(~sep=" / ", a)
-                    ++ " vs "
+                        ++ " vs "
                         ++ String.concat(~sep=" / ", b),
-                    false,
-                    List.length(a) < List.length(b)
+                        false,
+                        List.length(a) < List.length(b)
                         && List.equal(
                              String.equal,
                              Util.ListUtil.take(List.length(a), b),
                              a,
                            ),
-                  ),
-                segs,
-              ),
+                      ),
+                  segs,
+                ),
             segs,
           );
         },

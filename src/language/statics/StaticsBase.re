@@ -14,11 +14,11 @@ module Map = {
     ids
     |> List.fold_left(
          ~f=
-         (m, id) =>
-           switch (Id.Map.find_opt(id, m)) {
-           | Some(_) => m
-           | None => Id.Map.add(id, info, m)
-           },
+           (m, id) =>
+             switch (Id.Map.find_opt(id, m)) {
+             | Some(_) => m
+             | None => Id.Map.add(id, info, m)
+             },
          ~init=m,
        );
 
@@ -443,18 +443,18 @@ let fold_patterns_with_modes =
   let (ctx, tys, cons, m, infos, elabs) =
     List.fold2_exn(
       ~f=
-      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-        |> (
-          ((info, elab, m)) => (
-            info.ctx,
-            [info.ty, ...tys],
-            [info.constraint_, ...cons],
-            m,
-            [info, ...infos],
-            [elab, ...elabs],
-          )
-        ),
+        ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+          analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+          |> (
+            ((info, elab, m)) => (
+              info.ctx,
+              [info.ty, ...tys],
+              [info.constraint_, ...cons],
+              m,
+              [info, ...infos],
+              [elab, ...elabs],
+            )
+          ),
       ~init=(ctx, [], [], m, [], []),
       ps,
       modes,

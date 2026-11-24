@@ -20,8 +20,10 @@ let entry_name = (e: Language.Ctx.entry): option(string) =>
 
 let of_statics = (ds: DefStatics.t): t => {
   let defines =
-    List.concat_map(~f=
-      (it: DefStatics.item) => List.filter_map(~f=entry_name, it.d_exports),
+    List.concat_map(
+      ~f=
+        (it: DefStatics.item) =>
+          List.filter_map(~f=entry_name, it.d_exports),
       ds.items,
     )
     |> ListUtil.dedup;

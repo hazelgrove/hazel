@@ -16,7 +16,12 @@ let text = (seg: Segment.t): string =>
 
 let shape = (name, src, expected) =>
   test_case(name, `Quick, () =>
-    check(option(string), name, expected, Option.map(~f=text, convert(src)))
+    check(
+      option(string),
+      name,
+      expected,
+      Option.map(~f=text, convert(src)),
+    )
   );
 
 /* the type errors and the tests' results a program has at [root] */
@@ -36,22 +41,23 @@ let checked = (~root: Sort.t, seg: Segment.t) => {
 let corpus = () => {
   let converted = ref(0);
   let kept = ref([]);
-  List.iter(~f=
-    ((path, _, src)) => {
-      let seg = CorpusUtil.seg_of(~root=Exp, src);
-      switch (MemberForm.of_exp_root(seg)) {
-      | None => kept := [path, ...kept^]
-      | Some(members) =>
-        incr(converted);
-        let (e0, t0) = checked(~root=Exp, seg);
-        let (e1, t1) = checked(~root=Mod, members);
-        check(int, path ++ ": type errors", e0, e1);
-        check(list(pair(string, string)), path ++ ": tests", t0, t1);
-      };
-    },
+  List.iter(
+    ~f=
+      ((path, _, src)) => {
+        let seg = CorpusUtil.seg_of(~root=Exp, src);
+        switch (MemberForm.of_exp_root(seg)) {
+        | None => kept := [path, ...kept^]
+        | Some(members) =>
+          incr(converted);
+          let (e0, t0) = checked(~root=Exp, seg);
+          let (e1, t1) = checked(~root=Mod, members);
+          check(int, path ++ ": type errors", e0, e1);
+          check(list(pair(string, string)), path ++ ": tests", t0, t1);
+        };
+      },
     /* the expression programs: the world's slides are members already */
-    List.filter(~f=
-      ((_, root, _)) => root == Sort.Exp,
+    List.filter(
+      ~f=((_, root, _)) => root == Sort.Exp,
       CorpusUtil.slide_corpus(),
     ),
   );
@@ -92,8 +98,8 @@ let tests = (
         list(string),
         "test results",
         ["Pass"],
-        List.map(~f=
-          snd,
+        List.map(
+          ~f=snd,
           snd(
             checked(
               ~root=Mod,

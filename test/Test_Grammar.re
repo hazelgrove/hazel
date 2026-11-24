@@ -220,20 +220,20 @@ let tests = (
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
           ~f=
-          (cls: Exp.cls) =>
-            switch (cls) {
-            | Projector // Excluding projectors from cls
-            | Parens => () // Parens and projectors are transparent (return inner cls)
+            (cls: Exp.cls) =>
+              switch (cls) {
+              | Projector // Excluding projectors from cls
+              | Parens => () // Parens and projectors are transparent (return inner cls)
               | ModuleProjection
               | TupleProjection => () // Given by statics from the left side's type, not by the term
-            | _ =>
-              check(
-                cls_testable,
-                Exp.show_cls(cls) ++ " Equivalency",
-                cls,
-                Exp.cls_of_term(sample_expression(cls).term),
-              )
-            },
+              | _ =>
+                check(
+                  cls_testable,
+                  Exp.show_cls(cls) ++ " Equivalency",
+                  cls,
+                  Exp.cls_of_term(sample_expression(cls).term),
+                )
+              },
           exp_classes,
         );
       },
@@ -247,13 +247,13 @@ let tests = (
           testable(Fmt.using(Pat.show_cls, Fmt.string), Pat.equal_cls);
         List.iter(
           ~f=
-          cls =>
-            check(
-              cls_testable,
-              Pat.show_cls(cls) ++ " Equivalency",
-              cls,
-              Pat.cls_of_term(sample_pattern(cls).term),
-            ),
+            cls =>
+              check(
+                cls_testable,
+                Pat.show_cls(cls) ++ " Equivalency",
+                cls,
+                Pat.cls_of_term(sample_pattern(cls).term),
+              ),
           pat_classes,
         );
       },
@@ -267,19 +267,19 @@ let tests = (
           testable(Fmt.using(Typ.show_cls, Fmt.string), Typ.equal_cls);
         List.iter(
           ~f=
-          (cls: Typ.cls) => {
-            switch (cls) {
-            | Constructor
-            | Sig => ()
-            | _ =>
-              check(
-                cls_testable,
-                Typ.show_cls(cls) ++ " Equivalency",
-                cls,
-                Typ.cls_of_term(sample_type(cls).term),
-              )
-            }
-          },
+            (cls: Typ.cls) => {
+              switch (cls) {
+              | Constructor
+              | Sig => ()
+              | _ =>
+                check(
+                  cls_testable,
+                  Typ.show_cls(cls) ++ " Equivalency",
+                  cls,
+                  Typ.cls_of_term(sample_type(cls).term),
+                )
+              }
+            },
           typ_classes,
         );
       },
@@ -293,13 +293,13 @@ let tests = (
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
           ~f=
-          cls =>
-            check(
-              cls_testable,
-              TPat.show_cls(cls) ++ " Equivalency",
-              cls,
-              TPat.cls_of_term(sample_tpat(cls).term),
-            ),
+            cls =>
+              check(
+                cls_testable,
+                TPat.show_cls(cls) ++ " Equivalency",
+                cls,
+                TPat.cls_of_term(sample_tpat(cls).term),
+              ),
           tpat_classes,
         );
       },

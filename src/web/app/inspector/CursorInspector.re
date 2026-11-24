@@ -426,7 +426,7 @@ let warn_or_ok_view =
   | [_, ..._] when globals.settings.core.display_warnings =>
     div_warn(List.concat_map(~f=common_warn_view(~globals, ~ctx), warnings))
   | _ => div_ok(ok)
-};
+  };
 let common_ok_view =
     (
       ~globals,
@@ -808,7 +808,7 @@ let exp_mark_err_view =
              ~globals,
              "; " ++ String.uncapitalize(cls_str),
              example,
-        ),
+           ),
       ])
     };
   | IsDeferral(InAp) =>

@@ -42,9 +42,9 @@ let print =
         (_, samples, acc) =>
           List.fold_left(
             ~f=
-            (acc, sample) =>
-              sample.Language.Sample.origin == Language.Sample.Print
-                ? [sample, ...acc] : acc,
+              (acc, sample) =>
+                sample.Language.Sample.origin == Language.Sample.Print
+                  ? [sample, ...acc] : acc,
             ~init=acc,
             samples,
           ),

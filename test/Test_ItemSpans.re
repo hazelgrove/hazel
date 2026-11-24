@@ -103,29 +103,29 @@ let indents = (seg: Segment.t): Stdlib.Hashtbl.t(Id.t, int) => {
   let rec go = (ps: Segment.t) =>
     List.iter(
       ~f=
-      (p: Piece.t) => {
+        (p: Piece.t) => {
           Stdlib.Hashtbl.replace(tbl, Piece.id(p), ind^);
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          ind := 0;
-          lead := true;
-        | Secondary(w) when Secondary.is_space(w) =>
-          if (lead^) {
-            ind := ind^ + 1;
-          }
-        | Tile(t) =>
-          lead := false;
-          List.iter(
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) =>
+            ind := 0;
+            lead := true;
+          | Secondary(w) when Secondary.is_space(w) =>
+            if (lead^) {
+              ind := ind^ + 1;
+            }
+          | Tile(t) =>
+            lead := false;
+            List.iter(
               ~f=
-            ch => {
-              go(ch);
-              lead := false;
-            },
-            t.children,
-          );
-        | _ => lead := false
-        };
-      },
+                ch => {
+                  go(ch);
+                  lead := false;
+                },
+              t.children,
+            );
+          | _ => lead := false
+          };
+        },
       ps,
     );
   go(seg);
@@ -179,13 +179,13 @@ let check_level =
     ];
   Array.iteri(
     ~f=
-    (k, sp: S.span) => {
-      let lo_ok = k == 0 ? sp.lo == 0 : sp.lo == lv.spans[k - 1].hi;
-      let hi_ok = k < n - 1 || sp.hi == len;
-      let (c0, c1) = sp.core;
-      if (!lo_ok || !hi_ok || !(sp.lo <= c0 && c0 <= c1 && c1 <= sp.hi)) {
-        diff(Printf.sprintf("span %d breaks the partition", k));
-      };
+      (k, sp: S.span) => {
+        let lo_ok = k == 0 ? sp.lo == 0 : sp.lo == lv.spans[k - 1].hi;
+        let hi_ok = k < n - 1 || sp.hi == len;
+        let (c0, c1) = sp.core;
+        if (!lo_ok || !hi_ok || !(sp.lo <= c0 && c0 <= c1 && c1 <= sp.hi)) {
+          diff(Printf.sprintf("span %d breaks the partition", k));
+        };
         let id = Piece.id(lv.pieces[c0]);
         if (!
               Poly.equal(
@@ -193,8 +193,8 @@ let check_level =
                 Some(sp.base_col),
               )) {
           diff(Printf.sprintf("span %d: base_col %d", k, sp.base_col));
-      };
-    },
+        };
+      },
     lv.spans,
   );
 };
@@ -207,10 +207,10 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
     check_level(~name, ~indent_of, t, lv);
     Array.iteri(
       ~f=
-      (k, _) => {
+        (k, _) => {
           Option.iter(~f=walk, S.children(lv, k));
           Option.iter(~f=walk, S.block(lv, k));
-      },
+        },
       lv.spans,
     );
   };
@@ -225,11 +225,11 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
       |> fst;
     Array.iter(
       ~f=
-      (sp: S.span) =>
+        (sp: S.span) =>
           if (sp.hi < List.length(seg)
               && !List.mem(cuts, sp.hi, ~equal=Poly.equal)) {
-          t.diffs = [name ++ ": a cut top_items lacks", ...t.diffs];
-        },
+            t.diffs = [name ++ ": a cut top_items lacks", ...t.diffs];
+          },
       top.spans,
     );
   };
@@ -297,11 +297,11 @@ let run = (programs: list((string, Sort.t, string))): tally => {
   let t = tally();
   List.iter(
     ~f=
-    ((name, root, src)) =>
-      switch (parse(~root, src)) {
-      | Some(seg) => check_program(t, ~name, ~root, seg)
-      | None => t.diffs = [name ++ ": unparseable", ...t.diffs]
-      },
+      ((name, root, src)) =>
+        switch (parse(~root, src)) {
+        | Some(seg) => check_program(t, ~name, ~root, seg)
+        | None => t.diffs = [name ++ ": unparseable", ...t.diffs]
+        },
     programs,
   );
   t;
@@ -614,11 +614,11 @@ let read_finished = () => {
     @ List.map(~f=((p, s)) => (p, Sort.Mod, s), stdlib_corpus())
     @ List.filter_map(
         ~f=
-        name =>
-          Option.map(
+          name =>
+            Option.map(
               ~f=s => ("stdlib copy " ++ name, Sort.Mod, s),
               ModHarness.stdlib(name),
-          ),
+            ),
         ["List.hz", "Option.hz"],
       )
     @ List.map(~f=((n, s)) => (n, Sort.Mod, s), letin_members)
@@ -628,43 +628,43 @@ let read_finished = () => {
   let unfinished = ref(0);
   List.iter(
     ~f=
-    ((name, root, src)) =>
-      switch (parse(~root, src)) {
-      | None => fail(name ++ ": unparseable")
+      ((name, root, src)) =>
+        switch (parse(~root, src)) {
+        | None => fail(name ++ ": unparseable")
         | Some(seg) when !List.is_empty(Segment.incomplete_tiles_deep(seg)) =>
-        incr(unfinished)
-      | Some(seg) =>
-        let rec same = (w: S.level, r: S.level) => {
-          incr(levels);
-          check(
-            bool,
-            name ++ ": the same spans",
-            true,
-            w.spans == r.spans && w.owner == r.owner && !r.cut,
-          );
-          Array.iteri(
+          incr(unfinished)
+        | Some(seg) =>
+          let rec same = (w: S.level, r: S.level) => {
+            incr(levels);
+            check(
+              bool,
+              name ++ ": the same spans",
+              true,
+              w.spans == r.spans && w.owner == r.owner && !r.cut,
+            );
+            Array.iteri(
               ~f=
-            (k, _) =>
-              switch (S.children(w, k), S.children(r, k)) {
-              | (Some(w), Some(r)) => same(w, r)
-              | (None, None) => ()
-              | _ => fail(name ++ ": a child level in one division only")
-              },
-            w.spans,
-          );
-        };
-        same(S.top(~root, seg), S.top(~ends=Read, ~root, seg));
-        let fb = MakeTerm.Incr.fell_back^;
-        let read = ends =>
-          MakeTerm.Incr.go_incr(
-            ~ends,
-            ~root,
-            ~cache=MakeTerm.Incr.mk_cache(),
-            seg,
-          );
-        Test_MakeTermIncr.records_agree(name, read(Written), read(Read));
-        check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
-      },
+                (k, _) =>
+                  switch (S.children(w, k), S.children(r, k)) {
+                  | (Some(w), Some(r)) => same(w, r)
+                  | (None, None) => ()
+                  | _ => fail(name ++ ": a child level in one division only")
+                  },
+              w.spans,
+            );
+          };
+          same(S.top(~root, seg), S.top(~ends=Read, ~root, seg));
+          let fb = MakeTerm.Incr.fell_back^;
+          let read = ends =>
+            MakeTerm.Incr.go_incr(
+              ~ends,
+              ~root,
+              ~cache=MakeTerm.Incr.mk_cache(),
+              seg,
+            );
+          Test_MakeTermIncr.records_agree(name, read(Written), read(Read));
+          check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+        },
     programs,
   );
   Printf.printf(

@@ -140,10 +140,10 @@ let edit_nth = (~n, ~needle, ~repl, seg: Segment.t): Segment.t => {
 let count = (~needle, seg: Segment.t): int => {
   let rec go = seg =>
     List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [needle] => n + 1
+      switch (p) {
+      | Tile(t) when Tile.label(t) == [needle] => n + 1
       | Tile(t) => List.fold(t.children, ~init=n, ~f=(n, k) => n + go(k))
-        | _ => n
+      | _ => n
       }
     );
   go(seg);

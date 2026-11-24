@@ -116,18 +116,18 @@ let probed = (m: History.Model.t, cell: Id.t): list(string) => {
   let ed = pane(m, cell).editor.editor;
   List.map(
     ~f=
-    ((id, ())) =>
-      switch (Haz3lcore.TermData.segment(id, ed.syntax.term_data)) {
-      | Some(seg) =>
-        Haz3lcore.Printer.of_segment(
-          ~holes="?",
-          ~indent="",
-          ~is_single_line=true,
-          seg,
-        )
+      ((id, ())) =>
+        switch (Haz3lcore.TermData.segment(id, ed.syntax.term_data)) {
+        | Some(seg) =>
+          Haz3lcore.Printer.of_segment(
+            ~holes="?",
+            ~indent="",
+            ~is_single_line=true,
+            seg,
+          )
           |> String.strip
-      | None => "<not here>"
-      },
+        | None => "<not here>"
+        },
     Id.Map.bindings(ed.state.zipper.refractors.multis.ids),
   )
   |> List.sort(~compare);

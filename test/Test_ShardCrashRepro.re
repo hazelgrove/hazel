@@ -71,11 +71,11 @@ let duplicate_pairs = (seg: Segment.t): list((Id.t, int)) => {
   let tbl = Stdlib.Hashtbl.create(64);
   List.filter(
     ~f=
-    pair => {
+      pair => {
         let seen = Stdlib.Hashtbl.mem(tbl, pair);
         Stdlib.Hashtbl.replace(tbl, pair, ());
-      seen;
-    },
+        seen;
+      },
     pairs,
   );
 };
@@ -297,51 +297,51 @@ let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
     Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
   List.iteri(
     ~f=
-    (n, sample: Language.Sample.t) => {
-      let v = sample.value;
-      let seg = sample_to_seg(v);
-      let dups = duplicate_pairs(seg);
-      if (dups != []) {
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " (syntax_id "
-          ++ Id.to_string(sample.syntax_id)
-          ++ ") printed with duplicated (id, shard) pairs: "
-          ++ String.concat(
+      (n, sample: Language.Sample.t) => {
+        let v = sample.value;
+        let seg = sample_to_seg(v);
+        let dups = duplicate_pairs(seg);
+        if (dups != []) {
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " (syntax_id "
+            ++ Id.to_string(sample.syntax_id)
+            ++ ") printed with duplicated (id, shard) pairs: "
+            ++ String.concat(
                  ~sep=", ",
-               List.map(
+                 List.map(
                    ~f=
                      ((id, i)) =>
                        Id.to_string(id) ++ "#" ++ string_of_int(i),
-                 dups,
-               ),
-             )
-          ++ "\nvalue seg: "
-          ++ print_seg(seg),
-        );
-      };
-      /* Drawer path: prettify runs Segment.reassemble internally. */
-      switch (PrettySegment.prettify(~width=40, seg)) {
-      | _ => ()
-      | exception (Failure(f)) =>
-        fail(
+                   dups,
+                 ),
+               )
+            ++ "\nvalue seg: "
+            ++ print_seg(seg),
+          );
+        };
+        /* Drawer path: prettify runs Segment.reassemble internally. */
+        switch (PrettySegment.prettify(~width=40, seg)) {
+        | _ => ()
+        | exception (Failure(f)) =>
+          fail(
             msg
             ++ ": sample #"
             ++ string_of_int(n)
             ++ " prettify raised: "
             ++ f,
-        )
-      | exception (Assert_failure(_)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " prettify raised Assert_failure",
-        )
-      };
-    },
+          )
+        | exception (Assert_failure(_)) =>
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " prettify raised Assert_failure",
+          )
+        };
+      },
     all,
   );
 };
@@ -445,11 +445,11 @@ let zipper_dups = (z: Zipper.t): list((Id.t, int)) => {
   let tbl = Stdlib.Hashtbl.create(256);
   List.filter(
     ~f=
-    pair => {
+      pair => {
         let seen = Stdlib.Hashtbl.mem(tbl, pair);
         Stdlib.Hashtbl.replace(tbl, pair, ());
-      seen;
-    },
+        seen;
+      },
     pairs,
   );
 };
@@ -577,22 +577,22 @@ let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
   let _final =
     List.fold_left(
       ~f=
-      (z, a) => {
-        let z' = Test_Editing.perform(z, [a]);
-        let step_msg = msg ++ " after " ++ Action.show(a);
-        check_zipper(step_msg, z');
-        /* Live-editor-style recompute: probe_all eval threading prev. */
-        switch (MakeTerm.from_zip_for_sem(z', ~root=Exp).term) {
-        | exp =>
-          switch (eval_incr_probes(~settings, ~prev=prev^, exp)) {
-          | (_, samples, incr) =>
-            prev := incr;
-            check_sample_values(step_msg, samples);
-          | exception _ => () /* eval failures are fine; crash is in display */
-          }
-        };
-        z';
-      },
+        (z, a) => {
+          let z' = Test_Editing.perform(z, [a]);
+          let step_msg = msg ++ " after " ++ Action.show(a);
+          check_zipper(step_msg, z');
+          /* Live-editor-style recompute: probe_all eval threading prev. */
+          switch (MakeTerm.from_zip_for_sem(z', ~root=Exp).term) {
+          | exp =>
+            switch (eval_incr_probes(~settings, ~prev=prev^, exp)) {
+            | (_, samples, incr) =>
+              prev := incr;
+              check_sample_values(step_msg, samples);
+            | exception _ => () /* eval failures are fine; crash is in display */
+            }
+          };
+          z';
+        },
       ~init=z0,
       steps,
     );
@@ -628,48 +628,64 @@ let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) =>
     Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
   List.iteri(
     ~f=
-    (n, sample: Language.Sample.t) => {
-      let seg = drawer_seg_of_value(sample.value);
-      let dups = duplicate_pairs(seg);
-      if (dups != []) {
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " (syntax_id "
-          ++ Id.to_string(sample.syntax_id)
-          ++ ") drawer segment has duplicated (id, shard) pairs: "
-          ++ String.concat(
+      (n, sample: Language.Sample.t) => {
+        let seg = drawer_seg_of_value(sample.value);
+        let dups = duplicate_pairs(seg);
+        if (dups != []) {
+          fail(
+            msg
+            ++ ": sample #"
+            ++ string_of_int(n)
+            ++ " (syntax_id "
+            ++ Id.to_string(sample.syntax_id)
+            ++ ") drawer segment has duplicated (id, shard) pairs: "
+            ++ String.concat(
                  ~sep=", ",
-               List.map(
+                 List.map(
                    ~f=
                      ((id, i)) =>
                        Id.to_string(id) ++ "#" ++ string_of_int(i),
-                 dups,
-               ),
-             )
-          ++ "\nvalue seg: "
-          ++ print_seg(seg),
-        );
-      };
-      /* Full DrawerHeight.sample_rows equivalent: prettify at the
-       * default drawer width, then the Measured row-count walk. */
-      switch (PrettySegment.prettify(~width=30, seg)) {
-      | pretty =>
-        switch (
-          Measured.of_segment(
-            pretty,
-            ProjectorCore.Shape.Map.empty,
-            Id.Map.empty,
-          )
-        ) {
-        | _ => ()
+                   dups,
+                 ),
+               )
+            ++ "\nvalue seg: "
+            ++ print_seg(seg),
+          );
+        };
+        /* Full DrawerHeight.sample_rows equivalent: prettify at the
+         * default drawer width, then the Measured row-count walk. */
+        switch (PrettySegment.prettify(~width=30, seg)) {
+        | pretty =>
+          switch (
+            Measured.of_segment(
+              pretty,
+              ProjectorCore.Shape.Map.empty,
+              Id.Map.empty,
+            )
+          ) {
+          | _ => ()
+          | exception (Failure(f)) =>
+            fail(
+              msg
+              ++ ": sample #"
+              ++ string_of_int(n)
+              ++ " Measured raised: "
+              ++ f,
+            )
+          | exception (Assert_failure(_)) =>
+            fail(
+              msg
+              ++ ": sample #"
+              ++ string_of_int(n)
+              ++ " Measured raised Assert_failure",
+            )
+          }
         | exception (Failure(f)) =>
           fail(
             msg
             ++ ": sample #"
             ++ string_of_int(n)
-            ++ " Measured raised: "
+            ++ " drawer prettify raised: "
             ++ f,
           )
         | exception (Assert_failure(_)) =>
@@ -677,26 +693,10 @@ let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) =>
             msg
             ++ ": sample #"
             ++ string_of_int(n)
-            ++ " Measured raised Assert_failure",
+            ++ " drawer prettify raised Assert_failure (Tile.re invariant)",
           )
-        }
-      | exception (Failure(f)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " drawer prettify raised: "
-          ++ f,
-        )
-      | exception (Assert_failure(_)) =>
-        fail(
-          msg
-          ++ ": sample #"
-          ++ string_of_int(n)
-          ++ " drawer prettify raised Assert_failure (Tile.re invariant)",
-        )
-      };
-    },
+        };
+      },
     all,
   );
 };

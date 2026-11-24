@@ -353,18 +353,18 @@ let folded = () => {
   let rec fold = (seg: Segment.t): Segment.t =>
     List.map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == ["foo"] =>
-          incr(count);
-          count^ == 2 ? Piece.Projector(ProjectorCore.mk(Fold, p, "")) : p;
-        | Tile(t) =>
-          Piece.Tile({
-            ...t,
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == ["foo"] =>
+            incr(count);
+            count^ == 2 ? Piece.Projector(ProjectorCore.mk(Fold, p, "")) : p;
+          | Tile(t) =>
+            Piece.Tile({
+              ...t,
               children: List.map(~f=fold, t.children),
-          })
-        | p => p
-        },
+            })
+          | p => p
+          },
       seg,
     );
   let seg = fold(seg);
@@ -374,12 +374,12 @@ let folded = () => {
   let rec inside = (seg: Segment.t): list(string) =>
     List.concat_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Projector({syntax: Tile(t), _}) => Tile.label(t)
+        (p: Piece.t) =>
+          switch (p) {
+          | Projector({syntax: Tile(t), _}) => Tile.label(t)
           | Tile(t) => List.concat_map(~f=inside, t.children)
-        | _ => []
-        },
+          | _ => []
+          },
       seg,
     );
   switch (

@@ -432,21 +432,21 @@ let rec replace_exp =
             replace_exp(e, blacklist_vars),
             List.map(
               ~f=
-              ((p, e)) =>
-                if (is_bound(p)) {
-                  if (uses_blacklist_var(
-                        e,
-                        restrict_blacklist(p, blacklist_vars),
-                      )) {
-                    raise(BlacklistVarFound);
-                  };
-                  (p, e);
-                } else {
-                  (
-                    p,
-                    replace_exp(e, restrict_blacklist(p, blacklist_vars)),
-                  );
-                },
+                ((p, e)) =>
+                  if (is_bound(p)) {
+                    if (uses_blacklist_var(
+                          e,
+                          restrict_blacklist(p, blacklist_vars),
+                        )) {
+                      raise(BlacklistVarFound);
+                    };
+                    (p, e);
+                  } else {
+                    (
+                      p,
+                      replace_exp(e, restrict_blacklist(p, blacklist_vars)),
+                    );
+                  },
               cases,
             ),
           )

@@ -50,7 +50,11 @@ let deck = () =>
       "Documentation's and Scratch's slides",
       true,
       List.mem(Model.scratchpad_names(m), tables, ~equal=Poly.equal)
-      && List.mem(Model.scratchpad_names(m), "Scratch / Scratchpad 1", ~equal=Poly.equal),
+      && List.mem(
+           Model.scratchpad_names(m),
+           "Scratch / Scratchpad 1",
+           ~equal=Poly.equal,
+         ),
     );
     check(string, "the current slide, loaded", "loaded", body(code, name));
     check(string, "another, not", "unloaded", body(code, tables));
@@ -105,7 +109,11 @@ let add_delete = () =>
       bool,
       "in Scratch's deck too",
       true,
-      List.mem(Deck.deck_names("scratch"), "Scratchpad 2", ~equal=Poly.equal),
+      List.mem(
+        Deck.deck_names("scratch"),
+        "Scratchpad 2",
+        ~equal=Poly.equal,
+      ),
     );
     let m = Deck.delete_current(~settings, m);
     let (name', code') = current(m);
@@ -120,7 +128,11 @@ let add_delete = () =>
       bool,
       "and from Scratch's deck",
       false,
-      List.mem(Deck.deck_names("scratch"), "Scratchpad 2", ~equal=Poly.equal),
+      List.mem(
+        Deck.deck_names("scratch"),
+        "Scratchpad 2",
+        ~equal=Poly.equal,
+      ),
     );
   });
 
@@ -266,7 +278,9 @@ let summaries = () =>
       bool,
       "the perf corpora skipped",
       true,
-      Option.is_none(Web.WorldSummaries.find("Documentation / Perf / Mega 4k")),
+      Option.is_none(
+        Web.WorldSummaries.find("Documentation / Perf / Mega 4k"),
+      ),
     );
     let rows = Web.WorldSummaries.error_rows();
     check(
@@ -274,7 +288,11 @@ let summaries = () =>
       "its row and folders marked",
       true,
       List.mem(rows, Deck.slide_id(errs), ~equal=Poly.equal)
-      && List.mem(rows, WorldTree.folder_id(["Documentation", "B2T2"]), ~equal=Poly.equal),
+      && List.mem(
+           rows,
+           WorldTree.folder_id(["Documentation", "B2T2"]),
+           ~equal=Poly.equal,
+         ),
     );
   });
 

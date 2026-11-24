@@ -62,20 +62,21 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
   | InfoExp({dot_labels, _}) when !List.is_empty(dot_labels) =>
     List.map(
       ~f=
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
-        },
+        label =>
+          TyDiSuggestion.{
+            content: label,
+            strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
+          },
       dot_labels,
     )
   | InfoPat({dot_labels, _}) when !List.is_empty(dot_labels) =>
-    List.map(~f=
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Pat(Common(FromCtx(Label(label) |> Typ.fresh))),
-        },
+    List.map(
+      ~f=
+        label =>
+          TyDiSuggestion.{
+            content: label,
+            strategy: Pat(Common(FromCtx(Label(label) |> Typ.fresh))),
+          },
       dot_labels,
     )
   | InfoTyp({
@@ -87,11 +88,11 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
       when !List.is_empty(labels) =>
     List.map(
       ~f=
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Typ(FromCtx),
-        },
+        label =>
+          TyDiSuggestion.{
+            content: label,
+            strategy: Typ(FromCtx),
+          },
       labels,
     )
   | InfoExp({label_sort: true, _})
@@ -202,7 +203,7 @@ let set_buffer =
   let expectation_backed =
     List.exists(
       ~f=
-      ({strategy, _}: TyDiSuggestion.t) =>
+        ({strategy, _}: TyDiSuggestion.t) =>
           Poly.equal(strategy, Any(FromMissingShards)),
       suggestions,
     );

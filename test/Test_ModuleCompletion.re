@@ -115,17 +115,17 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
   let badged =
     List.filter_map(
       ~f=
-      err =>
+        err =>
           List.find(
             ~f=id => List.mem(ids, id, ~equal=Poly.equal),
-          switch (Id.Map.find_opt(err, st.info_map)) {
-          | Some(info) => [
-              err,
-              ...Info.within_item(~info_map=st.info_map, info),
-            ]
-          | None => [err]
-          },
-        ),
+            switch (Id.Map.find_opt(err, st.info_map)) {
+            | Some(info) => [
+                err,
+                ...Info.within_item(~info_map=st.info_map, info),
+              ]
+            | None => [err]
+            },
+          ),
       st.error_ids,
     );
   let ty_of = (n: O.node) =>
@@ -140,25 +140,25 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
   let rec go = (parent, ns: list(O.node)) =>
     List.concat_map(
       ~f=
-      (n: O.node) =>
-        (
-          switch (n.o_id) {
-          | Some(id) => [
-              (
-                parent,
-                {
-                  label: n.o_label,
-                  kind: n.o_kind,
-                  ty: ty_of(n),
+        (n: O.node) =>
+          (
+            switch (n.o_id) {
+            | Some(id) => [
+                (
+                  parent,
+                  {
+                    label: n.o_label,
+                    kind: n.o_kind,
+                    ty: ty_of(n),
                     err: List.mem(badged, id, ~equal=Poly.equal),
                     kids: !List.is_empty(n.o_children),
-                },
-              ),
-            ]
-          | None => []
-          }
-        )
-        @ go(parent ++ "/" ++ n.o_label, n.o_children),
+                  },
+                ),
+              ]
+            | None => []
+            }
+          )
+          @ go(parent ++ "/" ++ n.o_label, n.o_children),
       ns,
     );
   go("", nodes);
@@ -185,30 +185,30 @@ let check_kept = (name: string, before, after) => {
     };
   ignore(
     List.fold(before, ~init=after, ~f=(left, (parent, r: row) as b) =>
-        switch (take(key(b), left)) {
-        | Some(left) => left
-        | None =>
-          /* a named row changed in place: say how */
-          switch (
+      switch (take(key(b), left)) {
+      | Some(left) => left
+      | None =>
+        /* a named row changed in place: say how */
+        switch (
           List.find(
             ~f=
               ((p, r': row)) =>
                 p == parent
                 && !String.equal(r.label, "")
                 && r'.label == r.label,
-              left,
-            )
-          ) {
-          | Some((_, r')) =>
-            check(
-              string,
-              name ++ ": row " ++ r.label,
-              show_row(r),
-              show_row(r'),
-            );
-            left;
-          | None => fail(name ++ ": lost row " ++ key(b))
-          }
+            left,
+          )
+        ) {
+        | Some((_, r')) =>
+          check(
+            string,
+            name ++ ": row " ++ r.label,
+            show_row(r),
+            show_row(r'),
+          );
+          left;
+        | None => fail(name ++ ": lost row " ++ key(b))
+        }
       }
     ),
   );
@@ -405,25 +405,25 @@ let preserved = ((name, src, after, finished), ()) => {
   let before = rows(~root=Exp, z0);
   List.iteri(
     ~f=
-    (k, z) => {
-      let at = Printf.sprintf("%s, key %d (%S)", name, k, text(z));
+      (k, z) => {
+        let at = Printf.sprintf("%s, key %d (%S)", name, k, text(z));
         if (List.mem(finished, k, ~equal=Poly.equal)) {
-        check(
-          int,
-          at ++ ": finished, read as written",
-          0,
-          List.length(
-            CanonicalCompletion.complete_items(
-              ~sort=Exp,
-              MakeTerm.semantic_source(z),
-            ).
-              shard_records,
-          ),
-        );
-      } else {
-        check_kept(at, before, rows(~root=Exp, z));
-      };
-    },
+          check(
+            int,
+            at ++ ": finished, read as written",
+            0,
+            List.length(
+              CanonicalCompletion.complete_items(
+                ~sort=Exp,
+                MakeTerm.semantic_source(z),
+              ).
+                shard_records,
+            ),
+          );
+        } else {
+          check_kept(at, before, rows(~root=Exp, z));
+        };
+      },
     type_line(~root=Exp, z0, typed_keys),
   );
 };
@@ -612,17 +612,17 @@ let brace_nested = () => {
     ["module N = {let a = 1; let b = 2 ;", "let c = 3"],
     List.map(
       ~f=
-      s =>
-        String.concat(
+        s =>
+          String.concat(
             ~sep=" ",
-          List.filter(
+            List.filter(
               ~f=l => !String.equal(l, ""),
-            List.map(
+              List.map(
                 ~f=String.strip,
                 String.split(~on='\n', CorpusUtil.text_of(s)),
+              ),
             ),
           ),
-        ),
       ItemSpans.slices(members),
     ),
   );
@@ -637,12 +637,12 @@ let mod_root = ((name, after), ()) => {
   let before = rows(~root=Mod, z0);
   List.iteri(
     ~f=
-    (k, z) =>
-      check_kept(
-        Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
-        before,
-        rows(~root=Mod, z),
-      ),
+      (k, z) =>
+        check_kept(
+          Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+          before,
+          rows(~root=Mod, z),
+        ),
     type_line(~root=Mod, z0, typed_keys),
   );
 };
@@ -653,21 +653,21 @@ let mod_root = ((name, after), ()) => {
 let rec tokens = (seg: Segment.t): list(string) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(_)
-      | Grout(_)
-      | Projector(_) => []
-      | Tile(t) =>
-        let rec weave = (ls, chs) =>
-          switch (ls, chs) {
-          | ([], _) => []
-          | ([l, ...ls], []) => [l, ...weave(ls, [])]
-          | ([l, ...ls], [c, ...chs]) =>
-            [l, ...tokens(c)] @ weave(ls, chs)
-          };
-        weave(Tile.effective_label(t), t.children);
-      },
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(_)
+        | Grout(_)
+        | Projector(_) => []
+        | Tile(t) =>
+          let rec weave = (ls, chs) =>
+            switch (ls, chs) {
+            | ([], _) => []
+            | ([l, ...ls], []) => [l, ...weave(ls, [])]
+            | ([l, ...ls], [c, ...chs]) =>
+              [l, ...tokens(c)] @ weave(ls, chs)
+            };
+          weave(Tile.effective_label(t), t.children);
+        },
     seg,
   );
 
@@ -678,24 +678,24 @@ let targets = (syntax: CachedSyntax.t): list((Token.t, Util.Point.t)) => {
   let rec walk = (sg: Segment.t) =>
     List.iter(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
             List.iter(~f=walk, t.children);
-          if (Tile.arity(t) > 1) {
-            switch (Measured.find_shards(~msg="sweep", t, syntax.measured)) {
-            | shards =>
-              List.iter(
+            if (Tile.arity(t) > 1) {
+              switch (Measured.find_shards(~msg="sweep", t, syntax.measured)) {
+              | shards =>
+                List.iter(
                   ~f=
-                ((i, m: Measured.measurement)) =>
-                  acc := [(Tile.token(t, i), m.last), ...acc^],
-                shards,
-              )
-            | exception _ => ()
+                    ((i, m: Measured.measurement)) =>
+                      acc := [(Tile.token(t, i), m.last), ...acc^],
+                  shards,
+                )
+              | exception _ => ()
+              };
             };
-          };
-        | _ => ()
-        },
+          | _ => ()
+          },
       sg,
     );
   walk(syntax.segment);
@@ -869,35 +869,35 @@ let semi_deleted = ((name, root, src), ()) => {
   let rec semis = (sg: Segment.t): list(Id.t) =>
     List.concat_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.is_semi(t) => [t.id]
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.is_semi(t) => [t.id]
           | Tile(t) => List.concat_map(~f=semis, t.children)
-        | _ => []
-        },
+          | _ => []
+          },
       sg,
     );
   List.iter(
     ~f=
-    id =>
-      switch (Measured.find_by_id(id, syntax.measured)) {
-      | Some(m) =>
-        let z =
+      id =>
+        switch (Measured.find_by_id(id, syntax.measured)) {
+        | Some(m) =>
+          let z =
             List.fold(
-            [
-              Action.Move(Point(m.last, None)),
-              Action.Destruct(Local(Left, ByChar)),
-            ],
+              [
+                Action.Move(Point(m.last, None)),
+                Action.Destruct(Local(Left, ByChar)),
+              ],
               ~init=z0,
               ~f=perform(~root),
+            );
+          check_kept(
+            Printf.sprintf("%s, `;` at %d:%d", name, m.last.row, m.last.col),
+            before,
+            rows(~root, z),
           );
-        check_kept(
-          Printf.sprintf("%s, `;` at %d:%d", name, m.last.row, m.last.col),
-          before,
-          rows(~root, z),
-        );
-      | None => ()
-      },
+        | None => ()
+        },
     semis(Zipper.unselect_and_zip(z0)),
   );
 };
@@ -1050,17 +1050,17 @@ let display_cases = [
 let display_agrees = ((name, root, src, after, keys), ()) =>
   List.iteri(
     ~f=
-    (k, z) => {
-      let source = MakeTerm.semantic_source(z);
-      check(
-        list(string),
-        Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
-        tokens(fst(MakeTerm.semantic_segment(~root, source))),
+      (k, z) => {
+        let source = MakeTerm.semantic_source(z);
+        check(
+          list(string),
+          Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+          tokens(fst(MakeTerm.semantic_segment(~root, source))),
           tokens(
             CanonicalCompletion.for_editor(~root, source).completed_seg,
           ),
-      );
-    },
+        );
+      },
     type_line(~root, at_line(~root, src, after), keys),
   );
 
@@ -1109,22 +1109,22 @@ let corpus_sweep = () =>
       };
     List.iter(
       ~f=
-      ((name, root, seg)) => {
-        let f = sweep(~root, seg);
-        let p = sweep(~root, ~prefix_only=true, seg);
-        List.iter(
+        ((name, root, seg)) => {
+          let f = sweep(~root, seg);
+          let p = sweep(~root, ~prefix_only=true, seg);
+          List.iter(
             ~f=m => print_endline(name ++ " " ++ m),
-          List.rev(f.misses) @ List.rev(p.misses),
-        );
-        print_endline(
-          Printf.sprintf(
-            "SWEEP %s: full %s, prefix %s",
-            name,
-            show(f),
-            show(p),
-          ),
-        );
-      },
+            List.rev(f.misses) @ List.rev(p.misses),
+          );
+          print_endline(
+            Printf.sprintf(
+              "SWEEP %s: full %s, prefix %s",
+              name,
+              show(f),
+              show(p),
+            ),
+          );
+        },
       [
         (
           "mega-mod-1k",
@@ -1154,7 +1154,7 @@ let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) =>
   let zs = type_line(~root, z0, keys);
   List.iteri(
     ~f=
-    (k, z) =>
+      (k, z) =>
         check_kept(
           Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
           before,
@@ -1428,7 +1428,7 @@ let new_module_members = () => {
     ["y : Int", "z : Int"],
     List.filter_map(
       ~f=
-      ((parent, r: row)) =>
+        ((parent, r: row)) =>
           String.equal(parent, "/Counter/N") ? Some(show_row(r)) : None,
       after,
     ),
@@ -1742,11 +1742,11 @@ let render = (~root: Sort.t, z: Zipper.t): unit => {
 let rec tiles = (seg: Segment.t): list(Tile.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
+      (p: Piece.t) =>
+        switch (p) {
         | Tile(t) => [t, ...List.concat_map(~f=tiles, t.children)]
-      | _ => []
-      },
+        | _ => []
+        },
     seg,
   );
 
@@ -1754,8 +1754,8 @@ let rec tiles = (seg: Segment.t): list(Tile.t) =>
 let unparsed = (syntax: CachedSyntax.t, z: Zipper.t): list(string) =>
   List.filter_map(
     ~f=
-    (t: Tile.t) =>
-      Id.Map.mem(t.id, syntax.terms)
+      (t: Tile.t) =>
+        Id.Map.mem(t.id, syntax.terms)
           ? None : Some(String.concat(~sep=" ", Tile.label(t))),
     tiles(Zipper.unselect_and_zip(z)),
   );
@@ -1860,16 +1860,16 @@ let arms_without_term = () => {
   );
   List.iter(
     ~f=
-    simple_indication =>
-      ignore(
-        Web.Arms.Indicated.term(
-          ~simple_indication,
-          ~font_metrics,
-          ~syntax,
-          ~completion,
-          z,
+      simple_indication =>
+        ignore(
+          Web.Arms.Indicated.term(
+            ~simple_indication,
+            ~font_metrics,
+            ~syntax,
+            ~completion,
+            z,
+          ),
         ),
-      ),
     [false, true],
   );
 };
@@ -1878,24 +1878,24 @@ let tests = (
   "ModuleCompletion",
   List.map(
     ~f=
-    ((name, src, after, keys, expect)) =>
-      test_case(name, `Quick, unfinished(name, src, ~after, keys, expect)),
+      ((name, src, after, keys, expect)) =>
+        test_case(name, `Quick, unfinished(name, src, ~after, keys, expect)),
     browser_cases,
   )
   @ List.map(
       ~f=
-      ((name, _, _) as c) =>
-        test_case("unfinished member: " ++ name, `Quick, sibling(c)),
+        ((name, _, _) as c) =>
+          test_case("unfinished member: " ++ name, `Quick, sibling(c)),
       sibling_keys,
     )
   @ List.map(
       ~f=
-      ((name, _, _, _) as c) =>
-        test_case(
-          "rows kept typing a member: " ++ name,
-          `Quick,
-          preserved(c),
-        ),
+        ((name, _, _, _) as c) =>
+          test_case(
+            "rows kept typing a member: " ++ name,
+            `Quick,
+            preserved(c),
+          ),
       typing_cases,
     )
   @ [
@@ -1904,8 +1904,8 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, _, _, _, _, _, _, _) as c) =>
-        test_case("a member head: " ++ name, `Quick, member_head(c)),
+        ((name, _, _, _, _, _, _, _) as c) =>
+          test_case("a member head: " ++ name, `Quick, member_head(c)),
       member_head_cases,
     )
   @ List.map(
@@ -1938,22 +1938,22 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, _, _, _, _, _) as c) =>
-        test_case(
-          "Enter in a module whose `}` isn't typed: " ++ name,
-          `Quick,
-          unclosed_enter(c),
-        ),
+        ((name, _, _, _, _, _) as c) =>
+          test_case(
+            "Enter in a module whose `}` isn't typed: " ++ name,
+            `Quick,
+            unclosed_enter(c),
+          ),
       unclosed_enter_cases,
     )
   @ List.map(
       ~f=
-      ((name, _, _, _, _, _, _) as c) =>
-        test_case(
-          "a module typed, its `}` not yet: " ++ name,
-          `Quick,
-          unclosed_flow(c),
-        ),
+        ((name, _, _, _, _, _, _) as c) =>
+          test_case(
+            "a module typed, its `}` not yet: " ++ name,
+            `Quick,
+            unclosed_flow(c),
+          ),
       unclosed_flow_cases,
     )
   @ [
@@ -1965,13 +1965,13 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, _, _, _) as c) =>
-        test_case(
-          "a member typed below a module whose `}` isn't typed, dedented: "
-          ++ name,
-          `Quick,
-          outer_member(c),
-        ),
+        ((name, _, _, _) as c) =>
+          test_case(
+            "a member typed below a module whose `}` isn't typed, dedented: "
+            ++ name,
+            `Quick,
+            outer_member(c),
+          ),
       outer_member_cases,
     )
   @ [
@@ -1983,12 +1983,12 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, c)) =>
-        test_case(
-          "a member on the `{` line: " ++ name,
-          `Quick,
-          brace_line(name, c),
-        ),
+        ((name, c)) =>
+          test_case(
+            "a member on the `{` line: " ++ name,
+            `Quick,
+            brace_line(name, c),
+          ),
       brace_line_cases,
     )
   @ [
@@ -2000,7 +2000,7 @@ let tests = (
   ]
   @ List.map(
       ~f=
-      ((name, _) as c) =>
+        ((name, _) as c) =>
           test_case(
             "rows kept at a Mod root: " ++ name,
             `Quick,
@@ -2014,18 +2014,18 @@ let tests = (
     )
   @ List.map(
       ~f=
-      ((name, _, _, _, _) as c) =>
-        test_case("deletion round-trips " ++ name, `Quick, round_trip(c)),
+        ((name, _, _, _, _) as c) =>
+          test_case("deletion round-trips " ++ name, `Quick, round_trip(c)),
       round_trip_pins,
     )
   @ List.map(
       ~f=
-      ((name, _, _) as c) =>
-        test_case(
-          "a deleted `;` is quiet " ++ name,
-          `Quick,
-          semi_deleted(c),
-        ),
+        ((name, _, _) as c) =>
+          test_case(
+            "a deleted `;` is quiet " ++ name,
+            `Quick,
+            semi_deleted(c),
+          ),
       [
         ("at a Mod root", Sort.Mod, counter_members),
         ("in a module", Sort.Exp, counter),
@@ -2034,12 +2034,12 @@ let tests = (
     )
   @ List.map(
       ~f=
-      ((name, _, _, _, _) as c) =>
-        test_case(
-          "a deleted head keyword: " ++ name,
-          `Quick,
-          head_deleted(c),
-        ),
+        ((name, _, _, _, _) as c) =>
+          test_case(
+            "a deleted head keyword: " ++ name,
+            `Quick,
+            head_deleted(c),
+          ),
       [
         (
           "an annotated let-in",
@@ -2066,8 +2066,8 @@ let tests = (
     )
   @ List.map(
       ~f=
-      ((name, _, _, _) as c) =>
-        test_case("a deleted `case`: " ++ name, `Quick, case_deleted(c)),
+        ((name, _, _, _) as c) =>
+          test_case("a deleted `case`: " ++ name, `Quick, case_deleted(c)),
       [
         (
           "multi-line",
@@ -2085,7 +2085,7 @@ let tests = (
     )
   @ List.map(
       ~f=
-      ((name, _, _) as c) =>
+        ((name, _, _) as c) =>
           test_case(
             "reads as written: " ++ name,
             `Quick,
@@ -2095,25 +2095,25 @@ let tests = (
     )
   @ List.map(
       ~f=
-      ((name, _, _, _, _) as c) =>
-        test_case(
-          "the display reads as semantics: " ++ name,
-          `Quick,
-          display_agrees(c),
-        ),
+        ((name, _, _, _, _) as c) =>
+          test_case(
+            "the display reads as semantics: " ++ name,
+            `Quick,
+            display_agrees(c),
+          ),
       display_cases,
     )
   @ List.map(
       ~f=
-      ((root, src, _, _) as c) =>
-        test_case(
-          "the chips read at the editor's root: "
-          ++ Sort.show(root)
-          ++ " "
-          ++ String.escaped(src),
-          `Quick,
-          chips_after(c),
-        ),
+        ((root, src, _, _) as c) =>
+          test_case(
+            "the chips read at the editor's root: "
+            ++ Sort.show(root)
+            ++ " "
+            ++ String.escaped(src),
+            `Quick,
+            chips_after(c),
+          ),
       chip_cases,
     )
   @ [

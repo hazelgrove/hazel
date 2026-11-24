@@ -367,11 +367,11 @@ let step_into_frame_tests = [
         let dump =
           List.map(
             ~f=
-            (s: Sample.t) =>
-              switch (frame_fn_def_id(s)) {
-              | None => "noFnDef"
-              | Some(id) => term_kind(info_map, id)
-              },
+              (s: Sample.t) =>
+                switch (frame_fn_def_id(s)) {
+                | None => "noFnDef"
+                | Some(id) => term_kind(info_map, id)
+                },
             samples,
           )
           |> String.concat(~sep=",");

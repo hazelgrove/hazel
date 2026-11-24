@@ -31,8 +31,8 @@ map@<T>@<Int>(fun e -> String.length(e), ["hello","bar"])|},
             TPat.var("y#1"),
             Exp.asc(Exp.empty_hole(), Typ.var("y#1")),
             None,
-      )
-    ),
+          )
+        ),
         elaborate(parse_exp({|type y = Int in typfun y -> (? : y)|})),
       )
     ),

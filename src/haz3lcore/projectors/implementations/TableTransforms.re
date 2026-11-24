@@ -12,15 +12,15 @@ let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   | List({term: Prod(tys), _}) =>
     List.find_map(
       ~f=
-      ty => {
-        open OptUtil.Syntax;
-        let* (label, value_ty) = Typ.match_tup_label(ty);
+        ty => {
+          open OptUtil.Syntax;
+          let* (label, value_ty) = Typ.match_tup_label(ty);
           if (String.equal(label, column)) {
-          Some(value_ty);
-        } else {
-          None;
-        };
-      },
+            Some(value_ty);
+          } else {
+            None;
+          };
+        },
       tys,
     )
   | _ => None
@@ -72,11 +72,11 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   |> Option.bind(
        _,
        ~f=
-       fun
-       | InfoExp(e) => {
-           Some(e.ty);
-         }
-       | _ => None,
+         fun
+         | InfoExp(e) => {
+             Some(e.ty);
+           }
+         | _ => None,
      );
 };
 
@@ -434,14 +434,14 @@ let move_column =
         let new_columns =
           List.mapi(
             ~f=
-            (i, x) =>
-              if (i == idx) {
+              (i, x) =>
+                if (i == idx) {
                   List.nth_exn(columns, new_idx);
-              } else if (i == new_idx) {
+                } else if (i == new_idx) {
                   List.nth_exn(columns, idx);
-              } else {
-                x;
-              },
+                } else {
+                  x;
+                },
             columns,
           );
         Some(

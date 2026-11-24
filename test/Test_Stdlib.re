@@ -84,7 +84,8 @@ let tests = (
             Test_Evaluator_Prelude.parse_exp("List.length([1, 2])"),
           );
         let env = Builtins.env_for(elab);
-        let evaluated = x => List.Assoc.mem(Builtins.library_modules^, x, ~equal=Poly.equal);
+        let evaluated = x =>
+          List.Assoc.mem(Builtins.library_modules^, x, ~equal=Poly.equal);
         check(bool, "List", true, evaluated("List"));
         check(bool, "not Color", false, evaluated("Color"));
         check(
@@ -218,7 +219,9 @@ let tests = (
           list(string),
           "definitions only",
           ["A", "y"],
-          Array.to_list(Array.map(~f=(d: Library.def) => d.name, baked.defs)),
+          Array.to_list(
+            Array.map(~f=(d: Library.def) => d.name, baked.defs),
+          ),
         );
         let (_, errors) =
           bake(

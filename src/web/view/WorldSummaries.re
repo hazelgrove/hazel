@@ -5,7 +5,8 @@ open Poly;
    tick while the editor is idle (plans/world-tree.md, summaries). Held for
    the session, against the library they were analyzed with */
 
-let table: Stdlib.Hashtbl.t(string, (string, WorldSummary.t)) = Stdlib.Hashtbl.create(64);
+let table: Stdlib.Hashtbl.t(string, (string, WorldSummary.t)) =
+  Stdlib.Hashtbl.create(64);
 
 /* bumped as summaries arrive: views keyed on it redraw */
 let version = ref(0);
@@ -16,7 +17,8 @@ let wanted = ref(false);
 
 let library = () =>
   Stdlib.Digest.string(
-    !String.equal(LibraryDoc.source^, "") ? LibraryDoc.source^ : LibraryDoc.shipped^,
+    !String.equal(LibraryDoc.source^, "")
+      ? LibraryDoc.source^ : LibraryDoc.shipped^,
   );
 
 let last_library = ref("");
@@ -53,8 +55,8 @@ let find = (name: string): option(WorldSummary.t) =>
 let skipped = (name: string): bool =>
   switch (WorldDeck.legacy(name)) {
   | Some(("doc", inner)) =>
-    List.exists(~f=
-      ((n, root, _)) => n == inner && root == Sort.Exp,
+    List.exists(
+      ~f=((n, root, _)) => n == inner && root == Sort.Exp,
       Init.documentation_slides,
     )
   | _ => false
@@ -62,10 +64,13 @@ let skipped = (name: string): bool =>
 
 /* the slides [doc] holds unloaded that have no summary yet */
 let missing = (doc: Segment.t): list(string) =>
-  List.filter_map(~f=
-    ((name, s)) =>
-      s == WorldTree.Folded && !skipped(name) && Option.is_none(find(name))
-        ? Some(name) : None,
+  List.filter_map(
+    ~f=
+      ((name, s)) =>
+        s == WorldTree.Folded
+        && !skipped(name)
+        && Option.is_none(find(name))
+          ? Some(name) : None,
     WorldDeck.shown(doc),
   );
 
@@ -96,16 +101,18 @@ let step = (~settings: Language.CoreSettings.t, doc: Segment.t): bool =>
 /* the World's slides summarized with errors, as outline rows: each slide
    and the folders above it */
 let error_rows = (): list(Id.t) =>
-  List.concat_map(~f=
-    name =>
-      switch (find(name)) {
-      | Some(s) when s.errors > 0 =>
-        let path = WorldDeck.path(name);
-        List.init(List.length(path) - 1, ~f=i =>
-          WorldTree.folder_id(Util.ListUtil.take(i + 1, path)))
-        @ [WorldTree.slide_id(path)];
-      | _ => []
-      },
+  List.concat_map(
+    ~f=
+      name =>
+        switch (find(name)) {
+        | Some(s) when s.errors > 0 =>
+          let path = WorldDeck.path(name);
+          List.init(List.length(path) - 1, ~f=i =>
+            WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
+          )
+          @ [WorldTree.slide_id(path)];
+        | _ => []
+        },
     WorldDeck.names(),
   )
   |> Util.ListUtil.dedup;

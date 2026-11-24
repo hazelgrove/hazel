@@ -34,16 +34,16 @@ let slides = (~limit=Int.max_value, dir) => {
 let rec ids = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      [
-        Piece.id(p),
-        ...switch (p) {
+      (p: Piece.t) =>
+        [
+          Piece.id(p),
+          ...switch (p) {
              | Tile(t) => List.concat_map(t.children, ~f=ids)
-           | Projector(pr) => ids([pr.syntax])
-           | Grout(_)
-           | Secondary(_) => []
-           },
-      ],
+             | Projector(pr) => ids([pr.syntax])
+             | Grout(_)
+             | Secondary(_) => []
+             },
+        ],
     seg,
   );
 
@@ -72,34 +72,34 @@ let agree = (name, text) =>
     let starts = [z0, nth_right(n / 3, z0)];
     List.iter(
       ~f=
-      z =>
-        List.iter(
+        z =>
+          List.iter(
             ~f=
-          id =>
-            List.iter(
+              id =>
+                List.iter(
                   ~f=
-              (d: Util.Direction.t) => {
-                let fast = Move.jump_to_side_of_id(d, z, id);
+                    (d: Util.Direction.t) => {
+                      let fast = Move.jump_to_side_of_id(d, z, id);
                       let walked =
                         Move.jump_to_side_of_id_by_walking(d, z, id);
                       if (!Poly.equal(fast, walked)) {
-                  fail(
+                        fail(
                           sprintf(
-                      "%s: %s side of %s differs",
-                      name,
+                            "%s: %s side of %s differs",
+                            name,
                             switch (d) {
                             | Left => "left"
                             | Right => "right"
                             },
-                      Id.to_string(id),
-                    ),
-                  );
-                };
-              },
+                            Id.to_string(id),
+                          ),
+                        );
+                      };
+                    },
                   [Util.Direction.Left, Right],
-            ),
-          targets,
-        ),
+                ),
+            targets,
+          ),
       starts,
     );
     List.length(targets);

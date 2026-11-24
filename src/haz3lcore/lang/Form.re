@@ -676,16 +676,16 @@ let atomic_defs: list((atomic_form, (Token.t => bool, list(Mold.t)))) =
 let atomic_candidates_uncached = (t: Token.t): list((t, Mold.t)) =>
   List.concat_map(
     ~f=
-    ((a, (pred, molds))) =>
-      pred(t)
-        ? List.map(
+      ((a, (pred, molds))) =>
+        pred(t)
+          ? List.map(
               ~f=
-            (m: Mold.t) =>
+                (m: Mold.t) =>
                   a == InfixDelimiterPrefix
                     ? (TokInfix(t), m) : (Tok(t), m),
-            molds,
-          )
-        : [],
+              molds,
+            )
+          : [],
     atomic_defs,
   );
 
@@ -710,10 +710,10 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
     Stdlib.Hashtbl.create(256);
   List.iter(
     ~f=
-    ((fam, {label, mold, _}: def)) => {
-      let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
-      Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
-    },
+      ((fam, {label, mold, _}: def)) => {
+        let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
+        Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
+      },
     forms,
   );
   Hashtbl.filter_map_inplace(
@@ -721,11 +721,11 @@ let compound_defs: Label.t => list((family, Mold.t)) = {
       Some(
         List.stable_sort(
           ~compare=
-          ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
-            compare(
-              same_label_rank(f1, m1.out),
-              same_label_rank(f2, m2.out),
-            ),
+            ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
+              compare(
+                same_label_rank(f1, m1.out),
+                same_label_rank(f2, m2.out),
+              ),
           rows,
         ),
       ),
@@ -770,12 +770,12 @@ let defs_tbl: Hashtbl.t(family, list(def)) = {
   let tbl = Stdlib.Hashtbl.create(128);
   List.iter(
     ~f=
-    f =>
-      Hashtbl.replace(
-        tbl,
-        f,
+      f =>
+        Hashtbl.replace(
+          tbl,
+          f,
           forms |> List.filter(~f=((g, _)) => g == f) |> List.map(~f=snd),
-      ),
+        ),
     all_of_family,
   );
   tbl;
@@ -785,15 +785,15 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
   let tbl = Stdlib.Hashtbl.create(256);
   List.iter(
     ~f=
-    f =>
-      List.iter(
+      f =>
+        List.iter(
           ~f=
-        (def: def) =>
-          if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
-            Hashtbl.add(tbl, (f, def.mold.out), def.mold);
-          },
-        defs_of(f),
-      ),
+            (def: def) =>
+              if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
+                Hashtbl.add(tbl, (f, def.mold.out), def.mold);
+              },
+          defs_of(f),
+        ),
     all_of_family,
   );
   tbl;

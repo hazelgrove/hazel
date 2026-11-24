@@ -577,11 +577,11 @@ let slim_stream_update =
     current:
       Option.map(
         ~f=
-        (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
-          Language.IncrEval.{
-            ...c,
-            state: slim_state(c.state),
-          },
+          (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
+            Language.IncrEval.{
+              ...c,
+              state: slim_state(c.state),
+            },
         u.current,
       ),
   };
@@ -665,10 +665,10 @@ let post_reuse_plan = (model, request: Evaluation.t) =>
         initial:
           List.map(
             ~f=
-            item => {
-              let (key, plan) = predict_reuse_for_request(item);
-              (key, slim_entries(plan));
-            },
+              item => {
+                let (key, plan) = predict_reuse_for_request(item);
+                (key, slim_entries(plan));
+              },
             request.batch,
           ),
       }),
@@ -844,32 +844,32 @@ let receive = (posted: Posted.t): received => {
   let fresh = Stdlib.Hashtbl.create(16);
   List.iter(
     ~f=
-    ((hash, bytes)) =>
+      ((hash, bytes)) =>
         if (Poly.equal(EvalPieces.hash_of(bytes), hash)) {
-        switch (EvalPieces.decode(bytes)) {
+          switch (EvalPieces.decode(bytes)) {
           | content => Stdlib.Hashtbl.replace(fresh, hash, content)
-        | exception _ => ()
-        };
-      },
+          | exception _ => ()
+          };
+        },
     posted.pieces,
   );
   let next = Stdlib.Hashtbl.create(Stdlib.Hashtbl.length(held) + 16);
   List.iter(
     ~f=
-    ((_, v: Posted.value)) =>
-      List.iter(
+      ((_, v: Posted.value)) =>
+        List.iter(
           ~f=
-        (s: EvalPieces.slot) =>
-          switch (
+            (s: EvalPieces.slot) =>
+              switch (
                 Stdlib.Hashtbl.find_opt(fresh, s.hash),
                 Stdlib.Hashtbl.find_opt(held, s.hash),
-          ) {
-          | (Some(c), _)
+              ) {
+              | (Some(c), _)
               | (None, Some(c)) => Stdlib.Hashtbl.replace(next, s.hash, c)
-          | (None, None) => ()
-          },
-        EvalPieces.slots(v.layout),
-      ),
+              | (None, None) => ()
+              },
+          EvalPieces.slots(v.layout),
+        ),
     posted.batch,
   );
   Stdlib.Hashtbl.reset(held);
@@ -878,8 +878,8 @@ let receive = (posted: Posted.t): received => {
   switch (
     List.map(
       ~f=
-      ((key, v: Posted.value)) =>
-        (key, v, EvalPieces.assemble(~piece, v.layout)),
+        ((key, v: Posted.value)) =>
+          (key, v, EvalPieces.assemble(~piece, v.layout)),
       posted.batch,
     )
   ) {
@@ -888,11 +888,11 @@ let receive = (posted: Posted.t): received => {
     let missing =
       List.concat_map(
         ~f=
-        ((_, _, r)) =>
-          switch (r) {
-          | Error(keys) => keys
-          | Ok(_) => []
-          },
+          ((_, _, r)) =>
+            switch (r) {
+            | Error(keys) => keys
+            | Ok(_) => []
+            },
         composed,
       );
     !List.is_empty(missing)
@@ -902,19 +902,19 @@ let receive = (posted: Posted.t): received => {
           batch:
             List.filter_map(
               ~f=
-              ((key, v: Posted.value, r)) =>
-                Stdlib.Result.to_option(r)
+                ((key, v: Posted.value, r)) =>
+                  Stdlib.Result.to_option(r)
                   |> Option.map(~f=((expr, eval_info_map)) =>
-                     (
-                       key,
-                       Evaluation.{
-                         expr,
-                         eval_info_map,
-                         prev: v.prev,
-                         stream: v.stream,
-                       },
-                     )
-                   ),
+                       (
+                         key,
+                         Evaluation.{
+                           expr,
+                           eval_info_map,
+                           prev: v.prev,
+                           stream: v.stream,
+                         },
+                       )
+                     ),
               composed,
             ),
         });
@@ -969,16 +969,16 @@ let install_message_handler = () => {
             request_id: posted.request_id,
             response:
               List.map(
-              ~f=
-                ((key, _)) =>
-                  (
-                    key,
-                    Error(
-                      Language.ProgramResult.UnknownException(
-                        "eval request: " ++ why,
+                ~f=
+                  ((key, _)) =>
+                    (
+                      key,
+                      Error(
+                        Language.ProgramResult.UnknownException(
+                          "eval request: " ++ why,
+                        ),
                       ),
                     ),
-                  ),
                 posted.batch,
               ),
             eval_time: Core.Time_ns.Span.zero,

@@ -98,13 +98,14 @@ let outside: list(Id.t) => SubexpProbeTargets.t = {
     } else {
       let o =
         SubexpProbeTargets.union_all(
-          List.map(~f=
-            id =>
-              SubexpProbeTargets.add_self(
-                ~is_probed=true,
-                id,
-                SubexpProbeTargets.empty,
-              ),
+          List.map(
+            ~f=
+              id =>
+                SubexpProbeTargets.add_self(
+                  ~is_probed=true,
+                  id,
+                  SubexpProbeTargets.empty,
+                ),
             external_ids,
           ),
         );

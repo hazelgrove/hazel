@@ -83,9 +83,9 @@ let continues_delegation =
     : bool =>
   List.exists(
     ~f=
-    ((id, stack): delegation) =>
-      Id.equal(id, expr_id)
-      /* the continuation runs on the very stack value that was declared */
+      ((id, stack): delegation) =>
+        Id.equal(id, expr_id)
+        /* the continuation runs on the very stack value that was declared */
         && (
           phys_equal(stack, call_stack) || CallStack.equal(stack, call_stack)
         ),

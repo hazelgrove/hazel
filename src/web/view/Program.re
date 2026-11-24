@@ -90,23 +90,23 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
   | Divided(d) =>
     List.concat_map(
       ~f=
-      (e: ScratchCell.t) =>
-        switch (e.e_kind) {
+        (e: ScratchCell.t) =>
+          switch (e.e_kind) {
           | Run(ids) => List.map(~f=id => (id, None), ids)
-        | Def(_)
-        | Members => [(e.e_id, ScratchCell.header_name(e))]
-        | Headless(_) => [
-            (e.e_id, None),
-            ...List.filter_map(
+          | Def(_)
+          | Members => [(e.e_id, ScratchCell.header_name(e))]
+          | Headless(_) => [
+              (e.e_id, None),
+              ...List.filter_map(
                    ~f=
-                 fun
+                     fun
                      | Piece.Tile(t) when !Id.equal(t.id, e.e_id) =>
                        Some((t.id, None))
-                 | _ => None,
-                 ScratchFocus.zip_of_cell(e.e_body),
-               ),
-          ]
-        },
+                     | _ => None,
+                   ScratchFocus.zip_of_cell(e.e_body),
+                 ),
+            ]
+          },
       Divided.cells(d),
     )
   };
@@ -162,10 +162,10 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
       ~f=(acc, e: ScratchCell.t) =>
       List.fold(
         [e.e_header, e.e_body], ~init=acc, ~f=(acc, c: CellEditor.Model.t) =>
-            Id.Map.union(
-              (_, (), ()) => Some(),
-              acc,
-              CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
+        Id.Map.union(
+          (_, (), ()) => Some(),
+          acc,
+          CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
         )
       )
     )
@@ -183,8 +183,8 @@ let tail_target = (p: t): option(Id.t) =>
          | Headless(s) when String.equal(s, {js|⇒|js}) =>
            Some(e.e_body.editor.editor.state.zipper.refractors.tail_target)
          | Members =>
-           Option.map(~f=
-             Option.some,
+           Option.map(
+             ~f=Option.some,
              e.e_body.editor.editor.state.zipper.refractors.tail_target,
            )
          | _ => None

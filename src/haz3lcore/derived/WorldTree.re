@@ -41,12 +41,13 @@ let rec nest =
     ]
   | [([folder, ..._], _), ..._] =>
     let (inside, outside) =
-      List.partition_tf(~f=
-        ((p, _)) =>
-          switch (p) {
-          | [f, _, ..._] => f == folder
-          | _ => false
-          },
+      List.partition_tf(
+        ~f=
+          ((p, _)) =>
+            switch (p) {
+            | [f, _, ..._] => f == folder
+            | _ => false
+            },
         slides,
       );
     [
@@ -65,17 +66,18 @@ let rec nest =
 /* module names unique among siblings: a later clash takes a number */
 let names = (leaves: list(string)): list(string) => {
   let seen = Stdlib.Hashtbl.create(8);
-  List.map(~f=
-    leaf => {
-      let base = World.module_name(leaf);
-      let rec free = n => {
-        let name = n == 0 ? base : base ++ string_of_int(n + 1);
-        Stdlib.Hashtbl.mem(seen, name) ? free(n + 1) : name;
-      };
-      let name = free(0);
-      Stdlib.Hashtbl.replace(seen, name, ());
-      name;
-    },
+  List.map(
+    ~f=
+      leaf => {
+        let base = World.module_name(leaf);
+        let rec free = n => {
+          let name = n == 0 ? base : base ++ string_of_int(n + 1);
+          Stdlib.Hashtbl.mem(seen, name) ? free(n + 1) : name;
+        };
+        let name = free(0);
+        Stdlib.Hashtbl.replace(seen, name, ());
+        name;
+      },
     leaves,
   );
 };
@@ -107,17 +109,18 @@ let folder_id = (path: path): Id.t =>
 /* [wrapper] with its module tile's id [id] */
 let with_head = (id: Id.t, wrapper: Segment.t): Segment.t => {
   let seen = ref(false);
-  List.map(~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when ! seen^ =>
-        seen := true;
-        Piece.Tile({
-          ...t,
-          id,
-        });
-      | p => p
-      },
+  List.map(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when ! seen^ =>
+          seen := true;
+          Piece.Tile({
+            ...t,
+            id,
+          });
+        | p => p
+        },
     wrapper,
   );
 };
@@ -164,38 +167,40 @@ let stand_in = (brace: Tile.t): Piece.t =>
 /* [wrapper] with [body] as its brace's: members between a linebreak
    each side, or the placeholder */
 let with_body = (wrapper: Segment.t, body: option(Segment.t)): Segment.t =>
-  List.map(~f=
-    (p: Piece.t) =>
-      switch (p, body) {
-      | (Tile(t), Some(members)) when is_brace(t) =>
-        Piece.Tile({
-          ...t,
-          children: [World.body(t.id, members)],
-        })
-      | (Tile(t), None) when is_brace(t) => stand_in(t)
-      | (p, _) => p
-      },
+  List.map(
+    ~f=
+      (p: Piece.t) =>
+        switch (p, body) {
+        | (Tile(t), Some(members)) when is_brace(t) =>
+          Piece.Tile({
+            ...t,
+            children: [World.body(t.id, members)],
+          })
+        | (Tile(t), None) when is_brace(t) => stand_in(t)
+        | (p, _) => p
+        },
     wrapper,
   );
 
 /* members separated by `;`, a linebreak after each */
 let separated = (~salt: string, items: list((Id.t, Segment.t))): Segment.t =>
   List.concat(
-    List.mapi(~f=
-      (i, (id, item)) =>
-        i == List.length(items) - 1
-          ? item
-          : item
-            @ [
-              Piece.Tile({
-                id: Id.derive(~salt=salt ++ "-semi", id),
-                form: Form.Compound(CellJoin),
-                sort: Mod,
-                shards: [0],
-                children: [],
-              }),
-              World.newline(id, salt ++ "-gap"),
-            ],
+    List.mapi(
+      ~f=
+        (i, (id, item)) =>
+          i == List.length(items) - 1
+            ? item
+            : item
+              @ [
+                Piece.Tile({
+                  id: Id.derive(~salt=salt ++ "-semi", id),
+                  form: Form.Compound(CellJoin),
+                  sort: Mod,
+                  shards: [0],
+                  children: [],
+                }),
+                World.newline(id, salt ++ "-gap"),
+              ],
       items,
     ),
   );
@@ -204,17 +209,18 @@ let rec module_of = (~name: string, node: node): option((Id.t, Segment.t)) =>
   switch (node) {
   | Slide(path, members) =>
     let id = slide_id(path);
-    Option.map(~f=
-      w => (id, with_body(with_head(id, w), members)),
+    Option.map(
+      ~f=w => (id, with_body(with_head(id, w), members)),
       slide_wrapper(~name, path),
     );
   | Folder(path, kids) =>
     let id = folder_id(path);
     Option.bind(folder_wrapper(~name, path), ~f=w =>
-      Option.map(~f=
-        body => (id, with_body(with_head(id, w), Some(body))),
+      Option.map(
+        ~f=body => (id, with_body(with_head(id, w), Some(body))),
         level(kids),
-      ));
+      )
+    );
   }
 /* a level's modules, named uniquely, separated */
 and level = (nodes: list(node)): option(Segment.t) => {
@@ -223,13 +229,18 @@ and level = (nodes: list(node)): option(Segment.t) => {
     | Slide(path, _)
     | Folder(path, _) => List.nth_exn(path, List.length(path) - 1);
   let items =
-    List.map2_exn(~f=
-      (name, node) => module_of(~name, node),
+    List.map2_exn(
+      ~f=(name, node) => module_of(~name, node),
       names(List.map(~f=leaf, nodes)),
       nodes,
     );
   List.for_all(~f=Option.is_some, items)
-    ? Some(separated(~salt="world-level", List.map(~f=x => Option.value_exn(x), items)))
+    ? Some(
+        separated(
+          ~salt="world-level",
+          List.map(~f=x => Option.value_exn(x), items),
+        ),
+      )
     : None;
 };
 
@@ -241,8 +252,8 @@ let assemble =
     (~library: Segment.t, slides: list((path, option(Segment.t))))
     : option(Segment.t) => {
   let anchor = root_anchor;
-  Option.map(~f=
-    body => World.prefix(~anchor, library) @ body,
+  Option.map(
+    ~f=body => World.prefix(~anchor, library) @ body,
     level(nest(slides)),
   );
 };
@@ -373,15 +384,16 @@ let load = (~slide: Id.t, members: Segment.t, seg: Segment.t): Segment.t => {
     | [Tile(t) as p, ...rest] =>
       let found = ref(false);
       let kids =
-        List.map(~f=
-          kid =>
-            if (found^) {
-              kid;
-            } else {
-              let (kid, hit) = level(kid);
-              found := hit;
-              kid;
-            },
+        List.map(
+          ~f=
+            kid =>
+              if (found^) {
+                kid;
+              } else {
+                let (kid, hit) = level(kid);
+                found := hit;
+                kid;
+              },
           t.children,
         );
       if (found^) {
@@ -480,37 +492,38 @@ let rec apply =
       ...e,
       term:
         Module(
-          List.filter_map(~f=
-            item =>
-              switch (Id.Map.find_opt(Language.Mod.rep_id(item), c)) {
-              | None => None
-              | Some(Whole) => Some(item)
-              | Some(Empty) =>
-                Some(
-                  with_def(
-                    def => {
-                      let empty: Language.Exp.t = {
-                        ...def,
-                        term: Module([]),
-                      };
-                      changed := [(def, None), ...changed^];
-                      empty;
-                    },
-                    item,
-                  ),
-                )
-              | Some(Inside(c)) =>
-                Some(
-                  with_def(
-                    def => {
-                      let cut = apply(~changed, c, def);
-                      changed := [(def, Some(cut)), ...changed^];
-                      cut;
-                    },
-                    item,
-                  ),
-                )
-              },
+          List.filter_map(
+            ~f=
+              item =>
+                switch (Id.Map.find_opt(Language.Mod.rep_id(item), c)) {
+                | None => None
+                | Some(Whole) => Some(item)
+                | Some(Empty) =>
+                  Some(
+                    with_def(
+                      def => {
+                        let empty: Language.Exp.t = {
+                          ...def,
+                          term: Module([]),
+                        };
+                        changed := [(def, None), ...changed^];
+                        empty;
+                      },
+                      item,
+                    ),
+                  )
+                | Some(Inside(c)) =>
+                  Some(
+                    with_def(
+                      def => {
+                        let cut = apply(~changed, c, def);
+                        changed := [(def, Some(cut)), ...changed^];
+                        cut;
+                      },
+                      item,
+                    ),
+                  )
+                },
             items,
           ),
         ),
@@ -535,7 +548,8 @@ let run_cut =
     | ([], Module(items)) when top =>
       Some(
         List.fold(items, ~init=Id.Map.empty, ~f=(c, i) =>
-            library(i) ? c : Id.Map.add(Language.Mod.rep_id(i), Whole, c)),
+          library(i) ? c : Id.Map.add(Language.Mod.rep_id(i), Whole, c)
+        ),
       )
     | ([m, ...below], Module(items)) =>
       switch (ListUtil.findi_opt(i => Language.Mod.rep_id(i) == m, items)) {
@@ -547,32 +561,43 @@ let run_cut =
             Option.map(~f=c => Inside(c), go(~top=false, below, def))
           | _ => Some(Whole)
           };
-        Option.map(~f=
-          part => {
-            let mentions = (d: Language.Exp.t) =>
-              Language.Builtins.mentioned(~keep=x => !(top && cached(x)), d);
-            let demand = Stdlib.Hashtbl.create(16);
-            let want = d =>
-              List.iter(~f=x => Stdlib.Hashtbl.replace(demand, x, ()), mentions(d));
-            switch (part, item.term) {
-            | (Inside(c), ModLet(_, def)) => want(apply(c, def))
-            | _ => Option.iter(~f=want, def_of(item))
-            };
-            List.fold(List.rev(ListUtil.take(n, items)), ~init=Id.Map.singleton(Language.Mod.rep_id(item), part), ~f=(c, i: Language.Mod.t) => {
-                let names = binds(i);
-                if (List.exists(~f=Stdlib.Hashtbl.mem(demand), names)) {
-                  List.iter(~f=Stdlib.Hashtbl.remove(demand), names);
-                  if (sealed_empty(i)) {
-                    Id.Map.add(Language.Mod.rep_id(i), Empty, c);
+        Option.map(
+          ~f=
+            part => {
+              let mentions = (d: Language.Exp.t) =>
+                Language.Builtins.mentioned(
+                  ~keep=x => !(top && cached(x)),
+                  d,
+                );
+              let demand = Stdlib.Hashtbl.create(16);
+              let want = d =>
+                List.iter(
+                  ~f=x => Stdlib.Hashtbl.replace(demand, x, ()),
+                  mentions(d),
+                );
+              switch (part, item.term) {
+              | (Inside(c), ModLet(_, def)) => want(apply(c, def))
+              | _ => Option.iter(~f=want, def_of(item))
+              };
+              List.fold(
+                List.rev(ListUtil.take(n, items)),
+                ~init=Id.Map.singleton(Language.Mod.rep_id(item), part),
+                ~f=(c, i: Language.Mod.t) => {
+                  let names = binds(i);
+                  if (List.exists(~f=Stdlib.Hashtbl.mem(demand), names)) {
+                    List.iter(~f=Stdlib.Hashtbl.remove(demand), names);
+                    if (sealed_empty(i)) {
+                      Id.Map.add(Language.Mod.rep_id(i), Empty, c);
+                    } else {
+                      Option.iter(~f=want, def_of(i));
+                      Id.Map.add(Language.Mod.rep_id(i), Whole, c);
+                    };
                   } else {
-                    Option.iter(~f=want, def_of(i));
-                    Id.Map.add(Language.Mod.rep_id(i), Whole, c);
+                    c;
                   };
-                } else {
-                  c;
-                };
-              });
-          },
+                },
+              );
+            },
           part,
         );
       }
@@ -609,27 +634,30 @@ let run_statics = (c: cut, s: CachedStatics.t): CachedStatics.t => {
     );
   let info_map =
     List.fold(ids^, ~init=Id.Map.empty, ~f=(m, id) =>
-        switch (Id.Map.find_opt(id, s.info_map)) {
-        | Some(info) => Id.Map.add(id, info, m)
-        | None => m
-        });
+      switch (Id.Map.find_opt(id, s.info_map)) {
+      | Some(info) => Id.Map.add(id, info, m)
+      | None => m
+      }
+    );
   let info_map =
     List.fold(changed^, ~init=info_map, ~f=(m, (was: Language.Exp.t, runs)) =>
-        List.fold(Language.IdTagged.ids(was), ~init=m, ~f=(m, id) =>
-            switch (runs, Id.Map.find_opt(id, m)) {
-            | (None, _) => Id.Map.remove(id, m)
-            | (Some(runs), Some(Language.Info.InfoExp(i)))
-                when phys_equal(i.elab_term, was) =>
-              Id.Map.add(
-                id,
-                Language.Info.InfoExp({
-                  ...i,
-                  elab_term: runs,
-                }),
-                m,
-              )
-            | _ => m
-            }));
+      List.fold(Language.IdTagged.ids(was), ~init=m, ~f=(m, id) =>
+        switch (runs, Id.Map.find_opt(id, m)) {
+        | (None, _) => Id.Map.remove(id, m)
+        | (Some(runs), Some(Language.Info.InfoExp(i)))
+            when phys_equal(i.elab_term, was) =>
+          Id.Map.add(
+            id,
+            Language.Info.InfoExp({
+              ...i,
+              elab_term: runs,
+            }),
+            m,
+          )
+        | _ => m
+        }
+      )
+    );
   {
     ...s,
     elaborated,
@@ -644,16 +672,17 @@ let split_library =
     (~anchor: Id.t, ~heads: list(Id.t), seg: Segment.t)
     : option((Segment.t, Segment.t)) => {
   let ours =
-    List.map(~f=
-      salt => Id.derive(~salt, anchor),
+    List.map(
+      ~f=salt => Id.derive(~salt, anchor),
       ["world-library-end", "world-gap-1", "world-gap-2"],
     );
   let rec go = (before, rest: Segment.t) =>
     switch (rest) {
     | [Piece.Tile(t), ..._] when List.mem(heads, t.id, ~equal=Poly.equal) =>
       Some((
-        List.filter(~f=
-          (p: Piece.t) => !List.mem(ours, Piece.id(p), ~equal=Poly.equal),
+        List.filter(
+          ~f=
+            (p: Piece.t) => !List.mem(ours, Piece.id(p), ~equal=Poly.equal),
           List.rev(before),
         ),
         rest,
@@ -668,7 +697,7 @@ let split_library =
 let with_library =
     (~anchor: Id.t, ~heads: list(Id.t), ~library: Segment.t, seg: Segment.t)
     : option(Segment.t) =>
-  Option.map(~f=
-    ((_, rest)) => World.prefix(~anchor, library) @ rest,
+  Option.map(
+    ~f=((_, rest)) => World.prefix(~anchor, library) @ rest,
     split_library(~anchor, ~heads, seg),
   );

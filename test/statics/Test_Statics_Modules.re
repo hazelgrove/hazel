@@ -1421,10 +1421,11 @@ let test_error_width_not_in_if_annotated =
       Alcotest.(check(bool))(
         "wider branch marked",
         true,
-        List.exists(~f=
-          fun
-          | Language.Mark.ExpectationMismatch(_) => true
-          | _ => false,
+        List.exists(
+          ~f=
+            fun
+            | Language.Mark.ExpectationMismatch(_) => true
+            | _ => false,
           marks,
         ),
       );

@@ -147,9 +147,9 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   let rec roots = items =>
     List.concat_map(
       ~f=
-      (it: DefStatics.item) =>
+        (it: DefStatics.item) =>
           Option.to_list(Option.map(~f=_ => it.d_id, it.d_hole))
-        @ roots(it.d_members),
+          @ roots(it.d_members),
       items,
     );
   let spine = Stdlib.Hashtbl.create(64);
@@ -197,40 +197,40 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   let rec shape = items =>
     List.concat_map(
       ~f=
-      (it: DefStatics.item) =>
-        [
-          Id.show(it.d_id)
-          ++ " exports "
-          ++ String.concat(
+        (it: DefStatics.item) =>
+          [
+            Id.show(it.d_id)
+            ++ " exports "
+            ++ String.concat(
                  ~sep=" ",
                  List.map(~f=DefStatics.entry_name, it.d_exports),
-             ),
-          ...shape(it.d_members),
-        ],
+               ),
+            ...shape(it.d_members),
+          ],
       items,
     );
   Option.iter(
     ~f=
-    (cold: DefStatics.t) => {
-      let rec first_diff = (xs, ys) =>
-        switch (xs, ys) {
-        | ([], []) => ()
-        | ([x, ...xs], [y, ...ys]) when x == y => first_diff(xs, ys)
-        | ([x, ..._], _) => note("item " ++ x ++ " differs from cold")
-        | ([], [y, ..._]) => note("item " ++ y ++ " missing")
-        };
-      first_diff(shape(t.items), shape(cold.items));
-      ids(
-        "error ids vs cold",
-        DefStatics.all_error_ids(cold),
-        DefStatics.all_error_ids(t),
-      );
-      ids(
-        "warning ids vs cold",
-        DefStatics.all_warning_ids(cold),
-        DefStatics.all_warning_ids(t),
-      );
-    },
+      (cold: DefStatics.t) => {
+        let rec first_diff = (xs, ys) =>
+          switch (xs, ys) {
+          | ([], []) => ()
+          | ([x, ...xs], [y, ...ys]) when x == y => first_diff(xs, ys)
+          | ([x, ..._], _) => note("item " ++ x ++ " differs from cold")
+          | ([], [y, ..._]) => note("item " ++ y ++ " missing")
+          };
+        first_diff(shape(t.items), shape(cold.items));
+        ids(
+          "error ids vs cold",
+          DefStatics.all_error_ids(cold),
+          DefStatics.all_error_ids(t),
+        );
+        ids(
+          "warning ids vs cold",
+          DefStatics.all_warning_ids(cold),
+          DefStatics.all_warning_ids(t),
+        );
+      },
     cold,
   );
   ids(
@@ -373,10 +373,10 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
   let rec remember = (items: list(DefStatics.item)) =>
     List.iter(
       ~f=
-      (it: DefStatics.item) => {
+        (it: DefStatics.item) => {
           Stdlib.Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
-        remember(it.d_members);
-      },
+          remember(it.d_members);
+        },
       items,
     );
   Option.iter(~f=(p: DefStatics.t) => remember(p.items), prev);
@@ -391,35 +391,35 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
     } else {
       List.iter2_exn(
         ~f=
-        (g: DefStatics.item, w: DefStatics.item) => {
-          let at = path ++ "/" ++ Id.str8(w.d_id);
+          (g: DefStatics.item, w: DefStatics.item) => {
+            let at = path ++ "/" ++ Id.str8(w.d_id);
             if (!Id.equal(g.d_id, w.d_id)) {
-            note(at ++ ": id " ++ Id.str8(g.d_id));
-          } else {
-            maps(~infos=fresh(g), at, g.d_map, w.d_map);
-            same(
-              at ++ " errors",
-              names,
-              ids(g.d_error_ids),
-              ids(w.d_error_ids),
-            );
-            same(
-              at ++ " warnings",
-              names,
-              ids(g.d_warning_ids),
-              ids(w.d_warning_ids),
-            );
-            same(at ++ " free", names, g.d_free, w.d_free);
-            same(at ++ " tfree", names, g.d_tfree, w.d_tfree);
-            same(
-              at ++ " exports",
-              names,
+              note(at ++ ": id " ++ Id.str8(g.d_id));
+            } else {
+              maps(~infos=fresh(g), at, g.d_map, w.d_map);
+              same(
+                at ++ " errors",
+                names,
+                ids(g.d_error_ids),
+                ids(w.d_error_ids),
+              );
+              same(
+                at ++ " warnings",
+                names,
+                ids(g.d_warning_ids),
+                ids(w.d_warning_ids),
+              );
+              same(at ++ " free", names, g.d_free, w.d_free);
+              same(at ++ " tfree", names, g.d_tfree, w.d_tfree);
+              same(
+                at ++ " exports",
+                names,
                 List.map(~f=DefStatics.entry_name, g.d_exports),
                 List.map(~f=DefStatics.entry_name, w.d_exports),
-            );
-            items(at, g.d_members, w.d_members);
-          };
-        },
+              );
+              items(at, g.d_members, w.d_members);
+            };
+          },
         got,
         want,
       );

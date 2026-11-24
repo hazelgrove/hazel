@@ -219,8 +219,8 @@ module Inc = {
     let frontier =
       switch (current) {
       | Some((Some(cur), _)) =>
-        List.filter(~f=
-          ((_, fe, fx, _)) => !within(cur, (fe, fx)),
+        List.filter(
+          ~f=((_, fe, fx, _)) => !within(cur, (fe, fx)),
           inc.frontier,
         )
       | _ => inc.frontier
@@ -237,12 +237,12 @@ module Inc = {
         when
           !
             List.exists(
-                 ~f=
-              ((_, fe, fx, _)) =>
-                switch (span) {
-                | Some((e, _)) => fe <= e && e <= fx
-                | None => false
-                },
+              ~f=
+                ((_, fe, fx, _)) =>
+                  switch (span) {
+                  | Some((e, _)) => fe <= e && e <= fx
+                  | None => false
+                  },
               frontier,
             ) =>
       EvaluatorState.append(state, EvaluatorState.rebase(cur))

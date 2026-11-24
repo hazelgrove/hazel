@@ -194,15 +194,15 @@ let is_runtime_dependency = EvalInfo.is_runtime_dependency;
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
     ~f=
-    (projected, (name, _)) =>
-      if (!is_runtime_dependency(name)) {
-        projected;
-      } else {
-        switch (Maps.StringMap.find_opt(name, reuse_map)) {
-        | Some(prov) => Maps.StringMap.add(name, prov, projected)
-        | None => projected
-        };
-      },
+      (projected, (name, _)) =>
+        if (!is_runtime_dependency(name)) {
+          projected;
+        } else {
+          switch (Maps.StringMap.find_opt(name, reuse_map)) {
+          | Some(prov) => Maps.StringMap.add(name, prov, projected)
+          | None => projected
+          };
+        },
     ~init=empty_reuse_map,
     CoCtx.to_list(co_ctx),
   );
@@ -211,19 +211,19 @@ let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_left(
     ~f=
-    (acc, (name, _)) =>
-      if (!is_runtime_dependency(name)) {
-        acc;
-      } else {
-        switch (acc) {
-        | None => None
-        | Some(projected) =>
-          switch (Maps.StringMap.find_opt(name, reuse_map)) {
-          | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
+      (acc, (name, _)) =>
+        if (!is_runtime_dependency(name)) {
+          acc;
+        } else {
+          switch (acc) {
           | None => None
-          }
-        };
-      },
+          | Some(projected) =>
+            switch (Maps.StringMap.find_opt(name, reuse_map)) {
+            | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
+            | None => None
+            }
+          };
+        },
     ~init=Some(empty_reuse_map),
     CoCtx.to_list(co_ctx),
   );
@@ -234,16 +234,16 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   |> Environment.to_list
   |> List.fold_left(
        ~f=
-       (acc, (name, _)) =>
-         Maps.StringMap.add(
-           name,
-           {
-             source: Id.invalid,
-             path: [],
-             flag: Clean,
-           },
-           acc,
-         ),
+         (acc, (name, _)) =>
+           Maps.StringMap.add(
+             name,
+             {
+               source: Id.invalid,
+               path: [],
+               flag: Clean,
+             },
+             acc,
+           ),
        ~init=empty_reuse_map,
      );
 

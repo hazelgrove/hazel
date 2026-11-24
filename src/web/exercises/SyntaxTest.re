@@ -111,17 +111,17 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Module(items) =>
     List.fold_left(
       ~f=
-      (acc, item: Mod.t) =>
-        switch (item.term) {
-        | ModLet(p, def) => acc |> find_in_let(name, p, def)
-        | ModuleMod(_, def)
-        | ModVal(_, def)
-        | ModExp(def) => acc |> find_fn(name, def)
-        | ModType(_, _)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => acc
-        },
+        (acc, item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(p, def) => acc |> find_in_let(name, p, def)
+          | ModuleMod(_, def)
+          | ModVal(_, def)
+          | ModExp(def) => acc |> find_fn(name, def)
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => acc
+          },
       ~init=l,
       items,
     )
@@ -207,17 +207,17 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Module(items) =>
     List.exists(
       ~f=
-      (item: Mod.t) =>
-        switch (item.term) {
-        | ModLet(_, def)
-        | ModuleMod(_, def)
-        | ModVal(_, def)
-        | ModExp(def) => var_mention(name, def)
-        | ModType(_, _)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => false
-        },
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(_, def)
+          | ModuleMod(_, def)
+          | ModVal(_, def)
+          | ModExp(def) => var_mention(name, def)
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => false
+          },
       items,
     )
   | ModuleExp(mp, def, body) =>
@@ -273,10 +273,10 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
     var_mention(name, g)
     || List.fold_left(
          ~f=
-         (acc, pe) => {
-           let (p, e) = pe;
-           var_mention_upat(name, p) ? false : acc || var_mention(name, e);
-         },
+           (acc, pe) => {
+             let (p, e) = pe;
+             var_mention_upat(name, p) ? false : acc || var_mention(name, e);
+           },
          ~init=false,
          l,
        )
@@ -304,17 +304,17 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Module(items) =>
     List.exists(
       ~f=
-      (item: Mod.t) =>
-        switch (item.term) {
-        | ModLet(_, def)
-        | ModuleMod(_, def)
-        | ModVal(_, def)
-        | ModExp(def) => var_applied(name, def)
-        | ModType(_, _)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => false
-        },
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModLet(_, def)
+          | ModuleMod(_, def)
+          | ModVal(_, def)
+          | ModExp(def) => var_applied(name, def)
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => false
+          },
       items,
     )
   | ModuleExp(mp, def, body) =>
@@ -382,10 +382,10 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     var_applied(name, g)
     || List.fold_left(
          ~f=
-         (acc, pe) => {
-           let (p, e) = pe;
-           var_mention_upat(name, p) ? false : acc || var_applied(name, e);
-         },
+           (acc, pe) => {
+             let (p, e) = pe;
+             var_mention_upat(name, p) ? false : acc || var_applied(name, e);
+           },
          ~init=false,
          l,
        )
@@ -434,17 +434,17 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     !
       List.exists(
         ~f=
-        (item: Mod.t) =>
-          switch (item.term) {
-          | ModLet(_, def)
-          | ModuleMod(_, def)
-          | ModVal(_, def)
-          | ModExp(def) => var_mention(name, def)
-          | ModType(_, _)
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_) => false
-          },
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_, def)
+            | ModuleMod(_, def)
+            | ModVal(_, def)
+            | ModExp(def) => var_mention(name, def)
+            | ModType(_, _)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => false
+            },
         items,
       )
   | ModuleExp(mp, def, body) =>
@@ -501,9 +501,9 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
       ? false
       : List.fold_left(
           ~f=
-          (acc, (p, e)) => {
-            var_mention_upat(name, p) ? false : acc && tail_check(name, e)
-          },
+            (acc, (p, e)) => {
+              var_mention_upat(name, p) ? false : acc && tail_check(name, e)
+            },
           ~init=true,
           l,
         )
@@ -520,7 +520,7 @@ let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
   } else {
     List.fold_left(
       ~f=
-      (acc, ue) => {acc && var_mention(name, ue) && tail_check(name, ue)},
+        (acc, ue) => {acc && var_mention(name, ue) && tail_check(name, ue)},
       ~init=true,
       fn_bodies,
     );

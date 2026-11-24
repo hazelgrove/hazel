@@ -111,15 +111,15 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
     let request =
       List.map(
         ~f=
-        (e: WorkerServer.encoding) => {
-          module M = (val WorkerServer.module_of_encoding(e));
-          measure(
-            ~encoding=e,
-            ~encode=() => M.encode_request(msg),
-            ~size=M.size_request,
-            ~decode=M.decode_request,
-          );
-        },
+          (e: WorkerServer.encoding) => {
+            module M = (val WorkerServer.module_of_encoding(e));
+            measure(
+              ~encoding=e,
+              ~encode=() => M.encode_request(msg),
+              ~size=M.size_request,
+              ~decode=M.decode_request,
+            );
+          },
         active_encodings(),
       );
     let entries =
@@ -140,15 +140,15 @@ let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit =>
     let response =
       List.map(
         ~f=
-        (e: WorkerServer.encoding) => {
-          module M = (val WorkerServer.module_of_encoding(e));
-          measure(
-            ~encoding=e,
-            ~encode=() => M.encode_response(resp),
-            ~size=M.size_response,
-            ~decode=M.decode_response,
-          );
-        },
+          (e: WorkerServer.encoding) => {
+            module M = (val WorkerServer.module_of_encoding(e));
+            measure(
+              ~encoding=e,
+              ~encode=() => M.encode_response(resp),
+              ~size=M.size_response,
+              ~decode=M.decode_response,
+            );
+          },
         active_encodings(),
       );
     update(

@@ -40,10 +40,11 @@ type plan = {
    name, or is unbound, and its new home module is the library's there. */
 let plan = (~renames: renames, term: Exp.t): plan => {
   let library_id = name =>
-    List.find_map(~f=
-      fun
-      | Ctx.VarEntry(v) when v.name == name => Some(v.id)
-      | _ => None,
+    List.find_map(
+      ~f=
+        fun
+        | Ctx.VarEntry(v) when v.name == name => Some(v.id)
+        | _ => None,
       Lazy.force(Builtins.library_entries^),
     );
   let (info_map, _) =
@@ -139,31 +140,32 @@ let source_words = (text: string): option(list((int, string))) => {
 
 /* The segment's word tokens in text order, each with its tile's id */
 let rec segment_words = (seg: Segment.t): list((string, Id.t)) =>
-  List.concat_map(~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        let label = Tile.label(t);
-        let shard = i => {
-          let s = List.nth_exn(label, i);
-          wordish(s) ? [(s, t.id)] : [];
-        };
-        switch (t.shards) {
-        | [] => []
-        | [first, ...rest] =>
-          shard(first)
-          @ List.concat(
-              List.map2_exn(~f=
-                (child, i) => segment_words(child) @ shard(i),
-                t.children,
-                rest,
-              ),
-            )
-        };
-      | Projector(pr) => segment_words([pr.syntax])
-      | Grout(_)
-      | Secondary(_) => []
-      },
+  List.concat_map(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let label = Tile.label(t);
+          let shard = i => {
+            let s = List.nth_exn(label, i);
+            wordish(s) ? [(s, t.id)] : [];
+          };
+          switch (t.shards) {
+          | [] => []
+          | [first, ...rest] =>
+            shard(first)
+            @ List.concat(
+                List.map2_exn(
+                  ~f=(child, i) => segment_words(child) @ shard(i),
+                  t.children,
+                  rest,
+                ),
+              )
+          };
+        | Projector(pr) => segment_words([pr.syntax])
+        | Grout(_)
+        | Secondary(_) => []
+        },
     seg,
   );
 
@@ -229,14 +231,18 @@ let edits = (~renamed: Id.Map.t(string), ~text: string, z: Zipper.t) => {
 let apply = (edits: list(edit), text: string): string => {
   let buf = Stdlib.Buffer.create(Stdlib.String.length(text) + 64);
   let pos =
-    List.fold(edits, ~init=0, ~f=(pos, e) => {
+    List.fold(
+      edits,
+      ~init=0,
+      ~f=(pos, e) => {
         Stdlib.Buffer.add_string(
           buf,
           Stdlib.String.sub(text, pos, e.start - pos),
         );
         Stdlib.Buffer.add_string(buf, e.new_);
         e.start + Stdlib.String.length(e.old);
-      });
+      },
+    );
   Stdlib.Buffer.add_string(
     buf,
     Stdlib.String.sub(text, pos, Stdlib.String.length(text) - pos),
@@ -270,7 +276,7 @@ let behavior = (term: Exp.t): string => {
       info_map,
       [],
     )
-    |> List.sort(~compare=compare);
+    |> List.sort(~compare);
   let run =
     switch (Run.evaluate_with_tests(term)) {
     | (result, tests) =>
@@ -311,16 +317,18 @@ let rewrite =
     : outcome => {
   let plans = List.map(~f=plan(~renames), runs);
   let (renamed, disagreements) =
-    List.fold(plans, ~init=(Id.Map.empty, Id.Set.empty), ~f=((acc, bad), p: plan) =>
-        Id.Map.fold(
-          (id, d, (acc, bad)) =>
-            switch (Id.Map.find_opt(id, acc)) {
-            | Some(d') when d' != d => (acc, Id.Set.add(id, bad))
-            | _ => (Id.Map.add(id, d, acc), bad)
-            },
-          p.decisions,
-          (acc, bad),
-        ));
+    List.fold(
+      plans, ~init=(Id.Map.empty, Id.Set.empty), ~f=((acc, bad), p: plan) =>
+      Id.Map.fold(
+        (id, d, (acc, bad)) =>
+          switch (Id.Map.find_opt(id, acc)) {
+          | Some(d') when d' != d => (acc, Id.Set.add(id, bad))
+          | _ => (Id.Map.add(id, d, acc), bad)
+          },
+        p.decisions,
+        (acc, bad),
+      )
+    );
   let renamed =
     Id.Map.filter_map(
       (id, d) => Id.Set.mem(id, disagreements) ? None : d,
@@ -340,29 +348,32 @@ let rewrite =
         ]
     );
   let placed =
-    List.map(~f=
-      p =>
-        switch (edits(~renamed, ~text=p.body, p.zipper)) {
-        | Ok(es) =>
-          Ok(
-            List.map(~f=
-              e =>
-                {
-                  ...e,
-                  start: p.to_file(e.start),
-                },
-              es,
-            ),
-          )
-        | Error(why) => Error(p.label ++ ": " ++ why)
-        },
+    List.map(
+      ~f=
+        p =>
+          switch (edits(~renamed, ~text=p.body, p.zipper)) {
+          | Ok(es) =>
+            Ok(
+              List.map(
+                ~f=
+                  e =>
+                    {
+                      ...e,
+                      start: p.to_file(e.start),
+                    },
+                es,
+              ),
+            )
+          | Error(why) => Error(p.label ++ ": " ++ why)
+          },
       parts,
     );
   switch (
-    List.find_map(~f=
-      fun
-      | Error(why) => Some(why)
-      | Ok(_) => None,
+    List.find_map(
+      ~f=
+        fun
+        | Error(why) => Some(why)
+        | Ok(_) => None,
       placed,
     )
   ) {
@@ -442,7 +453,11 @@ let stitch = (~wrapper: bool, code: Exp.t, tests: Exp.t): Exp.t =>
   );
 
 let is_space = c =>
-  Char.equal(c, ' ') || Char.equal(c, '\t') || Char.equal(c, '\n') || Char.equal(c, '\r') || c == '\012';
+  Char.equal(c, ' ')
+  || Char.equal(c, '\t')
+  || Char.equal(c, '\n')
+  || Char.equal(c, '\r')
+  || c == '\012';
 
 /* [lines] (file offset, text) as one text, newline terminated and
    trimmed as TutorialText trims a section, with a map from its offsets
@@ -475,10 +490,8 @@ let text_of_lines =
 let lines_of = (content: string): list((int, string)) =>
   Stdlib.String.split_on_char('\n', content)
   |> List.fold(~init=(0, []), ~f=((offset, acc), line) =>
-         (
-           offset + Stdlib.String.length(line) + 1,
-           [(offset, line), ...acc],
-         ))
+       (offset + Stdlib.String.length(line) + 1, [(offset, line), ...acc])
+     )
   |> snd
   |> List.rev;
 
@@ -486,11 +499,15 @@ let lines_of = (content: string): list((int, string)) =>
    dropped) */
 let tagged_lines =
     (content: string): list((Web.TutorialText.marker, (int, string))) =>
-  List.fold(lines_of(content), ~init=(Web.TutorialText.Code, []), ~f=((cur, acc), (offset, line)) =>
-      switch (Web.TutorialText.marker_of_line(line)) {
-      | Some(m) => (m, acc)
-      | None => (cur, [(cur, (offset, line)), ...acc])
-      })
+  List.fold(
+    lines_of(content),
+    ~init=(Web.TutorialText.Code, []),
+    ~f=((cur, acc), (offset, line)) =>
+    switch (Web.TutorialText.marker_of_line(line)) {
+    | Some(m) => (m, acc)
+    | None => (cur, [(cur, (offset, line)), ...acc])
+    }
+  )
   |> snd
   |> List.rev;
 
@@ -507,46 +524,52 @@ let fences = (lines: list((int, string))): list(list((int, string))) => {
     };
   let (_, rev) =
     List.fold(lines, ~init=(None, []), ~f=((cur, acc), (offset, l)) =>
-        switch (cur) {
-        | None => (opens(l) ? Some([]) : None, acc)
-        | Some(body) when String.equal(Stdlib.String.trim(l), "```") => (
-            None,
-            [List.rev(body), ...acc],
-          )
-        | Some(body) => (Some([(offset, l), ...body]), acc)
-        });
+      switch (cur) {
+      | None => (opens(l) ? Some([]) : None, acc)
+      | Some(body) when String.equal(Stdlib.String.trim(l), "```") => (
+          None,
+          [List.rev(body), ...acc],
+        )
+      | Some(body) => (Some([(offset, l), ...body]), acc)
+      }
+    );
   List.rev(rev);
 };
 
 let fence_parts = (lines): list((string, string, int => int)) =>
-  List.filter_map(~f=
-    fence =>
-      Option.map(~f=
-        ((body, to_file)) => ("a ```hazel fence", body, to_file),
-        text_of_lines(fence),
-      ),
+  List.filter_map(
+    ~f=
+      fence =>
+        Option.map(
+          ~f=((body, to_file)) => ("a ```hazel fence", body, to_file),
+          text_of_lines(fence),
+        ),
     fences(lines),
   );
 
 /* Parsed parts, and a problem for each that does not parse */
 let parse_parts = (texts: list((string, string, int => int))) => (
-  List.filter_map(~f=
-    ((label, body, to_file)) =>
-      Option.map(~f=
-        zipper =>
-          {
-            label,
-            body,
-            to_file,
-            zipper,
-          },
-        parse(body),
-      ),
+  List.filter_map(
+    ~f=
+      ((label, body, to_file)) =>
+        Option.map(
+          ~f=
+            zipper =>
+              {
+                label,
+                body,
+                to_file,
+                zipper,
+              },
+          parse(body),
+        ),
     texts,
   ),
-  List.filter_map(~f=
-    ((label, body, _)) =>
-      Option.is_none(parse(body)) ? Some(label ++ " does not parse") : None,
+  List.filter_map(
+    ~f=
+      ((label, body, _)) =>
+        Option.is_none(parse(body))
+          ? Some(label ++ " does not parse") : None,
     texts,
   ),
 );
@@ -567,12 +590,13 @@ let lesson = (~renames, ~verify, content: string): outcome => {
     | Solution => true
     | _ => false;
   let sections =
-    List.filter_map(~f=
-      ((label, m)) =>
-        Option.map(~f=
-          ((body, to_file)) => (label, body, to_file),
-          text_of_lines(section_lines(Web.TutorialText.equal_marker(m))),
-        ),
+    List.filter_map(
+      ~f=
+        ((label, m)) =>
+          Option.map(
+            ~f=((body, to_file)) => (label, body, to_file),
+            text_of_lines(section_lines(Web.TutorialText.equal_marker(m))),
+          ),
       [
         ("@code", Web.TutorialText.Code),
         ("@test", Test),
@@ -583,8 +607,8 @@ let lesson = (~renames, ~verify, content: string): outcome => {
   let (fence_parsed, unparsed_fences) =
     parse_parts(fence_parts(section_lines(m => !code_like(m))));
   let term = label =>
-    List.find_map(~f=
-      p => p.label == label ? Some(term_of(p.zipper)) : None,
+    List.find_map(
+      ~f=p => p.label == label ? Some(term_of(p.zipper)) : None,
       code_parts,
     );
   let tests =
@@ -593,8 +617,8 @@ let lesson = (~renames, ~verify, content: string): outcome => {
       ~default=term_of(Option.value_exn(parse("test true end"))),
     );
   let runs =
-    List.filter_map(~f=
-      code => Option.map(~f=c => stitch(~wrapper, c, tests), term(code)),
+    List.filter_map(
+      ~f=code => Option.map(~f=c => stitch(~wrapper, c, tests), term(code)),
       ["@code", "@solution"],
     )
     @ List.map(~f=p => term_of(p.zipper), fence_parsed);
@@ -613,16 +637,16 @@ let lesson = (~renames, ~verify, content: string): outcome => {
       |> Option.value(~default=EmptyHole |> Exp.fresh);
     let tests = term(String.equal(s.test, "") ? "test true end" : s.test);
     let prose =
-      List.filter_map(~f=
-        ((m, l)) => code_like(m) ? None : Some(l),
+      List.filter_map(
+        ~f=((m, l)) => code_like(m) ? None : Some(l),
         tagged_lines(content),
       );
-    List.map(~f=
-      code => behavior(stitch(~wrapper, term(code), tests)),
+    List.map(
+      ~f=code => behavior(stitch(~wrapper, term(code), tests)),
       [s.code, ...Option.to_list(s.solution)],
     )
-    @ List.map(~f=
-        ((_, body, _)) => behavior(term(body)),
+    @ List.map(
+        ~f=((_, body, _)) => behavior(term(body)),
         fence_parts(prose),
       )
     |> Stdlib.String.concat("\n--\n");
@@ -690,23 +714,81 @@ let run =
     )
     : unit => {
   let renames = renames_of_text(read(renames_path));
-  List.iter(~f=
-    path =>
-      if (json) {
-        let programs =
-          switch (Yojson.Safe.from_string(read(path))) {
-          | `List(items) =>
-            List.map(~f=
-              fun
-              | `String(s) => s
-              | _ => failwith("expected a JSON list of strings"),
-              items,
-            )
-          | _ => failwith("expected a JSON list of strings")
+  List.iter(
+    ~f=
+      path =>
+        if (json) {
+          let programs =
+            switch (Yojson.Safe.from_string(read(path))) {
+            | `List(items) =>
+              List.map(
+                ~f=
+                  fun
+                  | `String(s) => s
+                  | _ => failwith("expected a JSON list of strings"),
+                items,
+              )
+            | _ => failwith("expected a JSON list of strings")
+            };
+          let result = text => {
+            let o =
+              try(program(~renames, ~verify, text)) {
+              | e => {
+                  text,
+                  edits: [],
+                  problems: ["raised " ++ Stdlib.Printexc.to_string(e)],
+                  changed: None,
+                }
+              };
+            let changed =
+              switch (o.changed) {
+              | Some((b, a)) => ["BEHAVIOR CHANGED\n" ++ b ++ "\n=>\n" ++ a]
+              | None => []
+              };
+            `Assoc([
+              ("text", `String(o.text)),
+              (
+                "edits",
+                `List(
+                  List.map(
+                    ~f=
+                      e =>
+                        `List([
+                          `Int(e.start),
+                          `String(e.old),
+                          `String(e.new_),
+                        ]),
+                    o.edits,
+                  ),
+                ),
+              ),
+              (
+                "problems",
+                `List(List.map(~f=p => `String(p), o.problems @ changed)),
+              ),
+            ]);
           };
-        let result = text => {
+          let out =
+            Yojson.Safe.to_string(`List(List.map(~f=result, programs)));
+          switch (output) {
+          | Some(file) =>
+            Stdlib.Out_channel.with_open_bin(file, oc =>
+              Stdlib.Out_channel.output_string(oc, out)
+            )
+          | None => print_endline(out)
+          };
+        } else {
+          let text = read(path);
           let o =
-            try(program(~renames, ~verify, text)) {
+            try(
+              if (Filename.check_suffix(path, ".hzt")) {
+                lesson(~renames, ~verify, text);
+              } else if (Filename.check_suffix(path, ".md")) {
+                markdown(~renames, ~verify, text);
+              } else {
+                program(~renames, ~verify, text);
+              }
+            ) {
             | e => {
                 text,
                 edits: [],
@@ -714,69 +796,15 @@ let run =
                 changed: None,
               }
             };
-          let changed =
-            switch (o.changed) {
-            | Some((b, a)) => ["BEHAVIOR CHANGED\n" ++ b ++ "\n=>\n" ++ a]
-            | None => []
-            };
-          `Assoc([
-            ("text", `String(o.text)),
-            (
-              "edits",
-              `List(
-                List.map(~f=
-                  e =>
-                    `List([
-                      `Int(e.start),
-                      `String(e.old),
-                      `String(e.new_),
-                    ]),
-                  o.edits,
-                ),
-              ),
-            ),
-            (
-              "problems",
-              `List(List.map(~f=p => `String(p), o.problems @ changed)),
-            ),
-          ]);
-        };
-        let out = Yojson.Safe.to_string(`List(List.map(~f=result, programs)));
-        switch (output) {
-        | Some(file) =>
-          Stdlib.Out_channel.with_open_bin(file, oc =>
-            Stdlib.Out_channel.output_string(oc, out)
-          )
-        | None => print_endline(out)
-        };
-      } else {
-        let text = read(path);
-        let o =
-          try(
-            if (Filename.check_suffix(path, ".hzt")) {
-              lesson(~renames, ~verify, text);
-            } else if (Filename.check_suffix(path, ".md")) {
-              markdown(~renames, ~verify, text);
-            } else {
-              program(~renames, ~verify, text);
-            }
-          ) {
-          | e => {
-              text,
-              edits: [],
-              problems: ["raised " ++ Stdlib.Printexc.to_string(e)],
-              changed: None,
-            }
+          report(path, o);
+          if (String.equal(path, "-")) {
+            print_string(o.text);
+          } else if (write && o.text != text) {
+            Stdlib.Out_channel.with_open_bin(path, oc =>
+              Stdlib.Out_channel.output_string(oc, o.text)
+            );
           };
-        report(path, o);
-        if (String.equal(path, "-")) {
-          print_string(o.text);
-        } else if (write && o.text != text) {
-          Stdlib.Out_channel.with_open_bin(path, oc =>
-            Stdlib.Out_channel.output_string(oc, o.text)
-          );
-        };
-      },
+        },
     paths,
   );
 };

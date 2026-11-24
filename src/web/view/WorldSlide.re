@@ -36,10 +36,12 @@ let enter =
     ? None
     : Option.bind(World.members_of(~root, seg), ~f=members =>
         Option.bind(World.slide_id(name), ~f=slide =>
-          Option.map(~f=
-            doc => (doc, slide),
+          Option.map(
+            ~f=doc => (doc, slide),
             World.assemble(~library=library(), ~name, members),
-          )));
+          )
+        )
+      );
 
 /* one parse and layout cache for every world's editor: a slide opened
    after another reuses the library's items as the last one left them */
@@ -82,12 +84,13 @@ let tree_heads = [
   WorldTree.folder_id(["Scratch"]),
 ];
 let library_end = (~slide: Id.t, doc: Segment.t): (Id.t, list(Id.t)) =>
-  List.exists(~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) => List.mem(tree_heads, t.id, ~equal=Poly.equal)
-      | _ => false
-      },
+  List.exists(
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => List.mem(tree_heads, t.id, ~equal=Poly.equal)
+        | _ => false
+        },
     doc,
   )
     ? (WorldTree.root_anchor, tree_heads) : (slide, [slide]);
@@ -153,7 +156,8 @@ let run_statics =
 let own_editor = (code: ScratchModel.Scratchpad.code): CellEditor.Model.t =>
   switch (
     Option.bind(code.world, ~f=slide =>
-      World.split(~slide, Program.document(code.program)))
+      World.split(~slide, Program.document(code.program))
+    )
   ) {
   | Some({members, _}) =>
     CellEditor.Model.mk(Editor.Model.mk(Zipper.unzip(members), ~root=Mod))

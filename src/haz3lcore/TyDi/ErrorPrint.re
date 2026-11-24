@@ -48,7 +48,7 @@ let string_of_parts = (parts: list(part)): string =>
          | Code(s)
          | Label(s) => s
          | Type(ty) => Print.typ(ty),
-    )
+     )
   |> String.concat(~sep="");
 
 let codes = (names: list(Var.t)): list(part) =>
@@ -331,7 +331,7 @@ let typ_mark_string: Mark.t => string =
     member_not_found_string(
       TypExpectation.module_member_to_string(member),
       not_found,
-        )
+    )
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
@@ -409,11 +409,11 @@ let self_reference = (~info_map, info: Info.t): option(string) => {
   let free_ctor = (i: Info.t) =>
     List.find_map(
       ~f=
-      (m: Mark.t) =>
-        switch (m) {
-        | FreeConstructor(name) => Some(name)
-        | _ => None
-        },
+        (m: Mark.t) =>
+          switch (m) {
+          | FreeConstructor(name) => Some(name)
+          | _ => None
+          },
       Info.marks_of(i),
     );
   let (ctor, member) =
@@ -468,12 +468,12 @@ let self_reference = (~info_map, info: Info.t): option(string) => {
   let encloses = name =>
     List.exists(
       ~f=
-      id =>
+        id =>
           Option.value_map(
-          Id.Map.find_opt(id, info_map),
+            Id.Map.find_opt(id, info_map),
             ~default=false,
             ~f=names_module(name),
-        ),
+          ),
       Info.ancestors(~info_map, info),
     );
   switch (ctor) {

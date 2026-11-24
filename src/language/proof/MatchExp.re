@@ -69,7 +69,7 @@ let rec match_exp =
         Some(
           List.map(
             ~f=
-            ((n, (t, e))) =>
+              ((n, (t, e))) =>
                 String.equal(n, x) ? (n, (t, Some(exp))) : (n, (t, e)),
             ctx,
           ),
@@ -382,7 +382,7 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
     Environment.of_bindings(
       List.filter_map(
         ~f=
-        ((name, (_, assigned_exp))) =>
+          ((name, (_, assigned_exp))) =>
             assigned_exp |> Option.map(~f=e => (name, e)),
         sub,
       ),

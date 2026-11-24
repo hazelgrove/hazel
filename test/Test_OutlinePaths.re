@@ -20,14 +20,14 @@ let rec walk =
         : list((Id.t, OutlineTree.path)) =>
   List.concat_map(
     ~f=
-    ((n: OutlineTree.node, seg)) => {
-      let here =
-        switch (n.o_id) {
-        | Some(id) => [(id, path @ [seg])]
-        | None => []
-        };
-      here @ walk(path @ [seg], OutlineTree.segs(n.o_children));
-    },
+      ((n: OutlineTree.node, seg)) => {
+        let here =
+          switch (n.o_id) {
+          | Some(id) => [(id, path @ [seg])]
+          | None => []
+          };
+        here @ walk(path @ [seg], OutlineTree.segs(n.o_children));
+      },
     ns,
   );
 
@@ -40,16 +40,16 @@ let check_self_resolution = (label: string, text: string): unit => {
   check(bool, label ++ ": outline nonempty", true, !List.is_empty(rows));
   List.iter(
     ~f=
-    ((id, _)) =>
-      switch (OutlineTree.label_path(id, e)) {
-      | None => fail(label ++ ": no label_path for a row id")
-      | Some(path) =>
-        switch (OutlineTree.resolve_path(path, e)) {
+      ((id, _)) =>
+        switch (OutlineTree.label_path(id, e)) {
+        | None => fail(label ++ ": no label_path for a row id")
+        | Some(path) =>
+          switch (OutlineTree.resolve_path(path, e)) {
           | Some(id') when Id.equal(id', id) => ()
-        | Some(_) => fail(label ++ ": path resolved to a DIFFERENT row")
-        | None => fail(label ++ ": path failed to resolve")
-        }
-      },
+          | Some(_) => fail(label ++ ": path resolved to a DIFFERENT row")
+          | None => fail(label ++ ": path failed to resolve")
+          }
+        },
     rows,
   );
 };
@@ -71,7 +71,7 @@ let test_elsewhere = () => {
     let rec tests = (ns: list(OutlineTree.node)) =>
       List.concat_map(
         ~f=
-        (n: OutlineTree.node) =>
+          (n: OutlineTree.node) =>
             Poly.equal(n.o_kind, KTest) ? [n] : tests(n.o_children),
         ns,
       );
@@ -141,7 +141,7 @@ let rec kinds = (ns: list(OutlineTree.node)): string =>
        ++ (
          List.is_empty(n.o_children)
            ? "" : " [" ++ kinds(n.o_children) ++ "]"
-     )
+       )
      )
   |> String.concat(~sep=", ");
 
@@ -461,12 +461,12 @@ let arrows_redraw = () => {
     "the same analysis reuses it",
     true,
     phys_equal(
-    view(
-      ~statics={
-        ...statics,
-        warning_ids: [],
-      },
-      false,
+      view(
+        ~statics={
+          ...statics,
+          warning_ids: [],
+        },
+        false,
       ),
       off,
     ),
@@ -491,13 +491,13 @@ let outline_kept = () => {
   let rezip =
     List.map(
       ~f=
-      fun
-      | Piece.Tile(t) =>
-        Piece.Tile({
-          ...t,
+        fun
+        | Piece.Tile(t) =>
+          Piece.Tile({
+            ...t,
             children: List.map(~f=List.map(~f=Fun.id), t.children),
-        })
-      | p => p,
+          })
+        | p => p,
       seg,
     );
   check(bool, "re-zipped: new objects", false, Segment.ptr_eq(rezip, seg));
@@ -549,13 +549,13 @@ let kept_paths = () => {
   let rec copy = (seg: Segment.t): Segment.t =>
     List.map(
       ~f=
-      fun
-      | Piece.Tile(t) =>
-        Piece.Tile({
-          ...t,
+        fun
+        | Piece.Tile(t) =>
+          Piece.Tile({
+            ...t,
             children: List.map(~f=copy, t.children),
-        })
-      | p => p,
+          })
+        | p => p,
       seg,
     );
   let paths = (seg: Segment.t) =>
@@ -792,11 +792,11 @@ let start_text = () => {
   let at = (label, col) =>
     Option.map(
       ~f=
-      path =>
-        E.at(
-          Row(path, Some(Item(CorpusUtil.row_by_label(term, label)))),
-          ~col,
-        ),
+        path =>
+          E.at(
+            Row(path, Some(Item(CorpusUtil.row_by_label(term, label)))),
+            ~col,
+          ),
       OutlineTree.label_path(CorpusUtil.row_by_label(term, label), term),
     );
   check(bool, "F2 on ab", true, snd(press("F2", "ab")) == at("ab", 2));
@@ -993,12 +993,12 @@ let hinted_run = () => {
     switch (
       List.find_map(
         ~f=
-        (p: Piece.t) =>
-          switch (p) {
+          (p: Piece.t) =>
+            switch (p) {
             | Tile(t) when String.equal(Tile.token(t, 0), "hint") =>
               Some(t.id)
-          | _ => None
-          },
+            | _ => None
+            },
         seg,
       )
     ) {
@@ -1244,8 +1244,8 @@ let plain_level = () => {
   check(bool, "no rows", true, List.is_empty(S.level_rows(Plain)));
   check(bool, "no chip", true, Option.is_none(S.level_chip(Plain)));
   let (_, _, press) = at_level(Plain);
-  List.iter(~f=
-    ((name, took)) => check(bool, name ++ " edits", true, took),
+  List.iter(
+    ~f=((name, took)) => check(bool, name ++ " edits", true, took),
     edit_keys(press),
   );
   check(
@@ -1300,11 +1300,21 @@ let in_slide_level = () => {
     true,
     S.level_crumbs(InSlide(above)) == [("up", "out to up", Up)],
   );
-  check(bool, "no rows", true, List.is_empty(S.level_rows(InSlide(above))));
-  check(bool, "no chip", true, Option.is_none(S.level_chip(InSlide(above))));
+  check(
+    bool,
+    "no rows",
+    true,
+    List.is_empty(S.level_rows(InSlide(above))),
+  );
+  check(
+    bool,
+    "no chip",
+    true,
+    Option.is_none(S.level_chip(InSlide(above))),
+  );
   let (term, _, press) = at_level(InSlide(above));
-  List.iter(~f=
-    ((name, took)) => check(bool, name ++ " edits", true, took),
+  List.iter(
+    ~f=((name, took)) => check(bool, name ++ " edits", true, took),
     edit_keys(press),
   );
   check(
@@ -1363,8 +1373,8 @@ let enclosing_level = () => {
     S.level_rows(level) == [("Slide", "back into Docs / Slide")],
   );
   let (term, on, press) = at_level(level);
-  List.iter(~f=
-    ((name, took)) => check(bool, name ++ " refused", false, took),
+  List.iter(
+    ~f=((name, took)) => check(bool, name ++ " refused", false, took),
     edit_keys(press)
     @ [
       ("⌘.", press(~meta=true, ".", "b").k_menus > 0),
@@ -1443,14 +1453,24 @@ let above_folds = () => {
     );
   C.above_folds := [];
   let up = view(true);
-  check(bool, "the same folds: the same outline", true, phys_equal(view(true), up));
+  check(
+    bool,
+    "the same folds: the same outline",
+    true,
+    phys_equal(view(true), up),
+  );
   C.fold_above(term, f);
   check(bool, "folded", true, C.above_folds^ == [(f, true)]);
   check(bool, "a fold: a new outline", false, phys_equal(view(true), up));
   let slide = view(false);
   C.fold_above(term, f);
   check(bool, "unfolded", true, C.above_folds^ == [(f, false)]);
-  check(bool, "the slide's outline: unchanged", true, phys_equal(view(false), slide));
+  check(
+    bool,
+    "the slide's outline: unchanged",
+    true,
+    phys_equal(view(false), slide),
+  );
   check(
     bool,
     "the slide's folds: none",

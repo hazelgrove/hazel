@@ -126,16 +126,18 @@ let tests = (
         let values =
           Sample.Map.fold(
             (_, samples, acc) =>
-              List.concat_map(~f=
-                (s: Sample.t) =>
-                  List.filter_map(~f=
-                    (en: Sample.Env.entry) =>
-                      switch (en.value) {
-                      | Val(v) => Some(v)
-                      | Opaque => None
-                      },
-                    s.env,
-                  ),
+              List.concat_map(
+                ~f=
+                  (s: Sample.t) =>
+                    List.filter_map(
+                      ~f=
+                        (en: Sample.Env.entry) =>
+                          switch (en.value) {
+                          | Val(v) => Some(v)
+                          | Opaque => None
+                          },
+                      s.env,
+                    ),
                 samples,
               )
               @ acc,

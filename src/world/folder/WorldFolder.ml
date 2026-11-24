@@ -49,7 +49,7 @@ let order_of dir =
   else
     read_file file |> String.split ~on:'\n' |> List.map ~f:String.strip
     |> List.filter ~f:(fun l ->
-           (not (String.is_empty l)) && not (Char.equal l.[0] '#'))
+        (not (String.is_empty l)) && not (Char.equal l.[0] '#'))
     |> List.map ~f:(fun l ->
         match fields l with
         | [ stem ] -> (stem, stem, false)
@@ -105,7 +105,8 @@ let library dir =
     Stdlib.Sys.readdir dir |> Array.to_list
     |> List.filter ~f:(fun f -> Filename.check_suffix f ".hz")
     |> List.map ~f:(fun f -> Filename.chop_suffix f ".hz")
-    |> List.filter ~f:(fun stem -> not (List.mem listed stem ~equal:String.equal))
+    |> List.filter ~f:(fun stem ->
+        not (List.mem listed stem ~equal:String.equal))
     |> List.sort ~compare:String.compare
   in
   List.map ~f:file (listed @ rest)

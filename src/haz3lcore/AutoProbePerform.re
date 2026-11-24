@@ -125,15 +125,15 @@ let clear_autoprobe =
      * resets once they're gone from the syntax cache. */
     List.fold_left(
       ~f=
-      (z, old_id) =>
-        ProbePerform.rm_multi(
-          ~drill=false,
-          ~reset=false,
-          ~syntax,
-          ~info_map,
-          old_id,
-          z,
-        ),
+        (z, old_id) =>
+          ProbePerform.rm_multi(
+            ~drill=false,
+            ~reset=false,
+            ~syntax,
+            ~info_map,
+            old_id,
+            z,
+          ),
       ~init=z,
       old_ids,
     )
@@ -306,13 +306,13 @@ let update_autoprobe =
     let z =
       List.fold_left(
         ~f=
-        (z, old_id) =>
+          (z, old_id) =>
             ProbePerform.rm_multi(
               ~drill=false,
               ~syntax,
               ~info_map,
               old_id,
-        z,
+              z,
             ),
         ~init=z,
         prev_anchors,

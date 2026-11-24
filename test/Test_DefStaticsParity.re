@@ -81,8 +81,8 @@ let tests_of = (state: EvaluatorState.t) =>
     ~compare,
     List.map(
       ~f=
-      ((id, rs)) =>
-        (Id.show(id), TestStatus.show(TestMap.joint_status(rs))),
+        ((id, rs)) =>
+          (Id.show(id), TestStatus.show(TestMap.joint_status(rs))),
       state.tests,
     ),
   );
@@ -145,15 +145,15 @@ let script =
       };
       Option.iter(
         ~f=
-        prev =>
-          if (s.changes_value) {
-            check(
-              bool,
-              name ++ " changes the value",
-              false,
-              same(prev, cold),
-            );
-          },
+          prev =>
+            if (s.changes_value) {
+              check(
+                bool,
+                name ++ " changes the value",
+                false,
+                same(prev, cold),
+              );
+            },
         value,
       );
       (state.incr_eval, Some(cold));
@@ -190,30 +190,31 @@ let mega = (~root, ~eval=true, ~delta=false, file, steps, ()) =>
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
   List.iter(
-    ~f=((path, root, src)) =>
-      switch (CorpusUtil.parse(~root, src)) {
-      | None => ()
-      | Some(seg) =>
-        let calc = seg =>
-          try(
-            ignore(
-              DefStatics.calc_auto(
-                ~settings=CoreSettings.on,
-                MakeTerm.Incr.term_of_root(~root, seg),
-              ),
-            )
-          ) {
-          | DefStaticsCheck.Divergence(ds) =>
+    ~f=
+      ((path, root, src)) =>
+        switch (CorpusUtil.parse(~root, src)) {
+        | None => ()
+        | Some(seg) =>
+          let calc = seg =>
+            try(
+              ignore(
+                DefStatics.calc_auto(
+                  ~settings=CoreSettings.on,
+                  MakeTerm.Incr.term_of_root(~root, seg),
+                ),
+              )
+            ) {
+            | DefStaticsCheck.Divergence(ds) =>
               fail(path ++ ": " ++ String.concat(~sep="; ", ds))
+            };
+          calc(seg);
+          let (edited, changed) =
+            CorpusUtil.edit_token(~needle="1", ~repl="2", seg);
+          if (changed) {
+            calc(edited);
           };
-        calc(seg);
-        let (edited, changed) =
-          CorpusUtil.edit_token(~needle="1", ~repl="2", seg);
-        if (changed) {
-          calc(edited);
-        };
-        incr(checked);
-      },
+          incr(checked);
+        },
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there to check", true, checked^ >= 40);
@@ -274,23 +275,23 @@ let items_leave_binders_unflagged = () => {
     let binders =
       List.concat_map(
         ~f=
-        (it: DefStatics.item) =>
-          List.concat_map(
+          (it: DefStatics.item) =>
+            List.concat_map(
               ~f=
-            fun
-            | Ctx.VarEntry({id, _}) => [
-                id,
-                ...DefStatics.fun_wrapper_ids(it.d_node, id),
-              ]
-            | _ => [],
-            it.d_exports,
-          ),
+                fun
+                | Ctx.VarEntry({id, _}) => [
+                    id,
+                    ...DefStatics.fun_wrapper_ids(it.d_node, id),
+                  ]
+                | _ => [],
+              it.d_exports,
+            ),
         ds.items,
       );
     let flagged =
       List.concat_map(
         ~f=
-        (it: DefStatics.item) =>
+          (it: DefStatics.item) =>
             List.filter(
               ~f=id => List.mem(binders, id, ~equal=Poly.equal),
               it.d_warning_ids,
@@ -325,23 +326,24 @@ let items_leave_binders_unflagged = () => {
     ),
   );
   List.iter(
-    ~f=((path, root, src)) =>
-      Option.iter(
-        ~f=seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
-        CorpusUtil.parse(~root, src),
-      ),
+    ~f=
+      ((path, root, src)) =>
+        Option.iter(
+          ~f=seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
+          CorpusUtil.parse(~root, src),
+        ),
     CorpusUtil.slide_corpus(),
   );
   List.iter(
     ~f=
-    ((root, file)) =>
-      check_calc(
-        file,
+      ((root, file)) =>
+        check_calc(
+          file,
           MakeTerm.Incr.term_of_root(
             ~root,
             CorpusUtil.mega_seg(~root, file),
           ),
-      ),
+        ),
     [(Sort.Exp, "mega-1k.hz"), (Sort.Mod, "mega-mod-1k.hz")],
   );
 };
@@ -483,13 +485,13 @@ let probe_capture_parity = (): unit => {
     };
   List.iter(
     ~f=
-    id =>
-      check(
-        bool,
-        "witness as monolithic",
-        witnessed(map_m, id),
-        witnessed(ds.merged, id),
-      ),
+      id =>
+        check(
+          bool,
+          "witness as monolithic",
+          witnessed(map_m, id),
+          witnessed(ds.merged, id),
+        ),
     [root, q_id],
   );
   /* guards against the spine patch re-reading its own output */

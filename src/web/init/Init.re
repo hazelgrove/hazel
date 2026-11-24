@@ -16,23 +16,25 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
    TextArea projector holding the file's content */
 let world_slides =
     (folder: string): list((string, Sort.t, PersistentZipper.t)) =>
-  List.filter_map(~f=
-    (s: WorldSlides.slide) =>
-      switch (s.path) {
-      | [top, ...rest] when String.equal(top, folder) && !List.is_empty(rest) =>
-        let text =
-          switch (s.kind) {
-          | Program => s.text
-          | Prose =>
-            "^^text(\"" ++ StringUtil.escape_linebreaks(s.text) ++ "\")"
-          };
-        Some((
-          String.concat(~sep=" / ", rest),
-          s.exp ? Sort.Exp : Sort.Mod,
-          PersistentZipper.of_slide_text(text),
-        ));
-      | _ => None
-      },
+  List.filter_map(
+    ~f=
+      (s: WorldSlides.slide) =>
+        switch (s.path) {
+        | [top, ...rest]
+            when String.equal(top, folder) && !List.is_empty(rest) =>
+          let text =
+            switch (s.kind) {
+            | Program => s.text
+            | Prose =>
+              "^^text(\"" ++ StringUtil.escape_linebreaks(s.text) ++ "\")"
+            };
+          Some((
+            String.concat(~sep=" / ", rest),
+            s.exp ? Sort.Exp : Sort.Mod,
+            PersistentZipper.of_slide_text(text),
+          ));
+        | _ => None
+        },
     WorldSlides.slides,
   );
 

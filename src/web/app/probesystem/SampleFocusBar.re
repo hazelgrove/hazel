@@ -211,14 +211,14 @@ let visible_char_cost =
     (items: list(visible_item), names: array(string)): int =>
   List.fold_left(
     ~f=
-    (acc, item) =>
-      acc
-      + (
-        switch (item) {
-        | Entry(i) => separator_chars + Unicode.length(names[i])
-        | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
-        }
-      ),
+      (acc, item) =>
+        acc
+        + (
+          switch (item) {
+          | Entry(i) => separator_chars + Unicode.length(names[i])
+          | Ellipsis => separator_chars + 1 /* ❯ + ⋯ */
+          }
+        ),
     ~init=0,
     items,
   );
@@ -524,11 +524,11 @@ let view =
         let visible = compute_visible(~n, ~focus=index, ~cap);
         List.concat_map(
           ~f=
-          item =>
-            switch (item) {
-            | Entry(i) => build_single_entry(i)
-            | Ellipsis => ellipsis_node
-            },
+            item =>
+              switch (item) {
+              | Entry(i) => build_single_entry(i)
+              | Ellipsis => ellipsis_node
+              },
           visible,
         );
       };

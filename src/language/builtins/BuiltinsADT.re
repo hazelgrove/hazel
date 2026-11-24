@@ -183,11 +183,11 @@ module Shortcut = {
   let key_mod_of_exp = (v: Exp.t): option(key_mod) =>
     List.find_map(
       ~f=
-      m =>
-        switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
-        | Matches () => Some(m)
-        | _ => None
-        },
+        m =>
+          switch (Unboxing.unbox(SumNoArg(name_of_key_mod(m)), v)) {
+          | Matches () => Some(m)
+          | _ => None
+          },
       all_key_mods,
     );
 
@@ -640,19 +640,19 @@ let types: list(Ctx.entry) =
 let constructors: Ctx.t = {
   List.fold_left(
     ~f=
-    (ctx, (name, typ)) => {
-      let cons_map =
-        switch (Typ.term_of(typ)) {
-        | Sum(cons_map) => cons_map
-        | Rec(_, tbody) =>
-          switch (Typ.term_of(tbody)) {
+      (ctx, (name, typ)) => {
+        let cons_map =
+          switch (Typ.term_of(typ)) {
           | Sum(cons_map) => cons_map
+          | Rec(_, tbody) =>
+            switch (Typ.term_of(tbody)) {
+            | Sum(cons_map) => cons_map
+            | _ => failwith("Type alias must be a sum type")
+            }
           | _ => failwith("Type alias must be a sum type")
-          }
-        | _ => failwith("Type alias must be a sum type")
-        };
-      Ctx.add_ctrs(ctx, name, cons_map);
-    },
+          };
+        Ctx.add_ctrs(ctx, name, cons_map);
+      },
     ~init=Ctx.empty,
     type_aliases,
   );

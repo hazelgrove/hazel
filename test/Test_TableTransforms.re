@@ -35,12 +35,12 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
     list_lit(
       List.map(
         ~f=
-        fields =>
-          parens(
+          fields =>
+            parens(
               tuple(
                 List.map(~f=((l, v)) => tup_label(label(l), v), fields),
               ),
-          ),
+            ),
         rows,
       ),
     )

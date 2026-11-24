@@ -312,9 +312,9 @@ let assemble =
       switch (get(c.roots)) {
       | Roots(per_item) =>
         List.fold(per_item, ~init=map, ~f=(map, (id, entries)) =>
-            switch (Id.Map.find_opt(id, built)) {
-            | Some(b) => add_entries(b, entries, map)
-            | None => raise(Malformed("root entries of no item"))
+          switch (Id.Map.find_opt(id, built)) {
+          | Some(b) => add_entries(b, entries, map)
+          | None => raise(Malformed("root entries of no item"))
           }
         )
       | _ => raise(Malformed("a chain's roots piece holds no roots"))

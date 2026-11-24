@@ -49,11 +49,11 @@ let run = (z: Zipper.t, st: CachedStatics.t) => {
 let ids_of = (o: Outline.t, paths: list(string)): list(Id.t) =>
   List.map(
     ~f=
-    p =>
-      switch (Outline.resolve(o, p)) {
-      | Ok(e) => e.id
-      | Error(e) => Alcotest.fail(e)
-      },
+      p =>
+        switch (Outline.resolve(o, p)) {
+        | Ok(e) => e.id
+        | Error(e) => Alcotest.fail(e)
+        },
     paths,
   );
 
@@ -703,15 +703,15 @@ let record_tests = [
           List.init(W.SentView.max_records + 50, ~f=i => i),
           ~init=[],
           ~f=(rs, i) =>
-            W.SentView.add(
-              ~after_text=_ => None,
-              ~last_tool=None,
-              rs,
-              {
-                ...b,
-                b_text: string_of_int(i / 10),
-              },
-              r(i),
+          W.SentView.add(
+            ~after_text=_ => None,
+            ~last_tool=None,
+            rs,
+            {
+              ...b,
+              b_text: string_of_int(i / 10),
+            },
+            r(i),
           )
         );
       check(int, "kept", W.SentView.max_records, List.length(rs));

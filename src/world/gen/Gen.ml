@@ -8,7 +8,9 @@ let quote text =
     let closes = "|" ^ d ^ "}" in
     let rec has i =
       i + String.length closes <= String.length text
-      && (String.equal (String.sub text ~pos:i ~len:(String.length closes)) closes
+      && (String.equal
+            (String.sub text ~pos:i ~len:(String.length closes))
+            closes
          || has (i + 1))
     in
     if has 0 then delim (n + 1) else d

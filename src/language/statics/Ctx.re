@@ -90,27 +90,27 @@ let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | TVarEntry(v) when String.equal(v.name, name) => Some(v.id)
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | LivelitEntry(v) when String.equal(v.name, name) => Some(v)
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
@@ -124,9 +124,9 @@ let get_id: entry => Id.t =
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | VarEntry(v) when String.equal(v.name, name) => Some(v)
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
@@ -143,7 +143,7 @@ let newest_var_or_ctr =
       ) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
       | ConstructorEntry(c) when String.equal(c.name, name) => Some(`Ctr(c))
       | _ => None,
@@ -165,16 +165,16 @@ let newest_tvar_or_var =
       fun
       | TVarEntry(v) when String.equal(v.name, name) => Some(`TVar(v.kind))
       | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     ~f=
-    fun
+      fun
       | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
-    | _ => None,
+      | _ => None,
     ctx.entries,
   );
 
@@ -207,30 +207,30 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
     ctx,
     List.filter_map(
       ~f=
-      fun
-      | ConstructorMap.Variant(ctr, ann, typ) => {
+        fun
+        | ConstructorMap.Variant(ctr, ann, typ) => {
             let ctr_id = List.hd_exn(ann.ids);
-          Some(
-            ConstructorEntry({
-              name: ctr,
-              id: ctr_id,
-              typ:
-                switch (typ) {
-                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-                | Some(typ) =>
-                  (
-                    Arrow(
-                      typ,
-                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
-                    ): TermBase.typ_term
-                  )
-                  |> IdTagged.fresh
-                },
-              custom_statics: None,
-            }),
-          );
-        }
-      | ConstructorMap.BadEntry(_) => None,
+            Some(
+              ConstructorEntry({
+                name: ctr,
+                id: ctr_id,
+                typ:
+                  switch (typ) {
+                  | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+                  | Some(typ) =>
+                    (
+                      Arrow(
+                        typ,
+                        (Var(name): TermBase.typ_term) |> IdTagged.fresh,
+                      ): TermBase.typ_term
+                    )
+                    |> IdTagged.fresh
+                  },
+                custom_statics: None,
+              }),
+            );
+          }
+        | ConstructorMap.BadEntry(_) => None,
       ctrs,
     ),
   );
@@ -269,23 +269,23 @@ let filter_shadowed = (ctx: t): t =>
   ctx.entries
   |> List.fold_left(
        ~f=
-       ((kept, term_set, typ_set), entry) => {
-         switch (entry) {
-         | VarEntry({name, _})
-         | ConstructorEntry({name, _}) =>
-           VarSet.mem(name, term_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
-         | TVarEntry({name, _}) =>
-           VarSet.mem(name, typ_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], term_set, VarSet.add(name, typ_set))
-         | LivelitEntry({name, _}) =>
-           VarSet.mem(name, term_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
-         }
-       },
+         ((kept, term_set, typ_set), entry) => {
+           switch (entry) {
+           | VarEntry({name, _})
+           | ConstructorEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+           | TVarEntry({name, _}) =>
+             VarSet.mem(name, typ_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], term_set, VarSet.add(name, typ_set))
+           | LivelitEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+           }
+         },
        ~init=([], VarSet.empty, VarSet.empty),
      )
   |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
@@ -327,8 +327,8 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(
     ~f=
-    fun
-    | VarEntry(v) => Some(v)
-    | _ => None,
+      fun
+      | VarEntry(v) => Some(v)
+      | _ => None,
     ctx.entries,
   );

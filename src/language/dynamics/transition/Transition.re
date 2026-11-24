@@ -640,8 +640,8 @@ module Transition = (EV: EV_MODE) => {
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
             ~f=
-            (Binding.{name: v, id: _}) =>
-              (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
+              (Binding.{name: v, id: _}) =>
+                (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
             Pat.bindings(dp),
           )
         };
@@ -869,8 +869,8 @@ module Transition = (EV: EV_MODE) => {
             List.length(
               List.filter(
                 ~f=fun
-                | {term: Deferral(_), _} => true
-                | _ => false: Exp.t => bool,
+                   | {term: Deferral(_), _} => true
+                   | _ => false: Exp.t => bool,
                 d4s,
               ),
             );
@@ -1097,12 +1097,12 @@ module Transition = (EV: EV_MODE) => {
             let projected =
               List.filter_map(
                 ~f=
-                d => {
-                  switch (Exp.match_tup_label(d)) {
+                  d => {
+                    switch (Exp.match_tup_label(d)) {
                     | Some((s, e)) when String.equal(name, s) => Some(e)
-                  | _ => None
-                  }
-                },
+                    | _ => None
+                    }
+                  },
                 ds,
               );
 
@@ -1175,11 +1175,11 @@ module Transition = (EV: EV_MODE) => {
         tuple(
           List.map(
             ~f=
-            ((lab, d)) =>
-              switch (lab) {
-              | Some(l) => tup_label(label(l), d)
-              | None => d
-              },
+              ((lab, d)) =>
+                switch (lab) {
+                | Some(l) => tup_label(label(l), d)
+                | None => d
+                },
             LabeledTuple.extension(e1_entries, e2_entries),
           ),
         );

@@ -266,11 +266,11 @@ let co_ctx_entry_node =
   let uses =
     List.map(
       ~f=
-      (e: CoCtx.entry) =>
-        div(
-          ~attrs=[clss(["debug-coctx-use"])],
-          [text(": "), typ_node(~globals, e.expected_ty)],
-        ),
+        (e: CoCtx.entry) =>
+          div(
+            ~attrs=[clss(["debug-coctx-use"])],
+            [text(": "), typ_node(~globals, e.expected_ty)],
+          ),
       entries,
     );
   div(
@@ -320,18 +320,18 @@ let co_ctx_to_text = (co_ctx: CoCtx.t): string =>
       ~sep="\n",
       List.map(
         ~f=
-        ((name, entries)) =>
-          name
-          ++ String.concat(
+          ((name, entries)) =>
+            name
+            ++ String.concat(
                  ~sep="",
-               List.map(
+                 List.map(
                    ~f=
-                 (e: CoCtx.entry) =>
-                   "\n  : "
-                   ++ typ_to_text(~settings=code_settings, e.expected_ty),
-                 entries,
+                     (e: CoCtx.entry) =>
+                       "\n  : "
+                       ++ typ_to_text(~settings=code_settings, e.expected_ty),
+                   entries,
+                 ),
                ),
-             ),
         pairs,
       ),
     )

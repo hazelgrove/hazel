@@ -294,8 +294,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
             List.map(
               ~f=
-              ((p, e)) =>
-                (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+                ((p, e)) =>
+                  (map_pat_annotation(f, p), map_exp_annotation(f, e)),
               l,
             ),
           )
@@ -455,8 +455,8 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
             map_exp_annotation(f, e),
             List.map(
               ~f=
-              ((p, e)) =>
-                (map_pat_annotation(f, p), map_exp_annotation(f, e)),
+                ((p, e)) =>
+                  (map_pat_annotation(f, p), map_exp_annotation(f, e)),
               l,
             ),
           )

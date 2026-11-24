@@ -109,8 +109,8 @@ let world_defaults = (deck: option(deck)) => {
     lazy(
       switch (deck) {
       | Some((_, m)) =>
-        List.map(~f=
-          (sp: Scratchpad.t) => WorldDeck.slide_id(sp.name),
+        List.map(
+          ~f=(sp: Scratchpad.t) => WorldDeck.slide_id(sp.name),
           m.scratchpads,
         )
       | None => []
@@ -121,7 +121,8 @@ let world_defaults = (deck: option(deck)) => {
     | (None, _)
     | (_, None) => None
     | (Some(open_), Some(id)) when id == open_ => Some(false)
-    | (Some(_), Some(id)) when List.mem(Lazy.force(slides), id, ~equal=Poly.equal) =>
+    | (Some(_), Some(id))
+        when List.mem(Lazy.force(slides), id, ~equal=Poly.equal) =>
       Some(true)
     | (Some(_), Some(id)) =>
       List.length(path) == 1
@@ -216,13 +217,13 @@ let live_pane =
   | Divided(dv) =>
     Option.map(
       ~f=
-      ((cell: ScratchCell.t, side: ScratchCell.side)) =>
-        (
-          a => Workspace.Action.Stack(cell.e_id, side, a),
-          ScratchCell.pane(side, cell).editor.editor.state.zipper,
+        ((cell: ScratchCell.t, side: ScratchCell.side)) =>
+          (
+            a => Workspace.Action.Stack(cell.e_id, side, a),
+            ScratchCell.pane(side, cell).editor.editor.state.zipper,
             Id.equal(cell.e_id, d) && Poly.equal(side, Header)
               ? None : Some(d),
-        ),
+          ),
       Divided.focused(dv),
     )
   };
@@ -414,17 +415,17 @@ let live_edit =
     | Step(side, r) =>
       Option.map(
         ~f=
-        (u: Updated.t(Scratchpad.code)) =>
-          switch (name(u.model)) {
-          | Some(l) =>
-            until(
-              move(side),
-              side,
-              E.reach_to(l.l_name, l.l_at, side, r),
-              u,
-            )
-          | None => u
-          },
+          (u: Updated.t(Scratchpad.code)) =>
+            switch (name(u.model)) {
+            | Some(l) =>
+              until(
+                move(side),
+                side,
+                E.reach_to(l.l_name, l.l_at, side, r),
+                u,
+              )
+            | None => u
+            },
         sel ? step(code, move(side)) : Some(quiet),
       )
     /* at the name's end: no further */
@@ -435,7 +436,7 @@ let live_edit =
     | SelectAll =>
       Option.map(
         ~f=
-        u =>
+          u =>
             until(
               select(Right),
               Right,
@@ -539,18 +540,18 @@ let create =
       text :=
         Option.map(
           ~f=
-          path =>
-            E.at(
-              Row(path, Some(Item(anchor))),
-              ~col=
+            path =>
+              E.at(
+                Row(path, Some(Item(anchor))),
+                ~col=
                   Option.value_map(
-                  OutlineTree.node_of(anchor, ctx.outline),
+                    OutlineTree.node_of(anchor, ctx.outline),
                     ~default=0,
                     ~f=(n: OutlineTree.node) =>
                     E.units(n.o_label)
-                ),
-              ~seq=next_seq(),
-            ),
+                  ),
+                ~seq=next_seq(),
+              ),
           OutlineTree.label_path(anchor, ctx.outline),
         );
       code |> Updated.return_quiet;
@@ -1206,15 +1207,15 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
     let folds = folds(deck);
     Option.map(
       ~f=
-      r =>
-        Util.Slot.get(
-          ~same=
+        r =>
+          Util.Slot.get(
+            ~same=
               ((t, r, f), (t', r', f')) =>
                 phys_equal(t, t') && r == r' && phys_equal(f, f'),
-          shown_memo,
-          (outline, r, folds),
-          () => shown_row(~folds, r, outline),
-        ),
+            shown_memo,
+            (outline, r, folds),
+            () => shown_row(~folds, r, outline),
+          ),
       row,
     );
   };
@@ -1442,7 +1443,10 @@ let view =
           id => Id.Map.find_opt(id, Lazy.force(refused));
         },
         folded: (path, n) =>
-          switch (List.Assoc.find(folds, path, ~equal=Poly.equal), world_folded(path, n)) {
+          switch (
+            List.Assoc.find(folds, path, ~equal=Poly.equal),
+            world_folded(path, n),
+          ) {
           | (Some(f), _) => f
           | (None, Some(f)) => f
           | (None, None) => OutlineTree.folded(~folds, path, n.o_kind)
@@ -1592,9 +1596,17 @@ let view =
           },
         zoom_to: m => inject_workspace(ZoomTo(m)),
         go_above: up =>
-          Option.value_map(~default=Effect.Ignore, ~f=e => e.e_go(up), enclosing),
+          Option.value_map(
+            ~default=Effect.Ignore,
+            ~f=e => e.e_go(up),
+            enclosing,
+          ),
         above_chip:
-          Option.value_map(~default=Effect.Ignore, ~f=e => e.e_chip, enclosing),
+          Option.value_map(
+            ~default=Effect.Ignore,
+            ~f=e => e.e_chip,
+            enclosing,
+          ),
         zoom_in: id => inject_workspace(ZoomIn(id)),
         show_whole: b => inject_workspace(ShowWhole(b)),
         discard: inject_workspace(UnfocusDef),
@@ -1630,11 +1642,11 @@ let view =
               placed
                 ? Option.map(
                     ~f=
-                    (t: E.t) =>
-                      {
-                        ...t,
-                        seq: next_seq(),
-                      },
+                      (t: E.t) =>
+                        {
+                          ...t,
+                          seq: next_seq(),
+                        },
                     t,
                   )
                 : t;

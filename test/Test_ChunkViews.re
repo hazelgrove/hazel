@@ -116,14 +116,14 @@ let check_html =
   );
   List.iter(
     ~f=
-    node =>
-      if (!
+      node =>
+        if (!
               String.is_prefix(
-              ~prefix="<span class=\"code-chunk\">",
-              serialize(~inner=false, node),
-            )) {
-        fail(name ++ ": a chunk is not one span.code-chunk");
-      },
+                ~prefix="<span class=\"code-chunk\">",
+                serialize(~inner=false, node),
+              )) {
+          fail(name ++ ": a chunk is not one span.code-chunk");
+        },
     chunks,
   );
   check(
@@ -166,11 +166,11 @@ let programs = (~root, programs, ()) =>
 let incomplete = () =>
   List.iter(
     ~f=
-    ((name, src)) =>
-      switch (CorpusUtil.typed_seg(src)) {
-      | Some(seg) => same_html(name, seg)
-      | None => fail("untypeable program: " ++ name)
-      },
+      ((name, src)) =>
+        switch (CorpusUtil.typed_seg(src)) {
+        | Some(seg) => same_html(name, seg)
+        | None => fail("untypeable program: " ++ name)
+        },
     CorpusUtil.incomplete_programs,
   );
 
@@ -308,11 +308,12 @@ let corpus = (~root=Sort.Exp, file, ()) =>
 
 let slides = () =>
   List.iter(
-    ~f=((path, root, src)) =>
-      switch (CorpusUtil.parse(~root, src)) {
-      | Some(seg) => same_html(~root, path, seg)
-      | None => ()
-      },
+    ~f=
+      ((path, root, src)) =>
+        switch (CorpusUtil.parse(~root, src)) {
+        | Some(seg) => same_html(~root, path, seg)
+        | None => ()
+        },
     CorpusUtil.slide_corpus(),
   );
 

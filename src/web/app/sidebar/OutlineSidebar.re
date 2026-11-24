@@ -690,24 +690,28 @@ let level_rows = (level: level): list((string, string)) =>
   };
 
 let level_rows_view = (~on: handlers, level: level): list(Node.t) =>
-  List.map(~f=
-    ((label, title)) =>
-      div(
-        ~attrs=[clss(["outline-leaf"])],
-        [
-          div(
-            ~attrs=[
-              clss(["outline-label", "ol-slide"]),
-              Attr.title(title),
-              Attr.on_click(_ => stop(level_effect(on, Back))),
-            ],
-            [
-              span(~attrs=[clss(["outline-glyph"])], [text({js|⊞|js})]),
-              text(label),
-            ],
-          ),
-        ],
-      ),
+  List.map(
+    ~f=
+      ((label, title)) =>
+        div(
+          ~attrs=[clss(["outline-leaf"])],
+          [
+            div(
+              ~attrs=[
+                clss(["outline-label", "ol-slide"]),
+                Attr.title(title),
+                Attr.on_click(_ => stop(level_effect(on, Back))),
+              ],
+              [
+                span(
+                  ~attrs=[clss(["outline-glyph"])],
+                  [text({js|⊞|js})],
+                ),
+                text(label),
+              ],
+            ),
+          ],
+        ),
     level_rows(level),
   );
 
@@ -1401,11 +1405,11 @@ and fold = (~on: handlers, ~tm: option(drawn), row: visible_row) => {
           Array.exists(
             d.d_lines,
             ~f=
-            fun
-            | E.Of_row(r) =>
+              fun
+              | E.Of_row(r) =>
                 Option.equal(Language.Id.equal, r.r_node.o_id, Some(a))
-              && (r.r_path == row.r_path || E.under(row.r_path, r.r_path))
-            | Of_new(_) => false,
+                && (r.r_path == row.r_path || E.under(row.r_path, r.r_path))
+              | Of_new(_) => false,
           )
         | None => false
         }
@@ -1440,12 +1444,12 @@ and rows_view =
   let fresh = fresh_id(on);
   List.concat_map(
     ~f=
-    ((n: OutlineTree.node, seg)) =>
-      /* a bare statement (`e;`) is no definition: no row */
-      Option.is_some(n.o_id) && n.o_id == fresh || n.o_kind == KStmt
-        ? []
-        : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
-          @ new_row_after(~props, ~tm, n),
+      ((n: OutlineTree.node, seg)) =>
+        /* a bare statement (`e;`) is no definition: no row */
+        Option.is_some(n.o_id) && n.o_id == fresh || n.o_kind == KStmt
+          ? []
+          : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
+            @ new_row_after(~props, ~tm, n),
     OutlineTree.segs(ns),
   );
 }
@@ -1532,9 +1536,9 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
 let menu_items = (rows: list(menu_row)) =>
   List.filter_map(
     ~f=
-    fun
-    | Item(_, _, act) => Some(act)
-    | Divider => None,
+      fun
+      | Item(_, _, act) => Some(act)
+      | Divider => None,
     rows,
   );
 
@@ -1550,38 +1554,38 @@ let menu_view =
     : list(Node.t) => {
   let (_, nodes) =
     List.fold_map(rows, ~init=0, ~f=(i, r) =>
-        switch (r) {
-        | Item(label, keys, act) => (
-            i + 1,
-            div(
-              ~attrs=[
-                clss(
-                  ["named-menu-item"] @ (i == selected ? ["selected"] : []),
-                ),
-                Attr.on_click(_ =>
-                  Effect.Many([menu_close, focus_rows, act()])
-                ),
-              ],
-              [text(label)]
-              @ (
-                switch (keys) {
-                | Some(k) => [
-                    span(~attrs=[clss(["menu-shortcut"])], [text(k)]),
-                  ]
-                | None => []
-                }
+      switch (r) {
+      | Item(label, keys, act) => (
+          i + 1,
+          div(
+            ~attrs=[
+              clss(
+                ["named-menu-item"] @ (i == selected ? ["selected"] : []),
               ),
+              Attr.on_click(_ =>
+                Effect.Many([menu_close, focus_rows, act()])
+              ),
+            ],
+            [text(label)]
+            @ (
+              switch (keys) {
+              | Some(k) => [
+                  span(~attrs=[clss(["menu-shortcut"])], [text(k)]),
+                ]
+              | None => []
+              }
             ),
-          )
-        | Divider => (i, div(~attrs=[clss(["menu-divider"])], []))
+          ),
+        )
+      | Divider => (i, div(~attrs=[clss(["menu-divider"])], []))
       }
     );
   /* its height, for which way it opens: about 23px a row, 8 a divider */
   let height =
     List.fold(rows, ~init=0., ~f=(h, r) =>
-        switch (r) {
-        | Item(_) => h +. 23.
-        | Divider => h +. 8.
+      switch (r) {
+      | Item(_) => h +. 23.
+      | Divider => h +. 8.
       }
     );
   let dir =
@@ -1647,19 +1651,19 @@ let text_lines =
   let lines = E.lines(~text=Some(t), visible);
   Option.map(
     ~f=
-    at => {
-      let line = E.line_of(lines[at]);
-      (
-        lines,
-        at,
-        E.same_line(t.line, line)
-          ? t
-          : {
-            ...E.at(line, ~col=t.col),
-            seq: t.seq,
-          },
-      );
-    },
+      at => {
+        let line = E.line_of(lines[at]);
+        (
+          lines,
+          at,
+          E.same_line(t.line, line)
+            ? t
+            : {
+              ...E.at(line, ~col=t.col),
+              seq: t.seq,
+            },
+        );
+      },
     E.find(~last=?on.text.last(), lines, t.line),
   );
 };
@@ -1720,14 +1724,14 @@ let keys =
       };
     Option.map(
       ~f=
-      at => {
-        let (x, y) =
-          Option.value(
-            Util.JsUtil.outline_cursor_anchor(),
-            ~default=(0., 0.),
-          );
-        on.menu_open(at, x, y);
-      },
+        at => {
+          let (x, y) =
+            Option.value(
+              Util.JsUtil.outline_cursor_anchor(),
+              ~default=(0., 0.),
+            );
+          on.menu_open(at, x, y);
+        },
       at,
     );
   };
@@ -2021,10 +2025,10 @@ let keys =
     };
   /* text mode, on the cursor's row */
   let start = () =>
-      switch (cur, n) {
-      | (Some(r), _) => Act(start_text(~on, r))
-      | (None, 0) => Pass(Effect.Ignore)
-      | (None, _) => Act(start_text(~on, visible[0]))
+    switch (cur, n) {
+    | (Some(r), _) => Act(start_text(~on, r))
+    | (None, 0) => Pass(Effect.Ignore)
+    | (None, _) => Act(start_text(~on, visible[0]))
     };
   /* a thunk: building a key's effect can move the cursor at once, so
      keys the menu takes must not build it */
@@ -2096,75 +2100,78 @@ let header_view =
     List.concat(
       List.mapi(
         ~f=
-        (i, (id, label)) => {
-          let last = i == n - 1;
-          let node =
-            span(
-              ~attrs=[
-                clss(
-                  ["outline-crumb"] @ (last ? ["outline-crumb-here"] : []),
-                ),
-                Attr.title(
-                  last
-                    ? header.h_open > 0 ? "show all of it" : label
-                    : "zoom out to " ++ label,
-                ),
-                Attr.on_click(_ =>
-                  stop(
+          (i, (id, label)) => {
+            let last = i == n - 1;
+            let node =
+              span(
+                ~attrs=[
+                  clss(
+                    ["outline-crumb"] @ (last ? ["outline-crumb-here"] : []),
+                  ),
+                  Attr.title(
                     last
-                      ? header.h_open > 0
-                          ? on.show_whole(true) : Effect.Ignore
-                      : on.zoom_to(id),
-                  )
-                ),
-              ],
-              [text(label)],
-            );
-          i == 0 ? [node] : [sep, node];
-        },
+                      ? header.h_open > 0 ? "show all of it" : label
+                      : "zoom out to " ++ label,
+                  ),
+                  Attr.on_click(_ =>
+                    stop(
+                      last
+                        ? header.h_open > 0
+                            ? on.show_whole(true) : Effect.Ignore
+                        : on.zoom_to(id),
+                    )
+                  ),
+                ],
+                [text(label)],
+              );
+            i == 0 ? [node] : [sep, node];
+          },
         crumbs,
       ),
     );
   /* a level above: its crumb leads, or at it its crumbs and chip are all */
   let level_nodes =
-    List.mapi(~f=
-      (i, (label, title, go)) => {
-        let here = go == Here ? ["outline-crumb-here"] : [];
-        switch (level_alarm(header.h_level)) {
-        /* the level's own crumb, alarmed: the pill */
-        | Some(al) when i == 0 =>
-          span(
-            ~attrs=[clss(["outline-crumb", "outline-crumb-alarm"] @ here)],
-            [
-              span(
-                ~attrs=[
-                  clss(["outline-alarm-go"]),
-                  Attr.title(al.al_why),
-                  Attr.on_click(_ => stop(level_effect(on, go))),
-                ],
-                [text({js|⚠ |js} ++ label)],
-              ),
-              span(
-                ~attrs=[
-                  clss(["outline-alarm-act"]),
-                  Attr.title(al.al_act_title),
-                  Attr.on_click(_ => stop(level_effect(on, Chip))),
-                ],
-                [text(al.al_act)],
-              ),
-            ],
-          )
-        | _ =>
-          span(
-            ~attrs=[
-              clss(["outline-crumb"] @ here),
-              Attr.title(title),
-              Attr.on_click(_ => stop(level_effect(on, go))),
-            ],
-            [text(label)],
-          )
-        };
-      },
+    List.mapi(
+      ~f=
+        (i, (label, title, go)) => {
+          let here = go == Here ? ["outline-crumb-here"] : [];
+          switch (level_alarm(header.h_level)) {
+          /* the level's own crumb, alarmed: the pill */
+          | Some(al) when i == 0 =>
+            span(
+              ~attrs=[
+                clss(["outline-crumb", "outline-crumb-alarm"] @ here),
+              ],
+              [
+                span(
+                  ~attrs=[
+                    clss(["outline-alarm-go"]),
+                    Attr.title(al.al_why),
+                    Attr.on_click(_ => stop(level_effect(on, go))),
+                  ],
+                  [text({js|⚠ |js} ++ label)],
+                ),
+                span(
+                  ~attrs=[
+                    clss(["outline-alarm-act"]),
+                    Attr.title(al.al_act_title),
+                    Attr.on_click(_ => stop(level_effect(on, Chip))),
+                  ],
+                  [text(al.al_act)],
+                ),
+              ],
+            )
+          | _ =>
+            span(
+              ~attrs=[
+                clss(["outline-crumb"] @ here),
+                Attr.title(title),
+                Attr.on_click(_ => stop(level_effect(on, go))),
+              ],
+              [text(label)],
+            )
+          };
+        },
       level_crumbs(header.h_level),
     );
   let chip =
@@ -2184,7 +2191,8 @@ let header_view =
   let crumb_nodes =
     switch (header.h_level) {
     | Plain => crumb_nodes
-    | InSlide(_) => List.concat_map(~f=c => [c, sep], level_nodes) @ crumb_nodes
+    | InSlide(_) =>
+      List.concat_map(~f=c => [c, sep], level_nodes) @ crumb_nodes
     | Enclosing(_) =>
       List.concat(
         List.mapi(~f=(i, c) => i == 0 ? [c] : [sep, c], level_nodes),
@@ -2261,25 +2269,25 @@ let visible_rows =
   let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
     List.concat_map(
       ~f=
-      ((n: OutlineTree.node, seg)) =>
-        /* a bare statement (`e;`) is no definition: no row */
-        Option.is_some(n.o_id) && n.o_id == skip || n.o_kind == KStmt
-          ? []
-          : {
-            let path = prefix @ [seg];
+        ((n: OutlineTree.node, seg)) =>
+          /* a bare statement (`e;`) is no definition: no row */
+          Option.is_some(n.o_id) && n.o_id == skip || n.o_kind == KStmt
+            ? []
+            : {
+              let path = prefix @ [seg];
               let expanded =
                 !List.is_empty(n.o_children) && !folded(path, n);
-            [
-              {
-                r_path: path,
-                r_node: relabel(n),
-                r_name: n.o_label,
-                r_parent: parent,
-                r_expanded: expanded,
-              },
-            ]
-            @ (expanded ? walk(Some(path), path, n.o_children) : []);
-          },
+              [
+                {
+                  r_path: path,
+                  r_node: relabel(n),
+                  r_name: n.o_label,
+                  r_parent: parent,
+                  r_expanded: expanded,
+                },
+              ]
+              @ (expanded ? walk(Some(path), path, n.o_children) : []);
+            },
       OutlineTree.segs(ns),
     );
   Array.of_list(walk(None, root_path, roots));
@@ -2323,17 +2331,17 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
     | Some(t) when props.stack_controls =>
       Option.map(
         ~f=
-        ((lines, at, t')) => {
+          ((lines, at, t')) => {
             if (!phys_equal(t', t)) {
-            on.text.relocate(t');
-          };
-          on.text.note(at);
-          {
-            d_lines: lines,
-            d_at: at,
-            d_text: t',
-          };
-        },
+              on.text.relocate(t');
+            };
+            on.text.note(at);
+            {
+              d_lines: lines,
+              d_at: at,
+              d_text: t',
+            };
+          },
         text_lines(~on, ~visible, t),
       )
     | _ => None

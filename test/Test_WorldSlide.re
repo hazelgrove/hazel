@@ -60,7 +60,8 @@ let text = (seg: Segment.t): string =>
 
 let contains = (s: string, sub: string): bool => {
   let (n, k) = (String.length(s), String.length(sub));
-  let rec go = i => i + k <= n && (String.sub(s, ~pos=i, ~len=k) == sub || go(i + 1));
+  let rec go = i =>
+    i + k <= n && (String.sub(s, ~pos=i, ~len=k) == sub || go(i + 1));
   go(0);
 };
 
@@ -126,16 +127,18 @@ let library_edits = () =>
       Option.is_none(WorldSlide.library_edit(~slide, doc)),
     );
     let rebuilt =
-      List.map(~f=
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            Piece.Tile({
-              ...t,
-              children: List.map(~f=kid => List.map(~f=Fun.id, kid), t.children),
-            })
-          | p => p
-          },
+      List.map(
+        ~f=
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) =>
+              Piece.Tile({
+                ...t,
+                children:
+                  List.map(~f=kid => List.map(~f=Fun.id, kid), t.children),
+              })
+            | p => p
+            },
         doc,
       );
     check(

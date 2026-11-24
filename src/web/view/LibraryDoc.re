@@ -119,7 +119,8 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
         running_parse :=
           (
             switch (parsed^) {
-            | Some((t, s)) when t == text && phys_equal(s, seg) => Some(text)
+            | Some((t, s)) when t == text && phys_equal(s, seg) =>
+              Some(text)
             | _ => None
             }
           );
@@ -159,8 +160,8 @@ let apply_after_ms = 300.0;
 let apply_timer: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
 
 let cancel_apply = () => {
-  Option.iter(~f=
-    id => Js_of_ocaml.Dom_html.window##clearTimeout(id),
+  Option.iter(
+    ~f=id => Js_of_ocaml.Dom_html.window##clearTimeout(id),
     apply_timer^,
   );
   apply_timer := None;
@@ -205,7 +206,9 @@ let targets = (~settings: Language.CoreSettings.t): Language.Sample.targets =>
     Util.Slot.get(
       ~same=
         ((z: Zipper.t, s, p), (z': Zipper.t, s', p')) =>
-          phys_equal(z.refractors, z'.refractors) && phys_equal(s, s') && p == p',
+          phys_equal(z.refractors, z'.refractors)
+          && phys_equal(s, s')
+          && p == p',
       targets_memo,
       (z, statics, settings.probe_all),
       () =>

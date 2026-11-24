@@ -121,18 +121,18 @@ let cmd_d = (~root, src, needle, expect: list(string), ()) => {
   let (editor, whole) = statics(~root, z);
   List.iteri(
     ~f=
-    (i, want) =>
-      List.iter(
+      (i, want) =>
+        List.iter(
           ~f=
-        ((what, statics)) =>
-          check(
-            string,
-            Printf.sprintf("Cmd+D x%d (%s)", i + 1, what),
-            want,
-            grow(~root, ~statics, ~n=i + 1, src, needle, z),
-          ),
-        [("compositional", editor), ("monolithic", whole)],
-      ),
+            ((what, statics)) =>
+              check(
+                string,
+                Printf.sprintf("Cmd+D x%d (%s)", i + 1, what),
+                want,
+                grow(~root, ~statics, ~n=i + 1, src, needle, z),
+              ),
+          [("compositional", editor), ("monolithic", whole)],
+        ),
     expect,
   );
 };
@@ -256,18 +256,18 @@ let per_id = ((editor: CachedStatics.t, whole: CachedStatics.t), f) => {
   let answers = (st: CachedStatics.t) =>
     List.map(
       ~f=
-      id =>
-        show(whole.info_map, id)
-        ++ ": "
-        ++ (
-          switch (f(st, id)) {
+        id =>
+          show(whole.info_map, id)
+          ++ ": "
+          ++ (
+            switch (f(st, id)) {
             | Some(a) =>
               List.mem(own, a, ~equal=Poly.equal)
                 ? show(whole.info_map, a) : "-"
-          | None => "-"
+            | None => "-"
             | exception e => "raised " ++ Stdlib.Printexc.to_string(e)
-          }
-        ),
+            }
+          ),
       own,
     );
   (answers(editor), answers(whole));
@@ -340,28 +340,28 @@ let consumers = ((name, root, src), ()) => {
 let member_autoprobe = () =>
   List.iter(
     ~f=
-    ((root, src)) => {
-      let seg = CorpusUtil.seg_of(~root, src);
-      let (editor, whole) = statics(~root, Zipper.unzip(seg));
-      let id = CorpusUtil.tile("+", seg);
-      List.iter(
+      ((root, src)) => {
+        let seg = CorpusUtil.seg_of(~root, src);
+        let (editor, whole) = statics(~root, Zipper.unzip(seg));
+        let id = CorpusUtil.tile("+", seg);
+        List.iter(
           ~f=
-        ((what, st: CachedStatics.t)) =>
-          check(
-            option(string),
-            "the member's definition (" ++ what ++ ")",
-            Some(Id.str8(id)),
-            Option.map(
+            ((what, st: CachedStatics.t)) =>
+              check(
+                option(string),
+                "the member's definition (" ++ what ++ ")",
+                Some(Id.str8(id)),
+                Option.map(
                   ~f=Id.str8,
-              AutoProbePerform.toplevel_def_body_id(
-                ~statics=st.info_map,
-                ~id,
+                  AutoProbePerform.toplevel_def_body_id(
+                    ~statics=st.info_map,
+                    ~id,
+                  ),
+                ),
               ),
-            ),
-          ),
-        [("compositional", editor), ("monolithic", whole)],
-      );
-    },
+          [("compositional", editor), ("monolithic", whole)],
+        );
+      },
     [(Sort.Exp, e_src), (Sort.Mod, m_src)],
   );
 
@@ -375,45 +375,45 @@ let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
   let (editor, whole) = statics(~root, z);
   List.iter(
     ~f=
-    ((what, st: CachedStatics.t)) => {
-      let nodes = O.flatten(O.rows(outline));
-      let id_of = label =>
+      ((what, st: CachedStatics.t)) => {
+        let nodes = O.flatten(O.rows(outline));
+        let id_of = label =>
           switch (List.find(~f=(n: O.node) => n.o_label == label, nodes)) {
-        | Some({o_id: Some(id), _}) => id
-        | _ => fail("no row " ++ label)
-        };
-      let (direct, roll) =
+          | Some({o_id: Some(id), _}) => id
+          | _ => fail("no row " ++ label)
+          };
+        let (direct, roll) =
           O.error_badges(~info_map=st.info_map, st.error_ids, outline);
-      check(
-        bool,
-        what ++ ": " ++ own ++ " owns the error",
-        true,
+        check(
+          bool,
+          what ++ ": " ++ own ++ " owns the error",
+          true,
           List.mem(direct, id_of(own), ~equal=Poly.equal),
-      );
-      List.iter(
+        );
+        List.iter(
           ~f=
-        r =>
-          check(
-            bool,
-            what ++ ": " ++ r ++ " rolls it up",
-            true,
+            r =>
+              check(
+                bool,
+                what ++ ": " ++ r ++ " rolls it up",
+                true,
                 List.mem(roll, id_of(r), ~equal=Poly.equal),
-          ),
-        rolls,
-      );
-      List.iter(
+              ),
+          rolls,
+        );
+        List.iter(
           ~f=
-        r =>
-          check(
-            bool,
-            what ++ ": " ++ r ++ " has no badge",
-            false,
+            r =>
+              check(
+                bool,
+                what ++ ": " ++ r ++ " has no badge",
+                false,
                 List.mem(roll, id_of(r), ~equal=Poly.equal)
                 || List.mem(direct, id_of(r), ~equal=Poly.equal),
-          ),
-        not_rolls,
-      );
-    },
+              ),
+          not_rolls,
+        );
+      },
     [("compositional", editor), ("monolithic", whole)],
   );
 };
@@ -474,8 +474,8 @@ let tests = (
     @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
     @ List.map(
         ~f=
-        ((name, _, _) as p) =>
-          test_case("readers: " ++ name, `Quick, consumers(p)),
+          ((name, _, _) as p) =>
+            test_case("readers: " ++ name, `Quick, consumers(p)),
         programs,
       ),
   ),
