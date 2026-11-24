@@ -131,15 +131,15 @@ let masks_of_records =
     : Id.Map.t(Language.IdTagged.IdTag.incomplete_mask) =>
   List.fold_left(
     ~f=
-    (m, r: shard_record) =>
-      Id.Map.add(
-        r.tile_id,
-        Language.IdTagged.IdTag.{
-          present: r.original_shards,
-          prefixes: r.prefixes,
-        },
-        m,
-      ),
+      (m, r: shard_record) =>
+        Id.Map.add(
+          r.tile_id,
+          Language.IdTagged.IdTag.{
+            present: r.original_shards,
+            prefixes: r.prefixes,
+          },
+          m,
+        ),
     ~init=Id.Map.empty,
     records,
   );
@@ -196,23 +196,23 @@ let coalesce_insertions = (ins: list(insertion)): list(insertion) => {
     Id.equal(j.adjacent_id, i.adjacent_id) && Direction.equal(j.side, i.side);
   List.fold_left(
     ~f=
-    (acc, i: insertion) => {
-      let rec add = l =>
-        switch (l) {
-        | [] => [i]
-        | [j, ...tl] =>
-          same(j, i)
-            ? [
-              {
-                ...j,
-                delimiters: j.delimiters @ i.delimiters,
-              },
-              ...tl,
-            ]
-            : [j, ...add(tl)]
-        };
-      add(acc);
-    },
+      (acc, i: insertion) => {
+        let rec add = l =>
+          switch (l) {
+          | [] => [i]
+          | [j, ...tl] =>
+            same(j, i)
+              ? [
+                {
+                  ...j,
+                  delimiters: j.delimiters @ i.delimiters,
+                },
+                ...tl,
+              ]
+              : [j, ...add(tl)]
+          };
+        add(acc);
+      },
     ~init=[],
     ins,
   );
@@ -345,14 +345,14 @@ let is_prefix_witness =
         && !
              List.exists(
                ~f=
-               (m: Mold.t) =>
-                 sort_fits(m.out, slot)
-                 && (
-                   switch (fst(m.nibs).shape) {
-                   | Concave(prec) => prec != Precedence.lab
-                   | Convex => !operand_left
-                   }
-                 ),
+                 (m: Mold.t) =>
+                   sort_fits(m.out, slot)
+                   && (
+                     switch (fst(m.nibs).shape) {
+                     | Concave(prec) => prec != Precedence.lab
+                     | Convex => !operand_left
+                     }
+                   ),
                Form.base_molds([tok]),
              )
       )
@@ -421,9 +421,9 @@ let middle_split_plan =
       let has_content =
         List.exists(
           ~f=
-          fun
-          | Piece.Tile(_) => true
-          | _ => false,
+            fun
+            | Piece.Tile(_) => true
+            | _ => false,
         );
       let legal = (j: int): option((Segment.t, Segment.t)) => {
         let (left, rest) = ListUtil.split_n(j, child);
@@ -552,11 +552,11 @@ let rec opener_insertion_index = (sk: Skel.t, idx: int): option(int) => {
   let first_some = opts =>
     List.fold_left(
       ~f=
-      (acc, o) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => o
-        },
+        (acc, o) =>
+          switch (acc) {
+          | Some(_) => acc
+          | None => o
+          },
       ~init=None,
       opts,
     );
@@ -750,7 +750,7 @@ let opener_schedule =
                 && (
                   switch (snd(Tile.nibs(t))) {
                   | {shape: Concave(_), sort} =>
-                    !at_members(sort) && sort != Sort.Any
+                    !at_members(sort) && !Sort.equal(sort, Sort.Any)
                   | _ => false
                   }
                 )
@@ -845,9 +845,9 @@ let opener_schedule =
           let has_content =
             List.exists(
               ~f=
-              fun
-              | Piece.Tile(_) => true
-              | _ => false,
+                fun
+                | Piece.Tile(_) => true
+                | _ => false,
             );
           let candidates =
             List.init(max(idx - at, 0), ~f=k => at + k)
@@ -1141,8 +1141,8 @@ let middle_insertions = (incomplete: list(Tile.t)): list(insertion) =>
                          typed_len:
                            Option.map(
                              ~f=
-                             (sp: Language.IdTagged.IdTag.shard_prefix) =>
-                               sp.len,
+                               (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                                 sp.len,
                              psp,
                            ),
                          of_shard: Some((t.id, m)),
@@ -1236,21 +1236,23 @@ let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => 
   let rec next = j =>
     j < n && (Piece.is_secondary(arr[j]) || Piece.is_grout(arr[j]))
       ? next(j + 1) : j;
-  List.init(n, j => j)
-  |> List.filter(j =>
+  List.init(n, ~f=j => j)
+  |> List.filter(~f=j =>
        switch (arr[j]) {
        | Tile(t) =>
          !Tile.is_semi(t)
          && (
            switch (snd(Tile.nibs(t))) {
            | {shape: Concave(_), sort} =>
-             !at_members(sort) && sort != Sort.Any
+             !at_members(sort) && !Sort.equal(sort, Sort.Any)
            | _ => false
            }
          )
          && {
            let k = next(j + 1);
-           switch (k < n ? Some(arr[k]) : Option.map(f => f.head, follows)) {
+           switch (
+             k < n ? Some(arr[k]) : Option.map(~f=f => f.head, follows)
+           ) {
            | Some(head) => is_member_head(head)
            | None => false
            };
@@ -1265,17 +1267,18 @@ let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => 
 let rec has_open_slot =
         (~sort: Sort.t, ~follows: option(follows)=None, seg: Segment.t): bool =>
   at_members(sort)
-  && open_slots(~follows, seg) != []
+  && !List.is_empty(open_slots(~follows, seg))
   || List.exists(
-       (p: Piece.t) =>
-         switch (p) {
-         | Tile(t) =>
-           List.exists(
-             ((s, kid)) => has_open_slot(~sort=s, kid),
-             Tile.sorted_children(t),
-           )
-         | _ => false
-         },
+       ~f=
+         (p: Piece.t) =>
+           switch (p) {
+           | Tile(t) =>
+             List.exists(
+               ~f=((s, kid)) => has_open_slot(~sort=s, kid),
+               Tile.sorted_children(t),
+             )
+           | _ => false
+           },
        seg,
      );
 
@@ -1290,22 +1293,27 @@ let seal_open_slots =
     let arr = Array.of_list(seg);
     let semis =
       List.map(
-        j =>
-          (j, member_semi(~sort, Piece.id(arr[fst(member_at(arr, j))]))),
+        ~f=
+          j =>
+            (
+              j,
+              member_semi(~sort, Piece.id(arr[fst(member_at(arr, j))])),
+            ),
         slots,
       );
     (
       List.concat(
         List.mapi(
-          (j, p) =>
-            switch (List.assoc_opt(j, semis)) {
-            | Some(semi) => [p, semi]
-            | None => [p]
-            },
+          ~f=
+            (j, p) =>
+              switch (List.Assoc.find(semis, j, ~equal=Poly.equal)) {
+              | Some(semi) => [p, semi]
+              | None => [p]
+              },
           Array.to_list(arr),
         ),
       ),
-      List.map(((_, semi)) => Piece.id(semi), semis),
+      List.map(~f=((_, semi)) => Piece.id(semi), semis),
     );
   };
 
@@ -1458,9 +1466,9 @@ let find_trailing_site =
   let has_content =
     List.exists(
       ~f=
-      fun
-      | Piece.Tile(_) => true
-      | _ => false,
+        fun
+        | Piece.Tile(_) => true
+        | _ => false,
     );
   let shard_text = Tile.token(t, i);
   /* region includes the frontier piece: an eligible symbolic token
@@ -1610,14 +1618,14 @@ let place_trailing_shards =
         agg
         @ List.map(
             ~f=
-            ((i, _)) =>
-              {
-                text: Tile.token(t, i),
-                leading_hole: false,
-                trailing_hole: shard_trailing_hole(t, i),
-                typed_len: None,
-                of_shard: Some((t.id, i)),
-              },
+              ((i, _)) =>
+                {
+                  text: Tile.token(t, i),
+                  leading_hole: false,
+                  trailing_hole: shard_trailing_hole(t, i),
+                  typed_len: None,
+                  of_shard: Some((t.id, i)),
+                },
             entries,
           ),
         abs,
@@ -1626,92 +1634,65 @@ let place_trailing_shards =
       let (seg, ins, agg, abs, _) =
         List.fold_left(
           ~f=
-          ((seg, ins, agg, abs, cursor), (i, piece)) => {
-            let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
-            let clip = {
-              let sort_clip =
-                clippable_sort(l_nib.sort)
-                  ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
-              let wall =
+            ((seg, ins, agg, abs, cursor), (i, piece)) => {
+              let (l_nib, r_nib) = Mold.nibs(~index=i, Tile.mold(t));
+              let clip = {
+                let sort_clip =
+                  clippable_sort(l_nib.sort)
+                    ? clip_position(seg, ~from=cursor, l_nib.sort) : None;
+                let wall =
                   Sort.equal(l_nib.sort, Sort.Rul)
-                  ? None : wall_position(seg, ~from=cursor);
-              switch (sort_clip, wall) {
-              | (Some(a), Some(b)) => Some(min(a, b))
-              | (Some(a), None) => Some(a)
-              | (None, w) => w
-              };
-            };
-            switch (find_trailing_site(seg, ~cursor, t, i)) {
-            | Some(found) =>
-              let (j, is_witness) =
-                switch (found) {
-                | TrailWitness(j) => (j, true)
-                | TrailJunction(j) => (j, false)
+                    ? None : wall_position(seg, ~from=cursor);
+                switch (sort_clip, wall) {
+                | (Some(a), Some(b)) => Some(min(a, b))
+                | (Some(a), None) => Some(a)
+                | (None, w) => w
                 };
-              /* the shard replaces the site piece (junction grout or
-                 witness token) in place, inheriting its spacing. The
-                 arrow anchors at the SITE itself: end of the typed
-                 prefix for a witness (the continuation point), origin
-                 of the debris grout for a junction (the actual drop
-                 position, space-side) */
+              };
+              switch (find_trailing_site(seg, ~cursor, t, i)) {
+              | Some(found) =>
+                let (j, is_witness) =
+                  switch (found) {
+                  | TrailWitness(j) => (j, true)
+                  | TrailJunction(j) => (j, false)
+                  };
+                /* the shard replaces the site piece (junction grout or
+                   witness token) in place, inheriting its spacing. The
+                   arrow anchors at the SITE itself: end of the typed
+                   prefix for a witness (the continuation point), origin
+                   of the debris grout for a junction (the actual drop
+                   position, space-side) */
                 let site = List.nth_exn(seg, j);
-              let (before, after) = ListUtil.split_n(j, seg);
-              let anchor = Some(site);
+                let (before, after) = ListUtil.split_n(j, seg);
+                let anchor = Some(site);
                 let anchor_side =
                   is_witness ? Direction.Right : Direction.Left;
                 let seg = before @ [piece] @ List.tl_exn(after);
-              let witness_prefix =
-                is_witness ? prefix_of_witness(site, i) : None;
-              let abs =
-                switch (witness_prefix) {
-                | Some(sp) => [(t.id, sp), ...abs]
-                | None => abs
-                };
-              let ins =
-                switch (anchor) {
-                | Some(a) => [
-                    {
-                      adjacent_id: Piece.id(a),
-                      side: anchor_side,
-                      delimiters: [
-                        {
-                          text: Tile.token(t, i),
-                          leading_hole: false,
-                          trailing_hole: None,
-                          typed_len:
-                            Option.map(
-                                ~f=
-                              (sp: Language.IdTagged.IdTag.shard_prefix) =>
-                                sp.len,
-                              witness_prefix,
-                            ),
-                          of_shard: Some((t.id, i)),
-                        },
-                      ],
-                    },
-                    ...ins,
-                  ]
-                | None => ins
-                };
-              (seg, ins, agg, abs, j + 1);
-            | None =>
-              switch (clip) {
-              | Some(stop) =>
-                let stop = back_over_boundary(seg, stop, cursor);
-                let anchor = original_anchor(seg, stop, t);
-                let seg = insert_at(stop, piece, seg);
+                let witness_prefix =
+                  is_witness ? prefix_of_witness(site, i) : None;
+                let abs =
+                  switch (witness_prefix) {
+                  | Some(sp) => [(t.id, sp), ...abs]
+                  | None => abs
+                  };
                 let ins =
                   switch (anchor) {
                   | Some(a) => [
                       {
                         adjacent_id: Piece.id(a),
-                        side: Direction.Right,
+                        side: anchor_side,
                         delimiters: [
                           {
                             text: Tile.token(t, i),
                             leading_hole: false,
                             trailing_hole: None,
-                            typed_len: None,
+                            typed_len:
+                              Option.map(
+                                ~f=
+                                  (sp: Language.IdTagged.IdTag.shard_prefix) =>
+                                    sp.len,
+                                witness_prefix,
+                              ),
                             of_shard: Some((t.id, i)),
                           },
                         ],
@@ -1720,94 +1701,11 @@ let place_trailing_shards =
                     ]
                   | None => ins
                   };
-                (seg, ins, agg, abs, stop + 1);
+                (seg, ins, agg, abs, j + 1);
               | None =>
-                /* gluing a closer back across a trailing linebreak
-                   is aesthetic and only right for single-line forms;
-                   a multiline form takes its closer on its own line.
-                   Severance avoidance (below) overrides. */
-                  let glue =
-                    back_over_boundary(seg, List.length(seg), cursor);
-                let multiline = {
-                  let rec has_lb = j =>
-                    j < glue
-                    && (
-                        switch (List.nth(seg, j)) {
-                      | Some(Piece.Secondary(s))
-                          when Secondary.is_linebreak(s) =>
-                        true
-                      | _ => has_lb(j + 1)
-                      }
-                    );
-                  has_lb(cursor);
-                };
-                /* hole-minimizing append: a convex-right closer
-                   after a span-final trailing operator severs its
-                   operand into a hole; when content follows the
-                   partition, stopping before it is strictly fewer
-                   holes. Concave-right shards tie: keep maximal. */
-                let hole_min_stop = {
-                  let is_trailing_op = (p: Piece.t) =>
-                    switch (p) {
-                    | Tile(tt) =>
-                      Tile.is_complete(tt)
-                      /* only sequence separators are severable: a
-                         statement semi legitimately binds across the
-                         partition boundary; expression operators and
-                         whole forms (a completed if) do not — backing
-                         over them severs material for no hole gain */
-                      && Tile.is_semi(tt)
-                      /* rules are case-content, never severable:
-                         mid-entry `case foo |` keeps its end after
-                         the growing rule */
-                        && !Sort.equal(Tile.mold(tt).out, Sort.Rul)
-                      && (
-                        switch (snd(Tile.nibs(tt)).shape) {
-                        | Concave(_) => true
-                        | Convex => false
-                        }
-                      )
-                    | _ => false
-                    };
-                  let convex_right =
-                    switch (r_nib.shape) {
-                    | Convex => true
-                    | Concave(_) => false
-                    };
-                  if (content_follows && convex_right) {
-                    let rec shrink = j => {
-                      let j' = back_over_boundary(seg, j, cursor);
-                        j' > cursor
-                        && is_trailing_op(List.nth_exn(seg, j' - 1))
-                        ? shrink(j' - 1) : j';
-                    };
-                    let stop = shrink(List.length(seg));
-                    if (stop < glue) {
-                      Some
-                        (stop); /* backs past a severing op: semantic */
-                    } else if (!multiline && stop < List.length(seg)) {
-                      Some(stop);
-                    } else {
-                      None;
-                    };
-                  } else {
-                    None;
-                  };
-                };
-                /* plain append glues over trailing secondaries and
-                   debris: a single-line form's closer must not land
-                   after a trailing linebreak (alone on the next or
-                   blank line) when its content ends here */
-                let backed =
-                    !multiline && glue < List.length(seg)
-                      ? Some(glue) : None;
-                switch (
-                  switch (hole_min_stop) {
-                  | Some(_) as s => s
-                  | None => backed
-                  }
-                ) {
+                switch (clip) {
                 | Some(stop) =>
+                  let stop = back_over_boundary(seg, stop, cursor);
                   let anchor = original_anchor(seg, stop, t);
                   let seg = insert_at(stop, piece, seg);
                   let ins =
@@ -1831,26 +1729,136 @@ let place_trailing_shards =
                     | None => ins
                     };
                   (seg, ins, agg, abs, stop + 1);
-                | None => (
-                    seg @ [piece],
-                    ins,
-                    agg
-                    @ [
-                      {
-                        text: Tile.token(t, i),
-                        leading_hole: false,
-                        trailing_hole: shard_trailing_hole(t, i),
-                        typed_len: None,
-                        of_shard: Some((t.id, i)),
-                      },
-                    ],
-                    abs,
-                    List.length(seg) + 1,
-                  )
-                };
-              }
-            };
-          },
+                | None =>
+                  /* gluing a closer back across a trailing linebreak
+                     is aesthetic and only right for single-line forms;
+                     a multiline form takes its closer on its own line.
+                     Severance avoidance (below) overrides. */
+                  let glue =
+                    back_over_boundary(seg, List.length(seg), cursor);
+                  let multiline = {
+                    let rec has_lb = j =>
+                      j < glue
+                      && (
+                        switch (List.nth(seg, j)) {
+                        | Some(Piece.Secondary(s))
+                            when Secondary.is_linebreak(s) =>
+                          true
+                        | _ => has_lb(j + 1)
+                        }
+                      );
+                    has_lb(cursor);
+                  };
+                  /* hole-minimizing append: a convex-right closer
+                     after a span-final trailing operator severs its
+                     operand into a hole; when content follows the
+                     partition, stopping before it is strictly fewer
+                     holes. Concave-right shards tie: keep maximal. */
+                  let hole_min_stop = {
+                    let is_trailing_op = (p: Piece.t) =>
+                      switch (p) {
+                      | Tile(tt) =>
+                        Tile.is_complete(tt)
+                        /* only sequence separators are severable: a
+                           statement semi legitimately binds across the
+                           partition boundary; expression operators and
+                           whole forms (a completed if) do not — backing
+                           over them severs material for no hole gain */
+                        && Tile.is_semi(tt)
+                        /* rules are case-content, never severable:
+                           mid-entry `case foo |` keeps its end after
+                           the growing rule */
+                        && !Sort.equal(Tile.mold(tt).out, Sort.Rul)
+                        && (
+                          switch (snd(Tile.nibs(tt)).shape) {
+                          | Concave(_) => true
+                          | Convex => false
+                          }
+                        )
+                      | _ => false
+                      };
+                    let convex_right =
+                      switch (r_nib.shape) {
+                      | Convex => true
+                      | Concave(_) => false
+                      };
+                    if (content_follows && convex_right) {
+                      let rec shrink = j => {
+                        let j' = back_over_boundary(seg, j, cursor);
+                        j' > cursor
+                        && is_trailing_op(List.nth_exn(seg, j' - 1))
+                          ? shrink(j' - 1) : j';
+                      };
+                      let stop = shrink(List.length(seg));
+                      if (stop < glue) {
+                        Some
+                          (stop); /* backs past a severing op: semantic */
+                      } else if (!multiline && stop < List.length(seg)) {
+                        Some(stop);
+                      } else {
+                        None;
+                      };
+                    } else {
+                      None;
+                    };
+                  };
+                  /* plain append glues over trailing secondaries and
+                     debris: a single-line form's closer must not land
+                     after a trailing linebreak (alone on the next or
+                     blank line) when its content ends here */
+                  let backed =
+                    !multiline && glue < List.length(seg)
+                      ? Some(glue) : None;
+                  switch (
+                    switch (hole_min_stop) {
+                    | Some(_) as s => s
+                    | None => backed
+                    }
+                  ) {
+                  | Some(stop) =>
+                    let anchor = original_anchor(seg, stop, t);
+                    let seg = insert_at(stop, piece, seg);
+                    let ins =
+                      switch (anchor) {
+                      | Some(a) => [
+                          {
+                            adjacent_id: Piece.id(a),
+                            side: Direction.Right,
+                            delimiters: [
+                              {
+                                text: Tile.token(t, i),
+                                leading_hole: false,
+                                trailing_hole: None,
+                                typed_len: None,
+                                of_shard: Some((t.id, i)),
+                              },
+                            ],
+                          },
+                          ...ins,
+                        ]
+                      | None => ins
+                      };
+                    (seg, ins, agg, abs, stop + 1);
+                  | None => (
+                      seg @ [piece],
+                      ins,
+                      agg
+                      @ [
+                        {
+                          text: Tile.token(t, i),
+                          leading_hole: false,
+                          trailing_hole: shard_trailing_hole(t, i),
+                          typed_len: None,
+                          of_shard: Some((t.id, i)),
+                        },
+                      ],
+                      abs,
+                      List.length(seg) + 1,
+                    )
+                  };
+                }
+              };
+            },
           ~init=(seg, ins, agg, abs, pos + 1),
           entries,
         );
@@ -1957,14 +1965,14 @@ let rec complete_segment =
      the regrout meets what follows as it is */
   let bounds = (
     Nib.Shape.concave(),
-    switch (Option.bind(follows, f => Piece.shapes(f.head))) {
+    switch (Option.bind(follows, ~f=f => Piece.shapes(f.head))) {
     | Some((l, _)) => l
     | None => Nib.Shape.concave()
     },
   );
   /* boundary sanitation only matters once a split actually happened */
   let partitioned =
-    List.length(partitioned) <= 1 && follows == None
+    List.length(partitioned) <= 1 && Option.is_none(follows)
       ? partitioned
       : partitioned
         |> List.map(~f=((subseg, inc)) =>
@@ -2001,7 +2009,8 @@ let rec complete_segment =
          );
        });
 
-  let all_incomplete = List.concat_map(~f=((_, inc, _)) => inc, partitioned);
+  let all_incomplete =
+    List.concat_map(~f=((_, inc, _)) => inc, partitioned);
   /* fully synthetic tiles: case/end wraps, member `;`s */
   let synthetic = id => {
     tile_id: id,
@@ -2010,15 +2019,16 @@ let rec complete_segment =
   };
   let wrap_records =
     partitioned
-    |> List.concat_map(((_, _, wraps)) =>
-         wraps |> List.map(((_, _, id)) => synthetic(id))
+    |> List.concat_map(~f=((_, _, wraps)) =>
+         wraps |> List.map(~f=((_, _, id)) => synthetic(id))
        );
 
   /* once its tiles are complete, a member whose open slot meets a member
      head gets its `;` (materialize_one leaves other members as typed) */
   let seal_slots = (seg: Segment.t): (Segment.t, list(shard_record)) =>
     switch (
-      only_tile == None ? seal_open_slots(~sort, ~follows, seg) : (seg, [])
+      Option.is_none(only_tile)
+        ? seal_open_slots(~sort, ~follows, seg) : (seg, [])
     ) {
     | (_, []) => (seg, [])
     | (sealed, semis) => (
@@ -2026,7 +2036,7 @@ let rec complete_segment =
         List.map(~f=synthetic, semis),
       )
     };
-  if (List.length(all_incomplete) == 0 && wrap_records == []) {
+  if (List.length(all_incomplete) == 0 && List.is_empty(wrap_records)) {
     /* No structural changes — but still regrout: edits can leave
        stray grout (glom ( onto an orphan )) and Segment.skel
        silently drops pieces on shape-invalid segments */
@@ -2089,13 +2099,13 @@ let rec complete_segment =
          )
       |> List.fold_left(
            ~f=
-           (best, cand) =>
-             switch (best) {
-             | None => Some(cand)
-             | Some((br, bp, _)) =>
-               let (r, p, _) = cand;
-               r < br || r == br && p > bp ? Some(cand) : best;
-             },
+             (best, cand) =>
+               switch (best) {
+               | None => Some(cand)
+               | Some((br, bp, _)) =>
+                 let (r, p, _) = cand;
+                 r < br || r == br && p > bp ? Some(cand) : best;
+               },
            ~init=None,
          )
       |> Option.map(~f=((_, _, t)) => t);
@@ -2104,16 +2114,16 @@ let rec complete_segment =
     let has_content = sg =>
       List.exists(
         ~f=
-        fun
-        | Piece.Tile(_) => true
-        | _ => false,
+          fun
+          | Piece.Tile(_) => true
+          | _ => false,
         sg,
       );
     let completed_parts =
       partitioned
       |> List.mapi(~f=(pi, (subseg, incomplete, wraps)) => {
            let content_follows =
-             follows != None
+             Option.is_some(follows)
              || List.filteri(~f=(qi, _) => qi > pi, partitioned)
              |> List.exists(~f=((sg, _, _)) => has_content(sg));
            let chosen =
@@ -2211,7 +2221,7 @@ let rec complete_segment =
               placed material (materialize_one leaves other members as
               typed) */
            let (subseg, semis) =
-             switch (chosen, List.nth(ends, pi)) {
+             switch (chosen, List.nth_exn(ends, pi)) {
              | ([_, ..._], (Some(next), Some(member))) =>
                switch (seal(~sort, ~member, ~next, subseg)) {
                | Some(sealed) => (
@@ -2233,18 +2243,21 @@ let rec complete_segment =
     let shard_records =
       List.map(
         ~f=
-        (t: Tile.t) =>
-          {
-            tile_id: t.id,
-            original_shards: t.shards,
-            prefixes: [],
-          },
+          (t: Tile.t) =>
+            {
+              tile_id: t.id,
+              original_shards: t.shards,
+              prefixes: [],
+            },
         chosen_all,
       )
       @ wrap_records
       @ List.map(
-          synthetic,
-          List.concat_map(((_, _, _, _, semis)) => semis, completed_parts),
+          ~f=synthetic,
+          List.concat_map(
+            ~f=((_, _, _, _, semis)) => semis,
+            completed_parts,
+          ),
         );
     /* Prefix absorptions: trailing witnesses from placement, middle
        witnesses re-derived from the (pure, deterministic) split plan */
@@ -2252,11 +2265,11 @@ let rec complete_segment =
       List.concat_map(~f=((_, _, ab, _, _)) => ab, completed_parts)
       @ List.filter_map(
           ~f=
-          (t: Tile.t) =>
-            switch (middle_split_plan(t)) {
-            | Some((_, _, _, Some(sp))) => Some((t.id, sp))
-            | _ => None
-            },
+            (t: Tile.t) =>
+              switch (middle_split_plan(t)) {
+              | Some((_, _, _, Some(sp))) => Some((t.id, sp))
+              | _ => None
+              },
           chosen_all,
         );
     let shard_records =
@@ -2300,30 +2313,35 @@ let rec complete_segment =
        children are remolded at their slots, as typing the opener does */
     let opened =
       chosen_all
-      |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0)
-      |> List.map((t: Tile.t) => t.id);
+      |> List.filter(~f=(t: Tile.t) => Tile.l_shard(t) > 0)
+      |> List.map(~f=(t: Tile.t) => t.id);
     let reassembled =
-      opened == []
+      List.is_empty(opened)
         ? reassembled
         : List.map(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) when List.mem(t.id, opened) && Tile.is_complete(t) =>
-                let in_ = Tile.mold(t).in_;
-                Piece.Tile({
-                  ...t,
-                  children:
-                    List.mapi(
-                      (i, kid) =>
-                        switch (List.nth_opt(in_, i)) {
-                        | Some(s) => Segment.remold(kid, s)
-                        | None => kid
-                        },
-                      t.children,
-                    ),
-                });
-              | p => p
-              },
+            ~f=
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile(t)
+                    when
+                      List.mem(opened, t.id, ~equal=Poly.equal)
+                      && Tile.is_complete(t) =>
+                  let in_ = Tile.mold(t).in_;
+                  Piece.Tile({
+                    ...t,
+                    children:
+                      List.mapi(
+                        ~f=
+                          (i, kid) =>
+                            switch (List.nth(in_, i)) {
+                            | Some(s) => Segment.remold(kid, s)
+                            | None => kid
+                            },
+                        t.children,
+                      ),
+                  });
+                | p => p
+                },
             reassembled,
           );
 
@@ -2353,14 +2371,14 @@ let rec complete_segment =
         let rec ids_deep = (sg: Segment.t) =>
           List.concat_map(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
+              (p: Piece.t) =>
+                switch (p) {
                 | Tile(t) => [
                     t.id,
                     ...List.concat_map(~f=ids_deep, t.children),
                   ]
-              | p => [Piece.id(p)]
-              },
+                | p => [Piece.id(p)]
+                },
             sg,
           );
         /* a completed tile measures as its visible remnant: anchor
@@ -2397,27 +2415,27 @@ let rec complete_segment =
         let rec post = (sg: Segment.t) =>
           List.concat_map(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) =>
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile(t) =>
                   List.concat_map(~f=post, t.children)
-                @ alias(~last=true, t.id)
-                @ [t.id]
-              | p => [Piece.id(p)]
-              },
+                  @ alias(~last=true, t.id)
+                  @ [t.id]
+                | p => [Piece.id(p)]
+                },
             sg,
           );
         let rec pre = (sg: Segment.t) =>
           List.concat_map(
             ~f=
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) =>
-                [t.id]
-                @ alias(~last=false, t.id)
+              (p: Piece.t) =>
+                switch (p) {
+                | Tile(t) =>
+                  [t.id]
+                  @ alias(~last=false, t.id)
                   @ List.concat_map(~f=pre, t.children)
-              | p => [Piece.id(p)]
-              },
+                | p => [Piece.id(p)]
+                },
             sg,
           );
         let remap = (order: list(Id.t), ~fwd: bool, id: Id.t) => {
@@ -2448,11 +2466,11 @@ let rec complete_segment =
                };
              Option.map(
                ~f=
-               id =>
-                 {
-                   ...i,
-                   adjacent_id: id,
-                 },
+                 id =>
+                   {
+                     ...i,
+                     adjacent_id: id,
+                   },
                mapped,
              );
            });
@@ -2494,32 +2512,42 @@ and complete_segment_deep =
     Tile.sorted_children(t)
     |> List.fold_left(
          ~f=
-         ((segs_acc, ins_acc, rec_acc), (child_sort, child)) => {
-           let result =
-             complete_segment_deep(
-               ~use_indent_heuristic,
-               ~only_tile,
-               ~line=
-                 Some(
-                   at_members(child_sort)
-                     ? MemberLines.member_level(level) : level,
-                 ),
-               ~sort=child_sort,
-               child,
+           ((segs_acc, ins_acc, rec_acc), (child_sort, child)) => {
+             let result =
+               complete_segment_deep(
+                 ~use_indent_heuristic,
+                 ~only_tile,
+                 ~line=
+                   Some(
+                     at_members(child_sort)
+                       ? MemberLines.member_level(level) : level,
+                   ),
+                 ~sort=child_sort,
+                 child,
+               );
+             (
+               segs_acc @ [result.completed_seg],
+               ins_acc @ result.insertions,
+               rec_acc @ result.shard_records,
              );
-           (
-             segs_acc @ [result.completed_seg],
-             ins_acc @ result.insertions,
-             rec_acc @ result.shard_records,
-           );
-         },
+           },
          ~init=([], [], []),
        );
 
   /* the level of the line so far, and whether its indentation still runs */
   let (seg_with_completed_children, child_insertions, child_records, _) =
-    List.fold_left(
-      ((seg_acc, ins_acc, rec_acc, (level, run)), piece) => {
+    List.fold(
+      seg,
+      ~init=(
+        [],
+        [],
+        [],
+        switch (line) {
+        | Some(l) => (l, false)
+        | None => (0, true)
+        },
+      ),
+      ~f=((seg_acc, ins_acc, rec_acc, (level, run)), piece) => {
         let at =
           Piece.is_linebreak(piece)
             ? (0, true)
@@ -2543,16 +2571,6 @@ and complete_segment_deep =
         | p => (seg_acc @ [p], ins_acc, rec_acc, at)
         };
       },
-      (
-        [],
-        [],
-        [],
-        switch (line) {
-        | Some(l) => (l, false)
-        | None => (0, true)
-        },
-      ),
-      seg,
     );
 
   let top_result =
@@ -2620,13 +2638,13 @@ let derive_insertions =
   let rec collect = (sg: Segment.t) =>
     List.iter(
       ~f=
-      (p: Piece.t) => {
-        Hashtbl.replace(orig_ids, Piece.id(p), ());
-        switch (p) {
+        (p: Piece.t) => {
+          Hashtbl.replace(orig_ids, Piece.id(p), ());
+          switch (p) {
           | Tile(t) => List.iter(~f=collect, t.children)
-        | _ => ()
-        };
-      },
+          | _ => ()
+          };
+        },
       sg,
     );
   collect(original);
@@ -2653,25 +2671,25 @@ let derive_insertions =
   let rec leaves = (sg: Segment.t): list((leaf, bool)) =>
     List.concat_map(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let rec weave = (shards, children) =>
-            switch (shards) {
-            | [] => []
-            | [i] => [(LShard(t, i), shard_original(t, i))]
-            | [i, ...rest] =>
-              let (ch, chrest) =
-                switch (children) {
-                | [c, ...cr] => (leaves(c), cr)
-                | [] => ([], [])
-                };
-              [(LShard(t, i), shard_original(t, i)), ...ch]
-              @ weave(rest, chrest);
-            };
-          weave(t.shards, t.children);
-        | p => [(LPiece(p), Hashtbl.mem(orig_ids, Piece.id(p)))]
-        },
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) =>
+            let rec weave = (shards, children) =>
+              switch (shards) {
+              | [] => []
+              | [i] => [(LShard(t, i), shard_original(t, i))]
+              | [i, ...rest] =>
+                let (ch, chrest) =
+                  switch (children) {
+                  | [c, ...cr] => (leaves(c), cr)
+                  | [] => ([], [])
+                  };
+                [(LShard(t, i), shard_original(t, i)), ...ch]
+                @ weave(rest, chrest);
+              };
+            weave(t.shards, t.children);
+          | p => [(LPiece(p), Hashtbl.mem(orig_ids, Piece.id(p)))]
+          },
       sg,
     );
   let ls = leaves(completed);
@@ -2773,11 +2791,11 @@ let derive_insertions =
                     j > a
                     && List.for_all(
                          ~f=
-                         k =>
-                           switch (fst(arr[k])) {
-                           | LPiece(Grout(_)) => true
-                           | _ => false
-                           },
+                           k =>
+                             switch (fst(arr[k])) {
+                             | LPiece(Grout(_)) => true
+                             | _ => false
+                             },
                          List.init(j - a, ~f=k => a + k),
                        ),
                   typed_len:
@@ -2872,7 +2890,8 @@ let strip_edge_grout =
       completed: Segment.t,
     )
     : Segment.t => {
-  let had = p => List.exists(q => Piece.id(q) == Piece.id(p), original);
+  let had = p =>
+    List.exists(~f=q => Id.equal(Piece.id(q), Piece.id(p)), original);
   let rec drop = (sg: Segment.t) =>
     switch (sg) {
     | [Piece.Grout(_) as p, ...tl] when !had(p) => drop(tl)
@@ -2897,10 +2916,11 @@ let drop_cut_grout = (seg: Segment.t): Segment.t => {
 
 /* did completion append past [item]'s end (a new trailing shard or piece)? */
 let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
-  switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
-  | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1))) when t0.id == t1.id =>
+  switch (List.last(item), List.last(completed)) {
+  | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1)))
+      when Id.equal(t0.id, t1.id) =>
     Tile.r_shard(t1) > Tile.r_shard(t0)
-  | (Some(p0), Some(p1)) => Piece.id(p0) != Piece.id(p1)
+  | (Some(p0), Some(p1)) => !Id.equal(Piece.id(p0), Piece.id(p1))
   | _ => false
   };
 
@@ -2914,10 +2934,10 @@ let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
   /* remold keeps an unchanged tile's record */
   let same = (p: Piece.t, q: Piece.t) =>
     switch (p, q) {
-    | (Tile(t), Tile(u)) => t === u
+    | (Tile(t), Tile(u)) => phys_equal(t, u)
     | _ => true
     };
-  List.length(r) == List.length(item) && List.for_all2(same, item, r)
+  List.length(r) == List.length(item) && List.for_all2_exn(~f=same, item, r)
     ? None
     : Some(Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), r));
 };
@@ -2928,9 +2948,13 @@ let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
 let same_pieces = (a: Segment.t, b: Segment.t): bool =>
   Segment.ptr_eq(a, b)
   || List.length(a) == List.length(b)
-  && List.for_all2(
-       (p: Piece.t, q: Piece.t) =>
-         p === q || Piece.is_secondary(p) && Piece.is_secondary(q) && p == q,
+  && List.for_all2_exn(
+       ~f=
+         (p: Piece.t, q: Piece.t) =>
+           phys_equal(p, q)
+           || Piece.is_secondary(p)
+           && Piece.is_secondary(q)
+           && Poly.equal(p, q),
        a,
        b,
      );
@@ -2961,9 +2985,10 @@ let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
 
 let leaves_open = (block: Segment.t): bool =>
   List.exists(
-    fun
-    | Piece.Tile(t) => !Tile.has_end(Direction.Right, t)
-    | _ => false,
+    ~f=
+      fun
+      | Piece.Tile(t) => !Tile.has_end(Direction.Right, t)
+      | _ => false,
     block,
   );
 
@@ -3004,13 +3029,14 @@ let cached_block =
    in a unit before it */
 let spilled_closer = (seg: Segment.t): bool =>
   List.exists(
-    fun
-    | Piece.Tile(t) =>
-      !Tile.has_end(Left, t)
-      && at_members(
-           snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
-         )
-    | _ => false,
+    ~f=
+      fun
+      | Piece.Tile(t) =>
+        !Tile.has_end(Left, t)
+        && at_members(
+             snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
+           )
+      | _ => false,
     seg,
   );
 
@@ -3035,7 +3061,7 @@ let rec complete_item_uncached =
     }
   | incomplete =>
     switch (
-      follows == None
+      Option.is_none(follows)
         ? complete_members(~line, ~sort, incomplete, item) : None
     ) {
     | Some(r) => r
@@ -3064,11 +3090,16 @@ and complete_item =
     switch (Swept.find_opt(item_cache, key)) {
     | Some((ps, f, l, r))
         when
-          Segment.ptr_eq(ps, item) && same_follows(f, follows) && l == line => r
+          Segment.ptr_eq(ps, item)
+          && same_follows(f, follows)
+          && Option.equal(Int.equal, l, line) => r
     /* an untouched item comes back as itself, not as the entry's pieces */
     | Some((ps, f, l, r))
-        when same_pieces(ps, item) && same_follows(f, follows) && l == line =>
-      r.completed_seg === ps
+        when
+          same_pieces(ps, item)
+          && same_follows(f, follows)
+          && Option.equal(Int.equal, l, line) =>
+      phys_equal(r.completed_seg, ps)
         ? {
           ...r,
           completed_seg: item,
@@ -3091,32 +3122,33 @@ and complete_members =
     (~line, ~sort, incomplete: list(Tile.t), item: Segment.t)
     : option(completion_result) => {
   let holds_all = (parts: list(Segment.t)) =>
-    List.length(List.concat_map(Segment.incomplete_tiles_deep, parts))
+    List.length(List.concat_map(~f=Segment.incomplete_tiles_deep, parts))
     == List.length(incomplete);
   let compose = (~sort, ~line, parts, put) => {
     incr(items_by_member);
     let results = complete_slices(~line, ~sort, parts);
     Some({
-      completed_seg: put(List.concat_map(r => r.completed_seg, results)),
-      shard_records: List.concat_map(r => r.shard_records, results),
-      insertions: List.concat_map(r => r.insertions, results),
+      completed_seg: put(List.concat_map(~f=r => r.completed_seg, results)),
+      shard_records: List.concat_map(~f=r => r.shard_records, results),
+      insertions: List.concat_map(~f=r => r.insertions, results),
     });
   };
   /* a `;` in the chain: an open tile reached past the member's end (the
      editor molds a `;` under it Exp-sorted), so the chain is the
      incompleteness's extent, not the member's */
-  let mod_semi = List.exists(Piece.is_semi);
+  let mod_semi = List.exists(~f=Piece.is_semi);
   /* an open slot at the item's own member level is not its parts' */
-  let own_open = at_members(sort) && open_slots(item) != [];
+  let own_open = at_members(sort) && !List.is_empty(open_slots(item));
   switch (own_open ? None : ItemSpans.module_item(~root=sort, ~line, item)) {
   | Some((members, put, line)) =>
     holds_all(members) ? compose(~sort=Sort.Mod, ~line, members, put) : None
   | None =>
     switch (
-      sort == Sort.Mod && !own_open ? ItemSpans.chain_item(~line, item) : None
+      Sort.equal(sort, Sort.Mod) && !own_open
+        ? ItemSpans.chain_item(~line, item) : None
     ) {
     | Some((items, put, line))
-        when holds_all(items) && !List.exists(mod_semi, items) =>
+        when holds_all(items) && !List.exists(~f=mod_semi, items) =>
       compose(~sort=Sort.Exp, ~line, items, put)
     | _ => None
     }
@@ -3132,26 +3164,21 @@ and complete_slices =
     (~line=None, ~sort, items: list(Segment.t)): list(completion_result) => {
   let units =
     at_members(sort)
-      ? List.fold_left(
-          ((acc, line), item) =>
-            (
-              List.rev_append(member_parts(~line, ~sort, item), acc),
-              MemberLines.line_after(~line, item),
-            ),
-          ([], line),
-          items,
+      ? List.fold(items, ~init=([], line), ~f=((acc, line), item) =>
+          (
+            List.rev_append(member_parts(~line, ~sort, item), acc),
+            MemberLines.line_after(~line, item),
+          )
         )
         |> fst
         |> List.rev
-      : List.map(item => (item, None), items);
+      : List.map(~f=item => (item, None), items);
   /* a spilled closer completes with the level up to it */
   let units =
-    List.fold_left(
-      (acc, (seg, f) as u) =>
-        spilled_closer(seg)
-          ? [(List.concat_map(fst, List.rev(acc)) @ seg, f)] : [u, ...acc],
-      [],
-      units,
+    List.fold(units, ~init=[], ~f=(acc, (seg, f) as u) =>
+      spilled_closer(seg)
+        ? [(List.concat_map(~f=fst, List.rev(acc)) @ seg, f)]
+        : [u, ...acc]
     )
     |> List.rev;
   /* [cut]: the unit starts where a member part ended its member */
@@ -3172,7 +3199,8 @@ and complete_slices =
       /* only a complete item comes back without records */
       let r =
         switch (
-          opened && r.shard_records == [] ? remolded_item(~sort, block) : None
+          opened && List.is_empty(r.shard_records)
+            ? remolded_item(~sort, block) : None
         ) {
         | Some(completed_seg) => {
             ...r,
@@ -3180,12 +3208,12 @@ and complete_slices =
           }
         | None => r
         };
-      let last = rest == [];
+      let last = List.is_empty(rest);
       /* a member part's end is its `;`, not a cut */
       let completed_seg =
         strip_edge_grout(
           ~leading=!first,
-          ~trailing=!last && follows == None,
+          ~trailing=!last && Option.is_none(follows),
           ~original=block,
           r.completed_seg,
         );
@@ -3214,13 +3242,14 @@ and complete_slices =
             [(block @ next, next_follows), ...more],
           );
         } else {
-          let opened = opened || r.shard_records != [] && leaves_open(block);
+          let opened =
+            opened || !List.is_empty(r.shard_records) && leaves_open(block);
           [
             r,
             ...go(
                  ~first=false,
                  ~opened,
-                 ~cut=follows != None,
+                 ~cut=Option.is_some(follows),
                  ~line=MemberLines.line_after(~line, block),
                  rest,
                ),
@@ -3236,9 +3265,9 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
   Swept.next_pass(remold_cache);
   let results = complete_slices(~sort, Segment.top_items(seg));
   {
-    completed_seg: List.concat_map(r => r.completed_seg, results),
-    shard_records: List.concat_map(r => r.shard_records, results),
-    insertions: List.concat_map(r => r.insertions, results),
+    completed_seg: List.concat_map(~f=r => r.completed_seg, results),
+    shard_records: List.concat_map(~f=r => r.shard_records, results),
+    insertions: List.concat_map(~f=r => r.insertions, results),
   };
 };
 
@@ -3252,7 +3281,8 @@ let last_for_editor: ref(option((Segment.t, Sort.t, completion_result))) =
   ref(None);
 let for_editor = (~root: Sort.t, seg: Segment.t): completion_result =>
   switch (last_for_editor^) {
-  | Some((last, last_root, r)) when last === seg && last_root == root => r
+  | Some((last, last_root, r))
+      when phys_equal(last, seg) && Sort.equal(last_root, root) => r
   | _ =>
     let r = complete_items(~sort=root, seg);
     last_for_editor := Some((seg, root, r));

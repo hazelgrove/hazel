@@ -91,10 +91,10 @@ let to_zipper =
 let is_split_point = (~root: Sort.t, c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == []
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z))
   && (
-    root != Sort.Mod
+    !Sort.equal(root, Sort.Mod)
     || (
       switch (
         Siblings.neighbor(
@@ -153,22 +153,22 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
 
   List.iter(
     ~f=
-    c => {
-      current_z := insert_char(current_z^, c);
-      incr(chars_since_split);
-      switch (current_z^) {
-      | None => ()
-      | Some(z) =>
-        if (chars_since_split^ >= min_segment_size
-            && is_split_point(~root, c, z)) {
-          let z = Zipper.remold_regrout(Left, z, ~root);
-          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-          segments := [strip_trailing_grout(seg), ...segments^];
-          current_z := Some(Zipper.init());
-          chars_since_split := 0;
-        }
-      };
-    },
+      c => {
+        current_z := insert_char(current_z^, c);
+        incr(chars_since_split);
+        switch (current_z^) {
+        | None => ()
+        | Some(z) =>
+          if (chars_since_split^ >= min_segment_size
+              && is_split_point(~root, c, z)) {
+            let z = Zipper.remold_regrout(Left, z, ~root);
+            let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+            segments := [strip_trailing_grout(seg), ...segments^];
+            current_z := Some(Zipper.init());
+            chars_since_split := 0;
+          }
+        };
+      },
     chars,
   );
 
@@ -191,23 +191,23 @@ let has_balanced_delimiters = (s: string): bool => {
   let ok = ref(true);
   List.iter(
     ~f=
-    c =>
-      switch (c) {
-      | "(" => stack := [")", ...stack^]
-      | "[" => stack := ["]", ...stack^]
-      | "{" => stack := ["}", ...stack^]
-      | ")"
-      | "]"
-      | "}" =>
-        switch (stack^) {
+      c =>
+        switch (c) {
+        | "(" => stack := [")", ...stack^]
+        | "[" => stack := ["]", ...stack^]
+        | "{" => stack := ["}", ...stack^]
+        | ")"
+        | "]"
+        | "}" =>
+          switch (stack^) {
           | [top, ...rest] when String.equal(top, c) => stack := rest
-        | _ => ok := false
-        }
-      | _ => ()
-      },
+          | _ => ok := false
+          }
+        | _ => ()
+        },
     chars,
   );
-  ok^ && stack^ == [];
+  ok^ && List.is_empty(stack^);
 };
 
 /* Gate for the FastParse paste attempt (segment splice at the caret).
@@ -224,9 +224,14 @@ let fast_paste_blocker =
     Some("empty clipboard");
   } else if (z.caret != Outer) {
     Some("caret is inside a token");
-  } else if (Zipper.local_missing_shards(z) != []) {
+  } else if (!List.is_empty(Zipper.local_missing_shards(z))) {
     Some("incomplete tiles (missing shards) at the caret");
-  } else if (!List.mem(Relatives.sort(~root, z.relatives), [Sort.Exp, Mod])) {
+  } else if (!
+               List.mem(
+                 [Sort.Exp, Mod],
+                 Relatives.sort(~root, z.relatives),
+                 ~equal=Poly.equal,
+               )) {
     Some("caret sort is neither Exp nor Mod");
   } else if (!has_balanced_delimiters(clipboard)) {
     Some("clipboard delimiters unbalanced");
@@ -250,7 +255,7 @@ let fast_paste =
     /* read at the caret's sort, whatever the editor's root: among a
        module's members a chunk of members, else an expression. Its edge
        whitespace is kept, as typing keeps it */
-    let members = Relatives.sort(~root, z.relatives) == Sort.Mod;
+    let members = Sort.equal(Relatives.sort(~root, z.relatives), Sort.Mod);
     switch (
       FastParse.parsed_of_text(
         ~materialize=Triggers.invoked_projector,
@@ -291,9 +296,9 @@ let can_splice_paste = (clipboard: string, z: Zipper.t, ~root): bool => {
   let len = String.length(clipboard);
   len > 0
   && z.caret == Outer
-  && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == []
-  && Relatives.sort(~root, z.relatives) == Sort.Exp
+  && List.is_empty(z.relatives.ancestors)
+  && List.is_empty(Zipper.local_missing_shards(z))
+  && Sort.equal(Relatives.sort(~root, z.relatives), Sort.Exp)
   && has_balanced_delimiters(clipboard)
   && {
     let chars = Token.to_list(clipboard);

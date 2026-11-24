@@ -73,7 +73,9 @@ let is_program_value =
       model: string,
     )
     : bool =>
-  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
+  Poly.equal(tail, Some(id))
+  && Poly.equal(kind, Probe)
+  && ProbeProj.is_bare(model);
 
 let mk_info =
     (
@@ -125,7 +127,7 @@ let mk_info =
   },
   stepping:
     switch (stepping) {
-    | Some(st) when st.span.probe_id == p.id => stepping
+    | Some(st) when Id.equal(st.span.probe_id, p.id) => stepping
     | _ => None
     },
   program_value: is_program_value(~tail, p.id, p.kind, p.model),

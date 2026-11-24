@@ -233,7 +233,9 @@ let weave =
       raise(Mismatch);
     };
     let t = toks[idx^];
-    if (t.text == "?" || t.text == implicit_hole || t.text == concave_hole) {
+    if (String.equal(t.text, "?")
+        || t.text == implicit_hole
+        || t.text == concave_hole) {
       incr(idx);
       (t.gap, t.text);
     } else {
@@ -291,14 +293,14 @@ let weave =
       | [Tile(pt), ...rest]
           when
             Tile.has_label(pt, ["+"])
-            && Tile.mold(pt).out == Sort.Typ
+            && Sort.equal(Tile.mold(pt).out, Sort.Typ)
             && peek(0) != Some("+") =>
         /* the printer emits a leading + on sums; the source may not have
            one (both spellings read as the same Sum) — skip the piece */
         weave_seg(rest)
       | [Tile(t), ..._] as seg
           when
-            Tile.mold(t).out == Sort.Typ
+            Sort.equal(Tile.mold(t).out, Sort.Typ)
             && !Tile.has_label(t, ["+"])
             && peek(0) == Some("+") =>
         /* the mirror case: the source spells the optional leading + on a
@@ -321,7 +323,9 @@ let weave =
            to fresh annotations); the source spells f() — land the POSTFIX
            empty-ap tile (operand-molded unit would read as juxtaposition) */
         let (gap, _) = expect("()");
-        let sort = Tile.mold(unit_tile).out == Sort.Pat ? Sort.Pat : Sort.Exp;
+        let sort =
+          Sort.equal(Tile.mold(unit_tile).out, Sort.Pat)
+            ? Sort.Pat : Sort.Exp;
         let tail = weave_seg(rest);
         gap_pieces(gap)
         @ [Piece.mk_tile((Form.Compound(ApEmpty), sort), []), ...tail];
@@ -391,16 +395,16 @@ let weave =
       let (children, label_rev) =
         List.fold2_exn(
           ~f=
-          ((children_acc, label_acc), label_tok, child_seg) => {
-            /* each child sits between consecutive shards; the gap
-               before the closing token belongs inside the child */
-            let child = weave_seg(child_seg);
-            let (gap, tok) = expect(label_tok);
-            (
-              children_acc @ [child @ gap_pieces(gap)],
-              [tok, ...label_acc],
-            );
-          },
+            ((children_acc, label_acc), label_tok, child_seg) => {
+              /* each child sits between consecutive shards; the gap
+                 before the closing token belongs inside the child */
+              let child = weave_seg(child_seg);
+              let (gap, tok) = expect(label_tok);
+              (
+                children_acc @ [child @ gap_pieces(gap)],
+                [tok, ...label_acc],
+              );
+            },
           ~init=([], [tok0]),
           List.tl_exn(label),
           t.children,
@@ -558,7 +562,7 @@ let parsed_of_text =
   let attempt = attempt(~collect_refractors);
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
-  if (root == Sort.Mod) {
+  if (Sort.equal(root, Sort.Mod)) {
     /* Module-member chunks (a member replaced whole): parse
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
@@ -583,13 +587,14 @@ let parsed_of_text =
       let first_note = (bail_note^, bail_at^);
       switch (
         chunk
-          ? Option.bind(unbraced("{" ++ body ++ " ?}"), p =>
+          ? Option.bind(unbraced("{" ++ body ++ " ?}"), ~f=p =>
               Option.map(
-                segment =>
-                  {
-                    ...p,
-                    segment,
-                  },
+                ~f=
+                  segment =>
+                    {
+                      ...p,
+                      segment,
+                    },
                 strip_appended_hole(p.segment),
               )
             )
@@ -601,13 +606,13 @@ let parsed_of_text =
            message only describes a successful parse of the wrong shape */
         bail_note := fst(first_note);
         bail_at := snd(first_note);
-        if (bail_note^ == None) {
+        if (Option.is_none(bail_note^)) {
           note("mod-root wrap did not yield a single module body");
         };
         fail();
       };
     };
-  } else if (root != Sort.Exp) {
+  } else if (!Sort.equal(root, Sort.Exp)) {
     note("root sort is not fast-parseable (Exp and Mod only)");
     fail();
   } else {

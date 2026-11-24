@@ -248,8 +248,8 @@ module Utils = {
       ++ "\nSubtasks:\n"
       ++ List.fold_left(
            ~f=
-           (acc: string, subtask: subtask) =>
-             acc ++ subtask_to_pretty_string(task, subtask),
+             (acc: string, subtask: subtask) =>
+               acc ++ subtask_to_pretty_string(task, subtask),
            ~init="",
            ordered_subtasks_of(task),
          );
@@ -283,8 +283,8 @@ module Utils = {
       let subtask_map =
         List.fold_left(
           ~f=
-          (acc: Maps.StringMap.t(subtask), subtask: subtask) =>
-            Maps.StringMap.add(subtask.title, subtask, acc),
+            (acc: Maps.StringMap.t(subtask), subtask: subtask) =>
+              Maps.StringMap.add(subtask.title, subtask, acc),
           ~init=Maps.StringMap.empty,
           subtasks,
         );
@@ -416,9 +416,9 @@ module Utils = {
           task.subtask_ordering
           |> List.fold_left(
                ~f=
-               (acc: StringSet.t, title: string) => {
-                 StringSet.add(title, acc)
-               },
+                 (acc: StringSet.t, title: string) => {
+                   StringSet.add(title, acc)
+                 },
                ~init=StringSet.empty,
              );
         StringSet.cardinal(unique_subtask_titles)
@@ -433,9 +433,9 @@ module Utils = {
         // Assert all subtasks in ordering exist in the subtasks map
         List.for_all(
           ~f=
-          (subtask_title: string) => {
-            Maps.StringMap.mem(subtask_title, task.subtasks)
-          },
+            (subtask_title: string) => {
+              Maps.StringMap.mem(subtask_title, task.subtasks)
+            },
           task.subtask_ordering,
         )
           ? ()
@@ -692,13 +692,13 @@ module Update = {
             let tools_used =
               List.mapi(
                 ~f=
-                (index: int, tool_result: AgentToolResult.tool_result) =>
-                  index == tool_result_index
-                    ? {
-                      ...tool_result,
-                      expanded,
-                    }
-                    : tool_result,
+                  (index: int, tool_result: AgentToolResult.tool_result) =>
+                    index == tool_result_index
+                      ? {
+                        ...tool_result,
+                        expanded,
+                      }
+                      : tool_result,
                 subtask.tools_used,
               );
             let updated_subtask = {
@@ -792,23 +792,23 @@ module Update = {
           let task_with_subtasks_done =
             List.fold_left(
               ~f=
-              (task, subtask: subtask) => {
-                let updated_subtask = {
-                  ...subtask,
-                  completion_info:
-                    Some({
-                      summary: "(Auto-completed when the parent task was marked complete.)",
-                      elapsed_time: clock_it -. subtask.metadata.began_at,
-                      status: Completed,
-                    }),
-                  metadata: {
-                    ...subtask.metadata,
-                    completed_at: Some(clock_it),
-                    last_updated_at: clock_it,
-                  },
-                };
-                TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
-              },
+                (task, subtask: subtask) => {
+                  let updated_subtask = {
+                    ...subtask,
+                    completion_info:
+                      Some({
+                        summary: "(Auto-completed when the parent task was marked complete.)",
+                        elapsed_time: clock_it -. subtask.metadata.began_at,
+                        status: Completed,
+                      }),
+                    metadata: {
+                      ...subtask.metadata,
+                      completed_at: Some(clock_it),
+                      last_updated_at: clock_it,
+                    },
+                  };
+                  TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
+                },
               ~init=active_task,
               TaskUtils.get_incompleted_subtasks(active_task),
             );

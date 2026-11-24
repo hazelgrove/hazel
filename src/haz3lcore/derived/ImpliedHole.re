@@ -12,7 +12,7 @@ let at_caret =
       z: Zipper.t,
     )
     : option(Language.Info.t) =>
-  if (z.caret != Outer || !Selection.is_empty(z.selection)) {
+  if (!Zipper.equal_caret(z.caret, Outer) || !Selection.is_empty(z.selection)) {
     None;
   } else {
     let* snapshot = statics.completion;
@@ -26,7 +26,7 @@ let at_caret =
     /* Include IDs: Segment.equal deliberately ignores tile identity.
        compare, unlike (==), skips the pieces two zips share: all but the
        caret's ancestors. */
-    if (compare(source, snapshot.source) != 0) {
+    if (Poly.compare(source, snapshot.source) != 0) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
       let* chip = CompletionQuery.chip_at_caret(~root, ~seg=source, z);

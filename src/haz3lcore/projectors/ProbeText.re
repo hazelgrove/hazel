@@ -27,22 +27,22 @@ let get_probes_by_line =
     : IntMap.t(list(Id.t)) =>
   List.fold_right(
     ~f=
-    ((tile_id, entry: Zipper.Refractor.entry), acc) =>
-      if (entry.kind != Probe) {
-        acc;
-      } else {
-        switch (Measured.find_by_id(tile_id, measured)) {
-        | Some(m) =>
-          /* Use last.row to place probe value at END of expression,
-           * not origin.row which is the START. This matters for
-           * multi-line expressions like test...end blocks. */
-          let row = m.last.row;
-          let existing =
-            IntMap.find_opt(row, acc) |> Option.value(~default=[]);
-          IntMap.add(row, existing @ [tile_id], acc);
-        | None => acc
-        };
-      },
+      ((tile_id, entry: Zipper.Refractor.entry), acc) =>
+        if (!Poly.equal(entry.kind, Probe)) {
+          acc;
+        } else {
+          switch (Measured.find_by_id(tile_id, measured)) {
+          | Some(m) =>
+            /* Use last.row to place probe value at END of expression,
+             * not origin.row which is the START. This matters for
+             * multi-line expressions like test...end blocks. */
+            let row = m.last.row;
+            let existing =
+              IntMap.find_opt(row, acc) |> Option.value(~default=[]);
+            IntMap.add(row, existing @ [tile_id], acc);
+          | None => acc
+          };
+        },
     ~init=IntMap.empty,
     refractors,
   );
@@ -197,15 +197,15 @@ let of_segment =
       let augmented_lines =
         List.mapi(
           ~f=
-          (line_num: int, line: string): string => {
-            switch (IntMap.find_opt(line_num, probes_by_line)) {
-            | None => line
-            | Some(probe_ids) =>
-              let values =
-                format_probe_values(~window, ~probe_map, probe_ids);
-              line ++ values;
-            }
-          },
+            (line_num: int, line: string): string => {
+              switch (IntMap.find_opt(line_num, probes_by_line)) {
+              | None => line
+              | Some(probe_ids) =>
+                let values =
+                  format_probe_values(~window, ~probe_map, probe_ids);
+                line ++ values;
+              }
+            },
           lines,
         );
       String.concat(~sep="\n", augmented_lines);

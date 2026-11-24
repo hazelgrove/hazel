@@ -199,19 +199,22 @@ module Settings = {
       }
     | ToggleBeforeCutoff => {
         ...settings,
-        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+        before_cutoff:
+          Option.is_none(settings.before_cutoff) ? Some(1) : None,
       }
     | ToggleAfterCutoff => {
         ...settings,
-        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+        after_cutoff: Option.is_none(settings.after_cutoff) ? Some(1) : None,
       }
     | ToggleCallerCutoff => {
         ...settings,
-        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+        caller_cutoff:
+          Option.is_none(settings.caller_cutoff) ? Some(1) : None,
       }
     | ToggleCalleeCutoff => {
         ...settings,
-        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+        callee_cutoff:
+          Option.is_none(settings.callee_cutoff) ? Some(1) : None,
       }
     };
 
@@ -381,7 +384,7 @@ let select_samples =
       dynamics.sample_focus,
       samples,
     );
-  if (first_idx == None && settings.window == Single) {
+  if (Option.is_none(first_idx) && Poly.equal(settings.window, Single)) {
     [];
   } else {
     let cursor_idx = first_idx |> Option.value(~default=0);
@@ -493,12 +496,16 @@ let depth_clss =
   switch (relation.relative_level_to_cursor) {
   | Same => ["depth-same"]
   | Below(n)
-      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      when
+        Option.is_none(settings.before_cutoff)
+        || Some(n) <= settings.before_cutoff => [
       "depth-below",
       "depth-" ++ string_of_int(n),
     ]
   | Above(n)
-      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      when
+        Option.is_none(settings.after_cutoff)
+        || Some(n) <= settings.after_cutoff => [
       "depth-above",
       "depth-" ++ string_of_int(n),
     ]
@@ -539,23 +546,24 @@ let color_clss =
     ) {
     | (true, _, _) => ["focus"]
     | (_, Some(0), _) => ["related-before"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
+    | (_, Some(_), _) when Option.is_none(settings.caller_cutoff) => [
         "related-before",
       ]
     | (_, _, Some(0)) => ["related-after"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+    | (_, _, Some(_)) when Option.is_none(settings.callee_cutoff) => [
         "related-after",
       ]
     | (_, _, _) =>
       switch (relation.relative_level_to_cursor) {
       | Above(n)
           when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+            Option.is_none(settings.after_cutoff)
+            || Some(n) <= settings.after_cutoff => [
           "tangent-before",
         ]
       | Below(n)
           when
-            settings.before_cutoff == None
+            Option.is_none(settings.before_cutoff)
             || Some(n) <= settings.before_cutoff => [
           "tangent-after",
         ]
@@ -564,7 +572,7 @@ let color_clss =
     };
   | StepRange => step_range_clss()
   | Hybrid =>
-    if (sample.call_stack == []) {
+    if (List.is_empty(sample.call_stack)) {
       step_range_clss();
     } else {
       let relation =
@@ -634,7 +642,7 @@ let pin_call = (ctx: probe_ctx) =>
 
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
+  | Some(sample) when !List.is_empty(sample.call_stack) =>
     ctx.parent(
       SampleFocus(
         TogglePin(
@@ -847,24 +855,24 @@ let value_view =
         | None when ctx.auto_rich_on =>
           switch (
             List.find(renderers, ~f=(r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
-                /* a vacuous match (empty hand) still renders when a
-                   SIBLING sample at this site is real evidence */
-                && (
-                  r.auto_applies(ctx.sort, sample.value)
-                  || List.exists(
+              r.can_handle(ctx.sort, sample.value)
+              /* a vacuous match (empty hand) still renders when a
+                 SIBLING sample at this site is real evidence */
+              && (
+                r.auto_applies(ctx.sort, sample.value)
+                || List.exists(
                      ~f=(s: Sample.t) => r.auto_applies(ctx.sort, s.value),
-                       ctx.dynamics.samples,
-                     )
+                     ctx.dynamics.samples,
+                   )
+              )
+              && (
+                ctx.auto_unbounded
+                || (
+                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  | Some(n) => n <= inline_rows_cap
+                  | None => true
+                  }
                 )
-                && (
-                  ctx.auto_unbounded
-                  || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
-                    | Some(n) => n <= inline_rows_cap
-                    | None => true
-                    }
-                  )
               )
             )
           ) {
@@ -989,7 +997,7 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | _ => None
     };
   let is_builtin = name =>
-    Environment.lookup(Builtins.env_init, name) != None;
+    Option.is_some(Environment.lookup(Builtins.env_init, name));
   let static_ok =
     switch (fn_var_name) {
     | Some(name) => !is_builtin(name)
@@ -1144,7 +1152,7 @@ let sample_primary_actions =
     [pin_action(ctx, sample)]
     @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
     @ rich_items
-  | None when sample.call_stack != [] =>
+  | None when !List.is_empty(sample.call_stack) =>
     [focus_action(ctx, sample)] @ rich_items
   | None => rich_items
   };
@@ -1244,16 +1252,16 @@ let sample_call_display =
         let arg_rows =
           List.mapi(
             ~f=
-            (i, elem) =>
-              arg_row(
-                ~var_info=
+              (i, elem) =>
+                arg_row(
+                  ~var_info=
                     switch (List.nth(arg_var_info, i)) {
-                  | Some(v) => v
-                  | None => None
-                  },
-                ~is_last=i == num_elems - 1,
-                render_exp(elem),
-              ),
+                    | Some(v) => v
+                    | None => None
+                    },
+                  ~is_last=i == num_elems - 1,
+                  render_exp(elem),
+                ),
             elements,
           );
         [
@@ -1318,7 +1326,7 @@ let sample_environment =
     )
     : list(Node.t) => {
   let elems = filtered_env_entries(~filter_vars, sample);
-  elems == []
+  List.is_empty(elems)
     ? []
     : [
       div(
@@ -1347,7 +1355,7 @@ let sample_context_sections =
   let filter_vars =
     List.filter_map(~f=Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
-  let has_env = env_elems != [];
+  let has_env = !List.is_empty(env_elems);
   let has_call = Option.is_some(sample.args);
   let primary =
     sample_primary_actions(
@@ -1360,7 +1368,9 @@ let sample_context_sections =
   let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
   /* Emit no nodes when empty so the caller suppresses the whole menu. */
   let nodes =
-    primary == [] && call_display == [] && env == []
+    List.is_empty(primary)
+    && List.is_empty(call_display)
+    && List.is_empty(env)
       ? []
       : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
         @ call_display
@@ -1442,7 +1452,9 @@ let sample_view =
           )
         | None => false
         };
-      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+      !(hide_env && Option.is_none(ctx.ap_id))
+      || !List.is_empty(sample.call_stack)
+      || has_rich;
     };
   /* `indicated-sample` marks the most-aligned sample, the DOM anchor
    * SampleAnchor uses to compensate scroll on Left/Right.
@@ -1770,12 +1782,12 @@ let key_handler =
   };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("Escape") when Settings.open_dropdown^ != None =>
+  | D("Escape") when Option.is_some(Settings.open_dropdown^) =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when ctx.p_info.stepping != None =>
+  | D("Escape") when Option.is_some(ctx.p_info.stepping) =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
   | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
@@ -1944,16 +1956,16 @@ let prepare_offside =
       Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       (model.auto_rich || settings.auto_rich_default)
-      && model.active_renderer == None
+      && Option.is_none(model.active_renderer)
       && List.exists(
            ~f=
-           (sample: Sample.t) =>
-             List.exists(
+             (sample: Sample.t) =>
+               List.exists(
                  ~f=
                    (r: packed_renderer) =>
                      r.auto_applies(sort, sample.value),
-               renderers,
-             ),
+                 renderers,
+               ),
            dynamics.samples,
          );
     let ctx = {
@@ -2123,7 +2135,7 @@ let live_offside_view =
     @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
-    ~menu_open=Settings.open_dropdown^ != None,
+    ~menu_open=Option.is_some(Settings.open_dropdown^),
     ~on_close=() => local(SetDropdown(None)),
     (),
   );
@@ -2173,17 +2185,17 @@ let live_offside_view =
       let group_views =
         List.map(
           ~f=
-          samples =>
-            Node.div(
-              ~attrs=[Attr.classes(["sample-group"])],
+            samples =>
+              Node.div(
+                ~attrs=[Attr.classes(["sample-group"])],
                 List.map(~f=sample_view, samples),
-            ),
+              ),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */
       let count_badge = count_badge_nodes(~count=num_total);
       let samples_part =
-        group_views == []
+        List.is_empty(group_views)
           ? []
           : [
             div(
@@ -2556,7 +2568,7 @@ module M: Projector = {
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               (
-                model.active_renderer != None
+                Option.is_some(model.active_renderer)
                   ? [
                     div(
                       ~attrs=[
@@ -2591,7 +2603,7 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let stepping = info.stepping != None;
+    let stepping = Option.is_some(info.stepping);
     let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
@@ -2647,13 +2659,13 @@ module M: Projector = {
                 ~view_seg,
                 ~sort,
               )
-          |> Option.map(~f=content =>
+              |> Option.map(~f=content =>
                    rich_drawer_view(
                      ~local,
                      ~overflowing=drawer_overflow,
                      /* auto-rich (no explicit renderer) has nothing to close:
                         dismissal would just re-trigger */
-                     ~closable=model.active_renderer != None,
+                     ~closable=Option.is_some(model.active_renderer),
                      content,
                    )
                  )
@@ -2678,7 +2690,8 @@ module M: Projector = {
         /* the program stopped short of the ⇓ probe: how far it got */
         | (_, true)
             when
-              info.program_value && Settings.value_fallback^(info.id) != None =>
+              info.program_value
+              && Option.is_some(Settings.value_fallback^(info.id)) =>
           Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(

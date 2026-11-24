@@ -487,4 +487,3 @@ let try_remove_syntax_projector =
     }
   );
 };
-

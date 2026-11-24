@@ -72,11 +72,11 @@ let make_problem_context =
     let (line_numbers_rev, _) =
       List.fold_left(
         ~f=
-        ((acc, line_count), row) =>
-          switch (row) {
-          | [] => ([None, ...acc], line_count)
-          | _ => ([Some(line_count), ...acc], line_count + 1)
-          },
+          ((acc, line_count), row) =>
+            switch (row) {
+            | [] => ([None, ...acc], line_count)
+            | _ => ([Some(line_count), ...acc], line_count + 1)
+            },
         ~init=([], 1),
         reversed,
       );
@@ -106,16 +106,16 @@ let make_problem_context =
   let (syntax_error_ids, static_error_ids) =
     List.fold_right(
       ~f=
-      (id, (syn, stat)) =>
-        switch (Statics.Map.lookup(id, info_map)) {
-        | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
-          if (Info.is_syntax_error(ci)) {
-            ([(id, ci), ...syn], stat);
-          } else {
-            (syn, [(id, ci), ...stat]);
-          }
-        | _ => (syn, stat)
-        },
+        (id, (syn, stat)) =>
+          switch (Statics.Map.lookup(id, info_map)) {
+          | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
+            if (Info.is_syntax_error(ci)) {
+              ([(id, ci), ...syn], stat);
+            } else {
+              (syn, [(id, ci), ...stat]);
+            }
+          | _ => (syn, stat)
+          },
       ~init=([], []),
       statics.error_ids,
     );
@@ -124,12 +124,12 @@ let make_problem_context =
     if (display_warnings) {
       List.filter_map(
         ~f=
-        id =>
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
-            Some((id, ci))
-          | _ => None
-          },
+          id =>
+            switch (Statics.Map.lookup(id, info_map)) {
+            | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
+              Some((id, ci))
+            | _ => None
+            },
         statics.warning_ids,
       );
     } else {
@@ -323,7 +323,7 @@ let memo: Slot.t((bool, list(editor_group_input)), problem_collection) =
 let same_inputs =
     (a: list(editor_group_input), b: list(editor_group_input)): bool => {
   let same_source = (x: editor_source, y: editor_source) =>
-    x.statics === y.statics && x.syntax === y.syntax;
+    phys_equal(x.statics, y.statics) && phys_equal(x.syntax, y.syntax);
   let same_group = (x: editor_group_input, y: editor_group_input) =>
     x.label == y.label && List.equal(same_source, x.sources, y.sources);
   List.equal(same_group, a, b);
@@ -353,33 +353,33 @@ let make_uncached =
     let problems_by_category =
       List.map(
         ~f=
-        cat => {
-          let deduped =
-            collect_category(ctx, cat)
+          cat => {
+            let deduped =
+              collect_category(ctx, cat)
               |> Stdlib.Seq.filter((p: problem) => {
-                 let key = (p.id, cat);
+                   let key = (p.id, cat);
                    if (Stdlib.Hashtbl.mem(seen, key)) {
-                   false;
-                 } else {
+                     false;
+                   } else {
                      Stdlib.Hashtbl.add(seen, key, ());
-                   true;
-                 };
-               })
+                     true;
+                   };
+                 })
               |> Stdlib.List.of_seq;
-          let located =
-            deduped
+            let located =
+              deduped
               |> List.map(~f=p =>
-                 {
-                   problem: p,
-                   measured: ctx.measured,
-                   row_to_line: ctx.row_to_line,
-                   nearest_measured_id: ctx.nearest_measured_id,
-                   pos: ctx.pos(p.id),
-                 }
-               )
+                   {
+                     problem: p,
+                     measured: ctx.measured,
+                     row_to_line: ctx.row_to_line,
+                     nearest_measured_id: ctx.nearest_measured_id,
+                     pos: ctx.pos(p.id),
+                   }
+                 )
               |> List.sort(~compare=(a, b) => compare(a.pos, b.pos));
-          (cat, located);
-        },
+            (cat, located);
+          },
         [Syntax, Hole, Static, Warning],
       );
     problems_by_category;
@@ -387,45 +387,45 @@ let make_uncached =
   let groups =
     List.map(
       ~f=
-      (input: editor_group_input) => {
+        (input: editor_group_input) => {
           let per_source = List.map(~f=collect_source, input.sources);
-        /* Concat per-source problems per category, preserving input
-           order across sources. */
-        let problems_by_category =
-          List.map(
+          /* Concat per-source problems per category, preserving input
+             order across sources. */
+          let problems_by_category =
+            List.map(
               ~f=
-            cat =>
-              (
-                cat,
-                List.concat_map(
+                cat =>
+                  (
+                    cat,
+                    List.concat_map(
                       ~f=
                         pbc =>
                           Option.value(
                             List.Assoc.find(pbc, cat, ~equal=Poly.equal),
                             ~default=[],
                           ),
-                  per_source,
-                ),
-              ),
-            [Syntax, Hole, Static, Warning],
-          );
-        let counts =
-          List.map(
+                      per_source,
+                    ),
+                  ),
+              [Syntax, Hole, Static, Warning],
+            );
+          let counts =
+            List.map(
               ~f=((cat, ps)) => (cat, List.length(ps)),
+              problems_by_category,
+            );
+          {
+            label: input.label,
+            single_source:
+              switch (input.sources) {
+              | []
+              | [_] => true
+              | _ => false
+              },
             problems_by_category,
-          );
-        {
-          label: input.label,
-          single_source:
-            switch (input.sources) {
-            | []
-            | [_] => true
-            | _ => false
-            },
-          problems_by_category,
-          counts,
-        };
-      },
+            counts,
+          };
+        },
       inputs,
     );
   let counts =
@@ -439,7 +439,7 @@ let make_uncached =
                 Option.value(
                   List.Assoc.find(g.counts, cat, ~equal=Poly.equal),
                   ~default=0,
-              )
+                )
               )
            |> Stdlib.Seq.fold_left((+), 0),
          )

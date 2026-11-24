@@ -60,11 +60,11 @@ let update_ephemerals = (f, z: t): t => {
 /* same text, selection, caret and manual probes. probe passes rebuild
    the record on every calculate, so identity alone says little */
 let same_content = (a: t, b: t): bool =>
-  a === b
-  || a.relatives === b.relatives
-  && a.selection === b.selection
+  phys_equal(a, b)
+  || phys_equal(a.relatives, b.relatives)
+  && phys_equal(a.selection, b.selection)
   && a.caret == b.caret
-  && a.refractors.manuals === b.refractors.manuals;
+  && phys_equal(a.refractors.manuals, b.refractors.manuals);
 
 let update_suppressed = (f, z: t): t => {
   ...z,
@@ -126,22 +126,23 @@ module MapPiece = {
 
   /* what [f] leaves alone comes back as the same objects */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    let next = seg |> List.concat_map(~f=p => f(p)) |> List.map(~f=of_piece(f));
+    let next =
+      seg |> List.concat_map(~f=p => f(p)) |> List.map(~f=of_piece(f));
     Segment.ptr_eq(seg, next) ? seg : next;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
     | Tile(t) =>
       let next = of_tile(f, t);
-      next === t ? piece : Tile(next);
+      phys_equal(next, t) ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    let children = List.map(of_segment(f), t.children);
-    List.for_all2((===), t.children, children)
+    let children = List.map(~f=of_segment(f), t.children);
+    List.for_all2_exn(~f=phys_equal, t.children, children)
       ? t
       : {
         ...t,

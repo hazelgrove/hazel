@@ -103,7 +103,7 @@ let complete_first = (seg: Segment.t): (Segment.t, option(Id.t)) => {
         List.rev([
           Piece.Tile({
             ...t,
-            shards: List.init(Tile.arity(t), i => i),
+            shards: List.init(Tile.arity(t), ~f=i => i),
             children: t.children @ [rest],
           }),
           ...acc,
@@ -159,7 +159,7 @@ let incomplete_subseg_before_blank_line =
  * Returns the open tile completed at this level, if any, and whether a
  * blank line ends its body. */
 let complete_segment = (seg: Segment.t): (Segment.t, option(Id.t), bool) =>
-  if (List.for_all(Piece.is_complete, seg)) {
+  if (List.for_all(~f=Piece.is_complete, seg)) {
     (seg, None, false);
   } else {
     switch (incomplete_subseg_before_blank_line(seg)) {
@@ -176,7 +176,8 @@ let complete_segment = (seg: Segment.t): (Segment.t, option(Id.t), bool) =>
  * This has shards [0] instead of [0, 1]. */
 let is_incomplete_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.is_case_rule(t) => t.shards == [0]
+  | Tile(t) when Tile.is_case_rule(t) =>
+    List.equal(Int.equal, t.shards, [0])
   | _ => false
   };
 
@@ -184,11 +185,11 @@ let is_incomplete_case_rule = (p: Piece.t): bool =>
 let has_content = (seg: Segment.t): bool =>
   List.exists(
     ~f=
-    fun
-    | Piece.Secondary(s) =>
-      !Secondary.is_space(s) && !Secondary.is_linebreak(s)
-    | Piece.Grout(_) => false
-    | _ => true,
+      fun
+      | Piece.Secondary(s) =>
+        !Secondary.is_space(s) && !Secondary.is_linebreak(s)
+      | Piece.Grout(_) => false
+      | _ => true,
     seg,
   );
 
@@ -198,7 +199,7 @@ let is_complete_case_rule_with_body = (p: Piece.t): bool =>
   switch (p) {
   | Tile({shards, children, _} as t) when Tile.is_case_rule(t) =>
     /* Complete = has both shards [0, 1] */
-    shards == [0, 1]
+    List.equal(Int.equal, shards, [0, 1])
     /* Body is children[1], check if it has content */
     && List.length(children) >= 2
     && has_content(List.nth_exn(children, 1))
@@ -212,13 +213,16 @@ let is_complete_case_rule_with_body = (p: Piece.t): bool =>
    label but not the sort, and keeps its level as before. */
 let is_module_semi = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) when Tile.is_semi(t) => Tile.mold(t).out == Sort.Mod
+  | Tile(t) when Tile.is_semi(t) => Sort.equal(Tile.mold(t).out, Sort.Mod)
   | _ => false
   };
 
 /* a `{`'s member list: a module's members, or a signature's */
 let is_member_body = (t: Tile.t): bool =>
-  List.exists(s => s == Sort.Mod || s == Sort.Sig, Tile.mold(t).in_);
+  List.exists(
+    ~f=s => Sort.equal(s, Sort.Mod) || Sort.equal(s, Sort.Sig),
+    Tile.mold(t).in_,
+  );
 
 /* Check if piece is convex grout (hole for missing expression/pattern) */
 let is_convex_grout = (p: Piece.t): bool =>
@@ -259,7 +263,7 @@ exception Found_indent(int);
    [seg]'s first line, when it starts mid-line */
 let partitions = (~line=None, seg: Segment.t): list(Segment.t) =>
   CanonicalCompletion.partition_segment(~absorb_empty_lines=true, ~line, seg)
-  |> List.map(fst);
+  |> List.map(~f=fst);
 
 /* [closer]: a typed closer ends [seg] (its tile's next shard), so its last
    line goes back to the tile's level; else that line is a fresh one, at
@@ -276,7 +280,7 @@ let rec go =
         )
         : Id.Map.t(int) =>
   switch (
-    members && !List.for_all(Piece.is_complete, seg)
+    members && !List.for_all(~f=Piece.is_complete, seg)
       ? partitions(~line, seg) : [seg]
   ) {
   | [part] =>
@@ -285,7 +289,7 @@ let rec go =
     /* only the last part ends where the list does */
     let last = List.length(parts) - 1;
     parts
-    |> List.mapi((i, part) =>
+    |> List.mapi(~f=(i, part) =>
          walk(
            ~not_top,
            ~members,
@@ -296,9 +300,8 @@ let rec go =
            part,
          )
        )
-    |> List.fold_left(
-         (acc, map) => Id.Map.union((_, a, _) => Some(a), map, acc),
-         Id.Map.empty,
+    |> List.fold(~init=Id.Map.empty, ~f=(acc, map) =>
+         Id.Map.union((_, a, _) => Some(a), map, acc)
        );
   }
 /* one partition's lines */
@@ -334,7 +337,9 @@ and walk =
   };
   /* stack-safe zip (List.combine is not tail-recursive) */
   let context =
-    List.rev(List.rev_map2((ctx, lb) => (ctx, lb), context, prev_is_lb));
+    List.rev(
+      List.rev_map2_exn(context, prev_is_lb, ~f=(ctx, lb) => (ctx, lb)),
+    );
   let step =
       ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx, line_level: int) => {
     let ((prev, next, effective_next), prev_is_lb) = ctx;
@@ -362,17 +367,23 @@ and walk =
           prev_is_lb ? level : level + 2
         | (None, _) when not_top => base + 2
         /* Check effective_next (skipping linebreaks) for case rule */
-        | _ when Option.map(~f=Piece.is_case_rule, effective_next) == Some(true) => base
+        | _
+            when
+              Option.equal(
+                Bool.equal,
+                Option.map(~f=Piece.is_case_rule, effective_next),
+                Some(true),
+              ) => base
         | (_, Some(next)) when Piece.is_case_rule(next) => base
         /* a fresh line past a member list's last member is the next
            member's; only the `}` line goes back to the braces, and a
            list whose `}` isn't typed has none */
         | (_, None) =>
           members && !closer ? MemberLines.member_level(base) : base
-        | _ when members && effective_next == None =>
+        | _ when members && Option.is_none(effective_next) =>
           MemberLines.member_level(base)
         /* If next is linebreak but eff_next is None, effectively at end */
-        | _ when effective_next == None => base
+        | _ when Option.is_none(effective_next) => base
         | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
           /* Special case for kw prefixes */
           base
@@ -386,8 +397,7 @@ and walk =
         | (_, Some(_)) => level
         };
       switch (target_id) {
-            | Some(id) when Id.equal(w.id, id) =>
-              raise(Found_indent(indent))
+      | Some(id) when Id.equal(w.id, id) => raise(Found_indent(indent))
       | Some(_) => (indent, map) /* target mode: skip map add */
       | None => (indent, Id.Map.add(w.id, indent, map))
       };
@@ -423,14 +433,8 @@ and walk =
         (level, map);
       | None =>
         let (_, map) =
-          List.fold_left(
-            ((j, acc), c) =>
-              (
-                j + 1,
-                Id.Map.union((_, a, _) => Some(a), child(j, c), acc),
-              ),
-            (0, map),
-            t.children,
+          List.fold(t.children, ~init=(0, map), ~f=((j, acc), c) =>
+            (j + 1, Id.Map.union((_, a, _) => Some(a), child(j, c), acc))
           );
         (level, map);
       };
@@ -455,25 +459,24 @@ and walk =
          on a line of its own does */
       (members ? MemberLines.member_level(base) : base, Id.Map.empty),
       Option.value(line, ~default=0),
-      line == None,
+      Option.is_none(line),
       context,
       completed,
     );
   map;
 };
 
-
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   seg
   |> partitions
   |> List.fold_left(
        ~f=
-       (map, part) =>
-         Id.Map.union(
-           (_, a, _) => Some(a),
-           go(~not_top=false, ~closer=false, 0, part),
-           map,
-         ),
+         (map, part) =>
+           Id.Map.union(
+             (_, a, _) => Some(a),
+             go(~not_top=false, ~closer=false, 0, part),
+             map,
+           ),
        ~init=Id.Map.empty,
      );
 

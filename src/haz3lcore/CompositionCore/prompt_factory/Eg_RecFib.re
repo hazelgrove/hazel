@@ -35,11 +35,12 @@ let task = (title, description, subtasks) => {
           "subtasks",
           `List(
             List.map(
-              ((t, d)) =>
-                `Assoc([
-                  ("title", `String(t)),
-                  ("description", `String(d)),
-                ]),
+              ~f=
+                ((t, d)) =>
+                  `Assoc([
+                    ("title", `String(t)),
+                    ("description", `String(d)),
+                  ]),
               subtasks,
             ),
           ),
@@ -189,19 +190,20 @@ let example_text = (e: example): string =>
   ++ Option.value(e.start, ~default=e.program)
   ++ "\n```\n\n"
   ++ String.concat(
-       "\n\n",
+       ~sep="\n\n",
        List.map(
-         s =>
-           s.says
-           ++ "\n\n"
-           ++ String.concat("\n", List.map(call_text, s.calls))
-           ++ (
-             switch (s.sees) {
-             | Some((view, _)) =>
-               "\n\nThe agent then sees:\n```\n" ++ view ++ "\n```"
-             | None => ""
-             }
-           ),
+         ~f=
+           s =>
+             s.says
+             ++ "\n\n"
+             ++ String.concat(~sep="\n", List.map(~f=call_text, s.calls))
+             ++ (
+               switch (s.sees) {
+               | Some((view, _)) =>
+                 "\n\nThe agent then sees:\n```\n" ++ view ++ "\n```"
+               | None => ""
+               }
+             ),
          e.steps,
        ),
      )
@@ -210,7 +212,7 @@ let example_text = (e: example): string =>
   ++ "\"";
 
 let self =
-  String.concat("\n\n---\n\n", List.map(example_text, examples))
+  String.concat(~sep="\n\n---\n\n", List.map(~f=example_text, examples))
   ++ {|
 
 ---

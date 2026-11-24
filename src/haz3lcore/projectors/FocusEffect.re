@@ -109,7 +109,8 @@ let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
   switch (active) {
   | None => true
   | Some(el) =>
-    Js.to_string(el##.tagName) == "BODY" || Js.to_string(el##.id) == "page"
+    String.equal(Js.to_string(el##.tagName), "BODY")
+    || String.equal(Js.to_string(el##.id), "page")
   };
 
 /* the remembered probe, when the keeper puts the focus back on it: not
@@ -131,7 +132,7 @@ let keys_lost = (): bool => {
   let active = active_element();
   switch (active) {
   | Some(el) when !fell_to_nothing(active) =>
-    Js.to_string(el##.id) != JsUtil.active_cell_id
+    !String.equal(Js.to_string(el##.id), JsUtil.active_cell_id)
     && Js.to_bool(
          Js.Unsafe.coerce(el)##matches(Js.string("#main .code-editor")),
        )
@@ -188,7 +189,6 @@ let keep_focus = (): unit => {
          or deleted), or something else took focus on purpose */
       kept := None;
       blur_expected := false;
-
     }
   };
   pressed_elsewhere := false;

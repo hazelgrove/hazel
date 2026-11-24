@@ -147,9 +147,9 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
 let owed = (ancestors: Ancestors.t): list(Token.t) =>
   switch (ancestors) {
   | [(a: Ancestor.t, _), ..._] =>
-    switch (ListUtil.last_opt(fst(a.shards)), snd(a.shards)) {
+    switch (List.last(fst(a.shards)), snd(a.shards)) {
     | (Some(l), [r, ..._]) =>
-      Ancestor.label(a) |> List.filteri((i, _) => l < i && i < r)
+      Ancestor.label(a) |> List.filteri(~f=(i, _) => l < i && i < r)
     | _ => []
     }
   | [] => []
@@ -198,8 +198,8 @@ let regrout_siblings =
       /* s_l and s_r are same-class here, so a grout fitting one fits
        * both, and at most one shape of grout fits. */
       let fits = g => Grout.fits_shape(g, s_l);
-        let g_l = Option.map(ListUtil.split_last_opt(gs_l), ~f=snd);
-      let g_r = ListUtil.hd_opt(gs_r);
+      let g_l = Option.map(ListUtil.split_last_opt(gs_l), ~f=snd);
+      let g_r = List.hd(gs_r);
       switch (g_l, g_r) {
       | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
         // note: assumes single grout invariant in un-caret-interrupted trim

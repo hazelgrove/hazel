@@ -42,16 +42,17 @@ type part =
 let string_of_parts = (parts: list(part)): string =>
   parts
   |> List.map(
-       fun
-       | Text(s)
-       | Code(s)
-       | Label(s) => s
-       | Type(ty) => Print.typ(ty),
+       ~f=
+         fun
+         | Text(s)
+         | Code(s)
+         | Label(s) => s
+         | Type(ty) => Print.typ(ty),
      )
-  |> String.concat("");
+  |> String.concat(~sep="");
 
 let codes = (names: list(Var.t)): list(part) =>
-  Util.ListUtil.join(Text(", "), List.map(name => Code(name), names));
+  Util.ListUtil.join(Text(", "), List.map(~f=name => Code(name), names));
 
 /* [what] names the sort of member, e.g. "type member". */
 let member_not_found_parts =
@@ -64,7 +65,7 @@ let member_not_found_parts =
         Text("; its " ++ what ++ "s are "),
         ...Util.ListUtil.join(
              Text(", "),
-             List.map(m => Label(m), members),
+             List.map(~f=m => Label(m), members),
            ),
       ]
     }
@@ -110,7 +111,7 @@ let compare_fun_parts = ({ty, found}: Mark.compare_fun): list(part) =>
       ]
     | members => [
         Text("member "),
-        Code(String.concat(".", members)),
+        Code(String.concat(~sep=".", members)),
         Text(" has the function type "),
         Type(found.ty),
         Text(", which has no equality"),
@@ -152,7 +153,10 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Expecting branches to have consistent types but got types: %s",
       {
         let tys = Typ.of_source(tys);
-        List.map(~f=ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)), tys)
+        List.map(
+          ~f=ty => Print.typ(Typ.surface_names_in(~ctx, tys, ty)),
+          tys,
+        )
         |> String.concat(~sep=", ");
       },
     )
@@ -405,30 +409,34 @@ let marks_string = (info: Info.t, marks: list(Mark.t)): string =>
 let self_reference = (~info_map, info: Info.t): option(string) => {
   let free_ctor = (i: Info.t) =>
     List.find_map(
-      (m: Mark.t) =>
-        switch (m) {
-        | FreeConstructor(name) => Some(name)
-        | _ => None
-        },
+      ~f=
+        (m: Mark.t) =>
+          switch (m) {
+          | FreeConstructor(name) => Some(name)
+          | _ => None
+          },
       Info.marks_of(i),
     );
   let (ctor, member) =
     switch (info) {
     | InfoExp({user_term: {term: Dot(e1, e2), _}, _}) => (
-        Option.bind(Id.Map.find_opt(Exp.rep_id(e1), info_map), free_ctor),
+        Option.bind(
+          Id.Map.find_opt(Exp.rep_id(e1), info_map),
+          ~f=free_ctor,
+        ),
         Some(e2),
       )
     | InfoExp(_) =>
       let dot =
         Option.bind(
           Info.parent_id_of(info),
-          Statics.Map.lookup_exp(_, info_map),
+          ~f=Statics.Map.lookup_exp(_, info_map),
         );
       (
         free_ctor(info),
         switch (dot) {
         | Some({user_term: {term: Dot(e1, e2), _}, _})
-            when Exp.rep_id(e1) == Info.id_of(info) =>
+            when Id.equal(Exp.rep_id(e1), Info.id_of(info)) =>
           Some(e2)
         | _ => None
         },
@@ -450,28 +458,29 @@ let self_reference = (~info_map, info: Info.t): option(string) => {
   let names_module = (name, i: Info.t) =>
     switch (i) {
     | InfoExp({user_term: {term: Let(p, def, _), _}, _}) =>
-      Pat.get_var(p) == Some(name) && is_module(def)
+      Poly.equal(Pat.get_var(p), Some(name)) && is_module(def)
     | InfoExp({user_term: {term: ModuleExp(mp, def, _), _}, _})
     | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
-      mpat_var(mp) == Some(name) && is_module(def)
+      Poly.equal(mpat_var(mp), Some(name)) && is_module(def)
     | InfoMod({user_term: {term: ModLet(p, def), _}, _}) =>
-      Pat.get_var(p) == Some(name) && is_module(def)
+      Poly.equal(Pat.get_var(p), Some(name)) && is_module(def)
     | _ => false
     };
   let encloses = name =>
     List.exists(
-      id =>
-        Option.fold(
-          ~none=false,
-          ~some=names_module(name),
-          Id.Map.find_opt(id, info_map),
-        ),
+      ~f=
+        id =>
+          Option.value_map(
+            Id.Map.find_opt(id, info_map),
+            ~default=false,
+            ~f=names_module(name),
+          ),
       Info.ancestors(~info_map, info),
     );
   switch (ctor) {
   | Some(name) when encloses(name) =>
     let direct =
-      switch (Option.map((e: Exp.t) => e.term, member)) {
+      switch (Option.map(~f=(e: Exp.t) => e.term, member)) {
       | Some(Var(x) | Label(x)) => prn("; use `%s` directly", x)
       | _ => ""
       };

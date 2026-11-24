@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* A program's outline: its entries as ItemSpans' levels hold them, each
    with its kind, names and canonical path (EntryPath), down every block.
@@ -46,7 +47,7 @@ let rec root_of = (seg: Segment.t): option(Id.t) =>
   switch (content(seg)) {
   | [] => None
   | [Tile({children: [inner], _} as t)]
-      when Tile.label(t) == ["(", ")"] && content(inner) != [] =>
+      when Tile.label(t) == ["(", ")"] && !List.is_empty(content(inner)) =>
     root_of(inner)
   | [Projector(pr)] => root_of([pr.syntax])
   | _ =>
@@ -79,15 +80,16 @@ let rec is_fun = (def: Segment.t): bool => {
   let fun_ = Some(["fun", "->"]);
   let tuple =
     List.exists(
-      fun
-      | Piece.Tile(t) => Tile.is_comma(t)
-      | _ => false,
+      ~f=
+        fun
+        | Piece.Tile(t) => Tile.is_comma(t)
+        | _ => false,
       def,
     );
   switch (content(def)) {
   | _ when tuple => false
   | [p, ..._] when head_label(p) == fun_ => true
-  | [p, q, ..._] when head_label(p) == Some(["typfun", "->"]) =>
+  | [p, q, ..._] when Poly.equal(head_label(p), Some(["typfun", "->"])) =>
     head_label(q) == fun_
   | [Tile({children: [inner], _} as t)] when Tile.label(t) == ["(", ")"] =>
     is_fun(inner)
@@ -100,10 +102,14 @@ let rec is_fun = (def: Segment.t): bool => {
 let sugared = (pat: Segment.t): bool =>
   switch (content(pat)) {
   | [Tile(f), Tile(ap), ..._] =>
-    Option.map(Token.is_var, Tile.single_token(f)) == Some(true)
+    Option.equal(
+      Bool.equal,
+      Option.map(~f=Token.is_var, Tile.single_token(f)),
+      Some(true),
+    )
     && (
       ap.form == Form.Compound(Ap)
-      || List.mem(Tile.label(ap), [["(", ")"], ["()"]])
+      || List.mem([["(", ")"], ["()"]], Tile.label(ap), ~equal=Poly.equal)
     )
   | _ => false
   };
@@ -119,7 +125,7 @@ let parts = (lv: S.level, k: int): option((Segment.t, Segment.t)) =>
   | Some(Run(h, a, b)) =>
     switch (lv.pieces[h]) {
     | Tile({children: [pat, ..._], _}) =>
-      Some((pat, Array.to_list(Array.sub(lv.pieces, a, b - a))))
+      Some((pat, Array.to_list(Array.sub(lv.pieces, ~pos=a, ~len=b - a))))
     | _ => None
     }
   | None => None
@@ -127,7 +133,7 @@ let parts = (lv: S.level, k: int): option((Segment.t, Segment.t)) =>
 
 /* span [k] is a let whose definition is a function */
 let fn_at = (lv: S.level, k: int): bool =>
-  P.entry(lv, k).kind == Def
+  Poly.equal(P.entry(lv, k).kind, Def)
   && (
     switch (parts(lv, k)) {
     | Some((pat, def)) => sugared(pat) || is_fun(def)
@@ -137,14 +143,14 @@ let fn_at = (lv: S.level, k: int): bool =>
 
 /* span [k]'s head tile: a definition's or directive's */
 let head = (lv: S.level, k: int): option(Tile.t) =>
-  Option.map(snd, S.head(lv, k));
+  Option.map(~f=snd, S.head(lv, k));
 
 let core = S.core;
 
 let test_tile = (lv: S.level, k: int): option(Id.t) => {
   let (c0, c1) = lv.spans[k].core;
   Option.map(
-    i => Piece.id(lv.pieces[i]),
+    ~f=i => Piece.id(lv.pieces[i]),
     S.only_content(lv.pieces, c0, c1),
   );
 };
@@ -158,7 +164,7 @@ let entry_at =
     switch (e.kind) {
     | Tail
     | Stmt
-    | Test when lv.sort == Sort.Mod => member_root(core(lv, k))
+    | Test when Sort.equal(lv.sort, Sort.Mod) => member_root(core(lv, k))
     | Tail => root_of(core(lv, k))
     | _ => None
     };
@@ -167,10 +173,10 @@ let entry_at =
     anchor: sp.anchor,
     kind: e.kind,
     fn: fn_at(lv, k),
-    literal: sp.body != None,
+    literal: Option.is_some(sp.body),
     names: e.binders,
     hint: e.hint,
-    test: e.kind == Test ? test_tile(lv, k) : None,
+    test: Poly.equal(e.kind, Test) ? test_tile(lv, k) : None,
     path,
     lv,
     k,
@@ -198,13 +204,14 @@ let rec level =
   let key = P.key_of(lv);
   let prev =
     switch (Swept.find_opt(levels, key)) {
-    | Some((lv', own', es, l)) when lv' === lv => Some((own', es, l))
+    | Some((lv', own', es, l)) when phys_equal(lv', lv) =>
+      Some((own', es, l))
     | _ => None
     };
   let es =
     Array.init(
       Array.length(lv.spans),
-      k => {
+      ~f=k => {
         let steps = [(lv, k), ...rev_steps];
         let path = P.path_of(top, List.rev(steps));
         let own_k = own && P.unshared(lv, k);
@@ -217,7 +224,7 @@ let rec level =
         | Some((true, es, _)) when own_k && es[k].path == path => es[k]
         | Some((_, es, _)) =>
           let children = children();
-          es[k].children === children && es[k].path == path
+          phys_equal(es[k].children, children) && es[k].path == path
             ? es[k]
             : {
               ...es[k],
@@ -229,7 +236,8 @@ let rec level =
       },
     );
   switch (prev) {
-  | Some((own', es', l)) when own' == own && Array.for_all2((===), es, es') => l
+  | Some((own', es', l))
+      when own' == own && Array.for_all2_exn(es, es', ~f=phys_equal) => l
   | _ =>
     let l = Array.to_list(es);
     Swept.replace(levels, key, (lv, own, es, l));
@@ -261,13 +269,15 @@ let recall =
       mk: unit => t,
     )
     : t =>
-  switch (List.find_opt(((r, s, _)) => r == root && s === seg, cache^)) {
+  switch (
+    List.find(~f=((r, s, _)) => r == root && phys_equal(s, seg), cache^)
+  ) {
   | Some((_, _, o)) => o
   | None =>
     let (o, rest) =
       switch (
-        List.partition(
-          ((r, s, _)) => r == root && Segment.same_program(s, seg),
+        List.partition_tf(
+          ~f=((r, s, _)) => r == root && Segment.same_program(s, seg),
           cache^,
         )
       ) {
@@ -293,7 +303,7 @@ let of_source = (~root: Sort.t, source: Segment.t): t =>
 
 /* every entry, each before its children */
 let rec flatten = (es: list(entry)): list(entry) =>
-  List.concat_map(e => [e, ...flatten(e.children)], es);
+  List.concat_map(~f=e => [e, ...flatten(e.children)], es);
 
 let all = (o: t): list(entry) => flatten(o.entries);
 
@@ -302,9 +312,10 @@ let all = (o: t): list(entry) => flatten(o.entries);
 let find = (o: t, id: Id.t): option((list(entry), entry)) => {
   let rec go = (above, es: list(entry)) =>
     List.find_map(
-      e =>
-        e.id == id || e.anchor == id
-          ? Some((List.rev(above), e)) : go([e, ...above], e.children),
+      ~f=
+        e =>
+          Id.equal(e.id, id) || Id.equal(e.anchor, id)
+            ? Some((List.rev(above), e)) : go([e, ...above], e.children),
       es,
     );
   go([], o.entries);
@@ -343,28 +354,33 @@ let errors_by_entry =
     (o: t, ~info_map: Statics.Map.t, error_ids: list(Id.t))
     : Id.Map.t(list(Id.t)) => {
   let handles =
-    List.fold_left(
-      (m, e) => Id.Map.add(e.id, e.id, Id.Map.add(e.anchor, e.id, m)),
-      Id.Map.empty,
-      all(o),
+    List.fold(all(o), ~init=Id.Map.empty, ~f=(m, e) =>
+      Id.Map.add(e.id, e.id, Id.Map.add(e.anchor, e.id, m))
     );
   /* the deepest entry whose core holds a piece, by walking down */
   let rec holding = (es: list(entry), id: Id.t, best) =>
     switch (
-      List.find_opt(e => List.mem(id, Segment.ids(core(e.lv, e.k))), es)
+      List.find(
+        ~f=
+          e =>
+            List.mem(Segment.ids(core(e.lv, e.k)), id, ~equal=Poly.equal),
+        es,
+      )
     ) {
     | Some(e) => holding(e.children, id, Some(e.id))
     | None => best
     };
-  List.fold_left(
-    (acc, err) => {
+  List.fold(
+    error_ids,
+    ~init=Id.Map.empty,
+    ~f=(acc, err) => {
       let own =
         switch (Id.Map.find_opt(err, info_map)) {
         | Some(info) => [err, ...Info.within_item(~info_map, info)]
         | None => [err]
         };
       let at =
-        switch (List.find_map(id => Id.Map.find_opt(id, handles), own)) {
+        switch (List.find_map(~f=id => Id.Map.find_opt(id, handles), own)) {
         | Some(_) as h => h
         | None => holding(o.entries, err, None)
         };
@@ -378,8 +394,6 @@ let errors_by_entry =
       | None => acc
       };
     },
-    Id.Map.empty,
-    error_ids,
   )
   |> Id.Map.map(List.rev);
 };
@@ -391,26 +405,24 @@ let uses_memo: Slot.t((Statics.Map.t, Segment.t), Id.Map.t(int)) =
   Slot.mk();
 let uses = (o: t, ~info_map: Statics.Map.t): Id.Map.t(int) =>
   Slot.get(
-    ~same=((m, s), (m', s')) => m === m' && s === s',
+    ~same=((m, s), (m', s')) => phys_equal(m, m') && phys_equal(s, s'),
     uses_memo,
     (info_map, o.seg),
     () => {
       let tokens =
-        List.fold_left(
-          (acc, id) => Id.Map.add(id, (), acc),
-          Id.Map.empty,
-          Segment.ids(o.seg),
+        List.fold(Segment.ids(o.seg), ~init=Id.Map.empty, ~f=(acc, id) =>
+          Id.Map.add(id, (), acc)
         );
       Id.Map.fold(
         (id, info, acc) =>
           switch (info) {
           | Info.InfoExp(_) when Id.Map.mem(id, tokens) =>
             switch (Info.binding_site(~info_map, info)) {
-            | Some(site) when site != id =>
+            | Some(site) when !Id.equal(site, id) =>
               let named =
                 Option.bind(
                   Id.Map.find_opt(site, info_map),
-                  Info.binder_name,
+                  ~f=Info.binder_name,
                 );
               switch (Info.label_name(info)) {
               | Some(l) when Some(l) != named => acc

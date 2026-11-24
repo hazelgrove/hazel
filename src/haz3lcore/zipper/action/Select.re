@@ -560,7 +560,7 @@ let current_term =
       when
         defs_exclude_bodies
         && Tile.label(t) == [";"]
-        && Tile.mold(t).out == Sort.Mod =>
+        && Sort.equal(Tile.mold(t).out, Sort.Mod) =>
     current_tile(z)
   | Tile({form: Form.Compound(Rule), _}) when case_rules =>
     containing_rule(z)
@@ -662,7 +662,7 @@ let indicated_token = (z: t) =>
 let parent_id = (id: Id.t, info_map: Language.Statics.Map.t): option(Id.t) =>
   Option.bind(
     Language.Statics.Map.lookup(id, info_map),
-    Language.Info.parent_id_of,
+    ~f=Language.Info.parent_id_of,
   );
 
 /* See `parent_of_indicated` */
@@ -771,7 +771,7 @@ let enclosing_members = (z: t, term_data: TermData.t, info_map) =>
   | Some(p) => select_as_parent(Piece.id(p), z, term_data, info_map)
   | None =>
     let (l, r) = z.relatives.siblings;
-    switch (List.filter(p => !Piece.is_secondary(p), l @ r)) {
+    switch (List.filter(~f=p => !Piece.is_secondary(p), l @ r)) {
     | [] => None
     | [first, ..._] as content =>
       shard_range(
@@ -845,7 +845,8 @@ let select_enclosing_term =
     let (l, r) = z.relatives.siblings;
     /* the whole program: nothing encloses it */
     let whole =
-      z.relatives.ancestors == [] && List.for_all(~f=Piece.is_secondary, l @ r);
+      List.is_empty(z.relatives.ancestors)
+      && List.for_all(~f=Piece.is_secondary, l @ r);
     if (whole) {
       None;
     } else if (List.exists(~f=is_rule_tile, sel)) {

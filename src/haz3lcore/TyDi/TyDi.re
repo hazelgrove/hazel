@@ -59,14 +59,14 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want missing-shard suggestions to show up first */
   switch (ci) {
-  | InfoExp({dot_labels, _}) when dot_labels != [] =>
+  | InfoExp({dot_labels, _}) when !List.is_empty(dot_labels) =>
     List.map(
       ~f=
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
-        },
+        label =>
+          TyDiSuggestion.{
+            content: label,
+            strategy: Exp(Common(FromCtx(Label(label) |> Typ.fresh))),
+          },
       dot_labels,
     )
   | InfoTyp({
@@ -75,14 +75,14 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
         TypExpectation.ModuleMemberExpected(_, {listed: labels, _}),
       _,
     })
-      when labels != [] =>
+      when !List.is_empty(labels) =>
     List.map(
       ~f=
-      label =>
-        TyDiSuggestion.{
-          content: label,
-          strategy: Typ(FromCtx),
-        },
+        label =>
+          TyDiSuggestion.{
+            content: label,
+            strategy: Typ(FromCtx),
+          },
       labels,
     )
   | InfoExp({label_sort: true, _})
@@ -193,8 +193,8 @@ let set_buffer =
   let expectation_backed =
     List.exists(
       ~f=
-      ({strategy, _}: TyDiSuggestion.t) =>
-        strategy == Any(FromMissingShards),
+        ({strategy, _}: TyDiSuggestion.t) =>
+          Poly.equal(strategy, Any(FromMissingShards)),
       suggestions,
     );
   /* Graphemes, not bytes: a single `é` or `日` must not clear a 2-char gate. */

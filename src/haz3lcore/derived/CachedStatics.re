@@ -403,7 +403,7 @@ let init_compositional =
     : t =>
   if (!settings.statics) {
     empty;
-  } else if (root != Sort.Exp && root != Sort.Mod) {
+  } else if (!Sort.equal(root, Sort.Exp) && !Sort.equal(root, Sort.Mod)) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
     /* semantics reads the caret-independent canonical completion */

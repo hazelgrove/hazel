@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* Paths to a program's entries (plans/editing-in-the-large.html,
    "Addressing"): the edges' names for what the kernel addresses by id.
@@ -70,7 +71,7 @@ let kind_words = [
   ("use", Use),
 ];
 let kind_word = (k: kind): string =>
-  switch (List.find_opt(((_, k')) => k' == k, kind_words)) {
+  switch (List.find(~f=((_, k')) => k' == k, kind_words)) {
   | Some((w, _)) => w
   | None => "=>"
   };
@@ -82,7 +83,7 @@ let part_words = [
   ("head", Head),
 ];
 let part_word = (p: part): string =>
-  fst(List.find(((_, p')) => p' == p, part_words));
+  fst(List.find_exn(~f=((_, p')) => p' == p, part_words));
 
 /* ---- text ---- */
 
@@ -101,7 +102,7 @@ let elem_to_string = (e: elem): string =>
   };
 
 let to_string = (p: t): string =>
-  String.concat("/", List.map(elem_to_string, p.elems))
+  String.concat(~sep="/", List.map(~f=elem_to_string, p.elems))
   ++ (
     switch (p.part) {
     | Some(part) => ":" ++ part_word(part)
@@ -113,21 +114,22 @@ let parse = (s: string): result(t, string) => {
   let n = String.length(s);
   let fail = (i, what) =>
     Error(Printf.sprintf("path \"%s\", at %d: %s", s, i, what));
-  let rec spaces = i => i < n && s.[i] == ' ' ? spaces(i + 1) : i;
+  let rec spaces = i => i < n && Char.equal(s.[i], ' ') ? spaces(i + 1) : i;
   let starts = (i, lit) =>
     i
     + String.length(lit) <= n
-    && String.sub(s, i, String.length(lit)) == lit;
+    && String.sub(s, ~pos=i, ~len=String.length(lit)) == lit;
   let rec word_end = i =>
-    i < n && !List.mem(s.[i], ['.', '/', '#', ':', ' ', '"'])
+    i < n
+    && !List.mem(['.', '/', '#', ':', ' ', '"'], s.[i], ~equal=Poly.equal)
       ? word_end(i + 1) : i;
   let rec digits_end = i =>
     i < n && s.[i] >= '0' && s.[i] <= '9' ? digits_end(i + 1) : i;
   /* an optional `#k` at [i] */
   let hash_k = i =>
-    if (i < n && s.[i] == '#') {
+    if (i < n && Char.equal(s.[i], '#')) {
       let j = digits_end(i + 1);
-      switch (int_of_string_opt(String.sub(s, i + 1, j - i - 1))) {
+      switch (int_of_string_opt(String.sub(s, ~pos=i + 1, ~len=j - i - 1))) {
       | Some(k) when k >= 1 => Ok((Some(k), j))
       | _ => fail(i, "`#` takes a number from 1")
       };
@@ -136,11 +138,11 @@ let parse = (s: string): result(t, string) => {
     };
   /* an element at [i], and where it ends */
   let elem = i =>
-    if (i < n && s.[i] == '"') {
-      switch (String.index_from_opt(s, i + 1, '"')) {
+    if (i < n && Char.equal(s.[i], '"')) {
+      switch (String.index_from(s, i + 1, '"')) {
       | None => fail(i, "an unclosed hint string")
       | Some(j) =>
-        let h = String.sub(s, i + 1, j - i - 1);
+        let h = String.sub(s, ~pos=i + 1, ~len=j - i - 1);
         Stdlib.Result.map(((k, e)) => (Hint(h, k), e), hash_k(j + 1));
       };
     } else if (starts(i, "=>")) {
@@ -152,10 +154,10 @@ let parse = (s: string): result(t, string) => {
       if (j == i) {
         fail(i, "a name, a hint string, kind#k or =>");
       } else {
-        let w = String.sub(s, i, j - i);
+        let w = String.sub(s, ~pos=i, ~len=j - i);
         Stdlib.Result.map(
           ((k, e)) =>
-            switch (List.assoc_opt(w, kind_words), k) {
+            switch (List.Assoc.find(kind_words, w, ~equal=Poly.equal), k) {
             | (Some(kind), Some(k)) => (Nth(kind, k), e)
             | _ => (Name(w, k), e)
             },
@@ -173,11 +175,11 @@ let parse = (s: string): result(t, string) => {
           elems: List.rev([e, ...acc]),
           part: None,
         });
-      } else if (s.[j] == '.' || s.[j] == '/') {
+      } else if (Char.equal(s.[j], '.') || Char.equal(s.[j], '/')) {
         elems(j + 1, [e, ...acc]);
       } else if (s.[j] == ':') {
-        let w = String.trim(String.sub(s, j + 1, n - j - 1));
-        switch (List.assoc_opt(w, part_words)) {
+        let w = String.strip(String.sub(s, ~pos=j + 1, ~len=n - j - 1));
+        switch (List.Assoc.find(part_words, w, ~equal=Poly.equal)) {
         | Some(part) =>
           Ok({
             elems: List.rev([e, ...acc]),
@@ -203,7 +205,7 @@ type entry = {
 };
 
 let content = (seg: Segment.t): list(Piece.t) =>
-  List.filter(p => !Piece.is_secondary(p), seg);
+  List.filter(~f=p => !Piece.is_secondary(p), seg);
 
 /* a name a pattern binds: a var, or a livelit's `^name` */
 let is_binder = (x: Token.t): bool =>
@@ -234,7 +236,7 @@ let rec pat_binders = (seg: Segment.t): list((string, Id.t)) => {
         go(
           rest,
           ~asc,
-          List.rev_append(List.concat_map(pat_binders, t.children), acc),
+          List.rev_append(List.concat_map(~f=pat_binders, t.children), acc),
         )
       }
     | [Projector(pr), ...rest] => go([pr.syntax, ...rest], ~asc, acc)
@@ -256,7 +258,9 @@ let head_name = (~ok: Token.t => bool, seg: Segment.t): list((string, Id.t)) =>
 
 /* a statement that is only a test, and its hint if a string */
 let test_of = (lv: S.level, c0: int, c1: int): option(option(string)) =>
-  switch (Option.map(i => lv.pieces[i], S.only_content(lv.pieces, c0, c1))) {
+  switch (
+    Option.map(~f=i => lv.pieces[i], S.only_content(lv.pieces, c0, c1))
+  ) {
   | Some(Tile(t)) when t.form == Form.Compound(Test) => Some(None)
   | Some(Tile({children: [hint, ..._], _} as t))
       when t.form == Form.Compound(HintedTest) =>
@@ -264,7 +268,7 @@ let test_of = (lv: S.level, c0: int, c1: int): option(option(string)) =>
     | [Tile(s)] =>
       switch (Tile.single_token(s)) {
       | Some(h) when Token.is_string(h) =>
-        Some(Some(String.sub(h, 1, String.length(h) - 2)))
+        Some(Some(String.sub(h, ~pos=1, ~len=String.length(h) - 2)))
       | _ => Some(None)
       }
     | _ => Some(None)
@@ -284,7 +288,7 @@ let entry_of = (lv: S.level, k: int): entry => {
   | Def =>
     switch (S.head(lv, k)) {
     | Some((_, t)) =>
-      let pat = Option.value(List.nth_opt(t.children, 0), ~default=[]);
+      let pat = Option.value(List.nth(t.children, 0), ~default=[]);
       switch (Tile.token(t, 0)) {
       | "type" => mk(~binders=head_name(~ok=Token.is_typ_var, pat), Type)
       | "module" =>
@@ -301,9 +305,9 @@ let entry_of = (lv: S.level, k: int): entry => {
   /* a Mod root's final `;`-less expression is its result */
   | Stmt
       when
-        lv.owner == Top
-        && lv.sort == Sort.Mod
-        && sp.sep == None
+        Poly.equal(lv.owner, Top)
+        && Sort.equal(lv.sort, Sort.Mod)
+        && Option.is_none(sp.sep)
         && k == Array.length(lv.spans)
         - 1 =>
     mk(Tail)
@@ -329,32 +333,34 @@ type index = {
 };
 
 let index_of = (lv: S.level): index => {
-  let entries = Array.init(Array.length(lv.spans), entry_of(lv));
+  let entries = Array.init(Array.length(lv.spans), ~f=entry_of(lv));
   let add = (key, k, m) =>
     SM.update(key, l => Some([k, ...Option.value(l, ~default=[])]), m);
   let names = ref(SM.empty);
   let hints = ref(SM.empty);
   Array.iteri(
-    (k, e) => {
-      /* an entry binding a name twice counts once */
-      List.iter(
-        x => names := add(x, k, names^),
-        List.sort_uniq(compare, List.map(fst, e.binders)),
-      );
-      Option.iter(h => hints := add(h, k, hints^), e.hint);
-    },
+    ~f=
+      (k, e) => {
+        /* an entry binding a name twice counts once */
+        List.iter(
+          ~f=x => names := add(x, k, names^),
+          List.dedup_and_sort(~compare, List.map(~f=fst, e.binders)),
+        );
+        Option.iter(~f=h => hints := add(h, k, hints^), e.hint);
+      },
     entries,
   );
   let kinds =
     List.map(
-      kind => {
-        let ks = ref([]);
-        Array.iteri(
-          (k, e) => e.kind == kind ? ks := [k, ...ks^] : (),
-          entries,
-        );
-        (kind, Array.of_list(List.rev(ks^)));
-      },
+      ~f=
+        kind => {
+          let ks = ref([]);
+          Array.iteri(
+            ~f=(k, e) => e.kind == kind ? ks := [k, ...ks^] : (),
+            entries,
+          );
+          (kind, Array.of_list(List.rev(ks^)));
+        },
       [Def, Type, Module, Test, Stmt, Use, Tail],
     );
   {
@@ -383,7 +389,7 @@ let key_of = (lv: S.level): key => (
 let index = (lv: S.level): index => {
   let key = key_of(lv);
   switch (Swept.find_opt(cache, key)) {
-  | Some((lv', ix)) when lv' === lv => ix
+  | Some((lv', ix)) when phys_equal(lv', lv) => ix
   | _ =>
     incr(built);
     let ix = index_of(lv);
@@ -403,7 +409,7 @@ let sub = (lv: S.level, k: int): option(S.level) =>
   };
 
 let kinds_of = (ix: index, kind: kind): array(int) =>
-  List.assoc(kind, ix.kinds);
+  List.Assoc.find_exn(ix.kinds, kind, ~equal=Poly.equal);
 
 let of_list = (l: option(list(int))): list(int) =>
   Option.value(l, ~default=[]);
@@ -453,17 +459,18 @@ let unshared = (lv: S.level, k: int): bool =>
    entry's explicit element, then its other names */
 let candidates = (ix: index): list(string) =>
   Array.to_list(ix.entries)
-  |> List.mapi((k, e) => {
+  |> List.mapi(~f=(k, e) => {
        let own = elem_to_string(explicit(ix, k));
        let names =
          List.map(
-           ((x, _)) =>
-             elem_to_string(
-               Name(x, occurrence(k, of_list(SM.find_opt(x, ix.names)))),
-             ),
+           ~f=
+             ((x, _)) =>
+               elem_to_string(
+                 Name(x, occurrence(k, of_list(SM.find_opt(x, ix.names)))),
+               ),
            e.binders,
          );
-       [own, ...List.filter(s => s != own, names)];
+       [own, ...List.filter(~f=s => s != own, names)];
      })
   |> List.concat;
 
@@ -483,7 +490,7 @@ type error =
   | No_part(string, part, kind);
 
 let where = (block: string): string =>
-  block == "" ? "the program's top level" : "\"" ++ block ++ "\"";
+  String.equal(block, "") ? "the program's top level" : "\"" ++ block ++ "\"";
 
 let message = (e: error): string =>
   switch (e) {
@@ -495,7 +502,7 @@ let message = (e: error): string =>
       "No entry \"%s\" in %s. Its entries: %s",
       el,
       where(block),
-      String.concat(", ", cs),
+      String.concat(~sep=", ", cs),
     )
   | Ambiguous(block, el, opts) =>
     Printf.sprintf(
@@ -503,7 +510,7 @@ let message = (e: error): string =>
       el,
       where(block),
       List.length(opts),
-      String.concat(", ", opts),
+      String.concat(~sep=", ", opts),
     )
   | Out_of_range(block, el, n) =>
     Printf.sprintf(
@@ -519,7 +526,7 @@ let message = (e: error): string =>
     Printf.sprintf(
       "\"%s\" is a %s, which has no %s",
       entry,
-      kind == Tail ? "result" : kind_word(kind),
+      Poly.equal(kind, Tail) ? "result" : kind_word(kind),
       part_word(part),
     )
   };
@@ -549,9 +556,9 @@ let pick =
     switch (l, k) {
     | ([], _) => Error(Unknown(block, shown, candidates(ix)))
     | ([k], None) => Ok([(k, el)])
-    | (l, None) => Ok(List.mapi((i, k) => (k, mk(Some(i + 1))), l))
+    | (l, None) => Ok(List.mapi(~f=(i, k) => (k, mk(Some(i + 1))), l))
     | (l, Some(i)) =>
-      switch (List.nth_opt(l, i - 1)) {
+      switch (List.nth(l, i - 1)) {
       | Some(k) => Ok([(k, el)])
       | None => Error(Out_of_range(block, shown, List.length(l)))
       }
@@ -627,19 +634,19 @@ let resolve_in = (top: S.level, p: t): result(found, error) => {
           Ambiguous(
             block,
             elem_to_string(el),
-            List.map(((_, el')) => elem_to_string(el'), picks),
+            List.map(~f=((_, el')) => elem_to_string(el'), picks),
           ),
         );
       switch (pick(~block, ix, el)) {
       | Error(_) as e => e
       | Ok([one]) => at(one)
-      | Ok(picks) when rest == [] => ambiguous(picks)
+      | Ok(picks) when List.is_empty(rest) => ambiguous(picks)
       | Ok(picks) =>
-        let tried = List.map(pk => (pk, at(pk)), picks);
-        switch (List.filter(((_, r)) => Result.is_ok(r), tried)) {
+        let tried = List.map(~f=pk => (pk, at(pk)), picks);
+        switch (List.filter(~f=((_, r)) => Result.is_ok(r), tried)) {
         | [(_, r)] => r
-        | [] => snd(List.hd(tried))
-        | ok => ambiguous(List.map(fst, ok))
+        | [] => snd(List.hd_exn(tried))
+        | ok => ambiguous(List.map(~f=fst, ok))
         };
       };
     };
@@ -678,7 +685,7 @@ let path_of = (top: S.level, steps: list((S.level, int))): t => {
         },
       )
     ) {
-    | Ok(f) => f.id == id
+    | Ok(f) => Id.equal(f.id, id)
     | Error(_) => false
     };
   let rec drop = (before, after) =>
@@ -698,7 +705,8 @@ let path_of = (top: S.level, steps: list((S.level, int))): t => {
       };
     };
   {
-    elems: drop([], List.map(((lv, k)) => explicit(index(lv), k), steps)),
+    elems:
+      drop([], List.map(~f=((lv, k)) => explicit(index(lv), k), steps)),
     part: None,
   };
 };
@@ -711,15 +719,17 @@ let rec below = (lv: S.level): Id.Map.t(int) => {
   | None =>
     let m = ref(Id.Map.empty);
     Array.iteri(
-      (k, _) =>
-        Option.iter(
-          sub => {
-            let add = (id, _, m) => Id.Map.add(id, k, m);
-            m := Id.Map.fold(add, S.index(sub), m^);
-            m := Id.Map.fold(add, below(sub), m^);
-          },
-          sub(lv, k),
-        ),
+      ~f=
+        (k, _) =>
+          Option.iter(
+            ~f=
+              sub => {
+                let add = (id, _, m) => Id.Map.add(id, k, m);
+                m := Id.Map.fold(add, S.index(sub), m^);
+                m := Id.Map.fold(add, below(sub), m^);
+              },
+            sub(lv, k),
+          ),
       lv.spans,
     );
     ix.below = Some(m^);
@@ -733,17 +743,17 @@ let rec below = (lv: S.level): Id.Map.t(int) => {
 let rec find_in = (lv: S.level, id: Id.t): option(list((S.level, int))) => {
   let down = k =>
     Option.map(
-      path => [(lv, k), ...path],
-      Option.bind(sub(lv, k), below => find_in(below, id)),
+      ~f=path => [(lv, k), ...path],
+      Option.bind(sub(lv, k), ~f=below => find_in(below, id)),
     );
   switch (Id.Map.find_opt(id, S.index(lv))) {
-  | Some(k) when lv.spans[k].anchor == id => Some([(lv, k)])
+  | Some(k) when Id.equal(lv.spans[k].anchor, id) => Some([(lv, k)])
   | Some(k) =>
     switch (down(k)) {
     | Some(_) as path => path
     | None => Some([(lv, k)])
     }
-  | None => Option.bind(Id.Map.find_opt(id, below(lv)), down)
+  | None => Option.bind(Id.Map.find_opt(id, below(lv)), ~f=down)
   };
 };
 
@@ -785,13 +795,16 @@ let part_root = (lv: S.level, k: int, pt: part): option(Id.t) =>
   | (S.Def, Some((i, t))) =>
     let def = () =>
       Tile.ends_with_in(t)
-        ? Option.value(ListUtil.last_opt(t.children), ~default=[])
+        ? Option.value(List.last(t.children), ~default=[])
         : Array.to_list(
-            Array.sub(lv.pieces, i + 1, snd(lv.spans[k].core) - i - 1),
+            Array.sub(
+              lv.pieces,
+              ~pos=i + 1,
+              ~len=snd(lv.spans[k].core) - i - 1,
+            ),
           );
     switch (pt) {
-    | Pattern =>
-      root_id(Option.value(List.nth_opt(t.children, 0), ~default=[]))
+    | Pattern => root_id(Option.value(List.nth(t.children, 0), ~default=[]))
     | Definition => root_id(def())
     | Body => root_id(past_fun_heads(def()))
     | Head => None
@@ -801,8 +814,9 @@ let part_root = (lv: S.level, k: int, pt: part): option(Id.t) =>
 
 /* part [pt] of the entry anchored at [head] */
 let part_of = (~root: Sort.t, seg: Segment.t, head: Id.t, pt: part) =>
-  switch (Option.map(ListUtil.last, find(~root, seg, head))) {
-  | Some((lv, k)) when lv.spans[k].anchor == head => part_root(lv, k, pt)
+  switch (Option.map(~f=ListUtil.last, find(~root, seg, head))) {
+  | Some((lv, k)) when Id.equal(lv.spans[k].anchor, head) =>
+    part_root(lv, k, pt)
   | _ => None
   };
 
@@ -810,7 +824,7 @@ let part_of = (~root: Sort.t, seg: Segment.t, head: Id.t, pt: part) =>
    the entry */
 let target = (f: found): option(target) => {
   let (lv, k) = ListUtil.last(f.steps);
-  let term = Option.map(id => Term(id));
+  let term = Option.map(~f=id => Term(id));
   switch (f.part, f.kind) {
   | (None, Tail) => term(root_id(S.core(lv, k)))
   | (None | Some(Head), _) => Some(Entry(f.id))
@@ -822,7 +836,7 @@ let target = (f: found): option(target) => {
 let describe = (~root: Sort.t, seg: Segment.t, id: Id.t): option(t) => {
   Swept.next_pass(cache);
   let top = S.top(~root, seg);
-  Option.map(path_of(top), find_in(top, id));
+  Option.map(~f=path_of(top), find_in(top, id));
 };
 
 /* every entry with its canonical path, depth first, in program order */
@@ -832,14 +846,15 @@ let entries = (~root: Sort.t, seg: Segment.t): list((Id.t, t)) => {
   let rec go = (rev_steps, lv: S.level, acc) => {
     let acc = ref(acc);
     Array.iteri(
-      (k, sp: S.span) => {
-        let here = [(lv, k), ...rev_steps];
-        acc := [(sp.anchor, path_of(top, List.rev(here))), ...acc^];
-        switch (sub(lv, k)) {
-        | Some(below) => acc := go(here, below, acc^)
-        | None => ()
-        };
-      },
+      ~f=
+        (k, sp: S.span) => {
+          let here = [(lv, k), ...rev_steps];
+          acc := [(sp.anchor, path_of(top, List.rev(here))), ...acc^];
+          switch (sub(lv, k)) {
+          | Some(below) => acc := go(here, below, acc^)
+          | None => ()
+          };
+        },
       lv.spans,
     );
     acc^;
@@ -851,7 +866,7 @@ let entries = (~root: Sort.t, seg: Segment.t): list((Id.t, t)) => {
 
 let edit_distance = (a: string, b: string): int => {
   let (n, m) = (String.length(a), String.length(b));
-  let row = Array.init(m + 1, j => j);
+  let row = Array.init(m + 1, ~f=j => j);
   for (i in 1 to n) {
     let diag = ref(row[0]);
     row[0] = i;
@@ -873,7 +888,7 @@ let edit_distance = (a: string, b: string): int => {
    or last element is nearest by edit distance, or is a prefix of it, or
    it of them. A part's word, completed, stays on */
 let nearest = (~n=3, ~root: Sort.t, seg: Segment.t, s: string): list(string) => {
-  let s = String.trim(s);
+  let s = String.strip(s);
   let len = String.length(s);
   let resolves = c => Result.is_ok(resolve_string(~root, seg, c));
   /* the last `:` outside hint quotes */
@@ -890,14 +905,15 @@ let nearest = (~n=3, ~root: Sort.t, seg: Segment.t, s: string): list(string) => 
   let (base, part) =
     switch (colon(0, false, None)) {
     | Some(i) => (
-        String.trim(String.sub(s, 0, i)),
+        String.strip(String.sub(s, ~pos=0, ~len=i)),
         {
-          let w = String.trim(String.sub(s, i + 1, len - i - 1));
-          List.find_opt(
-            ((pw, _)) =>
-              String.starts_with(~prefix=pw, w)
-              || w != ""
-              && String.starts_with(~prefix=w, pw),
+          let w = String.strip(String.sub(s, ~pos=i + 1, ~len=len - i - 1));
+          List.find(
+            ~f=
+              ((pw, _)) =>
+                String.is_prefix(~prefix=pw, w)
+                || !String.equal(w, "")
+                && String.is_prefix(~prefix=w, pw),
             part_words,
           );
         },
@@ -910,12 +926,16 @@ let nearest = (~n=3, ~root: Sort.t, seg: Segment.t, s: string): list(string) => 
     | _ => c
     };
   let numbered =
-    switch (String.index_opt(base, ' '), String.rindex_opt(base, '#')) {
+    switch (String.index(base, ' '), String.rindex(base, '#')) {
     | (Some(i), Some(h)) when h > i =>
-      let k = String.sub(base, h + 1, String.length(base) - h - 1);
-      let c = String.sub(base, 0, i) ++ "#" ++ k;
-      List.mem_assoc(String.sub(base, 0, i), kind_words)
-      && int_of_string_opt(k) != None
+      let k = String.sub(base, ~pos=h + 1, ~len=String.length(base) - h - 1);
+      let c = String.sub(base, ~pos=0, ~len=i) ++ "#" ++ k;
+      List.Assoc.mem(
+        kind_words,
+        String.sub(base, ~pos=0, ~len=i),
+        ~equal=Poly.equal,
+      )
+      && Option.is_some(int_of_string_opt(k))
       && resolves(c)
         ? [c] : [];
     | _ => []
@@ -923,29 +943,30 @@ let nearest = (~n=3, ~root: Sort.t, seg: Segment.t, s: string): list(string) => 
   let score = key =>
     String.length(key) >= 2
     && (
-      String.starts_with(~prefix=key, base)
-      || String.starts_with(~prefix=base, key)
+      String.is_prefix(~prefix=key, base)
+      || String.is_prefix(~prefix=base, key)
     )
       ? 0 : edit_distance(base, key);
   let cutoff = max(2, String.length(base) / 3);
   let near =
     entries(~root, seg)
-    |> List.filter_map(((_, p: t)) => {
+    |> List.filter_map(~f=((_, p: t)) => {
          let path = to_string(p);
          let last =
-           switch (ListUtil.last_opt(p.elems)) {
+           switch (List.last(p.elems)) {
            | Some(e) => elem_to_string(e)
            | None => path
            };
          let d = min(score(path), score(last));
          d <= cutoff ? Some((d, String.length(path), path)) : None;
        })
-    |> List.sort(compare)
-    |> List.map(((_, _, path)) => path);
-  List.fold_left(
-    (acc, c) => List.mem(c, acc) ? acc : acc @ [c],
-    [],
-    numbered @ List.map(with_part, ListUtil.take(n, near)),
+    |> List.sort(~compare)
+    |> List.map(~f=((_, _, path)) => path);
+  List.fold(
+    numbered @ List.map(~f=with_part, ListUtil.take(n, near)),
+    ~init=[],
+    ~f=(acc, c) =>
+    List.mem(acc, c, ~equal=Poly.equal) ? acc : acc @ [c]
   )
   |> ListUtil.take(n);
 };

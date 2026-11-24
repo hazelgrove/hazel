@@ -12,11 +12,11 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
       ~f=
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
-        | _ => false
-        },
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
+          | _ => false
+          },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
@@ -105,7 +105,10 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
   if (String.equal(t, ";")
-      && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+      && (
+        Sort.equal(parent_sort, Sort.Mod)
+        || Sort.equal(parent_sort, Sort.Sig)
+      )) {
     parent_sort;
   } else {
     switch (member_head_sort(t, z, ~root)) {
@@ -119,9 +122,9 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
            expressions are valid module items. This mirrors remold_mod
            which also falls back to Exp. */
         let in_mod =
-          local_sort == Sort.Mod
-          || parent_sort == Sort.Mod
-          && Form.Expansion.try_get(Sort.Mod, t) == None;
+          Sort.equal(local_sort, Sort.Mod)
+          || Sort.equal(parent_sort, Sort.Mod)
+          && Option.is_none(Form.Expansion.try_get(Sort.Mod, t));
         switch (in_mod ? Form.Expansion.try_get(Exp, t) : None) {
         | Some(_) => Exp
         | None => parent_sort
@@ -135,7 +138,7 @@ let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   let seg = Zipper.unselect_and_zip(z);
   let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
-  if (spaces == []) {
+  if (List.is_empty(spaces)) {
     z;
   } else {
     Zipper.put_down_seg(Left, spaces, z);
@@ -186,7 +189,7 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.find_missing_shard(t, z) != None) {
+  if (Option.is_some(Zipper.find_missing_shard(t, z))) {
     let z = destroy_selection(z);
     let target = Zipper.find_missing_shard(t, z) |> Option.value_exn;
     Zipper.put_down_target(d, target, z, ~root);
@@ -269,7 +272,7 @@ let replace_shard_inplace =
  * has an enclosing tile/form the caret must not escape. */
 let keep_caret_inside_on_append = (z: t): bool =>
   Option.is_some(Siblings.neighbor(Left, z.relatives.siblings))
-  || z.relatives.ancestors != [];
+  || !List.is_empty(z.relatives.ancestors);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -553,16 +556,16 @@ let wrap_balanced = (char: string, z: t, ~root): t => {
   let content =
     List.map(
       ~f=
-      fun
+        fun
         | Piece.Tile(t)
             when
               !Tile.is_complete(t)
               && List.mem(outer_ids, t.id, ~equal=Poly.equal) =>
-        Piece.Tile({
-          ...t,
-          id: Id.mk(),
-        })
-      | p => p,
+          Piece.Tile({
+            ...t,
+            id: Id.mk(),
+          })
+        | p => p,
       content,
     );
   /* Place content as right siblings inside the new ancestor,
@@ -611,7 +614,7 @@ let selected_text = (z: t): string => {
     Token.split_nth(s, max(0, min(n, Token.length(s))));
   let drop_left =
     switch (left_offset, content) {
-    | (Some(n), [p, ..._]) when Piece.token_of(p) != None => n + 1
+    | (Some(n), [p, ..._]) when Option.is_some(Piece.token_of(p)) => n + 1
     | _ => 0
     };
   let drop_right =
@@ -693,14 +696,14 @@ let try_wrap_selection =
 let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
+    !List.is_empty(z.selection.content)
       ? try_wrap_selection(~auto_indent, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
     /* Normal path: normalize char selection then delete (if any) */
     let z =
-      z.selection.content != []
+      !List.is_empty(z.selection.content)
         ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #
@@ -720,7 +723,7 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(
                ~f=
-               Token.is_secondary(new_token)
+                 Token.is_secondary(new_token)
                    ? Fn.id : remold_regrout(Right, ~root),
              )
         : split(~auto_indent, z, char, idx, t, ~root);

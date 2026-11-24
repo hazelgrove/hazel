@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* The edit and view tools' examples, as data: the system prompt and the
    tool descriptions print them, and Test_AgentReply runs each one on its
@@ -25,7 +26,7 @@ type example = {
 
 let call = (tool, args) => {
   tool,
-  args: List.map(((k, v)) => (k, `String(v)), args),
+  args: List.map(~f=((k, v)) => (k, `String(v)), args),
 };
 
 /* a call as the prompt shows it: its other arguments inline, then its
@@ -33,20 +34,24 @@ let call = (tool, args) => {
    string, its escapes get copied into calls */
 let call_text = (c: call): string => {
   let (code, rest) =
-    List.partition(
-      ((k, v)) =>
-        switch (v) {
-        | `String(_) => k == "code"
-        | _ => false
-        },
+    List.partition_tf(
+      ~f=
+        ((k, v)) =>
+          switch (v) {
+          | `String(_) => String.equal(k, "code")
+          | _ => false
+          },
       c.args,
     );
   let inline =
     c.tool
     ++ " {"
     ++ String.concat(
-         ", ",
-         List.map(((k, v)) => k ++ ": " ++ Yojson.Safe.to_string(v), rest),
+         ~sep=", ",
+         List.map(
+           ~f=((k, v)) => k ++ ": " ++ Yojson.Safe.to_string(v),
+           rest,
+         ),
        )
     ++ "}";
   switch (code) {
@@ -339,7 +344,7 @@ let debug_unprobe = {
 
 let for_tool = (tool: string): list(call) =>
   List.concat_map(
-    e => e.in_tool ? List.filter(c => c.tool == tool, e.calls) : [],
+    ~f=e => e.in_tool ? List.filter(~f=c => c.tool == tool, e.calls) : [],
     all,
   );
 
@@ -354,32 +359,33 @@ let prompt_text: string = {
       e.program == shapes
         ? ""
         : "on `"
-          ++ String.concat(" ", String.split_on_char('\n', e.program))
+          ++ String.concat(~sep=" ", String.split(~on='\n', e.program))
           ++ "`\n"
     )
     ++ String.concat(
-         "",
+         ~sep="",
          List.mapi(
-           (i, c) =>
-             call_text(c)
-             ++ "\n"
-             ++ (
-               switch (e.results) {
-               | Some(rs) =>
-                 "→ "
-                 ++ String.concat(
-                      "\n  ",
-                      String.split_on_char('\n', List.nth(rs, i)),
-                    )
-                 ++ "\n"
-               | None => ""
-               }
-             ),
+           ~f=
+             (i, c) =>
+               call_text(c)
+               ++ "\n"
+               ++ (
+                 switch (e.results) {
+                 | Some(rs) =>
+                   "→ "
+                   ++ String.concat(
+                        ~sep="\n  ",
+                        String.split(~on='\n', List.nth_exn(rs, i)),
+                      )
+                   ++ "\n"
+                 | None => ""
+                 }
+               ),
            e.calls,
          ),
        );
   "On this program:\n```\n"
   ++ shapes
   ++ "\n```\n"
-  ++ String.concat("", List.map(example, all));
+  ++ String.concat(~sep="", List.map(~f=example, all));
 };

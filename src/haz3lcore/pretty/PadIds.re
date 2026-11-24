@@ -110,18 +110,18 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       Sum(
         List.map(
           ~f=
-          fun
-          | ConstructorMap.Variant(c, ann, payload) => {
-              let v =
-                ConstructorMap.Variant(
-                  c,
-                  ann,
+            fun
+            | ConstructorMap.Variant(c, ann, payload) => {
+                let v =
+                  ConstructorMap.Variant(
+                    c,
+                    ann,
                     Option.map(~f=pad_variant_anns, payload),
-                );
-              pad_variant_ann(v);
-            }
-          | ConstructorMap.BadEntry(t) =>
-            ConstructorMap.BadEntry(pad_variant_anns(t)),
+                  );
+                pad_variant_ann(v);
+              }
+            | ConstructorMap.BadEntry(t) =>
+              ConstructorMap.BadEntry(pad_variant_anns(t)),
           variants,
         ),
       )
@@ -139,7 +139,7 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | ProdExtension(t1, t2) =>
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
     | Sig(Open(items)) =>
-      Sig(Open(List.map(Sig.map_typ(pad_variant_anns), items)))
+      Sig(Open(List.map(~f=Sig.map_typ(pad_variant_anns), items)))
     | Sig(Closed(items)) =>
       Sig(Closed(ClosedSig.map(Sig.map_typ(pad_variant_anns), items)))
     | Unknown(_)

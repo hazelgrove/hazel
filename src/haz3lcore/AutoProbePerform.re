@@ -125,15 +125,15 @@ let clear_autoprobe =
      * resets once they're gone from the syntax cache. */
     List.fold_left(
       ~f=
-      (z, old_id) =>
-        ProbePerform.rm_multi(
-          ~drill=false,
-          ~reset=false,
-          ~syntax,
-          ~info_map,
-          old_id,
-          z,
-        ),
+        (z, old_id) =>
+          ProbePerform.rm_multi(
+            ~drill=false,
+            ~reset=false,
+            ~syntax,
+            ~info_map,
+            old_id,
+            z,
+          ),
       ~init=z,
       old_ids,
     )
@@ -278,13 +278,13 @@ let update_autoprobe =
               z,
             );
           List.fold_left(current_params, ~init=z, ~f=(z, param_id) =>
-              ProbePerform.add_multi(
-                param_id,
-                ~drill=false,
-                ~set_pending_cursor=false,
-                ~syntax,
-                ~info_map,
-                z,
+            ProbePerform.add_multi(
+              param_id,
+              ~drill=false,
+              ~set_pending_cursor=false,
+              ~syntax,
+              ~info_map,
+              z,
             )
           );
         };
@@ -306,13 +306,13 @@ let update_autoprobe =
     let z =
       List.fold_left(
         ~f=
-        (z, old_id) =>
+          (z, old_id) =>
             ProbePerform.rm_multi(
               ~drill=false,
               ~syntax,
               ~info_map,
               old_id,
-        z,
+              z,
             ),
         ~init=z,
         prev_anchors,
@@ -333,7 +333,7 @@ let update_autoprobe =
 
 let program_exp = (syntax: CachedSyntax.t): option(Exp.t) =>
   switch (
-    Option.bind(program_root_id(syntax), id =>
+    Option.bind(program_root_id(syntax), ~f=id =>
       Id.Map.find_opt(id, syntax.terms)
     )
   ) {
@@ -361,7 +361,7 @@ let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
     | Some(body) => tail_of(body)
     | None => e
     };
-  Option.map(e => Exp.rep_id(tail_of(e)), program_exp(syntax));
+  Option.map(~f=e => Exp.rep_id(tail_of(e)), program_exp(syntax));
 };
 
 /* the ⇓ toggle: one probe on the last expression, an open drawer with no
@@ -382,10 +382,10 @@ let update_tail =
     switch (target) {
     | Some(id) =>
       Id.Map.mem(id, z.refractors.multis.ephemerals)
-      || List.mem_assoc(id, z.refractors.manuals)
+      || List.Assoc.mem(z.refractors.manuals, id, ~equal=Poly.equal)
     | None => true
     };
-  if (target == prev && placed) {
+  if (Poly.equal(target, prev) && placed) {
     z;
   } else {
     let z =
@@ -400,7 +400,8 @@ let update_tail =
       eph => {
         let eph =
           switch (prev) {
-          | Some(old) when Some(old) != target && Id.Map.mem(old, eph) =>
+          | Some(old)
+              when !Poly.equal(Some(old), target) && Id.Map.mem(old, eph) =>
             Id.Map.add(old, Refractors.mk_entry(Probe), eph)
           | _ => eph
           };
@@ -436,7 +437,7 @@ let theorems_of_exp = (e: Exp.t): list(Id.t) => {
 };
 
 let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) =>
-  Option.fold(~none=[], ~some=theorems_of_exp, program_exp(syntax));
+  Option.value_map(program_exp(syntax), ~default=[], ~f=theorems_of_exp);
 
 /* where an editor shows proofs: none, under each of its theorems, or
    (a theorem's cell, which holds its statement) under its root */
@@ -453,7 +454,7 @@ let update_proofs =
     switch (proofs) {
     | NoProofs => []
     | Theorems =>
-      List.map(id => (id, ProofProj.model_string()), theorem_ids(syntax))
+      List.map(~f=id => (id, ProofProj.model_string()), theorem_ids(syntax))
     | ProofOf(thm) =>
       switch (program_root_id(syntax)) {
       | Some(root) => [(root, ProofProj.model_string(~theorem=thm, ()))]
@@ -461,14 +462,12 @@ let update_proofs =
       }
     };
   let proofs =
-    List.fold_left(
-      (m, (id, model)) =>
-        Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
-      Id.Map.empty,
-      wanted,
+    List.fold(wanted, ~init=Id.Map.empty, ~f=(m, (id, model)) =>
+      Id.Map.add(id, Refractors.mk_entry(~model, Proof), m)
     );
   Id.Map.equal(
-    (a: Refractors.entry, b: Refractors.entry) => a.model == b.model,
+    (a: Refractors.entry, b: Refractors.entry) =>
+      Poly.equal(a.model, b.model),
     proofs,
     z.refractors.proofs,
   )

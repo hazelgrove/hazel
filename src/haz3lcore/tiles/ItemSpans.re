@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* A program's items by piece structure alone (plans/hierarchical-spans.md):
    the one division the per-item layers and the cells share. A level is the
@@ -161,7 +162,9 @@ let is_fun_head = (p: Piece.t): bool =>
 let module_body = (p: Piece.t): option(Tile.t) =>
   switch (p) {
   | Tile({children: [_], _} as t)
-      when Tile.is_complete(t) && List.mem(Sort.Mod, Tile.mold(t).in_) =>
+      when
+        Tile.is_complete(t)
+        && List.mem(Tile.mold(t).in_, Sort.Mod, ~equal=Poly.equal) =>
     Some(t)
   | _ => None
   };
@@ -200,13 +203,14 @@ let rec last_line = (seg: Segment.t): option(int) => {
 }
 and last_line_tile = (t: Tile.t): option(int) =>
   List.fold_right(
-    (kid, found) =>
-      switch (found) {
-      | Some(_) => found
-      | None => last_line(kid)
-      },
     t.children,
-    None,
+    ~f=
+      (kid, found) =>
+        switch (found) {
+        | Some(_) => found
+        | None => last_line(kid)
+        },
+    ~init=None,
   );
 
 /* the indentation of the line holding [arr]'s piece [i]. [outer]: where
@@ -294,7 +298,7 @@ let raw_spans =
     )
     : list(raw) => {
   let len = Option.value(until, ~default=Array.length(arr));
-  let at_mod = sort == Sort.Mod;
+  let at_mod = Sort.equal(sort, Sort.Mod);
   let rec ws_end = i => i < len && is_ws(arr[i]) ? ws_end(i + 1) : i;
   let rec run_head = (i, stop) =>
     i >= stop
@@ -320,7 +324,7 @@ let raw_spans =
     if (i >= len) {
       let rec content = j => j < len && (!is_ws(arr[j]) || content(j + 1));
       let head = run_head(start, len);
-      let tail_ok = head != None || !nested || acc != [];
+      let tail_ok = Option.is_some(head) || !nested || !List.is_empty(acc);
       List.rev(
         content(start) && tail_ok
           ? [
@@ -328,7 +332,7 @@ let raw_spans =
               r_start: start,
               r_stop: len,
               r_cut: len,
-              r_kind: head != None ? Def : at_mod ? Stmt : Tail,
+              r_kind: Option.is_some(head) ? Def : at_mod ? Stmt : Tail,
               r_head: head,
               r_semi: None,
             },
@@ -351,7 +355,7 @@ let raw_spans =
             r_start: start,
             r_stop: ws_end(i + 1),
             r_cut: i + 1,
-            r_kind: head != None ? Def : Stmt,
+            r_kind: Option.is_some(head) ? Def : Stmt,
             r_head: head,
             r_semi: Some(i),
           },
@@ -374,7 +378,7 @@ let raw_spans =
       | Tile(t) as p
           when
             Tile.is_semi(t)
-            && (!at_mod || t.sort == Sort.Mod)
+            && (!at_mod || Sort.equal(t.sort, Sort.Mod))
             && reach_before(i) <= right_operand(p) =>
         ends_at(i)
       /* a Mod skel reads a concave grout as a member `;` */
@@ -421,7 +425,8 @@ let only_content = (arr: array(Piece.t), a: int, b: int): option(int) => {
     i >= b
       ? found
       : Piece.is_secondary(arr[i])
-          ? go(i + 1, found) : found == None ? go(i + 1, Some(i)) : None;
+          ? go(i + 1, found)
+          : Option.is_none(found) ? go(i + 1, Some(i)) : None;
   go(a, None);
 };
 let only_content_seg = (seg: Segment.t): option((int, Piece.t)) => {
@@ -429,7 +434,8 @@ let only_content_seg = (seg: Segment.t): option((int, Piece.t)) => {
     switch (ps) {
     | [] => found
     | [p, ...ps] when Piece.is_secondary(p) => go(i + 1, ps, found)
-    | [p, ...ps] => found == None ? go(i + 1, ps, Some((i, p))) : None
+    | [p, ...ps] =>
+      Option.is_none(found) ? go(i + 1, ps, Some((i, p))) : None
     };
   go(0, seg, None);
 };
@@ -463,12 +469,12 @@ let with_members =
 let brace_of = (arr: array(Piece.t), s: site): option((int, Tile.t)) =>
   switch (s) {
   | Kid(_, t) =>
-    Option.bind(only_content_seg(ListUtil.last(t.children)), ((m, p)) =>
-      Option.map(b => (m, b), module_body(p))
+    Option.bind(only_content_seg(ListUtil.last(t.children)), ~f=((m, p)) =>
+      Option.map(~f=b => (m, b), module_body(p))
     )
   | Run(_, a, b) =>
-    Option.bind(only_content(arr, a, b), m =>
-      Option.map(br => (m, br), module_body(arr[m]))
+    Option.bind(only_content(arr, a, b), ~f=m =>
+      Option.map(~f=br => (m, br), module_body(arr[m]))
     )
   };
 
@@ -486,10 +492,11 @@ let opens_chain = (arr: array(Piece.t), c0: int, c1: int): bool => {
 let index_of = (spans: array(span)): Id.Map.t(int) => {
   let m = ref(Id.Map.empty);
   Array.iteri(
-    (k, sp) => {
-      Option.iter(id => m := Id.Map.add(id, k, m^), sp.first);
-      m := Id.Map.add(sp.anchor, k, m^);
-    },
+    ~f=
+      (k, sp) => {
+        Option.iter(~f=id => m := Id.Map.add(id, k, m^), sp.first);
+        m := Id.Map.add(sp.anchor, k, m^);
+      },
     spans,
   );
   m^;
@@ -508,12 +515,12 @@ let read_raws =
   let parts =
     List.init(
       max(n, 1),
-      k => {
+      ~f=k => {
         let lo = k == 0 ? 0 : written[k - 1].r_cut;
         let hi = k >= n - 1 ? len : written[k].r_cut;
-        let slice = Array.to_list(Array.sub(arr, lo, hi - lo));
+        let slice = Array.to_list(Array.sub(arr, ~pos=lo, ~len=hi - lo));
         switch (
-          Segment.incomplete_tiles(slice) == []
+          List.is_empty(Segment.incomplete_tiles(slice))
             ? []
             : MemberLines.member_parts(
                 ~line=
@@ -529,13 +536,13 @@ let read_raws =
           cut := true;
           List.rev(
             snd(
-              List.fold_left(
-                ((at, acc), (part, _)) => {
+              List.fold(
+                parts,
+                ~init=(lo, []),
+                ~f=((at, acc), (part, _)) => {
                   let next = at + List.length(part);
                   (next, [(at, next), ...acc]);
                 },
-                (lo, []),
-                parts,
               ),
             ),
           );
@@ -545,8 +552,9 @@ let read_raws =
     |> List.concat;
   (
     List.concat_map(
-      ((from, until)) =>
-        raw_spans(~sort=Mod, ~nested, ~grout, ~from, ~until, arr),
+      ~f=
+        ((from, until)) =>
+          raw_spans(~sort=Mod, ~nested, ~grout, ~from, ~until, arr),
       parts,
     ),
     cut^,
@@ -559,7 +567,7 @@ let read_raws =
 let separators = (seg: Segment.t): list(Id.t) => {
   let arr = Array.of_list(seg);
   List.filter_map(
-    (r: raw) => Option.map(i => Piece.id(arr[i]), r.r_semi),
+    ~f=(r: raw) => Option.map(~f=i => Piece.id(arr[i]), r.r_semi),
     raw_spans(~sort=Mod, ~nested=false, ~grout=true, arr),
   );
 };
@@ -582,8 +590,8 @@ let build =
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
   let (raws, cut) =
-    ends != Written && sort == Sort.Mod
-      ? read_raws(~grout=ends == Rows, ~nested, ~line, arr)
+    !Poly.equal(ends, Written) && Sort.equal(sort, Sort.Mod)
+      ? read_raws(~grout=Poly.equal(ends, Rows), ~nested, ~line, arr)
       : (raw_spans(~sort, ~nested, arr), false);
   let raws = Array.of_list(raws);
   let first_content = (r: raw) => {
@@ -600,7 +608,7 @@ let build =
         ? found
         : (
           switch (arr[i]) {
-          | Grout({shape: Convex, _}) when found == None =>
+          | Grout({shape: Convex, _}) when Option.is_none(found) =>
             go(i + 1, Some(i))
           | Secondary(_) => go(i + 1, found)
           | _ => None
@@ -614,7 +622,7 @@ let build =
       (0, None);
     } else if (first_content(raws[n - 1]) >= raws[n - 1].r_stop) {
       (n - 1, None);
-    } else if (sort == Sort.Mod) {
+    } else if (Sort.equal(sort, Sort.Mod)) {
       switch (hole_only(raws[n - 1])) {
       | Some(_) when n == 1 => (0, None)
       | Some(g) => (n - 1, Some(g))
@@ -630,7 +638,7 @@ let build =
   let spans =
     Array.init(
       count,
-      k => {
+      ~f=k => {
         let r = raws[k];
         let last = k == count - 1;
         /* the core: the run without edge whitespace or `;` */
@@ -643,7 +651,10 @@ let build =
           let e = back_ws(r.r_stop);
           /* its separator: a `;`, or a missing one's grout */
           back_ws(
-            e > c0 && (Piece.is_semi(arr[e - 1]) || r.r_semi == Some(e - 1))
+            e > c0
+            && (
+              Piece.is_semi(arr[e - 1]) || Poly.equal(r.r_semi, Some(e - 1))
+            )
               ? e - 1 : e,
           );
         };
@@ -663,7 +674,8 @@ let build =
           | (_, _, Some(s)) => Piece.id(arr[s])
           /* a last member that is a let chain: its first piece anchors the
              chain's first item */
-          | (Stmt, _, None) when sort == Sort.Mod && opens_chain(arr, c0, c1) =>
+          | (Stmt, _, None)
+              when Sort.equal(sort, Sort.Mod) && opens_chain(arr, c0, c1) =>
             Id.derive(~salt="chain", Piece.id(arr[f]))
           | _ => Piece.id(arr[f])
           };
@@ -718,8 +730,8 @@ let build =
         let body =
           switch (r.r_kind, r.r_head) {
           | (Def, Some(h)) =>
-            Option.bind(site_at(arr, h, c1), s =>
-              Option.map(((_, b: Tile.t)) => b.id, brace_of(arr, s))
+            Option.bind(site_at(arr, h, c1), ~f=s =>
+              Option.map(~f=((_, b: Tile.t)) => b.id, brace_of(arr, s))
             )
           | _ => None
           };
@@ -798,7 +810,7 @@ let memo =
       when
         Segment.ptr_eq(lv.seg, seg)
         && lv.offset == offset
-        && Option.fold(~none=true, ~some=n => lv.indent == n, indent)
+        && Option.value_map(indent, ~default=true, ~f=n => lv.indent == n)
         && lv.line == line
         && lv.bol == bol
         && lv.eol == eol => lv
@@ -813,7 +825,7 @@ let memo =
    member levels end their items as it does */
 let top = (~ends=Written, ~root: Sort.t, seg: Segment.t): level => {
   Swept.next_pass(cache);
-  let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+  let sort = Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp;
   let first =
     switch (seg) {
     | [p, ..._] => Piece.id(p)
@@ -860,7 +872,7 @@ let head = (lv: level, k: int): option((int, Tile.t)) => {
       ? None
       : (
         switch (lv.pieces[i]) {
-        | Tile(t) when t.id == sp.anchor => Some((i, t))
+        | Tile(t) when Id.equal(t.id, sp.anchor) => Some((i, t))
         | _ => go(i + 1)
         }
       );
@@ -902,7 +914,7 @@ let members = (lv: level, k: int): option(level) =>
   | None => None
   | Some(_) =>
     let s = site_of(lv, k);
-    switch (Option.bind(s, brace_of(lv.pieces)), s) {
+    switch (Option.bind(s, ~f=brace_of(lv.pieces)), s) {
     | (Some((m, brace)), Some(s)) =>
       let indent =
         switch (s) {
@@ -915,7 +927,7 @@ let members = (lv: level, k: int): option(level) =>
           );
         | Run(_) => indent_at(~outer=outer(lv), lv.pieces, m)
         };
-      let seg = List.hd(brace.children);
+      let seg = List.hd_exn(brace.children);
       let line = Some(members_line(~line=lv.line, lv.pieces, s, m));
       Some(
         memo(
@@ -956,7 +968,7 @@ let chain = (lv: level, k: int): option(level) => {
     let bol = c0 == 0 ? lv.bol : Piece.is_linebreak(arr[c0 - 1]);
     let eol = c1 == Array.length(arr) ? lv.eol : Piece.is_linebreak(arr[c1]);
     let indent = Some(sp.base_col);
-    let seg = Array.to_list(Array.sub(arr, c0, c1 - c0));
+    let seg = Array.to_list(Array.sub(arr, ~pos=c0, ~len=c1 - c0));
     let line = Some(MemberLines.level_at(~line=lv.line, arr, c0));
     Some(
       memo(
@@ -1027,7 +1039,7 @@ let block = (lv: level, k: int): option(level) => {
       );
     Array.length(b.spans) > 0 ? Some(b) : None;
   };
-  let is_type = (t: Tile.t) => Tile.token(t, 0) == "type";
+  let is_type = (t: Tile.t) => String.equal(Tile.token(t, 0), "type");
   switch (sp.body, site_of(lv, k)) {
   | (None, Some(Kid(h, t))) when !is_type(t) =>
     let c = List.length(t.children) - 1;
@@ -1044,7 +1056,7 @@ let block = (lv: level, k: int): option(level) => {
         ~indent=indent_at(~outer=outer(lv), lv.pieces, a),
         ~line=MemberLines.level_at(~line=lv.line, lv.pieces, a),
         ~offset=a,
-        Array.to_list(Array.sub(lv.pieces, a, b - a)),
+        Array.to_list(Array.sub(lv.pieces, ~pos=a, ~len=b - a)),
       )
     | _ => None
     }
@@ -1055,23 +1067,23 @@ let block = (lv: level, k: int): option(level) => {
 /* span [k]'s pieces [lo, hi) */
 let slice = (lv: level, k: int): Segment.t => {
   let sp = lv.spans[k];
-  Array.to_list(Array.sub(lv.pieces, sp.lo, sp.hi - sp.lo));
+  Array.to_list(Array.sub(lv.pieces, ~pos=sp.lo, ~len=sp.hi - sp.lo));
 };
 
 /* span [k]'s core: the item without edge whitespace or its `;` */
 let core = (lv: level, k: int): Segment.t => {
   let (c0, c1) = lv.spans[k].core;
-  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
+  Array.to_list(Array.sub(lv.pieces, ~pos=c0, ~len=c1 - c0));
 };
 
 /* span [k] of a member level is an unfinished member whose open form
    takes the members after its member line: Read cuts it there */
 let runs_past_line = (lv: level, k: int): bool =>
-  lv.sort == Sort.Mod
+  Sort.equal(lv.sort, Sort.Mod)
   && {
     let lo = lv.spans[k].lo;
     let item = slice(lv, k);
-    Segment.incomplete_tiles(item) != []
+    !List.is_empty(Segment.incomplete_tiles(item))
     && List.length(
          MemberLines.member_parts(
            ~line=
@@ -1092,10 +1104,10 @@ let keyed = (lv: level): list((Id.t, Segment.t)) =>
   | ([||], []) => []
   | ([||], [p, ..._] as seg) => [(Piece.id(p), seg)]
   | (spans, _) =>
-    List.init(Array.length(spans), k => (spans[k].anchor, slice(lv, k)))
+    List.init(Array.length(spans), ~f=k => (spans[k].anchor, slice(lv, k)))
   };
 
-let slices = (lv: level): list(Segment.t) => List.map(snd, keyed(lv));
+let slices = (lv: level): list(Segment.t) => List.map(~f=snd, keyed(lv));
 
 /* a lone module literal item, for a layer that redoes its members: its
    member slices, the item with a new member list in their place (the
@@ -1108,7 +1120,7 @@ let module_item =
   let lv =
     build(
       ~line,
-      ~sort=root == Sort.Mod ? Sort.Mod : Sort.Exp,
+      ~sort=Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp,
       ~owner=Top,
       ~nested=false,
       ~bol=true,
@@ -1119,30 +1131,31 @@ let module_item =
     );
   switch (lv.spans) {
   | [|{body: Some(_), _}|] =>
-    Option.bind(site_of(lv, 0), s =>
+    Option.bind(site_of(lv, 0), ~f=s =>
       Option.map(
-        ((m, brace: Tile.t)) => {
-          let members =
-            build(
-              ~sort=Sort.Mod,
-              ~owner=Members(brace.id),
-              ~nested=false,
-              ~bol=false,
-              ~eol=false,
-              ~indent=Some(0),
-              ~offset=0,
-              List.hd(brace.children),
+        ~f=
+          ((m, brace: Tile.t)) => {
+            let members =
+              build(
+                ~sort=Sort.Mod,
+                ~owner=Members(brace.id),
+                ~nested=false,
+                ~bol=false,
+                ~eol=false,
+                ~indent=Some(0),
+                ~offset=0,
+                List.hd_exn(brace.children),
+              );
+            let put = (seg: Segment.t): Segment.t => {
+              let (i, p) = with_members(s, (m, brace), seg);
+              ListUtil.put_nth(i, p, item);
+            };
+            (
+              slices(members),
+              put,
+              Some(members_line(~line, lv.pieces, s, m)),
             );
-          let put = (seg: Segment.t): Segment.t => {
-            let (i, p) = with_members(s, (m, brace), seg);
-            ListUtil.put_nth(i, p, item);
-          };
-          (
-            slices(members),
-            put,
-            Some(members_line(~line, lv.pieces, s, m)),
-          );
-        },
+          },
         brace_of(lv.pieces, s),
       )
     )
@@ -1172,7 +1185,8 @@ let chain_item =
   switch (lv.spans) {
   | [|{kind: Stmt, core: (c0, c1), anchor, _}|]
       when opens_chain(lv.pieces, c0, c1) =>
-    let sub = (a, b) => Array.to_list(Array.sub(lv.pieces, a, b - a));
+    let sub = (a, b) =>
+      Array.to_list(Array.sub(lv.pieces, ~pos=a, ~len=b - a));
     let chain =
       build(
         ~sort=Sort.Exp,
@@ -1200,14 +1214,15 @@ let fold = (f: ('a, list((level, int))) => 'a, acc: 'a, lv: level): 'a => {
   let rec go = (acc, path, lv) => {
     let acc = ref(acc);
     Array.iteri(
-      (k, _) => {
-        let here = [(lv, k), ...path];
-        acc := f(acc^, List.rev(here));
-        switch (children(lv, k)) {
-        | Some(m) => acc := go(acc^, here, m)
-        | None => ()
-        };
-      },
+      ~f=
+        (k, _) => {
+          let here = [(lv, k), ...path];
+          acc := f(acc^, List.rev(here));
+          switch (children(lv, k)) {
+          | Some(m) => acc := go(acc^, here, m)
+          | None => ()
+          };
+        },
       lv.spans,
     );
     acc^;
@@ -1222,10 +1237,10 @@ let find =
     (~root: Sort.t, id: Id.t, seg: Segment.t): option(list((level, int))) => {
   let rec go = (path, lv) =>
     switch (Id.Map.find_opt(id, index(lv))) {
-    | Some(k) when lv.spans[k].anchor == id =>
+    | Some(k) when Id.equal(lv.spans[k].anchor, id) =>
       Some(List.rev([(lv, k), ...path]))
     | Some(k) =>
-      switch (Option.bind(children(lv, k), go([(lv, k), ...path]))) {
+      switch (Option.bind(children(lv, k), ~f=go([(lv, k), ...path]))) {
       | Some(_) as below => below
       | None => Some(List.rev([(lv, k), ...path]))
       }

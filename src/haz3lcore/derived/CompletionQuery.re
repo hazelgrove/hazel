@@ -202,30 +202,30 @@ let chips_at_caret =
           };
         List.mapi(
           ~f=
-          (i, ins: CanonicalCompletion.insertion) =>
-            Option.is_none(right_hole) || i != List.length(owned) - 1
-              ? ins
-              : {
-                ...ins,
-                delimiters:
-                  List.mapi(
+            (i, ins: CanonicalCompletion.insertion) =>
+              Option.is_none(right_hole) || i != List.length(owned) - 1
+                ? ins
+                : {
+                  ...ins,
+                  delimiters:
+                    List.mapi(
                       ~f=
-                    (j, d: CanonicalCompletion.delimiter_info) =>
-                      j == List.length(ins.delimiters)
-                      - 1
+                        (j, d: CanonicalCompletion.delimiter_info) =>
+                          j == List.length(ins.delimiters)
+                          - 1
                           && Option.equal(
                                Grout.equal_shape,
                                d.trailing_hole,
                                right_hole,
                              )
-                        ? {
-                          ...d,
-                          trailing_hole: None,
-                        }
-                        : d,
-                    ins.delimiters,
-                  ),
-              },
+                            ? {
+                              ...d,
+                              trailing_hole: None,
+                            }
+                            : d,
+                      ins.delimiters,
+                    ),
+                },
           owned,
         );
       }

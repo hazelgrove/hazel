@@ -39,7 +39,10 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
     | (Form.Compound(CellJoin), Form.Compound(CellJoin)) =>
       both_infix()
       && Tile.mold(t1).out == Tile.mold(t2).out
-      && (Tile.mold(t1).out == Sort.Mod || Tile.mold(t1).out == Sort.Sig)
+      && (
+        Sort.equal(Tile.mold(t1).out, Sort.Mod)
+        || Sort.equal(Tile.mold(t1).out, Sort.Sig)
+      )
     /* sum-type + chains; label-based on purpose: unmolded + tokens
        get an infix Any-fallback mold and must chain too */
     | _ =>
@@ -117,7 +120,7 @@ module Stacks = {
         | Concave(prec') =>
           Precedence.compare(prec', prec) < 0
           || Precedence.compare(prec', prec) == 0
-          && Precedence.associativity(prec') != Some(Left)
+          && !Poly.equal(Precedence.associativity(prec'), Some(Left))
         | Convex => false
         }
       | _ => false

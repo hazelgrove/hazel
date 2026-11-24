@@ -66,21 +66,21 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
 let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
   List.map(
     ~f=
-    Base.map_piece(~f_piece=(rec_call, p: piece) =>
-      switch (p) {
-      | Tile(t) when Tile.has_label(t, [implicit_hole]) =>
-        Grout({
-          id: t.id,
-          shape: Convex,
-        })
-      | Tile(t) when Tile.has_label(t, [Token.concave_hole_marker]) =>
-        Grout({
-          id: t.id,
-          shape: Concave,
-        })
-      | _ => rec_call(p)
-      }
-    ),
+      Base.map_piece(~f_piece=(rec_call, p: piece) =>
+        switch (p) {
+        | Tile(t) when Tile.has_label(t, [implicit_hole]) =>
+          Grout({
+            id: t.id,
+            shape: Convex,
+          })
+        | Tile(t) when Tile.has_label(t, [Token.concave_hole_marker]) =>
+          Grout({
+            id: t.id,
+            shape: Concave,
+          })
+        | _ => rec_call(p)
+        }
+      ),
     seg,
   );
 

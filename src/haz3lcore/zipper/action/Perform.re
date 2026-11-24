@@ -63,11 +63,11 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
    spaces. True at first-content and inside the indentation run. */
 let at_line_leading_whitespace = (z: Zipper.t): bool =>
   z.caret == Outer
-  && z.selection.content == []
+  && List.is_empty(z.selection.content)
   && {
     let rec all_white = (ps: list(Piece.t)) =>
       switch (ps) {
-      | [] => z.relatives.ancestors == []
+      | [] => List.is_empty(z.relatives.ancestors)
       | [Piece.Secondary(s), ...rest] =>
         Secondary.is_space(s) ? all_white(rest) : Secondary.is_linebreak(s)
       | _ => false
@@ -83,7 +83,7 @@ let at_line_leading_whitespace = (z: Zipper.t): bool =>
    AUTO-INDENT level: spaces the user typed beyond the indent are
    real material, deleted one per press. */
 let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
-  if (z.caret != Outer || z.selection.content != []) {
+  if (!Poly.equal(z.caret, Outer) || !List.is_empty(z.selection.content)) {
     None;
   } else {
     let right_is_space =
@@ -110,27 +110,27 @@ let indent_join_run = (z: Zipper.t): option((int, Id.t)) =>
 let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
   List.fold_left(
     ~f=
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
-      | Tile(t) =>
-        switch (
-          List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => Some(w.id)
+        | Tile(t) =>
+          switch (
+            List.fold_left(
               ~f=
-            (a, ch) =>
-              switch (last_lb_in_seg(ch)) {
-              | Some(id) => Some(id)
-              | None => a
-              },
+                (a, ch) =>
+                  switch (last_lb_in_seg(ch)) {
+                  | Some(id) => Some(id)
+                  | None => a
+                  },
               ~init=None,
-            t.children,
-          )
-        ) {
-        | Some(id) => Some(id)
-        | None => acc
-        }
-      | _ => acc
-      },
+              t.children,
+            )
+          ) {
+          | Some(id) => Some(id)
+          | None => acc
+          }
+        | _ => acc
+        },
     ~init=None,
     seg,
   );
@@ -138,12 +138,12 @@ let rec last_lb_in_seg = (seg: Segment.t): option(Id.t) =>
 let rec all_lbs_in_seg = (seg: Segment.t): list(Id.t) =>
   List.concat_map(
     ~f=
-    (p: Piece.t) =>
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
         | Tile(t) => List.concat_map(~f=all_lbs_in_seg, t.children)
-      | _ => []
-      },
+        | _ => []
+        },
     seg,
   );
 
@@ -156,8 +156,8 @@ let governing_lb = (z: Zipper.t): option(Id.t) =>
   | None =>
     List.fold_left(
       ~f=
-      (acc, (_, sibs): Ancestors.generation) =>
-        acc != None ? acc : last_lb_in_seg(fst(sibs)),
+        (acc, (_, sibs): Ancestors.generation) =>
+          Option.is_some(acc) ? acc : last_lb_in_seg(fst(sibs)),
       ~init=None,
       z.relatives.ancestors,
     )
@@ -176,8 +176,8 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
     )
     @ all_lbs_in_seg(z.selection.content)
     |> Id.Set.of_list;
-  let line0 = first_line_lb == None;
-  let indent = d == Direction.Right;
+  let line0 = Option.is_none(first_line_lb);
+  let indent = Direction.equal(d, Direction.Right);
   let adjust_run = (seg: Segment.t): Segment.t =>
     if (indent) {
       [
@@ -612,16 +612,16 @@ let rec go =
       let protect =
         List.map(
           ~f=
-          fun
-          | Piece.Grout({id, shape: Convex}) =>
-            Piece.Tile({
-              id,
-              form: Tok(Token.implicit_hole_marker),
-              sort: Exp,
-              shards: [0],
-              children: [],
-            })
-          | p => p,
+            fun
+            | Piece.Grout({id, shape: Convex}) =>
+              Piece.Tile({
+                id,
+                form: Tok(Token.implicit_hole_marker),
+                sort: Exp,
+                shards: [0],
+                children: [],
+              })
+            | p => p,
         );
       LocalReformat.around(
         ~enabled=settings.auto_reindent,
@@ -638,20 +638,20 @@ let rec go =
           Parser.to_zipper(~root, ~zipper_init=z, text)
           |> Option.map(
                ~f=
-               ZipperBase.MapPiece.go(p =>
-                 switch (p) {
-                 | Tile({id, form: Tok(marker), _})
-                     when
+                 ZipperBase.MapPiece.go(p =>
+                   switch (p) {
+                   | Tile({id, form: Tok(marker), _})
+                       when
                          String.equal(marker, Token.implicit_hole_marker)
                          && !List.mem(old_markers^, id, ~equal=Id.equal) => [
-                     Piece.Grout({
-                       id,
-                       shape: Convex,
-                     }),
-                   ]
-                 | p => [p]
-                 }
-               ),
+                       Piece.Grout({
+                         id,
+                         shape: Convex,
+                       }),
+                     ]
+                   | p => [p]
+                   }
+                 ),
              );
         },
       )

@@ -42,7 +42,7 @@ let rec target_subterm_ids =
         target_subterm_ids(~drill_let=false, IdTagged.rep_id(def), info_map);
       switch (Pat.function_sugar(pat)) {
       | Some((_f_name, args, _ret_ty)) =>
-        def_targets @ List.map(Pat.rep_id, args)
+        def_targets @ List.map(~f=Pat.rep_id, args)
       | None => def_targets
       };
     | (_, Some(Exp(def))) =>
@@ -188,23 +188,23 @@ let sort_ids_lexically =
   let with_positions =
     List.filter_map(
       ~f=
-      id =>
-        switch (
-          TermData.extreme_measures(id, syntax.term_data, syntax.measured)
-        ) {
-        | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
-        | None => None
-        },
+        id =>
+          switch (
+            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
+          ) {
+          | Some((start_pt, _)) => Some((id, start_pt.row, start_pt.col))
+          | None => None
+          },
       ids,
     );
   let sorted =
     List.sort(
       ~compare=
-      ((_, r1, c1), (_, r2, c2)) =>
-        switch (Int.compare(r1, r2)) {
-        | 0 => Int.compare(c1, c2)
-        | n => n
-        },
+        ((_, r1, c1), (_, r2, c2)) =>
+          switch (Int.compare(r1, r2)) {
+          | 0 => Int.compare(c1, c2)
+          | n => n
+          },
       with_positions,
     );
   List.map(~f=((id, _, _)) => id, sorted);

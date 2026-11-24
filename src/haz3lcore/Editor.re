@@ -210,7 +210,7 @@ module Update = {
      * when it sets no buffer, so their completions share the memo. */
     let tydi = settings.assist && settings.statics && is_edited;
     let segment =
-      tydi && state.zipper.selection.mode != Buffer(Unparsed)
+      tydi && !Poly.equal(state.zipper.selection.mode, Buffer(Unparsed))
         ? Some(Zipper.unselect_and_zip(state.zipper)) : None;
     let zipper =
       tydi
@@ -221,7 +221,7 @@ module Update = {
             state.zipper,
           )
         : state.zipper;
-    let segment = zipper === state.zipper ? segment : None;
+    let segment = phys_equal(zipper, state.zipper) ? segment : None;
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses

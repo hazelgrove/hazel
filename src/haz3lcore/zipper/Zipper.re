@@ -87,21 +87,22 @@ let restore_relatives_dirty =
     let (siblings, dirty) = restore_sibs_dirty(o.siblings, n.siblings);
     let anc_dirty = ref(false);
     let ancestors =
-      List.map2(
-        ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
-          let a =
-            if (oa === na || compare(oa, na) == 0) {
-              oa;
-            } else {
+      List.map2_exn(
+        ~f=
+          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+            let a =
+              if (phys_equal(oa, na) || compare(oa, na) == 0) {
+                oa;
+              } else {
+                anc_dirty := true;
+                na;
+              };
+            let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
+            if (!Id.Set.is_empty(d)) {
               anc_dirty := true;
-              na;
             };
-          let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
-          if (!Id.Set.is_empty(d)) {
-            anc_dirty := true;
-          };
-          (a, sibs);
-        },
+            (a, sibs);
+          },
         o.ancestors,
         n.ancestors,
       );
@@ -134,11 +135,11 @@ let is_solid: Piece.t => bool =
    the boundary solid; [outer] is the side facing away from the caret */
 let window_bound =
     (outer: Direction.t, mini: list(Piece.t)): option(Nib.Shape.t) =>
-  switch (ListUtil.last_opt(mini)) {
+  switch (List.last(mini)) {
   | Some(p) when is_solid(p) =>
     Piece.shapes(p)
-    |> Option.map(((l, r)) =>
-         Nib.Shape.flip(outer == Direction.Left ? l : r)
+    |> Option.map(~f=((l, r)) =>
+         Nib.Shape.flip(Direction.equal(outer, Direction.Left) ? l : r)
        )
   | _ => None
   };
@@ -151,10 +152,8 @@ let split_window =
     (~dirty: Id.Set.t, ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   let in_dirty = p => Id.Set.mem(Piece.id(p), dirty);
   let (_, last_dirty) =
-    List.fold_left(
-      ((i, last), p) => (i + 1, in_dirty(p) ? i : last),
-      (0, (-1)),
-      ps,
+    List.fold(ps, ~init=(0, (-1)), ~f=((i, last), p) =>
+      (i + 1, in_dirty(p) ? i : last)
     );
   let rec take = (i, mini, rest) =>
     switch (rest) {
@@ -171,14 +170,15 @@ let split_window =
    descends past a caret-relative junction) forces the global pass */
 let ancestors_stale = (ancs: Ancestors.t): bool =>
   List.exists(
-    ((a, (pre, suf)): Ancestors.generation) => {
-      let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
-      !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
-      || !
-           Id.Set.is_empty(
-             Segment.stale_affix_ids(~caret_shape=r', Right, suf),
-           );
-    },
+    ~f=
+      ((a, (pre, suf)): Ancestors.generation) => {
+        let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+        !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
+        || !
+             Id.Set.is_empty(
+               Segment.stale_affix_ids(~caret_shape=r', Right, suf),
+             );
+      },
     ancs,
   );
 
@@ -211,8 +211,10 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
     /* pre is in document order: the caret side is its end */
     let (mini_pre_rev, far_pre_rev) = split_window(~dirty, List.rev(pre));
     let (mini_suf, far_suf) = split_window(~dirty, suf);
-    let l_shape = far_pre_rev == [] ? None : window_bound(Left, mini_pre_rev);
-    let r_shape = far_suf == [] ? None : window_bound(Right, mini_suf);
+    let l_shape =
+      List.is_empty(far_pre_rev) ? None : window_bound(Left, mini_pre_rev);
+    let r_shape =
+      List.is_empty(far_suf) ? None : window_bound(Right, mini_suf);
     let (mini_pre', mini_suf') =
       Relatives.regrout_siblings(
         d,
@@ -285,7 +287,7 @@ let rescan_parent_shards = (z: t): t => {
       (sibs: Siblings.t, target: Ancestor.t)
       : option((Siblings.t, Ancestor.t)) => {
     let missing = ancestor_missing(target);
-    if (missing == []) {
+    if (List.is_empty(missing)) {
       None;
     } else {
       let convert = convert_piece(target, missing);
@@ -900,7 +902,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 };
 
 let unselect = (z: t): t =>
-  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+  List.is_empty(z.selection.content)
+    ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {

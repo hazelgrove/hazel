@@ -54,15 +54,15 @@ let uniq_livelit_lines: list(string) = {
   let (lines, _) =
     List.fold_left(
       ~f=
-      ((acc_lines, seen), k) =>
+        ((acc_lines, seen), k) =>
           if (List.mem(seen, k, ~equal=Poly.equal)) {
-          (acc_lines, seen);
-        } else {
-          switch (livelit_line(k)) {
-          | Some(line) => ([line, ...acc_lines], [k, ...seen])
-          | None => (acc_lines, [k, ...seen])
-          };
-        },
+            (acc_lines, seen);
+          } else {
+            switch (livelit_line(k)) {
+            | Some(line) => ([line, ...acc_lines], [k, ...seen])
+            | None => (acc_lines, [k, ...seen])
+            };
+          },
       ~init=([], []),
       ProjectorKind.livelit_projectors,
     );

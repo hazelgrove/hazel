@@ -193,10 +193,10 @@ let output_to_segment = (outputs: list(output)): Segment.t =>
   List.rev(
     List.rev_map(
       ~f=
-      fun
-      | OPiece(p) => p
-      | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
-      | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
+        fun
+        | OPiece(p) => p
+        | OSpace => Piece.secondary(Secondary.mk_space(Id.mk()))
+        | ONewline => Piece.secondary(Secondary.mk_newline(Id.mk())),
       outputs,
     ),
   );
@@ -227,15 +227,15 @@ let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
   let (_, set) =
     List.fold_left(
       ~f=
-      ((newline_count, set), p) =>
-        if (is_whitespace(p)) {
-          (is_linebreak(p) ? newline_count + 1 : newline_count, set);
-        } else {
+        ((newline_count, set), p) =>
+          if (is_whitespace(p)) {
+            (is_linebreak(p) ? newline_count + 1 : newline_count, set);
+          } else {
             (
               0,
               newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set,
             );
-        },
+          },
       ~init=(0, Id.Map.empty),
       seg,
     );
@@ -364,12 +364,12 @@ let piece_precedence = (p: Piece.t): option(int) =>
 let find_loosest_prec = (pieces: list(Piece.t)): option(int) =>
   List.fold_left(
     ~f=
-    (best, p) =>
-      switch (piece_precedence(p), best) {
-      | (Some(prec), None) => Some(prec)
-      | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
-      | _ => best
-      },
+      (best, p) =>
+        switch (piece_precedence(p), best) {
+        | (Some(prec), None) => Some(prec)
+        | (Some(prec), Some(best_prec)) when prec > best_prec => Some(prec)
+        | _ => best
+        },
     ~init=None,
     pieces,
   );
@@ -469,7 +469,7 @@ let is_paren_or_bracket = (p: Piece.t): bool =>
       _,
     }) =>
     /* Complete tile (has children) or opening shard (index 0) */
-    !List.is_empty(children) || shards == [0]
+    !List.is_empty(children) || List.equal(Int.equal, shards, [0])
   /* nullary application: f() */
   | Tile(t) when Tile.is_empty_tuple_shaped(t) => true
   | _ => false
@@ -1324,11 +1324,11 @@ and build_infix_chain_doc =
       List.fold_left(
         ~f=(acc, seg) => acc + segment_flat_width(seg) + 1,
         ~init=
-        List.fold_left(
+          List.fold_left(
             ~f=(acc, op) => acc + piece_width(op) + 1,
             ~init=0,
-          operators,
-        ),
+            operators,
+          ),
         operands,
       );
     let budget = s.width - 8;
@@ -1337,19 +1337,19 @@ and build_infix_chain_doc =
       let (doc, _) =
         List.fold_left(
           ~f=
-          ((acc, line_w), (op, operand)) => {
-            let step_w = piece_width(op) + segment_flat_width(operand) + 2;
-            let operand_doc = Group(segment_to_doc(s, operand));
-            line_w + step_w > budget
-              ? (
-                cats([acc, HardBreak, piece_doc(op), Space, operand_doc]),
-                step_w,
-              )
-              : (
-                cats([acc, Space, piece_doc(op), Space, operand_doc]),
-                line_w + step_w,
-              );
-          },
+            ((acc, line_w), (op, operand)) => {
+              let step_w = piece_width(op) + segment_flat_width(operand) + 2;
+              let operand_doc = Group(segment_to_doc(s, operand));
+              line_w + step_w > budget
+                ? (
+                  cats([acc, HardBreak, piece_doc(op), Space, operand_doc]),
+                  step_w,
+                )
+                : (
+                  cats([acc, Space, piece_doc(op), Space, operand_doc]),
+                  line_w + step_w,
+                );
+            },
           ~init=(first_doc, segment_flat_width(first)),
           steps,
         );

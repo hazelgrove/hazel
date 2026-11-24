@@ -1,4 +1,5 @@
 open Language;
+open Poly;
 
 /* whole-program statics per top-level item (body replaced by a hole)
    with chained ctxs: an edit recomputes the edited item plus downstream
@@ -9,8 +10,8 @@ open Language;
    patches, its aggregates) is kept between calcs and updated where items
    changed, so an edit's bookkeeping is proportional to the edit */
 
-module SSet = Set.Make(String);
-module SMap = Map.Make(String);
+module SSet = Stdlib.Set.Make(String);
+module SMap = Stdlib.Map.Make(String);
 
 type item = {
   d_id: Id.t, /* the item's rep id (the outline id domain) */
@@ -167,7 +168,7 @@ let items_of = (e: Exp.t): list(Mod.t) =>
 /* the module value [node] elaborates to, from its members' summed elab */
 let module_elab = (node: Exp.t, top: option(Exp.t)): Exp.t => {
   ...node,
-  term: Module(Option.fold(~none=[], ~some=items_of, top)),
+  term: Module(Option.value_map(top, ~default=[], ~f=items_of)),
 };
 
 /* a let chain at an item position is a level of items; one inside a
@@ -188,12 +189,12 @@ let head_compares = ref(0);
    id-preserving rebuild compares equal) */
 let head_equal = (a: Exp.t, b: Exp.t): bool => {
   let same = (x, y) =>
-    x === y
+    phys_equal(x, y)
     || {
       incr(head_compares);
       compare(x, y) == 0;
     };
-  a === b
+  phys_equal(a, b)
   || (
     switch (a.term, b.term) {
     | (Let(p1, d1, _), Let(p2, d2, _)) => same(p1, p2) && same(d1, d2)
@@ -231,9 +232,10 @@ let entry_name = (e: Ctx.entry): string =>
    name leaves a value binding in scope */
 let var_names = (exports: list(Ctx.entry)): list(string) =>
   List.filter_map(
-    fun
-    | Ctx.VarEntry({name, _}) => Some(name)
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.VarEntry({name, _}) => Some(name)
+      | _ => None,
     exports,
   );
 
@@ -242,12 +244,12 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
   | (VarEntry(v1), VarEntry(v2))
   | (ConstructorEntry(v1), ConstructorEntry(v2)) =>
     v1.name == v2.name
-    && v1.id == v2.id
+    && Id.equal(v1.id, v2.id)
     && Typ.fast_equal(v1.typ, v2.typ)
     && v1.custom_statics == v2.custom_statics
   | (TVarEntry(t1), TVarEntry(t2)) =>
     t1.name == t2.name
-    && t1.id == t2.id
+    && Id.equal(t1.id, t2.id)
     && (
       switch (t1.kind, t2.kind) {
       /* not ids: a recursive alias gets a fresh binder each analysis */
@@ -256,7 +258,7 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
       | _ => false
       }
     )
-  | (LivelitEntry(l1), LivelitEntry(l2)) => l1 === l2 /* closures */
+  | (LivelitEntry(l1), LivelitEntry(l2)) => phys_equal(l1, l2) /* closures */
   | _ => false
   };
 
@@ -269,8 +271,8 @@ let entry_equal = (a: Ctx.entry, b: Ctx.entry): bool =>
    with types, tagged: each namespace shadows only its own names */
 let ctor_key = (c: string): string => "#" ++ c;
 let untag = (n: string): string =>
-  String.starts_with(~prefix="#", n)
-    ? String.sub(n, 1, String.length(n) - 1) : n;
+  String.is_prefix(~prefix="#", n)
+    ? String.sub(n, ~pos=1, ~len=String.length(n) - 1) : n;
 
 /* type-side names an export ENTRY involves (the ctor's typ mentions
    its sum name — case scrutinee infos mention the sum, not the ctor) */
@@ -340,7 +342,7 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
       },
     map,
   );
-  List.sort_uniq(compare, acc^);
+  List.dedup_and_sort(~compare, acc^);
 };
 
 /* drop dirty type-side names this item's exports rebind in the same
@@ -348,13 +350,14 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
 let tshadow = (exports: list(Ctx.entry), dirty: list(string)) => {
   let bound =
     List.filter_map(
-      fun
-      | Ctx.TVarEntry({name, _}) => Some(name)
-      | ConstructorEntry({name, _}) => Some(ctor_key(name))
-      | _ => None,
+      ~f=
+        fun
+        | Ctx.TVarEntry({name, _}) => Some(name)
+        | ConstructorEntry({name, _}) => Some(ctor_key(name))
+        | _ => None,
       exports,
     );
-  List.filter(n => !List.mem(n, bound), dirty);
+  List.filter(~f=n => !List.mem(bound, n, ~equal=Poly.equal), dirty);
 };
 
 /* transitive closure step: aliases exported here whose DEFINITION
@@ -363,16 +366,20 @@ let tshadow = (exports: list(Ctx.entry), dirty: list(string)) => {
 let ttransit =
     (exports: list(Ctx.entry), ~dirty_vars: list(string), dirty_tnames) => {
   let dirty = dirty_tnames @ dirty_vars;
-  dirty == []
+  List.is_empty(dirty)
     ? []
     : List.concat_map(
-        e =>
-          switch (e) {
-          | Ctx.TVarEntry({name, kind: Singleton(def), _}) =>
-            List.exists(v => List.mem(v, dirty), Typ.free_vars(def))
-              ? [name] : []
-          | _ => []
-          },
+        ~f=
+          e =>
+            switch (e) {
+            | Ctx.TVarEntry({name, kind: Singleton(def), _}) =>
+              List.exists(
+                ~f=v => List.mem(dirty, v, ~equal=Poly.equal),
+                Typ.free_vars(def),
+              )
+                ? [name] : []
+            | _ => []
+            },
         exports,
       );
 };
@@ -390,50 +397,60 @@ let export_delta =
     List.length(old) != List.length(new_)
       ? old @ new_
       : List.concat(
-          List.map2((o, n) => entry_equal(o, n) ? [] : [o, n], old, new_),
+          List.map2_exn(
+            ~f=(o, n) => entry_equal(o, n) ? [] : [o, n],
+            old,
+            new_,
+          ),
         );
   let vars =
-    List.concat_map(e => is_type_entry(e) ? [] : [entry_name(e)], changed);
-  let tnames = List.concat_map(tnames_of_entry, changed);
-  vars == [] && tnames == []
+    List.concat_map(
+      ~f=e => is_type_entry(e) ? [] : [entry_name(e)],
+      changed,
+    );
+  let tnames = List.concat_map(~f=tnames_of_entry, changed);
+  List.is_empty(vars) && List.is_empty(tnames)
     ? Unchanged
     : Changed({
-        vars: List.sort_uniq(compare, vars),
-        tnames: List.sort_uniq(compare, tnames),
+        vars: List.dedup_and_sort(~compare, vars),
+        tnames: List.dedup_and_sort(~compare, tnames),
       });
 };
 
 /* likewise for dirty value names: only a value binding shadows one */
 let shadow_filter = (exports: list(Ctx.entry), dirty: list(string)) => {
   let bound = var_names(exports);
-  List.filter(v => !List.mem(v, bound), dirty);
+  List.filter(~f=v => !List.mem(bound, v, ~equal=Poly.equal), dirty);
 };
 
 /* "*" is the unknown-free-vars sentinel: depends on anything dirty */
 let depends = (free: list(string), dirty: list(string)): bool =>
-  dirty != []
-  && (List.mem("*", free) || List.exists(v => List.mem(v, free), dirty));
+  !List.is_empty(dirty)
+  && (
+    List.mem(free, "*", ~equal=Poly.equal)
+    || List.exists(~f=v => List.mem(free, v, ~equal=Poly.equal), dirty)
+  );
 
 /* whether [q] uses a dirty name, on either side: a capitalized name may
    resolve to a module or a constructor, an annotation's module ref reads
    the module's value, and `let n = m` copies m's type exports (module
    names needn't be capitalized) */
 let stale = (q: item, dirty_vars, dirty_tnames): bool =>
-  depends(q.d_free, dirty_vars @ List.map(untag, dirty_tnames))
+  depends(q.d_free, dirty_vars @ List.map(~f=untag, dirty_tnames))
   || depends(
        q.d_tfree,
-       dirty_tnames @ dirty_vars @ List.map(ctor_key, dirty_vars),
+       dirty_tnames @ dirty_vars @ List.map(~f=ctor_key, dirty_vars),
      );
 
 let names_of = (exports: list(Ctx.entry)): list(string) =>
-  List.sort_uniq(compare, List.map(entry_name, exports));
+  List.dedup_and_sort(~compare, List.map(~f=entry_name, exports));
 
 let seed_delta = (delta: export_delta, dirty_vars, dirty_tnames) =>
   switch (delta) {
   | Unchanged => (dirty_vars, dirty_tnames)
   | Changed({vars, tnames}) => (
-      List.sort_uniq(compare, vars @ dirty_vars),
-      List.sort_uniq(compare, tnames @ dirty_tnames),
+      List.dedup_and_sort(~compare, vars @ dirty_vars),
+      List.dedup_and_sort(~compare, tnames @ dirty_tnames),
     )
   };
 
@@ -447,7 +464,7 @@ let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
   Id.Map.union((_, _x, y) => Some(y), a, b);
 
 let union_maps = (items: list(item)): Statics.Map.t =>
-  List.fold_left((m, it) => map_union(m, it.d_map), Id.Map.empty, items);
+  List.fold(items, ~init=Id.Map.empty, ~f=(m, it) => map_union(m, it.d_map));
 
 let keys = (m: Statics.Map.t, acc: list(Id.t)): list(Id.t) =>
   Id.Map.fold((k, _, acc) => [k, ...acc], m, acc);
@@ -460,15 +477,12 @@ type delta =
 
 /* the keys a walk's changes may have rebound */
 let change_keys = (changes: list((Id.t, delta))): list(Id.t) =>
-  List.fold_left(
-    (acc, (_, d)) =>
-      switch (d) {
-      | Whole(old, None) => keys(old, acc)
-      | Whole(old, Some(n)) => keys(old, keys(n, acc))
-      | Keys(ks, _) => List.rev_append(ks, acc)
-      },
-    [],
-    changes,
+  List.fold(changes, ~init=[], ~f=(acc, (_, d)) =>
+    switch (d) {
+    | Whole(old, None) => keys(old, acc)
+    | Whole(old, Some(n)) => keys(old, keys(n, acc))
+    | Keys(ks, _) => List.rev_append(ks, acc)
+    }
   );
 
 /* [merged] under a walk's [changes] (newest first), replayed in walk
@@ -477,39 +491,33 @@ let change_keys = (changes: list((Id.t, delta))): list(Id.t) =>
    its ids), and new maps join. also returns the keys claimed */
 let remerge =
     (merged: Statics.Map.t, changes): (Statics.Map.t, Statics.Map.t) =>
-  List.fold_left(
-    ((merged, claimed), (_, d)) =>
-      switch (d) {
-      | Whole(old, new_) =>
-        let merged =
-          Id.Map.fold(
-            (k, _, m) => Id.Map.mem(k, claimed) ? m : Id.Map.remove(k, m),
-            old,
-            merged,
-          );
-        switch (new_) {
-        | Some(n) => (map_union(merged, n), map_union(claimed, n))
-        | None => (merged, claimed)
-        };
-      | Keys(ks, n) =>
-        List.fold_left(
-          ((merged, claimed), k) =>
-            switch (Id.Map.find_opt(k, n)) {
-            | Some(v) => (
-                Id.Map.add(k, v, merged),
-                Id.Map.add(k, v, claimed),
-              )
-            | None => (
-                Id.Map.mem(k, claimed) ? merged : Id.Map.remove(k, merged),
-                claimed,
-              )
-            },
-          (merged, claimed),
-          ks,
-        )
-      },
-    (merged, Id.Map.empty),
+  List.fold(
     List.rev(changes),
+    ~init=(merged, Id.Map.empty),
+    ~f=((merged, claimed), (_, d)) =>
+    switch (d) {
+    | Whole(old, new_) =>
+      let merged =
+        Id.Map.fold(
+          (k, _, m) => Id.Map.mem(k, claimed) ? m : Id.Map.remove(k, m),
+          old,
+          merged,
+        );
+      switch (new_) {
+      | Some(n) => (map_union(merged, n), map_union(claimed, n))
+      | None => (merged, claimed)
+      };
+    | Keys(ks, n) =>
+      List.fold(ks, ~init=(merged, claimed), ~f=((merged, claimed), k) =>
+        switch (Id.Map.find_opt(k, n)) {
+        | Some(v) => (Id.Map.add(k, v, merged), Id.Map.add(k, v, claimed))
+        | None => (
+            Id.Map.mem(k, claimed) ? merged : Id.Map.remove(k, merged),
+            claimed,
+          )
+        }
+      )
+    }
   );
 
 /* CoCtx.union([a, b]) in a pass over each, where its name lookups are
@@ -518,34 +526,32 @@ let remerge =
    unique; a repeated name in [a] takes CoCtx.union */
 let co_union = (a: CoCtx.t, b: CoCtx.t): CoCtx.t => {
   let a = CoCtx.to_list(a);
-  let names = List.fold_left((s, (n, _)) => SSet.add(n, s), SSet.empty, a);
+  let names =
+    List.fold(a, ~init=SSet.empty, ~f=(s, (n, _)) => SSet.add(n, s));
   if (SSet.cardinal(names) < List.length(a)) {
     CoCtx.union([a, b]);
   } else {
     let (fresh, shared) =
-      List.fold_left(
-        ((fresh, shared), (n, es)) =>
-          SSet.mem(n, names)
-            ? (fresh, SMap.add(n, es, shared))
-            : ([(n, es), ...fresh], shared),
-        ([], SMap.empty),
+      List.fold(
         CoCtx.to_list(b),
+        ~init=([], SMap.empty),
+        ~f=((fresh, shared), (n, es)) =>
+        SSet.mem(n, names)
+          ? (fresh, SMap.add(n, es, shared))
+          : ([(n, es), ...fresh], shared)
       );
     fresh
-    @ List.fold_left(
-        (acc, (n, es)) =>
-          [
-            (
-              n,
-              switch (SMap.find_opt(n, shared)) {
-              | Some(more) => es @ more
-              | None => es
-              },
-            ),
-            ...acc,
-          ],
-        [],
-        a,
+    @ List.fold(a, ~init=[], ~f=(acc, (n, es)) =>
+        [
+          (
+            n,
+            switch (SMap.find_opt(n, shared)) {
+            | Some(more) => es @ more
+            | None => es
+            },
+          ),
+          ...acc,
+        ]
       );
   };
 };
@@ -566,17 +572,17 @@ let fun_wrapper_ids = (node: Exp.t, name_id: Id.t): list(Id.t) => {
   /* the Aps down the spine to the name, outermost first */
   let rec spine = (p: Pat.t): option(list(Id.t)) =>
     switch (p.term) {
-    | Ap(fn, _) when Pat.rep_id(fn) == name_id => Some([Pat.rep_id(p)])
-    | Ap(fn, _) => Option.map(ids => [Pat.rep_id(p), ...ids], spine(fn))
+    | Ap(fn, _) when Id.equal(Pat.rep_id(fn), name_id) =>
+      Some([Pat.rep_id(p)])
+    | Ap(fn, _) =>
+      Option.map(~f=ids => [Pat.rep_id(p), ...ids], spine(fn))
     | _ => None
     };
   let of_binder = (p: Pat.t) =>
     switch (p.term) {
     | Asc(inner, _) =>
-      Option.fold(
-        ~none=[],
-        ~some=ids => [Pat.rep_id(p), ...ids],
-        spine(inner),
+      Option.value_map(spine(inner), ~default=[], ~f=ids =>
+        [Pat.rep_id(p), ...ids]
       )
     | _ => Option.value(~default=[], spine(p))
     };
@@ -596,14 +602,15 @@ let own_unused = (it: item, ~used: list(string), ~holes: bool): list(Id.t) =>
   holes
     ? []
     : List.concat_map(
-        fun
-        | Ctx.VarEntry({name, id, _}) =>
-          List.exists(String.equal(name), used)
-          || List.exists(String.equal(name), it.d_used)
-          || String.length(name) > 0
-          && name.[0] == '_'
-            ? [] : [id, ...fun_wrapper_ids(it.d_node, id)]
-        | _ => [],
+        ~f=
+          fun
+          | Ctx.VarEntry({name, id, _}) =>
+            List.exists(~f=String.equal(name), used)
+            || List.exists(~f=String.equal(name), it.d_used)
+            || String.length(name) > 0
+            && Char.equal(name.[0], '_')
+              ? [] : [id, ...fun_wrapper_ids(it.d_node, id)]
+          | _ => [],
         it.d_exports,
       );
 
@@ -662,7 +669,8 @@ let summarize =
         ...it.d_elab,
         term: (
           Module(
-            items_of(it.d_elab) @ Option.fold(~none=[], ~some=items_of, elab),
+            items_of(it.d_elab)
+            @ Option.value_map(elab, ~default=[], ~f=items_of),
           ): Exp.term
         ),
       })
@@ -687,10 +695,10 @@ let summarize =
   let s_co =
     co_union(
       raw_co,
-      bound == []
+      List.is_empty(bound)
         ? co
         : CoCtx.filter_names(
-            name => !List.exists(String.equal(name), bound),
+            name => !List.exists(~f=String.equal(name), bound),
             co,
           ),
     );
@@ -725,10 +733,8 @@ let summarize =
           | None => raw
           },
         );
-      List.fold_left(
-        (m, id) => Id.Map.add(id, info, m),
-        Id.Map.empty,
-        IdTagged.ids(it.d_node),
+      List.fold(IdTagged.ids(it.d_node), ~init=Id.Map.empty, ~f=(m, id) =>
+        Id.Map.add(id, info, m)
       );
     | None => Id.Map.empty
     };
@@ -740,16 +746,16 @@ let summarize =
     s_co,
     s_elab,
     s_free:
-      List.sort_uniq(
-        String.compare,
+      List.dedup_and_sort(
+        ~compare=String.compare,
         it.d_free @ shadow_filter(it.d_exports, free),
       ),
     s_tfree:
-      List.sort_uniq(
-        String.compare,
+      List.dedup_and_sort(
+        ~compare=String.compare,
         it.d_tfree @ tshadow(it.d_exports, tfree),
       ),
-    s_holes: holes || List.mem("$hole", it.d_free),
+    s_holes: holes || List.mem(it.d_free, "$hole", ~equal=Poly.equal),
     s_errors: it.d_error_ids @ errors,
     s_warnings: it.d_warning_ids @ warnings,
     s_unused: own_unused(it, ~used=free, ~holes) @ unused,
@@ -763,23 +769,23 @@ let sums_still =
   let q = s.s_item;
   List.equal(Id.equal, s.s_parent, parent)
   && (
-    q === it
+    phys_equal(q, it)
     || Id.equal(q.d_id, it.d_id)
-    && q.d_map === it.d_map
-    && q.d_elab === it.d_elab
-    && q.d_exports === it.d_exports
-    && q.d_free === it.d_free
-    && q.d_tfree === it.d_tfree
-    && q.d_error_ids === it.d_error_ids
-    && q.d_warning_ids === it.d_warning_ids
-    && q.d_node === it.d_node
+    && phys_equal(q.d_map, it.d_map)
+    && phys_equal(q.d_elab, it.d_elab)
+    && phys_equal(q.d_exports, it.d_exports)
+    && phys_equal(q.d_free, it.d_free)
+    && phys_equal(q.d_tfree, it.d_tfree)
+    && phys_equal(q.d_error_ids, it.d_error_ids)
+    && phys_equal(q.d_warning_ids, it.d_warning_ids)
+    && phys_equal(q.d_node, it.d_node)
     && Option.equal(Id.equal, q.d_hole, it.d_hole)
   )
   && (
     switch (s.s_src, src) {
     | (None, None) => true
     | (Some(a), Some(b)) =>
-      a === b
+      phys_equal(a, b)
       || List.equal(Id.equal, IdTagged.ids(a), IdTagged.ids(b))
       && Mod.cls_of_term(a.term) == Mod.cls_of_term(b.term)
     | _ => false
@@ -811,10 +817,8 @@ let step_chain =
     )
     : (list(sum), Statics.Map.t, option(list(Id.t))) => {
   let changed =
-    List.fold_left(
-      (s, (id, _)) => Id.Set.add(id, s),
-      Id.Set.empty,
-      changes,
+    List.fold(changes, ~init=Id.Set.empty, ~f=(s, (id, _)) =>
+      Id.Set.add(id, s)
     );
   /* bottom first, each with its source and its parent */
   let rec pair = (items, srcs, parent, acc) =>
@@ -842,21 +846,18 @@ let step_chain =
       [],
     );
   let (fresh, _) =
-    List.fold_left(
-      ((acc, below), (it, src, parent)) => {
+    List.fold(
+      up,
+      ~init=([], top_sum(kept)),
+      ~f=((acc, below), (it, src, parent)) => {
         let s = summarize(~probe_ids, ~src, ~parent, it, below);
         ([s, ...acc], Some(s));
       },
-      ([], top_sum(kept)),
-      up,
     );
   let sums = fresh @ kept;
   let overlays =
-    List.fold_left(
-      (m, s) =>
-        List.fold_left((m, (k, v)) => Id.Map.add(k, v, m), m, s.s_overlay),
-      Id.Map.empty,
-      fresh,
+    List.fold(fresh, ~init=Id.Map.empty, ~f=(m, s) =>
+      List.fold(s.s_overlay, ~init=m, ~f=(m, (k, v)) => Id.Map.add(k, v, m))
     );
   switch (prev) {
   | None => (sums, map_union(union_maps(items), overlays), None)
@@ -866,36 +867,27 @@ let step_chain =
        a dropped item's leave, unless an item that moved them in claimed
        them */
     let owners =
-      List.fold_left(
-        (m, (it, _, _)) => Id.Map.add(it.d_id, it, m),
-        Id.Map.empty,
-        up,
+      List.fold(up, ~init=Id.Map.empty, ~f=(m, (it, _, _)) =>
+        Id.Map.add(it.d_id, it, m)
       );
     let (map, old_keys) =
-      List.fold_left(
-        (acc, s) =>
-          List.fold_left(
-            ((map, ks), (k, _)) =>
-              if (Id.Map.mem(k, overlays)) {
-                (map, [k, ...ks]);
-              } else {
-                let map =
-                  switch (Id.Map.find_opt(s.s_item.d_id, owners)) {
-                  | Some(it) =>
-                    switch (Id.Map.find_opt(k, it.d_map)) {
-                    | Some(v) => Id.Map.add(k, v, map)
-                    | None => Id.Map.remove(k, map)
-                    }
-                  | None =>
-                    Id.Map.mem(k, claimed) ? map : Id.Map.remove(k, map)
-                  };
-                (map, [k, ...ks]);
-              },
-            acc,
-            s.s_overlay,
-          ),
-        (map, []),
-        replaced,
+      List.fold(replaced, ~init=(map, []), ~f=(acc, s) =>
+        List.fold(s.s_overlay, ~init=acc, ~f=((map, ks), (k, _)) =>
+          if (Id.Map.mem(k, overlays)) {
+            (map, [k, ...ks]);
+          } else {
+            let map =
+              switch (Id.Map.find_opt(s.s_item.d_id, owners)) {
+              | Some(it) =>
+                switch (Id.Map.find_opt(k, it.d_map)) {
+                | Some(v) => Id.Map.add(k, v, map)
+                | None => Id.Map.remove(k, map)
+                }
+              | None => Id.Map.mem(k, claimed) ? map : Id.Map.remove(k, map)
+              };
+            (map, [k, ...ks]);
+          }
+        )
       );
     (
       sums,
@@ -918,14 +910,11 @@ let rewrap =
       wrap: Statics.Map.t,
       ks: list(Id.t),
     ) =>
-  List.fold_left(
-    (m, k) =>
-      switch (Id.Map.find_opt(k, wrap)) {
-      | Some(v) => Id.Map.add(k, v, m)
-      | None => walked(k) ? m : Id.Map.remove(k, m)
-      },
-    map,
-    ks,
+  List.fold(ks, ~init=map, ~f=(m, k) =>
+    switch (Id.Map.find_opt(k, wrap)) {
+    | Some(v) => Id.Map.add(k, v, m)
+    | None => walked(k) ? m : Id.Map.remove(k, m)
+    }
   );
 
 /* a nested item's map, its chain's under its own entries: updated where
@@ -944,7 +933,7 @@ let nest_map =
     let ks = keys(n.n_wrap, keys(wrap, []));
     /* read only when a key leaves [wrap] */
     let walked =
-      lazy(List.fold_left((s, k) => Id.Set.add(k, s), Id.Set.empty, ts));
+      lazy(List.fold(ts, ~init=Id.Set.empty, ~f=(s, k) => Id.Set.add(k, s)));
     (
       rewrap(
         ~walked=k => Id.Set.mem(k, Lazy.force(walked)),
@@ -968,63 +957,65 @@ let member_inputs =
   /* the expectations by name (a signature declares each member once) */
   let (vals, types) =
     List.fold_right(
-      (m: Sig.member, (vs, ts)) =>
-        switch (m) {
-        | Val(x, _) => (
-            SMap.update(
-              x,
-              l => Some([m, ...Option.value(~default=[], l)]),
-              vs,
-            ),
-            ts,
-          )
-        | TypeManifest(t, _) => (
-            vs,
-            SMap.update(
-              t,
-              l => Some([m, ...Option.value(~default=[], l)]),
-              ts,
-            ),
-          )
-        },
       expected,
-      (SMap.empty, SMap.empty),
+      ~f=
+        (m: Sig.member, (vs, ts)) =>
+          switch (m) {
+          | Val(x, _) => (
+              SMap.update(
+                x,
+                l => Some([m, ...Option.value(~default=[], l)]),
+                vs,
+              ),
+              ts,
+            )
+          | TypeManifest(t, _) => (
+              vs,
+              SMap.update(
+                t,
+                l => Some([m, ...Option.value(~default=[], l)]),
+                ts,
+              ),
+            )
+          },
+      ~init=(SMap.empty, SMap.empty),
     );
   let find = (map, x) => Option.value(~default=[], SMap.find_opt(x, map));
   /* right to left: a member exports the names no later member rebinds */
   let (_, _, inputs) =
     List.fold_right(
-      (item: Mod.t, (rebound, later_types, acc)) => {
-        let names = Mod.bound_names(item);
-        let exported = List.filter(x => !SSet.mem(x, rebound), names);
-        let (i_expected, later_types) =
-          switch (item.term) {
-          | ModType({term: Var(n), _}, _) => (
-              SSet.mem(n, later_types) ? [] : find(types, n),
-              SSet.add(n, later_types),
-            )
-          | ModLet(_)
-          | ModuleMod(_) => (
-              List.concat_map(find(vals), exported),
-              later_types,
-            )
-          | _ => ([], later_types)
-          };
-        (
-          List.fold_left((s, n) => SSet.add(n, s), rebound, names),
-          later_types,
-          [
-            {
-              i_exported: exported,
-              i_expected,
-              i_declared: declared,
-            },
-            ...acc,
-          ],
-        );
-      },
       members,
-      (SSet.empty, SSet.empty, []),
+      ~f=
+        (item: Mod.t, (rebound, later_types, acc)) => {
+          let names = Mod.bound_names(item);
+          let exported = List.filter(~f=x => !SSet.mem(x, rebound), names);
+          let (i_expected, later_types) =
+            switch (item.term) {
+            | ModType({term: Var(n), _}, _) => (
+                SSet.mem(n, later_types) ? [] : find(types, n),
+                SSet.add(n, later_types),
+              )
+            | ModLet(_)
+            | ModuleMod(_) => (
+                List.concat_map(~f=find(vals), exported),
+                later_types,
+              )
+            | _ => ([], later_types)
+            };
+          (
+            List.fold(names, ~init=rebound, ~f=(s, n) => SSet.add(n, s)),
+            later_types,
+            [
+              {
+                i_exported: exported,
+                i_expected,
+                i_declared: declared,
+              },
+              ...acc,
+            ],
+          );
+        },
+      ~init=(SSet.empty, SSet.empty, []),
     );
   inputs;
 };
@@ -1061,13 +1052,16 @@ let member_level =
       members: list(Mod.t),
     ) => {
   let (nodes, stands, changed) =
-    List.fold_left2(
-      ((nodes, stands, changed), m: Mod.t, input) => {
+    List.fold2_exn(
+      members,
+      member_inputs(~expected, members),
+      ~init=([], Id.Map.empty, Id.Set.empty),
+      ~f=((nodes, stands, changed), m: Mod.t, input) => {
         let id = Mod.rep_id(m);
-        let prior = Option.bind(prev, Id.Map.find_opt(id));
+        let prior = Option.bind(prev, ~f=Id.Map.find_opt(id));
         let node =
           switch (prior) {
-          | Some((src, node, _)) when src === m => node
+          | Some((src, node, _)) when phys_equal(src, m) => node
           | _ => stand_in(m)
           };
         let changed =
@@ -1082,9 +1076,6 @@ let member_level =
           changed,
         );
       },
-      ([], Id.Map.empty, Id.Set.empty),
-      members,
-      member_inputs(~expected, members),
     );
   (
     List.rev(nodes),
@@ -1112,17 +1103,19 @@ let sig_type = (~prev: option(Typ.t), sig_items: list(Sig.t)): Typ.t => {
    signature's, which the whole check marks on the module's type too */
 let type_member_unmet = (it: item): bool =>
   List.exists(
-    id =>
-      switch (Id.Map.find_opt(id, it.d_map)) {
-      | Some(InfoTyp({marks, _})) =>
-        List.exists(
-          fun
-          | Mark.ModuleTypeMemberMismatch(_) => true
-          | _ => false,
-          marks,
-        )
-      | _ => false
-      },
+    ~f=
+      id =>
+        switch (Id.Map.find_opt(id, it.d_map)) {
+        | Some(InfoTyp({marks, _})) =>
+          List.exists(
+            ~f=
+              fun
+              | Mark.ModuleTypeMemberMismatch(_) => true
+              | _ => false,
+            marks,
+          )
+        | _ => false
+        },
     it.d_error_ids,
   );
 
@@ -1136,27 +1129,29 @@ let checked_names =
     )
     : list(Var.t) =>
   List.concat(
-    List.map2(
-      (it: item, m: Mod.t) => {
-        let binder =
-          switch (m.term) {
-          | ModLet(p, def) => Some(fst(FunctionSugar.binding(p, def)))
-          | ModuleMod(mp, _) => Some(MPat.to_pat(mp))
-          | _ => None
+    List.map2_exn(
+      ~f=
+        (it: item, m: Mod.t) => {
+          let binder =
+            switch (m.term) {
+            | ModLet(p, def) => Some(fst(FunctionSugar.binding(p, def)))
+            | ModuleMod(mp, _) => Some(MPat.to_pat(mp))
+            | _ => None
+            };
+          switch (binder, Id.Map.find_opt(Mod.rep_id(m), inputs)) {
+          | (Some(p), Some(input)) =>
+            ModuleHelpers.expected_pat_type(
+              ~ctx=it.d_ctx_in,
+              input.i_expected,
+              p,
+            )
+            |> Option.value_map(
+                 ~default=[], ~f=(e: ModuleHelpers.pat_expectation) =>
+                 e.names
+               )
+          | _ => []
           };
-        switch (binder, Id.Map.find_opt(Mod.rep_id(m), inputs)) {
-        | (Some(p), Some(input)) =>
-          ModuleHelpers.expected_pat_type(
-            ~ctx=it.d_ctx_in,
-            input.i_expected,
-            p,
-          )
-          |> Option.fold(~none=[], ~some=(e: ModuleHelpers.pat_expectation) =>
-               e.names
-             )
-        | _ => []
-        };
-      },
+        },
       items,
       members,
     ),
@@ -1166,21 +1161,17 @@ let checked_names =
    missing and none extra. a module's member names are syntactic */
 let names_meet = (~ana_items: list(Sig.t), items: list(Mod.t)): bool => {
   let (values, types) =
-    List.fold_left(
-      ((vs, ts), item: Mod.t) =>
-        switch (item.term) {
-        | ModType({term: Var(n), _}, _) => (vs, SSet.add(n, ts))
-        | _ => (
-            List.fold_left(
-              (vs, x) => SSet.add(x, vs),
-              vs,
-              Mod.bound_names(item),
-            ),
-            ts,
-          )
-        },
-      (SSet.empty, SSet.empty),
-      items,
+    List.fold(
+      items, ~init=(SSet.empty, SSet.empty), ~f=((vs, ts), item: Mod.t) =>
+      switch (item.term) {
+      | ModType({term: Var(n), _}, _) => (vs, SSet.add(n, ts))
+      | _ => (
+          List.fold(Mod.bound_names(item), ~init=vs, ~f=(vs, x) =>
+            SSet.add(x, vs)
+          ),
+          ts,
+        )
+      }
     );
   let want = Sig.members(ana_items);
   SSet.equal(values, SSet.of_list(Sig.value_names(want)))
@@ -1196,8 +1187,8 @@ type binding_site =
 /* the binding [node] makes, compared across versions: its binder, and a
    member's input from its module */
 let same_binding = (a: Exp.t, b: Exp.t): bool => {
-  let same = (x, y) => x === y || compare(x, y) == 0;
-  a === b
+  let same = (x, y) => phys_equal(x, y) || compare(x, y) == 0;
+  phys_equal(a, b)
   || List.equal(Id.equal, IdTagged.ids(a), IdTagged.ids(b))
   && (
     switch (a.term, b.term) {
@@ -1221,16 +1212,17 @@ let same_binding = (a: Exp.t, b: Exp.t): bool => {
 /* [co] without the uses [ids] made: scaffolding standing for terms */
 let without_uses = (ids: list(Id.t), co: CoCtx.t): CoCtx.t =>
   List.filter_map(
-    ((n, es)) =>
-      switch (
-        List.filter(
-          (e: CoCtx.entry) => !List.exists(Id.equal(e.id), ids),
-          es,
-        )
-      ) {
-      | [] => None
-      | es => Some((n, es))
-      },
+    ~f=
+      ((n, es)) =>
+        switch (
+          List.filter(
+            ~f=(e: CoCtx.entry) => !List.exists(~f=Id.equal(e.id), ids),
+            es,
+          )
+        ) {
+        | [] => None
+        | es => Some((n, es))
+        },
     CoCtx.to_list(co),
   );
 
@@ -1259,9 +1251,9 @@ let surrogate =
   switch (prev) {
   | Some(u)
       when
-        u.u_ty === ty
-        && u.u_ctx === ctx_in
-        && (u.u_settings === settings || u.u_settings == settings)
+        phys_equal(u.u_ty, ty)
+        && phys_equal(u.u_ctx, ctx_in)
+        && (phys_equal(u.u_settings, settings) || u.u_settings == settings)
         && Id.equal(u.u_def, Exp.rep_id(def))
         && same_binding(u.u_hollow, node)
         && Option.equal(input_equal, u.u_input, input)
@@ -1362,7 +1354,7 @@ let surrogate =
           sur_def,
         ),
       );
-      List.filter(id => id != Exp.rep_id(def), acc^);
+      List.filter(~f=id => !Id.equal(id, Exp.rep_id(def)), acc^);
     };
     let ctx_out =
       switch (Statics.Map.lookup_exp(Exp.rep_id(body_hole), map)) {
@@ -1383,10 +1375,11 @@ let surrogate =
         }
       };
     let map =
-      List.fold_left(
-        (m, id) => Id.Map.remove(id, m),
-        map,
+      List.fold(
         [Exp.rep_id(body_hole), ...scaffold @ sur_ids],
+        ~init=map,
+        ~f=(m, id) =>
+        Id.Map.remove(id, m)
       );
     {
       u_settings: settings,
@@ -1413,9 +1406,9 @@ let surrogate =
    here as the whole program's analysis renames its body */
 let rename_tvars = (renames: list((string, string)), node: Exp.t): Exp.t =>
   List.fold_right(
-    ((x, x'), n) => Exp.rename_tvar(x, x', n),
     renames,
-    node,
+    ~f=((x, x'), n) => Exp.rename_tvar(x, x', n),
+    ~init=node,
   );
 
 /* [renames] past [node], whose exports say whether its alias was renamed */
@@ -1427,12 +1420,14 @@ let renames_after =
     ) =>
   switch (node.term) {
   | TyAlias({term: Var(x), _}, _, _) =>
-    let rest = List.filter(((y, _)) => !String.equal(x, y), renames);
+    let rest = List.filter(~f=((y, _)) => !String.equal(x, y), renames);
     switch (
       List.find_map(
-        fun
-        | Ctx.TVarEntry({name, _}) when !String.equal(name, x) => Some(name)
-        | _ => None,
+        ~f=
+          fun
+          | Ctx.TVarEntry({name, _}) when !String.equal(name, x) =>
+            Some(name)
+          | _ => None,
         exports,
       )
     ) {
@@ -1461,7 +1456,7 @@ let rec calc_item =
           node: Exp.t,
         )
         : (item, option(list(Id.t))) =>
-  switch (member, Option.bind(member, _ => member_of(node))) {
+  switch (member, Option.bind(member, ~f=_ => member_of(node))) {
   | (Some(mc), Some(item)) =>
     switch (member_chain(item), member_module(~ctx=ctx_in, ~mc, item)) {
     | (_, Some((def, members, ana_items))) =>
@@ -1597,7 +1592,10 @@ and calc_plain_item =
       let bound = var_names(exports);
       free
       @ List.filter(
-          n => List.mem(n, bound) && !List.mem(n, free),
+          ~f=
+            n =>
+              List.mem(bound, n, ~equal=Poly.equal)
+              && !List.mem(free, n, ~equal=Poly.equal),
           CoCtx.names(root.co_ctx),
         );
     | _ => free
@@ -1686,20 +1684,20 @@ and calc_member =
   /* the tail and the module are scaffolding: the module's info is its
      item's */
   let map =
-    List.fold_left(
-      (m, id) => Id.Map.remove(id, m),
-      map,
-      [tail_id, ...IdTagged.ids(mc.mc_module)],
+    List.fold(
+      [tail_id, ...IdTagged.ids(mc.mc_module)], ~init=map, ~f=(m, id) =>
+      Id.Map.remove(id, m)
     );
   let untail = (co: CoCtx.t): CoCtx.t =>
     List.filter_map(
-      ((n, es)) =>
-        switch (
-          List.filter((e: CoCtx.entry) => !Id.equal(e.id, tail_id), es)
-        ) {
-        | [] => None
-        | es => Some((n, es))
-        },
+      ~f=
+        ((n, es)) =>
+          switch (
+            List.filter(~f=(e: CoCtx.entry) => !Id.equal(e.id, tail_id), es)
+          ) {
+          | [] => None
+          | es => Some((n, es))
+          },
       CoCtx.to_list(co),
     );
   let map =
@@ -1753,7 +1751,7 @@ and module_literal_members =
     : option((Pat.t, Exp.t, list(Mod.t), option(list(Sig.t)))) => {
   let literal = (p, def: Exp.t) =>
     Option.map(
-      ((members, ana_items)) => (p, def, members, ana_items),
+      ~f=((members, ana_items)) => (p, def, members, ana_items),
       bound_literal(~ctx, ~expected=None, p, def),
     );
   switch (node.term) {
@@ -1803,12 +1801,12 @@ and member_module =
     : option((Exp.t, list(Mod.t), option(list(Sig.t)))) => {
   let literal = (p: Pat.t, def: Exp.t) => {
     let expected =
-      Option.bind(Id.Map.find_opt(Mod.rep_id(item), mc.mc_inputs), input =>
+      Option.bind(Id.Map.find_opt(Mod.rep_id(item), mc.mc_inputs), ~f=input =>
         ModuleHelpers.expected_pat_type(~ctx, input.i_expected, p)
       )
-      |> Option.map((e: ModuleHelpers.pat_expectation) => e.ty);
+      |> Option.map(~f=(e: ModuleHelpers.pat_expectation) => e.ty);
     Option.map(
-      ((members, ana_items)) => (def, members, ana_items),
+      ~f=((members, ana_items)) => (def, members, ana_items),
       bound_literal(~ctx, ~expected, p, def),
     );
   };
@@ -1842,25 +1840,25 @@ and calc_module_item =
   incr(last_analyzed);
   let (prev_members, prev_nest, prev_map) =
     switch (prev) {
-    | Some(q) when q.d_id == Exp.rep_id(node) => (
+    | Some(q) when Id.equal(q.d_id, Exp.rep_id(node)) => (
         q.d_members,
         q.d_nest,
         q.d_map,
       )
     | _ => ([], None, Id.Map.empty)
     };
-  let memo = Option.bind(prev_nest, n => n.n_memo);
+  let memo = Option.bind(prev_nest, ~f=n => n.n_memo);
   let rep = Exp.rep_id(def);
   let declared = ModuleHelpers.declared_type_names(members);
   let expected =
-    Option.fold(
-      ~none=[],
-      ~some=ModuleHelpers.expected_members(~ctx=ctx_in, ~declared),
+    Option.value_map(
       ana_items,
+      ~default=[],
+      ~f=ModuleHelpers.expected_members(~ctx=ctx_in, ~declared),
     );
   let (nodes, stands, changed, mc) =
     member_level(
-      ~prev=Option.map(m => m.m_stands, memo),
+      ~prev=Option.map(~f=m => m.m_stands, memo),
       ~expected,
       def,
       members,
@@ -1882,13 +1880,13 @@ and calc_module_item =
     step_chain(
       ~probe_ids,
       ~container=[rep],
-      ~srcs=List.map(Option.some, members),
-      ~prev=Option.map(n => (n.n_sums, prev_map), prev_nest),
+      ~srcs=List.map(~f=Option.some, members),
+      ~prev=Option.map(~f=n => (n.n_sums, prev_map), prev_nest),
       items_m,
       changes,
     );
   let top = top_sum(sums);
-  if (Option.is_some(ana_items) && List.exists(type_member_unmet, items_m)) {
+  if (Option.is_some(ana_items) && List.exists(~f=type_member_unmet, items_m)) {
     (
       switch (site) {
       | Top(_) => calc_plain_item(~settings, ~probe_ids, ~ctx_in, node)
@@ -1899,7 +1897,7 @@ and calc_module_item =
     );
   } else {
     let have =
-      ModuleHelpers.exports(List.concat_map(it => it.d_sig, items_m));
+      ModuleHelpers.exports(List.concat_map(~f=it => it.d_sig, items_m));
     let sig_items =
       switch (ana_items) {
       | None => have
@@ -1912,10 +1910,11 @@ and calc_module_item =
           have,
         )
       };
-    let sig_ty = sig_type(~prev=Option.map(m => m.m_sig, memo), sig_items);
+    let sig_ty =
+      sig_type(~prev=Option.map(~f=m => m.m_sig, memo), sig_items);
     let sur =
       surrogate(
-        ~prev=Option.map(m => m.m_sur, memo),
+        ~prev=Option.map(~f=m => m.m_sur, memo),
         ~settings,
         ~probe_ids,
         ~ctx_in,
@@ -1926,7 +1925,7 @@ and calc_module_item =
       );
     let ctx_out = sur.u_ctx_out;
     /* member elabs in order, as Statics' `Module` arm builds the value */
-    let module_value = module_elab(def, Option.bind(top, s => s.s_elab));
+    let module_value = module_elab(def, Option.bind(top, ~f=s => s.s_elab));
     /* the members' co_ctx/witnesses, which the surrogate def lacks */
     let with_members = (raw: Info.exp): Info.exp =>
       switch (top) {
@@ -1950,10 +1949,8 @@ and calc_module_item =
             cls: Cls.Exp(Exp.cls_of_term(def.term)),
             elab_term: module_value,
           });
-        List.fold_left(
-          (m, id) => Id.Map.add(id, info, m),
-          sur.u_map,
-          IdTagged.ids(def),
+        List.fold(IdTagged.ids(def), ~init=sur.u_map, ~f=(m, id) =>
+          Id.Map.add(id, info, m)
         );
       | None => sur.u_map
       };
@@ -1964,7 +1961,8 @@ and calc_module_item =
       | Some(InfoExp(raw)) =>
         Id.Map.add(Exp.rep_id(node), Info.InfoExp(with_members(raw)), wrap)
       | Some(InfoMod(raw)) =>
-        let below = Option.fold(~none=CoCtx.empty, ~some=s => s.s_co, top);
+        let below =
+          Option.value_map(top, ~default=CoCtx.empty, ~f=s => s.s_co);
         Statics.Map.add_info(
           IdTagged.ids(node),
           InfoMod({
@@ -2075,7 +2073,7 @@ and calc_member_chain =
     : (item, option(list(Id.t))) => {
   let (prev_links, prev_nest, prev_map) =
     switch (prev) {
-    | Some(q) when q.d_id == Exp.rep_id(node) => (
+    | Some(q) when Id.equal(q.d_id, Exp.rep_id(node)) => (
         q.d_members,
         q.d_nest,
         q.d_map,
@@ -2099,7 +2097,7 @@ and calc_member_chain =
       ~probe_ids,
       ~container=[Exp.rep_id(mc.mc_module)],
       ~srcs=[],
-      ~prev=Option.map(n => (n.n_sums, prev_map), prev_nest),
+      ~prev=Option.map(~f=n => (n.n_sums, prev_map), prev_nest),
       links,
       changes,
     );
@@ -2179,12 +2177,13 @@ and calc_chain =
     : (list(item), list((Id.t, delta))) => {
   /* with no previous run nothing can be clean, so the dirty names (sorted
      lists grown per item) go untracked */
-  let track = prevs != [];
+  let track = !List.is_empty(prevs);
   let id_set = ids =>
-    List.fold_left((s, id) => Id.Set.add(id, s), Id.Set.empty, ids);
-  let node_ids = track ? id_set(List.map(Exp.rep_id, nodes)) : Id.Set.empty;
+    List.fold(ids, ~init=Id.Set.empty, ~f=(s, id) => Id.Set.add(id, s));
+  let node_ids =
+    track ? id_set(List.map(~f=Exp.rep_id, nodes)) : Id.Set.empty;
   let prev_ids =
-    track ? id_set(List.map((q: item) => q.d_id, prevs)) : Id.Set.empty;
+    track ? id_set(List.map(~f=(q: item) => q.d_id, prevs)) : Id.Set.empty;
   let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
   /* q's exports leave the chain here */
   let vacate = (q: item, dirty_vars, dirty_tnames) =>
@@ -2194,12 +2193,9 @@ and calc_chain =
     | (ps, []) =>
       /* remaining prev items were deleted */
       let changes =
-        List.fold_left(
-          (cs, q: item) =>
-            Id.Set.mem(q.d_id, node_ids)
-              ? cs : [(q.d_id, Whole(q.d_map, None)), ...cs],
-          changes,
-          ps,
+        List.fold(ps, ~init=changes, ~f=(cs, q: item) =>
+          Id.Set.mem(q.d_id, node_ids)
+            ? cs : [(q.d_id, Whole(q.d_map, None)), ...cs]
         );
       (List.rev(acc), changes);
     | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
@@ -2208,7 +2204,7 @@ and calc_chain =
       go(pt, ns, ctx, renames, dirty_vars, dirty_tnames, acc, changes);
     | ([q, ...pt], [n, ..._])
         when
-          q.d_id != Exp.rep_id(n)
+          !Id.equal(q.d_id, Exp.rep_id(n))
           && Id.Set.mem(Exp.rep_id(n), prev_ids)
           && !Id.Map.mem(Exp.rep_id(n), moved^) =>
       /* the node sits deeper in prev, so q moved later: pop it aside.
@@ -2222,7 +2218,7 @@ and calc_chain =
       let nid = Exp.rep_id(n);
       let (prev_it, moved_in, ps) =
         switch (ps) {
-        | [q, ...pt] when q.d_id == nid => (Some(q), false, pt)
+        | [q, ...pt] when Id.equal(q.d_id, nid) => (Some(q), false, pt)
         | _ =>
           switch (Id.Map.find_opt(nid, moved^)) {
           | Some(q) => (Some(q), true, ps)
@@ -2241,7 +2237,7 @@ and calc_chain =
       switch (clean, prev_it) {
       | (true, Some(q)) =>
         let (it, ctx_out) =
-          ctx === q.d_ctx_in
+          phys_equal(ctx, q.d_ctx_in)
             ? (q, q.d_ctx_out)
             /* upstream changed only names this item doesn't use:
                re-chain its exports without re-running statics */
@@ -2264,8 +2260,8 @@ and calc_chain =
           ctx_out,
           renames_after(renames, n, it.d_exports),
           incoming,
-          List.sort_uniq(
-            compare,
+          List.dedup_and_sort(
+            ~compare,
             ttransit(it.d_exports, ~dirty_vars=incoming, incoming_t)
             @ incoming_t,
           ),
@@ -2318,7 +2314,8 @@ and calc_chain =
           let delta = export_delta(p_exports, it.d_exports);
           let (it, ctx_out) =
             switch (prev_it, delta) {
-            | (Some(q), Unchanged) when keep_ctx && ctx === q.d_ctx_in => (
+            | (Some(q), Unchanged)
+                when keep_ctx && phys_equal(ctx, q.d_ctx_in) => (
                 {
                   ...it,
                   d_ctx_out: q.d_ctx_out,
@@ -2338,17 +2335,20 @@ and calc_chain =
           let (dirty_vars, dirty_tnames) =
             moved_in
               ? (
-                List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
-                List.sort_uniq(
-                  compare,
-                  List.concat_map(tnames_of_entry, it.d_exports)
+                List.dedup_and_sort(
+                  ~compare,
+                  names_of(it.d_exports) @ dirty_vars,
+                ),
+                List.dedup_and_sort(
+                  ~compare,
+                  List.concat_map(~f=tnames_of_entry, it.d_exports)
                   @ dirty_tnames,
                 ),
               )
               : (dirty_vars, dirty_tnames);
           let dirty_tnames =
-            List.sort_uniq(
-              compare,
+            List.dedup_and_sort(
+              ~compare,
               ttransit(it.d_exports, ~dirty_vars, dirty_tnames) @ dirty_tnames,
             );
           go(
@@ -2380,7 +2380,7 @@ let chain_root = (~prev: option(t), e: Exp.t) => {
   | Module(members) =>
     let (nodes, stands, changed, mc) =
       member_level(
-        ~prev=Option.bind(prev, (p: t) => p.stands),
+        ~prev=Option.bind(prev, ~f=(p: t) => p.stands),
         ~expected=[],
         s,
         members,
@@ -2390,10 +2390,8 @@ let chain_root = (~prev: option(t), e: Exp.t) => {
     let changed =
       switch (prev) {
       | Some(p) when !Id.equal(Exp.rep_id(strip(p.term)), Exp.rep_id(s)) =>
-        List.fold_left(
-          (c, m) => Id.Set.add(Mod.rep_id(m), c),
-          changed,
-          members,
+        List.fold(members, ~init=changed, ~f=(c, m) =>
+          Id.Set.add(Mod.rep_id(m), c)
         )
       | _ => changed
       };
@@ -2443,9 +2441,9 @@ let calc =
       ~settings,
       ~probe_ids,
       ~probe_dirty,
-      ~member=?Option.map(((_, _, _, mc)) => mc, root),
+      ~member=?Option.map(~f=((_, _, _, mc)) => mc, root),
       ~keep_ctx=true,
-      ~prevs=Option.fold(~none=[], ~some=(p: t) => p.items, prev),
+      ~prevs=Option.value_map(prev, ~default=[], ~f=(p: t) => p.items),
       ~dirty_vars=[],
       ~dirty_tnames=[],
       ~ctx_in=ctx0,
@@ -2458,14 +2456,14 @@ let calc =
       ~container=[],
       ~srcs=
         switch (root) {
-        | Some((members, _, _, _)) => List.map(Option.some, members)
+        | Some((members, _, _, _)) => List.map(~f=Option.some, members)
         | None => []
         },
-      ~prev=Option.map((p: t) => (p.sums, p.merged), prev),
+      ~prev=Option.map(~f=(p: t) => (p.sums, p.merged), prev),
       items,
       changes,
     );
-  let elab = Option.bind(top_sum(sums), s => s.s_elab);
+  let elab = Option.bind(top_sum(sums), ~f=s => s.s_elab);
   let program_elab =
     switch (strip(whole).term) {
     | Module(_) =>
@@ -2485,7 +2483,7 @@ let calc =
             Closed(
               ClosedSig.of_items(
                 ModuleHelpers.exports(
-                  List.concat_map((it: item) => it.d_sig, items),
+                  List.concat_map(~f=(it: item) => it.d_sig, items),
                 ),
               ),
             ),
@@ -2531,7 +2529,7 @@ let calc =
     elab,
     program_elab,
     sums,
-    stands: Option.map(((_, stands, _, _)) => stands, root),
+    stands: Option.map(~f=((_, stands, _, _)) => stands, root),
   };
 };
 
@@ -2566,17 +2564,20 @@ let slots_cap = 8;
 let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
-  let prev = List.assoc_opt(key, slots^);
+  let prev = List.Assoc.find(slots^, key, ~equal=Poly.equal);
   let t = calc(~settings, ~prev?, ~probe_ids, whole);
   slots :=
     [
       (key, t),
-      ...Util.ListUtil.take(slots_cap - 1, List.remove_assoc(key, slots^)),
+      ...Util.ListUtil.take(
+           slots_cap - 1,
+           List.Assoc.remove(slots^, key, ~equal=Poly.equal),
+         ),
     ];
-  Option.iter(check => check(settings, t), after_calc^);
+  Option.iter(~f=check => check(settings, t), after_calc^);
   t;
 };
 
 /* the last calc of [whole]'s document, if still cached */
 let cached = (whole: Exp.t): option(t) =>
-  List.assoc_opt(Exp.rep_id(whole), slots^);
+  List.Assoc.find(slots^, Exp.rep_id(whole), ~equal=Poly.equal);

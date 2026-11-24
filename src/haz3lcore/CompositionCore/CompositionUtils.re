@@ -12,7 +12,7 @@ type action_wrapper =
   | Failure(string);
 
 /* read_docs is offered only when the pack registry is non-empty */
-  let docs_tools = List.is_empty(DocPacks.all) ? [] : [DocsTools.read_docs];
+let docs_tools = List.is_empty(DocPacks.all) ? [] : [DocsTools.read_docs];
 let tools =
   [ViewTools.open_, ViewTools.close]
   @ docs_tools
@@ -60,7 +60,7 @@ let get_optional_string = (args: API.Json.t, field: string): option(string) => {
 };
 
 let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
-    let k = ProjectorKind.of_name(String.strip(s));
+  let k = ProjectorKind.of_name(String.strip(s));
   if (ProjectorKind.is_refractor(k)) {
     raise(
       Failure(
@@ -83,7 +83,11 @@ let clean_path = (path: string): string => {
   let b = Stdlib.Buffer.create(n);
   let rec go = i =>
     if (i < n) {
-      let escaped = path.[i] == '\\' && i + 1 < n && path.[i + 1] == '"';
+      let escaped =
+        Char.equal(path.[i], '\\')
+        && i
+        + 1 < n
+        && Char.equal(path.[i + 1], '"');
       Stdlib.Buffer.add_char(b, escaped ? '"' : path.[i]);
       go(escaped ? i + 2 : i + 1);
     };
@@ -99,11 +103,12 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
       let place = (): Action.Structural.place =>
         switch (
           List.filter_map(
-            ((key, mk)) =>
-              switch (API.Json.dot(key, args)) {
-              | Some(`String(s)) => Some(mk(clean_path(s)))
-              | _ => None
-              },
+            ~f=
+              ((key, mk)) =>
+                switch (API.Json.dot(key, args)) {
+                | Some(`String(s)) => Some(mk(clean_path(s)))
+                | _ => None
+                },
             [
               ("before", s => Action.Structural.Before(s)),
               ("after", s => After(s)),
@@ -121,14 +126,14 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
             ),
           )
         };
-      tool_name == "read_docs"
+      String.equal(tool_name, "read_docs")
         ? DocsRequest(get_string(args, "topic"))
         : Action(
             switch (tool_name) {
             | "open" =>
               AgentContextAction(
                 OpenPaths(
-                  List.map(clean_path, get_string_list(args, "targets")),
+                  List.map(~f=clean_path, get_string_list(args, "targets")),
                 ),
               )
             | "close" =>
@@ -137,64 +142,67 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
               | _ =>
                 AgentContextAction(
                   ClosePaths(
-                    List.map(clean_path, get_string_list(args, "targets")),
+                    List.map(
+                      ~f=clean_path,
+                      get_string_list(args, "targets"),
+                    ),
                   ),
                 )
               }
             | "place_probe" =>
               ProbeAction(
                 PlaceProbe(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "remove_probe" =>
               ProbeAction(
                 RemoveProbe(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "toggle_probe" =>
               ProbeAction(
                 ToggleProbe(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "place_statics" =>
               StaticsAction(
                 PlaceStatics(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "remove_statics" =>
               StaticsAction(
                 RemoveStatics(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "toggle_statics" =>
               StaticsAction(
                 ToggleStatics(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "place_syntax_projector" =>
               SyntaxProjectorAction(
                 PlaceSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "remove_syntax_projector" =>
               SyntaxProjectorAction(
                 RemoveSyntaxProjector(
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "toggle_syntax_projector" =>
               SyntaxProjectorAction(
                 ToggleSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  List.map(clean_path, get_string_list(args, "paths")),
+                  List.map(~f=clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "insert" =>
@@ -216,7 +224,10 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
               EditorAction(
                 Rename(
                   clean_path(get_string(args, "target")),
-                  Option.map(String.trim, get_optional_string(args, "name")),
+                  Option.map(
+                    ~f=String.strip,
+                    get_optional_string(args, "name"),
+                  ),
                   get_string(args, "to"),
                 ),
               )

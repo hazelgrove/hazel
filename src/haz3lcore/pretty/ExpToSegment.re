@@ -754,7 +754,12 @@ let rec parenthesize =
   | Module(items) =>
     Module(
       List.map(
-        parenthesize_mod(~parenthesization, ~show_filters, ~show_ascriptions),
+        ~f=
+          parenthesize_mod(
+            ~parenthesization,
+            ~show_filters,
+            ~show_ascriptions,
+          ),
         items,
       ),
     )
@@ -989,11 +994,11 @@ and parenthesize_typ =
         MultiHole(
           List.map(
             ~f=
-            parenthesize_any(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-            ),
+              parenthesize_any(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+              ),
             xs,
           ),
         ),
@@ -1005,7 +1010,7 @@ and parenthesize_typ =
       Sig.map_typ(t => parenthesize_typ(t) |> paren_typ_at(Precedence.min));
     Sig(
       switch (s) {
-      | Open(items) => Open(List.map(item, items))
+      | Open(items) => Open(List.map(~f=item, items))
       | Closed(items) => Closed(ClosedSig.map(item, items))
       },
     )
@@ -1064,21 +1069,21 @@ and parenthesize_rul =
       parenthesize(~parenthesization, ~show_ascriptions, ~show_filters, e),
       List.map(
         ~f=
-        ((p, e)) =>
-          (
-            parenthesize_pat(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              p,
+          ((p, e)) =>
+            (
+              parenthesize_pat(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                p,
+              ),
+              parenthesize(
+                ~parenthesization,
+                ~show_ascriptions,
+                ~show_filters,
+                e,
+              ),
             ),
-            parenthesize(
-              ~parenthesization,
-              ~show_ascriptions,
-              ~show_filters,
-              e,
-            ),
-          ),
         ps,
       ),
     )
@@ -1118,7 +1123,12 @@ and parenthesize_mod =
   | MultiHole(xs) =>
     MultiHole(
       List.map(
-        parenthesize_any(~parenthesization, ~show_ascriptions, ~show_filters),
+        ~f=
+          parenthesize_any(
+            ~parenthesization,
+            ~show_ascriptions,
+            ~show_filters,
+          ),
         xs,
       ),
     )
@@ -2140,12 +2150,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(exp.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
     /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(exp.annotation));
     let id = exp |> Exp.rep_id;
@@ -2166,12 +2176,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -2596,8 +2606,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             e
             @ (
               List.map2_exn(ids, rs, ~f=(id, (p, e)) =>
-                  (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
-                  @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
+                @ [mk_form(~sort=Sort.Rul, Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses))
               )
               |> List.concat
@@ -2897,12 +2907,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when op_lexeme(pat.annotation) != None =>
+  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
     /* Unknown infix operator in pattern position (see MakeTerm's pat
        Bin fallthrough) */
     let op = Option.value_exn(op_lexeme(pat.annotation));
@@ -2922,12 +2932,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -3024,12 +3034,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([x])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Stranded prefix op (see MakeTerm's Pre captures) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
     let+ x = any_to_pretty(~settings, x);
     wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r]))) when op_lexeme(typ.annotation) != None =>
+  | Unknown(Hole(MultiHole([l, r])))
+      when Option.is_some(op_lexeme(typ.annotation)) =>
     /* Unknown infix operator in type position (see MakeTerm's typ Bin
        fallthrough) */
     let op = Option.value_exn(op_lexeme(typ.annotation));
@@ -3049,12 +3061,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )
@@ -3363,12 +3375,12 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, x) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...x,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...x,
               ]
             ),
           )
@@ -3505,12 +3517,12 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
         first
         @ List.concat(
             List.map2_exn(ids, rest, ~f=(id, e) =>
-                [
-                  Grout({
-                    id,
-                    shape: Concave,
-                  }),
-                  ...e,
+              [
+                Grout({
+                  id,
+                  shape: Concave,
+                }),
+                ...e,
               ]
             ),
           )

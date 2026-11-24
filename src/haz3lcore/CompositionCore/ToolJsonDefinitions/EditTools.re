@@ -17,13 +17,13 @@ let tool =
       "function",
       `Assoc([
         ("name", `String(name)),
-        ("description", `String(String.trim(description))),
+        ("description", `String(String.strip(description))),
         (
           "parameters",
           `Assoc([
             ("type", `String("object")),
             ("properties", `Assoc(properties)),
-            ("required", `List(List.map(r => `String(r), required))),
+            ("required", `List(List.map(~f=r => `String(r), required))),
           ]),
         ),
       ]),
@@ -41,7 +41,7 @@ let paths_param = (desc: string): API.Json.t =>
   ]);
 
 /* string parameters, by name and description */
-let strings = List.map(((key, desc)) => (key, string_param(desc)));
+let strings = List.map(~f=((key, desc)) => (key, string_param(desc)));
 
 let place_properties = [
   ("before", "Path of the entry it goes before."),
@@ -63,7 +63,7 @@ let example = (name: string): string =>
     "\n\nExample"
     ++ (List.length(calls) > 1 ? "s" : "")
     ++ ":\n"
-    ++ String.concat("\n", List.map(ToolExamples.call_text, calls))
+    ++ String.concat(~sep="\n", List.map(~f=ToolExamples.call_text, calls))
   };
 
 let insert: API.Json.t =
