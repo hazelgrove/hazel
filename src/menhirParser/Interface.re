@@ -17,7 +17,7 @@ let parse = (f, s) => {
     raise(
       Failure(
         "Exception "
-        ++ Printexc.to_string(e)
+        ++ Exn.to_string(e)
         ++ " at: "
         ++ string_of_pos(lexbuf.lex_curr_p),
       ),

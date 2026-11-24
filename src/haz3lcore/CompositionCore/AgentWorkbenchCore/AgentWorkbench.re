@@ -105,7 +105,8 @@ module Utils = {
 
     let is_active = (task: task, subtask_name: string): bool => {
       switch (task.active_subtask) {
-      | Some(active_subtask_name) => active_subtask_name == subtask_name
+      | Some(active_subtask_name) =>
+        String.equal(active_subtask_name, subtask_name)
       | None => false
       };
     };
@@ -181,7 +182,7 @@ module Utils = {
     let ordered_subtasks_of = (task: task): list(subtask) => {
       // Returns the subtasks in the order specified by subtask_ordering
       task.subtask_ordering
-      |> List.filter_map((title: string) =>
+      |> List.filter_map(~f=(title: string) =>
            Maps.StringMap.find_opt(title, task.subtasks)
          );
     };
@@ -189,7 +190,7 @@ module Utils = {
     let get_incompleted_subtasks = (task: task): list(subtask) => {
       // Returns a list of all incompleted subtasks in the given task
       ordered_subtasks_of(task)
-      |> List.filter((subtask: subtask) => !is_completed(subtask));
+      |> List.filter(~f=(subtask: subtask) => !is_completed(subtask));
     };
 
     let get_next_incomplete_subtask_title = (task: task): option(string) => {
@@ -204,7 +205,7 @@ module Utils = {
 
     let is_active = (model: t, task_name: string): bool => {
       switch (model.active_task) {
-      | Some(active_task_name) => active_task_name == task_name
+      | Some(active_task_name) => String.equal(active_task_name, task_name)
       | None => false
       };
     };
@@ -246,9 +247,10 @@ module Utils = {
       )
       ++ "\nSubtasks:\n"
       ++ List.fold_left(
-           (acc: string, subtask: subtask) =>
-             acc ++ subtask_to_pretty_string(task, subtask),
-           "",
+           ~f=
+             (acc: string, subtask: subtask) =>
+               acc ++ subtask_to_pretty_string(task, subtask),
+           ~init="",
            ordered_subtasks_of(task),
          );
     };
@@ -280,13 +282,14 @@ module Utils = {
         : task => {
       let subtask_map =
         List.fold_left(
-          (acc: Maps.StringMap.t(subtask), subtask: subtask) =>
-            Maps.StringMap.add(subtask.title, subtask, acc),
-          Maps.StringMap.empty,
+          ~f=
+            (acc: Maps.StringMap.t(subtask), subtask: subtask) =>
+              Maps.StringMap.add(subtask.title, subtask, acc),
+          ~init=Maps.StringMap.empty,
           subtasks,
         );
       let subtask_ordering =
-        List.map((subtask: subtask) => subtask.title, subtasks);
+        List.map(~f=(subtask: subtask) => subtask.title, subtasks);
       {
         title,
         description,
@@ -310,7 +313,7 @@ module Utils = {
       let subtasks_json = API.Json.Parsers.get_json_list(item, "subtasks");
       let subtasks =
         List.map(
-          (json: API.Json.t) => SubtaskUtils.json_to_subtask(json),
+          ~f=(json: API.Json.t) => SubtaskUtils.json_to_subtask(json),
           subtasks_json,
         );
       mk(~title, ~description, ~subtasks);
@@ -330,8 +333,8 @@ module Utils = {
       // Sorts the given todo archive by last updated time, most recent first
       task_dict
       |> Maps.StringMap.bindings
-      |> List.map(((_, task: task)) => task)
-      |> List.sort((a: task, b: task) =>
+      |> List.map(~f=((_, task: task)) => task)
+      |> List.sort(~compare=(a: task, b: task) =>
            int_of_float(
              b.metadata.last_updated_at -. a.metadata.last_updated_at,
            )
@@ -406,16 +409,17 @@ module Utils = {
     };
 
     module SafeTaskAssertion = {
-      module StringSet = Set.Make(String);
+      module StringSet = Stdlib.Set.Make(String);
       let assert_no_duplicates_in_ordering = (~task: task): unit => {
         // Assert no duplicates in subtask_ordering
         let unique_subtask_titles =
           task.subtask_ordering
           |> List.fold_left(
-               (acc: StringSet.t, title: string) => {
-                 StringSet.add(title, acc)
-               },
-               StringSet.empty,
+               ~f=
+                 (acc: StringSet.t, title: string) => {
+                   StringSet.add(title, acc)
+                 },
+               ~init=StringSet.empty,
              );
         StringSet.cardinal(unique_subtask_titles)
         == List.length(task.subtask_ordering)
@@ -428,9 +432,10 @@ module Utils = {
       let assert_all_subtasks_from_ordering_exist_in_map = (~task: task): unit =>
         // Assert all subtasks in ordering exist in the subtasks map
         List.for_all(
-          (subtask_title: string) => {
-            Maps.StringMap.mem(subtask_title, task.subtasks)
-          },
+          ~f=
+            (subtask_title: string) => {
+              Maps.StringMap.mem(subtask_title, task.subtasks)
+            },
           task.subtask_ordering,
         )
           ? ()
@@ -443,7 +448,7 @@ module Utils = {
         // Assert all subtasks in the subtasks map are referenced in the ordering
         Maps.StringMap.for_all(
           (_, subtask: subtask) => {
-            List.mem(subtask.title, task.subtask_ordering)
+            List.mem(task.subtask_ordering, subtask.title, ~equal=Poly.equal)
           },
           task.subtasks,
         )
@@ -634,13 +639,14 @@ module Update = {
           | Some(subtask) =>
             let tools_used =
               List.mapi(
-                (index: int, tool_result: AgentToolResult.tool_result) =>
-                  index == tool_result_index
-                    ? {
-                      ...tool_result,
-                      expanded,
-                    }
-                    : tool_result,
+                ~f=
+                  (index: int, tool_result: AgentToolResult.tool_result) =>
+                    index == tool_result_index
+                      ? {
+                        ...tool_result,
+                        expanded,
+                      }
+                      : tool_result,
                 subtask.tools_used,
               );
             let updated_subtask = {
@@ -733,24 +739,25 @@ module Update = {
           let clock_it = JsUtil.timestamp();
           let task_with_subtasks_done =
             List.fold_left(
-              (task, subtask: subtask) => {
-                let updated_subtask = {
-                  ...subtask,
-                  completion_info:
-                    Some({
-                      summary: "(Auto-completed when the parent task was marked complete.)",
-                      elapsed_time: clock_it -. subtask.metadata.began_at,
-                      status: Completed,
-                    }),
-                  metadata: {
-                    ...subtask.metadata,
-                    completed_at: Some(clock_it),
-                    last_updated_at: clock_it,
-                  },
-                };
-                TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
-              },
-              active_task,
+              ~f=
+                (task, subtask: subtask) => {
+                  let updated_subtask = {
+                    ...subtask,
+                    completion_info:
+                      Some({
+                        summary: "(Auto-completed when the parent task was marked complete.)",
+                        elapsed_time: clock_it -. subtask.metadata.began_at,
+                        status: Completed,
+                      }),
+                    metadata: {
+                      ...subtask.metadata,
+                      completed_at: Some(clock_it),
+                      last_updated_at: clock_it,
+                    },
+                  };
+                  TaskUtils.write_subtask(~task, ~subtask=updated_subtask);
+                },
+              ~init=active_task,
               TaskUtils.get_incompleted_subtasks(active_task),
             );
           let task = {
@@ -969,7 +976,7 @@ module Update = {
             | Some(d) => d
             | None => active_task.description
             };
-          let title_changed = new_title != active_task.title;
+          let title_changed = !String.equal(new_title, active_task.title);
           let updated_task = {
             ...active_task,
             title: new_title,
@@ -993,7 +1000,8 @@ module Update = {
                   ...model.t_ui,
                   display_task:
                     switch (model.t_ui.display_task) {
-                    | Some(t) when t == active_task.title => Some(new_title)
+                    | Some(t) when String.equal(t, active_task.title) =>
+                      Some(new_title)
                     | other => other
                     },
                 },
@@ -1026,7 +1034,8 @@ module Update = {
               | Some(d) => d
               | None => active_subtask.description
               };
-            let title_changed = new_title != active_subtask.title;
+            let title_changed =
+              !String.equal(new_title, active_subtask.title);
             let updated_subtask = {
               ...active_subtask,
               title: new_title,
@@ -1050,7 +1059,9 @@ module Update = {
                   |> Maps.StringMap.add(new_title, updated_subtask);
                 let updated_ordering =
                   List.map(
-                    (t: string) => t == active_subtask.title ? new_title : t,
+                    ~f=
+                      (t: string) =>
+                        String.equal(t, active_subtask.title) ? new_title : t,
                     active_task.subtask_ordering,
                   );
                 let updated_task = {
@@ -1084,14 +1095,14 @@ module Update = {
             task_dict: Maps.StringMap.remove(title, model.task_dict),
             active_task:
               switch (model.active_task) {
-              | Some(t) when t == title => None
+              | Some(t) when String.equal(t, title) => None
               | other => other
               },
             t_ui: {
               ...model.t_ui,
               display_task:
                 switch (model.t_ui.display_task) {
-                | Some(t) when t == title => None
+                | Some(t) when String.equal(t, title) => None
                 | other => other
                 },
             },
@@ -1116,12 +1127,12 @@ module Update = {
               subtasks: Maps.StringMap.remove(title, active_task.subtasks),
               subtask_ordering:
                 List.filter(
-                  (t: string) => t != title,
+                  ~f=(t: string) => !String.equal(t, title),
                   active_task.subtask_ordering,
                 ),
               active_subtask:
                 switch (active_task.active_subtask) {
-                | Some(t) when t == title => None
+                | Some(t) when String.equal(t, title) => None
                 | other => other
                 },
             };

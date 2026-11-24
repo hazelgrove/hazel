@@ -270,13 +270,11 @@ let label_of: t => Label.t =
  * ["(",")"] is both Parens and Ap), and Tok ids can spell the same
  * tokens as a registered form. */
 let has_label_of = (f: t, fam: family): bool =>
-  label_of(f) == label_of_family(fam);
+  Label.equal(label_of(f), label_of_family(fam));
 
 /* Every delimiter token of the grammar's compound forms. */
 let delims: list(Token.t) =
-  all_of_family
-  |> List.concat_map(label_of_family)
-  |> List.sort_uniq(compare);
+  all_of_family |> List.concat_map(~f=label_of_family) |> Token.sort_uniq;
 
 /* The surface family of each binary operator; bin_op_to_string
  * below reads operator spellings off these maps and the label
@@ -336,4 +334,4 @@ let bin_op_family: Operators.op_bin => family =
 
 /* All these families are single-token, so hd is total. */
 let bin_op_to_string = (op: Operators.op_bin): Token.t =>
-  List.hd(label_of_family(bin_op_family(op)));
+  List.hd_exn(label_of_family(bin_op_family(op)));
