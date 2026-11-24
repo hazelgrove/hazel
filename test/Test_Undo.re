@@ -65,13 +65,15 @@ let tests = (
       () => {
         let m0 = mk_model();
         let m1 = apply(m0, insert("1"));
-        let entry = List.hd(m1.undo_stack).model;
+        let entry = List.hd_exn(m1.undo_stack).model;
         check(
           bool,
           "stored syntax is the shared stale placeholder",
           true,
-          Page.Update.get_editor(entry).editor.syntax
-          === Lazy.force(History.stale_syntax),
+          phys_equal(
+            Page.Update.get_editor(entry).editor.syntax,
+            Lazy.force(History.stale_syntax),
+          ),
         );
         check(
           bool,
@@ -94,10 +96,11 @@ let tests = (
           m0.current.globals.settings.cap_undo_stack,
         );
         let m =
-          List.fold_left(
-            (m, _) => apply(m, insert("1")),
-            m0,
-            List.init(History.capped_undo_stack_size + 5, Fun.id),
+          List.fold(
+            List.init(History.capped_undo_stack_size + 5, ~f=Fn.id),
+            ~init=m0,
+            ~f=(m, _) =>
+            apply(m, insert("1"))
           );
         check(
           int,

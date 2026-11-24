@@ -58,20 +58,18 @@ let slim_scratch =
     (~drop_results: bool, m: ScratchMode.Model.t): ScratchMode.Model.t => {
   ...m,
   scratchpads:
-    List.map(
-      (sp: ScratchMode.Scratchpad.t) =>
-        switch (sp.kind) {
-        | Code(code) => {
-            ...sp,
-            kind:
-              Code({
-                ...code,
-                editor: slim_cell(~drop_results, code.editor),
-              }),
-          }
-        | Drv(_) => sp
-        },
-      m.scratchpads,
+    List.map(m.scratchpads, ~f=(sp: ScratchMode.Scratchpad.t) =>
+      switch (sp.kind) {
+      | Code(code) => {
+          ...sp,
+          kind:
+            Code({
+              ...code,
+              editor: slim_cell(~drop_results, code.editor),
+            }),
+        }
+      | Drv(_) => sp
+      }
     ),
 };
 
@@ -86,15 +84,14 @@ let slim = (~drop_results=false, m: Page.Model.t): Page.Model.t => {
       Config({
         ...cm,
         configs:
-          List.map(
-            ((ty, c)) => (ty, slim_cell(~drop_results, c)),
-            cm.configs,
+          List.map(cm.configs, ~f=((ty, c)) =>
+            (ty, slim_cell(~drop_results, c))
           ),
       })
     | Tutorial(tm) =>
       Tutorial({
         ...tm,
-        exercises: List.map(slim_tutorial(~drop_results), tm.exercises),
+        exercises: List.map(tm.exercises, ~f=slim_tutorial(~drop_results)),
       })
     | Exercises(_) as e => e
     },
