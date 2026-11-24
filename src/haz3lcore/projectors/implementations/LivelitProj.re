@@ -65,8 +65,8 @@ module M: Projector = {
      entry is transiently unavailable (mid-commit), falling back to the
      default inline shape would collapse a Block-sized placeholder and
      jump the layout. Reuse the last known shape instead. */
-  let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
-    Hashtbl.create(16);
+  let last_good_shape: Stdlib.Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
+    Stdlib.Hashtbl.create(16);
 
   let placeholder = (_model, info) => {
     let looked_up =
@@ -80,10 +80,10 @@ module M: Projector = {
       };
     switch (looked_up) {
     | Some(shape) =>
-      Hashtbl.replace(last_good_shape, info.id, shape);
+      Stdlib.Hashtbl.replace(last_good_shape, info.id, shape);
       shape;
     | None =>
-      switch (Hashtbl.find_opt(last_good_shape, info.id)) {
+      switch (Stdlib.Hashtbl.find_opt(last_good_shape, info.id)) {
       | Some(shape) => shape
       | None => ProjectorCore.Shape.inline(32)
       }
@@ -168,8 +168,7 @@ module M: Projector = {
     switch (info.dynamics) {
     | None => None
     | Some({samples, _}) =>
-      List.fold_left(
-        (acc, s: Sample.t) => {
+      List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) => {
           let v = MvuShape.close_value(s.value);
           if (MvuShape.is_html(v)) {
             switch (acc) {
@@ -179,11 +178,8 @@ module M: Projector = {
           } else {
             acc;
           };
-        },
-        None,
-        samples,
-      )
-      |> Option.map(snd)
+        })
+      |> Option.map(~f=snd)
     };
 
   /* Extract a member from the evaluated definition record: by label when
@@ -195,10 +191,10 @@ module M: Projector = {
     switch (MvuShape.of_tuple(MvuShape.strip_wrappers(record))) {
     | Some(fs) =>
       switch (
-        List.find_map(
+        List.find_map(~f=
           f =>
             switch (MvuShape.of_field(f)) {
-            | Some((l, v)) when l == label => Some(v)
+            | Some((l, v)) when String.equal(l, label) => Some(v)
             | _ => None
             },
           fs,
@@ -206,7 +202,7 @@ module M: Projector = {
       ) {
       | Some(v) => Some(v)
       | None when List.length(fs) >= 4 =>
-        let f = List.nth(fs, index);
+        let f = List.nth_exn(fs, index);
         switch (MvuShape.of_field(f)) {
         | Some((_, v)) => Some(v)
         | None => Some(f)
@@ -218,16 +214,12 @@ module M: Projector = {
 
   /* The latest sampled value at some id (e.g. the model argument) */
   let latest_value = (samples: list(Sample.t)): option(TermBase.Exp.t) =>
-    List.fold_left(
-      (acc, s: Sample.t) =>
+    List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) =>
         switch (acc) {
         | Some((best, _)) when best >= s.seq => acc
         | _ => Some((s.seq, s.value))
-        },
-      None,
-      samples,
-    )
-    |> Option.map(((_, v)) => MvuShape.close_value(v));
+        })
+    |> Option.map(~f=((_, v)) => MvuShape.close_value(v));
 
   /* An action from a handler. With the model's live value in hand, commit
      the TRANSITION — ^name.update(model, action) — as the new argument:
@@ -276,14 +268,14 @@ module M: Projector = {
        external edits still drop it — inherent, nothing to restore from. */
     opt_ephemeral: bool,
   };
-  let optimistic: Hashtbl.t(Id.t, optimistic_entry) = Hashtbl.create(16);
+  let optimistic: Stdlib.Hashtbl.t(Id.t, optimistic_entry) = Stdlib.Hashtbl.create(16);
 
   /* One console warning per projector id: an unserializable model is a
      standing property of the definition, not per-event news. */
-  let warned_ephemeral: Hashtbl.t(Id.t, unit) = Hashtbl.create(4);
+  let warned_ephemeral: Stdlib.Hashtbl.t(Id.t, unit) = Stdlib.Hashtbl.create(4);
   let warn_ephemeral = (~id: Id.t, ~ll_name: string) =>
-    if (!Hashtbl.mem(warned_ephemeral, id)) {
-      Hashtbl.add(warned_ephemeral, id, ());
+    if (!Stdlib.Hashtbl.mem(warned_ephemeral, id)) {
+      Stdlib.Hashtbl.add(warned_ephemeral, id, ());
       Js_of_ocaml.Firebug.console##warn(
         Js_of_ocaml.Js.string(
           "livelit ^"
@@ -294,9 +286,7 @@ module M: Projector = {
     };
 
   let squish = str =>
-    String.to_seq(str)
-    |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
-    |> String.of_seq;
+    String.filter(str, ~f=c => Char.(c != ' ' && c != '\n' && c != '\t'));
 
   let event_inject =
       (
@@ -323,7 +313,7 @@ module M: Projector = {
        pre-commit model — composing from there would silently stomp the
        in-flight action. The optimistic table is the newest local truth. */
     let base_value =
-      switch (Hashtbl.find_opt(optimistic, id)) {
+      switch (Stdlib.Hashtbl.find_opt(optimistic, id)) {
       | Some(e) => Some(e.opt_model)
       | None => model_value
       };
@@ -354,7 +344,7 @@ module M: Projector = {
       | Some(view_fn) =>
         switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
         | Ok(html) when MvuShape.is_html(html) =>
-          let prior = Hashtbl.find_opt(optimistic, id);
+          let prior = Stdlib.Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
              so the set of syntax states that count as "ours" is
              unchanged; only committing events append their commit. */
@@ -378,11 +368,11 @@ module M: Projector = {
           let outstanding = {
             let n = List.length(outstanding);
             n > 64
-              ? List.filteri((i, _) => i >= n - 64, outstanding)
+              ? List.filteri(~f=(i, _) => i >= n - 64, outstanding)
               : outstanding;
           };
           incr(optimistic_version);
-          Hashtbl.replace(
+          Stdlib.Hashtbl.replace(
             optimistic,
             id,
             {
@@ -395,14 +385,14 @@ module M: Projector = {
                 | None => 0
                 },
               opt_dirty:
-                Option.is_none(committed) || gesture == HazelDOM.Transient,
+                Option.is_none(committed) || Poly.equal(gesture, HazelDOM.Transient),
               opt_ephemeral: Option.is_none(committed),
             },
           );
         | _ =>
-          if (Hashtbl.mem(optimistic, id)) {
+          if (Stdlib.Hashtbl.mem(optimistic, id)) {
             incr(optimistic_version);
-            Hashtbl.remove(optimistic, id);
+            Stdlib.Hashtbl.remove(optimistic, id);
           }
         }
       | None => ()
@@ -428,7 +418,7 @@ module M: Projector = {
             );
           switch (MvuShape.safe_evaluate(applied)) {
           | Error(e) => `Error("update error: " ++ e)
-          | Ok(new_model) when commit_decision(new_model) == `Ephemeral =>
+          | Ok(new_model) when Poly.equal(commit_decision(new_model), `Ephemeral) =>
             /* The model carries a closure, so it cannot live in the
                syntax tree. Degrade gracefully instead of wedging: keep
                the widget running off the optimistic entry and skip the
@@ -440,13 +430,17 @@ module M: Projector = {
             `Ephemeral;
           | Ok(new_model) =>
             let unchanged =
-              squish(print_term(new_model)) == squish(print_term(base));
+              String.equal(
+                squish(print_term(new_model)),
+                squish(print_term(base)),
+              );
             let dirty_prior =
-              switch (Hashtbl.find_opt(optimistic, id)) {
+              switch (Stdlib.Hashtbl.find_opt(optimistic, id)) {
               | Some(e) => e.opt_dirty
               | None => false
               };
-            if (unchanged && (gesture == HazelDOM.Transient || !dirty_prior)) {
+            if (unchanged
+                && (Poly.equal(gesture, HazelDOM.Transient) || !dirty_prior)) {
               `Skip;
             } else {
               let committed =
@@ -475,7 +469,7 @@ module M: Projector = {
       /* The redex commit does not need the event-time evaluation to have
          succeeded (e.g. a definition that is not closed still works via
          the program's own evaluation). */
-      commit_model(Option.get(redex))
+      commit_model(Option.value_exn(redex))
     | (Commit, `Error(e)) => fail(e)
     };
   };
@@ -496,7 +490,7 @@ module M: Projector = {
      model, so letting clicks through could silently drop the in-flight
      edit). Display-only cache; entries overwrite on every successful
      render. */
-  let last_good_view: Hashtbl.t(Id.t, Node.t) = Hashtbl.create(16);
+  let last_good_view: Stdlib.Hashtbl.t(Id.t, Node.t) = Stdlib.Hashtbl.create(16);
 
   let user_view =
       (
@@ -513,7 +507,7 @@ module M: Projector = {
       )
       : Node.t => {
     let err = msg =>
-      switch (Hashtbl.find_opt(last_good_view, id)) {
+      switch (Stdlib.Hashtbl.find_opt(last_good_view, id)) {
       | Some(node) =>
         Node.div(~attrs=[Attr.classes(["livelit-pending"])], [node])
       | None =>
@@ -523,7 +517,7 @@ module M: Projector = {
         )
       };
     let ok = (node: Node.t): Node.t => {
-      Hashtbl.replace(last_good_view, id, node);
+      Stdlib.Hashtbl.replace(last_good_view, id, node);
       node;
     };
     let seed = (~model, ~model_value): HazelDOM.t => {
@@ -545,7 +539,7 @@ module M: Projector = {
        the authoritative sample content-converges with it or the syntax
        model stops matching what we committed (external edit / undo). */
     let opt =
-      switch (Hashtbl.find_opt(optimistic, id)) {
+      switch (Stdlib.Hashtbl.find_opt(optimistic, id)) {
       | None => None
       | Some(entry) =>
         /* An ephemeral entry never converges: no commit is in flight, so
@@ -564,14 +558,14 @@ module M: Projector = {
           let rec find = (i, xs) =>
             switch (xs) {
             | [] => None
-            | [x, ..._] when x == model_print => Some(i)
+            | [x, ..._] when String.equal(x, model_print) => Some(i)
             | [_, ...rest] => find(i + 1, rest)
             };
           find(0, entry.opt_outstanding);
         };
         let drop = () => {
           incr(optimistic_version);
-          Hashtbl.remove(optimistic, id);
+          Stdlib.Hashtbl.remove(optimistic, id);
           None;
         };
         switch (idx) {
@@ -652,7 +646,7 @@ module M: Projector = {
             |> info.utility.term_to_seg(~inline=true)
             |> view_seg(~background=false, Exp);
           let model_value =
-            Option.bind(info.dynamics_at(Exp.rep_id(model)), latest_value);
+            Option.bind(info.dynamics_at(Exp.rep_id(model)), ~f=latest_value);
           Node.div(
             ~attrs=[
               Attr.classes([ll_name, "user-livelit"]),

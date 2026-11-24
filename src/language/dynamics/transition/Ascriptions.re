@@ -231,7 +231,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        value) ascribed to a sum that has it takes the sum as its type;
        an application pushes the ascription into the payload */
     | (Constructor(c, None), Sum(m))
-        when ConstructorMap.get_entry(c, m) == Some(None) =>
+        when Poly.equal(ConstructorMap.get_entry(c, m), Some(None)) =>
       Some(
         IdTagged.fast_copy(
           DHExp.rep_id(e),
@@ -242,7 +242,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Ap(Forward, {term: Constructor(c, None), _} as con, payload),
         Sum(m),
       )
-        when ConstructorMap.get_entry(c, m) != None =>
+        when Option.is_some(ConstructorMap.get_entry(c, m)) =>
       switch (ConstructorMap.get_entry(c, m)) {
       | Some(Some(t')) =>
         Some(

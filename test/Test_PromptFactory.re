@@ -278,7 +278,7 @@ let creative_idioms_evaluate = () => {
    restore the `0. -. x` workaround guidance in HazelSyntaxNotes and the
    creative pack. */
 let float_negation_supported = () =>
-  List.iter(
+  List.iter(~f=
     assert_clean,
     ["-1.5 ==. 0. -. 1.5", "let x: Float = -5 in x", "let x = 2.5 in -x"],
   );

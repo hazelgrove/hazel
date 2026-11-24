@@ -22,7 +22,7 @@ let has_mark = (pred: Mark.t => bool, m: Statics.Map.t): bool =>
   Id.Map.exists(
     (_, info) =>
       switch ((info: Info.t)) {
-      | InfoExp({marks, _}) => List.exists(pred, marks)
+      | InfoExp({marks, _}) => List.exists(~f=pred, marks)
       | _ => false
       },
     m,
@@ -175,11 +175,12 @@ let shape = Tab(30, 5)
       bool,
       "shape member sets the projector shape",
       true,
-      ll.shape
-      == {
+      Poly.equal(
+        ll.shape,
+        {
            horizontal: 30,
            vertical: Tab(4) /* 5 lines = 4 linebreaks */
-         },
+         }),
     );
   | Error(_) => fail("adapter rejected a well-formed module definition")
   };
@@ -316,11 +317,12 @@ let shape_field = () => {
       bool,
       "fifth field sets the projector shape",
       true,
-      ll.shape
-      == {
+      Poly.equal(
+        ll.shape,
+        {
            horizontal: 30,
            vertical: Block(4) /* 5 lines = 4 linebreaks */
-         },
+         }),
     )
   | Error(_) => fail("adapter rejected a 5-field definition")
   };
@@ -336,10 +338,12 @@ let commit_decision = () => {
     bool,
     "first-order update result commits",
     true,
-    Haz3lcore.LivelitProj.commit_decision(
-      run("(fun (m, a) -> (m + 1, a))((1, 2))"),
-    )
-    == `Commit,
+    Poly.equal(
+      Haz3lcore.LivelitProj.commit_decision(
+        run("(fun (m, a) -> (m + 1, a))((1, 2))"),
+      ),
+      `Commit,
+    ),
   );
   let env = Environment.of_list([("y", parse_exp("3"))]);
   let closure_fn =
@@ -348,10 +352,12 @@ let commit_decision = () => {
     bool,
     "closure-carrying update result is ephemeral",
     true,
-    Haz3lcore.LivelitProj.commit_decision(
-      Exp.tuple([parse_exp("1"), closure_fn]),
-    )
-    == `Ephemeral,
+    Poly.equal(
+      Haz3lcore.LivelitProj.commit_decision(
+        Exp.tuple([parse_exp("1"), closure_fn]),
+      ),
+      `Ephemeral,
+    ),
   );
 };
 
@@ -389,7 +395,7 @@ let probe_run = (text: string) => {
       );
     (
       mtr,
-      List.map(fst, z.refractors.manuals),
+      List.map(~f=fst, z.refractors.manuals),
       EvaluatorState.get_probes(state),
     );
   };
@@ -411,12 +417,12 @@ let view_probes_fire = () => {
       (_, samples, acc) =>
         acc
         + List.length(
-            List.filter(
+            List.filter(~f=
               (s: Sample.t) =>
                 switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
                 | Atom(Int(n)) =>
-                  Bigint.to_int(n) == Some(63)
-                  || Bigint.to_int(n) == Some(12)
+                  Option.equal(Int.equal, Bigint.to_int(n), Some(63))
+                  || Option.equal(Int.equal, Bigint.to_int(n), Some(12))
                 | _ => false
                 },
               samples,
@@ -439,7 +445,7 @@ let projector_gets_html_sample = () => {
           switch (Sample.Map.lookup(id, probes)) {
           | Some(samples) =>
             List.length(
-              List.filter(
+              List.filter(~f=
                 (s: Sample.t) =>
                   Haz3lcore.MvuShape.is_html(
                     Haz3lcore.MvuShape.strip_wrappers(s.value),
@@ -488,22 +494,18 @@ let update_probe_fires_once = () => {
   let (_, manuals, probes) =
     probe_run(update_probe_def ++ "^^livelit(^dbl(^dbl.update(3, 9)))");
   let count_12 = ids =>
-    List.fold_left(
-      (acc, id) =>
+    List.fold(ids, ~init=0, ~f=(acc, id) =>
         acc
         + List.length(
-            List.filter(
+            List.filter(~f=
               (s: Sample.t) =>
                 switch (Haz3lcore.MvuShape.strip_wrappers(s.value).term) {
-                | Atom(Int(n)) => Bigint.to_int(n) == Some(12)
+                | Atom(Int(n)) => Option.equal(Int.equal, Bigint.to_int(n), Some(12))
                 | _ => false
                 },
               Option.value(Sample.Map.lookup(id, probes), ~default=[]),
             ),
-          ),
-      0,
-      ids,
-    );
+          ));
   check(int, "update probe sampled exactly once", 1, count_12(manuals));
   /* the model argument is also targeted — the commit path reads its value */
   let all_ids = Sample.Map.fold((id, _, acc) => [id, ...acc], probes, []);
@@ -567,15 +569,14 @@ let expand = fun m -> m
         switch (acc) {
         | Some(_) => acc
         | None =>
-          Option.bind(Sample.Map.lookup(id, probes), samples =>
-            List.find_map(
+          Option.bind(Sample.Map.lookup(id, probes), ~f=samples =>
+            List.find_map(~f=
               (s: Sample.t) => {
                 let v = Haz3lcore.MvuShape.close_value(s.value);
                 Haz3lcore.MvuShape.is_html(v) ? Some(v) : None;
               },
               samples,
-            )
-          )
+            ))
         },
       mtr.projectors,
       None,

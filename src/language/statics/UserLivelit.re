@@ -28,7 +28,7 @@ open Util;
 let expand_slot = 3;
 
 let is_livelit_name = (name: string): bool =>
-  String.length(name) > 1 && name.[0] == '^';
+  String.length(name) > 1 && Char.equal(name.[0], '^');
 
 /* The livelit bound by this let pattern, if any (bare name, no caret) */
 let rec binder_name = (p: TermBase.Pat.t): option(string) =>
@@ -36,7 +36,7 @@ let rec binder_name = (p: TermBase.Pat.t): option(string) =>
   | Parens(p)
   | Asc(p, _) => binder_name(p)
   | Var(name) when is_livelit_name(name) =>
-    Some(String.sub(name, 1, String.length(name) - 1))
+    Some(String.sub(name, ~pos=1, ~len=String.length(name) - 1))
   | _ => None
   };
 
@@ -68,19 +68,15 @@ let required_members = ["init", "update", "view", "expand"];
    module shadowing semantics. */
 let module_members =
     (items: list(TermBase.Mod.t)): list((string, TermBase.Exp.t)) =>
-  List.fold_left(
-    (acc, item: TermBase.Mod.t) =>
+  List.fold(items, ~init=[], ~f=(acc, item: TermBase.Mod.t) =>
       switch (item.term) {
       | ModLet(p, e) =>
         switch (pat_name(p)) {
-        | Some(name) => [(name, e), ...List.remove_assoc(name, acc)]
+        | Some(name) => [(name, e), ...List.Assoc.remove(acc, name, ~equal=String.equal)]
         | None => acc
         }
       | _ => acc
-      },
-    [],
-    items,
-  );
+      });
 
 /* The definition record is the trailing module or tuple, looking through
    helper bindings: `let helper = ... in {...}`. */
@@ -90,7 +86,7 @@ let rec detect = (def: TermBase.Exp.t): result(shape, Mark.livelit_def_error) =>
   | TyAlias(_, _, body) => detect(body)
   | Module(items) =>
     let members = module_members(items);
-    switch (List.filter(r => !List.mem_assoc(r, members), required_members)) {
+    switch (List.filter(~f=r => !List.Assoc.mem(members, r, ~equal=Poly.equal), required_members)) {
     | [] => Ok(ModuleDef(members))
     | missing => Error(DefMissingMembers(missing))
     };
@@ -117,19 +113,19 @@ let slot_index = (fs: list(TermBase.Exp.t), ~label: string, ~index: int): int =>
   let rec find = (i, fs) =>
     switch (fs) {
     | [] => index
-    | [f, ..._] when field_label(f) == Some(label) => i
+    | [f, ..._] when Option.equal(String.equal, field_label(f), Some(label)) => i
     | [_, ...fs] => find(i + 1, fs)
     };
   find(0, fs);
 };
 
 let slot = (fs: list(TermBase.Exp.t), ~label: string, ~index: int) =>
-  List.nth(fs, slot_index(fs, ~label, ~index));
+  List.nth_exn(fs, slot_index(fs, ~label, ~index));
 
 let unknown = () => IdTagged.FreshGrammar.Typ.unknown(Internal);
 
 let arrow_of = (ty: option(TermBase.Typ.t)) =>
-  switch (Option.map(Typ.term_of, ty)) {
+  switch (Option.map(~f=Typ.term_of, ty)) {
   | Some(Arrow(a, b)) => Some((a, b))
   | _ => None
   };
@@ -169,10 +165,10 @@ let ty_member =
   switch (Typ.term_of(def_ty)) {
   | Prod(tys) =>
     let by_label =
-      List.find_map(
+      List.find_map(~f=
         ty =>
           switch (Typ.term_of(ty)) {
-          | TupLabel({term: Label(l), _}, t) when l == label => Some(t)
+          | TupLabel({term: Label(l), _}, t) when String.equal(l, label) => Some(t)
           | _ => None
           },
         tys,
@@ -180,7 +176,7 @@ let ty_member =
     switch (by_label, index) {
     | (Some(t), _) => Some(t)
     | (None, Some(i)) when List.length(tys) > i =>
-      Some(strip_ty(List.nth(tys, i)))
+      Some(strip_ty(List.nth_exn(tys, i)))
     | _ => None
     };
   | _ => None
@@ -210,7 +206,7 @@ let shape_of = (e: TermBase.Exp.t): option(ProjectorShape.t) => {
     switch (strip_parens(ctr).term) {
     | Constructor("Inline", _) =>
       int_of(arg)
-      |> Option.map(w =>
+      |> Option.map(~f=w =>
            {
              ProjectorShape.horizontal: w,
              vertical: Inline,
@@ -218,7 +214,7 @@ let shape_of = (e: TermBase.Exp.t): option(ProjectorShape.t) => {
          )
     | Constructor("Block", _) =>
       pair_of(arg)
-      |> Option.map(((w, h)) =>
+      |> Option.map(~f=((w, h)) =>
            {
              ProjectorShape.horizontal: w,
              vertical: h <= 1 ? Inline : Block(h - 1),
@@ -226,7 +222,7 @@ let shape_of = (e: TermBase.Exp.t): option(ProjectorShape.t) => {
          )
     | Constructor("Tab", _) =>
       pair_of(arg)
-      |> Option.map(((w, h)) =>
+      |> Option.map(~f=((w, h)) =>
            {
              ProjectorShape.horizontal: w,
              vertical: h <= 1 ? Inline : Tab(h - 1),
@@ -265,7 +261,7 @@ let mk_expand_positional =
   open IdTagged.FreshGrammar;
   let hidden = "%expand";
   let pats =
-    List.init(n_fields, i => i == expand_i ? Pat.var(hidden) : Pat.wild());
+    List.init(n_fields, ~f=i => i == expand_i ? Pat.var(hidden) : Pat.wild());
   Some(
     Exp.let_(
       Pat.tuple(pats),
@@ -349,7 +345,8 @@ let instrument_view =
   let body =
     Exp.map_term(
       ~f_exp=
-        (continue, e) => Exp.rep_id(e) == model_id ? m_ref() : continue(e),
+        (continue, e) =>
+          Id.equal(Exp.rep_id(e), model_id) ? m_ref() : continue(e),
       body,
     );
   IdTagged.FreshGrammar.(
@@ -391,7 +388,7 @@ let mk =
       view: (_model, _send) =>
         Virtual_dom.Vdom.Node.text("user-defined livelit"),
       shape:
-        switch (Option.bind(shape, shape_of)) {
+        switch (Option.bind(shape, ~f=shape_of)) {
         | Some(shape) => shape
         | None => default_shape
         },
@@ -403,8 +400,8 @@ let mk =
   | Ok(ModuleDef(members)) =>
     Ok(
       build(
-        ~init=List.assoc("init", members),
-        ~shape=List.assoc_opt("shape", members),
+        ~init=List.Assoc.find_exn(members, "init", ~equal=Poly.equal),
+        ~shape=List.Assoc.find(members, "shape", ~equal=Poly.equal),
         ~expand=mk_expand_dot(~name),
         ~update_ty=ty_member(def_ty, ~label="update", ~index=None),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=None),
@@ -414,7 +411,7 @@ let mk =
     let update_i = slot_index(fs, ~label="update", ~index=1);
     let expand_i = slot_index(fs, ~label="expand", ~index=expand_slot);
     let expand =
-      field_label(List.nth(fs, expand_i)) != None
+      Option.is_some(field_label(List.nth_exn(fs, expand_i)))
         ? mk_expand_dot(~name)
         : mk_expand_positional(~name, ~n_fields=List.length(fs), ~expand_i);
     Ok(

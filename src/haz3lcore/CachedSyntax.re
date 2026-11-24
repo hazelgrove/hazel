@@ -173,8 +173,8 @@ let refresh_shapes =
    * sample refresh), the whole-program re-measure is pure waste. Keep
    * the old shape_map ref too so downstream phys-eq caches stay warm. */
   let shapes_equal =
-    Id.Map.equal((a, b) => a == b, shape_map, old.shape_map)
-    && refractor_rows === old.refractor_rows;
+    Id.Map.equal(Poly.equal, shape_map, old.shape_map)
+    && phys_equal(refractor_rows, old.refractor_rows);
   let (shape_map, measured) =
     shapes_equal
       ? (old.shape_map, old.measured)

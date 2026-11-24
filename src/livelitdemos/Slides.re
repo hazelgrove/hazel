@@ -8,7 +8,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Emotion", [%blob "emotion.hz"]),
     ("Color Picker", [%blob "color-picker.hz"]),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (
          "Livelits / " ++ name,
          Haz3lcore.PersistentZipper.of_slide_text(text),

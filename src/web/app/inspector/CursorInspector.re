@@ -773,7 +773,7 @@ let exp_mark_err_view =
   | InvalidLivelitDef(DefMissingMembers(missing)) =>
     div_err([
       text("Livelit definition is missing members: "),
-      ...List.map(code, missing),
+      ...List.map(~f=code, missing),
     ])
   | BadTheorem(typ) =>
     div_err([
