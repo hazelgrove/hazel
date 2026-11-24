@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Model = ScratchModel.Model;
@@ -23,10 +24,11 @@ let content_key = (prefix: string, name: string): string =>
 /* the outline's folds per slide, by occurrence-qualified label path;
    modeled because <details> DOM state bleeds across slides and resets
    when the vdom recreates elements */
-let slide_folds: Hashtbl.t(string, OutlineTree.folds) = Hashtbl.create(8);
+let slide_folds: Stdlib.Hashtbl.t(string, OutlineTree.folds) =
+  Stdlib.Hashtbl.create(8);
 
 let folds = (prefix: string, name: string): OutlineTree.folds =>
-  switch (Hashtbl.find_opt(slide_folds, content_key(prefix, name))) {
+  switch (Stdlib.Hashtbl.find_opt(slide_folds, content_key(prefix, name))) {
   | Some(fs) => fs
   | None => []
   };
@@ -52,18 +54,18 @@ type side = {
   zoom: option(OutlineTree.path),
   parked: bool,
   collapse: list(OutlineTree.path),
-  [@sexp.default []]
   expand: list(OutlineTree.path),
   probes: Refractors.RefractorList.t,
 };
 
 /* the folds as the side keeps them: the rows folded, the rows opened */
 let folds_of_side = (side: side): OutlineTree.folds =>
-  List.map(p => (p, true), side.collapse)
-  @ List.map(p => (p, false), side.expand);
+  List.map(~f=p => (p, true), side.collapse)
+  @ List.map(~f=p => (p, false), side.expand);
 
 let with_folds = (folds: OutlineTree.folds, side: side): side => {
-  let paths = f => List.filter_map(((p, f')) => f' == f ? Some(p) : None);
+  let paths = f =>
+    List.filter_map(~f=((p, f')) => f' == f ? Some(p) : None);
   {
     ...side,
     collapse: paths(true, folds),
@@ -74,68 +76,37 @@ let with_folds = (folds: OutlineTree.folds, side: side): side => {
 let side_key = (prefix: string, name: string): string =>
   content_key(prefix, name) ++ ":side";
 
-/* the keys :side replaced, read while it is missing */
-let legacy_suffixes = [":caret", ":pins", ":view", ":collapse", ":probes"];
-[@deriving of_sexp]
-type legacy_pin = {
-  pin_path: OutlineTree.path,
-  pin_run: bool,
-};
-[@deriving of_sexp]
-type legacy_view = {
-  vf_zoom: option(OutlineTree.path),
-  vf_parked: bool,
+let no_side: side = {
+  caret: None,
+  pins: [],
+  zoom: None,
+  parked: false,
+  collapse: [],
+  expand: [],
+  probes: [],
 };
 
 let read_side = (prefix: string, name: string): side =>
-  switch (HazelDB.kv_get_sexp(side_key(prefix, name), side_of_sexp)) {
-  | Some(side) => side
-  | None =>
-    let ck = content_key(prefix, name);
-    let get = (suffix, of_sexp, default) =>
-      HazelDB.kv_get_sexp(ck ++ suffix, of_sexp) |> Option.value(~default);
-    let view = HazelDB.kv_get_sexp(ck ++ ":view", legacy_view_of_sexp);
-    {
-      caret:
-        Option.bind(HazelDB.kv_get(ck ++ ":caret"), txt =>
-          Scanf.sscanf_opt(txt, " %d %d", (row, col) => Point.mk(~row, ~col))
-        ),
-      pins:
-        get(":pins", list_of_sexp(legacy_pin_of_sexp), [])
-        |> List.map(p => (p.pin_path, p.pin_run)),
-      zoom: Option.bind(view, v => v.vf_zoom),
-      parked: Option.fold(~none=false, ~some=v => v.vf_parked, view),
-      collapse: get(":collapse", list_of_sexp(OutlineTree.path_of_sexp), []),
-      expand: [],
-      probes: get(":probes", Refractors.RefractorList.t_of_sexp, []),
-    };
-  };
+  HazelDB.kv_get_sexp(side_key(prefix, name), side_of_sexp)
+  |> Option.value(~default=no_side);
 
 /* the last side record written per slide: the next write's base (what it
    doesn't update carries over) and its change gate */
-let last_side: Hashtbl.t(string, (side, string)) = Hashtbl.create(8);
+let last_side: Stdlib.Hashtbl.t(string, (side, string)) =
+  Stdlib.Hashtbl.create(8);
 
 let write_side = (prefix: string, name: string, update: side => side): unit => {
   let ck = content_key(prefix, name);
   let (prev, prev_s) =
-    switch (Hashtbl.find_opt(last_side, ck)) {
+    switch (Stdlib.Hashtbl.find_opt(last_side, ck)) {
     | Some(last) => last
     | None => (read_side(prefix, name), "")
     };
   let side = update(prev);
   let s = Sexplib.Sexp.to_string(sexp_of_side(side));
   if (s != prev_s) {
-    Hashtbl.replace(last_side, ck, (side, s));
-    HazelDB.kv_batch(() => {
-      HazelDB.kv_save(side_key(prefix, name), s);
-      List.iter(
-        suffix =>
-          if (HazelDB.kv_get(ck ++ suffix) != None) {
-            HazelDB.kv_remove(ck ++ suffix);
-          },
-        legacy_suffixes,
-      );
-    });
+    Stdlib.Hashtbl.replace(last_side, ck, (side, s));
+    HazelDB.kv_save(side_key(prefix, name), s);
   };
 };
 
@@ -144,51 +115,56 @@ let read_probes =
     (prefix: string, name: string, seg: Segment.t): Refractors.RefractorList.t => {
   let present = Segment.ids(seg);
   List.filter(
-    ((id, _)) => List.mem(id, present),
+    ~f=((id, _)) => List.mem(present, id, ~equal=Poly.equal),
     read_side(prefix, name).probes,
   );
 };
 
 /* restores awaiting hydration, per slide; a load that finds nothing
    clears its entry, so no leftover survives a failed read */
-let pending_caret: Hashtbl.t(string, Point.t) = Hashtbl.create(8);
-let pending_pins: Hashtbl.t(string, side) = Hashtbl.create(8);
+let pending_caret: Stdlib.Hashtbl.t(string, Point.t) =
+  Stdlib.Hashtbl.create(8);
+let pending_pins: Stdlib.Hashtbl.t(string, side) = Stdlib.Hashtbl.create(8);
 
 let stage_side = (prefix: string, name: string): unit => {
   let ck = content_key(prefix, name);
   let side = read_side(prefix, name);
   switch (side.caret) {
-  | Some(p) => Hashtbl.replace(pending_caret, ck, p)
-  | None => Hashtbl.remove(pending_caret, ck)
+  | Some(p) => Stdlib.Hashtbl.replace(pending_caret, ck, p)
+  | None => Stdlib.Hashtbl.remove(pending_caret, ck)
   };
-  side.pins == [] && side.zoom == None
-    ? Hashtbl.remove(pending_pins, ck)
-    : Hashtbl.replace(pending_pins, ck, side);
+  List.is_empty(side.pins) && Option.is_none(side.zoom)
+    ? Stdlib.Hashtbl.remove(pending_pins, ck)
+    : Stdlib.Hashtbl.replace(pending_pins, ck, side);
   switch (folds_of_side(side)) {
-  | [] => Hashtbl.remove(slide_folds, ck)
-  | folds => Hashtbl.replace(slide_folds, ck, folds)
+  | [] => Stdlib.Hashtbl.remove(slide_folds, ck)
+  | folds => Stdlib.Hashtbl.replace(slide_folds, ck, folds)
   };
 };
 
 /* the saved view against the loaded program's outline */
-let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
+let resolve_view = (saved: side, outline: OutlineTree.t): SlideView.t => {
   zoom:
     switch (
-      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, term))
+      Option.bind(saved.zoom, ~f=path =>
+        OutlineTree.resolve_path(path, outline)
+      )
     ) {
-    | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
+    | Some(m) =>
+      OutlineTree.trail_of(m, outline) |> Option.value(~default=[])
     | None => []
     },
   pins:
     List.filter_map(
-      ((path, run)) =>
-        OutlineTree.resolve_path(path, term)
-        |> Option.map(id =>
-             SlideView.{
-               p_id: id,
-               p_run: run,
-             }
-           ),
+      ~f=
+        ((path, run)) =>
+          OutlineTree.resolve_path(path, outline)
+          |> Option.map(~f=id =>
+               SlideView.{
+                 p_id: id,
+                 p_run: run,
+               }
+             ),
       saved.pins,
     ),
   parked: saved.parked,
@@ -250,8 +226,10 @@ let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
    every editor autosave is the expensive part, so skip when the agent
    model is physically unchanged (edits rebuild the scratchpad record
    but reuse the agent field). */
-let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
-let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
+let last_saved_agent: Stdlib.Hashtbl.t(string, Agent.Model.t) =
+  Stdlib.Hashtbl.create(8);
+let last_agent_save_ts: Stdlib.Hashtbl.t(string, float) =
+  Stdlib.Hashtbl.create(8);
 
 /* the same gate for the editor blob, so an idle autosave serializes
    nothing: the zipper's content, or a divided program's cells' (caret
@@ -259,7 +237,8 @@ let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 type save_stamp =
   | Unstacked(Zipper.t)
   | Stacked(Divided.t);
-let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
+let last_saved_content: Stdlib.Hashtbl.t(string, save_stamp) =
+  Stdlib.Hashtbl.create(8);
 
 /* per-item persistence, the primary restore: item slices as sexps plus a
    roster, so autosave writes only touched items and reload restores the
@@ -278,29 +257,29 @@ let item_store = (prefix: string, name: string): ItemPersist.store => {
 
 /* previously-saved item slices per content key: pieces are shared
    across ticks when unchanged, so dirtiness is a pointer walk */
-let last_item_saves: Hashtbl.t(string, ItemPersist.saved) =
-  Hashtbl.create(8);
+let last_item_saves: Stdlib.Hashtbl.t(string, ItemPersist.saved) =
+  Stdlib.Hashtbl.create(8);
 
 let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
   let ck = content_key(prefix, name);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let prev =
-    Hashtbl.find_opt(last_item_saves, ck) |> Option.value(~default=[]);
+    Stdlib.Hashtbl.find_opt(last_item_saves, ck) |> Option.value(~default=[]);
   let saved = ItemPersist.save(~store=item_store(prefix, name), ~prev, seg);
-  Hashtbl.replace(last_item_saves, ck, saved);
+  Stdlib.Hashtbl.replace(last_item_saves, ck, saved);
 };
 
 /* the keys a slide owns, exactly: its content key, its side keys, its item
    store. a name may itself contain `:`, so no prefix match */
-let side_suffixes = [":agent", ":side", ...legacy_suffixes];
+let side_suffixes = [":agent", ":side"];
 let slide_suffix = (ck: string, k: string): option(string) => {
   let n = String.length(ck);
   if (k == ck) {
     Some("");
-  } else if (String.length(k) > n && String.sub(k, 0, n) == ck) {
-    let rest = String.sub(k, n, String.length(k) - n);
-    List.mem(rest, side_suffixes)
-    || String.starts_with(~prefix=":items:", rest)
+  } else if (String.length(k) > n && String.sub(k, ~pos=0, ~len=n) == ck) {
+    let rest = String.sub(k, ~pos=n, ~len=String.length(k) - n);
+    List.mem(side_suffixes, rest, ~equal=Poly.equal)
+    || String.is_prefix(~prefix=":items:", rest)
       ? Some(rest) : None;
   } else {
     None;
@@ -311,12 +290,12 @@ let slide_suffix = (ck: string, k: string): option(string) => {
    autosave (or an undo bringing the slide back) must write everything */
 let forget_gates = (ck: string): unit => {
   let drop = tbl =>
-    Hashtbl.fold(
-      (k, _, ks) => slide_suffix(ck, k) == None ? ks : [k, ...ks],
+    Stdlib.Hashtbl.fold(
+      (k, _, ks) => Option.is_none(slide_suffix(ck, k)) ? ks : [k, ...ks],
       tbl,
       [],
     )
-    |> List.iter(Hashtbl.remove(tbl));
+    |> List.iter(~f=Stdlib.Hashtbl.remove(tbl));
   drop(last_side);
   drop(last_saved_agent);
   drop(last_agent_save_ts);
@@ -328,10 +307,10 @@ let forget_gates = (ck: string): unit => {
    pick up: stored keys, folds, pending restores, save gates */
 let forget_slide = (prefix: string, name: string): unit => {
   let ck = content_key(prefix, name);
-  HazelDB.kv_remove_where(k => slide_suffix(ck, k) != None);
-  Hashtbl.remove(slide_folds, ck);
-  Hashtbl.remove(pending_pins, ck);
-  Hashtbl.remove(pending_caret, ck);
+  HazelDB.kv_remove_where(k => Option.is_some(slide_suffix(ck, k)));
+  Stdlib.Hashtbl.remove(slide_folds, ck);
+  Stdlib.Hashtbl.remove(pending_pins, ck);
+  Stdlib.Hashtbl.remove(pending_caret, ck);
   forget_gates(ck);
 };
 
@@ -342,13 +321,13 @@ let rename_slide = (prefix: string, old_name: string, new_name: string): unit =>
       content_key(prefix, new_name),
     );
     HazelDB.kv_rekey(k =>
-      Option.map(rest => new_ck ++ rest, slide_suffix(old_ck, k))
+      Option.map(~f=rest => new_ck ++ rest, slide_suffix(old_ck, k))
     );
-    switch (Hashtbl.find_opt(slide_folds, old_ck)) {
-    | Some(folds) => Hashtbl.replace(slide_folds, new_ck, folds)
-    | None => Hashtbl.remove(slide_folds, new_ck)
+    switch (Stdlib.Hashtbl.find_opt(slide_folds, old_ck)) {
+    | Some(folds) => Stdlib.Hashtbl.replace(slide_folds, new_ck, folds)
+    | None => Stdlib.Hashtbl.remove(slide_folds, new_ck)
     };
-    Hashtbl.remove(slide_folds, old_ck);
+    Stdlib.Hashtbl.remove(slide_folds, old_ck);
     forget_gates(old_ck);
     forget_gates(new_ck);
   };
@@ -368,10 +347,10 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       names,
     },
   );
-  let sp = List.nth(model.scratchpads, model.current);
+  let sp = List.nth_exn(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({program, agent, view})) =>
+  | (false, Code({program, agent, view, _})) =>
     let stamp =
       switch (program) {
       | Divided(d) => Stacked(d)
@@ -379,12 +358,12 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       };
     let ck = content_key(prefix, sp.name);
     let content_unchanged =
-      switch (Hashtbl.find_opt(last_saved_content, ck)) {
+      switch (Stdlib.Hashtbl.find_opt(last_saved_content, ck)) {
       | Some(prev) => stamp_equal(prev, stamp)
       | None => false
       };
     if (!content_unchanged) {
-      Hashtbl.replace(last_saved_content, ck, stamp);
+      Stdlib.Hashtbl.replace(last_saved_content, ck, stamp);
       /* text, without a live editor (syntax init and zipper sexps are
          slow); a divided program saves its document */
       let z =
@@ -426,7 +405,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         }),
       );
     };
-    let term = Program.statics(program).term;
+    let outline = Program.outline(program);
     /* the folds carry over: they're written as they change */
     write_side(prefix, sp.name, side =>
       {
@@ -452,14 +431,15 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         /* the view can change without the text (a parked pin dropped) */
         pins:
           List.filter_map(
-            (p: SlideView.pin) =>
-              OutlineTree.label_path(p.p_id, term)
-              |> Option.map(path => (path, p.p_run)),
+            ~f=
+              (p: SlideView.pin) =>
+                OutlineTree.label_path(p.p_id, outline)
+                |> Option.map(~f=path => (path, p.p_run)),
             view.pins,
           ),
         zoom:
-          Option.bind(SlideView.zoom_root(view), m =>
-            OutlineTree.label_path(m, term)
+          Option.bind(SlideView.zoom_root(view), ~f=m =>
+            OutlineTree.label_path(m, outline)
           ),
         parked: view.parked,
       }
@@ -468,12 +448,12 @@ let save_current' = (prefix: string, model: Model.t): unit => {
        equality gate saved (and serialized, several MB) many times a
        second while the model spoke; gate on the fields that persist */
     let unchanged =
-      switch (Hashtbl.find_opt(last_saved_agent, ck)) {
+      switch (Stdlib.Hashtbl.find_opt(last_saved_agent, ck)) {
       | Some(prev) =>
         let prev: Agent.Model.t = prev;
-        prev === agent
-        || prev.chat_system === agent.chat_system
-        && prev.prompting === agent.prompting
+        phys_equal(prev, agent)
+        || phys_equal(prev.chat_system, agent.chat_system)
+        && phys_equal(prev.prompting, agent.prompting)
         && prev.active_timeline_node == agent.active_timeline_node
         && prev.awaiting_response == agent.awaiting_response;
       | None => false
@@ -481,17 +461,18 @@ let save_current' = (prefix: string, model: Model.t): unit => {
     /* while the agent works (tools landing every few hundred ms) one save
        per 10 s is enough; the final save comes when it goes idle */
     let busy =
-      agent.awaiting_response != None || agent.pending_dispatch_send != None;
+      Option.is_some(agent.awaiting_response)
+      || Option.is_some(agent.pending_dispatch_send);
     let now = JsUtil.timestamp();
     let recently =
-      switch (Hashtbl.find_opt(last_agent_save_ts, ck)) {
+      switch (Stdlib.Hashtbl.find_opt(last_agent_save_ts, ck)) {
       | Some(t) => now -. t < 10000.
       | None => false
       };
     if (!unchanged && !(busy && recently)) {
       save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
-      Hashtbl.replace(last_saved_agent, ck, agent);
-      Hashtbl.replace(last_agent_save_ts, ck, now);
+      Stdlib.Hashtbl.replace(last_saved_agent, ck, agent);
+      Stdlib.Hashtbl.replace(last_agent_save_ts, ck, now);
     };
   | (false, Drv(m)) =>
     save_slide_kind(
@@ -540,7 +521,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
                );
           /* prime the dirty cache: the first autosave tick after a load
              should rewrite nothing */
-          Hashtbl.replace(
+          Stdlib.Hashtbl.replace(
             last_item_saves,
             content_key(prefix, name),
             ItemPersist.items_of(
@@ -552,7 +533,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
           /* the text copy re-mints ids, so no stored item slice can be
              reused: drop them rather than leave them */
           let ns = items_ns(prefix, name);
-          HazelDB.kv_remove_where(k => String.starts_with(~prefix=ns, k));
+          HazelDB.kv_remove_where(k => String.is_prefix(~prefix=ns, k));
           CellEditor.Model.unpersist(~settings, persisted);
         },
       (),
@@ -597,7 +578,10 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
           Init.default_documentation_slide_name(name)
           |> CellEditor.Model.unpersist(~settings),
         ~agent=?
-          Option.map(Agent.Persistent.unpersist, load_agent(prefix, name)),
+          Option.map(
+            ~f=Agent.Persistent.unpersist,
+            load_agent(prefix, name),
+          ),
         (),
       )
     }
@@ -621,10 +605,11 @@ let load_all =
     current,
     scratchpads:
       List.mapi(
-        (i, name) =>
-          i == current
-            ? load_scratchpad(~settings, prefix, name)
-            : Scratchpad.dormant_code(name),
+        ~f=
+          (i, name) =>
+            i == current
+              ? load_scratchpad(~settings, prefix, name)
+              : Scratchpad.dormant_code(name),
         names,
       ),
   };
@@ -632,7 +617,7 @@ let load_all =
 
 /* Swap the placeholder at [current] for the real slide, if dormant. */
 let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
-  let sp = List.nth(model.scratchpads, model.current);
+  let sp = List.nth_exn(model.scratchpads, model.current);
   if (sp.dormant) {
     Model.map_current(
       _ => load_scratchpad(~settings, prefix, sp.name),
@@ -654,38 +639,39 @@ let export_all =
     };
   let scratchpads: list(Scratchpad.persistent) =
     List.map(
-      name =>
-        switch (load_slide_kind(prefix, name)) {
-        | Some(CodePersist({editor, agent})) =>
-          Scratchpad.{
-            name,
-            kind:
-              CodePersist({
-                editor,
-                agent:
-                  Option.value(load_agent(prefix, name), ~default=agent),
-              }),
-          }
-        | Some(DrvPersist(_) as k) =>
-          Scratchpad.{
-            name,
-            kind: k,
-          }
-        | None =>
-          let agent =
-            switch (load_agent(prefix, name)) {
-            | Some(a) => a
-            | None => Agent.Persistent.persist(Agent.Utils.init())
+      ~f=
+        name =>
+          switch (load_slide_kind(prefix, name)) {
+          | Some(CodePersist({editor, agent})) =>
+            Scratchpad.{
+              name,
+              kind:
+                CodePersist({
+                  editor,
+                  agent:
+                    Option.value(load_agent(prefix, name), ~default=agent),
+                }),
+            }
+          | Some(DrvPersist(_) as k) =>
+            Scratchpad.{
+              name,
+              kind: k,
+            }
+          | None =>
+            let agent =
+              switch (load_agent(prefix, name)) {
+              | Some(a) => a
+              | None => Agent.Persistent.persist(Agent.Utils.init())
+              };
+            Scratchpad.{
+              name,
+              kind:
+                CodePersist({
+                  editor: None,
+                  agent,
+                }),
             };
-          Scratchpad.{
-            name,
-            kind:
-              CodePersist({
-                editor: None,
-                agent,
-              }),
-          };
-        },
+          },
       names,
     );
   let persistent: Model.persistent = (current, scratchpads);
@@ -699,7 +685,7 @@ let import_all = (prefix: string, data: string): unit =>
       data |> Sexplib.Sexp.of_string |> Model.persistent_of_sexp;
     let (current, scratchpads) = persistent;
     let names =
-      List.map((sp: Scratchpad.persistent) => sp.name, scratchpads);
+      List.map(~f=(sp: Scratchpad.persistent) => sp.name, scratchpads);
     /* an import replaces every slide: stale per-item saves would win
        over the imported text on load */
     let old_names =
@@ -707,7 +693,7 @@ let import_all = (prefix: string, data: string): unit =>
       | Some(m) => m.names
       | None => []
       };
-    List.iter(forget_slide(prefix), old_names @ names);
+    List.iter(~f=forget_slide(prefix), old_names @ names);
     save_meta(
       prefix,
       {
@@ -716,24 +702,25 @@ let import_all = (prefix: string, data: string): unit =>
       },
     );
     List.iter(
-      (sp: Scratchpad.persistent) =>
-        switch (sp.kind) {
-        | CodePersist({editor, agent}) =>
-          switch (editor) {
-          | Some(_) =>
-            save_slide_kind(
-              prefix,
-              sp.name,
-              CodePersist({
-                editor,
-                agent,
-              }),
-            )
-          | None => ()
-          };
-          save_agent(prefix, sp.name, agent);
-        | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
-        },
+      ~f=
+        (sp: Scratchpad.persistent) =>
+          switch (sp.kind) {
+          | CodePersist({editor, agent}) =>
+            switch (editor) {
+            | Some(_) =>
+              save_slide_kind(
+                prefix,
+                sp.name,
+                CodePersist({
+                  editor,
+                  agent,
+                }),
+              )
+            | None => ()
+            };
+            save_agent(prefix, sp.name, agent);
+          | DrvPersist(_) as k => save_slide_kind(prefix, sp.name, k)
+          },
       scratchpads,
     );
   }) {

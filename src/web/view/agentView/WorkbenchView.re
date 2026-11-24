@@ -3,17 +3,18 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Haz3lcore;
+open Poly;
 
 let format_duration_ms = (milliseconds: float): string => {
   let total_seconds = milliseconds /. 1000.0;
   if (milliseconds < 1000.0) {
-    Printf.sprintf("%.0fms", milliseconds);
+    sprintf("%.0fms", milliseconds);
   } else if (milliseconds < 60000.0) {
-    Printf.sprintf("%.1fs", total_seconds);
+    sprintf("%.1fs", total_seconds);
   } else {
-    let minutes = floor(total_seconds /. 60.0);
+    let minutes = Stdlib.floor(total_seconds /. 60.0);
     let remaining_seconds = total_seconds -. minutes *. 60.0;
-    Printf.sprintf("%.0fm %.0fs", minutes, remaining_seconds);
+    sprintf("%.0fm %.0fs", minutes, remaining_seconds);
   };
 };
 
@@ -27,14 +28,15 @@ let view =
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
-  // Build the high-level node map once for this render pass, used by tool-call
-  // rows for stale-path detection and cmd/ctrl-click jump targets.
-  let node_map: option(HighLevelNodeMap.t) = {
-    let z = code_with_statics.editor.state.zipper;
-    let info_map =
-      CompositionGo.Public.mk_statics(~root=code_with_statics.editor.root, z);
-    HighLevelNodeMap.build(z, info_map);
-  };
+  /* the program's outline, for tool-call rows: stale paths and
+     cmd/ctrl-click jump targets */
+  let outline =
+    Some(
+      Outline.of_program(
+        ~root=code_with_statics.editor.root,
+        Zipper.unselect_and_zip(code_with_statics.editor.state.zipper),
+      ),
+    );
   let current_chat_id = chat_system.current;
   let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let workbench: AgentWorkbench.Model.t = current_chat.agent_workbench;
@@ -111,7 +113,7 @@ let view =
     };
     ToolResultView.view(
       ~globals,
-      ~node_map?,
+      ~outline?,
       ~tool_result,
       ~toggle_expanded,
       (),
@@ -126,7 +128,7 @@ let view =
       : Node.t => {
     let is_active =
       switch (task.active_subtask) {
-      | Some(active_item) => active_item == subtask.title
+      | Some(active_item) => String.equal(active_item, subtask.title)
       | None => false
       };
     let is_completed =
@@ -222,7 +224,7 @@ let view =
                     )
                   | None => Node.none
                   },
-                  if (List.length(subtask.tools_used) > 0) {
+                  if (!List.is_empty(subtask.tools_used)) {
                     div(
                       ~attrs=[clss(["wb-detail-block"])],
                       [
@@ -233,15 +235,16 @@ let view =
                         div(
                           ~attrs=[clss(["wb-tool-results"])],
                           List.mapi(
-                            (
-                              index: int,
-                              tool_result: AgentToolResult.tool_result,
-                            ) =>
-                              render_tool_result(
-                                ~subtask_title=subtask.title,
-                                ~tool_result_index=index,
-                                ~tool_result,
-                              ),
+                            ~f=
+                              (
+                                index: int,
+                                tool_result: AgentToolResult.tool_result,
+                              ) =>
+                                render_tool_result(
+                                  ~subtask_title=subtask.title,
+                                  ~tool_result_index=index,
+                                  ~tool_result,
+                                ),
                             subtask.tools_used,
                           ),
                         ),
@@ -268,7 +271,7 @@ let view =
     let completed =
       List.length(
         List.filter(
-          AgentWorkbench.Utils.SubtaskUtils.is_completed,
+          ~f=AgentWorkbench.Utils.SubtaskUtils.is_completed,
           ordered_subtasks,
         ),
       );
@@ -361,8 +364,9 @@ let view =
         div(
           ~attrs=[clss(["wb-subtask-list"])],
           List.map(
-            (subtask: AgentWorkbench.Model.subtask) =>
-              render_subtask(~task, ~subtask),
+            ~f=
+              (subtask: AgentWorkbench.Model.subtask) =>
+                render_subtask(~task, ~subtask),
             ordered_subtasks,
           ),
         ),
@@ -407,78 +411,81 @@ let view =
               div(
                 ~attrs=[clss(["wb-archive-list"])],
                 List.map(
-                  (task: AgentWorkbench.Model.task) => {
-                    let is_displayed =
-                      switch (workbench.t_ui.display_task) {
-                      | Some(displayed_title) => displayed_title == task.title
-                      | None => false
-                      };
-                    let is_active =
-                      switch (workbench.active_task) {
-                      | Some(active_title) => active_title == task.title
-                      | None => false
-                      };
-                    let is_completed =
-                      switch (task.completion_info) {
-                      | Some(_) => true
-                      | None => false
-                      };
-                    let switch_to_task = _ => {
-                      Effect.Many([
-                        inject_workbench_ui_action(
-                          AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
-                            task.title,
+                  ~f=
+                    (task: AgentWorkbench.Model.task) => {
+                      let is_displayed =
+                        switch (workbench.t_ui.display_task) {
+                        | Some(displayed_title) =>
+                          String.equal(displayed_title, task.title)
+                        | None => false
+                        };
+                      let is_active =
+                        switch (workbench.active_task) {
+                        | Some(active_title) =>
+                          String.equal(active_title, task.title)
+                        | None => false
+                        };
+                      let is_completed =
+                        switch (task.completion_info) {
+                        | Some(_) => true
+                        | None => false
+                        };
+                      let switch_to_task = _ => {
+                        Effect.Many([
+                          inject_workbench_ui_action(
+                            AgentWorkbench.Update.Action.UIAction.SetDisplayTask(
+                              task.title,
+                            ),
                           ),
-                        ),
-                        Effect.Stop_propagation,
-                      ]);
-                    };
-                    div(
-                      ~attrs=[
-                        clss(
-                          ["wb-archive-item"]
-                          @ (is_displayed ? ["selected"] : [])
-                          @ (is_active ? ["active"] : []),
-                        ),
-                        Attr.on_click(switch_to_task),
-                      ],
-                      [
-                        div(
-                          ~attrs=[
-                            clss([
-                              "wb-archive-item-icon",
-                              is_completed ? "completed" : "",
-                              is_active && !is_completed ? "active" : "",
-                            ]),
-                          ],
-                          [
-                            is_completed
-                              ? Icons.circle_with_check
-                              : Icons.circle_with_no_check,
-                          ],
-                        ),
-                        div(
-                          ~attrs=[clss(["wb-archive-item-content"])],
-                          [
-                            div(
-                              ~attrs=[clss(["wb-archive-item-title"])],
-                              [text(task.title)],
-                            ),
-                            div(
-                              ~attrs=[clss(["wb-archive-item-time"])],
-                              [
-                                text(
-                                  TimeUtil.format_time_diff(
-                                    task.metadata.last_updated_at,
+                          Effect.Stop_propagation,
+                        ]);
+                      };
+                      div(
+                        ~attrs=[
+                          clss(
+                            ["wb-archive-item"]
+                            @ (is_displayed ? ["selected"] : [])
+                            @ (is_active ? ["active"] : []),
+                          ),
+                          Attr.on_click(switch_to_task),
+                        ],
+                        [
+                          div(
+                            ~attrs=[
+                              clss([
+                                "wb-archive-item-icon",
+                                is_completed ? "completed" : "",
+                                is_active && !is_completed ? "active" : "",
+                              ]),
+                            ],
+                            [
+                              is_completed
+                                ? Icons.circle_with_check
+                                : Icons.circle_with_no_check,
+                            ],
+                          ),
+                          div(
+                            ~attrs=[clss(["wb-archive-item-content"])],
+                            [
+                              div(
+                                ~attrs=[clss(["wb-archive-item-title"])],
+                                [text(task.title)],
+                              ),
+                              div(
+                                ~attrs=[clss(["wb-archive-item-time"])],
+                                [
+                                  text(
+                                    TimeUtil.format_time_diff(
+                                      task.metadata.last_updated_at,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    );
-                  },
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   sorted_tasks,
                 ),
               ),

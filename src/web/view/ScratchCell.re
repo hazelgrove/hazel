@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* how a cell's text sat in the program: [base] columns of indentation
    were cut from every line after the first, and [cut]/[orig] are the
@@ -90,7 +91,7 @@ let rec header_name = (e: t): option(string) =>
 and header_name_of_cell = (e: t): option(string) => {
   let txt =
     Haz3lcore.MarkerParse.to_text(e.e_header.editor.editor.state.zipper);
-  let txt = String.trim(txt);
+  let txt = String.strip(txt);
   /* any byte of a non-ASCII character counts: `café` stays whole */
   let ident = c =>
     c >= 'a'
@@ -99,9 +100,9 @@ and header_name_of_cell = (e: t): option(string) => {
     && c <= 'Z'
     || c >= '0'
     && c <= '9'
-    || c == '_'
-    || c == '\''
-    || Char.code(c) >= 0x80;
+    || Char.equal(c, '_')
+    || Char.equal(c, '\'')
+    || Char.to_int(c) >= 0x80;
   let rec run = i =>
     i < String.length(txt) && ident(txt.[i]) ? run(i + 1) : i;
   /* `add(x: Int): Int` is add; a pattern header like `(p, q)` keeps its
@@ -109,13 +110,13 @@ and header_name_of_cell = (e: t): option(string) => {
   let name =
     switch (run(0)) {
     | 0 =>
-      switch (String.index_opt(txt, ':')) {
-      | Some(i) => String.trim(String.sub(txt, 0, i))
+      switch (String.index(txt, ':')) {
+      | Some(i) => String.strip(String.sub(txt, ~pos=0, ~len=i))
       | None => txt
       }
-    | n => String.sub(txt, 0, n)
+    | n => String.sub(txt, ~pos=0, ~len=n)
     };
-  name == "" ? None : Some(name);
+  String.equal(name, "") ? None : Some(name);
 };
 
 let covers = (e: t): list(Haz3lcore.Id.t) =>

@@ -6,20 +6,21 @@ open Language;
 let free_variables =
     (expected_ty: Typ.t, ctx: Ctx.t, co_ctx: CoCtx.t): list(TyDiSuggestion.t) => {
   List.filter_map(
-    ((name, entries)) =>
-      switch (Ctx.lookup_var(ctx, name)) {
-      | None =>
-        let meet_use_typ = CoCtx.meet(ctx, entries);
-        if (Typ.is_consistent(ctx, expected_ty, meet_use_typ)) {
-          Some({
-            content: name,
-            strategy: Pat(FromCoCtx(meet_use_typ)),
-          });
-        } else {
-          None;
-        };
-      | Some(_) => None
-      },
+    ~f=
+      ((name, entries)) =>
+        switch (Ctx.lookup_var(ctx, name)) {
+        | None =>
+          let meet_use_typ = CoCtx.meet(ctx, entries);
+          if (Typ.is_consistent(ctx, expected_ty, meet_use_typ)) {
+            Some({
+              content: name,
+              strategy: Pat(FromCoCtx(meet_use_typ)),
+            });
+          } else {
+            None;
+          };
+        | Some(_) => None
+        },
     CoCtx.to_list(co_ctx),
   );
 };
@@ -27,27 +28,29 @@ let free_variables =
 /* For suggestsions in expressions, suggest variables from the ctx */
 let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
-    fun
-    | Ctx.VarEntry({typ, name, _})
-        when Typ.is_consistent(ctx, ty_expect, typ) =>
-      Some({
-        content: name,
-        strategy: Exp(Common(FromCtx(typ))),
-      })
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.VarEntry({typ, name, _})
+          when Typ.is_consistent(ctx, ty_expect, typ) =>
+        Some({
+          content: name,
+          strategy: Exp(Common(FromCtx(typ))),
+        })
+      | _ => None,
     ctx.entries,
   );
 
 let bound_livelits = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
-    fun
-    | Ctx.LivelitEntry({expansion_t, name, _})
-        when Typ.is_consistent(ctx, ty_expect, expansion_t) =>
-      Some({
-        content: "^" ++ name,
-        strategy: Exp(Common(FromCtx(expansion_t))),
-      })
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.LivelitEntry({expansion_t, name, _})
+          when Typ.is_consistent(ctx, ty_expect, expansion_t) =>
+        Some({
+          content: "^" ++ name,
+          strategy: Exp(Common(FromCtx(expansion_t))),
+        })
+      | _ => None,
     ctx.entries,
   );
 
@@ -56,51 +59,54 @@ let bound_constructors =
     : list(TyDiSuggestion.t) =>
   /* get names of all constructor entries consistent with ty */
   List.filter_map(
-    fun
-    | Ctx.ConstructorEntry({typ, name, _})
-        when Typ.is_consistent(ctx, ty, typ) =>
-      Some({
-        content: name,
-        strategy: wrap(FromCtx(typ)),
-      })
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.ConstructorEntry({typ, name, _})
+          when Typ.is_consistent(ctx, ty, typ) =>
+        Some({
+          content: name,
+          strategy: wrap(FromCtx(typ)),
+        })
+      | _ => None,
     ctx.entries,
   );
 
 /* Suggest applying a function from the ctx which returns an appropriate type */
 let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
-    fun
-    | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
-        when
-          Typ.is_consistent(ctx, ty_expect, ty_out)
-          && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
-        Some({
-          content: name ++ "(",
-          strategy: Exp(Common(FromCtxAp(ty_out))),
-        });
-      }
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.VarEntry({typ: {term: Arrow(_, ty_out), _} as ty_arr, name, _})
+          when
+            Typ.is_consistent(ctx, ty_expect, ty_out)
+            && !Typ.is_consistent(ctx, ty_expect, ty_arr) => {
+          Some({
+            content: name ++ "(",
+            strategy: Exp(Common(FromCtxAp(ty_out))),
+          });
+        }
+      | _ => None,
     ctx.entries,
   );
 
 let bound_constructor_aps =
     (wrap, ty: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
-    fun
-    | Ctx.ConstructorEntry({
-        typ: {term: Arrow(_, ty_out), _} as ty_arr,
-        name,
-        _,
-      })
-        when
-          Typ.is_consistent(ctx, ty, ty_out)
-          && !Typ.is_consistent(ctx, ty, ty_arr) =>
-      Some({
-        content: name ++ "(",
-        strategy: wrap(FromCtxAp(ty_out)),
-      })
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.ConstructorEntry({
+          typ: {term: Arrow(_, ty_out), _} as ty_arr,
+          name,
+          _,
+        })
+          when
+            Typ.is_consistent(ctx, ty, ty_out)
+            && !Typ.is_consistent(ctx, ty, ty_arr) =>
+        Some({
+          content: name ++ "(",
+          strategy: wrap(FromCtxAp(ty_out)),
+        })
+      | _ => None,
     ctx.entries,
   );
 
@@ -109,15 +115,12 @@ let bound_constructor_aps =
  * are substituted into its member types). */
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
-  | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
-  | Sig(items) =>
-    Sig.members(items)
-    |> Sig.dedup_last
-    |> List.filter_map((m: Sig.member) =>
+  | Prod(ts) => List.filter_map(~f=Typ.match_tup_label, ts)
+  | Sig(Closed(items)) =>
+    Sig.members(ClosedSig.items(items))
+    |> List.filter_map(~f=(m: Sig.member) =>
          switch (m) {
-         | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+         | Val(label, field_ty) => Some((label, field_ty))
          | TypeManifest(_) => None
          }
        )
@@ -134,20 +137,21 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
  * qualified suggestions where field types are wrapped in List(...). */
 let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
-    fun
-    | Ctx.VarEntry({typ, name, _}) =>
-      named_fields(ctx, typ)
-      |> List.filter_map(((label, field_ty)) =>
-           Typ.is_consistent(ctx, ty_expect, field_ty)
-             ? Some(
-                 TyDiSuggestion.{
-                   content: name ++ "." ++ label,
-                   strategy: Exp(Common(FromCtx(field_ty))),
-                 },
-               )
-             : None
-         )
-    | _ => [],
+    ~f=
+      fun
+      | Ctx.VarEntry({typ, name, _}) =>
+        named_fields(ctx, typ)
+        |> List.filter_map(~f=((label, field_ty)) =>
+             Typ.is_consistent(ctx, ty_expect, field_ty)
+               ? Some(
+                   TyDiSuggestion.{
+                     content: name ++ "." ++ label,
+                     strategy: Exp(Common(FromCtx(field_ty))),
+                   },
+                 )
+               : None
+           )
+      | _ => [],
     ctx.entries,
   );
 
@@ -158,38 +162,40 @@ let bound_qualified = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
 let bound_qualified_aps =
     (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.concat_map(
-    fun
-    | Ctx.VarEntry({typ, name, _}) =>
-      named_fields(ctx, typ)
-      |> List.filter_map(((label, field_ty: Typ.t)) =>
-           switch (field_ty.term) {
-           | Arrow(_, ty_out)
-               when
-                 Typ.is_consistent(ctx, ty_expect, ty_out)
-                 && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
-             Some(
-               TyDiSuggestion.{
-                 content: name ++ "." ++ label ++ "(",
-                 strategy: Exp(Common(FromCtxAp(ty_out))),
-               },
-             )
-           | _ => None
-           }
-         )
-    | _ => [],
+    ~f=
+      fun
+      | Ctx.VarEntry({typ, name, _}) =>
+        named_fields(ctx, typ)
+        |> List.filter_map(~f=((label, field_ty: Typ.t)) =>
+             switch (field_ty.term) {
+             | Arrow(_, ty_out)
+                 when
+                   Typ.is_consistent(ctx, ty_expect, ty_out)
+                   && !Typ.is_consistent(ctx, ty_expect, field_ty) =>
+               Some(
+                 TyDiSuggestion.{
+                   content: name ++ "." ++ label ++ "(",
+                   strategy: Exp(Common(FromCtxAp(ty_out))),
+                 },
+               )
+             | _ => None
+             }
+           )
+      | _ => [],
     ctx.entries,
   );
 
 /* Suggest bound type aliases in type annotations or definitions */
 let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
   List.filter_map(
-    fun
-    | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
-      Some({
-        content: name,
-        strategy: Typ(FromCtx),
-      })
-    | _ => None,
+    ~f=
+      fun
+      | Ctx.TVarEntry({kind: Singleton(_), name, _}) =>
+        Some({
+          content: Typ.surface_name(name),
+          strategy: Typ(FromCtx),
+        })
+      | _ => None,
     ctx.entries,
   );
 
@@ -262,13 +268,13 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize(" )::"), exp_aps(ty))
-      @ List.map(restrategize("::"), exp_refs(ty))
+      List.map(~f=restrategize(" )::"), exp_aps(ty))
+      @ List.map(~f=restrategize("::"), exp_refs(ty))
     | Prod([ty, ...tys]) =>
       let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), exp_aps(ty))
-      @ List.map(restrategize(commas), exp_refs(ty));
+        List.init(List.length(tys), ~f=_ => ",") |> String.concat(~sep=" ");
+      List.map(~f=restrategize(" )" ++ commas), exp_aps(ty))
+      @ List.map(~f=restrategize(commas), exp_refs(ty));
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh)
@@ -288,13 +294,13 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
     switch (ana |> Typ.term_of) {
     | List(ty) =>
-      List.map(restrategize(" )::"), pat_aps(ty))
-      @ List.map(restrategize("::"), pat_refs(ty))
+      List.map(~f=restrategize(" )::"), pat_aps(ty))
+      @ List.map(~f=restrategize("::"), pat_refs(ty))
     | Prod([ty, ...tys]) =>
       let commas =
-        List.init(List.length(tys), _ => ",") |> String.concat(" ");
-      List.map(restrategize(" )" ++ commas), pat_aps(ty))
-      @ List.map(restrategize(commas), pat_refs(ty));
+        List.init(List.length(tys), ~f=_ => ",") |> String.concat(~sep=" ");
+      List.map(~f=restrategize(" )" ++ commas), pat_aps(ty))
+      @ List.map(~f=restrategize(commas), pat_refs(ty));
     | _ => []
     };
   | InfoTyp(_) => []

@@ -55,13 +55,13 @@ module Update = {
         last_shown(
           depth + 1,
           n,
-          m.hidden == Calc.Calculated(true) ? found : Some(depth),
+          Poly.equal(m.hidden, Calc.Calculated(true)) ? found : Some(depth),
         )
       };
     let rec at = (depth, a: t) =>
       depth == 0 ? a : at(depth - 1, StepperBase.NextStep(a));
     last_shown(0, model.root, None)
-    |> Option.map(depth => at(depth, StepperBase.RemoveStep));
+    |> Option.map(~f=depth => at(depth, StepperBase.RemoveStep));
   };
 
   let calculate =

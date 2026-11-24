@@ -1,4 +1,5 @@
 /* Ascription Transitions */
+open Util.OptUtil.Syntax;
 
 /*
  Handles the transition of type ascriptions.
@@ -25,7 +26,15 @@
    push (transition_multiple) can give a part back unchanged; a stepwise
    one wraps each part in a new ascription. */
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
-  List.for_all2((d, d') => d === d', ds, ds');
+  List.for_all2_exn(ds, ds', ~f=(d, d') => phys_equal(d, d'));
+
+/* Whether [ty_rec], unrolled, is consistent with [ty]. A self-loop has no
+   unrolling and is consistent with nothing. */
+let unrolled_consistent = (ty_rec: Typ.t, ty: Typ.t): bool =>
+  switch (Typ.unroll(ty_rec)) {
+  | Some(ty_rec) => Typ.is_consistent(Ctx.empty, ty_rec, ty)
+  | None => false
+  };
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
@@ -36,19 +45,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
-    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Asc(e', t'), _)
-        // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), Typ.unroll(t')) =>
-      switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
-      | Some(t) =>
-        Some(
-          recur(
-            IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
-          ),
-        )
-      | None => None //TODO  This is an impossible case since we checked consistency
-      }
+    /* A self-loop ascribes nothing, so the ascription is stuck. */
+    let* t_unrolled = Typ.unroll(t);
+    switch (DHExp.term_of(e), Typ.term_of(t_unrolled)) {
+    // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
+    | (Asc(e', t'), _) =>
+      let* t' = Typ.unroll(t');
+      let+ t = Typ.meet(Ctx.empty, t_unrolled, t');
+      recur(
+        IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
+      );
     | (_, Parens(t)) =>
       /* An impossible case: types are normalized before they come to
          transitions. e as it is, not a fresh copy: its id is kept, as
@@ -57,7 +63,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
-      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+      |> Option.map(~f=d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
         IdTagged.fast_copy(
@@ -72,7 +78,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
       let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
-      inner' === inner
+      phys_equal(inner', inner)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -80,29 +86,50 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
-    | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
+    | (Module(items), Sig(s)) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. Type members have no runtime
-         content. A member the module lacks leaves the ascription stuck;
-         statics has already marked it. */
+         ascribing each to its declared type, and, when a hole item in the
+         signature could declare them, the module's other members as they
+         are. A module still evaluating leaves the ascription stuck. A
+         member the module lacks is a hole: statics allows that only when a
+         hole item stands in for it. */
       let members =
-        Sig.members(sig_items)
-        |> Sig.dedup_last
-        |> List.filter_map((m: Sig.member) =>
+        Sig.closed_members(s)
+        |> List.filter_map(~f=(m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
              | TypeManifest(_) => None
              }
            );
       let picked =
-        members
-        |> List.map(((x, ty)) =>
-             Mod.modval_lookup(items, x)
-             |> Option.map(v =>
-                  Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
-                )
-           )
-        |> Util.OptUtil.sequence;
+        Mod.value_bindings(items)
+        |> Option.map(~f=bindings => {
+             let declared =
+               members
+               |> List.map(~f=((x, ty)) => {
+                    let d =
+                      switch (
+                        Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
+                      ) {
+                      | Some(v) => recur(Asc(v, ty) |> DHExp.fresh)
+                      | None => DHExp.fresh(EmptyHole)
+                      };
+                    Mod.fresh(ModVal(x, d));
+                  });
+             let undeclared =
+               Sig.has_hole_item(Sig.items(s))
+                 ? bindings
+                   |> List.filter(~f=((x, _)) =>
+                        !
+                          List.exists(
+                            ~f=((y, _)) => String.equal(x, y),
+                            members,
+                          )
+                      )
+                   |> List.map(~f=((x, v)) => Mod.fresh(ModVal(x, v)))
+                 : [];
+             declared @ undeclared;
+           });
       switch (picked) {
       | Some(items') =>
         Some(
@@ -115,7 +142,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
-        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+        List.map2_exn(es, tys, ~f=(e, ty) =>
+          recur(Asc(e, ty) |> DHExp.fresh)
+        );
       unchanged(es, es')
         ? Some(e)
         : Some(
@@ -138,7 +167,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      let ds' = List.map(~f=d => recur(Asc(d, ty) |> DHExp.fresh), ds);
       unchanged(ds, ds')
         ? Some(e)
         : Some(
@@ -150,7 +179,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(d1, d2), List(ty)) =>
       let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
       let d2' = recur(Asc(d2, t) |> DHExp.fresh);
-      d1' === d1 && d2' === d2
+      phys_equal(d1', d1) && phys_equal(d2', d2)
         ? Some(e)
         : Some(
             IdTagged.fast_copy(
@@ -194,7 +223,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Match(
             scrut,
             List.map(
-              ((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
+              ~f=((p, body)) => (p, Asc(body, t) |> DHExp.fresh),
               rules,
             ),
           )
@@ -209,13 +238,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when
-          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when unrolled_consistent(sumt, sumt' |> Typ.temp) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
         let payload' = recur(Asc(payload, t') |> DHExp.fresh);
-        payload' === payload
+        phys_equal(payload', payload)
           ? Some(e)
           : Some(
               IdTagged.fast_copy(
@@ -227,7 +255,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
+        when unrolled_consistent(t, t' |> Typ.temp) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
       Some(
@@ -312,8 +340,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Filter(_), _)
     | (TyAlias(_), _)
     | (Theorem(_), _)
-    | (Forall(_), _)
-    | (Asc(_), _) => None
+    | (Forall(_), _) => None
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
     | (DynamicErrorHole(_), _)
@@ -345,7 +372,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_), _)
     | (Module(_), _)
     | (ModuleExp(_), _) => None
-    }
+    };
   | _ => None
   };
 };

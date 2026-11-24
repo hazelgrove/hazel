@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* The top-level UI component of Hazel */
 
@@ -19,7 +20,7 @@ module Model = {
     selection,
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let reset = (~font_metrics=?, ()) => {
     let globals = Globals.Model.init(~font_metrics?, ());
@@ -89,7 +90,7 @@ module Update = {
 
   let get_editor = (model: Model.t): CodeEditable.Model.t => {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({program: Whole(editor), _}) => editor.editor
       /* divided: the cell with the caret */
@@ -103,9 +104,10 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) =>
+      List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
+    | Config(m) => (List.nth_exn(m.configs, m.current) |> snd).editor
     };
   };
 
@@ -116,7 +118,7 @@ module Update = {
     let scratchpad_editors =
         (m: ScratchMode.Model.t)
         : list((option(string), list(CodeEditable.Model.t))) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
       | Code({program: Divided(d), _}) =>
@@ -124,23 +126,27 @@ module Update = {
         let cells = Divided.cells(d);
         let stack: list((option(string), list(CodeEditable.Model.t))) =
           List.map(
-            (e: ScratchCell.t) =>
-              (
-                Some(
-                  Option.value(ScratchCell.header_name(e), ~default="cell"),
-                ),
-                /* header too: binder and signature errors live there.
-                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+            ~f=
+              (e: ScratchCell.t) =>
                 (
-                  switch (e.e_kind) {
-                  | Def(_)
-                  | Members => [e.e_header.editor]
-                  | Headless(_)
-                  | Run(_) => []
-                  }
-                )
-                @ [e.e_body.editor],
-              ),
+                  Some(
+                    Option.value(
+                      ScratchCell.header_name(e),
+                      ~default="cell",
+                    ),
+                  ),
+                  /* header too: binder and signature errors live there.
+                     a ⇒ or `;` cell shows none, and its empty one is a hole */
+                  (
+                    switch (e.e_kind) {
+                    | Def(_)
+                    | Members => [e.e_header.editor]
+                    | Headless(_)
+                    | Run(_) => []
+                    }
+                  )
+                  @ [e.e_body.editor],
+                ),
             cells,
           );
         /* cells first: the panel dedups by id, so a problem shows in its
@@ -158,7 +164,10 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+        (
+          None,
+          [List.nth_exn(m.exercises, m.current).cells.user_impl.editor],
+        ),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(
@@ -166,7 +175,7 @@ module Update = {
         m,
       )
     | Config(m) => [
-        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+        (None, [(List.nth_exn(m.configs, m.current) |> snd).editor]),
       ]
     };
   };
@@ -187,14 +196,14 @@ module Update = {
     | Start
     | Save;
 
-  let equal = (===);
+  let equal = phys_equal;
 
   /* a jump into a cell that isn't open, or to another cell's binder or
      function: the item opens now; once its cell is there, the follow-ups
      run in the pane holding the target (the caret's move, or the step
      into), which takes the focus */
   let jump_across = (~schedule_action, (ensure, selection, then_)) => {
-    List.iter(a => schedule_action(Editors(a)), then_);
+    List.iter(~f=a => schedule_action(Editors(a)), then_);
     Haz3lcore.FocusEffect.schedule_cell_top();
     (ensure, selection);
   };
@@ -208,7 +217,7 @@ module Update = {
       switch (ScratchMode.Model.current_program(m)) {
       | Some(Divided(_) as p) =>
         Program.tail_row(p)
-        |> Option.map(id =>
+        |> Option.map(~f=id =>
              Editors.Update.Scratch(Workspace(FocusEnsure(id)))
            )
       | _ => None
@@ -227,6 +236,12 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -235,14 +250,14 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
       switch (action) {
       | TailProbe when settings.tail_probe =>
         Option.iter(
-          a => schedule_action(Editors(a)),
+          ~f=a => schedule_action(Editors(a)),
           open_tail_cell(model.editors),
         )
       | _ => ()
@@ -273,7 +288,7 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(~scroll=Never);
     | JumpToTile(id) =>
       switch (Editors.Selection.closed_jump(id, model.editors)) {
       | Some(across) =>
@@ -327,7 +342,7 @@ module Update = {
       );
       model |> return_quiet;
     | SetMetaDown(meta_down) =>
-      model.globals.meta_down == meta_down
+      Bool.equal(model.globals.meta_down, meta_down)
         ? model |> return_quiet
         : {
             ...model,
@@ -372,7 +387,8 @@ module Update = {
       let (filename, contents) =
         switch (model.editors) {
         | Config(model) =>
-          let (config_type, cell) = List.nth(model.configs, model.current);
+          let (config_type, cell) =
+            List.nth_exn(model.configs, model.current);
           let name = ConfigurationMode.Model.config_name_of_type(config_type);
           /* Config slides are text-backed like the doc slides: export the
              committed-.hz form, matching the scratch export below. */
@@ -386,7 +402,7 @@ module Update = {
           );
         | Scratch(model)
         | Documentation(model) =>
-          let current = List.nth(model.scratchpads, model.current);
+          let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
             | Code({program, _}) =>
@@ -416,7 +432,7 @@ module Update = {
             );
           (filename, contents);
         | Exercises(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = List.nth_exn(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
           let contents = ExercisesMode.Model.export_exercise_module(current);
@@ -536,9 +552,9 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      List.iter(~f=a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
       Benchmark.start();
       model |> Updated.return_quiet;
@@ -696,6 +712,10 @@ module Selection = {
            ToggleCompletion,
          ),
          of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
            ToggleShowWhitespace,
          ),
@@ -774,27 +794,69 @@ module Selection = {
   };
 };
 
-module View = {
-  /* the Cmd state a key event gives the model, when it may change it. The
-     listener's model is the last render's, which hasn't seen a press in
-     this frame: a press or release of Cmd always gives it (a release
-     dropped there left the Cmd-hover underline on), other keys a change */
-  let meta_change = (~rendered: bool, key: Key.t): option(bool) => {
-    let down = key.meta == Down;
-    switch (key.key) {
-    | D("Meta")
-    | U("Meta") => Some(down)
-    | _ => rendered == down ? None : Some(down)
+/* Whether Cmd is held, for the Cmd-hover underline. Document capture sees
+   every key first: the page's own listener misses keys a handler stops,
+   like Cmd+C in the editor. A window blur ends it: the release happens
+   elsewhere. */
+module MetaListener = {
+  /* bare Cmd only, so chords don't light the underline */
+  let held = (~meta: bool, ~ctrl: bool, ~alt: bool, ~shift: bool): bool =>
+    meta && !ctrl && !alt && !shift;
+
+  let dispatch: ref(bool => unit) = ref(_ => ());
+  let installed = ref(false);
+  let state = ref(false);
+  let set = (down: bool): unit =>
+    if (down != state^) {
+      state := down;
+      dispatch^(down);
+    };
+  let on_key = (e: Js.t(Dom_html.keyboardEvent)): Js.t(bool) => {
+    set(
+      held(
+        ~meta=Key.meta_held(e),
+        ~ctrl=Key.ctrl_held(e),
+        ~alt=Key.alt_held(e),
+        ~shift=Key.shift_held(e),
+      ),
+    );
+    Js._true;
+  };
+  let sync = (dispatch': bool => unit): unit => {
+    dispatch := dispatch';
+    if (! installed^) {
+      installed := true;
+      let listen = (target, event, f, capture) =>
+        ignore(
+          Dom_html.addEventListener(
+            target,
+            event,
+            Dom_html.handler(f),
+            Js.bool(capture),
+          ),
+        );
+      listen(Dom_html.document, Dom_html.Event.keydown, on_key, true);
+      listen(Dom_html.document, Dom_html.Event.keyup, on_key, true);
+      /* the window's own blur only: in capture it'd see every element's */
+      listen(
+        Dom_html.window,
+        Dom_html.Event.blur,
+        _ => {
+          set(false);
+          Js._true;
+        },
+        false,
+      );
     };
   };
+};
 
-  let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+module View = {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
+    MetaListener.sync(down =>
+      Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
+    );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_effects =
-        switch (meta_change(~rendered=model.globals.meta_down, key)) {
-        | Some(down) => [inject(Globals(SetMetaDown(down)))]
-        | None => []
-        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -875,23 +937,13 @@ module View = {
         };
       Effect.(
         switch (page_action) {
-        | None => meta_effects == [] ? Ignore : Many(meta_effects)
+        | None => Ignore
         | Some(action) =>
-          Many(
-            [Prevent_default, Stop_propagation, inject(action)]
-            @ meta_effects,
-          )
+          Many([Prevent_default, Stop_propagation, inject(action)])
         }
       );
     };
-    [
-      Key.listener(~f=handle_key_event),
-      /* A press on plain text leaves focus on #page itself. Don't move it
-         on from here: that would cancel the text selection being started.
-         Cmd goes up whatever the last render saw: a press may not have
-         rendered */
-      Attr.on_blur(_ => inject(Globals(SetMetaDown(false)))),
-    ];
+    [Key.listener(~f=handle_key_event)];
   };
 
   let nut_menu =
@@ -936,6 +988,69 @@ module View = {
     );
   };
 
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
+        ),
+      ],
+    );
+  };
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -959,6 +1074,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
@@ -985,7 +1101,7 @@ module View = {
       | Scratch(m)
       | Documentation(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
-        |> Option.map(p => {
+        |> Option.map(~f=p => {
              let tail = globals.settings.tail_probe;
              EvalResult.View.dynamics(
                ~tail,
@@ -1081,7 +1197,6 @@ module View = {
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
         ~statics_on=globals.settings.core.statics,
-        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
@@ -1161,7 +1276,7 @@ module View = {
       cursor.contextual_actions,
     );
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );

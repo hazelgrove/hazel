@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 
 /* A "Cell" with user-editable text at the top, and evaluation results at the bottom. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -144,8 +145,9 @@ module Update = {
       /* If the editor has pending_probe_cursor, force recalculation so
          resolve_pending_probe_cursor can run with the new dynamics */
       let needs_recalc =
-        model.editor.editor.state.zipper.refractors.pending_probe_cursor
-        != None;
+        Option.is_some(
+          model.editor.editor.state.zipper.refractors.pending_probe_cursor,
+        );
       {
         ...updated,
         recalculate: updated.recalculate || needs_recalc,
@@ -159,7 +161,7 @@ module Update = {
 
   let stepping = (editor: CodeEditable.Model.t) =>
     editor.editor.state.zipper.refractors.stepping
-    |> Option.map((st: Haz3lcore.ProjectorBase.stepping) => st.span);
+    |> Option.map(~f=(st: Haz3lcore.ProjectorBase.stepping) => st.span);
 
   /* a stepping drawer takes the rows its stepper needs; true when they
      changed, which the layout must pick up */
@@ -267,15 +269,19 @@ module Update = {
     let dynamics_changed =
       switch (probes_before, probes_after) {
       | (None, None) => false
-      | (Some(a), Some(b)) => a !== b
+      | (Some(a), Some(b)) => !phys_equal(a, b)
       | _ => true
       };
     /* Second pass: if there's a pending focus, pending_probe_cursor waiting
        for dynamics, or dynamics changed since the first pass */
     let has_pending_focus =
-      editor.editor.state.zipper.refractors.sample_focus.pending_focus != None;
+      Option.is_some(
+        editor.editor.state.zipper.refractors.sample_focus.pending_focus,
+      );
     let has_pending_cursor =
-      editor.editor.state.zipper.refractors.pending_probe_cursor != None;
+      Option.is_some(
+        editor.editor.state.zipper.refractors.pending_probe_cursor,
+      );
     let needs_second_pass =
       has_pending_focus
       || has_pending_cursor
@@ -324,7 +330,7 @@ module Selection = {
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     CodeEditable.Selection.jump_to_tile(tile, model.editor)
-    |> Option.map(x => (Update.MainEditor(x), MainEditor));
+    |> Option.map(~f=x => (Update.MainEditor(x), MainEditor));
   };
 };
 
@@ -356,6 +362,8 @@ module View = {
            option((Haz3lcore.Action.vertical, int) => Ui_effect.t(unit))=None,
         /* opt out for cells that are not the viewport-culling scope */
         ~cull=true,
+        /* drawn over the code, beside its result's */
+        ~overlays: list(Node.t)=[],
         model: Model.t,
       ) => {
     let (result, result_inject) =
@@ -363,7 +371,7 @@ module View = {
       | Some(m) => m
       | None => (model.result, (a => inject(ResultAction(a))))
       };
-    let (footer, overlays) =
+    let (footer, result_overlays) =
       EvalResult.View.view(
         ~globals={
           ...globals,
@@ -399,7 +407,7 @@ module View = {
       (
         id =>
           switch (result.probe_steps) {
-          | Some(ps) when ps.span.probe_id == id =>
+          | Some(ps) when Id.equal(ps.span.probe_id, id) =>
             ProbeSteps.view(
               ~globals,
               ~inject=a => result_inject(ProbeStepperAction(a)),
@@ -431,12 +439,13 @@ module View = {
     /* the ⇓ drawer, when the program stopped before its last line */
     let tail = model.editor.editor.state.zipper.refractors.tail_target;
     let stop = EvalResult.Model.stopped(~tail, result);
-    Option.iter(id => EvalResult.Model.note_stop(id, stop), tail);
+    Option.iter(~f=id => EvalResult.Model.note_stop(id, stop), tail);
     Haz3lcore.ProbeProj.Settings.value_fallback :=
       (
         id =>
-          tail == Some(id)
-            ? Option.map(EvalResult.View.stopped_view(~globals), stop) : None
+          Poly.equal(tail, Some(id))
+            ? Option.map(~f=EvalResult.View.stopped_view(~globals), stop)
+            : None
       );
     Haz3lcore.ProofProj.Settings.view :=
       (
@@ -489,14 +498,14 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=result_overlays(model.editor.editor) @ overlays,
           ~lines,
           ~cull,
           ~dynamics=
             Model.samples(
               ~program=
                 Option.map(
-                  ((r, _)) => EvalResult.Model.dynamics(r),
+                  ~f=((r, _)) => EvalResult.Model.dynamics(r),
                   master,
                 ),
               model.result,

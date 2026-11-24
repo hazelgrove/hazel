@@ -6,6 +6,7 @@
 
 open Js_of_ocaml;
 open Util;
+open Poly;
 
 /* each drawer seen, with its id and rows as last read */
 let seen:
@@ -18,14 +19,11 @@ let resized = ref(false);
 
 /* true when one changed */
 let apply = (): bool =>
-  List.fold_left(
-    (changed, (_, rows)) =>
-      switch (rows) {
-      | Some((id, n)) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
-      | None => changed
-      },
-    false,
-    seen^,
+  List.fold(seen^, ~init=false, ~f=(changed, (_, rows)) =>
+    switch (rows) {
+    | Some((id, n)) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
+    | None => changed
+    }
   );
 
 /* a read: the rows [el] takes as rendered */
@@ -33,19 +31,27 @@ let rows_of = (el: Js.t(Dom_html.element)): option((Haz3lcore.Id.t, int)) =>
   switch (el##getAttribute(Js.string("data-drawer-id")) |> Js.Opt.to_option) {
   | Some(id) when row_height^ > 0. =>
     Haz3lcore.Id.of_string(Js.to_string(id))
-    |> Option.map(id => {
+    |> Option.map(~f=id => {
          let h = float_of_int(el##.offsetHeight);
-         (id, max(1, int_of_float(Float.ceil(h /. row_height^ -. 0.05))));
+         (
+           id,
+           max(1, int_of_float(Float.round_up(h /. row_height^ -. 0.05))),
+         );
        })
   | _ => None
   };
 
 let measure = (els: list(Js.t(Dom_html.element))): AfterLayout.write => {
   List.iter(
-    el =>
-      if (JsUtil.connected(el)) {
-        seen := [(el, rows_of(el)), ...List.remove_assq(el, seen^)];
-      },
+    ~f=
+      el =>
+        if (JsUtil.connected(el)) {
+          seen :=
+            [
+              (el, rows_of(el)),
+              ...List.Assoc.remove(seen^, el, ~equal=phys_equal),
+            ];
+        },
     els,
   );
   let changed = apply();
@@ -74,12 +80,13 @@ let update =
   resized := false;
   seen :=
     List.filter(
-      ((el, _)) =>
-        JsUtil.connected(el)
-        || {
-          AfterLayout.unwatch(el);
-          false;
-        },
+      ~f=
+        ((el, _)) =>
+          JsUtil.connected(el)
+          || {
+            AfterLayout.unwatch(el);
+            false;
+          },
       seen^,
     );
   if (apply()) {
@@ -94,25 +101,26 @@ let update =
       nodes##item(i),
       el => {
         let el: Js.t(Dom_html.element) = Js.Unsafe.coerce(el);
-        if (!List.mem_assq(el, seen^)) {
+        if (!List.Assoc.mem(seen^, el, ~equal=phys_equal)) {
           fresh := [el, ...fresh^];
         };
       },
     );
   };
-  List.iter(AfterLayout.watch(Lazy.force(watcher)), fresh^);
-  switch (remeasure ? List.map(fst, seen^) @ fresh^ : fresh^) {
+  List.iter(~f=AfterLayout.watch(Lazy.force(watcher)), fresh^);
+  switch (remeasure ? List.map(~f=fst, seen^) @ fresh^ : fresh^) {
   | [] => ()
   | els => AfterLayout.schedule(() => measure(els))
   };
   Option.iter(
-    reveal =>
-      AfterLayout.schedule(() => {
-        if (! resized^) {
-          reveal();
-        };
-        () => ();
-      }),
+    ~f=
+      reveal =>
+        AfterLayout.schedule(() => {
+          if (! resized^) {
+            reveal();
+          };
+          () => ();
+        }),
     reveal,
   );
 };

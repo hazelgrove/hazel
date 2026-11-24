@@ -22,13 +22,14 @@ let tests = (
           | Sexplib.Sexp.List(fields) =>
             Sexplib.Sexp.List(
               List.filter(
-                fun
-                | Sexplib.Sexp.List([
-                    Sexplib.Sexp.Atom("content_is_payload"),
-                    ..._,
-                  ]) =>
-                  false
-                | _ => true,
+                ~f=
+                  fun
+                  | Sexplib.Sexp.List([
+                      Sexplib.Sexp.Atom("content_is_payload"),
+                      ..._,
+                    ]) =>
+                    false
+                  | _ => true,
                 fields,
               ),
             )
@@ -39,11 +40,13 @@ let tests = (
     ),
     test_case(
       "large valid boundary insert uses batch parser",
-      `Quick,
+      /* Slow: building the skeleton of an 850-element list re-pops the
+         whole comma chain at each comma (Skel.push_output) */
+      `Slow,
       () => {
         let code =
           "let big = ["
-          ++ String.concat(", ", List.init(850, string_of_int))
+          ++ String.concat(~sep=", ", List.init(850, ~f=string_of_int))
           ++ "] in";
         check(
           bool,
@@ -51,7 +54,7 @@ let tests = (
           true,
           Option.is_some(FastParse.of_text(~root=Exp, code)),
         );
-        switch (run_insert_at_program_boundary("?", Before, code)) {
+        switch (run_insert_at_program_boundary("?", Before(""), code)) {
         | Ok(_) => ()
         | Error(e) => fail(Action.Failure.show(e))
         };
@@ -65,7 +68,7 @@ let tests = (
         let actual =
           apply_and_render(
             "let m = { let x = 0 } in m",
-            Insert(After, "m/x", code),
+            Insert(After("m/x"), code),
           );
         check_rendered(
           "comment preserved",
@@ -120,7 +123,7 @@ let tests = (
       `Quick,
       () => {
         let code = "let m = { let x = 1; ?; let y = 2 } in let z = 0 in z";
-        let actual = apply_and_render(code, Update(Definition, "z", "1"));
+        let actual = apply_and_render(code, Replace("z:definition", "1"));
         check_rendered(
           "hole preserved",
           "let m = { let x = 1; ?; let y = 2 } in let z = 1 in z",
@@ -161,7 +164,7 @@ let tests = (
                 ...Settings.Model.init,
                 core: settings,
               },
-              EditorAction(Update(Definition, "a", "2")),
+              EditorAction(Replace("a:definition", "2")),
               agent,
               ce.editor,
               agent.chat_system.current,
@@ -180,7 +183,7 @@ let tests = (
           bool,
           "agent edit forces statics",
           true,
-          statics_mode == StaticsMode.Force,
+          StaticsMode.equal(statics_mode, Force),
         );
         let ce =
           CellEditor.Update.calculate(
@@ -208,7 +211,7 @@ let tests = (
       `Quick,
       () => {
         let code = "let m = {\n  let x = 1;\n  let y = 2\n} in let z = 0 in z";
-        let actual = apply_and_render(code, Update(Definition, "z", "1"));
+        let actual = apply_and_render(code, Replace("z:definition", "1"));
         check_rendered_exact(
           "unrelated module",
           "let m = {\n  let x = 1;\n  let y = 2\n} in let z = 1 in z",
@@ -234,7 +237,7 @@ let tests = (
           ZipperBase.MapPiece.go(
             p =>
               switch (p) {
-              | Tile(t) when t.form == Form.Tok("1") => [
+              | Tile(t) when Poly.equal(t.form, Form.Tok("1")) => [
                   Tile({
                     ...t,
                     form: Form.Tok("true"),
@@ -263,7 +266,7 @@ let tests = (
           bool,
           "changed program has type errors",
           true,
-          m.statics.error_ids != [],
+          !List.is_empty(m.statics.error_ids),
         );
         CachedStatics.offered := [];
       },
@@ -304,13 +307,13 @@ let tests = (
         let content =
           ChatSystem.Utils.find_chat(chat_id, agent.chat_system)
           |> Chat.Utils.get
-          |> List.map((m: Message.Model.t) => m.content)
-          |> String.concat("\n");
+          |> List.map(~f=(m: Message.Model.t) => m.content)
+          |> String.concat(~sep="\n");
         check(
           bool,
           "new errors appear in context",
           true,
-          Util.StringUtil.plain_search("not bound", content, 0) >= 0,
+          Util.StringUtil.plain_search("1 error", content, 0) >= 0,
         );
       },
     ),
@@ -341,29 +344,34 @@ let tests = (
         let saved_attempts = AgentSend.eval_wait_attempts^;
         AgentSend.max_eval_wait_attempts := 3;
         List.iter(
-          dynamics => {
-            CodeWithStatics.StaticsDebounce.force_on_next := true;
-            AgentSend.eval_wait_attempts := 0;
-            let settings = {
-              ...Settings.Model.init,
-              core: {
-                ...CoreSettings.on,
-                dynamics,
-              },
-            };
-            let scheduled = ref([]);
-            let (agent, _) =
-              AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
-                scheduled := [a, ...scheduled^]
+          ~f=
+            dynamics => {
+              CodeWithStatics.StaticsDebounce.force_on_next := true;
+              AgentSend.eval_wait_attempts := 0;
+              let settings = {
+                ...Settings.Model.init,
+                core: {
+                  ...CoreSettings.on,
+                  dynamics,
+                },
+              };
+              let scheduled = ref([]);
+              let (agent, _) =
+                AgentSend.handle_dispatch_send(chat_id, agent, ce, settings, a =>
+                  scheduled := [a, ...scheduled^]
+                );
+              check(
+                bool,
+                "send remains pending",
+                true,
+                Option.equal(
+                  Id.equal,
+                  agent.pending_dispatch_send,
+                  Some(chat_id),
+                ),
               );
-            check(
-              bool,
-              "send remains pending",
-              true,
-              agent.pending_dispatch_send == Some(chat_id),
-            );
-            check(int, "retry scheduled", 1, List.length(scheduled^));
-          },
+              check(int, "retry scheduled", 1, List.length(scheduled^));
+            },
           [true, false],
         );
         AgentSend.max_eval_wait_attempts := saved_budget;

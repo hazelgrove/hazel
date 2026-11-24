@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Mod-root incrementality: go_incr(~root=Mod) ≡ go_mod_root, and a
    one-item edit re-parses one slice */
@@ -27,11 +28,12 @@ let probe = () => {
 
 let semi_ids = (seg: Segment.t): list(Id.t) =>
   List.filter_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when Tile.label(t) == [";"] => Some(t.id)
-      | _ => None
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == [";"] => Some(t.id)
+        | _ => None
+        },
     seg,
   );
 
@@ -39,11 +41,12 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
 let sep_ids = (seg: Segment.t): list(Id.t) =>
   semi_ids(seg)
   @ List.filter_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Grout({shape: Concave, id}) => Some(id)
-        | _ => None
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Grout({shape: Concave, id}) => Some(id)
+          | _ => None
+          },
       seg,
     );
 
@@ -76,17 +79,22 @@ let check_parity = (seg: Segment.t, incr: MakeTerm.t) => {
         ++ string_of_int(Id.Map.cardinal(diff))
         ++ " ids, e.g. "
         ++ String.concat(
-             ", ",
+             ~sep=", ",
              Id.Map.bindings(diff)
              |> Util.ListUtil.take(5)
-             |> List.map(((id, why)) => Id.to_string(id) ++ " " ++ why),
+             |> List.map(~f=((id, why)) => Id.to_string(id) ++ " " ++ why),
            ),
       );
     };
   };
   agree("term_data", incr.term_data, mono.term_data);
   let seps = sep_ids(seg);
-  agree(~skip=id => List.mem(id, seps), "terms", incr.terms, mono.terms);
+  agree(
+    ~skip=id => List.mem(seps, id, ~equal=Poly.equal),
+    "terms",
+    incr.terms,
+    mono.terms,
+  );
 };
 
 let full_parity = () => {
@@ -161,12 +169,13 @@ let sem_at_root = () => {
     ) {
     | Module(items) =>
       List.map(
-        (m: Mod.t) =>
-          switch (m.term) {
-          | ModLet(_) => "let"
-          | ModExp(_) => "exp"
-          | _ => "other"
-          },
+        ~f=
+          (m: Mod.t) =>
+            switch (m.term) {
+            | ModLet(_) => "let"
+            | ModExp(_) => "exp"
+            | _ => "other"
+            },
         items,
       )
     | _ => []
@@ -178,7 +187,7 @@ let sem_at_root = () => {
     items(Zipper.unzip(parse_mod(src))),
   );
   switch (
-    Test_ModAudit.act(
+    ModHarness.act(
       ~root=Mod,
       ~off=String.length("let a = "),
       src,
@@ -279,20 +288,21 @@ let letin_member = ((name, src), ()) => {
 let grout_between_members = () => {
   let rec ungrout = (seg: Segment.t): Segment.t =>
     List.map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.is_semi(t) =>
-          Piece.Grout({
-            id: t.id,
-            shape: Concave,
-          })
-        | Tile(t) =>
-          Tile({
-            ...t,
-            children: List.map(ungrout, t.children),
-          })
-        | p => p
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.is_semi(t) =>
+            Piece.Grout({
+              id: t.id,
+              shape: Concave,
+            })
+          | Tile(t) =>
+            Tile({
+              ...t,
+              children: List.map(~f=ungrout, t.children),
+            })
+          | p => p
+          },
       seg,
     );
   let seg =
@@ -303,11 +313,12 @@ let grout_between_members = () => {
     switch (e.term) {
     | ModuleExp(_, {term: Module(items), _}, _) =>
       List.filter(
-        (m: Mod.t) =>
-          switch (m.term) {
-          | ModLet(_) => true
-          | _ => false
-          },
+        ~f=
+          (m: Mod.t) =>
+            switch (m.term) {
+            | ModLet(_) => true
+            | _ => false
+            },
         items,
       )
       |> List.length
@@ -368,19 +379,20 @@ let chain_edit = ((needle, repl), ()) => {
 /* the stdlib's sources, where the repo has them */
 let stdlib = () =>
   List.iter(
-    ((path, src)) => {
-      let seg = parse_mod(src);
-      let fb = MakeTerm.Incr.fell_back^;
-      check_parity(
-        seg,
-        MakeTerm.Incr.go_incr(
-          ~root=Mod,
-          ~cache=MakeTerm.Incr.mk_cache(),
+    ~f=
+      ((path, src)) => {
+        let seg = parse_mod(src);
+        let fb = MakeTerm.Incr.fell_back^;
+        check_parity(
           seg,
-        ),
-      );
-      check(int, path ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
-    },
+          MakeTerm.Incr.go_incr(
+            ~root=Mod,
+            ~cache=MakeTerm.Incr.mk_cache(),
+            seg,
+          ),
+        );
+        check(int, path ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+      },
     Test_ItemSpans.stdlib_corpus(),
   );
 
@@ -390,7 +402,7 @@ let stdlib = () =>
    never a module whole, the parse is go's, and every outline row keeps
    its id */
 let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
-  module MA = Test_ModAudit;
+  module MA = ModHarness;
   let z0 = MA.load(~root, src);
   let statics = MA.statics_of(~root, z0);
   let step = (z, a) =>
@@ -425,37 +437,42 @@ let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
     let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
     let parsed = MakeTerm.Incr.full_analyzed^ - a0;
     let (completed, masks) = MakeTerm.semantic_segment(~root, seg);
-    let term =
+    /* semantics' read, as the editor's frame makes it */
+    ignore(
       MakeTerm.Incr.term_of_root(
         ~masks,
         ~ends=Read,
         ~root,
         ~shared=cache,
         completed,
-      );
+      ),
+    );
     check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
-    if (root == Sort.Mod) {
+    if (Sort.equal(root, Sort.Mod)) {
       check_parity(seg, r);
     } else {
       Test_MakeTermIncr.records_agree("go", MakeTerm.go(seg), r);
     };
-    (seg, parsed, MA.rows_of(term));
+    (seg, parsed, MA.rows_of(CorpusUtil.outline_of(~root, seg)));
   };
   let (seg, _, rows) = read(z);
   let rec grouted = (seg: Segment.t) =>
     List.exists(
-      (p: Piece.t) =>
-        switch (p) {
-        | Grout({shape: Concave, _}) => true
-        | Tile(t) => List.exists(grouted, t.children)
-        | _ => false
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Grout({shape: Concave, _}) => true
+          | Tile(t) => List.exists(~f=grouted, t.children)
+          | _ => false
+          },
       seg,
     );
   check(bool, "a grout stands in for the `;`", true, grouted(seg));
   ignore(
-    List.fold_left(
-      (z, (needle, key, typed)) => {
+    List.fold(
+      keys,
+      ~init=z,
+      ~f=(z, (needle, key, typed)) => {
         /* a move can rebuild the pieces it crosses: read once before */
         let z = step(z, Move(Point(at(needle), None)));
         ignore(read(z));
@@ -475,13 +492,11 @@ let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
         check(
           list(pair(string, string)),
           typed ++ ": every row keeps its id",
-          List.map(((k, id)) => (k, Id.to_string(id)), rows),
-          List.map(((k, id)) => (k, Id.to_string(id)), rows'),
+          List.map(~f=((k, id)) => (k, Id.to_string(id)), rows),
+          List.map(~f=((k, id)) => (k, Id.to_string(id)), rows'),
         );
         z;
       },
-      z,
-      keys,
     ),
   );
 };
@@ -575,17 +590,19 @@ let tests = (
     ),
   ]
   @ List.map(
-      ((name, case)) =>
-        test_case("a missing `;`: " ++ name, `Quick, missing_semi(case)),
+      ~f=
+        ((name, case)) =>
+          test_case("a missing `;`: " ++ name, `Quick, missing_semi(case)),
       missing_semi_cases,
     )
   @ List.map(
-      ((name, src)) =>
-        test_case(
-          "let-in member: " ++ name,
-          `Quick,
-          letin_member((name, src)),
-        ),
+      ~f=
+        ((name, src)) =>
+          test_case(
+            "let-in member: " ++ name,
+            `Quick,
+            letin_member((name, src)),
+          ),
       [
         ("let-in member", "let f = let x = 1 in x;\nf"),
         (

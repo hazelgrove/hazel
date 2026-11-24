@@ -7,6 +7,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let settings = CoreSettings.on;
 let now = Util.JsUtil.precise_timestamp;
@@ -109,8 +110,8 @@ let receive_pieces = (encoded: WorkerServer.Active.request): unit =>
 let edit_nth = (~n, ~needle, ~repl, seg: Segment.t): Segment.t => {
   let seen = ref(0);
   let rec go = (seg: Segment.t): Segment.t => {
-    let out = List.map(piece, seg);
-    List.for_all2((===), seg, out) ? seg : out;
+    let out = List.map(~f=piece, seg);
+    List.for_all2_exn(~f=phys_equal, seg, out) ? seg : out;
   }
   and piece = (p: Piece.t): Piece.t =>
     switch (p) {
@@ -124,8 +125,8 @@ let edit_nth = (~n, ~needle, ~repl, seg: Segment.t): Segment.t => {
           })
         : p;
     | Tile(t) =>
-      let children = List.map(go, t.children);
-      List.for_all2((===), children, t.children)
+      let children = List.map(~f=go, t.children);
+      List.for_all2_exn(~f=phys_equal, children, t.children)
         ? p
         : Tile({
             ...t,
@@ -138,23 +139,23 @@ let edit_nth = (~n, ~needle, ~repl, seg: Segment.t): Segment.t => {
 
 let count = (~needle, seg: Segment.t): int => {
   let rec go = seg =>
-    List.fold_left(
-      (n, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [needle] => n + 1
-        | Tile(t) => List.fold_left((n, k) => n + go(k), n, t.children)
-        | _ => n
-        },
-      0,
-      seg,
+    List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when Tile.label(t) == [needle] => n + 1
+      | Tile(t) => List.fold(t.children, ~init=n, ~f=(n, k) => n + go(k))
+      | _ => n
+      }
     );
   go(seg);
 };
 
 let pct = (xs: list(float), q: float): float => {
-  let s = List.sort(compare, xs) |> Array.of_list;
+  let s = List.sort(~compare, xs) |> Array.of_list;
   let n = Array.length(s);
-  s[min(n - 1, max(0, int_of_float(ceil(q *. float_of_int(n))) - 1))];
+  s[min(
+      n - 1,
+      max(0, int_of_float(Float.round_up(q *. float_of_int(n))) - 1),
+    )];
 };
 
 let timed = f => {
@@ -174,8 +175,8 @@ let run = (~name, ~root, ~pauses=12, src: string) => {
       term,
       DefStatics.calc_auto(~settings, term),
     );
-  Hashtbl.reset(WorkerServer.held);
-  Hashtbl.reset(Web.WorkerClient.held);
+  Stdlib.Hashtbl.reset(WorkerServer.held);
+  Stdlib.Hashtbl.reset(Web.WorkerClient.held);
   let seg = CorpusUtil.seg_of(~root, src);
   let st = statics_of(term_of(seg));
   let whole_bytes = String.length(post_whole(st));
@@ -186,14 +187,16 @@ let run = (~name, ~root, ~pauses=12, src: string) => {
   let first_bytes = size(first);
   let rows = ref([]);
   let _: (Segment.t, bool) =
-    List.fold_left(
-      ((seg, flip), i) => {
+    List.fold(
+      List.init(pauses, ~f=i => i),
+      ~init=(seg, false),
+      ~f=((seg, flip), i) => {
         /* three spots (a tenth, half, nine tenths in), alternating */
         let needle = flip ? "2" : "1";
         let n = count(~needle, seg);
         let at = [|n / 10, n / 2, n * 9 / 10|][i mod 3];
         let seg' = edit_nth(~n=at, ~needle, ~repl=flip ? "1" : "2", seg);
-        if (seg' === seg) {
+        if (phys_equal(seg', seg)) {
           fail("no edit");
         };
         let st = statics_of(term_of(seg'));
@@ -210,24 +213,22 @@ let run = (~name, ~root, ~pauses=12, src: string) => {
         let (rw, ()) = timed(() => receive_whole(w));
         let (rp, ()) = timed(() => receive_pieces(p));
         rows := [(tw, tp, phases, rw, rp, size(p)), ...rows^];
-        if (Sys.getenv_opt("BENCH_DETAIL") == Some("1")) {
+        if (Poly.equal(Stdlib.Sys.getenv_opt("BENCH_DETAIL"), Some("1"))) {
           Printf.printf(
             "  pause %d: posted %d B, encoded %s\n%!",
             i,
             size(p),
             String.concat(
-              ", ",
-              List.map(EvalPieces.show_key, Web.EvalSplit.encoded^),
+              ~sep=", ",
+              List.map(~f=EvalPieces.show_key, Web.EvalSplit.encoded^),
             ),
           );
         };
         (seg', i mod 3 == 2 ? !flip : flip);
       },
-      (seg, false),
-      List.init(pauses, i => i),
     );
-  let p50 = f => pct(List.map(f, rows^), 0.5);
-  let p90 = f => pct(List.map(f, rows^), 0.9);
+  let p50 = f => pct(List.map(~f, rows^), 0.5);
+  let p90 = f => pct(List.map(~f, rows^), 0.9);
   Printf.printf(
     "BENCH %s: main thread per pause, whole p50 %.1f ms (p90 %.1f), %d B | pieces p50 %.1f ms (p90 %.1f; cut %.1f, posted_of %.1f, encode %.1f, clone %.1f), posted p50 %.0f B (max %.0f; the first %d B) | worker: decode the whole p50 %.1f ms, compose the pieces p50 %.1f ms%s\n%!",
     name,
@@ -241,7 +242,7 @@ let run = (~name, ~root, ~pauses=12, src: string) => {
     p50(((_, _, (_, _, c, _), _, _, _)) => c),
     p50(((_, _, (_, _, _, d), _, _, _)) => d),
     p50(((_, _, _, _, _, b)) => float_of_int(b)),
-    pct(List.map(((_, _, _, _, _, b)) => float_of_int(b), rows^), 1.),
+    pct(List.map(~f=((_, _, _, _, _, b)) => float_of_int(b), rows^), 1.),
     first_bytes,
     p50(((_, _, _, rw, _, _)) => rw),
     p50(((_, _, _, _, rp, _)) => rp),
@@ -253,13 +254,25 @@ let run = (~name, ~root, ~pauses=12, src: string) => {
 };
 
 let programs = () => [
-  ("mega-1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
-  ("mega-2k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-2k.hz"))),
-  ("mega-4k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-4k.hz"))),
+  (
+    "mega-1k",
+    Sort.Exp,
+    Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
+  ),
+  (
+    "mega-2k",
+    Sort.Exp,
+    Option.value_exn(CorpusUtil.mega_src("mega-2k.hz")),
+  ),
+  (
+    "mega-4k",
+    Sort.Exp,
+    Option.value_exn(CorpusUtil.mega_src("mega-4k.hz")),
+  ),
   (
     "mega-mod-1k",
     Sort.Mod,
-    Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
+    Option.value_exn(CorpusUtil.mega_src("mega-mod-1k.hz")),
   ),
   ("list-mod", Sort.Mod, Test_OpenMember.src(~root=Mod)),
 ];
@@ -270,7 +283,7 @@ let tests = (
     test_case("the request per pause, whole and in pieces", `Slow, () =>
       if (CorpusUtil.bench_enabled) {
         List.iter(
-          ((name, root, src)) => run(~name, ~root, src),
+          ~f=((name, root, src)) => run(~name, ~root, src),
           programs(),
         );
       }

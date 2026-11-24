@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* installed by the test runner: every sparse remold/regrout also runs the
    global pass and fails on disagreement */
@@ -16,25 +17,26 @@ let remold_regrout_global = (d: Direction.t, z: Zipper.t, ~root): Zipper.t => {
    parity compares modulo them */
 let rec scrub_grout_ids = (seg: Segment.t): Segment.t =>
   List.map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Grout(g) =>
-        Piece.Grout({
-          ...g,
-          id: Id.invalid,
-        })
-      | Secondary(w) =>
-        Piece.Secondary({
-          ...w,
-          id: Id.invalid,
-        })
-      | Tile(t) =>
-        Piece.Tile({
-          ...t,
-          children: List.map(scrub_grout_ids, t.children),
-        })
-      | Projector(_) => p
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout(g) =>
+          Piece.Grout({
+            ...g,
+            id: Id.invalid,
+          })
+        | Secondary(w) =>
+          Piece.Secondary({
+            ...w,
+            id: Id.invalid,
+          })
+        | Tile(t) =>
+          Piece.Tile({
+            ...t,
+            children: List.map(~f=scrub_grout_ids, t.children),
+          })
+        | Projector(_) => p
+        },
     seg,
   );
 
@@ -44,9 +46,10 @@ let relatives_equiv = (a: Relatives.t, b: Relatives.t): bool => {
     && compare(scrub_grout_ids(s1), scrub_grout_ids(s2)) == 0;
   sibs_equiv(a.siblings, b.siblings)
   && List.length(a.ancestors) == List.length(b.ancestors)
-  && List.for_all2(
-       ((aa, asibs): Ancestors.generation, (ba, bsibs)) =>
-         compare(aa, ba) == 0 && sibs_equiv(asibs, bsibs),
+  && List.for_all2_exn(
+       ~f=
+         ((aa, asibs): Ancestors.generation, (ba, bsibs)) =>
+           compare(aa, ba) == 0 && sibs_equiv(asibs, bsibs),
        a.ancestors,
        b.ancestors,
      );
@@ -54,7 +57,7 @@ let relatives_equiv = (a: Relatives.t, b: Relatives.t): bool => {
 
 let brief = (p: Piece.t): string =>
   switch (p) {
-  | Tile(t) => "tile " ++ String.concat("", Tile.effective_label(t))
+  | Tile(t) => "tile " ++ String.concat(~sep="", Tile.effective_label(t))
   | Grout({shape: Convex, _}) => "convex grout"
   | Grout({shape: Concave, _}) => "concave grout"
   | Secondary(w) => Secondary.is_linebreak(w) ? "linebreak" : "space"

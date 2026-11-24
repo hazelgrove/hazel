@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open Poly;
 include ZipperBase;
 
 let init: unit => t =
@@ -86,21 +87,22 @@ let restore_relatives_dirty =
     let (siblings, dirty) = restore_sibs_dirty(o.siblings, n.siblings);
     let anc_dirty = ref(false);
     let ancestors =
-      List.map2(
-        ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
-          let a =
-            if (oa === na || compare(oa, na) == 0) {
-              oa;
-            } else {
+      List.map2_exn(
+        ~f=
+          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
+            let a =
+              if (phys_equal(oa, na) || compare(oa, na) == 0) {
+                oa;
+              } else {
+                anc_dirty := true;
+                na;
+              };
+            let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
+            if (!Id.Set.is_empty(d)) {
               anc_dirty := true;
-              na;
             };
-          let (sibs, d) = restore_sibs_dirty(osibs, nsibs);
-          if (!Id.Set.is_empty(d)) {
-            anc_dirty := true;
-          };
-          (a, sibs);
-        },
+            (a, sibs);
+          },
         o.ancestors,
         n.ancestors,
       );
@@ -119,79 +121,6 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t => {
   relatives;
 };
 
-/* [z] with what it shares with [old] as [old]'s objects, at every level
-   (Segment.restore_deep): for edits that rebuild what they don't change */
-let restore_identity = (~old: t, z: t): t => {
-  let segs = (z: t) =>
-    [
-      z.selection.content,
-      fst(z.relatives.siblings),
-      snd(z.relatives.siblings),
-    ]
-    @ List.concat_map(
-        ((a: Ancestor.t, (pre, suf))) =>
-          [pre, suf, ...fst(a.children)] @ snd(a.children),
-        z.relatives.ancestors,
-      );
-  let index = Segment.index_deep(segs(old));
-  let seg = Segment.restore_deep(index);
-  let olds = Hashtbl.create(8);
-  List.iter(
-    ((a: Ancestor.t, _)) => Hashtbl.replace(olds, a.id, a),
-    old.relatives.ancestors,
-  );
-  let ancestor = (a: Ancestor.t): Ancestor.t => {
-    let (l, r) = a.children;
-    let children = (List.map(seg, l), List.map(seg, r));
-    let same = ((l, r), (l', r')) =>
-      List.length(l) == List.length(l')
-      && List.length(r) == List.length(r')
-      && List.for_all2(Segment.ptr_eq, l, l')
-      && List.for_all2(Segment.ptr_eq, r, r');
-    switch (Hashtbl.find_opt(olds, a.id)) {
-    | Some(o)
-        when
-          same(o.children, children)
-          && compare(
-               {
-                 ...o,
-                 children: ([], []),
-               },
-               {
-                 ...a,
-                 children: ([], []),
-               },
-             )
-          == 0 => o
-    | _ =>
-      same(a.children, children)
-        ? a
-        : {
-          ...a,
-          children,
-        }
-    };
-  };
-  {
-    ...z,
-    selection: {
-      ...z.selection,
-      content: seg(z.selection.content),
-    },
-    relatives: {
-      siblings: (
-        seg(fst(z.relatives.siblings)),
-        seg(snd(z.relatives.siblings)),
-      ),
-      ancestors:
-        List.map(
-          ((a, (pre, suf))) => (ancestor(a), (seg(pre), seg(suf))),
-          z.relatives.ancestors,
-        ),
-    },
-  };
-};
-
 let is_solid: Piece.t => bool =
   fun
   | Tile(_)
@@ -206,11 +135,11 @@ let is_solid: Piece.t => bool =
    the boundary solid; [outer] is the side facing away from the caret */
 let window_bound =
     (outer: Direction.t, mini: list(Piece.t)): option(Nib.Shape.t) =>
-  switch (ListUtil.last_opt(mini)) {
+  switch (List.last(mini)) {
   | Some(p) when is_solid(p) =>
     Piece.shapes(p)
-    |> Option.map(((l, r)) =>
-         Nib.Shape.flip(outer == Direction.Left ? l : r)
+    |> Option.map(~f=((l, r)) =>
+         Nib.Shape.flip(Direction.equal(outer, Direction.Left) ? l : r)
        )
   | _ => None
   };
@@ -223,10 +152,8 @@ let split_window =
     (~dirty: Id.Set.t, ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   let in_dirty = p => Id.Set.mem(Piece.id(p), dirty);
   let (_, last_dirty) =
-    List.fold_left(
-      ((i, last), p) => (i + 1, in_dirty(p) ? i : last),
-      (0, (-1)),
-      ps,
+    List.fold(ps, ~init=(0, (-1)), ~f=((i, last), p) =>
+      (i + 1, in_dirty(p) ? i : last)
     );
   let rec take = (i, mini, rest) =>
     switch (rest) {
@@ -243,14 +170,15 @@ let split_window =
    descends past a caret-relative junction) forces the global pass */
 let ancestors_stale = (ancs: Ancestors.t): bool =>
   List.exists(
-    ((a, (pre, suf)): Ancestors.generation) => {
-      let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
-      !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
-      || !
-           Id.Set.is_empty(
-             Segment.stale_affix_ids(~caret_shape=r', Right, suf),
-           );
-    },
+    ~f=
+      ((a, (pre, suf)): Ancestors.generation) => {
+        let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
+        !Id.Set.is_empty(Segment.stale_affix_ids(~caret_shape=l', Left, pre))
+        || !
+             Id.Set.is_empty(
+               Segment.stale_affix_ids(~caret_shape=r', Right, suf),
+             );
+      },
     ancs,
   );
 
@@ -283,8 +211,10 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
     /* pre is in document order: the caret side is its end */
     let (mini_pre_rev, far_pre_rev) = split_window(~dirty, List.rev(pre));
     let (mini_suf, far_suf) = split_window(~dirty, suf);
-    let l_shape = far_pre_rev == [] ? None : window_bound(Left, mini_pre_rev);
-    let r_shape = far_suf == [] ? None : window_bound(Right, mini_suf);
+    let l_shape =
+      List.is_empty(far_pre_rev) ? None : window_bound(Left, mini_pre_rev);
+    let r_shape =
+      List.is_empty(far_suf) ? None : window_bound(Right, mini_suf);
     let (mini_pre', mini_suf') =
       Relatives.regrout_siblings(
         d,
@@ -325,17 +255,17 @@ let rescan_parent_shards = (z: t): t => {
   /* For each ancestor, compute its missing shards as (token, index) pairs */
   let ancestor_missing = (a: Ancestor.t): list((string, int)) => {
     let all_shards = fst(a.shards) @ snd(a.shards);
-    List.init(List.length(Ancestor.label(a)), Fun.id)
-    |> List.filter(i => !List.mem(i, all_shards))
-    |> List.map(i => (List.nth(Ancestor.label(a), i), i));
+    List.init(List.length(Ancestor.label(a)), ~f=Fn.id)
+    |> List.filter(~f=i => !List.mem(all_shards, i, ~equal=Int.equal))
+    |> List.map(~f=i => (List.nth_exn(Ancestor.label(a), i), i));
   };
 
   let convert_piece =
       (a: Ancestor.t, missing: list((string, int)), p: Piece.t): Piece.t =>
     switch (p) {
     | Tile(t) when List.length(t.shards) == 1 && t.id != a.Ancestor.id =>
-      let tok = List.hd(Tile.effective_label(t));
-      switch (List.assoc_opt(tok, missing)) {
+      let tok = List.hd_exn(Tile.effective_label(t));
+      switch (List.Assoc.find(missing, tok, ~equal=String.equal)) {
       | Some(idx) =>
         Tile({
           ...t,
@@ -357,12 +287,12 @@ let rescan_parent_shards = (z: t): t => {
       (sibs: Siblings.t, target: Ancestor.t)
       : option((Siblings.t, Ancestor.t)) => {
     let missing = ancestor_missing(target);
-    if (missing == []) {
+    if (List.is_empty(missing)) {
       None;
     } else {
       let convert = convert_piece(target, missing);
       let (l, r) = sibs;
-      let new_sibs = (List.map(convert, l), List.map(convert, r));
+      let new_sibs = (List.map(~f=convert, l), List.map(~f=convert, r));
       if (new_sibs == sibs) {
         None;
       } else {
@@ -641,9 +571,9 @@ let split_char_selection = (z: t): (Segment.t, Segment.t, Segment.t) =>
       | None => ([], content, [])
       | Some(tok) =>
         let len = Token.length(tok);
-        let lo = Option.fold(~none=0, ~some=n => n + 1, left_offset);
+        let lo = Option.value_map(left_offset, ~default=0, ~f=n => n + 1);
         let lo = max(0, min(lo, len));
-        let hi = Option.fold(~none=len, ~some=n => n + 1, right_offset);
+        let hi = Option.value_map(right_offset, ~default=len, ~f=n => n + 1);
         let hi = max(lo, min(hi, len));
         let (head, rest) = cut(tok, lo);
         let (mid, tail) = cut(rest, hi - lo);
@@ -692,7 +622,7 @@ let normalize_char_selection = (z: t): t =>
           switch (Piece.token_of(p)) {
           | Some(tok) =>
             let (rest, _) = Token.split_nth(tok, n + 1);
-            rest == "" ? None : Some(rest);
+            String.equal(rest, "") ? None : Some(rest);
           | None => None
           }
         }
@@ -709,7 +639,7 @@ let normalize_char_selection = (z: t): t =>
           switch (Piece.token_of(p)) {
           | Some(tok) =>
             let (_, rest) = Token.split_nth(tok, n + 1);
-            rest == "" ? None : Some(rest);
+            String.equal(rest, "") ? None : Some(rest);
           | None => None
           }
         }
@@ -720,8 +650,8 @@ let normalize_char_selection = (z: t): t =>
      * add it back to the corresponding remainder. */
     let (left_remainder, right_remainder) =
       switch (content) {
-      | [p] when Piece.token_of(p) != None =>
-        let tok = Option.get(Piece.token_of(p));
+      | [p] when Option.is_some(Piece.token_of(p)) =>
+        let tok = Option.value_exn(Piece.token_of(p));
         if (Token.is_string_or_comment(tok)) {
           let tok_len = Token.length(tok);
           let (opening, _) = Token.split_nth(tok, 1);
@@ -771,7 +701,7 @@ let normalize_char_selection = (z: t): t =>
         caret: Outer,
       };
       let z = unselect(z);
-      if (combined == "") {
+      if (String.equal(combined, "")) {
         z;
       } else {
         let piece = mk_remainder_piece(combined);
@@ -956,7 +886,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   /* Inner(n) references the right neighbor. After unselect, if the
    * referenced piece ended up in left siblings instead, move it right. */
   switch (target_caret) {
-  | Inner(_) when Siblings.neighbor(Right, z.relatives.siblings) == None =>
+  | Inner(_)
+      when Option.is_none(Siblings.neighbor(Right, z.relatives.siblings)) =>
     switch (Relatives.pop(Left, z.relatives)) {
     | Some((p, relatives)) =>
       let relatives = Relatives.push(Right, p, relatives);
@@ -971,7 +902,8 @@ let directional_unselect = (d: Direction.t, z: t): t => {
 };
 
 let unselect = (z: t): t =>
-  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+  List.is_empty(z.selection.content)
+    ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
@@ -1124,11 +1056,12 @@ let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
        multi-delimiter forms. To give the singleton form a chance, we
        only match these to incomplete tiles to form their multi forms
        when they're on the top of the stack */
-    missing_shards_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+    missing_shards_hd(z)
+    |> Option.map(~f=Tile.effective_label) == Some([tok])
       ? missing_shards_hd(z) : None;
   } else {
     List.find_map(
-      t => Tile.effective_label(t) == [tok] ? Some(t) : None,
+      ~f=t => Tile.effective_label(t) == [tok] ? Some(t) : None,
       local_missing_shards(z),
     );
   };
@@ -1207,7 +1140,7 @@ let put_down = (z: t, ~root): option(t) =>
     : None;
 
 let delete = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destroy_selection);
+  z |> select(d) |> Option.map(~f=destroy_selection);
 
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
@@ -1243,7 +1176,7 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.last;
     | Right =>
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="base_point", p, measured);
       m.origin;
     };
@@ -1340,7 +1273,7 @@ module Caret = {
         };
       let seg = Piece.disassemble(focus_piece);
       /* Always use the first shard to get origin */
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="caret_point_charsel", p, measured);
       let offset =
         switch (Piece.token_of(focus_piece)) {
@@ -1369,10 +1302,10 @@ let selection_trim_offsets = (z: t): (int, int) => {
   let left_trim = (inner_n, content, focus) => {
     let p =
       switch ((focus: Direction.t)) {
-      | Right => List.hd(content)
+      | Right => List.hd_exn(content)
       | Left => ListUtil.last(content)
       };
-    let shard = List.hd(Piece.disassemble(p));
+    let shard = List.hd_exn(Piece.disassemble(p));
     switch (Piece.token_of(shard)) {
     | Some(_) => Caret.inner_grapheme_offset(inner_n)
     | None => 0
@@ -1382,7 +1315,7 @@ let selection_trim_offsets = (z: t): (int, int) => {
     let p =
       switch ((focus: Direction.t)) {
       | Right => ListUtil.last(content)
-      | Left => List.hd(content)
+      | Left => List.hd_exn(content)
       };
     let seg = Piece.disassemble(p);
     let last_shard = ListUtil.last(seg);
@@ -1575,7 +1508,7 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
     switch (z.selection.focus) {
     | Right =>
       /* Anchor is at the LEFT end */
-      let p = List.hd(seg);
+      let p = List.hd_exn(seg);
       let m = Measured.find_p(~msg="selection_anchor_point", p, measured);
       switch (anchor_caret) {
       | CaretBase.Outer => Some(m.origin)
@@ -1602,7 +1535,7 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
           | Some(tok) => Caret.inner_offset_for_token(idx, tok)
           | None => idx + 1
           };
-        let p_first = List.hd(seg);
+        let p_first = List.hd_exn(seg);
         let m_first =
           Measured.find_p(
             ~msg="selection_anchor_point_origin",

@@ -5,7 +5,12 @@ type t('k, 'v) = ref(option(('k, 'v)));
 let mk = (): t('k, 'v) => ref(None);
 
 let get =
-    (~same: ('k, 'k) => bool=(===), slot: t('k, 'v), key: 'k, f: unit => 'v)
+    (
+      ~same: ('k, 'k) => bool=phys_equal,
+      slot: t('k, 'v),
+      key: 'k,
+      f: unit => 'v,
+    )
     : 'v =>
   switch (slot^) {
   | Some((k, v)) when same(k, key) => v

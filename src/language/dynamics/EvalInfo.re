@@ -55,13 +55,14 @@ let of_targets = (targets: Sample.targets): t => {
 
 /* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
  * a runtime dependency, so it should not participate in reuse provenance. */
-let is_runtime_dependency = (name: string): bool => name != "$hole";
+let is_runtime_dependency = (name: string): bool =>
+  !String.equal(name, "$hole");
 
 /* what evaluation reads of a co_ctx (its names, IncrEval) but "$hole":
    DefStatics' per-item body holes mint a "$hole" use each analysis,
    which would change every enclosing root's entry */
 let runtime_co_ctx = (co_ctx: CoCtx.t): CoCtx.t =>
-  List.for_all(((name, _)) => is_runtime_dependency(name), co_ctx)
+  List.for_all(~f=((name, _)) => is_runtime_dependency(name), co_ctx)
     ? co_ctx : CoCtx.filter_names(is_runtime_dependency, co_ctx);
 
 /* what an entry's witness reads besides its own probe targets */
@@ -93,7 +94,7 @@ let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
          values */
       probe_targets:
         if (List.exists(
-              id => MerkleSet.mem(id, probe_targets.probe_ids),
+              ~f=id => MerkleSet.mem(id, probe_targets.probe_ids),
               w.full,
             )) {
           ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));

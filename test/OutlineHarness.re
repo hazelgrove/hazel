@@ -14,16 +14,16 @@ let none = _ => ignore;
 /* [src]'s rows as the sidebar lists them: every one shown unless
    [collapsed] (by label), or, given [folds], as a slide folds them */
 let visible =
-    (~collapsed: list(string)=[], ~folds=?, term: Language.Exp.t)
+    (~collapsed: list(string)=[], ~folds=?, outline: Web.OutlineTree.t)
     : array(S.visible_row) =>
   S.visible_rows(
     ~folded=
       (path, n) =>
         switch (folds) {
         | Some(folds) => O.folded(~folds, path, n.o_kind)
-        | None => List.mem(n.o_label, collapsed)
+        | None => List.mem(collapsed, n.o_label, ~equal=Poly.equal)
         },
-    O.of_term(term),
+    O.rows(outline),
   );
 
 /* text mode's state kept as OutlineControl keeps it, minus the program;
@@ -83,8 +83,9 @@ let handlers =
       ~toggle_collapse: O.path => Virtual_dom.Vdom.Effect.t(unit)=none,
       ~def_op: (E.def_op, Id.t) => Virtual_dom.Vdom.Effect.t(unit)=(_, _) =>
                                                                     ignore,
-      ~went: ref(list(bool))=ref([]),
       ~menus: ref(int)=ref(0),
+      ~leave=ignore,
+      ~zoom_out=ignore,
       (),
     )
     : S.handlers => {
@@ -94,22 +95,17 @@ let handlers =
   toggle_run: none,
   toggle_collapse,
   zoom_to: none,
-  go_above: up => {
-    went := [up, ...went^];
-    ignore;
-  },
-  above_chip: ignore,
   zoom_in: none,
   show_whole: none,
   discard: ignore,
-  zoom_out: ignore,
+  zoom_out,
   get_cursor: () => cursor^,
   set_cursor: c => {
     cursor := c;
     ignore;
   },
   focused: ignore,
-  leave: ignore,
+  leave,
   text: text_ctl(~ops, ~edits, text),
   menu_open: (_, _, _) => {
     incr(menus);
@@ -127,22 +123,14 @@ let props =
       ~cursor: option(O.path)=None,
       ~refusal: Id.t => option(Web.ScratchFocus.refusal)=_ => None,
       ~check: E.t => option(string)=_ => None,
-      ~level: S.level=Plain,
       (),
     )
     : S.props => {
   arrows: true,
-  /* the level above has no stack */
-  stack_controls:
-    switch (level) {
-    | Enclosing(_) => false
-    | Plain
-    | InSlide(_) => true
-    },
+  stack_controls: true,
   refusal,
   folded: (_, _) => false,
   header: {
-    h_level: level,
     h_program: "",
     h_trail: [],
     h_open: 0,
@@ -152,6 +140,7 @@ let props =
   cursor,
   created: None,
   flash: 0,
+  refused: None,
   pinned: [],
   focused_entries: [],
   error_items: [],
@@ -164,15 +153,26 @@ let props =
   check,
 };
 
-/* a keydown as the browser sends it, on the row list */
-let keydown = (~meta=false, ~alt=false, ~shift=false, ~code=?, key: string) =>
+/* a keydown as the browser sends it, on the row list: [meta] and [ctrl]
+   the keys so named, [cmd] the command key (⌘ on a Mac, Ctrl elsewhere) */
+let keydown =
+    (
+      ~cmd=false,
+      ~meta=false,
+      ~ctrl=false,
+      ~alt=false,
+      ~shift=false,
+      ~code=?,
+      key: string,
+    ) => {
+  let mac = Util.Os.is_mac^;
   Js_of_ocaml.Js.(
     Unsafe.coerce(
       Unsafe.obj([|
         ("key", Unsafe.inject(string(key))),
         ("code", Unsafe.inject(string(Option.value(code, ~default=key)))),
-        ("metaKey", Unsafe.inject(bool(meta))),
-        ("ctrlKey", Unsafe.inject(_false)),
+        ("metaKey", Unsafe.inject(bool(meta || cmd && mac))),
+        ("ctrlKey", Unsafe.inject(bool(ctrl || cmd && !mac))),
         ("altKey", Unsafe.inject(bool(alt))),
         ("shiftKey", Unsafe.inject(bool(shift))),
         (
@@ -193,3 +193,4 @@ let keydown = (~meta=false, ~alt=false, ~shift=false, ~code=?, key: string) =>
       |]),
     )
   );
+};

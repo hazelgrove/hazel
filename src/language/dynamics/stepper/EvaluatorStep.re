@@ -80,7 +80,7 @@ let rec matches =
         Filter(Filter(flt'), ctx) |> rewrap;
       | Filter(Residue(idx, act), ctx) =>
         let (ract, ridx, rctx) = matches(env, flt, ctx, exp, act, idx);
-        if (ridx == idx && ract |> snd == All) {
+        if (ridx == idx && FilterAction.equal_count(snd(ract), All)) {
           (ract, ridx, Filter(Residue(idx, act), rctx) |> rewrap);
         } else {
           (ract, ridx, rctx);
@@ -208,7 +208,11 @@ let rec matches =
     };
   switch (ctx) {
   | Term({term: Filter(_), _}) => (ract, ridx, rctx)
-  | _ when midx == ridx && midx > pidx && mact |> snd == All => (
+  | _
+      when
+        midx == ridx
+        && midx > pidx
+        && FilterAction.equal_count(snd(mact), All) => (
       ract,
       ridx,
       Term({
@@ -288,7 +292,7 @@ module Decompose = {
         | Result.Indet => Result.Indet
         | Result.BoxedValue => Result.BoxedValue
         | Result.Step(objs) =>
-          Result.Step(List.map(EvalObj.wrap(wr), objs))
+          Result.Step(List.map(~f=EvalObj.wrap(wr), objs))
         },
         d,
       );
@@ -320,7 +324,9 @@ module Decompose = {
         | Constructor => r
         | Value => List.is_empty(rq_steps) ? Result.BoxedValue : r
         | Indet => List.is_empty(rq_steps) ? Result.Indet : r
-        | Step(s) when s.kind == CompleteFilter && !List.is_empty(rq_steps) =>
+        | Step(s)
+            when
+              Poly.equal(s.kind, CompleteFilter) && !List.is_empty(rq_steps) =>
           Result.Step(rq_steps)
         | Step(s) =>
           Result.Step([
@@ -393,7 +399,7 @@ module TakeStep = {
       env,
       d,
     )
-    |> Option.map(DHExp.replace_all_ids);
+    |> Option.map(~f=DHExp.replace_all_ids);
 };
 
 let take_step = TakeStep.take_step;
@@ -422,18 +428,17 @@ type status =
 let get_status = (~settings: CoreSettings.t, exp, env) => {
   let eos =
     decompose(exp, env)
-    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
-  switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
+    |> List.map(~f=should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+  switch (
+    List.find(~f=((x, _)) => FilterAction.equal_action(x, Eval), eos)
+  ) {
   | Some((_, x)) => AutoStep(x)
-  | None => AvailableSteps(List.map(((_, x)) => x, eos))
+  | None => AvailableSteps(List.map(~f=((_, x)) => x, eos))
   };
 };
 
 let get_step_id = (step: step): Id.t =>
-  switch (step.at) {
-  | Some(id) => id
-  | None => step.d_loc |> DHExp.rep_id
-  };
+  Option.value(step.at, ~default=DHExp.rep_id(step.d_loc));
 
 let get_step_kind = (step: step): step_kind => step.knd;
 
@@ -465,13 +470,15 @@ let refresh_step =
     ) => {
   let eos =
     decompose(exp, env)
-    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+    |> List.map(~f=should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* desired_id =
     ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
-    |> Option.map(IdTagged.ids);
+    |> Option.map(~f=IdTagged.ids);
   let* (h, x) =
-    List.find_opt(
-      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
+    List.find(
+      ~f=
+        ((_, step': step)) =>
+          List.equal(Id.equal, IdTagged.ids(step'.d_loc), desired_id),
       eos,
     );
   Some((h, x));

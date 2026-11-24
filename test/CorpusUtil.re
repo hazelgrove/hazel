@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Poly;
 
 /* programs for tests: the corpora under hazel-programs (the mega programs
    and the slides), small edge cases, parsing, and edits as the editor
@@ -6,21 +7,22 @@ open Haz3lcore;
    down (dune) */
 
 let read_file = (path: string): option(string) =>
-  switch (open_in_bin(path)) {
+  switch (Stdlib.open_in_bin(path)) {
   | ic =>
-    let n = in_channel_length(ic);
-    let s = really_input_string(ic, n);
-    close_in(ic);
+    let n = Stdlib.in_channel_length(ic);
+    let s = Stdlib.really_input_string(ic, n);
+    Stdlib.close_in(ic);
     Some(s);
   | exception _ => None
   };
 
 /* HAZEL_BENCH=1: timing the suite, so the runner skips the statics oracle */
-let bench_enabled = Sys.getenv_opt("HAZEL_BENCH") == Some("1");
+let bench_enabled =
+  Poly.equal(Stdlib.Sys.getenv_opt("HAZEL_BENCH"), Some("1"));
 
 let mega_path = (name: string): string => {
   let path = "hazel-programs/mega/" ++ name;
-  Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
+  Stdlib.Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
 };
 
 let mega_src = (name: string): option(string) =>
@@ -36,7 +38,7 @@ let parse = (~root: Sort.t=Exp, src: string): option(Segment.t) =>
 
 /* as if typed: the text parser keeps unfinished forms and grout */
 let typed_seg = (~root: Sort.t=Exp, src: string): option(Segment.t) =>
-  Option.map(Zipper.unselect_and_zip, MarkerParse.of_text(~root, src));
+  Option.map(~f=Zipper.unselect_and_zip, MarkerParse.of_text(~root, src));
 
 /* the fast parser, else the text parser (slow at mega scale); fails the
    test on text neither reads */
@@ -62,7 +64,7 @@ let text_of = (seg: Segment.t): string =>
   MarkerParse.to_text(Zipper.unzip(seg));
 
 let corpus_seg = (~root: Sort.t=Exp, name: string): option(Segment.t) =>
-  Option.bind(mega_src(name), parse(~root));
+  Option.bind(mega_src(name), ~f=parse(~root));
 
 /* a mega program, failing the test if it doesn't read */
 let mega_seg = (~root: Sort.t=Exp, name: string): Segment.t =>
@@ -80,14 +82,14 @@ let mega_seg = (~root: Sort.t=Exp, name: string): Segment.t =>
    (path, text) */
 let slide_corpus = (): list((string, string)) => {
   let rec find = (dir: string): list(string) =>
-    switch (Sys.readdir(dir)) {
+    switch (Stdlib.Sys.readdir(dir)) {
     | entries =>
       entries
       |> Array.to_list
-      |> List.concat_map(entry => {
+      |> List.concat_map(~f=entry => {
            let path = Filename.concat(dir, entry);
-           switch (Sys.is_directory(path)) {
-           | true => entry == "mega" ? [] : find(path)
+           switch (Stdlib.Sys.is_directory(path)) {
+           | true => String.equal(entry, "mega") ? [] : find(path)
            | false => Filename.check_suffix(entry, ".hz") ? [path] : []
            | exception _ => []
            };
@@ -95,19 +97,20 @@ let slide_corpus = (): list((string, string)) => {
     | exception _ => []
     };
   let root =
-    Sys.file_exists("hazel-programs")
+    Stdlib.Sys.file_exists("hazel-programs")
       ? "hazel-programs" : "../hazel-programs";
   find(root)
-  |> List.sort(compare)
-  |> List.filter_map(path =>
+  |> List.sort(~compare)
+  |> List.filter_map(~f=path =>
        Option.map(
-         src =>
-           (
-             path,
-             src
-             |> Util.StringUtil.trim_leading
-             |> Util.StringUtil.strip_final_newline,
-           ),
+         ~f=
+           src =>
+             (
+               path,
+               src
+               |> Util.StringUtil.trim_leading
+               |> Util.StringUtil.strip_final_newline,
+             ),
          read_file(path),
        )
      );
@@ -186,16 +189,13 @@ let edit_token =
     : (Segment.t, bool) => {
   let is_match = (t: Tile.t) => Tile.label(t) == [needle];
   let rec matches = (seg: Segment.t): int =>
-    List.fold_left(
-      (n, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when is_match(t) => n + 1
-        | Tile(t) =>
-          List.fold_left((n, kid) => n + matches(kid), n, t.children)
-        | _ => n
-        },
-      0,
-      seg,
+    List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when is_match(t) => n + 1
+      | Tile(t) =>
+        List.fold(t.children, ~init=n, ~f=(n, kid) => n + matches(kid))
+      | _ => n
+      }
     );
   let chosen =
     switch (at) {
@@ -208,8 +208,9 @@ let edit_token =
   let seen = ref(0);
   /* in order, as the match count runs left to right */
   let map_in_order = (f, xs) =>
-    List.rev(List.fold_left((acc, x) => [f(x), ...acc], [], xs));
-  let shared = (old, xs) => List.for_all2((===), old, xs) ? old : xs;
+    List.rev(List.fold(xs, ~init=[], ~f=(acc, x) => [f(x), ...acc]));
+  let shared = (old, xs) =>
+    List.for_all2_exn(~f=phys_equal, old, xs) ? old : xs;
   let rec go = (seg: Segment.t): Segment.t =>
     shared(seg, map_in_order(piece, seg))
   and piece = (p: Piece.t): Piece.t =>
@@ -226,7 +227,7 @@ let edit_token =
         : p;
     | Tile(t) =>
       let children = shared(t.children, map_in_order(go, t.children));
-      children === t.children
+      phys_equal(children, t.children)
         ? p
         : Tile({
             ...t,
@@ -235,7 +236,7 @@ let edit_token =
     | _ => p
     };
   let seg' = go(seg);
-  (seg', seg' !== seg);
+  (seg', !phys_equal(seg', seg));
 };
 
 /* a physically fresh copy, ids kept: a change the incremental layers can
@@ -268,12 +269,13 @@ let copy_piece = (p: Piece.t): Piece.t =>
 let tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (seg: Segment.t) =>
     List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [label] => Some(t.id)
-        | Tile(t) => List.find_map(find, t.children)
-        | _ => None
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == [label] => Some(t.id)
+          | Tile(t) => List.find_map(~f=find, t.children)
+          | _ => None
+          },
       seg,
     );
   switch (find(seg)) {
@@ -285,19 +287,16 @@ let tile = (label: string, seg: Segment.t): Id.t => {
 /* the last tile of the one token [label], in document order */
 let last_tile = (label: string, seg: Segment.t): Id.t => {
   let rec find = (acc, seg: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.fold_left(
-            find,
-            Tile.label(t) == [label] ? Some(t.id) : acc,
-            t.children,
-          )
-        | _ => acc
-        },
-      acc,
-      seg,
+    List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        List.fold(
+          t.children,
+          ~init=Tile.label(t) == [label] ? Some(t.id) : acc,
+          ~f=find,
+        )
+      | _ => acc
+      }
     );
   switch (find(None, seg)) {
   | Some(id) => id
@@ -311,12 +310,13 @@ let last_tile = (label: string, seg: Segment.t): Id.t => {
 let parses_for =
     (~ends=ItemSpans.Written, ~root: Sort.t=Exp, seg: Segment.t, id: Id.t)
     : int => {
-  let holds = (ps: Segment.t) => List.mem(id, Segment.IDs.all(ps));
+  let holds = (ps: Segment.t) =>
+    List.mem(Segment.IDs.all(ps), id, ~equal=Poly.equal);
   let rec go = (lv: ItemSpans.level) =>
     switch (
-      List.find_opt(
-        k => holds(ItemSpans.slice(lv, k)),
-        List.init(Array.length(lv.spans), k => k),
+      List.find(
+        ~f=k => holds(ItemSpans.slice(lv, k)),
+        List.init(Array.length(lv.spans), ~f=k => k),
       )
     ) {
     | Some(k) =>
@@ -330,11 +330,11 @@ let parses_for =
 };
 
 /* the first outline row labeled [label], depth first */
-let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
+let row_by_label = (outline: Web.OutlineTree.t, label: string): Id.t =>
   switch (
     List.find_map(
-      (n: Web.OutlineTree.node) => n.o_label == label ? n.o_id : None,
-      Web.OutlineTree.(flatten(of_term(term))),
+      ~f=(n: Web.OutlineTree.node) => n.o_label == label ? n.o_id : None,
+      Web.OutlineTree.(flatten(rows(outline))),
     )
   ) {
   | Some(id) => id
@@ -342,30 +342,91 @@ let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
   };
 
 /* the outline row at [path] (labels from the top) */
-let row = (term: Language.Exp.t, path: list(string)): Id.t => {
+let row = (outline: Web.OutlineTree.t, path: list(string)): Id.t => {
   let rec go = (nodes: list(Web.OutlineTree.node), path) =>
     switch (path) {
     | [] => None
     | [l, ...rest] =>
-      List.find_opt((n: Web.OutlineTree.node) => n.o_label == l, nodes)
-      |> Option.map((n: Web.OutlineTree.node) =>
-           rest == [] ? n.o_id : go(n.o_children, rest)
+      List.find(~f=(n: Web.OutlineTree.node) => n.o_label == l, nodes)
+      |> Option.map(~f=(n: Web.OutlineTree.node) =>
+           List.is_empty(rest) ? n.o_id : go(n.o_children, rest)
          )
       |> Option.join
     };
-  switch (go(Web.OutlineTree.of_term(term), path)) {
+  switch (go(Web.OutlineTree.rows(outline), path)) {
   | Some(id) => id
-  | None => Alcotest.fail("no row " ++ String.concat("/", path))
+  | None => Alcotest.fail("no row " ++ String.concat(~sep="/", path))
   };
 };
 
 let contains = (needle: string, hay: string): bool => {
   let (nl, hl) = (String.length(needle), String.length(hay));
   let rec go = i =>
-    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
+    i + nl <= hl && (String.sub(hay, ~pos=i, ~len=nl) == needle || go(i + 1));
   go(0);
 };
 
 /* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
    substring match, as names carry folder prefixes ("Perf / Mega 1k") */
 let mega_scale = (name: string): bool => contains("Mega", name);
+
+/* a program's outline as the sidebar reads it */
+let outline_of = (~root: Sort.t=Exp, seg: Segment.t): Outline.t =>
+  Outline.of_source(~root, seg);
+
+/* the outline of [text] as typed */
+let outline_of_text = (~root: Sort.t=Exp, text: string): Outline.t =>
+  switch (MarkerParse.of_text(~root, text)) {
+  | Some(z) => outline_of(~root, Zipper.unselect_and_zip(z))
+  | None => failwith("parse failed: " ++ text)
+  };
+
+/* outline op [op] on row [row], as the outline's keys run it: Alt↑↓
+   steps over modules unless [is_open] */
+let outline_op =
+    (
+      ~root=Sort.Exp,
+      ~is_open=_ => false,
+      op: Web.OutlineEdit.def_op,
+      row: Id.t,
+      seg: Segment.t,
+    )
+    : result((Segment.t, option(Id.t)), string) => {
+  let ctx: Web.ItemEdit.ctx = {
+    mod_root: Sort.equal(root, Sort.Mod),
+    outline: outline_of(~root, seg),
+    info_map: lazy(Language.Statics.Map.empty),
+    is_open,
+  };
+  Web.ItemEdit.edit(ctx, Op(op, row), seg);
+};
+
+/* row [row] renamed [name] as the outline renames it */
+let rename_row =
+    (
+      ~root=Sort.Exp,
+      ~info_map: Language.Statics.Map.t,
+      ~outline: Web.OutlineTree.t,
+      row: Id.t,
+      name: string,
+      seg: Segment.t,
+    )
+    : result(Segment.t, string) => {
+  let mod_root = Sort.equal(root, Sort.Mod);
+  switch (
+    Web.ItemEdit.plan_rename(
+      ~mod_root,
+      ~info_map=Lazy.from_val(info_map),
+      ~outline,
+      ~seg=Lazy.from_val(seg),
+      row,
+      name,
+    )
+  ) {
+  | Error(why) => Error(why)
+  | Ok(None) => Ok(seg)
+  | Ok(Some(rn)) =>
+    Web.ItemEdit.apply_rename(~mod_root, rn, row, seg)
+    |> Result.map_error(~f=EntryEdit.describe)
+  };
+};

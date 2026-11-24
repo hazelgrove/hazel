@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 include CaretBase;
 
@@ -40,7 +41,7 @@ let add_manual = (~model=?, id: Id.t, kind: ProjectorCore.Kind.t, z: t): t =>
     x =>
       [
         (id, Refractors.mk_entry(~model?, kind)),
-        ...List.filter(((id', _)) => id' != id, x),
+        ...List.filter(~f=((id', _)) => id' != id, x),
       ],
     z,
   );
@@ -59,11 +60,11 @@ let update_ephemerals = (f, z: t): t => {
 /* same text, selection, caret and manual probes. probe passes rebuild
    the record on every calculate, so identity alone says little */
 let same_content = (a: t, b: t): bool =>
-  a === b
-  || a.relatives === b.relatives
-  && a.selection === b.selection
+  phys_equal(a, b)
+  || phys_equal(a.relatives, b.relatives)
+  && phys_equal(a.selection, b.selection)
   && a.caret == b.caret
-  && a.refractors.manuals === b.refractors.manuals;
+  && phys_equal(a.refractors.manuals, b.refractors.manuals);
 
 let update_suppressed = (f, z: t): t => {
   ...z,
@@ -123,22 +124,30 @@ let sibs_with_sel =
 module MapPiece = {
   type updater = Piece.t => Segment.t;
 
+  /* what [f] leaves alone comes back as the same objects */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let next =
+      seg |> List.concat_map(~f=p => f(p)) |> List.map(~f=of_piece(f));
+    Segment.ptr_eq(seg, next) ? seg : next;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      phys_equal(next, t) ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(~f=of_segment(f), t.children);
+    List.for_all2_exn(~f=phys_equal, t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -150,8 +159,8 @@ module MapPiece = {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
+        List.map(~f=of_segment(f), fst(ancestor.children)),
+        List.map(~f=of_segment(f), snd(ancestor.children)),
       ),
     };
   };
@@ -163,7 +172,7 @@ module MapPiece = {
   );
 
   let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(f), ancestors);
+    List.map(~f=of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {
@@ -196,7 +205,7 @@ module MapPiece = {
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
-    let sibs = (List.concat_map(f, l), List.concat_map(f, r));
+    let sibs = (List.concat_map(~f, l), List.concat_map(~f, r));
     put_siblings(sibs, z);
   };
 
@@ -243,8 +252,8 @@ module MapSegment = {
     {
       ...ancestor,
       children: (
-        List.map(of_segment(f), fst(ancestor.children)),
-        List.map(of_segment(f), snd(ancestor.children)),
+        List.map(~f=of_segment(f), fst(ancestor.children)),
+        List.map(~f=of_segment(f), snd(ancestor.children)),
       ),
     };
   };
@@ -256,7 +265,7 @@ module MapSegment = {
   );
 
   let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
-    List.map(of_generation(f), ancestors);
+    List.map(~f=of_generation(f), ancestors);
 
   let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {

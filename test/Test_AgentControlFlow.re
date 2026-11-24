@@ -1,3 +1,4 @@
+open Poly;
 /** Tests for [[Agent.Update]]: Stop / flight sequence ignore, send queue flush,
     and matching [[ApiErrorResponse]] ignore paths — deterministic (no HTTP). */
 open Alcotest;
@@ -19,12 +20,12 @@ let cell_editor = () =>
 
 /* Run the phase-2 send deferral synchronously so [drain_scheduled] sees
    DispatchSend; in the browser it is a 0ms timeout (paint gap). */
-let () = Agent.Update.defer_dispatch_send := (thunk => thunk());
+let () = AgentSend.defer_dispatch_send := (thunk => thunk());
 /* Run the eval-wait re-defer synchronously too, and disable the wait by
    default: these tests use init editors whose evaluation never settles.
    The eval-gate tests below re-enable it locally. */
-let () = Agent.Update.defer_eval_wait := ((_, thunk) => thunk());
-let () = Agent.Update.max_eval_wait_attempts := 0;
+let () = AgentSend.defer_eval_wait := ((_, thunk) => thunk());
+let () = AgentSend.max_eval_wait_attempts := 0;
 
 let with_busy_main = (~seq: int, agent: Agent.Model.t): Agent.Model.t => {
   let chat_id = agent.chat_system.current;
@@ -108,8 +109,8 @@ let rec drain_scheduled =
       scheduled := [];
       let agent' =
         List.fold_left(
-          (ag, act) => run_update(act, ag, scheduled),
-          agent,
+          ~f=(ag, act) => run_update(act, ag, scheduled),
+          ~init=agent,
           actions,
         );
       drain_scheduled(agent', scheduled, ~max_rounds=max_rounds - 1);
@@ -118,12 +119,16 @@ let rec drain_scheduled =
 
 let linear_contents = (agent: Agent.Model.t, chat_id: Id.t): list(string) => {
   let chat = ChatSystem.Utils.find_chat(chat_id, agent.chat_system);
-  Chat.Utils.linearize(chat) |> List.map((m: Message.Model.t) => m.content);
+  Chat.Utils.linearize(chat)
+  |> List.map(~f=(m: Message.Model.t) => m.content);
 };
 
 let count_substring = (needle: string, haystack: list(string)): int =>
   List.length(
-    List.filter(c => StringUtil.plain_search(needle, c, 0) >= 0, haystack),
+    List.filter(
+      ~f=c => StringUtil.plain_search(needle, c, 0) >= 0,
+      haystack,
+    ),
   );
 
 let index_of_substring =
@@ -165,7 +170,7 @@ let test_stop_sets_ignore_and_clears_awaiting = () => {
     "cancel message present",
     true,
     List.exists(
-      c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
+      ~f=c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
       cs,
     ),
   );
@@ -180,11 +185,12 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let n_before =
     List.length(
       List.filter(
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+        ~f=
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, after_stop.chat_system),
         ),
@@ -194,7 +200,7 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let scheduled2 = ref([]);
   let after_late =
     run_update(
-      Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, 0),
+      Agent.Update.Action.HandleLLMResponse(late, chat_id, 2, None),
       after_stop,
       scheduled2,
     );
@@ -211,11 +217,12 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
   let n_after =
     List.length(
       List.filter(
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | Message.Model.Agent(_) => true
-          | _ => false
-          },
+        ~f=
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | Message.Model.Agent(_) => true
+            | _ => false
+            },
         msgs,
       ),
     );
@@ -231,9 +238,10 @@ let test_handle_llm_response_ignored_for_stopped_flight = () => {
     true,
     !
       List.exists(
-        c =>
-          StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
-        List.map((m: Message.Model.t) => m.content, msgs),
+        ~f=
+          c =>
+            StringUtil.plain_search("late_reply_should_not_appear", c, 0) >= 0,
+        List.map(~f=(m: Message.Model.t) => m.content, msgs),
       ),
   );
 };
@@ -269,7 +277,7 @@ let test_api_error_main_ignored_for_stopped_flight = () => {
     true,
     !
       List.exists(
-        c => StringUtil.plain_search("should not append", c, 0) >= 0,
+        ~f=c => StringUtil.plain_search("should not append", c, 0) >= 0,
         cs,
       ),
   );
@@ -289,11 +297,15 @@ let test_stop_then_flush_queue_sends_user_after_cancel = () => {
     bool,
     "FlushPendingSend scheduled",
     true,
-    List.mem(Agent.Update.Action.FlushPendingSend(chat_id), scheduled^),
+    List.mem(
+      scheduled^,
+      Agent.Update.Action.FlushPendingSend(chat_id),
+      ~equal=Poly.equal,
+    ),
   );
   let after_drain = drain_scheduled(after_stop, scheduled, ~max_rounds=8);
   let chat = ChatSystem.Utils.find_chat(chat_id, after_drain.chat_system);
-  check(bool, "queue drained", true, chat.pending_send_queue == []);
+  check(bool, "queue drained", true, List.is_empty(chat.pending_send_queue));
   let cs = linear_contents(after_drain, chat_id);
   let i_cancel =
     index_of_substring("Agent response cancelled", cs)
@@ -326,7 +338,12 @@ let test_send_while_busy_enqueues = () => {
     true,
     chat.pending_send_queue == ["queued_while_busy_token"],
   );
-  check(bool, "no dispatch deferred while busy", true, scheduled^ == []);
+  check(
+    bool,
+    "no dispatch deferred while busy",
+    true,
+    List.is_empty(scheduled^),
+  );
   check(
     int,
     "queued message not appended to transcript",
@@ -376,7 +393,11 @@ let test_send_appends_user_message_before_dispatch = () => {
     bool,
     "DispatchSend deferred",
     true,
-    List.mem(Agent.Update.Action.DispatchSend(chat_id), scheduled^),
+    List.mem(
+      scheduled^,
+      Agent.Update.Action.DispatchSend(chat_id),
+      ~equal=Poly.equal,
+    ),
   );
   check(
     bool,
@@ -457,7 +478,7 @@ let test_stop_during_dispatch_gap_cancels_send = () => {
     "cancel line present",
     true,
     List.exists(
-      c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
+      ~f=c => StringUtil.plain_search("Agent response cancelled", c, 0) >= 0,
       cs,
     ),
   );
@@ -508,7 +529,7 @@ let test_handle_compaction_reply_ignored_after_stop = () => {
     true,
     !
       List.exists(
-        c => StringUtil.plain_search("phantom summary", c, 0) >= 0,
+        ~f=c => StringUtil.plain_search("phantom summary", c, 0) >= 0,
         cs,
       ),
   );
@@ -519,19 +540,19 @@ let test_tool_allowed_in_mode_edit_allows_all = () => {
     bool,
     "Edit allows edit tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Edit, "update_definition"),
+    AgentSend.tool_allowed_in_mode(Edit, "replace"),
   );
   check(
     bool,
     "Edit allows workbench tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Edit, "create_new_task"),
+    AgentSend.tool_allowed_in_mode(Edit, "create_new_task"),
   );
   check(
     bool,
     "Edit allows overlay tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Edit, "place_probe"),
+    AgentSend.tool_allowed_in_mode(Edit, "place_probe"),
   );
 };
 
@@ -540,19 +561,19 @@ let test_tool_allowed_in_mode_plan_blocks_edit_only = () => {
     bool,
     "Plan blocks edit tool",
     false,
-    Agent.Update.tool_allowed_in_mode(Plan, "update_definition"),
+    AgentSend.tool_allowed_in_mode(Plan, "replace"),
   );
   check(
     bool,
     "Plan allows workbench tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Plan, "create_new_task"),
+    AgentSend.tool_allowed_in_mode(Plan, "create_new_task"),
   );
   check(
     bool,
     "Plan allows overlay tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Plan, "place_probe"),
+    AgentSend.tool_allowed_in_mode(Plan, "place_probe"),
   );
 };
 
@@ -561,53 +582,33 @@ let test_tool_allowed_in_mode_converse_blocks_edit_workbench_overlay = () => {
     bool,
     "Converse blocks edit tool",
     false,
-    Agent.Update.tool_allowed_in_mode(Converse, "update_definition"),
+    AgentSend.tool_allowed_in_mode(Converse, "replace"),
   );
   check(
     bool,
     "Converse blocks workbench tool",
     false,
-    Agent.Update.tool_allowed_in_mode(Converse, "create_new_task"),
+    AgentSend.tool_allowed_in_mode(Converse, "create_new_task"),
   );
   check(
     bool,
     "Converse blocks overlay tool",
     false,
-    Agent.Update.tool_allowed_in_mode(Converse, "place_probe"),
+    AgentSend.tool_allowed_in_mode(Converse, "place_probe"),
   );
   check(
     bool,
     "Converse allows unknown/view tool",
     true,
-    Agent.Update.tool_allowed_in_mode(Converse, "expand_binding"),
+    AgentSend.tool_allowed_in_mode(Converse, "expand_binding"),
   );
 };
 
 let test_backoff_ms_exponential_formula = () => {
-  check(
-    float(0.0),
-    "attempt 0 = 1000ms",
-    1000.0,
-    Agent.Update.backoff_ms(0),
-  );
-  check(
-    float(0.0),
-    "attempt 1 = 2000ms",
-    2000.0,
-    Agent.Update.backoff_ms(1),
-  );
-  check(
-    float(0.0),
-    "attempt 2 = 4000ms",
-    4000.0,
-    Agent.Update.backoff_ms(2),
-  );
-  check(
-    float(0.0),
-    "attempt 3 = 8000ms",
-    8000.0,
-    Agent.Update.backoff_ms(3),
-  );
+  check(float(0.0), "attempt 0 = 1000ms", 1000.0, AgentSend.backoff_ms(0));
+  check(float(0.0), "attempt 1 = 2000ms", 2000.0, AgentSend.backoff_ms(1));
+  check(float(0.0), "attempt 2 = 4000ms", 4000.0, AgentSend.backoff_ms(2));
+  check(float(0.0), "attempt 3 = 8000ms", 8000.0, AgentSend.backoff_ms(3));
 };
 
 let test_stream_delta_dropped_when_flight_ignored = () => {
@@ -712,14 +713,14 @@ let with_pending_dispatch = (agent: Agent.Model.t): Agent.Model.t => {
 /* A dispatch arriving while evaluation is pending re-defers and keeps the
    pending flag, so probe values/test results are present at send time. */
 let test_eval_gate_waits_while_pending = () => {
-  Agent.Update.max_eval_wait_attempts := 3;
+  AgentSend.max_eval_wait_attempts := 3;
   let agent = with_pending_dispatch(Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let scheduled = ref([]);
   /* init editor's result is ResultPending(AwaitingWorkerAck) */
   let agent' =
     run_update(Agent.Update.Action.DispatchSend(chat_id), agent, scheduled);
-  Agent.Update.max_eval_wait_attempts := 0;
+  AgentSend.max_eval_wait_attempts := 0;
   check(
     bool,
     "pending flag survives the wait",
@@ -731,9 +732,10 @@ let test_eval_gate_waits_while_pending = () => {
     "a retry DispatchSend was scheduled",
     true,
     List.exists(
-      fun
-      | Agent.Update.Action.DispatchSend(id) => id == chat_id
-      | _ => false,
+      ~f=
+        fun
+        | Agent.Update.Action.DispatchSend(id) => Id.equal(id, chat_id)
+        | _ => false,
       scheduled^,
     ),
   );
@@ -751,13 +753,15 @@ let test_eval_gate_gives_up_after_budget = () => {
     bool,
     "pending flag consumed",
     true,
-    agent'.pending_dispatch_send == None,
+    Option.is_none(agent'.pending_dispatch_send),
   );
 };
 
 /* Settled evaluation: no wait, flag consumed on the first dispatch. */
 let test_eval_gate_settled_dispatches = () => {
-  Agent.Update.max_eval_wait_attempts := 3;
+  /* a statics refresh another group left owed would hold the send */
+  CodeWithStatics.StaticsDebounce.reset();
+  AgentSend.max_eval_wait_attempts := 3;
   let agent = with_pending_dispatch(Agent.Utils.init());
   let chat_id = agent.chat_system.current;
   let ce = cell_editor();
@@ -776,17 +780,18 @@ let test_eval_gate_settled_dispatches = () => {
       ce,
       scheduled,
     );
-  Agent.Update.max_eval_wait_attempts := 0;
+  AgentSend.max_eval_wait_attempts := 0;
   check(
     bool,
     "pending flag consumed without retry",
     true,
-    agent'.pending_dispatch_send == None
+    Option.is_none(agent'.pending_dispatch_send)
     && !
          List.exists(
-           fun
-           | Agent.Update.Action.DispatchSend(_) => true
-           | _ => false,
+           ~f=
+             fun
+             | Agent.Update.Action.DispatchSend(_) => true
+             | _ => false,
            scheduled^,
          ),
   );

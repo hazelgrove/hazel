@@ -1,17 +1,13 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Segment.remold_tile lets an incomplete tile whose present shards, the
-   first included, spell a complete compound form take that form. The labels
-   that can happen to are the forms whose label is a proper prefix of another
-   form's label, so a new form with such a label becomes a re-forming target
-   the moment it is added. Today those are exactly the module and signature
-   items, reached from the expression forms owed their `in`. */
+/* Form labels that are a proper prefix of another form's label: the forms
+   Segment.remold_tile can re-form an incomplete tile into. */
 let prefix_forms = (): list(string) => {
   let labels =
     Form.forms
-    |> List.map(((_, def: Form.def)) => def.label)
-    |> List.sort_uniq(List.compare(String.compare));
+    |> List.map(~f=((_, def: Form.def)) => def.label)
+    |> List.dedup_and_sort(~compare=List.compare(String.compare));
   let rec prefixes = (label: Label.t): list(Label.t) =>
     switch (List.rev(label)) {
     | []
@@ -21,14 +17,18 @@ let prefix_forms = (): list(string) => {
       [shorter, ...prefixes(shorter)];
     };
   labels
-  |> List.concat_map(label =>
+  |> List.concat_map(~f=label =>
        prefixes(label)
-       |> List.filter(prefix => !List.is_empty(Form.compound_defs(prefix)))
-       |> List.map(prefix =>
-            String.concat(" ", label) ++ " -> " ++ String.concat(" ", prefix)
+       |> List.filter(~f=prefix =>
+            !List.is_empty(Form.compound_defs(prefix))
+          )
+       |> List.map(~f=prefix =>
+            String.concat(~sep=" ", label)
+            ++ " -> "
+            ++ String.concat(~sep=" ", prefix)
           )
      )
-  |> List.sort_uniq(String.compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 };
 
 let tests = (

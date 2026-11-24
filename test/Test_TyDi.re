@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Sig([]))),
+  ("{}", Typ.temp(Sig(Closed(ClosedSig.of_items([]))))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */
@@ -284,32 +284,32 @@ let table_entry_test = (table, (tok, ty)) =>
       Alcotest.option(typ_t),
       tok,
       Some(ty),
-      List.assoc_opt(tok, table),
+      List.Assoc.find(table, tok, ~equal=String.equal),
     )
   );
 
 let golden_infix_tests = (
   "TyDiForms.GoldenInfix",
-  List.map(table_entry_test(of_infix_delim), golden_infix),
+  List.map(~f=table_entry_test(of_infix_delim), golden_infix),
 );
 
 let golden_const_mono_tests = (
   "TyDiForms.GoldenConstMono",
-  List.map(table_entry_test(of_const_mono_delim), golden_const_mono),
+  List.map(~f=table_entry_test(of_const_mono_delim), golden_const_mono),
 );
 
 let golden_leading_tests = (
   "TyDiForms.GoldenLeading",
-  List.map(table_entry_test(of_leading_delim), golden_leading),
+  List.map(~f=table_entry_test(of_leading_delim), golden_leading),
 );
 
 let derived_new_tests = (
   "TyDiForms.DerivedNew",
   List.map(
-    table_entry_test(of_infix_delim @ of_const_mono_delim),
+    ~f=table_entry_test(of_infix_delim @ of_const_mono_delim),
     derived_new,
   )
-  @ List.map(table_entry_test(of_leading_delim), derived_new_leading),
+  @ List.map(~f=table_entry_test(of_leading_delim), derived_new_leading),
 );
 
 let absent = (table, tok) =>
@@ -317,7 +317,7 @@ let absent = (table, tok) =>
     Alcotest.option(typ_t),
     tok,
     None,
-    List.assoc_opt(tok, table),
+    List.Assoc.find(table, tok, ~equal=String.equal),
   );
 
 let flagged_tests = (
@@ -331,7 +331,7 @@ let flagged_tests = (
         Alcotest.option(typ_t),
         "\\/",
         Some(unk),
-        List.assoc_opt("\\/", of_infix_delim),
+        List.Assoc.find(of_infix_delim, "\\/", ~equal=String.equal),
       )
     ),
     /* "!" had a manual Bool entry but is not an infix delim in any
@@ -348,7 +348,7 @@ let flagged_tests = (
         Alcotest.option(typ_t),
         "typfun ",
         Some(Typ.temp(Poly(TPat.temp(EmptyHole), unk))),
-        List.assoc_opt("typfun ", of_leading_delim),
+        List.Assoc.find(of_leading_delim, "typfun ", ~equal=String.equal),
       )
     ),
     /* The manual leading table mapped the seven Drv of_* rows to
@@ -360,11 +360,13 @@ let flagged_tests = (
         Alcotest.list(Alcotest.option(typ_t)),
         "of_*",
         List.map(
-          (s: DrvSort.t) => Some(Typ.temp(DrvQuoteTy(s))),
-          [Jdmt, Ctx, Prop, Exp, Typ, Pat, TPat],
+          ~f=(s: DrvSort.t) => Some(Typ.temp(DrvQuoteTy(s))),
+          DrvSort.[Jdmt, Ctx, Prop, Exp, Typ, Pat, TPat],
         ),
         List.map(
-          tok => List.assoc_opt(tok, of_leading_delim),
+          ~f=
+            tok =>
+              List.Assoc.find(of_leading_delim, tok, ~equal=String.equal),
           [
             "of_jdmt ",
             "of_ctx ",
@@ -406,7 +408,9 @@ let flagged_tests = (
  * outlive the grammar forms they were derived from */
 let suggestible_tests = {
   let orphans = (table, delims) =>
-    table |> List.map(fst) |> List.filter(tok => !List.mem(tok, delims));
+    table
+    |> List.map(~f=fst)
+    |> List.filter(~f=tok => !List.mem(delims, tok, ~equal=String.equal));
   (
     "TyDiForms.Suggestible",
     [
@@ -669,7 +673,22 @@ let ci_sort_tests = (
   ],
 );
 
+/* A type binder that reuses a name in scope is renamed with its scope
+   (Typ.unshadow); completion offers the name as written, never the
+   renamed one, which would not parse. */
+let renamed_type_name_tests = (
+  "TyDi.RenamedTypeName",
+  [
+    tydi_test(
+      ~name="An alias shadowing a type variable completes as written",
+      ~code="typfun Tee -> type Tee = Int in let x : Te¦ = 1 in x",
+      ~expect=Some("e"),
+    ),
+  ],
+);
+
 let tests = [
+  renamed_type_name_tests,
   dot_label_tests,
   variable_tests,
   constructor_tests,

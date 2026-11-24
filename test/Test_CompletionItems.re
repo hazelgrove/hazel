@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* per-item completion (complete_items) matches whole-segment completion,
    keeps complete items physically, and memoizes */
@@ -9,15 +10,19 @@ let settings = CoreSettings.on;
 
 let records_sorted = (rs: list(CanonicalCompletion.shard_record)) =>
   List.sort(
-    (a: CanonicalCompletion.shard_record, b: CanonicalCompletion.shard_record) =>
-      compare(a.tile_id, b.tile_id),
+    ~compare=
+      (
+        a: CanonicalCompletion.shard_record,
+        b: CanonicalCompletion.shard_record,
+      ) =>
+        compare(a.tile_id, b.tile_id),
     rs,
   );
 
 /* nothing to complete: no incomplete tile, and no open slot before a
    member head (whose member completion ends with a `;`) */
 let complete = (~sort: Sort.t, item: Segment.t): bool =>
-  Segment.incomplete_tiles_deep(item) == []
+  List.is_empty(Segment.incomplete_tiles_deep(item))
   && !CanonicalCompletion.has_open_slot(~sort, item);
 
 let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
@@ -34,11 +39,12 @@ let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
   let grout_count = sg =>
     List.length(
       List.filter(
-        (p: Piece.t) =>
-          switch (p) {
-          | Grout(_) => true
-          | _ => false
-          },
+        ~f=
+          (p: Piece.t) =>
+            switch (p) {
+            | Grout(_) => true
+            | _ => false
+            },
         sg,
       ),
     );
@@ -60,14 +66,17 @@ let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
      open tile above molded into its slot */
   let complete_items =
     Segment.top_items(seg)
-    |> List.filter(item =>
+    |> List.filter(~f=item =>
          complete(~sort, item)
          && Option.is_none(CanonicalCompletion.remolded(~sort, item))
        );
   let kept =
     complete_items
-    |> List.filter(item =>
-         List.for_all(p => List.memq(p, items.completed_seg), item)
+    |> List.filter(~f=item =>
+         List.for_all(
+           ~f=p => List.mem(items.completed_seg, p, ~equal=phys_equal),
+           item,
+         )
        )
     |> List.length;
   check(
@@ -108,39 +117,36 @@ let type_after_item =
     (~statics=?, k: int, keys: string, seg: Segment.t): option(Zipper.t) => {
   let z0 = Zipper.unzip(seg);
   let last =
-    switch (List.nth_opt(Segment.top_items(seg), k)) {
-    | Some(item) => Option.map(Piece.id, Util.ListUtil.last_opt(item))
+    switch (List.nth(Segment.top_items(seg), k)) {
+    | Some(item) => Option.map(~f=Piece.id, Util.ListUtil.last_opt(item))
     | None => None
     };
   let keys = "\n" ++ keys;
-  Option.bind(last, id => Move.jump_to_side_of_id(Right, z0, id))
-  |> Option.map(z => {
+  Option.bind(last, ~f=id => Move.jump_to_side_of_id(Right, z0, id))
+  |> Option.map(~f=z => {
        let syntax = CachedSyntax.init(~root=Exp, z);
        let statics =
          switch (statics) {
          | Some(statics) => statics
          | None => statics_of(seg)
          };
-       String.fold_left(
-         (z, c) =>
-           switch (
-             Perform.go(
-               ~settings,
-               ~statics,
-               ~syntax,
-               ~root=Exp,
-               Action.Insert(String.make(1, c)),
-               {
-                 zipper: z,
-                 col_target: None,
-               },
-             )
-           ) {
-           | Ok(z) => z
-           | Error(_) => z
-           },
-         z,
-         keys,
+       String.fold(keys, ~init=z, ~f=(z, c) =>
+         switch (
+           Perform.go(
+             ~settings,
+             ~statics,
+             ~syntax,
+             ~root=Exp,
+             Action.Insert(String.make(1, c)),
+             {
+               zipper: z,
+               col_target: None,
+             },
+           )
+         ) {
+         | Ok(z) => z
+         | Error(_) => z
+         }
        );
      });
 };
@@ -151,16 +157,17 @@ let corpus_case = (file: string, ()) => {
   let n = List.length(Segment.top_items(seg));
   let statics = statics_of(seg);
   List.iter(
-    ((k, keys)) =>
-      switch (type_after_item(~statics, k, keys, seg)) {
-      | None =>
-        fail(Printf.sprintf("%s: could not type after item %d", file, k))
-      | Some(z) =>
-        check_parity(
-          Printf.sprintf("%s item %d + %S", file, k, keys),
-          Zipper.unselect_and_zip(~erase_buffer=true, z),
-        )
-      },
+    ~f=
+      ((k, keys)) =>
+        switch (type_after_item(~statics, k, keys, seg)) {
+        | None =>
+          fail(Printf.sprintf("%s: could not type after item %d", file, k))
+        | Some(z) =>
+          check_parity(
+            Printf.sprintf("%s item %d + %S", file, k, keys),
+            Zipper.unselect_and_zip(~erase_buffer=true, z),
+          )
+        },
     [
       (n / 2, "let q = 1"),
       (n / 3, "case x "),
@@ -206,16 +213,16 @@ let open_slot_case = ((tag, src), keys, ()) =>
    completes member by member ---- */
 
 let insertions_sorted = (is: list(CanonicalCompletion.insertion)) =>
-  List.sort(compare, is);
+  List.sort(~compare, is);
 
 /* an incomplete item that may read per member: a module literal, or at a
    Mod level a member that is a let chain */
 let per_member = (~sort: Sort.t, item: Segment.t): bool =>
   !complete(~sort, item)
   && (
-    ItemSpans.module_item(~root=sort, item) != None
-    || sort == Sort.Mod
-    && ItemSpans.chain_item(item) != None
+    Option.is_some(ItemSpans.module_item(~root=sort, item))
+    || Sort.equal(sort, Sort.Mod)
+    && Option.is_some(ItemSpans.chain_item(item))
   );
 
 /* an item read per member as it reads whole: the same segment up to grout,
@@ -263,35 +270,39 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
   );
   let parts = (~sort, what, before, after) => {
     let kept = List.concat(after);
-    List.fold_left(
-      (+),
-      0,
+    List.fold(
       List.mapi(
-        (k, part) =>
-          if (complete(~sort, part)) {
-            check(
-              bool,
-              Printf.sprintf(
-                "%s: complete %s %d keeps its pieces",
-                name,
-                what,
-                k,
-              ),
-              true,
-              List.for_all(p => List.memq(p, kept), part),
-            );
-            0;
-          } else if (per_member(~sort, part)) {
-            check_item(
-              Printf.sprintf("%s %s %d", name, what, k),
-              ~sort,
-              part,
-            );
-          } else {
-            0;
-          },
+        ~f=
+          (k, part) =>
+            if (complete(~sort, part)) {
+              check(
+                bool,
+                Printf.sprintf(
+                  "%s: complete %s %d keeps its pieces",
+                  name,
+                  what,
+                  k,
+                ),
+                true,
+                List.for_all(
+                  ~f=p => List.mem(kept, p, ~equal=phys_equal),
+                  part,
+                ),
+              );
+              0;
+            } else if (per_member(~sort, part)) {
+              check_item(
+                Printf.sprintf("%s %s %d", name, what, k),
+                ~sort,
+                part,
+              );
+            } else {
+              0;
+            },
         before,
       ),
+      ~init=0,
+      ~f=(+),
     );
   };
   let split = (f: Segment.t => option((list(Segment.t), _, _))) =>
@@ -321,11 +332,13 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
 let check_members = (name: string, ~sort: Sort.t, seg: Segment.t): int => {
   let n = ref(0);
   List.iteri(
-    (k, item) =>
-      if (per_member(~sort, item)) {
-        n :=
-          n^ + check_item(Printf.sprintf("%s item %d", name, k), ~sort, item);
-      },
+    ~f=
+      (k, item) =>
+        if (per_member(~sort, item)) {
+          n :=
+            n^
+            + check_item(Printf.sprintf("%s item %d", name, k), ~sort, item);
+        },
     Segment.top_items(seg),
   );
   check_parity(~sort, name, seg);
@@ -411,27 +424,28 @@ let unclose = (label: list(string), seg: Segment.t): Segment.t => {
   let found = ref(false);
   let rec go = (seg: Segment.t): Segment.t =>
     List.concat_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile({children: [kid], _} as t)
-            when ! found^ && Tile.label(t) == label =>
-          found := true;
-          [
-            Piece.Tile({
-              ...t,
-              shards: [0],
-              children: [],
-            }),
-            ...kid,
-          ];
-        | Tile(t) => [
-            Piece.Tile({
-              ...t,
-              children: List.map(go, t.children),
-            }),
-          ]
-        | p => [p]
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({children: [kid], _} as t)
+              when ! found^ && Tile.label(t) == label =>
+            found := true;
+            [
+              Piece.Tile({
+                ...t,
+                shards: [0],
+                children: [],
+              }),
+              ...kid,
+            ];
+          | Tile(t) => [
+              Piece.Tile({
+                ...t,
+                children: List.map(~f=go, t.children),
+              }),
+            ]
+          | p => [p]
+          },
       seg,
     );
   let seg = go(seg);
@@ -474,13 +488,13 @@ let member_end = (~root, seg: Segment.t, m: int, k: int): option(Id.t) => {
   let top = ItemSpans.top(~root, seg);
   let modules =
     List.filter(
-      j => ItemSpans.members(top, j) != None,
-      List.init(Array.length(top.spans), j => j),
+      ~f=j => Option.is_some(ItemSpans.members(top, j)),
+      List.init(Array.length(top.spans), ~f=j => j),
     );
-  Option.bind(List.nth_opt(modules, m), j =>
-    Option.bind(ItemSpans.members(top, j), (ml: ItemSpans.level) =>
-      Option.bind(List.nth_opt(ItemSpans.slices(ml), k), member =>
-        Option.map(Piece.id, Util.ListUtil.last_opt(member))
+  Option.bind(List.nth(modules, m), ~f=j =>
+    Option.bind(ItemSpans.members(top, j), ~f=(ml: ItemSpans.level) =>
+      Option.bind(List.nth(ItemSpans.slices(ml), k), ~f=member =>
+        Option.map(~f=Piece.id, Util.ListUtil.last_opt(member))
       )
     )
   );
@@ -504,8 +518,10 @@ let typing_case = (~root, file: string, m: int, k: int, keys: string, ()) => {
         );
       let read = ref(0);
       ignore(
-        String.fold_left(
-          (z, c) => {
+        String.fold(
+          "\n" ++ keys,
+          ~init=z0,
+          ~f=(z, c) => {
             let z =
               switch (
                 Perform.go(
@@ -532,8 +548,6 @@ let typing_case = (~root, file: string, m: int, k: int, keys: string, ()) => {
                 );
             z;
           },
-          z0,
-          "\n" ++ keys,
         ),
       );
       check(bool, file ++ ": items read per member", true, read^ > 0);
@@ -577,16 +591,13 @@ let swept_live = () => {
   let t: Swept.t(int, int) = Swept.mk(~bound=8, ());
   let pass = () => {
     Swept.next_pass(t);
-    List.fold_left(
-      (misses, k) =>
-        switch (Swept.find_opt(t, k)) {
-        | Some(_) => misses
-        | None =>
-          Swept.replace(t, k, k);
-          misses + 1;
-        },
-      0,
-      List.init(20, k => k),
+    List.fold(List.init(20, ~f=k => k), ~init=0, ~f=(misses, k) =>
+      switch (Swept.find_opt(t, k)) {
+      | Some(_) => misses
+      | None =>
+        Swept.replace(t, k, k);
+        misses + 1;
+      }
     );
   };
   check(int, "first pass fills", 20, pass());
@@ -599,36 +610,44 @@ let swept_stale = () => {
   for (i in 1 to 1000) {
     Swept.next_pass(t);
     List.iter(
-      k =>
-        if (Swept.find_opt(t, k) == None) {
-          Swept.replace(t, k, k);
-        },
+      ~f=
+        k =>
+          if (Option.is_none(Swept.find_opt(t, k))) {
+            Swept.replace(t, k, k);
+          },
       [0, 1],
     );
     /* an edit: a new version of some item */
     Swept.replace(t, 100 + i, i);
   };
   check(int, "bound kept", 512, t.bound);
-  check(bool, "live kept", true, Swept.find_opt(t, 0) == Some(0));
+  check(
+    bool,
+    "live kept",
+    true,
+    Poly.equal(Swept.find_opt(t, 0), Some(0)),
+  );
 };
 
 let tests = (
   "CompletionItems",
   List.map(
-    ((name, _) as e) => test_case(name, `Quick, edge_case(e)),
+    ~f=((name, _) as e) => test_case(name, `Quick, edge_case(e)),
     CorpusUtil.edge_programs,
   )
   @ List.concat_map(
-      ((tag, _) as tail) =>
-        List.map(
-          keys =>
-            test_case(
-              Printf.sprintf("open slot: %S above a %s", keys, tag),
-              `Quick,
-              open_slot_case(tail, keys),
-            ),
-          open_slot_keys,
-        ),
+      ~f=
+        ((tag, _) as tail) =>
+          List.map(
+            ~f=
+              keys =>
+                test_case(
+                  Printf.sprintf("open slot: %S above a %s", keys, tag),
+                  `Quick,
+                  open_slot_case(tail, keys),
+                ),
+            open_slot_keys,
+          ),
       open_slot_tails,
     )
   @ [
@@ -649,8 +668,9 @@ let tests = (
     ),
   ]
   @ List.map(
-      ((name, _, _, _) as p) =>
-        test_case("per member: " ++ name, `Quick, member_case(p)),
+      ~f=
+        ((name, _, _, _) as p) =>
+          test_case("per member: " ++ name, `Quick, member_case(p)),
       member_programs,
     ),
 );

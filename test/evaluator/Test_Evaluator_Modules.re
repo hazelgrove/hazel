@@ -35,9 +35,6 @@ let test_shadowing =
     )
   });
 
-/* Shadowing exports the last binding at its own position — the rule
-   Sig.dedup_last applies to the module's type (pinned in
-   Test_Statics_Modules), so statics and the runtime agree on member order. */
 let test_shadowing_keeps_last_position =
   test_case(
     "Shadowed binding is exported at the position of its last definition",
@@ -55,8 +52,7 @@ let test_module_access =
     parse_and_evaluate_test("1", {|{ let x = 1 }.x|})
   });
 
-/* Test member access on a bound module */
-let test_module_as_tuple =
+let test_bound_module_member_access =
   test_case("Member access on a bound module", `Quick, () => {
     parse_and_evaluate_test(
       "3",
@@ -79,7 +75,6 @@ let test_module_with_function =
     )
   });
 
-/* Test the function shorthand as a module member */
 let test_module_with_shorthand_function =
   test_case("Module with a function shorthand member", `Quick, () => {
     parse_and_evaluate_test(
@@ -88,7 +83,6 @@ let test_module_with_shorthand_function =
     )
   });
 
-/* Test a shorthand member under a signature */
 let test_module_shorthand_under_signature =
   test_case("Function shorthand member under a signature", `Quick, () => {
     parse_and_evaluate_test(
@@ -115,7 +109,6 @@ let test_type_alias =
     )
   });
 
-/* Test pattern binding inside a module */
 let test_pattern_binding =
   test_case("Pattern binding exports each variable", `Quick, () => {
     parse_and_evaluate_test(
@@ -124,7 +117,6 @@ let test_pattern_binding =
     )
   });
 
-/* Test applying a function member */
 let test_function_member_applied =
   test_case("Function member applied", `Quick, () => {
     parse_and_evaluate_test("2", {|{ let f = fun x -> x + 1 }.f(1)|})
@@ -165,7 +157,6 @@ let test_nested_module_keyword =
     )
   });
 
-/* Test module keyword with a multi-member sig annotation */
 let test_module_keyword_annotated =
   test_case("Module keyword with multi-member sig annotation", `Quick, () => {
     parse_and_evaluate_test(
@@ -183,7 +174,6 @@ let test_module_keyword_sig_annotated =
     )
   });
 
-/* Test type members in a signature annotation are erased */
 let test_sig_type_member_erased =
   test_case("Signature type members have no runtime content", `Quick, () => {
     parse_and_evaluate_test(
@@ -200,6 +190,28 @@ let test_sealing_drops_extras =
       {|module M : { let x : Int } = { let x = 1; let y = 2 } in M|},
     )
   });
+
+let test_sealing_keeps_extras_under_a_signature_hole =
+  test_case(
+    "Sealing keeps the members a hole item in the signature could declare",
+    `Quick,
+    () =>
+    parse_and_evaluate_test(
+      "{ let x = 1; let y = 2 }",
+      {|module M : { let x : Int; ? } = { let x = 1; let y = 2 } in M|},
+    )
+  );
+
+let test_signature_hole_member_projected =
+  test_case(
+    "A member a hole item in the signature could declare is projected",
+    `Quick,
+    () =>
+    parse_and_evaluate_test(
+      "2",
+      {|let m : { let x : Int; ? } = { let x = 1; let y = 2 } in m.y|},
+    )
+  );
 
 /* Sealing applies to sub-modules declared in the signature */
 let test_sealing_nested =
@@ -221,16 +233,106 @@ let test_pattern_binding_sealed =
     )
   });
 
+let test_sealing_hole_item =
+  test_case(
+    "Sealing a module with a hole item makes its missing members holes",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "(1, ?)",
+      {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in (M.x, M.y)|},
+    )
+  });
+
+let test_member_rebound_after_stuck_item =
+  test_case("A member rebound after a stuck item stays stuck", `Quick, () => {
+    parse_and_evaluate_test(
+      {|{ let x = 1; let (a, b) = ?; let x = 2 }.x|},
+      {|{ let x = 1; let (a, b) = ?; let x = 2 }.x|},
+    )
+  });
+
+let test_member_before_stuck_item =
+  test_case(
+    "A member no item from the stuck one on rebinds is read from a stuck module",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "1",
+      {|{ let x = 1; let (a, b) = ?; let y = 3 }.x|},
+    )
+  });
+
+let test_hole_item_dropped =
+  test_case("A hole item is dropped, as a sequence drops a hole", `Quick, () => {
+    parse_and_evaluate_test("{ let x = 2 }", {|{ let x = 1; ?; let x = 2 }|})
+  });
+
+/* Built by hand: the parser does not put a pattern inside a hole item. */
+let test_hole_item_annotation_closed =
+  test_case(
+    "A hole item's written annotation does not reach a type application",
+    `Quick,
+    () => {
+      open Language.IdTagged.FreshGrammar;
+      let annotated =
+        Pat.asc(
+          Pat.var("x"),
+          Typ.sig_([Sig.sig_let(Pat.asc(Pat.var("y"), Typ.var("T")))]),
+        );
+      let body =
+        Exp.module_([
+          Mod.mod_let(Pat.var("z"), Exp.int(1)),
+          Mod.multi_hole([Language.Grammar.Pat(annotated)]),
+        ]);
+      evaluation_test(
+        "the hole item is dropped",
+        parse_exp("{ let z = 1 }"),
+        elaborate(
+          Exp.typ_ap(Exp.typ_fun(TPat.var("T"), body, None), Typ.int()),
+        ),
+      );
+    },
+  );
+
+/* Polymorphic equality on module values compares members by name. */
+let test_equal_module_values =
+  test_case("Equal module values are equal", `Quick, () =>
+    parse_and_evaluate_test(
+      "true",
+      {|let m = { let name = ""; let age = 3 } in m == m|},
+    )
+  );
+
+let test_module_equality_matches_members_by_name =
+  test_case("Module equality matches members by name", `Quick, () =>
+    parse_and_evaluate_test(
+      "true",
+      {|{ let x = 1; let y = 2 } == { let y = 2; let x = 1 }|},
+    )
+  );
+
+let test_differing_module_values =
+  test_case("Module values with a differing member are not equal", `Quick, () =>
+    parse_and_evaluate_test(
+      "false",
+      {|{ let x = 1; let y = 2 } == { let x = 1; let y = 3 }|},
+    )
+  );
+
 let tests = (
   "Evaluator.Modules",
   [
     test_empty_module,
+    test_equal_module_values,
+    test_module_equality_matches_members_by_name,
+    test_differing_module_values,
     test_single_binding,
     test_multiple_bindings,
     test_shadowing,
     test_shadowing_keeps_last_position,
     test_module_access,
-    test_module_as_tuple,
+    test_bound_module_member_access,
     test_bare_expression,
     test_module_with_function,
     test_module_with_shorthand_function,
@@ -239,6 +341,10 @@ let tests = (
     test_type_alias,
     test_pattern_binding,
     test_function_member_applied,
+    test_member_rebound_after_stuck_item,
+    test_member_before_stuck_item,
+    test_hole_item_dropped,
+    test_hole_item_annotation_closed,
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test(
         "{ let m = { let y = 1 } }",
@@ -254,7 +360,10 @@ let tests = (
     test_module_keyword_sig_annotated,
     test_sig_type_member_erased,
     test_sealing_drops_extras,
+    test_sealing_keeps_extras_under_a_signature_hole,
+    test_signature_hole_member_projected,
     test_sealing_nested,
     test_pattern_binding_sealed,
+    test_sealing_hole_item,
   ],
 );

@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* a jump to a tile outside every open cell opens the item holding it */
 
@@ -9,16 +10,18 @@ let src = "module T = {\n  let a = 10q;\n  let b = 2\n};\n0";
 let jump = () => {
   let seg = CorpusUtil.seg_of(~root=Mod, src);
   let term = MakeTerm.Incr.term_of_mod(seg);
+  let outline = CorpusUtil.outline_of(~root=Mod, seg);
   let ds = DefStatics.calc(~settings=CoreSettings.on, term);
-  let row = CorpusUtil.row_by_label(term);
+  let row = CorpusUtil.row_by_label(CorpusUtil.outline_of(~root=Mod, seg));
   let bad =
     switch (
-      List.find_opt(
-        id =>
-          switch (Id.Map.find_opt(id, ds.merged)) {
-          | Some(info) => Info.is_error(info)
-          | None => false
-          },
+      List.find(
+        ~f=
+          id =>
+            switch (Id.Map.find_opt(id, ds.merged)) {
+            | Some(info) => Info.is_error(info)
+            | None => false
+            },
         DefStatics.all_error_ids(ds),
       )
     ) {
@@ -41,7 +44,7 @@ let jump = () => {
     switch (
       Web.Divided.open_(
         ~info_map=ds.merged,
-        ~term,
+        ~outline,
         row("b"),
         Web.Divided.of_whole(editor),
       )
@@ -56,7 +59,9 @@ let jump = () => {
       bool,
       "a opens",
       true,
-      Web.Divided.open_(~info_map=ds.merged, ~term, row("a"), d) != None,
+      Option.is_some(
+        Web.Divided.open_(~info_map=ds.merged, ~outline, row("a"), d),
+      ),
     );
   | Some(_) => fail("unexpected action")
   | None => fail("no target")

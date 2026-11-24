@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* The eval request in pieces: after every edit the worker composes the
    program a whole request would carry, posting only the changed pieces;
@@ -26,12 +27,14 @@ let same_graph = (): same => {
       [||],
     );
   let paired = (a: Obj.t, b: Obj.t): bool =>
-    Js_of_ocaml.Js.Unsafe.meth_call(
-      memo,
-      "get",
-      [|Js_of_ocaml.Js.Unsafe.inject(a)|],
-    )
-    === b;
+    phys_equal(
+      Js_of_ocaml.Js.Unsafe.meth_call(
+        memo,
+        "get",
+        [|Js_of_ocaml.Js.Unsafe.inject(a)|],
+      ),
+      b,
+    );
   let pair = (a: Obj.t, b: Obj.t): unit =>
     ignore(
       Js_of_ocaml.Js.Unsafe.meth_call(
@@ -44,7 +47,7 @@ let same_graph = (): same => {
       ),
     );
   let rec go = (a: Obj.t, b: Obj.t): bool =>
-    a === b
+    phys_equal(a, b)
     || (
       if (Obj.is_int(a) || Obj.is_int(b)) {
         a == b;
@@ -121,8 +124,8 @@ let request_of = (st: CachedStatics.t): WorkerServer.Request.t => {
 
 /* a new worker, and the client's view of it */
 let fresh_worker = () => {
-  Hashtbl.reset(WorkerServer.held);
-  Hashtbl.reset(Client.held);
+  Stdlib.Hashtbl.reset(WorkerServer.held);
+  Stdlib.Hashtbl.reset(Client.held);
 };
 
 /* posted as the client posts it, across the encoding */
@@ -146,7 +149,8 @@ let composed = (r: WorkerServer.received): WorkerServer.Evaluation.value =>
   | Composed(_) => fail("a batch of other than one")
   | Missing(keys) =>
     fail(
-      "missing " ++ String.concat(", ", List.map(EvalPieces.show_key, keys)),
+      "missing "
+      ++ String.concat(~sep=", ", List.map(~f=EvalPieces.show_key, keys)),
     )
   | Malformed(why) => fail("malformed: " ++ why)
   };
@@ -200,14 +204,14 @@ let script = (~root=Sort.Exp, src: string, steps: list(Parity.step), ()) => {
   let seg = CorpusUtil.seg_of(~root, src);
   run("step 0", seg);
   ignore(
-    List.fold_left(
-      ((i, seg), s: Parity.step) => {
+    List.fold(
+      steps,
+      ~init=(1, seg),
+      ~f=((i, seg), s: Parity.step) => {
         let seg = s.edit(~root, seg);
         run("step " ++ string_of_int(i), seg);
         (i + 1, seg);
       },
-      (1, seg),
-      steps,
     ),
   );
 };
@@ -230,15 +234,18 @@ let typed = (~root, src, after, keys, ()) => {
   let z = MC.at_line(~root, src, after);
   run("untyped", z);
   ignore(
-    List.fold_left(
-      ((z, typed), c) => {
+    List.fold(
+      List.map(
+        ~f=String.make(1),
+        Stdlib.List.of_seq(Stdlib.String.to_seq(keys)),
+      ),
+      ~init=(z, ""),
+      ~f=((z, typed), c) => {
         let z = MC.perform(~root, z, Insert(c));
         let typed = typed ++ c;
         run(String.escaped(typed), z);
         (z, typed);
       },
-      (z, ""),
-      List.map(String.make(1), List.of_seq(String.to_seq(keys))),
     ),
   );
 };
@@ -248,11 +255,8 @@ let list_src = (~root) => Test_OpenMember.short_src(~root);
 
 /* [src]'s module body as the only member of [depth] modules */
 let nest = (~depth, src: string): string =>
-  List.fold_left(
-    (src, i) =>
-      "module Nest" ++ string_of_int(i) ++ " = {\n" ++ src ++ "\n}",
-    src,
-    List.init(depth, i => i),
+  List.fold(List.init(depth, ~f=i => i), ~init=src, ~f=(src, i) =>
+    "module Nest" ++ string_of_int(i) ++ " = {\n" ++ src ++ "\n}"
   );
 
 /* a literal retyped and back */
@@ -262,7 +266,7 @@ let back_and_forth = (~at=?, needle, repl) => [
 ];
 
 let mega = (~root, file, steps) =>
-  script(~root, Option.get(CorpusUtil.mega_src(file)), steps);
+  script(~root, Option.value_exn(CorpusUtil.mega_src(file)), steps);
 
 /* a module's members of every kind, its value their bindings: a type
    member (none), a function, a destructuring, a sub-module, a sealed
@@ -396,7 +400,10 @@ let exact_tests =
       `Quick,
       script(
         ~root=Mod,
-        nest(~depth=2, Option.get(CorpusUtil.mega_src("mega-mod-1k.hz"))),
+        nest(
+          ~depth=2,
+          Option.value_exn(CorpusUtil.mega_src("mega-mod-1k.hz")),
+        ),
         back_and_forth(~at=`Last, "9", "8"),
       ),
     ),
@@ -434,25 +441,32 @@ let exact_tests =
     ),
   ]
   @ List.map(
-      ((name, root, src, after, keys)) =>
-        test_case("typed: " ++ name, `Quick, typed(~root, src, after, keys)),
+      ~f=
+        ((name, root, src, after, keys)) =>
+          test_case(
+            "typed: " ++ name,
+            `Quick,
+            typed(~root, src, after, keys),
+          ),
       Delta.moved_ids,
     )
   @ [
     test_case("edge and mid-typing programs", `Quick, () =>
       List.iter(
-        ((name, src)) =>
-          switch (CorpusUtil.parse(src)) {
-          | Some(seg) =>
-            fresh_worker();
-            let st = statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg));
-            check_exact(
-              name,
-              st,
-              composed(WorkerServer.receive(post(request_of(st)))),
-            );
-          | None => ()
-          },
+        ~f=
+          ((name, src)) =>
+            switch (CorpusUtil.parse(src)) {
+            | Some(seg) =>
+              fresh_worker();
+              let st =
+                statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg));
+              check_exact(
+                name,
+                st,
+                composed(WorkerServer.receive(post(request_of(st)))),
+              );
+            | None => ()
+            },
         CorpusUtil.edge_programs @ CorpusUtil.incomplete_programs,
       )
     ),
@@ -462,12 +476,13 @@ let exact_tests =
 let token_id = (needle: string, seg: Segment.t): Id.t => {
   let rec go = (seg: Segment.t) =>
     List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == [needle] => Some(t.id)
-        | Tile(t) => List.find_map(go, t.children)
-        | _ => None
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.label(t) == [needle] => Some(t.id)
+          | Tile(t) => List.find_map(~f=go, t.children)
+          | _ => None
+          },
       seg,
     );
   switch (go(seg)) {
@@ -480,11 +495,12 @@ let token_id = (needle: string, seg: Segment.t): Id.t => {
 let owner = (id: Id.t, ds: DefStatics.t): Id.t => {
   let rec find = (items: list(DefStatics.item)) =>
     List.find_map(
-      (it: DefStatics.item) =>
-        switch (find(it.d_members)) {
-        | Some(_) as found => found
-        | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
-        },
+      ~f=
+        (it: DefStatics.item) =>
+          switch (find(it.d_members)) {
+          | Some(_) as found => found
+          | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
+          },
       items,
     );
   switch (find(ds.items)) {
@@ -508,19 +524,22 @@ let member_edit = (~root, src, needle, repl, ()) => {
     );
   let st = statics_of(term_of(seg));
   let request = request_of(st);
-  let ds = Option.get(DefStatics.cached(term_of(seg)));
+  let ds = Option.value_exn(DefStatics.cached(term_of(seg)));
   let member = owner(id, ds);
   check(
     bool,
     "a member's piece",
     false,
-    List.exists((it: DefStatics.item) => it.d_id == member, ds.items),
+    List.exists(
+      ~f=(it: DefStatics.item) => Id.equal(it.d_id, member),
+      ds.items,
+    ),
   );
   check(
     list(string),
     "re-encoded",
     [EvalPieces.show_key(Item(member))],
-    List.map(EvalPieces.show_key, Split.encoded^),
+    List.map(~f=EvalPieces.show_key, Split.encoded^),
   );
   let posted = post(request);
   check(int, "posted pieces", 1, List.length(posted.pieces));
@@ -567,7 +586,7 @@ let encoding_tests = [
     `Quick,
     member_edit(
       ~root=Exp,
-      Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+      Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
       "180",
       "181",
     ),
@@ -600,7 +619,7 @@ let protocol = () => {
   check_exact("first", st0, composed(WorkerServer.receive(post(r0))));
   check_exact("delta", st1, composed(WorkerServer.receive(post(r1))));
   /* a restarted worker holds nothing: asked, the client posts all */
-  Hashtbl.reset(WorkerServer.held);
+  Stdlib.Hashtbl.reset(WorkerServer.held);
   missing("restarted", WorkerServer.receive(post(r2)));
   check_exact(
     "restarted, posted whole",
@@ -635,16 +654,15 @@ let protocol = () => {
   ignore(WorkerServer.receive(post(r0)));
   let p1 = post(r1);
   let corrupt = (bytes: string) =>
-    String.mapi(
-      (i, c) =>
-        i == String.length(bytes) - 1 ? Char.chr(Char.code(c) lxor 1) : c,
-      bytes,
+    String.mapi(bytes, ~f=(i, c) =>
+      i == String.length(bytes) - 1
+        ? Char.of_int_exn(Char.to_int(c) lxor 1) : c
     );
   missing(
     "a mismatched piece",
     WorkerServer.receive({
       ...p1,
-      pieces: List.map(((h, bytes)) => (h, corrupt(bytes)), p1.pieces),
+      pieces: List.map(~f=((h, bytes)) => (h, corrupt(bytes)), p1.pieces),
     }),
   );
   check_exact(
@@ -659,7 +677,7 @@ let protocol = () => {
 let evaluate = ((expr, eval_info): (Exp.t, EvalInfo.t)) =>
   switch (Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, expr)) {
   | (value, state) => Ok((value, state))
-  | exception exn => Error(Printexc.to_string(exn))
+  | exception exn => Error(Stdlib.Printexc.to_string(exn))
   };
 
 /* values as the worker ships them: closures without their environments
@@ -679,7 +697,7 @@ let with_holes = (st: CachedStatics.t): (Exp.t, EvalInfo.t) => {
             switch (info) {
             | InfoExp({co_ctx, _}) =>
               EvalInfo.entry_of_info(w, info)
-              |> Option.map((e: EvalInfo.entry) =>
+              |> Option.map(~f=(e: EvalInfo.entry) =>
                    {
                      ...e,
                      co_ctx,
@@ -712,28 +730,29 @@ let compare_results = (name, a, b) => {
     );
     let samples = (s: EvaluatorState.t) =>
       Id.Map.bindings(s.probes)
-      |> List.map(((id, samples)) =>
+      |> List.map(~f=((id, samples)) =>
            (
              Id.show(id),
-             List.map((x: Sample.t) => shipped(x.value), samples),
+             List.map(~f=(x: Sample.t) => shipped(x.value), samples),
            )
          );
     let (ps, ps') = (samples(state), samples(state'));
     check(
       list(string),
       name ++ ": probes",
-      List.map(fst, ps),
-      List.map(fst, ps'),
+      List.map(~f=fst, ps),
+      List.map(~f=fst, ps'),
     );
-    List.iter2(
-      ((id, xs), (_, ys)) =>
-        check(
-          bool,
-          name ++ ": samples at " ++ id,
-          true,
-          List.length(xs) == List.length(ys)
-          && List.for_all2(Exp.fast_equal_with_lexemes, xs, ys),
-        ),
+    List.iter2_exn(
+      ~f=
+        ((id, xs), (_, ys)) =>
+          check(
+            bool,
+            name ++ ": samples at " ++ id,
+            true,
+            List.length(xs) == List.length(ys)
+            && List.for_all2_exn(~f=Exp.fast_equal_with_lexemes, xs, ys),
+          ),
       ps,
       ps',
     );
@@ -762,35 +781,41 @@ let same_results = (name, st: CachedStatics.t) => {
 let results = () => {
   let n = ref(0);
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
-      | Some(seg) =>
-        same_results(
-          path,
-          statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg)),
-        );
-        incr(n);
-      | None => ()
-      },
+    ~f=
+      ((path, src)) =>
+        switch (CorpusUtil.parse(src)) {
+        | Some(seg) =>
+          same_results(
+            path,
+            statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg)),
+          );
+          incr(n);
+        | None => ()
+        },
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there", true, n^ >= 40);
   /* Mega-Mod 1k is Mega 1k at a Mod root, which List and lib cover: its
      ⇓ probe samples the whole module, ~20s to evaluate and compare */
   List.iter(
-    ((name, root, src)) =>
-      same_results(
-        name,
-        statics_of(
-          MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src)),
+    ~f=
+      ((name, root, src)) =>
+        same_results(
+          name,
+          statics_of(
+            MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src)),
+          ),
         ),
-      ),
     [
       ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
       ("lib (Mod)", Sort.Mod, Delta.lib),
       ("members of every kind (Mod)", Sort.Mod, kinds),
       ("members of every kind (Exp)", Sort.Exp, kinds_in_module),
-      ("Mega 1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
+      (
+        "Mega 1k",
+        Sort.Exp,
+        Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
+      ),
     ],
   );
 };

@@ -60,7 +60,7 @@ let parent =
     : option(Piece.t) =>
   ancestors
   |> Ancestors.parent
-  |> Option.map(p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
+  |> Option.map(~f=p => Base.Tile(Ancestor.zip(l_sibs @ sel @ r_sibs, p)));
 
 /* The sort at the current insertion point, accounting for
  * infix operators with heterogeneous child sorts (e.g. type
@@ -125,7 +125,7 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
       let a =
         switch (
           forms
-          |> List.filter(((form, sort)) => {
+          |> List.filter(~f=((form, sort)) => {
                let (l_nib, _) =
                  Mold.nibs(~index=l_idx, Form.mold_of(form, sort));
                Nib.Shape.fits(left_shape, Nib.shape(l_nib));
@@ -142,9 +142,22 @@ let remold_parent = (~root, ancestors: Ancestors.t): Ancestors.t =>
     };
   };
 
+/* the keywords the parent still owes between the caret's level and its
+   next shard */
+let owed = (ancestors: Ancestors.t): list(Token.t) =>
+  switch (ancestors) {
+  | [(a: Ancestor.t, _), ..._] =>
+    switch (List.last(fst(a.shards)), snd(a.shards)) {
+    | (Some(l), [r, ..._]) =>
+      Ancestor.label(a) |> List.filteri(~f=(i, _) => l < i && i < r)
+    | _ => []
+    }
+  | [] => []
+  };
+
 let remold = ({siblings, ancestors}: t, root: Sort.t): t => {
   let s = Ancestors.sort(root, ancestors);
-  let siblings = Siblings.remold(siblings, s);
+  let siblings = Siblings.remold(~owed=owed(ancestors), siblings, s);
   let ancestors = remold_parent(~root, ancestors);
   {
     ancestors,
@@ -185,8 +198,8 @@ let regrout_siblings =
       /* s_l and s_r are same-class here, so a grout fitting one fits
        * both, and at most one shape of grout fits. */
       let fits = g => Grout.fits_shape(g, s_l);
-      let g_l = Option.map(snd, ListUtil.split_last_opt(gs_l));
-      let g_r = ListUtil.hd_opt(gs_r);
+      let g_l = Option.map(ListUtil.split_last_opt(gs_l), ~f=snd);
+      let g_r = List.hd(gs_r);
       switch (g_l, g_r) {
       | (Some(gl), Some(gr)) when fits(gl) && fits(gr) =>
         // note: assumes single grout invariant in un-caret-interrupted trim

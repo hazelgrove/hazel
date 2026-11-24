@@ -6,7 +6,7 @@
 
 - **Website**: http://hazel.org  
 - **Source Code**: https://github.com/hazelgrove/hazel
-- **App**: https://hazel.org/build/dev/  
+- **App**: https://build.hazel.org/dev/  
 
 > Q. What is the URL of the version of the benchmark being used?
 https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/Datasheet.md  

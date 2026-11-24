@@ -1,9 +1,38 @@
 open Language;
+open Poly;
 
 /* Renaming a binder in place, ids kept: the tokens naming it, its uses
    and, for a module member, its `M.x` / `M.T` labels (Info.binding_site
    resolves both). Shared by the outline's rename and the assistant's
-   update_pattern. */
+   rename. */
+
+/* what a new name binds: values take a lowercase identifier, modules a
+   capitalized one, types either */
+type name_kind =
+  | Value
+  | Type
+  | Module;
+
+/* why [name] can't name a [kind]: it must be one plain identifier, not a
+   keyword, `$`-prefixed (a quote) or qualified (a use). Short reasons:
+   the outline is narrow */
+let check_name = (kind: name_kind, name: string): option(string) => {
+  let spaced = String.exists(name, ~f=c => String.contains(" \t\n\r", c));
+  let plain =
+    !String.equal(name, "")
+    && !Char.equal(name.[0], '$')
+    && !String.contains(name, '.')
+    && !List.mem(FormId.delims, name, ~equal=Poly.equal);
+  let (lower, upper) = (Token.is_var(name), Token.is_ctr(name));
+  switch (kind) {
+  | _ when spaced => Some("names have no spaces")
+  | _ when Token.is_keyword(name) => Some(name ++ " is a keyword")
+  | _ when !plain || !lower && !upper => Some("a name is one identifier")
+  | Value when !lower => Some("value names start lowercase")
+  | Module when !upper => Some("module names start with a capital")
+  | _ => None
+  };
+};
 
 /* every token naming [binder] but its own */
 let find_references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
@@ -16,21 +45,10 @@ let find_references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
 let refs_memo = Util.Slot.mk();
 let references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
   Util.Slot.get(
-    ~same=((m, b), (m', b')) => m === m' && b == b',
+    ~same=((m, b), (m', b')) => phys_equal(m, m') && b == b',
     refs_memo,
     (info_map, binder),
     () => find_references(~info_map, binder),
-  );
-
-/* the `M.x` / `M.T` labels among [refs] */
-let qualified = (~info_map: Statics.Map.t, refs: list(Id.t)): list(Id.t) =>
-  List.filter(
-    id =>
-      switch (Id.Map.find_opt(id, info_map)) {
-      | Some(info) => Info.member_access(~info_map, info) != None
-      | None => false
-      },
-    refs,
   );
 
 /* another member of [items], the module member [binder] is in, named
@@ -44,36 +62,38 @@ let member_clash =
   };
 
 let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
-  let ys = List.map(f, xs);
-  List.for_all2((===), xs, ys) ? xs : ys;
+  let ys = List.map(~f, xs);
+  List.for_all2_exn(~f=phys_equal, xs, ys) ? xs : ys;
 };
 
-/* each tile in [ids] now reads [name]; untouched subtrees stay the same
-   values (the parse caches compare by identity) */
-let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
-  map_sharing(relabel_piece(ids, name), seg)
-and relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
+/* each token [name_of] names now reads that name, the walk only into the
+   pieces [within]; untouched subtrees stay the same values (the parse
+   caches compare by identity) */
+let rec relabel_by =
+        (~within, name_of: Id.t => option(string), seg: Segment.t): Segment.t =>
+  map_sharing(relabel_piece_by(~within, name_of), seg)
+and relabel_piece_by = (~within, name_of, p: Piece.t): Piece.t =>
   switch (p) {
-  | Tile(t) =>
-    let children = map_sharing(relabel(ids, name), t.children);
-    switch (t.form) {
-    | Tok(_) when List.mem(t.id, ids) =>
+  | Tile(t) when within(t.id) =>
+    let children = map_sharing(relabel_by(~within, name_of), t.children);
+    switch (t.form, name_of(t.id)) {
+    | (Tok(_), Some(name)) =>
       Piece.Tile({
         ...t,
         form: Tok(name),
         children,
       })
     | _ =>
-      children === t.children
+      phys_equal(children, t.children)
         ? p
         : Piece.Tile({
             ...t,
             children,
           })
     };
-  | Projector(pr) =>
-    switch (relabel(ids, name, [pr.syntax])) {
-    | [syntax] when syntax !== pr.syntax =>
+  | Projector(pr) when within(pr.id) =>
+    switch (relabel_by(~within, name_of, [pr.syntax])) {
+    | [syntax] when !phys_equal(syntax, pr.syntax) =>
       Piece.Projector({
         ...pr,
         syntax,
@@ -82,21 +102,3 @@ and relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
     }
   | p => p
   };
-
-/* [relabel] throughout [z], the caret kept (MapPiece descends into
-   tiles, not into a projector's syntax) */
-let relabel_zipper = (ids: list(Id.t), name: string, z: Zipper.t): Zipper.t =>
-  ids == []
-    ? z
-    : ZipperBase.MapPiece.go(
-        fun
-        | Piece.Tile({form: Tok(_), id, _} as t) when List.mem(id, ids) => [
-            Piece.Tile({
-              ...t,
-              form: Tok(name),
-            }),
-          ]
-        | Projector(_) as p => [relabel_piece(ids, name, p)]
-        | p => [p],
-        z,
-      );

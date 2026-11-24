@@ -26,8 +26,8 @@ let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
       check(
         string,
         name ++ ": load path reproduces the committed text",
-        String.trim(text),
-        String.trim(MarkerParse.to_text(z)),
+        String.strip(text),
+        String.strip(MarkerParse.to_text(z)),
       );
       if (!CorpusUtil.mega_scale(name)) {
         switch (
@@ -35,7 +35,7 @@ let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
             ~materialize=Triggers.invoked_projector,
             ~collect_refractors=true,
             ~root,
-            String.trim(text),
+            String.strip(text),
           ),
           ParsedCorpus.to_segment(~root, text),
         ) {
@@ -65,5 +65,8 @@ let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
 };
 
 let tests = [
-  ("DocSlides.ReparseBackuptext", List.map(doc_slide_reparses, doc_slides)),
+  (
+    "DocSlides.ReparseBackuptext",
+    List.map(~f=doc_slide_reparses, doc_slides),
+  ),
 ];

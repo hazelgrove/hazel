@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Web;
+open Poly;
 
 /* What Tab does, and that the quiver shows it.
 
@@ -38,13 +39,10 @@ let settings = {
   indentation_ux: false,
 };
 
-let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
-  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-  let statics =
-    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) =>
   Perform.go(
     ~settings,
-    ~statics,
+    ~statics=Lazy.force(Test_Editing.derive(~settings, z).statics),
     ~syntax=CachedSyntax.init(z),
     a,
     {
@@ -53,7 +51,6 @@ let go = (z: Zipper.t, a: Action.t): Action.Result.t(Zipper.t) => {
     },
     ~root=Exp,
   );
-};
 
 /* fuzzing explores the action space: failed actions are skipped */
 let apply = (z: Zipper.t, a: Action.t): Zipper.t =>
@@ -66,8 +63,8 @@ let apply = (z: Zipper.t, a: Action.t): Zipper.t =>
 let type_string = (z: Zipper.t, s: string): Zipper.t =>
   s
   |> Token.to_list
-  |> List.map(c => Action.Insert(c))
-  |> List.fold_left(apply, z);
+  |> List.map(~f=c => Action.Insert(c))
+  |> List.fold_left(~f=apply, ~init=z);
 
 let state_string = (z: Zipper.t): string =>
   Printer.of_zipper(~holes="?", ~caret="|", z);
@@ -76,15 +73,15 @@ let show_delims = (ds: list(CanonicalCompletion.delimiter_info)) =>
   "["
   ++ (
     ds
-    |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
-    |> String.concat(" ")
+    |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
+    |> String.concat(~sep=" ")
   )
   ++ "]";
 
 /* Tab's paste text at this caret, if the caret owns a chip */
 let tab_head = (z: Zipper.t): option(string) =>
   CompletionQuery.chip_at_caret(~root=Exp, z)
-  |> Option.map(ins => CompletionQuery.tab_text(z, ins))
+  |> Option.map(~f=ins => CompletionQuery.tab_text(z, ins))
   |> Option.join;
 
 /* the completed program, whitespace and holes erased */
@@ -92,16 +89,16 @@ let completed_text = (z: Zipper.t): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   CanonicalCompletion.for_editor(~root=Exp, seg).completed_seg
   |> Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[])
-  |> String.to_seq
+  |> Stdlib.String.to_seq
   |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
-  |> String.of_seq;
+  |> Stdlib.String.of_seq;
 };
 
 let missing_shards = (z: Zipper.t): int =>
   Zipper.unselect_and_zip(~erase_buffer=true, z)
   |> Segment.incomplete_tiles_deep
-  |> List.map(t => List.length(Tile.missing_shard_indices(t)))
-  |> List.fold_left((+), 0);
+  |> List.map(~f=t => List.length(Tile.missing_shard_indices(t)))
+  |> List.fold_left(~f=(+), ~init=0);
 
 let show_action = (a: Action.t) =>
   switch (a) {
@@ -133,13 +130,14 @@ let show_action = (a: Action.t) =>
      an empty pair (`[?]`) where typing the closer yields the empty
      literal (`[]`). Cosmetic.
    - completion-time re-indent × child-relative indentation (the
-     `[ ( ⏎ i¦` pin): typing `]` closes the list, auto re-indent
-     moves `i` in two spaces, and inside the list's child the
-     partition heuristic counts the `(`'s indent from the child's
-     start (1), not its screen column (2), so the indented `i` now
-     reads as the paren's continuation: `[ (?) ⏎ i?]` becomes
-     `[ ( ⏎ i)]`. Holds with re-indent off. Candidate fix: compare
-     screen columns in nested partitions (untested).
+     `[ ( ⏎ + 1¦` pin, first found as `[ ( ⏎ i¦` while `i` read as an
+     operator): typing `]` closes the list, auto re-indent moves the
+     line in two spaces, and inside the list's child the partition
+     heuristic counts the `(`'s indent from the child's start (1), not
+     its screen column (2), so the indented line now reads as the
+     paren's continuation: `[ (?) + 1]` becomes `[ (+ 1)]`. Holds with
+     re-indent off. Candidate fix: compare screen columns in nested
+     partitions (untested).
    The pins below keep the first and third visible; when either
    changes, flip the pin. */
 let unfaithful = (~strict=false, z: Zipper.t): option(string) =>
@@ -209,22 +207,22 @@ let display_broken = (z: Zipper.t): option(string) => {
     );
   let owned_delims =
     List.concat_map(
-      (ins: CanonicalCompletion.insertion) => ins.delimiters,
+      ~f=(ins: CanonicalCompletion.insertion) => ins.delimiters,
       owned,
     );
   let leads_with = (ds: list(CanonicalCompletion.delimiter_info)) =>
     List.length(ds) >= List.length(owned_delims)
     && Util.ListUtil.split_n(List.length(owned_delims), ds)
     |> fst
-    |> List.map((d: CanonicalCompletion.delimiter_info) =>
+    |> List.map(~f=(d: CanonicalCompletion.delimiter_info) =>
          (d.text, d.of_shard)
        )
     == List.map(
-         (d: CanonicalCompletion.delimiter_info) => (d.text, d.of_shard),
+         ~f=(d: CanonicalCompletion.delimiter_info) => (d.text, d.of_shard),
          owned_delims,
        );
   let caret_bubbles =
-    List.filter((c: QuiverDec.positioned_insertion) => c.owned, bs);
+    List.filter(~f=(c: QuiverDec.positioned_insertion) => c.owned, bs);
   let fail = msg => Some(msg ++ " in:\n" ++ state_string(z));
   switch (owned, caret_bubbles) {
   | ([], []) => None
@@ -246,8 +244,12 @@ let display_broken = (z: Zipper.t): option(string) => {
       *. QuiverDec.chip_font_scale;
     let sorted =
       List.sort(
-        (a: QuiverDec.positioned_insertion, b: QuiverDec.positioned_insertion) =>
-          compare((a.row, a.col), (b.row, b.col)),
+        ~compare=
+          (
+            a: QuiverDec.positioned_insertion,
+            b: QuiverDec.positioned_insertion,
+          ) =>
+            compare((a.row, a.col), (b.row, b.col)),
         bs,
       );
     let rec overlaps = l =>
@@ -291,8 +293,8 @@ let positions = (z: Zipper.t): list(Zipper.t) => {
 
 let sweep = (z: Zipper.t): list(string) =>
   positions(z)
-  |> List.concat_map(z =>
-       List.filter_map(x => x, [unfaithful(z), display_broken(z)])
+  |> List.concat_map(~f=z =>
+       List.filter_map(~f=x => x, [unfaithful(z), display_broken(z)])
      );
 
 let check_sweep = (name, z) =>
@@ -390,7 +392,7 @@ let curated = [
     `Quick,
     () => {
       let z =
-        type_string(Zipper.init(), "?) x\na) ?") |> positions |> List.hd;
+        type_string(Zipper.init(), "?) x\na) ?") |> positions |> List.hd_exn;
       check(
         bool,
         "ApplyCompletion(One)",
@@ -411,7 +413,7 @@ let curated = [
       true,
       type_string(Zipper.init(), "?) x\na) ?")
       |> positions
-      |> List.exists(z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
   ),
   test_case(
@@ -422,10 +424,16 @@ let curated = [
       bool,
       "strict sweep still finds it",
       true,
-      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i")
+      type_string(dedent(type_string(Zipper.init(), " [ (\n")), "+ 1")
       |> positions
-      |> List.exists(z => unfaithful(~strict=true, z) != None),
+      |> List.exists(~f=z => Option.is_some(unfaithful(~strict=true, z))),
     )
+  ),
+  /* a keyword's prefix starting the line starts something new, so the
+     line no longer continues the paren */
+  check_sweep(
+    "`i` starting the line below `[ (`",
+    type_string(dedent(type_string(Zipper.init(), " [ (\n")), "i"),
   ),
   /* coalescing geometry (fuzz-found): the merged bubble is drawn at
      the owned member's pin, not the group's leftmost — overlap must
@@ -446,14 +454,14 @@ let fuzz_tab =
     ns => {
       let z =
         List.fold_left(
-          (z, n) => apply(z, Test_RoundtripFuzz.action_of(n)),
-          Zipper.init(),
+          ~f=(z, n) => apply(z, Test_RoundtripFuzz.action_of(n)),
+          ~init=Zipper.init(),
           ns,
         );
       switch (sweep(z)) {
       | [] => true
       | ms =>
-        List.iter(m => print_endline("TAB FAIL: " ++ m), ms);
+        List.iter(~f=m => print_endline("TAB FAIL: " ++ m), ms);
         false;
       };
     },
@@ -464,7 +472,7 @@ let fuzz_tab =
 let padding_zipper = input => {
   switch (Util.StringUtil.plain_split(input, "¦")) {
   | [before, after] =>
-    let lines = String.split_on_char('\n', before);
+    let lines = String.split(before, ~on='\n');
     let point =
       Util.Point.{
         row: List.length(lines) - 1,
@@ -489,7 +497,7 @@ let padding_case = (input, preview, expected) =>
         | Some(i) => i
         | None => fail("No completion at " ++ input)
         };
-      let d = List.hd(chip.delimiters);
+      let d = List.hd_exn(chip.delimiters);
       let (before, after) = CompletionQuery.padding(z, d);
       let text =
         before
@@ -504,8 +512,8 @@ let padding_case = (input, preview, expected) =>
         );
       let text =
         Token.to_list(text)
-        |> List.map(c => c == Token.implicit_hole_marker ? "?" : c)
-        |> String.concat("");
+        |> List.map(~f=c => c == Token.implicit_hole_marker ? "?" : c)
+        |> String.concat(~sep="");
       check(string, "preview (including spaces and holes)", preview, text);
       let action =
         switch (CompletionQuery.tab_action(~root=Exp, z)) {
@@ -521,8 +529,9 @@ let padding_case = (input, preview, expected) =>
         "no marker tile",
         false,
         List.mem(
-          Token.implicit_hole_marker,
           Token.to_list(Printer.of_zipper(~holes="", result)),
+          Token.implicit_hole_marker,
+          ~equal=String.equal,
         ),
       );
     },
@@ -585,24 +594,25 @@ let padding_tests =
     ),
   ]
   @ List.concat_map(
-      n => {
-        let spaces = String.make(n, ' ');
-        let pad = n == 0 ? " " : "";
-        [
-          padding_case(
-            "let x =" ++ spaces ++ "¦\nlet y = 2 in y",
-            pad ++ "? in",
-            "let x =" ++ (n == 0 ? " " : spaces) ++ "? in¦\nlet y = 2 in y",
-          ),
-          padding_case(
-            "if true then" ++ spaces ++ "¦\nlet y = 2 in y",
-            pad ++ "? else",
-            "if true then"
-            ++ (n == 0 ? " " : spaces)
-            ++ "? else¦\nlet y = 2 in y",
-          ),
-        ];
-      },
+      ~f=
+        n => {
+          let spaces = String.make(n, ' ');
+          let pad = n == 0 ? " " : "";
+          [
+            padding_case(
+              "let x =" ++ spaces ++ "¦\nlet y = 2 in y",
+              pad ++ "? in",
+              "let x =" ++ (n == 0 ? " " : spaces) ++ "? in¦\nlet y = 2 in y",
+            ),
+            padding_case(
+              "if true then" ++ spaces ++ "¦\nlet y = 2 in y",
+              pad ++ "? else",
+              "if true then"
+              ++ (n == 0 ? " " : spaces)
+              ++ "? else¦\nlet y = 2 in y",
+            ),
+          ];
+        },
       [0, 1, 2, 4],
     );
 

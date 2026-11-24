@@ -22,7 +22,7 @@ let get_description = (tool: API.Json.t): option(string) => {
   };
 };
 
-/** How a tool is gated by session mode (see [[AgentUpdate.tool_allowed_in_mode]]):
+/** How a tool is gated by session mode (see [[AgentSend.tool_allowed_in_mode]]):
     EditGated tools are blocked in Plan and Converse; WorkbenchGated and
     OverlayGated tools are blocked in Converse; Ungated tools run anywhere. */
 type gating =
@@ -37,7 +37,7 @@ type entry = {
 };
 
 /** Single source of truth mapping every declared tool
-    ([[CompositionUtils.Public.tools]]) to its settings-panel category and its
+    ([[CompositionUtils.tools]]) to its settings-panel category and its
     session-mode gating; [[category_of_tool]] and the mode lists below derive
     from it. Overlay tools group under "View" in settings but gate separately.
     A completeness test in [[Test_AgentTools]] keeps this in sync with the
@@ -45,20 +45,21 @@ type entry = {
 let registry: list((string, entry)) = {
   let entries = (category, gating, names) =>
     List.map(
-      name =>
-        (
-          name,
-          {
-            category,
-            gating,
-          },
-        ),
+      ~f=
+        name =>
+          (
+            name,
+            {
+              category,
+              gating,
+            },
+          ),
       names,
     );
-  entries("View", Ungated, ["expand", "collapse"])
-  /* mirrors the conditional offer in CompositionUtils.Local.tools */
+  entries("View", Ungated, ["open", "close"])
+  /* mirrors the conditional offer in CompositionUtils.tools */
   @ (
-    Haz3lcore.DocPacks.all == []
+    List.is_empty(Haz3lcore.DocPacks.all)
       ? [] : entries("Docs", Ungated, ["read_docs"])
   )
   @ entries(
@@ -79,17 +80,7 @@ let registry: list((string, entry)) = {
   @ entries(
       "Edit",
       EditGated,
-      [
-        "update_definition",
-        "update_body",
-        "update_pattern",
-        "update_binding_clause",
-        "delete_binding_clause",
-        "delete_body",
-        "insert_after",
-        "insert_before",
-        "insert_test",
-      ],
+      ["insert", "replace", "delete", "move", "rename"],
     )
   @ entries(
       "Workbench",
@@ -125,14 +116,14 @@ let registry: list((string, entry)) = {
 };
 
 let category_of_tool = (name: string): string =>
-  switch (List.assoc_opt(name, registry)) {
+  switch (List.Assoc.find(registry, name, ~equal=String.equal)) {
   | Some(entry) => entry.category
   | None => "Other"
   };
 
 let names_with_gating = (g: gating): list(string) =>
   List.filter_map(
-    ((name, entry)) => entry.gating == g ? Some(name) : None,
+    ~f=((name, entry)) => Poly.equal(entry.gating, g) ? Some(name) : None,
     registry,
   );
 

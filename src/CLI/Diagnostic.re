@@ -9,7 +9,7 @@
 let lines_of_string = (s: string): array(string) => {
   /* Handle both \n and \r\n line endings */
   let s = Core.String.substr_replace_all(s, ~pattern="\r\n", ~with_="\n");
-  Array.of_list(String.split_on_char('\n', s));
+  Array.of_list(String.split(s, ~on='\n'));
 };
 
 /* `Measured` positions are display COLUMNS (a wide cluster counts two, same
@@ -46,6 +46,9 @@ let suffix_from_column = (line: string, start_col: int): string =>
 let warning_string = (item: Language.Warning.list_item): string =>
   switch (item) {
   | Pat(UnusedVar(name)) => "unused variable: " ++ name
+  | TPat(NonContractive(name)) => "type " ++ name ++ " is defined as itself"
+  | Typ(NonContractive(name)) =>
+    "recursive type rec " ++ name ++ " is defined as itself"
   };
 
 /* Format a single diagnostic (error or warning) in Rust-style with source
@@ -96,7 +99,7 @@ let format_diagnostic_with_location =
     let code_line = line_num_str ++ " | " ++ source_line;
     let caret_line = padding ++ " | " ++ make_caret_line(col, len);
     String.concat(
-      "\n",
+      ~sep="\n",
       [header, location, separator, code_line, caret_line],
     );
   | None =>
@@ -111,6 +114,7 @@ let format_error_with_location =
     (
       ~source: string,
       ~path: string,
+      ~info_map,
       measured: Haz3lcore.Measured.t,
       info: Language.Info.t,
     )
@@ -119,7 +123,8 @@ let format_error_with_location =
     switch (Info.marks_of(info)) {
     | [] => None
     | marks =>
-      let message = Haz3lcore.ErrorPrint.string_of_marks(info, marks);
+      let message =
+        Haz3lcore.ErrorPrint.string_of_marks(~info_map, info, marks);
       let fallback = "in term: " ++ Haz3lcore.ErrorPrint.term_string_of(info);
       Some(
         format_diagnostic_with_location(
@@ -148,7 +153,7 @@ let format_warning_with_location =
     | [] => None
     | warnings =>
       let message =
-        warnings |> List.map(warning_string) |> String.concat("; ");
+        warnings |> List.map(~f=warning_string) |> String.concat(~sep="; ");
       Some(
         format_diagnostic_with_location(
           ~severity="warning",

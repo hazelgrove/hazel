@@ -53,11 +53,11 @@ let pad_ids =
     };
   let truncated =
     if (List.length(ids) < n) {
-      ids @ List.init(n - List.length(ids), _ => derived());
+      ids @ List.init(n - List.length(ids), ~f=_ => derived());
     } else {
       ListUtil.split_n(n, ids) |> fst;
     };
-  List.map(replace, truncated);
+  List.map(~f=replace, truncated);
 };
 
 let necessary_ids: Typ.t => int =
@@ -66,13 +66,12 @@ let necessary_ids: Typ.t => int =
     /* "()", "Void" and "{}" print from rep_id */
     | Prod([]) => 1
     | Sum([]) => 1
-    | Sig([]) => 1
     /* one id per separator */
     | Prod(tys) => List.length(tys) - 1
     /* one id per variant; the single-variant form prints from rep_id */
     | Sum(tys) => max(1, List.length(tys))
     /* rep_id for the braces, then one id per `;` between items */
-    | Sig(items) => max(1, List.length(items))
+    | Sig(s) => max(1, List.length(Sig.items(s)))
     /* one grout id between entries */
     | Unknown(Hole(MultiHole(es))) => max(0, List.length(es) - 1)
     /* every other form prints from rep_id alone */
@@ -92,7 +91,7 @@ let pad_variant_ann =
   | Variant(c, ann, payload) =>
     let needed = necessary_variant_ann_ids(v);
     let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
+    let ids = ann.ids @ List.init(max(0, needed - current), ~f=_ => Id.mk());
     Variant(
       c,
       {
@@ -110,23 +109,24 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
     | Sum(variants) =>
       Sum(
         List.map(
-          fun
-          | ConstructorMap.Variant(c, ann, payload) => {
-              let v =
-                ConstructorMap.Variant(
-                  c,
-                  ann,
-                  Option.map(pad_variant_anns, payload),
-                );
-              pad_variant_ann(v);
-            }
-          | ConstructorMap.BadEntry(t) =>
-            ConstructorMap.BadEntry(pad_variant_anns(t)),
+          ~f=
+            fun
+            | ConstructorMap.Variant(c, ann, payload) => {
+                let v =
+                  ConstructorMap.Variant(
+                    c,
+                    ann,
+                    Option.map(~f=pad_variant_anns, payload),
+                  );
+                pad_variant_ann(v);
+              }
+            | ConstructorMap.BadEntry(t) =>
+              ConstructorMap.BadEntry(pad_variant_anns(t)),
           variants,
         ),
       )
     | Arrow(t1, t2) => Arrow(pad_variant_anns(t1), pad_variant_anns(t2))
-    | Prod(ts) => Prod(List.map(pad_variant_anns, ts))
+    | Prod(ts) => Prod(List.map(~f=pad_variant_anns, ts))
     | List(t) => List(pad_variant_anns(t))
     | TupLabel(t1, t2) =>
       TupLabel(pad_variant_anns(t1), pad_variant_anns(t2))
@@ -138,9 +138,10 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
     | ProdExtension(t1, t2) =>
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
-    /* A signature's item types, a sum among which has variant ids of its own
-       to pad. Only the types: the pattern a value member binds is not one. */
-    | Sig(items) => Sig(List.map(Sig.map_typ(pad_variant_anns), items))
+    | Sig(Open(items)) =>
+      Sig(Open(List.map(~f=Sig.map_typ(pad_variant_anns), items)))
+    | Sig(Closed(items)) =>
+      Sig(Closed(ClosedSig.map(Sig.map_typ(pad_variant_anns), items)))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
@@ -164,7 +165,7 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
           let needed_ids = necessary_ids(ty);
           let ids =
             current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
+            @ List.init(max(0, needed_ids - List.length(current_ids)), ~f=_ =>
                 Id.mk()
               );
           cont({

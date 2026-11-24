@@ -11,8 +11,10 @@
    its line's level as [~line]. Pure piece structure. */
 
 open Util;
+open Poly;
 
-let at_members = (sort: Sort.t) => sort == Sort.Mod || sort == Sort.Sig;
+let at_members = (sort: Sort.t) =>
+  Sort.equal(sort, Sort.Mod) || Sort.equal(sort, Sort.Sig);
 
 /* a form only a member level holds (every mold of its label is Mod or
    Sig sorted) */
@@ -21,7 +23,9 @@ let is_member_label = (label: Label.t): bool =>
   | [] => false
   | molds =>
     List.for_all(
-      (m: Mold.t) => m.out == Sort.Mod || m.out == Sort.Sig,
+      ~f=
+        (m: Mold.t) =>
+          Sort.equal(m.out, Sort.Mod) || Sort.equal(m.out, Sort.Sig),
       molds,
     )
   };
@@ -68,14 +72,11 @@ let level_at =
 let line_after = (~line: option(int), seg: Segment.t): option(int) => {
   /* the spaces after the last linebreak so far, while they run */
   let (last, _) =
-    List.fold_left(
-      ((last, run), p) =>
-        Piece.is_linebreak(p)
-          ? (Some(0), true)
-          : run && Piece.is_space(p)
-              ? (Option.map(n => n + 1, last), true) : (last, false),
-      (None, false),
-      seg,
+    List.fold(seg, ~init=(None, false), ~f=((last, run), p) =>
+      Piece.is_linebreak(p)
+        ? (Some(0), true)
+        : run && Piece.is_space(p)
+            ? (Option.map(~f=n => n + 1, last), true) : (last, false)
     );
   switch (last, line) {
   | (Some(_), _) => last
@@ -105,9 +106,10 @@ let count_leading_spaces = (seg: Segment.t): int =>
 let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool => {
   /* skips spaces only: a linebreak IS the line's first content here */
   let first_content = (sg: Segment.t) =>
-    Segment.next_content(~skip=Segment.skip_space, sg, 0) |> Option.map(snd);
+    Segment.next_content(~skip=Segment.skip_space, sg, 0)
+    |> Option.map(~f=snd);
   switch (first_content(rest)) {
-  | Some(Tile(t)) when Tile.mold(t).out == Sort.Rul => true
+  | Some(Tile(t)) when Sort.equal(Tile.mold(t).out, Sort.Rul) => true
   /* (c) a line opening with a concave-LEFT piece — an infix or
      postfix operator, a comma, a stranded closer shard — requires a
      left operand from the previous line, so it cannot start anything
@@ -123,13 +125,13 @@ let continuation_line = (incomplete_acc: list(Tile.t), rest: Segment.t): bool =>
   | Some(Tile({children: [], _} as t)) when Tile.arity(t) == 1 =>
     let tok = Tile.token(t, 0);
     incomplete_acc
-    |> List.exists((it: Tile.t) => {
+    |> List.exists(~f=(it: Tile.t) => {
          let missing =
-           Tile.missing_shard_indices(it) |> List.map(Tile.token(it));
+           Tile.missing_shard_indices(it) |> List.map(~f=Tile.token(it));
          missing
-         |> List.exists(dt =>
+         |> List.exists(~f=dt =>
               Token.length(tok) < Token.length(dt)
-              && String.sub(dt, 0, Token.length(tok)) == tok
+              && String.sub(dt, ~pos=0, ~len=Token.length(tok)) == tok
             );
        });
   | _ => false
@@ -311,7 +313,7 @@ type follows = {
 let same_follows = (a: option(follows), b: option(follows)): bool =>
   switch (a, b) {
   | (None, None) => true
-  | (Some(a), Some(b)) => a.indent == b.indent && a.head === b.head
+  | (Some(a), Some(b)) => a.indent == b.indent && phys_equal(a.head, b.head)
   | _ => false
   };
 
@@ -340,7 +342,7 @@ let lead = (seg: Segment.t): option(follows) => {
 let continues = (head: Piece.t): bool =>
   switch (head) {
   | Tile(t) =>
-    Tile.mold(t).out == Sort.Rul
+    Sort.equal(Tile.mold(t).out, Sort.Rul)
     || (
       switch (Tile.shapes(t)) {
       | (Concave(_), _) => true
@@ -397,14 +399,15 @@ let member_ends =
   let rec index = (id, j, ps: Segment.t) =>
     switch (ps) {
     | [] => None
-    | [p, ...ps] => Piece.id(p) == id ? Some(j) : index(id, j + 1, ps)
+    | [p, ...ps] =>
+      Id.equal(Piece.id(p), id) ? Some(j) : index(id, j + 1, ps)
     };
   let rec go = (floor, offset, parts) =>
     switch (parts) {
     | [] => []
     | [(sub, inc), ...rest] =>
       let next =
-        switch (List.find_map(((nxt, _)) => lead(nxt), rest)) {
+        switch (List.find_map(~f=((nxt, _)) => lead(nxt), rest)) {
         | Some(_) as f => f
         | None => follows
         };
@@ -414,7 +417,7 @@ let member_ends =
           let first: Tile.t = first;
           Option.bind(
             index(first.id, offset, sub),
-            i => {
+            ~f=i => {
               let (c, indent) = member_at(~line, ~floor, arr, i);
               f.indent <= indent && !continues(f.head)
                 ? Some(Piece.id(arr[c])) : None;
@@ -423,7 +426,10 @@ let member_ends =
         | _ => None
         };
       let offset' = offset + List.length(sub);
-      [(next, ends), ...go(ends == None ? floor : offset', offset', rest)];
+      [
+        (next, ends),
+        ...go(Option.is_none(ends) ? floor : offset', offset', rest),
+      ];
     };
   go(0, 0, parts);
 };
@@ -448,13 +454,13 @@ let member_parts =
     let rec go = (acc, parts, ends) =>
       switch (parts, ends) {
       | ([(sub, _), ...parts], [(next, Some(_)), ...ends])
-          when parts != [] => [
+          when !List.is_empty(parts) => [
           (acc @ sub, next),
           ...go([], parts, ends),
         ]
-      | ([(sub, _), ...parts], [_, ...ends]) when parts != [] =>
+      | ([(sub, _), ...parts], [_, ...ends]) when !List.is_empty(parts) =>
         go(acc @ sub, parts, ends)
-      | (parts, _) => [(acc @ List.concat_map(fst, parts), None)]
+      | (parts, _) => [(acc @ List.concat_map(~f=fst, parts), None)]
       };
     go([], parts, ends);
   };

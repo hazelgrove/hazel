@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 module OutlineTree = Web.OutlineTree;
 module Focus = Web.ScratchFocus;
 
@@ -16,10 +17,10 @@ let src = "let m = {\ntest 1 == 1 end;\ntest 2 == 2 end\n} in\nlet a = 1 in\ntes
 
 /* the KTests containers of a node list, shallow */
 let containers = (ns: list(OutlineTree.node)): list(OutlineTree.node) =>
-  List.filter((n: OutlineTree.node) => n.o_kind == KTests, ns);
+  List.filter(~f=(n: OutlineTree.node) => Poly.equal(n.o_kind, KTests), ns);
 
 let kid_ids = (n: OutlineTree.node): list(Id.t) =>
-  List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children);
+  List.filter_map(~f=(c: OutlineTree.node) => c.o_id, n.o_children);
 
 let check_run_pin =
     (label: string, seg: Segment.t, container: OutlineTree.node): unit => {
@@ -41,7 +42,8 @@ let check_run_pin =
       label ++ ": a run cell covering the container's kids",
       true,
       switch (e.e_kind) {
-      | Run(members) => List.for_all(id => List.mem(id, members), ids)
+      | Run(members) =>
+        List.for_all(~f=id => List.mem(members, id, ~equal=Poly.equal), ids)
       | Def(_)
       | Members
       | Headless(_) => false
@@ -58,7 +60,7 @@ let check_run_pin =
       bool,
       label ++ ": cell_content resolves",
       true,
-      Focus.cell_content(~root=Exp, e, seg) != None,
+      Option.is_some(Focus.cell_content(~root=Exp, e, seg)),
     );
   };
 };
@@ -68,9 +70,9 @@ let cases = [
     "top-level tests container pins one run cell",
     `Quick,
     () => {
-      let seg = Option.get(CorpusUtil.typed_seg(src));
-      let term = MakeTerm.go(seg).term;
-      switch (containers(OutlineTree.of_term(term))) {
+      let seg = Option.value_exn(CorpusUtil.typed_seg(src));
+      let outline = CorpusUtil.outline_of(seg);
+      switch (containers(OutlineTree.rows(outline))) {
       | [c] => check_run_pin("top", seg, c)
       | cs =>
         fail(
@@ -86,11 +88,14 @@ let cases = [
     "module tests container pins one run cell (parity with top level)",
     `Quick,
     () => {
-      let seg = Option.get(CorpusUtil.typed_seg(src));
-      let term = MakeTerm.go(seg).term;
+      let seg = Option.value_exn(CorpusUtil.typed_seg(src));
+      let outline = CorpusUtil.outline_of(seg);
       let m =
-        Option.get(
-          OutlineTree.node_of(CorpusUtil.row_by_label(term, "m"), term),
+        Option.value_exn(
+          OutlineTree.node_of(
+            CorpusUtil.row_by_label(outline, "m"),
+            outline,
+          ),
         );
       switch (containers(m.o_children)) {
       | [c] => check_run_pin("module", seg, c)
@@ -110,15 +115,16 @@ let cases = [
    the test's `;`, which stays outside the run's cell */
 let last_member_jump = () => {
   let seg =
-    Option.get(
+    Option.value_exn(
       CorpusUtil.typed_seg(
         "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
       ),
     );
   let term = MakeTerm.go(seg).term;
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings, term).merged;
   let ids =
-    switch (containers(OutlineTree.of_term(term))) {
+    switch (containers(OutlineTree.rows(outline))) {
     | [c, ..._] => kid_ids(c)
     | [] => fail("no tests container")
     };
@@ -132,7 +138,7 @@ let last_member_jump = () => {
     switch (
       Web.Divided.open_run(
         ~info_map,
-        ~term,
+        ~outline,
         first,
         Web.Divided.of_whole(editor),
       )

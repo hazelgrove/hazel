@@ -1,6 +1,7 @@
 open Alcotest;
 open Web;
 open Haz3lcore;
+open Poly;
 
 /* Undo and redo restore a program, not its analysis. As after a key, the
    restored program shows the live statics and run until the typing
@@ -32,7 +33,7 @@ let rec run = (m: History.Model.t, action: Page.Update.t): History.Model.t => {
       ~dynamics=true,
       u.model,
     );
-  List.fold_left(run, m, scheduled^);
+  List.fold(scheduled^, ~init=m, ~f=run);
 };
 let refresh = m => run(m, Editors(Scratch(RefreshStatics)));
 
@@ -66,7 +67,7 @@ let counted = (f: unit => 'a): ('a, int, int) => {
     Some(
       (settings, t) => {
         incr(runs);
-        Option.iter(h => h(settings, t), hook);
+        Option.iter(~f=h => h(settings, t), hook);
       },
     );
   let x = Fun.protect(~finally=() => DefStatics.after_calc := hook, f);
@@ -105,7 +106,7 @@ let analyze_fresh =
       bool,
       what ++ ": the statics are that analysis",
       true,
-      ds.merged === statics.info_map,
+      phys_equal(ds.merged, statics.info_map),
     );
     check(
       list(string),
@@ -135,26 +136,30 @@ let deferred =
     bool,
     what ++ ": the live program has errors",
     true,
-    List.exists((s: CachedStatics.t) => s.error_ids != [], live),
+    List.exists(
+      ~f=(s: CachedStatics.t) => !List.is_empty(s.error_ids),
+      live,
+    ),
   );
   let (m, runs, requests) = counted(() => run(m, action));
   check(int, what ++ ": no analysis", 0, runs);
   check(int, what ++ ": no eval request", 0, requests);
-  List.iter2(
-    (a: CachedStatics.t, b: CachedStatics.t) => {
-      check(
-        bool,
-        what ++ ": the live errors stay",
-        true,
-        a.error_ids === b.error_ids,
-      );
-      check(
-        bool,
-        what ++ ": the live analysis stays",
-        true,
-        a.info_map === b.info_map,
-      );
-    },
+  List.iter2_exn(
+    ~f=
+      (a: CachedStatics.t, b: CachedStatics.t) => {
+        check(
+          bool,
+          what ++ ": the live errors stay",
+          true,
+          phys_equal(a.error_ids, b.error_ids),
+        );
+        check(
+          bool,
+          what ++ ": the live analysis stays",
+          true,
+          phys_equal(a.info_map, b.info_map),
+        );
+      },
     live,
     shown(m),
   );
@@ -219,7 +224,8 @@ let in_cell = () => {
   check(bool, "typing reaches the cell", true, undone != edited);
   let shown = m => [
     program_statics(m),
-    Option.get(Divided.cell(id, Cells.divided(m))).e_body.editor.statics,
+    Option.value_exn(Divided.cell(id, Cells.divided(m))).e_body.editor.
+      statics,
   ];
   let fresh = (what, m) =>
     analyze_fresh(

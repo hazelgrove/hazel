@@ -1,6 +1,7 @@
 open Zipper;
 open Util;
 open OptUtil.Syntax;
+open Poly;
 
 /* Get the form label a token expands into, and the direction
  * that expansion should happen in. This is rightwards for leading
@@ -10,11 +11,12 @@ open OptUtil.Syntax;
 let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   let before_case_shard = (z: t): bool =>
     List.exists(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
-        | _ => false
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({shards: [0], _} as t) when Tile.is_case(t) => true
+          | _ => false
+          },
       z.relatives.siblings |> fst,
     );
   let inside_case = (z: t): bool =>
@@ -102,7 +104,11 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
 
   /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
-  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+  if (String.equal(t, ";")
+      && (
+        Sort.equal(parent_sort, Sort.Mod)
+        || Sort.equal(parent_sort, Sort.Sig)
+      )) {
     parent_sort;
   } else {
     switch (member_head_sort(t, z, ~root)) {
@@ -116,9 +122,9 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
            expressions are valid module items. This mirrors remold_mod
            which also falls back to Exp. */
         let in_mod =
-          local_sort == Sort.Mod
-          || parent_sort == Sort.Mod
-          && Form.Expansion.try_get(Sort.Mod, t) == None;
+          Sort.equal(local_sort, Sort.Mod)
+          || Sort.equal(parent_sort, Sort.Mod)
+          && Option.is_none(Form.Expansion.try_get(Sort.Mod, t));
         switch (in_mod ? Form.Expansion.try_get(Exp, t) : None) {
         | Some(_) => Exp
         | None => parent_sort
@@ -132,7 +138,7 @@ let insert_indentation_spaces = (~linebreak_id: Id.t, z: t): t => {
   let seg = Zipper.unselect_and_zip(z);
   let indent_level = Indentation.level_of(~target_id=linebreak_id, seg);
   let spaces = Indentation.make_indent_spaces(indent_level);
-  if (spaces == []) {
+  if (List.is_empty(spaces)) {
     z;
   } else {
     Zipper.put_down_seg(Left, spaces, z);
@@ -166,8 +172,8 @@ let insert_shard_core =
     let (label, delim_d) = expansion(sort, t, z);
     let (form, sort) = Form.classify_label(sort, label);
     let shard =
-      Tile.split_shards(id, form, sort, List.mapi((i, _) => i, label))
-      |> (delim_d == Right ? ListUtil.last : List.hd);
+      Tile.split_shards(id, form, sort, List.mapi(~f=(i, _) => i, label))
+      |> (Direction.equal(delim_d, Right) ? ListUtil.last : List.hd_exn);
     put_down([Tile(shard)], z);
   };
 };
@@ -183,9 +189,9 @@ let insert_shard =
       ~root,
     )
     : t =>
-  if (Zipper.find_missing_shard(t, z) != None) {
+  if (Option.is_some(Zipper.find_missing_shard(t, z))) {
     let z = destroy_selection(z);
-    let target = Zipper.find_missing_shard(t, z) |> Option.get;
+    let target = Zipper.find_missing_shard(t, z) |> Option.value_exn;
     Zipper.put_down_target(d, target, z, ~root);
   } else {
     insert_shard_core(
@@ -265,8 +271,8 @@ let replace_shard_inplace =
  * that the general insert path provides; everywhere else the merged token
  * has an enclosing tile/form the caret must not escape. */
 let keep_caret_inside_on_append = (z: t): bool =>
-  Siblings.neighbor(Left, z.relatives.siblings) != None
-  || z.relatives.ancestors != [];
+  Option.is_some(Siblings.neighbor(Left, z.relatives.siblings))
+  || !List.is_empty(z.relatives.ancestors);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -342,7 +348,7 @@ let preserve_grout_id = (char: string, z: t): (Id.t, t) =>
     )
   | (_, Some(Grout(g))) => (
       g.id,
-      update_siblings(((l, r)) => (l, List.tl(r)), z),
+      update_siblings(((l, r)) => (l, List.tl_exn(r)), z),
     )
   | _ => (Id.mk(), z)
   };
@@ -394,7 +400,10 @@ let split =
         |> insert_shard(~auto_indent, ~id, ~d=Left, l)
         |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Right, r);
   let z =
-    switch (Token.space == char ? grout_for_suppressed_space(z, ~root) : None) {
+    switch (
+      String.equal(Token.space, char)
+        ? grout_for_suppressed_space(z, ~root) : None
+    ) {
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
@@ -427,8 +436,9 @@ let merge_or_noop = (z: t, ~root): t =>
   switch (will_merge(z)) {
   | Some((l, r)) =>
     /* We remove the left manually, and then replace the right */
-    let z = Zipper.delete(Left, z) |> Option.get;
-    let z = replace_shard(Right, Token.append(l, r), z, ~root) |> Option.get;
+    let z = Zipper.delete(Left, z) |> Option.value_exn;
+    let z =
+      replace_shard(Right, Token.append(l, r), z, ~root) |> Option.value_exn;
     let z = Caret.set(Inner(Token.length(l) - 1), z);
     /* Regrouting direction needed to merge prefixs into infix eg ! */
     remold_regrout(Right, z, ~root);
@@ -458,14 +468,14 @@ let insert_or_append =
   switch (sibling_appendability(char, z)) {
   | Some((Right, t))
       when
-        Zipper.adjacent_monotile_id(Right, z) != None
+        Option.is_some(Zipper.adjacent_monotile_id(Right, z))
         && keep_caret_inside_on_append(z) =>
     /* Prepend to a right monotile, keeping the caret Inner(0) inside the
      * merged token. The in-place insert skips adj_pos, whose move(Left)
      * would escape the enclosing tile/form (e.g. length(¦oo) + f). */
     Caret.set(Inner(0), z)
     |> replace_shard_inplace(Right, t, ~root)
-    |> Option.map(remold_regrout(Right, ~root))
+    |> Option.map(~f=remold_regrout(Right, ~root))
   | appendability =>
     let z =
       Caret.set(
@@ -542,16 +552,20 @@ let wrap_balanced = (char: string, z: t, ~root): t => {
    * terms, leading to infinite recursion in the elaborator. */
   let outer_ids =
     Segment.incomplete_tiles(left_sibs @ right_sibs)
-    |> List.map((t: Tile.t) => t.id);
+    |> List.map(~f=(t: Tile.t) => t.id);
   let content =
     List.map(
-      fun
-      | Piece.Tile(t) when !Tile.is_complete(t) && List.mem(t.id, outer_ids) =>
-        Piece.Tile({
-          ...t,
-          id: Id.mk(),
-        })
-      | p => p,
+      ~f=
+        fun
+        | Piece.Tile(t)
+            when
+              !Tile.is_complete(t)
+              && List.mem(outer_ids, t.id, ~equal=Poly.equal) =>
+          Piece.Tile({
+            ...t,
+            id: Id.mk(),
+          })
+        | p => p,
       content,
     );
   /* Place content as right siblings inside the new ancestor,
@@ -600,7 +614,7 @@ let selected_text = (z: t): string => {
     Token.split_nth(s, max(0, min(n, Token.length(s))));
   let drop_left =
     switch (left_offset, content) {
-    | (Some(n), [p, ..._]) when Piece.token_of(p) != None => n + 1
+    | (Some(n), [p, ..._]) when Option.is_some(Piece.token_of(p)) => n + 1
     | _ => 0
     };
   let drop_right =
@@ -682,14 +696,14 @@ let try_wrap_selection =
 let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
   /* If there's a selection, try wrapping before falling through */
   switch (
-    z.selection.content != []
+    !List.is_empty(z.selection.content)
       ? try_wrap_selection(~auto_indent, char, z, ~root) : None
   ) {
   | Some(z) => Some(z)
   | None =>
     /* Normal path: normalize char selection then delete (if any) */
     let z =
-      z.selection.content != []
+      !List.is_empty(z.selection.content)
         ? Zipper.normalize_char_selection(z) |> Zipper.destroy_selection : z;
     switch (z.caret, neighbor_tokens(z)) {
     /* If we try to insert a quote inside an existing string, or a #
@@ -708,8 +722,9 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
         ? z
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(
-               Token.is_secondary(new_token)
-                 ? Fun.id : remold_regrout(Right, ~root),
+               ~f=
+                 Token.is_secondary(new_token)
+                   ? Fn.id : remold_regrout(Right, ~root),
              )
         : split(~auto_indent, z, char, idx, t, ~root);
     | (Inner(_), (_, None)) => None

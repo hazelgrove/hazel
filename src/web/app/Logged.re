@@ -13,7 +13,7 @@ module Model = {
     replay_toggle: bool,
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let load = () => {
     current: History.Model.load(),
@@ -58,7 +58,7 @@ module Update = {
           Export.import_just_log(data)
           |> Sexplib.Sexp.of_string
           |> Log.Entry.s_of_sexp_opt
-          |> List.filter_map(x => x);
+          |> List.filter_map(~f=x => x);
         let actions = data |> of_data |> Log.flatten_imports(~of_data);
         let current =
           History.Model.reset(

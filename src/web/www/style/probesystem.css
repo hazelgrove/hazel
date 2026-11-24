@@ -178,7 +178,6 @@
 }
 
 #probe-sidebar .quick-ref .qr-when-focused,
-#probe-sidebar .quick-ref .qr-when-unfocused,
 #probe-sidebar .quick-ref .qr-cmd-e,
 #probe-sidebar .quick-ref .qr-focus-probe {
   display: inline-flex;
@@ -215,7 +214,6 @@
 }
 
 /* Dim keyboard badges based on probe focus state */
-body:has(.live-offside:focus) #probe-sidebar .qr-when-unfocused,
 body:not(:has(.live-offside:focus)) #probe-sidebar .qr-when-focused {
   opacity: 0.45;
 }
@@ -262,16 +260,6 @@ body:not(:has(.live-offside:focus))
   grid-column: 1 / -1; /* span full width of the grid */
   justify-self: start; /* left align */
   font-size: 0.85em;
-}
-
-#probe-sidebar .panel.call-cursor .title {
-  padding-bottom: 0.5em;
-}
-
-#probe-sidebar .panel.call-cursor .stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 
 #probe-sidebar .legend .projector {
@@ -327,18 +315,9 @@ body:not(:has(.live-offside:focus))
   display: none;
 }
 
-#probe-sidebar .is-index .probe-entry > .code {
-  outline: 1px solid var(--border-soft);
-  /* z-index: 1; */
-}
-
 #probe-sidebar .indicated-call .probe-entry > .code {
   outline: 1px solid var(--border-error);
   /* z-index: 2; */
-}
-
-#probe-sidebar .indicated-call.not-in-stack {
-  padding-bottom: 0.25em;
 }
 
 .probe-entry > .code {
@@ -350,11 +329,6 @@ body:not(:has(.live-offside:focus))
 
 #probe-sidebar .after-index .probe-entry .code {
   opacity: 0.5;
-}
-
-#probe-sidebar .panel.panel.window-toggle .named-menu-item {
-  display: flex;
-  gap: 0.5em;
 }
 
 #probe-sidebar .code:hover {
@@ -462,8 +436,7 @@ body:not(:has(.live-offside:focus))
   gap: 0.3em;
 }
 
-#probe-sidebar .toggle-controls .toggle-label .kbd-badge,
-#probe-sidebar .toggle-controls .toggle-label .click-kbd-pill {
+#probe-sidebar .toggle-controls .toggle-label .kbd-badge {
   margin-left: auto;
 }
 
@@ -540,30 +513,6 @@ body:not(:has(.live-offside:focus))
   align-items: center;
 }
 
-/* Click-then-key pill: pointer icon (outline) joined to kbd badge (filled) */
-#probe-sidebar .click-kbd-pill {
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-  font-size: 0.78em;
-  line-height: 1.4;
-}
-
-#probe-sidebar .click-kbd-pill .click-part {
-  padding: 1px 3px;
-  outline: 1px solid var(--border-soft);
-  border-radius: 3px 0 0 3px;
-  color: var(--text-muted);
-  font-size: 0.85em;
-}
-
-#probe-sidebar .click-kbd-pill .kbd-part {
-  padding: 1px 4px;
-  background: var(--surface-shard);
-  color: var(--text-accent);
-  border-radius: 0 3px 3px 0;
-}
-
 #probe-sidebar .panel.prints .body {
   user-select: text;
   cursor: text;
@@ -637,13 +586,6 @@ body:not(:has(.live-offside:focus))
   background-color: var(--surface-warning);
 }
 
-#probe-sidebar .panel.window-toggle {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.5em;
-}
-
 /* Log Sidebar Styles */
 .log-sidebar {
   background-color: var(--surface-default);
@@ -683,7 +625,7 @@ body:not(:has(.live-offside:focus))
   background-color: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 0.3em;
-  color: var(--text-primary);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.9em;
   transition: background-color 0.2s ease;
@@ -700,7 +642,7 @@ body:not(:has(.live-offside:focus))
 
 .log-button[disabled] {
   background-color: var(--surface-raised);
-  color: var(--text-disabled);
+  color: var(--text-faint);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -730,7 +672,7 @@ body:not(:has(.live-offside:focus))
   align-items: center;
   justify-content: center;
   font-size: 0.8em;
-  color: var(--text-primary);
+  color: var(--text-default);
   font-weight: bold;
 }
 
@@ -754,7 +696,7 @@ body:not(:has(.live-offside:focus))
   background-color: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 0.2em;
-  color: var(--text-primary);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.8em;
   transition: background-color 0.2s ease;
@@ -794,12 +736,12 @@ body:not(:has(.live-offside:focus))
 }
 
 .log-content {
-  color: var(--text-primary);
+  color: var(--text-default);
   word-break: break-word;
 }
 
 .log-empty {
-  color: var(--text-disabled);
+  color: var(--text-faint);
   font-style: italic;
   text-align: center;
   padding: 1em;
@@ -827,7 +769,7 @@ body:not(:has(.live-offside:focus))
 
 .log-debug-info {
   font-size: 0.85em;
-  color: var(--text-primary);
+  color: var(--text-default);
   font-family: monospace;
 }
 
