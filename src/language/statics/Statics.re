@@ -1421,9 +1421,9 @@ and uexp_to_info_map =
           switch (Bigint.to_int(idx_big)) {
           | Some(i) when i >= 0 && i < len =>
             let element_ty =
-              switch (List.nth(ts, i) |> Typ.term_of) {
+              switch (List.nth_exn(ts, i) |> Typ.term_of) {
               | TupLabel(_, inner) => inner
-              | _ => List.nth(ts, i)
+              | _ => List.nth_exn(ts, i)
               };
             add(
               ~elab_term=dot_elab,
@@ -1447,7 +1447,7 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[TupleIndexOutOfBounds(max_int, len)],
+              ~marks=[TupleIndexOutOfBounds(Int.max_value, len)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               m,
@@ -1510,9 +1510,9 @@ and uexp_to_info_map =
           switch (Bigint.to_int(idx_big)) {
           | Some(i) when i >= 0 && i < len =>
             let element_ty =
-              switch (List.nth(ts, i) |> Typ.term_of) {
+              switch (List.nth_exn(ts, i) |> Typ.term_of) {
               | TupLabel(_, inner) => inner
-              | _ => List.nth(ts, i)
+              | _ => List.nth_exn(ts, i)
               };
             add(
               ~elab_term=dot_elab,
@@ -1535,7 +1535,7 @@ and uexp_to_info_map =
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-              ~marks=[TupleIndexOutOfBounds(max_int, len)],
+              ~marks=[TupleIndexOutOfBounds(Int.max_value, len)],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
               m,

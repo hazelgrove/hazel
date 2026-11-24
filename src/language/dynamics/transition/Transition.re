@@ -273,9 +273,8 @@ let rec pat_proj = (dp: Pat.t, d: Exp.t): Exp.t =>
   | Tuple(ps) =>
     IdTagged.FreshGrammar.Exp.(
       Tuple(
-        List.mapi(
-          (i, p) => pat_proj(p, dot(Exp.replace_all_ids(d), int(i))),
-          ps,
+        List.mapi(ps, ~f=(i, p) =>
+          pat_proj(p, dot(Exp.replace_all_ids(d), int(i)))
         ),
       )
       |> Exp.fresh
@@ -1227,7 +1226,7 @@ module Transition = (EV: EV_MODE) => {
           | Matches(d1'') =>
             switch (DHExp.term_of(d1'')) {
             | Tuple(ds) when idx >= 0 && idx < List.length(ds) =>
-              let element = List.nth(ds, idx);
+              let element = List.nth_exn(ds, idx);
               /* Strip TupLabel wrapper if present — positional access doesn't
                  care about the label. */
               let unwrapped =
@@ -1243,10 +1242,7 @@ module Transition = (EV: EV_MODE) => {
               });
             | ListLit(ds) =>
               let mapped =
-                List.map(
-                  d => Dot(d, int_term |> Exp.fresh) |> Exp.fresh,
-                  ds,
-                );
+                List.map(ds, ~f=d => Dot(d, int_term |> Exp.fresh) |> Exp.fresh);
               let ls = ListLit(mapped) |> Exp.fresh;
               Step({
                 expr: ls,

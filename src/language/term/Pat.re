@@ -308,7 +308,7 @@ let rec is_irrefutable = (dp: t): bool =>
   | Projector(_, p)
   | Asc(p, _)
   | TupLabel(_, p) => is_irrefutable(p)
-  | Tuple(ps) => List.for_all(is_irrefutable, ps)
+  | Tuple(ps) => List.for_all(ps, ~f=is_irrefutable)
   /* Refutable forms */
   | MultiHole(_)
   | Invalid(_)
@@ -356,4 +356,4 @@ let rec contains_tuple = (dp: t): bool =>
    pattern is a runtime check on the scrutinee's shape; rewriting the def
    would erase that check. */
 let is_irrefutable_tuple_pattern = (dp: t): bool =>
-  is_irrefutable(dp) && contains_tuple(dp) && bound_vars(dp) != [];
+  is_irrefutable(dp) && contains_tuple(dp) && !List.is_empty(bound_vars(dp));
