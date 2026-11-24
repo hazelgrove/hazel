@@ -18,3 +18,7 @@
   vertical-align: super;
   font-size: 0.7em;
 }
+/* The tag telling apart two bindings of one type name, as in `T~410` */
+#page .binder-tag {
+  color: var(--text-muted);
+}

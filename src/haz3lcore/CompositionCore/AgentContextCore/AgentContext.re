@@ -30,11 +30,12 @@ module Model = {
   let of_legacy = (l: legacy): t => {
     opened:
       List.map(
-        path =>
-          {
-            id: Id.invalid,
-            path,
-          },
+        ~f=
+          path =>
+            {
+              id: Id.invalid,
+              path,
+            },
         l.expanded_paths,
       ),
   };
@@ -55,7 +56,7 @@ module Utils = {
   let init = (): Model.t => {opened: []};
 
   let ids = (m: Model.t): list(Id.t) =>
-    List.map((e: Model.entry) => e.id, m.opened);
+    List.map(~f=(e: Model.entry) => e.id, m.opened);
 
   /* the open set against [o]: each entry by its id, else by its last
      path (and its id taken anew); gone when neither finds it. Paths are
@@ -71,23 +72,26 @@ module Utils = {
         }
       };
     let opened =
-      List.fold_left(
-        (acc, e) =>
-          switch (found(e)) {
-          | Some(x) when !List.exists((y: Model.entry) => y.id == x.id, acc) => [
-              Model.of_outline(x),
-              ...acc,
-            ]
-          | _ => acc
-          },
-        [],
-        m.opened,
+      List.fold(m.opened, ~init=[], ~f=(acc, e) =>
+        switch (found(e)) {
+        | Some(x)
+            when
+              !List.exists(~f=(y: Model.entry) => Id.equal(y.id, x.id), acc) => [
+            Model.of_outline(x),
+            ...acc,
+          ]
+        | _ => acc
+        }
       );
     {opened: List.rev(opened)};
   };
 
   let remove = (ids: list(Id.t), m: Model.t): Model.t => {
-    opened: List.filter((e: Model.entry) => !List.mem(e.id, ids), m.opened),
+    opened:
+      List.filter(
+        ~f=(e: Model.entry) => !List.mem(ids, e.id, ~equal=Poly.equal),
+        m.opened,
+      ),
   };
 };
 
@@ -109,22 +113,34 @@ module Update = {
   /* [action]'s paths on [o]: every path must name an entry */
   let resolve = (o: Outline.t, action: action): result(resolved, string) => {
     let entries = paths => {
-      let results = List.map(p => (p, Outline.resolve(o, p)), paths);
+      let results = List.map(~f=p => (p, Outline.resolve(o, p)), paths);
+      let near = p =>
+        switch (EntryPath.nearest(~root=o.root, o.seg, p)) {
+        | [] => ""
+        | cs =>
+          " Did you mean "
+          ++ String.concat(~sep=", ", List.map(~f=c => "`" ++ c ++ "`", cs))
+          ++ "?"
+        };
       switch (
         List.filter_map(
-          ((_, r)) =>
-            switch (r) {
-            | Error(e) => Some(e)
-            | Ok(_) => None
-            },
+          ~f=
+            ((p, r)) =>
+              switch (r) {
+              | Error(e) => Some(e ++ near(p))
+              | Ok(_) => None
+              },
           results,
         )
       ) {
       | [] =>
         Ok(
-          List.filter_map(((_, r)) => Stdlib.Result.to_option(r), results),
+          List.filter_map(
+            ~f=((_, r)) => Stdlib.Result.to_option(r),
+            results,
+          ),
         )
-      | errors => Error(String.concat("\n", errors))
+      | errors => Error(String.concat(~sep="\n", errors))
       };
     };
     switch (action) {
@@ -132,12 +148,12 @@ module Update = {
     | ClosePaths([]) => Error("Give at least one path.")
     | OpenPaths(paths) =>
       Stdlib.Result.map(
-        xs => Open(List.map(Model.of_outline, xs)),
+        xs => Open(List.map(~f=Model.of_outline, xs)),
         entries(paths),
       )
     | ClosePaths(paths) =>
       Stdlib.Result.map(
-        xs => Close(List.map((x: Outline.entry) => x.id, xs)),
+        xs => Close(List.map(~f=(x: Outline.entry) => x.id, xs)),
         entries(paths),
       )
     | CloseAllPaths => Ok(CloseAll)
@@ -150,8 +166,13 @@ module Update = {
         opened:
           model.opened
           @ List.filter(
-              (e: Model.entry) =>
-                !List.exists((o: Model.entry) => o.id == e.id, model.opened),
+              ~f=
+                (e: Model.entry) =>
+                  !
+                    List.exists(
+                      ~f=(o: Model.entry) => Id.equal(o.id, e.id),
+                      model.opened,
+                    ),
               es,
             ),
       }

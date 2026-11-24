@@ -18,6 +18,10 @@ type cls =
   | TupleExtension
   | Tuple
   | Dot
+  /* A Dot whose left side is a module or a labeled tuple: classes statics
+     gives, not term forms. */
+  | ModuleProjection
+  | TupleProjection
   | Var
   | Let
   | Theorem
@@ -92,7 +96,12 @@ let lexeme_trace = (e: t): list(option(string)) => {
    applications), so recompute/caching gates must use this variant or
    lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
-  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+  fast_equal(a, b)
+  && List.equal(
+       Option.equal(String.equal),
+       lexeme_trace(a),
+       lexeme_trace(b),
+     );
 
 let temp: term => t =
   term => {
@@ -121,6 +130,149 @@ let strip_projectors =
         },
     _,
   );
+
+/* `e` with the type variable `x` renamed to `x'` where it refers to the
+   binding being renamed: not in the scope of a type binder of `x`. A path
+   root `x` (in `x.T`) names the newest type or value of its name, so in
+   the scope of a value named `x`, which may be a module, path roots `x`
+   are left alone ([~roots=false]); a bare type `x` still is the binding. */
+let rec rename_tvar = (~roots=true, x: string, x': string, e: t): t => {
+  let rename_typ = (~roots, _, ty) => Typ.rename_var(~roots, x, x', ty);
+  let binds = (p: Pat.t) =>
+    List.exists(~f=String.equal(x), Pat.bound_vars(p));
+  /* a binder's types, and the scope it binds over */
+  let pat = p => Pat.map_term(~f_typ=rename_typ(~roots), p);
+  let scope = (p, body) =>
+    rename_tvar(~roots=roots && !binds(p), x, x', body);
+  map_term(
+    ~f_exp=
+      (continue, e) => {
+        let (term, rewrap) = unwrap(e);
+        switch (term) {
+        | TyAlias(tp, _, _)
+        | TypFun(tp, _, _) when TPat.binds(x, tp) => e
+        | Let(p, def, body) =>
+          Let(pat(p), rename_tvar(~roots, x, x', def), scope(p, body))
+          |> rewrap
+        | Fun(p, body, ty, name) =>
+          Fun(
+            pat(p),
+            scope(p, body),
+            Option.map(~f=Typ.rename_var(~roots, x, x'), ty),
+            name,
+          )
+          |> rewrap
+        | FixF(p, body, env) => FixF(pat(p), scope(p, body), env) |> rewrap
+        | Match(scrut, rules) =>
+          Match(
+            rename_tvar(~roots, x, x', scrut),
+            List.map(~f=((p, body)) => (pat(p), scope(p, body)), rules),
+          )
+          |> rewrap
+        | ModuleExp(mp, def, body) =>
+          ModuleExp(
+            MPat.map_term(~f_typ=rename_typ(~roots), mp),
+            rename_tvar(~roots, x, x', def),
+            rename_tvar(
+              ~roots=
+                roots && !Option.equal(String.equal, Some(x), MPat.name(mp)),
+              x,
+              x',
+              body,
+            ),
+          )
+          |> rewrap
+        | Module(items) =>
+          Module(rename_tvar_in_items(~roots, x, x', items)) |> rewrap
+        | _ => continue(e)
+        };
+      },
+    ~f_typ=rename_typ(~roots),
+    e,
+  );
+}
+and rename_tvar_in_items =
+    (~roots, x: string, x': string, items: list(Mod.t)): list(Mod.t) =>
+  switch (items) {
+  | [] => []
+  | [{term: ModType(tp, _), _}, ..._] when TPat.binds(x, tp) => items
+  | [item, ...items] =>
+    let binds_value =
+      switch (item.term) {
+      | ModLet(p, _) => List.exists(~f=String.equal(x), Pat.bound_vars(p))
+      | ModuleMod(mp, _) =>
+        Option.equal(String.equal, Some(x), MPat.name(mp))
+      | ModVal(y, _) => String.equal(x, y)
+      | ModType(_)
+      | ModExp(_)
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_) => false
+      };
+    [
+      Mod.map_term(
+        ~f_exp=(_, e) => rename_tvar(~roots, x, x', e),
+        ~f_typ=(_, ty) => Typ.rename_var(~roots, x, x', ty),
+        item,
+      ),
+      ...rename_tvar_in_items(~roots=roots && !binds_value, x, x', items),
+    ];
+  };
+
+/* Parens and Projector are transparent: elaboration keeps both, so code
+   that inspects the head or shape of an expression must look through them.
+   Asc is NOT stripped here; whether an ascription is transparent depends on
+   the call site. */
+let rec strip_wrappers = (e: t): t =>
+  switch (e.term) {
+  | Parens(e)
+  | Projector(_, e) => strip_wrappers(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => e
+  };
 
 let rec cls_of_term: type a. Grammar.exp_term(a) => cls =
   fun
@@ -203,6 +355,8 @@ let show_cls: cls => string =
   | TupLabel => "Tuple Item"
   | TupleExtension => "Tuple Extension"
   | Dot => "Dot operator"
+  | ModuleProjection => "Module projection"
+  | TupleProjection => "Labeled tuple projection"
   | Var => "Variable reference"
   | Let => "Let expression"
   | Theorem => "Theorem expression"
@@ -237,20 +391,71 @@ let show_cls: cls => string =
 let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
   e => {
     switch (e.term) {
-    | Parens(e) => match_tup_label(e)
+    | Parens(e)
+    | Projector(_, e)
+    | Asc(e, _) => match_tup_label(e)
     | TupLabel(elab, e') =>
-      switch (elab.term) {
+      switch (strip_wrappers(elab).term) {
       | Label(name) => Some((name, e'))
       | _ => None
       }
-    | Asc(e, _) => match_tup_label(e)
-    | _ => None
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | DynamicErrorHole(_)
+    | Deferral(_)
+    | Undefined
+    | Atom(_)
+    | DrvQuote(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Fun(_)
+    | TypFun(_)
+    | Tuple(_)
+    | Label(_)
+    | ExplicitNonlabel
+    | Dot(_)
+    | LivelitName(_)
+    | Var(_)
+    | Let(_)
+    | Theorem(_)
+    | ProofObject(_)
+    | Forall(_)
+    | FixF(_)
+    | TyAlias(_)
+    | Use(_)
+    | Ap(_)
+    | TypAp(_)
+    | DeferredAp(_)
+    | If(_)
+    | Seq(_)
+    | Test(_)
+    | HintedTest(_)
+    | Filter(_)
+    | Closure(_)
+    | Cons(_)
+    | ListConcat(_)
+    | UnOp(_)
+    | BinOp(_)
+    | BuiltinFun(_)
+    | Match(_)
+    | TupleExtension(_)
+    | Module(_)
+    | ModuleExp(_) => None
     };
   };
 };
 
+/* The entry that `e1.e2` selects when `e1` is a tuple literal. */
+let dot_tuple_entry = (e1: t, e2: t): option(t) =>
+  switch (strip_wrappers(e1).term, strip_wrappers(e2).term) {
+  | (Tuple(ts), Label(name)) =>
+    LabeledTuple.find_label(match_tup_label, ts, name)
+  | _ => None
+  };
+
 let get_label: t => option(LabeledTuple.label) = {
-  e => match_tup_label(e) |> Option.map(fst);
+  e => match_tup_label(e) |> Option.map(~f=fst);
 };
 
 // Typfun should be treated as a function here as this is only used to
@@ -265,21 +470,10 @@ let rec is_fun = (e: t) => {
   | BuiltinFun(_) => true
   | TupLabel(_, e) => is_fun(e)
   | Dot(e1, e2) =>
-    let rec check_tuple = (e1: t, e2: t) =>
-      switch (e1.term) {
-      | Parens(e) => check_tuple(e, e2)
-      | Tuple(ts) =>
-        switch (e2.term) {
-        | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-        | _ => None
-        }
-      | _ => None
-      };
-    let element: option(t) = check_tuple(e1, e2);
-    switch (element) {
+    switch (dot_tuple_entry(e1, e2)) {
     | Some(exp) => is_fun(exp)
     | None => false
-    };
+    }
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -330,23 +524,12 @@ let rec is_tuple_of_functions = (e: t) =>
     | Parens(e)
     | Projector(_, e)
     | TupLabel(_, e) => is_tuple_of_functions(e)
-    | Tuple(es) => es |> List.for_all(is_fun)
+    | Tuple(es) => es |> List.for_all(~f=is_fun)
     | Dot(e1, e2) =>
-      let rec check_tuple = (e1: t, e2: t) =>
-        switch (e1.term) {
-        | Parens(e) => check_tuple(e, e2)
-        | Tuple(ts) =>
-          switch (e2.term) {
-          | Label(name) => LabeledTuple.find_label(match_tup_label, ts, name)
-          | _ => None
-          }
-        | _ => None
-        };
-      let element: option(t) = check_tuple(e1, e2);
-      switch (element) {
+      switch (dot_tuple_entry(e1, e2)) {
       | Some(exp) => is_tuple_of_functions(exp)
       | None => false
-      };
+      }
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -391,10 +574,55 @@ let rec is_tuple_of_functions = (e: t) =>
     }
   );
 
-let ctr_name = (e: t): option(Constructor.t) =>
+let rec ctr_name = (e: t): option(Constructor.t) =>
   switch (e.term) {
   | Constructor(name, _) => Some(name)
-  | _ => None
+  | Parens(e)
+  | Projector(_, e) => ctr_name(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Fun(_)
+  | TypFun(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Asc(_)
+  | Module(_)
+  | ModuleExp(_) => None
   };
 
 let is_deferral = (e: t) => {
@@ -460,40 +688,44 @@ let rec get_num_of_functions = (e: t) =>
   };
 
 let (replace_all_ids, replace_all_ids_typ) = {
-  let fresh: 'a. IdTagged.t('a) => IdTagged.t('a) =
-    x => {
-      ...x,
-      annotation: {
-        /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-           so re-idded results still display faithfully. Secondary and
-           shard provenance stay dropped: display of results is
-           AutoFormat and the tile-id references are invalidated. */
-        ...IdTagged.IdTag.mk_internal([Id.mk()]),
-        lexeme: x.annotation.lexeme,
-      },
-    };
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, x) => x |> fresh |> continue;
-  /* map_term has no hook for a module item, so its id is replaced with the
-     module's. */
-  let f_exp = (continue, exp: t) =>
-    switch (exp.term) {
-    | Module(items) =>
-      f(
-        continue,
-        {
-          ...exp,
-          term: (Module(List.map(fresh, items)): term),
+    (continue, exp) =>
+      {
+        ...exp,
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
         },
-      )
-    | _ => f(continue, exp)
-    };
+      }
+      |> continue;
   (
-    map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
+    Typ.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+    ),
   );
 };
 
@@ -512,10 +744,108 @@ let unfix = (e: t, p: Pat.t) => {
 let rec get_fn_name = (e: t) => {
   switch (e.term) {
   | Fun(_, _, _, n) => n
-  | FixF(_, e, _) => get_fn_name(e)
-  | Parens(e) => get_fn_name(e)
   | TypFun(_, _, n) => n
-  | _ => None
+  | FixF(_, e, _)
+  | Parens(e)
+  | Projector(_, e)
+  | Asc(e, _) => get_fn_name(e)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
+};
+
+/* Rewrite the name of the Fun or TypFun that `e` denotes, looking through
+   FixF, Parens, Projector and Asc (as get_fn_name does), so that
+   `let f = (fun x -> x) in ...` names its function too. */
+let rec map_fn_name = (f: option(Var.t) => option(Var.t), e: t): t => {
+  let (term, rewrap) = unwrap(e);
+  switch (term) {
+  | Fun(p, body, t, name) => Fun(p, body, t, f(name)) |> rewrap
+  | TypFun(tpat, body, name) => TypFun(tpat, body, f(name)) |> rewrap
+  | Parens(e) => Parens(map_fn_name(f, e)) |> rewrap
+  | Projector(pr, e) => Projector(pr, map_fn_name(f, e)) |> rewrap
+  | Asc(e, ty) => Asc(map_fn_name(f, e), ty) |> rewrap
+  | FixF(p, e, env) => FixF(p, map_fn_name(f, e), env) |> rewrap
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Tuple(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | TupLabel(_)
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | ProofObject(_)
+  | Forall(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Cons(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => e
   };
 };
 
@@ -541,7 +871,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
     map_term(
       ~f_exp=
         (cont, exp) =>
-          if (rep_id(exp) == id) {
+          if (Id.equal(rep_id(exp), id)) {
             raise(M.Found(exp));
           } else {
             cont(exp);
@@ -556,12 +886,7 @@ let find_by_id = (id: Id.t, exp: t): option(t) => {
 
 /* Inject a function name into a Fun or TypFun expression. */
 let add_name = (name: option(string), exp: t): t => {
-  let (term, rewrap) = unwrap(exp);
-  switch (term) {
-  | Fun(p, e, t, _) => Fun(p, e, t, name) |> rewrap
-  | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
-  | _ => exp
-  };
+  map_fn_name(_ => name, exp);
 };
 
 /* [e] with [acc] in its body hole, if the hole is down the binding-form
@@ -570,7 +895,7 @@ let add_name = (name: option(string), exp: t): t => {
 let graft_spine =
     (~rebuilt=(e: t) => e, hole_id: Id.t, acc: t, e: t): option(t) => {
   let rec spine = (e: t): option(t) =>
-    if (List.mem(hole_id, e.annotation.ids)) {
+    if (List.mem(e.annotation.ids, hole_id, ~equal=Poly.equal)) {
       Some(acc);
     } else {
       let re = (term: term) =>
@@ -579,17 +904,17 @@ let graft_spine =
           term,
         });
       switch (e.term) {
-      | Let(p, d, b) => spine(b) |> Option.map(b => re(Let(p, d, b)))
+      | Let(p, d, b) => spine(b) |> Option.map(~f=b => re(Let(p, d, b)))
       | Theorem(p, d, b) =>
-        spine(b) |> Option.map(b => re(Theorem(p, d, b)))
-      | Use(t, b) => spine(b) |> Option.map(b => re(Use(t, b)))
-      | Seq(a, b) => spine(b) |> Option.map(b => re(Seq(a, b)))
+        spine(b) |> Option.map(~f=b => re(Theorem(p, d, b)))
+      | Use(t, b) => spine(b) |> Option.map(~f=b => re(Use(t, b)))
+      | Seq(a, b) => spine(b) |> Option.map(~f=b => re(Seq(a, b)))
       | TyAlias(tp, ty, b) =>
-        spine(b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+        spine(b) |> Option.map(~f=b => re(TyAlias(tp, ty, b)))
       | ModuleExp(mp, d, b) =>
-        spine(b) |> Option.map(b => re(ModuleExp(mp, d, b)))
-      | Filter(f, b) => spine(b) |> Option.map(b => re(Filter(f, b)))
-      | Parens(b) => spine(b) |> Option.map(b => re(Parens(b)))
+        spine(b) |> Option.map(~f=b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) => spine(b) |> Option.map(~f=b => re(Filter(f, b)))
+      | Parens(b) => spine(b) |> Option.map(~f=b => re(Parens(b)))
       | _ => None
       };
     };

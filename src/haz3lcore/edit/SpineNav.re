@@ -3,6 +3,7 @@
    statics. The cells (ScratchFocus) and the editing kernel (EntryEdit)
    share it */
 open Util;
+open Poly;
 
 module S = ItemSpans;
 
@@ -62,10 +63,11 @@ let is_def_head = (t: Tile.t): bool =>
   };
 
 /* `use X in`: an item with no cell, as it has nothing of its own */
-let is_use = (t: Tile.t): bool => Tile.token(t, 0) == "use";
+let is_use = (t: Tile.t): bool => String.equal(Tile.token(t, 0), "use");
 
 /* a form whose child is a module's member list: a module body's braces */
-let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
+let holds_members = (m: Mold.t): bool =>
+  List.mem(m.in_, Sort.Mod, ~equal=Poly.equal);
 
 /* identity-preserving map: [xs] itself when [f] changed nothing, so
    splices re-mint only the spine above the replacement and pointer-keyed
@@ -76,7 +78,7 @@ let map_sharing = Rename.map_sharing;
    (Piece.Tile(t)) breaks pointer equality upstream */
 let tile_sharing =
     (p: Piece.t, t: Base.tile, children: list(Segment.t)): Piece.t =>
-  children === t.children
+  phys_equal(children, t.children)
     ? p
     : Piece.Tile({
         ...t,
@@ -104,13 +106,14 @@ and from =
 
 let projected = (path: list(step)): bool =>
   List.exists(
-    (st: step) =>
-      switch (st.from) {
-      | Syntax => true
-      | Top
-      | Kid(_)
-      | Sub => false
-      },
+    ~f=
+      (st: step) =>
+        switch (st.from) {
+        | Syntax => true
+        | Top
+        | Kid(_)
+        | Sub => false
+        },
     path,
   );
 
@@ -183,7 +186,7 @@ let sub = (lv: S.level, k: int): option(S.level) =>
 
 /* the sub-level holding [lv]'s piece [i] */
 let sub_at = (lv: S.level, i: int): option(S.level) =>
-  switch (Option.bind(slice_at(lv, i), sub(lv))) {
+  switch (Option.bind(slice_at(lv, i), ~f=sub(lv))) {
   | Some(s) when s.offset <= i && i < s.offset + Array.length(s.pieces) =>
     Some(s)
   | _ => None
@@ -196,7 +199,8 @@ let sub_at = (lv: S.level, i: int): option(S.level) =>
 let kid_level = (lv: S.level, i: int, t: Tile.t, c: int): S.level => {
   let own =
     switch (slice_at(lv, i)) {
-    | Some(k) when lv.spans[k].body == Some(t.id) => S.members(lv, k)
+    | Some(k) when Poly.equal(lv.spans[k].body, Some(t.id)) =>
+      S.members(lv, k)
     | Some(k) =>
       switch (S.site_of(lv, k)) {
       | Some(S.Kid(h, _)) when h == i && c == List.length(t.children) - 1 =>
@@ -217,7 +221,7 @@ let kid_level = (lv: S.level, i: int, t: Tile.t, c: int): S.level => {
       ~eol=false,
       ~indent=Some(S.kid_indent(~outer=S.outer(lv), lv.pieces, i, t, c)),
       ~offset=0,
-      List.nth(t.children, c),
+      List.nth_exn(t.children, c),
     );
   };
 };
@@ -236,10 +240,11 @@ let syntax_level = (lv: S.level, i: int, pr: Base.projector): S.level =>
   );
 
 let rec piece_holds = (fid: Id.t, p: Piece.t): bool =>
-  Piece.id(p) == fid
+  Id.equal(Piece.id(p), fid)
   || (
     switch (p) {
-    | Tile(t) => List.exists(List.exists(piece_holds(fid)), t.children)
+    | Tile(t) =>
+      List.exists(~f=List.exists(~f=piece_holds(fid)), t.children)
     | Projector(pr) => piece_holds(fid, pr.syntax)
     | Grout(_)
     | Secondary(_) => false
@@ -251,27 +256,27 @@ let rec piece_holds = (fid: Id.t, p: Piece.t): bool =>
    program. Memoized per span on its pieces, as ItemSpans' levels are */
 type held = {
   h_pieces: array(Piece.t),
-  h_at: Hashtbl.t(Id.t, int),
+  h_at: Stdlib.Hashtbl.t(Id.t, int),
 };
 let held_cache: Swept.t((Id.t, Id.t), held) = Swept.mk();
 
-let held = (lv: S.level, k: int): Hashtbl.t(Id.t, int) => {
+let held = (lv: S.level, k: int): Stdlib.Hashtbl.t(Id.t, int) => {
   let sp = lv.spans[k];
   let n = sp.hi - sp.lo;
   let same = (h: held) => {
     let rec go = j =>
-      j >= n || h.h_pieces[j] === lv.pieces[sp.lo + j] && go(j + 1);
+      j >= n || phys_equal(h.h_pieces[j], lv.pieces[sp.lo + j]) && go(j + 1);
     Array.length(h.h_pieces) == n && go(0);
   };
   let key = (sp.anchor, Piece.id(lv.pieces[sp.lo]));
   switch (Swept.find_opt(held_cache, key)) {
   | Some(h) when same(h) => h.h_at
   | _ =>
-    let at = Hashtbl.create(64);
+    let at = Stdlib.Hashtbl.create(64);
     let rec add = (j, p: Piece.t) => {
-      Hashtbl.replace(at, Piece.id(p), j);
+      Stdlib.Hashtbl.replace(at, Piece.id(p), j);
       switch (p) {
-      | Tile(t) => List.iter(List.iter(add(j)), t.children)
+      | Tile(t) => List.iter(~f=List.iter(~f=add(j)), t.children)
       | Projector(pr) => add(j, pr.syntax)
       | Grout(_)
       | Secondary(_) => ()
@@ -284,7 +289,7 @@ let held = (lv: S.level, k: int): Hashtbl.t(Id.t, int) => {
       held_cache,
       key,
       {
-        h_pieces: Array.sub(lv.pieces, sp.lo, n),
+        h_pieces: Array.sub(lv.pieces, ~pos=sp.lo, ~len=n),
         h_at: at,
       },
     );
@@ -298,12 +303,14 @@ let held = (lv: S.level, k: int): Hashtbl.t(Id.t, int) => {
 let holding = (lv: S.level, fid: Id.t): option(int) => {
   let n = Array.length(lv.pieces);
   let rec flat = i =>
-    i >= n ? None : Piece.id(lv.pieces[i]) == fid ? Some(i) : flat(i + 1);
+    i >= n
+      ? None
+      : Id.equal(Piece.id(lv.pieces[i]), fid) ? Some(i) : flat(i + 1);
   let rec span = k =>
     k >= Array.length(lv.spans)
       ? None
       : (
-        switch (Hashtbl.find_opt(held(lv, k), fid)) {
+        switch (Stdlib.Hashtbl.find_opt(held(lv, k), fid)) {
         | Some(j) => Some(lv.spans[k].lo + j)
         | None => span(k + 1)
         }
@@ -322,7 +329,7 @@ let rec way = (fid: Id.t, p: Piece.t): option(list((from, int))) => {
   let rec in_seg = (j, ps: Segment.t) =>
     switch (ps) {
     | [] => None
-    | [q, ..._] when Piece.id(q) == fid => Some((j, []))
+    | [q, ..._] when Id.equal(Piece.id(q), fid) => Some((j, []))
     | [q, ...ps] =>
       switch (way(fid, q)) {
       | Some(w) => Some((j, w))
@@ -332,12 +339,19 @@ let rec way = (fid: Id.t, p: Piece.t): option(list((from, int))) => {
   switch (p) {
   | Tile(t) =>
     List.find_mapi(
-      (c, kid) =>
-        Option.map(((j, w)) => [(Kid(t, c), j), ...w], in_seg(0, kid)),
+      ~f=
+        (c, kid) =>
+          Option.map(
+            ~f=((j, w)) => [(Kid(t, c), j), ...w],
+            in_seg(0, kid),
+          ),
       t.children,
     )
   | Projector(pr) =>
-    Option.map(((j, w)) => [(Syntax, j), ...w], in_seg(0, [pr.syntax]))
+    Option.map(
+      ~f=((j, w)) => [(Syntax, j), ...w],
+      in_seg(0, [pr.syntax]),
+    )
   | Grout(_)
   | Secondary(_) => None
   };
@@ -378,18 +392,19 @@ let into_literal =
     switch (S.brace_of(lv.pieces, site), site) {
     | (Some((b, brace)), S.Run(_)) =>
       Option.map(
-        below => [step(~from, lv, b), ...below],
+        ~f=below => [step(~from, lv, b), ...below],
         members(Kid(brace, 0)),
       )
     | (Some((b, brace)), S.Kid(h, t)) =>
       let c = List.length(t.children) - 1;
       Option.map(
-        below =>
-          [
-            step(~from, lv, h),
-            step(~from=Kid(t, c), kid_level(lv, h, t, c), b),
-            ...below,
-          ],
+        ~f=
+          below =>
+            [
+              step(~from, lv, h),
+              step(~from=Kid(t, c), kid_level(lv, h, t, c), b),
+              ...below,
+            ],
         members(Kid(brace, 0)),
       );
     | _ => None
@@ -404,7 +419,7 @@ let rec steps_at = (~from: from, lv: S.level, i: int, fid: Id.t): list(step) =>
       step(~from, lv, i),
       ...steps_at(~from=Sub, s, i - s.offset, fid),
     ]
-  | None when Piece.id(lv.pieces[i]) == fid => [step(~from, lv, i)]
+  | None when Id.equal(Piece.id(lv.pieces[i]), fid) => [step(~from, lv, i)]
   | None =>
     switch (literal(~from, lv, i, fid)) {
     | Some(steps) => steps
@@ -422,10 +437,10 @@ let rec steps_at = (~from: from, lv: S.level, i: int, fid: Id.t): list(step) =>
 and literal =
     (~from: from, lv: S.level, i: int, fid: Id.t): option(list(step)) =>
   switch (slice_at(lv, i)) {
-  | Some(k) when lv.spans[k].body != None =>
+  | Some(k) when Option.is_some(lv.spans[k].body) =>
     switch (S.members(lv, k)) {
     | Some(m) =>
-      Option.bind(holding(m, fid), j =>
+      Option.bind(holding(m, fid), ~f=j =>
         into_literal(~from, lv, k, from => Some(steps_at(~from, m, j, fid)))
       )
     | None => None
@@ -448,12 +463,13 @@ let found_steps =
       let sp = lv.spans[k];
       let rec at = i =>
         i >= sp.hi
-          ? None : Piece.id(lv.pieces[i]) == fid ? Some(i) : at(i + 1);
-      Option.map(i => steps_at(~from, lv, i, fid), at(sp.lo));
+          ? None
+          : Id.equal(Piece.id(lv.pieces[i]), fid) ? Some(i) : at(i + 1);
+      Option.map(~f=i => steps_at(~from, lv, i, fid), at(sp.lo));
     | [(lv, k), (child: S.level, _) as next, ...rest] =>
       switch (child.owner) {
       | Chain(_) =>
-        Option.bind(go(~from=Sub, [next, ...rest]), below =>
+        Option.bind(go(~from=Sub, [next, ...rest]), ~f=below =>
           switch (below) {
           | [st, ..._] =>
             Some([step(~from, lv, st.i + child.offset), ...below])
@@ -476,12 +492,12 @@ let found_steps =
 let find_path =
     (~root: Sort.t, fid: Id.t, seg: Segment.t): option(list(step)) => {
   Swept.next_pass(held_cache);
-  let found = Option.bind(S.find(~root, fid, seg), found_steps(fid));
+  let found = Option.bind(S.find(~root, fid, seg), ~f=found_steps(fid));
   switch (found) {
   | Some(_) => found
   | None =>
     let top = S.top(~root, seg);
-    Option.map(i => steps_at(~from=Top, top, i, fid), holding(top, fid));
+    Option.map(~f=i => steps_at(~from=Top, top, i, fid), holding(top, fid));
   };
 };
 
@@ -492,7 +508,7 @@ let anchor_path =
   switch (S.find(~root, anchor, seg)) {
   | Some(found) =>
     let (lv, k) = ListUtil.last(found);
-    lv.spans[k].anchor == anchor
+    Id.equal(lv.spans[k].anchor, anchor)
       ? found_steps(~at_core=true, anchor, found) : None;
   | None => None
   };
@@ -537,7 +553,7 @@ let rebuild =
           : (
             switch (st.from) {
             | Sub =>
-              ListUtil.truncate(st.lv.offset, parent)
+              ListUtil.take(st.lv.offset, parent)
               @ kid
               @ ListUtil.remove_first_n(
                   st.lv.offset + Array.length(st.lv.pieces),
@@ -585,7 +601,7 @@ let splice_range =
   rebuild(
     ~seg,
     path,
-    ListUtil.truncate(a, pieces)
+    ListUtil.take(a, pieces)
     @ pre
     @ repl
     @ suf
@@ -624,7 +640,7 @@ let tile_ctx =
     (~root: Sort.t, fid: Id.t, seg: Segment.t)
     : option((Segment.t, int, Tile.t)) =>
   Option.map(
-    ((_, level, i, t)) => (level, i, t),
+    ~f=((_, level, i, t)) => (level, i, t),
     tile_at(~root, fid, seg),
   );
 
@@ -651,11 +667,11 @@ let splice_at =
    sibling run after it up to the next `;` (or segment end) */
 let def_at = ((level, i, t): (Segment.t, int, Tile.t)): option(Segment.t) =>
   Tile.ends_with_in(t)
-    ? ListUtil.last_opt(t.children)
+    ? List.last(t.children)
     : Some(fst(split_at_semi(ListUtil.remove_first_n(i + 1, level))));
 
 let find_def = (~root: Sort.t, fid: Id.t, seg: Segment.t): option(Segment.t) =>
-  Option.bind(tile_ctx(~root, fid, seg), def_at);
+  Option.bind(tile_ctx(~root, fid, seg), ~f=def_at);
 
 let splice_def =
     (~root: Sort.t, fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
@@ -679,7 +695,7 @@ let splice_def =
         | None => level
         };
       } else {
-        ListUtil.truncate(i + 1, level)
+        ListUtil.take(i + 1, level)
         @ repl
         @ snd(split_at_semi(ListUtil.remove_first_n(i + 1, level)));
       },
@@ -687,8 +703,8 @@ let splice_def =
   );
 
 let find_pat = (~root: Sort.t, fid: Id.t, seg: Segment.t): option(Segment.t) =>
-  Option.bind(tile_ctx(~root, fid, seg), ((_, _, t)) =>
-    ListUtil.hd_opt(t.children)
+  Option.bind(tile_ctx(~root, fid, seg), ~f=((_, _, t)) =>
+    List.hd(t.children)
   );
 
 let splice_pat =
@@ -715,18 +731,22 @@ let splice_pat =
 /* a module definition's braces, and their index in the definition */
 let brace_at = (def_seg: Segment.t): option((int, Tile.t)) =>
   List.find_mapi(
-    (j, p: Piece.t) =>
-      switch (p) {
-      | Tile({children: [_], _} as t) when Tile.label(t) == ["{", "}"] =>
-        Some((j, t))
-      | _ => None
-      },
+    ~f=
+      (j, p: Piece.t) =>
+        switch (p) {
+        | Tile({children: [_], _} as t) when Tile.label(t) == ["{", "}"] =>
+          Some((j, t))
+        | _ => None
+        },
     def_seg,
   );
 
 /* a module definition's members: the child of its braces */
 let brace_child = (def_seg: Segment.t): option(Segment.t) =>
-  Option.map(((_, t: Tile.t)) => List.hd(t.children), brace_at(def_seg));
+  Option.map(
+    ~f=((_, t: Tile.t)) => List.hd_exn(t.children),
+    brace_at(def_seg),
+  );
 
 let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
   map_sharing(
@@ -734,7 +754,7 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
       switch (p) {
       | Tile(t)
           when Tile.label(t) == ["{", "}"] && List.length(t.children) == 1 =>
-        Segment.ptr_eq(kid, List.hd(t.children))
+        Segment.ptr_eq(kid, List.hd_exn(t.children))
           ? p
           : Piece.Tile({
               ...t,
@@ -746,4 +766,4 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
   );
 
 let pat_of = (t: Tile.t): Segment.t =>
-  Option.value(ListUtil.hd_opt(t.children), ~default=[]);
+  Option.value(List.hd(t.children), ~default=[]);

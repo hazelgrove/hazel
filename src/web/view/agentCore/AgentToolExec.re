@@ -2,6 +2,7 @@ open Util;
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
+open Poly;
 
 /* an exception escaping a tool is a bug in OUR code: with the js-error
    build its JS stack names the OCaml function, so print it */
@@ -10,12 +11,12 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
     switch (Js_error.of_exn(exn)) {
     | Some(e) =>
       Firebug.console##error_2(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
         Js.string(Option.value(~default="", Js_error.stack(e))),
       )
     | None =>
       Firebug.console##error(
-        Js.string("[tool " ++ tool ++ "] " ++ Printexc.to_string(exn)),
+        Js.string("[tool " ++ tool ++ "] " ++ Exn.to_string(exn)),
       )
     }
   );
@@ -125,7 +126,7 @@ let execute_one_tool_call =
       | exn =>
         /* Catch all exceptions (e.g. Path not found) — report to agent, do not break state */
         report_tool_exn(tool_call.name, exn);
-        Error(Failure.Info(Printexc.to_string(exn)));
+        Error(Failure.Info(Exn.to_string(exn)));
       }
     ) {
     | Ok((model, editor)) =>
@@ -174,7 +175,7 @@ let execute_one_tool_call =
                 )
                 ++ "\n",
               ),
-            Printexc.to_string(exn),
+            Stdlib.Printexc.to_string(exn),
           );
         (
           to_subtask(model, tr),
@@ -242,16 +243,17 @@ module Tests = {
   let by_path =
       (~root, seg: Segment.t, r: Language.TestResults.t)
       : list((Id.t, string, Language.TestStatus.t)) =>
-    List.map2(
-      ((id, _), s) =>
-        (
-          id,
-          Option.value(
-            CompositionGo.where_is(~root, seg, id),
-            ~default="a test",
+    List.map2_exn(
+      ~f=
+        ((id, _), s) =>
+          (
+            id,
+            Option.value(
+              CompositionGo.where_is(~root, seg, id),
+              ~default="a test",
+            ),
+            s,
           ),
-          s,
-        ),
       r.test_map,
       r.statuses,
     );
@@ -268,49 +270,57 @@ module Tests = {
       )
       : string => {
     let was =
-      Option.fold(~none=[], ~some=by_path(~root, before_program), before);
+      Option.value_map(
+        before,
+        ~default=[],
+        ~f=by_path(~root, before_program),
+      );
     let now =
       List.map(
-        ((id, path, s)) => {
-          let prev =
-            switch (List.find_opt(((id', _, _)) => id' == id, was)) {
-            | Some((_, _, s')) => Some(s')
-            | None =>
-              Option.map(
-                ((_, _, s')) => s',
-                List.find_opt(((_, p, _)) => p == path, was),
-              )
-            };
-          (path, prev, s);
-        },
+        ~f=
+          ((id, path, s)) => {
+            let prev =
+              switch (
+                List.find(~f=((id', _, _)) => Id.equal(id', id), was)
+              ) {
+              | Some((_, _, s')) => Some(s')
+              | None =>
+                Option.map(
+                  ~f=((_, _, s')) => s',
+                  List.find(~f=((_, p, _)) => p == path, was),
+                )
+              };
+            (path, prev, s);
+          },
         by_path(~root, after_program, after),
       );
     let lines =
       List.filter_map(
-        ((path, prev, s)) =>
-          switch (prev) {
-          | Some(s') when s' == s => None
-          | Some(s') =>
-            Some(path ++ " " ++ status(s') ++ " → " ++ status(s))
-          | None => Some(path ++ " new, " ++ status(s))
-          },
+        ~f=
+          ((path, prev, s)) =>
+            switch (prev) {
+            | Some(s') when s' == s => None
+            | Some(s') =>
+              Some(path ++ " " ++ status(s') ++ " → " ++ status(s))
+            | None => Some(path ++ " new, " ++ status(s))
+            },
         now,
       );
     let (newly, still) =
-      List.filter(((_, _, s)) => s == Language.TestStatus.Fail, now)
-      |> List.partition(((_, prev, _)) =>
-           prev != Some(Language.TestStatus.Fail)
+      List.filter(~f=((_, _, s)) => s == Language.TestStatus.Fail, now)
+      |> List.partition_tf(~f=((_, prev, _)) =>
+           !Poly.equal(prev, Some(Language.TestStatus.Fail))
          );
     let failing =
-      List.map(((path, _, _)) => path ++ " (newly)", newly)
-      @ List.map(((path, _, _)) => path, still);
+      List.map(~f=((path, _, _)) => path ++ " (newly)", newly)
+      @ List.map(~f=((path, _, _)) => path, still);
     let failing =
       switch (failing) {
       | [] => ""
       | names =>
         let n = List.length(names);
         " Failing: "
-        ++ String.concat(", ", ListUtil.take(5, names))
+        ++ String.concat(~sep=", ", ListUtil.take(5, names))
         ++ (n > 5 ? ", and " ++ string_of_int(n - 5) ++ " more" : "")
         ++ ".";
       };
@@ -324,7 +334,7 @@ module Tests = {
       ++ " passing)."
       ++ failing
     | (lines, _) =>
-      "Tests changed: " ++ String.concat("; ", lines) ++ "." ++ failing
+      "Tests changed: " ++ String.concat(~sep="; ", lines) ++ "." ++ failing
     };
   };
 
@@ -338,7 +348,7 @@ module Tests = {
       )
       : ChatSystem.Model.t =>
     switch (pending^, results) {
-    | (Some(p), Some(after)) when p.chat_id == chat_id =>
+    | (Some(p), Some(after)) when Id.equal(p.chat_id, chat_id) =>
       pending := None;
       let chat = ChatSystem.Utils.find_chat(chat_id, chat_system);
       switch (Chat.Utils.find_message_opt(p.message, chat)) {
@@ -386,11 +396,11 @@ module Repeats = {
     !tr.success && !tr.skipped;
 
   let without_notice = (content: string): string =>
-    String.starts_with(~prefix=notice, content)
+    String.is_prefix(~prefix=notice, content)
       ? String.sub(
           content,
-          String.length(notice),
-          String.length(content) - String.length(notice),
+          ~pos=String.length(notice),
+          ~len=String.length(content) - String.length(notice),
         )
       : content;
 
@@ -399,17 +409,18 @@ module Repeats = {
       (trs: list(AgentToolResult.tool_result))
       : (list((string, API.Json.t)), option(string)) => (
     List.map(
-      (tr: AgentToolResult.tool_result) =>
-        (tr.tool_call.name, tr.tool_call.args),
+      ~f=
+        (tr: AgentToolResult.tool_result) =>
+          (tr.tool_call.name, tr.tool_call.args),
       trs,
     ),
-    List.exists(failed, trs)
+    List.exists(~f=failed, trs)
       ? Some(
-          List.filter(failed, trs)
-          |> List.map((tr: AgentToolResult.tool_result) =>
+          List.filter(~f=failed, trs)
+          |> List.map(~f=(tr: AgentToolResult.tool_result) =>
                without_notice(tr.content)
              )
-          |> String.concat("\n"),
+          |> String.concat(~sep="\n"),
         )
       : None,
   );
@@ -417,17 +428,17 @@ module Repeats = {
   /* the chat's replies since the user's last message, latest first */
   let replies = (chat: Chat.Model.t) => {
     let close = (run, acc) =>
-      run == [] ? acc : [reply(List.rev(run)), ...acc];
+      List.is_empty(run) ? acc : [reply(List.rev(run)), ...acc];
     let (run, acc) =
-      List.fold_left(
-        ((run, acc), m: Message.Model.t) =>
-          switch (m.role) {
-          | ToolResult(tr) => ([tr, ...run], acc)
-          | User => ([], [])
-          | _ => ([], close(run, acc))
-          },
-        ([], []),
+      List.fold(
         Chat.Utils.linearize(chat),
+        ~init=([], []),
+        ~f=((run, acc), m: Message.Model.t) =>
+        switch (m.role) {
+        | ToolResult(tr) => ([tr, ...run], acc)
+        | User => ([], [])
+        | _ => ([], close(run, acc))
+        }
       );
     close(run, acc);
   };
@@ -461,7 +472,7 @@ module Repeats = {
     ++ (
       switch (replies(chat)) {
       | [(_, Some(r)), ..._] =>
-        ": " ++ List.hd(String.split_on_char('\n', r))
+        ": " ++ List.hd_exn(String.split(~on='\n', r))
       | _ => "."
       }
     )
@@ -534,11 +545,12 @@ module Reply = {
       ~payload=true,
       ~diff=
         Option.map(
-          ((old_text, new_text)) =>
-            AgentToolResult.{
-              old_text,
-              new_text,
-            },
+          ~f=
+            ((old_text, new_text)) =>
+              AgentToolResult.{
+                old_text,
+                new_text,
+              },
           CompositionGo.diff(~root, m),
         ),
       ~before=Some(AgentToolResult.snapshot_text(m.before)),
@@ -562,7 +574,7 @@ module Reply = {
     model: b.model,
     is_edit: a.is_edit || b.is_edit,
     recalculate: a.recalculate || b.recalculate,
-    scroll_active: a.scroll_active || b.scroll_active,
+    scroll: Updated.merge_scroll(a.scroll, b.scroll),
     logged: a.logged || b.logged,
     historic: a.historic || b.historic,
     tentative: a.tentative || b.tentative,
@@ -598,7 +610,7 @@ module Reply = {
             try(CompositionGo.Reply.add(r, ~index=i, ~seg, call)) {
             | exn =>
               report_tool_exn(tc.name, exn);
-              Error(Printexc.to_string(exn));
+              Error(Stdlib.Printexc.to_string(exn));
             }
           ) {
           | Ok(r) =>
@@ -611,7 +623,7 @@ module Reply = {
               ce,
               Some(r),
               List.rev([Edit(tc), ...slots]),
-              Some((i, message)),
+              Some((i, message, false)),
             )
           };
         | _ =>
@@ -630,7 +642,7 @@ module Reply = {
               ce,
               edits,
               List.rev([Done(msg), ...slots]),
-              Some((i, "")),
+              Some((i, "", false)),
             )
           | _ => go(i + 1, m, ce, edits, [Done(msg), ...slots])
           };
@@ -641,7 +653,7 @@ module Reply = {
     let slots =
       slots
       @ List.map(
-          tc => Skipped(tc),
+          ~f=tc => Skipped(tc),
           ListUtil.remove_first_n(List.length(slots), tool_calls),
         );
     /* the edits checked: their results, or the call that failed */
@@ -661,8 +673,8 @@ module Reply = {
           | exn =>
             report_tool_exn("reply", exn);
             Error({
-              index: 0,
-              message: Printexc.to_string(exn),
+              index: None,
+              message: Stdlib.Printexc.to_string(exn),
             });
           }
         ) {
@@ -676,129 +688,168 @@ module Reply = {
           let results =
             PerfTimer.time("tool/results", () =>
               List.map(
-                (m: CompositionGo.made) =>
-                  (
-                    m.index,
-                    result(
-                      ~tool_call=calls[m.index],
-                      ~root=r.root,
-                      ~report=
-                        Option.value(
-                          List.assoc_opt(m.index, outcome.reports),
-                          ~default="Applied.",
-                        ),
-                      m,
+                ~f=
+                  (m: CompositionGo.made) =>
+                    (
+                      m.index,
+                      result(
+                        ~tool_call=calls[m.index],
+                        ~root=r.root,
+                        ~report=
+                          Option.value(
+                            List.Assoc.find(
+                              outcome.reports,
+                              m.index,
+                              ~equal=Poly.equal,
+                            ),
+                            ~default="Applied.",
+                          ),
+                        m,
+                      ),
                     ),
-                  ),
                 CompositionGo.Reply.made(r),
               )
             );
           (ce, results, None);
+        /* the reply's edits together: on its last edit's result */
         | Error(f) => (
             cell_editor |> Updated.return_quiet,
             [],
-            Some((f.index, f.message)),
+            Some((
+              Option.value(
+                f.index,
+                ~default=
+                  Option.value_map(
+                    List.last(CompositionGo.Reply.made(r)),
+                    ~default=0,
+                    ~f=(m: CompositionGo.made) =>
+                    m.index
+                  ),
+              ),
+              f.message,
+              Option.is_none(f.index),
+            )),
           )
         }
       };
-    let undone = f =>
-      " None of this reply's edits were applied: call "
-      ++ string_of_int(f + 1)
-      ++ " ("
-      ++ calls[f].name
-      ++ ") failed.";
-    let rolled_back = (f, tr: AgentToolResult.tool_result) => {
+    /* [see]: where the reply's own refusal is */
+    let undone = (~see=false, (f, _, whole)) => {
+      let call = "call " ++ string_of_int(f + 1);
+      "None of this reply's edits were applied: "
+      ++ (
+        whole
+          ? "they are checked as one change"
+            ++ (see ? " (see " ++ call ++ "'s result)" : "")
+          : call ++ " (" ++ calls[f].name ++ ") failed"
+      )
+      ++ ".";
+    };
+    let rolled_back = (fl, tr: AgentToolResult.tool_result) => {
       ...tr,
       success: false,
-      content: "Rolled back." ++ undone(f),
+      content: "Rolled back. " ++ undone(~see=true, fl),
       content_is_payload: false,
     };
     let messages =
       List.mapi(
-        (i, slot) =>
-          switch (slot, failure) {
-          | (Skipped(tc), _) =>
-            Message.Utils.mk_tool_result_message(
-              AgentToolResult.mk_skipped(tc),
-            )
-          | (Edit(tc), Some((f, message))) =>
-            Message.Utils.mk_tool_result_message(
-              f == i
-                ? failed(tc, message ++ undone(f))
-                : rolled_back(f, failed(tc, "")),
-            )
-          | (Edit(tc), None) =>
-            Message.Utils.mk_tool_result_message(
-              Option.value(
-                List.assoc_opt(i, results),
-                ~default=failed(tc, "No result."),
-              ),
-            )
-          /* an overlay's change goes with the reply's edits */
-          | (Done({role: ToolResult(tr), _}), Some((f, _)))
-              when edits != None && f != i && tr.success && changes_editor(tr) =>
-            Message.Utils.mk_tool_result_message(rolled_back(f, tr))
-          | (Done(msg), _) => msg
-          },
+        ~f=
+          (i, slot) =>
+            switch (slot, failure) {
+            | (Skipped(tc), _) =>
+              Message.Utils.mk_tool_result_message(
+                AgentToolResult.mk_skipped(tc),
+              )
+            | (Edit(tc), Some((f, message, _) as fl)) =>
+              Message.Utils.mk_tool_result_message(
+                f == i
+                  ? failed(
+                      tc,
+                      /* after a list, on a line of its own */
+                      message
+                      ++ (String.contains(message, '\n') ? "\n" : " ")
+                      ++ undone(fl),
+                    )
+                  : rolled_back(fl, failed(tc, "")),
+              )
+            | (Edit(tc), None) =>
+              Message.Utils.mk_tool_result_message(
+                Option.value(
+                  List.Assoc.find(results, i, ~equal=Poly.equal),
+                  ~default=failed(tc, "No result."),
+                ),
+              )
+            /* an overlay's change goes with the reply's edits */
+            | (Done({role: ToolResult(tr), _}), Some((f, _, _) as fl))
+                when
+                  Option.is_some(edits)
+                  && f != i
+                  && tr.success
+                  && changes_editor(tr) =>
+              Message.Utils.mk_tool_result_message(rolled_back(fl, tr))
+            | (Done(msg), _) => msg
+            },
         slots,
       );
     /* the same refusal as the last reply's: say so on the failed call */
     let messages =
       switch (failure) {
-      | Some((f, _))
+      | Some((f, _, _))
           when
             Repeats.again(
               ChatSystem.Utils.find_chat(chat_id, model.chat_system),
               List.filter_map(
-                (msg: Message.Model.t) =>
-                  switch (msg.role) {
-                  | ToolResult(tr) => Some(tr)
-                  | _ => None
-                  },
+                ~f=
+                  (msg: Message.Model.t) =>
+                    switch (msg.role) {
+                    | ToolResult(tr) => Some(tr)
+                    | _ => None
+                    },
                 messages,
               ),
             ) =>
         List.mapi(
-          (i, msg: Message.Model.t) =>
-            switch (msg.role) {
-            | ToolResult(tr) when i == f =>
-              Message.Utils.mk_tool_result_message({
-                ...tr,
-                content: Repeats.notice ++ tr.content,
-              })
-            | _ => msg
-            },
+          ~f=
+            (i, msg: Message.Model.t) =>
+              switch (msg.role) {
+              | ToolResult(tr) when i == f =>
+                Message.Utils.mk_tool_result_message({
+                  ...tr,
+                  content: Repeats.notice ++ tr.content,
+                })
+              | _ => msg
+              },
           messages,
         )
       | _ => messages
       };
     let model =
-      List.fold_left(
-        (model, i) =>
-          switch (List.nth(messages, i).role) {
-          | ToolResult(tool_result) =>
-            add_to_active_subtask(~tool_result, ~model, ~chat_id)
-          | _ => model
-          },
-        model,
+      List.fold(
         List.filter_map(
-          ((i, slot)) =>
-            switch (slot) {
-            | Edit(_) => Some(i)
-            | Done(_)
-            | Skipped(_) => None
-            },
-          List.mapi((i, s) => (i, s), slots),
+          ~f=
+            ((i, slot)) =>
+              switch (slot) {
+              | Edit(_) => Some(i)
+              | Done(_)
+              | Skipped(_) => None
+              },
+          List.mapi(~f=(i, s) => (i, s), slots),
         ),
+        ~init=model,
+        ~f=(model, i) =>
+        switch (List.nth_exn(messages, i).role) {
+        | ToolResult(tool_result) =>
+          add_to_active_subtask(~tool_result, ~model, ~chat_id)
+        | _ => model
+        }
       );
     /* the edits' last result takes the tests' change once evaluation
        settles */
-    switch (edits, failure, ListUtil.last_opt(results)) {
+    switch (edits, failure, List.last(results)) {
     | (Some(r), None, Some((i, _))) =>
       Tests.pending :=
         Some({
           chat_id,
-          message: List.nth(messages, i).id,
+          message: List.nth_exn(messages, i).id,
           root: r.root,
           before_program: r.start,
           before: EvalResult.Model.test_results(cell_editor.result),

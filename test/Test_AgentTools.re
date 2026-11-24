@@ -4,6 +4,7 @@ open Language;
 open Action;
 open CompositionActions;
 open Util;
+open Poly;
 
 let mk_zipper = (code: string): Zipper.t => {
   switch (Parser.to_zipper(~root=Exp, code)) {
@@ -52,7 +53,7 @@ let run_insert_at_program_boundary =
       new_code: string,
     ) => {
   let z =
-    root == Sort.Exp
+    Sort.equal(root, Sort.Exp)
       ? mk_zipper(code) : Zipper.unzip(CorpusUtil.seg_of(~root, code));
   Perform.go(
     ~settings=CoreSettings.on,
@@ -78,10 +79,10 @@ let normalize_rendered_for_compare = (s: string): string => {
   s
   |> StringUtil.replace(StringUtil.regexp("\r\n"), _, "\n")
   |> StringUtil.replace(StringUtil.regexp("\r"), _, "\n")
-  |> String.split_on_char('\n')
-  |> List.map(trim_horizontal_edges_line)
-  |> String.concat("\n")
-  |> String.trim
+  |> String.split(~on='\n')
+  |> List.map(~f=trim_horizontal_edges_line)
+  |> String.concat(~sep="\n")
+  |> String.strip
   |> StringUtil.replace(StringUtil.regexp("[\\s]+"), _, " ");
 };
 
@@ -102,7 +103,7 @@ let check_rendered = (name: string, expected: string, actual: string) => {
 let check_rendered_exact = (name: string, expected: string, actual: string) => {
   check(
     testable(Fmt.string, (a, b) =>
-      String.equal(String.trim(a), String.trim(b))
+      String.equal(String.strip(a), String.strip(b))
     ),
     name,
     expected,
@@ -159,7 +160,7 @@ let apply_chain_render =
 /* a reply on [code] with no calls yet, on the kernel */
 let reply_on = (~root=Sort.Exp, code: string): CompositionGo.Reply.t => {
   let seg =
-    root == Sort.Exp
+    Sort.equal(root, Sort.Exp)
       ? Zipper.unselect_and_zip(mk_zipper(code))
       : CorpusUtil.seg_of(~root, code);
   let statics_of =
@@ -457,6 +458,66 @@ let replace_definition_tests = (
   "AgentTools.ReplaceDefinition",
   [
     test_case(
+      "X:definition code starting `let X =` again is refused",
+      `Quick,
+      () => {
+        /* round 2's E3: the whole tail chain written as joined's
+           definition */
+        let seg =
+          Option.value_exn(
+            EntryLayout.parse(
+              Option.value_exn(CorpusUtil.mega_src("mega-1k.hz")),
+            ),
+          );
+        let statics_of =
+          CompositionGo.statics_of(
+            ~settings=CoreSettings.on,
+            ~root=Exp,
+            ~probe_ids=Id.Map.empty,
+          );
+        let mega =
+          CompositionGo.Reply.start(
+            ~root=Exp,
+            ~statics=lazy(statics_of(seg)),
+            ~statics_of,
+            seg,
+          );
+        let code' = "let joined = string_join(\" \", body) in\nlet tight = string_replace(\" -- \", joined, \"--\") in\nlet res = string_replace(\"--\", tight, \": \") in\nstring_trim(res)";
+        switch (
+          CompositionGo.Reply.add(
+            mega,
+            ~index=0,
+            Replace("LogCleaner/clean_entry/joined:definition", code'),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced")
+        | Error(e) =>
+          check(
+            string,
+            "refusal",
+            "`LogCleaner/clean_entry/joined:definition` is what follows `=`; your code starts with `let joined =` again. To change only clean_entry's final expression, replace `LogCleaner/clean_entry/=>`.",
+            e,
+          )
+        };
+        switch (
+          CompositionGo.Reply.add(
+            reply_on("type T = Int in let x: T = 1 in x"),
+            ~index=0,
+            Replace("T:definition", "type T = Bool"),
+          )
+        ) {
+        | Ok(_) => Alcotest.fail("replaced T")
+        | Error(e) =>
+          check(
+            string,
+            "a type, at the top",
+            "`T:definition` is what follows `=`; your code starts with `type T =` again.",
+            e,
+          )
+        };
+      },
+    ),
+    test_case(
       "replace :definition with complex expression",
       `Quick,
       () => {
@@ -469,6 +530,31 @@ let replace_definition_tests = (
           "update_def_complex",
           "let a = 1 in let b = a + a * 2 in b",
           result,
+        );
+      },
+    ),
+    test_case(
+      "replace :definition with code spanning lines: on lines of its own",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "one line to many",
+          "let scale(k: Int): Int -> Int =\n  case k\n  | 0 => fun sc -> sc\n  | _ => fun sc -> sc * k\n  end\nin\nscale(2)(3)",
+          apply_and_render(
+            "let scale(k: Int): Int -> Int = fun sc -> sc in\nscale(2)(3)",
+            Replace(
+              "scale:definition",
+              "case k\n| 0 => fun sc -> sc\n| _ => fun sc -> sc * k\nend",
+            ),
+          ),
+        );
+        check_rendered_exact(
+          "many lines to one",
+          "let f(x) = x * 2 in\nf(1)",
+          apply_and_render(
+            "let f(x) =\n  x + 1\nin\nf(1)",
+            Replace("f:definition", "x * 2"),
+          ),
         );
       },
     ),
@@ -706,6 +792,38 @@ let rename_tests = (
         check_rendered(
           "update_pat_funlet_member_rename",
           "let m = {\n  let aux(x) = x + 1;\n  let g(y) = aux(y)\n} in m.g(2)",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "rename renames a member (internal uses follow)",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  let y = x\n} in m.y",
+            Rename("m/x", None, "z"),
+          );
+        check_rendered(
+          "update_pat_member_rename",
+          "let m = {\n  let z = 1;\n  let y = z\n} in m.y",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "rename renames a member with no use sites",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = {\n  let x = 1\n} in 42",
+            Rename("m/x", None, "z"),
+          );
+        check_rendered(
+          "update_pat_unused_member_rename",
+          "let m = {\n  let z = 1\n} in 42",
           result,
         );
       },
@@ -999,7 +1117,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in let c =\n  3 in a + b",
+            "let a = 1 in let b = 2 in let c =\n  3\nin a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1329,7 +1447,7 @@ let invalid_path_tests = (
       "deeply repeated path segments fail without applying edit (regression: agent bug 3)",
       `Quick,
       () => {
-        let long_path = String.concat("/", List.init(40, _ => "a"));
+        let long_path = String.concat(~sep="/", List.init(40, ~f=_ => "a"));
         expect_any_failure(
           "let a = 1 in a",
           Replace(long_path ++ ":definition", "2"),
@@ -1424,7 +1542,7 @@ let resolved = (code: string, path: string): option(string) => {
     | [(x, _), ..._] => Some(x)
     | [] =>
       Option.map(
-        EntryPath.to_string,
+        ~f=EntryPath.to_string,
         EntryPath.describe(~root=Exp, seg, f.id),
       )
     };
@@ -1436,7 +1554,7 @@ let resolved = (code: string, path: string): option(string) => {
 let paths_of = (code: string): list(string) => {
   let seg = Zipper.unselect_and_zip(mk_zipper(code));
   List.map(
-    ((_, p)) => EntryPath.to_string(p),
+    ~f=((_, p)) => EntryPath.to_string(p),
     EntryPath.entries(~root=Exp, seg),
   );
 };
@@ -1544,7 +1662,7 @@ let high_level_node_map_tests = (
           bool,
           "suggests double/t: " ++ msg,
           true,
-          StringUtil.plain_search("Did you mean double/t?", msg, 0) >= 0,
+          StringUtil.plain_search("Did you mean `double/t`", msg, 0) >= 0,
         );
       },
     ),
@@ -1572,6 +1690,7 @@ let high_level_node_map_tests = (
           ["Board", "initial_board", "=>"],
           paths_of("type Board = Int in let initial_board : Board = 1 in ?"),
         );
+
         check(
           list(string),
           "chess",
@@ -1636,7 +1755,7 @@ let composition_view_print_tests = {
    ============================================================ */
 
 let mk_json_args = (pairs: list((string, string))): API.Json.t => {
-  `Assoc(List.map(((k, v)) => (k, `String(v)), pairs));
+  `Assoc(List.map(~f=((k, v)) => (k, `String(v)), pairs));
 };
 
 let composition_utils_tests = (
@@ -1709,12 +1828,15 @@ let composition_utils_tests = (
           && Result.is_error(parse("insert", [("code", "let c = 3")])),
         );
         List.iter(
+          ~f=
           old =>
             check(
               bool,
               old ++ " is gone",
               true,
-              Result.is_error(parse(old, [("path", "a"), ("code", "1")])),
+                Result.is_error(
+                  parse(old, [("path", "a"), ("code", "1")]),
+                ),
             ),
           [
             "update_definition",
@@ -2215,7 +2337,8 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2232,7 +2355,8 @@ let sequential_operations_tests = (
         let code = "let b(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end;\nlet c(i: Int): Int =\n  case i\n  | 0 => 1\n  | _ => 2\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2249,7 +2373,8 @@ let sequential_operations_tests = (
         let code = "let heal(i: T): Int =\n  case i\n  | A(n) => n\n  | B => 0\n  end;\nlet blast(i: T): Int =\n  case i\n  | A(_) => 0\n  | B => 0\n  end";
         switch (
           try(run_agent_action(prog, Insert(After("Outer/M/a"), code))) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn =>
+            Alcotest.fail("raised: " ++ Stdlib.Printexc.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2298,7 +2423,7 @@ let blast_amount(i: Item): Int =
               Insert(After("Creatures/Items/name"), code),
             )
           ) {
-          | exn => Alcotest.fail("raised: " ++ Printexc.to_string(exn))
+          | exn => Alcotest.fail("raised: " ++ Exn.to_string(exn))
           }
         ) {
         | Ok(_) => ()
@@ -2650,7 +2775,12 @@ let agent_context_tests = (
       () => {
         let node_map =
           build_node_map("module M = { let x = 1; let y = 2 } in M.x + M.y");
-        check(bool, "path M resolves", true, path_id(node_map, "M") != None);
+        check(
+          bool,
+          "path M resolves",
+          true,
+          Option.is_some(path_id(node_map, "M")),
+        );
       },
     ),
   ],
@@ -2667,6 +2797,7 @@ let self_reference_errors = () => {
   let mentions = (needle, e) => CorpusUtil.contains(needle, e);
   let body = "module RunningSums = {\n  let running_max = 3;\n  let twice = RunningSums.running_max * 2\n}";
   List.iter(
+    ~f=
     ((root: Sort.t, code)) => {
       let term =
         switch (Parser.to_zipper(~root, code)) {
@@ -2674,6 +2805,7 @@ let self_reference_errors = () => {
         | None => fail("Failed to parse: " ++ code)
         };
       List.iter(
+          ~f=
         ((what, info_map)) => {
           let what = Sort.show(root) ++ " " ++ what;
           let errors = ErrorPrint.all(info_map);
@@ -2681,13 +2813,13 @@ let self_reference_errors = () => {
             bool,
             what ++ ": says why",
             true,
-            List.exists(mentions(want), errors),
+                List.exists(~f=mentions(want), errors),
           );
           check(
             list(string),
             what ++ ": nothing else",
             [],
-            List.filter(e => !mentions(want, e), errors),
+                List.filter(~f=e => !mentions(want, e), errors),
           );
         },
         [
@@ -2703,8 +2835,8 @@ let self_reference_errors = () => {
       );
     },
     [
-      (Exp, body ++ " in\nRunningSums.twice"),
-      (Mod, body ++ ";\nRunningSums.twice"),
+      (Sort.Exp, body ++ " in\nRunningSums.twice"),
+      (Sort.Mod, body ++ ";\nRunningSums.twice"),
     ],
   );
   let errors = ErrorPrint.all(mk_statics(mk_zipper("let y = Nope.x in y")));
@@ -2712,13 +2844,59 @@ let self_reference_errors = () => {
     bool,
     "another module's name stays undefined",
     true,
-    List.exists(mentions("Constructor is not defined"), errors),
+    List.exists(~f=mentions("Constructor is not defined"), errors),
+  );
+};
+
+/* a tuple type prints parenthesized wherever it stands, but a
+   constructor's argument keeps only the constructor's own parens */
+let printed_parens = () => {
+  let says = (code, expected) =>
+    check(
+      bool,
+      code ++ " says " ++ expected,
+      true,
+      List.exists(
+        ~f=CorpusUtil.contains(expected),
+        ErrorPrint.all(mk_statics(mk_zipper(code))),
+      ),
+    );
+  says(
+    "type Point = (Int, Int) in let p : (Point, Bool) = 1 in p",
+    "Expecting type (Point, Bool) but got inconsistent type Int",
+  );
+  says(
+    "let x : Int = ((1, true), 2) in x",
+    "inconsistent type ((Int, Bool), Int)",
+  );
+  says(
+    "let f : (Int, Int) -> Int = 1 in f",
+    "Expecting type (Int, Int) -> Int",
+  );
+  says(
+    "let f : Int -> (Int, Bool) = 1 in f",
+    "Expecting type Int -> (Int, Bool)",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A(1, true) in x",
+    "inconsistent type + A(Int, Bool) + B",
+  );
+  says(
+    "type S = + A(Int, Bool) + B in let x : Int = A in x",
+    "inconsistent type (Int, Bool) -> S",
+  );
+  says("let x : () = 1 in x", "Expecting type () but");
+  says("let x : Int = (?, ?) in x", "inconsistent type (?, ?)");
+  says(
+    "type S = + A(Int, Bool) + B in let f = fun (A(x, y): S) -> x in f",
+    "fun (A(x, y)) -> x",
   );
 };
 
 let error_print_tests = (
   "ErrorPrint",
   [
+    test_case("tuple types print parenthesized", `Quick, printed_parens),
     test_case(
       "a module naming itself in its own body",
       `Quick,
@@ -2741,7 +2919,7 @@ let error_print_tests = (
         let z = mk_zipper("let a : Int = true in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has errors", true, List.length(errors) > 0);
+        check(bool, "has errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
@@ -2751,7 +2929,7 @@ let error_print_tests = (
         let z = mk_zipper("let a = xyz in a");
         let info_map = mk_statics(z);
         let errors = ErrorPrint.all(info_map);
-        check(bool, "has unbound errors", true, List.length(errors) > 0);
+        check(bool, "has unbound errors", true, !List.is_empty(errors));
       },
     ),
     test_case(
@@ -2818,6 +2996,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (API.Json.dot("type", tool)) {
             | Some(`String("function")) => ()
@@ -2842,6 +3021,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (API.Json.dot("function", tool)) {
             | Some(func) =>
@@ -2874,7 +3054,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.tools;
-        let first_tool = List.nth(tools, 0);
+        let first_tool = List.nth_exn(tools, 0);
         switch (get_tool_name(first_tool)) {
         | Some("open") => ()
         | Some(name) =>
@@ -2889,6 +3069,7 @@ let tool_json_tests = (
       () => {
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_description(tool)) {
             | Some(desc) =>
@@ -2910,8 +3091,9 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.tools;
-        let names = List.filter_map(get_tool_name, tools);
-        let unique_names = List.sort_uniq(String.compare, names);
+        let names = List.filter_map(~f=get_tool_name, tools);
+        let unique_names =
+          List.dedup_and_sort(~compare=String.compare, names);
         check(
           int,
           "all names unique",
@@ -2928,9 +3110,11 @@ let tool_json_tests = (
         let edit_tool_names = ["replace", "delete", "move", "rename"];
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
-            | Some(name) when List.mem(name, edit_tool_names) =>
+              | Some(name)
+                  when List.mem(edit_tool_names, name, ~equal=Poly.equal) =>
               switch (API.Json.dot("function", tool)) {
               | Some(func) =>
                 switch (API.Json.dot("parameters", func)) {
@@ -2939,6 +3123,7 @@ let tool_json_tests = (
                   | Some(`List(required)) =>
                     let has_target =
                       List.exists(
+                          ~f=
                         r =>
                           switch (r) {
                           | `String("target") => true
@@ -2946,7 +3131,12 @@ let tool_json_tests = (
                           },
                         required,
                       );
-                    check(bool, name ++ " requires target", true, has_target);
+                      check(
+                        bool,
+                        name ++ " requires target",
+                        true,
+                        has_target,
+                      );
                   | _ => Alcotest.fail(name ++ " missing required field")
                   }
                 | None => Alcotest.fail(name ++ " missing parameters")
@@ -2974,9 +3164,11 @@ let tool_json_tests = (
         ];
         let tools = CompositionUtils.tools;
         List.iter(
+          ~f=
           (tool: API.Json.t) => {
             switch (get_tool_name(tool)) {
-            | Some(name) when List.mem(name, probe_tool_names) =>
+              | Some(name)
+                  when List.mem(probe_tool_names, name, ~equal=Poly.equal) =>
               switch (API.Json.dot("function", tool)) {
               | Some(func) =>
                 switch (API.Json.dot("parameters", func)) {
@@ -2985,6 +3177,7 @@ let tool_json_tests = (
                   | Some(`List(required)) =>
                     let has_paths =
                       List.exists(
+                          ~f=
                         r =>
                           switch (r) {
                           | `String("paths") => true
@@ -3010,25 +3203,28 @@ let tool_json_tests = (
       "tool registry covers exactly the declared tools",
       `Quick,
       () => {
-        let declared = List.filter_map(get_tool_name, CompositionUtils.tools);
-        let registered = List.map(fst, Web.Agent.ToolUtils.registry);
+        let declared =
+          List.filter_map(~f=get_tool_name, CompositionUtils.tools);
+        let registered = List.map(~f=fst, Web.Agent.ToolUtils.registry);
         List.iter(
+          ~f=
           name =>
             check(
               bool,
               "registry entry for " ++ name,
               true,
-              List.mem(name, registered),
+                List.mem(registered, name, ~equal=Poly.equal),
             ),
           declared,
         );
         List.iter(
+          ~f=
           name =>
             check(
               bool,
               "declared tool for registry entry " ++ name,
               true,
-              List.mem(name, declared),
+                List.mem(declared, name, ~equal=Poly.equal),
             ),
           registered,
         );
@@ -3313,7 +3509,12 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("let x : Int = 1 in x");
-        check(bool, "x present", true, path_id(node_map, "x") != None);
+        check(
+          bool,
+          "x present",
+          true,
+          Option.is_some(path_id(node_map, "x")),
+        );
       },
     ),
     test_case(
@@ -3321,8 +3522,18 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("type T = Int in let x : T = 1 in x");
-        check(bool, "x present", true, path_id(node_map, "x") != None);
-        check(bool, "T present", true, path_id(node_map, "T") != None);
+        check(
+          bool,
+          "x present",
+          true,
+          Option.is_some(path_id(node_map, "x")),
+        );
+        check(
+          bool,
+          "T present",
+          true,
+          Option.is_some(path_id(node_map, "T")),
+        );
       },
     ),
     test_case(
@@ -3337,7 +3548,7 @@ let ascribed_binding_tests = (
           bool,
           "x present at end of type chain",
           true,
-          path_id(node_map, "x") != None,
+          Option.is_some(path_id(node_map, "x")),
         );
       },
     ),
@@ -3351,13 +3562,13 @@ let ascribed_binding_tests = (
           bool,
           "outer/inner present",
           true,
-          path_id(node_map, "outer/inner") != None,
+          Option.is_some(path_id(node_map, "outer/inner")),
         );
         check(
           bool,
           "bare inner not ambiguously at top level",
           true,
-          path_id(node_map, "inner") == None,
+          Option.is_none(path_id(node_map, "inner")),
         );
       },
     ),
@@ -3516,9 +3727,12 @@ let ascribed_binding_tests = (
         check_rendered("deleting all bindings leaves hole", "?", result);
       },
     ),
+    /* The two verbatim repros are Slow: each runs the 1.4K-character
+       program through the typing parser. The chess-shaped cases above keep
+       the same shapes in the quick set. */
     test_case(
       "verbatim chess program: Piece is present in node map",
-      `Quick,
+      `Slow,
       () => {
         /* Exact program from the live-editor repro. `delete Piece`
            reportedly fails with "Path 'Piece' not found in node map" even though
@@ -3531,43 +3745,43 @@ let ascribed_binding_tests = (
           bool,
           "Color present",
           true,
-          path_id(node_map, "Color") != None,
+          Option.is_some(path_id(node_map, "Color")),
         );
         check(
           bool,
           "PieceType present",
           true,
-          path_id(node_map, "PieceType") != None,
+          Option.is_some(path_id(node_map, "PieceType")),
         );
         check(
           bool,
           "Piece present",
           true,
-          path_id(node_map, "Piece") != None,
+          Option.is_some(path_id(node_map, "Piece")),
         );
         check(
           bool,
           "Square present",
           true,
-          path_id(node_map, "Square") != None,
+          Option.is_some(path_id(node_map, "Square")),
         );
         check(
           bool,
           "Board present",
           true,
-          path_id(node_map, "Board") != None,
+          Option.is_some(path_id(node_map, "Board")),
         );
         check(
           bool,
           "initial_board present",
           true,
-          path_id(node_map, "initial_board") != None,
+          Option.is_some(path_id(node_map, "initial_board")),
         );
       },
     ),
     test_case(
       "verbatim chess program: delete Piece finds it, and its use",
-      `Quick,
+      `Slow,
       () => {
         /* Single action repro of the exact user flow: send the chess program,
            ask to delete `Piece`. Should succeed (the binding exists). */
@@ -3597,7 +3811,7 @@ let ascribed_binding_tests = (
         ) {
         | Error(e) => Alcotest.fail("delete failed: " ++ e)
         | Ok(r) =>
-          let m = List.hd(CompositionGo.Reply.made(r));
+          let m = List.hd_exn(CompositionGo.Reply.made(r));
           check(
             option(pair(string, option(string))),
             "old entry, no new one",
@@ -3690,7 +3904,12 @@ let contains_str = (~needle: string, haystack: string): bool => {
   let nl = String.length(needle)
   and hl = String.length(haystack);
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (
+      String.equal(String.sub(haystack, ~pos=i, ~len=nl), needle)
+      || go(i + 1)
+    );
   nl == 0 || go(0);
 };
 
@@ -3706,6 +3925,7 @@ let expect_failure_mentioning =
   | Ok(_) => Alcotest.fail("Expected failure: " ++ name)
   | Error(Action.Failure.Composition_action_failure(msg)) =>
     List.iter(
+      ~f=
       needle =>
         check(
           bool,
@@ -3747,8 +3967,20 @@ let rename_and_path_safety_tests = (
         expect_failure_mentioning(
           "let a = 1 in a",
           Rename("a", None, "B"),
-          ["is not a value's name"],
+          ["won't do as a new name: value names start lowercase"],
           "rename_non_name",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", None, "$x"),
+          ["a name is one identifier"],
+          "rename_quote",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", None, "M.x"),
+          ["a name is one identifier"],
+          "rename_qualified",
         );
       },
     ),
@@ -3874,29 +4106,32 @@ let rename_and_path_safety_tests = (
           bool,
           "bare shadowed path is None",
           true,
-          path_id(node_map, "x") == None,
+          Option.is_none(path_id(node_map, "x")),
         );
         let id1 = path_id(node_map, "x#1");
         let id2 = path_id(node_map, "x#2");
-        check(bool, "x#1 resolves", true, id1 != None);
-        check(bool, "x#2 resolves", true, id2 != None);
+        check(bool, "x#1 resolves", true, Option.is_some(id1));
+        check(bool, "x#2 resolves", true, Option.is_some(id2));
         check(bool, "x#1 and x#2 differ", true, id1 != id2);
         let order =
           List.map(
-            (e: Outline.entry) => Some(e.id),
+            ~f=(e: Outline.entry) => Some(e.id),
             Outline.all(node_map),
           );
         check(
           list(option(testable(Fmt.of_to_string(Id.str3), Id.equal))),
           "x#1, then x#2, in program order",
           [id1, id2],
-          List.filter(id => id == id1 || id == id2, order),
+          List.filter(
+            ~f=id => Poly.equal(id, id1) || Poly.equal(id, id2),
+            order,
+          ),
         );
         check(
           bool,
           "out-of-range occurrence is None",
           true,
-          path_id(node_map, "x#3") == None,
+          Option.is_none(path_id(node_map, "x#3")),
         );
       },
     ),
@@ -3906,6 +4141,7 @@ let rename_and_path_safety_tests = (
       () => {
         let msg = path_error("let x = 1 in let x = 2 in x", "x");
         List.iter(
+          ~f=
           needle =>
             check(
               bool,
@@ -3926,7 +4162,7 @@ let rename_and_path_safety_tests = (
           bool,
           "unique path resolves",
           true,
-          path_id(node_map, "b") != None,
+          Option.is_some(path_id(node_map, "b")),
         );
       },
     ),
@@ -3944,7 +4180,7 @@ let paste_funnel_tests = (
       "replace :definition strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_definition_indented",
-        "let a = fun x ->\n  x + 1 in a",
+        "let a = fun x ->\n  x + 1\nin a",
         apply_and_render(
           "let a = 1 in a",
           Replace("a:definition", "fun x ->\n  x + 1"),
@@ -3953,10 +4189,11 @@ let paste_funnel_tests = (
     }),
     test_case("replace keeps the code's own indentation", `Quick, () => {
       /* formatting is local: new code keeps its lines' relative
-         indentation, at its place's */
+         indentation, at its place's; the gaps between the entries it
+         brings are house style */
       check_rendered_exact(
         "replace_indented",
-        "let a = 1 in let b = 2 in\n  a + b",
+        "let a = 1 in let b = 2 in\n\n  a + b",
         apply_and_render(
           "let a = 1 in a",
           Replace("=>", "let b = 2 in\n  a + b"),
@@ -3973,7 +4210,7 @@ let paste_funnel_tests = (
     test_case("replace strips then re-indents canonically", `Quick, () => {
       check_rendered_exact(
         "update_binding_clause_indented",
-        "let a =\n  2 in a",
+        "let a =\n  2\nin a",
         apply_and_render("let a = 1 in a", Replace("a", "let a =\n  2 in")),
       )
     }),
@@ -4115,7 +4352,7 @@ let fn_sugar_tests = (
           bool,
           "full rendered pattern is not a path",
           true,
-          path_id(node_map, "contains((xs, y))") == None,
+          Option.is_none(path_id(node_map, "contains((xs, y))")),
         );
       },
     ),
@@ -4124,15 +4361,25 @@ let fn_sugar_tests = (
       `Quick,
       () => {
         let nm1 = build_node_map("let inc(x) = x + 1 in inc(1)");
-        check(bool, "one-param path", true, path_id(nm1, "inc") != None);
+        check(
+          bool,
+          "one-param path",
+          true,
+          Option.is_some(path_id(nm1, "inc")),
+        );
         let nm0 = build_node_map("let f() = 3 in f()");
-        check(bool, "zero-param path", true, path_id(nm0, "f") != None);
+        check(
+          bool,
+          "zero-param path",
+          true,
+          Option.is_some(path_id(nm0, "f")),
+        );
         let nm_asc = build_node_map("let g(x): Int = x in g(1)");
         check(
           bool,
           "return-annotated path",
           true,
-          path_id(nm_asc, "g") != None,
+          Option.is_some(path_id(nm_asc, "g")),
         );
       },
     ),
@@ -4145,10 +4392,20 @@ let fn_sugar_tests = (
           bool,
           "bare shared name is None",
           true,
-          path_id(node_map, "f") == None,
+          Option.is_none(path_id(node_map, "f")),
         );
-        check(bool, "f#1 resolves", true, path_id(node_map, "f#1") != None);
-        check(bool, "f#2 resolves", true, path_id(node_map, "f#2") != None);
+        check(
+          bool,
+          "f#1 resolves",
+          true,
+          Option.is_some(path_id(node_map, "f#1")),
+        );
+        check(
+          bool,
+          "f#2 resolves",
+          true,
+          Option.is_some(path_id(node_map, "f#2")),
+        );
         expect_failure_mentioning(
           "let f(x) = x in let f = 1 in f",
           Replace("f:definition", "9"),
@@ -4318,7 +4575,9 @@ let fn_sugar_tests = (
           bool,
           "def target resolves",
           true,
-          Web.AgentToolCallHandler.definition_id(~root=Exp, seg, "f") != None,
+          Option.is_some(
+            Web.AgentToolCallHandler.definition_id(~root=Exp, seg, "f"),
+          ),
         );
       },
     ),
@@ -4330,18 +4589,23 @@ let fn_sugar_tests = (
    ============================================================ */
 
 let leading_newline = (s: string): bool =>
-  String.length(s) > 0 && s.[0] == '\n';
+  String.length(s) > 0 && Char.equal(s.[0], '\n');
 
 let trailing_newlines = (s: string): int => {
   let rec go = (i, acc) =>
-    i >= 0 && s.[i] == '\n' ? go(i - 1, acc + 1) : acc;
+    i >= 0 && Char.equal(s.[i], '\n') ? go(i - 1, acc + 1) : acc;
   go(String.length(s) - 1, 0);
 };
 
 let contains_sub = (haystack: string, needle: string): bool => {
   let (hl, nl) = (String.length(haystack), String.length(needle));
   let rec go = i =>
-    i + nl <= hl && (String.sub(haystack, i, nl) == needle || go(i + 1));
+    i
+    + nl <= hl
+    && (
+      String.equal(String.sub(haystack, ~pos=i, ~len=nl), needle)
+      || go(i + 1)
+    );
   nl == 0 || go(0);
 };
 
@@ -4371,8 +4635,7 @@ let whitespace_normalization_tests = (
           true,
           trailing_newlines(rendered) <= 1,
         );
-        /* the kernel lays each new entry out like its neighbours: on
-           this one-line chain, inline */
+        /* a one-line chain stays on its line */
         check_rendered_exact(
           "chained insert_after spacing",
           "let a = 1 in let b = 2 in let c = 3 in let d = 4 in ?",
@@ -4387,7 +4650,11 @@ let whitespace_normalization_tests = (
       | Ok(z) =>
         let rendered = render_zipper(z);
         check(bool, "no leading newline", false, leading_newline(rendered));
-        check_rendered_exact("prepend spacing", "let a = 2 in\n1", rendered);
+        check_rendered_exact(
+          "prepend spacing",
+          "let a = 2 in\n\n1",
+          rendered,
+        );
       | Error(err) =>
         Alcotest.fail("prepend failed: " ++ Action.Failure.show(err))
       }
@@ -4481,7 +4748,7 @@ let module_member_tests = (
     test_case("a livelit's members: insert last_in", `Quick, () =>
       check_rendered_exact(
         "livelit_member_insert",
-        "let ^pct = {\n  type T = Int;\n  let init = 50;\n  let step = 5\n} in\n^pct(1)",
+        "let ^pct = {\n  type T = Int;\n  let init = 50;\n\n  let step = 5\n} in\n^pct(1)",
         apply_and_render(
           livelit_src,
           Insert(LastIn("^pct"), "let step = 5"),
@@ -4695,10 +4962,11 @@ let module_member_tests = (
             "let m = {\n  let x = 1;\n  let y = 2\n} in m",
             Insert(After("m/x"), "let z = 9"),
           );
-        /* a new member takes its neighbours' spacing: no blank lines here */
+        /* a new member is parted from its neighbours by blank lines,
+           whatever theirs */
         check_rendered_exact(
           "member_blank_lines",
-          "let m = {\n  let x = 1;\n  let z = 9;\n  let y = 2\n} in m",
+          "let m = {\n  let x = 1;\n\n  let z = 9;\n\n  let y = 2\n} in m",
           result,
         );
       },
@@ -4721,12 +4989,14 @@ let module_member_tests = (
     ),
     test_case(
       "oversized chunk on the fast path succeeds",
-      `Quick,
+      `Slow,
       () => {
         /* The size cap guards only the quadratic fallback; Menhir-
-           parseable chunks of any size take the linear fast path. */
+           parseable chunks of any size take the linear fast path. Slow:
+           re-selecting the new 400-term definition to revalidate its
+           projectors (Select.term) walks it token by token. */
         let big =
-          String.concat(" + ", List.init(400, i => string_of_int(i)));
+          String.concat(~sep=" + ", List.init(400, ~f=string_of_int));
         switch (
           run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
@@ -4745,7 +5015,8 @@ let module_member_tests = (
       () => {
         /* Bare comma tuple: Menhir-rejected even with hole completion.
            New code is read by the batch parser only */
-        let big = String.concat(", ", List.init(900, i => string_of_int(i)));
+        let big =
+          String.concat(~sep=", ", List.init(900, ~f=i => string_of_int(i)));
         switch (
           run_agent_action("let a = 1 in ?", Replace("a:definition", big))
         ) {
@@ -4827,9 +5098,9 @@ let apply_at_mod_root = (~code=mod_root_program, a: Action.Structural.t) =>
 
 /* [mod_root_program] with [line] replaced by [by] (a list: none deletes) */
 let mod_root_with = (line: string, by: list(string)): string =>
-  String.split_on_char('\n', mod_root_program)
-  |> List.concat_map(l => l == line ? by : [l])
-  |> String.concat("\n");
+  String.split(~on='\n', mod_root_program)
+  |> List.concat_map(~f=l => l == line ? by : [l])
+  |> String.concat(~sep="\n");
 
 let mod_root_tests = (
   "AgentTools.ModRoot",
@@ -4853,6 +5124,13 @@ let mod_root_tests = (
         "mod_root_update_clause",
         mod_root_with("  let c : T = b", ["  let c : T = 7"]),
         apply_at_mod_root(Replace("M/c", "let c : T = 7")),
+      )
+    ),
+    test_case("replace the final expression", `Quick, () =>
+      check_rendered(
+        "mod_root_result",
+        mod_root_with("d", ["d + 1"]),
+        apply_at_mod_root(Replace("=>", "d + 1")),
       )
     ),
     test_case("replace :definition on a top-level binding", `Quick, () =>
@@ -5078,7 +5356,7 @@ let member_rename_tests = (
     test_case("a member delete leaves no lone `;`", `Quick, () =>
       check_rendered_exact(
         "member_delete_multiline",
-        "let m = {\n  let x = 1;\n  let z = 3\n} in m",
+        "let m = {\n  let x = 1;\n\n  let z = 3\n} in m",
         apply_and_render(
           "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
           Delete("m/y"),
@@ -5088,15 +5366,15 @@ let member_rename_tests = (
   ],
 );
 
-/* tests: inserted after their function or after its last test; at the
-   end, last in the top level, above the result */
+/* tests: inserted after an entry, parted from a definition, together
+   with a test; at the end, last in the top level, above the result */
 let test_entry_tests = (
   "AgentTools.Tests",
   [
     test_case("after the binding at path", `Quick, () =>
       check_rendered_exact(
         "after_binding",
-        "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\na + b",
+        "let a = 1 in\n\ntest a == 1 end;\n\nlet b = 2 in\na + b",
         apply_and_render(
           "let a = 1 in\nlet b = 2 in\na + b",
           Insert(After("a"), "test a == 1 end"),
@@ -5106,7 +5384,7 @@ let test_entry_tests = (
     test_case("after the last of its tests, in order", `Quick, () =>
       check_rendered_exact(
         "after_run",
-        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\nlet b = 2 in\nb",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\n\nlet b = 2 in\nb",
         apply_chain_render(
           "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\nlet b = 2 in\nb",
           [
@@ -5135,15 +5413,15 @@ let test_entry_tests = (
       () => {
         check_rendered_exact(
           "no_path",
-          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+          "let a = 1 in\n\ntest a == 1 end;\ntest a > 0 end;\n\na",
           apply_and_render(
-            "let a = 1 in\ntest a == 1 end;\na",
+            "let a = 1 in\n\ntest a == 1 end;\na",
             Insert(LastIn(""), "test a > 0 end"),
           ),
         );
         check_rendered_exact(
           "no_path_no_bindings",
-          "test 1 + 1 == 2 end;\n1 + 1",
+          "test 1 + 1 == 2 end;\n\n1 + 1",
           apply_and_render(
             "1 + 1",
             Insert(LastIn(""), "test 1 + 1 == 2 end"),
@@ -5184,7 +5462,7 @@ let test_entry_tests = (
     test_case("a trailing `;` is dropped", `Quick, () =>
       check_rendered_exact(
         "wrapped",
-        "let a = 1 in\ntest a == 1 end;\na",
+        "let a = 1 in\n\ntest a == 1 end;\n\na",
         apply_and_render(
           "let a = 1 in\na",
           Insert(After("a"), "test a == 1 end;"),

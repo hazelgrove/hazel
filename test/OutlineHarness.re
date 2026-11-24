@@ -21,7 +21,7 @@ let visible =
       (path, n) =>
         switch (folds) {
         | Some(folds) => O.folded(~folds, path, n.o_kind)
-        | None => List.mem(n.o_label, collapsed)
+        | None => List.mem(collapsed, n.o_label, ~equal=Poly.equal)
         },
     O.rows(outline),
   );
@@ -85,6 +85,8 @@ let handlers =
                                                                     ignore,
       ~went: ref(list(bool))=ref([]),
       ~menus: ref(int)=ref(0),
+      ~leave=ignore,
+      ~zoom_out=ignore,
       (),
     )
     : S.handlers => {
@@ -102,14 +104,14 @@ let handlers =
   zoom_in: none,
   show_whole: none,
   discard: ignore,
-  zoom_out: ignore,
+  zoom_out,
   get_cursor: () => cursor^,
   set_cursor: c => {
     cursor := c;
     ignore;
   },
   focused: ignore,
-  leave: ignore,
+  leave,
   text: text_ctl(~ops, ~edits, text),
   menu_open: (_, _, _) => {
     incr(menus);
@@ -165,15 +167,26 @@ let props =
   check,
 };
 
-/* a keydown as the browser sends it, on the row list */
-let keydown = (~meta=false, ~alt=false, ~shift=false, ~code=?, key: string) =>
+/* a keydown as the browser sends it, on the row list: [meta] and [ctrl]
+   the keys so named, [cmd] the command key (⌘ on a Mac, Ctrl elsewhere) */
+let keydown =
+    (
+      ~cmd=false,
+      ~meta=false,
+      ~ctrl=false,
+      ~alt=false,
+      ~shift=false,
+      ~code=?,
+      key: string,
+    ) => {
+  let mac = Util.Os.is_mac^;
   Js_of_ocaml.Js.(
     Unsafe.coerce(
       Unsafe.obj([|
         ("key", Unsafe.inject(string(key))),
         ("code", Unsafe.inject(string(Option.value(code, ~default=key)))),
-        ("metaKey", Unsafe.inject(bool(meta))),
-        ("ctrlKey", Unsafe.inject(_false)),
+        ("metaKey", Unsafe.inject(bool(meta || cmd && mac))),
+        ("ctrlKey", Unsafe.inject(bool(ctrl || cmd && !mac))),
         ("altKey", Unsafe.inject(bool(alt))),
         ("shiftKey", Unsafe.inject(bool(shift))),
         (
@@ -194,3 +207,4 @@ let keydown = (~meta=false, ~alt=false, ~shift=false, ~code=?, key: string) =>
       |]),
     )
   );
+};

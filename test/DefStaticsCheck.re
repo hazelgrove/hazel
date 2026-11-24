@@ -1,11 +1,12 @@
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* how two infos for one id differ, if they do: type ([types]),
    elaboration, class, runtime free variables, probe targets */
-let sorted = xs => List.sort_uniq(compare, xs);
+let sorted = xs => List.dedup_and_sort(~compare, xs);
 let runtime = co =>
-  sorted(List.filter(IncrEval.is_runtime_dependency, CoCtx.names(co)));
+  sorted(List.filter(~f=IncrEval.is_runtime_dependency, CoCtx.names(co)));
 let differ = (~types, a: Info.t, b: Info.t): option(string) =>
   switch (a, b) {
   | (InfoExp(a), InfoExp(b)) =>
@@ -23,7 +24,7 @@ let differ = (~types, a: Info.t, b: Info.t): option(string) =>
         "class " ++ Cls.show(a.cls) ++ " / " ++ Cls.show(b.cls),
       );
     } else if (runtime(a.co_ctx) != runtime(b.co_ctx)) {
-      let names = co => String.concat(" ", runtime(co));
+      let names = co => String.concat(~sep=" ", runtime(co));
       Some(
         "free variables {"
         ++ names(a.co_ctx)
@@ -74,7 +75,7 @@ let place_differs =
     (~own=?, ~a_map, a: Info.t, ~b_map, b: Info.t): option(string) => {
   let mine = ids =>
     switch (own) {
-    | Some(own) => List.filter(id => Hashtbl.mem(own, id), ids)
+    | Some(own) => List.filter(~f=id => Stdlib.Hashtbl.mem(own, id), ids)
     | None => ids
     };
   let ancestors = (map, i) =>
@@ -84,7 +85,8 @@ let place_differs =
     | InfoExp({user_term, _}) => mine(parts(user_term))
     | _ => []
     };
-  let show = ids => "[" ++ String.concat(" ", List.map(Id.str8, ids)) ++ "]";
+  let show = ids =>
+    "[" ++ String.concat(~sep=" ", List.map(~f=Id.str8, ids)) ++ "]";
   let (aa, ba) = (ancestors(a_map, a), ancestors(b_map, b));
   let (ap, bp) = (parts_of(a), parts_of(b));
   if (aa != ba) {
@@ -117,9 +119,12 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
     );
   /* monolithic lowering mints ids of its own each run, and a Mod
      root's wrapper id has no tile */
-  let own = Hashtbl.create(1024);
+  let own = Stdlib.Hashtbl.create(1024);
   let grab = (cont, x) => {
-    List.iter(id => Hashtbl.replace(own, id, ()), IdTagged.ids(x));
+    List.iter(
+      ~f=id => Stdlib.Hashtbl.replace(own, id, ()),
+      IdTagged.ids(x),
+    );
     cont(x);
   };
   ignore(
@@ -136,24 +141,25 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
     ),
   );
   switch (t.term.term) {
-  | Module(_) => Hashtbl.remove(own, Exp.rep_id(t.term))
+  | Module(_) => Stdlib.Hashtbl.remove(own, Exp.rep_id(t.term))
   | _ => ()
   };
   let rec roots = items =>
     List.concat_map(
+      ~f=
       (it: DefStatics.item) =>
-        Option.to_list(Option.map(_ => it.d_id, it.d_hole))
+          Option.to_list(Option.map(~f=_ => it.d_id, it.d_hole))
         @ roots(it.d_members),
       items,
     );
-  let spine = Hashtbl.create(64);
-  List.iter(id => Hashtbl.replace(spine, id, ()), roots(t.items));
+  let spine = Stdlib.Hashtbl.create(64);
+  List.iter(~f=id => Stdlib.Hashtbl.replace(spine, id, ()), roots(t.items));
   let out = ref([]);
   let note = s => out := [s, ...out^];
   let ids = (what, reference, got) => {
     /* statics mints ids for terms it builds (labels filled into a tuple
        against a labeled type), new each run: those count, not match */
-    let mine = List.filter(id => Hashtbl.mem(own, id));
+    let mine = List.filter(~f=id => Stdlib.Hashtbl.mem(own, id));
     let minted = xs =>
       List.length(sorted(xs)) - List.length(sorted(mine(xs)));
     if (minted(reference) != minted(got)) {
@@ -168,14 +174,14 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
     };
     let (r, g) = (sorted(mine(reference)), sorted(mine(got)));
     let only = (xs, ys) =>
-      List.filter(x => !List.mem(x, ys), xs)
-      |> List.map(id =>
+      List.filter(~f=x => !List.mem(ys, x, ~equal=Poly.equal), xs)
+      |> List.map(~f=id =>
            switch (Id.Map.find_opt(id, mono)) {
            | Some(i) => Cls.show(Info.cls_of(i))
            | None => Id.show(id)
            }
          )
-      |> String.concat(", ");
+      |> String.concat(~sep=", ");
     if (r != g) {
       note(
         what
@@ -190,19 +196,21 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   /* items and members by id, each with its exports' names, in order */
   let rec shape = items =>
     List.concat_map(
+      ~f=
       (it: DefStatics.item) =>
         [
           Id.show(it.d_id)
           ++ " exports "
           ++ String.concat(
-               " ",
-               List.map(DefStatics.entry_name, it.d_exports),
+                 ~sep=" ",
+                 List.map(~f=DefStatics.entry_name, it.d_exports),
              ),
           ...shape(it.d_members),
         ],
       items,
     );
   Option.iter(
+    ~f=
     (cold: DefStatics.t) => {
       let rec first_diff = (xs, ys) =>
         switch (xs, ys) {
@@ -237,7 +245,7 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   );
   Id.Map.iter(
     (id, m) =>
-      if (Hashtbl.mem(own, id)) {
+      if (Stdlib.Hashtbl.mem(own, id)) {
         let at = what =>
           note(
             what ++ " at " ++ Cls.show(Info.cls_of(m)) ++ " " ++ Id.show(id),
@@ -245,18 +253,18 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
         switch (
           Id.Map.find_opt(id, t.merged),
           Option.map(
-            (c: DefStatics.t) => Id.Map.find_opt(id, c.merged),
+            ~f=(c: DefStatics.t) => Id.Map.find_opt(id, c.merged),
             cold,
           ),
         ) {
         | (None, _) => at("no info")
         | (Some(got), c) =>
           Option.iter(
-            d => at(d ++ " vs monolithic"),
-            differ(~types=!Hashtbl.mem(spine, id), m, got),
+            ~f=d => at(d ++ " vs monolithic"),
+            differ(~types=!Stdlib.Hashtbl.mem(spine, id), m, got),
           );
           Option.iter(
-            d => at(d ++ " vs monolithic"),
+            ~f=d => at(d ++ " vs monolithic"),
             place_differs(~own, ~a_map=mono, m, ~b_map=t.merged, got),
           );
           switch (c) {
@@ -264,13 +272,13 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
           | Some(None) => at("no cold info")
           | Some(Some(c)) =>
             Option.iter(
-              d => at(d ++ " vs cold"),
+              ~f=d => at(d ++ " vs cold"),
               differ(~types=true, c, got),
             );
             Option.iter(
-              d => at(d ++ " vs cold"),
+              ~f=d => at(d ++ " vs cold"),
               place_differs(
-                ~a_map=Option.get(cold).merged,
+                ~a_map=Option.value_exn(cold).merged,
                 c,
                 ~b_map=t.merged,
                 got,
@@ -317,12 +325,12 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
           switch (g, w) {
           | (Some(g), Some(w)) when infos =>
             Option.iter(
-              d => at(id, d ++ " at " ++ cls(w)),
+              ~f=d => at(id, d ++ " at " ++ cls(w)),
               differ(~types=true, w, g),
             );
             if (places) {
               Option.iter(
-                d => at(id, d ++ " at " ++ cls(w)),
+                ~f=d => at(id, d ++ " at " ++ cls(w)),
                 place_differs(~a_map=want, w, ~b_map=got, g),
               );
             };
@@ -341,12 +349,12 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
       note(what ++ ": " ++ string_of_int(n^) ++ " keys in all");
     };
   };
-  let ids = xs => List.sort(compare, List.map(Id.str8, xs));
+  let ids = xs => List.sort(~compare, List.map(~f=Id.str8, xs));
   let same = (what, show, a, b) =>
     if (a != b) {
       note(what ++ ": " ++ show(b) ++ " / " ++ show(a));
     };
-  let names = String.concat(" ");
+  let names = String.concat(~sep=" ");
   maps(~places=true, "merged", t.merged, cold.merged);
   same(
     "errors",
@@ -361,29 +369,31 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
     ids(DefStatics.all_warning_ids(cold)),
   );
   /* maps the last step had, already compared then */
-  let seen = Hashtbl.create(64);
+  let seen = Stdlib.Hashtbl.create(64);
   let rec remember = (items: list(DefStatics.item)) =>
     List.iter(
+      ~f=
       (it: DefStatics.item) => {
-        Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
+          Stdlib.Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
         remember(it.d_members);
       },
       items,
     );
-  Option.iter((p: DefStatics.t) => remember(p.items), prev);
+  Option.iter(~f=(p: DefStatics.t) => remember(p.items), prev);
   let fresh = (it: DefStatics.item) =>
-    switch (Hashtbl.find_opt(seen, Id.to_string(it.d_id))) {
-    | Some(m) => m !== it.d_map
+    switch (Stdlib.Hashtbl.find_opt(seen, Id.to_string(it.d_id))) {
+    | Some(m) => !phys_equal(m, it.d_map)
     | None => true
     };
   let rec items = (path, got: list(DefStatics.item), want) =>
     if (List.length(got) != List.length(want)) {
       note(path ++ ": item count");
     } else {
-      List.iter2(
+      List.iter2_exn(
+        ~f=
         (g: DefStatics.item, w: DefStatics.item) => {
           let at = path ++ "/" ++ Id.str8(w.d_id);
-          if (g.d_id != w.d_id) {
+            if (!Id.equal(g.d_id, w.d_id)) {
             note(at ++ ": id " ++ Id.str8(g.d_id));
           } else {
             maps(~infos=fresh(g), at, g.d_map, w.d_map);
@@ -404,8 +414,8 @@ let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
             same(
               at ++ " exports",
               names,
-              List.map(DefStatics.entry_name, g.d_exports),
-              List.map(DefStatics.entry_name, w.d_exports),
+                List.map(~f=DefStatics.entry_name, g.d_exports),
+                List.map(~f=DefStatics.entry_name, w.d_exports),
             );
             items(at, g.d_members, w.d_members);
           };

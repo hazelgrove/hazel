@@ -2,6 +2,7 @@ open Util;
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* the readers of a term's ancestors and parent give the same answers on
    the editor's compositional statics as on a whole-program analysis of
@@ -69,10 +70,10 @@ let point = (~off=0, src: string, needle: string): Point.t => {
             col: c + off,
           }: Point.t
         )
-      | exception Not_found => find(row + 1, rest)
+      | exception Stdlib.Not_found => find(row + 1, rest)
       }
     };
-  find(0, String.split_on_char('\n', src));
+  find(0, String.split(~on='\n', src));
 };
 
 let perform = (~root, ~statics, z: Zipper.t, a: Action.t): option(Zipper.t) =>
@@ -103,15 +104,15 @@ let grow = (~root, ~statics, ~n, src, needle, z) => {
       ? Some(z)
       : Option.bind(
           perform(~root, ~statics, z, Select(Term(Current))),
-          go(n - 1),
+          ~f=go(n - 1),
         );
-  switch (Option.bind(at(~root, ~statics, src, needle, z), go(n))) {
+  switch (Option.bind(at(~root, ~statics, src, needle, z), ~f=go(n))) {
   | None => "Cant_select"
   | Some(z) =>
     Printer.of_segment(~holes="?", ~refractors=[], z.selection.content)
-    |> String.split_on_char('\n')
-    |> List.map(String.trim)
-    |> String.concat(" ⏎ ")
+    |> String.split(~on='\n')
+    |> List.map(~f=String.strip)
+    |> String.concat(~sep=" ⏎ ")
   };
 };
 
@@ -119,8 +120,10 @@ let cmd_d = (~root, src, needle, expect: list(string), ()) => {
   let z = Zipper.unzip(CorpusUtil.seg_of(~root, src));
   let (editor, whole) = statics(~root, z);
   List.iteri(
+    ~f=
     (i, want) =>
       List.iter(
+          ~f=
         ((what, statics)) =>
           check(
             string,
@@ -236,7 +239,10 @@ let own_ids = (term: Exp.t): list(Id.t) => {
     | Module(_) => [Exp.rep_id(term)]
     | _ => []
     };
-  List.sort_uniq(compare, List.filter(id => !List.mem(id, root), acc^));
+  List.dedup_and_sort(
+    ~compare,
+    List.filter(~f=id => !List.mem(root, id, ~equal=Poly.equal), acc^),
+  );
 };
 
 /* an answer per own id, on either statics: the id shown with its class */
@@ -249,14 +255,17 @@ let per_id = ((editor: CachedStatics.t, whole: CachedStatics.t), f) => {
     };
   let answers = (st: CachedStatics.t) =>
     List.map(
+      ~f=
       id =>
         show(whole.info_map, id)
         ++ ": "
         ++ (
           switch (f(st, id)) {
-          | Some(a) => List.mem(a, own) ? show(whole.info_map, a) : "-"
+            | Some(a) =>
+              List.mem(own, a, ~equal=Poly.equal)
+                ? show(whole.info_map, a) : "-"
           | None => "-"
-          | exception e => "raised " ++ Printexc.to_string(e)
+            | exception e => "raised " ++ Stdlib.Printexc.to_string(e)
           }
         ),
       own,
@@ -276,7 +285,7 @@ let consumers = ((name, root, src), ()) => {
   same(
     name ++ ": parents",
     per_id(both, (st, id) =>
-      Option.bind(Statics.Map.lookup(id, st.info_map), Info.parent_id_of)
+      Option.bind(Statics.Map.lookup(id, st.info_map), ~f=Info.parent_id_of)
     ),
   );
   same(
@@ -299,8 +308,8 @@ let consumers = ((name, root, src), ()) => {
     let rows = Web.OutlineTree.row_ids(outline);
     switch (Id.Map.find_opt(id, st.info_map)) {
     | Some(info) =>
-      List.find_opt(
-        x => Id.Map.mem(x, rows),
+      List.find(
+        ~f=x => Id.Map.mem(x, rows),
         [id, ...Info.within_item(~info_map=st.info_map, info)],
       )
     | None => None
@@ -314,9 +323,11 @@ let consumers = ((name, root, src), ()) => {
   same(name ++ ": the row search, monolithic", (r_whole, w_whole));
   let pending = (st: CachedStatics.t) =>
     EvalWorklist.pending_ids_uncached(st.info_map)
-    |> List.filter(id => List.mem(id, own_ids(st.term)))
-    |> List.map(Id.str8)
-    |> List.sort(compare);
+    |> List.filter(~f=id =>
+         List.mem(own_ids(st.term), id, ~equal=Poly.equal)
+       )
+    |> List.map(~f=Id.str8)
+    |> List.sort(~compare);
   check(
     list(string),
     name ++ ": pending evaluation",
@@ -328,18 +339,20 @@ let consumers = ((name, root, src), ()) => {
 /* a member's autoprobe target is its definition, as a top-level one is */
 let member_autoprobe = () =>
   List.iter(
+    ~f=
     ((root, src)) => {
       let seg = CorpusUtil.seg_of(~root, src);
       let (editor, whole) = statics(~root, Zipper.unzip(seg));
       let id = CorpusUtil.tile("+", seg);
       List.iter(
+          ~f=
         ((what, st: CachedStatics.t)) =>
           check(
             option(string),
             "the member's definition (" ++ what ++ ")",
             Some(Id.str8(id)),
             Option.map(
-              Id.str8,
+                  ~f=Id.str8,
               AutoProbePerform.toplevel_def_body_id(
                 ~statics=st.info_map,
                 ~id,
@@ -361,42 +374,42 @@ let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
   let outline = CorpusUtil.outline_of(~root, seg);
   let (editor, whole) = statics(~root, z);
   List.iter(
+    ~f=
     ((what, st: CachedStatics.t)) => {
       let nodes = O.flatten(O.rows(outline));
       let id_of = label =>
-        switch (List.find_opt((n: O.node) => n.o_label == label, nodes)) {
+          switch (List.find(~f=(n: O.node) => n.o_label == label, nodes)) {
         | Some({o_id: Some(id), _}) => id
         | _ => fail("no row " ++ label)
         };
       let (direct, roll) =
-        O.error_rows(
-          ~info_map=st.info_map,
-          ~rows=O.collect(O.rows(outline)),
-          st.error_ids,
-        );
+          O.error_badges(~info_map=st.info_map, st.error_ids, outline);
       check(
         bool,
         what ++ ": " ++ own ++ " owns the error",
         true,
-        List.mem(id_of(own), direct),
+          List.mem(direct, id_of(own), ~equal=Poly.equal),
       );
       List.iter(
+          ~f=
         r =>
           check(
             bool,
             what ++ ": " ++ r ++ " rolls it up",
             true,
-            List.mem(id_of(r), roll),
+                List.mem(roll, id_of(r), ~equal=Poly.equal),
           ),
         rolls,
       );
       List.iter(
+          ~f=
         r =>
           check(
             bool,
             what ++ ": " ++ r ++ " has no badge",
             false,
-            List.mem(id_of(r), roll) || List.mem(id_of(r), direct),
+                List.mem(roll, id_of(r), ~equal=Poly.equal)
+                || List.mem(direct, id_of(r), ~equal=Poly.equal),
           ),
         not_rolls,
       );
@@ -429,6 +442,17 @@ let rollup_tests = [
     ),
   ),
   test_case(
+    "an error in a function's local rolls up into the function",
+    `Quick,
+    error_rollup(
+      ~root=Exp,
+      "let a = 1 in\nlet f = fun n ->\n  let y = n + true in\n  y\nin\nf(a)",
+      ~own="y",
+      ~rolls=["f"],
+      ~not_rolls=["a"],
+    ),
+  ),
+  test_case(
     "an error in a let chain stays on its item",
     `Quick,
     error_rollup(
@@ -444,11 +468,12 @@ let rollup_tests = [
 let tests = (
   "StaticsAncestry",
   List.map(
-    ((name, speed, f)) => (name, speed, DefStaticsCheck.armed(f)),
+    ~f=((name, speed, f)) => (name, speed, DefStaticsCheck.armed(f)),
     cmd_d_tests
     @ rollup_tests
     @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
     @ List.map(
+        ~f=
         ((name, _, _) as p) =>
           test_case("readers: " ++ name, `Quick, consumers(p)),
         programs,

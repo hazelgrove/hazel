@@ -2,12 +2,13 @@ open Alcotest;
 open Haz3lcore;
 open Util;
 open Web;
+open Poly;
 
 /* a reply's structural calls on the editing kernel: one transaction, its
    results by canonical path; tests addressed by hint; move */
 
-let mk_zipper = (code: string): Zipper.t =>
-  switch (Parser.to_zipper(~root=Exp, code)) {
+let mk_zipper = (~root=Sort.Exp, code: string): Zipper.t =>
+  switch (Parser.to_zipper(~root, code)) {
   | Some(z) => z
   | None => fail("unparseable: " ++ code)
   };
@@ -17,14 +18,14 @@ let text = (z: Zipper.t): string => Printer.of_zipper(~holes="?", z);
 let call = (i, name, args): OpenRouter.Reply.Model.tool_call => {
   id: "call-" ++ string_of_int(i),
   name,
-  args: `Assoc(List.map(((k, v)) => (k, `String(v)), args)),
+  args: `Assoc(List.map(~f=((k, v)) => (k, `String(v)), args)),
 };
 
 let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
   Chat.Utils.linearize(
     ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
   )
-  |> List.filter_map((m: Message.Model.t) =>
+  |> List.filter_map(~f=(m: Message.Model.t) =>
        switch (m.role) {
        | ToolResult(tr) => Some(tr)
        | _ => None
@@ -37,6 +38,7 @@ let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
 let run =
     (
       ~settings=Settings.Model.init,
+      ~root=Sort.Exp,
       code: string,
       replies: list(list(OpenRouter.Reply.Model.tool_call)),
     )
@@ -57,7 +59,7 @@ let run =
             },
             agent.chat_system.current,
             agent.main_llm_seq,
-            0,
+            None,
           ),
           agent,
           ce,
@@ -79,40 +81,43 @@ let run =
     };
   go(
     Agent.Utils.init(),
-    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(code), ~root=Exp)),
+    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(~root, code), ~root)),
     replies,
   );
 };
 
-let replies = (~settings=?, code, replies) =>
-  fst(run(~settings?, code, replies));
+let replies = (~settings=?, ~root=?, code, replies) =>
+  fst(run(~settings?, ~root?, code, replies));
 
 /* [calls] as one assistant reply on [code]: the program after, and the
    tool results in order */
 let reply =
     (
       ~settings=?,
+      ~root=?,
       code: string,
       calls: list((string, list((string, string)))),
     )
     : (string, list(AgentToolResult.tool_result)) =>
-  List.hd(
+  List.hd_exn(
     replies(
       ~settings?,
+      ~root?,
       code,
-      [List.mapi((i, (n, a)) => call(i, n, a), calls)],
+      [List.mapi(~f=(i, (n, a)) => call(i, n, a), calls)],
     ),
   );
 
 /* an example's calls as a reply's */
 let example_calls = (calls: list(ToolExamples.call)) =>
   List.mapi(
-    (i, c: ToolExamples.call): OpenRouter.Reply.Model.tool_call =>
-      {
-        id: "call-" ++ string_of_int(i),
-        name: c.tool,
-        args: `Assoc(c.args),
-      },
+    ~f=
+      (i, c: ToolExamples.call): OpenRouter.Reply.Model.tool_call =>
+        {
+          id: "call-" ++ string_of_int(i),
+          name: c.tool,
+          args: `Assoc(c.args),
+        },
     calls,
   );
 
@@ -129,15 +134,15 @@ let same_text = (what, want, got) =>
   check(
     string,
     what,
-    String.concat(" ", String.split_on_char('\n', want)),
-    String.concat(" ", String.split_on_char('\n', got)),
+    String.concat(~sep=" ", String.split(~on='\n', want)),
+    String.concat(~sep=" ", String.split(~on='\n', got)),
   );
 
 let geo = "let area = fun s -> s * s in\nlet total = fun xs -> 0 in\nmodule Geo = { let perimeter = 4 } in\n?";
 
 let transactions = [
   test_case(
-    "a definition spanning lines lands with its `in` laid out as its neighbours'",
+    "a definition spanning lines lands with its `in` on a line of its own",
     `Quick,
     () => {
       let (program, _) =
@@ -158,7 +163,111 @@ let transactions = [
         );
       mentions(
         "program",
-        "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test area",
+        "  | Rect(_, _) => false\n  end\nin\n\nlet perimeter",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "a test is parted from a definition of any form",
+    `Quick,
+    () => {
+      /* V: `let flip_x: Scene -> Scene =` whose body is a block */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [
+            (
+              "insert",
+              [
+                ("before", "=>"),
+                (
+                  "code",
+                  "let flip_x: Int -> Int =\n  let neg(x: Int): Int = 0 - x in\n  neg\nin\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test\n  flip_x(flip_x(1)) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  neg\nin\n\nhint \"flip once\" test\n  flip_x(1) == -1\nend;\nhint \"flip twice\" test",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "a test the code sets apart by a blank line keeps it",
+    `Quick,
+    () => {
+      /* N2-Sonnet: "add, mark, count" exercises three functions */
+      let code = {|let add_task(title: String, tasks: [String]): [String] =
+  tasks @ [title]
+in
+hint "add to empty" test add_task("a", []) == ["a"] end;
+
+?|};
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "let count_open(tasks: [String]): Int =\n  case tasks\n  | [] => 0\n  | _ :: rest => 1 + count_open(rest)\n  end\nin\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test\n  count_open(add_task(\"a\", [])) == 1\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  end\nin\n\nhint \"count empty\" test count_open([]) == 0 end;\nhint \"count one\" test count_open([\"a\"]) == 1 end;\n\nhint \"add, mark, count\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "\nhint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "a leading blank line",
+        "== [\"a\"] end;\n\nhint \"add twice\" test",
+        program,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"add to empty\""),
+                (
+                  "code",
+                  "hint \"add twice\" test\n  add_task(\"b\", add_task(\"a\", [])) == [\"a\", \"b\"]\nend",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "else together",
+        "== [\"a\"] end;\nhint \"add twice\" test",
         program,
       );
     },
@@ -183,18 +292,21 @@ let transactions = [
         list(bool),
         "all applied",
         [true, true, true],
-        List.map((tr: AgentToolResult.tool_result) => tr.success, results),
+        List.map(
+          ~f=(tr: AgentToolResult.tool_result) => tr.success,
+          results,
+        ),
       );
-      mentions("insert's result", "Added b.", List.hd(results).content);
+      mentions("insert's result", "Added b.", List.hd_exn(results).content);
       mentions(
         "update's result",
         "Replaced b:definition.",
-        List.nth(results, 1).content,
+        List.nth_exn(results, 1).content,
       );
       mentions(
         "the last result",
         "Static errors: none.",
-        List.nth(results, 2).content,
+        List.nth_exn(results, 2).content,
       );
     },
   ),
@@ -247,11 +359,15 @@ let transactions = [
           ],
         );
       same_text("program unchanged", code, program);
-      let second = List.nth(results, 1);
+      let second = List.nth_exn(results, 1);
       check(bool, "the erring call failed", false, second.success);
-      mentions("its result", "it would add static errors", second.content);
+      mentions(
+        "its result",
+        "it would add 1 static error (0 before, 1 after), in: a (1).",
+        second.content,
+      );
       mentions("its result", "a:", second.content);
-      mentions("the first", "Rolled back.", List.hd(results).content);
+      mentions("the first", "Rolled back.", List.hd_exn(results).content);
     },
   ),
   test_case(
@@ -271,7 +387,7 @@ let transactions = [
           ],
         );
       same_text("program unchanged", code, program);
-      let second = List.nth(results, 1);
+      let second = List.nth_exn(results, 1);
       check(bool, "the call adding it failed", false, second.success);
       mentions("its result", "1 before, 1 after", second.content);
       mentions("its result", "- b:", second.content);
@@ -292,7 +408,7 @@ let transactions = [
       mentions(
         "result",
         "Static errors: 1 (1 before), none new.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -322,7 +438,7 @@ let transactions = [
           ],
         );
       same_text("applied with its error", "let a = true + 1 in a", program);
-      mentions("result", "New:", List.hd(results).content);
+      mentions("result", "New:", List.hd_exn(results).content);
       let (program, _) =
         reply(
           ~settings=
@@ -367,7 +483,7 @@ let transactions = [
         "applied",
         true,
         List.for_all(
-          (tr: AgentToolResult.tool_result) => tr.success,
+          ~f=(tr: AgentToolResult.tool_result) => tr.success,
           results,
         ),
       );
@@ -382,7 +498,7 @@ let transactions = [
           "let a = 1 in a",
           [("insert", [("after", "a"), ("code", "let b = 2 in")])],
         );
-      switch (List.hd(results).steps) {
+      switch (List.hd_exn(results).steps) {
       | [step] =>
         check(string, "op", "insert", step.op);
         check(option(string), "its entry", Some("b"), step.into);
@@ -402,7 +518,7 @@ let deletes_and_renames = [
       let (program, results) =
         reply(code, [("delete", [("target", "a")])]);
       same_text("program unchanged", code, program);
-      let r = List.hd(results);
+      let r = List.hd_exn(results);
       check(bool, "refused", false, r.success);
       mentions("result", "a, used at b, c", r.content);
     },
@@ -430,16 +546,19 @@ let deletes_and_renames = [
       let seg = Zipper.unselect_and_zip(z);
       let rec toks = (seg: Segment.t): list((Id.t, string)) =>
         List.concat_map(
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile({form: Tok(s), id, _}) => [(id, s)]
-            | Tile(t) => List.concat_map(toks, t.children)
-            | _ => []
-            },
+          ~f=
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile({form: Tok(s), id, _}) => [(id, s)]
+              | Tile(t) => List.concat_map(~f=toks, t.children)
+              | _ => []
+              },
           seg,
         );
       let ids_of = (seg, name) =>
-        toks(seg) |> List.filter(((_, s)) => s == name) |> List.map(fst);
+        toks(seg)
+        |> List.filter(~f=((_, s)) => s == name)
+        |> List.map(~f=fst);
       let before = ids_of(seg, "total");
       switch (
         CompositionGo.go(
@@ -456,8 +575,8 @@ let deletes_and_renames = [
         check(
           list(string),
           "same ids, renamed",
-          List.map(Id.to_string, before),
-          List.map(Id.to_string, ids_of(seg', "sum")),
+          List.map(~f=Id.to_string, before),
+          List.map(~f=Id.to_string, ids_of(seg', "sum")),
         );
       | Error(e) => fail(Action.Failure.show(e))
       };
@@ -471,7 +590,7 @@ let deletes_and_renames = [
       let (program, results) =
         reply(code, [("rename", [("target", "b"), ("to", "a")])]);
       same_text("program unchanged", code, program);
-      mentions("result", "Not renamed to a", List.hd(results).content);
+      mentions("result", "Not renamed to a", List.hd_exn(results).content);
     },
   ),
   test_case(
@@ -491,7 +610,7 @@ let deletes_and_renames = [
 /* a reply of one call on [code]: the program after and its result */
 let one = (code, tool, args) => {
   let (program, results) = reply(code, [(tool, args)]);
-  (program, List.hd(results));
+  (program, List.hd_exn(results));
 };
 
 let bound_renames = [
@@ -666,7 +785,11 @@ let tests_by_hint = [
           ],
         );
       mentions("program", "double(1) == 2", program);
-      mentions("result", "Replaced \"doubles\".", List.hd(results).content);
+      mentions(
+        "result",
+        "Replaced \"doubles\".",
+        List.hd_exn(results).content,
+      );
     },
   ),
   test_case(
@@ -696,7 +819,7 @@ let tests_by_hint = [
           "let a = 1 in a",
           [("insert", [("after", "a"), ("code", "test a == 1 end")])],
         );
-      mentions("result", "Added test#1.", List.hd(results).content);
+      mentions("result", "Added test#1.", List.hd_exn(results).content);
     },
   ),
 ];
@@ -711,7 +834,7 @@ let moves = [
       mentions(
         "program",
         "let perimeter = 4; let area = fun s -> s * s",
-        String.concat(" ", String.split_on_char('\n', program)),
+        String.concat(~sep=" ", String.split(~on='\n', program)),
       );
       check(
         bool,
@@ -722,7 +845,7 @@ let moves = [
       mentions(
         "result",
         "Moved area last in Geo (now Geo/area).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
     },
   ),
@@ -734,14 +857,14 @@ let moves = [
         reply(geo, [("move", [("target", "area"), ("after", "total")])]);
       mentions(
         "after",
-        "let total = fun xs -> 0 in\nlet area = fun s -> s * s in",
+        "let total = fun xs -> 0 in\n\nlet area = fun s -> s * s in",
         program,
       );
       let (program, _) =
         reply(geo, [("move", [("target", "Geo"), ("before", "area")])]);
       mentions(
         "before",
-        "module Geo = { let perimeter = 4 } in\nlet area",
+        "module Geo = { let perimeter = 4 } in\n\nlet area",
         program,
       );
     },
@@ -774,8 +897,8 @@ let moves = [
         check(
           option(string),
           "same anchor",
-          Option.map(Id.to_string, anchor(seg)),
-          Option.map(Id.to_string, anchor(Zipper.unselect_and_zip(z'))),
+          Option.map(~f=Id.to_string, anchor(seg)),
+          Option.map(~f=Id.to_string, anchor(Zipper.unselect_and_zip(z'))),
         )
       | Error(e) => fail(Action.Failure.show(e))
       };
@@ -789,7 +912,7 @@ let moves = [
         reply(geo, [("move", [("target", "area"), ("last_in", "")])]);
       mentions(
         "program",
-        "module Geo = { let perimeter = 4 } in\nlet area = fun s -> s * s in\n?",
+        "module Geo = { let perimeter = 4 } in\n\nlet area = fun s -> s * s in\n\n?",
         program,
       );
     },
@@ -819,7 +942,7 @@ let moves = [
             ),
           ],
         );
-      mentions("result", "exactly one of", List.hd(results).content);
+      mentions("result", "exactly one of", List.hd_exn(results).content);
     },
   ),
 ];
@@ -874,7 +997,7 @@ let test_results = [
             },
             chat_id,
             agent.main_llm_seq,
-            0,
+            None,
           ),
           agent,
           ce,
@@ -882,7 +1005,12 @@ let test_results = [
           _ =>
           ()
         );
-      check(bool, "pending", true, AgentToolExec.Tests.pending^ != None);
+      check(
+        bool,
+        "pending",
+        true,
+        Option.is_some(AgentToolExec.Tests.pending^),
+      );
       let after = evaluated(ce'.model);
       let chat_system =
         AgentToolExec.Tests.report(
@@ -890,18 +1018,23 @@ let test_results = [
           EvalResult.Model.test_results(after.result),
           agent'.chat_system,
         );
-      check(bool, "taken", true, AgentToolExec.Tests.pending^ == None);
+      check(
+        bool,
+        "taken",
+        true,
+        Option.is_none(AgentToolExec.Tests.pending^),
+      );
       let result =
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, chat_system),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | ToolResult(tr) => Some(tr.content)
              | _ => None
              }
            )
-        |> List.hd;
+        |> List.hd_exn;
       mentions(
         "result",
         "Tests changed: test#1 failing → passing.",
@@ -930,14 +1063,14 @@ let feedback = [
       mentions(
         "result",
         "`code` contains `\\n` as two characters; write real line breaks (and plain quotes).",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       check(
         list(bool),
         "escapes outside strings only",
         [true, true, false, false],
         List.map(
-          CompositionGo.escaped,
+          ~f=CompositionGo.escaped,
           [
             "let b = 2 in\\nb",
             "hint \\\"x\\\" test true end",
@@ -945,6 +1078,52 @@ let feedback = [
             "let s = \"a\\\"b\" in s",
           ],
         ),
+      );
+    },
+  ),
+  test_case(
+    "a parse error says where, with the text near it",
+    `Quick,
+    () => {
+      /* N2 Flash: record syntax got a raw `menhir: Failure(…)` */
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [
+            (
+              "insert",
+              [
+                ("after", "a"),
+                (
+                  "code",
+                  "type Task = { title: String, done: Bool } in\nlet t = 1",
+                ),
+              ],
+            ),
+          ],
+        );
+      let content = List.hd_exn(results).content;
+      mentions(
+        "result",
+        "The code does not parse at line 1, column 15, near `type Task = { title: String, done:`.",
+        content,
+      );
+      mentions(
+        "the record hint",
+        "Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`.",
+        content,
+      );
+      check(bool, "no raw parser text", false, has("Failure", content));
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 1 +\n  (2 *")])],
+        );
+      check(
+        bool,
+        "no record hint elsewhere",
+        false,
+        has("records", List.hd_exn(results).content),
       );
     },
   ),
@@ -974,7 +1153,7 @@ let feedback = [
       mentions(
         "result",
         "Replaced W/pad, kept the comment above it.",
-        List.hd(results).content,
+        List.hd_exn(results).content,
       );
       let (program, _) =
         reply(
@@ -1013,7 +1192,7 @@ let feedback = [
         call(0, "insert", [("after", "a"), ("code", "let b = 1 +")]),
       ];
       let first = ((_, trs)) =>
-        (List.hd(trs): AgentToolResult.tool_result).content;
+        (List.hd_exn(trs): AgentToolResult.tool_result).content;
       let last_agent = (agent: Agent.Model.t) =>
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(
@@ -1021,38 +1200,47 @@ let feedback = [
             agent.chat_system,
           ),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | Agent(_) => Some(m.content)
              | _ => None
              }
            )
-        |> ListUtil.last_opt;
+        |> List.last;
       let notice = AgentToolExec.Repeats.notice;
       let (rs, agent) = run("let a = 1 in a", [bad, bad, other, bad, bad]);
       check(
         list(bool),
         "noticed: only the same as the last",
         [false, true, false, false, true],
-        List.map(r => String.starts_with(~prefix=notice, first(r)), rs),
+        List.map(~f=r => String.is_prefix(~prefix=notice, first(r)), rs),
       );
       check(
         bool,
         "not stopped",
         false,
-        Option.fold(~none=false, ~some=has("Stopped"), last_agent(agent)),
+        Option.value_map(
+          last_agent(agent),
+          ~default=false,
+          ~f=has("Stopped"),
+        ),
       );
       let (_, agent) =
         run(
           "let a = 1 in a",
-          List.init(AgentToolExec.Repeats.limit, _ => bad),
+          List.init(AgentToolExec.Repeats.limit, ~f=_ => bad),
         );
       mentions(
         "the note to the user",
         "Stopped: the agent sent the same calls 5 times in a row",
         Option.value(last_agent(agent), ~default=""),
       );
-      check(bool, "turn ended", true, agent.awaiting_response == None);
+      check(
+        bool,
+        "turn ended",
+        true,
+        Option.is_none(agent.awaiting_response),
+      );
     },
   ),
   test_case(
@@ -1092,7 +1280,7 @@ let feedback = [
             },
             chat_id,
             agent.main_llm_seq,
-            0,
+            None,
           ),
           agent,
           ce,
@@ -1110,13 +1298,13 @@ let feedback = [
         Chat.Utils.linearize(
           ChatSystem.Utils.find_chat(chat_id, chat_system),
         )
-        |> List.filter_map((m: Message.Model.t) =>
+        |> List.filter_map(~f=(m: Message.Model.t) =>
              switch (m.role) {
              | ToolResult(tr) => Some(tr.content)
              | _ => None
              }
            )
-        |> List.hd;
+        |> List.hd_exn;
       mentions(
         "result",
         "Tests changed: \"zero\" passing → failing. Failing: \"zero\" (newly), test#1.",
@@ -1131,82 +1319,942 @@ let feedback = [
 let prompt_examples = [
   test_case("the tool examples", `Quick, () =>
     List.iter(
-      (e: ToolExamples.example) => {
-        let (_, results) =
-          List.hd(replies(e.program, [example_calls(e.calls)]));
-        List.iteri(
-          (i, tr: AgentToolResult.tool_result) => {
-            let c = List.nth(e.calls, i);
-            switch (e.results) {
-            | Some(rs) =>
-              let want = List.nth(rs, i);
-              tr.success
-                ? mentions(e.intent, c.tool ++ ": " ++ want, tr.content)
-                : mentions(e.intent, want, tr.content);
-            | None =>
-              check(bool, e.intent ++ ": " ++ tr.content, true, tr.success)
-            };
-          },
-          results,
-        );
-        check(
-          int,
-          e.intent ++ ": all ran",
-          List.length(e.calls),
-          List.length(results),
-        );
-      },
+      ~f=
+        (e: ToolExamples.example) => {
+          let (_, results) =
+            List.hd_exn(replies(e.program, [example_calls(e.calls)]));
+          List.iteri(
+            ~f=
+              (i, tr: AgentToolResult.tool_result) => {
+                let c = List.nth_exn(e.calls, i);
+                switch (e.results) {
+                | Some(rs) =>
+                  let want = List.nth_exn(rs, i);
+                  tr.success
+                    ? mentions(e.intent, c.tool ++ ": " ++ want, tr.content)
+                    : mentions(e.intent, want, tr.content);
+                | None =>
+                  check(
+                    bool,
+                    e.intent ++ ": " ++ tr.content,
+                    true,
+                    tr.success,
+                  )
+                };
+              },
+            results,
+          );
+          check(
+            int,
+            e.intent ++ ": all ran",
+            List.length(e.calls),
+            List.length(results),
+          );
+        },
       ToolExamples.all,
     )
   ),
   test_case("the few-shot example", `Quick, () =>
     List.iter(
-      (e: Eg_RecFib.example) => {
-        Option.iter(
-          view =>
-            Test_AgentView.golden(
-              e.asks ++ ": the start",
-              view,
-              Test_AgentView.render(~evaluate=true, e.program),
-            ),
-          e.start,
-        );
-        let steps =
-          replies(
-            e.program,
-            List.map(
-              (s: Eg_RecFib.step) => example_calls(s.calls),
-              e.steps,
-            ),
-          );
-        List.iter2(
-          (s: Eg_RecFib.step, (program, results)) => {
-            List.iter(
-              (tr: AgentToolResult.tool_result) =>
-                check(
-                  bool,
-                  e.asks ++ ": " ++ tr.tool_call.name ++ ": " ++ tr.content,
-                  true,
-                  tr.success,
+      ~f=
+        (e: Eg_RecFib.example) => {
+          Option.iter(
+            ~f=
+              view =>
+                Test_AgentView.golden(
+                  e.asks ++ ": the start",
+                  view,
+                  Test_AgentView.render(~evaluate=true, e.program),
                 ),
-              results,
+            e.start,
+          );
+          let steps =
+            replies(
+              e.program,
+              List.map(
+                ~f=(s: Eg_RecFib.step) => example_calls(s.calls),
+                e.steps,
+              ),
             );
-            switch (s.sees) {
-            | Some((view, opened)) =>
-              Test_AgentView.golden(
-                e.asks,
-                view,
-                Test_AgentView.render(~evaluate=true, ~opened, program),
-              )
-            | None => ()
-            };
-          },
-          e.steps,
-          steps,
-        );
-      },
+          List.iter2_exn(
+            ~f=
+              (s: Eg_RecFib.step, (program, results)) => {
+                List.iter(
+                  ~f=
+                    (tr: AgentToolResult.tool_result) =>
+                      check(
+                        bool,
+                        e.asks
+                        ++ ": "
+                        ++ tr.tool_call.name
+                        ++ ": "
+                        ++ tr.content,
+                        true,
+                        tr.success,
+                      ),
+                  results,
+                );
+                switch (s.sees) {
+                | Some((view, opened)) =>
+                  Test_AgentView.golden(
+                    e.asks,
+                    view,
+                    Test_AgentView.render(~evaluate=true, ~opened, program),
+                  )
+                | None => ()
+                };
+              },
+            e.steps,
+            steps,
+          );
+        },
       Eg_RecFib.examples,
     )
+  ),
+  test_case(
+    "the probe example",
+    `Quick,
+    () => {
+      open ToolExamples;
+      let view = (~opened=[], src) =>
+        Test_AgentView.render(~evaluate=true, ~opened, src);
+      mentions("the failing test", debug_failing, view(debug_program));
+      let probed =
+        StringUtil.replace(
+          StringUtil.regexp("a \\+ a in"),
+          debug_program,
+          "^^probe(a + a) in",
+        );
+      mentions("the probe", debug_seen, view(~opened=["mean"], probed));
+      let steps =
+        replies(
+          debug_program,
+          List.map(
+            ~f=c => example_calls([c]),
+            [debug_probe, debug_fix, debug_unprobe],
+          ),
+        );
+      List.iter(
+        ~f=
+          ((_, results)) =>
+            List.iter(
+              ~f=
+                (tr: AgentToolResult.tool_result) =>
+                  check(
+                    bool,
+                    tr.tool_call.name ++ ": " ++ tr.content,
+                    true,
+                    tr.success,
+                  ),
+              results,
+            ),
+        steps,
+      );
+      mentions(
+        "the fix",
+        {|hint "mean of two" test mean(2, 4) == 3 end;  #› ✓ #|},
+        view(fst(ListUtil.last(steps))),
+      );
+    },
+  ),
+];
+
+/* a replayed session from an empty program: the layout around the
+   agent's code is house style, comments don't pile up, and entries
+   without separators get a message that says so */
+let repro = [
+  test_case(
+    "a session from an empty program",
+    `Quick,
+    () => {
+      let insert = (place, code) => ("insert", [place, ("code", code)]);
+      let reply = calls =>
+        List.mapi(~f=(i, (n, a)) => call(i, n, a), calls);
+      let redoc =
+        reply([
+          (
+            "replace",
+            [
+              ("target", "area:definition"),
+              (
+                "code",
+                "# approximate area, pi taken as 3; lines have none #\ncase s\n| Circle(_, r) => 3 * r * r\n| Rect(_, _) => 2\n| Line(_, _) => 0\nend",
+              ),
+            ],
+          ),
+        ]);
+      let steps =
+        replies(
+          "?",
+          [
+            reply([
+              insert(
+                ("first_in", "/"),
+                "type Point = (Int, Int)\ntype Style = (Int, Bool)",
+              ),
+            ]),
+            reply([
+              insert(
+                ("first_in", "/"),
+                "type Point = (Int, Int) in\ntype Style = (Int, Bool) in\ntype Shape =\n  + Circle(Point, Int)\n  + Rect(Point, Point)\n  + Line(Point, Point)",
+              ),
+            ]),
+            reply([
+              insert(
+                ("after", "Shape"),
+                "let area(s: Shape): Int =\n  # approximate area, pi taken as 3 #\n  case s\n  | Circle(_, r) => 3 * r * r\n  | Rect(_, _) => 1\n  | Line(_, _) => 0\n  end",
+              ),
+              insert(
+                ("after", "area"),
+                "hint \"circle area\" test area(Circle((0, 0), 2)) == 12 end",
+              ),
+            ]),
+            redoc,
+            redoc,
+            reply([
+              insert(
+                ("after", "\"circle area\""),
+                "let double(n: Int): Int =\n  # twice n #\n  2 * n",
+              ),
+            ]),
+          ],
+        );
+      let result = (k, i) =>
+        List.nth_exn(snd(List.nth_exn(steps, k)), i).AgentToolResult.content;
+      mentions(
+        "entries without `in`",
+        "Entries in one `code` need `in` between them (`;` in a module); leave it off the last.",
+        result(0, 0),
+      );
+      mentions(
+        "the first replace",
+        "- # approximate area, pi taken as 3 #",
+        result(3, 0),
+      );
+      mentions(
+        "the second replace",
+        "Replaced area:definition. Static",
+        result(4, 0),
+      );
+      check(
+        string,
+        "the program",
+        {|type Point = (Int, Int) in
+
+type Style = (Int, Bool) in
+
+type Shape =
+  + Circle(Point, Int)
+  + Rect(Point, Point)
+  + Line(Point, Point)
+in
+
+let area(s: Shape): Int =
+  # approximate area, pi taken as 3; lines have none #
+  case s
+  | Circle(_, r) => 3 * r * r
+  | Rect(_, _) => 2
+  | Line(_, _) => 0
+  end
+in
+
+hint "circle area" test area(Circle((0, 0), 2)) == 12 end;
+
+let double(n: Int): Int =
+  # twice n #
+  2 * n
+in
+
+?|},
+        fst(ListUtil.last(steps)),
+      );
+    },
+  ),
+];
+
+/* V Flash: `translate:definition` on a body of local definitions */
+let translate = {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x + d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|};
+
+let definitions = [
+  test_case(
+    "`:definition` replaces a body of local definitions whole",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [
+                ("target", "translate:definition"),
+                (
+                  "code",
+                  "let move(x: Int): Int = x - d in\nlet map(f, xs) =\n  case xs\n  | [] => []\n  | hd :: tl => f(hd) :: map(f, tl)\n  end\nin\nmap(move, sc)",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x - d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|},
+        program,
+      );
+      mentions(
+        "result",
+        "Replaced translate:definition.",
+        List.hd_exn(results).content,
+      );
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate:definition"), ("code", "sc")],
+            ),
+          ],
+        );
+      check(
+        string,
+        "to one line",
+        "let translate(sc: [Int], d: Int): [Int] = sc in\ntranslate([1], 1)",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "parts within the body still name what they did",
+    `Quick,
+    () => {
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate/move:definition"), ("code", "x * d")],
+            ),
+            (
+              "replace",
+              [("target", "translate/move:pattern"), ("code", "move(x)")],
+            ),
+            (
+              "replace",
+              [("target", "translate/=>"), ("code", "map(move, [])")],
+            ),
+          ],
+        );
+      mentions("program", "  let move(x) = x * d in\n", program);
+      mentions("the result", "  map(move, [])\nin", program);
+    },
+  ),
+];
+
+/* code bringing several entries, laid out as an insert of them would be */
+let layout = [
+  test_case(
+    "a result's code with definitions: a blank line between entries",
+    `Quick,
+    () => {
+      /* N2 Flash: two `type … in` lines; S Flash: no blank line before
+         the result */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n\n?",
+          [
+            (
+              "replace",
+              [
+                ("target", "=>"),
+                (
+                  "code",
+                  "type T = Int in\ntype U = [T] in\nlet b(x: T): U = [x]\nin\n\nhint \"b\" test b(1) == [1] end;\nlet c = b(a) in\nc",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "let a = 1 in\n\ntype T = Int in\n\ntype U = [T] in\n\nlet b(x: T): U = [x] in\n\nhint \"b\" test b(1) == [1] end;\n\nlet c = b(a) in\n\nc",
+        program,
+      );
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [("replace", [("target", "=>"), ("code", "a +\n1")])],
+        );
+      check(string, "an expression alone", "let a = 1 in\na +\n1", program);
+    },
+  ),
+  test_case(
+    "a one-line definition ends with ` in`, wherever it lands",
+    `Quick,
+    () => {
+      /* N2 Opus: `type Task = (String, Bool)` then `in` */
+      let (program, _) =
+        reply(
+          "?",
+          [
+            (
+              "insert",
+              [
+                ("first_in", "/"),
+                (
+                  "code",
+                  "type Task = (String, Bool)\nin\nlet f(t: Task): Task = t\nin\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "type Task = (String, Bool) in\n\nlet f(t: Task): Task = t in\n\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end;\n\n?",
+        program,
+      );
+    },
+  ),
+];
+
+let endings = [
+  test_case(
+    "a trailing expression fills the program's empty result",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "?",
+          [
+            (
+              "insert",
+              [
+                ("first_in", "/"),
+                (
+                  "code",
+                  "let celsius = 0 in\nlet f(c: Int): Int = 32 + 9 * c / 5 in\nf(celsius)",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "let celsius = 0 in\n\nlet f(c: Int): Int = 32 + 9 * c / 5 in\n\nf(celsius)",
+        program,
+      );
+      mentions(
+        "its result",
+        "Added celsius, f. The last line became the result (`=>`).",
+        List.hd_exn(results).content,
+      );
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [
+            ("insert", [("last_in", "/"), ("code", "let b = a in\nb + 1")]),
+          ],
+        );
+      check(
+        string,
+        "last in",
+        "let a = 1 in\n\nlet b = a in\n\nb + 1",
+        program,
+      );
+      let (program, _) =
+        reply(
+          "?",
+          [("insert", [("first_in", "/"), ("code", "test 1 == 1 end")])],
+        );
+      check(string, "a test stays a test", "test 1 == 1 end;\n\n?", program);
+    },
+  ),
+  test_case(
+    "a trailing expression fills a block's empty result",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "let f(x: Int): Int = ? in f(1)",
+          [("insert", [("last_in", "f"), ("code", "x + 1")])],
+        );
+      same_text("program", "let f(x: Int): Int = x + 1 in f(1)", program);
+      mentions(
+        "its result",
+        "The code became the result (`f:definition`).",
+        List.hd_exn(results).content,
+      );
+      let (program, results) =
+        reply(
+          "let f(x: Int): Int = ? in f(1)",
+          [
+            (
+              "insert",
+              [("last_in", "f"), ("code", "let y = x + 1 in\ny * 2")],
+            ),
+          ],
+        );
+      same_text(
+        "program",
+        "let f(x: Int): Int = let y = x + 1 in y * 2 in f(1)",
+        program,
+      );
+      mentions(
+        "its result",
+        "Added f/y. The last line became the result (`f/=>`).",
+        List.hd_exn(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a trailing expression beside a real result is a statement, said plainly",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 2 in\nb + 1")])],
+        );
+      mentions("program", "b + 1;", program);
+      mentions(
+        "its result",
+        "Added b, stmt#1. The last line became a statement (stmt#1); to change the result, replace `=>`.",
+        List.hd_exn(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let f(x: Int): Int =\n  x\nin\nf(1)",
+          [
+            (
+              "insert",
+              [("last_in", "f"), ("code", "let y = x + 1 in\ny * 2")],
+            ),
+          ],
+        );
+      mentions(
+        "inside a block",
+        "(f/stmt#1); to change the result, replace `f/=>`.",
+        List.hd_exn(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a path written as code is told what a path is",
+    `Quick,
+    () => {
+      let hint = "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map).";
+      let code = "let a = 1 in\ntest a == 1 end;\na";
+      let first = calls => List.hd_exn(snd(reply(code, calls))).content;
+      mentions("a call", hint, first([("delete", [("target", "a(1)")])]));
+      mentions(
+        "a test's code",
+        hint,
+        first([("delete", [("target", "test a == 1 end")])]),
+      );
+      check(
+        bool,
+        "not for a plain name",
+        false,
+        has(hint, first([("delete", [("target", "nope")])])),
+      );
+    },
+  ),
+];
+
+/* what the agent is sent for each tool result, in order */
+let sent = (agent: Agent.Model.t): list(string) =>
+  Chat.Utils.linearize(
+    ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
+  )
+  |> List.filter_map(~f=(m: Message.Model.t) =>
+       switch (m.role, m.api_message) {
+       | (ToolResult(_), Some(api)) => Some(api.content)
+       | _ => None
+       }
+     );
+
+let shapes_v = {|type Shape = + Circle(Int) + Rect(Int, Int) in
+let area(s: Shape): Int =
+  case s
+  | Circle(r) => 3 * r * r
+  | Rect(w, h) => w * h
+  end
+in
+hint "circle area" test area(Circle(2)) == 12 end;
+let side = 1 in
+?|};
+
+let messages = [
+  test_case(
+    "a type change that breaks uses is refused by where they are",
+    `Quick,
+    () => {
+      let (outs, agent) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      same_text("program unchanged", shapes_v, fst(List.hd_exn(outs)));
+      let content = List.hd_exn(snd(List.hd_exn(outs))).content;
+      mentions(
+        "the summary",
+        "Not applied: it would add 3 static errors (0 before, 3 after), in: area (2), \"circle area\" (1).\nChanging Shape breaks uses in: area, \"circle area\"; change them in the same reply.\n- area: ",
+        content,
+      );
+      mentions(
+        "the rollback, on a line of its own",
+        "`)\nNone of this reply's edits were applied: call 1 (replace) failed.",
+        content,
+      );
+      check(
+        string,
+        "what the agent is sent",
+        content,
+        List.hd_exn(sent(agent)),
+      );
+    },
+  ),
+  test_case(
+    "errors no one call wrote are the reply's, not its last call's",
+    `Quick,
+    () => {
+      /* V Sonnet: the Shape replace broke area; the refusal sat on the
+         insert after it */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "insert",
+                [("before", "area"), ("code", "let two = 2")],
+              ),
+            ],
+          ],
+        );
+      let results = snd(List.hd_exn(outs));
+      let content = i => List.nth_exn(results, i).AgentToolResult.content;
+      mentions(
+        "the refusal",
+        "Not applied: this reply's edits together would add 3 static errors",
+        content(1),
+      );
+      mentions(
+        "no one call blamed",
+        "None of this reply's edits were applied: they are checked as one change.",
+        content(1),
+      );
+      mentions(
+        "the other call",
+        "Rolled back. None of this reply's edits were applied: they are checked as one change (see call 2's result).",
+        content(0),
+      );
+      check(
+        bool,
+        "no call named as failed",
+        false,
+        has("failed", content(1)),
+      );
+    },
+  ),
+  test_case(
+    "uses the reply changed and still broken are said so",
+    `Quick,
+    () => {
+      /* V Flash: told to change uses in the same reply, which it had */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "replace",
+                [
+                  ("target", "area:definition"),
+                  (
+                    "code",
+                    "case s\n| Circle(r) => 3 * r * r\n| Rect(w, h) => w * h\nend",
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      let content =
+        String.concat(
+          ~sep="\n",
+          List.map(
+            ~f=(tr: AgentToolResult.tool_result) => tr.content,
+            snd(List.hd_exn(outs)),
+          ),
+        );
+      mentions(
+        "the still-broken uses",
+        "Changing Shape breaks uses in: \"circle area\"; change them in the same reply.\nUses in area are still broken after this reply's changes to it.",
+        content,
+      );
+    },
+  ),
+  test_case(
+    "a definition's code dropping its `fun` head is told so",
+    `Quick,
+    () => {
+      /* E1 Flash: `update:definition` sent without `fun (m, action) ->` */
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [("target", "update:definition"), ("code", "m * action")],
+            ),
+          ],
+        );
+      mentions(
+        "the hint",
+        "\n`update:definition` starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
+        List.hd_exn(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [
+                ("target", "update:definition"),
+                ("code", "fun (m: Int, b: Int) -> m * action"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "not when the code has one",
+        false,
+        has("dropped", List.hd_exn(results).content),
+      );
+    },
+  ),
+  test_case(
+    "an edit leaving the program's result empty says so",
+    `Quick,
+    () => {
+      let (_, results) =
+        reply(
+          shapes_v,
+          [("insert", [("after", "side"), ("code", "let top = 2")])],
+        );
+      mentions(
+        "its result",
+        "Static errors: none. The program's result is empty (`?`).",
+        List.hd_exn(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 2")])],
+        );
+      check(
+        bool,
+        "not when it has one",
+        false,
+        has("is empty", List.hd_exn(results).content),
+      );
+    },
+  ),
+  test_case(
+    "a path keeps working with the map's notes and escapes copied in",
+    `Quick,
+    () => {
+      let code = "let area(s: Int): Int = s in\nhint \"rect area\" test area(1) == 1 end;\ntest area(2) == 2 end;\narea(3)";
+      let ok = target => {
+        let (_, results) =
+          reply(code, [("delete", [("target", target)])]);
+        check(
+          bool,
+          target ++ " resolves: " ++ List.hd_exn(results).content,
+          true,
+          List.hd_exn(results).success,
+        );
+      };
+      ok({|"rect area" #› 1 use #|});
+      ok({|\"rect area\"|});
+      let refused = target =>
+        List.hd_exn(
+          snd(reply(code, [("delete", [("target", target)])])),
+        ).
+          content;
+      mentions("a misspelling", "Did you mean `area`?", refused("aera"));
+      mentions(
+        "a test's code with its #k",
+        "Did you mean `test#1`",
+        refused("test area(2) == 2 end#1"),
+      );
+      mentions(
+        "a part's word",
+        "Did you mean `area:definition`",
+        refused("area:definition+1"),
+      );
+    },
+  ),
+  test_case(
+    "a call making a second entry of a name says so",
+    `Quick,
+    () => {
+      let code = "let area(s: Int): Int = s in\nhint \"rect area\" test area(1) == 1 end;\narea(3)";
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "insert",
+              [
+                ("after", "\"rect area\""),
+                ("code", "hint \"rect area\" test area(2) == 2 end"),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "its result",
+        "There are now 2 entries named \"rect area\" in the program's top level: \"rect area\"#1, \"rect area\"#2.",
+        List.hd_exn(results).content,
+      );
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "\"rect area\""),
+                ("code", "hint \"rect area\" test area(2) == 2 end"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "not for one replacing its own",
+        false,
+        has("There are now", List.hd_exn(results).content),
+      );
+    },
+  ),
+  test_case(
+    "a reflowed replace lists only the lines it really changes",
+    `Quick,
+    () => {
+      /* E4: a check per line of its own, rewritten without two of them */
+      let code = "let f(n: Int): Int = n in\nlet check: () -> Bool = fun _ ->\n    (\n  f(1) == 1\n    )\n    && (\n  f(2) == 2\n    )\n    && (\n  f(3) == 3\n    )\nin\ncheck(())";
+      let (_, results) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "check:definition"),
+                ("code", "fun _ ->\n  (f(1) == 1)\n  && (f(2) == 2)"),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "its result",
+        "Replaced check:definition.\n- && (\n- f(3) == 3\n- )\nStatic errors",
+        List.hd_exn(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a whole-entry replace keeps only the doc comment, not a header set apart",
+    `Quick,
+    () => {
+      /* E7 on Mega-Mod 1k: WateringTimer's header above pad came twice */
+      let code = "module W = {\n  # Watering Timer #\n  # formats minutes #\n\n  # two digits #\n  let pad = fun (n: Int) -> n;\n  let z = 1\n} in\nW.pad(1)";
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [("target", "W/pad"), ("code", "let pad(n: Int): Int = n")],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "module W = {\n  # Watering Timer #\n  # formats minutes #\n\n  # two digits #\n  let pad(n: Int): Int = n;\n  let z = 1\n} in\nW.pad(1)",
+        program,
+      );
+    },
   ),
 ];
 
@@ -1220,4 +2268,9 @@ let tests = [
   ("AgentReply.Rebinding", rebinding),
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
+  ("AgentReply.Repro", repro),
+  ("AgentReply.Definitions", definitions),
+  ("AgentReply.Layout", layout),
+  ("AgentReply.Endings", endings),
+  ("AgentReply.Messages", messages),
 ];

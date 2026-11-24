@@ -62,7 +62,7 @@ let passes = () => {
     bool,
     "the first step's analysis kept",
     true,
-    before === first_info_map(again),
+    phys_equal(before, first_info_map(again)),
   );
 };
 

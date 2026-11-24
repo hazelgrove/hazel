@@ -81,7 +81,7 @@ module Utils = {
     | Some(AgentResponseChunk(chunk)) => {
         ...model,
         log:
-          (model.log |> List.rev |> List.tl |> List.rev)
+          (model.log |> List.rev |> List.tl_exn |> List.rev)
           @ [Model.AgentResponseChunk(f(chunk))],
       }
     | _ => {

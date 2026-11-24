@@ -1,5 +1,6 @@
 open Util;
 open Haz3lcore;
+open Poly;
 
 /* A mode's slides: which one is current, and managing them. */
 
@@ -69,7 +70,7 @@ let integrate_share =
 };
 
 let export_scratch_slide = (model: Model.t): unit => {
-  let scratchpad = List.nth(model.scratchpads, model.current);
+  let scratchpad = List.nth_exn(model.scratchpads, model.current);
   switch (scratchpad.kind) {
   | Code(code) =>
     let persistent = CellEditor.Model.persist(WorldSlide.own_editor(code));
@@ -89,7 +90,7 @@ let export_scratch_slide = (model: Model.t): unit => {
 };
 
 let encode_scratch_slide = (model: Model.t): unit => {
-  let scratchpad = List.nth(model.scratchpads, model.current);
+  let scratchpad = List.nth_exn(model.scratchpads, model.current);
   JsUtil.QueryParams.set_param("name", scratchpad.name);
   switch (scratchpad.kind) {
   | Code(code) =>
@@ -162,17 +163,20 @@ let add_new_slide =
       };
     let used_numbers =
       model.scratchpads
-      |> List.filter_map((s: Scratchpad.t) => {
-           switch (String.split_on_char(' ', s.name)) {
+      |> List.filter_map(~f=(s: Scratchpad.t) => {
+           switch (String.split(~on=' ', s.name)) {
            | [p, num] when p == prefix => int_of_string_opt(num)
            | _ => None
            }
          });
     let unused_ids =
-      Seq.filter(i => !List.mem(i, used_numbers), Seq.ints(1));
+      Seq.filter(
+        i => !List.mem(used_numbers, i, ~equal=Poly.equal),
+        Seq.ints(1),
+      );
     let new_number =
       Seq.uncons(unused_ids)
-      |> Option.get  // This is safe because unused_ids is infinite
+      |> Option.value_exn  // This is safe because unused_ids is infinite
       |> fst;
 
     add_empty_slide(prefix ++ " " ++ string_of_int(new_number));
@@ -182,7 +186,7 @@ let add_new_slide =
       prompt_slide_name(
         ~existing_scratchpads=
           model.scratchpads
-          |> List.to_seq
+          |> Stdlib.List.to_seq
           |> Seq.map((s: Scratchpad.t) => s.name),
         "New Slide Name",
       );
@@ -282,12 +286,12 @@ let update =
         add_new_slide(~kind=NewDrv, ~settings=settings.core, model, deck),
       );
     | RenameSlide =>
-      let current = List.nth(model.scratchpads, model.current);
+      let current = List.nth_exn(model.scratchpads, model.current);
       let new_name =
         prompt_slide_name(
           ~existing_scratchpads=
             model.scratchpads
-            |> List.to_seq
+            |> Stdlib.List.to_seq
             |> Seq.zip(Seq.ints(0))
             |> Seq.filter(((idx, _)) => idx != model.current)
             |> Seq.map(snd)
@@ -354,7 +358,7 @@ let update =
       };
 
     | ResetCurrent =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
+      let scratchpad = List.nth_exn(model.scratchpads, model.current);
       switch (scratchpad.kind) {
       | Code({agent, _}) =>
         let source =
@@ -403,7 +407,7 @@ let update =
       switch (data) {
       | None => model |> return_quiet
       | Some(data) =>
-        let scratchpad = List.nth(model.scratchpads, model.current);
+        let scratchpad = List.nth_exn(model.scratchpads, model.current);
         switch (scratchpad.kind) {
         | Code({agent, _}) =>
           let (new_data, world) =

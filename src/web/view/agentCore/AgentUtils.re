@@ -1,9 +1,10 @@
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
+open Poly;
 
 let init = (): Model.t => {
-  let system_prompt = CompositionPrompt.self |> String.concat("\n");
+  let system_prompt = String.concat(~sep="\n", CompositionPrompt.self);
   let dev_notes = {|Development mode active. Follow developer instructions precisely. Be concise. No first-person pronouns.|};
   /* reset_transients is the source of truth for the transient fields below. */
   Model.reset_transients({
@@ -121,6 +122,7 @@ let llm_context_snapshot_text =
       cws,
       chat,
     );
+
   Message.Utils.context_snapshot_body_for_llm(
     ~session_mode,
     view,
@@ -160,11 +162,11 @@ let update_context =
     switch (context_memo^) {
     | Some(m)
         when
-          m.m_zipper === editor.editor.state.zipper
-          && m.m_info === editor.statics.info_map
-          && m.m_dynamics === editor.dynamics
-          && m.m_tests === test_results
-          && m.m_value === value
+          phys_equal(m.m_zipper, editor.editor.state.zipper)
+          && phys_equal(m.m_info, editor.statics.info_map)
+          && phys_equal(m.m_dynamics, editor.dynamics)
+          && phys_equal(m.m_tests, test_results)
+          && phys_equal(m.m_value, value)
           && m.m_view == curr_chat.agent_view
           && m.m_view_settings == view =>
       m.m_out

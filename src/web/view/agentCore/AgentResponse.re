@@ -1,6 +1,7 @@
 open Util;
 open Haz3lcore;
 open AgentModel;
+open Poly;
 
 module Utils = AgentUtils;
 module Action = AgentAction;
@@ -10,7 +11,7 @@ let handle_llm_response =
       reply: OpenRouter.Reply.Model.t,
       chat_id: Id.t,
       flight_seq: int,
-      elapsed_ms: int,
+      thinking_ms: option(int),
       model: Model.t,
       cell_editor: CellEditor.Model.t,
       settings: Settings.t,
@@ -34,18 +35,32 @@ let handle_llm_response =
       cell_editor |> Updated.return_quiet,
     )
   | _ =>
-    let is_empty = String.trim(reply.content) == "";
+    let is_empty = String.equal(String.strip(reply.content), "");
+    let reasoning_duration_ms =
+      Option.is_some(reply.reasoning) ? thinking_ms : None;
 
     // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
-    if (reply.tool_calls == [] && is_empty) {
+    if (List.is_empty(reply.tool_calls) && is_empty) {
       let current_retry =
         Option.value(~default=-1, model.last_empty_retry_attempt);
       let next_retry = current_retry + 1;
       if (next_retry < AgentSend.max_empty_retries) {
         schedule_action(Action.RetryEmptyResponse(chat_id, next_retry));
+        /* the attempt is not sent back, but its usage and thinking stay
+           on the transcript */
+        let attempt = {
+          ...
+            Message.Utils.mk_agent_message(
+              ~reasoning=reply.reasoning,
+              ~reasoning_duration_ms,
+              reply.content,
+              reply.usage,
+            ),
+          api_message: None,
+        };
         (
           {
-            ...model,
+            ...Utils.append_message(~chat_id, attempt, model),
             last_empty_retry_attempt: Some(next_retry),
           },
           cell_editor |> Updated.return_quiet,
@@ -57,7 +72,12 @@ let handle_llm_response =
           ++ "If you are using an open workbench plan, close or update it when appropriate; otherwise just reply with at least one sentence for the user. "
           ++ "You can try rephrasing your message.)";
         let new_message =
-          Message.Utils.mk_agent_message(fallback_content, reply.usage);
+          Message.Utils.mk_agent_message(
+            ~reasoning=reply.reasoning,
+            ~reasoning_duration_ms,
+            fallback_content,
+            reply.usage,
+          );
         (
           {
             ...Utils.append_message(~chat_id, new_message, model),
@@ -73,8 +93,7 @@ let handle_llm_response =
         Message.Utils.mk_agent_message(
           ~tool_calls=reply.tool_calls,
           ~reasoning=reply.reasoning,
-          ~reasoning_duration_ms=
-            Option.is_some(reply.reasoning) ? Some(elapsed_ms) : None,
+          ~reasoning_duration_ms,
           content,
           reply.usage,
         );
@@ -124,8 +143,8 @@ let handle_llm_response =
           );
         let model_with_tool_msgs =
           List.fold_left(
-            (m, msg) => Utils.append_message(~chat_id, msg, m),
-            model_after_tools,
+            ~f=(m, msg) => Utils.append_message(~chat_id, msg, m),
+            ~init=model_after_tools,
             tool_msgs,
           );
         let chat =

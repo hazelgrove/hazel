@@ -83,6 +83,10 @@ clamp(150) should be 100
 let clamp = fun x -> x in
 clamp(50)
 
+@solution
+let clamp = fun x -> if x < 0 then 0 else if x > 100 then 100 else x in
+clamp(50)
+
 @test
 test clamp(-5) == 0 end;
 test clamp(50) == 50 end;

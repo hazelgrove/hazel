@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* after each edit step, DefStatics computed from the previous step matches
    a cold calc and monolithic statics, and seeded evaluation a cold one */
@@ -41,41 +42,20 @@ let token = (~at=?, ~keep_id=?, needle, repl) =>
     }
   );
 
-let op = (op: Web.OutlineEdit.def_op, path) =>
-  step((~root, seg) =>
-    switch (
-      Web.ItemEdit.apply(
-        ~mod_root=root == Sort.Mod,
-        op,
-        CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path),
-        seg,
-      )
-    ) {
-    | Some((seg, _)) => seg
-    | None => fail("op failed at " ++ String.concat("/", path))
-    }
-  );
-
-/* an outline op as its keys apply it (ItemEdit.edit): Alt↑↓ can carry a
-   member across a module edge, Tab and ⇧Tab move it across levels */
-let edit_op = (op: Web.OutlineEdit.def_op, path) =>
+/* an outline op as its keys apply it: with modules open (~open_), Alt↑↓
+   can carry a member across a module edge; Tab and ⇧Tab move it across
+   levels */
+let edit_op = (~open_=false, op: Web.OutlineEdit.def_op, path) =>
   step((~root, seg) => {
-    let outline = CorpusUtil.outline_of(~root, seg);
-    let ctx: Web.ItemEdit.ctx = {
-      mod_root: root == Sort.Mod,
-      outline,
-      info_map: lazy(Statics.Map.empty),
-      is_open: _ => true,
-    };
-    switch (
-      Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(outline, path)), seg)
-    ) {
+    let row = CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path);
+    switch (CorpusUtil.outline_op(~root, ~is_open=_ => open_, op, row, seg)) {
     | Ok((seg, _)) => seg
     | Error(why) =>
-      fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
+      fail("op failed at " ++ String.concat(~sep="/", path) ++ ": " ++ why)
     };
   });
-let move = (~up, path) => edit_op(up ? MoveUp : MoveDown, path);
+let op = (o, path) => edit_op(o, path);
+let move = (~up, path) => edit_op(~open_=true, up ? MoveUp : MoveDown, path);
 
 let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
   Evaluator.evaluate(
@@ -98,8 +78,9 @@ let graft = (ds: DefStatics.t) =>
 
 let tests_of = (state: EvaluatorState.t) =>
   List.sort(
-    compare,
+    ~compare,
     List.map(
+      ~f=
       ((id, rs)) =>
         (Id.show(id), TestStatus.show(TestMap.joint_status(rs))),
       state.tests,
@@ -128,7 +109,7 @@ let script =
   let exact = (i, s: step, ~prev=?, ds: DefStatics.t, (cache, value)) => {
     let name = "step " ++ string_of_int(i);
     Option.iter(
-      n => check(int, name ++ " analyzed", n, DefStatics.last_analyzed^),
+      ~f=n => check(int, name ++ " analyzed", n, DefStatics.last_analyzed^),
       s.analyzed,
     );
     check(
@@ -163,6 +144,7 @@ let script =
         );
       };
       Option.iter(
+        ~f=
         prev =>
           if (s.changes_value) {
             check(
@@ -184,14 +166,14 @@ let script =
   /* step 0: the cold calc */
   let threaded = exact(0, noop, ds, (IncrEval.empty, None));
   ignore(
-    List.fold_left(
-      ((i, seg, prev, threaded), s: step) => {
+    List.fold(
+      steps,
+      ~init=(1, seg, ds, threaded),
+      ~f=((i, seg, prev, threaded), s: step) => {
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
         (i + 1, seg, ds, exact(i, s, ~prev, ds, threaded));
       },
-      (1, seg, ds, threaded),
-      steps,
     ),
   );
 };
@@ -222,7 +204,7 @@ let corpus_through_calc_auto = () => {
             )
           ) {
           | DefStaticsCheck.Divergence(ds) =>
-            fail(path ++ ": " ++ String.concat("; ", ds))
+              fail(path ++ ": " ++ String.concat(~sep="; ", ds))
           };
         calc(seg);
         let (edited, changed) =
@@ -247,7 +229,7 @@ let separate_slots = () => {
     bool,
     "two documents, two keys",
     false,
-    Exp.rep_id(a) == Exp.rep_id(b),
+    Id.equal(Exp.rep_id(a), Exp.rep_id(b)),
   );
   let ta = DefStatics.calc_auto(~settings=CoreSettings.on, a);
   ignore(DefStatics.calc_auto(~settings=CoreSettings.on, b));
@@ -256,7 +238,7 @@ let separate_slots = () => {
     "the first document's calc is still cached",
     true,
     switch (DefStatics.cached(a)) {
-    | Some(t) => t === ta
+    | Some(t) => phys_equal(t, ta)
     | None => false
     },
   );
@@ -291,8 +273,10 @@ let items_leave_binders_unflagged = () => {
     let ds = DefStatics.calc(~settings, term);
     let binders =
       List.concat_map(
+        ~f=
         (it: DefStatics.item) =>
           List.concat_map(
+              ~f=
             fun
             | Ctx.VarEntry({id, _}) => [
                 id,
@@ -305,15 +289,19 @@ let items_leave_binders_unflagged = () => {
       );
     let flagged =
       List.concat_map(
+        ~f=
         (it: DefStatics.item) =>
-          List.filter(id => List.mem(id, binders), it.d_warning_ids),
+            List.filter(
+              ~f=id => List.mem(binders, id, ~equal=Poly.equal),
+              it.d_warning_ids,
+            ),
         ds.items,
       );
-    check(list(string), what, [], List.map(Id.show, flagged));
+    check(list(string), what, [], List.map(~f=Id.show, flagged));
   };
   let exp = src => MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
   List.iter(
-    ((what, src)) => check_calc(what, exp(src)),
+    ~f=((what, src)) => check_calc(what, exp(src)),
     [
       (
         "unused definitions",
@@ -345,10 +333,14 @@ let items_leave_binders_unflagged = () => {
     CorpusUtil.slide_corpus(),
   );
   List.iter(
+    ~f=
     ((root, file)) =>
       check_calc(
         file,
-        MakeTerm.Incr.term_of_root(~root, CorpusUtil.mega_seg(~root, file)),
+          MakeTerm.Incr.term_of_root(
+            ~root,
+            CorpusUtil.mega_seg(~root, file),
+          ),
       ),
     [(Sort.Exp, "mega-1k.hz"), (Sort.Mod, "mega-mod-1k.hz")],
   );
@@ -369,7 +361,7 @@ let mod_root_items = () => {
       ~settings,
       MakeTerm.Incr.term_of_mod(CorpusUtil.seg_of(~root=Mod, mod_root_src)),
     );
-  check(int, "5 mod items + the exports tail", 6, List.length(ds.items));
+  check(int, "5 mod items", 5, List.length(ds.items));
 };
 
 /* the spine root's elab_term is the whole suffix: incremental eval reuses
@@ -490,6 +482,7 @@ let probe_capture_parity = (): unit => {
     | None => fail("no info at " ++ Id.show(id))
     };
   List.iter(
+    ~f=
     id =>
       check(
         bool,
@@ -504,7 +497,7 @@ let probe_capture_parity = (): unit => {
     switch (Statics.Map.lookup_exp(root, t.merged)) {
     | Some(info) =>
       CoCtx.to_list(info.co_ctx)
-      |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
+      |> List.fold(~init=0, ~f=(n, (_, es)) => n + List.length(es))
     | None => (-1)
     };
   let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
@@ -861,7 +854,7 @@ let small = [
        and all its members re-analyze, then the tail */
     script(
       "module M = {\n  let x = k + 1;\n  let y = 2\n} in\nlet k = 1 in\nM.x",
-      [op(MoveUp, ["k"]) |> analyzed(5)],
+      [op(MoveUp, ["k"]) |> analyzed(4)],
     ),
   ),
   test_case(
@@ -919,8 +912,8 @@ let type_deps = [
     `Quick,
     script(
       "module M = {\n  let f : () -> Bool = fun _ -> true;\n  let g = 1\n} in\nlet consume = M.f(()) in\n9",
-      /* M, its f member, the exports-tail member, and the consumer */
-      [token("Bool", "String") |> analyzed(4)],
+      /* M, its f member, and the consumer */
+      [token("Bool", "String") |> analyzed(3)],
     ),
   ),
   test_case(
@@ -1040,7 +1033,7 @@ let sealed = (~root=?, ~eval=?, src, steps) =>
 let sealed_modules = [
   test_case("a sealed module's ids, met and not", `Quick, () =>
     List.iter(
-      src => keys_as_monolithic(src, ()),
+      ~f=src => keys_as_monolithic(src, ()),
       [
         "type U = Int in\nmodule M : {type T = Int; let x : (T, U); let f : T -> Bool} = {\n  type T = Int;\n  let x = (1, 2);\n  let f(t) = t == 1\n} in\nM.f(fst(M.x))",
         /* a member missing, a type member defined otherwise */
@@ -1199,15 +1192,15 @@ let sealed_modules = [
       [token("180", "181") |> analyzed(1)],
     ),
   ),
-  /* by a type member's definition: the module item, its members and
-     exports tail, then the item whole */
+  /* by a type member's definition: the module item and its members,
+     then the item whole */
   test_case(
     "a type member defined otherwise",
     `Quick,
     sealed(
       "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 180\n} in\nM.x",
       [
-        token("180", "181") |> analyzed(5),
+        token("180", "181") |> analyzed(4),
         /* met, then unmet again */
         token(~at=`Last, ~keep_id=true, "Bool", "Int"),
         token("181", "182") |> analyzed(2),
@@ -1252,9 +1245,9 @@ let modexp_chains = [
         /* Holes, the member and a's link; the test now fails */
         token(~keep_id=true, "1", "5") |> analyzed(3),
         token("2", "6") |> analyzed(3),
-        /* k, then b (the one link that reads it), Holes' exports tail
-           and the program's tail, which reads Holes */
-        token("10", "false") |> analyzed(6),
+        /* Holes, k, its member, b (the one link that reads k) and the
+           program's tail, which reads Holes */
+        token("10", "false") |> analyzed(5),
         /* the tail link (b goes unused) */
         token(~at=`Last, "b", "a") |> analyzed(3),
         /* a retyped: its link and the tail, which reads a */

@@ -99,7 +99,7 @@ module Utils = {
   };
 
   let mk_prompt_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -115,7 +115,7 @@ module Utils = {
   };
   /** Shown when the user stops the agent or compaction and the HTTP reply arrives later. */
   let mk_response_cancelled_message = (~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -134,7 +134,7 @@ module Utils = {
       reads the typed payload off the role. Never sent to the API. */
   let mk_slash_command_output_message =
       (~payload: Model.slash_command_payload, ~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -151,7 +151,7 @@ module Utils = {
   let mk_retry_note_message =
       (~content: string, ~sent_to_api: bool, ~deliver_as_user_on_api: bool)
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_message =
       switch (sent_to_api, deliver_as_user_on_api) {
       | (false, _) => None
@@ -179,7 +179,7 @@ module Utils = {
   };
 
   let mk_developer_notes_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -208,10 +208,11 @@ module Utils = {
         usage: option(OpenRouter.Reply.Model.usage),
       )
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let reasoning =
       switch (reasoning) {
-      | Some(s) when String.trim(s) != "" => Some(String.trim(s))
+      | Some(s) when !String.equal(String.strip(s), "") =>
+        Some(String.strip(s))
       | _ => None
       };
     {
@@ -235,7 +236,7 @@ module Utils = {
 
   let mk_tool_result_message =
       (tool_result: AgentToolResult.tool_result): Model.t => {
-    let sanitized_content = String.trim(tool_result.content);
+    let sanitized_content = String.strip(tool_result.content);
 
     let msg =
       switch (tool_result.success, tool_result.content_is_payload) {
@@ -269,7 +270,7 @@ module Utils = {
   };
 
   let mk_user_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -302,9 +303,9 @@ module Utils = {
     ++ "</sessionMode>\n"
     ++ block(
          "agentEditorView",
-         "```\n" ++ String.trim(agent_editor_content) ++ "\n```",
+         "```\n" ++ String.strip(agent_editor_content) ++ "\n```",
        )
-    ++ block("workbenchTaskInfo", String.trim(workbench_content))
+    ++ block("workbenchTaskInfo", String.strip(workbench_content))
     ++ "\n</context>\n"
     ++ "\n[CONTEXT UPDATE — Do not respond to this. It is an automated snapshot of the current program state. Continue with your current task without acknowledging this message.]";
   };
@@ -340,7 +341,7 @@ module Utils = {
     );
 
   let mk_api_failure_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -356,7 +357,7 @@ module Utils = {
 
   /** Summary of prior turns for the API; [method] is shown in the chat UI. */
   let mk_compaction_summary = (~method: string, content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_text =
       "[Prior conversation summary — "
       ++ method

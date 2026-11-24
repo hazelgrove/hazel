@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* chunked measurement (Measured.Incr) matches the monolithic one on every
    map and lookup, and rebuilds only changed chunks. Chunks follow items
@@ -14,12 +15,12 @@ let no_rows: Id.Map.t(int) = Id.Map.empty;
 /* ---- text ---- */
 
 let rec seg_text = (seg: Segment.t): string =>
-  String.concat("", List.map(piece_text, seg))
+  String.concat(~sep="", List.map(~f=piece_text, seg))
 and piece_text = (p: Piece.t): string =>
   switch (p) {
   | Tile(t) =>
     String.concat(
-      "",
+      ~sep="",
       Util.Aba.join(
         Tile.token(t),
         seg_text,
@@ -40,7 +41,9 @@ let token_text = (tok: M.token): string =>
 let chunk_texts = (m: M.t): list(string) =>
   Array.to_list(
     Array.map(
-      (ch: M.chunk) => String.concat("", List.map(token_text, ch.c_tokens)),
+      ~f=
+        (ch: M.chunk) =>
+          String.concat(~sep="", List.map(~f=token_text, ch.c_tokens)),
       m.chunks,
     ),
   );
@@ -51,15 +54,17 @@ let by_index = ((i, _), (j, _)) => Int.compare(i, j);
 
 /* the chunks as one flat measurement: a split tile's shards from both */
 let flatten = (m: M.t): M.flat =>
-  Array.fold_left(
-    (acc: M.flat, ch: M.chunk): M.flat => {
+  Array.fold(
+    m.chunks,
+    ~init=M.empty_flat,
+    ~f=(acc: M.flat, ch: M.chunk): M.flat => {
       let s = ch.c_start;
       let f = ch.c_flat;
       let union = (a, b) => Id.Map.union((_, _, y) => Some(y), a, b);
       {
         tiles:
           Id.Map.union(
-            (_, a, b) => Some(List.sort(by_index, a @ b)),
+            (_, a, b) => Some(List.sort(~compare=by_index, a @ b)),
             acc.tiles,
             Id.Map.map(M.shift_shards(s), f.tiles),
           ),
@@ -74,37 +79,38 @@ let flatten = (m: M.t): M.flat =>
             acc.rows,
             f.rows
             |> M.Rows.bindings
-            |> List.map(((r, sh)) => (r + s, sh))
-            |> List.to_seq
+            |> List.map(~f=((r, sh)) => (r + s, sh))
+            |> Stdlib.List.to_seq
             |> M.Rows.of_seq,
           ),
         piece_rows: f.piece_rows @ acc.piece_rows,
       };
     },
-    M.empty_flat,
-    m.chunks,
   );
 
 /* piece_rows' linebreaks get fresh ids at flush time, so compare the rest */
 let canon_rows = (rows: list(list(Piece.t))): list(list(Id.t)) =>
   List.map(
+    ~f=
     row =>
       row
-      |> List.filter(p =>
+        |> List.filter(~f=p =>
            switch ((p: Piece.t)) {
            | Secondary(s) => !Secondary.is_linebreak(s)
            | _ => true
            }
          )
-      |> List.map(Piece.id),
+        |> List.map(~f=Piece.id),
     rows,
   );
 
 let flats_agree = (name: string, m: M.flat, c: M.flat): unit => {
   /* the first tile measured differently, for the failure's log */
   switch (
-    List.find_opt(
-      ((id, shards)) => Id.Map.find_opt(id, c.tiles) != Some(shards),
+    List.find(
+      ~f=
+        ((id, shards)) =>
+          !Poly.equal(Id.Map.find_opt(id, c.tiles), Some(shards)),
       Id.Map.bindings(m.tiles),
     )
   ) {
@@ -116,10 +122,10 @@ let flats_agree = (name: string, m: M.flat, c: M.flat): unit => {
       ++ " monolithic "
       ++ M.Shards.show(shards)
       ++ " chunked "
-      ++ Option.fold(
-           ~none="none",
-           ~some=M.Shards.show,
+      ++ Option.value_map(
            Id.Map.find_opt(id, c.tiles),
+           ~default="none",
+           ~f=M.Shards.show,
          ),
     )
   | None => ()
@@ -133,7 +139,7 @@ let flats_agree = (name: string, m: M.flat, c: M.flat): unit => {
     ("piece_rows", canon_rows(m.piece_rows) == canon_rows(c.piece_rows)),
   ];
   List.iter(
-    ((what, ok)) => check(bool, name ++ ":" ++ what, true, ok),
+    ~f=((what, ok)) => check(bool, name ++ ":" ++ what, true, ok),
     maps,
   );
 };
@@ -143,22 +149,27 @@ let flats_agree = (name: string, m: M.flat, c: M.flat): unit => {
    and no other */
 let structure = (name: string, m: M.t): unit => {
   let fail' = what => fail(name ++ ": " ++ what);
-  let anchors = Hashtbl.create(64);
-  let homes = Hashtbl.create(1024);
+  let anchors = Stdlib.Hashtbl.create(64);
+  let homes = Stdlib.Hashtbl.create(1024);
   Array.iter(
+    ~f=
     (ch: M.chunk) => {
-      if (Hashtbl.mem(anchors, ch.c_anchor)) {
+        if (Stdlib.Hashtbl.mem(anchors, ch.c_anchor)) {
         fail'("two chunks under one anchor");
       };
-      Hashtbl.replace(anchors, ch.c_anchor, ());
+        Stdlib.Hashtbl.replace(anchors, ch.c_anchor, ());
       List.iter(
+          ~f=
         id =>
-          Hashtbl.replace(
+              Stdlib.Hashtbl.replace(
             homes,
             id,
             [
               ch.c_anchor,
-              ...Option.value(~default=[], Hashtbl.find_opt(homes, id)),
+                  ...Option.value(
+                       ~default=[],
+                       Stdlib.Hashtbl.find_opt(homes, id),
+                     ),
             ],
           ),
         M.ids_of_flat(ch.c_flat),
@@ -166,16 +177,16 @@ let structure = (name: string, m: M.t): unit => {
     },
     m.chunks,
   );
-  Hashtbl.iter(
+  Stdlib.Hashtbl.iter(
     (id, hs) =>
       switch (Id.Map.find_opt(id, m.split), hs) {
       | (Some((head, foot)), [h2, h1]) when h1 == head && h2 == foot =>
-        if (Id.Map.find_opt(id, m.chunk_of_id) != Some(foot)) {
+        if (!Poly.equal(Id.Map.find_opt(id, m.chunk_of_id), Some(foot))) {
           fail'("a split tile not mapped to its foot");
         }
       | (Some(_), _) => fail'("a split tile not in its head and foot")
       | (None, [h]) =>
-        if (Id.Map.find_opt(id, m.chunk_of_id) != Some(h)) {
+        if (!Poly.equal(Id.Map.find_opt(id, m.chunk_of_id), Some(h))) {
           fail'("an id mapped to another chunk");
         }
       | (None, _) => fail'("an id in two chunks")
@@ -185,16 +196,17 @@ let structure = (name: string, m: M.t): unit => {
   check(
     int,
     name ++ ": chunk_of_id holds the chunks' ids",
-    Hashtbl.length(homes),
+    Stdlib.Hashtbl.length(homes),
     Id.Map.cardinal(m.chunk_of_id),
   );
 };
 
 let rec tiles_of = (seg: Segment.t): list(Tile.t) =>
   List.concat_map(
+    ~f=
     (p: Piece.t) =>
       switch (p) {
-      | Tile(t) => [t, ...List.concat_map(tiles_of, t.children)]
+        | Tile(t) => [t, ...List.concat_map(~f=tiles_of, t.children)]
       | _ => []
       },
     seg,
@@ -206,6 +218,7 @@ let agree = (name: string, seg: Segment.t, mono: M.t, chunked: M.t): unit => {
   structure(name, chunked);
   check(int, name ++ ":num_rows", M.num_rows(mono), M.num_rows(chunked));
   List.iter(
+    ~f=
     id =>
       if (M.find_by_id(id, mono) != M.find_by_id(id, chunked)) {
         fail(name ++ ": find_by_id " ++ Id.to_string(id));
@@ -213,11 +226,14 @@ let agree = (name: string, seg: Segment.t, mono: M.t, chunked: M.t): unit => {
     Segment.ids(seg),
   );
   List.iter(
+    ~f=
     (t: Tile.t) =>
       if (M.find_shards_by_id(t.id, mono)
           != M.find_shards_by_id(t.id, chunked)
           || M.find_p(Tile(t), mono) != M.find_p(Tile(t), chunked)) {
-        fail(name ++ ": shards of " ++ String.concat(" ", Tile.label(t)));
+          fail(
+            name ++ ": shards of " ++ String.concat(~sep=" ", Tile.label(t)),
+          );
       },
     tiles_of(seg),
   );
@@ -245,6 +261,7 @@ let step =
   let chunked = M.Incr.of_segment(~root, ~cache, seg, shapes, rows);
   let built = M.Incr.built^ - b0;
   Option.iter(
+    ~f=
     n =>
       check(
         bool,
@@ -269,8 +286,8 @@ let replace_tile =
     (label: string, f: Tile.t => Piece.t, seg: Segment.t): Segment.t => {
   let found = ref(false);
   let rec go = (seg: Segment.t): Segment.t => {
-    let seg' = List.map(piece, seg);
-    List.for_all2((===), seg, seg') ? seg : seg';
+    let seg' = List.map(~f=piece, seg);
+    List.for_all2_exn(~f=phys_equal, seg, seg') ? seg : seg';
   }
   and piece = (p: Piece.t): Piece.t =>
     switch (p) {
@@ -279,8 +296,8 @@ let replace_tile =
       found := true;
       f(t);
     | Tile(t) =>
-      let children = List.map(go, t.children);
-      List.for_all2((===), t.children, children)
+      let children = List.map(~f=go, t.children);
+      List.for_all2_exn(~f=phys_equal, t.children, children)
         ? p
         : Tile({
             ...t,
@@ -322,6 +339,7 @@ let brace_after = (label: string, seg: Segment.t): Id.t => {
     | [] => None
     | [Tile(t), ...rest] when Tile.label(t) == [label, "="] =>
       List.find_map(
+        ~f=
         (p: Piece.t) =>
           switch (p) {
           | Tile(b) when Tile.label(b) == ["{", "}"] => Some(b.id)
@@ -330,7 +348,7 @@ let brace_after = (label: string, seg: Segment.t): Id.t => {
         rest,
       )
     | [Tile(t), ...rest] =>
-      switch (List.find_map(find, t.children)) {
+      switch (List.find_map(~f=find, t.children)) {
       | Some(_) as r => r
       | None => find(rest)
       }
@@ -479,8 +497,10 @@ let member_edits = (~root, src, edits, ()) => {
   let seg = CorpusUtil.seg_of(~root, src);
   ignore(step(~root, ~cache, "before", seg));
   ignore(
-    List.fold_left(
-      (seg, (needle, repl)) => {
+    List.fold(
+      edits,
+      ~init=seg,
+      ~f=(seg, (needle, repl)) => {
         let (seg', found) =
           CorpusUtil.edit_token(
             ~at=`First,
@@ -495,8 +515,6 @@ let member_edits = (~root, src, edits, ()) => {
         );
         seg';
       },
-      seg,
-      edits,
     ),
   );
 };
@@ -584,8 +602,10 @@ let bodies_case = () => {
   let cache = M.Incr.mk_cache();
   ignore(step(~root, ~cache, "before", seg));
   ignore(
-    List.fold_left(
-      (seg, (needle, repl)) => {
+    List.fold(
+      [("180", "1800"), ("75", "750")],
+      ~init=seg,
+      ~f=(seg, (needle, repl)) => {
         let (seg', _) =
           CorpusUtil.edit_token(
             ~at=`First,
@@ -599,8 +619,6 @@ let bodies_case = () => {
         check(int, needle ++ ": bodies", 1, M.Partition.bodies_built^ - b0);
         seg';
       },
-      seg,
-      [("180", "1800"), ("75", "750")],
     ),
   );
 };
@@ -609,7 +627,7 @@ let bodies_case = () => {
 let id_hash_case = () => {
   let ids = Segment.ids(CorpusUtil.mega_seg("mega-4k.hz"));
   let tbl = M.IdTbl.create(16);
-  List.iter(id => M.IdTbl.replace(tbl, id, ()), ids);
+  List.iter(~f=id => M.IdTbl.replace(tbl, id, ()), ids);
   let stats = M.IdTbl.stats(tbl);
   check(
     bool,
@@ -633,7 +651,7 @@ let incomplete_case = ((name, src), ()) =>
 
 let shapes_of = (~root, programs, ()) =>
   List.iter(
-    ((name, src)) => parity(~root, name, CorpusUtil.seg_of(~root, src)),
+    ~f=((name, src)) => parity(~root, name, CorpusUtil.seg_of(~root, src)),
     programs,
   );
 
@@ -652,14 +670,16 @@ let corpus_case = (~root=Sort.Exp, file: string, ~min_chunks: int, ()) => {
   /* copying one top-level piece (breaking ===) rebuilds about one chunk */
   let n = List.length(seg);
   let copied =
-    List.mapi((i, p) => i == n / 2 ? CorpusUtil.copy_piece(p) : p, seg);
+    List.mapi(~f=(i, p) => i == n / 2 ? CorpusUtil.copy_piece(p) : p, seg);
   ignore(
     step(~root, ~at_most=2, ~cache, file ++ ": a copied piece", copied),
   );
   /* a token deep in a member: early and mid-program */
   ignore(
-    List.fold_left(
-      (seg, (needle, repl)) => {
+    List.fold(
+      [("180", "1800"), ("1800", "18"), ("75", "750")],
+      ~init=copied,
+      ~f=(seg, (needle, repl)) => {
         let (seg', found) =
           CorpusUtil.edit_token(
             ~at=`First,
@@ -674,8 +694,6 @@ let corpus_case = (~root=Sort.Exp, file: string, ~min_chunks: int, ()) => {
         );
         seg';
       },
-      copied,
-      [("180", "1800"), ("1800", "18"), ("75", "750")],
     ),
   );
 };
@@ -695,6 +713,7 @@ let slides = () => {
   );
   check(bool, "slides read", true, checked^ > 20);
   List.iter(
+    ~f=
     ((path, src)) =>
       parity(~root=Mod, path, CorpusUtil.seg_of(~root=Mod, src)),
     Test_ItemSpans.stdlib_corpus(),
@@ -704,10 +723,11 @@ let slides = () => {
 let tests = (
   "MeasuredChunks",
   List.map(
-    ((name, src)) => test_case(name, `Quick, edge_case((name, src))),
+    ~f=((name, src)) => test_case(name, `Quick, edge_case((name, src))),
     CorpusUtil.edge_programs,
   )
   @ List.map(
+      ~f=
       ((name, src)) =>
         test_case(
           "incomplete: " ++ name,

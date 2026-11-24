@@ -56,10 +56,14 @@ double([1, 2, 3])
 @hints
 join(["a", "b", "c"]) should be "abc"
 join([]) should be ""
-join(["hello"]) should be "hello"
+join(["hello", " ", "world"]) should be "hello world"
 
 @code
 let join : [String] -> String = ¿ in
+join(["a", "b", "c"])
+
+@solution
+let join : [String] -> String = fun strings -> fold_left(strings, fun (acc, s) -> acc ++ s, "") in
 join(["a", "b", "c"])
 
 @test

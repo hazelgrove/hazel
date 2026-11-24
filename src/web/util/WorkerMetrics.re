@@ -26,7 +26,7 @@ let set_encodings = (encodings: list(WorkerServer.encoding)): unit =>
 
 let active_encodings = (): list(WorkerServer.encoding) =>
   List.filter(
-    e => List.mem(e, enabled_encodings^),
+    ~f=e => List.mem(enabled_encodings^, e, ~equal=Poly.equal),
     WorkerServer.all_of_encoding,
   );
 
@@ -94,7 +94,7 @@ let measure:
         }
       ) {
       | () => None
-      | exception exn => Some(Printexc.to_string(exn))
+      | exception exn => Some(Exn.to_string(exn))
       };
     {
       encoding,
@@ -110,6 +110,7 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
   when_enabled(() => {
     let request =
       List.map(
+        ~f=
         (e: WorkerServer.encoding) => {
           module M = (val WorkerServer.module_of_encoding(e));
           measure(
@@ -138,6 +139,7 @@ let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit =>
   when_enabled(() => {
     let response =
       List.map(
+        ~f=
         (e: WorkerServer.encoding) => {
           module M = (val WorkerServer.module_of_encoding(e));
           measure(

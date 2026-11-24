@@ -132,8 +132,7 @@ type step_kind =
   | RemoveUse
   | RemoveParens
   | ModuleBind(string)
-  | ModuleDiscardExp
-  | ModuleDiscardType;
+  | ModuleDiscardExp;
 
 /* Whether a step interprets the user's program (Proper) or performs
    implementation bookkeeping that the surface semantics treats as
@@ -163,7 +162,6 @@ let provenance_of_kind: step_kind => provenance =
   | TheoremBind
   | ModuleBind(_)
   | ModuleDiscardExp
-  | ModuleDiscardType
   | UpdateTest
   | TypFunAp
   | FunAp
@@ -199,11 +197,8 @@ type rule =
       side_effects: list(EvaluatorState.effect),
       kind: step_kind,
       is_value: bool,
-      /* Where the user points to take this step. A rule normally rewrites the
-         term pointed at, so `None` leaves the redex to answer for itself. A
-         rule that rewrites an enclosing form on one part's behalf names that
-         part: a module item's binding rewrites the whole module, but it is
-         the item the user clicks. */
+      /* The id the stepper anchors this step on, when it isn't the redex's:
+         a module item's binding rewrites the whole module. */
       at: option(Id.t),
     })
   | Constructor
@@ -222,16 +217,6 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 
-/* A `module M = ...` item binds its name like a let; the module name pattern
-   is a variable, optionally ascribed. */
-let rec pat_of_mpat = (mp: MPat.t): Pat.t =>
-  switch (mp.term) {
-  | Var(x) => Pat.fresh(Var(x))
-  | Asc(inner, ty) => Pat.fresh(Asc(pat_of_mpat(inner), ty))
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => Pat.fresh(Wild)
-  };
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -338,7 +323,7 @@ module Transition = (EV: EV_MODE) => {
         | MatchedArrow(t1, t2) => MatchedArrow(go_typ(t1), go_typ(t2))
         | MatchedProd(t1, t2) => MatchedProd(go_typ(t1), go_typ(t2))
         | MatchedSum(t1, t2) => MatchedSum(go_typ(t1), go_typ(t2))
-        | Ctx(es) => Ctx(List.map(go_exp, es))
+        | Ctx(es) => Ctx(List.map(~f=go_exp, es))
         | Cons(p, ctx) =>
           switch (Drv.Exp.term_of(go_exp(ctx))) {
           | Ctx(es) => Ctx(Drv.Exp.cons_ctx(es, go_exp(p)))
@@ -350,7 +335,7 @@ module Transition = (EV: EV_MODE) => {
             Drv.Exp.term_of(go_exp(e2)),
           ) {
           | (Ctx(es1), Ctx(es2)) =>
-            Ctx(List.fold_left(Drv.Exp.cons_ctx, es2, es1))
+            Ctx(List.fold_left(~f=Drv.Exp.cons_ctx, ~init=es2, es1))
           | _ => Concat(go_exp(e1), go_exp(e2))
           }
         | Type(t) => Type(go_typ(t))
@@ -372,7 +357,7 @@ module Transition = (EV: EV_MODE) => {
         | Fix(x, e) => Fix(go_pat(x), go_exp(e))
         | Fun(x, e) => Fun(go_pat(x), go_exp(e))
         | Ap(e1, e2) => Ap(go_exp(e1), go_exp(e2))
-        | Tuple(es) => Tuple(List.map(go_exp, es))
+        | Tuple(es) => Tuple(List.map(~f=go_exp, es))
         | Pair(e1, e2) => Pair(go_exp(e1), go_exp(e2))
         | Triv => Triv
         | PrjL(e) => PrjL(go_exp(e))
@@ -518,7 +503,7 @@ module Transition = (EV: EV_MODE) => {
       // | `Environment =>
       let. _ = otherwise(env, Var(x) |> rewrap);
       switch (Environment.lookup(env, x)) {
-      | Some({term: Var(y), _}) when x == y => Indet // Used in proof to refer to a bound variable.
+      | Some({term: Var(y), _}) when String.equal(x, y) => Indet // Used in proof to refer to a bound variable.
       | Some(d) =>
         let is_value =
           switch (d |> Exp.term_of) {
@@ -562,7 +547,10 @@ module Transition = (EV: EV_MODE) => {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
-          env |> List.rev |> List.map(((s, _)) => s) |> String.concat(", ")
+          env
+          |> List.rev
+          |> List.map(~f=((s, _)) => s)
+          |> String.concat(~sep=", ")
         };
       };
 
@@ -632,7 +620,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = (env, d);
       Value;
-    | FixF(dp, d1, None) when mode == `Environment =>
+    | FixF(dp, d1, None) when Poly.equal(mode, `Environment) =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
@@ -651,6 +639,7 @@ module Transition = (EV: EV_MODE) => {
         | None =>
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
+            ~f=
             (Binding.{name: v, id: _}) =>
               (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
             Pat.bindings(dp),
@@ -732,7 +721,12 @@ module Transition = (EV: EV_MODE) => {
               /* Inherit name for user clarity */
               DHExp.ty_subst(tau, utpat, tfbody),
               Option.map(
-                x => x ++ "@<" ++ Typ.pretty_print(tau) ++ ">",
+                ~f=
+                  x =>
+                    x
+                    ++ "@<"
+                    ++ Typ.pretty_print(Typ.surface_names(tau))
+                    ++ ">",
                 name,
               ),
             ),
@@ -806,7 +800,7 @@ module Transition = (EV: EV_MODE) => {
               at: None,
             });
           };
-        | FunNoEnv(dp, d3) when mode == `Substitution =>
+        | FunNoEnv(dp, d3) when Poly.equal(mode, `Substitution) =>
           let matches = matches(targets, dp, d2');
           switch (matches.matches) {
           | IndetMatch
@@ -833,7 +827,7 @@ module Transition = (EV: EV_MODE) => {
           };
         | FunNoEnv(_) => Indet
         | BuiltinFun(ident) =>
-          if (ident == "print") {
+          if (String.equal(ident, "print")) {
             /* Println for probes study */
             Step({
               expr: tuple([]),
@@ -874,7 +868,7 @@ module Transition = (EV: EV_MODE) => {
           let n_args =
             List.length(
               List.filter(
-                fun
+                ~f=fun
                 | {term: Deferral(_), _} => true
                 | _ => false: Exp.t => bool,
                 d4s,
@@ -891,9 +885,9 @@ module Transition = (EV: EV_MODE) => {
               switch ((deferred: list(Exp.t))) {
               | [] => []
               | [{term: Deferral(_), _}, ...deferred] =>
-                /* I can use List.hd and List.tl here because let-unbox ensure that
+                /* I can use List.hd_exn and List.tl_exn here because let-unbox ensure that
                    there are the correct number of args */
-                [List.hd(args), ...go(deferred, List.tl(args))]
+                [List.hd_exn(args), ...go(deferred, List.tl_exn(args))]
               | [x, ...deferred] => [x, ...go(deferred, args)]
               };
             go(d4s, args);
@@ -967,10 +961,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n = (Atom(in_ty), d1');
         let expr =
           switch (f(n)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
           };
@@ -1033,7 +1027,10 @@ module Transition = (EV: EV_MODE) => {
           | None => Indet
           | Some(true) =>
             Step({
-              expr: generated(Atom(Bool(poly_op == Equals))),
+              expr:
+                generated(
+                  Atom(Bool(Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: true,
@@ -1041,7 +1038,10 @@ module Transition = (EV: EV_MODE) => {
             })
           | Some(false) =>
             Step({
-              expr: generated(Atom(Bool(poly_op != Equals))),
+              expr:
+                generated(
+                  Atom(Bool(!Operators.equal_op_bin_poly(poly_op, Equals))),
+                ),
               side_effects: [],
               kind: BinOp(op),
               is_value: false,
@@ -1054,10 +1054,10 @@ module Transition = (EV: EV_MODE) => {
         let-unbox n2 = (Atom(in_ty2), d2);
         let expr =
           switch (f(n1, n2)) {
-          | Either.L(return_value) =>
+          | Ok(return_value) =>
             // operator was successful
             generated(Atom(Atom.repack(out_ty, return_value)))
-          | Either.R(error) =>
+          | Error(error) =>
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
           };
@@ -1073,17 +1073,33 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
       and. d1' = req_final(req(env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' = req_final(req(env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d2')) {
-      | Label(name) as lab =>
+      switch (DHExp.term_of(d2'), DHExp.term_of(d1')) {
+      /* `m.x`: the module's member x. A module stuck on an item keeps its
+         environment for the rest. */
+      | (Label(name), Module(items))
+      | (Label(name), Closure(_, {term: Module(items), _})) =>
+        switch (Mod.member(items, name)) {
+        | Some(v) =>
+          Step({
+            expr: v,
+            side_effects: [],
+            kind: Dot,
+            is_value: true,
+            at: None,
+          })
+        | None => Indet
+        }
+      | (Label(name) as lab, _) =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
         | Matches(d1'') =>
           switch (DHExp.term_of(d1'')) {
           | Tuple(ds) =>
             let projected =
               List.filter_map(
+                ~f=
                 d => {
                   switch (Exp.match_tup_label(d)) {
-                  | Some((s, e)) when name == s => Some(e)
+                    | Some((s, e)) when String.equal(name, s) => Some(e)
                   | _ => None
                   }
                 },
@@ -1120,7 +1136,7 @@ module Transition = (EV: EV_MODE) => {
               : Indet
           | ListLit(ds) =>
             let mapped =
-              List.map(d => generated(Dot(d, generated(lab))), ds);
+              List.map(~f=d => generated(Dot(d, generated(lab))), ds);
             let ls = generated(ListLit(mapped));
             Step({
               expr: ls,
@@ -1129,19 +1145,6 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
               at: None,
             });
-          | Module(items) =>
-            /* Member of a module value; definitions are already values. */
-            switch (Mod.modval_lookup(items, name)) {
-            | Some(v) =>
-              Step({
-                expr: v,
-                side_effects: [],
-                kind: Dot,
-                is_value: true,
-                at: None,
-              })
-            | None => Indet
-            }
           | _ => Indet
           }
         | _ => Indet
@@ -1171,6 +1174,7 @@ module Transition = (EV: EV_MODE) => {
       let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
         tuple(
           List.map(
+            ~f=
             ((lab, d)) =>
               switch (lab) {
               | Some(l) => tup_label(label(l), d)
@@ -1278,7 +1282,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
-      if (needs_closure^ || mode == `Substitution) {
+      if (needs_closure^ || Poly.equal(mode, `Substitution)) {
         Constructor;
       } else {
         Step({
@@ -1388,11 +1392,8 @@ module Transition = (EV: EV_MODE) => {
         at: None,
       });
     | Module(items) =>
-      /* Modules evaluate item by item with sequential scoping: the first
-         pending item's definition is evaluated, its pattern is matched, and
-         the bindings extend the environment for the remaining items.
-         Evaluated bindings become ModVal items; a module whose items are all
-         ModVal is a value once each definition is. */
+      /* Items evaluate in order, each binding scoping over the items after
+         it; a module whose items are all ModVal is a value. */
       switch (Mod.split_pending(items)) {
       | (prefix, None) =>
         let. _ =
@@ -1409,44 +1410,9 @@ module Transition = (EV: EV_MODE) => {
       | (prefix, Some((item, suffix))) =>
         let rebuild = (item: Mod.t) =>
           Module(prefix @ [item] @ suffix) |> rewrap;
-        switch (item.term) {
-        | ModType(_, _) =>
-          let. _ = otherwise(env, d);
-          Step({
-            expr: Module(prefix @ suffix) |> rewrap,
-            side_effects: [],
-            kind: ModuleDiscardType,
-            /* Evaluated bindings are never re-traversed: once nothing is
-               pending, the module is a value. */
-            is_value: suffix == [],
-            at: Some(Mod.rep_id(item)),
-          });
-        | ModExp(d1) =>
-          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
-          and. _ =
-            req_final(
-              req(env),
-              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
-              d1,
-            );
-          Step({
-            expr: Module(prefix @ suffix) |> rewrap,
-            side_effects: [],
-            kind: ModuleDiscardExp,
-            is_value: suffix == [],
-            /* A bare expression item prints as its expression alone, so the
-               item has no syntax to point at, and the expression's is taken
-               by the expression's own steps. */
-            at: None,
-          });
-        | ModLet(_, _)
-        | ModuleMod(_, _) =>
-          let (dp, d1) =
-            switch (item.term) {
-            | ModLet(dp, d1) => (dp, d1)
-            | ModuleMod(mp, d1) => (pat_of_mpat(mp), d1)
-            | _ => failwith("unreachable: module item is a binding")
-            };
+        /* A binding item: its definition evaluated, then matched against
+           the pattern, the bindings scoping over the items after it. */
+        let bind = (dp: Pat.t, d1) => {
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
           and. d1' =
             req_final(
@@ -1460,20 +1426,9 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(env') =>
-            /* Export the bindings in pattern order: each variable the
-               pattern binds, with the value the match gave it. */
-            let bound =
-              List.filter_map(
-                x =>
-                  List.find_opt(((y, _)) => String.equal(x, y), env')
-                  |> Option.map(((_, v)) => (x, v)),
-                Pat.bound_vars(dp),
-              );
             let prefix' =
-              List.fold_left(
-                (prefix, (x, v)) => Mod.add_modval(prefix, x, v),
-                prefix,
-                bound,
+              List.fold(env', ~init=prefix, ~f=(prefix, (x, v)) =>
+                Mod.add_modval(prefix, x, v)
               );
             let env'' = Environment.add_bindings(env, env');
             let side_effects: list(EvaluatorState.effect) = [
@@ -1484,13 +1439,13 @@ module Transition = (EV: EV_MODE) => {
               }),
             ];
             let kind =
-              ModuleBind(bound |> List.map(fst) |> String.concat(", "));
+              ModuleBind(
+                env' |> List.map(~f=fst) |> String.concat(~sep=", "),
+              );
             switch (suffix) {
             | [] =>
-              /* Nothing pending: the module is a value. Its bindings were
-                 evaluated by the steps that recorded them and must not be
-                 traversed again (a probed literal keeps its id as a value
-                 and would be sampled twice). */
+              /* A value: a probed literal keeps its id, so re-traversing
+                 would sample it twice. */
               Step({
                 expr: Module(prefix') |> rewrap,
                 side_effects,
@@ -1499,12 +1454,20 @@ module Transition = (EV: EV_MODE) => {
                 at: Some(Mod.rep_id(item)),
               })
             | _ =>
-              /* The continuation gets a fresh id: it is evaluated as a
-                 sub-expression of this module, and a probe on the module
-                 must sample its value once, at this level. */
+              /* Fresh id: a probe on the module samples its value once, at
+                 this level. The new bindings scope over the items after
+                 this one, not the members already evaluated before it. */
               Step({
                 expr:
-                  subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
+                  switch (mode) {
+                  | `Environment =>
+                    subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh)
+                  | `Substitution =>
+                    Module(
+                      prefix' @ Substitution.in_mod_items(env'', suffix),
+                    )
+                    |> DHExp.fresh
+                  },
                 side_effects,
                 kind,
                 is_value: false,
@@ -1512,8 +1475,33 @@ module Transition = (EV: EV_MODE) => {
               })
             };
           };
-        /* a hole or unparsed item is passed over, as `?; e` is at an
-           expression level: the members after it still run */
+        };
+        switch (item.term) {
+        | ModExp(d1) =>
+          let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
+          and. d1' =
+            req_final(
+              req(env),
+              d1 => ModuleItem(prefix, item, d1, suffix) |> wrap_ctx,
+              d1,
+            );
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: List.is_empty(suffix),
+            /* The item is rendered as its expression. */
+            at: Some(DHExp.rep_id(d1')),
+          });
+        | ModLet(dp, d1) => bind(dp, d1)
+        /* Elaboration turns a `module` item into a `let` item, as
+           ModuleExp into Let, and drops a `type` item. */
+        | ModuleMod(_, _)
+        | ModType(_, _) =>
+          let. _ = otherwise(env, d);
+          Indet;
+        /* A hole item binds nothing, as `1; ?; 2` sequences past its
+           hole. */
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
@@ -1522,10 +1510,12 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardExp,
-            is_value: suffix == [],
+            is_value: List.is_empty(suffix),
             at: Some(Mod.rep_id(item)),
           });
         | ModVal(_, _) =>
+          /* Never pending: split_pending takes evaluated bindings as the
+             prefix. */
           let. _ = otherwise(env, d);
           Indet;
         };
@@ -1559,7 +1549,6 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | ModuleBind(_)
   | ModuleDiscardExp
-  | ModuleDiscardType
   | RemoveTypeAlias
   | RemoveUse
   | InvalidStep
@@ -1579,7 +1568,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind(s) => String.cat("substitution for ", s)
+  | LetBind(s) => "substitution for " ++ s
   | TheoremBind => "theorem substitution"
   | RecordTheorem => "record theorem"
   | Seq => "sequence"
@@ -1625,9 +1614,8 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | ModuleBind(s) => String.cat("module binding for ", s)
+  | ModuleBind(s) => "module binding for " ++ s
   | ModuleDiscardExp => "discard module expression"
-  | ModuleDiscardType => "define module type"
   | Dot => "member access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";

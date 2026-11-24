@@ -15,19 +15,43 @@
 open Util;
 open Haz3lcore;
 open Language;
+open Poly;
 module P = EvalPieces;
+
+/* what a split item holds around its nested value: a let's pattern and
+   body, or a member's binding, as elaborated */
+type shell =
+  | LetShell(Pat.t, Exp.t)
+  | MemberShell(Mod.t);
+
+let shell_equal = (a: shell, b: shell): bool =>
+  switch (a, b) {
+  | (LetShell(p, b), LetShell(p', b')) =>
+    phys_equal(p, p') && phys_equal(b, b')
+  /* a member's binding is rebuilt around its value: its parts kept */
+  | (MemberShell(m), MemberShell(m')) =>
+    phys_equal(m, m')
+    || phys_equal(m.annotation, m'.annotation)
+    && (
+      switch (m.term, m'.term) {
+      | (ModLet(p, _), ModLet(p', _)) => phys_equal(p, p')
+      | (ModExp(_), ModExp(_)) => true
+      | _ => false
+      }
+    )
+  | _ => false
+  };
 
 /* what a piece was cut from, to tell when it still holds. [skip]: the
    keys it leaves to pieces above. a module member's piece also holds its
    binding */
 type source =
   | Plain(Statics.Map.t, Exp.t, list(Id.t), option(Mod.t)) /* map, elab, skip, binding */
-  /* the let's annotation, pattern and body, its own map, skip, its
-     entries as projected, and its binding */
+  /* the item's annotation and shell, its own map, skip, its entries as
+     projected, and its binding */
   | Shell(
       IdTagged.IdTag.t,
-      Pat.t,
-      Exp.t,
+      shell,
       Statics.Map.t,
       list(Id.t),
       list(P.entry),
@@ -35,7 +59,8 @@ type source =
     )
   /* skip; per item, its root infos and their entries as projected */
   | Roots(list(Id.t), list((Id.t, list((Id.t, Info.t)), list(P.entry))))
-  | Node(IdTagged.IdTag.t) /* a module value's annotation */
+  /* a module value's annotation, and a Mod root's own entries */
+  | Node(IdTagged.IdTag.t, list(P.entry))
   | Emptied(Exp.t, option(Mod.t)) /* the item's elab, and its binding */
   | Targets(Sample.targets)
   | Whole(Exp.t, Statics.Map.t, Sample.targets);
@@ -50,8 +75,8 @@ type cached = {
 
 /* a chain's pieces as last cut, and its split items' members' */
 type chain_cache = {
-  pieces: Hashtbl.t(P.key, cached),
-  members: Hashtbl.t(Id.t, members),
+  pieces: Stdlib.Hashtbl.t(P.key, cached),
+  members: Stdlib.Hashtbl.t(Id.t, members),
 }
 /* a split item's members, kept while DefStatics keeps its nest */
 and members = {
@@ -65,15 +90,15 @@ and members = {
 };
 
 let empty_cache = () => {
-  pieces: Hashtbl.create(16),
-  members: Hashtbl.create(4),
+  pieces: Stdlib.Hashtbl.create(16),
+  members: Stdlib.Hashtbl.create(4),
 };
 
 /* a program's pieces, while the probes' witnessing holds */
 type doc = {
   witnessing: EvalInfo.witnessing,
   mutable top: chain_cache,
-  singles: Hashtbl.t(P.key, cached) /* its targets, or it whole */
+  singles: Stdlib.Hashtbl.t(P.key, cached) /* its targets, or it whole */
 };
 
 /* by the program's term id, most recent first, as DefStatics' slots */
@@ -82,18 +107,21 @@ let docs_cap = 8;
 
 let doc_for = (id: Id.t, witnessing: EvalInfo.witnessing): doc => {
   let doc =
-    switch (List.assoc_opt(id, docs^)) {
+    switch (List.Assoc.find(docs^, id, ~equal=Poly.equal)) {
     | Some(d) when d.witnessing == witnessing => d
     | _ => {
         witnessing,
         top: empty_cache(),
-        singles: Hashtbl.create(2),
+        singles: Stdlib.Hashtbl.create(2),
       }
     };
   docs :=
     [
       (id, doc),
-      ...ListUtil.take(docs_cap - 1, List.remove_assoc(id, docs^)),
+      ...ListUtil.take(
+           docs_cap - 1,
+           List.Assoc.remove(docs^, id, ~equal=Poly.equal),
+         ),
     ];
   doc;
 };
@@ -136,20 +164,20 @@ let encode = (source, content: P.content, keys, key: P.key): cached => {
 let piece =
     (
       acc: acc,
-      ~old: Hashtbl.t(P.key, cached),
-      ~into: Hashtbl.t(P.key, cached),
+      ~old: Stdlib.Hashtbl.t(P.key, cached),
+      ~into: Stdlib.Hashtbl.t(P.key, cached),
       key: P.key,
       ~holds: source => bool,
       ~make,
     ) => {
   let c =
-    switch (Hashtbl.find_opt(old, key)) {
+    switch (Stdlib.Hashtbl.find_opt(old, key)) {
     | Some(c) when holds(c.source) => c
     | _ =>
       let (source, content, keys) = make();
       encode(source, content, keys, key);
     };
-  Hashtbl.replace(into, key, c);
+  Stdlib.Hashtbl.replace(into, key, c);
   use(acc, key, c);
 };
 
@@ -159,7 +187,10 @@ let ids_equal = List.equal(Id.equal);
 let keys_of = (map: Statics.Map.t, ~skip: list(Id.t)): int =>
   Id.Map.cardinal(map)
   - List.length(
-      List.filter(id => Id.Map.mem(id, map), List.sort_uniq(compare, skip)),
+      List.filter(
+        ~f=id => Id.Map.mem(id, map),
+        List.dedup_and_sort(~compare, skip),
+      ),
     );
 
 /* an item's terms, which its entries' elab_terms may be */
@@ -170,13 +201,13 @@ type terms = {
 };
 
 let elab_of = (t: terms, e: Exp.t): P.elab =>
-  if (e === t.graft) {
+  if (phys_equal(e, t.graft)) {
     Graft;
-  } else if (e === t.own) {
+  } else if (phys_equal(e, t.own)) {
     Own;
   } else {
     switch (t.nested) {
-    | Some(v) when e === v => Nested
+    | Some(v) when phys_equal(e, v) => Nested
     | _ => Inline(e)
     };
   };
@@ -186,11 +217,12 @@ let project =
     (acc: acc, t: terms, ~skip: list(Id.t), infos: list((Id.t, Info.t)))
     : list(P.entry) =>
   List.filter_map(
+    ~f=
     ((id, info)) =>
-      List.exists(Id.equal(id), skip)
+        List.exists(~f=Id.equal(id), skip)
         ? None
         : EvalInfo.entry_of_info(acc.witnessing, info)
-          |> Option.map((e: EvalInfo.entry) =>
+            |> Option.map(~f=(e: EvalInfo.entry) =>
                P.{
                  id,
                  elab: elab_of(t, e.elab_term),
@@ -207,10 +239,11 @@ let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
       Id.equal(x.id, y.id)
       && (
         switch (x.elab, y.elab) {
-        | (Inline(e1), Inline(e2)) => e1 === e2
+        | (Inline(e1), Inline(e2)) => phys_equal(e1, e2)
         | (Graft, Graft)
         | (Own, Own)
-        | (Nested, Nested) => true
+        | (Nested, Nested)
+        | (Value, Value) => true
         | _ => false
         }
       )
@@ -220,24 +253,22 @@ let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
     b,
   );
 
-/* a module member's binding as its module's value holds it
-   (ModuleHelpers.refold_item), from its source and its elaboration's
-   let, the link it makes in the module's chain. a type member makes no
-   link, and the value drops it */
-let bind = (src: Mod.t, it: DefStatics.item, elab: Exp.t): option(Mod.t) =>
+/* a module member's binding as its module's value holds it, from its
+   elaboration, its module of it. a type member has none: the value drops
+   it */
+let bind = (src: Mod.t, elab: Exp.t): option(Mod.t) =>
   switch (src.term, elab.term) {
-  | (ModType(_), _) =>
-    Option.equal(Id.equal, it.d_hole, Some(Exp.rep_id(elab)))
-      ? None
-      : raise(Unsplittable("a type member's elaboration is not its body"))
-  | (_, Let(p, def, _)) => Some(ModuleHelpers.refold_item(src, p, def))
-  | _ => raise(Unsplittable("a member's elaboration is not a let"))
+  | (ModType(_), Module([])) => None
+  | (_, Module([binding])) => Some(binding)
+  | _ => raise(Unsplittable("a member's elaboration is not its module"))
   };
 
 /* bindings alike. a binding's definition is its hollow's, which a kept
    piece shares, so the comparison stops there */
 let same_binding =
-  Option.equal((a: Mod.t, b: Mod.t) => a === b || compare(a, b) == 0);
+  Option.equal((a: Mod.t, b: Mod.t) =>
+    phys_equal(a, b) || compare(a, b) == 0
+  );
 
 /* what a split item's members are: a let-chain member's links, whose
    chain is its value, or a module literal's members, whose bindings are
@@ -247,23 +278,41 @@ type nested =
   | Members(list(Mod.t));
 
 /* a definition's nested value is its members' chain finished, when
-   DefStatics built it so: a module literal's value or a let-chain
-   member's chain at its let's definition */
+   DefStatics built it so: a module literal's value at its let's
+   definition, or a let-chain member's chain as its expression */
 let split_of = (it: DefStatics.item) =>
-  switch (it.d_nest, it.d_members, it.d_elab.term) {
-  | (Some(n), [_, ..._], Let(p, v, body)) =>
-    switch (DefStatics.top_sum(n.n_sums)) {
-    | Some({s_elab: Some(top), _}) =>
+  switch (it.d_nest, it.d_members) {
+  | (Some(n), [_, ..._]) =>
+    switch (DefStatics.top_sum(n.n_sums), it.d_elab.term) {
+    | (Some({s_elab: Some(_), _}), Let(p, v, body)) =>
       switch (DefStatics.module_literal_members(~ctx=it.d_ctx_in, it.d_node)) {
       | Some((_, def, members, _)) =>
         switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
-        | Some(info) when info.elab_term === v =>
-          Some((Members(members), n, v, p, body))
+        | Some(info) when phys_equal(info.elab_term, v) =>
+          Some((Members(members), n, v, LetShell(p, body)))
         | _ => None
         }
-      | None =>
-        Option.is_some(DefStatics.modexp_chain(it.d_node)) && v === top
-          ? Some((Links, n, v, p, body)) : None
+      | None => None
+      }
+    | (Some({s_elab: Some(top), _}), Module([{term: ModExp(v), _} as b]))
+        when
+          phys_equal(v, top)
+          && Option.is_some(
+               Option.bind(
+                 DefStatics.member_of(it.d_node),
+                 ~f=DefStatics.member_chain,
+               ),
+             ) =>
+      Some((Links, n, v, MemberShell(b)))
+    | (Some({s_elab: Some(_), _}), Module([{term: ModLet(_, v), _} as b])) =>
+      switch (Option.map(~f=Mod.def, DefStatics.member_of(it.d_node))) {
+      | Some(Some(Exp({term: Module(members), _} as def))) =>
+        switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
+        | Some(info) when phys_equal(info.elab_term, v) =>
+          Some((Members(members), n, v, MemberShell(b)))
+        | _ => None
+        }
+      | _ => None
       }
     | _ => None
     }
@@ -279,14 +328,14 @@ let placeholder: Exp.t = Exp.temp(EmptyHole);
 let roots_piece =
     (
       acc: acc,
-      ~old: Hashtbl.t(P.key, cached),
-      ~into: Hashtbl.t(P.key, cached),
+      ~old: Stdlib.Hashtbl.t(P.key, cached),
+      ~into: Stdlib.Hashtbl.t(P.key, cached),
       key: P.key,
       ~skip: list(Id.t),
       items: list((DefStatics.item, DefStatics.sum, terms)),
     ) => {
   let before =
-    switch (Hashtbl.find_opt(old, key)) {
+    switch (Stdlib.Hashtbl.find_opt(old, key)) {
     | Some({source: Roots(skip', rows), _} as c)
         when ids_equal(skip', skip) =>
       Some((c, rows))
@@ -295,12 +344,14 @@ let roots_piece =
   /* by position, then by id where items moved */
   let by_id =
     lazy({
-      let t = Hashtbl.create(16);
+      let t = Stdlib.Hashtbl.create(16);
       Option.iter(
+        ~f=
         ((_, rows)) =>
           List.iter(
+              ~f=
             ((id, overlay, entries)) =>
-              Hashtbl.replace(t, id, (overlay, entries)),
+                  Stdlib.Hashtbl.replace(t, id, (overlay, entries)),
             rows,
           ),
         before,
@@ -320,14 +371,14 @@ let roots_piece =
           )
         | [_, ...olds] =>
           same := false;
-          (Hashtbl.find_opt(Lazy.force(by_id), it.d_id), olds);
+          (Stdlib.Hashtbl.find_opt(Lazy.force(by_id), it.d_id), olds);
         | [] =>
           same := false;
-          (Hashtbl.find_opt(Lazy.force(by_id), it.d_id), []);
+          (Stdlib.Hashtbl.find_opt(Lazy.force(by_id), it.d_id), []);
         };
       let entries =
         switch (prior) {
-        | Some((overlay, entries)) when overlay === s.s_overlay => entries
+        | Some((overlay, entries)) when phys_equal(overlay, s.s_overlay) => entries
         | Some((_, entries)) =>
           let fresh = project(acc, t, ~skip, s.s_overlay);
           entries_equal(fresh, entries)
@@ -360,54 +411,53 @@ let roots_piece =
     | _ =>
       encode(
         Roots(skip, rows),
-        Roots(List.map(((id, _, entries)) => (id, entries), rows)),
-        List.fold_left(
-          (n, (_, overlay, _)) =>
+        Roots(List.map(~f=((id, _, entries)) => (id, entries), rows)),
+        List.fold(rows, ~init=0, ~f=(n, (_, overlay, _)) =>
             n
             + List.length(
                 List.filter(
-                  ((id, _)) => !List.exists(Id.equal(id), skip),
+                ~f=((id, _)) => !List.exists(~f=Id.equal(id), skip),
                   overlay,
                 ),
-              ),
-          0,
-          rows,
+            )
         ),
         key,
       )
     };
-  Hashtbl.replace(into, key, c);
+  Stdlib.Hashtbl.replace(into, key, c);
   use(acc, key, c);
 };
 
-/* a split item's piece: its let, a hole for the nested value (in its
+/* a split item's piece: its shell, a hole for the nested value (in its
    binding too, if a member). the module's own map is rebuilt whenever a
    member changes, so its entries are compared as projected, as root
    entries are */
 let shell_piece =
     (
       acc: acc,
-      ~old: Hashtbl.t(P.key, cached),
-      ~into: Hashtbl.t(P.key, cached),
+      ~old: Stdlib.Hashtbl.t(P.key, cached),
+      ~into: Stdlib.Hashtbl.t(P.key, cached),
       key: P.key,
       it: DefStatics.item,
       t: terms,
       n: DefStatics.nest,
-      ~p: Pat.t,
-      ~body: Exp.t,
+      ~shell: shell,
       ~skip: list(Id.t),
       ~src: option(Mod.t),
     ) => {
   let hollow: Exp.t = {
     ...it.d_elab,
-    term: Let(p, placeholder, body),
+    term:
+      switch (shell) {
+      | LetShell(p, body) => Let(p, placeholder, body)
+      | MemberShell(b) => Module([P.plug_binding(b, placeholder)])
+      },
   };
-  let binding = lazy(Option.bind(src, src => bind(src, it, hollow)));
+  let binding = lazy(Option.bind(src, ~f=src => bind(src, hollow)));
   let source = entries =>
     Shell(
       it.d_elab.annotation,
-      p,
-      body,
+      shell,
       n.n_wrap,
       skip,
       entries,
@@ -415,14 +465,16 @@ let shell_piece =
     );
   let fresh = lazy(project(acc, t, ~skip, Id.Map.bindings(n.n_wrap)));
   let c =
-    switch (Hashtbl.find_opt(old, key)) {
-    | Some({source: Shell(a, p', b, w, skip', entries, was), _} as c)
+    switch (Stdlib.Hashtbl.find_opt(old, key)) {
+    | Some({source: Shell(a, shell', w, skip', entries, was), _} as c)
         when
-          a === it.d_elab.annotation
-          && p' === p
-          && b === body
+          phys_equal(a, it.d_elab.annotation)
+          && shell_equal(shell', shell)
           && ids_equal(skip', skip)
-          && (w === n.n_wrap || entries_equal(Lazy.force(fresh), entries))
+          && (
+            phys_equal(w, n.n_wrap)
+            || entries_equal(Lazy.force(fresh), entries)
+          )
           && same_binding(was, Lazy.force(binding)) => {
         ...c,
         source: source(entries),
@@ -443,19 +495,41 @@ let shell_piece =
         key,
       );
     };
-  Hashtbl.replace(into, key, c);
+  Stdlib.Hashtbl.replace(into, key, c);
   use(acc, key, c);
 };
 
-/* a module value's node: its annotation, kept while it reads the same */
+/* a module value's node: its annotation, kept while it reads the same,
+   and a Mod root's own entries ([infos]), which read [value] */
 let node_piece =
     (
       acc: acc,
-      ~old: Hashtbl.t(P.key, cached),
-      ~into: Hashtbl.t(P.key, cached),
+      ~old: Stdlib.Hashtbl.t(P.key, cached),
+      ~into: Stdlib.Hashtbl.t(P.key, cached),
+      ~infos: list((Id.t, Info.t))=[],
+      ~value: option(Exp.t)=?,
       key: P.key,
       annotation: IdTagged.IdTag.t,
-    ) =>
+    ) => {
+  let entries =
+    List.filter_map(
+      ~f=
+        ((id, info)) =>
+          EvalInfo.entry_of_info(acc.witnessing, info)
+          |> Option.map(~f=(e: EvalInfo.entry) =>
+               P.{
+                 id,
+                 elab:
+                   switch (value) {
+                   | Some(v) when phys_equal(e.elab_term, v) => Value
+                   | _ => Inline(e.elab_term)
+                   },
+                 co_ctx: e.co_ctx,
+                 probe_targets: e.probe_targets,
+               }
+             ),
+      infos,
+    );
   piece(
     acc,
     ~old,
@@ -463,11 +537,18 @@ let node_piece =
     key,
     ~holds=
       fun
-      | Node(a) => a === annotation || IdTagged.IdTag.equal(a, annotation)
+      | Node(a, es) =>
+        (phys_equal(a, annotation) || IdTagged.IdTag.equal(a, annotation))
+        && entries_equal(es, entries)
       | _ => false,
     ~make=() =>
-    (Node(annotation), Node(annotation): P.content, 0)
+    (
+      Node(annotation, entries),
+      Node(annotation, entries): P.content,
+      List.length(infos),
+    )
   );
+};
 
 /* a module run empty's piece: its let with an empty module for its value
    (WorldTree.apply), its binding likewise */
@@ -535,8 +616,8 @@ let dropped_keys =
 
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
    the root keys of the items holding the chain, whose entries sit in
-   pieces above. [srcs]: a module's members, the items but the tail.
-   [cut]: which members run (the tail always does) */
+   pieces above. [srcs]: a module's members, its items. [cut]: which
+   members run (the tail always does) */
 let rec chain =
         (
           acc: acc,
@@ -557,25 +638,26 @@ let rec chain =
   };
   let srcs =
     switch (srcs) {
-    | [] => List.map(_ => None, items)
-    | _ when List.length(srcs) == List.length(items) - 1 =>
-      List.map(Option.some, srcs) @ [None]
+    | [] => List.map(~f=_ => None, items)
+    | _ when List.length(srcs) == List.length(items) =>
+      List.map(~f=Option.some, srcs)
     | _ => raise(Unsplittable("members and items differ"))
     };
   /* the worker finds a chain's items by id */
-  let ids = Hashtbl.create(List.length(items));
+  let ids = Stdlib.Hashtbl.create(List.length(items));
   List.iter(
+    ~f=
     (it: DefStatics.item) =>
-      if (Hashtbl.mem(ids, it.d_id)) {
+        if (Stdlib.Hashtbl.mem(ids, it.d_id)) {
         raise(Unsplittable("an item id twice in a chain"));
       } else {
-        Hashtbl.replace(ids, it.d_id, ());
+          Stdlib.Hashtbl.replace(ids, it.d_id, ());
       },
     items,
   );
   let cache = {
-    pieces: Hashtbl.create(List.length(items) + 1),
-    members: Hashtbl.create(4),
+    pieces: Stdlib.Hashtbl.create(List.length(items) + 1),
+    members: Stdlib.Hashtbl.create(4),
   };
   let part = (src: option(Mod.t)): option(WorldTree.part) =>
     switch (cut, src) {
@@ -588,18 +670,18 @@ let rec chain =
       | Some(g) => g
       | None => raise(Unsplittable("an elaboration gap"))
       };
-    let skip = List.map(fst, s.s_overlay) @ shadowed;
+    let skip = List.map(~f=fst, s.s_overlay) @ shadowed;
     let key: P.key = Item(it.d_id);
     switch (split_of(it), inner_cut) {
-    | (Some((Links, _, _, _, _)), Some(_))
+    | (Some((Links, _, _, _)), Some(_))
     | (None, Some(_)) =>
       raise(Unsplittable("a cut into a module kept whole"))
-    | (Some((nested, n, v, p, body)), _) =>
+    | (Some((nested, n, v, shell)), _) =>
       let m =
-        switch (Hashtbl.find_opt(old.members, it.d_id)) {
+        switch (Stdlib.Hashtbl.find_opt(old.members, it.d_id)) {
         | Some(m)
             when
-              m.nest === n
+              phys_equal(m.nest, n)
               && ids_equal(m.shadowed, skip)
               && Option.equal(WorldTree.equal_cut, m.cut, inner_cut) => m
         | prior =>
@@ -637,7 +719,7 @@ let rec chain =
             keys: inner.keys,
           };
         };
-      Hashtbl.replace(cache.members, it.d_id, m);
+      Stdlib.Hashtbl.replace(cache.members, it.d_id, m);
       acc.chunks = [m.pieces, ...acc.chunks];
       acc.keys = acc.keys + m.keys;
       let t = {
@@ -654,8 +736,7 @@ let rec chain =
           it,
           t,
           n,
-          ~p,
-          ~body,
+          ~shell,
           ~skip,
           ~src,
         );
@@ -686,7 +767,7 @@ let rec chain =
         own: it.d_elab,
         nested: None,
       };
-      let binding = lazy(Option.bind(src, src => bind(src, it, it.d_elab)));
+      let binding = lazy(Option.bind(src, ~f=src => bind(src, it.d_elab)));
       let slot =
         piece(
           acc,
@@ -696,8 +777,8 @@ let rec chain =
           ~holds=(
             fun
             | Plain(m, e, skip', was) =>
-              m === it.d_map
-              && e === it.d_elab
+              phys_equal(m, it.d_map)
+              && phys_equal(e, it.d_elab)
               && ids_equal(skip', skip)
               && same_binding(was, Lazy.force(binding))
             | _ => false
@@ -760,7 +841,7 @@ let rec chain =
     );
   (
     {
-      items: List.map(fst, cuts),
+      items: List.map(~f=fst, cuts),
       roots,
     },
     cache,
@@ -779,7 +860,8 @@ let targets_piece = (acc: acc, doc: doc, id: Id.t, targets: Sample.targets) =>
     ~holds=
       fun
       | Targets(t) =>
-        t === targets || Id.Map.equal(Sample.equal_capture_spec, t, targets)
+        phys_equal(t, targets)
+        || Id.Map.equal(Sample.equal_capture_spec, t, targets)
       | _ => false,
     ~make=() =>
     (Targets(targets), Targets(targets), 0)
@@ -794,7 +876,9 @@ let whole_piece =
     ~holds=
       fun
       | Whole(e, m, t) =>
-        e === statics.elaborated && m === statics.info_map && t === targets
+        phys_equal(e, statics.elaborated)
+        && phys_equal(m, statics.info_map)
+        && phys_equal(t, targets)
       | _ => false,
     ~make=() =>
     (
@@ -864,6 +948,18 @@ let split =
           acc,
           ~old=doc.singles,
           ~into=doc.singles,
+          /* the root's own info, which no item holds */
+          ~infos=
+            List.filter_map(
+              ~f=
+                id =>
+                  Option.map(
+                    ~f=i => (id, i),
+                    Id.Map.find_opt(id, ds.merged),
+                  ),
+              IdTagged.ids(root),
+            ),
+          ~value=statics.elaborated,
           Node(Exp.rep_id(root)): P.key,
           statics.elaborated.annotation,
         ),

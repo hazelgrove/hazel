@@ -14,8 +14,8 @@ let qcheck_map_annotation_test =
         );
       let _ = [%derive.show: Exp.t](core_exp); // Gets coverage for show
       Grammar.equal_exp_t(
-        (==),
-        Grammar.map_exp_annotation(Fun.id, core_exp),
+        Poly.equal,
+        Grammar.map_exp_annotation(Fn.id, core_exp),
         core_exp,
       );
     },
@@ -53,7 +53,9 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
-      | Dot => dot(empty_hole(), empty_hole())
+      | Dot
+      | ModuleProjection
+      | TupleProjection => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
@@ -217,10 +219,13 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Exp.show_cls, Fmt.string), Exp.equal_cls);
         List.iter(
+          ~f=
           (cls: Exp.cls) =>
             switch (cls) {
             | Projector // Excluding projectors from cls
             | Parens => () // Parens and projectors are transparent (return inner cls)
+              | ModuleProjection
+              | TupleProjection => () // Given by statics from the left side's type, not by the term
             | _ =>
               check(
                 cls_testable,
@@ -241,6 +246,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Pat.show_cls, Fmt.string), Pat.equal_cls);
         List.iter(
+          ~f=
           cls =>
             check(
               cls_testable,
@@ -260,6 +266,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(Typ.show_cls, Fmt.string), Typ.equal_cls);
         List.iter(
+          ~f=
           (cls: Typ.cls) => {
             switch (cls) {
             | Constructor
@@ -285,6 +292,7 @@ let tests = (
         let cls_testable =
           testable(Fmt.using(TPat.show_cls, Fmt.string), TPat.equal_cls);
         List.iter(
+          ~f=
           cls =>
             check(
               cls_testable,

@@ -6,7 +6,7 @@ open Haz3lcore;
 
 let parse_pat = (s: string): option(Language.Pat.t) =>
   Parser.to_zipper(~root=Sort.Pat, s)
-  |> Option.map(MakeTerm.from_zip_for_pat);
+  |> Option.map(~f=MakeTerm.from_zip_for_pat);
 
 let shape = (p: Language.Pat.t): string =>
   switch (p.term) {

@@ -6,6 +6,7 @@ open Haz3lcore;
 
 let view =
     (
+      ~classes=?,
       ~globals: Globals.t,
       ~measured,
       ~term_data,
@@ -18,6 +19,7 @@ let view =
     : Node.t => {
   let code =
     Code.view(
+      ~classes?,
       ~measured,
       ~settings=globals.settings,
       ~shape_map,
@@ -31,11 +33,14 @@ let view =
   div_c("code", [span_c("code-text", code)]);
 };
 
-let view_segment = (~globals: Globals.t, segment: Segment.t) => {
+let view_segment =
+    (~classes=?, ~refine_sort=?, ~globals: Globals.t, segment: Segment.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   let refractor_rows = Id.Map.empty; //assume no refractors
   let term_data = TermData.empty; //assume no indication/selection decoratinos
   view(
+    ~classes?,
+    ~refine_sort?,
     ~globals,
     ~measured=Measured.of_segment(segment, shape_map, refractor_rows),
     ~term_data,

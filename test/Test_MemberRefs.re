@@ -2,6 +2,7 @@ open Util;
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* `M.x` and `M.T` as references to the member (Info.binding_site): F12,
    the inspector's reading and highlights, on the editor's compositional
@@ -27,7 +28,7 @@ let compositional = (~root, z: Zipper.t): Statics.Map.t =>
 /* the whole program's at once */
 let monolithic = (~root, z: Zipper.t): Statics.Map.t => {
   let term =
-    if (root == Sort.Mod) {
+    if (Sort.equal(root, Sort.Mod)) {
       let (seg, masks) =
         MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
       MakeTerm.Incr.term_of_root(~masks, ~root, seg);
@@ -58,10 +59,10 @@ let point = (~off=0, src: string, needle: string): Point.t => {
             col: c + off,
           }: Point.t
         )
-      | exception Not_found => find(row + 1, rest)
+      | exception Stdlib.Not_found => find(row + 1, rest)
       }
     };
-  find(0, String.split_on_char('\n', src));
+  find(0, String.split(~on='\n', src));
 };
 
 /* [src] with the caret at [needle], [off] columns in */
@@ -97,12 +98,12 @@ let place = (~root, src, z: Zipper.t, id: Id.t): string => {
   let measured = CachedSyntax.init(~root, z).measured;
   switch (Measured.find_by_id(id, measured)) {
   | Some(m) =>
-    let line = List.nth(String.split_on_char('\n', src), m.origin.row);
+    let line = List.nth_exn(String.split(~on='\n', src), m.origin.row);
     Printf.sprintf(
       "%d:%d %s",
       m.origin.row,
       m.origin.col,
-      String.trim(line),
+      String.strip(line),
     );
   | None => "unmeasured"
   };
@@ -130,8 +131,8 @@ let f12 = (~off=0, ~root, src, needle): string => {
   ) {
   | Ok(z) =>
     let pt = Zipper.Caret.point(CachedSyntax.init(~root, z).measured, z);
-    let line = List.nth(String.split_on_char('\n', src), pt.row);
-    Printf.sprintf("%d:%d %s", pt.row, pt.col, String.trim(line));
+    let line = List.nth_exn(String.split(~on='\n', src), pt.row);
+    Printf.sprintf("%d:%d %s", pt.row, pt.col, String.strip(line));
   | Error(f) => Action.Failure.show(f)
   };
 };
@@ -159,6 +160,7 @@ let roots = [(Sort.Mod, m_src), (Sort.Exp, e_src)];
 
 let go_to_definition = () =>
   List.iter(
+    ~f=
     ((root, src)) => {
       let r = " [" ++ Sort.show(root) ++ "]";
       check(
@@ -185,6 +187,7 @@ let go_to_definition = () =>
 
 let nested = () =>
   List.iter(
+    ~f=
     ((what, mk)) => {
       let root = Sort.Mod;
       let names_at = (needle, off, expected) => {
@@ -274,12 +277,19 @@ let resolution = () => {
     ("a labeled tuple's label", "let t = (x = 1);\nt.x", "t.x", "nothing"),
   ];
   List.iter(
+    ~f=
     ((what, mk)) =>
       List.iter(
+          ~f=
         ((case, src, needle, expected)) => {
           /* the caret on the label */
           let z =
-            at(~off=String.index(needle, '.') + 1, ~root=Mod, src, needle);
+                at(
+                  ~off=String.index_exn(needle, '.') + 1,
+                  ~root=Mod,
+                  src,
+                  needle,
+                );
           check(
             string,
             what ++ ": " ++ case,
@@ -295,8 +305,10 @@ let resolution = () => {
 
 let inspector = () =>
   List.iter(
+    ~f=
     ((what, mk)) => {
       List.iter(
+          ~f=
         ((root, src)) => {
           let r = " " ++ what ++ " [" ++ Sort.show(root) ++ "]";
           let z = at(~off=2, ~root, src, "M.a");
@@ -337,7 +349,7 @@ let inspector = () =>
       check(
         string,
         "t.x's x " ++ what,
-        "Dot operator : x",
+          "Label : Int",
         inspect(~info_map=mk(~root=Sort.Exp, z), z),
       );
     },
@@ -348,14 +360,18 @@ let inspector = () =>
    does the label; the top-level `a` stays out */
 let highlights = () =>
   List.iter(
+    ~f=
     ((root, src)) => {
       let hl = (needle, off) => {
         let z = at(~off, ~root, src, needle);
         let info_map = compositional(~root, z);
         Statics.Map.var_highlight_ids(info_map, indicated(~info_map, z))
-        |> List.map(id =>
+          |> List.map(~f=id =>
              switch (
-               Measured.find_by_id(id, CachedSyntax.init(~root, z).measured)
+                 Measured.find_by_id(
+                   id,
+                   CachedSyntax.init(~root, z).measured,
+                 )
              ) {
              | Some(m) => [
                  Printf.sprintf("%d:%d", m.origin.row, m.origin.col),
@@ -365,11 +381,16 @@ let highlights = () =>
              }
            )
         |> List.concat
-        |> List.sort(compare)
-        |> String.concat(" ");
+          |> List.sort(~compare)
+          |> String.concat(~sep=" ");
       };
       let r = " [" ++ Sort.show(root) ++ "]";
-      check(string, "from the member" ++ r, "1:6 2:10 7:16", hl("a = 1", 0));
+        check(
+          string,
+          "from the member" ++ r,
+          "1:6 2:10 7:16",
+          hl("a = 1", 0),
+        );
       check(string, "from M.a's a" ++ r, "1:6 2:10 7:16", hl("M.a", 2));
     },
     roots,

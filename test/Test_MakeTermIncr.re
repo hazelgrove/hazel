@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* MakeTerm.Incr.go_incr's record equals MakeTerm.go's on every field,
    reparses only changed items, and never falls back */
@@ -64,14 +65,14 @@ let corpus_case = (file: string, ()) => {
   /* a physically fresh copy of one piece: one item reparses */
   let n = List.length(seg);
   let seg' =
-    List.mapi((i, p) => i == n / 2 ? CorpusUtil.copy_piece(p) : p, seg);
+    List.mapi(~f=(i, p) => i == n / 2 ? CorpusUtil.copy_piece(p) : p, seg);
   let a1 = MakeTerm.Incr.full_analyzed^;
   let incr_r = MakeTerm.Incr.go_incr(~cache, seg');
   let reparsed = MakeTerm.Incr.full_analyzed^ - a1;
   check(bool, file ++ ": localized reparse", true, reparsed <= 1);
   records_agree(file ++ ":after edit", MakeTerm.go(seg'), incr_r);
   check_term_of(file, seg);
-  ignore(MakeTerm.Incr.term_of(List.map(p => p, seg)));
+  ignore(MakeTerm.Incr.term_of(List.map(~f=p => p, seg)));
   check(
     int,
     file ++ ": term_of a fresh list of the same pieces parses nothing",
@@ -158,7 +159,7 @@ let shared_case = ((root, file), ()) => {
   /* a cache built at another root goes unused */
   MakeTerm.Incr.last := None;
   MakeTerm.Incr.term_cache := None;
-  let other = root == Sort.Mod ? Sort.Exp : Sort.Mod;
+  let other = Sort.equal(root, Sort.Mod) ? Sort.Exp : Sort.Mod;
   let other_cache = MakeTerm.Incr.mk_cache();
   ignore(MakeTerm.Incr.go_incr(~root=other, ~cache=other_cache, edited));
   MakeTerm.Incr.last := None;
@@ -247,16 +248,17 @@ let labeled_singletons = () => {
 let tests = (
   "MakeTermIncr",
   List.map(
-    ((name, src)) => test_case(name, `Quick, edge_case((name, src))),
+    ~f=((name, src)) => test_case(name, `Quick, edge_case((name, src))),
     CorpusUtil.edge_programs,
   )
   @ List.map(
-      ((name, src)) =>
-        test_case(
-          "incomplete: " ++ name,
-          `Quick,
-          incomplete_case((name, src)),
-        ),
+      ~f=
+        ((name, src)) =>
+          test_case(
+            "incomplete: " ++ name,
+            `Quick,
+            incomplete_case((name, src)),
+          ),
       CorpusUtil.incomplete_programs,
     )
   @ [
@@ -312,12 +314,13 @@ let tests = (
     ),
   ]
   @ List.map(
-      ((name, src)) =>
-        test_case(
-          "shared, incomplete: " ++ name,
-          `Quick,
-          shared_incomplete((name, src)),
-        ),
+      ~f=
+        ((name, src)) =>
+          test_case(
+            "shared, incomplete: " ++ name,
+            `Quick,
+            shared_incomplete((name, src)),
+          ),
       CorpusUtil.incomplete_programs,
     ),
 );

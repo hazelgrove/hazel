@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* Test helpers */
 
@@ -86,10 +87,13 @@ let reassemble_tests = [
       | [let_tile, ..._] =>
         print_endline(
           "Let tile shards: "
-          ++ String.concat(",", List.map(string_of_int, let_tile.shards)),
+          ++ String.concat(
+               ~sep=",",
+               List.map(~f=string_of_int, let_tile.shards),
+             ),
         );
         print_endline(
-          "Let tile label: " ++ String.concat(",", Tile.label(let_tile)),
+          "Let tile label: " ++ String.concat(~sep=",", Tile.label(let_tile)),
         );
 
         /* Create the missing shard (index 2 = "in") */
@@ -155,13 +159,16 @@ let regrout_debug_tests = [
 
       /* Show each piece */
       List.iteri(
+        ~f=
         (i, p) => {
           let desc =
             switch (p) {
             | Piece.Tile(t) =>
-              "Tile(" ++ String.concat(",", Tile.label(t)) ++ ")"
+                "Tile(" ++ String.concat(~sep=",", Tile.label(t)) ++ ")"
             | Piece.Grout(g) =>
-              "Grout(" ++ (g.shape == Convex ? "Convex" : "Concave") ++ ")"
+                "Grout("
+                ++ (Poly.equal(g.shape, Convex) ? "Convex" : "Concave")
+                ++ ")"
             | Piece.Secondary(s) =>
               "Secondary("
               ++ (Secondary.is_linebreak(s) ? "linebreak" : "other")
@@ -195,6 +202,7 @@ let regrout_debug_tests = [
 
       /* Look at the structure */
       List.iteri(
+        ~f=
         (i, p) => {
           switch (p) {
           | Piece.Tile(t) =>
@@ -202,9 +210,12 @@ let regrout_debug_tests = [
               "  ["
               ++ string_of_int(i)
               ++ "]: Tile("
-              ++ String.concat(",", Tile.label(t))
+                ++ String.concat(~sep=",", Tile.label(t))
               ++ ") shards=["
-              ++ String.concat(",", List.map(string_of_int, t.shards))
+                ++ String.concat(
+                     ~sep=",",
+                     List.map(~f=string_of_int, t.shards),
+                   )
               ++ "] children="
               ++ string_of_int(List.length(t.children))
               ++ " is_complete="
@@ -212,6 +223,7 @@ let regrout_debug_tests = [
             );
             /* Print each child */
             List.iteri(
+                ~f=
               (ci, child) => {
                 print_endline(
                   "    child["
@@ -243,6 +255,7 @@ let regrout_debug_tests = [
         "Partition count: " ++ string_of_int(List.length(partitions)),
       );
       List.iteri(
+        ~f=
         (i, (subseg, incomplete)) => {
           print_endline("  Partition " ++ string_of_int(i) ++ ":");
           print_endline("    content: " ++ print_seg(subseg));
@@ -250,12 +263,16 @@ let regrout_debug_tests = [
             "    incomplete: " ++ string_of_int(List.length(incomplete)),
           );
           List.iter(
+              ~f=
             (t: Tile.t) => {
               print_endline(
                 "      - "
-                ++ String.concat(",", Tile.label(t))
+                    ++ String.concat(~sep=",", Tile.label(t))
                 ++ " shards=["
-                ++ String.concat(",", List.map(string_of_int, t.shards))
+                    ++ String.concat(
+                         ~sep=",",
+                         List.map(~f=string_of_int, t.shards),
+                       )
                 ++ "]",
               )
             },
@@ -318,7 +335,7 @@ let regrout_tests = [
 
       /* Test 3: What if we manually add grout then reassemble? */
       let incomplete_let = must_parse("let x = 1");
-      let let_tile = List.hd(Segment.incomplete_tiles(incomplete_let));
+      let let_tile = List.hd_exn(Segment.incomplete_tiles(incomplete_let));
       let shard_2 = make_shard(let_tile, 2);
       let grout: Piece.t =
         Grout({
@@ -743,7 +760,7 @@ in x|},
 
 let run_baseline_tests =
   baseline_tests
-  |> List.map(({name, input, expected, _}) =>
+  |> List.map(~f=({name, input, expected, _}) =>
        test_case(
          name,
          `Quick,
@@ -757,7 +774,7 @@ let run_baseline_tests =
 
 let run_completion_tests = (tests: list(completion_test)) =>
   tests
-  |> List.map(({name, input, expected, expected_no_sep}) => {
+  |> List.map(~f=({name, input, expected, expected_no_sep}) => {
        /* Use expected_no_sep if available, otherwise expected */
        let expected_output = Option.value(expected_no_sep, ~default=expected);
        test_case(
@@ -848,14 +865,14 @@ let orphan_rules_seg = (src: string): Segment.t => {
   let seg = must_parse(src);
   switch (
     seg
-    |> List.find_opt((p: Piece.t) =>
+    |> List.find(~f=(p: Piece.t) =>
          switch (p) {
          | Tile(t) => Tile.is_case(t)
          | _ => false
          }
        )
   ) {
-  | Some(Tile(t)) => List.hd(t.children)
+  | Some(Tile(t)) => List.hd_exn(t.children)
   | _ => fail("no case tile in: " ++ src)
   };
 };
@@ -875,7 +892,7 @@ let wrap_seg_tests = [
 
 let run_wrap_seg_tests =
   wrap_seg_tests
-  |> List.map(((name, src, expected)) =>
+  |> List.map(~f=((name, src, expected)) =>
        test_case(
          name,
          `Quick,
@@ -1092,6 +1109,39 @@ let entry_experience_tests = [
       Test_Editing.mk("let f = fun q ->\n  ¦q * 2 in\nf(1)")
       @ Test_Editing.string_to_ltr_actions("let y = 1\n"),
     ~expected="let f = fun q ->\n    let y = 1in\n    q * 2 in\nf(1)",
+  ),
+];
+
+/* A mid-form keyword's prefix starting a line ends the definition above
+   unless a form there expects that keyword: `t` of `test` reads as `l`
+   does, `i` of `in` stays the pending `in` */
+let typed_after = (src, keys) =>
+  Test_Editing.mk(src) @ Test_Editing.string_to_ltr_actions(keys);
+let keyword_prefix_line_tests = [
+  edit_case(
+    ~name="`te` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nte"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nte",
+  ),
+  edit_case(
+    ~name="`l` starting a line ends the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\nl"),
+    ~expected="let a = 1 in\nlet b = a + 1in\nl",
+  ),
+  edit_case(
+    ~name="`i` starting a line is the pending `in`",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\ni"),
+    ~expected="let a = 1 in\nlet b = a + 1\nin?",
+  ),
+  edit_case(
+    ~name="`th` starting a line is the pending `then`",
+    ~acts=typed_after("let b = if true¦", "\nth"),
+    ~expected="let b = if true\nthen?else?in?",
+  ),
+  edit_case(
+    ~name="`+ 2` starting a line continues the definition above",
+    ~acts=typed_after("let a = 1 in\nlet b = a + 1¦", "\n+ 2"),
+    ~expected="let a = 1 in\nlet b = a + 1\n+ 2in?",
   ),
 ];
 
@@ -1312,17 +1362,21 @@ let probe_raw = (acts: list(Action.t)): string => {
   let inc = Segment.incomplete_tiles_deep(seg);
   let tiles =
     List.filter_map(
+      ~f=
       (pc: Piece.t) =>
         switch (pc) {
         | Tile(t) =>
           Some(
             Printf.sprintf(
               "%s[%s]",
-              String.concat("", Tile.effective_label(t)),
-              String.concat(",", List.map(string_of_int, t.shards)),
+                String.concat(~sep="", Tile.effective_label(t)),
+                String.concat(
+                  ~sep=",",
+                  List.map(~f=string_of_int, t.shards),
+                ),
             ),
           )
-        | Grout(g) => Some(g.shape == Convex ? "?" : "~")
+          | Grout(g) => Some(Poly.equal(g.shape, Convex) ? "?" : "~")
         | _ => None
         },
       seg,
@@ -1330,7 +1384,7 @@ let probe_raw = (acts: list(Action.t)): string => {
   Printf.sprintf(
     "%s | top: %s | inc: %d",
     print_seg(seg),
-    String.concat(" ", tiles),
+    String.concat(~sep=" ", tiles),
     List.length(inc),
   );
 };
@@ -1379,12 +1433,12 @@ let probe_ins = (acts: list(Action.t)): string => {
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   r.insertions
-  |> List.map((i: CanonicalCompletion.insertion) =>
+  |> List.map(~f=(i: CanonicalCompletion.insertion) =>
        i.delimiters
-       |> List.map((d: CanonicalCompletion.delimiter_info) => d.text)
-       |> String.concat("+")
+       |> List.map(~f=(d: CanonicalCompletion.delimiter_info) => d.text)
+       |> String.concat(~sep="+")
      )
-  |> String.concat(" | ");
+  |> String.concat(~sep=" | ");
 };
 let ins_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
@@ -1443,7 +1497,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
       | Some(t) => "buf:" ++ t
       }
     };
-  String.concat(" | ", [tok, ci_s, buf]);
+  String.concat(~sep=" | ", [tok, ci_s, buf]);
 };
 let tydi_case = (~name, ~acts, ~expected) =>
   test_case(name, `Quick, () =>
@@ -1535,7 +1589,7 @@ let move_r = Action.Move(Local(Right, ByChar));
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
   CompletionQuery.tab_action(~root=Exp, z)
-  |> Option.map(a => Test_Editing.perform(z, [a]));
+  |> Option.map(~f=a => Test_Editing.perform(z, [a]));
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
   let z = Test_Editing.perform(Zipper.init(), acts);
@@ -1620,7 +1674,9 @@ let tab_dispatch_tests = [
    program modulo whitespace. Guards the type-it-for-me / make-it-so
    split from semantic drift. */
 let strip_ws = (s: string): string =>
-  String.to_seq(s) |> Seq.filter(c => c != ' ' && c != '\n') |> String.of_seq;
+  Stdlib.String.to_seq(s)
+  |> Seq.filter(c => c != ' ' && c != '\n')
+  |> Stdlib.String.of_seq;
 
 let tabs_vs_materialize = (~name, ~acts, ()) =>
   test_case(
@@ -1709,7 +1765,9 @@ let materialize_tests = [
       let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
       let case_id =
         Segment.incomplete_tiles_deep(seg)
-        |> List.find((t: Tile.t) => List.mem("case", Tile.label(t)))
+        |> List.find_exn(~f=(t: Tile.t) =>
+             List.mem(Tile.label(t), "case", ~equal=String.equal)
+           )
         |> ((t: Tile.t) => t.id);
       let z = Test_Editing.perform(z, [ApplyCompletion(One(case_id))]);
       check(
@@ -1850,22 +1908,24 @@ let joint_tests = [
 let clippable_guard_tests = {
   let labels =
     Form.forms
-    |> List.map(((_, d: Form.def)) => d.label)
-    |> List.sort_uniq(compare);
+    |> List.map(~f=((_, d: Form.def)) => d.label)
+    |> List.dedup_and_sort(~compare=List.compare(String.compare));
   let n = List.length(labels);
   let covered = (s: Sort.t): int =>
     labels
-    |> List.filter(l =>
+    |> List.filter(~f=l =>
          Form.base_molds(l)
-         |> List.exists((m: Mold.t) => m.out == s || m.out == Sort.Any)
+         |> List.exists(~f=(m: Mold.t) =>
+              m.out == s || Sort.equal(m.out, Sort.Any)
+            )
        )
     |> List.length;
   let table =
     [Sort.Exp, Sort.Pat, Sort.Typ, Sort.TPat, Sort.Rul]
-    |> List.map(s =>
+    |> List.map(~f=s =>
          Printf.sprintf("%s %d/%d", Sort.to_string(s), covered(s), n)
        )
-    |> String.concat(" | ");
+    |> String.concat(~sep=" | ");
   [
     Alcotest.test_case("form-table sort coverage", `Quick, () =>
       Alcotest.(check(string))(
@@ -1878,13 +1938,9 @@ let clippable_guard_tests = {
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
            clippable_sort stands.
-           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `["module"]`
-           label enters the table, carrying the atomic molds the bare
-           `module` token already had at those sorts. Re-decided: every
-           frontier moves by one label, so clippable_sort stands.
+           88 -> 89, +1 at Exp/Pat/Typ/TPat: SigModule's `module` label.
            Pat 10 -> 11: `.` molds at Pat for a module's constructor
-           (`M.A`). Re-decided: 11/89 is still partial, so clippable_sort
-           stands. */
+           (`M.A`). */
         "Exp 68/89 | Pat 11/89 | Typ 16/89 | TPat 5/89 | Rul 1/89",
         table,
       )
@@ -1895,7 +1951,7 @@ let clippable_guard_tests = {
         "clippable",
         [false, true, true, true, false],
         List.map(
-          CanonicalCompletion.clippable_sort,
+          ~f=CanonicalCompletion.clippable_sort,
           [Sort.Exp, Sort.Pat, Sort.Typ, Sort.TPat, Sort.Rul],
         ),
       )
@@ -1958,12 +2014,16 @@ let depth_tests = [
   ),
 ];
 let depth_count_tests = [
+  /* Slow: completion grows faster than quadratically in this nesting, and
+     parsing the prefixes with the typing parser costs more still */
   test_case(
     "30 nested let prefixes leave nothing incomplete",
-    `Quick,
+    `Slow,
     () => {
       let seg =
-        must_parse(String.concat("", List.init(30, _ => "let x = ")) ++ "1");
+        must_parse(
+          String.concat(~sep="", List.init(30, ~f=_ => "let x = ")) ++ "1",
+        );
       let r = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
       check(
         Alcotest.int,
@@ -2032,6 +2092,7 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ),
   ("CanonicalCompletion: case-repair (edit-derived)", case_repair_edit_tests),
   ("CanonicalCompletion: entry-experience", entry_experience_tests),
+  ("CanonicalCompletion: keyword-prefix lines", keyword_prefix_line_tests),
   ("CanonicalCompletion: leading-witness", leading_witness_tests),
   ("CanonicalCompletion: symbolic-witness", symbolic_witness_tests),
   ("CanonicalCompletion: opener-walls", opener_wall_tests),

@@ -8,7 +8,7 @@ open Web;
    in EditorModeView both depend on how those are shaped. */
 
 let lessons = TutorialSettings.lessons;
-let paths = List.map(Tutorial.path_of, lessons);
+let paths = List.map(~f=Tutorial.path_of, lessons);
 let strings = list(string);
 
 let folder_of = (p: SlidePath.t): string =>
@@ -17,8 +17,13 @@ let folder_of = (p: SlidePath.t): string =>
 /* Folders in first-appearance order. */
 let folders =
   paths
-  |> List.map(folder_of)
-  |> List.fold_left((acc, f) => List.mem(f, acc) ? acc : acc @ [f], []);
+  |> List.map(~f=folder_of)
+  |> List.fold_left(
+       ~f=
+         (acc, f) =>
+           List.mem(acc, f, ~equal=String.equal) ? acc : acc @ [f],
+       ~init=[],
+     );
 
 /* The hidden-test results of a lesson with `solution` in place of its @code,
    stitched to the tests the way TutorialMode.of_spec does. */
@@ -44,9 +49,8 @@ let test_results_with = (spec: Tutorial.spec, solution): TestResults.t => {
 
 let solution_cases =
   lessons
-  |> List.filter_map((spec: Tutorial.spec) =>
-       Option.map(
-         solution =>
+  |> List.filter_map(~f=(spec: Tutorial.spec) =>
+       Option.map(spec.solution, ~f=solution =>
            test_case(
              spec.title ++ " @solution passes its tests",
              `Quick,
@@ -60,8 +64,7 @@ let solution_cases =
                  results.passing,
                );
              },
-           ),
-         spec.solution,
+         )
        )
      );
 
@@ -72,13 +75,14 @@ let tests = [
     [
       test_case("every lesson names exactly one folder", `Quick, () =>
         List.iter(
+          ~f=
           (p: SlidePath.t) =>
             check(
               bool,
               "one non-empty folder segment: " ++ SlidePath.to_string(p),
               true,
               switch (SlidePath.folders(p)) {
-              | [f] => f != ""
+                | [f] => !String.equal(f, "")
               | _ => false
               },
             ),
@@ -94,14 +98,15 @@ let tests = [
             "no folder is revisited",
             folders,
             paths
-            |> List.map(folder_of)
+            |> List.map(~f=folder_of)
             |> List.fold_left(
+                 ~f=
                  (acc, f) =>
                    switch (List.rev(acc)) {
-                   | [last, ..._] when last == f => acc
+                     | [last, ..._] when String.equal(last, f) => acc
                    | _ => acc @ [f]
                    },
-                 [],
+                 ~init=[],
                ),
           )
         ),
@@ -115,14 +120,14 @@ let tests = [
              lessons sharing an id would share saved work. */
           let ids =
             List.map(
-              spec => Tutorial.id_of(spec) |> Haz3lcore.Id.to_string,
+              ~f=spec => Tutorial.id_of(spec) |> Haz3lcore.Id.to_string,
               lessons,
             );
           check(
             int,
             "distinct ids",
             List.length(lessons),
-            ids |> List.sort_uniq(String.compare) |> List.length,
+            ids |> List.dedup_and_sort(~compare=String.compare) |> List.length,
           );
         },
       ),
@@ -132,20 +137,26 @@ let tests = [
         () => {
           /* Such a pair makes the shorter lesson unreachable from the deeper
              breadcrumb dropdown. */
-          let segs = List.map(SlidePath.segments, paths);
+          let segs = List.map(~f=SlidePath.segments, paths);
           List.iter(
+            ~f=
             a =>
               List.iter(
+                  ~f=
                 b =>
                   check(
                     bool,
                     "not a proper prefix: "
-                    ++ String.concat(" / ", a)
+                        ++ String.concat(~sep=" / ", a)
                     ++ " vs "
-                    ++ String.concat(" / ", b),
+                        ++ String.concat(~sep=" / ", b),
                     false,
                     List.length(a) < List.length(b)
-                    && Util.ListUtil.take(List.length(a), b) == a,
+                        && List.equal(
+                             String.equal,
+                             Util.ListUtil.take(List.length(a), b),
+                             a,
+                           ),
                   ),
                 segs,
               ),

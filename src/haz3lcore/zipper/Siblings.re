@@ -15,13 +15,13 @@ let prepend = (d: Direction.t, seg: Segment.t, (l, r): t): t =>
 
 let concat = (sibss: list(t)): t =>
   sibss
-  |> List.split
+  |> List.unzip
   |> PairUtil.map_fst(List.rev)
   |> PairUtil.map_fst(List.concat)
   |> PairUtil.map_snd(List.concat);
 
-let remold = ((pre, _) as sibs: t, s: Sort.t): t =>
-  Segment.remold(zip(sibs), s) |> unzip(List.length(pre));
+let remold = (~owed=[], (pre, _) as sibs: t, s: Sort.t): t =>
+  Segment.remold(~owed, zip(sibs), s) |> unzip(List.length(pre));
 
 let shapes = ((pre, suf): t) => {
   let s = Nib.Shape.concave();
@@ -40,13 +40,13 @@ let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
   switch (from) {
   | Left =>
     ListUtil.split_last_opt(pre)
-    |> Option.map(((pre, p)) => {
+    |> Option.map(~f=((pre, p)) => {
          let (pre', p) = Piece.pop_r(p);
          (p, (pre @ pre', suf));
        })
   | Right =>
     ListUtil.split_first_opt(suf)
-    |> Option.map(((p, suf)) => {
+    |> Option.map(~f=((p, suf)) => {
          let (p, suf') = Piece.pop_l(p);
          (p, (pre, suf' @ suf));
        })
@@ -57,8 +57,8 @@ let incomplete_tiles = TupleUtil.map2(Segment.incomplete_tiles);
 let local_missing_shards = (sibs: t): list(Tile.t) => {
   let (l, r) = incomplete_tiles(sibs);
   /* Reversing is important here as want to match the lexically closest */
-  (l |> List.map(Tile.right_missing_shards) |> List.rev |> List.concat)
-  @ (r |> List.map(Tile.left_missing_shards) |> List.concat);
+  (l |> List.map(~f=Tile.right_missing_shards) |> List.rev |> List.concat)
+  @ (r |> List.map(~f=Tile.left_missing_shards) |> List.concat);
 };
 
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));

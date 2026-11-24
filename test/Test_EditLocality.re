@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* what each incremental layer redoes for one edit: an identity slip costs
    whole-program time, not a wrong answer, so these bounds catch it */
@@ -53,17 +54,14 @@ let at = (~statics, z, row, col) =>
 /* top-level pieces of [after]: pointer-equal to [before]'s piece with
    the same id, or new */
 let survival = (before: Segment.t, after: Segment.t): (int, int) => {
-  let tbl = Hashtbl.create(List.length(before));
-  List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), before);
-  List.fold_left(
-    ((kept, fresh), p) =>
-      switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
-      | Some(old) when old === p => (kept + 1, fresh)
-      | Some(_) => (kept, fresh)
-      | None => (kept, fresh + 1)
-      },
-    (0, 0),
-    after,
+  let tbl = Stdlib.Hashtbl.create(List.length(before));
+  List.iter(~f=p => Stdlib.Hashtbl.replace(tbl, Piece.id(p), p), before);
+  List.fold(after, ~init=(0, 0), ~f=((kept, fresh), p) =>
+    switch (Stdlib.Hashtbl.find_opt(tbl, Piece.id(p))) {
+    | Some(old) when phys_equal(old, p) => (kept + 1, fresh)
+    | Some(_) => (kept, fresh)
+    | None => (kept, fresh + 1)
+    }
   );
 };
 
@@ -157,18 +155,18 @@ let undo = () => {
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
   switch (
-    Web.ItemEdit.apply(
+    CorpusUtil.outline_op(
       MoveDown,
       CorpusUtil.row(CorpusUtil.outline_of(seg), ["MetaRunner", "init"]),
       seg,
     )
   ) {
-  | Some((after, _)) => {
+  | Ok((after, _)) => {
       before: seg,
       after,
       fallbacks: 0,
     }
-  | None => fail("move failed")
+  | Error(why) => fail("move failed: " ++ why)
   };
 };
 
@@ -204,27 +202,35 @@ let agent_insert = () =>
 let agent_rename = () =>
   structural(Rename("Text/int_to_text", None, "render_int"));
 
-/* relabeling maps every piece: [final]'s binder and use */
+/* a rename as the outline runs it: [final]'s binder and use, each a
+   kernel token replace */
 let relabel = () => {
-  let z = Lazy.force(dew);
   let rec toks = (seg: Segment.t) =>
     List.concat_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile({form: Tok("final"), id, _}) => [id]
-        | Tile(t) => List.concat_map(toks, t.children)
-        | _ => []
-        },
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({form: Tok("final"), id, _}) => [id]
+          | Tile(t) => List.concat_map(~f=toks, t.children)
+          | _ => []
+          },
       seg,
     );
-  let before = Zipper.unselect_and_zip(z);
-  {
-    before,
-    after:
-      Zipper.unselect_and_zip(
-        Rename.relabel_zipper(toks(before), "outcome", z),
-      ),
-    fallbacks: 0,
+  let before = Zipper.unselect_and_zip(Lazy.force(dew));
+  let replace = id => EntryEdit.Replace(Term(id), Token("outcome"));
+  switch (
+    EntryEdit.transaction(
+      ~root=Exp,
+      before,
+      List.map(~f=replace, toks(before)),
+    )
+  ) {
+  | Ok(c) => {
+      before,
+      after: c.program,
+      fallbacks: 0,
+    }
+  | Error(r) => fail(EntryEdit.describe(r.reason))
   };
 };
 

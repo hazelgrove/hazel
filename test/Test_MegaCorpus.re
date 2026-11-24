@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* each mega program fast-parses, has no static errors, passes every test,
    and evaluates to true */
@@ -13,12 +14,12 @@ let check_variant = (name: string): unit => {
       Builtins.ctx_init(Some(Operators.default_mode)),
       term,
     );
-  if (Statics.Map.error_ids(info_map) != []) {
+  if (!List.is_empty(Statics.Map.error_ids(info_map))) {
     fail(
       name
       ++ " has static errors: "
       ++ String.concat(
-           "; ",
+           ~sep="; ",
            Util.ListUtil.take(6, ErrorPrint.all(info_map)),
          ),
     );
@@ -26,13 +27,13 @@ let check_variant = (name: string): unit => {
   let (result, state) = Evaluator.evaluate(~env=Builtins.env_init(), elab);
   let failing =
     EvaluatorState.get_tests(state)
-    |> List.filter(((_, reports)) =>
+    |> List.filter(~f=((_, reports)) =>
          TestMap.joint_status(reports) != TestStatus.Pass
        )
-    |> List.map(((id, reports)) =>
+    |> List.map(~f=((id, reports)) =>
          Id.to_string(id)
          ++ " ["
-         ++ String.concat("; ", TestMap.joint_hints(reports))
+         ++ String.concat(~sep="; ", TestMap.joint_hints(reports))
          ++ "]"
        );
   check(list(string), name ++ ": failing tests", [], failing);

@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* What a slide shows of its program: pins, the zoomed module, and
    whether the pins are parked behind the whole; [realize] opens cells
@@ -27,7 +28,7 @@ let init: t = {
   parked: false,
 };
 
-let zoom_root = (v: t): option(Id.t) => ListUtil.last_opt(v.zoom);
+let zoom_root = (v: t): option(Id.t) => List.last(v.zoom);
 
 /* the header symbol of a headerless cell, from the outline's kind */
 let sym_of = (fid: Id.t, outline: OutlineTree.t): option(string) =>
@@ -41,11 +42,15 @@ let sym_of = (fid: Id.t, outline: OutlineTree.t): option(string) =>
 let inside = (~outline, root: option(Id.t), id: Id.t): bool =>
   switch (root) {
   | None => true
-  | Some(m) => List.mem(id, OutlineTree.descendant_ids(m, outline))
+  | Some(m) =>
+    List.mem(OutlineTree.descendant_ids(m, outline), id, ~equal=Poly.equal)
   };
 
 let visible = (~outline, v: t): list(pin) =>
-  List.filter((p: pin) => inside(~outline, zoom_root(v), p.p_id), v.pins);
+  List.filter(
+    ~f=(p: pin) => inside(~outline, zoom_root(v), p.p_id),
+    v.pins,
+  );
 
 /* what a cell shows: a pin, or a zoomed module's members */
 type slot =
@@ -61,7 +66,7 @@ let shown = (~outline, v: t): list(slot) =>
     | None => []
     | Some(m) => [Members(m)]
     }
-  | pins => List.map(p => Pin(p), pins)
+  | pins => List.map(~f=p => Pin(p), pins)
   };
 
 /* the zoomed module's members are on screen (the breadcrumb names it) */
@@ -74,19 +79,23 @@ let showing_zoom_cell = (~outline, v: t): bool =>
 /* pins to items that are gone drop; the zoom follows its module
    through moves, or falls back to its deepest surviving ancestor */
 let normalize = (~outline, v: t): t => {
-  let exists = id => OutlineTree.kind_of(id, outline) != None;
+  let exists = id => Option.is_some(OutlineTree.kind_of(id, outline));
   let zoom =
     List.find_map(
-      m =>
-        OutlineTree.kind_of(m, outline) == Some(OutlineTree.KModule)
-          ? OutlineTree.trail_of(m, outline) : None,
+      ~f=
+        m =>
+          Poly.equal(
+            OutlineTree.kind_of(m, outline),
+            Some(OutlineTree.KModule),
+          )
+            ? OutlineTree.trail_of(m, outline) : None,
       List.rev(v.zoom),
     )
     |> Option.value(~default=[]);
   {
     ...v,
     zoom,
-    pins: List.filter((p: pin) => exists(p.p_id), v.pins),
+    pins: List.filter(~f=(p: pin) => exists(p.p_id), v.pins),
   };
 };
 
@@ -94,8 +103,8 @@ let normalize = (~outline, v: t): t => {
    one members cell serves the pin and the zoom alike */
 let satisfies = (e: ScratchCell.t, w: slot): bool =>
   switch (w) {
-  | Pin(p) => e.e_id == p.p_id && ScratchCell.is_run(e) == p.p_run
-  | Members(m) => e.e_id == m && e.e_kind == Members
+  | Pin(p) => Id.equal(e.e_id, p.p_id) && ScratchCell.is_run(e) == p.p_run
+  | Members(m) => Id.equal(e.e_id, m) && Poly.equal(e.e_kind, Members)
   };
 
 let slot_id =
@@ -120,14 +129,15 @@ let follow_headless = (~outline, v: t, p: Program.t): (t, Program.t) =>
           ...v,
           pins:
             List.map(
-              (pin: pin) =>
-                switch (List.assoc_opt(pin.p_id, moves)) {
-                | Some(id) => {
-                    ...pin,
-                    p_id: id,
-                  }
-                | None => pin
-                },
+              ~f=
+                (pin: pin) =>
+                  switch (List.Assoc.find(moves, pin.p_id, ~equal=Poly.equal)) {
+                  | Some(id) => {
+                      ...pin,
+                      p_id: id,
+                    }
+                  | None => pin
+                  },
               v.pins,
             ),
         },
@@ -152,11 +162,12 @@ let realize = (~info_map, ~outline, v: t, p: Program.t): (t, Program.t) => {
     | Divided(d) => Divided.cells(d)
     };
   let to_open =
-    List.filter(w => !List.exists(e => satisfies(e, w), cells), want);
+    List.filter(~f=w => !List.exists(~f=e => satisfies(e, w), cells), want);
   let to_close =
     List.filter_map(
-      (e: ScratchCell.t) =>
-        List.exists(satisfies(e), want) ? None : Some(e.e_id),
+      ~f=
+        (e: ScratchCell.t) =>
+          List.exists(~f=satisfies(e), want) ? None : Some(e.e_id),
       cells,
     );
   let open_one = (p: Program.t, w: slot): option(Program.t) => {
@@ -174,7 +185,11 @@ let realize = (~info_map, ~outline, v: t, p: Program.t): (t, Program.t) => {
       | Pin({p_run: true, _}) => Divided.open_run(~info_map, ~outline, id, d)
       /* a module row opens as its members; `{}` has none to show */
       | Pin(_)
-          when OutlineTree.kind_of(id, outline) == Some(OutlineTree.KModule) =>
+          when
+            Poly.equal(
+              OutlineTree.kind_of(id, outline),
+              Some(OutlineTree.KModule),
+            ) =>
         switch (open_cell(~inner=true)) {
         | Some(d) => Some(d)
         | None => open_cell(~inner=false)
@@ -183,17 +198,14 @@ let realize = (~info_map, ~outline, v: t, p: Program.t): (t, Program.t) => {
       | Members(_) => open_cell(~inner=true)
       }
     )
-    |> Option.map(d => Program.Divided(d));
+    |> Option.map(~f=d => Program.Divided(d));
   };
   let open_all = (p, ws) =>
-    List.fold_left(
-      ((p, missed), w) =>
-        switch (open_one(p, w)) {
-        | Some(p) => (p, missed)
-        | None => (p, missed @ [w])
-        },
-      (p, []),
-      ws,
+    List.fold(ws, ~init=(p, []), ~f=((p, missed), w) =>
+      switch (open_one(p, w)) {
+      | Some(p) => (p, missed)
+      | None => (p, missed @ [w])
+      }
     );
   let whole_caret =
     switch (p) {
@@ -207,21 +219,19 @@ let realize = (~info_map, ~outline, v: t, p: Program.t): (t, Program.t) => {
     | Divided(d) =>
       switch (Divided.active(d)) {
       | Some((a, _)) =>
-        let (last, rest) = List.partition(id => id == a, to_close);
+        let (last, rest) =
+          List.partition_tf(~f=id => Id.equal(id, a), to_close);
         rest @ last;
       | None => to_close
       }
     | Whole(_) => to_close
     };
   let p =
-    List.fold_left(
-      (p: Program.t, id) =>
-        switch (p) {
-        | Divided(d) => Program.of_close(Divided.close(id, d))
-        | Whole(_) => p
-        },
-      p,
-      to_close,
+    List.fold(to_close, ~init=p, ~f=(p: Program.t, id) =>
+      switch (p) {
+      | Divided(d) => Program.of_close(Divided.close(id, d))
+      | Whole(_) => p
+      }
     );
   let (p, failed) = open_all(p, blocked);
   let p =
@@ -234,7 +244,11 @@ let realize = (~info_map, ~outline, v: t, p: Program.t): (t, Program.t) => {
   (
     {
       ...v,
-      pins: List.filter(q => !List.mem(Pin(q), failed), v.pins),
+      pins:
+        List.filter(
+          ~f=q => !List.mem(failed, Pin(q), ~equal=Poly.equal),
+          v.pins,
+        ),
     },
     p,
   );
@@ -263,7 +277,10 @@ let pin = (~outline, ~run=false, id: Id.t, v: t): t => {
     ...v,
     pins:
       List.filter(
-        (p: pin) => p.p_id != id && !List.mem(p.p_id, desc),
+        ~f=
+          (p: pin) =>
+            !Id.equal(p.p_id, id)
+            && !List.mem(desc, p.p_id, ~equal=Poly.equal),
         v.pins,
       )
       @ [
@@ -278,7 +295,7 @@ let pin = (~outline, ~run=false, id: Id.t, v: t): t => {
 
 let unpin = (id: Id.t, v: t): t => {
   ...v,
-  pins: List.filter((p: pin) => p.p_id != id, v.pins),
+  pins: List.filter(~f=(p: pin) => !Id.equal(p.p_id, id), v.pins),
 };
 
 /* drop the pins shown at this level */
@@ -286,7 +303,8 @@ let discard = (~outline, v: t): t => {
   let root = zoom_root(v);
   {
     ...v,
-    pins: List.filter((p: pin) => !inside(~outline, root, p.p_id), v.pins),
+    pins:
+      List.filter(~f=(p: pin) => !inside(~outline, root, p.p_id), v.pins),
     parked: false,
   };
 };
@@ -294,7 +312,11 @@ let discard = (~outline, v: t): t => {
 let zoom_in = (~outline, m: Id.t, v: t): t =>
   switch (OutlineTree.trail_of(m, outline)) {
   | Some(trail)
-      when OutlineTree.kind_of(m, outline) == Some(OutlineTree.KModule) => {
+      when
+        Poly.equal(
+          OutlineTree.kind_of(m, outline),
+          Some(OutlineTree.KModule),
+        ) => {
       ...v,
       zoom: trail,
     }
@@ -303,7 +325,8 @@ let zoom_in = (~outline, m: Id.t, v: t): t =>
 
 let zoom_out = (v: t): t => {
   ...v,
-  zoom: Option.fold(~none=[], ~some=fst, ListUtil.split_last_opt(v.zoom)),
+  zoom:
+    Option.value_map(ListUtil.split_last_opt(v.zoom), ~default=[], ~f=fst),
 };
 
 /* zoom to [m], an entry of the current trail (None: the program) */

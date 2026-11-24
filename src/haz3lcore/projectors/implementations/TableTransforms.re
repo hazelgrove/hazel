@@ -11,10 +11,11 @@ let get_column_type_from_ty = (ty: Typ.t, column: string) => {
   switch (ty.term) {
   | List({term: Prod(tys), _}) =>
     List.find_map(
+      ~f=
       ty => {
         open OptUtil.Syntax;
         let* (label, value_ty) = Typ.match_tup_label(ty);
-        if (label == column) {
+          if (String.equal(label, column)) {
           Some(value_ty);
         } else {
           None;
@@ -70,6 +71,7 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
   |> Id.Map.find_opt(_, info_map)
   |> Option.bind(
        _,
+       ~f=
        fun
        | InfoExp(e) => {
            Some(e.ty);
@@ -82,7 +84,10 @@ let can_move_column =
     (columns_opt: option(list(string)), column: string, left: bool) =>
   switch (columns_opt) {
   | Some(columns) =>
-    switch (List.find_index(x => x == column, columns)) {
+    switch (
+      List.findi(columns, ~f=(_, x) => String.equal(x, column))
+      |> Option.map(~f=fst)
+    ) {
     | Some(idx) => left ? idx > 0 : idx < List.length(columns) - 1
     | None => false
     }
@@ -109,11 +114,11 @@ let apply_transforms = (base: Exp.t, transforms: list(transform)): Exp.t => {
       Exp.(deferred_ap(lib("List", "map"), [deferral(InAp), row_fn]))
     | Listwise(expr) => expr
     };
-  let transformations = List.map(to_listwise, transforms);
+  let transformations = List.map(~f=to_listwise, transforms);
   let base = strip_parens(base);
   List.fold_left(
-    (acc, transformation) => Exp.ap(Reverse, transformation, acc),
-    base,
+    ~f=(acc, transformation) => Exp.ap(Reverse, transformation, acc),
+    ~init=base,
     transformations,
   );
 };
@@ -414,10 +419,12 @@ let provide_default_column = (column: string): transform => {
 
 let move_column =
     (dyn_type: option(Typ.t), column: string, left: bool): option(transform) => {
-  let columns_opt = Option.bind(dyn_type, get_columns);
+  let columns_opt = Option.bind(dyn_type, ~f=get_columns);
   switch (columns_opt) {
   | Some(columns) =>
-    let idx_opt = List.find_index(x => x == column, columns);
+    let idx_opt =
+      List.findi(columns, ~f=(_, x) => String.equal(x, column))
+      |> Option.map(~f=fst);
     switch (idx_opt) {
     | Some(idx) =>
       let new_idx = left ? idx - 1 : idx + 1;
@@ -426,11 +433,12 @@ let move_column =
       } else {
         let new_columns =
           List.mapi(
+            ~f=
             (i, x) =>
               if (i == idx) {
-                List.nth(columns, new_idx);
+                  List.nth_exn(columns, new_idx);
               } else if (i == new_idx) {
-                List.nth(columns, idx);
+                  List.nth_exn(columns, idx);
               } else {
                 x;
               },
@@ -441,7 +449,7 @@ let move_column =
             IdTagged.FreshGrammar.Exp.(
               deferred_ap(
                 var("select_labels"),
-                [deferral(InAp)] @ List.map(label, new_columns),
+                [deferral(InAp)] @ List.map(~f=label, new_columns),
               )
             ),
           ),

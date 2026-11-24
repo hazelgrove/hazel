@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* A member level's skel, and a program's top level's, are kept from the
    last parse while the level's pieces read alike (MakeTerm.Incr.reskel).
@@ -9,7 +10,7 @@ open Haz3lcore;
    the one Segment.skel builds; keys that leave the levels' shapes alone
    build none; and the last parse is a cold parse's */
 
-module MA = Test_ModAudit;
+module MA = ModHarness;
 module S = ItemSpans;
 
 let root = Sort.Mod;
@@ -18,9 +19,9 @@ let root = Sort.Mod;
 let world_src = (): string =>
   "module World = {\n"
   ++ (
-    String.split_on_char('\n', Test_EditCaches.mega_4k(~root=Mod))
-    |> List.map(l => l == "" ? l : "  " ++ l)
-    |> String.concat("\n")
+    String.split(~on='\n', Test_EditCaches.mega_4k(~root=Mod))
+    |> List.map(~f=l => String.equal(l, "") ? l : "  " ++ l)
+    |> String.concat(~sep="\n")
   )
   ++ "\n}";
 
@@ -45,7 +46,7 @@ type program = {
 let programs = [
   {
     name: "List",
-    src: () => Option.get(MA.stdlib("List.hz")),
+    src: () => Option.value_exn(MA.stdlib("List.hz")),
     inner: ("    | [] => 0", 13),
     token: ("    fold_left(xs, fun (acc, x)", 6),
     line_end: "    end;",
@@ -57,7 +58,7 @@ let programs = [
   },
   {
     name: "Mega-Mod 1k",
-    src: () => Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
+    src: () => Option.value_exn(CorpusUtil.mega_src("mega-mod-1k.hz")),
     inner: ("dew = Int", 3),
     token: ("final.ok == 9", 13),
     line_end: "test Text.selfcheck(()) end;",
@@ -110,25 +111,27 @@ let index = (start: string, seg: Segment.t): int => {
     switch (ms) {
     | [] => fail("no member " ++ start)
     | [m, ...ms] =>
-      CorpusUtil.contains(start, String.concat("", MA.tokens(m)))
+      CorpusUtil.contains(start, String.concat(~sep="", MA.tokens(m)))
         ? k : go(k + 1, ms)
     };
   go(0, members(seg));
 };
 let swap = (k: int, ms: list('a)): list('a) =>
   List.mapi(
-    (i, m) =>
-      i == k ? List.nth(ms, k + 1) : i == k + 1 ? List.nth(ms, k) : m,
+    ~f=
+      (i, m) =>
+        i == k
+          ? List.nth_exn(ms, k + 1) : i == k + 1 ? List.nth_exn(ms, k) : m,
     ms,
   );
 let drop = (k: int, ms: list('a)): list('a) =>
-  List.filteri((i, _) => i != k, ms);
+  List.filteri(~f=(i, _) => i != k, ms);
 /* member [k] moved before the last */
 let move_down = (k: int, ms: list('a)): list('a) => {
-  let m = List.nth(ms, k);
+  let m = List.nth_exn(ms, k);
   let rest = drop(k, ms);
   let n = List.length(rest);
-  List.concat(List.mapi((i, x) => i == n - 1 ? [m, x] : [x], rest));
+  List.concat(List.mapi(~f=(i, x) => i == n - 1 ? [m, x] : [x], rest));
 };
 
 /* the cache as it was, its skels forgotten: a parse from it builds every
@@ -138,15 +141,17 @@ let skelless = (c: MakeTerm.Incr.cache): MakeTerm.Incr.cache => {
     k,
     {
       ...e,
-      f_kids: Option.map(((b, ks)) => (b, List.map(strip, ks)), e.f_kids),
+      f_kids:
+        Option.map(~f=((b, ks)) => (b, List.map(~f=strip, ks)), e.f_kids),
       f_skel: None,
     },
   );
   {
     c_prev:
       Option.map(
-        ((r, e, entries, m, td, pj)) =>
-          (r, e, List.map(strip, entries), m, td, pj),
+        ~f=
+          ((r, e, entries, m, td, pj)) =>
+            (r, e, List.map(~f=strip, entries), m, td, pj),
         c.c_prev,
       ),
     c_skel: None,
@@ -176,7 +181,7 @@ let agree = (what: string, a: MakeTerm.t, b: MakeTerm.t): unit => {
 /* kept skels against Segment.skel, each level's once */
 let check_skels = (~seen, what: string, cache: MakeTerm.Incr.cache) => {
   let skel_is = (sort, seg, sk) =>
-    if (!List.memq(seg, seen^)) {
+    if (!List.mem(seen^, seg, ~equal=phys_equal)) {
       seen := [seg, ...seen^];
       check(
         bool,
@@ -186,15 +191,15 @@ let check_skels = (~seen, what: string, cache: MakeTerm.Incr.cache) => {
       );
     };
   let rec entry = (e: MakeTerm.Incr.entry_full) => {
-    Option.iter(((seg, sk)) => skel_is(Sort.Mod, seg, sk), e.f_skel);
+    Option.iter(~f=((seg, sk)) => skel_is(Sort.Mod, seg, sk), e.f_skel);
     switch (e.f_kids) {
-    | Some((_, kids)) => List.iter(((_, k)) => entry(k), kids)
+    | Some((_, kids)) => List.iter(~f=((_, k)) => entry(k), kids)
     | None => ()
     };
   };
   switch (cache.c_prev) {
   | Some((_, _, entries, _, _, _)) =>
-    List.iter(((_, e)) => entry(e), entries)
+    List.iter(~f=((_, e)) => entry(e), entries)
   | None => fail(what ++ ": no entries")
   };
   switch (cache.c_skel) {
@@ -274,16 +279,12 @@ let script = (p: program) => {
     | None => fail(p.name ++ ": no " ++ needle)
     };
   let type_ = (~same, what, s: string, t: typing) =>
-    List.fold_left(
-      (t, c) => act(~same, what ++ " " ++ String.escaped(c), t, Insert(c)),
-      t,
-      Token.to_list(s),
+    List.fold(Token.to_list(s), ~init=t, ~f=(t, c) =>
+      act(~same, what ++ " " ++ String.escaped(c), t, Insert(c))
     );
   let back = (~same, what, n: int, t: typing) =>
-    List.fold_left(
-      (t, _) => act(~same, what, t, Destruct(Local(Left, ByChar))),
-      t,
-      List.init(n, _ => ()),
+    List.fold(List.init(n, ~f=_ => ()), ~init=t, ~f=(t, _) =>
+      act(~same, what, t, Destruct(Local(Left, ByChar)))
     );
   let t =
     t0
@@ -363,13 +364,14 @@ let swaps = ((sort: Sort.t, src: string), ()) => {
   let first = (is: Piece.t => bool, by: Piece.t, seg: Segment.t) => {
     let found = ref(false);
     List.map(
-      p =>
-        if (! found^ && is(p)) {
-          found := true;
-          by;
-        } else {
-          p;
-        },
+      ~f=
+        p =>
+          if (! found^ && is(p)) {
+            found := true;
+            by;
+          } else {
+            p;
+          },
       seg,
     );
   };
@@ -391,11 +393,11 @@ let swaps = ((sort: Sort.t, src: string), ()) => {
     | Projector(_) => `Projector
     };
   let pool =
-    List.fold_left(
-      (pool, p) =>
-        List.exists(q => kind(q) == kind(p), pool) ? pool : pool @ [p],
-      [Piece.Secondary(Secondary.mk_space(Id.mk()))],
+    List.fold(
       List.concat(bases),
+      ~init=[Piece.Secondary(Secondary.mk_space(Id.mk()))],
+      ~f=(pool, p) =>
+      List.exists(~f=q => kind(q) == kind(p), pool) ? pool : pool @ [p]
     );
   let read = (f: unit => Skel.t) =>
     switch (f()) {
@@ -404,50 +406,61 @@ let swaps = ((sort: Sort.t, src: string), ()) => {
     };
   let kept = MakeTerm.Incr.skels_kept^;
   List.iteri(
-    (b, seg) => {
-      let skel = Segment.skel(~sort, seg);
-      let trial = (what, seg') =>
-        check(
-          bool,
-          Printf.sprintf("base %d: %s", b, what),
-          true,
-          read(() => Segment.skel(~sort, seg'))
-          == read(() =>
-               MakeTerm.Incr.reskel(~sort, ~prev=Some((seg, skel)), seg')
-             ),
-        );
-      List.iteri(
-        (i, p) => {
-          List.iteri(
-            (k, q) =>
+    ~f=
+      (b, seg) => {
+        let skel = Segment.skel(~sort, seg);
+        let trial = (what, seg') =>
+          check(
+            bool,
+            Printf.sprintf("base %d: %s", b, what),
+            true,
+            read(() => Segment.skel(~sort, seg'))
+            == read(() =>
+                 MakeTerm.Incr.reskel(~sort, ~prev=Some((seg, skel)), seg')
+               ),
+          );
+        List.iteri(
+          ~f=
+            (i, p) => {
+              List.iteri(
+                ~f=
+                  (k, q) =>
+                    trial(
+                      Printf.sprintf(
+                        "pool piece %d put in for piece %d",
+                        k,
+                        i,
+                      ),
+                      List.mapi(~f=(j, r) => j == i ? q : r, seg),
+                    ),
+                pool,
+              );
               trial(
-                Printf.sprintf("pool piece %d put in for piece %d", k, i),
-                List.mapi((j, r) => j == i ? q : r, seg),
-              ),
-            pool,
-          );
-          trial(
-            Printf.sprintf("a space put in before piece %d", i),
-            List.concat(
-              List.mapi(
-                (j, r) =>
-                  j == i
-                    ? [Piece.Secondary(Secondary.mk_space(Id.mk())), r]
-                    : [r],
-                seg,
-              ),
-            ),
-          );
-          if (Piece.is_secondary(p)) {
-            trial(
-              Printf.sprintf("piece %d taken out", i),
-              List.filteri((j, _) => j != i, seg),
-            );
-          };
-        },
-        seg,
-      );
-    },
+                Printf.sprintf("a space put in before piece %d", i),
+                List.concat(
+                  List.mapi(
+                    ~f=
+                      (j, r) =>
+                        j == i
+                          ? [
+                            Piece.Secondary(Secondary.mk_space(Id.mk())),
+                            r,
+                          ]
+                          : [r],
+                    seg,
+                  ),
+                ),
+              );
+              if (Piece.is_secondary(p)) {
+                trial(
+                  Printf.sprintf("piece %d taken out", i),
+                  List.filteri(~f=(j, _) => j != i, seg),
+                );
+              };
+            },
+          seg,
+        );
+      },
     bases,
   );
   check(bool, "some skels kept", true, MakeTerm.Incr.skels_kept^ > kept);
@@ -488,13 +501,15 @@ let edit_script = (p: program, ()) => {
 let tests = (
   "LevelSkels",
   List.map(
-    ((name, speed, level)) =>
-      test_case(name ++ ": pieces swapped", speed, swaps(level)),
+    ~f=
+      ((name, speed, level)) =>
+        test_case(name ++ ": pieces swapped", speed, swaps(level)),
     swap_levels,
   )
   @ List.map(
-      (p: program) =>
-        test_case(p.name ++ ": an edit script", p.speed, edit_script(p)),
+      ~f=
+        (p: program) =>
+          test_case(p.name ++ ": an edit script", p.speed, edit_script(p)),
       programs,
     ),
 );

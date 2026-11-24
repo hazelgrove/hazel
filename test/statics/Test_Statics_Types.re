@@ -2,6 +2,7 @@ open Test_Statics_Prelude;
 open Alcotest;
 open Language;
 open TypExpectation;
+open Poly;
 
 /* Direct-API helper for exercising `utyp_to_info_map` against a given
    `TypExpectation.t`. Relocated from the old test/Test_Info.re; these tests
@@ -202,7 +203,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let ty = Var("Some") |> Typ.temp;
       check(
         typ_status_testable,
@@ -223,7 +224,7 @@ let derive_typ_tests = [
     `Quick,
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let ty = Var("Some") |> Typ.temp;
       check(
         typ_status_testable,
@@ -355,7 +356,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Label("a") |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, ConstructorExpected(Unique, sum_ty), ty);
       check(
@@ -372,7 +373,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Label("a") |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, VariantExpected(Unique, sum_ty), ty);
       check(
@@ -441,7 +442,7 @@ let derive_typ_tests = [
     () => {
       let ctx = Builtins.ctx_init(Some(Int));
       let ty = Atom(Int) |> Typ.temp;
-      let sum_ty = Option.get(Ctx.lookup_alias(ctx, "Option"));
+      let sum_ty = Option.value_exn(Ctx.lookup_alias(ctx, "Option"));
       let status =
         DeriveTypStatus.derive(ctx, ConstructorExpected(Unique, sum_ty), ty);
       check(
@@ -453,6 +454,17 @@ let derive_typ_tests = [
     },
   ),
 ];
+
+let warned = item => Some(Warnings([item]));
+let mismatch = (ana, syn) =>
+  Some(
+    Marks([
+      ExpectationMismatch({
+        ana,
+        syn,
+      }),
+    ]),
+  );
 
 let tests = (
   "Statics.Types",
@@ -469,9 +481,299 @@ let tests = (
         ),
       ),
     ),
-    skip_known_bug(
-      "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
-      "type y = y in type ? = y in ?",
+    fully_consistent_typecheck(
+      "A type alias shadowed later keeps its meaning in earlier annotations",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A type alias shadowed by a type function's variable keeps its meaning",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* A later alias of the same name must not capture references made by
+       earlier aliases: `Skel` means the first `T` (as in OCaml, cf.
+       haz3lcore's Skel.Stacks), so resolving the second `T` terminates. */
+    fully_consistent_typecheck(
+      "shadowing alias does not capture an earlier alias's reference",
+      {|type T = + A + B(T) in
+type Skel = T in
+type T = (output=[Skel]) in
+let x : T = (output=[B(A)]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "the same shadowing inside a module (haz3lcore's Skel.Stacks)",
+      {|type T = + A + B(T) in
+module Stacks = {
+  type Skel = T;
+  type T = (output=[Skel]);
+  let x : T = (output=[B(A)])
+} in
+let y : Stacks.T = (output=[A]) in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      ~normalize=true,
+      "shadowed alias resolves to the binding in scope at its definition",
+      {|type S = Int in
+type T = (a=S) in
+type S = Bool in
+let x : T = (a=1) in
+x.a + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias cycle through shadowing terminates",
+      {|type A = Int in
+type B = A in
+type A = B in
+let x : A = 1 in
+let y : B = x in
+y + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "alias shadowing a type parameter terminates",
+      {|typfun T -> fun (t : T) ->
+  type B = T in
+  type T = B in
+  let u : T = t in
+  u|},
+      Some(FTemp.(Typ.(poly(TPat.var("T"), arrow(var("T"), var("T")))))),
+    ),
+    synthesizes(
+      "alias captured by a later binding of a name it used while unbound",
+      {|type B = A in
+type A = B in
+let x : A = 1 in
+1|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "shadowed alias keeps its meaning in an earlier variable's annotation",
+      {|type T = Int in let x : T = 1 in type T = Bool in x + 1|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* https://github.com/hazelgrove/hazel/issues/2478 */
+    reports_errors(
+      1,
+      "an annotation is checked against the alias it named, not a later one",
+      {|type T = Int in let x : T = 1 in type T = Bool in !x|},
+    ),
+    fully_consistent_typecheck(
+      "a renamed type binder does not take a name written in its scope",
+      {|type a = Int in type a = Bool in type a' = String in (true : a)|},
+      Some(FTemp.Typ.bool()),
+    ),
+    fully_consistent_typecheck(
+      "type function variable shadowing an alias keeps an earlier annotation",
+      {|type X = Int in let a : X = 1 in (typfun X -> a + 1)@<Bool>|},
+      Some(FTemp.Typ.int()),
+    ),
+    /* A type binder that reuses a name in scope is renamed, numbered, in
+       its scope (Typ.unshadow), so its values and the earlier T's no
+       longer mix. */
+    reports_errors(
+      1,
+      "a shadowed type function variable still types its earlier variables",
+      {|typfun T -> fun (t : T) -> typfun T -> t + 1|},
+    ),
+    reports_errors(
+      1,
+      "branches of a shadowed and a shadowing type variable differ",
+      {|typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> if true then t else u|},
+    ),
+    reports_errors(
+      1,
+      "an annotation names the shadowing type variable, not the shadowed one",
+      {|typfun T -> fun (t : T) -> typfun T -> fun (u : T) -> (t : T)|},
+    ),
+    reports_errors(
+      1,
+      "a type function returning the shadowed variable returns it whatever it is applied to",
+      {|typfun T -> fun (t : T) -> (typfun T -> t)@<Int> + 1|},
+    ),
+    reports_errors(
+      1,
+      "a type function returning the shadowed variable is not polymorphic in its own",
+      {|typfun T -> fun (t : T) -> let g = typfun T -> t in (g : poly U -> U)|},
+    ),
+    reports_errors(
+      1,
+      "an alias shadowing a type function variable keeps its earlier variables' type",
+      {|typfun T -> fun (t : T) -> type T = Int in t + 1|},
+    ),
+    fully_consistent_typecheck(
+      "the expected type of a type function body keeps the enclosing type variable",
+      {|typfun T -> fun (t : T) -> ((typfun T -> t) : poly U -> T)|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), poly(FTemp.TPat.var("U"), var("T"))),
+          )
+        ),
+      ),
+    ),
+    synthesizes(
+      "a type function variable reusing a name in scope is numbered",
+      {|typfun T -> fun (t : T) -> typfun T -> t|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), poly(FTemp.TPat.var("T#1"), var("T"))),
+          )
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "a type function shadowing its enclosing variable is a renaming of one that does not",
+      {|(typfun T -> fun (t : T) -> typfun T -> t) : poly A -> A -> poly B -> A|},
+      Some(
+        FTemp.Typ.(
+          poly(
+            FTemp.TPat.var("A"),
+            arrow(var("A"), poly(FTemp.TPat.var("B"), var("A"))),
+          )
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "an alias body is analyzed against the enclosing alias of the same name",
+      {|type T = Int in ((type T = Bool in 1) : T)|},
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "an alias body is analyzed against the enclosing type variable of the same name",
+      {|typfun T -> fun (t : T) -> ((type T = Int in t) : T)|},
+      Some(
+        FTemp.Typ.(poly(FTemp.TPat.var("T"), arrow(var("T"), var("T")))),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "a recursive alias reusing a name in scope is numbered throughout",
+      {|typfun T -> fun (t : T) -> type T = Int -> T in fun (g : T) -> (g, t)|},
+      Some(
+        FTemp.Typ.(
+          let local =
+            rec_(FTemp.TPat.var("T#1"), arrow(int(), var("T#1")));
+          poly(
+            FTemp.TPat.var("T"),
+            arrow(var("T"), arrow(local, prod([local, var("T")]))),
+          )
+        ),
+      ),
+    ),
+    test_case(
+      "A self-referential alias is warned and does not loop (#1621)",
+      `Quick,
+      () =>
+      annotated_tree_test(
+        ~source="type y = y in type ? = y in ?",
+        "Marks and warnings",
+        FTemp.Typ.unknown(Internal),
+        FIError.Exp.(
+          ty_alias(
+            FIError.TPat.var(~ann=warned(TPat(NonContractive("y"))), "y"),
+            FIError.Typ.var("y"),
+            ty_alias(
+              FIError.TPat.empty_hole(),
+              FIError.Typ.var("y"),
+              empty_hole(),
+            ),
+          )
+        ),
+      )
+    ),
+    test_case(
+      "No value has a type defined as itself",
+      `Quick,
+      () => {
+        let t = FTemp.Typ.var("T");
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("T"), var("T")));
+        annotated_tree_test(
+          ~source=
+            "type T = T in let a : T = 1 in let b : T = [1] in let c : T = fun (x : Int) -> x in (a, b, c)",
+          "Marks and warnings",
+          FTemp.Typ.(prod([loop, loop, loop])),
+          FIError.Exp.(
+            ty_alias(
+              FIError.TPat.var(
+                ~ann=warned(TPat(NonContractive("T"))),
+                "T",
+              ),
+              FIError.Typ.var("T"),
+              let_(
+                FIError.Pat.(asc(var("a"), FIError.Typ.var("T"))),
+                int(~ann=mismatch(t, FTemp.Typ.int()), 1),
+                let_(
+                  FIError.Pat.(asc(var("b"), FIError.Typ.var("T"))),
+                  list_lit(
+                    ~ann=mismatch(t, FTemp.Typ.(list(int()))),
+                    [int(1)],
+                  ),
+                  let_(
+                    FIError.Pat.(asc(var("c"), FIError.Typ.var("T"))),
+                    fn(
+                      ~ann=mismatch(t, FTemp.Typ.(arrow(int(), int()))),
+                      FIError.Pat.(
+                        parens(asc(var("x"), FIError.Typ.int()))
+                      ),
+                      var("x"),
+                      None,
+                      None,
+                    ),
+                    parens(tuple([var("a"), var("b"), var("c")])),
+                  ),
+                ),
+              ),
+            )
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A variable or hole of a type defined as itself is that type",
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("T"), var("T")));
+        annotated_tree_test(
+          ~source="type T = T in fun (x : T) -> ((x : T), (? : T))",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, prod([loop, loop]))),
+          FIError.Exp.(
+            ty_alias(
+              FIError.TPat.var(
+                ~ann=warned(TPat(NonContractive("T"))),
+                "T",
+              ),
+              FIError.Typ.var("T"),
+              fn(
+                FIError.Pat.(parens(asc(var("x"), FIError.Typ.var("T")))),
+                parens(
+                  tuple([
+                    parens(asc(var("x"), FIError.Typ.var("T"))),
+                    parens(asc(empty_hole(), FIError.Typ.var("T"))),
+                  ]),
+                ),
+                None,
+                None,
+              ),
+            )
+          ),
+        );
+      },
+    ),
+    // https://github.com/hazelgrove/hazel/issues/2570
+    test_case(
+      "an alias that reaches itself through another alias terminates",
+      `Quick,
+      () =>
+      ignore(statics(parse_exp("type y = x in type x = y in (1 : y)")))
     ),
     test_case(
       // https://github.com/hazelgrove/hazel/issues/1624
@@ -503,6 +805,7 @@ let tests = (
                     tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
                         FIError.TPat.var("x"),
                         rec_(FIError.TPat.var("y"), var("x")),
                       )
@@ -547,6 +850,7 @@ let tests = (
                     tuple(~ann=Some(mismatch), []),
                     FIError.Typ.(
                       rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
                         FIError.TPat.var("x"),
                         rec_(FIError.TPat.empty_hole(), var("x")),
                       )
@@ -587,6 +891,260 @@ let tests = (
       {|let (B: ((rec ? -> (rec ? -> (+ ?))))) = A in a|},
       Some(FTemp.Typ.unknown(Internal)),
     ),
+    fully_consistent_typecheck(
+      "A constructor checks against a sum under nested rec binders",
+      "let v : rec x -> rec y -> + A + B(x) = B(A) in 1",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "An alias over a written rec type has the sum's constructors",
+      "type T = rec y -> + A + B(T) in let v : T = B(A) in case v | A => 0 | B(_) => 1 end",
+      Some(FTemp.Typ.int()),
+    ),
+    inconsistent_typecheck(
+      "A recursive occurrence under a differently named binder is not a hole",
+      parse_exp("fun (f : rec a -> (a, Int)) -> (f : rec b -> (Bool, Int))"),
+    ),
+    inconsistent_typecheck(
+      "A name free beside a hole binder is not the other type's bound variable",
+      parse_exp(
+        "type x = Int in fun (f : rec x -> (x, Int)) -> (f : rec ? -> (x, Int))",
+      ),
+    ),
+    inconsistent_typecheck(
+      "Renaming one recursive type's binder to the other's captures no free name",
+      parse_exp(
+        "type b = Int in fun (f : rec b -> (b, b)) -> (f : rec a -> (a, b))",
+      ),
+    ),
+    inconsistent_typecheck(
+      "Renaming one polymorphic type's binder to the other's captures no free name",
+      parse_exp("type b = Int in fun (f : poly b -> b) -> (f : poly a -> b)"),
+    ),
+    fully_consistent_typecheck(
+      "A type application checks against an arrow type",
+      "let f : poly a -> a -> a = typfun a -> fun x -> x in let g : Int -> Int = f@<Int> in g(1)",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A tuple checks against a recursive alias and destructures through its unrolling",
+      "type T = (T, Int) in let x : T = (?, 3) in let (a, b) = x in b",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A function checks against a recursive arrow alias, recursively, and applies through it",
+      "type T = Int -> T in let f : T = fun x -> f(x) in f(1)",
+      Some(FTemp.(Typ.(rec_(TPat.var("T"), arrow(int(), var("T")))))),
+    ),
+    fully_consistent_typecheck(
+      "A labeled tuple is rearranged against a recursive alias through its unrolling",
+      "type T = (next=T, val=Int) in let x : T = (val=3, next=?) in let (next=n, val=v) = x in v",
+      Some(FTemp.Typ.int()),
+    ),
+    fully_consistent_typecheck(
+      "A recursive alias checks against its other phase",
+      "type A = Int -> Int -> A in let f : A = fun x -> fun y -> f in let g : Int -> A = f in 0",
+      Some(FTemp.Typ.int()),
+    ),
+    test_case(
+      "A written self-loop is warned where it is written and meets no other type",
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("x"), var("x")));
+        annotated_tree_test(
+          ~source="fun (y : rec x -> x) -> (y : Int)",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, int())),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("y"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        var("x"),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              parens(
+                asc(
+                  var(~ann=mismatch(FTemp.Typ.int(), loop), "y"),
+                  FIError.Typ.int(),
+                ),
+              ),
+              None,
+              None,
+            )
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A self-loop in parentheses is warned and does not loop",
+      `Quick,
+      () => {
+        let loop = FTemp.Typ.(rec_(FTemp.TPat.var("x"), parens(var("x"))));
+        annotated_tree_test(
+          ~source="fun (y : rec x -> (x)) -> (y : Int)",
+          "Marks and warnings",
+          FTemp.Typ.(arrow(loop, int())),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("y"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        parens(var("x")),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              parens(
+                asc(
+                  var(~ann=mismatch(FTemp.Typ.int(), loop), "y"),
+                  FIError.Typ.int(),
+                ),
+              ),
+              None,
+              None,
+            )
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A self-loop under a binder is warned for the binder it loops to",
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("y"), var("x")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec y -> x) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        ~ann=warned(Typ(NonContractive("x"))),
+                        FIError.TPat.var("x"),
+                        rec_(FIError.TPat.var("y"), var("x")),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A self-loop under a vacuous binder is warned only for the inner binder",
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("y"), var("y")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec y -> y) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(
+                          ~ann=warned(Typ(NonContractive("y"))),
+                          FIError.TPat.var("y"),
+                          var("y"),
+                        ),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
+    ),
+    test_case(
+      "A self-loop to a shadowing binder is warned only for that binder",
+      `Quick,
+      () => {
+        let ty =
+          FTemp.Typ.(
+            rec_(FTemp.TPat.var("x"), rec_(FTemp.TPat.var("x"), var("x")))
+          );
+        annotated_tree_test(
+          ~source="fun (f : rec x -> rec x -> x) -> f",
+          "Marks and warnings",
+          FTemp.Typ.arrow(ty, ty),
+          FIError.Exp.(
+            fn(
+              FIError.Pat.(
+                parens(
+                  asc(
+                    var("f"),
+                    FIError.Typ.(
+                      rec_(
+                        FIError.TPat.var("x"),
+                        rec_(
+                          ~ann=warned(Typ(NonContractive("x"))),
+                          FIError.TPat.var("x"),
+                          var("x"),
+                        ),
+                      )
+                    ),
+                  ),
+                )
+              ),
+              var("f"),
+              None,
+              None,
+            )
+          ),
+        );
+      },
+    ),
+    inconsistent_typecheck(
+      "An argument is checked against the parameter type of a recursive arrow alias",
+      parse_exp("type T = Int -> T in fun (f : T) -> f(true)"),
+    ),
+    fully_consistent_typecheck(
+      "A constructor argument checks against a recursive alias through its unrolling",
+      "type T = (T, Int) in type L = + C(T) in let v : L = C(?, 2) in 0",
+      Some(FTemp.Typ.int()),
+    ),
     test_case(
       "Type parse failure",
       `Quick,
@@ -595,7 +1153,7 @@ let tests = (
         let exp = parse_exp("type x = Int(Float) in let y : x =  1");
         let s = statics(exp);
 
-        let errors = errors(s) |> List.map(((_, ms)) => Marks(ms));
+        let errors = errors(s) |> List.map(~f=((_, ms)) => Marks(ms));
 
         check(
           list(testable_issue),

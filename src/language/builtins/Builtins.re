@@ -16,6 +16,7 @@ let builtins =
 
 let builtins =
   List.sort(
+    ~compare=
     (a: builtin, b: builtin) =>
       String.compare(name_of_builtin(b), name_of_builtin(a)),
     builtins,
@@ -86,7 +87,7 @@ let ctx_entries =
   /* Product types, so they get no constructors -- just names the config
      slide can annotate with. */
   @ List.map(
-      ((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
+      ~f=((name, typ)) => BuiltinsADT.create_type_alias(name, typ),
       BuiltinsColorScheme.type_aliases,
     );
 
@@ -215,7 +216,7 @@ let library_module_name = (v: Exp.t): option(Var.t) =>
 let ctx_base: option(Operators.mode) => Ctx.t = {
   let by_mode = Hashtbl.create(5);
   use_mode =>
-    switch (Hashtbl.find_opt(by_mode, use_mode)) {
+    switch (Stdlib.Hashtbl.find_opt(by_mode, use_mode)) {
     | Some(ctx) => ctx
     | None =>
       let ctx = Ctx.of_entries(~use_mode, ctx_entries);

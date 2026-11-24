@@ -115,9 +115,10 @@ let check_html =
     List.length(chunks),
   );
   List.iter(
+    ~f=
     node =>
       if (!
-            String.starts_with(
+              String.is_prefix(
               ~prefix="<span class=\"code-chunk\">",
               serialize(~inner=false, node),
             )) {
@@ -128,8 +129,8 @@ let check_html =
   check(
     string,
     name ++ ": html",
-    String.concat("", List.map(serialize(~inner=false), whole)),
-    String.concat("", List.map(serialize(~inner=true), chunks)),
+    String.concat(~sep="", List.map(~f=serialize(~inner=false), whole)),
+    String.concat(~sep="", List.map(~f=serialize(~inner=true), chunks)),
   );
 };
 
@@ -156,12 +157,15 @@ let same_html =
 
 let programs = (~root, programs, ()) =>
   List.iter(
-    ((name, src)) => same_html(~root, name, CorpusUtil.seg_of(~root, src)),
+    ~f=
+      ((name, src)) =>
+        same_html(~root, name, CorpusUtil.seg_of(~root, src)),
     programs,
   );
 
 let incomplete = () =>
   List.iter(
+    ~f=
     ((name, src)) =>
       switch (CorpusUtil.typed_seg(src)) {
       | Some(seg) => same_html(name, seg)
@@ -221,8 +225,10 @@ let rerender = (~root, seg: Segment.t, edits: list((string, string))) => {
     chunks;
   };
   ignore(
-    List.fold_left(
-      ((seg, before), (needle, repl)) => {
+    List.fold(
+      edits,
+      ~init=(seg, render("before", seg)),
+      ~f=((seg, before), (needle, repl)) => {
         let (seg', found) =
           CorpusUtil.edit_token(
             ~at=`First,
@@ -243,17 +249,12 @@ let rerender = (~root, seg: Segment.t, edits: list((string, string))) => {
           int,
           needle ++ ": chunks re-rendered",
           1,
-          List.fold_left2(
-            (n, a, b) => a === b ? n : n + 1,
-            0,
-            before,
-            after,
+          List.fold2_exn(before, after, ~init=0, ~f=(n, a, b) =>
+            phys_equal(a, b) ? n : n + 1
           ),
         );
         (seg', after);
       },
-      (seg, render("before", seg)),
-      edits,
     ),
   );
 };
@@ -297,7 +298,7 @@ let two_editors = () => {
   let (a, b) = (editor(), editor());
   let (a0, b0) = (a(), b());
   let (a1, b1) = (a(), b());
-  let same = (xs, ys) => List.for_all2((===), xs, ys);
+  let same = (xs, ys) => List.for_all2_exn(~f=phys_equal, xs, ys);
   check(bool, "the first editor's nodes kept", true, same(a0, a1));
   check(bool, "the second editor's nodes kept", true, same(b0, b1));
 };

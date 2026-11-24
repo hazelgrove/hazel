@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* A drawer under each top-level theorem, holding its proof */
 
@@ -32,11 +33,12 @@ let placed = () => {
     "a drawer for each",
     true,
     List.for_all(
-      id =>
-        switch (Id.Map.find_opt(id, on.refractors.proofs)) {
-        | Some(e) => e.kind == Proof
-        | None => false
-        },
+      ~f=
+        id =>
+          switch (Id.Map.find_opt(id, on.refractors.proofs)) {
+          | Some(e) => Poly.equal(e.kind, Proof)
+          | None => false
+          },
       ids,
     ),
   );
@@ -45,7 +47,7 @@ let placed = () => {
     "never sampled",
     false,
     List.exists(
-      id => Id.Map.mem(id, CachedStatics.probe_ids_of_zipper(on)),
+      ~f=id => Id.Map.mem(id, CachedStatics.probe_ids_of_zipper(on)),
       ids,
     ),
   );
@@ -54,7 +56,7 @@ let placed = () => {
     bool,
     "steady",
     true,
-    again.refractors.proofs === on.refractors.proofs,
+    phys_equal(again.refractors.proofs, on.refractors.proofs),
   );
   let off = update(~on=false, on);
   check(bool, "off", true, Id.Map.is_empty(off.refractors.proofs));

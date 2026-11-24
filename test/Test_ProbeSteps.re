@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* "Show steps" on a probe sample: the drawer's state, the capture that
    keeps function values for it, and the expression its stepper starts
@@ -47,9 +48,9 @@ let show_hide = () => {
   check(bool, "not an edit", false, Action.is_edit(a));
   check(bool, "not an undo step", false, Action.is_historic(a));
   let ed = Editor.Model.mk(z, ~root=Exp) |> act(a);
-  check(bool, "open", true, stepping(ed) != None);
+  check(bool, "open", true, Option.is_some(stepping(ed)));
   let ed = act(Probe(HideSteps), ed);
-  check(bool, "closed", true, stepping(ed) == None);
+  check(bool, "closed", true, Option.is_none(stepping(ed)));
 };
 
 /* a caret move leaves it open; an edit to the program closes it, as does
@@ -59,11 +60,16 @@ let closes = () => {
   let ed =
     Editor.Model.mk(z, ~root=Exp) |> act(Probe(ShowSteps(span(z))));
   let moved = act(Move(Local(Left, ByChar)), ed);
-  check(bool, "open after a move", true, stepping(moved) != None);
+  check(bool, "open after a move", true, Option.is_some(stepping(moved)));
   let edited = act(Insert(" "), ed);
-  check(bool, "closed by an edit", true, stepping(edited) == None);
+  check(bool, "closed by an edit", true, Option.is_none(stepping(edited)));
   let removed = act(Probe(RemoveAll), ed);
-  check(bool, "closed with its probe", true, stepping(removed) == None);
+  check(
+    bool,
+    "closed with its probe",
+    true,
+    Option.is_none(stepping(removed)),
+  );
 };
 
 let term = (z: Zipper.t): Exp.t =>
@@ -98,15 +104,19 @@ let eval = (~prev=IncrEval.empty, ~targets, z: Zipper.t) => {
 };
 
 let samples = (state: EvaluatorState.t): list(Sample.t) =>
-  EvaluatorState.get_probes(state) |> Id.Map.bindings |> List.concat_map(snd);
+  EvaluatorState.get_probes(state)
+  |> Id.Map.bindings
+  |> List.concat_map(~f=snd);
 
 /* f is in the sample's environment as a value, not elided */
 let keeps_f = (state: EvaluatorState.t): bool =>
   List.exists(
+    ~f=
     (s: Sample.t) =>
       List.exists(
+          ~f=
         (en: Sample.Env.entry) =>
-          en.binding.name == "f"
+              String.equal(en.binding.name, "f")
           && (
             switch (en.value) {
             | Val(_) => true
@@ -253,7 +263,7 @@ let undo = () => {
     bool,
     "nothing at the start",
     true,
-    Web.StepperView.Update.undo(start.stepper) == None,
+    Option.is_none(Web.StepperView.Update.undo(start.stepper)),
   );
   let stepped = step(calc, StepForward(0), start);
   let back =
@@ -292,7 +302,7 @@ let incremental = () => {
     bool,
     "the first step's statics kept",
     true,
-    before === first_statics(again),
+    phys_equal(before, first_statics(again)),
   );
 };
 

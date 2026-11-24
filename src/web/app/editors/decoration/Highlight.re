@@ -1,6 +1,7 @@
 open Util;
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 let shard_svg =
     (
@@ -15,11 +16,12 @@ let shard_svg =
   | Grout(g) => g |> Grout.shapes |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
-        (s: Nib.Shape.t) =>
-          switch (s) {
-          | Concave(_) => Nib.Shape.Convex
-          | Convex => Nib.Shape.Concave(0)
-          },
+        ~f=
+          (s: Nib.Shape.t) =>
+            switch (s) {
+            | Concave(_) => Nib.Shape.Convex
+            | Convex => Nib.Shape.Concave(0)
+            },
         start_shape,
       ),
       None,
@@ -34,7 +36,7 @@ let multiline_shard =
       {origin, last}: Measured.measurement,
       tips: (option(Nib.Shape.t), option(Nib.Shape.t)),
     ) =>
-  List.init(num_lb + 1, i =>
+  List.init(num_lb + 1, ~f=i =>
     [
       Some((
         Measured.{
@@ -90,7 +92,7 @@ let rows_of_segment =
                 ),
               ),
             ) => {
-    let tag = is_ws => Option.map(x => (x, is_ws));
+    let tag = is_ws => Option.map(~f=x => (x, is_ws));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
@@ -102,7 +104,7 @@ let rows_of_segment =
       | Secondary(w) => [
           Some((
             find_w(w),
-            (start_shape |> Option.map(Nib.Shape.flip), start_shape),
+            (start_shape |> Option.map(~f=Nib.Shape.flip), start_shape),
           ))
           |> tag(
                switch (w.content) {
@@ -123,26 +125,26 @@ let rows_of_segment =
     let shards = Measured.find_shards(~msg="sel_of_tile", t, measured);
     let tile_shards =
       shards
-      |> List.filter_map(((i, m)) =>
-           List.mem(i, t.shards) ? Some((i, m)) : None
+      |> List.filter_map(~f=((i, m)) =>
+           List.mem(t.shards, i, ~equal=Int.equal) ? Some((i, m)) : None
          )
-      |> List.map(((index, m)) => {
+      |> List.map(~f=((index, m)) => {
            let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
            | 0 => [
                Some(shard_svg(~start_shape, m, Tile(shard)))
-               |> Option.map(x => (x, false)),
+               |> Option.map(~f=x => (x, false)),
              ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
-             |> List.map(Option.map(x => (x, false)))
+             |> List.map(~f=Option.map(~f=x => (x, false)))
            };
          });
     let shape_at = index =>
       Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
-      t.children |> List.mapi(index => of_segment(shape_at(index)));
+      t.children |> List.mapi(~f=index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
       failwith(
         "Highlight.of_tile: shard mismatch:"
@@ -154,7 +156,7 @@ let rows_of_segment =
         ++ string_of_int(List.length(children_shards)),
       );
     };
-    ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
+    ListUtil.interleave(tile_shards, children_shards) |> List.concat;
   }
   and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
     switch (Measured.find_pr_opt(p, measured)) {
@@ -184,12 +186,12 @@ let rows_of_segment =
           )),
         ];
       } else {
-        List.init(num_lb + 1, _ => None);
+        List.init(num_lb + 1, ~f=_ => None);
       };
     }
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
-    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+    seg |> List.fold_map(~f=of_piece, ~init=start_shape) |> snd |> List.concat;
   let trim_row = row => {
     let rec drop = xs =>
       switch (xs) {
@@ -203,10 +205,10 @@ let rows_of_segment =
   };
   of_segment(shape_init, segment)
   |> ListUtil.split_at_nones
-  |> List.mapi((i, row) => trim_ws && i > 0 ? trim_row(row) : row)
-  |> List.map(List.map(fst))
+  |> List.mapi(~f=(i, row) => trim_ws && i > 0 ? trim_row(row) : row)
+  |> List.map(~f=List.map(~f=fst))
   |> ListUtil.first_and_last
-  |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
+  |> List.map(~f=(((m1, (l1, _)), (m2, (_, r2)))) =>
        (
          Measured.{
            origin: m1.origin,
@@ -240,8 +242,8 @@ let row_data_of =
     row_num: measurement.origin.row,
     left_col: measurement.origin.col,
     right_col: measurement.last.col,
-    left_tip: Option.map(Nib.Shape.direction_of(Left), l),
-    right_tip: Option.map(Nib.Shape.direction_of(Right), r),
+    left_tip: Option.map(~f=Nib.Shape.direction_of(Left), l),
+    right_tip: Option.map(~f=Nib.Shape.direction_of(Right), r),
   };
 };
 
@@ -303,14 +305,14 @@ let outline_path =
 
     let right_side =
       rows
-      |> List.mapi((i, row) => {
+      |> List.mapi(~f=(i, row) => {
            let chevron = ShardDec.chevron(row.right_tip, Right);
            let step =
              if (i < n - 1) {
-               let next = List.nth(rows, i + 1);
+               let next = List.nth_exn(rows, i + 1);
                let rx_cur = rx(row);
                let rx_next = rx(next);
-               if (rx_cur == rx_next) {
+               if (Float.equal(rx_cur, rx_next)) {
                  [];
                } else {
                  [SvgUtil.Path.H({x: rx_next})];
@@ -320,21 +322,21 @@ let outline_path =
              };
            chevron @ step;
          })
-      |> List.flatten;
+      |> List.concat;
 
     let bottom = [SvgUtil.Path.H({x: lx(last)})];
 
     let rows_rev = List.rev(rows);
     let left_side =
       rows_rev
-      |> List.mapi((i, row) => {
+      |> List.mapi(~f=(i, row) => {
            let chevron = ShardDec.chevron(row.left_tip, Left);
            let step =
              if (i < n - 1) {
-               let next_up = List.nth(rows_rev, i + 1);
+               let next_up = List.nth_exn(rows_rev, i + 1);
                let lx_cur = lx(row);
                let lx_next = lx(next_up);
-               if (lx_cur == lx_next) {
+               if (Float.equal(lx_cur, lx_next)) {
                  [];
                } else {
                  [SvgUtil.Path.H({x: lx_next})];
@@ -344,7 +346,7 @@ let outline_path =
              };
            chevron @ step;
          })
-      |> List.flatten;
+      |> List.concat;
 
     top @ right_side @ bottom @ left_side @ [SvgUtil.Path.Z];
   };
@@ -363,24 +365,25 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
   | [first, ...rest] =>
     let row_bounds = (row: row_data) => {
       let l_tip_x =
-        left_x(row) -. abs_float(ShardDec.caret_run(row.left_tip));
+        left_x(row) -. Stdlib.abs_float(ShardDec.caret_run(row.left_tip));
       let r_tip_x =
-        right_x(row) +. abs_float(ShardDec.caret_run(row.right_tip));
-      (min(left_x(row), l_tip_x), max(right_x(row), r_tip_x));
+        right_x(row) +. Stdlib.abs_float(ShardDec.caret_run(row.right_tip));
+      (Float.min(left_x(row), l_tip_x), Float.max(right_x(row), r_tip_x));
     };
     let (l0, r0) = row_bounds(first);
     Some(
       List.fold_left(
-        (bb, row) => {
-          let (l, r) = row_bounds(row);
-          {
-            min_col: min(bb.min_col, l),
-            max_col: max(bb.max_col, r),
-            min_row: min(bb.min_row, row.row_num),
-            max_row: max(bb.max_row, row.row_num),
-          };
-        },
-        {
+        ~f=
+          (bb, row) => {
+            let (l, r) = row_bounds(row);
+            {
+              min_col: Float.min(bb.min_col, l),
+              max_col: Float.max(bb.max_col, r),
+              min_row: min(bb.min_row, row.row_num),
+              max_row: max(bb.max_row, row.row_num),
+            };
+          },
+        ~init={
           min_col: l0,
           max_col: r0,
           min_row: first.row_num,
@@ -414,7 +417,7 @@ let svg_of_group =
     /* Clip-path ids must be document-unique; derive one from the group's
      * bounding box (cols are fractional, so scale to tenths of a column). */
     let clip_id =
-      Printf.sprintf(
+      sprintf(
         "incremental-active-%d-%d-%d-%d",
         int_of_float(bb.min_col *. 10.0),
         bb.min_row,
@@ -423,7 +426,7 @@ let svg_of_group =
       );
     let active_sweep =
       if (sweep) {
-        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+        let sweep_width = Float.max(1.0, width_f *. sweep_width_ratio);
         [
           Node.create_svg(
             "defs",
@@ -445,8 +448,8 @@ let svg_of_group =
                   Attr.classes(["incremental-sweep"]),
                   Attr.create("x", "0"),
                   Attr.create("y", "0"),
-                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
-                  Attr.create("height", Printf.sprintf("%f", height_f)),
+                  Attr.create("width", sprintf("%f", sweep_width)),
+                  Attr.create("height", sprintf("%f", height_f)),
                 ],
                 [],
               ),
@@ -464,7 +467,7 @@ let svg_of_group =
           Attr.classes(["shard"] @ clss),
           Attr.create(
             "style",
-            Printf.sprintf(
+            sprintf(
               "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
               bb.min_col *. font_metrics.col_width,
               float_of_int(bb.min_row) *. font_metrics.row_height,
@@ -474,7 +477,7 @@ let svg_of_group =
           ),
           Attr.create(
             "viewBox",
-            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+            sprintf("%f 0 %f %d", 0.0, width_f, height),
           ),
           Attr.create("preserveAspectRatio", "none"),
         ],
@@ -527,8 +530,8 @@ let clip_char_selection =
       switch (left_inner) {
       | None => rows
       | Some(n) =>
-        let left_piece = List.hd(content);
-        let shard = List.hd(Piece.disassemble(left_piece));
+        let left_piece = List.hd_exn(content);
+        let shard = List.hd_exn(Piece.disassemble(left_piece));
         switch (Piece.token_of(shard)) {
         | Some(tok) =>
           let offset = Zipper.Caret.inner_offset_for_token(n, tok);
@@ -595,9 +598,9 @@ let of_segment =
     : list(Node.t) => {
   let rows =
     rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
-    |> List.map(((m, tips)) => row_data_of(m, tips));
+    |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
+  List.filter_map(~f=svg_of_group(~font_metrics, ~clss), groups);
 };
 
 let selection =
@@ -615,14 +618,14 @@ let selection =
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
       z.selection.content,
     )
-    |> List.map(((m, tips)) => row_data_of(m, tips));
+    |> List.map(~f=((m, tips)) => row_data_of(m, tips));
   /* Clip partial-token boundaries for char-level selections */
   let rows = clip_char_selection(~measured, z, rows);
   let clss = ["selected", Selection.buffer_cls(z.selection)];
   let groups = group_consecutive(rows);
   div_c(
     "selects",
-    List.filter_map(svg_of_group(~font_metrics, ~clss), groups),
+    List.filter_map(~f=svg_of_group(~font_metrics, ~clss), groups),
   );
 };
 
@@ -720,7 +723,7 @@ module RangeCache = {
   let slot:
     Slot.t(
       Measured.t,
-      Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
+      Stdlib.Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
     ) =
     Slot.mk();
   let for_gen =
@@ -728,13 +731,13 @@ module RangeCache = {
       : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
     /* measured is the stricter generation proxy: term_data only
        changes in mk, where measured is rebuilt too */
-    let tbl = Slot.get(slot, measured, () => Hashtbl.create(1024));
+    let tbl = Slot.get(slot, measured, () => Stdlib.Hashtbl.create(1024));
     id =>
-      switch (Hashtbl.find_opt(tbl, id)) {
+      switch (Stdlib.Hashtbl.find_opt(tbl, id)) {
       | Some(r) => r
       | None =>
         let r = TermData.extreme_measures(id, term_data, measured);
-        Hashtbl.replace(tbl, id, r);
+        Stdlib.Hashtbl.replace(tbl, id, r);
         r;
       };
   };
@@ -757,9 +760,9 @@ module IncrEvalCache = {
     switch (Expiring.find_opt(cache, id)) {
     | Some(e)
         when
-          e.e_meas === Obj.repr(measured)
+          phys_equal(e.e_meas, Obj.repr(measured))
           && e.e_range == range
-          && e.e_fm === Obj.repr(font_metrics)
+          && phys_equal(e.e_fm, Obj.repr(font_metrics))
           && e.e_sweep == sweep =>
       e.e_nodes
     | _ =>
@@ -795,8 +798,8 @@ let contour_of_range =
     [];
   } else {
     let rows =
-      List.init(final.row - origin.row + 1, i => origin.row + i)
-      |> List.filter_map(row =>
+      List.init(final.row - origin.row + 1, ~f=i => origin.row + i)
+      |> List.filter_map(~f=row =>
            switch (Measured.row_shape(row, measured)) {
            | None => None
            | Some(shape) =>
@@ -820,7 +823,7 @@ let contour_of_range =
            }
          );
     group_consecutive(rows)
-    |> List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep));
+    |> List.filter_map(~f=svg_of_group(~font_metrics, ~clss, ~sweep));
   };
 
 let colors =
@@ -832,8 +835,9 @@ let colors =
   div_c(
     "color-highlights",
     List.concat_map(
-      ((id, c)) =>
-        color(~syntax, ~font_metrics, ["highlight-code-" ++ c], id),
+      ~f=
+        ((id, c)) =>
+          color(~syntax, ~font_metrics, ["highlight-code-" ++ c], id),
       switch (color_highlights) {
       | Some(colorMap) => ColorSteps.to_list(colorMap)
       | _ => []
@@ -860,8 +864,8 @@ let incr_eval =
     );
   let ranged_ids_of = ids =>
     ids
-    |> List.sort_uniq(Id.compare)
-    |> List.filter_map(id =>
+    |> List.dedup_and_sort(~compare=Id.compare)
+    |> List.filter_map(~f=id =>
          switch (range_of(id)) {
          | Some(range) => Some((id, range))
          | None => None
@@ -872,8 +876,9 @@ let incr_eval =
     | 0 => Point.compare(l1, l2)
     | cmp => cmp
     };
+
   let pending_eval_ranges =
-    pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
+    pending_eval_ids |> ranged_ids_of |> List.sort(~compare=range_compare);
   let active_ids =
     if (show_active_eval) {
       pending_eval_ranges |> ListUtil.hd_opt |> Option.to_list;
@@ -882,10 +887,10 @@ let incr_eval =
     };
   let pending_inactive_ranges =
     pending_eval_ranges
-    |> List.filter(((_, range)) =>
+    |> List.filter(~f=((_, range)) =>
          !
            List.exists(
-             ((_, active_range)) => range_eq(active_range, range),
+             ~f=((_, active_range)) => range_eq(active_range, range),
              active_ids,
            )
        );
@@ -893,14 +898,15 @@ let incr_eval =
      draw every row */
   let visible_bounds =
     switch (visible) {
-    | None => (0, max_int)
+    | None => (0, Int.max_value)
     | Some({first, last}) => (first, last)
     };
   let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
     let (first, last) = visible_bounds;
     List.filter(
-      ((_, (origin: Point.t, final: Point.t))) =>
-        origin.row <= last && final.row >= first,
+      ~f=
+        ((_, (origin: Point.t, final: Point.t))) =>
+          origin.row <= last && final.row >= first,
       ranges,
     );
   };
@@ -910,17 +916,14 @@ let incr_eval =
      regions (the worklist finishes roughly in program order), clamped to
      the visible window to bound path sizes */
   let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
-    List.fold_left(
-      (acc, (id, (o: Point.t, f: Point.t))) =>
-        switch (acc) {
-        | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
-            when o.row <= rf.row + 1 =>
-          let rf' = rf.row > f.row ? rf : f;
-          [(rid, (ro, rf')), ...rest];
-        | _ => [(id, (o, f)), ...acc]
-        },
-      [],
-      ranges,
+    List.fold(ranges, ~init=[], ~f=(acc, (id, (o: Point.t, f: Point.t))) =>
+      switch (acc) {
+      | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
+          when o.row <= rf.row + 1 =>
+        let rf' = rf.row > f.row ? rf : f;
+        [(rid, (ro, rf')), ...rest];
+      | _ => [(id, (o, f)), ...acc]
+      }
     )
     |> List.rev;
   let clamp_region = ((id, (o: Point.t, f: Point.t))) => {
@@ -937,27 +940,33 @@ let incr_eval =
         ? f
         : Point.{
             row: last,
-            col: Int.max_int,
+            col: Int.max_value,
           };
     (id, (o, f));
   };
   let regions =
     visible_ranges(pending_inactive_ranges)
     |> merge_regions
-    |> List.map(clamp_region);
+    |> List.map(~f=clamp_region);
   let nodes_of = (~sweep, clss, regions) =>
     List.concat_map(
-      ((id, range)) =>
-        IncrEvalCache.get(
-          ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~sweep, ~mk=() =>
-          contour_of_range(
-            ~font_metrics,
+      ~f=
+        ((id, range)) =>
+          IncrEvalCache.get(
+            ~id,
             ~measured=syntax.measured,
+            ~range,
+            ~font_metrics,
             ~sweep,
-            clss,
-            range,
-          )
-        ),
+            ~mk=() =>
+            contour_of_range(
+              ~font_metrics,
+              ~measured=syntax.measured,
+              ~sweep,
+              clss,
+              range,
+            )
+          ),
       regions,
     );
   let inactive_nodes =
@@ -967,7 +976,7 @@ let incr_eval =
      keeps animating) */
   let active_nodes =
     visible_ranges(active_ids)
-    |> List.map(clamp_region)
+    |> List.map(~f=clamp_region)
     |> nodes_of(~sweep=true, ["incremental-pending", "incremental-active"]);
   div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };

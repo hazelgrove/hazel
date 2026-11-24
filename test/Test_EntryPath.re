@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* EntryPath: the path grammar, resolving and describing both ways, and
    its per-level index */
@@ -26,14 +27,16 @@ let error = (~root=Sort.Exp, seg, s) =>
 let core_text = (f: P.found): string => {
   let (lv, k) = Util.ListUtil.last(f.steps);
   let (c0, c1) = lv.spans[k].core;
-  String.trim(
-    CorpusUtil.text_of(Array.to_list(Array.sub(lv.pieces, c0, c1 - c0))),
+  String.strip(
+    CorpusUtil.text_of(
+      Array.to_list(Array.sub(lv.pieces, ~pos=c0, ~len=c1 - c0)),
+    ),
   );
 };
 
 let starts = (prefix, s) =>
   String.length(s) >= String.length(prefix)
-  && String.sub(s, 0, String.length(prefix)) == prefix;
+  && String.sub(s, ~pos=0, ~len=String.length(prefix)) == prefix;
 
 /* the plan's example program */
 let example = {|module M = {
@@ -64,7 +67,7 @@ let grammar = () => {
     | Error(e) => Alcotest.fail(e)
     };
   List.iter(
-    ((src, want)) => check(string, src, want, canon(src)),
+    ~f=((src, want)) => check(string, src, want, canon(src)),
     [
       ("M.parse", "M/parse"),
       ("M/parse", "M/parse"),
@@ -88,6 +91,7 @@ let grammar = () => {
     ],
   );
   List.iter(
+    ~f=
     src =>
       check(
         bool,
@@ -135,19 +139,19 @@ let resolving = () => {
     bool,
     "f/a and f/b: one entry",
     true,
-    resolve(seg, "f/a").id == resolve(seg, "f/b").id,
+    Id.equal(resolve(seg, "f/a").id, resolve(seg, "f/b").id),
   );
   let seg' = seg_of("module N = { let c = 1 } in\nuse N in\nc");
-  check(bool, "use#1", true, resolve(seg', "use#1").kind == Use);
+  check(bool, "use#1", true, Poly.equal(resolve(seg', "use#1").kind, Use));
   /* parts tag the entry */
   let f = resolve(seg, "M.parse:definition");
   check(
     bool,
     "a part keeps the entry",
     true,
-    f.id == resolve(seg, "M.parse").id,
+    Id.equal(f.id, resolve(seg, "M.parse").id),
   );
-  check(bool, "the part", true, f.part == Some(Definition));
+  check(bool, "the part", true, Poly.equal(f.part, Some(Definition)));
   /* the steps are ItemSpans' own levels, as find reaches them */
   let f = resolve(seg, "M/Inner/z");
   check(
@@ -156,8 +160,8 @@ let resolving = () => {
     true,
     switch (S.find(~root=Exp, f.id, seg)) {
     | Some(steps) =>
-      List.for_all2(
-        ((l, k), (l', k')) => l === l' && k == k',
+      List.for_all2_exn(
+        ~f=((l, k), (l', k')) => phys_equal(l, l') && k == k',
         steps,
         f.steps,
       )
@@ -189,7 +193,7 @@ let errors = () => {
     bool,
     "a let's body",
     true,
-    resolve(seg, "f:body").part == Some(Body),
+    Poly.equal(resolve(seg, "f:body").part, Some(Body)),
   );
   has("at 2", error(seg, "M/"));
   let seg = seg_of("let x = 1 in\nlet x = 2 in\nlet y = x in\nx + y");
@@ -237,7 +241,10 @@ let shared_prefix = () => {
   has("No entry \"w\" in \"M#1\"", error(seg, "M/w"));
   /* described by the shortest path that resolves */
   let path = s =>
-    Option.map(P.to_string, P.describe(~root=Exp, seg, resolve(seg, s).id));
+    Option.map(
+      ~f=P.to_string,
+      P.describe(~root=Exp, seg, resolve(seg, s).id),
+    );
   check(option(string), "M#2/y", Some("M/y"), path("M#2/y"));
   check(option(string), "M#2/z", Some("M#2/z"), path("M#2/z"));
   check(option(string), "M#1", Some("M#1"), path("M#1"));
@@ -250,19 +257,24 @@ let mod_root = () => {
   let root = Sort.Mod;
   let seg = seg_of(~root, mod_src);
   let kind = s => resolve(~root, seg, s).kind;
-  check(bool, "a", true, kind("a") == Def);
-  check(bool, "test#1", true, kind("test#1") == Test);
-  check(bool, "g/q", true, kind("g/q") == Def);
-  check(bool, "g/=>", true, kind("g/=>") == Tail);
+  check(bool, "a", true, Poly.equal(kind("a"), Def));
+  check(bool, "test#1", true, Poly.equal(kind("test#1"), Test));
+  check(bool, "g/q", true, Poly.equal(kind("g/q"), Def));
+  check(bool, "g/=>", true, Poly.equal(kind("g/=>"), Tail));
   /* a member that is a let chain: a statement whose chain is its block */
-  check(bool, "stmt#1", true, kind("stmt#1") == Stmt);
-  check(bool, "stmt#1/h", true, kind("stmt#1/h") == Def);
-  check(bool, "stmt#1/=>", true, kind("stmt#1/=>") == Tail);
+  check(bool, "stmt#1", true, Poly.equal(kind("stmt#1"), Stmt));
+  check(bool, "stmt#1/h", true, Poly.equal(kind("stmt#1/h"), Def));
+  check(bool, "stmt#1/=>", true, Poly.equal(kind("stmt#1/=>"), Tail));
   check(string, "=>", "a + 1", core_text(resolve(~root, seg, "=>")));
   /* a module body has no tail: its last `;`-less member is a member */
   let seg =
     seg_of("module M = {\n  let a = 1;\n  test a == 1 end\n} in\nM.a");
-  check(bool, "M/test#1", true, resolve(seg, "M/test#1").kind == Test);
+  check(
+    bool,
+    "M/test#1",
+    true,
+    Poly.equal(resolve(seg, "M/test#1").kind, Test),
+  );
 };
 
 /* names win over kind words; any pattern name addresses its entry */
@@ -277,7 +289,7 @@ let names = () => {
     option(string),
     "the statement's path",
     Some("stmt#1"),
-    Option.map(P.to_string, P.describe(~root=Exp, seg, stmt)),
+    Option.map(~f=P.to_string, P.describe(~root=Exp, seg, stmt)),
   );
   check(bool, "p", true, starts("let (p, q)", text("p")));
   check(bool, "q", true, starts("let (p, q)", text("q")));
@@ -320,7 +332,7 @@ let livelits = () => {
     list(string),
     "paths",
     ["^pct", "^pct/T", "^pct/init", "m", "m/a", "=>"],
-    List.map(((_, p)) => P.to_string(p), P.entries(~root=Exp, seg)),
+    List.map(~f=((_, p)) => P.to_string(p), P.entries(~root=Exp, seg)),
   );
   check(
     bool,
@@ -328,7 +340,12 @@ let livelits = () => {
     true,
     starts("let ^pct", core_text(resolve(seg, "^pct"))),
   );
-  check(bool, "^pct/T", true, resolve(seg, "^pct/T").kind == Type);
+  check(
+    bool,
+    "^pct/T",
+    true,
+    Poly.equal(resolve(seg, "^pct/T").kind, Type),
+  );
   check(
     string,
     "^pct/init",
@@ -339,7 +356,7 @@ let livelits = () => {
     list(string),
     "^pct's binder",
     ["^pct"],
-    List.map(fst, P.entry(S.top(~root=Exp, seg), 0).binders),
+    List.map(~f=fst, P.entry(S.top(~root=Exp, seg), 0).binders),
   );
 };
 
@@ -348,6 +365,7 @@ let livelits = () => {
 let round_trip = (~root, name, seg) => {
   let all = P.entries(~root, seg);
   List.iter(
+    ~f=
     ((id, p)) => {
       let s = P.to_string(p);
       switch (P.parse(s)) {
@@ -355,9 +373,10 @@ let round_trip = (~root, name, seg) => {
       | _ => Alcotest.fail(name ++ ": " ++ s ++ " does not read back")
       };
       switch (P.resolve(~root, seg, p)) {
-      | Ok(f) when f.id == id => ()
+        | Ok(f) when Id.equal(f.id, id) => ()
       | Ok(_) => Alcotest.fail(name ++ ": " ++ s ++ " resolves elsewhere")
-      | Error(e) => Alcotest.fail(name ++ ": " ++ s ++ ": " ++ P.message(e))
+        | Error(e) =>
+          Alcotest.fail(name ++ ": " ++ s ++ ": " ++ P.message(e))
       };
       switch (P.describe(~root, seg, id)) {
       | Some(p') when p' == p => ()
@@ -378,24 +397,25 @@ let small_round_trips = () => {
   ignore(round_trip(~root=Exp, "livelits", seg_of(livelit_src)));
   ignore(round_trip(~root=Mod, "Mod root", seg_of(~root=Mod, mod_src)));
   List.iter(
+    ~f=
     ((name, src)) =>
       ignore(round_trip(~root=Mod, name, seg_of(~root=Mod, src))),
     Test_ItemSpans.letin_members,
   );
   List.iter(
-    ((name, src)) => ignore(round_trip(~root=Exp, name, seg_of(src))),
+    ~f=((name, src)) => ignore(round_trip(~root=Exp, name, seg_of(src))),
     CorpusUtil.edge_programs,
   );
 };
 
 /* ---- corpora ---- */
 
-let read_any = paths => List.find_map(CorpusUtil.read_file, paths);
+let read_any = paths => List.find_map(~f=CorpusUtil.read_file, paths);
 let here = path => read_any([path, "../" ++ path]);
 
 let corpora = (): list((string, Sort.t, Segment.t)) => {
   let list_src =
-    Option.get(here("test/modaudit/List.hz"))
+    Option.value_exn(here("test/programs/List.hz"))
     |> Util.StringUtil.strip_final_newline;
   [
     ("Mega 1k", Sort.Exp, CorpusUtil.mega_seg(~root=Exp, "mega-1k.hz")),
@@ -417,6 +437,7 @@ let corpora = (): list((string, Sort.t, Segment.t)) => {
 
 let corpus_round_trips = () =>
   List.iter(
+    ~f=
     ((name, root, seg)) => {
       let n = round_trip(~root, name, seg);
       Printf.printf("%s: %d entries round-trip\n", name, n);
@@ -432,7 +453,7 @@ let sub_offsets = () => {
   let seg =
     seg_of(~root, "let a = 1;\nlet x = 1 in x;\nlet g = let q = 2 in q");
   let space =
-    switch (List.find(Piece.is_space, seg)) {
+    switch (List.find_exn(~f=Piece.is_space, seg)) {
     | Secondary(w) =>
       Piece.Secondary({
         ...w,
@@ -443,12 +464,13 @@ let sub_offsets = () => {
   let offsets = seg => {
     let top = S.top(~root, seg);
     (
-      Option.get(S.chain(top, 1)).offset,
-      Option.get(S.block(top, 2)).offset,
+      Option.value_exn(S.chain(top, 1)).offset,
+      Option.value_exn(S.block(top, 2)).offset,
     );
   };
   let (chain, block) = offsets(seg);
-  let (chain', block') = offsets([List.hd(seg), space, ...List.tl(seg)]);
+  let (chain', block') =
+    offsets([List.hd_exn(seg), space, ...List.tl_exn(seg)]);
   check(int, "the chain moves", chain + 1, chain');
   check(int, "the body run moves", block + 1, block');
 };
@@ -456,9 +478,9 @@ let sub_offsets = () => {
 /* ---- cost ---- */
 
 let time = f => {
-  let t0 = Sys.time();
+  let t0 = Stdlib.Sys.time();
   let r = f();
-  (r, (Sys.time() -. t0) *. 1000.);
+  (r, (Stdlib.Sys.time() -. t0) *. 1000.);
 };
 
 /* a level's index is built once, while ItemSpans keeps the level: an edit
@@ -466,8 +488,9 @@ let time = f => {
 let index_reuse = () => {
   let root = Sort.Mod;
   let seg = CorpusUtil.mega_seg(~root, "mega-mod-1k.hz");
-  let paths = List.map(snd, P.entries(~root, seg));
-  let all = seg => List.iter(p => ignore(P.resolve(~root, seg, p)), paths);
+  let paths = List.map(~f=snd, P.entries(~root, seg));
+  let all = seg =>
+    List.iter(~f=p => ignore(P.resolve(~root, seg, p)), paths);
   all(seg);
   let b0 = P.built^;
   all(seg);
@@ -495,17 +518,18 @@ let cost = () => {
   let (entries, cold) = time(() => P.entries(~root, seg));
   let n = List.length(entries);
   let resolve_all = () =>
-    List.iter(((_, p)) => ignore(P.resolve(~root, seg, p)), entries);
+    List.iter(~f=((_, p)) => ignore(P.resolve(~root, seg, p)), entries);
   let ((), warm) = time(resolve_all);
   let ((), described) =
     time(() =>
-      List.iter(((id, _)) => ignore(P.describe(~root, seg, id)), entries)
+      List.iter(
+        ~f=((id, _)) => ignore(P.describe(~root, seg, id)),
+        entries,
+      )
     );
   let depth =
-    List.fold_left(
-      (m, (_, p: P.t)) => max(m, List.length(p.elems)),
-      0,
-      entries,
+    List.fold(entries, ~init=0, ~f=(m, (_, p: P.t)) =>
+      max(m, List.length(p.elems))
     );
   /* after an edit deep in the program: the edited path's levels anew */
   let (edited, _) =
@@ -518,7 +542,10 @@ let cost = () => {
     );
   let (last_id, last) =
     Util.ListUtil.last(
-      List.filter(((_, p: P.t)) => List.length(p.elems) == depth, entries),
+      List.filter(
+        ~f=((_, p: P.t)) => List.length(p.elems) == depth,
+        entries,
+      ),
     );
   let (_, resolve_after) = time(() => P.resolve(~root, edited, last));
   let (_, describe_after) = time(() => P.describe(~root, edited, last_id));

@@ -31,16 +31,16 @@ let rec find_in_let =
   | (_, Parens(ue))
   | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
   | (Asc(up, _), _) => find_in_let(name, up, def, l)
-  | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
+  | (Var(x), Fun(_)) => String.equal(x, name) ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
   | (Tuple(pl), Tuple(ul)) =>
     if (List.length(pl) != List.length(ul)) {
       l;
     } else {
-      List.fold_left2(
-        (acc, up, ue) => {find_in_let(name, up, ue, acc)},
-        l,
+      List.fold2_exn(
+        ~f=(acc, up, ue) => {find_in_let(name, up, ue, acc)},
+        ~init=l,
         pl,
         ul,
       );
@@ -71,7 +71,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
     l |> find_in_let(name, up, def) |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
-    List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
+    List.fold_left(~f=(acc, u1) => {find_fn(name, u1, acc)}, ~init=l, ul)
   | TypFun(_, body, _)
   | FixF(_, body, _)
   | Fun(_, body, _, _) => l |> find_fn(name, body)
@@ -101,15 +101,16 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | DeferredAp(fn, args) =>
     l
     |> find_fn(name, fn)
-    |> List.fold_left((l, u) => find_fn(name, u, l), _, args)
+    |> List.fold_left(~f=(l, u) => find_fn(name, u, l), ~init=_, args)
   | Match(u1, ul) =>
     List.fold_left(
-      (acc, (_, ue)) => {find_fn(name, ue, acc)},
-      l |> find_fn(name, u1),
+      ~f=(acc, (_, ue)) => {find_fn(name, ue, acc)},
+      ~init=l |> find_fn(name, u1),
       ul,
     )
   | Module(items) =>
     List.fold_left(
+      ~f=
       (acc, item: Mod.t) =>
         switch (item.term) {
         | ModLet(p, def) => acc |> find_in_let(name, p, def)
@@ -121,7 +122,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
         | EmptyHole
         | MultiHole(_) => acc
         },
-      l,
+      ~init=l,
       items,
     )
   | ModuleExp(_, def, body) =>
@@ -148,7 +149,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
  */
 let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   switch (upat.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | EmptyHole
   | Wild
   | Invalid(_)
@@ -163,8 +164,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     List.fold_left(
-      (acc, up) => {acc || var_mention_upat(name, up)},
-      false,
+      ~f=(acc, up) => {acc || var_mention_upat(name, up)},
+      ~init=false,
       l,
     )
   | Parens(up)
@@ -178,7 +179,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
 
 let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
   switch (mp.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | Asc(inner, _) => var_mention_mpat(name, inner)
   | EmptyHole
   | Invalid(_)
@@ -191,7 +192,7 @@ let rec var_mention_mpat = (name: string, mp: MPat.t): bool => {
  */
 let rec var_mention = (name: string, uexp: Exp.t): bool => {
   switch (uexp.term) {
-  | Var(x) => x == name
+  | Var(x) => String.equal(x, name)
   | EmptyHole
   | Invalid(_)
   | MultiHole(_)
@@ -205,6 +206,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Deferral(_) => false
   | Module(items) =>
     List.exists(
+      ~f=
       (item: Mod.t) =>
         switch (item.term) {
         | ModLet(_, def)
@@ -225,7 +227,11 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | ListLit(l)
   | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+    List.fold_left(
+      ~f=(acc, ue) => {acc || var_mention(name, ue)},
+      ~init=false,
+      l,
+    )
   | Let(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_mention(name, body))
     || var_mention(name, def)
@@ -260,17 +266,18 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | ListConcat(u1, u2)
   | BinOp(_, u1, u2) => var_mention(name, u1) || var_mention(name, u2)
   | DeferredAp(u1, us) =>
-    var_mention(name, u1) || List.exists(var_mention(name), us)
+    var_mention(name, u1) || List.exists(~f=var_mention(name), us)
   | If(u1, u2, u3) =>
     var_mention(name, u1) || var_mention(name, u2) || var_mention(name, u3)
   | Match(g, l) =>
     var_mention(name, g)
     || List.fold_left(
+         ~f=
          (acc, pe) => {
            let (p, e) = pe;
            var_mention_upat(name, p) ? false : acc || var_mention(name, e);
          },
-         false,
+         ~init=false,
          l,
        )
   };
@@ -296,6 +303,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Deferral(_) => false
   | Module(items) =>
     List.exists(
+      ~f=
       (item: Mod.t) =>
         switch (item.term) {
         | ModLet(_, def)
@@ -319,7 +327,11 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     var_mention_upat(name, args) ? false : var_applied(name, body)
   | ListLit(l)
   | Tuple(l) =>
-    List.fold_left((acc, ue) => {acc || var_applied(name, ue)}, false, l)
+    List.fold_left(
+      ~f=(acc, ue) => {acc || var_applied(name, ue)},
+      ~init=false,
+      l,
+    )
   | Let(p, def, body) =>
     (var_mention_upat(name, p) ? false : var_applied(name, body))
     || var_applied(name, def)
@@ -339,7 +351,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Filter(_, u) => var_applied(name, u)
   | TypAp(u, _) =>
     switch (u.term) {
-    | Var(x) => x == name ? true : false
+    | Var(x) => String.equal(x, name) ? true : false
     | _ => var_applied(name, u)
     }
   | DynamicErrorHole(_) => false
@@ -349,13 +361,14 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Asc(d, _) => var_applied(name, d)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : var_applied(name, u2)
+    | Var(x) => String.equal(x, name) ? true : var_applied(name, u2)
     | _ => var_applied(name, u1) || var_applied(name, u2)
     }
   | DeferredAp(u1, us) =>
     switch (u1.term) {
-    | Var(x) => x == name ? true : List.exists(var_applied(name), us)
-    | _ => List.exists(var_applied(name), us)
+    | Var(x) =>
+      String.equal(x, name) ? true : List.exists(~f=var_applied(name), us)
+    | _ => List.exists(~f=var_applied(name), us)
     }
   | Cons(u1, u2)
   | Seq(u1, u2)
@@ -368,11 +381,12 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Match(g, l) =>
     var_applied(name, g)
     || List.fold_left(
+         ~f=
          (acc, pe) => {
            let (p, e) = pe;
            var_mention_upat(name, p) ? false : acc || var_applied(name, e);
          },
-         false,
+         ~init=false,
          l,
        )
   };
@@ -383,12 +397,12 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
  */
 let is_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
-  if (List.length(fn_bodies) == 0) {
+  if (List.is_empty(fn_bodies)) {
     false;
   } else {
     List.fold_left(
-      (acc, ue) => {acc && var_mention(name, ue)},
-      true,
+      ~f=(acc, ue) => {acc && var_mention(name, ue)},
+      ~init=true,
       fn_bodies,
     );
   };
@@ -419,6 +433,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     /* Module items are not in tail position; check that none mention the variable */
     !
       List.exists(
+        ~f=
         (item: Mod.t) =>
           switch (item.term) {
           | ModLet(_, def)
@@ -450,7 +465,12 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true
-    !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
+    !
+      List.fold_left(
+        ~f=(acc, ue) => {acc || var_mention(name, ue)},
+        ~init=false,
+        l,
+      )
   | Test(_) => false
   | HintedTest(_) => false
   | TyAlias(_, _, u)
@@ -480,10 +500,11 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     var_mention(name, g)
       ? false
       : List.fold_left(
+          ~f=
           (acc, (p, e)) => {
             var_mention_upat(name, p) ? false : acc && tail_check(name, e)
           },
-          true,
+          ~init=true,
           l,
         )
   };
@@ -494,19 +515,20 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
  */
 let is_tail_recursive = (name: string, uexp: Exp.t): bool => {
   let fn_bodies = [] |> find_fn(name, uexp);
-  if (List.length(fn_bodies) == 0) {
+  if (List.is_empty(fn_bodies)) {
     false;
   } else {
     List.fold_left(
+      ~f=
       (acc, ue) => {acc && var_mention(name, ue) && tail_check(name, ue)},
-      true,
+      ~init=true,
       fn_bodies,
     );
   };
 };
 
 let check = (uexp: Exp.t, predicates: list(Exp.t => bool)): syntax_result => {
-  let results = List.map(pred => {uexp |> pred}, predicates);
+  let results = List.map(~f=pred => {uexp |> pred}, predicates);
   let length = List.length(predicates);
   let passing = Util.ListUtil.count_pred(res => res, results);
 

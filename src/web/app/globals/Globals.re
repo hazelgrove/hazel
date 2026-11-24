@@ -7,7 +7,7 @@ open Util;
 /* Viewport culling for projectors/refractors.
  * None = no culling (all visible), Some(range) = only show in range */
 module VisibleRows = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     first: int,
     last: int,
@@ -37,7 +37,11 @@ module VisibleRows = {
   /* kept only while something culls by it (auto-probe's probes, the
      eval-progress highlight): a range kept untracked goes stale */
   let tracked = (settings: Settings.t): bool =>
-    settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    !
+      Haz3lcore.AutoProbe.equal(
+        settings.autoprobe_mode,
+        Haz3lcore.AutoProbe.Off,
+      )
     || settings.show_incremental_deco;
 
   /* Re-render only once scrolled well into the buffer. [last] moves with

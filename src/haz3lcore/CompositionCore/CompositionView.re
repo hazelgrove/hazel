@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 module Trivia = Secondary;
 open Language;
 
@@ -101,14 +102,12 @@ let print_measured =
   /* only what it holds: the rest is elided or elsewhere */
   let held =
     lazy(
-      List.fold_left(
-        (m, id) => Id.Map.add(id, (), m),
-        Id.Map.empty,
-        Segment.ids(seg),
+      List.fold(Segment.ids(seg), ~init=Id.Map.empty, ~f=(m, id) =>
+        Id.Map.add(id, (), m)
       )
     );
   (
-    Array.of_list(String.split_on_char('\n', text)),
+    Array.of_list(String.split(~on='\n', text)),
     id =>
       Id.Map.mem(id, Lazy.force(held))
         ? Measured.find_by_id(id, Lazy.force(measured)) : None,
@@ -118,22 +117,22 @@ let print_measured =
 /* text safe inside a `# … #` comment */
 let comment_safe = (s: string): string =>
   s
-  |> String.map(c => c == '\n' ? ' ' : c)
+  |> String.map(~f=c => Char.equal(c, '\n') ? ' ' : c)
   |> StringUtil.replace(StringUtil.regexp("#"), _, {js|♯|js});
 
 /* opens every comment the view adds, so none reads as the program's */
 let marker = {js|#›|js};
 
 let comment = (parts: list(string)): string =>
-  switch (List.filter(p => p != "", parts)) {
+  switch (List.filter(~f=p => !String.equal(p, ""), parts)) {
   | [] => ""
-  | parts => marker ++ " " ++ String.concat({js| · |js}, parts) ++ " #"
+  | parts => marker ++ " " ++ String.concat(~sep={js| · |js}, parts) ++ " #"
   };
 
 /* a path's last element */
 let last_elem = (path: string): string =>
-  switch (String.rindex_opt(path, '/')) {
-  | Some(i) => String.sub(path, i + 1, String.length(path) - i - 1)
+  switch (String.rindex(path, '/')) {
+  | Some(i) => String.sub(path, ~pos=i + 1, ~len=String.length(path) - i - 1)
   | None => path
   };
 
@@ -143,8 +142,8 @@ let plural = (n: int, one: string, many: string): string =>
 /* ---- facts by entry ---- */
 
 let test_status = (facts: facts, test: Id.t): option(TestStatus.t) =>
-  Option.bind(facts.tests, (tr: TestResults.t) =>
-    TestMap.lookup(test, tr.test_map) |> Option.map(TestMap.joint_status)
+  Option.bind(facts.tests, ~f=(tr: TestResults.t) =>
+    TestMap.lookup(test, tr.test_map) |> Option.map(~f=TestMap.joint_status)
   );
 
 let status_mark = (s: TestStatus.t): string =>
@@ -153,6 +152,11 @@ let status_mark = (s: TestStatus.t): string =>
   | Fail => {js|✗|js}
   | Indet => "indeterminate"
   };
+
+/* an unhinted test's path, which only a note shows */
+let unnamed_path = (e: O.entry): option(string) =>
+  Poly.equal(e.kind, Test) && Option.is_none(e.hint)
+    ? Some(O.path_string(e)) : None;
 
 let error_message = (facts: facts, id: Id.t): string =>
   switch (Id.Map.find_opt(id, facts.info_map)) {
@@ -176,7 +180,7 @@ let probe_values = (facts: facts, ids: list(Id.t)): string =>
   | vs =>
     comment([
       {js|≡ |js}
-      ++ comment_safe(String.concat(ProbeText.value_separator, vs)),
+      ++ comment_safe(String.concat(~sep=ProbeText.value_separator, vs)),
     ])
   };
 
@@ -201,11 +205,11 @@ let rec fun_heads = (ps: Segment.t): list(Piece.t) =>
   | _ => []
   };
 let headed = (heads: list(Piece.t)): Segment.t =>
-  List.concat_map(h => [space(), h], heads);
+  List.concat_map(~f=h => [space(), h], heads);
 
 let rec spans_lines = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) => List.exists(List.exists(spans_lines), t.children)
+  | Tile(t) => List.exists(~f=List.exists(~f=spans_lines), t.children)
   | _ => Piece.is_linebreak(p)
   };
 
@@ -219,9 +223,13 @@ let with_last_kid = (t: Tile.t, kid: Segment.t): Tile.t => {
 };
 
 /* an annotation: a line, found by an id's measurement, and its parts */
+[@deriving (show({with_path: false}), sexp, yojson)]
 type note = {
   /* the entry's name, when several notes share a line */
   label: string,
+  /* its first part is its path (an unhinted test's, a statement's), which
+     names it there instead */
+  named: bool,
   at: Id.t,
   /* at the measurement's last row, else its first */
   last: bool,
@@ -255,7 +263,7 @@ let first_message = (ctx: ctx, errs: list(Id.t)): string =>
 
 let rec subtree_error_ids = (ctx: ctx, e: O.entry): list(Id.t) =>
   Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[])
-  @ List.concat_map(subtree_error_ids(ctx), e.children);
+  @ List.concat_map(~f=subtree_error_ids(ctx), e.children);
 
 /* the parts every map line carries for its entry: open, and its errors
    ([own]: only those not on a member line of its own) */
@@ -266,7 +274,7 @@ let common_parts = (~own=false, ctx: ctx, e: O.entry): list(string) => {
       : subtree_error_ids(ctx, e);
   [
     Id.Map.mem(e.id, ctx.opened) ? "open below" : "",
-    ctx.settings.errors && errs != []
+    ctx.settings.errors && !List.is_empty(errs)
       ? plural(List.length(errs), "error", "errors")
         ++ ": "
         ++ first_message(ctx, errs)
@@ -291,11 +299,12 @@ let rec map_level =
   /* replaced runs of the level's pieces: [a, b) by a segment */
   let runs = ref([]);
   let notes = ref([]);
-  let note = (~last=false, ~label="", at, parts) =>
+  let note = (~last=false, ~named=false, ~label="", at, parts) =>
     notes :=
       [
         {
           label,
+          named,
           at,
           last,
           parts,
@@ -303,118 +312,140 @@ let rec map_level =
         ...notes^,
       ];
   List.iter(
-    (e: O.entry) => {
-      let k = e.k;
-      let sp = lv.spans[k];
-      let (c0, c1) = sp.core;
-      let head = first_content(O.core(lv, k));
-      let note = note(~label=O.path_string(e) |> last_elem);
-      let tail_end = last_content(O.core(lv, k));
-      let elide_def = () =>
-        switch (S.site_of(lv, k)) {
-        | Some(Kid(h, t)) =>
-          let (kid, mark) = elide_kid();
-          let heads = fun_heads(ListUtil.last(t.children));
-          arr[h] = Tile(with_last_kid(t, headed(heads) @ kid));
-          Some(mark);
-        | Some(Run(_, a, b)) when a < b =>
-          let e = elision();
-          let heads = fun_heads(Array.to_list(Array.sub(arr, a, b - a)));
-          runs := [(a, b, headed(heads) @ [space(), e]), ...runs^];
-          Some(Piece.id(e));
-        | _ => None
-        };
-      let uses = () =>
-        switch (uses_of(ctx, e)) {
-        | Some(n) when n > 0 && ctx.settings.uses => plural(n, "use", "uses")
-        | _ => ""
-        };
-      /* a definition's own uses; a module's are its members' */
-      let own_uses = () => e.kind == Def ? [uses()] : [];
-      switch (e.kind) {
-      /* a module literal, or a definition that is one (`let ^pct = {…}`):
-         its members, one level down */
-      | Module
-      | Def when e.literal && depth < ctx.settings.module_depth =>
-        switch (S.members(lv, k), S.site_of(lv, k)) {
-        | (Some(m), Some(site)) =>
-          let (members, below) =
-            map_level(ctx, ~depth=depth + 1, m, e.children);
-          notes := below @ notes^;
-          replace_brace(arr, lv, site, members);
-          Option.iter(
-            at => note(at, common_parts(~own=true, ctx, e) @ own_uses()),
-            head,
-          );
-        | _ => ()
-        }
-      | Module
-      | Def when e.literal =>
-        switch (S.site_of(lv, k)) {
-        | Some(site) =>
-          let (kid, mark) = elide_kid();
-          replace_brace(arr, lv, site, kid);
-          note(
-            mark,
-            common_parts(ctx, e)
-            @ [plural(List.length(e.children), "member", "members")]
-            @ own_uses(),
-          );
-        | None => ()
-        }
-      | Def =>
-        Option.iter(
-          at => note(at, common_parts(ctx, e) @ [uses()]),
-          elide_def(),
-        )
-      | Type when !ctx.settings.types_in_full =>
-        Option.iter(at => note(at, common_parts(ctx, e)), elide_def())
-      | Type => Option.iter(at => note(at, common_parts(ctx, e)), head)
-      | Module => Option.iter(at => note(at, common_parts(ctx, e)), head)
-      | Test =>
-        /* `test ⋯ end`: the test tile's body */
-        let status =
-          switch (Option.bind(e.test, test_status(ctx.facts))) {
-          | Some(s) when ctx.settings.test_status => status_mark(s)
+    ~f=
+      (e: O.entry) => {
+        let k = e.k;
+        let sp = lv.spans[k];
+        let (c0, c1) = sp.core;
+        let head = first_content(O.core(lv, k));
+        let note = note(~label=O.path_string(e) |> last_elem);
+        let tail_end = last_content(O.core(lv, k));
+        let elide_def = () =>
+          switch (S.site_of(lv, k)) {
+          | Some(Kid(h, t)) =>
+            let (kid, mark) = elide_kid();
+            let heads = fun_heads(ListUtil.last(t.children));
+            arr[h] = Tile(with_last_kid(t, headed(heads) @ kid));
+            Some(mark);
+          | Some(Run(_, a, b)) when a < b =>
+            let e = elision();
+            let heads =
+              fun_heads(Array.to_list(Array.sub(arr, ~pos=a, ~len=b - a)));
+            runs := [(a, b, headed(heads) @ [space(), e]), ...runs^];
+            Some(Piece.id(e));
+          | _ => None
+          };
+        let uses = () =>
+          switch (uses_of(ctx, e)) {
+          | Some(n) when n > 0 && ctx.settings.uses =>
+            plural(n, "use", "uses")
           | _ => ""
           };
-        switch (S.only_content(lv.pieces, c0, c1)) {
-        | Some(i) =>
-          switch (arr[i]) {
-          | Tile({children: [_, ..._], _} as t) =>
-            /* a one-line test is its own best summary */
-            if (spans_lines(arr[i])) {
-              let (kid, _) = elide_kid();
-              arr[i] = Tile(with_last_kid(t, kid));
-            };
-            note(t.id, common_parts(ctx, e) @ [status]);
+        /* a definition's own uses; a module's are its members' */
+        let own_uses = () => Poly.equal(e.kind, Def) ? [uses()] : [];
+        switch (e.kind) {
+        /* a module literal, or a definition that is one (`let ^pct = {…}`):
+           its members, one level down */
+        | Module
+        | Def when e.literal && depth < ctx.settings.module_depth =>
+          switch (S.members(lv, k), S.site_of(lv, k)) {
+          | (Some(m), Some(site)) =>
+            let (members, below) =
+              map_level(ctx, ~depth=depth + 1, m, e.children);
+            notes := below @ notes^;
+            replace_brace(arr, lv, site, members);
+            Option.iter(
+              ~f=
+                at => note(at, common_parts(~own=true, ctx, e) @ own_uses()),
+              head,
+            );
           | _ => ()
           }
-        | None => ()
-        };
-      | Tail =>
-        let value =
-          switch (ctx.facts.value) {
-          | Some(v) when lv.owner == Top && ctx.settings.value =>
-            {js|⇒ |js} ++ comment_safe(ProbeText.format_value(v))
-          | _ => ""
+        | Module
+        | Def when e.literal =>
+          switch (S.site_of(lv, k)) {
+          | Some(site) =>
+            let (kid, mark) = elide_kid();
+            replace_brace(arr, lv, site, kid);
+            note(
+              mark,
+              common_parts(ctx, e)
+              @ [plural(List.length(e.children), "member", "members")]
+              @ own_uses(),
+            );
+          | None => ()
+          }
+        | Def =>
+          Option.iter(
+            ~f=at => note(at, common_parts(ctx, e) @ [uses()]),
+            elide_def(),
+          )
+        | Type when !ctx.settings.types_in_full =>
+          Option.iter(~f=at => note(at, common_parts(ctx, e)), elide_def())
+        | Type => Option.iter(~f=at => note(at, common_parts(ctx, e)), head)
+        | Module =>
+          Option.iter(~f=at => note(at, common_parts(ctx, e)), head)
+        | Test =>
+          /* `test ⋯ end`: the test tile's body */
+          let status =
+            switch (Option.bind(e.test, ~f=test_status(ctx.facts))) {
+            | Some(s) when ctx.settings.test_status => status_mark(s)
+            | _ => ""
+            };
+          switch (S.only_content(lv.pieces, c0, c1)) {
+          | Some(i) =>
+            switch (arr[i]) {
+            | Tile({children: [_, ..._], _} as t) =>
+              /* a one-line test is its own best summary */
+              if (spans_lines(arr[i])) {
+                let (kid, _) = elide_kid();
+                arr[i] = Tile(with_last_kid(t, kid));
+              };
+              let path = unnamed_path(e);
+              note(
+                ~named=Option.is_some(path),
+                t.id,
+                Option.to_list(path) @ common_parts(ctx, e) @ [status],
+              );
+            | _ => ()
+            }
+          | None => ()
           };
-        Option.iter(
-          at => note(~last=true, at, common_parts(ctx, e) @ [value]),
-          tail_end,
-        );
-      | Stmt
-      | Use =>
-        Option.iter(
-          at => note(~last=true, at, common_parts(ctx, e)),
-          tail_end,
-        )
-      };
-    },
+        | Tail =>
+          let value =
+            switch (ctx.facts.value) {
+            | Some(v) when Poly.equal(lv.owner, Top) && ctx.settings.value =>
+              {js|⇒ |js} ++ comment_safe(ProbeText.format_value(v))
+            | _ => ""
+            };
+          Option.iter(
+            ~f=at => note(~last=true, at, common_parts(ctx, e) @ [value]),
+            tail_end,
+          );
+        | Stmt =>
+          Option.iter(
+            ~f=
+              at =>
+                note(
+                  ~last=true,
+                  ~named=true,
+                  at,
+                  [O.path_string(e), ...common_parts(ctx, e)],
+                ),
+            tail_end,
+          )
+        | Use =>
+          Option.iter(
+            ~f=at => note(~last=true, at, common_parts(ctx, e)),
+            tail_end,
+          )
+        };
+      },
     es,
   );
   /* the level's pieces with the runs replaced */
-  let runs = List.sort(((a, _, _), (b, _, _)) => compare(a, b), runs^);
+  let runs =
+    List.sort(~compare=((a, _, _), (b, _, _)) => compare(a, b), runs^);
   let rec splice = (i, runs) =>
     if (i >= Array.length(arr)) {
       [];
@@ -432,10 +463,11 @@ and replace_brace =
     (arr: array(Piece.t), lv: S.level, site: S.site, members: Segment.t)
     : unit =>
   Option.iter(
-    brace => {
-      let (i, p) = S.with_members(site, brace, members);
-      arr[i] = p;
-    },
+    ~f=
+      brace => {
+        let (i, p) = S.with_members(site, brace, members);
+        arr[i] = p;
+      },
     S.brace_of(lv.pieces, site),
   );
 
@@ -447,42 +479,54 @@ let annotate =
       notes: list(note),
     )
     : array(string) => {
-  let by_row = Hashtbl.create(16);
+  let by_row = Stdlib.Hashtbl.create(16);
   List.iter(
-    n =>
-      switch (List.filter(p => p != "", n.parts), find(n.at)) {
-      | (_, None) => ()
-      | (parts, Some(m)) =>
-        let row = n.last ? m.last.row : m.origin.row;
-        Hashtbl.replace(
-          by_row,
-          row,
-          Option.value(Hashtbl.find_opt(by_row, row), ~default=[])
-          @ [(n.label, parts)],
-        );
-      },
+    ~f=
+      n =>
+        switch (
+          List.filter(~f=p => !String.equal(p, ""), n.parts),
+          find(n.at),
+        ) {
+        | (_, None) => ()
+        | (parts, Some(m)) =>
+          let row = n.last ? m.last.row : m.origin.row;
+          Stdlib.Hashtbl.replace(
+            by_row,
+            row,
+            Option.value(Stdlib.Hashtbl.find_opt(by_row, row), ~default=[])
+            @ [(n.label, n.named, parts)],
+          );
+        },
     List.rev(notes),
   );
   /* entries sharing a line name theirs */
   Array.mapi(
-    (row, line) =>
-      switch (Hashtbl.find_opt(by_row, row)) {
-      | Some([(_, parts)]) when parts != [] =>
-        line ++ "  " ++ comment(parts)
-      | Some([_, _, ..._] as several) =>
-        switch (
-          List.filter_map(
-            ((label, parts)) =>
-              parts == []
-                ? None : Some(label ++ ": " ++ String.concat(", ", parts)),
-            several,
-          )
-        ) {
-        | [] => line
-        | parts => line ++ "  " ++ comment(parts)
-        }
-      | _ => line
-      },
+    ~f=
+      (row, line) =>
+        switch (Stdlib.Hashtbl.find_opt(by_row, row)) {
+        | Some([(_, _, parts)]) when !List.is_empty(parts) =>
+          line ++ "  " ++ comment(parts)
+        | Some([_, _, ..._] as several) =>
+          switch (
+            List.filter_map(
+              ~f=
+                ((label, named, parts)) =>
+                  switch (named, parts) {
+                  | (true, [path]) => Some(path)
+                  | (true, [path, ...rest]) =>
+                    Some(path ++ ": " ++ String.concat(~sep=", ", rest))
+                  | (_, []) => None
+                  | (false, parts) =>
+                    Some(label ++ ": " ++ String.concat(~sep=", ", parts))
+                  },
+              several,
+            )
+          ) {
+          | [] => line
+          | parts => line ++ "  " ++ comment(parts)
+          }
+        | _ => line
+        },
     lines,
   );
 };
@@ -493,37 +537,39 @@ let probe_rows =
     (facts: facts, find: Id.t => option(Measured.measurement))
     : IntMap.t(list(Id.t)) =>
   List.fold_right(
-    ((id, entry: Refractors.entry), acc) =>
-      entry.kind != Probe
-        ? acc
-        : (
-          switch (find(id)) {
-          | Some(m) =>
-            IntMap.update(
-              m.last.row,
-              l => Some([id, ...Option.value(l, ~default=[])]),
-              acc,
-            )
-          | None => acc
-          }
-        ),
     facts.refractors,
-    IntMap.empty,
+    ~f=
+      ((id, entry: Refractors.entry), acc) =>
+        !Poly.equal(entry.kind, Probe)
+          ? acc
+          : (
+            switch (find(id)) {
+            | Some(m) =>
+              IntMap.update(
+                m.last.row,
+                l => Some([id, ...Option.value(l, ~default=[])]),
+                acc,
+              )
+            | None => acc
+            }
+          ),
+    ~init=IntMap.empty,
   );
 
 let with_probes = (ctx, find, lines: array(string)): array(string) => {
   let facts = ctx.facts;
   let rows = ctx.settings.probes ? probe_rows(facts, find) : IntMap.empty;
   Array.mapi(
-    (row, line) =>
-      switch (IntMap.find_opt(row, rows)) {
-      | Some(ids) =>
-        switch (probe_values(facts, ids)) {
-        | "" => line
-        | values => line ++ "  " ++ values
-        }
-      | None => line
-      },
+    ~f=
+      (row, line) =>
+        switch (IntMap.find_opt(row, rows)) {
+        | Some(ids) =>
+          switch (probe_values(facts, ids)) {
+          | "" => line
+          | values => line ++ "  " ++ values
+          }
+        | None => line
+        },
     lines,
   );
 };
@@ -531,46 +577,68 @@ let with_probes = (ctx, find, lines: array(string)): array(string) => {
 let strip_trailing_blank = (lines: list(string)): list(string) => {
   let rec drop = l =>
     switch (l) {
-    | [s, ...rest] when String.trim(s) == "" => drop(rest)
+    | [s, ...rest] when String.equal(String.strip(s), "") => drop(rest)
     | _ => l
     };
   List.rev(drop(List.rev(drop(lines))));
 };
 
+/* the map's first line: its name, errors and tests */
 let summary = (ctx: ctx): string => {
   let errors = List.length(ctx.facts.error_ids);
   let tests =
     switch (ctx.facts.tests) {
     | Some(tr) when tr.total > 0 && ctx.settings.test_status =>
       Printf.sprintf(
-        "tests: %d of %d pass%s",
+        "%d of %s pass%s",
         tr.passing,
-        tr.total,
-        tr.failing > 0 ? Printf.sprintf(", %d fail", tr.failing) : "",
+        plural(tr.total, "test", "tests"),
+        switch (tr.failing) {
+        | 0 => ""
+        | 1 => ", 1 fails"
+        | n => Printf.sprintf(", %d fail", n)
+        },
       )
     | _ => ""
     };
   comment([
-    "map",
+    "program map",
     !ctx.settings.errors
       ? "" : errors > 0 ? plural(errors, "error", "errors") : "no errors",
     tests,
   ]);
 };
 
+/* what the view is, under its first line */
+let legend =
+  comment([
+    {js|The program as it is now, rebuilt each request (earlier views aren't kept): definitions folded to ⋯, open entries in full below; notes like this are Hazel's, not code.|js},
+  ]);
+
+/* above the first open entry */
+let open_divider = comment(["open entries, in full"]);
+
 /* the probes the view shows, with their values */
 let shown_refractors = (ctx: ctx) =>
   ctx.settings.probes ? ctx.facts.refractors : [];
 
+/* the map's pieces, and the notes for their lines */
+let map_of = (ctx: ctx, o: O.t): (Segment.t, list(note)) =>
+  map_level(
+    ctx,
+    ~depth=0,
+    S.top(~ends=Rows, ~root=o.root, o.seg),
+    o.entries,
+  );
+
 let map_text = (ctx: ctx, o: O.t): string => {
-  let top = S.top(~ends=Rows, ~root=o.root, o.seg);
-  let (seg, notes) = map_level(ctx, ~depth=0, top, o.entries);
+  let (seg, notes) = map_of(ctx, o);
   let (lines, find) =
     print_measured(~refractors=shown_refractors(ctx), seg);
   let lines = annotate(lines, find, notes) |> with_probes(ctx, find);
   String.concat(
-    "\n",
-    [summary(ctx), ...strip_trailing_blank(Array.to_list(lines))],
+    ~sep="\n",
+    [summary(ctx), legend, ...strip_trailing_blank(Array.to_list(lines))],
   );
 };
 
@@ -590,37 +658,43 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
       : {
         let n = String.length(line);
         let rec spaces = i =>
-          i < n && i < base && line.[i] == ' ' ? spaces(i + 1) : i;
+          i < n && i < base && Char.equal(line.[i], ' ') ? spaces(i + 1) : i;
         let k = spaces(0);
-        String.sub(line, k, n - k);
+        String.sub(line, ~pos=k, ~len=n - k);
       };
   let shift = row => row == 0 ? 0 : base;
-  /* the tests below, at their lines */
-  let rec tests = (e: O.entry) =>
+  /* the tests in it at their lines: their marks, and the paths of those
+     below it without a hint */
+  let rec tests = (~below, e: O.entry) =>
     (
       switch (e.test) {
       | Some(t) =>
-        switch (test_status(ctx.facts, t)) {
-        | Some(s) => [
+        let path = below ? unnamed_path(e) : None;
+        let status =
+          ctx.settings.test_marks ? test_status(ctx.facts, t) : None;
+        switch (path, status) {
+        | (None, None) => []
+        | (path, s) => [
             {
               label: "",
+              named: Option.is_some(path),
               at: t,
               last: true,
-              parts: [status_mark(s)],
+              parts:
+                Option.to_list(path)
+                @ Option.to_list(Option.map(~f=status_mark, s)),
             },
           ]
-        | None => []
-        }
+        };
       | None => []
       }
     )
-    @ List.concat_map(tests, e.children);
+    @ List.concat_map(~f=tests(~below=true), e.children);
   let lines =
-    annotate(lines, find, ctx.settings.test_marks ? tests(e) : [])
-    |> with_probes(ctx, find);
+    annotate(lines, find, tests(~below=false, e)) |> with_probes(ctx, find);
   /* each error's line under its term's row: underlined from its first
      token, through its last when it ends on that row */
-  let carets = Hashtbl.create(4);
+  let carets = Stdlib.Hashtbl.create(4);
   let span = err => {
     let (l, r) =
       Option.value(
@@ -651,35 +725,37 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
   };
   if (ctx.settings.carets) {
     List.iter(
-      err => {
-        let msg = error_message(ctx.facts, err);
-        let (row, col, width) = span(err);
-        let marks = String.concat("", List.init(width, _ => "^"));
-        /* the marks under the term, or right after the marker when it
-           doesn't fit before them */
-        let pad = String.make(max(0, col - 2), ' ');
-        let line = marker ++ pad ++ marks ++ " " ++ msg ++ " #";
-        Hashtbl.replace(
-          carets,
-          row,
-          Option.value(Hashtbl.find_opt(carets, row), ~default=[]) @ [line],
-        );
-      },
+      ~f=
+        err => {
+          let msg = error_message(ctx.facts, err);
+          let (row, col, width) = span(err);
+          let marks = String.concat(~sep="", List.init(width, ~f=_ => "^"));
+          /* the marks under the term, or right after the marker when it
+             doesn't fit before them */
+          let pad = String.make(max(0, col - 2), ' ');
+          let line = marker ++ pad ++ marks ++ " " ++ msg ++ " #";
+          Stdlib.Hashtbl.replace(
+            carets,
+            row,
+            Option.value(Stdlib.Hashtbl.find_opt(carets, row), ~default=[])
+            @ [line],
+          );
+        },
       List.stable_sort(
-        (a, b) => compare(span(a), span(b)),
+        ~compare=(a, b) => Poly.compare(span(a), span(b)),
         subtree_error_ids(ctx, e),
       ),
     );
   };
   Array.to_list(lines)
-  |> List.mapi((row, line) =>
+  |> List.mapi(~f=(row, line) =>
        [
          dedent(row, line),
-         ...Option.value(Hashtbl.find_opt(carets, row), ~default=[]),
+         ...Option.value(Stdlib.Hashtbl.find_opt(carets, row), ~default=[]),
        ]
      )
   |> List.concat
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 };
 
 /* the open entries, outermost first in program order; an entry inside
@@ -687,7 +763,7 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
 let open_entries = (o: O.t, opened: Id.Map.t(unit)): list(O.entry) => {
   let rec go = (es: list(O.entry)) =>
     List.concat_map(
-      (e: O.entry) => Id.Map.mem(e.id, opened) ? [e] : go(e.children),
+      ~f=(e: O.entry) => Id.Map.mem(e.id, opened) ? [e] : go(e.children),
       es,
     );
   go(o.entries);
@@ -697,7 +773,9 @@ let mk_ctx = (~settings, ~facts, o: O.t, opened: list(Id.t)): ctx => {
   settings,
   facts,
   opened:
-    List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, opened),
+    List.fold(opened, ~init=Id.Map.empty, ~f=(m, id) =>
+      Id.Map.add(id, (), m)
+    ),
   errors: O.errors_by_entry(o, ~info_map=facts.info_map, facts.error_ids),
   uses: O.uses(o, ~info_map=facts.info_map),
 };
@@ -713,14 +791,16 @@ let render =
     : string => {
   let ctx = mk_ctx(~settings, ~facts, o, opened);
   String.concat(
-    "\n\n",
+    ~sep="\n\n",
     [
       map_text(ctx, o),
-      ...List.map(
-           (e: O.entry) =>
-             comment(["open: " ++ O.path_string(e)])
-             ++ "\n"
-             ++ entry_text(ctx, e),
+      ...List.mapi(
+           ~f=
+             (i, e: O.entry) =>
+               (i == 0 ? open_divider ++ "\n" : "")
+               ++ comment(["open: " ++ O.path_string(e)])
+               ++ "\n"
+               ++ entry_text(ctx, e),
            open_entries(o, ctx.opened),
          ),
     ],

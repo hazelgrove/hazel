@@ -45,6 +45,8 @@ let document: t => Segment.t;
 let cells: t => list(ScratchCell.t);
 /* the cell holding [id]: its item, a run member or any piece of its text */
 let owner: (Id.t, t) => option(ScratchCell.t);
+/* the open cell and its pane whose text holds [id] */
+let pane_of: (Id.t, t) => option((ScratchCell.t, ScratchCell.side));
 /* the cell keyed by [id] */
 let cell: (Id.t, t) => option(ScratchCell.t);
 let root: t => Sort.t;

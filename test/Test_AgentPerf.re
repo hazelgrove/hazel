@@ -12,9 +12,9 @@ open Web;
    their caches are warm; else whole-program statics */
 /* AGENT_PERF_ONLY=a,b: just those tools */
 let wanted = (name: string): bool =>
-  switch (Sys.getenv_opt("AGENT_PERF_ONLY")) {
-  | Some(only) when only != "" =>
-    List.mem(name, String.split_on_char(',', only))
+  switch (Stdlib.Sys.getenv_opt("AGENT_PERF_ONLY")) {
+  | Some(only) when !String.equal(only, "") =>
+    List.mem(String.split(~on=',', only), name, ~equal=Poly.equal)
   | _ => true
   };
 
@@ -70,7 +70,7 @@ let reply_ms =
           reply,
           agent.chat_system.current,
           agent.main_llm_seq,
-          0,
+          None,
         ),
         agent,
         cell_editor,
@@ -87,11 +87,12 @@ let reply_ms =
       );
     let ok =
       List.exists(
-        (m: Message.Model.t) =>
-          switch (m.role) {
-          | ToolResult(tr) => tr.success
-          | _ => false
-          },
+        ~f=
+          (m: Message.Model.t) =>
+            switch (m.role) {
+            | ToolResult(tr) => tr.success
+            | _ => false
+            },
         Chat.Utils.linearize(chat),
       );
     Printf.printf(
@@ -107,11 +108,11 @@ let reply_ms =
 let s = (k, v) => (k, `String(v));
 
 let run = () =>
-  switch (Sys.getenv_opt("AGENT_PERF")) {
+  switch (Stdlib.Sys.getenv_opt("AGENT_PERF")) {
   | None
   | Some("") => ()
   | Some(mode) =>
-    let warm = mode != "whole";
+    let warm = !String.equal(mode, "whole");
     reply_ms(
       ~warm,
       ~file="mega-4k.hz",

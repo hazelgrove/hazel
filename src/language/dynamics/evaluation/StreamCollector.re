@@ -60,6 +60,7 @@ let collect_stream_state =
   {
     ...state,
     incr_eval: {
+      ...state.incr_eval,
       entries:
         Id.Map.union(
           (_, existing, _streamed) => Some(existing),
@@ -144,7 +145,7 @@ module Inc = {
               let ex = Id.Map.find(id, inc.exit_);
               let covered =
                 List.exists(
-                  ((_, fe, fx, _)) => fe <= en && ex <= fx,
+                  ~f=((_, fe, fx, _)) => fe <= en && ex <= fx,
                   inc.frontier,
                 );
               if (covered) {
@@ -155,7 +156,7 @@ module Inc = {
               } else {
                 let covers = ((_, fe, fx, _)) => en <= fe && fx <= ex;
                 let frontier =
-                  if (List.exists(covers, inc.frontier)) {
+                  if (List.exists(~f=covers, inc.frontier)) {
                     /* take the first subsumed node's position (where
                        the walk appends the outer slice); drop the rest */
                     let rec go = (replaced, l) =>
@@ -225,17 +226,18 @@ module Inc = {
       | _ => inc.frontier
       };
     let state =
-      List.fold_left(
-        (acc, (_, _, _, entry: IncrEval.entry(EvaluatorState.t))) =>
-          EvaluatorState.append(acc, EvaluatorState.rebase(entry.state)),
-        EvaluatorState.empty,
+      List.fold(
         frontier,
+        ~init=EvaluatorState.empty,
+        ~f=(acc, (_, _, _, entry: IncrEval.entry(EvaluatorState.t))) =>
+        EvaluatorState.append(acc, EvaluatorState.rebase(entry.state))
       );
     switch (current) {
     | Some((span, cur))
         when
           !
             List.exists(
+                 ~f=
               ((_, fe, fx, _)) =>
                 switch (span) {
                 | Some((e, _)) => fe <= e && e <= fx
@@ -258,7 +260,7 @@ let collect_stream_state_inc =
     : (option(Inc.t), EvaluatorState.t) => {
   let inc =
     switch (prev) {
-    | Some(inc) when inc.Inc.inc_elab === d => inc
+    | Some(inc) when phys_equal(inc.Inc.inc_elab, d) => inc
     | _ => Inc.fresh(d)
     };
   switch (Inc.absorb(inc, stream)) {

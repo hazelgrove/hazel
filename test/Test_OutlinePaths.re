@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 module OutlineTree = Web.OutlineTree;
 module ScratchPersist = Web.ScratchPersist;
 
@@ -18,6 +19,7 @@ let rec walk =
         )
         : list((Id.t, OutlineTree.path)) =>
   List.concat_map(
+    ~f=
     ((n: OutlineTree.node, seg)) => {
       let here =
         switch (n.o_id) {
@@ -35,14 +37,15 @@ let all_rows = (e: OutlineTree.t): list((Id.t, OutlineTree.path)) =>
 let check_self_resolution = (label: string, text: string): unit => {
   let e = term_of_text(text);
   let rows = all_rows(e);
-  check(bool, label ++ ": outline nonempty", true, rows != []);
+  check(bool, label ++ ": outline nonempty", true, !List.is_empty(rows));
   List.iter(
+    ~f=
     ((id, _)) =>
       switch (OutlineTree.label_path(id, e)) {
       | None => fail(label ++ ": no label_path for a row id")
       | Some(path) =>
         switch (OutlineTree.resolve_path(path, e)) {
-        | Some(id') when id' == id => ()
+          | Some(id') when Id.equal(id', id) => ()
         | Some(_) => fail(label ++ ": path resolved to a DIFFERENT row")
         | None => fail(label ++ ": path failed to resolve")
         }
@@ -67,8 +70,9 @@ let test_elsewhere = () => {
   let last = (e: OutlineTree.t) => {
     let rec tests = (ns: list(OutlineTree.node)) =>
       List.concat_map(
+        ~f=
         (n: OutlineTree.node) =>
-          n.o_kind == KTest ? [n] : tests(n.o_children),
+            Poly.equal(n.o_kind, KTest) ? [n] : tests(n.o_children),
         ns,
       );
     switch (List.rev(tests(OutlineTree.rows(e)))) {
@@ -76,7 +80,7 @@ let test_elsewhere = () => {
     | [] => None
     };
   };
-  switch (Option.bind(last(e0), id => OutlineTree.label_path(id, e0))) {
+  switch (Option.bind(last(e0), ~f=id => OutlineTree.label_path(id, e0))) {
   | None => fail("no path")
   | Some(path) =>
     check(
@@ -95,7 +99,8 @@ let use_above_test = () => {
   let after = term_of_text("let b = 1 in\nuse Nat in\ntest b == 1 end;\nb");
   let test = (e: OutlineTree.t) =>
     List.find_map(
-      (n: OutlineTree.node) => n.o_kind == KTest ? n.o_id : None,
+      ~f=
+        (n: OutlineTree.node) => Poly.equal(n.o_kind, KTest) ? n.o_id : None,
       OutlineTree.flatten(OutlineTree.rows(e)),
     );
   switch (test(before), test(after)) {
@@ -104,7 +109,7 @@ let use_above_test = () => {
       bool,
       "resolves to the same test",
       true,
-      Option.bind(OutlineTree.label_path(t0, before), path =>
+      Option.bind(OutlineTree.label_path(t0, before), ~f=path =>
         OutlineTree.resolve_path(path, after)
       )
       == Some(t1),
@@ -118,7 +123,7 @@ let uses_and_signatures = "type S = {\n  let x : Int\n} in\nuse Nat in\nmodule M
 /* rows as their kinds and labels, children bracketed */
 let rec kinds = (ns: list(OutlineTree.node)): string =>
   ns
-  |> List.map((n: OutlineTree.node) =>
+  |> List.map(~f=(n: OutlineTree.node) =>
        (
          switch (n.o_kind) {
          | KModule => "module"
@@ -132,10 +137,13 @@ let rec kinds = (ns: list(OutlineTree.node)): string =>
          | KTrail => "trail"
          }
        )
-       ++ (n.o_label == "" ? "" : " " ++ n.o_label)
-       ++ (n.o_children == [] ? "" : " [" ++ kinds(n.o_children) ++ "]")
+       ++ (String.equal(n.o_label, "") ? "" : " " ++ n.o_label)
+       ++ (
+         List.is_empty(n.o_children)
+           ? "" : " [" ++ kinds(n.o_children) ++ "]"
      )
-  |> String.concat(", ");
+     )
+  |> String.concat(~sep=", ");
 
 let kinds_of = (text: string): string =>
   kinds(OutlineTree.rows(term_of_text(text)));
@@ -181,6 +189,98 @@ let livelit_kinds = () =>
     ),
   );
 
+/* a definition's row is named by the first name its pattern binds, as
+   its path is; the names after it are the row's [o_more] */
+let bound_names = () => {
+  let src = "let [a] = [1] in\nlet Some(x) = Some(1) in\nlet (p, q) = (1, 2) in\nlet (y, 2) = (1, 2) in\nlet f(n) = n in\nlet z : Int = 1 in\nlet [] = [] in\na";
+  let e = term_of_text(src);
+  check(
+    string,
+    "rows",
+    "const a, const x, const p, const y, fn f, const z, trail",
+    kinds(OutlineTree.rows(e)),
+  );
+  let more =
+    OutlineTree.flatten(OutlineTree.rows(e))
+    |> List.filter_map(~f=(n: OutlineTree.node) =>
+         List.is_empty(n.o_more)
+           ? None
+           : Some(n.o_label ++ "+" ++ String.concat(~sep=",", n.o_more))
+       );
+  check(list(string), "extra names", ["p+q"], more);
+  let paths =
+    List.map(
+      ~f=
+        ((_, path)) =>
+          String.concat(
+            ~sep="/",
+            List.map(~f=(s: OutlineTree.path_seg) => s.s_label, path),
+          ),
+      all_rows(e),
+    );
+  check(
+    list(string),
+    "label paths",
+    ["a", "x", "p", "y", "f", "z", ""],
+    paths,
+  );
+  check_self_resolution("bound names", src);
+  check(
+    string,
+    "through a projector",
+    "const x, const p, trail",
+    kinds(
+      OutlineTree.rows(
+        CorpusUtil.outline_of(
+          CorpusUtil.seg_of(
+            "let ^^fold(x) = 1 in\nlet (^^fold(p), q) = (1, 2) in\nx",
+          ),
+        ),
+      ),
+    ),
+  );
+  /* rename from a row renames the name it shows */
+  let rename = (src, label, name) => {
+    let seg = CorpusUtil.seg_of(src);
+    let term = MakeTerm.Incr.term_of(seg);
+    let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+    let outline = CorpusUtil.outline_of(seg);
+    switch (
+      List.find(
+        ~f=(n: OutlineTree.node) => n.o_label == label,
+        OutlineTree.flatten(OutlineTree.rows(outline)),
+      )
+    ) {
+    | Some({o_id: Some(row), _}) =>
+      switch (CorpusUtil.rename_row(~info_map, ~outline, row, name, seg)) {
+      | Ok(seg) => CorpusUtil.text_of(seg)
+      | Error(why) => "refused: " ++ why
+      }
+    | _ => fail("no row " ++ label)
+    };
+  };
+  let renamed = (src, label, name, want) =>
+    check(
+      string,
+      label ++ " -> " ++ name,
+      CorpusUtil.text_of(CorpusUtil.seg_of(want)),
+      rename(src, label, name),
+    );
+  renamed("let [a] = [1] in\na", "a", "b", "let [b] = [1] in\nb");
+  renamed(
+    "let Some(x) = Some(1) in\nx",
+    "x",
+    "w",
+    "let Some(w) = Some(1) in\nw",
+  );
+  renamed(
+    "let (p, q) = (1, 2) in\np + q",
+    "p",
+    "r",
+    "let (r, q) = (1, 2) in\nr + q",
+  );
+};
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
@@ -188,6 +288,7 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a module alias's row is a module", `Quick, alias_kinds),
+  test_case("a row is named by its first bound name", `Quick, bound_names),
   test_case("a livelit definition's row and members", `Quick, livelit_kinds),
   test_case("a definition being typed at the end has its row", `Quick, () =>
     check(
@@ -208,31 +309,42 @@ let cases = [
     () => {
       let db = Web.HazelDB.kv_save;
       db("scratch:Old", "blob");
-      db("scratch:Old:pins", "p");
+      db("scratch:Old:side", "p");
       db("scratch:Older", "other");
       ScratchPersist.rename_slide("scratch", "Old", "New");
       let get = Web.HazelDB.kv_get;
-      check(bool, "blob moved", true, get("scratch:New") == Some("blob"));
-      check(bool, "pins moved", true, get("scratch:New:pins") == Some("p"));
-      check(bool, "old gone", true, get("scratch:Old") == None);
+      check(
+        bool,
+        "blob moved",
+        true,
+        Poly.equal(get("scratch:New"), Some("blob")),
+      );
+      check(
+        bool,
+        "side moved",
+        true,
+        Poly.equal(get("scratch:New:side"), Some("p")),
+      );
+      check(bool, "old gone", true, Option.is_none(get("scratch:Old")));
       check(
         bool,
         "neighbour kept",
         true,
-        get("scratch:Older") == Some("other"),
+        Poly.equal(get("scratch:Older"), Some("other")),
       );
       ScratchPersist.forget_slide("scratch", "New");
       check(
         bool,
         "deleted",
         true,
-        get("scratch:New") == None && get("scratch:New:pins") == None,
+        Option.is_none(get("scratch:New"))
+        && Option.is_none(get("scratch:New:side")),
       );
       check(
         bool,
         "neighbour still kept",
         true,
-        get("scratch:Older") == Some("other"),
+        Poly.equal(get("scratch:Older"), Some("other")),
       );
     },
   ),
@@ -253,12 +365,12 @@ let cases = [
     () => {
       let e = term_of_text(two_test_groups);
       let rows = all_rows(e);
-      let paths = List.map(snd, rows);
+      let paths = List.map(~f=snd, rows);
       check(
         int,
         "no two rows share a path",
         List.length(paths),
-        List.length(List.sort_uniq(compare, paths)),
+        List.length(List.dedup_and_sort(~compare, paths)),
       );
     },
   ),
@@ -267,7 +379,7 @@ let cases = [
 /* after a delete the cursor goes where the row was, not to another row
    with the same name */
 let successors = () => {
-  let ids = ns => List.filter_map((n: OutlineTree.node) => n.o_id, ns);
+  let ids = ns => List.filter_map(~f=(n: OutlineTree.node) => n.o_id, ns);
   let e = term_of_text("let x = 1 in\nlet y = 2 in\nlet x = 3 in\nx + y");
   switch (ids(OutlineTree.rows(e))) {
   | [x0, y, _, ..._] =>
@@ -275,7 +387,7 @@ let successors = () => {
       bool,
       "the first x: the row after it",
       true,
-      OutlineTree.successor(x0, e) == Some(y),
+      Poly.equal(OutlineTree.successor(x0, e), Some(y)),
     )
   | _ => fail("expected rows x, y, x")
   };
@@ -288,7 +400,7 @@ let successors = () => {
         bool,
         "the last member: the one before",
         true,
-        OutlineTree.successor(b, e) == Some(a),
+        Poly.equal(OutlineTree.successor(b, e), Some(a)),
       )
     | _ => fail("expected members a, b")
     };
@@ -299,19 +411,27 @@ let successors = () => {
         bool,
         "an only member: its module",
         true,
-        OutlineTree.successor(a, e) == Some(m'),
+        Poly.equal(OutlineTree.successor(a, e), Some(m')),
       )
     | _ => fail("expected M with one member")
     };
   | _ => fail("expected module M")
   };
+  let e = term_of_text("let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nb");
+  check(
+    bool,
+    "a run's only test: the row after its run",
+    true,
+    OutlineTree.successor(CorpusUtil.row_by_label(e, "1"), e)
+    == Some(CorpusUtil.row_by_label(e, "b")),
+  );
 };
 
 /* flipping Outline Arrows redraws the outline, all else unchanged */
 let arrows_redraw = () => {
   let statics = CachedStatics.empty;
   let segment =
-    Option.get(
+    Option.value_exn(
       CorpusUtil.typed_seg(
         "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
       ),
@@ -327,30 +447,36 @@ let arrows_redraw = () => {
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~leave=Virtual_dom.Vdom.Effect.Ignore,
       ~statics_on=true,
-      (),
     );
   let off = view(false);
   check(
     bool,
     "the same inputs reuse the outline",
     true,
-    view(false) === off,
+    phys_equal(view(false), off),
   );
   /* a frame's statics are a new record over the same analysis */
   check(
     bool,
     "the same analysis reuses it",
     true,
+    phys_equal(
     view(
       ~statics={
         ...statics,
         warning_ids: [],
       },
       false,
-    )
-    === off,
+      ),
+      off,
+    ),
   );
-  check(bool, "arrows on: a new outline", false, view(true) === off);
+  check(
+    bool,
+    "arrows on: a new outline",
+    false,
+    phys_equal(view(true), off),
+  );
 };
 
 /* the outline is kept across a caret move, which re-zips the tiles
@@ -364,11 +490,12 @@ let outline_kept = () => {
   let o = Outline.of_program(~root=Exp, seg);
   let rezip =
     List.map(
+      ~f=
       fun
       | Piece.Tile(t) =>
         Piece.Tile({
           ...t,
-          children: List.map(List.map(Fun.id), t.children),
+            children: List.map(~f=List.map(~f=Fun.id), t.children),
         })
       | p => p,
       seg,
@@ -378,7 +505,7 @@ let outline_kept = () => {
     bool,
     "re-zipped: the same outline",
     true,
-    Outline.of_program(~root=Exp, rezip) === o,
+    phys_equal(Outline.of_program(~root=Exp, rezip), o),
   );
   /* [a]'s definition gets a new token */
   let fresh =
@@ -394,21 +521,21 @@ let outline_kept = () => {
     | [Tile({children: [pat, def], _} as t), ...rest] => [
         Piece.Tile({
           ...t,
-          children: [pat, List.map(fresh, def)],
+          children: [pat, List.map(~f=fresh, def)],
         }),
         ...rest,
       ]
     | _ => fail("expected `let a` first")
     };
   let o' = Outline.of_program(~root=Exp, edited);
-  check(bool, "edited: a new outline", false, o' === o);
-  let b = (o: Outline.t) => List.nth(o.entries, 1);
-  check(bool, "b has a body", true, b(o).children != []);
+  check(bool, "edited: a new outline", false, phys_equal(o', o));
+  let b = (o: Outline.t) => List.nth_exn(o.entries, 1);
+  check(bool, "b has a body", true, !List.is_empty(b(o).children));
   check(
     bool,
     "edited: b's body entries are the same objects",
     true,
-    b(o').children === b(o).children,
+    phys_equal(b(o').children, b(o).children),
   );
 };
 
@@ -421,18 +548,19 @@ let kept_paths = () => {
     );
   let rec copy = (seg: Segment.t): Segment.t =>
     List.map(
+      ~f=
       fun
       | Piece.Tile(t) =>
         Piece.Tile({
           ...t,
-          children: List.map(copy, t.children),
+            children: List.map(~f=copy, t.children),
         })
       | p => p,
       seg,
     );
   let paths = (seg: Segment.t) =>
     List.map(
-      (e: Outline.entry) => Outline.path_string(e),
+      ~f=(e: Outline.entry) => Outline.path_string(e),
       Outline.all(Outline.of_program(~root=Exp, seg)),
     );
   let without_second =
@@ -440,7 +568,8 @@ let kept_paths = () => {
     | [m1, ...rest] =>
       let rec drop = (ps: Segment.t) =>
         switch (ps) {
-        | [Piece.Tile(t), ...rest] when Tile.token(t, 0) == "module" => rest
+        | [Piece.Tile(t), ...rest]
+            when String.equal(Tile.token(t, 0), "module") => rest
         | [_, ...rest] => drop(rest)
         | [] => []
         };
@@ -458,7 +587,7 @@ let kept_paths = () => {
     bool,
     "M/X loses its #1",
     true,
-    List.mem("M/X", paths(without_second)),
+    List.mem(paths(without_second), "M/X", ~equal=Poly.equal),
   );
   check(list(string), "and back", paths(copy(seg)), paths(seg));
 };
@@ -498,7 +627,7 @@ let save_caret = () => {
       model;
   let line = label =>
     E.Row(
-      Option.get(OutlineTree.label_path(row(label), term)),
+      Option.value_exn(OutlineTree.label_path(row(label), term)),
       Some(Item(row(label))),
     );
   let rename_b: E.save = {
@@ -509,7 +638,12 @@ let save_caret = () => {
   let up = E.at(line("a"));
   C.text := Some(up);
   ignore(save(rename_b, Stay));
-  check(bool, "↑ renaming: the caret stays up", true, C.text^ == Some(up));
+  check(
+    bool,
+    "↑ renaming: the caret stays up",
+    true,
+    Poly.equal(C.text^, Some(up)),
+  );
   C.text := None;
   let renamed = save(rename_b, Leave);
   let term' = Web.Program.outline(renamed.program);
@@ -519,7 +653,8 @@ let save_caret = () => {
     true,
     C.cursor^ == OutlineTree.label_path(row("b"), term')
     && OutlineTree.node_of(row("b"), term')
-    |> Option.map((n: OutlineTree.node) => n.o_label) == Some("c"),
+    |> Option.map(~f=(n: OutlineTree.node) => n.o_label)
+    |> Poly.equal(Some("c")),
   );
   let new_t = E.New(row("a"), Below);
   C.text := Some(E.at(new_t));
@@ -566,7 +701,7 @@ let save_caret = () => {
       | _ => false
       }
     )
-    && C.created^ == Some((t, "type ")),
+    && Poly.equal(C.created^, Some((t, "type "))),
   );
   C.text := Some(up);
   ignore(
@@ -620,15 +755,15 @@ let sidebar = (src: string) => {
   let props =
     OutlineHarness.props(~refusal=id => Id.Map.find_opt(id, refused), ());
   let row = label =>
-    Array.find_opt((r: S.visible_row) => r.r_node.o_label == label, visible);
+    Array.find(visible, ~f=(r: S.visible_row) => r.r_node.o_label == label);
   /* [key] pressed with the cursor on [label]'s row: the cells it asked
      to open or close, and text mode's state after */
   let press = (~meta=false, key: string, label: string) => {
-    cursor := Option.map((r: S.visible_row) => r.r_path, row(label));
+    cursor := Option.map(~f=(r: S.visible_row) => r.r_path, row(label));
     toggled := [];
     text := None;
     ignore(
-      S.keys(~props, ~on, ~visible, OutlineHarness.keydown(~meta, key)),
+      S.keys(~props, ~on, ~visible, OutlineHarness.keydown(~cmd=meta, key)),
     );
     (toggled^, text^);
   };
@@ -641,7 +776,12 @@ let space_under_projector = () => {
   let (term, press) = sidebar("let a = 1 in\n^^fold((let b = 2 in\nb))");
   let row = CorpusUtil.row_by_label(term);
   check(bool, "a opens", true, fst(press(" ", "a")) == [row("a")]);
-  check(bool, "b, folded away, doesn't", true, fst(press(" ", "b")) == []);
+  check(
+    bool,
+    "b, folded away, doesn't",
+    true,
+    List.is_empty(fst(press(" ", "b"))),
+  );
 };
 
 /* F2 and ⌘Enter start text mode on the cursor's row: at a name's end, or
@@ -651,6 +791,7 @@ let start_text = () => {
   let (term, press) = sidebar("let ab = 1 in\ntest ab == 1 end;\nab");
   let at = (label, col) =>
     Option.map(
+      ~f=
       path =>
         E.at(
           Row(path, Some(Item(CorpusUtil.row_by_label(term, label)))),
@@ -668,13 +809,13 @@ let start_text = () => {
   check(bool, "F2 on a test", true, snd(press("F2", "1")) == at("1", 0));
 };
 
-/* runs of tests: in a module, at the top level, and a lone test */
+/* runs of tests: in a module, at the top level, and a lone test's */
 let runs = "let a = 1 in\nmodule M = {\n  let x = 1;\n  test x == 1 end;\n  test x == 2 end\n} in\ntest a == 1 end;\ntest a == 2 end;\nlet b = 2 in\ntest b == 2 end;\nb";
 
 /* the rows a slide with [folds] shows, by label (the ⇒ has none) */
 let shown = (~folds, e: OutlineTree.t): list(string) =>
   List.map(
-    (r: Web.OutlineSidebar.visible_row) => r.r_node.o_label,
+    ~f=(r: Web.OutlineSidebar.visible_row) => r.r_node.o_label,
     Array.to_list(OutlineHarness.visible(~folds, e)),
   );
 
@@ -684,22 +825,22 @@ let default_fold = () => {
   let row = CorpusUtil.row_by_label(e);
   check(
     list(string),
-    "runs folded, the rest open",
-    ["a", "M", "x", "tests", "tests", "b", "5", ""],
+    "runs folded, a lone test's too, the rest open",
+    ["a", "M", "x", "tests", "tests", "b", "tests", ""],
     shown(~folds=[], e),
   );
-  let top = Option.get(OutlineTree.run_of(row("3"), e));
+  let top = Option.value_exn(OutlineTree.run_of(row("3"), e));
   check(
     list(string),
     "a run opened by hand",
-    ["a", "M", "x", "tests", "tests", "3", "4", "b", "5", ""],
+    ["a", "M", "x", "tests", "tests", "3", "4", "b", "tests", ""],
     shown(~folds=[(top, false)], e),
   );
-  let m = Option.get(OutlineTree.label_path(row("M"), e));
+  let m = Option.value_exn(OutlineTree.label_path(row("M"), e));
   check(
     list(string),
     "a module folded by hand",
-    ["a", "M", "tests", "b", "5", ""],
+    ["a", "M", "tests", "b", "tests", ""],
     shown(~folds=[(m, true)], e),
   );
 };
@@ -725,7 +866,9 @@ let opened_run_kept = () => {
   let code = code_of(runs);
   let e = Web.Program.outline(code.program);
   let top =
-    Option.get(OutlineTree.run_of(CorpusUtil.row_by_label(e, "3"), e));
+    Option.value_exn(
+      OutlineTree.run_of(CorpusUtil.row_by_label(e, "3"), e),
+    );
   let flip = () =>
     ignore(
       C.update(
@@ -748,7 +891,7 @@ let opened_run_kept = () => {
   check(bool, "opened by hand", false, folded());
   /* a reload: the slide's folds as saved */
   let ck = ScratchPersist.content_key(prefix, name);
-  Hashtbl.remove(ScratchPersist.slide_folds, ck);
+  Stdlib.Hashtbl.remove(ScratchPersist.slide_folds, ck);
   ScratchPersist.forget_gates(ck);
   ScratchPersist.stage_side(prefix, name);
   check(bool, "still open after a reload", false, folded());
@@ -759,7 +902,7 @@ let opened_run_kept = () => {
   check(
     list(string),
     "a test added in M's run: this one still open",
-    ["a", "M", "x", "tests", "tests", "4", "5", "b", "6", ""],
+    ["a", "M", "x", "tests", "tests", "4", "5", "b", "tests", ""],
     shown(~folds=ScratchPersist.folds(prefix, name), added),
   );
   flip();
@@ -783,10 +926,10 @@ let tallies = () => {
     let (_, state) = Evaluator.evaluate(~env=Builtins.env_init(), elab);
     let results = EvaluatorState.get_tests(state);
     let test_status = id =>
-      TestMap.lookup(id, results) |> Option.map(TestMap.joint_status);
+      TestMap.lookup(id, results) |> Option.map(~f=TestMap.joint_status);
     switch (
-      List.find_opt(
-        (n: OutlineTree.node) => n.o_kind == KTests,
+      List.find(
+        ~f=(n: OutlineTree.node) => Poly.equal(n.o_kind, KTests),
         OutlineTree.flatten(OutlineTree.rows(outline)),
       )
     ) {
@@ -796,7 +939,10 @@ let tallies = () => {
   };
   let run = tests =>
     "let f = fun x -> x + 1 in\n"
-    ++ String.concat("", List.map(t => "test " ++ t ++ " end;\n", tests))
+    ++ String.concat(
+         ~sep="",
+         List.map(~f=t => "test " ++ t ++ " end;\n", tests),
+       )
     ++ "f(0)";
   let tally = testable(Fmt.(option(pair(string, bool))), (==));
   check(
@@ -846,9 +992,11 @@ let hinted_run = () => {
   let hint =
     switch (
       List.find_map(
+        ~f=
         (p: Piece.t) =>
           switch (p) {
-          | Tile(t) when Tile.token(t, 0) == "hint" => Some(t.id)
+            | Tile(t) when String.equal(Tile.token(t, 0), "hint") =>
+              Some(t.id)
           | _ => None
           },
         seg,
@@ -863,6 +1011,50 @@ let hinted_run = () => {
   };
 };
 
+/* a hinted test's row goes by its hint, an unhinted one by its number
+   among all the tests; in a module-rooted program's result too */
+let hinted_names = () => {
+  let labels = (~root=Sort.Exp, src) =>
+    List.map(
+      ~f=(n: OutlineTree.node) => n.o_label,
+      OutlineTree.flatten(
+        OutlineTree.rows(CorpusUtil.outline_of_text(~root, src)),
+      ),
+    );
+  check(
+    list(string),
+    "by hint, else by number",
+    ["f", "tests", "one", "2", "3", "", "tests", "4", ""],
+    labels(
+      "let f = fun x -> x + 1 in\n"
+      ++ "hint \"one\" test f(1) == 2 end;\n"
+      ++ "test f(2) == 3 end;\n"
+      ++ "hint \"\" test f(3) == 4 end;\n"
+      ++ "f(0);\n"
+      ++ "test f(4) == 5 end;\n"
+      ++ "f(0)",
+    ),
+  );
+  check(
+    list(string),
+    "a module-rooted program's result",
+    ["x", "tests", "x is one"],
+    labels(~root=Mod, "let x = 1;\nhint \"x is one\" test x == 1 end"),
+  );
+  check(
+    string,
+    "a long hint cut short",
+    {js|counts every element of…|js},
+    Web.OutlineSidebar.clipped("counts every element of a long list"),
+  );
+  check(
+    string,
+    "a short one whole",
+    "empty list",
+    Web.OutlineSidebar.clipped("empty list"),
+  );
+};
+
 /* the editor-caret mark goes where its row shows: a folded run's label,
    by its first test, as a folded module's row takes its members' */
 let mark_in_runs = () => {
@@ -870,7 +1062,7 @@ let mark_in_runs = () => {
   module E = Web.OutlineEdit;
   let e = term_of_text(runs);
   let row = CorpusUtil.row_by_label(e);
-  let top = Option.get(OutlineTree.run_of(row("4"), e));
+  let top = Option.value_exn(OutlineTree.run_of(row("4"), e));
   let key = testable(Fmt.of_to_string(E.show_key), (==));
   check(
     key,
@@ -884,7 +1076,7 @@ let mark_in_runs = () => {
     E.Item(row("4")),
     C.shown_row(~folds=[(top, false)], row("4"), e),
   );
-  let m = Option.get(OutlineTree.label_path(row("M"), e));
+  let m = Option.value_exn(OutlineTree.label_path(row("M"), e));
   check(
     key,
     "in a run in a folded module: the module",
@@ -893,15 +1085,15 @@ let mark_in_runs = () => {
   );
   check(
     key,
-    "a lone test: its own row",
-    E.Item(row("5")),
+    "a lone test: its run's label",
+    E.Run(row("5")),
     C.shown_row(~folds=[], row("5"), e),
   );
   check(
     bool,
     "a run's label, by path: the outline's cursor there",
     true,
-    C.key_path(E.Run(row("3")), e) == Some(top),
+    Poly.equal(C.key_path(E.Run(row("3")), e), Some(top)),
   );
 };
 
@@ -1349,6 +1541,11 @@ let tests = [
       ),
       test_case("a run's tally", `Quick, tallies),
       test_case("a hinted test joins its run", `Quick, hinted_run),
+      test_case(
+        "a hinted test's row is named by its hint",
+        `Quick,
+        hinted_names,
+      ),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
       test_case(
         "a caret move keeps the outline, an edit its untouched entries",

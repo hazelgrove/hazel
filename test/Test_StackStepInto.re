@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Web;
+open Poly;
 
 /* a stack's cells: their probes sample in the program's run, and a step
    into a function another item defines opens that item and steps in
@@ -23,10 +24,10 @@ f(1) + g(2) + w(1) + r(2) + t + M.h(3) + M.k(4) + M.u|};
 /* the program's ⇒ row (a function's body has one of its own) */
 let trail = (m: History.Model.t): Id.t =>
   List.find_map(
-    (n: OutlineTree.node) => n.o_kind == KTrail ? n.o_id : None,
+    ~f=(n: OutlineTree.node) => Poly.equal(n.o_kind, KTrail) ? n.o_id : None,
     OutlineTree.rows(Program.outline(Cells.program(m))),
   )
-  |> Option.get;
+  |> Option.value_exn;
 
 let member = (m: History.Model.t, label: string): Id.t =>
   CorpusUtil.row(Program.outline(Cells.program(m)), ["M", label]);
@@ -34,16 +35,14 @@ let member = (m: History.Model.t, label: string): Id.t =>
 /* open [rows] as cells, each with its statics, as a stack shows them */
 let opened = (rows: list(History.Model.t => Id.t)): History.Model.t => {
   let m = Cells.run(Cells.mk(~src, ()), Refresh);
-  List.fold_left(
-    (m, row) => Cells.run(m, Cells.workspace(FocusToggle(row(m)))),
-    m,
-    rows,
+  List.fold(rows, ~init=m, ~f=(m, row) =>
+    Cells.run(m, Cells.workspace(FocusToggle(row(m))))
   )
   |> Cells.run(_, Editors(Scratch(RefreshStatics)));
 };
 
 let pane = (m: History.Model.t, cell: Id.t): CellEditor.Model.t =>
-  Option.get(Divided.cell(cell, Cells.divided(m))).e_body;
+  Option.value_exn(Divided.cell(cell, Cells.divided(m))).e_body;
 
 let zipper = (m, cell) => pane(m, cell).editor.editor.state.zipper;
 
@@ -66,7 +65,7 @@ let call = (m: History.Model.t, cell: Id.t, name: string): Id.t => {
     pane(m, cell).editor.statics.info_map,
     None,
   )
-  |> Option.get;
+  |> Option.value_exn;
 };
 
 /* the call's first sample in the whole program's run */
@@ -98,8 +97,8 @@ let step_into = (m: History.Model.t, cell: Id.t, ap: Id.t) => {
   let s = sample(m, ap);
   let frame: CallStack.frame = {
     id: ap,
-    name: Option.bind(s.frame, (f: CallStack.frame) => f.name),
-    fn_def_id: Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id),
+    name: Option.bind(s.frame, ~f=(f: CallStack.frame) => f.name),
+    fn_def_id: Option.bind(s.frame, ~f=(f: CallStack.frame) => f.fn_def_id),
   };
   let action: Page.Update.t =
     Cells.workspace(
@@ -116,6 +115,7 @@ let step_into = (m: History.Model.t, cell: Id.t, ap: Id.t) => {
 let probed = (m: History.Model.t, cell: Id.t): list(string) => {
   let ed = pane(m, cell).editor.editor;
   List.map(
+    ~f=
     ((id, ())) =>
       switch (Haz3lcore.TermData.segment(id, ed.syntax.term_data)) {
       | Some(seg) =>
@@ -125,19 +125,19 @@ let probed = (m: History.Model.t, cell: Id.t): list(string) => {
           ~is_single_line=true,
           seg,
         )
-        |> String.trim
+          |> String.strip
       | None => "<not here>"
       },
     Id.Map.bindings(ed.state.zipper.refractors.multis.ids),
   )
-  |> List.sort(compare);
+  |> List.sort(~compare);
 };
 
 let pinned = (m: History.Model.t, cell: Id.t): option(CallStack.t) =>
   zipper(m, cell).refractors.sample_focus.pinned_stack;
 
 let manuals = (m: History.Model.t, cell: Id.t): list(Id.t) =>
-  List.map(fst, zipper(m, cell).refractors.manuals);
+  List.map(~f=fst, zipper(m, cell).refractors.manuals);
 
 let stack = testable(Fmt.of_to_string(CallStack.show), CallStack.equal);
 let id = testable(Fmt.of_to_string(Id.str3), Id.equal);
@@ -149,11 +149,11 @@ let follow_ups =
   switch (m.current.editors, action) {
   | (Scratch(s), Editors(Scratch(a))) =>
     ScratchMode.Selection.stack_jump_override(a, s)
-    |> Option.map(((_, _, ks)) => ks)
+    |> Option.map(~f=((_, _, ks)) => ks)
   | _ => fail("not a deck action")
   };
 
-let routed = (m, action) => follow_ups(m, action) != None;
+let routed = (m, action) => Option.is_some(follow_ups(m, action));
 
 let cell_count = (m: History.Model.t): int =>
   List.length(Divided.cells(Cells.divided(m)));
@@ -198,7 +198,7 @@ let across = (~name, ~target, ~body, ()) => {
     bool,
     "opens",
     true,
-    Divided.cell(target, Cells.divided(m)) != None,
+    Option.is_some(Divided.cell(target, Cells.divided(m))),
   );
   check(list(string), "probes the body", body, probed(m, target));
   check(bool, "the run samples the body", true, sampled(m, target));
@@ -212,7 +212,7 @@ let across = (~name, ~target, ~body, ()) => {
     bool,
     "takes the focus",
     true,
-    Cells.focus(m) == Some((target, Body)),
+    Poly.equal(Cells.focus(m), Some((target, Body))),
   );
   check(
     bool,
@@ -287,7 +287,12 @@ let already_open = () => {
   check(int, "no cell opens", cells, cell_count(m));
   check(list(string), "probes the body", ["n", "n + 1"], probed(m, f));
   check(option(stack), "the call's sample", Some(stepped), pinned(m, f));
-  check(bool, "takes the focus", true, Cells.focus(m) == Some((f, Body)));
+  check(
+    bool,
+    "takes the focus",
+    true,
+    Poly.equal(Cells.focus(m), Some((f, Body))),
+  );
   /* a module open as its members: the member's body is there */
   let m = opened([m => Cells.row(m, "M"), trail]);
   let (mid, t) = (Cells.row(m, "M"), trail(m));
@@ -295,7 +300,12 @@ let already_open = () => {
   let (action, stepped) = step_into(m, t, call(m, t, "h"));
   let m = Cells.run(m, action);
   check(int, "no member cell opens", cells, cell_count(m));
-  check(bool, "probes h's body", true, List.mem("y - 1", probed(m, mid)));
+  check(
+    bool,
+    "probes h's body",
+    true,
+    List.mem(probed(m, mid), "y - 1", ~equal=Poly.equal),
+  );
   check(option(stack), "h's call's sample", Some(stepped), pinned(m, mid));
 };
 
@@ -314,7 +324,7 @@ let same_cell = () => {
     bool,
     "keeps the call's probe",
     true,
-    List.mem(List.hd(stepped).id, manuals(m, t)),
+    List.mem(manuals(m, t), List.hd_exn(stepped).id, ~equal=Poly.equal),
   );
 };
 
@@ -340,7 +350,7 @@ let undo = () => {
     bool,
     "f stays open",
     true,
-    Divided.cell(f, Cells.divided(m)) != None,
+    Option.is_some(Divided.cell(f, Cells.divided(m))),
   );
   check(list(string), "no probe", [], probed(m, f));
   check(option(stack), "no pin", None, pinned(m, f));

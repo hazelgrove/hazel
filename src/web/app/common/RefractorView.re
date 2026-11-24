@@ -30,9 +30,9 @@ let measurement_of_tile =
     (id: Id.t, measured: Measured.t): option(Measured.measurement) =>
   Option.bind(
     Measured.find_shards_by_id(id, measured),
-    Util.ListUtil.last_opt,
+    ~f=Util.ListUtil.last_opt,
   )
-  |> Option.map(((_, m: Measured.measurement)) =>
+  |> Option.map(~f=((_, m: Measured.measurement)) =>
        Measured.{
          origin: m.last,
          last: m.last,
@@ -70,7 +70,7 @@ let row_range =
     )
     : (int, int) =>
   if (program_value) {
-    (measurement.origin.row, max_int);
+    (measurement.origin.row, Int.max_value);
   } else {
     let drawer_rows =
       Id.Map.find_opt(CachedSyntax.rows_key(id, term_data), refractor_rows)
@@ -100,9 +100,9 @@ let mk_data =
   let program_value = (id, entry: Refractors.entry) =>
     ProjectorInfo.is_program_value(~tail, id, entry.kind, entry.model);
   Id.Map.bindings(refractors)
-  |> List.filter_map(((id, entry: Refractors.entry)) =>
+  |> List.filter_map(~f=((id, entry: Refractors.entry)) =>
        (
-         if (entry.kind == Proof) {
+         if (Poly.equal(entry.kind, Proof)) {
            measurement_of_tile(id, measured);
          } else if (program_value(id, entry)) {
            Some(measurement_of_end(measured));
@@ -110,7 +110,7 @@ let mk_data =
            measurement_of_term(id, term_data, measured);
          }
        )
-       |> Option.map(measurement => (id, entry, measurement))
+       |> Option.map(~f=measurement => (id, entry, measurement))
      )
   |> ProjectorView.filter_by_visibility(
        visible, _, ((id, entry, measurement)) =>
@@ -122,14 +122,14 @@ let mk_data =
          measurement,
        )
      )
-  |> List.map(((id, entry, measurement)) => {
+  |> List.map(~f=((id, entry, measurement)) => {
        let syntax_piece =
          Option.value(
            TermData.segment(id, term_data)
-           |> Option.map(Segment.unparenthesize)
-           |> Option.map(Segment.trim_secondary(Left))
-           |> Option.map(Segment.trim_secondary(Right))
-           |> Option.map(Segment.parenthesize),
+           |> Option.map(~f=Segment.unparenthesize)
+           |> Option.map(~f=Segment.trim_secondary(Left))
+           |> Option.map(~f=Segment.trim_secondary(Right))
+           |> Option.map(~f=Segment.parenthesize),
            ~default=
              Base.Secondary({
                id: Id.invalid,
@@ -202,8 +202,8 @@ let all =
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(ProjectorView.by_measurement)
-    |> List.map(data =>
+    |> List.sort(~compare=ProjectorView.by_measurement)
+    |> List.map(~f=data =>
          ProjectorView.split_views(
            inject,
            make_active,
@@ -214,8 +214,8 @@ let all =
            refractor_list,
          )
        )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
+    |> List.unzip;
+  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
   [
     div_c(
       "refractors",

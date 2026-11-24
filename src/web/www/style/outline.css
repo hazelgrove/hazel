@@ -405,8 +405,8 @@
   opacity: 1;
 }
 
-/* rows with no name to type (the ⇒ result, the "tests" label, numbered
-   tests, `use` rows): one faded ink, italic. Faded from the outline's own
+/* rows with no name to type (the ⇒ result, the "tests" label, tests by
+   number or hint, `use` rows): one faded ink, italic. Faded from the outline's own
    ink, as --text-muted is brighter than it in dark themes. The ⇒ row's
    own opacity fades its word; the others match it */
 #outline-sidebar {
@@ -422,6 +422,13 @@
 #outline-sidebar .ol-test .outline-name,
 #outline-sidebar .ol-use .outline-name,
 #outline-sidebar .ol-use .outline-synthetic {
+  opacity: 0.85;
+}
+
+/* a definition binding more names than its row's: one faded ellipsis */
+#outline-sidebar .outline-more {
+  margin-left: 0.1em;
+  color: var(--ol-faded);
   opacity: 0.85;
 }
 

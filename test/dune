@@ -2,7 +2,10 @@
 
 (executable
  (name haz3ltest)
+ (flags
+  (:standard -open Core))
  (libraries
+  core
   web
   worldFolder
   stdlibBaked
@@ -17,7 +20,7 @@
 (rule
  (alias runtest)
  (deps
-  (glob_files modaudit/*.hz)
+  (glob_files programs/*.hz)
   (glob_files golden/*.txt))
  (action
   (setenv
@@ -31,7 +34,7 @@
 (rule
  (alias test-quick)
  (deps
-  (glob_files modaudit/*.hz)
+  (glob_files programs/*.hz)
   (glob_files golden/*.txt))
  (action
   (setenv

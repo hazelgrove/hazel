@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* A program divided into open cells, each owning its item's text.
    Abstract, so nothing outside can read or edit a stale whole-program copy. */
@@ -57,7 +58,9 @@ let with_statics = (s: CachedStatics.t, d: t): t => {
 
 /* [seg] (at [root]) with [cells]' text in their slots */
 let spliced = (~root: Sort.t, seg: Segment.t, cells: list(Cell.t)): Segment.t =>
-  List.fold_left((seg, e) => Focus.splice_entry(~root, e, seg), seg, cells);
+  List.fold(cells, ~init=seg, ~f=(seg, e) =>
+    Focus.splice_entry(~root, e, seg)
+  );
 
 let document = (d: t): Segment.t => spliced(~root=root(d), d.base, d.cells);
 
@@ -68,21 +71,42 @@ let cell_ids = (e: Cell.t): list(Id.t) =>
 /* the cell covers [id]: its own item, a run member, or any piece inside
    its text */
 let owns = (id: Id.t, e: Cell.t): bool =>
-  List.mem(id, Cell.covers(e)) || List.mem(id, cell_ids(e));
+  List.mem(Cell.covers(e), id, ~equal=Poly.equal)
+  || List.mem(cell_ids(e), id, ~equal=Poly.equal);
 
 let owner = (id: Id.t, d: t): option(Cell.t) =>
-  List.find_opt(owns(id), d.cells);
+  List.find(~f=owns(id), d.cells);
+
+let pane_of = (id: Id.t, d: t): option((Cell.t, Cell.side)) =>
+  List.find_map(
+    ~f=
+      (e: Cell.t) =>
+        List.find(
+          ~f=
+            side =>
+              Focus.seg_contains_id(
+                id,
+                Focus.zip_of_cell(Cell.pane(side, e)),
+              ),
+          [Cell.Body, Header],
+        )
+        |> Option.map(~f=side => (e, side)),
+    d.cells,
+  );
 
 let cell = (id: Id.t, d: t): option(Cell.t) =>
-  List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
+  List.find(~f=(e: Cell.t) => Id.equal(e.e_id, id), d.cells);
 
 let insert = (~outline, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
   let order = OutlineTree.collect(OutlineTree.rows(outline));
   let rank = id =>
-    Option.value(List.find_index(x => x == id, order), ~default=max_int);
+    Option.value(
+      List.findi(order, ~f=(_, x) => Id.equal(x, id)) |> Option.map(~f=fst),
+      ~default=Int.max_value,
+    );
   let r = rank(entry.e_id);
   let (before, after) =
-    List.partition((e: Cell.t) => rank(e.e_id) < r, cells);
+    List.partition_tf(~f=(e: Cell.t) => rank(e.e_id) < r, cells);
   before @ [entry, ...after];
 };
 
@@ -95,7 +119,7 @@ let probes = (d: t): Refractors.RefractorList.t =>
   ListUtil.dedup_f(
     ((a, _), (b, _)) => a == b,
     List.concat_map(
-      (e: Cell.t) => probes_of(e.e_header) @ probes_of(e.e_body),
+      ~f=(e: Cell.t) => probes_of(e.e_header) @ probes_of(e.e_body),
       d.cells,
     )
     @ probes_of(d.shell),
@@ -105,7 +129,7 @@ let probes = (d: t): Refractors.RefractorList.t =>
    holds them, the rest in the shell */
 let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
   let set = (c: CellEditor.Model.t, ms): CellEditor.Model.t =>
-    List.map(fst, probes_of(c)) == List.map(fst, ms)
+    List.map(~f=fst, probes_of(c)) == List.map(~f=fst, ms)
       ? c
       : CellEditor.Model.map_zipper(
           z =>
@@ -120,15 +144,19 @@ let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
   let placed = ref([]);
   let take = (c: CellEditor.Model.t) => {
     let ids = Segment.ids(Focus.zip_of_cell(c));
-    let ms = List.filter(((id, _)) => List.mem(id, ids), pool);
-    placed := List.map(fst, ms) @ placed^;
+    let ms =
+      List.filter(
+        ~f=((id, _)) => List.mem(ids, id, ~equal=Poly.equal),
+        pool,
+      );
+    placed := List.map(~f=fst, ms) @ placed^;
     set(c, ms);
   };
   let cells =
     Focus.map_sharing(
       (e: Cell.t) => {
         let (h, b) = (take(e.e_header), take(e.e_body));
-        h === e.e_header && b === e.e_body
+        phys_equal(h, e.e_header) && phys_equal(b, e.e_body)
           ? e
           : {
             ...e,
@@ -144,7 +172,10 @@ let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
     shell:
       set(
         d.shell,
-        List.filter(((id, _)) => !List.mem(id, placed^), pool),
+        List.filter(
+          ~f=((id, _)) => !List.mem(placed^, id, ~equal=Poly.equal),
+          pool,
+        ),
       ),
   };
 };
@@ -170,7 +201,7 @@ let active = (d: t): option((Id.t, side)) => d.active;
 
 let active_cell = (d: t): option((Cell.t, side)) =>
   switch (d.active) {
-  | Some((id, side)) => Option.map(e => (e, side), cell(id, d))
+  | Some((id, side)) => Option.map(~f=e => (e, side), cell(id, d))
   | None => None
   };
 
@@ -199,53 +230,34 @@ let anchor_of = (z: Zipper.t): option((Direction.t, Id.t)) =>
 
 let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
   Option.map(
-    ((e: Cell.t, side)) =>
-      switch (anchor_of(Cell.pane(side, e).editor.editor.state.zipper)) {
-      | Some(a) => a
-      | None => (Direction.Left, e.e_id)
-      },
+    ~f=
+      ((e: Cell.t, side)) =>
+        switch (anchor_of(Cell.pane(side, e).editor.editor.state.zipper)) {
+        | Some(a) => a
+        | None => (Direction.Left, e.e_id)
+        },
     active_cell(d),
   );
 
 /* the caret moves into the open cell holding [id], which becomes
    active; unchanged if no cell holds it */
-let place_caret = ((dir, id): (Direction.t, Id.t), d: t): t => {
-  /* the cell with the caret beside [id], and the side it is in */
-  let moved = (e: Cell.t) =>
-    List.find_map(
-      side => {
-        let c = Cell.pane(side, e);
-        List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
-          ? Move.jump_to_side_of_id(dir, c.editor.editor.state.zipper, id)
-            |> Option.map(z =>
-                 (
-                   Cell.with_pane(
-                     side,
-                     CellEditor.Model.map_zipper(_ => z, c),
-                     e,
-                   ),
-                   side,
-                 )
-               )
-          : None;
-      },
-      [Body, Header],
-    );
-  let rec go = (before, cells: list(Cell.t)) =>
-    switch (cells) {
-    | [] => d
-    | [e, ...rest] =>
-      switch (moved(e)) {
-      | Some((e, side)) => {
-          ...d,
-          cells: List.rev(before) @ [e, ...rest],
-          active: Some((e.e_id, side)),
-        }
-      | None => go([e, ...before], rest)
-      }
+let place_caret = ((dir, id): (Direction.t, Id.t), d: t): t =>
+  switch (pane_of(id, d)) {
+  | Some((e, side)) =>
+    let c = Cell.pane(side, e);
+    switch (Move.jump_to_side_of_id(dir, c.editor.editor.state.zipper, id)) {
+    | Some(z) =>
+      let e' =
+        Cell.with_pane(side, CellEditor.Model.map_zipper(_ => z, c), e);
+      {
+        ...d,
+        cells: List.map(~f=o => phys_equal(o, e) ? e' : o, d.cells),
+        active: Some((e.e_id, side)),
+      };
+    | None => d
     };
-  go([], d.cells);
-};
+  | None => d
+  };
 
 /* one editor holding [seg] at [root]: the [probes] still anchored in it,
    the caret beside [anchor]; with [prev], an earlier editor's parse and
@@ -264,10 +276,14 @@ let editor_of =
     switch (probes) {
     | [] => []
     | _ =>
-      let ids = Id.Map.of_list(List.map(((id, _)) => (id, ()), probes));
+      let ids =
+        Id.Map.of_list(List.map(~f=((id, _)) => (id, ()), probes));
       let present =
-        List.filter(id => Id.Map.mem(id, ids), Segment.ids(seg));
-      List.filter(((id, _)) => List.mem(id, present), probes);
+        List.filter(~f=id => Id.Map.mem(id, ids), Segment.ids(seg));
+      List.filter(
+        ~f=((id, _)) => List.mem(present, id, ~equal=Poly.equal),
+        probes,
+      );
     };
   let z =
     Zipper.unzip(~direction=Left, seg)
@@ -284,7 +300,7 @@ let editor_of =
     | None => z
     };
   let syntax =
-    Option.map((pe: CellEditor.Model.t) => pe.editor.editor.syntax, prev);
+    Option.map(~f=(pe: CellEditor.Model.t) => pe.editor.editor.syntax, prev);
   CellEditor.Model.mk(
     Editor.Model.{
       root,
@@ -295,8 +311,8 @@ let editor_of =
       syntax:
         CachedSyntax.init(
           ~root,
-          ~m_cache=?Option.map((s: CachedSyntax.t) => s.m_cache, syntax),
-          ~t_cache=?Option.map((s: CachedSyntax.t) => s.t_cache, syntax),
+          ~m_cache=?Option.map(~f=(s: CachedSyntax.t) => s.m_cache, syntax),
+          ~t_cache=?Option.map(~f=(s: CachedSyntax.t) => s.t_cache, syntax),
           z,
         ),
     },
@@ -329,7 +345,9 @@ let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
 };
 
 let close = (id: Id.t, d: t): after_close =>
-  switch (List.partition((e: Cell.t) => e.e_id == id, d.cells)) {
+  switch (
+    List.partition_tf(~f=(e: Cell.t) => Id.equal(e.e_id, id), d.cells)
+  ) {
   | ([], _) => Still(d)
   | ([closing, ..._], rest) =>
     switch (rest) {
@@ -356,7 +374,8 @@ let close = (id: Id.t, d: t): after_close =>
             /* closing the focused cell hands the focus to the first body */
             active:
               switch (focused(d)) {
-              | Some((e, _)) when e.e_id == id => Some((first.e_id, Body))
+              | Some((e, _)) when Id.equal(e.e_id, id) =>
+                Some((first.e_id, Body))
               | _ => d.active
               },
           },
@@ -372,7 +391,7 @@ let open_among =
     : option(t) => {
   let base = spliced(~root=root(d), d.base, closing);
   mk(base)
-  |> Option.map((entry: Cell.t) =>
+  |> Option.map(~f=(entry: Cell.t) =>
        settle(
          ~pool=probes(d),
          {
@@ -402,7 +421,10 @@ let open_ =
   | None =>
     let desc = OutlineTree.descendant_ids(id, outline);
     let (closing, keeping) =
-      List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
+      List.partition_tf(
+        ~f=(e: Cell.t) => List.mem(desc, e.e_id, ~equal=Poly.equal),
+        d.cells,
+      );
     open_among(
       ~outline,
       entry(~root=root(d), ~info_map, ~sym?, ~inner, id),
@@ -421,11 +443,13 @@ let open_run = (~info_map, ~outline, fid: Id.t, d: t): option(t) => {
     | None => [fid]
     };
   let (alone, keeping) =
-    List.partition(
-      (e: Cell.t) => !Cell.is_run(e) && List.mem(e.e_id, members),
+    List.partition_tf(
+      ~f=
+        (e: Cell.t) =>
+          !Cell.is_run(e) && List.mem(members, e.e_id, ~equal=Poly.equal),
       d.cells,
     );
-  List.exists(owns(fid), keeping)
+  List.exists(~f=owns(fid), keeping)
     ? None
     : open_among(
         ~outline,
@@ -446,9 +470,11 @@ let resplit =
      rename keeps its tokens' ids, so compare their labels too */
   let rec labels = (s: Segment.t): list(string) =>
     List.concat_map(
-      fun
-      | Piece.Tile(t) => Tile.label(t) @ List.concat_map(labels, t.children)
-      | _ => [],
+      ~f=
+        fun
+        | Piece.Tile(t) =>
+          Tile.label(t) @ List.concat_map(~f=labels, t.children)
+        | _ => [],
       s,
     );
   let same = (a: Segment.t, b: Segment.t) => {
@@ -475,36 +501,39 @@ let resplit =
     };
   let cells =
     List.filter_map(
-      (e: Cell.t) =>
-        untouched(e)
-          ? Some(e)
-          : (
-            switch (e.e_kind) {
-            | Run(_) => Focus.mk_run_entry(~root, ~info_map, e.e_id, base)
-            | Members =>
-              Focus.mk_members_entry(~root, ~info_map, e.e_id, base)
-            | Headless(sym) =>
-              Focus.mk_entry(~root, ~info_map, ~sym, e.e_id, base)
-            | Def(_) => Focus.mk_entry(~root, ~info_map, e.e_id, base)
-            }
-          ),
+      ~f=
+        (e: Cell.t) =>
+          untouched(e)
+            ? Some(e)
+            : (
+              switch (e.e_kind) {
+              | Run(_) => Focus.mk_run_entry(~root, ~info_map, e.e_id, base)
+              | Members =>
+                Focus.mk_members_entry(~root, ~info_map, e.e_id, base)
+              | Headless(sym) =>
+                Focus.mk_entry(~root, ~info_map, ~sym, e.e_id, base)
+              | Def(_) => Focus.mk_entry(~root, ~info_map, e.e_id, base)
+              }
+            ),
       d.cells,
     );
   /* an edit can carry one open item into another (a member into an open
      module): the outer cell holds it now, so the inner one closes */
   let cells =
     List.filter(
-      (e: Cell.t) =>
-        !
-          List.exists(
-            (o: Cell.t) =>
-              o !== e
-              && List.exists(
-                   id => List.mem(id, cell_ids(o)),
-                   Cell.covers(e),
-                 ),
-            cells,
-          ),
+      ~f=
+        (e: Cell.t) =>
+          !
+            List.exists(
+              ~f=
+                (o: Cell.t) =>
+                  !phys_equal(o, e)
+                  && List.exists(
+                       ~f=id => List.mem(cell_ids(o), id, ~equal=Poly.equal),
+                       Cell.covers(e),
+                     ),
+              cells,
+            ),
       cells,
     );
   switch (cells) {
@@ -516,13 +545,16 @@ let resplit =
         {
           shell: editor,
           cells:
-            List.fold_left((acc, e) => insert(~outline, e, acc), [], cells),
+            List.fold(cells, ~init=[], ~f=(acc, e) =>
+              insert(~outline, e, acc)
+            ),
           base,
           /* a cell the edit removed is no longer where the caret is */
           active:
             switch (d.active) {
             | Some((a, _))
-                when !List.exists((e: Cell.t) => e.e_id == a, cells) =>
+                when
+                  !List.exists(~f=(e: Cell.t) => Id.equal(e.e_id, a), cells) =>
               None
             | a => a
             },
@@ -541,12 +573,13 @@ let same_content = (a: t, b: t): bool => {
       c.editor.editor.state.zipper,
       c'.editor.editor.state.zipper,
     );
-  a.base === b.base
+  phys_equal(a.base, b.base)
   && a.active == b.active
   && List.length(a.cells) == List.length(b.cells)
-  && List.for_all2(
-       (x: Cell.t, y: Cell.t) =>
-         same(x.e_header, y.e_header) && same(x.e_body, y.e_body),
+  && List.for_all2_exn(
+       ~f=
+         (x: Cell.t, y: Cell.t) =>
+           same(x.e_header, y.e_header) && same(x.e_body, y.e_body),
        a.cells,
        b.cells,
      );
@@ -563,9 +596,9 @@ let outside_editor = (d: t): CodeEditable.Model.t =>
     ~same=
       (d', d) =>
         same_content(d', d)
-        && d'.statics === d.statics
+        && phys_equal(d'.statics, d.statics)
         /* not the shell itself: every calculate re-wraps it with a result */
-        && d'.shell.editor === d.shell.editor,
+        && phys_equal(d'.shell.editor, d.shell.editor),
     outside_memo,
     d,
     () => {
@@ -596,7 +629,7 @@ let outside_editor = (d: t): CodeEditable.Model.t =>
 
 let map_cells = (f: Cell.t => Cell.t, d: t): t => {
   ...d,
-  cells: List.map(f, d.cells),
+  cells: List.map(~f, d.cells),
 };
 
 /* a headerless cell (⇒, `;`) is keyed by its expression's root, which an
@@ -609,48 +642,54 @@ let follow_headless =
   let base = ref(d.base);
   let cells =
     List.map(
-      (e: Cell.t) =>
-        switch (e.e_kind) {
-        | Headless(_) when !Id.Map.mem(e.e_id, rows) =>
-          let body = Focus.zip_of_cell(e.e_body);
-          let top =
-            List.filter_map(
-              fun
-              | Piece.Tile(t) => Some(t.id)
-              | _ => None,
-              body,
-            );
-          let find = ids =>
-            List.find_opt(id => Id.Map.mem(id, headless), ids);
-          switch (
-            switch (find(top)) {
-            | Some(_) as found => found
-            | None => find(Segment.ids(body))
-            }
-          ) {
-          | Some(id) =>
-            moves := [(e.e_id, id), ...moves^];
-            /* the base takes the cell's text first, so its slot holds
-               the new root: splices by that id must find it, or the
-               cell's later edits never reach the program */
-            base := Focus.splice_entry(~root=root(d), e, base^);
-            {
-              ...e,
-              e_id: id,
+      ~f=
+        (e: Cell.t) =>
+          switch (e.e_kind) {
+          | Headless(_) when !Id.Map.mem(e.e_id, rows) =>
+            let body = Focus.zip_of_cell(e.e_body);
+            let top =
+              List.filter_map(
+                ~f=
+                  fun
+                  | Piece.Tile(t) => Some(t.id)
+                  | _ => None,
+                body,
+              );
+            let find = ids =>
+              List.find(~f=id => Id.Map.mem(id, headless), ids);
+            switch (
+              switch (find(top)) {
+              | Some(_) as found => found
+              | None => find(Segment.ids(body))
+              }
+            ) {
+            | Some(id) =>
+              moves := [(e.e_id, id), ...moves^];
+              /* the base takes the cell's text first, so its slot holds
+                 the new root: splices by that id must find it, or the
+                 cell's later edits never reach the program */
+              base := Focus.splice_entry(~root=root(d), e, base^);
+              {
+                ...e,
+                e_id: id,
+              };
+            | None => e
             };
-          | None => e
-          };
-        | _ => e
-        },
+          | _ => e
+          },
       d.cells,
     );
-  let moved = id => Option.value(List.assoc_opt(id, moves^), ~default=id);
+  let moved = id =>
+    Option.value(
+      List.Assoc.find(moves^, id, ~equal=Poly.equal),
+      ~default=id,
+    );
   (
     {
       ...d,
       base: base^,
       cells,
-      active: Option.map(((id, side)) => (moved(id), side), d.active),
+      active: Option.map(~f=((id, side)) => (moved(id), side), d.active),
     },
     moves^,
   );
@@ -658,7 +697,8 @@ let follow_headless =
 
 let update_cell = (id: Id.t, f: Cell.t => Cell.t, d: t): t => {
   ...d,
-  cells: List.map((e: Cell.t) => e.e_id == id ? f(e) : e, d.cells),
+  cells:
+    List.map(~f=(e: Cell.t) => Id.equal(e.e_id, id) ? f(e) : e, d.cells),
 };
 
 let set_active = (id: Id.t, side: side, d: t): t =>
@@ -675,7 +715,7 @@ let set_active = (id: Id.t, side: side, d: t): t =>
 let keep_focus = (~prev: t, d: t): t =>
   switch (focused(prev), d.cells) {
   | (Some((e, _)), [first, ..._])
-      when prev.active == None && first.e_id == e.e_id => {
+      when Option.is_none(prev.active) && Id.equal(first.e_id, e.e_id) => {
       ...d,
       active: None,
     }
@@ -688,35 +728,38 @@ let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   shell: f(d.shell),
   cells:
     List.map(
-      (e: Cell.t) =>
-        {
-          ...e,
-          e_header: f(e.e_header),
-          e_body: f(e.e_body),
-        },
+      ~f=
+        (e: Cell.t) =>
+          {
+            ...e,
+            e_header: f(e.e_header),
+            e_body: f(e.e_body),
+          },
       d.cells,
     ),
 };
 
 let editors = (d: t): list(CellEditor.Model.t) => [
   d.shell,
-  ...List.concat_map((e: Cell.t) => [e.e_header, e.e_body], d.cells),
+  ...List.concat_map(~f=(e: Cell.t) => [e.e_header, e.e_body], d.cells),
 ];
 
 let stepping = (d: t): option(ProjectorBase.stepping) =>
   List.find_map(
-    (c: CellEditor.Model.t) =>
-      c.editor.editor.state.zipper.refractors.stepping,
+    ~f=
+      (c: CellEditor.Model.t) =>
+        c.editor.editor.state.zipper.refractors.stepping,
     editors(d),
   );
 
 let keep_stepping = (span: Language.Sample.span_ref, d: t): t =>
   List.exists(
-    (c: CellEditor.Model.t) =>
-      switch (c.editor.editor.state.zipper.refractors.stepping) {
-      | Some(st) => st.span != span
-      | None => false
-      },
+    ~f=
+      (c: CellEditor.Model.t) =>
+        switch (c.editor.editor.state.zipper.refractors.stepping) {
+        | Some(st) => st.span != span
+        | None => false
+        },
     editors(d),
   )
     ? map_editors(
@@ -750,15 +793,16 @@ let carry_from =
   shell: carry(from.shell, d.shell),
   cells:
     List.map(
-      (e: Cell.t) =>
-        switch (cell(e.e_id, from)) {
-        | Some(c) => {
-            ...e,
-            e_header: carry(c.e_header, e.e_header),
-            e_body: carry(c.e_body, e.e_body),
-          }
-        | None => e
-        },
+      ~f=
+        (e: Cell.t) =>
+          switch (cell(e.e_id, from)) {
+          | Some(c) => {
+              ...e,
+              e_header: carry(c.e_header, e.e_header),
+              e_body: carry(c.e_body, e.e_body),
+            }
+          | None => e
+          },
       d.cells,
     ),
 };

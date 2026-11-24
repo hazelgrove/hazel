@@ -26,8 +26,7 @@ let fast_equal = Equality.syntactic.pat;
 let equal = fast_equal;
 
 let rep_id = ({annotation: {ids, _}, _}: t) => {
-  assert(ids != []);
-  List.hd(ids);
+  List.hd_exn(ids);
 };
 
 let term_of: t => TermBase.Pat.term = IdTagged.term_of;
@@ -40,6 +39,54 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Pat.term =>
   switch (tms) {
   | [] => EmptyHole
   | [_, ..._] => MultiHole(tms)
+  };
+
+/* Parens and Projector are transparent: elaboration keeps both, so code
+   that inspects the head or shape of a pattern must look through them.
+   Asc is NOT stripped here; whether an ascription is transparent depends on
+   the call site. */
+let rec strip_wrappers = (p: t): t =>
+  switch (p.term) {
+  | Parens(p)
+  | Projector(_, p) => strip_wrappers(p)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_)
+  | Asc(_) => p
+  };
+
+let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
+  switch (p.term) {
+  | Constructor(name, _)
+  | Dot(_, {term: Label(name), _}) => Some(name)
+  | Parens(p)
+  | Projector(_, p) => ctr_name(p)
+  | Dot(_)
+  | Asc(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Cons(_)
+  | Var(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Ap(_) => None
   };
 
 let cls_of_term: Grammar.pat_term('a) => cls =
@@ -60,8 +107,7 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Tuple(_) => Tuple
   | Parens(_) => Parens
   | Projector(_) => Projector
-  | Ap({term: Constructor(_) | Dot(_), _}, _) => ApCons
-  | Ap(_) => ApFunc
+  | Ap(f, _) => Option.is_some(ctr_name(f)) ? ApCons : ApFunc
   | Asc(_) => Asc;
 
 let show_cls: cls => string =
@@ -103,7 +149,7 @@ let rec has_hole_binder = (pat: t): bool =>
   | TupLabel(_, pat)
   | Ap(_, pat) => has_hole_binder(pat)
   | Tuple(pats)
-  | ListLit(pats) => List.exists(has_hole_binder, pats)
+  | ListLit(pats) => List.exists(~f=has_hole_binder, pats)
   | Cons(p1, p2) => has_hole_binder(p1) || has_hole_binder(p2)
   | Invalid(_)
   | Wild
@@ -146,7 +192,8 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
-    | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
+    | Tuple(pats) =>
+      pats |> List.for_all(~f=x => x |> is_var |> Option.is_some)
     | Label(_)
     | ExplicitNonlabel
     | Invalid(_)
@@ -212,29 +259,34 @@ let rec get_num_of_vars = (pat: t) =>
     }
   };
 
-let ctr_name = (p: t): option(Constructor.t) =>
-  switch (p.term) {
-  | Constructor(name, _)
-  | Parens({term: Constructor(name, _), _})
-  | Dot(_, {term: Label(name), _})
-  | Parens({term: Dot(_, {term: Label(name), _}), _}) => Some(name)
-  | _ => None
-  };
-
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =
   p =>
     switch (p.term) {
-    | Parens(p) => match_tup_label(p)
+    | Parens(p)
+    | Projector(_, p) => match_tup_label(p)
     | TupLabel(plab, p') =>
-      switch (plab.term) {
+      switch (strip_wrappers(plab).term) {
       | Label(name) => Some((name, p'))
       | _ => None
       }
-    | _ => None
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
+    | Constructor(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
+    | Ap(_)
+    | Asc(_) => None
     };
 
 let get_label: t => option(LabeledTuple.label) =
-  p => match_tup_label(p) |> Option.map(fst);
+  p => match_tup_label(p) |> Option.map(~f=fst);
 
 let rec bindings = (dp: t): Binding.s =>
   switch (dp |> term_of) {
@@ -257,19 +309,60 @@ let rec bindings = (dp: t): Binding.s =>
         id: rep_id(dp),
       },
     ]
-  | Tuple(dps) => List.flatten(List.map(bindings, dps))
+  | Tuple(dps) => List.concat_map(~f=bindings, dps)
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
-  | ListLit(dps) => List.flatten(List.map(bindings, dps))
+  | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)
   };
 
+/* The function-definition sugar `f(args)`, curried `f(args)(more)` or
+   either with `: ret`: the name, the argument pattern of each application
+   and the return type. The name may carry an ascription. A nullary `f()`
+   carries `Id.nullary_ap_flag` on its argument tuple, replaced by a
+   deterministic id so the arguments are a well-formed pattern once they
+   become a function's. */
+let function_sugar =
+    (pat: t): option((t, list(t), option(TermBase.Typ.t))) => {
+  let (inner, ret_ty) =
+    switch (term_of(pat)) {
+    | Asc(inner, ret_ty) => (inner, Some(ret_ty))
+    | _ => (pat, None)
+    };
+  let rec spine = (pat: t, args: list(t)) =>
+    switch (term_of(pat)) {
+    | Ap(fn, arg) =>
+      let arg =
+        Id.is_nullary_ap_flag(IdTagged.ids(arg))
+          ? (Tuple([]): term) |> IdTagged.fresh_deterministic(rep_id(fn))
+          : arg;
+      spine(fn, [arg, ...args]);
+    | Var(_)
+    | Asc({term: Var(_), _}, _) when !List.is_empty(args) =>
+      Some((pat, args, ret_ty))
+    | _ => None
+    };
+  spine(inner, []);
+};
+
+/* The pattern that names the binding: the function name for the sugar, the
+   pattern itself otherwise. */
+let binder = (pat: t): t =>
+  switch (function_sugar(pat)) {
+  | Some((f_name, _, _)) => f_name
+  | None => pat
+  };
+
 let bound_vars = (dp: t): list(Var.t) =>
-  dp |> bindings |> List.map((b: Binding.t) => b.name);
+  dp |> bindings |> List.map(~f=(b: Binding.t) => b.name);
 
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);
   List.filter(
-    binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+    ~f=
+      binding => {
+        List.length(List.filter(~f=x => String.equal(x, binding), bindings))
+        > 1
+      },
     bindings,
   );
 };

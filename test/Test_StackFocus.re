@@ -2,6 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open CorpusUtil;
+open Poly;
 
 /* focus slicing: mk_entry carves header/body cells with a frozen ctx out of
    the program, and splice_entry restores it byte-identically */
@@ -48,12 +49,13 @@ let check_focus =
       text_of(Focus.zip_of_cell(e.e_body)),
     );
     List.iter(
+      ~f=
       x =>
         check(
           bool,
           label ++ ": ctx binds " ++ x,
           true,
-          Ctx.lookup_var(e.e_ctx, x) != None,
+            Option.is_some(Ctx.lookup_var(e.e_ctx, x)),
         ),
       bound,
     );
@@ -74,7 +76,12 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   switch (Focus.mk_entry(~root=Exp, ~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
-    check(bool, label ++ ": headless", true, e.e_kind == Headless(sym));
+    check(
+      bool,
+      label ++ ": headless",
+      true,
+      Poly.equal(e.e_kind, Headless(sym)),
+    );
     check(
       string,
       label ++ ": body",
@@ -91,7 +98,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
       bool,
       label ++ ": outline sym",
       true,
-      Web.SlideView.sym_of(fid, outline) == Some(sym),
+      Poly.equal(Web.SlideView.sym_of(fid, outline), Some(sym)),
     );
   };
 };
@@ -102,9 +109,9 @@ let unfinished_let = () => {
   let open_at = (typed: string): (bool, option(Focus.refusal)) => {
     let seg = Zipper.unselect_and_zip(typed_zipper(typed));
     let (_, info_map) = statics_of(seg);
-    let first = Option.get(List.find_map(Piece.is_tile, seg));
+    let first = Option.value_exn(List.find_map(~f=Piece.is_tile, seg));
     (
-      Focus.mk_entry(~root=Exp, ~info_map, first.id, seg) != None,
+      Option.is_some(Focus.mk_entry(~root=Exp, ~info_map, first.id, seg)),
       Id.Map.find_opt(
         first.id,
         Focus.refusals(~root=Exp, ~want=_ => true, seg),
@@ -140,21 +147,21 @@ let use_boundary = () => {
         row_by_label(outline, label),
         master,
       ),
-      (e: Web.ScratchCell.t) =>
+      ~f=(e: Web.ScratchCell.t) =>
       e.e_ctx.use_mode
     );
   check(
     bool,
     "the cells after it in its mode",
     true,
-    mode("") == Some(Nat) && mode("a") == Some(Nat),
+    Poly.equal(mode(""), Some(Nat)) && Poly.equal(mode("a"), Some(Nat)),
   );
   let use = row_by_label(outline, "use Nat");
   check(
     bool,
     "its row opens no cell",
     true,
-    Focus.mk_entry(~root=Exp, ~info_map, use, master) == None,
+    Option.is_none(Focus.mk_entry(~root=Exp, ~info_map, use, master)),
   );
   check(
     bool,
@@ -194,7 +201,7 @@ let names_and_keys = () => {
     "three tests",
     Some(3),
     Option.map(
-      ((_, _, n)) => n,
+      ~f=((_, _, n)) => n,
       Focus.test_run_deep(~root=Exp, row_by_label(rterm, "1"), run),
     ),
   );
@@ -239,14 +246,20 @@ let header_symbols = () => {
     /* [in_module]: these rows are a module body's items */
     let rec walk = (~in_module, ns: list(Web.OutlineTree.node)) =>
       List.iter(
+        ~f=
         (n: Web.OutlineTree.node) =>
           switch (n.o_kind) {
           | KTests => walk(~in_module, n.o_children)
           | kind =>
             switch (
-              Option.bind(n.o_id, id => Web.SlideView.sym_of(id, outline)),
-              Option.bind(n.o_id, id =>
-                Option.map(snd, Focus.headless_content_deep(~root, id, seg))
+                Option.bind(n.o_id, ~f=id =>
+                  Web.SlideView.sym_of(id, outline)
+                ),
+                Option.bind(n.o_id, ~f=id =>
+                  Option.map(
+                    ~f=snd,
+                    Focus.headless_content_deep(~root, id, seg),
+                  )
               ),
             ) {
             | (Some(o), Some(s)) when o != s =>
@@ -259,16 +272,19 @@ let header_symbols = () => {
               );
             | _ => ()
             };
-            walk(~in_module=kind == KModule, n.o_children);
+              walk(~in_module=Poly.equal(kind, KModule), n.o_children);
           },
         ns,
       );
-    walk(~in_module=root == Sort.Mod, Web.OutlineTree.rows(outline));
+    walk(
+      ~in_module=Sort.equal(root, Sort.Mod),
+      Web.OutlineTree.rows(outline),
+    );
     exceptions^;
   };
   let module_last = "module M = {\n  let a = 1;\n  a + 1\n} in\nM.a";
   List.iter(
-    ((root, src, n)) => check(int, src, n, survey(~root, src, src)),
+    ~f=((root, src, n)) => check(int, src, n, survey(~root, src, src)),
     [
       (Sort.Exp, module_last, 1),
       (Exp, "module M = {\n  let a = 1;\n  test a == 1 end\n} in\nM.a", 1),
@@ -291,8 +307,14 @@ let header_symbols = () => {
     @ slide_corpus(),
   );
   List.iter(
+    ~f=
     ((file, root, n)) =>
-      check(int, file, n, survey(~root, file, Option.get(mega_src(file)))),
+        check(
+          int,
+          file,
+          n,
+          survey(~root, file, Option.value_exn(mega_src(file))),
+        ),
     [("mega-1k.hz", Sort.Exp, 0), ("mega-mod-1k.hz", Mod, 1)],
   );
   /* a pin opens the module's last item under the outline's symbol */
@@ -301,7 +323,9 @@ let header_symbols = () => {
   let last =
     switch (
       List.find_map(
-        (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
+        ~f=
+          (n: Web.OutlineTree.node) =>
+            Poly.equal(n.o_kind, KStmt) ? n.o_id : None,
         Web.OutlineTree.flatten(Web.OutlineTree.rows(outline)),
       )
     ) {
@@ -321,7 +345,10 @@ let header_symbols = () => {
       bool,
       "the outline's symbol",
       true,
-      List.hd(Web.Divided.cells(d)).e_kind == Headless({js|;|js}),
+      Poly.equal(
+        List.hd_exn(Web.Divided.cells(d)).e_kind,
+        Headless({js|;|js}),
+      ),
     )
   | (_, Whole(_)) => fail("didn't open")
   };

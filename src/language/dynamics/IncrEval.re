@@ -13,9 +13,8 @@ type projection =
   | ConsTail
   | ConstructorArg(string)
   | TupleLabel(option(string))
-  /* The binding went through `p : ty`. The type is part of the provenance:
-     an ascription changes the bound value (it seals a module, casts a
-     value), so a dependent computed under a different ascription is stale. */
+  /* The binding went through `p : ty`; the ascription changes the bound
+     value, so the type is part of the provenance. */
   | Ascribed(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -51,7 +50,11 @@ type entry('state) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('state) = {entries: Id.Map.t(entry('state))};
+type t('state) = {
+  entries: Id.Map.t(entry('state)),
+  /* Steps of the evaluation that produced this cache. */
+  steps: int,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current('state) = {
@@ -65,7 +68,10 @@ type outbox('state) = {
   current: option(current('state)),
 };
 
-let empty: t('state) = {entries: Id.Map.empty};
+let empty: t('state) = {
+  entries: Id.Map.empty,
+  steps: 0,
+};
 
 let empty_outbox: outbox('state) = {
   completed: empty,
@@ -84,6 +90,7 @@ let outbox_is_empty = (outbox: outbox('state)): bool =>
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
+  ...incr,
   entries: Id.Map.add(id, entry, incr.entries),
 };
 
@@ -105,6 +112,7 @@ let set_outbox_current =
 };
 
 let add_stream = (stream: t('state), incr: t('state)): t('state) => {
+  ...incr,
   entries:
     Id.Map.union(
       (_, _old, new_) => Some(new_),
@@ -146,16 +154,27 @@ let copy_descendant_entries =
 
 let equal_projection = (a: projection, b: projection): bool =>
   switch (a, b) {
+  | (TupleIndex(i1, n1), TupleIndex(i2, n2))
+  | (ListIndex(i1, n1), ListIndex(i2, n2)) =>
+    Int.equal(i1, i2) && Int.equal(n1, n2)
+  | (ConsHead, ConsHead)
+  | (ConsTail, ConsTail) => true
+  | (ConstructorArg(c1), ConstructorArg(c2)) => String.equal(c1, c2)
+  | (TupleLabel(l1), TupleLabel(l2)) => Option.equal(String.equal, l1, l2)
   | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
-  | (Ascribed(_), _)
-  | (_, Ascribed(_)) => false
-  | _ => a == b
+  | (TupleIndex(_), _)
+  | (ListIndex(_), _)
+  | (ConsHead, _)
+  | (ConsTail, _)
+  | (ConstructorArg(_), _)
+  | (TupleLabel(_), _)
+  | (Ascribed(_), _) => false
   };
 
 let equal_provenance = (a: provenance, b: provenance): bool =>
   Id.equal(a.source, b.source)
   && List.equal(equal_projection, a.path, b.path)
-  && a.flag == b.flag;
+  && Poly.equal(a.flag, b.flag);
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
   Maps.StringMap.map(
@@ -174,6 +193,7 @@ let is_runtime_dependency = EvalInfo.is_runtime_dependency;
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(
+    ~f=
     (projected, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         projected;
@@ -183,13 +203,14 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
         | None => projected
         };
       },
-    empty_reuse_map,
+    ~init=empty_reuse_map,
     CoCtx.to_list(co_ctx),
   );
 
 let reuse_map_for_co_ctx =
     (reuse_map: reuse_map, co_ctx: CoCtx.t): option(reuse_map) =>
   List.fold_left(
+    ~f=
     (acc, (name, _)) =>
       if (!is_runtime_dependency(name)) {
         acc;
@@ -203,7 +224,7 @@ let reuse_map_for_co_ctx =
           }
         };
       },
-    Some(empty_reuse_map),
+    ~init=Some(empty_reuse_map),
     CoCtx.to_list(co_ctx),
   );
 
@@ -212,6 +233,7 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   env
   |> Environment.to_list
   |> List.fold_left(
+       ~f=
        (acc, (name, _)) =>
          Maps.StringMap.add(
            name,
@@ -222,13 +244,13 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
            },
            acc,
          ),
-       empty_reuse_map,
+       ~init=empty_reuse_map,
      );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
   List.fold_left(
-    (acc, name) => Maps.StringMap.remove(name, acc),
-    reuse_map,
+    ~f=(acc, name) => Maps.StringMap.remove(name, acc),
+    ~init=reuse_map,
     Pat.bound_vars(pat),
   );
 
@@ -273,17 +295,17 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Tuple(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([TupleIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([TupleIndex(arity, i), ...path], p))
+      |> List.concat;
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
-      |> List.mapi((i, p) => go([ListIndex(arity, i), ...path], p))
-      |> List.flatten;
+      |> List.mapi(~f=(i, p) => go([ListIndex(arity, i), ...path], p))
+      |> List.concat;
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat) |> List.to_seq |> Maps.StringMap.of_seq;
+  go([], pat) |> Maps.StringMap.of_list;
 };
 
 let with_pat_provenance =
@@ -315,17 +337,10 @@ let reuse_check =
     : option(entry('state)) => {
   open OptUtil.Syntax;
 
-  let* () = OptUtil.some_if(call_stack == [] && !is_empty(prev), ());
+  let* () =
+    OptUtil.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
-
-  let elab_same =
-    Exp.fast_equal(entry.prev_elab, info.elab_term)
-    /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
-       operator @@ -> @@@) change display and stuck-application semantics,
-       so they must invalidate reuse too */
-    && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
-  let* () = OptUtil.some_if(elab_same, ());
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);
   let* () =
@@ -333,6 +348,18 @@ let reuse_check =
       equal_reuse_map(entry.prev_reuse_map, current_reuse_map),
       (),
     );
+
+  let elab_same =
+    Exp.fast_equal(entry.prev_elab, info.elab_term)
+    /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
+       operator @@ -> @@@) change display and stuck-application semantics,
+       so they must invalidate reuse too */
+    && List.equal(
+         Option.equal(String.equal),
+         Exp.lexeme_trace(entry.prev_elab),
+         Exp.lexeme_trace(info.elab_term),
+       );
+  let* () = OptUtil.some_if(elab_same, ());
 
   let* () =
     OptUtil.some_if(

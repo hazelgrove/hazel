@@ -13,7 +13,12 @@ let repeat_hits = () => {
       term,
     );
   let first = run();
-  check(bool, "the cached result comes back", true, run() === first);
+  check(
+    bool,
+    "the cached result comes back",
+    true,
+    phys_equal(run(), first),
+  );
 };
 
 /* a frame that only brings values (a worker result) reuses the program's
@@ -52,10 +57,10 @@ let result_frame_reuses = () => {
     bool,
     "an edit computes",
     true,
-    outcome() == Some(Web.PerfMetrics.Recomputed),
+    Poly.equal(outcome(), Some(Web.PerfMetrics.Recomputed)),
   );
   let _ = Web.PerfMetrics.time_frame(() => calc(~is_edited=false, m));
-  let reused = outcome() == Some(Web.PerfMetrics.Cached);
+  let reused = Poly.equal(outcome(), Some(Web.PerfMetrics.Cached));
   Web.PerfMetrics.sync(~enabled=false);
   check(bool, "a result reuses", true, reused);
 };

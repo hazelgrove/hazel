@@ -8,7 +8,7 @@ open Test_Evaluator_Prelude;
 let typ = (src: string): Typ.t =>
   switch (
     Haz3lcore.Parser.to_segment(src, ~root=Typ)
-    |> Option.map(Haz3lcore.MakeTerm.for_projection)
+    |> Option.map(~f=Haz3lcore.MakeTerm.for_projection)
   ) {
   | Some(Some(Typ(t))) => t
   | _ => failf("could not parse the type `%s`", src)
@@ -26,7 +26,7 @@ let tests = (
       () => {
         let v = parse_and_evaluate({|[(a = 1, b = "x"), (a = 2, b = "y")]|});
         let t = typ("[(a = Int, b = String)]");
-        check(bool, "the same object", true, push(v, t) === v);
+        check(bool, "the same object", true, phys_equal(push(v, t), v));
       },
     ),
     test_case(
@@ -35,7 +35,7 @@ let tests = (
       () => {
         let v = parse_and_evaluate("[fun x -> x + 1]");
         let t = typ("[Int -> Int]");
-        check(bool, "a new value", false, push(v, t) === v);
+        check(bool, "a new value", false, phys_equal(push(v, t), v));
       },
     ),
   ],

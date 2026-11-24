@@ -30,9 +30,9 @@ let category_class = (c: category): string =>
 let max_free_text_len = 40;
 
 let truncate_free_text = (s: string): string => {
-  let s = String.trim(s);
+  let s = String.strip(s);
   if (String.length(s) > max_free_text_len) {
-    String.sub(s, 0, max_free_text_len) ++ "…";
+    String.sub(s, ~pos=0, ~len=max_free_text_len) ++ "…";
   } else {
     s;
   };
@@ -49,7 +49,7 @@ let join_paths = (paths: list(string)): string =>
 
 let get_field = (args: API.Json.t, key: string): option(API.Json.t) =>
   switch (args) {
-  | `Assoc(pairs) => List.assoc_opt(key, pairs)
+  | `Assoc(pairs) => List.Assoc.find(pairs, key, ~equal=String.equal)
   | _ => None
   };
 
@@ -65,9 +65,10 @@ let get_string_list_field =
   | Some(`List(items)) =>
     let strs =
       List.filter_map(
-        fun
-        | `String(s) => Some(s)
-        | _ => None,
+        ~f=
+          fun
+          | `String(s) => Some(s)
+          | _ => None,
         items,
       );
     Some(strs);
@@ -104,7 +105,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   let edit = (~persists: bool) => {
     let path =
       List.find_map(
-        key => get_string_field(args, key),
+        ~f=key => get_string_field(args, key),
         ["target", "before", "after", "first_in", "last_in"],
       );
     Some({
@@ -166,25 +167,25 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       | Some(task_json) => get_string_field(task_json, "title")
       | None => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "add_new_subtask_to_active_task" =>
     let title =
       switch (get_field(args, "subtask")) {
       | Some(st_json) => get_string_field(st_json, "title")
       | None => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "set_active_task"
   | "set_active_subtask" =>
     let title = get_string_field(args, "title");
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | "mark_active_subtask_complete" =>
     let summary = get_string_field(args, "summary");
-    workbench(~signifier=Option.map(truncate_free_text, summary));
+    workbench(~signifier=Option.map(~f=truncate_free_text, summary));
   | "mark_active_task_failed"
   | "mark_active_subtask_failed" =>
     let reason = get_string_field(args, "reason");
-    workbench(~signifier=Option.map(truncate_free_text, reason));
+    workbench(~signifier=Option.map(~f=truncate_free_text, reason));
   | "reorder_subtasks_in_active_task" =>
     let count =
       switch (get_string_list_field(args, "subtasks_ordering")) {
@@ -208,11 +209,99 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       | (None, Some(d)) => Some(d)
       | (None, None) => None
       };
-    workbench(~signifier=Option.map(truncate_free_text, sig_text));
+    workbench(~signifier=Option.map(~f=truncate_free_text, sig_text));
   | "delete_task"
   | "delete_subtask" =>
     let title = get_string_field(args, "title");
-    workbench(~signifier=Option.map(truncate_free_text, title));
+    workbench(~signifier=Option.map(~f=truncate_free_text, title));
   | _ => None
   };
+};
+
+/* long text by its size */
+let lines = (s: string): string =>
+  Haz3lcore.CompositionView.plural(
+    List.length(String.split(~on='\n', String.strip(s))),
+    "line",
+    "lines",
+  );
+
+/* any tool's arguments, briefly: short fields inline, text by its size */
+let generic_fields = (args: API.Json.t): list(string) =>
+  switch (args) {
+  | `Assoc(fields) =>
+    List.filter_map(
+      ~f=
+        ((k, v): (string, API.Json.t)) =>
+          switch (v) {
+          | `String(s) when String.contains(String.strip(s), '\n') =>
+            Some(k ++ ": " ++ lines(s))
+          | `String(s) => Some(k ++ ": " ++ truncate_free_text(s))
+          | `Int(_)
+          | `Float(_)
+          | `Bool(_) => Some(k ++ ": " ++ API.Json.to_string(v))
+          | `List(_) =>
+            switch (get_string_list_field(args, k)) {
+            | Some(ss) when !List.is_empty(ss) =>
+              Some(k ++ ": " ++ join_paths(ss))
+            | _ => None
+            }
+          | `Assoc(_) =>
+            switch (get_string_field(v, "title")) {
+            | Some(t) => Some(k ++ ": " ++ truncate_free_text(t))
+            | None => Some(k ++ {js|: {…}|js})
+            }
+          | _ => None
+          },
+      fields,
+    )
+  | _ => []
+  };
+
+/* a call on one line, e.g. [insert · after "area" · code: 3 lines]: an
+   edit by its target and place, a rename with its new name, another known
+   tool by its signifier, any other by [generic_fields] */
+let line = (tc: OpenRouter.Reply.Model.tool_call): string => {
+  let str = get_string_field(tc.args);
+  let place =
+    List.find_map(
+      ~f=
+        key =>
+          Option.map(
+            ~f=
+              p =>
+                String.map(~f=c => Char.equal(c, '_') ? ' ' : c, key)
+                ++ " \""
+                ++ p
+                ++ "\"",
+            str(key),
+          ),
+      ["before", "after", "first_in", "last_in"],
+    );
+  let parts =
+    switch (tc.name) {
+    | "rename" =>
+      let target =
+        Option.value(str("target"), ~default="")
+        ++ Option.value_map(str("name"), ~default="", ~f=n => ": " ++ n);
+      [target ++ {js| → |js} ++ Option.value(str("to"), ~default="")];
+    | "insert"
+    | "replace"
+    | "delete"
+    | "move" =>
+      List.filter_map(
+        ~f=x => x,
+        [
+          str("target"),
+          place,
+          Option.map(~f=c => "code: " ++ lines(c), str("code")),
+        ],
+      )
+    | _ =>
+      switch (of_tool_call(tc)) {
+      | Some({signifier, _}) => Option.to_list(signifier)
+      | None => generic_fields(tc.args)
+      }
+    };
+  String.concat(~sep={js| · |js}, [tc.name, ...parts]);
 };

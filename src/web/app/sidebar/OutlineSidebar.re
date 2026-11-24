@@ -1,5 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
+open Poly;
 
 /* the collapsible module/definition outline. a click jumps; the cell
    button toggles a definition in the focus stack (stacked cells replace
@@ -156,13 +157,13 @@ type handlers = {
   toggle_run: Language.Id.t => Effect.t(unit),
   toggle_collapse: OutlineTree.path => Effect.t(unit),
   zoom_to: option(Language.Id.t) => Effect.t(unit),
-  /* up to the level above (true), or back into the slide */
-  go_above: bool => Effect.t(unit),
-  above_chip: Effect.t(unit),
   zoom_in: Language.Id.t => Effect.t(unit),
   show_whole: bool => Effect.t(unit),
   discard: Effect.t(unit),
   zoom_out: Effect.t(unit),
+  /* up to the level above (true), or back into the slide */
+  go_above: bool => Effect.t(unit),
+  above_chip: Effect.t(unit),
   get_cursor: unit => option(OutlineTree.path),
   set_cursor: option(OutlineTree.path) => Effect.t(unit),
   focused: Effect.t(unit),
@@ -235,7 +236,7 @@ module FieldFocus =
             !Js.Opt.test(active)
             || active ==
             Js.Unsafe.coerce(Dom_html.document)##.body
-            || Js.to_string(active##.id) == "page"
+            || String.equal(Js.to_string(active##.id), "page")
             || Js.Opt.test(
                  active##closest(
                    Js.string("#outline-sidebar .outline-body"),
@@ -319,7 +320,7 @@ module HintPlace =
           [|Js_of_ocaml.Js.Unsafe.inject(el)|],
         ),
       );
-    let init = ((), _) => ref(Option.none);
+    let init = ((), _) => ref(Stdlib.Option.none);
     let on_mount = ((), stop, el) => {
       let off =
         Js_of_ocaml.Js.Unsafe.meth_call(
@@ -331,7 +332,7 @@ module HintPlace =
       later(el);
     };
     let update = (~old_input as (), ~new_input as (), _, el) => later(el);
-    let destroy = ((), stop, _) => Option.iter(f => f(), stop^);
+    let destroy = ((), stop, _) => Option.iter(~f=f => f(), stop^);
   });
 
 /* why the line's name can't be saved, in a bubble once a save has tried
@@ -342,7 +343,8 @@ let hint = (error: option(string)): Node.t =>
   span(
     ~attrs=[
       clss(
-        ["outline-edit-hint"] @ (error == None ? [] : ["outline-hint-on"]),
+        ["outline-edit-hint"]
+        @ (Option.is_none(error) ? [] : ["outline-hint-on"]),
       ),
       Attr.create_hook("outline-hint-place", HintPlace.create()),
       /* its text is selectable: a press there is its own, not the line's
@@ -371,7 +373,7 @@ let edit_hint = (t: E.t): Node.t => hint(t.error);
 /* [t] as typed: a refusal shown follows it, gone once the name will do */
 let rechecked = (~check: E.t => option(string), t: E.t): E.t => {
   ...t,
-  error: Option.bind(t.error, _ => check(t)),
+  error: Option.bind(t.error, ~f=_ => check(t)),
 };
 
 /* the field a row's name is typed in, after any kind keyword typed first,
@@ -386,8 +388,8 @@ let edit_field = (~props: props, ~on: handlers, t: E.t, typed: string) => {
         clss(
           ["outline-edit-input"]
           @ (
-            props.check(t) == None
-            || t.error == None
+            Option.is_none(props.check(t))
+            || Option.is_none(t.error)
             && E.kind_pending(typed)
               ? [] : ["outline-invalid"]
           ),
@@ -465,7 +467,7 @@ let run_statuses =
     )
     : list(option(TestStatus.t)) =>
   List.map(
-    (c: OutlineTree.node) => Option.bind(c.o_test, test_status),
+    ~f=(c: OutlineTree.node) => Option.bind(c.o_test, ~f=test_status),
     n.o_children,
   );
 
@@ -484,9 +486,9 @@ let test_glyph =
     | Indet => ({js|?|js}, "ol-indet")
     };
   switch (n.o_kind) {
-  | KTest => Option.map(of_status, Option.bind(n.o_test, test_status))
+  | KTest => Option.map(~f=of_status, Option.bind(n.o_test, ~f=test_status))
   | KTests =>
-    switch (List.filter_map(Fun.id, run_statuses(~test_status, n))) {
+    switch (List.filter_map(~f=Fun.id, run_statuses(~test_status, n))) {
     | [] => None
     | sts => Some(of_status(TestStatus.join_all(sts)))
     }
@@ -499,9 +501,9 @@ let test_glyph =
    fail. None: no results yet */
 let run_tally =
     (statuses: list(option(TestStatus.t))): option((string, bool)) => {
-  let count = s => List.length(List.filter((==)(Some(s)), statuses));
+  let count = s => List.length(List.filter(~f=(==)(Some(s)), statuses));
   switch (count(TestStatus.Fail)) {
-  | _ when List.for_all(Option.is_none, statuses) => None
+  | _ when List.for_all(~f=Option.is_none, statuses) => None
   | 0 =>
     Some((
       Printf.sprintf(
@@ -542,12 +544,12 @@ let resize_attrs: list(Attr.t) = [
           ++ "px",
         )
       );
-    let up = ref(Option.none);
+    let up = ref(Stdlib.Option.none);
     up :=
       Some(
         listen("pointerup", _ => {
           Js_of_ocaml.Dom_html.removeEventListener(move);
-          Option.iter(Js_of_ocaml.Dom_html.removeEventListener, up^);
+          Option.iter(~f=Js_of_ocaml.Dom_html.removeEventListener, up^);
         }),
       );
     Effect.Prevent_default;
@@ -578,28 +580,45 @@ let stop = eff =>
   Effect.Many([Effect.Prevent_default, Effect.Stop_propagation, eff]);
 
 let in_stack = (props: props, id: Language.Id.t): bool =>
-  List.mem_assoc(id, props.focused_entries);
+  List.Assoc.mem(props.focused_entries, id, ~equal=Poly.equal);
 
 /* an open cell's row shows its header's live text */
 let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
   switch (
-    Option.bind(n.o_id, id => List.assoc_opt(id, props.focused_entries))
+    Option.bind(n.o_id, ~f=id =>
+      List.Assoc.find(props.focused_entries, id, ~equal=Poly.equal)
+    )
   ) {
-  | Some(Some(live)) => {
+  | Some(Some(live)) when live != n.o_label => {
       ...n,
       o_label: live,
+      o_more: [],
     }
   | _ => n
   };
+
+/* a hinted test's name, past 24 characters cut short */
+let clipped = (s: string): string => {
+  let gs = Util.HazelString.graphemes(s);
+  Array.length(gs) <= 24
+    ? s
+    : String.concat(~sep="", Array.to_list(Array.sub(gs, ~pos=0, ~len=23)))
+      ++ {js|…|js};
+};
 
 /* documentation slides are named "Folder / Name": the name */
 let short_name = (s: string): string => {
   let n = String.length(s);
   let rec last = (i, found) =>
     i + 3 > n
-      ? found : last(i + 1, String.sub(s, i, 3) == " / " ? Some(i) : found);
+      ? found
+      : last(
+          i + 1,
+          String.equal(String.sub(s, ~pos=i, ~len=3), " / ")
+            ? Some(i) : found,
+        );
   switch (last(0, None)) {
-  | Some(i) => String.sub(s, i + 3, n - i - 3)
+  | Some(i) => String.sub(s, ~pos=i + 3, ~len=n - i - 3)
   | None => s
   };
 };
@@ -695,7 +714,7 @@ let level_rows_view = (~on: handlers, level: level): list(Node.t) =>
 /* a row's click: with a stack open, add or move to its cell (a jump would
    target the hidden master) */
 let show = (props: props, on: handlers, id: Language.Id.t): Effect.t(unit) =>
-  props.focused_entries != [] ? on.focus(id) : on.jump(id);
+  !List.is_empty(props.focused_entries) ? on.focus(id) : on.jump(id);
 
 /* why a row opens no cell, if it doesn't; a tests container's run goes by
    its first test */
@@ -705,8 +724,8 @@ let refusal =
   | (Some(id), _) => props.refusal(id)
   | (None, KTests) =>
     Option.bind(
-      List.find_map((c: OutlineTree.node) => c.o_id, n.o_children),
-      props.refusal,
+      List.find_map(~f=(c: OutlineTree.node) => c.o_id, n.o_children),
+      ~f=props.refusal,
     )
   | (None, _) => None
   };
@@ -716,13 +735,16 @@ let refusal =
 let open_close =
     (props: props, on: handlers, n: OutlineTree.node)
     : option(unit => Effect.t(unit)) => {
-  let opens = refusal(props, n) == None;
+  let opens = Option.is_none(refusal(props, n));
   switch (n.o_id, n.o_kind) {
   | (Some(id), _) when in_stack(props, id) || opens =>
     Some(() => on.toggle(id))
   | (None, KTests) =>
-    switch (List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children)) {
-    | [first, ..._] as kids when opens || List.exists(in_stack(props), kids) =>
+    switch (
+      List.filter_map(~f=(c: OutlineTree.node) => c.o_id, n.o_children)
+    ) {
+    | [first, ..._] as kids
+        when opens || List.exists(~f=in_stack(props), kids) =>
       Some(() => on.toggle_run(first))
     | _ => None
     }
@@ -732,7 +754,7 @@ let open_close =
 
 /* a tests label's menu: its first and last tests */
 let run_menu = (n: OutlineTree.node, ~expanded: bool): option(E.menu_at) =>
-  switch (List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children)) {
+  switch (List.filter_map(~f=(c: OutlineTree.node) => c.o_id, n.o_children)) {
   | [first, ..._] as ids =>
     Some(On_run(first, Util.ListUtil.last(ids), expanded))
   | [] => None
@@ -741,7 +763,7 @@ let run_menu = (n: OutlineTree.node, ~expanded: bool): option(E.menu_at) =>
 /* the editor shows the item at a line the caret goes to */
 let follow = (e: option(E.entry)) =>
   Effect.of_sync_fun(
-    () => OutlineFollow.wanted := Option.bind(e, E.shown),
+    () => OutlineFollow.wanted := Option.bind(e, ~f=E.shown),
     (),
   );
 
@@ -817,7 +839,7 @@ let caret_entry = (d: drawn): E.entry => d.d_lines[d.d_at];
 
 /* the row a drawn caret is on, if it's on a row */
 let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
-  switch (Option.map(caret_entry, d)) {
+  switch (Option.map(~f=caret_entry, d)) {
   | Some(Of_row(r)) => Some(r.r_path)
   | _ => None
   };
@@ -827,7 +849,7 @@ let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
    while the name won't do ([invalid]) */
 let new_row_view =
     (~live: option(E.live), ~flash: int, ~invalid: bool, t: E.t): Node.t => {
-  let kw = Option.fold(~none="", ~some=(f: E.fresh) => f.f_kw, t.fresh);
+  let kw = Option.value_map(t.fresh, ~default="", ~f=(f: E.fresh) => f.f_kw);
   let line =
     switch (t.line) {
     | New(a, p) => [Attr.create("data-line", E.new_key(a, p))]
@@ -871,7 +893,7 @@ let new_row_view =
           edit_hint(t),
         ]
         @ (
-          kw == ""
+          String.equal(kw, "")
             ? [] : [span(~attrs=[clss(["outline-edit-kw"])], [text(kw)])]
         )
         @ [
@@ -907,7 +929,7 @@ let new_row_of = (~props: props, d: drawn): Node.t => {
   let kind_pending =
     switch (props.live, d.d_text.fresh) {
     | (Some(l), Some(f)) =>
-      d.d_text.error == None
+      Option.is_none(d.d_text.error)
       && fst(E.new_kind(f.f_kw)) == OutlineTree.KConst
       && E.kind_pending(l.l_name)
     | _ => false
@@ -915,7 +937,7 @@ let new_row_of = (~props: props, d: drawn): Node.t => {
   new_row_view(
     ~live=props.live,
     ~flash=props.flash,
-    ~invalid=props.check(d.d_text) != None && !kind_pending,
+    ~invalid=Option.is_some(props.check(d.d_text)) && !kind_pending,
     d.d_text,
   );
 };
@@ -936,10 +958,10 @@ let rec node_view =
   let (has_err, has_roll_err, stacked) =
     switch (n.o_id) {
     | Some(id) =>
-      let has_err = List.mem(id, props.error_items);
+      let has_err = List.mem(props.error_items, id, ~equal=Poly.equal);
       (
         has_err,
-        !has_err && List.mem(id, props.error_subtree),
+        !has_err && List.mem(props.error_subtree, id, ~equal=Poly.equal),
         in_stack(props, id),
       );
     | None => (false, false, false)
@@ -956,18 +978,18 @@ let rec node_view =
     r_node: n,
     r_name: name,
     r_parent: None,
-    r_expanded: n.o_children != [] && !props.folded(row_path, n),
+    r_expanded: !List.is_empty(n.o_children) && !props.folded(row_path, n),
   };
   /* text mode's caret on this row */
   let caret =
     switch (tm) {
-    | Some(d) when caret_path(tm) == Some(row_path) => Some(d)
+    | Some(d) when Poly.equal(caret_path(tm), Some(row_path)) => Some(d)
     | _ => None
     };
   let cursor =
     switch (tm) {
-    | Some(_) => caret != None
-    | None => props.cursor == Some(row_path)
+    | Some(_) => Option.is_some(caret)
+    | None => Poly.equal(props.cursor, Some(row_path))
     };
   /* a double-click on the name types it */
   let name_view = label =>
@@ -979,7 +1001,7 @@ let rec node_view =
             ? [
               Attr.on_double_click(evt =>
                 stop(
-                  on.text.get() == None
+                  Option.is_none(on.text.get())
                     ? start_text(~on, ~col=click_col(evt, name), row)
                     : Effect.Ignore,
                 )
@@ -998,7 +1020,7 @@ let rec node_view =
      hides (open, the rows show them), so it also says the run is folded */
   let tally =
     switch (
-      n.o_kind == KTests && !row.r_expanded
+      Poly.equal(n.o_kind, KTests) && !row.r_expanded
         ? run_tally(run_statuses(~test_status=props.test_status, n)) : None
     ) {
     | Some((s, failing)) => [
@@ -1048,16 +1070,28 @@ let rec node_view =
     };
   let label =
     div(
+      /* a hinted test's whole name, which its row may clip; every name
+         a definition binds */
       ~attrs=
-        [
+        Option.to_list(Option.map(~f=Attr.title, n.o_hint))
+        @ (
+          List.is_empty(n.o_more)
+            ? []
+            : [
+              Attr.title(
+                String.concat(~sep=", ", [n.o_label, ...n.o_more]),
+              ),
+            ]
+        )
+        @ [
           clss(
             ["outline-label", kind_cls(n.o_kind)]
             @ (cursor ? ["outline-cursor"] : [])
-            @ (caret != None ? ["outline-editing"] : [])
+            @ (Option.is_some(caret) ? ["outline-editing"] : [])
             /* a refusal flashes the caret's line, or in row mode the
                cursor's row (a name dropped as text mode ended) */
             @ (
-              caret != None || tm == None && cursor
+              Option.is_some(caret) || Option.is_none(tm) && cursor
                 ? flash_cls(props.flash) : []
             )
             @ (stacked ? ["outline-focused"] : [])
@@ -1140,7 +1174,7 @@ let rec node_view =
             [clss(["outline-glyph"])]
             /* without arrows a branch's sigil folds it */
             @ (
-              !props.arrows && n.o_children != []
+              !props.arrows && !List.is_empty(n.o_children)
                 ? [
                   Attr.on_click(evt =>
                     stop(
@@ -1191,7 +1225,8 @@ let rec node_view =
       ]
       @ (
         switch (tm, props.refused) {
-        | (None, Some((id, why))) when n.o_id == Some(id) => [
+        | (None, Some((id, why)))
+            when Option.equal(Language.Id.equal, n.o_id, Some(id)) => [
             hint(Some(why)),
           ]
         | _ => []
@@ -1211,7 +1246,8 @@ let rec node_view =
             span(~attrs=[clss(["outline-ghost-caret"])], []),
             ...words(n, name_view),
           ]
-        | (None, Some((id, kw))) when n.o_id == Some(id) => [
+        | (None, Some((id, kw)))
+            when Option.equal(Language.Id.equal, n.o_id, Some(id)) => [
             /* the keyword typed to make it a type or module, leaving */
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
             name_view(n.o_label),
@@ -1231,11 +1267,15 @@ let rec node_view =
       @ (
         switch (n.o_id) {
         | _ when !props.stack_controls => []
-        | None when n.o_kind == KTests =>
+        | None when Poly.equal(n.o_kind, KTests) =>
           let kid_ids =
-            List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children);
+            List.filter_map(
+              ~f=(c: OutlineTree.node) => c.o_id,
+              n.o_children,
+            );
           let all_pinned =
-            kid_ids != [] && List.for_all(in_stack(props), kid_ids);
+            !List.is_empty(kid_ids)
+            && List.for_all(~f=in_stack(props), kid_ids);
           cell_button(
             ~cls=all_pinned ? ["outline-btn-on"] : [],
             ~title=
@@ -1247,7 +1287,8 @@ let rec node_view =
             ~cls=
               stacked
                 ? ["outline-btn-on"]
-                : List.mem(id, props.pinned) ? ["outline-btn-parked"] : [],
+                : List.mem(props.pinned, id, ~equal=Poly.equal)
+                    ? ["outline-btn-parked"] : [],
             ~title=stacked ? "close this cell" : "open in the editor stack",
           )
         | None => []
@@ -1260,7 +1301,8 @@ let rec node_view =
     switch (tm) {
     | Some(d) =>
       switch (caret_entry(d)) {
-      | Of_new(a, (First | Last) as place) when n.o_id == Some(a) =>
+      | Of_new(a, (First | Last) as place)
+          when Option.equal(Language.Id.equal, n.o_id, Some(a)) =>
         Some((place, new_row_of(~props, d)))
       | _ => None
       }
@@ -1298,7 +1340,7 @@ let rec node_view =
                   /* the chevron too: the summary would take focus
                      itself */
                   Attr.on_mousedown(_ =>
-                    tm == None
+                    Option.is_none(tm)
                       ? take_cursor(on, Some(row_path))
                       : Effect.Prevent_default
                   ),
@@ -1315,7 +1357,7 @@ let rec node_view =
           | (Some((_, row)), Some((init, trail)))
               when
                 Util.ListUtil.last_opt(n.o_children)
-                |> Option.map((c: OutlineTree.node) => c.o_kind)
+                |> Option.map(~f=(c: OutlineTree.node) => c.o_kind)
                 == Some(KTrail) =>
             init @ [row, trail]
           | (Some((_, row)), _) => kids @ [row]
@@ -1331,11 +1373,16 @@ let rec node_view =
    for what they are, set apart from real names */
 and words = (n: OutlineTree.node, name_view) =>
   switch (n.o_kind) {
-  | KTrail when n.o_label == "" => [
+  | KTrail when String.equal(n.o_label, "") => [
       span(~attrs=[clss(["outline-synthetic"])], [text("result")]),
     ]
   | KTests => [
       span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
+    ]
+  | KTest when Option.is_some(n.o_hint) => [name_view(clipped(n.o_label))]
+  | _ when !List.is_empty(n.o_more) => [
+      name_view(n.o_label),
+      span(~attrs=[clss(["outline-more"])], [text({js|…|js})]),
     ]
   | _ => [name_view(n.o_label)]
   }
@@ -1346,18 +1393,19 @@ and fold = (~on: handlers, ~tm: option(drawn), row: visible_row) => {
   let hides =
     row.r_expanded
     && (
-      switch (Option.map(caret_entry, tm)) {
+      switch (Option.map(~f=caret_entry, tm)) {
       | Some(Of_row(r)) => E.under(row.r_path, r.r_path)
       | Some(Of_new(a, _)) =>
         switch (tm) {
         | Some(d) =>
           Array.exists(
+            d.d_lines,
+            ~f=
             fun
             | E.Of_row(r) =>
-              r.r_node.o_id == Some(a)
+                Option.equal(Language.Id.equal, r.r_node.o_id, Some(a))
               && (r.r_path == row.r_path || E.under(row.r_path, r.r_path))
             | Of_new(_) => false,
-            d.d_lines,
           )
         | None => false
         }
@@ -1391,6 +1439,7 @@ and rows_view =
     : list(Node.t) => {
   let fresh = fresh_id(on);
   List.concat_map(
+    ~f=
     ((n: OutlineTree.node, seg)) =>
       /* a bare statement (`e;`) is no definition: no row */
       n.o_id != None && n.o_id == fresh || n.o_kind == KStmt
@@ -1407,7 +1456,9 @@ and new_row_after =
   switch (tm) {
   | Some(d) =>
     switch (caret_entry(d)) {
-    | Of_new(a, Below) when n.o_id == Some(a) => [new_row_of(~props, d)]
+    | Of_new(a, Below) when Option.equal(Language.Id.equal, n.o_id, Some(a)) => [
+        new_row_of(~props, d),
+      ]
     | _ => []
     }
   | None => []
@@ -1435,15 +1486,27 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
     );
   let test = (op, id) =>
     Item("New test below", None, () => on.text.op(op, id));
-  switch (at) {
-  | On_run(first, last, expanded) => [
-      expanded ? test(NewTestAbove, first) : test(NewTestBelow, last),
-    ]
-  | On_item(id, kind) =>
+  /* an item's own ops */
+  let ops = id => {
     let op = (~keys=?, o, label) =>
       Item(label, keys, () => on.text.op(o, id));
+    [
+      Divider,
+      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
+      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
+      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
+      Divider,
+      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
+    ];
+  };
+  switch (at) {
+  /* a run of one's label acts on its test */
+  | On_run(first, last, expanded) =>
+    [expanded ? test(NewTestAbove, first) : test(NewTestBelow, last)]
+    @ (first == last ? ops(first) : [])
+  | On_item(id, kind) =>
     (
-      kind == KModule
+      Poly.equal(kind, KModule)
         ? [
           Item(
             "Zoom in",
@@ -1460,21 +1523,15 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
       new_row(id, "New type below", "type "),
       new_row(id, "New module below", "module "),
     ]
-    @ (kind == KTest ? [test(NewTestBelow, id)] : [])
-    @ [
-      Divider,
-      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
-      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
-      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
-      Divider,
-      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
-    ];
+    @ (Poly.equal(kind, KTest) ? [test(NewTestBelow, id)] : [])
+    @ ops(id)
   };
 };
 
 /* the rows that act, in order: the keyboard's selection counts these */
 let menu_items = (rows: list(menu_row)) =>
   List.filter_map(
+    ~f=
     fun
     | Item(_, _, act) => Some(act)
     | Divider => None,
@@ -1492,8 +1549,7 @@ let menu_view =
     )
     : list(Node.t) => {
   let (_, nodes) =
-    List.fold_left_map(
-      (i, r) =>
+    List.fold_map(rows, ~init=0, ~f=(i, r) =>
         switch (r) {
         | Item(label, keys, act) => (
             i + 1,
@@ -1518,20 +1574,15 @@ let menu_view =
             ),
           )
         | Divider => (i, div(~attrs=[clss(["menu-divider"])], []))
-        },
-      0,
-      rows,
+      }
     );
   /* its height, for which way it opens: about 23px a row, 8 a divider */
   let height =
-    List.fold_left(
-      (h, r) =>
+    List.fold(rows, ~init=0., ~f=(h, r) =>
         switch (r) {
         | Item(_) => h +. 23.
         | Divider => h +. 8.
-        },
-      0.,
-      rows,
+      }
     );
   let dir =
     Util.Menu.direction_of(
@@ -1595,6 +1646,7 @@ let text_lines =
     : option((array(E.entry), int, E.t)) => {
   let lines = E.lines(~text=Some(t), visible);
   Option.map(
+    ~f=
     at => {
       let line = E.line_of(lines[at]);
       (
@@ -1615,28 +1667,21 @@ let text_lines =
 /* the outline's keys: arrows move and fold, Page keys move a screenful,
    Enter shows, Space opens as a cell; Alt with arrows moves rows and
    zooms; ⌥F folds; ⌘D duplicates, ⌘⌫ deletes; Esc (or Alt+O) returns;
-   ⌘Enter, F2 type names (text mode) */
+   ⌘Enter, F2 type names (text mode). Each on its exact modifiers, ⌘ being
+   Ctrl off the Mac (E.press_of) */
 let keys =
     (~props: props, ~on: handlers, ~visible: array(visible_row), evt)
     : Effect.t(unit) => {
   let n = Array.length(visible);
   let idx =
-    Option.bind(on.get_cursor(), p =>
-      Array.find_index(r => r.r_path == p, visible)
+    Option.bind(on.get_cursor(), ~f=p =>
+      Array.findi(visible, ~f=(_, r) => r.r_path == p) |> Option.map(~f=fst)
     )
     |> Option.value(~default=-1);
   let target = (i): option(OutlineTree.path) =>
     i < 0 || n == 0 ? None : Some(visible[min(i, n - 1)].r_path);
   let go = i => on.set_cursor(target(i));
   let cur = idx >= 0 ? Some(visible[idx]) : None;
-  let k = Util.Key.mk(KeyDown, evt);
-  let key =
-    switch (k.key) {
-    | D(key)
-    | U(key) => key
-    };
-  let (code, alt, shift) = (k.code, k.alt == Down, k.shift == Down);
-  let meta = k.meta == Down || k.ctrl == Down;
   /* mid-composition (an IME's, a dead key's) the field has the key */
   let composing =
     Js_of_ocaml.Js.Optdef.case(
@@ -1644,6 +1689,13 @@ let keys =
       () => false,
       Js_of_ocaml.Js.to_bool,
     );
+  let press = E.press_of(~composing, Util.Key.mk(KeyDown, evt));
+  let key = press.key;
+  let (bare, cmd, alt) = (
+    E.only(press),
+    E.only(~meta=true, press),
+    E.only(~alt=true, press),
+  );
   let is_field = el =>
     Js_of_ocaml.Js.to_bool(
       el##.classList##contains(Js_of_ocaml.Js.string("outline-edit-input")),
@@ -1654,6 +1706,8 @@ let keys =
   let list_selection = () =>
     !is_field(target) && Util.JsUtil.selection_within(rows);
   let id_of = (r: visible_row) => r.r_node.o_id;
+  /* what the ops act on: a run of one's row, its test */
+  let item_of = (r: visible_row) => OutlineTree.item_of(r.r_node);
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at a row, as the editor opens its own */
   let open_menu = (r: visible_row) => {
@@ -1665,6 +1719,7 @@ let keys =
       | (None, _) => None
       };
     Option.map(
+      ~f=
       at => {
         let (x, y) =
           Option.value(
@@ -1677,95 +1732,90 @@ let keys =
     );
   };
   let nav_key = () =>
-    switch (key, alt, meta, cur) {
-    | (".", false, true, Some(r)) => open_menu(r)
-    | ("F10", false, false, Some(r)) when shift => open_menu(r)
-    | ("Escape", _, _, _) => Some(on.leave)
-    | _ when alt && code == "KeyO" => Some(on.leave)
+    switch (E.structural(press), key, cur) {
+    | (Some(Item(o)), _, Some(r)) =>
+      Option.map(~f=id => on.def_op(o, id), item_of(r))
+    | (Some(Item(_) | Menu), _, None) => None
     /* ⌥F folds, as the editor's Fold does */
-    | (_, true, false, _) when code == "KeyF" =>
+    | (Some(Fold), _, _) =>
       Some(
         switch (cur) {
-        | Some(r) when r.r_node.o_children != [] =>
+        | Some(r) when !List.is_empty(r.r_node.o_children) =>
           on.toggle_collapse(r.r_path)
         | _ => Effect.Ignore
         },
       )
-    | ("ArrowDown", false, false, _) =>
+    | (Some(Menu), _, Some(r)) => open_menu(r)
+    | (Some(Leave), _, _)
+    | (None, "Escape", _) => Some(on.leave)
+    | (None, "ArrowRight", Some(r)) when alt && is_module(r) =>
+      Option.map(~f=on.zoom_in, id_of(r))
+    /* out of the slide's top: the level above, if any */
+    | (None, "ArrowLeft", _)
+        when
+          alt
+          && List.is_empty(props.header.h_trail)
+          && Poly.(props.header.h_level != Plain) =>
+      Some(on.go_above(true))
+    | (None, "ArrowLeft", _) when alt => Some(on.zoom_out)
+    /* the cursor moves only once the delete lands (DefOp); text mode's
+       Delete is a character's */
+    | (None, "Delete", Some(r)) when bare =>
+      Option.map(~f=id => on.def_op(Delete, id), item_of(r))
+    | (None, _, _) when !bare => None
+    | (None, "ArrowDown", _) =>
       Some(idx + 1 < n ? go(idx + 1) : Effect.Ignore)
-    | ("ArrowUp", false, false, _) =>
-      Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
-    | ("Home", false, false, _) => Some(go(-1))
-    | ("End", false, false, _) => Some(go(n - 1))
-    | ("PageDown", false, false, _) =>
+    | (None, "ArrowUp", _) => Some(idx >= 0 ? go(idx - 1) : Effect.Ignore)
+    | (None, "Home", _) => Some(go(-1))
+    | (None, "End", _) => Some(go(n - 1))
+    | (None, "PageDown", _) =>
       Some(go(min(n - 1, idx + Util.JsUtil.outline_page_rows())))
-    | ("PageUp", false, false, _) =>
+    | (None, "PageUp", _) =>
       Some(
         go(idx > 0 ? max(0, idx - Util.JsUtil.outline_page_rows()) : (-1)),
       )
-    | ("ArrowRight", false, false, None) => Some(go(0))
-    | ("ArrowRight", false, false, Some(r)) =>
+    | (None, "ArrowRight", None) => Some(go(0))
+    | (None, "ArrowRight", Some(r)) =>
       Some(
-        r.r_node.o_children == []
+        List.is_empty(r.r_node.o_children)
           ? Effect.Ignore
           : r.r_expanded ? go(idx + 1) : on.toggle_collapse(r.r_path),
       )
-    | ("ArrowLeft", false, false, Some(r)) =>
+    | (None, "ArrowLeft", Some(r)) =>
       Some(
         r.r_expanded
           ? on.toggle_collapse(r.r_path) : on.set_cursor(r.r_parent),
       )
-    | ("Enter", false, false, None) =>
+    | (None, "Enter", None) =>
       Some(
         props.header.h_open > 0
           ? on.show_whole(true)
           : props.header.h_parked > 0 ? on.show_whole(false) : Effect.Ignore,
       )
-    | ("Enter", false, false, Some(r)) =>
+    | (None, "Enter", Some(r)) =>
       Some(
         switch (id_of(r)) {
         | Some(id) => show(props, on, id)
         | None => on.toggle_collapse(r.r_path)
         },
       )
-    | (" ", false, false, Some(r)) =>
+    | (None, " ", Some(r)) =>
       Some(
         switch (open_close(props, on, r.r_node)) {
         | Some(act) => act()
         | None => Effect.Ignore
         },
       )
-    | ("ArrowUp", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveUp, id), id_of(r))
-    | ("ArrowDown", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveDown, id), id_of(r))
-    | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
-      Option.map(on.zoom_in, id_of(r))
-    /* out of the slide's top: the level above, if any */
-    | ("ArrowLeft", true, false, _)
-        when props.header.h_trail == [] && props.header.h_level != Plain =>
-      Some(on.go_above(true))
-    | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
-    | (_, false, true, Some(r)) when code == "KeyD" =>
-      Option.map(id => on.def_op(Duplicate, id), id_of(r))
-    /* the cursor moves only once the delete lands (DefOp) */
-    | ("Backspace", false, true, Some(r))
-    | ("Delete", false, false, Some(r)) =>
-      Option.map(id => on.def_op(Delete, id), id_of(r))
-    | _ => None
+    | (None, _, _) => None
     };
   /* the level above navigates only: no menus, opens, moves or deletes,
      nothing above it, and ⌥→ from any row goes back into the slide */
   let above_key = () =>
-    switch (key, alt, meta) {
-    | (".", _, true)
-    | ("F10", _, _)
-    | (" ", _, _)
-    | ("ArrowUp" | "ArrowDown", true, _)
-    | ("ArrowLeft", true, _)
-    | ("Backspace" | "Delete", _, _) => Some(Effect.Ignore)
-    | (_, _, true) when code == "KeyD" => Some(Effect.Ignore)
-    | ("ArrowRight", true, false) => Some(on.go_above(false))
+    switch (E.structural(press), key) {
+    | (Some(Item(_) | Menu), _)
+    | (None, " " | "Backspace" | "Delete") => Some(Effect.Ignore)
+    | (None, "ArrowLeft") when alt => Some(Effect.Ignore)
+    | (None, "ArrowRight") when alt => Some(on.go_above(false))
     | _ => None
     };
   let row_key = () =>
@@ -1785,7 +1835,11 @@ let keys =
       /* a key (not a modifier) ends a selection in the list: the field
          takes the keys back, this one first */
       let modifier =
-        List.mem(key, ["Shift", "Alt", "Meta", "Control", "CapsLock"]);
+        List.mem(
+          ["Shift", "Alt", "Meta", "Control", "CapsLock"],
+          key,
+          ~equal=Poly.equal,
+        );
       let field =
         if (!modifier && list_selection()) {
           Util.JsUtil.clear_page_selection();
@@ -1808,16 +1862,6 @@ let keys =
       let (start, stop): (int, int) =
         in_field
           ? (field##.selectionStart, field##.selectionEnd) : (t'.col, t'.col);
-      let mac = Util.Os.is_mac^;
-      let press: E.press = {
-        key,
-        code,
-        alt,
-        meta: mac ? k.meta == Down : k.ctrl == Down,
-        ctrl: mac && k.ctrl == Down,
-        shift,
-        composing,
-      };
       let outcome =
         E.decide(
           ~lines,
@@ -1837,13 +1881,14 @@ let keys =
         switch (line) {
         | New(a, p) => Some(E.Of_new(a, p))
         | Row(_) =>
-          Array.find_opt(e => E.same_line(E.line_of(e), line), lines)
+          Array.find(lines, ~f=e => E.same_line(E.line_of(e), line))
         };
       /* the caret's line, where its own vanished, takes its place */
-      let relocated = t' === t ? Effect.Ignore : on.text.set(Some(t'));
+      let relocated =
+        phys_equal(t', t) ? Effect.Ignore : on.text.set(Some(t'));
       /* any key but ↑↓ forgets the column they aim for */
       let forget =
-        t'.col_target == None
+        Option.is_none(t'.col_target)
           ? Effect.Ignore
           : on.text.set(
               Some({
@@ -1862,7 +1907,11 @@ let keys =
       | Field => Own(Effect.Many([relocated, forget]))
       | Page =>
         Pass(
-          List.mem(key, ["Shift", "Alt", "Meta", "Control", "CapsLock"])
+          List.mem(
+            ["Shift", "Alt", "Meta", "Control", "CapsLock"],
+            key,
+            ~equal=Poly.equal,
+          )
             ? Effect.Ignore : Effect.Many([relocated, forget, focus_rows]),
         )
       | Swallow => Act(Effect.Many([relocated, forget]))
@@ -1970,22 +2019,23 @@ let keys =
       | Undo(line, col) => Pass(go(~discard=true, line, col, None))
       };
     };
-  /* a thunk: building a key's effect can move the cursor at once, so
-     keys the menu takes must not build it */
-  let act = (): verdict =>
-    switch (on.text.get(), key, meta, cur) {
-    /* the browser copies it */
-    | (Some(_), "c" | "C", true, _) when list_selection() =>
-      Own(Effect.Ignore)
-    | (Some(t), _, _, _) => text_key(t)
-    | (None, "Enter", true, _)
-    | (None, "F2", _, _) when !above_shown(props) =>
+  /* text mode, on the cursor's row */
+  let start = () =>
       switch (cur, n) {
       | (Some(r), _) => Act(start_text(~on, r))
       | (None, 0) => Pass(Effect.Ignore)
       | (None, _) => Act(start_text(~on, visible[0]))
-      }
-    | (None, _, _, _) =>
+    };
+  /* a thunk: building a key's effect can move the cursor at once, so
+     keys the menu takes must not build it */
+  let act = (): verdict =>
+    switch (on.text.get(), key) {
+    /* the browser copies it */
+    | (Some(_), "c" | "C") when cmd && list_selection() => Own(Effect.Ignore)
+    | (Some(t), _) => text_key(t)
+    | (None, "Enter") when cmd && !above_shown(props) => start()
+    | (None, "F2") when bare && !above_shown(props) => start()
+    | (None, _) =>
       switch (row_key()) {
       | Some(eff) => Act(eff)
       | None => Pass(Effect.Ignore)
@@ -2008,7 +2058,7 @@ let keys =
   | (Some(_), "ArrowUp") when n_items > 0 =>
     stop(on.menu_select((menu_sel + n_items - 1) mod n_items))
   | (Some(_), "Enter") =>
-    switch (List.nth_opt(items, menu_sel)) {
+    switch (List.nth(items, menu_sel)) {
     | Some(item) => stop(Effect.Many([on.menu_close, focus_rows, item()]))
     | None => stop(on.menu_close)
     }
@@ -2045,6 +2095,7 @@ let header_view =
   let crumb_nodes =
     List.concat(
       List.mapi(
+        ~f=
         (i, (id, label)) => {
           let last = i == n - 1;
           let node =
@@ -2209,13 +2260,15 @@ let visible_rows =
     : array(visible_row) => {
   let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
     List.concat_map(
+      ~f=
       ((n: OutlineTree.node, seg)) =>
         /* a bare statement (`e;`) is no definition: no row */
         n.o_id != None && n.o_id == skip || n.o_kind == KStmt
           ? []
           : {
             let path = prefix @ [seg];
-            let expanded = n.o_children != [] && !folded(path, n);
+              let expanded =
+                !List.is_empty(n.o_children) && !folded(path, n);
             [
               {
                 r_path: path,
@@ -2257,7 +2310,8 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
     visible_rows(
       ~folded=
         (path, n) =>
-          props.folded(path, n) && (opened == None || n.o_id != opened),
+          props.folded(path, n)
+          && (Option.is_none(opened) || !Poly.equal(n.o_id, opened)),
       ~skip=fresh_id(on),
       ~relabel=live_label(props),
       ~root_path,
@@ -2268,8 +2322,9 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
     switch (on.text.current) {
     | Some(t) when props.stack_controls =>
       Option.map(
+        ~f=
         ((lines, at, t')) => {
-          if (!(t' === t)) {
+            if (!phys_equal(t', t)) {
             on.text.relocate(t');
           };
           on.text.note(at);
@@ -2297,26 +2352,34 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
           [
             clss(
               ["outline-title"]
-              @ (tm == None && props.cursor == None ? ["outline-cursor"] : []),
+              @ (
+                Option.is_none(tm) && Option.is_none(props.cursor)
+                  ? ["outline-cursor"] : []
+              ),
             ),
           ]
           @ (
             keyed
               ? [
                 Attr.on_mousedown(_ =>
-                  tm == None ? take_cursor(on, None) : Effect.Prevent_default
+                  Option.is_none(tm)
+                    ? take_cursor(on, None) : Effect.Prevent_default
                 ),
               ]
               : []
           ),
         keyed
-          ? header_view(~on, ~typing=tm != None, props.header)
+          ? header_view(~on, ~typing=Option.is_some(tm), props.header)
           : [text({js|☰ outline|js})],
       ),
       div(~attrs=[clss(["outline-resize"]), ...resize_attrs], []),
       div(
         ~attrs=
-          [clss(["outline-body"] @ (tm == None ? [] : ["text-mode"]))]
+          [
+            clss(
+              ["outline-body"] @ (Option.is_none(tm) ? [] : ["text-mode"]),
+            ),
+          ]
           @ (
             keyed
               ? [
@@ -2342,10 +2405,8 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
                    its scrollbar) leaves the keys where they are */
                 Attr.on_mousedown(evt => {
                   let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
-                  on.text.get() != None
-                  &&
-                  e##.target ===
-                  e##.currentTarget
+                  Option.is_some(on.text.get())
+                  && phys_equal(e##.target, e##.currentTarget)
                   &&
                   e##.offsetX <
                   e##.currentTarget##.clientWidth
@@ -2355,7 +2416,7 @@ let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
               : []
           ),
         (
-          roots == []
+          List.is_empty(roots)
             ? [
               div(
                 ~attrs=[clss(["outline-empty"])],

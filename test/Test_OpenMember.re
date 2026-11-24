@@ -1,5 +1,6 @@
 open Alcotest;
 open Web;
+open Poly;
 
 /* `let q = (1 + 2` typed after List.length's `end;` in the List module at
    a Mod root. Read raw, its open `(` takes every member below it into one
@@ -14,14 +15,15 @@ module Cells = Test_Undo.Cells;
 /* the audit's copy (a stdlib tree's List.hz may differ); at an Exp root,
    its module bound by `in` */
 let list_hz = () =>
-  Option.get(
-    Test_ModAudit.read_any([
-      "test/modaudit/List.hz",
-      "../test/modaudit/List.hz",
+  Option.value_exn(
+    ModHarness.read_any([
+      "test/programs/List.hz",
+      "../test/programs/List.hz",
     ]),
   );
 let at_root = (~root: Haz3lcore.Sort.t, list: string) =>
-  root == Mod ? list : String.trim(list) ++ " in\n\nList.length([1, 2, 3])";
+  Poly.equal(root, Mod)
+    ? list : String.strip(list) ++ " in\n\nList.length([1, 2, 3])";
 let src = (~root: Haz3lcore.Sort.t) => at_root(~root, list_hz());
 
 /* List to `cons`, 16 of its 65 members: for what an edit costs per
@@ -31,7 +33,7 @@ let short_src = (~root: Haz3lcore.Sort.t) => {
   let list = list_hz();
   let head =
     Str.search_forward(Str.regexp_string(";\n\n  let head "), list, 0);
-  at_root(~root, String.sub(list, 0, head) ++ "\n}");
+  at_root(~root, String.sub(list, ~pos=0, ~len=head) ++ "\n}");
 };
 
 let mk = (~root: Haz3lcore.Sort.t, src: string): History.Model.t => {
@@ -66,16 +68,14 @@ let mk = (~root: Haz3lcore.Sort.t, src: string): History.Model.t => {
 let refresh = m => Cells.run(m, Editors(Scratch(RefreshStatics)));
 
 let type_ = (m, s: string) =>
-  List.fold_left(
-    (m, i) => Cells.run(m, Test_Undo.insert(String.sub(s, i, 1))),
-    m,
-    List.init(String.length(s), i => i),
+  List.fold(List.init(String.length(s), ~f=i => i), ~init=m, ~f=(m, i) =>
+    Cells.run(m, Test_Undo.insert(String.sub(s, ~pos=i, ~len=1)))
   );
 
 /* the end of [needle]'s first line in [text] */
 let after = (text: string, needle: string): Util.Point.t =>
-  Option.get(
-    Test_ModAudit.point_of(~off=String.length(needle), text, needle),
+  Option.value_exn(
+    ModHarness.point_of(~off=String.length(needle), text, needle),
   );
 
 /* the caret after List.length's `end;` */
@@ -94,7 +94,7 @@ let with_q = {
   let at_mod = lazy(refresh(type_(loaded(~root=Mod, ()), typed)));
   let at_exp = lazy(refresh(type_(loaded(~root=Exp, ()), typed)));
   (~root=Haz3lcore.Sort.Mod, ()) =>
-    Lazy.force(root == Mod ? at_mod : at_exp);
+    Lazy.force(Poly.equal(root, Mod) ? at_mod : at_exp);
 };
 
 let term = m => Program.outline(Cells.program(m));
@@ -109,12 +109,12 @@ let doc = m =>
 /* List's rows in [term]'s outline */
 let rows = (outline: Web.OutlineTree.t): list(string) =>
   switch (
-    List.find_opt(
-      (n: OutlineTree.node) => n.o_label == "List",
+    List.find(
+      ~f=(n: OutlineTree.node) => String.equal(n.o_label, "List"),
       OutlineTree.rows(outline),
     )
   ) {
-  | Some(n) => List.map((n: OutlineTree.node) => n.o_label, n.o_children)
+  | Some(n) => List.map(~f=(n: OutlineTree.node) => n.o_label, n.o_children)
   | None => []
   };
 
@@ -126,7 +126,8 @@ let per_member =
     bool,
     "q and the members below it are rows",
     true,
-    List.mem("q", want) && List.mem("map", want),
+    List.mem(want, "q", ~equal=Poly.equal)
+    && List.mem(want, "map", ~equal=Poly.equal),
   );
   check(list(string), what ++ ": a row per member", want, rows(outline));
 };
@@ -135,10 +136,12 @@ let per_member =
    document */
 let member_items = (term: Language.Exp.t): option(int) =>
   Option.bind(
-    Haz3lcore.DefStatics.cached(term), (ds: Haz3lcore.DefStatics.t) =>
+    Haz3lcore.DefStatics.cached(term), ~f=(ds: Haz3lcore.DefStatics.t) =>
     List.find_map(
-      (it: Haz3lcore.DefStatics.item) =>
-        it.d_members == [] ? None : Some(List.length(it.d_members)),
+      ~f=
+        (it: Haz3lcore.DefStatics.item) =>
+          List.is_empty(it.d_members)
+            ? None : Some(List.length(it.d_members)),
       ds.items,
     )
   );
@@ -154,8 +157,8 @@ let undo_redo = (~root, ()) => {
   per_member(~root, "undo", outline);
   check(
     option(int),
-    "the analysis: an item per member, and the exports",
-    Some(List.length(rows(outline)) + 1),
+    "the analysis: an item per member",
+    Some(List.length(rows(outline))),
     member_items(Program.statics(Cells.program(m)).term),
   );
   let m = refresh(Cells.run(m, Test_Undo.redo));
@@ -169,7 +172,7 @@ let pin_kept = () => {
   let m = refresh(Cells.run(m, Cells.workspace(FocusToggle(map))));
   let is_open = m =>
     switch (Cells.program(m)) {
-    | Divided(d) => Divided.cell(map, d) != None
+    | Divided(d) => Option.is_some(Divided.cell(map, d))
     | Whole(_) => false
     };
   check(bool, "map's cell opens", true, is_open(m));
@@ -218,8 +221,9 @@ let ops_refuse = () => {
       ),
     );
   List.iter(
-    ((what, o, name)) =>
-      check(string, what ++ " refuses", before, op(o, name)),
+    ~f=
+      ((what, o, name)) =>
+        check(string, what ++ " refuses", before, op(o, name)),
     [
       ("deleting q", OutlineEdit.Delete, "q"),
       ("duplicating q", Duplicate, "q"),
@@ -259,7 +263,7 @@ let rec app = (m: CrashHandling.Model.t, a: Page.Update.t) => {
       m,
       u.model,
     );
-  List.fold_left(app, m, scheduled^);
+  List.fold(scheduled^, ~init=m, ~f=app);
 };
 
 let text_of_app = (m: CrashHandling.Model.t) =>
@@ -304,7 +308,7 @@ let crash_saves_whole = () => {
         bool,
         "the undone program's analysis crashed",
         true,
-        CrashHandling.current_exception^ != None,
+        Option.is_some(CrashHandling.current_exception^),
       );
       check(string, "the program is the undone one", undone, text_of_app(m));
       let writes = HazelDB.write_transactions^;
@@ -320,7 +324,7 @@ let crash_saves_whole = () => {
         bool,
         "revert clears it",
         true,
-        CrashHandling.current_exception^ == None,
+        Option.is_none(CrashHandling.current_exception^),
       );
       let m = app(m, Save);
       check(

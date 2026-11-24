@@ -40,7 +40,7 @@ let rec names_fn = (v: Exp.t): bool =>
   | Closure(_, v)
   | TupLabel(_, v)
   | Parens(v) => names_fn(v)
-  | Tuple(vs) => List.exists(names_fn, vs)
+  | Tuple(vs) => List.exists(~f=names_fn, vs)
   | _ => false
   };
 
@@ -54,14 +54,14 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
         // Variables: lookup if bound
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
-          | Some({term: Var(y), _}) when y == x => e
-          | Some({term: Module(_), _}) when fns != Inline => e
-          | Some(v) when fns == Named && names_fn(v) => e
+          | Some({term: Var(y), _}) when String.equal(y, x) => e
+          | Some({term: Module(_), _}) when Poly.(fns != Inline) => e
+          | Some(v) when Poly.(fns == Named) && names_fn(v) => e
           | Some(v) =>
             v
             |> Exp.replace_all_ids
             |> in_exp(
-                 ~fns=fns != Inline && names_fn(v) ? Named : fns,
+                 ~fns=Poly.(fns != Inline) && names_fn(v) ? Named : fns,
                  Environment.empty,
                )
           | None => e
@@ -70,7 +70,7 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
         // Forms with environments: look up in new environment
         | Closure(env, e) => in_exp(~fns, env, e)
         | Fun(p, e, t, n) =>
-          let t' = Option.map(in_typ(~fns, env), t);
+          let t' = Option.map(~f=in_typ(~fns, env), t);
           let (env', p') = in_pat(~fns, env, env, p);
           Fun(p', in_exp(~fns, env', e), t', n) |> rewrap;
         | FixF(p, e, Some(env)) =>
@@ -78,14 +78,21 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(~fns, env', e), None) |> rewrap;
 
         // Cases with binders: remove binder from env
+        /* The binder scopes over the body only, so the definition is
+           substituted in the OUTER env. In env', a binder that in_pat
+           renamed away from capture (x to x') maps x to x' there too, so
+           `let x = f(x) in ...` became `let x' = f(x') in ...`: the
+           definition's x, which means the outer one, went unbound. A
+           recursive let is no exception: its definition is elaborated to a
+           FixF, which binds the name itself. */
         | Let(p, e1, e2) =>
           let (env', p') = in_pat(~fns, env, env, p);
-          Let(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2)) |> rewrap;
+          Let(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2)) |> rewrap;
         | Match(e, cases) =>
           Match(
             in_exp(~fns, env, e),
             cases
-            |> List.map(((p, e)) => {
+            |> List.map(~f=((p, e)) => {
                  let (env', p') = in_pat(~fns, env, env, p);
                  (p', in_exp(~fns, env', e));
                }),
@@ -96,85 +103,17 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
           FixF(p', in_exp(~fns, env', e), None) |> rewrap;
         | Theorem(p, e1, e2) =>
           let (env', p') = in_pat(~fns, env, env, p);
-          Theorem(p', in_exp(~fns, env', e1), in_exp(~fns, env', e2))
-          |> rewrap;
+          Theorem(p', in_exp(~fns, env, e1), in_exp(~fns, env', e2)) |> rewrap;
         | Forall(pat, e) =>
           let (env', pat') = in_pat(~fns, env, env, pat);
           Forall(pat', in_exp(~fns, env', e)) |> rewrap;
         /* a library module shown is its name, not its every member */
         | Module(_)
-            when fns != Inline && Builtins.library_module_name(e) != None =>
-          Var(Option.get(Builtins.library_module_name(e))) |> rewrap
-        | Module(items) =>
-          /* Items scope sequentially: a pending item binds its name for the
-             items that follow, so it shadows the substitution there. An
-             evaluated binding does not, and must not: the step that made it
-             substituted its value into the items that follow, and that is the
-             substitution this would swallow. */
-          let shadow = (env, x) =>
-            Environment.extend(env, (x, Exp.fresh(Var(x))));
-          let rec mpat_name = (mp: MPat.t) =>
-            switch (mp.term) {
-            | Var(x) => Some(x)
-            | Asc(inner, _) => mpat_name(inner)
-            | _ => None
-            };
-          let (_, rev_items) =
-            List.fold_left(
-              ((env, acc), item: Mod.t) => {
-                let (env', item') =
-                  switch (item.term) {
-                  | ModLet(p, e) =>
-                    /* Shadow rather than rename here too: a pending binding
-                       names a member, so renaming it away from capture would
-                       rename the member and break `M.x`. */
-                    (
-                      List.fold_left(shadow, env, Pat.bound_vars(p)),
-                      {
-                        ...item,
-                        term: (ModLet(p, in_exp(~fns, env, e)): Mod.term),
-                      },
-                    )
-                  | ModuleMod(mp, e) =>
-                    let env' =
-                      switch (mpat_name(mp)) {
-                      | Some(x) => shadow(env, x)
-                      | None => env
-                      };
-                    (
-                      env',
-                      {
-                        ...item,
-                        term: (
-                          ModuleMod(mp, in_exp(~fns, env, e)): Mod.term
-                        ),
-                      },
-                    );
-                  | ModVal(x, e) => (
-                      env,
-                      {
-                        ...item,
-                        term: (ModVal(x, in_exp(~fns, env, e)): Mod.term),
-                      },
-                    )
-                  | ModExp(e) => (
-                      env,
-                      {
-                        ...item,
-                        term: (ModExp(in_exp(~fns, env, e)): Mod.term),
-                      },
-                    )
-                  | ModType(_, _)
-                  | Invalid(_)
-                  | EmptyHole
-                  | MultiHole(_) => (env, item)
-                  };
-                (env', [item', ...acc]);
-              },
-              (env, []),
-              items,
-            );
-          Module(List.rev(rev_items)) |> rewrap;
+            when
+              Poly.(fns != Inline)
+              && Option.is_some(Builtins.library_module_name(e)) =>
+          Var(Option.value_exn(Builtins.library_module_name(e))) |> rewrap
+        | Module(items) => Module(in_mod_items(~fns, env, items)) |> rewrap
 
         // Other cases: recurse
         | Invalid(_)
@@ -220,6 +159,60 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
     exp,
   )
 
+/* A pending item shadows the substitution for the items after it; it is not
+   renamed, since its name is a member label. An evaluated ModVal does not
+   shadow: its binding step already substituted into the items that follow. */
+and in_mod_items =
+    (~fns=Inline, env: Environment.t(Exp.t), items: list(Mod.t))
+    : list(Mod.t) => {
+  let shadow = (env, x) =>
+    Environment.extend(env, (x, Exp.fresh(Var(x))));
+  let (_, rev_items) =
+    List.fold(
+      items,
+      ~init=(env, []),
+      ~f=((env, acc), item: Mod.t) => {
+        let (env', item') =
+          switch (item.term) {
+          | ModLet(p, e) => (
+              List.fold(Pat.bound_vars(p), ~init=env, ~f=shadow),
+              {
+                ...item,
+                term: (ModLet(p, in_exp(~fns, env, e)): Mod.term),
+              },
+            )
+          | ModuleMod(mp, e) => (
+              List.fold(Mod.bound_names(item), ~init=env, ~f=shadow),
+              {
+                ...item,
+                term: (ModuleMod(mp, in_exp(~fns, env, e)): Mod.term),
+              },
+            )
+          | ModVal(x, e) => (
+              env,
+              {
+                ...item,
+                term: (ModVal(x, in_exp(~fns, env, e)): Mod.term),
+              },
+            )
+          | ModExp(e) => (
+              env,
+              {
+                ...item,
+                term: (ModExp(in_exp(~fns, env, e)): Mod.term),
+              },
+            )
+          | ModType(_, _)
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) => (env, item)
+          };
+        (env', [item', ...acc]);
+      },
+    );
+  List.rev(rev_items);
+}
+
 // Updates a pattern to avoid variable capture
 and in_pat =
     (
@@ -233,7 +226,7 @@ and in_pat =
   // Variables: special case
   | Var(x) =>
     let x' = Environment.free_name(x, env_acc);
-    if (x == x') {
+    if (String.equal(x, x')) {
       (env_acc |> Environment.extend(_, (x', Exp.fresh(Var(x')))), p);
     } else {
       (
@@ -265,22 +258,24 @@ and in_pat =
   | Tuple(l) =>
     let (env', l') =
       List.fold_left(
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
-        (env_acc, []),
+        ~f=
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
+        ~init=(env_acc, []),
         l,
       );
     (env', Tuple(l') |> Pat.fresh);
   | ListLit(l) =>
     let (env', l') =
       List.fold_left(
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
-        (env_acc, []),
+        ~f=
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(~fns, env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
+        ~init=(env_acc, []),
         l,
       );
     (env', ListLit(l') |> Pat.fresh);
@@ -334,8 +329,12 @@ and in_typ = (~fns=Inline, env: Environment.t(Exp.t), typ: Typ.t) =>
         | DrvQuoteTy(_) => cont(t)
         // The item types only: the generic traversal would also visit the
         // item patterns
-        | Sig(items) =>
-          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
+        | Sig(Open(items)) =>
+          Sig(Open(List.map(~f=Sig.map_typ(in_typ(~fns, env)), items)))
+          |> rewrap
+        | Sig(Closed(items)) =>
+          Sig(Closed(ClosedSig.map(Sig.map_typ(in_typ(~fns, env)), items)))
+          |> rewrap
         };
       },
     typ,

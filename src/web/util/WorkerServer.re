@@ -144,7 +144,10 @@ module ServerMessage = {
     | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result)
-    | Resend(resend);
+    | Resend(resend)
+    /* The worker's coverage counters so far, after each Result; see
+     * CoverageHook. */
+    | Coverage(string);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -180,10 +183,10 @@ module DirectEncoding: ENCODING = {
   open Js_of_ocaml;
   type request = ClientMessage.t;
   type response = ServerMessage.t;
-  let encode_request = Fun.id;
-  let decode_request = Fun.id;
-  let encode_response = Fun.id;
-  let decode_response = Fun.id;
+  let encode_request = Fn.id;
+  let decode_request = Fn.id;
+  let encode_response = Fn.id;
+  let decode_response = Fn.id;
   /* No serialized form, so estimate the in-memory footprint by an iterative
    * walk with a visited set (a relative measure, not exact bytes). */
   let size_fn =
@@ -281,20 +284,20 @@ let error_response = exn =>
     print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
     Error(Language.ProgramResult.EvaulatorError(reason));
   | exn =>
-    print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
+    print_endline("EXN:" ++ Exn.to_string(exn));
+    Error(Language.ProgramResult.UnknownException(Exn.to_string(exn)));
   };
 
 /* the worker's own per-key incremental caches (async path) */
-let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
-  Hashtbl.create(4);
+let resident: Stdlib.Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+  Stdlib.Hashtbl.create(4);
 
 let resolve_prev =
     (~key: key, prev: Request.prev_source): Language.EvaluatorState.incr_eval =>
   switch (prev) {
   | UseResident =>
     Option.value(
-      Hashtbl.find_opt(resident, key),
+      Stdlib.Hashtbl.find_opt(resident, key),
       ~default=Language.IncrEval.empty,
     )
   };
@@ -302,7 +305,11 @@ let resolve_prev =
 let store_resident = (key: key, response: Response.value): unit =>
   switch (response) {
   | Ok((_, state)) =>
-    Hashtbl.replace(resident, key, state.Language.EvaluatorState.incr_eval)
+    Stdlib.Hashtbl.replace(
+      resident,
+      key,
+      state.Language.EvaluatorState.incr_eval,
+    )
   | Error(_) => ()
   };
 
@@ -379,9 +386,20 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
-let wants_incremental = (req_value: Evaluation.value): bool =>
+let incremental_min_prev_steps = 100_000;
+
+let wants_incremental =
+    (~prev: Language.EvaluatorState.incr_eval, req_value: Evaluation.value)
+    : bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
-  >= incremental_min_statics;
+  >= incremental_min_statics
+  || prev.steps >= incremental_min_prev_steps;
+
+/* the cache an evaluation starts from: the resident one, if the gate wants it */
+let gated_prev = (~key: key, req_value: Evaluation.value) => {
+  let prev = resolve_prev(~key, req_value.prev);
+  wants_incremental(~prev, req_value) ? prev : Language.IncrEval.empty;
+};
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -393,14 +411,15 @@ let planned_reuse:
   ref([]);
 
 let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
-  let Evaluation.{expr, eval_info_map, prev, _} = req_value;
+  let Evaluation.{expr, eval_info_map, _} = req_value;
+  let prev = gated_prev(~key, req_value);
   let stream =
-    if (!wants_incremental(req_value)) {
+    if (Language.IncrEval.is_empty(prev)) {
       Language.IncrEval.empty;
     } else {
       switch (
         Language.ReusePass.reuse_pass(
-          ~prev=resolve_prev(~key, prev),
+          ~prev,
           ~eval_info=eval_info_map,
           ~env=Language.Builtins.env_for(expr),
           expr,
@@ -420,9 +439,10 @@ let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
 let take_planned_reuse =
     (expr: Language.Exp.t)
     : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
-  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
-  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
-  Option.map(snd, found);
+  let found = List.find(planned_reuse^, ~f=((e, _)) => phys_equal(e, expr));
+  planned_reuse :=
+    List.filter(planned_reuse^, ~f=((e, _)) => !phys_equal(e, expr));
+  Option.map(found, ~f=snd);
 };
 
 /* Evaluator time accumulated for the request in flight, reported back in the
@@ -446,24 +466,22 @@ let current_stream_interest: ref(Request.stream_interest) =
 
 let start_evaluation =
     (~key: key, req_value: Evaluation.value): evaluation_start => {
-  let Evaluation.{expr, eval_info_map, prev, stream} = req_value;
+  let Evaluation.{expr, eval_info_map, stream, _} = req_value;
   current_stream_interest := stream;
   let planned = take_planned_reuse(expr);
   /* stream cadence scales with program size: each posted chunk costs
      the client a stream-collection + recalc cycle that grows with it */
   stream_min_interval_ms :=
-    max(
+    Float.max(
       100.,
-      min(
+      Float.min(
         1000.,
         float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
       ),
     );
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev=
-        wants_incremental(req_value)
-          ? resolve_prev(~key, prev) : Language.IncrEval.empty,
+      ~prev=gated_prev(~key, req_value),
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_for(expr),
       ~reuse_stream=?planned,
@@ -497,6 +515,10 @@ let post_batch_result = (model, request_id, completed) =>
         eval_time: eval_total^,
       }),
     );
+    switch (Option.bind(CoverageHook.snapshot, ~f=snapshot => snapshot())) {
+    | Some(coverage) => post_message(ServerMessage.Coverage(coverage))
+    | None => ()
+    };
   };
 
 /* main-thread consumers read only entry keys, [seq] and each state's
@@ -545,6 +567,7 @@ let slim_entries =
           },
         incr.entries,
       ),
+    steps: incr.steps,
   };
 let slim_stream_update =
     (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
@@ -553,6 +576,7 @@ let slim_stream_update =
     completed: slim_entries(u.completed),
     current:
       Option.map(
+        ~f=
         (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
           Language.IncrEval.{
             ...c,
@@ -589,9 +613,9 @@ let last_stream_post: ref(float) = ref(0.);
 let entry_has_effects =
     (e: Language.IncrEval.entry(Language.EvaluatorState.t)): bool =>
   Language.EvaluatorState.(
-    e.state.tests != []
+    !List.is_empty(e.state.tests)
     || !Util.Id.Map.is_empty(e.state.probes)
-    || e.state.theorems != []
+    || !List.is_empty(e.state.theorems)
   );
 
 /* [Effects]: husks (ids + step counts) only feed the pending-eval
@@ -604,6 +628,7 @@ let filter_stream_interest =
   | Effects =>
     Language.IncrEval.{
       completed: {
+        ...u.completed,
         entries:
           Util.Id.Map.filter(
             (_, e) => entry_has_effects(e),
@@ -616,7 +641,7 @@ let filter_stream_interest =
 
 let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
   let now: float = Js.Unsafe.global##.Date##now();
-  if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
+  if (force || Float.(now -. last_stream_post^ >= stream_min_interval_ms^)) {
     last_stream_post := now;
     let update =
       Language.Evaluator.drain_streaming_outbox(evaluation)
@@ -639,6 +664,7 @@ let post_reuse_plan = (model, request: Evaluation.t) =>
            reads, as with streams */
         initial:
           List.map(
+            ~f=
             item => {
               let (key, plan) = predict_reuse_for_request(item);
               (key, slim_entries(plan));
@@ -803,8 +829,8 @@ and run_scheduled_slice = model => {
 
 /* the pieces of the last request received, by hash: what the client
    counts on the worker holding */
-let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
-  Hashtbl.create(256);
+let held: Stdlib.Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
+  Stdlib.Hashtbl.create(256);
 
 type received =
   | Composed(Evaluation.t)
@@ -815,39 +841,43 @@ type received =
    piece whose bytes don't hash to its listed hash isn't taken. the
    pieces it lists are held next, whatever it composes to */
 let receive = (posted: Posted.t): received => {
-  let fresh = Hashtbl.create(16);
+  let fresh = Stdlib.Hashtbl.create(16);
   List.iter(
+    ~f=
     ((hash, bytes)) =>
-      if (EvalPieces.hash_of(bytes) == hash) {
+        if (Poly.equal(EvalPieces.hash_of(bytes), hash)) {
         switch (EvalPieces.decode(bytes)) {
-        | content => Hashtbl.replace(fresh, hash, content)
+          | content => Stdlib.Hashtbl.replace(fresh, hash, content)
         | exception _ => ()
         };
       },
     posted.pieces,
   );
-  let next = Hashtbl.create(Hashtbl.length(held) + 16);
+  let next = Stdlib.Hashtbl.create(Stdlib.Hashtbl.length(held) + 16);
   List.iter(
+    ~f=
     ((_, v: Posted.value)) =>
       List.iter(
+          ~f=
         (s: EvalPieces.slot) =>
           switch (
-            Hashtbl.find_opt(fresh, s.hash),
-            Hashtbl.find_opt(held, s.hash),
+                Stdlib.Hashtbl.find_opt(fresh, s.hash),
+                Stdlib.Hashtbl.find_opt(held, s.hash),
           ) {
           | (Some(c), _)
-          | (None, Some(c)) => Hashtbl.replace(next, s.hash, c)
+              | (None, Some(c)) => Stdlib.Hashtbl.replace(next, s.hash, c)
           | (None, None) => ()
           },
         EvalPieces.slots(v.layout),
       ),
     posted.batch,
   );
-  Hashtbl.reset(held);
-  Hashtbl.iter(Hashtbl.replace(held), next);
-  let piece = Hashtbl.find_opt(held);
+  Stdlib.Hashtbl.reset(held);
+  Stdlib.Hashtbl.iter(Stdlib.Hashtbl.replace(held), next);
+  let piece = Stdlib.Hashtbl.find_opt(held);
   switch (
     List.map(
+      ~f=
       ((key, v: Posted.value)) =>
         (key, v, EvalPieces.assemble(~piece, v.layout)),
       posted.batch,
@@ -857,6 +887,7 @@ let receive = (posted: Posted.t): received => {
   | composed =>
     let missing =
       List.concat_map(
+        ~f=
         ((_, _, r)) =>
           switch (r) {
           | Error(keys) => keys
@@ -864,15 +895,16 @@ let receive = (posted: Posted.t): received => {
           },
         composed,
       );
-    missing != []
+    !List.is_empty(missing)
       ? Missing(missing)
       : Composed({
           request_id: posted.request_id,
           batch:
             List.filter_map(
+              ~f=
               ((key, v: Posted.value, r)) =>
                 Stdlib.Result.to_option(r)
-                |> Option.map(((expr, eval_info_map)) =>
+                  |> Option.map(~f=((expr, eval_info_map)) =>
                      (
                        key,
                        Evaluation.{
@@ -937,6 +969,7 @@ let install_message_handler = () => {
             request_id: posted.request_id,
             response:
               List.map(
+              ~f=
                 ((key, _)) =>
                   (
                     key,

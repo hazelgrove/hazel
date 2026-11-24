@@ -54,7 +54,7 @@ let ids_inside_functions = (info_map: StaticsBase.Map.t): Id.Set.t => {
         }
       }
     and finish = (chain: list(Id.t), result: bool): bool => {
-      List.iter(id => memo := Id.Map.add(id, result, memo^), chain);
+      List.iter(~f=id => memo := Id.Map.add(id, result, memo^), chain);
       result;
     };
     let result = walk([], Id.Set.empty, id0);
@@ -125,4 +125,7 @@ let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
    id settles exactly when its entry streams, so key membership suffices */
 let remove_streamed_ids =
     (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) =>
-  List.filter(id => !Id.Map.mem(id, stream.completed.entries), pending_ids);
+  List.filter(
+    ~f=id => !Id.Map.mem(id, stream.completed.entries),
+    pending_ids,
+  );

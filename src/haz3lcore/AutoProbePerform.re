@@ -34,22 +34,20 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       Some(IdTagged.rep_id(e1))
     | Some(InfoExp({user_term: {term: TyAlias(_), _}, _})) => None
     | Some(InfoExp({user_term, _})) => Some(IdTagged.rep_id(user_term))
+    | Some(
+        InfoMod({
+          user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
+          _,
+        }),
+      ) =>
+      Some(IdTagged.rep_id(def))
     | _ => None
     };
 
-  /* a definition with items of its own, which the walk goes into: a
-     module literal, or a module statement's let chain */
+  /* a definition with items of its own, which the walk goes into */
   let holds_items = (def: Exp.t): bool =>
     switch (def.term) {
     | Module(_) => true
-    | Let(_)
-    | TyAlias(_)
-    | ModuleExp(_)
-    | Seq(_) =>
-      switch (Statics.Map.lookup(IdTagged.rep_id(def), statics)) {
-      | Some(InfoExp({cls: Mod(ModExp), _})) => true
-      | _ => false
-      }
     | _ => false
     };
 
@@ -74,6 +72,15 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
           walk(idx - 1)
         | Some(InfoExp({user_term: {term: Module(_), _}, _})) =>
           walk(idx - 1)
+        | Some(
+            InfoMod({
+              user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
+              _,
+            }),
+          ) =>
+          Id.equal(child_id, IdTagged.rep_id(def)) && holds_items(def)
+            ? walk(idx - 1) : Some(IdTagged.rep_id(def))
+        | Some(InfoMod({user_term: {term: ModType(_), _}, _})) => None
         | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
           let e1_id = IdTagged.rep_id(e1);
           let e2_id = IdTagged.rep_id(e2);
@@ -103,7 +110,7 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
       | Some(_) as result => result
       | None => probe_for_piece(id)
       };
-    Option.map(unwrap_test, target);
+    Option.map(~f=unwrap_test, target);
   | None => None
   };
 };
@@ -117,6 +124,7 @@ let clear_autoprobe =
      * more frame; resetting now would flash them a reset color. editor_effects
      * resets once they're gone from the syntax cache. */
     List.fold_left(
+      ~f=
       (z, old_id) =>
         ProbePerform.rm_multi(
           ~drill=false,
@@ -126,7 +134,7 @@ let clear_autoprobe =
           old_id,
           z,
         ),
-      z,
+      ~init=z,
       old_ids,
     )
     |> Zipper.update_refractors(_, r =>
@@ -176,7 +184,10 @@ let current_toplevel_def =
     };
 
   [from_indicated, from_right, from_left, from_ancestor]
-  |> List.fold_left((acc, f) => acc == None ? f() : acc, None);
+  |> List.fold_left(
+       ~f=(acc, f) => Option.is_none(acc) ? f() : acc,
+       ~init=None,
+     );
 };
 
 /* Program root id: the single `All`-mode anchor (expands to one probe per row).
@@ -188,7 +199,7 @@ let root_id_result: ref(option(Id.t)) = ref(None);
 let program_root_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let stable =
     switch (root_id_segment^) {
-    | Some(seg) => seg === syntax.segment
+    | Some(seg) => phys_equal(seg, syntax.segment)
     | None => false
     };
   if (stable) {
@@ -244,15 +255,14 @@ let update_autoprobe =
       }
     | Caret =>
       let current_def = current_toplevel_def(info_map, z);
-      /* Function-sugar: also anchor the param pattern so params are probed on the header line(s). */
-      let current_param =
+      /* Function-sugar: also anchor the param patterns so params are probed on the header line(s). */
+      let current_params =
         switch (current_def) {
         | Some(def_id) =>
-          ProbePerform.function_sugar_param_anchor(info_map, def_id)
-        | None => None
+          ProbePerform.function_sugar_param_anchors(info_map, def_id)
+        | None => []
         };
-      let anchors =
-        Option.to_list(current_def) @ Option.to_list(current_param);
+      let anchors = Option.to_list(current_def) @ current_params;
       /* def body carries cursor following (gated on auto_focus); the param anchor is added without it, keeping focus on the body's first sample. */
       let add = z =>
         switch (current_def) {
@@ -267,8 +277,7 @@ let update_autoprobe =
               ~info_map,
               z,
             );
-          switch (current_param) {
-          | Some(param_id) =>
+          List.fold_left(current_params, ~init=z, ~f=(z, param_id) =>
             ProbePerform.add_multi(
               param_id,
               ~drill=false,
@@ -277,8 +286,7 @@ let update_autoprobe =
               ~info_map,
               z,
             )
-          | None => z
-          };
+          );
         };
       (anchors, add);
     };
@@ -288,7 +296,7 @@ let update_autoprobe =
      the same-anchors short-circuit would be a permanent no-op. Self-heal. */
   let anchors_intact =
     List.for_all(
-      id => Id.Map.mem(id, z.refractors.multis.ids),
+      ~f=id => Id.Map.mem(id, z.refractors.multis.ids),
       current_anchors,
     );
   if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {
@@ -297,9 +305,16 @@ let update_autoprobe =
     /* drill=false to match how they were added. */
     let z =
       List.fold_left(
+        ~f=
         (z, old_id) =>
-          ProbePerform.rm_multi(~drill=false, ~syntax, ~info_map, old_id, z),
+            ProbePerform.rm_multi(
+              ~drill=false,
+              ~syntax,
+              ~info_map,
+              old_id,
         z,
+            ),
+        ~init=z,
         prev_anchors,
       );
 
@@ -318,7 +333,7 @@ let update_autoprobe =
 
 let program_exp = (syntax: CachedSyntax.t): option(Exp.t) =>
   switch (
-    Option.bind(program_root_id(syntax), id =>
+    Option.bind(program_root_id(syntax), ~f=id =>
       Id.Map.find_opt(id, syntax.terms)
     )
   ) {
@@ -389,10 +404,10 @@ let update_tail =
     switch (target) {
     | Some(id) =>
       Id.Map.mem(id, z.refractors.multis.ephemerals)
-      || List.mem_assoc(id, z.refractors.manuals)
+      || List.Assoc.mem(z.refractors.manuals, id, ~equal=Poly.equal)
     | None => true
     };
-  if (target == prev && placed) {
+  if (Poly.equal(target, prev) && placed) {
     z;
   } else {
     let z =
@@ -407,7 +422,8 @@ let update_tail =
       eph => {
         let eph =
           switch (prev) {
-          | Some(old) when Some(old) != target && Id.Map.mem(old, eph) =>
+          | Some(old)
+              when !Poly.equal(Some(old), target) && Id.Map.mem(old, eph) =>
             Id.Map.add(old, Refractors.mk_entry(Probe), eph)
           | _ => eph
           };
@@ -443,7 +459,7 @@ let theorems_of_exp = (e: Exp.t): list(Id.t) => {
 };
 
 let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) =>
-  Option.fold(~none=[], ~some=theorems_of_exp, program_exp(syntax));
+  Option.value_map(program_exp(syntax), ~default=[], ~f=theorems_of_exp);
 
 /* where an editor shows proofs: none, under each of its theorems, or
    (a theorem's cell, which holds its statement) under its root */
@@ -460,7 +476,7 @@ let update_proofs =
     switch (proofs) {
     | NoProofs => []
     | Theorems =>
-      List.map(id => (id, ProofProj.model_string()), theorem_ids(syntax))
+      List.map(~f=id => (id, ProofProj.model_string()), theorem_ids(syntax))
     | ProofOf(thm) =>
       switch (program_root_id(syntax)) {
       | Some(root) => [(root, ProofProj.model_string(~theorem=thm, ()))]
@@ -468,14 +484,12 @@ let update_proofs =
       }
     };
   let proofs =
-    List.fold_left(
-      (m, (id, model)) =>
-        Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
-      Id.Map.empty,
-      wanted,
+    List.fold(wanted, ~init=Id.Map.empty, ~f=(m, (id, model)) =>
+      Id.Map.add(id, Refractors.mk_entry(~model, Proof), m)
     );
   Id.Map.equal(
-    (a: Refractors.entry, b: Refractors.entry) => a.model == b.model,
+    (a: Refractors.entry, b: Refractors.entry) =>
+      Poly.equal(a.model, b.model),
     proofs,
     z.refractors.proofs,
   )

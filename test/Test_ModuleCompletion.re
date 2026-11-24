@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* completion in module members (CanonicalCompletion's member boundaries):
    an unfinished member ends at the next member line, as an unfinished
@@ -49,7 +50,7 @@ let at_line = (~root: Sort.t, src: string, line: string): Zipper.t => {
     Move(
       Point(
         {
-          row: row(0, String.split_on_char('\n', src)),
+          row: row(0, String.split(~on='\n', src)),
           col: String.length(line),
         },
         None,
@@ -60,13 +61,13 @@ let at_line = (~root: Sort.t, src: string, line: string): Zipper.t => {
 
 /* the program after each key of a new line typed at [z] */
 let type_line = (~root: Sort.t, z: Zipper.t, keys: string): list(Zipper.t) =>
-  String.fold_left(
-    ((z, acc), c) => {
+  String.fold(
+    "\n" ++ keys,
+    ~init=(z, []),
+    ~f=((z, acc), c) => {
       let z = perform(~root, z, Insert(String.make(1, c)));
       (z, [z, ...acc]);
     },
-    (z, []),
-    "\n" ++ keys,
   )
   |> snd
   |> List.rev;
@@ -113,9 +114,10 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
   let ids = O.collect(nodes);
   let badged =
     List.filter_map(
+      ~f=
       err =>
-        List.find_opt(
-          id => List.mem(id, ids),
+          List.find(
+            ~f=id => List.mem(ids, id, ~equal=Poly.equal),
           switch (Id.Map.find_opt(err, st.info_map)) {
           | Some(info) => [
               err,
@@ -128,13 +130,16 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
     );
   let ty_of = (n: O.node) =>
     switch (
-      Option.bind(n.o_binder, ((b, _)) => Id.Map.find_opt(b, st.info_map))
+      Option.bind(n.o_binder, ~f=((b, _)) =>
+        Id.Map.find_opt(b, st.info_map)
+      )
     ) {
     | Some(InfoPat({ty, _})) => Typ.pretty_print(ty)
     | _ => ""
     };
   let rec go = (parent, ns: list(O.node)) =>
     List.concat_map(
+      ~f=
       (n: O.node) =>
         (
           switch (n.o_id) {
@@ -145,8 +150,8 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
                   label: n.o_label,
                   kind: n.o_kind,
                   ty: ty_of(n),
-                  err: List.mem(id, badged),
-                  kids: n.o_children != [],
+                    err: List.mem(badged, id, ~equal=Poly.equal),
+                    kids: !List.is_empty(n.o_children),
                 },
               ),
             ]
@@ -162,7 +167,7 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
 let show_row = (r: row) =>
   Printf.sprintf(
     "%s%s : %s",
-    r.label == "" ? kind_name(r.kind) : r.label,
+    String.equal(r.label, "") ? kind_name(r.kind) : r.label,
     r.err ? " [error]" : "",
     r.kids ? "" : r.ty,
   );
@@ -176,19 +181,21 @@ let check_kept = (name: string, before, after) => {
     switch (rs) {
     | [] => None
     | [r, ...rs] when key(r) == k => Some(rs)
-    | [r, ...rs] => Option.map(rs => [r, ...rs], take(k, rs))
+    | [r, ...rs] => Option.map(~f=rs => [r, ...rs], take(k, rs))
     };
   ignore(
-    List.fold_left(
-      (left, (parent, r: row) as b) =>
+    List.fold(before, ~init=after, ~f=(left, (parent, r: row) as b) =>
         switch (take(key(b), left)) {
         | Some(left) => left
         | None =>
           /* a named row changed in place: say how */
           switch (
-            List.find_opt(
+          List.find(
+            ~f=
               ((p, r': row)) =>
-                p == parent && r.label != "" && r'.label == r.label,
+                p == parent
+                && !String.equal(r.label, "")
+                && r'.label == r.label,
               left,
             )
           ) {
@@ -202,19 +209,17 @@ let check_kept = (name: string, before, after) => {
             left;
           | None => fail(name ++ ": lost row " ++ key(b))
           }
-        },
-      after,
-      before,
+      }
     ),
   );
 };
 
 let labels = (rs: list((string, row))): list(string) =>
-  List.map(((_, r)) => show_row(r), rs);
+  List.map(~f=((_, r)) => show_row(r), rs);
 
 /* the rows under their parents' label paths */
 let paths = (rs: list((string, row))): list(string) =>
-  List.map(((parent, r)) => parent ++ "/" ++ show_row(r), rs);
+  List.map(~f=((parent, r)) => parent ++ "/" ++ show_row(r), rs);
 
 /* ---- the Modules slide's shapes ---- */
 
@@ -319,8 +324,8 @@ let sibling_keys = [
    first */
 let completed_line = (z: Zipper.t): string =>
   switch (
-    String.split_on_char(
-      '\n',
+    String.split(
+      ~on='\n',
       Printer.of_segment(
         ~holes="?",
         ~concave_holes="~",
@@ -333,7 +338,7 @@ let completed_line = (z: Zipper.t): string =>
     )
   ) {
   | [_, _, line, ..._] => line
-  | lines => String.concat(" / ", lines)
+  | lines => String.concat(~sep=" / ", lines)
   };
 
 let sibling = ((name, keys, expect), ()) => {
@@ -341,7 +346,7 @@ let sibling = ((name, keys, expect), ()) => {
   let before = rows(~root=Exp, z0);
   let z = Util.ListUtil.last(type_line(~root=Exp, z0, keys));
   /* spacing aside: the printer glues synthesized delimiters */
-  let squash = s => String.concat("", String.split_on_char(' ', s));
+  let squash = s => String.concat(~sep="", String.split(~on=' ', s));
   check(
     string,
     name ++ ": completed",
@@ -362,10 +367,12 @@ let nested_unfinished = () => {
   check_kept("a nested module typed", before, after);
   check(
     bool,
-    "N holds z: " ++ String.concat(", ", labels(after)),
+    "N holds z: " ++ String.concat(~sep=", ", labels(after)),
     true,
     List.exists(
-      ((parent, r: row)) => parent == "/Counter/N" && r.label == "z",
+      ~f=
+        ((parent, r: row)) =>
+          String.equal(parent, "/Counter/N") && String.equal(r.label, "z"),
       after,
     ),
   );
@@ -397,9 +404,10 @@ let preserved = ((name, src, after, finished), ()) => {
   let z0 = at_line(~root=Exp, src, after);
   let before = rows(~root=Exp, z0);
   List.iteri(
+    ~f=
     (k, z) => {
       let at = Printf.sprintf("%s, key %d (%S)", name, k, text(z));
-      if (List.mem(k, finished)) {
+        if (List.mem(finished, k, ~equal=Poly.equal)) {
         check(
           int,
           at ++ ": finished, read as written",
@@ -456,14 +464,14 @@ let brace_line = (name, (root, src, own, lines), ()) => {
       ~concave_holes="~",
       CanonicalCompletion.complete_items(~sort=root, seg).completed_seg,
     );
-  let squash = s => String.concat("", String.split_on_char(' ', s));
+  let squash = s => String.concat(~sep="", String.split(~on=' ', s));
   check(
     list(string),
     name ++ ": completed",
     lines,
     Util.ListUtil.take(
       List.length(lines),
-      List.map(squash, String.split_on_char('\n', completed)),
+      List.map(~f=squash, String.split(~on='\n', completed)),
     ),
   );
   check(
@@ -474,15 +482,15 @@ let brace_line = (name, (root, src, own, lines), ()) => {
   );
   /* the member's slice in the syntax parse: its own lines */
   let top = ItemSpans.top(~ends=Read, ~root, seg);
-  let members = Option.get(ItemSpans.children(top, 0));
+  let members = Option.value_exn(ItemSpans.children(top, 0));
   check(
     int,
     name ++ ": the syntax parse's member ends with its lines",
     List.length(lines),
     List.length(
-      String.split_on_char(
-        '\n',
-        String.trim(CorpusUtil.text_of(ItemSpans.slice(members, 0))),
+      String.split(
+        ~on='\n',
+        String.strip(CorpusUtil.text_of(ItemSpans.slice(members, 0))),
       ),
     ),
   );
@@ -534,15 +542,15 @@ let brace_nested = () => {
   let root = Sort.Mod;
   let deleted = (src: string) => {
     let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
-    switch (Test_ModAudit.point_of(~off=3, src, "  };")) {
+    switch (ModHarness.point_of(~off=3, src, "  };")) {
     | Some(pt) =>
-      List.fold_left(
-        perform(~root),
-        z0,
+      List.fold(
         [
           Action.Move(Point(pt, None)),
           Action.Destruct(Local(Left, ByChar)),
         ],
+        ~init=z0,
+        ~f=perform(~root),
       )
     | None => fail("no `}`")
     };
@@ -591,26 +599,27 @@ let brace_nested = () => {
     ["module M = {module N = {let a = 1;", "let b = 2}", ";", "let c = 3"],
     Util.ListUtil.take(
       4,
-      List.map(String.trim, String.split_on_char('\n', completed)),
+      List.map(~f=String.strip, String.split(~on='\n', completed)),
     ),
   );
   /* the syntax parse cuts M's members alike: N through its `;`, then c */
   let top =
     ItemSpans.top(~ends=Read, ~root, Zipper.unselect_and_zip(on_brace));
-  let members = Option.get(ItemSpans.children(top, 0));
+  let members = Option.value_exn(ItemSpans.children(top, 0));
   check(
     list(string),
     "the syntax parse's members",
     ["module N = {let a = 1; let b = 2 ;", "let c = 3"],
     List.map(
+      ~f=
       s =>
         String.concat(
-          " ",
+            ~sep=" ",
           List.filter(
-            l => l != "",
+              ~f=l => !String.equal(l, ""),
             List.map(
-              String.trim,
-              String.split_on_char('\n', CorpusUtil.text_of(s)),
+                ~f=String.strip,
+                String.split(~on='\n', CorpusUtil.text_of(s)),
             ),
           ),
         ),
@@ -627,6 +636,7 @@ let mod_root = ((name, after), ()) => {
   let z0 = at_line(~root=Mod, counter_members, after);
   let before = rows(~root=Mod, z0);
   List.iteri(
+    ~f=
     (k, z) =>
       check_kept(
         Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
@@ -642,6 +652,7 @@ let mod_root = ((name, after), ()) => {
 
 let rec tokens = (seg: Segment.t): list(string) =>
   List.concat_map(
+    ~f=
     (p: Piece.t) =>
       switch (p) {
       | Secondary(_)
@@ -666,14 +677,16 @@ let targets = (syntax: CachedSyntax.t): list((Token.t, Util.Point.t)) => {
   let acc = ref([]);
   let rec walk = (sg: Segment.t) =>
     List.iter(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) =>
-          List.iter(walk, t.children);
+            List.iter(~f=walk, t.children);
           if (Tile.arity(t) > 1) {
             switch (Measured.find_shards(~msg="sweep", t, syntax.measured)) {
             | shards =>
               List.iter(
+                  ~f=
                 ((i, m: Measured.measurement)) =>
                   acc := [(Tile.token(t, i), m.last), ...acc^],
                 shards,
@@ -727,7 +740,7 @@ let sweep = (~root: Sort.t, ~prefix_only=false, seg: Segment.t): outcome => {
   let syntax = CachedSyntax.init(~root, z0);
   let original = tokens(seg);
   let act = (z, a) =>
-    Option.bind(z, z =>
+    Option.bind(z, ~f=z =>
       switch (
         Perform.go(
           ~settings,
@@ -747,15 +760,21 @@ let sweep = (~root: Sort.t, ~prefix_only=false, seg: Segment.t): outcome => {
       }
     );
   targets(syntax)
-  |> List.filter(((tok, _)) => !prefix_only || Token.length(tok) > 1)
-  |> List.fold_left(
-       (o, (tok, pt: Util.Point.t)) => {
+  |> List.filter(~f=((tok, _)) => !prefix_only || Token.length(tok) > 1)
+  |> List.fold(
+       ~init={
+         restored: 0,
+         destroyed: 0,
+         total: 0,
+         misses: [],
+       },
+       ~f=(o, (tok, pt: Util.Point.t)) => {
          let k = prefix_only ? 1 : Token.length(tok);
          let acts =
            [Action.Move(Point(pt, None))]
-           @ List.init(k, _ => Action.Destruct(Local(Left, ByChar)));
+           @ List.init(k, ~f=_ => Action.Destruct(Local(Left, ByChar)));
          let where = Printf.sprintf("%s at %d:%d", tok, pt.row, pt.col);
-         switch (List.fold_left(act, Some(z0), acts)) {
+         switch (List.fold(acts, ~init=Some(z0), ~f=act)) {
          | None => {
              ...o,
              total: o.total + 1,
@@ -765,7 +784,8 @@ let sweep = (~root: Sort.t, ~prefix_only=false, seg: Segment.t): outcome => {
            let seg = MakeTerm.semantic_source(z);
            let replacement =
              prefix_only
-               ? Some(String.sub(tok, 0, Token.length(tok) - 1)) : None;
+               ? Some(String.sub(tok, ~pos=0, ~len=Token.length(tok) - 1))
+               : None;
            if (!evidence_intact(~replacement, original, tokens(seg), tok)) {
              {
                ...o,
@@ -791,12 +811,6 @@ let sweep = (~root: Sort.t, ~prefix_only=false, seg: Segment.t): outcome => {
                };
            };
          };
-       },
-       {
-         restored: 0,
-         destroyed: 0,
-         total: 0,
-         misses: [],
        },
      );
 };
@@ -854,26 +868,28 @@ let semi_deleted = ((name, root, src), ()) => {
   let syntax = CachedSyntax.init(~root, z0);
   let rec semis = (sg: Segment.t): list(Id.t) =>
     List.concat_map(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) when Tile.is_semi(t) => [t.id]
-        | Tile(t) => List.concat_map(semis, t.children)
+          | Tile(t) => List.concat_map(~f=semis, t.children)
         | _ => []
         },
       sg,
     );
   List.iter(
+    ~f=
     id =>
       switch (Measured.find_by_id(id, syntax.measured)) {
       | Some(m) =>
         let z =
-          List.fold_left(
-            perform(~root),
-            z0,
+            List.fold(
             [
               Action.Move(Point(m.last, None)),
               Action.Destruct(Local(Left, ByChar)),
             ],
+              ~init=z0,
+              ~f=perform(~root),
           );
         check_kept(
           Printf.sprintf("%s, `;` at %d:%d", name, m.last.row, m.last.col),
@@ -893,11 +909,11 @@ let head_deleted = ((name, root, src, at, k), ()) => {
   let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
   let before = rows(~root, z0);
   let z =
-    List.fold_left(
-      perform(~root),
-      z0,
+    List.fold(
       [Action.Move(Point(at, None))]
-      @ List.init(k, _ => Action.Destruct(Local(Left, ByChar))),
+      @ List.init(k, ~f=_ => Action.Destruct(Local(Left, ByChar))),
+      ~init=z0,
+      ~f=perform(~root),
     );
   check_kept(name, before, rows(~root, z));
 };
@@ -909,11 +925,11 @@ let case_deleted = ((name, src, at, expect), ()) => {
   let root = Sort.Mod;
   let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
   let z =
-    List.fold_left(
-      perform(~root),
-      z0,
+    List.fold(
       [Action.Move(Point(at, None))]
-      @ List.init(4, _ => Action.Destruct(Local(Left, ByChar))),
+      @ List.init(4, ~f=_ => Action.Destruct(Local(Left, ByChar))),
+      ~init=z0,
+      ~f=perform(~root),
     );
   let got =
     Printer.of_segment(
@@ -926,9 +942,9 @@ let case_deleted = ((name, src, at, expect), ()) => {
         completed_seg,
     );
   let squash = s =>
-    String.concat("", String.split_on_char(' ', s))
-    |> String.split_on_char('\n')
-    |> String.concat("");
+    String.concat(~sep="", String.split(~on=' ', s))
+    |> String.split(~on='\n')
+    |> String.concat(~sep="");
   check(string, name, squash(expect), squash(got));
 };
 
@@ -936,7 +952,7 @@ let round_trip = ((name, root, src, full, prefix), ()) => {
   let seg = CorpusUtil.seg_of(~root, src);
   let f = sweep(~root, seg);
   let p = sweep(~root, ~prefix_only=true, seg);
-  List.iter(print_endline, List.rev(f.misses) @ List.rev(p.misses));
+  List.iter(~f=print_endline, List.rev(f.misses) @ List.rev(p.misses));
   print_endline(
     Printf.sprintf("SCORE %s: full %s, prefix %s", name, show(f), show(p)),
   );
@@ -987,7 +1003,7 @@ let reads_as_written = ((name, root, src), ()) => {
     print(seg),
     print(done_.completed_seg),
   );
-  if (root == Sort.Exp) {
+  if (Sort.equal(root, Sort.Exp)) {
     check(
       bool,
       name ++ ": MakeTerm agrees with Menhir",
@@ -1033,13 +1049,16 @@ let display_cases = [
 
 let display_agrees = ((name, root, src, after, keys), ()) =>
   List.iteri(
+    ~f=
     (k, z) => {
       let source = MakeTerm.semantic_source(z);
       check(
         list(string),
         Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
         tokens(fst(MakeTerm.semantic_segment(~root, source))),
-        tokens(CanonicalCompletion.for_editor(~root, source).completed_seg),
+          tokens(
+            CanonicalCompletion.for_editor(~root, source).completed_seg,
+          ),
       );
     },
     type_line(~root, at_line(~root, src, after), keys),
@@ -1054,16 +1073,16 @@ let chips_after = ((root, src, line, expect), ()) =>
     Sort.show(root) ++ ": " ++ String.escaped(src),
     expect,
     CompletionQuery.chips_at_caret(~root, at_line(~root, src, line))
-    |> List.map((i: CanonicalCompletion.insertion) =>
+    |> List.map(~f=(i: CanonicalCompletion.insertion) =>
          String.concat(
-           " ",
+           ~sep=" ",
            List.map(
-             (d: CanonicalCompletion.delimiter_info) => d.text,
+             ~f=(d: CanonicalCompletion.delimiter_info) => d.text,
              i.delimiters,
            ),
          )
        )
-    |> String.concat(" | "),
+    |> String.concat(~sep=" | "),
   );
 
 let chip_cases = [
@@ -1076,7 +1095,7 @@ let chip_cases = [
    every delimiter of mega-mod-1k, the Modules slide and mega-1k ---- */
 
 let corpus_sweep = () =>
-  if (Sys.getenv_opt("HAZEL_COMPLETION_SWEEP") == Some("1")) {
+  if (Poly.equal(Stdlib.Sys.getenv_opt("HAZEL_COMPLETION_SWEEP"), Some("1"))) {
     let slide =
       switch (
         CorpusUtil.read_file("hazel-programs/world/documentation/modules.hz"),
@@ -1089,11 +1108,12 @@ let corpus_sweep = () =>
       | (None, None) => fail("no Modules slide")
       };
     List.iter(
+      ~f=
       ((name, root, seg)) => {
         let f = sweep(~root, seg);
         let p = sweep(~root, ~prefix_only=true, seg);
         List.iter(
-          m => print_endline(name ++ " " ++ m),
+            ~f=m => print_endline(name ++ " " ++ m),
           List.rev(f.misses) @ List.rev(p.misses),
         );
         print_endline(
@@ -1124,24 +1144,22 @@ let corpus_sweep = () =>
 
 let counter_unfinished = "module Counter = {\n  let start = 0;\n  let next = (start + 1\n  let after = next + 1\n} in\nCounter.after";
 
-/* the rows are kept from the head keyword on (a prefix of one, `t` of
-   `then`, reads as an operator meanwhile, as at the top level); the last
-   state reads as [expect], with [synth] shards synthesized (an unfinished
-   member's), and the line [marked] holding the missing `;`'s grout */
+/* the rows are kept at every key (a prefix of a keyword, `t` of `type`,
+   starts a member as any variable does); the last state reads as
+   [expect], with [synth] shards synthesized (an unfinished member's), and
+   the line [marked] holding the missing `;`'s grout */
 let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) => {
   let z0 = at_line(~root, src, after);
   let before = rows(~root, z0);
   let zs = type_line(~root, z0, keys);
-  let head = String.index(keys, ' ');
   List.iteri(
+    ~f=
     (k, z) =>
-      if (k >= head) {
         check_kept(
           Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
           before,
           rows(~root, z),
-        );
-      },
+        ),
     zs,
   );
   let z = Util.ListUtil.last(zs);
@@ -1163,18 +1181,19 @@ let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) =>
     name ++ ": the missing `;` marked",
     true,
     List.mem(
+      List.map(~f=String.strip, String.split(~on='\n', text(z))),
       marked,
-      List.map(String.trim, String.split_on_char('\n', text(z))),
+      ~equal=Poly.equal,
     ),
   );
 };
 
 let counter_rows = (~root: Sort.t, typed: list(string)) => {
   let (parent, trail) =
-    root == Sort.Mod ? ("", []) : ("/Counter", ["/trail : "]);
-  (root == Sort.Mod ? [] : ["/Counter : "])
+    Sort.equal(root, Sort.Mod) ? ("", []) : ("/Counter", ["/trail : "]);
+  (Sort.equal(root, Sort.Mod) ? [] : ["/Counter : "])
   @ List.map(
-      r => parent ++ "/" ++ r,
+      ~f=r => parent ++ "/" ++ r,
       ["start : Int", "next : Int", "after : Int"] @ typed,
     )
   @ trail;
@@ -1243,6 +1262,128 @@ let member_head_cases = [
   ),
 ];
 
+/* ---- a mid-form keyword's prefix at a member line, no form above
+   expecting the keyword, starts a member as `l` does: `t`, `te`, `tes` of
+   `test` leave `after` as it was. An operator there, or the keyword a form
+   above expects, still continues the line above ---- */
+
+let after_row = (~root, z) =>
+  List.find_map(
+    ~f=
+      ((_, r: row)) =>
+        String.equal(r.label, "after") ? Some(show_row(r)) : None,
+    rows(~root, z),
+  );
+
+let lines = (z: Zipper.t): list(string) =>
+  List.map(~f=String.strip, String.split(~on='\n', text(z)));
+
+let keyword_prefix = ((name, root, src, after), ()) => {
+  let zs = type_line(~root, at_line(~root, src, after), "test 1 == 1 end");
+  List.iteri(
+    ~f=
+      (k, z) =>
+        check(
+          option(string),
+          Printf.sprintf("%s, key %d (%S): after", name, k, text(z)),
+          Some("after : Int"),
+          after_row(~root, z),
+        ),
+    zs,
+  );
+  /* the line reads as after a missing `;`, as `l` there does */
+  List.iter(
+    ~f=
+      k =>
+        check(
+          bool,
+          Printf.sprintf(
+            "%s: %S starts its own line",
+            name,
+            String.sub("test", ~pos=0, ~len=k),
+          ),
+          true,
+          List.mem(
+            lines(List.nth_exn(zs, k)),
+            "~" ++ String.sub("test", ~pos=0, ~len=k),
+            ~equal=Poly.equal,
+          ),
+        ),
+    [1, 2, 3],
+  );
+};
+
+let keyword_prefix_cases = [
+  ("a module's last member", Sort.Exp, counter, "  let after = next + 1"),
+  (
+    "the last member at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+  ),
+];
+
+/* what continues the line above joins its member at every key: no line
+   reads as after a missing `;`, and the last state has [expect] */
+let continues = ((name, root, src, after, keys, expect), ()) => {
+  let zs = type_line(~root, at_line(~root, src, after), keys);
+  List.iteri(
+    ~f=
+      (k, z) =>
+        check(
+          list(string),
+          Printf.sprintf("%s, key %d (%S): no new member", name, k, text(z)),
+          [],
+          List.filter(
+            ~f=l => String.length(l) > 0 && Char.equal(l.[0], '~'),
+            lines(z),
+          ),
+        ),
+    zs,
+  );
+  check(
+    list(string),
+    name ++ ": rows",
+    expect,
+    paths(rows(~root, Util.ListUtil.last(zs))),
+  );
+};
+
+let continues_cases = [
+  (
+    "an operator",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "+ 2",
+    counter_rows(~root=Exp, []),
+  ),
+  (
+    "an operator at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+    "+ 2",
+    counter_rows(~root=Mod, []),
+  ),
+  (
+    "`then` and `else` at a Mod root",
+    Sort.Mod,
+    "let a = 1;\nlet x = if a == 1",
+    "let x = if a == 1",
+    "then 2\nelse 3;",
+    ["/a : Int", "/x : Int"],
+  ),
+  (
+    "`then` and `else` in a module",
+    Sort.Exp,
+    "module M = {\n  let a = 1;\n  let x = if a == 1\n} in\nM.x",
+    "  let x = if a == 1",
+    "then 2\nelse 3",
+    ["/M : ", "/M/a : Int", "/M/x : Int", "/trail : "],
+  ),
+];
+
 /* a line indented past the member continues it: the `let` there is an
    expression's, its `in` synthesized, no member */
 let member_head_deeper = () => {
@@ -1252,7 +1393,10 @@ let member_head_deeper = () => {
     bool,
     "no member z",
     false,
-    List.exists(((_, r: row)) => r.label == "z", rows(~root=Exp, z)),
+    List.exists(
+      ~f=((_, r: row)) => String.equal(r.label, "z"),
+      rows(~root=Exp, z),
+    ),
   );
   check(
     bool,
@@ -1283,8 +1427,9 @@ let new_module_members = () => {
     "N holds y and z",
     ["y : Int", "z : Int"],
     List.filter_map(
+      ~f=
       ((parent, r: row)) =>
-        parent == "/Counter/N" ? Some(show_row(r)) : None,
+          String.equal(parent, "/Counter/N") ? Some(show_row(r)) : None,
       after,
     ),
   );
@@ -1298,10 +1443,8 @@ let new_module_members = () => {
 
 /* [keys] typed at [z] */
 let typed = (~root: Sort.t, z: Zipper.t, keys: string): Zipper.t =>
-  String.fold_left(
-    (z, c) => perform(~root, z, Insert(String.make(1, c))),
-    z,
-    keys,
+  String.fold(keys, ~init=z, ~f=(z, c) =>
+    perform(~root, z, Insert(String.make(1, c)))
   );
 
 /* the caret's column */
@@ -1309,14 +1452,14 @@ let caret_col = (z: Zipper.t): int => {
   let printed =
     Printer.of_zipper(~holes="?", ~concave_holes="~", ~caret="¦", z);
   let line =
-    List.find(
-      l => CorpusUtil.contains("¦", l),
-      String.split_on_char('\n', printed),
+    List.find_exn(
+      ~f=l => CorpusUtil.contains("¦", l),
+      String.split(~on='\n', printed),
     );
   Str.search_forward(Str.regexp_string("¦"), line, 0);
 };
 
-let counter_mod = Test_ModAudit.counter_mod;
+let counter_mod = ModHarness.counter_mod;
 
 let unclosed_enter_cases = [
   /* name, root, program, the line typed after, keys, the caret's column */
@@ -1371,7 +1514,7 @@ let n_lines = (n: int, text: string): list(string) => {
       Util.ListUtil.take(n, ls)
     | [_, ...ls] => from(ls)
     };
-  from(String.split_on_char('\n', text));
+  from(String.split(~on='\n', text));
 };
 
 let unclosed_flow =
@@ -1422,7 +1565,7 @@ let counter_with_n = (~root: Sort.t) =>
   ["/Counter : ", "/Counter/start : Int"]
   @ ["/Counter/N : ", "/Counter/N/a : Int", "/Counter/N/b : Int"]
   @ ["/Counter/next : Int", "/Counter/after : Int"]
-  @ [root == Sort.Mod ? "/stmt : " : "/trail : "];
+  @ [Sort.equal(root, Sort.Mod) ? "/stmt : " : "/trail : "];
 
 let unclosed_flow_cases = [
   /* name, root, the program and the line typed after (none: an empty
@@ -1598,9 +1741,10 @@ let render = (~root: Sort.t, z: Zipper.t): unit => {
 
 let rec tiles = (seg: Segment.t): list(Tile.t) =>
   List.concat_map(
+    ~f=
     (p: Piece.t) =>
       switch (p) {
-      | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+        | Tile(t) => [t, ...List.concat_map(~f=tiles, t.children)]
       | _ => []
       },
     seg,
@@ -1609,9 +1753,10 @@ let rec tiles = (seg: Segment.t): list(Tile.t) =>
 /* [z]'s tiles its syntax lacks */
 let unparsed = (syntax: CachedSyntax.t, z: Zipper.t): list(string) =>
   List.filter_map(
+    ~f=
     (t: Tile.t) =>
       Id.Map.mem(t.id, syntax.terms)
-        ? None : Some(String.concat(" ", Tile.label(t))),
+          ? None : Some(String.concat(~sep=" ", Tile.label(t))),
     tiles(Zipper.unselect_and_zip(z)),
   );
 
@@ -1634,8 +1779,13 @@ let outer_member = ((name, root, src, after), ()) => {
       AdjustIndent(Left, Always),
     );
   ignore(
-    List.fold_left(
-      ((z, keys), c) => {
+    List.fold(
+      List.map(
+        ~f=String.make(1),
+        Stdlib.List.of_seq(Stdlib.String.to_seq("let b = 2;")),
+      ),
+      ~init=(z, ""),
+      ~f=((z, keys), c) => {
         let z = perform(~root, z, Insert(c));
         let keys = keys ++ c;
         let fell = MakeTerm.Incr.fell_back^;
@@ -1655,8 +1805,6 @@ let outer_member = ((name, root, src, after), ()) => {
         render(~root, z);
         (z, keys);
       },
-      (z, ""),
-      List.map(String.make(1), List.of_seq(String.to_seq("let b = 2;"))),
     ),
   );
 };
@@ -1667,8 +1815,8 @@ let arms_without_term = () => {
   let z = at_line(~root, counter, "  let next = start + 1;");
   let syntax = CachedSyntax.init(~root, z);
   let t =
-    List.find(
-      (t: Tile.t) => Tile.label(t) == ["next"],
+    List.find_exn(
+      ~f=(t: Tile.t) => Tile.label(t) == ["next"],
       tiles(Zipper.unselect_and_zip(z)),
     );
   let syntax = {
@@ -1706,11 +1854,12 @@ let arms_without_term = () => {
     "the caret on the tile",
     true,
     switch (Haz3lcore.Indicated.for_decoration(z)) {
-    | Some({piece, _}) => Piece.id(piece) == t.id
+    | Some({piece, _}) => Id.equal(Piece.id(piece), t.id)
     | None => false
     },
   );
   List.iter(
+    ~f=
     simple_indication =>
       ignore(
         Web.Arms.Indicated.term(
@@ -1728,16 +1877,19 @@ let arms_without_term = () => {
 let tests = (
   "ModuleCompletion",
   List.map(
+    ~f=
     ((name, src, after, keys, expect)) =>
       test_case(name, `Quick, unfinished(name, src, ~after, keys, expect)),
     browser_cases,
   )
   @ List.map(
+      ~f=
       ((name, _, _) as c) =>
         test_case("unfinished member: " ++ name, `Quick, sibling(c)),
       sibling_keys,
     )
   @ List.map(
+      ~f=
       ((name, _, _, _) as c) =>
         test_case(
           "rows kept typing a member: " ++ name,
@@ -1751,9 +1903,30 @@ let tests = (
     test_case("an unfinished nested module", `Quick, nested_unfinished),
   ]
   @ List.map(
+      ~f=
       ((name, _, _, _, _, _, _, _) as c) =>
         test_case("a member head: " ++ name, `Quick, member_head(c)),
       member_head_cases,
+    )
+  @ List.map(
+      ~f=
+        ((name, _, _, _) as c) =>
+          test_case(
+            "a keyword's prefix at a member line: " ++ name,
+            `Quick,
+            keyword_prefix(c),
+          ),
+      keyword_prefix_cases,
+    )
+  @ List.map(
+      ~f=
+        ((name, _, _, _, _, _) as c) =>
+          test_case(
+            "continues the member above: " ++ name,
+            `Quick,
+            continues(c),
+          ),
+      continues_cases,
     )
   @ [
     test_case(
@@ -1764,6 +1937,7 @@ let tests = (
     test_case("members of a new module", `Quick, new_module_members),
   ]
   @ List.map(
+      ~f=
       ((name, _, _, _, _, _) as c) =>
         test_case(
           "Enter in a module whose `}` isn't typed: " ++ name,
@@ -1773,6 +1947,7 @@ let tests = (
       unclosed_enter_cases,
     )
   @ List.map(
+      ~f=
       ((name, _, _, _, _, _, _) as c) =>
         test_case(
           "a module typed, its `}` not yet: " ++ name,
@@ -1789,6 +1964,7 @@ let tests = (
     ),
   ]
   @ List.map(
+      ~f=
       ((name, _, _, _) as c) =>
         test_case(
           "a member typed below a module whose `}` isn't typed, dedented: "
@@ -1806,6 +1982,7 @@ let tests = (
     ),
   ]
   @ List.map(
+      ~f=
       ((name, c)) =>
         test_case(
           "a member on the `{` line: " ++ name,
@@ -1822,8 +1999,13 @@ let tests = (
     ),
   ]
   @ List.map(
+      ~f=
       ((name, _) as c) =>
-        test_case("rows kept at a Mod root: " ++ name, `Quick, mod_root(c)),
+          test_case(
+            "rows kept at a Mod root: " ++ name,
+            `Quick,
+            mod_root(c),
+          ),
       [
         ("after the first", "let start = 0;"),
         ("after the second", "let next = start + 1;"),
@@ -1831,11 +2013,13 @@ let tests = (
       ],
     )
   @ List.map(
+      ~f=
       ((name, _, _, _, _) as c) =>
         test_case("deletion round-trips " ++ name, `Quick, round_trip(c)),
       round_trip_pins,
     )
   @ List.map(
+      ~f=
       ((name, _, _) as c) =>
         test_case(
           "a deleted `;` is quiet " ++ name,
@@ -1849,6 +2033,7 @@ let tests = (
       ],
     )
   @ List.map(
+      ~f=
       ((name, _, _, _, _) as c) =>
         test_case(
           "a deleted head keyword: " ++ name,
@@ -1880,6 +2065,7 @@ let tests = (
       ],
     )
   @ List.map(
+      ~f=
       ((name, _, _, _) as c) =>
         test_case("a deleted `case`: " ++ name, `Quick, case_deleted(c)),
       [
@@ -1898,11 +2084,17 @@ let tests = (
       ],
     )
   @ List.map(
+      ~f=
       ((name, _, _) as c) =>
-        test_case("reads as written: " ++ name, `Quick, reads_as_written(c)),
+          test_case(
+            "reads as written: " ++ name,
+            `Quick,
+            reads_as_written(c),
+          ),
       as_written,
     )
   @ List.map(
+      ~f=
       ((name, _, _, _, _) as c) =>
         test_case(
           "the display reads as semantics: " ++ name,
@@ -1912,6 +2104,7 @@ let tests = (
       display_cases,
     )
   @ List.map(
+      ~f=
       ((root, src, _, _) as c) =>
         test_case(
           "the chips read at the editor's root: "

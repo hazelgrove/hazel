@@ -1,3 +1,4 @@
+open Poly;
 /* MAKETERM
 
      This parses tile structure into term structure.
@@ -80,13 +81,14 @@ let is_nary =
     )
     : option(list('sort)) =>
   if (delims
-      |> List.map(snd)
+      |> List.map(~f=snd)
       |> List.for_all(
+           ~f=
            fun
            | (F(f), []) => is_delim(f)
            | _ => false,
          )) {
-    kids |> List.map(is_sort) |> OptUtil.sequence;
+    kids |> List.map(~f=is_sort) |> OptUtil.sequence;
   } else {
     None;
   };
@@ -118,34 +120,28 @@ let is_sig_seq = is_nary(Any.is_sig, is_semi_form);
    during parsing and need to be flattened into a proper list for Module(items).
    Non-Mod children (from broken parse states during editing) are wrapped as
    module items to isolate breakage — valid items keep their statics. A
-   wrapper's id derives from its child's, so the member keeps its outline
-   row across parses */
+   wrapped expression shares its ids with the item (a stray child's gets
+   one derived from it), so the member keeps its outline row across
+   parses */
 let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   switch (m.term) {
   | MultiHole(kids) =>
     kids
     |> List.map(
+         ~f=
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [
+           | Grammar.Exp(e) => [Mod.of_exp(e)]
+           | other => [
+               Mod.of_exp(
              IdTagged.mk_internal(
-               [Id.derive(~salt="mod-exp", Exp.rep_id(e))],
-               ModExp(e): TermBase.Mod.term,
+                   [Id.derive(~salt="mod-other", Any.rep_id(other))],
+                   MultiHole([other]): Exp.term,
              ),
-           ]
-         | other => {
-             let id = Id.derive(~salt="mod-other", Any.rep_id(other));
-             [
-               IdTagged.mk_internal(
-                 [id],
-                 ModExp(
-                   IdTagged.mk_internal([id], MultiHole([other]): Exp.term),
-                 ): TermBase.Mod.term,
                ),
-             ];
-           },
+             ],
        )
-    |> List.flatten
+    |> List.concat
   | ModLet(_, _)
   | ModType(_, _)
   | ModExp(_)
@@ -164,11 +160,12 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   | MultiHole(kids) =>
     kids
     |> List.map(
+         ~f=
          fun
          | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
          | other => [Sig.fresh(MultiHole([other]))],
        )
-    |> List.flatten
+    |> List.concat
   | SigLet(_)
   | SigType(_, _)
   | SigModule(_)
@@ -181,7 +178,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   let+ ps =
     (ts: list(tile))
     |> List.map(
-         fun
+         ~f=fun
          | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
          | _ => None: tile => option(TermBase.pat_t),
        )
@@ -189,7 +186,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
   and+ clauses =
     kids
     |> List.map(
-         fun
+         ~f=fun
          | Exp(clause) => Some(clause)
          | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
@@ -201,6 +198,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   let+ ps =
     ts
     |> List.map(
+         ~f=
          fun
          | (_, (F(Compound(Rule)), [Grammar.Drv(Pat(p))])) => Some(p)
          | _ => None,
@@ -209,6 +207,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   and+ clauses =
     kids
     |> List.map(
+         ~f=
          fun
          | Grammar.Drv(Exp(clause)) => Some(clause)
          | _ => None,
@@ -217,7 +216,7 @@ let is_drv_rules = ((ts, kids): tiles): option(Aba.t(Drv.Pat.t, Drv.Exp.t)) => {
   Aba.mk(ps, clauses);
 };
 
-let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
+let ids_of_tiles = (tiles: tiles) => List.map(~f=fst, Aba.get_as(tiles));
 let ids =
   fun
   | Op(tiles)
@@ -229,7 +228,7 @@ let kids_of_tile = ((_id, (_head, kids)): tile) => kids;
 let kids_of_tiles = (tiles: tiles) =>
   tiles
   |> Aba.map_a(kids_of_tile)
-  |> Aba.join(Fun.id, kid => [kid])
+  |> Aba.join(Fn.id, kid => [kid])
   |> List.concat;
 let kids_of_unsorted =
   fun
@@ -249,13 +248,13 @@ let term_data: ref(TermData.t) = ref(Id.Map.empty);
    records each one's pieces and skel, so the parse indexes an array and
    doesn't build the skel again */
 let levels: ref(Segment.SecondaryCollection.levels) =
-  ref(Hashtbl.create(1));
+  ref(Stdlib.Hashtbl.create(1));
 
 let level_of = (seg: Segment.t): option(Segment.SecondaryCollection.level) =>
   switch (seg) {
   | [p, ..._] =>
-    switch (Hashtbl.find_opt(levels^, Piece.id(p))) {
-    | Some(l) when l.l_seg === seg => Some(l)
+    switch (Stdlib.Hashtbl.find_opt(levels^, Piece.id(p))) {
+    | Some(l) when phys_equal(l.l_seg, seg) => Some(l)
     | _ => None
     }
   | [] => None
@@ -272,7 +271,7 @@ let pieces_of = (seg: Segment.t): array(Piece.t) =>
   };
 
 let has_concave_grout =
-  Array.exists((p: Piece.t) =>
+  Array.exists(~f=(p: Piece.t) =>
     switch (p) {
     | Grout({shape: Concave, _}) => true
     | _ => false
@@ -285,7 +284,10 @@ let has_concave_grout =
 let skel_of = (~sort: Sort.t, seg: Segment.t): Skel.t =>
   switch (level_of(seg)) {
   | Some({l_skel: Some(skel), l_arr, _})
-      when sort != Mod && sort != Sig || !has_concave_grout(l_arr) => skel
+      when
+        !Poly.equal(sort, Mod)
+        && !Poly.equal(sort, Sig)
+        || !has_concave_grout(l_arr) => skel
   | _ => Segment.skel(~sort, seg)
   };
 
@@ -296,12 +298,12 @@ let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit => {
   let arr = pieces_of(seg);
   term_data :=
     Aba.get_as(Skel.root(skel))
-    |> List.fold_left(
-         (map, i) => {
+    |> List.fold(
+         ~init=term_data^,
+         ~f=(map, i) => {
            let p = arr[i];
            Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map);
          },
-         term_data^,
        );
 };
 
@@ -342,9 +344,9 @@ let get_incomplete = (ids: list(Id.t)): IdTagged.IdTag.incomplete_tiles =>
   Id.Map.is_empty(shard_masks^)
     ? []
     : ids
-      |> List.filter_map(id =>
+      |> List.filter_map(~f=id =>
            Id.Map.find_opt(id, shard_masks^)
-           |> Option.map(mask => (id, mask))
+           |> Option.map(~f=mask => (id, mask))
          );
 
 /* Surface spelling of the token a *_term branch just parsed, when its
@@ -478,7 +480,7 @@ let op_lexeme = (f: Form.t): option(Token.t) =>
   };
 
 let is_hole_label = (t: string) =>
-  t == " "
+  String.equal(t, " ")
   || Token.is_explicit_hole(t)
   || Token.is_implicit_hole_marker(t)
   || Token.is_concave_hole_marker(t)
@@ -498,8 +500,14 @@ let is_exp_only_head = (~host: Sort.t, h: head): bool =>
       switch (Form.base_candidates(label)) {
       | [] => false
       | cands =>
-        List.exists(((_, m): (Form.t, Mold.t)) => m.out == Sort.Exp, cands)
-        && List.for_all(((_, m): (Form.t, Mold.t)) => m.out != host, cands)
+        List.exists(
+          ~f=((_, m): (Form.t, Mold.t)) => Sort.equal(m.out, Sort.Exp),
+          cands,
+        )
+        && List.for_all(
+             ~f=((_, m): (Form.t, Mold.t)) => m.out != host,
+             cands,
+           )
       }
     );
   | ProjWrap
@@ -509,7 +517,7 @@ let is_exp_only_head = (~host: Sort.t, h: head): bool =>
 let root_heads: unsorted => list(head) =
   tm => {
     let of_tiles = (tiles: tiles) =>
-      Aba.get_as(tiles) |> List.map(((_, (h, _))) => h);
+      Aba.get_as(tiles) |> List.map(~f=((_, (h, _))) => h);
     switch (tm) {
     | Op(tiles)
     | Pre(tiles, _)
@@ -521,7 +529,7 @@ let root_heads: unsorted => list(head) =
 let all_exp_only = (~host: Sort.t, tm: unsorted): bool =>
   switch (root_heads(tm)) {
   | [] => false
-  | heads => List.for_all(is_exp_only_head(~host), heads)
+  | heads => List.for_all(~f=is_exp_only_head(~host), heads)
   };
 
 /* Is this kid a constructor-named type variable? (the head of a
@@ -615,7 +623,7 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
           when
             Token.is_var(t)
             && String.length(t) > 1
-            && String.sub(t, 0, 1) == "$" =>
+            && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
         ret(Quote(t))
       | _ when Token.is_typ_var(t) => ret(Var(t))
       | _ => ret(hole(tm))
@@ -735,7 +743,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.sub(t, 0, 1) == "$" =>
+          && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -785,7 +793,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
         when
           Token.is_var(t)
           && String.length(t) > 1
-          && String.sub(t, 0, 1) == "$" =>
+          && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
       ret(Quote(t))
     | _ when Token.is_typ_var(t) => ret(Var(t))
     | _ => ret(hole(tm))
@@ -821,7 +829,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
       when
         Token.is_var(t)
         && String.length(t) > 1
-        && String.sub(t, 0, 1) == "$" =>
+        && String.equal(String.sub(t, ~pos=0, ~len=1), "$") =>
     ret(Quote(t))
   | Op(([(_id, (F(Tok(t)), []))], [])) when Token.is_typ_var(t) =>
     ret(Var(t))
@@ -932,6 +940,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           (
             ListLit(
               List.map(
+                ~f=
                 (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
                   let (e, rewrap) = IdTagged.unwrap(list_item);
                   switch (e) {
@@ -992,7 +1001,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (F(Tok(t)), []) when is_hole_label(t) =>
         set_lexeme(t);
         ret(hole(tm));
-      | (F(Tok(t)), []) when t != " " && !Token.is_explicit_hole(t) =>
+      | (F(Tok(t)), [])
+          when !String.equal(t, " ") && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -1087,11 +1097,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
-        | Tuple(es) when List.exists(Exp.is_deferral, es) => (
+        | Tuple(es) when List.exists(~f=Exp.is_deferral, es) => (
             DeferredAp(
               l,
               List.map(
-                arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
+                ~f=arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
                 es,
               ),
             ),
@@ -1116,7 +1126,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Exp.t) => {
+        |> List.map(~f=(child: Exp.t) => {
              switch (child) {
              | {term: Tuple([{term: _ as tl, _}]), _} as tup =>
                // We use the Id for the tuple as the ids for the tuplabels
@@ -1217,7 +1227,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             }
           | F(Compound(Pipeline)) => Ap(Reverse, r, l)
           | F(Compound(ListConcat)) => ListConcat(l, r)
-          | F(f) when op_lexeme(f) != None =>
+          | F(f) when Option.is_some(op_lexeme(f)) =>
             /* Unknown infix operator: kids survive as a MultiHole and
                the operator token as its lexeme (printed back by
                ExpToSegment; elaborated as a stuck application). The
@@ -1225,7 +1235,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                and juxtaposition must NOT carry a lexeme — the
                elaborator uses its presence to distinguish stuck
                applications from transient juxtaposition. */
-            Option.iter(set_lexeme, op_lexeme(f));
+            Option.iter(~f=set_lexeme, op_lexeme(f));
             hole(tm);
           | _ => hole(tm)
           },
@@ -1233,18 +1243,20 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
 
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
   | tm => ret(hole(tm));
@@ -1347,9 +1359,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, (F(Compound(TypeAsc)), []))], []) => ret(Asc(p, ty))
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Unknown infix operator (see the exp Bin fallthrough) */
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
@@ -1360,7 +1372,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Pat.t) => {
+        |> List.map(~f=(child: Pat.t) => {
              switch (child) {
              | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
              | _ => child
@@ -1435,9 +1447,9 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
             ),
           )
         }
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
-        Option.iter(set_lexeme, op_lexeme(f));
+        Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
       | _ => ret(hole(tm))
       }
@@ -1463,25 +1475,27 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         set_lexeme("-");
         ret(hole(tm));
       }
-    | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+    | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     | _ => ret(hole(tm))
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
 
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
   | tm => ret(hole(tm));
@@ -1510,11 +1524,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, (F(Compound(ModBody)), [Sig(body)]))], []) =>
       /* SigBody: parse signature body, similar to ModBody in exp_term */
       switch (body) {
-      | {term: EmptyHole, _} => ret(Sig([]))
+      | {term: EmptyHole, _} => ret(Sig(Open([body])))
       | {annotation: {ids, _}, term: MultiHole(_)} =>
         adopted_ids := ids @ adopted_ids^;
-        (Sig(flatten_sig(body)), ids);
-      | _ => ret(Sig(flatten_sig(body)))
+        (Sig(Open(flatten_sig(body))), ids);
+      | _ => ret(Sig(Open(flatten_sig(body))))
       }
     | ([(_id, tile)], []) =>
       /* Atomic type spellings (base atoms, Void, Drv quote types):
@@ -1527,7 +1541,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (base_atom, tile) {
         | (_, (F(f), [])) when is_empty_tuple_form(f) => Prod([])
-        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
+        | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) =>
+          Sig(Open([]))
         | (Some(term), _) => term
         | (_, (F(Tok("_")), [])) => ExplicitNonlabel
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
@@ -1557,7 +1572,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
     | ([(id, (F(Compound(Parens | Ap)), [kid]))], [])
-        when get_incomplete([id]) != [] || !is_ctr_headed(l) =>
+        when !List.is_empty(get_incomplete([id])) || !is_ctr_headed(l) =>
       /* Keep the parens tile as a juxtaposed kid so it reprints
          (hole() would drop it) — except for constructor-headed
          post-parens (`A(Int)`), which must fall through bare: sum-type
@@ -1613,10 +1628,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm
+      when Option.is_some(is_typ_bsum(tiles)) =>
     switch (is_typ_bsum(tiles)) {
     | Some(between_kids) =>
-      ret(Sum(List.map(parse_sum_term, [t1] @ between_kids @ [t2])))
+      ret(Sum(List.map(~f=parse_sum_term, [t1] @ between_kids @ [t2])))
     | None => ret(hole(tm))
     }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
@@ -1626,7 +1642,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         [l]
         @ between_kids
         @ [r]
-        |> List.map((child: Typ.t) => {
+        |> List.map(~f=(child: Typ.t) => {
              switch (child) {
              | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
              | _ => child
@@ -1667,25 +1683,27 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         }
       | ([(_id, (F(Compound(TupleExtension)), []))], []) =>
         ret(ProdExtension(l, r))
-      | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
+      | ([(_id, (F(f), []))], []) when Option.is_some(op_lexeme(f)) =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
-        Option.iter(set_lexeme, op_lexeme(f));
+        Option.iter(~f=set_lexeme, op_lexeme(f));
         ret(hole(tm));
       | _ => ret(hole(tm))
       }
     }
-  | Bin(_, ([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Bin(_, ([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Unknown infix operator between mixed-sort kids (e.g. the : in
          `? : ? t ?` parses as Bin(Exp, [:], Typ) in a typ context, so
          the same-sort Bin patterns above cannot match) */
 
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
-  | Pre(([(_id, (F(f), []))], []), _) as tm when op_lexeme(f) != None => {
+  | Pre(([(_id, (F(f), []))], []), _) as tm
+      when Option.is_some(op_lexeme(f)) => {
       /* Stranded prefix op; printed back by the 1-kid MultiHole op
          branches */
-      Option.iter(set_lexeme, op_lexeme(f));
+      Option.iter(~f=set_lexeme, op_lexeme(f));
       ret(hole(tm));
     }
   | tm => ret(hole(tm));
@@ -1756,7 +1774,7 @@ and mod_term: unsorted => TermBase.Mod.term = {
       /* Flatten all mod items into MultiHole, like tuples flatten into Tuple */
       let all_items =
         [Grammar.Mod(m1)]
-        @ List.map(m => Grammar.Mod(m), between_kids)
+        @ List.map(~f=m => Grammar.Mod(m), between_kids)
         @ [Grammar.Mod(m2)];
       ret(MultiHole(all_items));
     | None => ret(hole(Bin(Mod(m1), tiles, Mod(m2))))
@@ -1805,7 +1823,7 @@ and sig_term: unsorted => TermBase.Sig.term = {
       let sig_to_any = (s): TermBase.Any.t => Grammar.Sig(s);
       let all_items =
         [sig_to_any(s1)]
-        @ List.map(sig_to_any, between_kids)
+        @ List.map(~f=sig_to_any, between_kids)
         @ [sig_to_any(s2)];
       ret(MultiHole(all_items));
     | None => ret(hole(Bin(Sig(s1), tiles, Sig(s2))))
@@ -1869,7 +1887,7 @@ and rul = (unsorted): Rul.t => {
       | Some((ps, leading_clauses)) =>
         mk_rules(
           scrut,
-          List.combine(ps, leading_clauses @ [last_clause]),
+          List.zip_exn(ps, leading_clauses @ [last_clause]),
           ids(unsorted),
         )
       | None => mk_rules(e, [], [Id.invalid])
@@ -1939,8 +1957,8 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       [members];
     | Tile({shards, children, _} as t) =>
       Aba.aba_triples(Aba.mk(shards, children))
-      |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(Tile.mold(t).in_, l) : Sort.Any;
+      |> List.map(~f=((l, kid, r)) => {
+           let s = l + 1 == r ? List.nth_exn(Tile.mold(t).in_, l) : Sort.Any;
            go_s(s, skel_of(~sort=s, kid), kid);
          })
     };
@@ -1970,8 +1988,8 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     let p_l = Aba.first_a(root);
     let p_r = Aba.last_a(root);
     // TODO throw proper exceptions
-    let (l, _) = Option.get(Piece.nibs(p_l));
-    let (_, r) = Option.get(Piece.nibs(p_r));
+    let (l, _) = Option.value_exn(Piece.nibs(p_l));
+    let (_, r) = Option.value_exn(Piece.nibs(p_r));
     (l.sort, r.sort);
   };
 
@@ -1994,8 +2012,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
  * Only skel and base_seg should be updated to match the outer term. */
 let reconsolidate =
     (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
-  List.fold_left(
-    (td, id) =>
+  List.fold(adopted, ~init=td0, ~f=(td, id) =>
       switch (Id.Map.find_opt(id, m)) {
       | None => td
       | Some(term) =>
@@ -2014,9 +2031,7 @@ let reconsolidate =
         | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
         | (None, _) => td
         };
-      },
-    td0,
-    adopted,
+    }
   );
 
 let consolidate_adopted = (): unit =>
@@ -2039,7 +2054,7 @@ let fresh =
   projectors := Id.Map.empty;
   projector_list := [];
   adopted_ids := [];
-  levels := Hashtbl.create(16);
+  levels := Stdlib.Hashtbl.create(16);
   body_hooks := hooks;
   secondary_map :=
     Segment.SecondaryCollection.collect(
@@ -2203,7 +2218,7 @@ module Incr = {
   let keyed = (~root: Sort.t, seg: Segment.t): list((Id.t, Segment.t)) =>
     ItemSpans.keyed(ItemSpans.top(~root, seg));
   let slices = (~root: Sort.t, seg: Segment.t): list(Segment.t) =>
-    List.map(snd, keyed(~root, seg));
+    List.map(~f=snd, keyed(~root, seg));
 
   let seg_eq = Segment.ptr_eq;
   /* an item's pieces as an entry's: physically, but whitespace an open
@@ -2230,7 +2245,7 @@ module Incr = {
     | Some(r) => Some((r, None))
     | None =>
       let hole_id =
-        switch (ListUtil.last_opt(pieces)) {
+        switch (List.last(pieces)) {
         | Some(p) => Id.derive(~salt="body-grout", Piece.id(p))
         | None => Id.mk()
         };
@@ -2243,7 +2258,7 @@ module Incr = {
           }),
         ],
       )
-      |> Option.map(r => (r, Some(hole_id)));
+      |> Option.map(~f=r => (r, Some(hole_id)));
     };
 
   /* collecting secondaries per slice matches the whole-segment
@@ -2334,8 +2349,8 @@ module Incr = {
     /* the stand-in's item: an expression, which flatten_mod wraps */
     let stands_in = (h: Id.t, m: Mod.t) =>
       switch (m.term) {
-      | ModExp(e) => List.mem(h, e.annotation.ids)
-      | _ => List.mem(h, m.annotation.ids)
+      | ModExp(e) => List.mem(e.annotation.ids, h, ~equal=Poly.equal)
+      | _ => List.mem(m.annotation.ids, h, ~equal=Poly.equal)
       };
     let behead = (items: list(Mod.t)) =>
       switch (head, items) {
@@ -2346,7 +2361,8 @@ module Incr = {
     switch (with_body_grout(attempt, pieces)) {
     | Some((items, None)) => (behead(items), head)
     | Some((items, Some(hole_id))) =>
-      let is_hole = (m: Mod.t) => List.mem(hole_id, m.annotation.ids);
+      let is_hole = (m: Mod.t) =>
+        List.mem(m.annotation.ids, hole_id, ~equal=Poly.equal);
       switch (ListUtil.split_last_opt(behead(items))) {
       | Some((items, hole)) when is_hole(hole) => (
           items,
@@ -2370,7 +2386,8 @@ module Incr = {
      operand typed above a let, a let under a fun, `if` or operator). a
      lost hole raises: callers parse whole rather than drop what follows */
   let graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): (Exp.t, list(Exp.t)) => {
-    let is_hole = (e: Exp.t) => List.mem(hole_id, e.annotation.ids);
+    let is_hole = (e: Exp.t) =>
+      List.mem(e.annotation.ids, hole_id, ~equal=Poly.equal);
     let path = ref([]);
     let rebuilt = (e: Exp.t): Exp.t => {
       path := [e, ...path^];
@@ -2467,7 +2484,7 @@ module Incr = {
   ]
   and kids_subtree = (e: entry_full): list(entry_full) =>
     switch (e.f_kids) {
-    | Some((_, kids)) => List.concat_map(((_, k)) => subtree(k), kids)
+    | Some((_, kids)) => List.concat_map(~f=((_, k)) => subtree(k), kids)
     | None => []
     };
 
@@ -2504,10 +2521,8 @@ module Incr = {
   /* strip the synthetic grouts from captured maps: go never sees them,
      so nothing keyed by them may survive into the union */
   let scrub = (grouts: list(Id.t), (m, td)) =>
-    List.fold_left(
-      ((m, td), g) => (Id.Map.remove(g, m), Id.Map.remove(g, td)),
-      (m, td),
-      grouts,
+    List.fold(grouts, ~init=(m, td), ~f=((m, td), g) =>
+      (Id.Map.remove(g, m), Id.Map.remove(g, td))
     );
 
   /* level skels built, and kept from the last parse: observability for
@@ -2525,7 +2540,7 @@ module Incr = {
       | Tok(_) => Tile.shapes(t) == (Convex, Convex)
       | _ => false
       };
-    p === q
+    phys_equal(p, q)
     || (
       switch (p, q) {
       | (Grout(g), Grout(h)) => g.shape == h.shape
@@ -2547,10 +2562,10 @@ module Incr = {
       : Skel.t => {
     let paired =
       switch (prev) {
-      | Some((ps, sk)) when ps === seg => Some(sk)
+      | Some((ps, sk)) when phys_equal(ps, seg) => Some(sk)
       | Some((ps, sk)) =>
         /* at[i]: where old piece i is now */
-        let at = Array.make(List.length(ps), 0);
+        let at = Array.create(~len=List.length(ps), 0);
         let rec pair = (i, j, ps: Segment.t, qs: Segment.t, moved) =>
           switch (ps, qs) {
           | ([p, ...ps], _) when Piece.is_secondary(p) =>
@@ -2565,8 +2580,8 @@ module Incr = {
           };
         let rec move = (sk: Skel.t): Skel.t => {
           let root = ((is, ks): Skel.root) => (
-            List.map(i => at[i], is),
-            List.map(move, ks),
+            List.map(~f=i => at[i], is),
+            List.map(~f=move, ks),
           );
           switch (sk) {
           | Op(r) => Op(root(r))
@@ -2604,7 +2619,7 @@ module Incr = {
       switch (s) {
       | Any =>
         let so = Piece.sort(arr[Aba.first_a(Skel.root(skel))]) |> fst;
-        so == Any ? root : so;
+        Poly.equal(so, Any) ? root : so;
       | Drv(Jdmt | Ctx | Prop | Exp) => Drv(Exp)
       | s => s
       };
@@ -2612,11 +2627,11 @@ module Incr = {
       let s = resolve(s, skel);
       let root = Skel.root(skel) |> Aba.map_a(i => arr[i]);
       Aba.get_as(root)
-      |> List.iter(p =>
+      |> List.iter(~f=p =>
            td := Id.Map.add(Piece.id(p), TermData.mk(p, s, skel, seg), td^)
          );
       Aba.aba_triples(root)
-      |> List.iter(((p_l, kid, p_r)) => {
+      |> List.iter(~f=((p_l, kid, p_r)) => {
            let (_, s_l) = Piece.nib_sorts(p_l);
            let (s_r, _) = Piece.nib_sorts(p_r);
            sim(s_l == s_r ? s_l : Sort.Any, kid);
@@ -2624,8 +2639,8 @@ module Incr = {
       let (l_sort, r_sort) = {
         let p_l = Aba.first_a(root);
         let p_r = Aba.last_a(root);
-        let (l, _) = Option.get(Piece.nibs(p_l));
-        let (_, r) = Option.get(Piece.nibs(p_r));
+        let (l, _) = Option.value_exn(Piece.nibs(p_l));
+        let (_, r) = Option.value_exn(Piece.nibs(p_r));
         (l.sort, r.sort);
       };
       switch (skel) {
@@ -2646,8 +2661,8 @@ module Incr = {
   let refix =
       (adopted: list((Id.t, Id.t, option(TermData.data))), td: TermData.t)
       : TermData.t =>
-    List.fold_left(
-      (td, (id, rep, own: option(TermData.data))) =>
+    List.fold(
+      adopted, ~init=td, ~f=(td, (id, rep, own: option(TermData.data))) =>
         switch (Id.Map.find_opt(rep, td)) {
         | Some(rd) =>
           Id.Map.add(
@@ -2664,18 +2679,14 @@ module Incr = {
             td,
           )
         | None => td
-        },
-      td,
-      adopted,
+      }
     );
 
   /* re-add the grafts' rebuilt nodes so the term map holds grafted terms,
      not holed bodies; inner first, as go adds them */
   let fix_spine = (m: TermMap.t, outer_first: list(Exp.t)): TermMap.t =>
-    List.fold_left(
-      (m, e: Exp.t) => TermMap.add_all(e.annotation.ids, Exp(e), m),
-      m,
-      List.rev(outer_first),
+    List.fold(List.rev(outer_first), ~init=m, ~f=(m, e: Exp.t) =>
+      TermMap.add_all(e.annotation.ids, Exp(e), m)
     );
 
   /* a member list composed as go_s(Mod, …) composes it: go's tree over
@@ -2698,21 +2709,21 @@ module Incr = {
         kids: list((Id.t, entry_full)),
       )
       : (Any.t, TermMap.t) => {
-    let items = List.concat_map(((_, e)) => e.f_mods, kids);
-    let ends = List.concat_map(((_, e)) => e.f_seps, kids);
+    let items = List.concat_map(~f=((_, e)) => e.f_mods, kids);
+    let ends = List.concat_map(~f=((_, e)) => e.f_seps, kids);
     let is_sep = (p: Piece.t) =>
       switch (p) {
-      | Tile(t) => Tile.is_semi(t) && t.sort == Sort.Mod
+      | Tile(t) => Tile.is_semi(t) && Sort.equal(t.sort, Sort.Mod)
       | Grout({shape: Concave, _}) => true
       | _ => false
       };
     let rec tree = (sk: Skel.t): seps =>
       switch (sk) {
       | Bin(l, root, r)
-          when List.for_all(i => is_sep(ml.pieces[i]), Aba.get_as(root)) =>
+          when List.for_all(~f=i => is_sep(ml.pieces[i]), Aba.get_as(root)) =>
         Node(
-          List.map(i => ml.pieces[i], Aba.get_as(root)),
-          [tree(l), ...List.map(tree, Aba.get_bs(root))] @ [tree(r)],
+          List.map(~f=i => ml.pieces[i], Aba.get_as(root)),
+          [tree(l), ...List.map(~f=tree, Aba.get_bs(root))] @ [tree(r)],
         )
       | _ => Leaf(sk)
       };
@@ -2721,7 +2732,7 @@ module Incr = {
       switch (t) {
       | Leaf(_) => (1, [])
       | Node(ps, ks) =>
-        let ws = List.map(walk, ks);
+        let ws = List.map(~f=walk, ks);
         let rec ids = (ws, ps) =>
           switch (ws, ps) {
           | ([(_, i)], []) => i
@@ -2729,11 +2740,11 @@ module Incr = {
             i @ [Piece.id(p), ...ids(ws, ps)]
           | _ => []
           };
-        (List.fold_left((n, (m, _)) => n + m, 0, ws), ids(ws, ps));
+        (List.fold(ws, ~init=0, ~f=(n, (m, _)) => n + m), ids(ws, ps));
       };
     let t = tree(skel);
     let (leaves, tree_ends) = walk(t);
-    let mod_items = () => List.map(m => Grammar.Mod(m), items);
+    let mod_items = () => List.map(~f=m => Grammar.Mod(m), items);
     if (leaves == List.length(items) && tree_ends == ends) {
       let rest = ref(items);
       let below = ref(TermMap.empty);
@@ -2754,10 +2765,13 @@ module Incr = {
         }
       and node = (~is_below: bool, ps, ks): Any.t => {
         let ks =
-          List.map(kid(List.for_all(Piece.is_semi, ps) ? Mod : Any), ks);
+          List.map(
+            ~f=kid(List.for_all(~f=Piece.is_semi, ps) ? Mod : Any),
+            ks,
+          );
         let tiles =
           Aba.mk(
-            List.map(p => (Piece.id(p), (head(p), [])), ps),
+            List.map(~f=p => (Piece.id(p), (head(p), [])), ps),
             ListUtil.sublist((1, List.length(ks) - 1), ks),
           );
         let (m, mm) =
@@ -2766,7 +2780,9 @@ module Incr = {
             [],
             () => {
               let m =
-                mod_(Bin(List.hd(ks), tiles, ListUtil.last(ks)): unsorted);
+                mod_(
+                  Bin(List.hd_exn(ks), tiles, ListUtil.last(ks)): unsorted,
+                );
               (m, map^);
             },
           );
@@ -2786,7 +2802,7 @@ module Incr = {
          written; each other separator's term is the member list */
       let root_ids =
         switch (t) {
-        | Node(ps, _) => List.map(Piece.id, ps)
+        | Node(ps, _) => List.map(~f=Piece.id, ps)
         | Leaf(_) => []
         };
       let flat = (ids: list(Id.t)): Any.t =>
@@ -2800,15 +2816,12 @@ module Incr = {
         );
       switch (items) {
       | [] => raise(Recompose)
-      | [m] when ends == [] => (Mod(m), TermMap.empty)
+      | [m] when List.is_empty(ends) => (Mod(m), TermMap.empty)
       | _ => (
           flat(root_ids),
-          List.fold_left(
-            (map, id) =>
-              List.mem(id, root_ids)
-                ? map : Id.Map.add(id, flat([id]), map),
-            TermMap.empty,
-            ends,
+          List.fold(ends, ~init=TermMap.empty, ~f=(map, id) =>
+            List.mem(root_ids, id, ~equal=Poly.equal)
+              ? map : Id.Map.add(id, flat([id]), map)
           ),
         )
       };
@@ -2824,13 +2837,12 @@ module Incr = {
   let localize =
       (~member: bool, ps: Segment.t, m: TermMap.t, td: TermData.t, adopted) => {
     let tops =
-      List.fold_left(
-        (s, p) => Piece.is_secondary(p) ? s : Id.Set.add(Piece.id(p), s),
-        Id.Set.empty,
-        ps,
+      List.fold(ps, ~init=Id.Set.empty, ~f=(s, p) =>
+        Piece.is_secondary(p) ? s : Id.Set.add(Piece.id(p), s)
       );
     let top_adopted =
       List.filter_map(
+        ~f=
         id =>
           switch (Id.Map.find_opt(id, m)) {
           | Some(term) =>
@@ -2843,13 +2855,11 @@ module Incr = {
       );
     if (member) {
       let seps = ItemSpans.separators(ps);
-      let m = List.fold_left(Fun.flip(Id.Map.remove), m, seps);
+      let m = List.fold(seps, ~init=m, ~f=Fun.flip(Id.Map.remove));
       let td = Id.Set.fold(Id.Map.remove, tops, td);
       let td =
-        List.fold_left(
-          (td, (id, _, _)) => Id.Map.remove(id, td),
-          td,
-          top_adopted,
+        List.fold(top_adopted, ~init=td, ~f=(td, (id, _, _)) =>
+          Id.Map.remove(id, td)
         );
       (m, td, top_adopted, seps);
     } else {
@@ -2878,8 +2888,8 @@ module Incr = {
           )
           : (list((Id.t, entry_full)), delta) => {
     let table = (es: list((Id.t, entry_full))) => {
-      let t = Hashtbl.create(List.length(es) + 1);
-      List.iter(((k, e)) => Hashtbl.replace(t, k, e), es);
+      let t = Stdlib.Hashtbl.create(List.length(es) + 1);
+      List.iter(~f=((k, e)) => Stdlib.Hashtbl.replace(t, k, e), es);
       t;
     };
     let prev_tbl = table(prev);
@@ -2888,13 +2898,14 @@ module Incr = {
     let come = ref([]);
     let entries =
       List.mapi(
+        ~f=
         (k, (key, ps)) => {
-          let p = Hashtbl.find_opt(prev_tbl, key);
-          let s = Hashtbl.find_opt(shared_tbl, key);
+            let p = Stdlib.Hashtbl.find_opt(prev_tbl, key);
+            let s = Stdlib.Hashtbl.find_opt(shared_tbl, key);
           switch (p, s) {
           | (Some(e), _) when same_item(e.f_pieces, ps) => (key, e)
           | (_, Some(e)) when same_item(e.f_pieces, ps) =>
-            Option.iter(p => gone := subtree(p) @ gone^, p);
+              Option.iter(~f=p => gone := subtree(p) @ gone^, p);
             come := subtree(e) @ come^;
             (key, e);
           | _ =>
@@ -2921,7 +2932,7 @@ module Incr = {
     let cur = table(entries);
     let vanished =
       List.concat_map(
-        ((key, e)) => Hashtbl.mem(cur, key) ? [] : subtree(e),
+        ~f=((key, e)) => Stdlib.Hashtbl.mem(cur, key) ? [] : subtree(e),
         prev,
       );
     (
@@ -2952,8 +2963,8 @@ module Incr = {
       : (entry_full, delta) =>
     /* a level of only trivia or a hole (`{ }`) is one slice, no span */
     switch (
-      root == Sort.Mod && k < Array.length(lv.spans)
-        ? Option.bind(ItemSpans.chain(lv, k), cl =>
+      Sort.equal(root, Sort.Mod) && k < Array.length(lv.spans)
+        ? Option.bind(ItemSpans.chain(lv, k), ~f=cl =>
             parse_chain(
               ~member,
               ~masks,
@@ -3000,8 +3011,8 @@ module Incr = {
       : (entry_full, delta) => {
     let body =
       k < Array.length(lv.spans)
-        ? Option.bind(lv.spans[k].body, brace =>
-            Option.map(ml => (brace, ml), ItemSpans.members(lv, k))
+        ? Option.bind(lv.spans[k].body, ~f=brace =>
+            Option.map(~f=ml => (brace, ml), ItemSpans.members(lv, k))
           )
         : None;
     /* the shell's hook and frame, and the member level */
@@ -3032,10 +3043,10 @@ module Incr = {
             let skel = reskel(~sort=Mod, ~prev=prev_skel, ml.seg);
             let (term, level_map) = compose_members(~masks, ~skel, ml, kids);
             let plist =
-              List.concat_map(((_, e)) => e.f_plist, List.rev(kids));
+              List.concat_map(~f=((_, e)) => e.f_plist, List.rev(kids));
             let frame =
               record_top_frame(~root=Mod, ~skel, Id.Map.empty, ml.seg)
-              |> refix(List.concat_map(((_, e)) => e.f_adopted, kids));
+              |> refix(List.concat_map(~f=((_, e)) => e.f_adopted, kids));
             (
               brace,
               kids,
@@ -3043,7 +3054,7 @@ module Incr = {
               term,
               plist,
               (frame, level_map, (ml.seg, skel)),
-              pk != None,
+              Option.is_some(pk),
             );
           }
         ) {
@@ -3062,9 +3073,12 @@ module Incr = {
       };
     /* an unfinished member cut at its member line: no separator ends it */
     let cut =
-      lv.cut && k < Array.length(lv.spans) - 1 && lv.spans[k].sep == None;
+      lv.cut
+      && k < Array.length(lv.spans)
+      - 1
+      && Option.is_none(lv.spans[k].sep);
     let (f_term, f_hole, f_mods, grouts) =
-      if (root == Sort.Mod) {
+      if (Sort.equal(root, Sort.Mod)) {
         let (items, grouts) = parse_item_mod(~masks, ~hooks, ~cut, ps);
         (Exp.fresh(EmptyHole), None, items, grouts);
       } else {
@@ -3072,6 +3086,7 @@ module Incr = {
         (term, hole, [], Option.to_list(hole));
       };
     Option.iter(
+      ~f=
       ((_, _, _, _, _, (frame, level_map, _), _)) => {
         term_data := Id.Map.union((_, f, _) => Some(f), frame, term_data^);
         map := Id.Map.union((_, l, _) => Some(l), level_map, map^);
@@ -3086,15 +3101,13 @@ module Incr = {
     let f_map =
       switch (graft, f_hole) {
       | (true, Some(h)) =>
-        List.fold_left(
-          (m, node: Exp.t) =>
-            List.fold_left(
-              (m, id) => Id.Map.remove(id, m),
-              m,
-              node.annotation.ids,
-            ),
-          f_map,
+        List.fold(
           snd(graft_at(h, Exp.fresh(EmptyHole), f_term)),
+          ~init=f_map,
+          ~f=(m, node: Exp.t) =>
+          List.fold(node.annotation.ids, ~init=m, ~f=(m, id) =>
+            Id.Map.remove(id, m)
+          )
         )
       | _ => f_map
       };
@@ -3111,11 +3124,14 @@ module Incr = {
       f_seps,
       f_kids:
         Option.map(
-          ((brace, kids, _, _, _, _, _)) => (brace, kids),
+          ~f=((brace, kids, _, _, _, _, _)) => (brace, kids),
           members,
         ),
       f_skel:
-        Option.map(((_, _, _, _, _, (_, _, level), _)) => level, members),
+        Option.map(
+          ~f=((_, _, _, _, _, (_, _, level), _)) => level,
+          members,
+        ),
     };
     let delta =
       switch (members, prev) {
@@ -3124,11 +3140,11 @@ module Incr = {
           come: [e, ...kd.come],
         }
       | (Some((_, _, kd, _, _, _, _)), p) => {
-          gone: Option.fold(~none=[], ~some=subtree, p),
+          gone: Option.value_map(p, ~default=[], ~f=subtree),
           come: [e, ...kd.come],
         }
       | (None, p) => {
-          gone: Option.fold(~none=[], ~some=subtree, p),
+          gone: Option.value_map(p, ~default=[], ~f=subtree),
           come: [e],
         }
       };
@@ -3160,11 +3176,13 @@ module Incr = {
         let rec semi_at = i =>
           i >= sp.hi ? sp.hi : Piece.is_semi(arr[i]) ? i : semi_at(i + 1);
         let stop = semi_at(c1);
-        let sub = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+        let sub = (a, b) =>
+          Array.to_list(Array.sub(arr, ~pos=a, ~len=b - a));
         let keyed = ItemSpans.keyed(cl);
         let last = List.length(keyed) - 1;
         let keyed =
           List.mapi(
+            ~f=
             (i, (key, s)) =>
               (
                 key,
@@ -3191,7 +3209,7 @@ module Incr = {
         let e =
           graft_items(
             ~on_path=path => rebuilt := path @ rebuilt^,
-            List.map(((_, e)) => (e.f_term, e.f_hole), kids),
+            List.map(~f=((_, e)) => (e.f_term, e.f_hole), kids),
           );
         let ph = Id.derive(~salt="chain-shell", sp.anchor);
         incr(count);
@@ -3216,7 +3234,8 @@ module Incr = {
           );
         let f_mods =
           switch (items) {
-          | [{annotation: {ids: [id], _}, _}, ...rest] when id == ph => [
+          | [{annotation: {ids: [id], _}, _}, ...rest]
+              when Id.equal(id, ph) => [
               modexp,
               ...rest,
             ]
@@ -3239,9 +3258,9 @@ module Incr = {
           f_proj: projectors^,
           f_plist:
             projector_list^
-            @ List.concat_map(((_, e)) => e.f_plist, List.rev(kids)),
+            @ List.concat_map(~f=((_, e)) => e.f_plist, List.rev(kids)),
           f_adopted:
-            f_adopted @ List.concat_map(((_, e)) => e.f_adopted, kids),
+            f_adopted @ List.concat_map(~f=((_, e)) => e.f_adopted, kids),
           f_seps,
           f_kids: Some((sp.anchor, kids)),
           f_skel: None,
@@ -3254,7 +3273,7 @@ module Incr = {
               come: [entry, ...kd.come],
             }
           | (_, p) => {
-              gone: Option.fold(~none=[], ~some=subtree, p),
+              gone: Option.value_map(p, ~default=[], ~f=subtree),
               come: [entry, ...kd.come],
             }
           },
@@ -3269,18 +3288,18 @@ module Incr = {
 
   and kids_of = (e: option(entry_full), id: Id.t) =>
     switch (e) {
-    | Some({f_kids: Some((b, kids)), _}) when b == id => Some(kids)
+    | Some({f_kids: Some((b, kids)), _}) when Id.equal(b, id) => Some(kids)
     | _ => None
     };
 
   /* a level's term: a Mod root's items concatenate under the stable
      wrapper; an expression level's graft */
   let compose = (~root: Sort.t, ~on_path=?, entries): Exp.t =>
-    root == Sort.Mod
-      ? wrap_module(List.concat_map(((_, e)) => e.f_mods, entries))
+    Sort.equal(root, Sort.Mod)
+      ? wrap_module(List.concat_map(~f=((_, e)) => e.f_mods, entries))
       : graft_items(
           ~on_path?,
-          List.map(((_, e)) => (e.f_term, e.f_hole), entries),
+          List.map(~f=((_, e)) => (e.f_term, e.f_hole), entries),
         );
 
   /* the statics path's last entries, per root. ~masks only concern items
@@ -3304,7 +3323,7 @@ module Incr = {
         seg: Segment.t,
       )
       : Exp.t => {
-    let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+    let root = Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp;
     analyzed := 0;
     switch (last^) {
     | Some((r, e, prev_seg, prev_term))
@@ -3339,7 +3358,7 @@ module Incr = {
         | _ =>
           incr(fell_back);
           (
-            switch (root == Sort.Mod, Id.Map.is_empty(masks)) {
+            switch (Sort.equal(root, Sort.Mod), Id.Map.is_empty(masks)) {
             | (true, true) => go_mod_root(seg)
             | (true, false) => go_mod_root_impl(~masks, seg)
             | (false, true) => go(seg)
@@ -3389,22 +3408,16 @@ module Incr = {
       Id.Map.fold((id, _, m) => Id.Map.remove(id, m), keys, m);
     let add = (m, kvs) => Id.Map.fold(Id.Map.add, kvs, m);
     let (m_map, m_td, m_proj) =
-      List.fold_left(
-        ((m_map, m_td, m_proj), e) =>
-          (
-            drop(m_map, e.f_map),
-            drop(m_td, e.f_td),
-            drop(m_proj, e.f_proj),
-          ),
-        (m_map0, m_td0, m_proj0),
+      List.fold(
         d.gone,
+        ~init=(m_map0, m_td0, m_proj0),
+        ~f=((m_map, m_td, m_proj), e) =>
+        (drop(m_map, e.f_map), drop(m_td, e.f_td), drop(m_proj, e.f_proj))
       );
     let (m_map, m_td, m_proj) =
-      List.fold_left(
-        ((m_map, m_td, m_proj), e) =>
-          (add(m_map, e.f_map), add(m_td, e.f_td), add(m_proj, e.f_proj)),
-        (m_map, m_td, m_proj),
-        d.come,
+      List.fold(
+        d.come, ~init=(m_map, m_td, m_proj), ~f=((m_map, m_td, m_proj), e) =>
+        (add(m_map, e.f_map), add(m_td, e.f_td), add(m_proj, e.f_proj))
       );
     cache.c_prev = Some((root, ends, entries, m_map, m_td, m_proj));
     /* every graft's rebuilt nodes, outermost first */
@@ -3417,7 +3430,7 @@ module Incr = {
         TermMap.add_all(term.annotation.ids, Exp(term), m_map),
         rebuilt^,
       );
-    let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+    let sort = Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp;
     let skel =
       reskel(
         ~sort,
@@ -3431,10 +3444,10 @@ module Incr = {
     cache.c_skel = Some((sort, seg, skel));
     let term_data =
       record_top_frame(~root, ~skel, m_td, seg)
-      |> refix(List.concat_map(((_, e)) => e.f_adopted, entries));
+      |> refix(List.concat_map(~f=((_, e)) => e.f_adopted, entries));
     /* go conses projector ids left to right, so later items come first */
     let projector_list =
-      List.concat_map(((_, e)) => e.f_plist, List.rev(entries));
+      List.concat_map(~f=((_, e)) => e.f_plist, List.rev(entries));
     {
       term,
       terms,
@@ -3459,7 +3472,7 @@ module Incr = {
     | r => r
     | exception _ =>
       incr(fell_back);
-      root == Sort.Mod ? go_mod_root(seg) : go(seg);
+      Sort.equal(root, Sort.Mod) ? go_mod_root(seg) : go(seg);
     };
 };
 
@@ -3506,11 +3519,11 @@ let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
    * old caret-sensitive missing-shard dump. A Mod root completes and
    * reads as a member list; every other root at Exp. */
   let seg = semantic_source(z);
-  let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+  let sort = Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp;
   let result = CanonicalCompletion.complete_segment_deep(~sort, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   (
-    sort == Sort.Mod
+    Sort.equal(sort, Sort.Mod)
       ? go_mod_root_impl(~masks, result.completed_seg)
       : go_impl(~masks, result.completed_seg),
     {

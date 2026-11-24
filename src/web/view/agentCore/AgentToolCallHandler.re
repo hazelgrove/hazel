@@ -36,9 +36,12 @@ let entry_id = (~root, seg, path: string): option(Id.t) =>
 
 /* its definition's, where a syntax projector goes */
 let definition_id = (~root, seg, path: string): option(Id.t) =>
-  Option.bind(entry_id(~root, seg, path), head =>
-    EntryEdit.part(~root, head, Definition, seg)
-  );
+  switch (EntryPath.resolve_string(~root, seg, path)) {
+  | Ok(f) =>
+    let (lv, k) = Util.ListUtil.last(f.steps);
+    EntryPath.part_root(lv, k, Definition);
+  | Error(_) => None
+  };
 
 let apply_overlay_action =
     (
@@ -79,7 +82,9 @@ let apply_overlay_action =
   let syntax = {
     let s = editor.editor.syntax;
     let (relatives, selection, _) = s.zipped;
-    !s.old && relatives === z.relatives && selection === z.selection
+    !s.old
+    && phys_equal(relatives, z.relatives)
+    && phys_equal(selection, z.selection)
       ? s
       : Util.PerfTimer.time("syntax", () =>
           CachedSyntax.init(~root, ~m_cache=s.m_cache, ~t_cache=s.t_cache, z)
@@ -87,26 +92,29 @@ let apply_overlay_action =
   };
   let (new_z, paths_to_expand, n_changed, unresolved) =
     List.fold_left(
-      ((z, expanded, n_changed, unresolved), path) =>
-        switch (resolve_path(~root, seg, path)) {
-        | Some(id) =>
-          switch (perform(~info_map, ~syntax, z, id)) {
-          | Some((z', should_expand)) =>
-            let expanded = should_expand ? [path, ...expanded] : expanded;
-            (z', expanded, n_changed + 1, unresolved);
-          | None => (z, expanded, n_changed, unresolved)
-          }
-        | None => (z, expanded, n_changed, [path, ...unresolved])
-        },
-      (z, [], 0, []),
+      ~f=
+        ((z, expanded, n_changed, unresolved), path) =>
+          switch (resolve_path(~root, seg, path)) {
+          | Some(id) =>
+            switch (perform(~info_map, ~syntax, z, id)) {
+            | Some((z', should_expand)) =>
+              let expanded = should_expand ? [path, ...expanded] : expanded;
+              (z', expanded, n_changed + 1, unresolved);
+            | None => (z, expanded, n_changed, unresolved)
+            }
+          | None => (z, expanded, n_changed, [path, ...unresolved])
+          },
+      ~init=(z, [], 0, []),
       paths,
     );
-  if (List.length(paths) > 0 && n_changed == 0) {
+  if (!List.is_empty(paths) && n_changed == 0) {
     let unresolved_sfx =
       switch (unresolved) {
       | [] => ""
       | ps =>
-        " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
+        " Unresolved path(s): "
+        ++ String.concat(~sep=", ", List.rev(ps))
+        ++ "."
       };
     Error(
       Failure.Info(
@@ -136,15 +144,16 @@ let apply_overlay_action =
     let outline = Outline.of_program(~root, Zipper.unselect_and_zip(new_z));
     let opened =
       List.filter_map(
-        path =>
-          switch (Outline.resolve(outline, path)) {
-          | Ok(e) => Some(AgentContext.Model.of_outline(e))
-          | Error(_) => None
-          },
+        ~f=
+          path =>
+            switch (Outline.resolve(outline, path)) {
+            | Ok(e) => Some(AgentContext.Model.of_outline(e))
+            | Error(_) => None
+            },
         List.rev(paths_to_expand),
       );
     switch (
-      opened == []
+      List.is_empty(opened)
         ? Ok(agent.chat_system)
         : ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
@@ -222,6 +231,7 @@ let update =
         )
       }
     };
+
   | WorkbenchAction(workbench_action) =>
     let action = AgentWorkbench.Update.Action.BackendAction(workbench_action);
     let chat_system =
@@ -361,7 +371,7 @@ let update =
                 z,
               )
             };
-          z_opt |> Option.map(z' => (z', true));
+          z_opt |> Option.map(~f=z' => (z', true));
         },
       ~paths,
       ~agent,

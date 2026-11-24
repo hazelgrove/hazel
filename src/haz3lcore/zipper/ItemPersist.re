@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* per-item persistence: top-level item slices stored as separate sexp
    values plus an ordered roster, so autosave writes only touched items
@@ -32,7 +33,7 @@ let item_key = (id: Id.t): string => "item:" ++ Id.to_string(id);
 
 let items_of = (seg: Segment.t): list((Id.t, Segment.t)) =>
   Segment.top_items(seg)
-  |> List.filter_map(slice =>
+  |> List.filter_map(~f=slice =>
        switch (slice) {
        | [] => None
        | [p, ..._] => Some((Piece.id(p), slice))
@@ -46,36 +47,39 @@ type saved = list((Id.t, Segment.t));
 let save = (~store: store, ~prev: saved, seg: Segment.t): saved => {
   let items = items_of(seg);
   let dirty = (id, s) =>
-    switch (List.assoc_opt(id, prev)) {
+    switch (List.Assoc.find(prev, id, ~equal=Poly.equal)) {
     | Some(s0) => !Segment.ptr_eq(s0, s)
     | None => true
     };
   List.iter(
-    ((id, s)) =>
-      if (dirty(id, s)) {
-        store.set(
-          item_key(id),
-          Sexplib.Sexp.to_string(Segment.sexp_of_t(s)),
-        );
-      },
+    ~f=
+      ((id, s)) =>
+        if (dirty(id, s)) {
+          store.set(
+            item_key(id),
+            Sexplib.Sexp.to_string(Segment.sexp_of_t(s)),
+          );
+        },
     items,
   );
   let roster =
     List.map(
-      ((id, s)) =>
-        {
-          r_id: id,
-          r_pieces: List.length(s),
-        },
+      ~f=
+        ((id, s)) =>
+          {
+            r_id: id,
+            r_pieces: List.length(s),
+          },
       items,
     );
   store.set(roster_key, Sexplib.Sexp.to_string(sexp_of_roster(roster)));
   /* GC only after the roster names the survivors */
   List.iter(
-    ((id, _)) =>
-      if (!List.mem_assoc(id, items)) {
-        store.remove(item_key(id));
-      },
+    ~f=
+      ((id, _)) =>
+        if (!List.Assoc.mem(items, id, ~equal=Poly.equal)) {
+          store.remove(item_key(id));
+        },
     prev,
   );
   items;
@@ -93,14 +97,14 @@ let load = (~store: store): option(Segment.t) => {
     | seg => Some(seg)
     | exception _ => None
     };
-  switch (Option.bind(store.get(roster_key), decode_roster)) {
+  switch (Option.bind(store.get(roster_key), ~f=decode_roster)) {
   | None => None
   | Some(roster) =>
     let rec go = (entries, acc) =>
       switch (entries) {
       | [] => Some(List.concat(List.rev(acc)))
       | [{r_id, r_pieces}, ...rest] =>
-        switch (Option.bind(store.get(item_key(r_id)), decode_item)) {
+        switch (Option.bind(store.get(item_key(r_id)), ~f=decode_item)) {
         | Some(s) when List.length(s) == r_pieces => go(rest, [s, ...acc])
         | _ => None
         }

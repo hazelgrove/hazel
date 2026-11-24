@@ -2,22 +2,25 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open CorpusUtil;
+open Poly;
 
-/* outline rename: the binder, its references and `M.x` labels change; a
-   capturing rename is refused */
+/* outline rename, as typed on the row's line: the binder, its references
+   and `M.x` labels change; a capturing rename is refused; a kind keyword
+   first changes the item's kind */
 
 let rename = (~root=Sort.Exp, src, label, name) => {
   let seg = seg_of(~root, src);
   let term = MakeTerm.Incr.term_of_root(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  Web.OutlineRename.rename(
+  CorpusUtil.rename_row(
+    ~root,
     ~info_map,
     ~outline=CorpusUtil.outline_of(~root, seg),
     row_by_label(CorpusUtil.outline_of(~root, seg), label),
     name,
     seg,
   )
-  |> Result.map(text_of);
+  |> Result.map(~f=text_of);
 };
 
 let renamed = (~root=Sort.Exp, src, label, name, expected) =>
@@ -38,28 +41,8 @@ let refused = (~root=Sort.Exp, src, label, name) =>
   | Error(_) => ()
   };
 
-/* as typed on the row's line, where a kind keyword first changes the
-   item's kind */
-let typed = (~root=Sort.Exp, src, label, typed) => {
-  let seg = seg_of(~root, src);
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
-  let outline = CorpusUtil.outline_of(~root, seg);
-  let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  Web.ItemEdit.edit(
-    {
-      mod_root: root == Sort.Mod,
-      outline,
-      info_map: Lazy.from_val(info_map),
-      is_open: _ => true,
-    },
-    Rename(row_by_label(outline, label), typed),
-    seg,
-  )
-  |> Result.map(((seg, _)) => text_of(seg));
-};
-
 let changed = (~root=Sort.Exp, src, label, text, expected) =>
-  switch (typed(~root, src, label, text)) {
+  switch (rename(~root, src, label, text)) {
   | Ok(txt) =>
     check(
       string,
@@ -72,7 +55,7 @@ let changed = (~root=Sort.Exp, src, label, text, expected) =>
 
 /* refused as typed, and why */
 let refused_as = (src, label, text, why) =>
-  switch (typed(src, label, text)) {
+  switch (rename(src, label, text)) {
   | Ok(txt) => fail("renamed: " ++ txt)
   | Error(got) => check(string, label ++ " -> " ++ text, why, got)
   };
@@ -160,10 +143,10 @@ let names = () => {
   refused("let foo = 1 in foo", "foo", "Foo");
   refused("let foo = 1 in foo", "foo", "let");
   refused("let foo = 1 in foo", "foo", "two words");
-  refused("type T = Int in 1", "T", "t");
+  renamed("type T = Int in 1", "T", "t", "type t = Int in 1");
   /* the wildcard, literals, any form's keyword, qualified names */
   List.iter(
-    name => refused("let foo = 1 in foo", "foo", name),
+    ~f=name => refused("let foo = 1 in foo", "foo", name),
     ["_", "true", "end", "rec", "theorem", "M.x", "$x"],
   );
   renamed("let foo = 1 in foo", "foo", "foo_2'", "let foo_2' = 1 in foo_2'");
@@ -173,7 +156,7 @@ let names = () => {
 let messages = () => {
   let src = "let foo = 1 in\nlet bar = foo + 1 in\nbar + foo";
   List.iter(
-    ((name, why)) => refused_as(src, "foo", name, why),
+    ~f=((name, why)) => refused_as(src, "foo", name, why),
     [
       ("let", "let is a keyword"),
       ("module", "module is a keyword"),
@@ -184,12 +167,6 @@ let messages = () => {
       ("Foo", "value names start lowercase"),
       ("bar", "bar is already in use here"),
     ],
-  );
-  refused_as(
-    "type T = Int in 1",
-    "T",
-    "t",
-    "type and module names start with a capital",
   );
   /* an outer name used inside would now find the renamed item */
   refused_as(
@@ -258,12 +235,7 @@ a|js},
     "let t",
     "a value needs a value body",
   );
-  refused_as(
-    m,
-    "m",
-    "module m",
-    "type and module names start with a capital",
-  );
+  refused_as(m, "m", "module m", "module names start with a capital");
   refused_as(mm, "M", "let M", "value names start lowercase");
   refused_as(
     {js|let (a, b) = ¿ in
@@ -287,19 +259,8 @@ let kind_ids = () => {
     | Some({o_binder: Some((b, _)), _}) => b
     | _ => fail("no binder")
     };
-  switch (
-    Web.ItemEdit.edit(
-      {
-        mod_root: false,
-        outline,
-        info_map: Lazy.from_val(info_map),
-        is_open: _ => true,
-      },
-      Rename(m, "module M"),
-      seg,
-    )
-  ) {
-  | Ok((seg, _)) =>
+  switch (CorpusUtil.rename_row(~info_map, ~outline, m, "module M", seg)) {
+  | Ok(seg) =>
     let outline = CorpusUtil.outline_of(seg);
     check(bool, "the row's", true, row_by_label(outline, "M") == m);
     check(bool, "a member's", true, row_by_label(outline, "x") == x);
@@ -391,6 +352,7 @@ let folded = () => {
   let count = ref(0);
   let rec fold = (seg: Segment.t): Segment.t =>
     List.map(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) when Tile.label(t) == ["foo"] =>
@@ -399,7 +361,7 @@ let folded = () => {
         | Tile(t) =>
           Piece.Tile({
             ...t,
-            children: List.map(fold, t.children),
+              children: List.map(~f=fold, t.children),
           })
         | p => p
         },
@@ -411,16 +373,17 @@ let folded = () => {
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let rec inside = (seg: Segment.t): list(string) =>
     List.concat_map(
+      ~f=
       (p: Piece.t) =>
         switch (p) {
         | Projector({syntax: Tile(t), _}) => Tile.label(t)
-        | Tile(t) => List.concat_map(inside, t.children)
+          | Tile(t) => List.concat_map(~f=inside, t.children)
         | _ => []
         },
       seg,
     );
   switch (
-    Web.OutlineRename.rename(
+    CorpusUtil.rename_row(
       ~info_map,
       ~outline,
       row_by_label(outline, "foo"),

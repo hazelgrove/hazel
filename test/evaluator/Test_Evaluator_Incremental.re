@@ -64,7 +64,8 @@ let eval_incr =
 let replace_int_lit = (~from: int, ~to_: int, ~to_id=?, exp: Exp.t): Exp.t => {
   let f_exp = (continue, e: Exp.t): Exp.t =>
     switch (e.term) {
-    | Atom(Int(n)) when Bigint.to_string(n) == string_of_int(from) =>
+    | Atom(Int(n))
+        when String.equal(Bigint.to_string(n), Stdlib.string_of_int(from)) =>
       let new_term: Exp.term = Atom(Int(Bigint.of_int(to_)));
       {
         annotation: Option.value(~default=e.annotation, to_id),
@@ -95,7 +96,11 @@ let strip_let_with_int_rhs = (~rhs_val: int, exp: Exp.t): Exp.t => {
       | Let(_, def, body)
           when
             switch (def.term) {
-            | Atom(Int(n)) => Bigint.to_string(n) == string_of_int(rhs_val)
+            | Atom(Int(n)) =>
+              String.equal(
+                Bigint.to_string(n),
+                Stdlib.string_of_int(rhs_val),
+              )
             | _ => false
             } =>
         go(body)
@@ -149,7 +154,7 @@ let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
     /* Module items carry surface ids of their own. */
     switch (e.term) {
     | Module(items) =>
-      List.iter(item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
+      List.iter(~f=item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
     | _ => ()
     };
     continue(e);
@@ -289,7 +294,8 @@ let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
       switch (e.term) {
       | BinOp(Operators.Int(Operators.Plus), lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("u"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("u"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           changed := true;
           lhs;
         | _ => continue(e)
@@ -356,19 +362,21 @@ let check_probe_samples_survive_edit =
 /* Pins: probe samples captured on run 1 (e.g. on the unedited `fib(u)`
  * probes) must be replayed into the FINAL incremental result after an
  * id-preserving edit (here: rewriting `fib(u+1)` to `fib(u)`). The magic
- * number 2582 in `test y == 2582` is just a literal near this program's fib
- * outputs (with u=15 and fib(0)=fib(1)=1, fib(u+1)=1597, fib(17)=2584);
- * whether the in-program `test` passes is irrelevant to the regression. */
+ * number 32 in `test y == 32` is just a literal near this program's fib
+ * outputs (with u=6 and fib(0)=fib(1)=1, fib(u+1)=21, fib(8)=34);
+ * whether the in-program `test` passes is irrelevant to the regression.
+ * u is small because only evaluation time grows with it: the cache
+ * entries, reuse plan and probe samples are the same at u=15. */
 let test_reused_probe_samples_survive_final_incremental_result = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 15 in
+      {|let u = 6 in
 let fib = fun x ->
   if x < 2 then 1 else fib(x-1) + fib(x-2) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2582 end;
+test y == 32 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u+2)) in
@@ -383,30 +391,31 @@ let u = ^^probe(fib(u+3)) in
   );
 
 /* Pins: editing only a `test` expression's literal must not drop reused
- * probe samples on the probes downstream of it. The magic number 2584 is
- * this program's fib output (with u=16 and fib(0)=fib(1)=1, y = fib(u+1) =
- * fib(17) = 2584); the edit bumps it to 2585 so only the test literal's
- * token changes while every probe's subtree keeps its ids. */
+ * probe samples on the probes downstream of it. The magic number 34 is
+ * this program's fib output (with u=7 and fib(0)=fib(1)=1, y = fib(u+1) =
+ * fib(8) = 34); the edit bumps it to 35 so only the test literal's token
+ * changes while every probe's subtree keeps its ids. u is small for the
+ * same reason as above (the same reuse as at u=16). */
 let test_test_literal_edit_preserves_downstream_reused_probes = () =>
   check_probe_samples_survive_edit(
     ~src=
-      {|let u = 16 in
+      {|let u = 7 in
 let fib' = fun x ->
   if x < 2 then 1 else fib'(x-1) + fib'(x-2) in
 let fib = fun ^^probe(x) -> fib'(x) in
 let x = ^^probe(fib(u)) in
 print(x);
 let y = ^^probe(fib(u+1)) in
-test y == 2584 end;
+test y == 34 end;
 let z = fib(u) in
 print(z);
 let w = ^^probe(fib(u-2)) in
 let u = ^^probe(fib(u+1)) in
 (x,y,z,w)|},
     ~parse_fail="could not parse test-literal probe regression program",
-    /* 2584 occurs exactly once in the source, so the replace-everywhere
+    /* 34 occurs exactly once in the source, so the replace-everywhere
      * helper is equivalent to the old replace-first traversal. */
-    ~edit=exp => replace_int_lit(~from=2584, ~to_=2585, exp),
+    ~edit=exp => replace_int_lit(~from=34, ~to_=35, exp),
     ~count_msg="test literal edit preserves probe sample count",
     ~targets_msg=
       "each current probe target has samples after test literal edit",
@@ -644,7 +653,7 @@ in
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "20" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "20") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -930,14 +939,13 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
- *   A module elaborates to a `Module` whose items keep their surface ids
- *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
- *   `c` on run 2 and finds its cached entry, it short-circuits via
- *   `Evaluator.re:158-164` and marks only that one id as reused
- *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
- *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
- *   so clients must derive visible ids by walking the reuse plan rather
- *   than visited output.
+ *   A module elaborates to a `Module` whose items keep their surface ids.
+ *   When the evaluator hits module `c` on run 2 and finds its cached entry,
+ *   it short-circuits and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items
+ *   `let x = fib(b)`, `let y = fib(b)`, `let z = x + y` are never visited
+ *   during evaluation, so the UI must derive frozen ids by walking the
+ *   reuse plan rather than visited output.
  *
  *   The visible set is derived from the ACK reuse plan by walking each
  *   entry's `prev_elab` and unioning all rep_ids encountered, including the
@@ -989,6 +997,7 @@ let c = {
       switch (items) {
       | [_first, ...rest] =>
         List.filter_map(
+          ~f=
           (item: Mod.t) =>
             switch (item.term) {
             | ModLet(_, _) => Some(Mod.rep_id(item))
@@ -1012,7 +1021,10 @@ let c = {
    * (in `incr.entries`) and union all rep_ids. */
   let visible = visible_ids_for(~prev=incr1, exp2);
   let missing =
-    List.filter(id => !List.mem(id, visible), c_inner_modlet_ids);
+    List.filter(
+      ~f=id => !List.mem(visible, id, ~equal=Poly.equal),
+      c_inner_modlet_ids,
+    );
   check(
     int,
     "all inner ModLet ids of module c land in the visible set",
@@ -1044,7 +1056,7 @@ let test_tuple_elab_gives_distinct_tuplabel_ids = () => {
       }
     | _ => []
     };
-  let ids = List.map(Exp.rep_id, rhs_tuple_elts);
+  let ids = List.map(~f=Exp.rep_id, rhs_tuple_elts);
   check(
     int,
     "RHS tuple has 2 elements after elaboration",
@@ -1146,18 +1158,23 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_visible = () => {
     };
   let (_, _, incr1) = eval_incr(exp1);
   let visible = visible_ids_for(~prev=incr1, exp2);
-  check(bool, "Atom 0 is in visible set", true, List.mem(zero_id, visible));
+  check(
+    bool,
+    "Atom 0 is in visible set",
+    true,
+    List.mem(visible, zero_id, ~equal=Poly.equal),
+  );
   check(
     bool,
     "Module {} is in visible set",
     true,
-    List.mem(module_id, visible),
+    List.mem(visible, module_id, ~equal=Poly.equal),
   );
   check(
     bool,
     "Tuple ({}, 0) is in visible set",
     true,
-    List.mem(tuple_id, visible),
+    List.mem(visible, tuple_id, ~equal=Poly.equal),
   );
 };
 
@@ -1297,7 +1314,7 @@ f(8)|};
       switch (e.term) {
       | Ap(_, _, arg) =>
         switch (arg.term) {
-        | Atom(Int(n)) when Bigint.to_string(n) == "8" =>
+        | Atom(Int(n)) when String.equal(Bigint.to_string(n), "8") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1362,7 +1379,9 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
         | (Atom(Int(a)), Atom(Int(b)))
-            when Bigint.to_string(a) == "1" && Bigint.to_string(b) == "2" =>
+            when
+              String.equal(Bigint.to_string(a), "1")
+              && String.equal(Bigint.to_string(b), "2") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1390,7 +1409,11 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
     bool,
     "Run 2: `1 + 2` is in visible_ids (subsumed by a reused ancestor)",
     true,
-    List.mem(plus_1_2_id, visible_ids_for(~prev=incr1, exp2)),
+    List.mem(
+      visible_ids_for(~prev=incr1, exp2),
+      plus_1_2_id,
+      ~equal=Poly.equal,
+    ),
   );
   /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
    * (and the parent's parent) must be recalculated. The evaluator descends
@@ -1465,7 +1488,11 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
     bool,
     "Body `x` is visible on run 2 (resolves to inner let, not edited outer)",
     true,
-    List.mem(body_x_id, visible_ids_for(~prev=incr1, exp2)),
+    List.mem(
+      visible_ids_for(~prev=incr1, exp2),
+      body_x_id,
+      ~equal=Poly.equal,
+    ),
   );
 };
 
@@ -1511,7 +1538,8 @@ let test_let_rhs_becomes_hole_invalidates_body = () => {
       switch (e.term) {
       | BinOp(_, lhs, rhs) =>
         switch (lhs.term, rhs.term) {
-        | (Var("x"), Atom(Int(n))) when Bigint.to_string(n) == "1" =>
+        | (Var("x"), Atom(Int(n)))
+            when String.equal(Bigint.to_string(n), "1") =>
           found := Some(Exp.rep_id(e))
         | _ => ()
         }
@@ -1707,7 +1735,7 @@ let lexeme_edit_test =
           ~f_exp=
             (continue, t: Exp.t) =>
               continue(
-                t.annotation.lexeme == Some(from)
+                Option.equal(String.equal, t.annotation.lexeme, Some(from))
                   ? {
                     ...t,
                     annotation: {
@@ -1728,7 +1756,11 @@ let lexeme_edit_test =
       let exp2 = replace_lexeme("@@", "@@@", exp1);
       let (r2, _, _) = eval_incr(~prev=incr1, exp2);
       let has_lex = (l, e: Exp.t) =>
-        Exp.lexeme_trace(e) |> List.mem(Some(l));
+        List.mem(
+          Exp.lexeme_trace(e),
+          Some(l),
+          ~equal=Option.equal(String.equal),
+        );
       check(bool, "first result carries @@", true, has_lex("@@", r1));
       check(bool, "second result carries @@@", true, has_lex("@@@", r2));
       check(bool, "second result not stale @@", false, has_lex("@@", r2));
@@ -1754,29 +1786,6 @@ let retype = (~from: Typ.term, ~to_: Typ.term, exp: Exp.t): Exp.t => {
   TermBase.Exp.map_term(~f_typ, exp);
 };
 
-/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
- * bound as `x : Bool` it is the failed cast, so editing the annotation must
- * invalidate the cached use of `x` rather than hand back the old `1`. */
-let test_asc_edit_invalidates_binding = () => {
-  let exp1 = parse_exp({|let x : Int = 1 in x|});
-  let exp2 = retype(~from=Atom(Int), ~to_=Atom(Bool), exp1);
-  check(
-    bool,
-    "retype actually changed the expression",
-    true,
-    !Exp.fast_equal(exp1, exp2),
-  );
-  let (r_fresh, _, _) = eval_incr(exp2);
-  let (_, _, incr_prev) = eval_incr(exp1);
-  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
-  check(
-    dhexp_typ,
-    "Incremental eval of edited matches fresh eval of edited",
-    r_fresh,
-    r_incr,
-  );
-};
-
 /* Evaluating [after] reusing the cache from evaluating [before] gives the
  * same result as evaluating [after] from scratch. [after] must be derived
  * from [before] by an id-preserving edit, or nothing is reused. */
@@ -1793,10 +1802,17 @@ let incremental_matches_fresh = (~before: Exp.t, ~after: Exp.t) => {
   check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
 };
 
-/* A module's last binding step yields its value. Evaluating the members
- * again inside the step's closure recorded cache entries for them that
- * relied on that closure, so after an edit elsewhere the reused `f` came
- * back as a bare function, without its environment. */
+/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
+ * bound as `x : Bool` it is the failed cast, so editing the annotation must
+ * invalidate the cached use of `x` rather than hand back the old `1`. */
+let test_asc_edit_invalidates_binding = () => {
+  let before = parse_exp({|let x : Int = 1 in x|});
+  incremental_matches_fresh(
+    ~before,
+    ~after=retype(~from=Atom(Int), ~to_=Atom(Bool), before),
+  );
+};
+
 let test_module_function_member_reused = () => {
   let before =
     parse_exp(
@@ -1808,10 +1824,6 @@ let test_module_function_member_reused = () => {
   );
 };
 
-/* A module's last binding step yields its value. Evaluating the members
- * again inside the step's closure recorded cache entries for them under
- * the names that closure bound, so `y`, moved above `x`, reused its old
- * value instead of seeing `x` unbound. */
 let test_module_member_moved_above_dependency = () => {
   let before = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
   let reorder = (continue, e: Exp.t): Exp.t =>

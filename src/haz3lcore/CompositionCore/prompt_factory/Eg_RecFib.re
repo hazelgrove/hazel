@@ -35,11 +35,12 @@ let task = (title, description, subtasks) => {
           "subtasks",
           `List(
             List.map(
-              ((t, d)) =>
-                `Assoc([
-                  ("title", `String(t)),
-                  ("description", `String(d)),
-                ]),
+              ~f=
+                ((t, d)) =>
+                  `Assoc([
+                    ("title", `String(t)),
+                    ("description", `String(d)),
+                  ]),
               subtasks,
             ),
           ),
@@ -56,10 +57,12 @@ let fib = {|let fib(n: Int): Int =
       then 1
       else fib(n - 1) + fib(n - 2)|};
 
-let fib_tests = {|hint "zero" test fib(0) == 0 end;
-hint "one" test fib(1) == 1 end;
-hint "five" test fib(5) == 5 end;
-hint "ten" test fib(10) == 55 end|};
+let fib_tests = {|hint "base cases" test
+  fib(0) == 0 && fib(1) == 1
+end;
+hint "recursive cases" test
+  fib(5) == 5 && fib(10) == 55
+end|};
 
 let map_fib = {|let map_fib(ns: [Int]): [Int] =
   case ns
@@ -101,51 +104,53 @@ let fib_example = {
       sees: None,
     },
     {
-      says: "**Step 3 — Test it, right after it**, and make its value the result:",
+      says: "**Step 3 — Test it** at the end, above the result, and make its value the result:",
       calls: [
-        call("insert", [("after", "fib"), ("code", fib_tests)]),
+        call("insert", [("last_in", "/"), ("code", fib_tests)]),
         call("replace", [("target", "=>"), ("code", "fib(10)")]),
         call(
           "mark_active_subtask_complete",
-          [("summary", "4 tests: base cases and fib(5), fib(10).")],
+          [("summary", "2 tests: base cases, and fib(5), fib(10).")],
         ),
         call(
           "mark_active_task_complete",
-          [("summary", "fib, with 4 passing tests.")],
+          [("summary", "fib, with 2 passing tests.")],
         ),
       ],
       /* the next example starts from its view */
       sees: None,
     },
   ],
-  final: "`fib` is implemented and its 4 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
+  final: "`fib` is implemented and its 2 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
 };
 
 let map_fib_example = {
   asks: "Add a helper that computes fib for a list of numbers",
-  program: fib ++ "\nin\n" ++ fib_tests ++ ";\nfib(10)",
+  program: fib ++ "\nin\n\n" ++ fib_tests ++ ";\n\nfib(10)",
   start:
     Some(
-      {|#› map · no errors · tests: 4 of 4 pass #
+      "#› program map · no errors · 2 of 2 tests pass #\n"
+      ++ CompositionView.legend
+      ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
-hint "zero" test fib(0) == 0 end;  #› ✓ #
-hint "one" test fib(1) == 1 end;  #› ✓ #
-hint "five" test fib(5) == 5 end;  #› ✓ #
-hint "ten" test fib(10) == 55 end;  #› ✓ #
+
+hint "base cases" test ⋯ end;  #› ✓ #
+hint "recursive cases" test ⋯ end;  #› ✓ #
+
 fib(10)  #› ⇒ 55 #|},
     ),
   steps: [
     {
-      says: "`fib` is not open: its signature and tests say enough. **Add the helper** after fib's tests, before the result `=>`; its tests right after it; then make it the result. One reply:",
+      says: "`fib` is not open: its signature and tests say enough. **Add the helper** after `fib`, its tests with the others at the end, and make it the result. One reply:",
       calls: [
-        call("insert", [("before", "=>"), ("code", map_fib)]),
+        call("insert", [("after", "fib"), ("code", map_fib)]),
         call(
           "insert",
           [
-            ("after", "map_fib"),
+            ("last_in", "/"),
             (
               "code",
-              "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test map_fib([0, 1, 5]) == [0, 1, 5] end",
+              "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test\n  map_fib([0, 1, 5]) == [0, 1, 5]\nend",
             ),
           ],
         ),
@@ -156,41 +161,24 @@ fib(10)  #› ⇒ 55 #|},
       ],
       sees:
         Some((
-          {|#› map · no errors · tests: 6 of 6 pass #
+          "#› program map · no errors · 4 of 4 tests pass #\n"
+          ++ CompositionView.legend
+          ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
-hint "zero" test fib(0) == 0 end;  #› ✓ #
-hint "one" test fib(1) == 1 end;  #› ✓ #
-hint "five" test fib(5) == 5 end;  #› ✓ #
-hint "ten" test fib(10) == 55 end;  #› ✓ #
+
 let map_fib(ns: [Int]): [Int] = ⋯ in  #› 4 uses #
+
+hint "base cases" test ⋯ end;  #› ✓ #
+hint "recursive cases" test ⋯ end;  #› ✓ #
 hint "empty list" test map_fib([]) == [] end;  #› ✓ #
-hint "three values" test map_fib([0, 1, 5]) == [0, 1, 5] end;  #› ✓ #
+hint "three values" test ⋯ end;  #› ✓ #
+
 map_fib([1, 2, 3, 4, 5])  #› ⇒ [1, 1, 2, 3, 5] #|},
           [],
         )),
     },
-    {
-      says: "**Verify with a probe.** Placing it opens `map_fib`, with each probed expression's value after `≡`:",
-      calls: [
-        {
-          tool: "place_probe",
-          args: [("paths", `List([`String("map_fib")]))],
-        },
-      ],
-      sees: None,
-    },
-    {
-      says: "The values check out. **Clean up:**",
-      calls: [
-        {
-          tool: "remove_probe",
-          args: [("paths", `List([`String("map_fib")]))],
-        },
-      ],
-      sees: None,
-    },
   ],
-  final: "Added `map_fib`, which maps fib over a list; its 2 tests pass and the probe confirms [1, 1, 2, 3, 5].",
+  final: "Added `map_fib`, which maps fib over a list; its 2 tests pass.",
 };
 
 let examples = [fib_example, map_fib_example];
@@ -202,19 +190,20 @@ let example_text = (e: example): string =>
   ++ Option.value(e.start, ~default=e.program)
   ++ "\n```\n\n"
   ++ String.concat(
-       "\n\n",
+       ~sep="\n\n",
        List.map(
-         s =>
-           s.says
-           ++ "\n\n"
-           ++ String.concat("\n", List.map(call_text, s.calls))
-           ++ (
-             switch (s.sees) {
-             | Some((view, _)) =>
-               "\n\nThe agent then sees:\n```\n" ++ view ++ "\n```"
-             | None => ""
-             }
-           ),
+         ~f=
+           s =>
+             s.says
+             ++ "\n\n"
+             ++ String.concat(~sep="\n", List.map(~f=call_text, s.calls))
+             ++ (
+               switch (s.sees) {
+               | Some((view, _)) =>
+                 "\n\nThe agent then sees:\n```\n" ++ view ++ "\n```"
+               | None => ""
+               }
+             ),
          e.steps,
        ),
      )
@@ -223,7 +212,7 @@ let example_text = (e: example): string =>
   ++ "\"";
 
 let self =
-  String.concat("\n\n---\n\n", List.map(example_text, examples))
+  String.concat(~sep="\n\n---\n\n", List.map(~f=example_text, examples))
   ++ {|
 
 ---
@@ -231,9 +220,9 @@ let self =
 ### Key patterns
 
 1. **Plan when it helps**: coarse workbench milestones for multi-turn work; none for quick edits.
-2. **Edit the smallest part**: replace `f:definition`, or `f/=>` past f's local definitions, rather than the whole entry; tests go right after their function.
+2. **Edit the smallest part**: replace `f:definition`, or `f/=>` past f's local definitions, rather than the whole entry.
 3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
 4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
 5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.
-6. **Verify**: tests and probes; check the errors and test results after each reply.
+6. **Check**: new behavior gets tests; read the errors and test results after each reply; probe to debug.
 7. **Communicate**: tell the user what was done, without naming tools.|};

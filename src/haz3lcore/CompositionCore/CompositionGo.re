@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Poly;
 
 /* The assistant's structural tools on the editing kernel (plans/
    editing-in-the-large.html, phase 4). Each tool is an adapter: it
@@ -64,7 +65,8 @@ let statics_for =
 /* ---- the code a call brings ---- */
 
 /* form delimiters that lex like names: as a binder, the code misreads */
-let reserved_words: list(Token.t) = List.filter(Token.is_var, Form.delims);
+let reserved_words: list(Token.t) =
+  List.filter(~f=Token.is_var, Form.delims);
 
 let reserved_binder = (code: string): option(string) => {
   let word = c =>
@@ -74,30 +76,27 @@ let reserved_binder = (code: string): option(string) => {
     && c <= 'Z'
     || c >= '0'
     && c <= '9'
-    || c == '_'
-    || c == '\'';
+    || Char.equal(c, '_')
+    || Char.equal(c, '\'');
   let (rev, last) =
-    String.fold_left(
-      ((ws, w), c) =>
-        word(c)
-          ? (ws, w ++ String.make(1, c))
-          : w == "" ? (ws, "") : ([w, ...ws], ""),
-      ([], ""),
-      code,
+    String.fold(code, ~init=([], ""), ~f=((ws, w), c) =>
+      word(c)
+        ? (ws, w ++ String.make(1, c))
+        : String.equal(w, "") ? (ws, "") : ([w, ...ws], "")
     );
-  let words = List.rev(last == "" ? rev : [last, ...rev]);
+  let words = List.rev(String.equal(last, "") ? rev : [last, ...rev]);
   let rec scan = words =>
     switch (words) {
     | [intro, w, ..._]
         when
-          List.mem(intro, ["let", "fun", "type"])
-          && List.mem(w, reserved_words) =>
+          List.mem(["let", "fun", "type"], intro, ~equal=Poly.equal)
+          && List.mem(reserved_words, w, ~equal=Poly.equal) =>
       Some(w)
     | [_, ...rest] => scan(rest)
     | [] => None
     };
-  List.mem(String.trim(code), reserved_words)
-    ? Some(String.trim(code)) : scan(words);
+  List.mem(reserved_words, String.strip(code), ~equal=Poly.equal)
+    ? Some(String.strip(code)) : scan(words);
 };
 
 /* a backslash escape outside string literals: code written as a JSON
@@ -111,39 +110,113 @@ let escaped = (code: string): bool => {
       switch (code.[i]) {
       | '"' => go(i + 1, !in_string)
       | '\\' when in_string => go(i + 2, in_string)
-      | '\\' when List.mem(code.[i + 1], ['n', 't', '"']) => true
+      | '\\' when List.mem(['n', 't', '"'], code.[i + 1], ~equal=Poly.equal) =>
+        true
       | _ => go(i + 1, in_string)
       }
     );
   go(0, false);
 };
 
-/* why code didn't read: escapes, the batch parser's note, a reserved
-   binder */
+/* code of several entries, two with no separator between: a line at the
+   code's base indentation starts an entry, and the line before it ends in
+   neither `in` nor `;` */
+let unseparated = (code: string): bool => {
+  let lines =
+    String.split(~on='\n', code)
+    |> List.filter(~f=l => !String.equal(String.strip(l), ""));
+  let indent = l => {
+    let rec go = i =>
+      i < String.length(l) && Char.equal(l.[i], ' ') ? go(i + 1) : i;
+    go(0);
+  };
+  let base =
+    List.fold(lines, ~init=Int.max_value, ~f=(m, l) => min(m, indent(l)));
+  let starts_entry = l =>
+    indent(l) == base
+    && (
+      switch (String.split(~on=' ', String.strip(l))) {
+      | ["let" | "type" | "module" | "test" | "hint" | "use", ..._] => true
+      | _ => false
+      }
+    );
+  let separated = l => {
+    let t = String.strip(l);
+    String.is_suffix(~suffix=";", t)
+    || Poly.equal(List.last(String.split(~on=' ', t)), Some("in"));
+  };
+  let rec go = ls =>
+    switch (ls) {
+    | [prev, l, ...rest] =>
+      starts_entry(l) && !separated(prev) || go([l, ...rest])
+    | _ => false
+    };
+  go(lines);
+};
+
+/* where the parser stopped in [code], and the text near it on its line:
+   the parsed text is the code trimmed, perhaps with its terminator */
+let stopped_at = (code: string, stop: MenhirParser.Interface.stop): string => {
+  let lines = Array.of_list(String.split(~on='\n', String.strip(code)));
+  if (stop.line > Array.length(lines)) {
+    " at its end";
+  } else {
+    let l = lines[stop.line - 1];
+    let n = String.length(l);
+    let c = max(0, min(n, stop.column - 1));
+    /* not inside a UTF-8 character */
+    let inside = i => i < n && Char.to_int(l.[i]) land 0xC0 == 0x80;
+    let rec back = i => inside(i) ? back(i - 1) : i;
+    let rec on = i => inside(i) ? on(i + 1) : i;
+    let (lo, hi) = (back(max(0, c - 14)), on(min(n, c + 20)));
+    " at line "
+    ++ string_of_int(stop.line)
+    ++ ", column "
+    ++ string_of_int(stop.column)
+    ++ ", near `"
+    ++ String.strip(String.sub(l, ~pos=lo, ~len=hi - lo))
+    ++ "`";
+  };
+};
+
+/* braces holding `name: …,`: record syntax, which Hazel hasn't */
+let record_braces =
+  StringUtil.regexp("\\{[ \n]*[a-z_][A-Za-z0-9_']*[ ]*:[^;{}]*,");
+
+/* why code didn't read: escapes, entries without separators, where the
+   parser stopped (else the batch parser's note), a reserved binder */
 let unreadable = (code: string): string =>
   escaped(code)
     ? {|`code` contains `\n` as two characters; write real line breaks (and plain quotes).|}
-    : "The code does not parse."
-      ++ (
-        switch (FastParse.bail_note^) {
-        | Some(n) => " Parser: " ++ n ++ "."
-        | None => ""
-        }
-      )
-      ++ (
-        switch (reserved_binder(code)) {
-        | Some(w) =>
-          " Note: `"
-          ++ w
-          ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
-        | None => ""
-        }
-      );
+    : unseparated(code)
+        ? "Entries in one `code` need `in` between them (`;` in a module); leave it off the last."
+        : "The code does not parse"
+          ++ (
+            switch (FastParse.bail_at^, FastParse.bail_note^) {
+            | (Some(stop), _) => stopped_at(code, stop) ++ "."
+            | (None, Some(n)) => ". Parser: " ++ n ++ "."
+            | (None, None) => "."
+            }
+          )
+          ++ (
+            Option.is_none(StringUtil.search(record_braces, code, 0))
+              ? ""
+              : " Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`."
+          )
+          ++ (
+            switch (reserved_binder(code)) {
+            | Some(w) =>
+              " Note: `"
+              ++ w
+              ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+            | None => ""
+            }
+          );
 
 /* a comment only the view adds, `#› … #`, copied into code */
 let view_comment = StringUtil.regexp(CompositionView.marker ++ "[^#\n]*#");
 let copies_view_comment = (code: string): bool =>
-  StringUtil.search(view_comment, code, 0) != None;
+  Option.is_some(StringUtil.search(view_comment, code, 0));
 
 /* ---- one call ---- */
 
@@ -164,6 +237,13 @@ type what =
   /* where to, as the call put it */
   | Moved(string);
 
+/* an insert's code ending in a bare expression, by its block's result:
+   the expression filled it (an empty hole), or went in beside it as a
+   statement */
+type ending =
+  | Filled
+  | Beside(Id.t);
+
 type plan = {
   ops: list(K.op),
   /* the entry the call names, by its anchor before the call */
@@ -177,6 +257,7 @@ type plan = {
   rebinds: option((list((string, Id.t)), list((Id.t, Id.t)))),
   /* a whole-entry replace kept the entry's doc comment */
   kept_comment: bool,
+  ending: option(ending),
 };
 
 let plan = (~target=?, what, ops) => {
@@ -187,28 +268,65 @@ let plan = (~target=?, what, ops) => {
   renames: [],
   rebinds: None,
   kept_comment: false,
+  ending: None,
 };
 
 /* entries elsewhere named [el]: what a path missing its outer names
    meant */
-let elsewhere = (p: program, el: string): string =>
+let elsewhere = (p: program, el: string): list(string) =>
+  P.entries(~root=p.root, p.seg)
+  |> List.filter_map(~f=((_, path: P.t)) =>
+       switch (List.rev(path.elems)) {
+       | [last, _, ..._] when P.elem_to_string(last) == el =>
+         Some(P.to_string(path))
+       | _ => None
+       }
+     );
+
+/* " Did you mean `a`, `b`?" for [paths], up to 3 */
+let did_you_mean = (paths: list(string)): string =>
   switch (
-    P.entries(~root=p.root, p.seg)
-    |> List.filter_map(((_, path: P.t)) =>
-         switch (List.rev(path.elems)) {
-         | [last, _, ..._] when P.elem_to_string(last) == el =>
-           Some(P.to_string(path))
-         | _ => None
-         }
-       )
+    List.fold(paths, ~init=[], ~f=(acc, c) =>
+      List.mem(acc, c, ~equal=Poly.equal) ? acc : acc @ [c]
+    )
   ) {
   | [] => ""
   | paths =>
-    " Did you mean " ++ String.concat(" or ", ListUtil.take(3, paths)) ++ "?"
+    " Did you mean "
+    ++ String.concat(
+         ~sep=", ",
+         List.map(~f=c => "`" ++ c ++ "`", ListUtil.take(3, paths)),
+       )
+    ++ "?"
   };
 
 let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
-  Option.map(P.to_string, P.describe(~root, seg, id));
+  Option.map(~f=P.to_string, P.describe(~root, seg, id));
+
+/* [msg] for [path] written as code, `f(x)` or `test f(x) end` (a paren
+   or a space outside its hints' quotes), with what a path is */
+let code_hint = (path: string, msg: string): string => {
+  let path = String.strip(path);
+  let rec go = (i, quoted) =>
+    i < String.length(path)
+    && (
+      switch (path.[i]) {
+      | '"' => go(i + 1, !quoted)
+      | '('
+      | ' ' when !quoted => true
+      | _ => go(i + 1, quoted)
+      }
+    );
+  go(0, false)
+    ? msg
+      ++ (
+        String.is_suffix(~suffix=".", msg)
+        || String.is_suffix(~suffix="?", msg)
+          ? " " : ". "
+      )
+      ++ "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map)."
+    : msg;
+};
 
 /* the entry [path] names; a part only where [~parts] */
 let resolve =
@@ -233,9 +351,20 @@ let resolve =
       ++ P.part_word(part),
     )
   | Ok(f) => Ok(f)
-  | Error(Unknown(_, el, _) as e) =>
-    Error(P.message(e) ++ elsewhere(p, el))
-  | Error(e) => Error(P.message(e))
+  | Error(Ambiguous(_) as e) => Error(code_hint(path, P.message(e)))
+  | Error(e) =>
+    let others =
+      switch (e) {
+      | Unknown(_, el, _) => elsewhere(p, el)
+      | _ => []
+      };
+    Error(
+      code_hint(
+        path,
+        P.message(e)
+        ++ did_you_mean(others @ P.nearest(~root=p.root, p.seg, path)),
+      ),
+    );
   };
 
 let level_of = (f: P.found): (S.level, int) => ListUtil.last(f.steps);
@@ -247,11 +376,18 @@ let kind_name = (k: P.kind): string =>
   | k => P.kind_word(k)
   };
 
-let part = (p: program, path: string, f: P.found, part: P.part) =>
-  switch (K.part(~root=p.root, f.id, part, p.seg)) {
-  | Some(id) => Ok(id)
+/* what a replace at [path] takes */
+let target = (path: string, f: P.found): result(K.target, string) =>
+  switch (P.target(f)) {
+  | Some(t) => Ok(t)
   | None =>
-    Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to replace")
+    Error(
+      "\""
+      ++ path
+      ++ "\" has no "
+      ++ Option.value_map(f.part, ~default="term", ~f=P.part_word)
+      ++ " to replace",
+    )
   };
 
 /* the block an entry holds: a module's members, a value's body */
@@ -260,7 +396,7 @@ let block_of = (path: string, f: P.found): result(K.block, string) =>
   | Module => Ok(Members(f.id))
   | Def =>
     let (lv, k) = level_of(f);
-    Ok(S.members(lv, k) == None ? Body(f.id) : Members(f.id));
+    Ok(Option.is_none(S.members(lv, k)) ? Body(f.id) : Members(f.id));
   | kind =>
     Error(
       "\""
@@ -273,7 +409,7 @@ let block_of = (path: string, f: P.found): result(K.block, string) =>
 
 let tail_index = (lv: S.level): option(int) => {
   let n = Array.length(lv.spans);
-  n > 0 && P.entry(lv, n - 1).kind == Tail ? Some(n - 1) : None;
+  n > 0 && Poly.equal(P.entry(lv, n - 1).kind, Tail) ? Some(n - 1) : None;
 };
 
 /* the program's end: above its result, if it has one */
@@ -285,25 +421,27 @@ let at_end = (p: program): K.place => {
   };
 };
 
-/* a name the entry's kind takes: a rename's, not a pattern's */
-let is_name = (kind: P.kind, s: string): bool =>
-  !Token.is_keyword(s)
-  && !List.mem(s, Form.delims)
-  && (
-    switch (kind) {
-    | Def => Token.is_var(s)
-    | Type => Token.is_typ_var(s)
-    | Module => Token.is_ctr(s)
-    | _ => false
-    }
-  );
+/* why [s] can't be the new name of an entry of [kind] */
+let name_problem = (kind: P.kind, s: string): option(string) =>
+  switch (kind) {
+  | Def => Rename.check_name(Value, s)
+  | Type => Rename.check_name(Type, s)
+  | Module => Rename.check_name(Module, s)
+  | _ => Some("only definitions, types and modules are renamed")
+  };
 
 /* [binder]'s uses in [seg] by [info_map]: tokens of [seg] */
 let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
   Rename.references(~info_map, binder)
-  |> List.filter(id => K.is_token(~root, id, seg));
+  |> List.filter(~f=id => K.is_token(~root, id, seg));
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
+
+let node_pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
+  switch (K.node(~root, id, seg)) {
+  | n => K.node_pieces(n)
+  | exception (K.Refused(_)) => []
+  };
 
 /* what [id] names in [seg]: an entry's pieces, or a node's */
 let pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
@@ -311,33 +449,26 @@ let pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
   | Some(steps) =>
     let (lv, k) = ListUtil.last(steps);
     S.core(lv, k);
-  | None =>
-    switch (K.node(~root, id, seg)) {
-    | n => K.node_pieces(n)
-    | exception (K.Refused(_)) => []
-    }
+  | None => node_pieces_at(~root, seg, id)
   };
 
 /* the tokens of [ps] that bind, each by its name */
 let binders_in =
     (~info_map: Statics.Map.t, ps: Segment.t): list((string, Id.t)) => {
   let rec go = (acc, ps: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let acc = List.fold_left(go, acc, t.children);
-          switch (
-            Tile.single_token(t),
-            Option.bind(Id.Map.find_opt(t.id, info_map), Info.binder_name),
-          ) {
-          | (Some(x), Some(_)) => [(x, t.id), ...acc]
-          | _ => acc
-          };
+    List.fold(ps, ~init=acc, ~f=(acc, p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        let acc = List.fold(t.children, ~init=acc, ~f=go);
+        switch (
+          Tile.single_token(t),
+          Option.bind(Id.Map.find_opt(t.id, info_map), ~f=Info.binder_name),
+        ) {
+        | (Some(x), Some(_)) => [(x, t.id), ...acc]
         | _ => acc
-        },
-      acc,
-      ps,
+        };
+      | _ => acc
+      }
     );
   List.rev(go([], ps));
 };
@@ -348,18 +479,16 @@ let uses_of =
     (~root, ~info_map, seg: Segment.t, binders: list((string, Id.t)))
     : list((Id.t, Id.t)) => {
   let names =
-    List.fold_left(
-      (m, (x, b)) => Id.Map.add(b, x, m),
-      Id.Map.empty,
-      binders,
+    List.fold(binders, ~init=Id.Map.empty, ~f=(m, (x, b)) =>
+      Id.Map.add(b, x, m)
     );
   Id.Map.fold(
     (id, info, acc) =>
       switch (Info.binding_site(~info_map, info)) {
-      | Some(b) when b != id && Id.Map.mem(b, names) =>
+      | Some(b) when !Id.equal(b, id) && Id.Map.mem(b, names) =>
         let named =
           switch (Info.label_name(info)) {
-          | Some(l) => Id.Map.find_opt(b, names) == Some(l)
+          | Some(l) => Poly.equal(Id.Map.find_opt(b, names), Some(l))
           | None => true
           };
         named && K.is_token(~root, id, seg) ? [(id, b), ...acc] : acc;
@@ -372,8 +501,8 @@ let uses_of =
 
 /* "/" (or "") names the top level */
 let is_top = (path: string): bool => {
-  let s = String.trim(path);
-  s == "" || s == "/";
+  let s = String.strip(path);
+  String.equal(s, "") || String.equal(s, "/");
 };
 
 /* the place a call's place names */
@@ -412,8 +541,8 @@ let binder_of =
   let named =
     switch (P.parse(path)) {
     | Ok({elems, _}) =>
-      switch (ListUtil.last_opt(elems)) {
-      | Some(Name(x, _)) => List.find_opt(((y, _)) => x == y, binders)
+      switch (List.last(elems)) {
+      | Some(Name(x, _)) => List.find(~f=((y, _)) => x == y, binders)
       | _ => None
       }
     | Error(_) => None
@@ -428,7 +557,7 @@ let binder_of =
       "\""
       ++ path
       ++ "\" binds "
-      ++ String.concat(", ", List.map(fst, binders))
+      ++ String.concat(~sep=", ", List.map(~f=fst, binders))
       ++ ": name the one to rename",
     )
   | (kind, _, _) =>
@@ -442,21 +571,28 @@ let binder_of =
   };
 };
 
-/* the comment lines an entry's pieces start with, one per line */
+/* an entry's doc comment, one line per line: the comment lines its
+   pieces start with, past the last blank line (comments set apart above
+   it stay where they are) */
 let leading_comment = (ps: Segment.t): option(string) => {
-  let rec lead = (ps: Segment.t) =>
+  let rec lead = (acc, ps: Segment.t) =>
     switch (ps) {
-    | [p, ...rest] when Piece.is_secondary(p) => [p, ...lead(rest)]
-    | _ => []
+    | [p, ...rest] when Piece.is_linebreak(p) =>
+      switch (Segment.split_space_run(rest)) {
+      | (_, [q, ..._]) when Piece.is_linebreak(q) => lead([], rest)
+      | _ => lead([p, ...acc], rest)
+      }
+    | [p, ...rest] when Piece.is_secondary(p) => lead([p, ...acc], rest)
+    | _ => List.rev(acc)
     };
-  let lead = lead(ps);
-  List.exists(S.is_comment, lead)
+  let lead = lead([], ps);
+  List.exists(~f=S.is_comment, lead)
     ? Some(
         Printer.of_segment(~holes="?", lead)
-        |> String.split_on_char('\n')
-        |> List.map(String.trim)
-        |> List.filter(l => l != "")
-        |> String.concat("\n"),
+        |> String.split(~on='\n')
+        |> List.map(~f=String.strip)
+        |> List.filter(~f=l => !String.equal(l, ""))
+        |> String.concat(~sep="\n"),
       )
     : None;
 };
@@ -493,7 +629,7 @@ let bound_in =
     )
   | Some(ps) =>
     let binders = binders_in(~info_map=Lazy.force(p.info_map), ps);
-    switch (List.filter(((y, _)) => x == y, binders)) {
+    switch (List.filter(~f=((y, _)) => x == y, binders)) {
     | [b] => Ok(b)
     | [_, ..._] =>
       Error("\"" ++ path ++ "\" binds " ++ x ++ " more than once")
@@ -507,11 +643,157 @@ let bound_in =
           switch (binders) {
           | [] => ""
           | bs =>
-            "; its pattern binds " ++ String.concat(", ", List.map(fst, bs))
+            "; its pattern binds "
+            ++ String.concat(~sep=", ", List.map(~f=fst, bs))
           }
         ),
       )
     };
+  };
+};
+
+let is_hole = (ps: Segment.t): bool =>
+  switch (P.content(ps)) {
+  | [Grout(_)] => true
+  | [Tile(t)] => Tile.is_explicit_hole(t)
+  | _ => false
+  };
+
+/* the result of the block [place] lands in: its first piece, and whether
+   it is an empty hole. A body that is one expression has no level of its
+   own: that expression. A module's members have none */
+let result_at = (p: program, place: K.place): option((Id.t, bool)) => {
+  let found = id =>
+    Option.map(~f=ListUtil.last, P.find(~root=p.root, p.seg, id));
+  let of_level = (lv: S.level) =>
+    Option.map(
+      ~f=t => (lv.spans[t].anchor, is_hole(S.core(lv, t))),
+      tail_index(lv),
+    );
+  switch (place) {
+  | FirstIn(Top)
+  | LastIn(Top) => of_level(S.top(~root=p.root, p.seg))
+  | Before(id)
+  | After(id) => Option.bind(found(id), ~f=((lv, _)) => of_level(lv))
+  | FirstIn(Body(d))
+  | LastIn(Body(d)) =>
+    switch (Option.bind(found(d), ~f=((lv, k)) => P.sub(lv, k))) {
+    | Some(lv) => of_level(lv)
+    | None =>
+      Option.bind(P.part_of(~root=p.root, p.seg, d, Body), ~f=id =>
+        switch (pieces_at(~root=p.root, p.seg, id)) {
+        | [] => None
+        | ps => Some((id, is_hole(ps)))
+        }
+      )
+    }
+  | FirstIn(Members(_))
+  | LastIn(Members(_)) => None
+  };
+};
+
+/* code ending in a bare expression, without a `;`: the text of the
+   entries before it ("" if none) and of the expression; not a test */
+let trailing_expression = (code: string): option((string, string)) => {
+  let code = String.strip(code);
+  switch (String.is_suffix(~suffix=";", code) ? None : L.parse(code)) {
+  | None => None
+  | Some(seg) =>
+    let lv = S.top(~root=Exp, seg);
+    switch (tail_index(lv)) {
+    | Some(k) =>
+      let (c0, c1) = lv.spans[k].core;
+      let core = S.core(lv, k);
+      let text = ps => String.strip(Printer.of_segment(~holes="?", ps));
+      List.is_empty(P.content(core))
+      || is_hole(core)
+      || Option.is_some(P.test_of(lv, c0, c1))
+        ? None
+        : Some((
+            text(
+              Array.to_list(
+                Array.sub(lv.pieces, ~pos=0, ~len=lv.spans[k].lo),
+              ),
+            ),
+            text(S.slice(lv, k)),
+          ));
+    | None => None
+    };
+  };
+};
+
+/* `X:definition` code starting `let X` again (`type`, `module`): the
+   part is what follows `=` */
+let repeats_binder =
+    (p: program, f: P.found, code: string): result(unit, string) => {
+  let word =
+    switch (f.part, f.kind) {
+    | (Some(Definition), Def) => Some("let")
+    | (Some(Definition), Type) => Some("type")
+    | (Some(Definition), Module) => Some("module")
+    | _ => None
+    };
+  let words =
+    String.map(
+      ~f=c => Char.equal(c, '\n') || Char.equal(c, '\t') ? ' ' : c,
+      code,
+    )
+    |> String.split(~on=' ')
+    |> List.filter(~f=w => !String.equal(w, ""));
+  /* a word's leading name: `joined` of `joined:` */
+  let name_of = w => {
+    let named = c =>
+      'a' <= c
+      && c <= 'z'
+      || 'A' <= c
+      && c <= 'Z'
+      || '0' <= c
+      && c <= '9'
+      || Char.equal(c, '_')
+      || Char.equal(c, '\'');
+    let n = String.length(w);
+    let rec go = i => i < n && named(w.[i]) ? go(i + 1) : i;
+    String.sub(w, ~pos=0, ~len=go(0));
+  };
+  let (lv, k) = level_of(f);
+  switch (word, words) {
+  | (Some(word), [w, x, ..._])
+      when
+        w == word
+        && List.Assoc.mem(
+             P.entry(lv, k).binders,
+             name_of(x),
+             ~equal=Poly.equal,
+           ) =>
+    let path =
+      Option.value(path_string(~root=p.root, p.seg, f.id), ~default="X");
+    let outer =
+      switch (List.rev(f.steps)) {
+      | [_, (olv, ok), ..._] when Poly.equal(P.entry(olv, ok).kind, Def) =>
+        switch (path_string(~root=p.root, p.seg, olv.spans[ok].anchor)) {
+        | Some(o)
+            when
+              Result.is_ok(P.resolve_string(~root=p.root, p.seg, o ++ "/=>")) =>
+          " To change only "
+          ++ CompositionView.last_elem(o)
+          ++ "'s final expression, replace `"
+          ++ o
+          ++ "/=>`."
+        | _ => ""
+        }
+      | _ => ""
+      };
+    Error(
+      "`"
+      ++ path
+      ++ ":definition` is what follows `=`; your code starts with `"
+      ++ word
+      ++ " "
+      ++ name_of(x)
+      ++ " =` again."
+      ++ outer,
+    );
+  | _ => Ok()
   };
 };
 
@@ -523,33 +805,61 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     Error({js|`#› … #` comments are added by Hazel; leave them out|js})
   | Insert(place, code) =>
     let* place = place_at(p, place);
-    Ok(plan(Added, [Insert(place, text(code))]));
+    let insert = K.Insert(place, text(code));
+    switch (result_at(p, place), trailing_expression(code)) {
+    | (Some((hole, true)), Some((before, last))) =>
+      let fill = K.Replace(Term(hole), text(last));
+      Ok({
+        ...
+          plan(
+            Added,
+            String.equal(before, "")
+              ? [fill] : [Insert(place, text(before)), fill],
+          ),
+        ending: Some(Filled),
+      });
+    | (Some((result, false)), Some(_)) =>
+      Ok({
+        ...plan(Added, [insert]),
+        ending: Some(Beside(result)),
+      })
+    | _ => Ok(plan(Added, [insert]))
+    };
   | Replace(path, code) =>
     let* f = resolve(~parts=true, p, path);
-    let* id =
-      switch (f.part) {
-      | None => Ok(f.id)
-      | Some(pt) => part(p, path, f, pt)
-      };
-    /* new code without a comment keeps the entry's */
+    let* () = repeats_binder(p, f, code);
+    let* target = target(path, f);
+    /* new code without a comment keeps the entry's (a term keeps the
+       comment above it) */
     let comment =
-      f.part == None && !String.starts_with(~prefix="#", String.trim(code))
+      Option.is_none(f.part)
+      && !String.is_prefix(~prefix="#", String.strip(code))
         ? leading_comment(pieces_at(~root=p.root, p.seg, f.id)) : None;
     let code =
-      switch (comment) {
-      | Some(c) => c ++ "\n" ++ code
-      | None => code
+      switch (target, comment) {
+      | (Entry(_), Some(c)) => c ++ "\n" ++ code
+      | _ => code
       };
     let pl = {
-      ...plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]),
-      kept_comment: comment != None,
+      ...
+        plan(
+          ~target=f.id,
+          Replaced(f.part),
+          [Replace(target, text(code))],
+        ),
+      kept_comment: Option.is_some(comment),
     };
     let info_map = Lazy.force(p.info_map);
-    let binders = binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
+    let replaced =
+      switch (target) {
+      | Entry(id) => pieces_at(~root=p.root, p.seg, id)
+      | Term(id) => node_pieces_at(~root=p.root, p.seg, id)
+      };
+    let binders = binders_in(~info_map, replaced);
     Ok({
       ...pl,
       rebinds:
-        binders == []
+        List.is_empty(binders)
           ? None
           : Some((binders, uses_of(~root=p.root, ~info_map, p.seg, binders))),
     });
@@ -562,7 +872,7 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       | Type
       | Module =>
         List.map(
-          ((x, binder)) => (x, binder, uses(p, binder)),
+          ~f=((x, binder)) => (x, binder, uses(p, binder)),
           P.entry(lv, k).binders,
         )
       | _ => []
@@ -584,32 +894,25 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     let (lv, k) = level_of(f);
     let* (old, binder) =
       switch (bound) {
-      | Some(x) => bound_in(p, path, f, String.trim(x))
+      | Some(x) => bound_in(p, path, f, String.strip(x))
       | None => binder_of(path, f, P.entry(lv, k).binders)
       };
-    let name = String.trim(name);
-    if (!is_name(f.kind, name)) {
-      Error(
-        "\""
-        ++ name
-        ++ "\" is not a "
-        ++ (
-          switch (f.kind) {
-          | Def => "value's name: lowercase, not a keyword"
-          | _ => "type's or module's name: capitalized"
-          }
-        ),
-      );
-    } else if (name == old) {
-      Ok(plan(~target=f.id, Renamed(old, name, 0), []));
-    } else {
+    let name = String.strip(name);
+    switch (name_problem(f.kind, name)) {
+    | Some(why) => Error("\"" ++ name ++ "\" won't do as a new name: " ++ why)
+    | None when name == old =>
+      Ok(plan(~target=f.id, Renamed(old, name, 0), []))
+    | None =>
       let refs = uses(p, binder);
       Ok({
         ...
           plan(
             ~target=f.id,
             Renamed(old, name, List.length(refs)),
-            List.map(id => K.Replace(id, Token(name)), [binder, ...refs]),
+            List.map(
+              ~f=id => K.Replace(Term(id), Token(name)),
+              [binder, ...refs],
+            ),
           ),
         renames: [(binder, name, refs)],
       });
@@ -628,15 +931,30 @@ let code_of = (call: call): option(string) =>
 
 /* the entry holding piece [id], by path */
 let where_is = (~root, seg: Segment.t, id: Id.t): option(string) =>
-  switch (L.locate(~mod_root=root == Sort.Mod, id, seg)) {
+  switch (L.locate(~mod_root=Sort.equal(root, Sort.Mod), id, seg)) {
   | Some((b, j, _)) => path_string(~root, seg, b.lv.spans[j].anchor)
+  | None => None
+  };
+
+/* the result holding piece [id], by path: a block's `=>`, or the
+   definition of a value whose body is one expression */
+let result_path = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  switch (L.locate(~mod_root=Sort.equal(root, Sort.Mod), id, seg)) {
+  | Some((b, j, _)) =>
+    Option.map(
+      ~f=
+        path =>
+          Poly.equal(P.entry(b.lv, j).kind, Tail)
+            ? path : path ++ ":definition",
+      path_string(~root, seg, b.lv.spans[j].anchor),
+    )
   | None => None
   };
 
 let refusal_message =
     (p: program, call: call, r: K.refusal, ops: list(K.op)): string => {
   let about =
-    switch (Option.bind(r.id, id => where_is(~root=p.root, p.seg, id))) {
+    switch (Option.bind(r.id, ~f=id => where_is(~root=p.root, p.seg, id))) {
     | Some(path) when List.length(ops) > 1 => " (at " ++ path ++ ")"
     | _ => ""
     };
@@ -663,22 +981,23 @@ let run_call = (p: program, call: call): result((plan, K.change), string) => {
    new in the level of each row it added */
 let added_paths = (~root, before: Segment.t, after: Segment.t, rows) =>
   List.concat_map(
-    row =>
-      switch (P.find(~root, after, row)) {
-      | Some(steps) =>
-        let (lv, _) = ListUtil.last(steps);
-        Array.to_list(lv.spans)
-        |> List.filter((sp: S.span) =>
-             P.find(~root, before, sp.anchor) == None
-           )
-        |> List.filter_map((sp: S.span) =>
-             path_string(~root, after, sp.anchor)
-           );
-      | None => []
-      },
+    ~f=
+      row =>
+        switch (P.find(~root, after, row)) {
+        | Some(steps) =>
+          let (lv, _) = ListUtil.last(steps);
+          Array.to_list(lv.spans)
+          |> List.filter(~f=(sp: S.span) =>
+               Option.is_none(P.find(~root, before, sp.anchor))
+             )
+          |> List.filter_map(~f=(sp: S.span) =>
+               path_string(~root, after, sp.anchor)
+             );
+        | None => []
+        },
     rows,
   )
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare);
 
 type made = {
   call,
@@ -693,7 +1012,7 @@ type made = {
 let text_at = (~root, seg: Segment.t, id: Id.t): option(string) =>
   switch (pieces_at(~root, seg, id)) {
   | [] => None
-  | ps => Some(String.trim(Printer.of_segment(~holes="?", ps)))
+  | ps => Some(String.strip(Printer.of_segment(~holes="?", ps)))
   };
 
 /* the call's edited region before and after it, as text */
@@ -701,62 +1020,128 @@ let diff = (~root, m: made): option((string, option(string))) =>
   switch (m.change.steps) {
   | [] => None
   | [first, ..._] =>
-    let row = ListUtil.hd_opt(first.added);
+    let now = text_at(~root, m.change.program);
+    /* the row it made, else the term it put in */
+    let made =
+      switch (first.added, first.replaced) {
+      | ([row, ..._], _)
+      | ([], [(_, row), ..._]) => Some(row)
+      | ([], []) => None
+      };
     switch (m.plan.what, m.plan.target) {
-    | (Added, _) =>
-      Some((
-        "",
-        Option.bind(
-          ListUtil.hd_opt(first.added),
-          text_at(~root, m.change.program),
-        ),
-      ))
+    | (Added, _) => Some(("", Option.bind(made, ~f=now)))
     | (Deleted, Some(t)) =>
-      Option.map(old => (old, None), text_at(~root, m.before, t))
+      Option.map(~f=old => (old, None), text_at(~root, m.before, t))
     | (_, Some(t)) =>
-      let after = Option.value(row, ~default=t);
-      Option.map(
-        old => (old, text_at(~root, m.change.program, after)),
-        text_at(~root, m.before, t),
-      );
+      let after =
+        switch (first.added, now(t)) {
+        | ([row, ..._], _) => now(row)
+        | ([], Some(_) as text) => text
+        | ([], None) => Option.bind(made, ~f=now)
+        };
+      Option.map(~f=old => (old, after), text_at(~root, m.before, t));
     | (_, None) => None
     };
   };
 
-/* the lines of [old] that [now] doesn't keep, in order, indentation
-   aside: those off a longest common subsequence; None past a size where
-   that costs too much to find */
+/* [s]'s tokens, whitespace aside, each with its line: a word, a string
+   literal, else one character */
+let tokens = (s: string): array((string, int)) => {
+  let word = c =>
+    c >= 'a'
+    && c <= 'z'
+    || c >= 'A'
+    && c <= 'Z'
+    || c >= '0'
+    && c <= '9'
+    || Char.equal(c, '_')
+    || Char.equal(c, '\'')
+    || Char.to_int(c) >= 128;
+  let n = String.length(s);
+  let acc = ref([]);
+  let rec go = (i, line) =>
+    if (i < n) {
+      let c = s.[i];
+      let span = j => {
+        acc := [(String.sub(s, ~pos=i, ~len=j - i), line), ...acc^];
+        go(j, line);
+      };
+      if (Char.equal(c, '\n')) {
+        go(i + 1, line + 1);
+      } else if (Char.equal(c, ' ')
+                 || Char.equal(c, '\t')
+                 || Char.equal(c, '\r')) {
+        go(i + 1, line);
+      } else if (Char.equal(c, '"')) {
+        let rec close = j =>
+          j >= n || Char.equal(s.[j], '\n')
+            ? j
+            : Char.equal(s.[j], '\\')
+                ? close(j + 2)
+                : Char.equal(s.[j], '"') ? j + 1 : close(j + 1);
+        span(min(n, close(i + 1)));
+      } else if (word(c)) {
+        let rec stop = j => j < n && word(s.[j]) ? stop(j + 1) : j;
+        span(stop(i));
+      } else {
+        span(i + 1);
+      };
+    };
+  go(0, 0);
+  Array.of_list(List.rev(acc^));
+};
+
+/* the lines of [old] that [now] changes, in order, their whitespace
+   collapsed: those losing a token or gaining one inside, off a longest
+   common subsequence of the tokens, so re-indenting or reflowing changes
+   none; None past a size where that costs too much to find */
 let removed_lines = (old: string, now: string): option(list(string)) => {
-  let lines = s =>
-    String.split_on_char('\n', s)
-    |> List.map(String.trim)
-    |> List.filter(l => l != "")
-    |> Array.of_list;
-  let (a, b) = (lines(old), lines(now));
+  let (a, b) = (tokens(old), tokens(now));
   let (n, m) = (Array.length(a), Array.length(b));
-  if (n * m > 250000) {
+  let same = (i, j) => fst(a[i]) == fst(b[j]);
+  /* the common ends cost nothing */
+  let rec head = k => k < n && k < m && same(k, k) ? head(k + 1) : k;
+  let lo = head(0);
+  let rec tail = k =>
+    lo + k < n && lo + k < m && same(n - 1 - k, m - 1 - k) ? tail(k + 1) : k;
+  let hi = tail(0);
+  let (n', m') = (n - lo - hi, m - lo - hi);
+  if (n' * m' > 1000000) {
     None;
   } else {
-    /* lcs[i][j]: of a's lines from i and b's from j */
-    let lcs = Array.make_matrix(n + 1, m + 1, 0);
-    for (i in n - 1 downto 0) {
-      for (j in m - 1 downto 0) {
+    /* lcs[i][j]: of a's middle from i and b's from j */
+    let lcs = Array.make_matrix(~dimx=n' + 1, ~dimy=m' + 1, 0);
+    for (i in n' - 1 downto 0) {
+      for (j in m' - 1 downto 0) {
         lcs[i][j] =
-          a[i] == b[j]
+          same(lo + i, lo + j)
             ? lcs[i + 1][j + 1] + 1 : max(lcs[i + 1][j], lcs[i][j + 1]);
       };
     };
+    let line = i => snd(a[i]);
+    /* code inserted before a's token [i], within its line */
+    let within = i => i > 0 && i < n && line(i - 1) == line(i);
     let rec go = (i, j) =>
-      if (i == n) {
+      if (i == n' && j == m') {
         [];
-      } else if (j < m && a[i] == b[j]) {
+      } else if (i < n' && j < m' && same(lo + i, lo + j)) {
         go(i + 1, j + 1);
-      } else if (j < m && lcs[i][j + 1] >= lcs[i + 1][j]) {
-        go(i, j + 1);
+      } else if (j < m' && (i == n' || lcs[i][j + 1] >= lcs[i + 1][j])) {
+        within(lo + i) ? [line(lo + i), ...go(i, j + 1)] : go(i, j + 1);
       } else {
-        [a[i], ...go(i + 1, j)];
+        [line(lo + i), ...go(i + 1, j)];
       };
-    Some(go(0, 0));
+    let lines = Array.of_list(String.split(~on='\n', old));
+    let squash = l =>
+      String.split(~on=' ', String.strip(l))
+      |> List.filter(~f=w => !String.equal(w, ""))
+      |> String.concat(~sep=" ");
+    Some(
+      List.map(
+        ~f=k => squash(lines[k]),
+        List.dedup_and_sort(~compare, go(0, 0)),
+      ),
+    );
   };
 };
 
@@ -766,42 +1151,171 @@ let removal = (~root, m: made): string =>
   | Some((old, Some(now))) =>
     switch (removed_lines(old, now)) {
     | Some([]) => ""
-    | Some(ls) when List.length(ls) <= 10 =>
-      String.concat("", List.map(l => "\n- " ++ l, ls))
+    | Some(ls) when List.length(ls) <= 30 =>
+      String.concat(~sep="", List.map(~f=l => "\n- " ++ l, ls))
     | Some(ls) => " " ++ string_of_int(List.length(ls)) ++ " lines replaced."
     | None =>
       " "
-      ++ string_of_int(List.length(String.split_on_char('\n', old)))
+      ++ string_of_int(List.length(String.split(~on='\n', old)))
       ++ " lines replaced."
     }
   | _ => ""
   };
 
-let report = (~root, m: made): string => {
+/* names and hints the calls' entries now share with others in their
+   block, each said once: "There are now 2 entries named x in …" */
+let duplicates = (~root, m: made): list(string) => {
+  let after = m.change.program;
+  let keys = (e: P.entry) =>
+    List.map(~f=((x, _)) => P.Name(x, None), e.binders)
+    @ Option.to_list(Option.map(~f=h => P.Hint(h, None), e.hint));
+  /* entry [anchor] had [key] before the call */
+  let had = (anchor, key) =>
+    switch (P.find(~root, m.before, anchor)) {
+    | Some(steps) =>
+      let (lv, k) = ListUtil.last(steps);
+      List.mem(keys(P.entry(lv, k)), key, ~equal=Poly.equal);
+    | None => false
+    };
+  let rows =
+    List.concat_map(
+      ~f=(s: K.step) => s.added @ List.map(~f=((x, _, _)) => x, s.moved),
+      m.change.steps,
+    )
+    @ Option.to_list(m.plan.target);
+  List.concat_map(
+    ~f=
+      row =>
+        switch (P.find(~root, after, row)) {
+        | Some(steps) =>
+          let (lv, k) = ListUtil.last(steps);
+          let ix = P.index(lv);
+          let block =
+            switch (List.rev(steps)) {
+            | [_, (olv, ok), ..._] =>
+              Option.value(
+                path_string(~root, after, olv.spans[ok].anchor),
+                ~default="",
+              )
+            | _ => ""
+            };
+          List.filter_map(
+            ~f=
+              (key: P.elem) => {
+                let ks =
+                  P.of_list(
+                    switch (key) {
+                    | Name(x, _) => P.SM.find_opt(x, ix.names)
+                    | Hint(h, _) => P.SM.find_opt(h, ix.hints)
+                    | _ => None
+                    },
+                  );
+                let n = List.length(ks);
+                let anchors = List.map(~f=k => lv.spans[k].anchor, ks);
+                n > 1
+                && List.length(List.filter(~f=a => had(a, key), anchors))
+                < n
+                  ? Some(
+                      "There are now "
+                      ++ string_of_int(n)
+                      ++ " entries named "
+                      ++ P.elem_to_string(key)
+                      ++ " in "
+                      ++ P.where(block)
+                      ++ ": "
+                      ++ String.concat(
+                           ~sep=", ",
+                           List.mapi(
+                             ~f=
+                               (i, _) =>
+                                 P.elem_to_string(
+                                   switch (key) {
+                                   | Name(x, _) => Name(x, Some(i + 1))
+                                   | Hint(h, _) => Hint(h, Some(i + 1))
+                                   | key => key
+                                   },
+                                 ),
+                             ks,
+                           ),
+                         )
+                      ++ ".",
+                    )
+                  : None;
+              },
+            keys(P.entry(lv, k)),
+          );
+        | None => []
+        },
+    rows,
+  )
+  |> List.dedup_and_sort(~compare);
+};
+
+let said = (~root, m: made): string => {
   let after = m.change.program;
   let was =
     Option.value(
-      Option.bind(m.plan.target, path_string(~root, m.before)),
+      Option.bind(m.plan.target, ~f=path_string(~root, m.before)),
       ~default="the program",
     );
   let now = id => path_string(~root, after, id);
   let now_target = () =>
-    switch (Option.bind(m.plan.target, now)) {
+    switch (Option.bind(m.plan.target, ~f=now)) {
     | Some(p) when p != was => " (now " ++ p ++ ")"
     | _ => ""
     };
   switch (m.plan.what) {
-  | _ when m.change.steps == [] => "No change: it was so already."
+  | _ when List.is_empty(m.change.steps) => "No change: it was so already."
   | Added =>
-    let rows = List.concat_map((s: K.step) => s.added, m.change.steps);
-    switch (added_paths(~root, m.before, after, rows)) {
-    | [] => "Added code."
-    | paths => "Added " ++ String.concat(", ", paths) ++ "."
+    let rows = List.concat_map(~f=(s: K.step) => s.added, m.change.steps);
+    let added = paths =>
+      switch (paths) {
+      | [] => "Added code."
+      | paths => "Added " ++ String.concat(~sep=", ", paths) ++ "."
+      };
+    let paths = added_paths(~root, m.before, after, rows);
+    switch (m.plan.ending) {
+    | None => added(paths)
+    | Some(Filled) =>
+      let result =
+        List.concat_map(~f=(s: K.step) => s.replaced, m.change.steps)
+        |> List.last
+        |> Option.map(~f=snd)
+        |> Option.bind(_, ~f=result_path(~root, after))
+        |> Option.value(~default="=>");
+      switch (List.filter(~f=p => p != result, paths)) {
+      | [] => "The code became the result (`" ++ result ++ "`)."
+      | paths =>
+        added(paths)
+        ++ " The last line became the result (`"
+        ++ result
+        ++ "`)."
+      };
+    | Some(Beside(result)) =>
+      let stmt =
+        Option.bind(List.last(rows), ~f=row =>
+          switch (P.find(~root, after, row)) {
+          | Some(steps) =>
+            let (lv, k) = ListUtil.last(steps);
+            Poly.equal(P.entry(lv, k).kind, Stmt) ? now(row) : None;
+          | None => None
+          }
+        );
+      switch (stmt, result_path(~root, after, result)) {
+      | (Some(s), Some(r)) =>
+        added(paths)
+        ++ " The last line became a statement ("
+        ++ s
+        ++ "); to change the result, replace `"
+        ++ r
+        ++ "`."
+      | _ => added(paths)
+      };
     };
   | Replaced(None) =>
     let made =
-      List.concat_map((s: K.step) => s.added, m.change.steps)
-      |> List.filter_map(now);
+      List.concat_map(~f=(s: K.step) => s.added, m.change.steps)
+      |> List.filter_map(~f=now);
     "Replaced "
     ++ was
     ++ (
@@ -828,7 +1342,7 @@ let report = (~root, m: made): string => {
       | 1 => ", and its 1 use"
       | n => ", and its " ++ string_of_int(n) ++ " uses"
       };
-    switch (Option.bind(m.plan.target, now)) {
+    switch (Option.bind(m.plan.target, ~f=now)) {
     | Some(p) when p != was => "Renamed " ++ was ++ " to " ++ p ++ uses ++ "."
     | _ => "Renamed " ++ old ++ " to " ++ name ++ " in " ++ was ++ uses ++ "."
     };
@@ -836,6 +1350,11 @@ let report = (~root, m: made): string => {
   | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
   };
 };
+
+let report = (~root, m: made): string =>
+  List.fold(duplicates(~root, m), ~init=said(~root, m), ~f=(said, d) =>
+    said ++ (String.contains(said, '\n') ? "\n" : " ") ++ d
+  );
 
 /* ---- a reply ---- */
 
@@ -872,7 +1391,7 @@ module Reply = {
       )
       : t => {
     checks,
-    root: root == Sort.Mod ? Sort.Mod : Sort.Exp,
+    root: Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp,
     start: seg,
     start_statics: statics,
     made: [],
@@ -940,13 +1459,14 @@ module Reply = {
         ...r.made,
       ],
       statics:
-        change.steps == [] ? r.statics : (lazy(r.statics_of(change.program))),
+        List.is_empty(change.steps)
+          ? r.statics : (lazy(r.statics_of(change.program))),
     });
   };
 
   type failure = {
-    /* the tool call it concerns */
-    index: int,
+    /* the tool call it concerns; None: the reply's edits together */
+    index: option(int),
     message: string,
   };
 
@@ -968,29 +1488,42 @@ module Reply = {
   };
 
   let lines = (ls: list(string)): string =>
-    String.concat("", List.map(l => "\n- " ++ l, ls));
+    String.concat(~sep="", List.map(~f=l => "\n- " ++ l, ls));
 
-  /* the call that wrote piece [id]: the first it appears after; else the
-     last, whose change the error is in */
-  let author = (r: t, id: Id.t): made => {
+  /* the call that wrote piece [id]: the first it appears after */
+  let author = (r: t, id: Id.t): option(int) => {
     let has = (seg: Segment.t) =>
-      Nav.find_path(~root=r.root, id, seg) != None;
-    switch (
-      List.find_opt(
-        (m: made) => !has(m.before) && has(m.change.program),
-        made(r),
-      )
-    ) {
-    | Some(m) => m
-    | None => List.hd(r.made)
-    };
+      Option.is_some(Nav.find_path(~root=r.root, id, seg));
+    List.find_map(
+      ~f=
+        (m: made) =>
+          !has(m.before) && has(m.change.program) ? Some(m.index) : None,
+      made(r),
+    );
   };
+
+  /* the one call errors [ids] concern: the reply's only call, or the one
+     that wrote them all. Errors in code no call wrote (uses a type change
+     broke) are the reply's */
+  let concerns = (r: t, ids: list(Id.t)): option(int) =>
+    switch (r.made, ids) {
+    | ([m], _) => Some(m.index)
+    | (_, [id, ...rest]) =>
+      switch (author(r, id)) {
+      | Some(i)
+          when
+            List.for_all(~f=id => Poly.equal(author(r, id), Some(i)), rest) =>
+        Some(i)
+      | _ => None
+      }
+    | (_, []) => None
+    };
 
   /* the entries holding pieces [ids], by path */
   let where_all = (r: t, ids: list(Id.t)): string =>
-    List.filter_map(where_is(~root=r.root, program(r)), ids)
-    |> List.sort_uniq(compare)
-    |> String.concat(", ");
+    List.filter_map(~f=where_is(~root=r.root, program(r)), ids)
+    |> List.dedup_and_sort(~compare)
+    |> String.concat(~sep=", ");
 
   /* a delete's uses still in the program, now unbound */
   let dangling = (r: t, final: CachedStatics.t): option(failure) => {
@@ -1000,36 +1533,40 @@ module Reply = {
       && (
         switch (Id.Map.find_opt(id, final.info_map)) {
         | Some(info) =>
-          Info.binding_site(~info_map=final.info_map, info) == None
+          Option.is_none(Info.binding_site(~info_map=final.info_map, info))
         | None => false
         }
       );
     List.find_map(
-      (m: made) =>
-        switch (
-          List.filter_map(
-            ((x, _, refs)) =>
-              switch (List.filter(unbound, refs)) {
-              | [] => None
-              | left => Some((x, left))
-              },
-            m.plan.removes,
-          )
-        ) {
-        | [] => None
-        | found =>
-          Some({
-            index: m.index,
-            message:
-              "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
-              ++ lines(
-                   List.map(
-                     ((x, left)) => x ++ ", used at " ++ where_all(r, left),
-                     found,
+      ~f=
+        (m: made) =>
+          switch (
+            List.filter_map(
+              ~f=
+                ((x, _, refs)) =>
+                  switch (List.filter(~f=unbound, refs)) {
+                  | [] => None
+                  | left => Some((x, left))
+                  },
+              m.plan.removes,
+            )
+          ) {
+          | [] => None
+          | found =>
+            Some({
+              index: Some(m.index),
+              message:
+                "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
+                ++ lines(
+                     List.map(
+                       ~f=
+                         ((x, left)) =>
+                           x ++ ", used at " ++ where_all(r, left),
+                       found,
+                     ),
                    ),
-                 ),
-          })
-        },
+            })
+          },
       made(r),
     );
   };
@@ -1040,41 +1577,51 @@ module Reply = {
     let seg = program(r);
     let start_map = Lazy.force(r.start_statics).info_map;
     List.find_map(
-      (m: made) =>
-        List.find_map(
-          ((binder, name, refs)) => {
-            let now =
-              uses_in(~root=r.root, ~info_map=final.info_map, seg, binder);
-            let lost =
-              List.filter(
-                id =>
-                  K.is_token(~root=r.root, id, seg) && !List.mem(id, now),
-                refs,
-              );
-            let taken =
-              List.filter(
-                id =>
-                  id != binder
-                  && !List.mem(id, refs)
-                  && Id.Map.mem(id, start_map),
-                now,
-              );
-            switch (lost @ taken) {
-            | [] => None
-            | ids =>
-              Some({
-                index: m.index,
-                message:
-                  "Not renamed to "
-                  ++ name
-                  ++ ": names would change what they refer to, at "
-                  ++ where_all(r, ids)
-                  ++ ". Choose a name not in use there.",
-              })
-            };
-          },
-          m.plan.renames,
-        ),
+      ~f=
+        (m: made) =>
+          List.find_map(
+            ~f=
+              ((binder, name, refs)) => {
+                let now =
+                  uses_in(
+                    ~root=r.root,
+                    ~info_map=final.info_map,
+                    seg,
+                    binder,
+                  );
+                let lost =
+                  List.filter(
+                    ~f=
+                      id =>
+                        K.is_token(~root=r.root, id, seg)
+                        && !List.mem(now, id, ~equal=Poly.equal),
+                    refs,
+                  );
+                let taken =
+                  List.filter(
+                    ~f=
+                      id =>
+                        !Id.equal(id, binder)
+                        && !List.mem(refs, id, ~equal=Poly.equal)
+                        && Id.Map.mem(id, start_map),
+                    now,
+                  );
+                switch (lost @ taken) {
+                | [] => None
+                | ids =>
+                  Some({
+                    index: Some(m.index),
+                    message:
+                      "Not renamed to "
+                      ++ name
+                      ++ ": names would change what they refer to, at "
+                      ++ where_all(r, ids)
+                      ++ ". Choose a name not in use there.",
+                  })
+                };
+              },
+            m.plan.renames,
+          ),
       made(r),
     );
   };
@@ -1088,91 +1635,98 @@ module Reply = {
     let binder = (info_map, id) =>
       Option.bind(
         Id.Map.find_opt(id, info_map),
-        Info.binding_site(~info_map),
+        ~f=Info.binding_site(~info_map),
       );
     List.find_map(
-      (m: made) =>
-        switch (m.plan.rebinds) {
-        | None => None
-        | Some((old, refs)) =>
-          /* the new code's binders, named as it wrote them */
-          let made =
-            List.concat_map(
-              (s: K.step) => List.map(snd, s.replaced),
-              m.change.steps,
-            )
-            |> List.concat_map(id =>
-                 binders_in(
-                   ~info_map=final.info_map,
-                   pieces_at(~root=r.root, m.change.program, id),
-                 )
-               );
-          let name_of = (bs, b) =>
-            Option.map(fst, List.find_opt(((_, b')) => b' == b, bs));
-          let moved = ((ref, was)) =>
-            switch (binder(final.info_map, ref)) {
-            | Some(now)
-                when
-                  now != was
-                  && K.is_token(~root=r.root, ref, seg)
-                  && (
-                    switch (name_of(made, now)) {
-                    | Some(x) => Some(x) != name_of(old, was)
-                    | None => true
-                    }
-                  ) =>
-              Some((ref, was, now))
-            | _ => None
-            };
-          let lost = List.filter_map(moved, refs);
-          let taken =
-            made == []
-              ? []
-              : uses_of(~root=r.root, ~info_map=final.info_map, seg, made)
-                |> List.filter_map(((ref, now)) =>
-                     switch (binder(start_map, ref)) {
-                     | Some(was) when !List.mem_assoc(ref, refs) =>
-                       Some((ref, was, now))
-                     | _ => None
-                     }
-                   );
-          let at = (seg', id) =>
-            Option.value(
-              where_is(~root=r.root, seg', id),
-              ~default="the top level",
-            );
-          let before = id =>
-            switch (where_is(~root=r.root, m.before, id)) {
-            | Some(p) => p
-            | None => at(r.start, id)
-            };
-          switch (lost @ taken) {
-          | [] => None
-          | found =>
-            Some({
-              index: m.index,
-              message:
-                "Not replaced: uses outside it would change what they refer to. To rename a binder with its uses, use rename (with name for a parameter):"
-                ++ lines(
-                     List.map(
-                       ((ref, was, now)) =>
-                         Option.value(
-                           text_at(~root=r.root, seg, ref),
-                           ~default="a use",
-                         )
-                         ++ " at "
-                         ++ at(seg, ref)
-                         ++ ": bound at "
-                         ++ before(was)
-                         ++ " before, at "
-                         ++ at(seg, now)
-                         ++ " after",
-                       found,
+      ~f=
+        (m: made) =>
+          switch (m.plan.rebinds) {
+          | None => None
+          | Some((old, refs)) =>
+            /* the new code's binders, named as it wrote them */
+            let made =
+              List.concat_map(
+                ~f=(s: K.step) => List.map(~f=snd, s.replaced),
+                m.change.steps,
+              )
+              |> List.concat_map(~f=id =>
+                   binders_in(
+                     ~info_map=final.info_map,
+                     switch (m.plan.what) {
+                     | Replaced(Some(_)) =>
+                       node_pieces_at(~root=r.root, m.change.program, id)
+                     | _ => pieces_at(~root=r.root, m.change.program, id)
+                     },
+                   )
+                 );
+            let name_of = (bs, b) =>
+              Option.map(~f=fst, List.find(~f=((_, b')) => b' == b, bs));
+            let moved = ((ref, was)) =>
+              switch (binder(final.info_map, ref)) {
+              | Some(now)
+                  when
+                    now != was
+                    && K.is_token(~root=r.root, ref, seg)
+                    && (
+                      switch (name_of(made, now)) {
+                      | Some(x) => Some(x) != name_of(old, was)
+                      | None => true
+                      }
+                    ) =>
+                Some((ref, was, now))
+              | _ => None
+              };
+            let lost = List.filter_map(~f=moved, refs);
+            let taken =
+              List.is_empty(made)
+                ? []
+                : uses_of(~root=r.root, ~info_map=final.info_map, seg, made)
+                  |> List.filter_map(~f=((ref, now)) =>
+                       switch (binder(start_map, ref)) {
+                       | Some(was)
+                           when !List.Assoc.mem(refs, ref, ~equal=Poly.equal) =>
+                         Some((ref, was, now))
+                       | _ => None
+                       }
+                     );
+            let at = (seg', id) =>
+              Option.value(
+                where_is(~root=r.root, seg', id),
+                ~default="the top level",
+              );
+            let before = id =>
+              switch (where_is(~root=r.root, m.before, id)) {
+              | Some(p) => p
+              | None => at(r.start, id)
+              };
+            switch (lost @ taken) {
+            | [] => None
+            | found =>
+              Some({
+                index: Some(m.index),
+                message:
+                  "Not replaced: uses outside it would change what they refer to. To rename a binder with its uses, use rename (with name for a parameter):"
+                  ++ lines(
+                       List.map(
+                         ~f=
+                           ((ref, was, now)) =>
+                             Option.value(
+                               text_at(~root=r.root, seg, ref),
+                               ~default="a use",
+                             )
+                             ++ " at "
+                             ++ at(seg, ref)
+                             ++ ": bound at "
+                             ++ before(was)
+                             ++ " before, at "
+                             ++ at(seg, now)
+                             ++ " after",
+                         found,
+                       ),
                      ),
-                   ),
-            })
-          };
-        },
+              })
+            };
+          },
       made(r),
     );
   };
@@ -1183,9 +1737,9 @@ module Reply = {
     | Some(Info.InfoDrv(_)) => "drv"
     | Some(info) =>
       Info.marks_of(info)
-      |> List.map(m => string_of_int(Mark.Variants.to_rank(m)))
-      |> List.sort_uniq(compare)
-      |> String.concat(",")
+      |> List.map(~f=m => string_of_int(Mark.Variants.to_rank(m)))
+      |> List.dedup_and_sort(~compare)
+      |> String.concat(~sep=",")
     | None => "?"
     };
 
@@ -1197,38 +1751,270 @@ module Reply = {
     let kind_before = error_kind(before.info_map);
     let kind_after = error_kind(final.info_map);
     let had =
-      List.map(id => (id, kind_before(id)), before.error_ids)
-      |> List.to_seq
-      |> Hashtbl.of_seq;
-    let by_path = Hashtbl.create(16);
+      List.map(~f=id => (id, kind_before(id)), before.error_ids)
+      |> Stdlib.List.to_seq
+      |> Stdlib.Hashtbl.of_seq;
+    let by_path = Stdlib.Hashtbl.create(16);
     List.iter(
-      id =>
-        Hashtbl.add(
-          by_path,
-          (where_is(~root=r.root, r.start, id), kind_before(id)),
-          (),
-        ),
+      ~f=
+        id =>
+          Stdlib.Hashtbl.add(
+            by_path,
+            (where_is(~root=r.root, r.start, id), kind_before(id)),
+            (),
+          ),
       before.error_ids,
     );
     let seg = program(r);
     List.filter(
-      id => {
-        let kind = kind_after(id);
-        switch (Hashtbl.find_opt(had, id)) {
-        | Some(k) when k == kind => false
-        | _ when Id.Map.mem(id, before.info_map) => true
-        | _ =>
-          let key = (where_is(~root=r.root, seg, id), kind);
-          Hashtbl.mem(by_path, key)
-            ? {
-              Hashtbl.remove(by_path, key);
-              false;
-            }
-            : true;
-        };
-      },
+      ~f=
+        id => {
+          let kind = kind_after(id);
+          switch (Stdlib.Hashtbl.find_opt(had, id)) {
+          | Some(k) when k == kind => false
+          | _ when Id.Map.mem(id, before.info_map) => true
+          | _ =>
+            let key = (where_is(~root=r.root, seg, id), kind);
+            Stdlib.Hashtbl.mem(by_path, key)
+              ? {
+                Stdlib.Hashtbl.remove(by_path, key);
+                false;
+              }
+              : true;
+          };
+        },
       final.error_ids,
     );
+  };
+
+  /* the top-level entry holding piece [id]: its place there and path */
+  let top_entry = (r: t, seg: Segment.t, id: Id.t): (int, string) =>
+    switch (
+      Option.bind(
+        L.locate(~mod_root=Sort.equal(r.root, Sort.Mod), id, seg),
+        ~f=((b, j, _)) =>
+        P.find(~root=r.root, seg, b.lv.spans[j].anchor)
+      )
+    ) {
+    | Some([(lv, k), ..._]) => (
+        k,
+        Option.value(
+          path_string(~root=r.root, seg, lv.spans[k].anchor),
+          ~default="=>",
+        ),
+      )
+    | _ => ((-1), "the top level")
+    };
+
+  /* the types the reply's calls replaced (or their definitions), by path */
+  let changed_types = (r: t): list(string) =>
+    List.filter_map(
+      ~f=
+        (m: made) =>
+          switch (m.plan.what, m.plan.target) {
+          | (Replaced(None | Some(Definition)), Some(t)) =>
+            switch (P.find(~root=r.root, m.before, t)) {
+            | Some(steps) =>
+              let (lv, k) = ListUtil.last(steps);
+              Poly.equal(P.entry(lv, k).kind, Type)
+                ? path_string(~root=r.root, m.before, t) : None;
+            | None => None
+            }
+          | _ => None
+          },
+      made(r),
+    )
+    |> List.fold(~init=[], ~f=(acc, x) =>
+         List.mem(acc, x, ~equal=Poly.equal) ? acc : acc @ [x]
+       );
+
+  /* errors listed in full, past which they are counted */
+  let shown_errors = 10;
+
+  /* the top-level entries the reply's calls changed, by path */
+  let changed_entries = (r: t): list(string) =>
+    List.concat_map(
+      ~f=
+        (m: made) =>
+          List.map(
+            ~f=t => snd(top_entry(r, m.before, t)),
+            Option.to_list(m.plan.target),
+          )
+          @ List.concat_map(
+              ~f=
+                (s: K.step) =>
+                  List.map(
+                    ~f=id => snd(top_entry(r, s.program, id)),
+                    s.added @ List.map(~f=snd, s.replaced),
+                  ),
+              m.change.steps,
+            ),
+      made(r),
+    );
+
+  /* a `:definition` replace whose code dropped the definition's `fun`
+     heads, leaving their parameters unbound among [fresh]: which */
+  let dropped_heads = (r: t, fresh: list(Id.t)): list(string) => {
+    let final = Lazy.force(r.statics).info_map;
+    let free =
+      List.concat_map(
+        ~f=
+          id =>
+            switch (Id.Map.find_opt(id, final)) {
+            | Some(info) =>
+              List.filter_map(
+                ~f=
+                  (m: Mark.t) =>
+                    switch (m) {
+                    | Free(x) => Some(x)
+                    | _ => None
+                    },
+                Info.marks_of(info),
+              )
+            | None => []
+            },
+        fresh,
+      );
+    let text = h => String.strip(Printer.of_segment(~holes="?", [h]));
+    let rec leading = (ps: Segment.t) =>
+      switch (ps) {
+      | [p, ...rest] when S.is_fun_head(p) => [p, ...leading(rest)]
+      | _ => []
+      };
+    let heads = (seg, head) =>
+      Option.map(
+        ~f=
+          id =>
+            node_pieces_at(~root=r.root, seg, id)
+            |> List.filter(~f=p => !Piece.is_secondary(p))
+            |> leading,
+        P.part_of(~root=r.root, seg, head, Definition),
+      );
+    List.is_empty(free)
+      ? []
+      : List.filter_map(
+          ~f=
+            (m: made) =>
+              switch (m.plan.what, m.plan.target) {
+              | (Replaced(Some(Definition)), Some(head)) =>
+                switch (
+                  heads(m.before, head),
+                  heads(m.change.program, head),
+                ) {
+                | (Some([_, ..._] as old), Some([])) =>
+                  binders_in(
+                    ~info_map=Lazy.force(r.start_statics).info_map,
+                    old,
+                  )
+                  |> List.exists(~f=((x, _)) =>
+                       List.mem(free, x, ~equal=Poly.equal)
+                     )
+                    ? Some(
+                        Option.value_map(
+                          path_string(~root=r.root, m.before, head),
+                          ~default="The definition",
+                          ~f=p =>
+                          "`" ++ p ++ ":definition`"
+                        )
+                        ++ " starts with `"
+                        ++ String.concat(~sep=" ", List.map(~f=text, old))
+                        ++ "`; the new code dropped it.",
+                      )
+                    : None
+                | _ => None
+                }
+              | _ => None
+              },
+          made(r),
+        );
+  };
+
+  /* a refusal for errors [fresh], the reply's edits together's when
+     [whole]: how many, by top-level entry, what a type change breaks, then
+     the first few */
+  let new_errors_message =
+      (r: t, ~whole, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t))
+      : string => {
+    let seg = program(r);
+    let groups =
+      List.fold(
+        fresh,
+        ~init=[],
+        ~f=(acc, id) => {
+          let key = top_entry(r, seg, id);
+          List.Assoc.mem(acc, key, ~equal=Poly.equal)
+            ? List.map(~f=((k, m)) => (k, k == key ? m + 1 : m), acc)
+            : acc @ [(key, 1)];
+        },
+      )
+      |> List.sort(~compare=((a, _), (b, _)) => compare(a, b))
+      |> List.map(~f=(((_, path), n)) => (path, n));
+    let count = List.length(fresh);
+    let types = changed_types(r);
+    let changed = changed_entries(r);
+    let (redone, broken) =
+      List.filter(
+        ~f=((g, _)) => !List.mem(types, g, ~equal=Poly.equal),
+        groups,
+      )
+      |> List.map(~f=fst)
+      |> List.partition_tf(~f=g => List.mem(changed, g, ~equal=Poly.equal));
+    let names = String.concat(~sep=", ");
+    (
+      whole
+        ? "Not applied: this reply's edits together would add "
+        : "Not applied: it would add "
+    )
+    ++ string_of_int(count)
+    ++ (count == 1 ? " static error" : " static errors")
+    ++ " ("
+    ++ string_of_int(n0)
+    ++ " before, "
+    ++ string_of_int(n1)
+    ++ " after), in: "
+    ++ String.concat(
+         ~sep=", ",
+         List.map(
+           ~f=((g, n)) => g ++ " (" ++ string_of_int(n) ++ ")",
+           groups,
+         ),
+       )
+    ++ "."
+    ++ (
+      List.is_empty(types) || List.is_empty(broken)
+        ? ""
+        : "\nChanging "
+          ++ String.concat(~sep=" and ", types)
+          ++ " breaks uses in: "
+          ++ names(broken)
+          ++ "; change them in the same reply."
+    )
+    ++ (
+      List.is_empty(types) || List.is_empty(redone)
+        ? ""
+        : "\nUses in "
+          ++ names(redone)
+          ++ " are still broken after this reply's changes to "
+          ++ (List.length(redone) == 1 ? "it." : "them.")
+    )
+    ++ String.concat(
+         ~sep="",
+         List.map(~f=h => "\n" ++ h, dropped_heads(r, fresh)),
+       )
+    ++ lines(List.map(~f=line, ListUtil.take(shown_errors, fresh)))
+    ++ (
+      count > shown_errors
+        ? "\n- and " ++ string_of_int(count - shown_errors) ++ " more" : ""
+    );
+  };
+
+  /* the program's result is an empty hole */
+  let result_empty = (r: t): bool => {
+    let top = S.top(~root=r.root, program(r));
+    switch (tail_index(top)) {
+    | Some(t) => is_hole(S.core(top, t))
+    | None => false
+    };
   };
 
   type outcome = {
@@ -1263,20 +2049,23 @@ module Reply = {
         | Some(f) => Error(f)
         | None =>
           switch (
-            List.find_map(check => check(r, final), [capture, rebinding])
+            List.find_map(~f=check => check(r, final), [capture, rebinding])
           ) {
           | Some(f) => Error(f)
-          | None when r.checks.no_new_errors && fresh != [] =>
+          | None when r.checks.no_new_errors && !List.is_empty(fresh) =>
+            let index = concerns(r, fresh);
             Error({
-              index: author(r, List.hd(fresh)).index,
+              index,
               message:
-                "Not applied: it would add static errors ("
-                ++ string_of_int(n0)
-                ++ " before, "
-                ++ string_of_int(n1)
-                ++ " after):"
-                ++ lines(List.map(line, fresh)),
-            })
+                new_errors_message(
+                  r,
+                  ~whole=Option.is_none(index),
+                  ~line,
+                  ~n0,
+                  ~n1,
+                  fresh,
+                ),
+            });
           | None => Ok()
           }
         };
@@ -1296,18 +2085,28 @@ module Reply = {
           ++ " ("
           ++ string_of_int(n0)
           ++ " before). New:"
-          ++ lines(List.map(line, fresh))
+          ++ lines(List.map(~f=line, fresh))
         };
+      let errors =
+        result_empty(r)
+          ? errors
+            ++ (String.contains(errors, '\n') ? "\n" : " ")
+            ++ "The program's result is empty (`?`)."
+          : errors;
       Ok({
         program: seg,
         statics: final,
         reports:
           List.map(
-            (m: made) => {
-              let said = report(~root=r.root, m);
-              let sep = String.contains(said, '\n') ? "\n" : " ";
-              (m.index, said ++ (m.index == last.index ? sep ++ errors : ""));
-            },
+            ~f=
+              (m: made) => {
+                let said = report(~root=r.root, m);
+                let sep = String.contains(said, '\n') ? "\n" : " ";
+                (
+                  m.index,
+                  said ++ (m.index == last.index ? sep ++ errors : ""),
+                );
+              },
             made(r),
           ),
       });
@@ -1346,14 +2145,14 @@ let go =
       call: call,
     )
     : result(Zipper.t, Action.Failure.t) => {
-  let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+  let root = Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp;
   let r = Reply.of_zipper(~settings, ~root, z, statics);
   switch (Reply.add(r, ~index=0, call)) {
   | Error(msg) => Error(Composition_action_failure(msg))
   | Ok(r) =>
     switch (Reply.finish(r)) {
     | Error(f) => Error(Composition_action_failure(f.message))
-    | Ok(o) => Ok(o.program === r.start ? z : rezip(z, o.program))
+    | Ok(o) => Ok(phys_equal(o.program, r.start) ? z : rezip(z, o.program))
     }
   };
 };
@@ -1362,15 +2161,29 @@ let go =
 let step_records = (~root, m: made): list(AgentToolResult.step) => {
   let path = (seg, id) => path_string(~root, seg, id);
   let record = (before, s: K.step): AgentToolResult.step => {
-    let made = ListUtil.hd_opt(s.added);
+    let made = List.hd(s.added);
     let (op, from, into) =
       switch (s.op) {
-      | Insert(_) => ("insert", None, Option.bind(made, path(s.program)))
-      | Replace(x, _) => (
+      | Insert(_) => ("insert", None, Option.bind(made, ~f=path(s.program)))
+      | Replace(Entry(x), _) => (
           "replace",
           path(before, x),
           path(s.program, Option.value(made, ~default=x)),
         )
+      /* a term, by the entry the call named */
+      | Replace(Term(x), _) =>
+        let e = Option.value(m.plan.target, ~default=x);
+        (
+          "replace",
+          path(before, e),
+          switch (path(s.program, e)) {
+          | Some(_) as p => p
+          | None =>
+            Option.bind(List.hd(s.replaced), ~f=((_, y)) =>
+              where_is(~root, s.program, y)
+            )
+          },
+        );
       | Delete(x) => ("delete", path(before, x), None)
       | Move(x, _) => ("move", path(before, x), path(s.program, x))
       };
@@ -1380,7 +2193,7 @@ let step_records = (~root, m: made): list(AgentToolResult.step) => {
       into,
       added: s.added,
       removed: s.removed,
-      moved: List.map(((x, _, _)) => x, s.moved),
+      moved: List.map(~f=((x, _, _)) => x, s.moved),
       replaced: s.replaced,
     };
   };

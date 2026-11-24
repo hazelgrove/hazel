@@ -4,10 +4,12 @@
    levels): module members, let chains, a definition's body. Four ops,
    each splicing one level (EntryLayout), so every untouched piece stays
    physically the same. Formatting is local: new code takes its place's
-   indentation and its neighbours' separators and blank lines. Semantics
+   indentation, and the gaps an op makes or closes are house style
+   (EntryLayout.settle), not its neighbours' layout. Semantics
    (which tokens a rename touches, whether an edit adds errors) lives in
    planners and checks above */
 open Util;
+open Poly;
 
 module L = EntryLayout;
 module Nav = SpineNav;
@@ -41,23 +43,27 @@ type template =
 [@deriving (show({with_path: false}), eq)]
 type source =
   /* an entry's text, its `;` or `in` optional (the place's form decides),
-     or a node's; fresh ids */
+     or a term's; fresh ids */
   | Text(string)
   | Template(template)
-  /* another entry or node, fresh ids */
+  /* another entry or term, fresh ids */
   | Copy(Id.t)
-  /* one token's new text, its id kept. A definition's keyword (`let`,
-     `type`, `module`) re-reads its head as that kind; a blank definition
-     becomes the kind's blank */
+  /* a single-token term's new text, its id kept; or an entry's keyword
+     (`let`, `type`, `module`), re-reading its head as that kind, a blank
+     definition becoming the kind's blank */
   | Token(string);
 
-/* Replace takes any node: an entry by its anchor (or first tile), else
-   the term rooted at the piece, a case rule from its `|` through its
-   result; a token with Token */
+/* Replace's target: an entry by its anchor (a definition, `use` or
+   statement, not a block's result), the row as written, what follows
+   kept; or the term rooted at a piece, a case rule from its `|` through
+   its result */
+[@deriving (show({with_path: false}), eq)]
+type target = EntryPath.target = | Entry(Id.t) | Term(Id.t);
+
 [@deriving (show({with_path: false}), eq)]
 type op =
   | Insert(place, source)
-  | Replace(Id.t, source)
+  | Replace(target, source)
   | Delete(Id.t)
   /* ids kept, converting `;` ⇄ `in` between member and let-chain forms */
   | Move(Id.t, place);
@@ -108,6 +114,7 @@ type reason =
   | IntoItself
   | Unreadable
   | NotAToken
+  | NotAnEntry
   | NoPlace;
 
 /* short: the outline is narrow */
@@ -126,6 +133,7 @@ let describe = (r: reason): string =>
   | IntoItself => "it can't go into itself"
   | Unreadable => "the text doesn't read here"
   | NotAToken => "only a token takes new text"
+  | NotAnEntry => "it isn't an entry"
   | NoPlace => "it can't go there"
   };
 
@@ -180,12 +188,13 @@ let whole = (~id: Id.t, b: L.block, k: int) => {
   };
 };
 
-let is_stmt = (b: L.block, k: int): bool => b.lv.spans[k].kind == Stmt;
+let is_stmt = (b: L.block, k: int): bool =>
+  Poly.equal(b.lv.spans[k].kind, Stmt);
 
 /* the head of module [m], and of the entry holding the brace [brace] */
 let module_of_brace = (~mod_root, brace: Id.t, seg): option(Id.t) =>
   Option.map(
-    ((b, k, _)) => anchor(b, k),
+    ~f=((b, k, _)) => anchor(b, k),
     L.locate(~mod_root, brace, seg),
   );
 
@@ -216,7 +225,7 @@ let place_of = (~mod_root, b: L.block, k: int, seg: Segment.t): place => {
 /* an entry's kind as its first word reads: a definition or directive
    takes `in` in a let chain, anything else is a statement and takes `;` */
 let takes_in = (txt: string): bool =>
-  switch (String.split_on_char(' ', String.trim(txt))) {
+  switch (String.split(~on=' ', String.strip(txt))) {
   | [
       "let" | "type" | "module" | "theorem" | "use" | "hide" | "eval" | "pause" |
       "debug",
@@ -228,39 +237,49 @@ let takes_in = (txt: string): bool =>
 
 /* [txt] without a last `;`, or an `in` ending its last line */
 let unterminated = (txt: string): string => {
-  let t = String.trim(txt);
+  let t = String.strip(txt);
   let n = String.length(t);
   if (n > 0 && t.[n - 1] == ';') {
-    String.trim(String.sub(t, 0, n - 1));
+    String.strip(String.sub(t, ~pos=0, ~len=n - 1));
   } else if (n > 2
-             && String.sub(t, n - 2, 2) == "in"
+             && String.equal(String.sub(t, ~pos=n - 2, ~len=2), "in")
              && String.contains(" \n\t)", t.[n - 3])) {
-    String.trim(String.sub(t, 0, n - 2));
+    String.strip(String.sub(t, ~pos=0, ~len=n - 2));
   } else {
     t;
   };
 };
 
 /* an entry's pieces from text, in a block's form, and whether it is a
-   statement. A definition spanning lines puts its `in` on a line of its
-   own when [alone] (its neighbours' layout) */
-let entry_text =
-    (~member: bool, ~alone, txt: string): option((Segment.t, bool)) => {
+   statement */
+let entry_text = (~member: bool, txt: string): option((Segment.t, bool)) => {
   let t = unterminated(txt);
   let def = takes_in(t);
-  let letin = () =>
-    Option.map(L.lay_in(~alone, ~indent=0), L.letin_core(t ++ " in"));
   /* several entries take the last one's terminator, which the first word
      doesn't tell */
-  let as_def = () => Option.map(ps => (ps, false), letin());
-  let as_stmt = () => Option.map(ps => (ps, true), L.letin_core(t ++ ";"));
+  let read = (term, stmt) =>
+    Option.map(
+      ~f=ps => (L.lay_in(~indent=0, ps), stmt),
+      L.letin_core(t ++ term),
+    );
+  let as_def = () => read(" in", false);
+  let as_stmt = () => read(";", true);
+  /* the first reading's bail note, the telling one */
   let either = (a, b) =>
     switch (a()) {
-    | None => b()
+    | None =>
+      let (note, at) = FastParse.(bail_note^, bail_at^);
+      switch (b()) {
+      | None =>
+        FastParse.bail_note := note;
+        FastParse.bail_at := at;
+        None;
+      | found => found
+      };
     | found => found
     };
   member
-    ? Option.map(ps => (ps, !def), L.member_core(t))
+    ? Option.map(~f=ps => (ps, !def), L.member_core(t))
     : def ? either(as_def, as_stmt) : either(as_stmt, as_def);
 };
 
@@ -300,7 +319,7 @@ let holed = (item: Segment.t): Segment.t => {
     | [Tile({children: [pat, ...kids], _} as t), ...rest] => [
         Piece.Tile({
           ...t,
-          children: [List.map(hole, pat), ...kids],
+          children: [List.map(~f=hole, pat), ...kids],
         }),
         ...rest,
       ]
@@ -331,7 +350,7 @@ let reform = (t: Tile.t, form: Form.t, sort: Sort.t, children): Piece.t =>
     ...t,
     form,
     sort,
-    shards: List.mapi((i, _) => i, Form.label_of(form)),
+    shards: List.mapi(~f=(i, _) => i, Form.label_of(form)),
     children,
   });
 
@@ -350,9 +369,9 @@ let reformed =
   switch (kind, rest) {
   | (Def, [Tile(h), ...after]) when Tile.is_complete(h) =>
     let pair =
-      List.find_opt(((exp, m)) => h.form == (member ? exp : m), head_forms);
+      List.find(~f=((exp, m)) => h.form == (member ? exp : m), head_forms);
     switch (pair, h.children) {
-    | (Some((_, m)), [pat, def]) when member && after == [] =>
+    | (Some((_, m)), [pat, def]) when member && List.is_empty(after) =>
       Some(lead @ [reform(h, m, Mod, [pat])] @ trim_end_ws(def))
     | (Some((exp, _)), [pat]) when !member =>
       Some(
@@ -376,10 +395,9 @@ let reformed =
 };
 
 /* [ps] (entry [k] of [b]'s bare pieces) in a block's form: as it is, or
-   converted, an `in` laid out as [alone] says. A form [reformed] doesn't
-   know goes through text, fresh ids, as it did before the kernel */
-let in_form =
-    (~member: bool, ~alone, b: L.block, k: int, ps: Segment.t): Segment.t =>
+   converted, its `in` laid out by house style. A form [reformed] doesn't
+   know goes through text, with fresh ids */
+let in_form = (~member: bool, b: L.block, k: int, ps: Segment.t): Segment.t =>
   if (member == b.in_module) {
     ps;
   } else {
@@ -393,7 +411,7 @@ let in_form =
             ? L.member_core(L.drop_suffix("in", L.text_of(ps)))
             : {
               let def =
-                switch (List.find_map(Piece.is_tile, ps)) {
+                switch (List.find_map(~f=Piece.is_tile, ps)) {
                 | Some(t) => Nav.is_def_head(t)
                 | None => false
                 };
@@ -401,7 +419,7 @@ let in_form =
             };
         need(~id=anchor(b, k), member ? NoMemberForm : NoPlace, via_text);
       };
-    member ? ps : L.lay_in(~alone, ~indent=L.item_indent(b, k), ps);
+    member ? ps : L.lay_in(~indent=L.item_indent(b, k), ps);
   };
 
 /* ---- nodes ---- */
@@ -409,17 +427,17 @@ let in_form =
 /* text read as a node of [sort], in a context that reads it so: the fast
    parser reads only programs */
 let parse_at = (sort: Sort.t, txt: string): option(Segment.t) => {
-  let t = String.trim(txt);
+  let t = String.strip(txt);
   let kid = (src, c) =>
     switch (L.parse(src)) {
     | Some([Tile(h), ..._]) when List.length(h.children) > c =>
-      Some(Nav.core_ws(List.nth(h.children, c)))
+      Some(Nav.core_ws(List.nth_exn(h.children, c)))
     | _ => None
     };
   let found =
     switch (sort) {
     | Exp
-    | Mod => Option.map(Nav.core_ws, L.parse(~root=sort, t))
+    | Mod => Option.map(~f=Nav.core_ws, L.parse(~root=sort, t))
     | Pat => kid("let " ++ t ++ {js| = ¿ in ¿|js}, 0)
     | TPat => kid("type " ++ t ++ {js| = ¿ in ¿|js}, 0)
     | MPat => kid("module " ++ t ++ {js| = {} in ¿|js}, 0)
@@ -427,14 +445,15 @@ let parse_at = (sort: Sort.t, txt: string): option(Segment.t) => {
     | Rul =>
       /* a case's rules, past its scrutinee */
       Option.map(
-        kid => {
-          let rec past = (ps: Segment.t) =>
-            switch (ps) {
-            | [p, ...rest] when !Piece.is_case_rule(p) => past(rest)
-            | _ => ps
-            };
-          past(kid);
-        },
+        ~f=
+          kid => {
+            let rec past = (ps: Segment.t) =>
+              switch (ps) {
+              | [p, ...rest] when !Piece.is_case_rule(p) => past(rest)
+              | _ => ps
+              };
+            past(kid);
+          },
         kid({js|case ¿ |js} ++ t ++ " end", 0),
       )
     | _ => None
@@ -447,9 +466,9 @@ let parse_at = (sort: Sort.t, txt: string): option(Segment.t) => {
 
 /* the sort a step's level holds */
 let level_sort = (~root: Sort.t, up: list(Nav.step)): Sort.t =>
-  switch (ListUtil.last_opt(up)) {
+  switch (List.last(up)) {
   | Some({from: Kid(t, c), _}) =>
-    Option.value(List.nth_opt(Tile.mold(t).in_, c), ~default=Sort.Exp)
+    Option.value(List.nth(Tile.mold(t).in_, c), ~default=Sort.Exp)
   | Some({from: Syntax, _}) => Exp
   | Some({from: Top | Sub, _})
   | None => root
@@ -489,20 +508,20 @@ let extent =
       let rec go = (sk: Skel.t, ctx) => {
         let root = Skel.root(sk);
         let ops = Aba.get_as(root);
-        if (List.mem(i, ops)) {
+        if (List.mem(ops, i, ~equal=Poly.equal)) {
           let (a, b) = Skel.range(sk);
           Some((a, b, ctx));
         } else {
-          switch (List.find_opt(b => within(b, i), Aba.get_bs(root)), sk) {
+          switch (List.find(~f=b => within(b, i), Aba.get_bs(root)), sk) {
           | (Some(inner), _) =>
-            go(inner, or_(ctx, nib(List.hd(ops), false)))
+            go(inner, or_(ctx, nib(List.hd_exn(ops), false)))
           | (None, Pre(_, s)) =>
             go(s, or_(ctx, nib(ListUtil.last(ops), false)))
           | (None, Post(s, _)) =>
-            go(s, or_(ctx, nib(List.hd(ops), true)))
+            go(s, or_(ctx, nib(List.hd_exn(ops), true)))
           | (None, Bin(l, _, r)) =>
             within(l, i)
-              ? go(l, or_(ctx, nib(List.hd(ops), true)))
+              ? go(l, or_(ctx, nib(List.hd_exn(ops), true)))
               : go(r, or_(ctx, nib(ListUtil.last(ops), false)))
           | (None, Op(_)) => None
           };
@@ -535,46 +554,58 @@ let node = (~root: Sort.t, id: Id.t, seg: Segment.t): node => {
   };
 };
 
+/* the head whose whole definition node [n] is, comments aside, and
+   the gaps around it in [n.level]: from [a] (past the head's `=`) to
+   [b] (its `in`, `;` or the level's end) */
+type def_gaps = {
+  head: Id.t,
+  a: int,
+  b: int,
+  in_: bool,
+};
+
+let def_gaps = (n: node): option(def_gaps) => {
+  let arr = Array.of_list(n.level);
+  let len = Array.length(arr);
+  let rec back = i =>
+    i > 0 && Piece.is_secondary(arr[i - 1]) ? back(i - 1) : i;
+  let rec on = i => i < len && Piece.is_secondary(arr[i]) ? on(i + 1) : i;
+  let (a, b) = (back(n.lo), on(n.hi + 1));
+  switch (List.last(n.up)) {
+  | Some({from: Kid(t, c), _})
+      when
+        Nav.is_def_head(t)
+        && Tile.ends_with_in(t)
+        && c == List.length(t.children)
+        - 1 =>
+    a == 0 && b == len
+      ? Some({
+          head: t.id,
+          a,
+          b,
+          in_: true,
+        })
+      : None
+  | _ =>
+    switch (a > 0 ? Some(arr[a - 1]) : None) {
+    | Some(Tile(t))
+        when
+          Nav.is_def_head(t)
+          && !Tile.ends_with_in(t)
+          && (b == len || Piece.is_semi(arr[b])) =>
+      Some({
+        head: t.id,
+        a,
+        b,
+        in_: false,
+      })
+    | _ => None
+    }
+  };
+};
+
 let node_pieces = (n: node): Segment.t =>
   ListUtil.slice(n.lo, n.hi + 1 - n.lo, n.level);
-
-/* a node's id: its root's, else its first piece's */
-let root_id = (ps: Segment.t): option(Id.t) =>
-  switch (List.filter(p => !Piece.is_secondary(p), ps)) {
-  | [] => None
-  | [p] => Some(Piece.id(p))
-  | [p, ..._] =>
-    switch (Segment.root_id(Segment.skel(ps), ps)) {
-    | id => Some(id)
-    | exception _ => Some(Piece.id(p))
-    }
-  };
-
-/* parts of a definition, as paths name them: its head, its pattern's
-   node, its definition's, and its body's: the definition past its `fun`
-   heads */
-type part = EntryPath.part = | Pattern | Definition | Body | Head;
-
-let rec past_fun_heads = (ps: Segment.t): Segment.t =>
-  switch (ps) {
-  | [p, ...rest] when Piece.is_secondary(p) || ItemSpans.is_fun_head(p) =>
-    past_fun_heads(rest)
-  | _ => ps
-  };
-
-let part =
-    (~root: Sort.t, head: Id.t, part: part, seg: Segment.t): option(Id.t) =>
-  switch (Nav.tile_ctx(~root, head, seg)) {
-  | Some((_, _, t) as at) when Nav.is_def_head(t) =>
-    switch (part) {
-    | Head => Some(t.id)
-    | Pattern => root_id(Nav.pat_of(t))
-    | Definition => Option.bind(Nav.def_at(at), root_id)
-    | Body =>
-      Option.bind(Nav.def_at(at), def => root_id(past_fun_heads(def)))
-    }
-  | _ => None
-  };
 
 /* ---- ops ---- */
 
@@ -608,16 +639,16 @@ let done_ =
    not yet in, so a replay brings them in one at a time. The first keeps
    what [s] removed, the last [s]'s program and focus */
 let entrywise = (c: ctx, item: Segment.t, s: step): list(step) => {
-  let mine = List.map(Piece.id, item);
+  let mine = List.map(~f=Piece.id, item);
   let at =
-    Option.bind(ListUtil.hd_opt(s.added), row =>
+    Option.bind(List.hd(s.added), ~f=row =>
       L.locate(~mod_root=c.mod_root, row, s.program)
     );
   let anchors =
     switch (at) {
     | Some((b, _, _)) =>
-      List.init(Array.length(b.sl), k => (anchor(b, k), k))
-      |> List.filter(((a, _)) => List.mem(a, mine))
+      List.init(Array.length(b.sl), ~f=k => (anchor(b, k), k))
+      |> List.filter(~f=((a, _)) => List.mem(mine, a, ~equal=Poly.equal))
     | None => []
     };
   switch (at, anchors) {
@@ -635,33 +666,34 @@ let entrywise = (c: ctx, item: Segment.t, s: step): list(step) => {
         switch (L.locate(~mod_root=c.mod_root, a, prog)) {
         | Some((b, j, rebuild)) =>
           switch (rebuild(L.remove(b, j))) {
-          | prog => Option.map(ps => [prog, ...ps], back(prog, later))
+          | prog => Option.map(~f=ps => [prog, ...ps], back(prog, later))
           | exception _ => None
           }
         | None => None
         }
       };
-    switch (back(s.program, List.rev_map(fst, List.tl(anchors)))) {
+    switch (back(s.program, List.rev_map(~f=fst, List.tl_exn(anchors)))) {
     | None => [s]
     | Some(before) =>
       let n = List.length(anchors);
       List.mapi(
-        (i, ((_, k), program)) => {
-          let made = row(k);
-          {
-            ...s,
-            added: Option.to_list(made),
-            removed: i == 0 ? s.removed : [],
-            replaced:
-              List.map(
-                ((x, _)) => (x, Option.value(made, ~default=x)),
-                s.replaced,
-              ),
-            focus: i == n - 1 ? s.focus : made,
-            program,
-          };
-        },
-        List.combine(anchors, List.rev(before) @ [s.program]),
+        ~f=
+          (i, ((_, k), program)) => {
+            let made = row(k);
+            {
+              ...s,
+              added: Option.to_list(made),
+              removed: i == 0 ? s.removed : [],
+              replaced:
+                List.map(
+                  ~f=((x, _)) => (x, Option.value(made, ~default=x)),
+                  s.replaced,
+                ),
+              focus: i == n - 1 ? s.focus : made,
+              program,
+            };
+          },
+        List.zip_exn(anchors, List.rev(before) @ [s.program]),
       );
     };
   };
@@ -675,8 +707,9 @@ let top_block = (c: ctx, seg: Segment.t): (L.block, Segment.t => Segment.t) => {
 
 /* a head holding members, checked: a module's, or a signature's */
 let module_head = (c: ctx, m: Id.t, seg: Segment.t) =>
-  switch (Option.bind(Nav.tile_ctx(~root=c.root, m, seg), Nav.def_at)) {
-  | Some(def) when Nav.brace_at(def) != None || L.module_def(def) => ()
+  switch (Option.bind(Nav.tile_ctx(~root=c.root, m, seg), ~f=Nav.def_at)) {
+  | Some(def) when Option.is_some(Nav.brace_at(def)) || L.module_def(def) =>
+    ()
   | Some(_) => refuse(~id=m, NotABlock)
   | None => refuse(~id=m, Missing)
   };
@@ -697,15 +730,15 @@ let value_head = (c: ctx, ~stmt: bool, d: Id.t, seg: Segment.t) =>
 /* a source as an entry in a block's form: its pieces, whether it is a
    statement, and the indentation its lines were written at */
 let entry_of =
-    (c: ctx, ~member: bool, ~alone, src: source, seg: Segment.t)
+    (c: ctx, ~member: bool, src: source, seg: Segment.t)
     : (Segment.t, bool, option(int)) =>
   switch (src) {
   | Text(txt) =>
-    let (ps, stmt) = need(Unreadable, entry_text(~member, ~alone, txt));
+    let (ps, stmt) = need(Unreadable, entry_text(~member, txt));
     (ps, stmt, Some(0));
   | Template(t) =>
     let (ps, stmt) =
-      need(Unreadable, entry_text(~member, ~alone, template_text(t)));
+      need(Unreadable, entry_text(~member, template_text(t)));
     (unnamed(t) ? holed(ps) : ps, stmt, Some(0));
   | Copy(y) =>
     let e = entry(~mod_root=c.mod_root, y, seg);
@@ -713,7 +746,7 @@ let entry_of =
     let bare = L.bare(e.b, e.j);
     /* read again from its text, as the outline's duplicate always was:
        fresh ids, and what doesn't read refuses */
-    let txt = L.text_of(in_form(~member, ~alone, e.b, e.j, bare));
+    let txt = L.text_of(in_form(~member, e.b, e.j, bare));
     (
       need(
         ~id=y,
@@ -766,7 +799,7 @@ let into =
     let (b, rebuild) = top_block(c, seg);
     switch (arrival) {
     | Fresh(_) when Array.length(b.sl) == 0 => Some(item @ seg)
-    | _ => Option.map(rebuild, L.at_edge(b, ~first, ~arrival, item))
+    | _ => Option.map(~f=rebuild, L.at_edge(b, ~first, ~arrival, item))
     };
   };
 };
@@ -779,35 +812,90 @@ let member_form = (c: ctx, blk: block): bool =>
   | Top => c.mod_root
   };
 
-/* the let chain whose entries an entry at [place] goes among, for their
-   layout: a body's own, else its definition's. None for members, which
-   take no `in` */
-let chain_at =
-    (c: ctx, place: place, seg: Segment.t): option(ItemSpans.level) =>
-  switch (place) {
-  | Before(y)
-  | After(y) => Some(entry(~mod_root=c.mod_root, y, seg).b.lv)
-  | FirstIn(Body(d))
-  | LastIn(Body(d)) =>
-    let e = entry(~mod_root=c.mod_root, d, seg);
-    Some(Option.value(ItemSpans.block(e.b.lv, e.j), ~default=e.b.lv));
-  | FirstIn(Top)
-  | LastIn(Top) => Some(ItemSpans.top(~root=c.root, seg))
-  | FirstIn(Members(_))
-  | LastIn(Members(_)) => None
+/* [program] with the gaps beside the entries holding [item]'s pieces
+   (the entries an op landed) laid out by house style, or with [inner]
+   only those between them. A blank line the code put between them, or [lead] above them, sets a
+   test below it apart */
+let settled =
+    (c: ctx, ~inner=false, ~lead=false, item: Segment.t, program: Segment.t)
+    : Segment.t => {
+  let mine =
+    List.fold(item, ~init=Id.Map.empty, ~f=(m, p) =>
+      Piece.is_secondary(p) ? m : Id.Map.add(Piece.id(p), (), m)
+    );
+  switch (Id.Map.choose_opt(mine)) {
+  | None => program
+  | Some((x, ())) =>
+    switch (L.locate(~mod_root=c.mod_root, x, program)) {
+    | None => program
+    | Some((b, _, rebuild)) =>
+      let holds = k => {
+        let (c0, c1) = b.lv.spans[k].core;
+        let rec go = i =>
+          i < c1 && (Id.Map.mem(Piece.id(b.arr[i]), mine) || go(i + 1));
+        go(c0);
+      };
+      switch (
+        List.filter(~f=holds, List.init(Array.length(b.sl), ~f=k => k))
+      ) {
+      | [] => program
+      | [k0, ..._] as ks =>
+        let k1 = ListUtil.last(ks);
+        let js =
+          inner
+            ? List.init(k1 - k0, ~f=j => k0 + j)
+            : List.init(k1 - k0 + 2, ~f=j => k0 - 1 + j);
+        let blank = j => L.breaks(b, b.sl[j].eol, b.sl[j + 1].lo) > 1;
+        let apart =
+          List.filter(
+            ~f=
+              j =>
+                L.is_test(b.lv, j + 1)
+                && (j == k0 - 1 ? lead && !inner : j >= k0 && blank(j)),
+            List.init(k1 - k0 + 1, ~f=j => k0 - 1 + j),
+          );
+        let seg = L.settle(~apart, b, js);
+        phys_equal(seg, b.seg) ? program : rebuild(seg);
+      };
+    }
   };
+};
 
-/* an `in` at [place] has a line of its own (L.lay_in) */
-let alone_at = (c: ctx, place: place, seg: Segment.t, ()): bool =>
-  Option.fold(~none=true, ~some=L.in_alone, chain_at(c, place, seg));
+/* [program] with the gap where an entry was taken out, below entry
+   [above] (if any), laid out by house style */
+let closed = (c: ctx, ~above: option(Id.t), program: Segment.t): Segment.t =>
+  switch (
+    Option.bind(above, ~f=a => L.locate(~mod_root=c.mod_root, a, program))
+  ) {
+  | Some((b, j, rebuild)) =>
+    let seg = L.settle(b, [j]);
+    phys_equal(seg, b.seg) ? program : rebuild(seg);
+  | None => program
+  };
 
 let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
+  /* code starting with a blank line */
+  let lead =
+    switch (src) {
+    | Text(txt) =>
+      let rec go = i =>
+        i < String.length(txt)
+        && (
+          Char.equal(txt.[i], '\n')
+          || (Char.equal(txt.[i], ' ') || Char.equal(txt.[i], '\t'))
+          && go(i + 1)
+        );
+      go(0);
+    | Template(_)
+    | Copy(_)
+    | Token(_) => false
+    };
   let lands = (~member, f) => {
-    let (item, stmt, src_indent) =
-      entry_of(c, ~member, ~alone=alone_at(c, place, seg), src, seg);
-    let program = need(NoPlace, f(item, stmt, src_indent));
+    let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
+    let program =
+      settled(c, ~lead, item, need(NoPlace, f(item, stmt, src_indent)));
     let row = L.row_id(item);
     entrywise(
       c,
@@ -836,7 +924,7 @@ let insert =
           ~src_indent?,
           item,
         )
-        |> Option.map(e.rebuild);
+        |> Option.map(~f=e.rebuild);
       },
     );
   | FirstIn(blk)
@@ -871,7 +959,15 @@ let insert =
 let delete = (c: ctx, op, x: Id.t, seg: Segment.t): step => {
   let e = entry(~mod_root=c.mod_root, x, seg);
   whole(~id=x, e.b, e.j);
-  done_(~removed=[x], op, e.rebuild(L.remove(e.b, e.j)));
+  done_(
+    ~removed=[x],
+    op,
+    closed(
+      c,
+      ~above=L.above_anchor(e.b, e.j),
+      e.rebuild(L.remove(e.b, e.j)),
+    ),
+  );
 };
 
 let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
@@ -886,11 +982,17 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
   let inside = id => Nav.seg_contains_id(id, bare);
   /* out of its block, into another place: the item in its new form */
   let carry = (~member, f) => {
-    let item =
-      in_form(~member, ~alone=alone_at(c, place, seg), e.b, e.j, bare);
+    let item = in_form(~member, e.b, e.j, bare);
     let tk = need(~id=x, NoPlace, L.take_out(~mod_root, x, seg));
+    let tk = {
+      ...tk,
+      rest: closed(c, ~above=tk.above, tk.rest),
+    };
     let src_indent = L.start_indent(~mod_root, bare, seg);
-    moved(~focus=L.row_id(item), need(NoPlace, f(tk, item, src_indent)));
+    moved(
+      ~focus=L.row_id(item),
+      settled(c, item, need(NoPlace, f(tk, item, src_indent))),
+    );
   };
   switch (place) {
   | Before(y)
@@ -911,26 +1013,29 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
     } else if (same && (after && t.j == e.j + 1 || !after && t.j == e.j - 1)) {
       /* past its neighbour: they trade places */
       whole(~id=y, t.b, t.j);
-      moved(~focus=Some(x), e.rebuild(L.swap(e.b, min(e.j, t.j))));
+      moved(
+        ~focus=Some(x),
+        settled(
+          c,
+          bare @ L.bare(t.b, t.j),
+          e.rebuild(L.swap(e.b, min(e.j, t.j))),
+        ),
+      );
     } else {
       carry(~member=t.b.in_module, (tk, item, src_indent) =>
         Option.bind(
           L.locate(~mod_root, y, tk.rest),
-          ((b, j, rebuild)) => {
+          ~f=((b, j, rebuild)) => {
             if (stmt && !b.stmts) {
               refuse(~id=y, NoStatement);
             };
-            let gap =
-              switch (tk.origin.gap) {
-              | Some(gap) => gap
-              | None => L.gap_at(b, ~below=after, j)
-              };
+            let at: L.landing = after ? Below(j) : Above(j);
             Some(
               rebuild(
                 L.put(
                   b,
-                  ~at=after ? Below(j) : Above(j),
-                  ~gap,
+                  ~at,
+                  ~lines=L.lines_at(b, at),
                   ~offset=tk.origin.offset,
                   ~src_indent,
                   ~member=b.in_module,
@@ -998,7 +1103,7 @@ let rekind =
   let pat = Nav.pat_of(t);
   let def = Option.value(Nav.def_at((level, i, t)), ~default=[]);
   let blank = L.blank_def(def);
-  let name = List.find_opt(p => !Piece.is_secondary(p), pat);
+  let name = List.find(~f=p => !Piece.is_secondary(p), pat);
   let pat_text =
     switch (name) {
     | Some(n) when blank => L.piece_text(n)
@@ -1007,9 +1112,9 @@ let rekind =
   let head =
     kw
     ++ " "
-    ++ String.trim(pat_text)
+    ++ String.strip(pat_text)
     ++ " = "
-    ++ (kw == "module" || !blank ? "{}" : {js|¿|js});
+    ++ (String.equal(kw, "module") || !blank ? "{}" : {js|¿|js});
   switch (member ? L.member_core(head) : L.letin_core(head ++ " in")) {
   | Some([Tile(h), ...rest]) =>
     let pat' =
@@ -1027,7 +1132,7 @@ let rekind =
       let (def, after) =
         Nav.split_at_semi(ListUtil.remove_first_n(i + 1, level));
       Some(
-        ListUtil.truncate(i, level)
+        ListUtil.take(i, level)
         @ [made([pat'])]
         @ (blank ? respace(def, rest) : def)
         @ after,
@@ -1040,15 +1145,17 @@ let rekind =
   };
 };
 
-let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
+/* entry [x]'s head re-read as keyword [kw]'s */
+let keyword = (c: ctx, op, x: Id.t, kw: string, seg: Segment.t): step => {
   let path = need(~id=x, Missing, Nav.find_path(~root=c.root, x, seg));
   let (up, level, i) = Nav.home(~seg, path);
   let level' =
-    switch (List.nth(level, i)) {
-    /* a plain token's text is a token run's (transaction) */
+    switch (List.nth_exn(level, i)) {
     | Tile(t)
-        when Nav.is_def_head(t) && List.mem(txt, ["let", "type", "module"]) =>
-      need(~id=x, Unreadable, rekind(txt, level, i, t))
+        when
+          Nav.is_def_head(t)
+          && List.mem(["let", "type", "module"], kw, ~equal=Poly.equal) =>
+      need(~id=x, Unreadable, rekind(kw, level, i, t))
     | _ => refuse(~id=x, NotAToken)
     };
   done_(
@@ -1059,104 +1166,143 @@ let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
   );
 };
 
-/* an entry named by its anchor or first tile, rather than a node in it */
-let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
-  switch (L.locate(~mod_root=c.mod_root, x, seg)) {
-  | Some((b, j, rebuild))
-      when b.lv.spans[j].anchor == x || b.lv.spans[j].first == Some(x) =>
-    Some({
-      b,
-      j,
-      rebuild,
-    })
-  | _ => None
-  };
-
-let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
-  switch (src, names_entry(c, x, seg)) {
-  | (Token(txt), _) => [token(c, op, x, txt, seg)]
-  | (_, Some(e)) =>
-    let tail = !e.b.in_module && !L.movable(e.b, e.j);
-    let (item, src_indent) =
-      if (tail) {
-        let txt =
-          switch (src) {
-          | Text(txt) => txt
-          | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
-          | Template(_)
-          | Token(_) => refuse(~id=x, Result)
-          };
-        (need(Unreadable, parse_at(Exp, txt)), Some(0));
+/* where the comment lines directly above [level]'s piece [i] start (no
+   blank line between): their first comment; [i] with none */
+let doc_start = (level: Segment.t, i: int): int => {
+  let arr = Array.of_list(level);
+  /* back from [j] over whitespace and comments, [lbs] linebreaks since
+     the last comment */
+  let rec go = (j, lbs, found) =>
+    if (j == 0) {
+      found;
+    } else {
+      let p = arr[j - 1];
+      if (ItemSpans.is_comment(p)) {
+        go(j - 1, 0, j - 1);
+      } else if (Piece.is_linebreak(p)) {
+        lbs >= 1 ? found : go(j - 1, lbs + 1, found);
+      } else if (Piece.is_space(p)) {
+        go(j - 1, lbs, found);
       } else {
-        let (item, stmt, src_indent) =
-          entry_of(
-            c,
-            ~member=e.b.in_module,
-            ~alone=() => L.in_alone(e.b.lv),
-            src,
-            seg,
-          );
-        if (stmt && !e.b.stmts) {
-          refuse(~id=x, NoStatement);
-        };
-        (item, src_indent);
+        found;
       };
-    let at = L.indent_end(e.b, e.j);
-    let shift =
-      Option.fold(
-        ~none=0,
-        ~some=src => L.item_indent(e.b, e.j) - src,
-        src_indent,
+    };
+  go(i, 0, i);
+};
+
+/* the entry anchored at [x], not a block's result */
+let named = (c: ctx, x: Id.t, seg: Segment.t): entry => {
+  let e = entry(~mod_root=c.mod_root, x, seg);
+  if (anchor(e.b, e.j) != x || !e.b.in_module && !L.movable(e.b, e.j)) {
+    refuse(~id=x, NotAnEntry);
+  };
+  e;
+};
+
+/* the term rooted at piece [x] */
+let replace_node = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step => {
+  let n = node(~root=c.root, x, seg);
+  let txt =
+    switch (src) {
+    | Text(txt) => txt
+    | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
+    | Template(_)
+    | Token(_) => refuse(~id=x, NoPlace)
+    };
+  let ps =
+    need(~id=x, Unreadable, parse_at(n.sort, txt))
+    |> (Poly.equal(n.sort, Exp) ? L.lay_in(~indent=0) : Fun.id);
+  let indent =
+    Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
+  /* new code that starts with a comment replaces the comment lines
+     directly above the node */
+  let lo =
+    switch (ps) {
+    | [p, ..._] when ItemSpans.is_comment(p) => doc_start(n.level, n.lo)
+    | _ => n.lo
+    };
+  let slice = (i, j) => ListUtil.slice(i, j - i, n.level);
+  let level =
+    switch (def_gaps(n)) {
+    /* a definition's code, laid out as one */
+    | Some(g) when !L.module_def(ps) =>
+      let head =
+        Option.value(Nav.line_indent(~root=c.root, g.head, seg), ~default=0);
+      slice(0, g.a)
+      @ L.lay_def(
+          ~indent=head,
+          ~at=indent,
+          ~in_=g.in_,
+          slice(g.a, lo),
+          ps,
+          slice(n.hi + 1, g.b),
+        )
+      @ ListUtil.remove_first_n(g.b, n.level);
+    | _ =>
+      let (pre, post) = (
+        ListUtil.take(lo, n.level),
+        ListUtil.remove_first_n(n.hi + 1, n.level),
       );
-    let (pre, post) = (
-      ListUtil.truncate(at, e.b.seg),
-      ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg),
+      pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
+    };
+  let made = Option.value(EntryPath.root_id(ps), ~default=x);
+  done_(
+    ~replaced=[(x, made)],
+    ~focus=Some(made),
+    op,
+    settled(c, ~inner=true, ps, Nav.rebuild(~seg, n.up, level)),
+  );
+};
+
+let replace_entry =
+    (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) => {
+  let e = named(c, x, seg);
+  let (item, stmt, src_indent) =
+    entry_of(c, ~member=e.b.in_module, src, seg);
+  if (stmt && !e.b.stmts) {
+    refuse(~id=x, NoStatement);
+  };
+  let at = L.indent_end(e.b, e.j);
+  let shift =
+    Option.value_map(src_indent, ~default=0, ~f=src =>
+      L.item_indent(e.b, e.j) - src
     );
-    let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
-    let row = L.row_id(item);
-    let step =
-      done_(
-        ~replaced=[(x, Option.value(row, ~default=x))],
-        ~added=Option.to_list(row),
-        ~removed=[x],
-        ~focus=row,
-        op,
-        e.rebuild(level),
-      );
-    tail ? [step] : entrywise(c, item, step);
-  | (_, None) =>
-    let n = node(~root=c.root, x, seg);
-    let txt =
-      switch (src) {
-      | Text(txt) => txt
-      | Copy(y) => L.text_of(node_pieces(node(~root=c.root, y, seg)))
-      | Template(_)
-      | Token(_) => refuse(~id=x, NoPlace)
-      };
-    let ps = need(~id=x, Unreadable, parse_at(n.sort, txt));
-    let indent =
-      Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
-    let (pre, post) = (
-      ListUtil.truncate(n.lo, n.level),
-      ListUtil.remove_first_n(n.hi + 1, n.level),
-    );
-    let level = pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
-    let made = Option.value(root_id(ps), ~default=x);
-    [
-      done_(
-        ~replaced=[(x, made)],
-        ~focus=Some(made),
-        op,
-        Nav.rebuild(~seg, n.up, level),
-      ),
-    ];
+  let (pre, post) = (
+    ListUtil.take(at, e.b.seg),
+    ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg),
+  );
+  let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
+  let row = L.row_id(item);
+  entrywise(
+    c,
+    item,
+    done_(
+      ~replaced=[(x, Option.value(row, ~default=x))],
+      ~added=Option.to_list(row),
+      ~removed=[x],
+      ~focus=row,
+      op,
+      settled(c, ~inner=true, item, e.rebuild(level)),
+    ),
+  );
+};
+
+let replace = (c: ctx, op, t: target, src: source, seg: Segment.t) =>
+  switch (t, src) {
+  | (Entry(x), Token(kw)) =>
+    ignore(named(c, x, seg));
+    [keyword(c, op, x, kw, seg)];
+  | (Entry(x), _) => replace_entry(c, op, x, src, seg)
+  /* a plain token's text is a token run's (transaction) */
+  | (Term(x), Token(_)) => refuse(~id=x, NotAToken)
+  | (Term(x), _) => [replace_node(c, op, x, src, seg)]
   };
 
 /* an op's steps: one per entry it lands */
 let run = (c: ctx, seg: Segment.t, op: op): list(step) =>
   switch (op) {
   | Insert(place, src) => insert(c, op, place, src, seg)
-  | Replace(x, src) => replace(c, op, x, src, seg)
+  | Replace(t, src) => replace(c, op, t, src, seg)
   | Delete(x) => [delete(c, op, x, seg)]
   | Move(x, place) => [move(c, op, x, place, seg)]
   };
@@ -1168,12 +1314,12 @@ let token_run =
     : (list((Id.t, string, list(Nav.step))), list(op)) => {
   let rec go = (acc, ops) =>
     switch (ops) {
-    | [Replace(x, Token(txt)), ...rest] =>
+    | [Replace(Term(x), Token(txt)), ...rest] =>
       switch (Nav.find_path(~root=c.root, x, seg)) {
       | Some(path) =>
         let st = ListUtil.last(path);
         switch (st.lv.pieces[st.i]) {
-        | Tile({form: Tok(_), id, _}) when id == x =>
+        | Tile({form: Tok(_), id, _}) when Id.equal(id, x) =>
           go([(x, txt, path), ...acc], rest)
         | _ => (List.rev(acc), ops)
         };
@@ -1188,21 +1334,14 @@ let token_run =
    the paths to them, so only the pieces on those paths are re-made */
 let relabel = (run: list((Id.t, string, list(Nav.step))), seg: Segment.t) => {
   let texts =
-    List.fold_left(
-      (m, (x, txt, _)) => Id.Map.add(x, txt, m),
-      Id.Map.empty,
-      run,
+    List.fold(run, ~init=Id.Map.empty, ~f=(m, (x, txt, _)) =>
+      Id.Map.add(x, txt, m)
     );
   let on_path =
-    List.fold_left(
-      (s, (_, _, path)) =>
-        List.fold_left(
-          (s, st: Nav.step) => Id.Set.add(Piece.id(st.lv.pieces[st.i]), s),
-          s,
-          path,
-        ),
-      Id.Set.empty,
-      run,
+    List.fold(run, ~init=Id.Set.empty, ~f=(s, (_, _, path)) =>
+      List.fold(path, ~init=s, ~f=(s, st: Nav.step) =>
+        Id.Set.add(Piece.id(st.lv.pieces[st.i]), s)
+      )
     );
   Rename.relabel_by(
     ~within=id => Id.Set.mem(id, on_path),
@@ -1218,8 +1357,8 @@ let relabel = (run: list((Id.t, string, list(Nav.step))), seg: Segment.t) => {
 let transaction =
     (~root: Sort.t, seg: Segment.t, ops: list(op)): result(change, refusal) => {
   let c = {
-    mod_root: root == Sort.Mod,
-    root: root == Sort.Mod ? Sort.Mod : Sort.Exp,
+    mod_root: Sort.equal(root, Sort.Mod),
+    root: Sort.equal(root, Sort.Mod) ? Sort.Mod : Sort.Exp,
   };
   let rec go = (k, seg, steps, ops) =>
     switch (ops) {
@@ -1239,13 +1378,14 @@ let transaction =
         let program = relabel(run, seg);
         let made =
           List.map(
-            ((x, txt, _)) =>
-              done_(
-                ~replaced=[(x, x)],
-                ~focus=Some(x),
-                Replace(x, Token(txt)),
-                program,
-              ),
+            ~f=
+              ((x, txt, _)) =>
+                done_(
+                  ~replaced=[(x, x)],
+                  ~focus=Some(x),
+                  Replace(Term(x), Token(txt)),
+                  program,
+                ),
             run,
           );
         go(
@@ -1280,8 +1420,8 @@ let is_token = (~root: Sort.t, id: Id.t, seg: Segment.t): bool =>
   switch (Nav.find_path(~root, id, seg)) {
   | Some(path) =>
     let (_, level, i) = Nav.home(~seg, path);
-    switch (List.nth_opt(level, i)) {
-    | Some(Tile({form: Tok(_), id: found, _})) => found == id
+    switch (List.nth(level, i)) {
+    | Some(Tile({form: Tok(_), id: found, _})) => Id.equal(found, id)
     | _ => false
     };
   | None => false

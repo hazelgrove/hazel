@@ -5,6 +5,16 @@
  (deps
   (source_tree www)))
 
+(rule
+ (targets BuildInfo.ml)
+ (deps
+  (universe)
+  (:script ../../scripts/build-info.sh))
+ (action
+  (with-stdout-to
+   %{targets}
+   (run bash %{script}))))
+
 ; The Colors config slide is committed Hazel text, embedded at compile time
 ; the way the documentation slides are. See ColorConfiguration.re.
 
@@ -12,11 +22,13 @@
 
 (library
  (name workerServer)
- (modules WorkerServer EvalPieces)
+ (flags
+  (:standard -open Core))
+ (modules WorkerServer EvalPieces CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries language)
+ (libraries core language)
  (js_of_ocaml)
  (preprocess
   (pps
@@ -28,6 +40,8 @@
 
 (library
  (name web)
+ (flags
+  (:standard -open Core))
  (instrumentation
   (backend bisect_ppx))
  (modules
@@ -36,8 +50,10 @@
   Worker
   WorkerServer
   EvalPieces
+  CoverageHook
   Migrate_exercises)
  (libraries
+  core
   ezjs_min
   ezjs_idb
   workerServer
@@ -67,8 +83,12 @@
 
 (executable
  (name main)
+ (flags
+  (:standard -open Core))
  (modules Main)
- (libraries ppx_yojson_conv.expander web stdlibServed)
+ (instrumentation
+  (backend bisect_ppx))
+ (libraries core ppx_yojson_conv.expander web stdlibServed)
  (modes js)
  (preprocess
   (pps
@@ -81,8 +101,12 @@
 
 (executable
  (name worker)
+ (flags
+  (:standard -open Core))
  (modules Worker)
- (libraries workerServer stdlibServed)
+ (instrumentation
+  (backend bisect_ppx))
+ (libraries core workerServer stdlibServed)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
@@ -93,8 +117,10 @@
 
 (executable
  (name migrate_exercises)
+ (flags
+  (:standard -open Core))
  (modules Migrate_exercises)
- (libraries ppx_yojson_conv.expander web)
+ (libraries core ppx_yojson_conv.expander web stdlibServed)
  (modes js)
  (preprocess
   (pps

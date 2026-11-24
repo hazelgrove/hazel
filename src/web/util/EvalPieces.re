@@ -24,8 +24,8 @@ type key =
 type hash = (int, int, int);
 
 let hash_of = (bytes: string): hash => (
-  Hashtbl.seeded_hash(17, bytes),
-  Hashtbl.seeded_hash(31, bytes),
+  Stdlib.Hashtbl.seeded_hash(17, bytes),
+  Stdlib.Hashtbl.seeded_hash(31, bytes),
   String.length(bytes),
 );
 
@@ -36,7 +36,8 @@ type elab =
   | Inline(Exp.t)
   | Graft /* the item's elaboration, the items below grafted in */
   | Own /* the item's elaboration, its nested value in place */
-  | Nested; /* a split item's nested value */
+  | Nested /* a split item's nested value */
+  | Value; /* the module value a node piece finishes */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry = {
@@ -49,8 +50,8 @@ type entry = {
 /* a definition: its elaboration, a hole for its body (and, when its
    members are pieces of their own, for its nested value), and the eval
    info it owns. a module's member also has its binding as the module's
-   value holds it (ModuleHelpers.refold_item), the hollow's definition in
-   it; a type member, which the value drops, has none */
+   value holds it (its hollow is its module of it); a type member, which
+   the value drops, has none */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type item = {
   hollow: Exp.t,
@@ -66,8 +67,9 @@ type content =
      next one's, which only a piece of their own keeps shared */
   | Roots(list((Id.t, list(entry))))
   | Targets(Sample.targets)
-  /* a module value's node: the module's annotation (its ids) */
-  | Node(IdTagged.IdTag.t)
+  /* a module value's node: the module's annotation (its ids), and a Mod
+     root's own entries */
+  | Node(IdTagged.IdTag.t, list(entry))
   | Whole(Exp.t, EvalInfo.t);
 
 let encode = (c: content): string => Marshal.to_string(c, []);
@@ -121,16 +123,16 @@ let slots = (layout: layout): list(slot) => {
     | ModuleValue(s) => [s, ...acc]
     };
   let rec chain = (c: chain, acc) =>
-    List.fold_left(
-      (acc, n: node) => {
+    List.fold(
+      c.items,
+      ~init=[c.roots, ...acc],
+      ~f=(acc, n: node) => {
         let acc = [n.slot, ...acc];
         switch (n.members) {
         | Some((f, c)) => chain(c, finish(f, acc))
         | None => acc
         };
       },
-      [c.roots, ...acc],
-      c.items,
     );
   switch (layout) {
   | Pieces({chain: c, finish: f, targets}) =>
@@ -143,16 +145,6 @@ let slots = (layout: layout): list(slot) => {
 
 exception Malformed(string);
 
-/* a split item's elaboration: its nested value at its let's definition */
-let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
-  switch (hollow.term) {
-  | Let(p, _, body) => {
-      ...hollow,
-      term: Let(p, nested, body),
-    }
-  | _ => raise(Malformed("a split item's elaboration is not a let"))
-  };
-
 /* a split member's binding: its nested value as the definition */
 let plug_binding = (binding: Mod.t, nested: Exp.t): Mod.t => {
   ...binding,
@@ -164,6 +156,21 @@ let plug_binding = (binding: Mod.t, nested: Exp.t): Mod.t => {
     | _ => raise(Malformed("a split member's binding binds nothing"))
     },
 };
+
+/* a split item's elaboration: its nested value at its let's definition,
+   or, a member's (its module of it), in its binding */
+let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
+  switch (hollow.term) {
+  | Let(p, _, body) => {
+      ...hollow,
+      term: Let(p, nested, body),
+    }
+  | Module([binding]) => {
+      ...hollow,
+      term: Module([plug_binding(binding, nested)]),
+    }
+  | _ => raise(Malformed("a split item's elaboration is not a let"))
+  };
 
 /* an item's terms, which its entries refer to */
 type built = {
@@ -183,16 +190,15 @@ let resolve = (b: built, e: entry): EvalInfo.entry => {
       | Some(v) => v
       | None => raise(Malformed("a nested value on an unsplit item"))
       }
+    | Value => raise(Malformed("a module value outside its node"))
     },
   co_ctx: e.co_ctx,
   probe_targets: e.probe_targets,
 };
 
 let add_entries = (b: built, entries: list(entry), map) =>
-  List.fold_left(
-    (map, e: entry) => Id.Map.add(e.id, resolve(b, e), map),
-    map,
-    entries,
+  List.fold(entries, ~init=map, ~f=(map, e: entry) =>
+    Id.Map.add(e.id, resolve(b, e), map)
   );
 
 /* [layout]'s program, its pieces from [piece]; Error: the keys of
@@ -202,7 +208,7 @@ let assemble =
     : result((Exp.t, EvalInfo.t), list(key)) => {
   let missing =
     List.filter_map(
-      (s: slot) => Option.is_some(piece(s.hash)) ? None : Some(s.key),
+      ~f=(s: slot) => Option.is_some(piece(s.hash)) ? None : Some(s.key),
       slots(layout),
     );
   let get = (s: slot): content =>
@@ -210,17 +216,36 @@ let assemble =
     | Some(c) => c
     | None => raise(Malformed("a piece went missing"))
     };
-  let finish_with = (f: finish, top: Exp.t, bindings: list(Mod.t)): Exp.t =>
+  /* and the node's entries, which read the value */
+  let finish_with = (f: finish, top: Exp.t, bindings: list(Mod.t), map) =>
     switch (f) {
-    | Chain => top
+    | Chain => (top, map)
     | ModuleValue(s) =>
       switch (get(s)) {
-      | Node(annotation) =>
+      | Node(annotation, entries) =>
         let value: Exp.t = {
           annotation,
           term: Module(bindings),
         };
-        value;
+        (
+          value,
+          List.fold(entries, ~init=map, ~f=(map, e: entry) =>
+            Id.Map.add(
+              e.id,
+              EvalInfo.{
+                elab_term:
+                  switch (e.elab) {
+                  | Value => value
+                  | Inline(x) => x
+                  | _ => raise(Malformed("a node entry of an item's term"))
+                  },
+                co_ctx: e.co_ctx,
+                probe_targets: e.probe_targets,
+              },
+              map,
+            )
+          ),
+        );
       | _ => raise(Malformed("a module's node piece holds no node"))
       }
     };
@@ -228,8 +253,10 @@ let assemble =
      items' bindings in order */
   let rec compose = (c: chain, map) => {
     let (top, bindings, built, map) =
-      List.fold_left(
-        ((below, bindings, built, map), n: node) => {
+      List.fold(
+        List.rev(c.items),
+        ~init=(None, [], Id.Map.empty, map),
+        ~f=((below, bindings, built, map), n: node) => {
           let it =
             switch (get(n.slot)) {
             | Item(it) => it
@@ -240,11 +267,11 @@ let assemble =
             | None => (it.hollow, None, it.binding, map)
             | Some((f, members)) =>
               let (top, inner, map) = compose(members, map);
-              let v = finish_with(f, top, inner);
+              let (v, map) = finish_with(f, top, inner, map);
               (
                 plug(it.hollow, v),
                 Some(v),
-                Option.map(b => plug_binding(b, v), it.binding),
+                Option.map(~f=b => plug_binding(b, v), it.binding),
                 map,
               );
             };
@@ -280,20 +307,15 @@ let assemble =
             add_entries(b, it.entries, map),
           );
         },
-        (None, [], Id.Map.empty, map),
-        List.rev(c.items),
       );
     let map =
       switch (get(c.roots)) {
       | Roots(per_item) =>
-        List.fold_left(
-          (map, (id, entries)) =>
+        List.fold(per_item, ~init=map, ~f=(map, (id, entries)) =>
             switch (Id.Map.find_opt(id, built)) {
             | Some(b) => add_entries(b, entries, map)
             | None => raise(Malformed("root entries of no item"))
-            },
-          map,
-          per_item,
+          }
         )
       | _ => raise(Malformed("a chain's roots piece holds no roots"))
       };
@@ -316,8 +338,9 @@ let assemble =
       | Targets(t) => t
       | _ => raise(Malformed("a targets piece holds no targets"))
       };
+    let (program, statics) = finish_with(finish, top, bindings, statics);
     Ok((
-      finish_with(finish, top, bindings),
+      program,
       {
         statics,
         targets,
