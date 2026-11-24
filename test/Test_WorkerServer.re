@@ -165,7 +165,7 @@ let test_supersede_keeps_other_keys = () =>
       let replies = ref([]);
       let callbacks = (caller): Web.WorkerClient.callbacks => {
         on_result: r =>
-          replies := replies^ @ List.map(((key, _)) => (caller, key), r),
+          replies := replies^ @ List.map(r, ~f=((key, _)) => (caller, key)),
         on_timeout: _ => (),
         on_ack: _ => (),
         on_stream: (_, _) => (),
@@ -188,7 +188,7 @@ let test_supersede_keeps_other_keys = () =>
         list(string),
         "old batch's other key rides along",
         ["impl", "hidden"],
-        List.map(fst, batch),
+        List.map(batch, ~f=fst),
       );
       let ok = Ok((parse("1"), EvaluatorState.empty));
       merged.on_result([("impl", ok), ("hidden", ok)]);

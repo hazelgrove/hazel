@@ -263,21 +263,21 @@ let supersede =
   let carried =
     switch (prev) {
     | Some(prev) =>
-      List.filter(
-        ((key, _)) => !List.mem_assoc(key, batch),
-        prev.request.batch,
+      List.filter(prev.request.batch, ~f=((key, _)) =>
+        !List.Assoc.mem(batch, key, ~equal=String.equal)
       )
     | None => []
     };
   switch (prev) {
-  | Some(prev) when carried != [] =>
-    let is_old = key => List.mem_assoc(key, carried);
+  | Some(prev) when !List.is_empty(carried) =>
+    let is_old = key => List.Assoc.mem(carried, key, ~equal=String.equal);
     let split = (old_f, new_f, items) => {
-      let (old, fresh) = List.partition(((key, _)) => is_old(key), items);
-      if (old != []) {
+      let (old, fresh) =
+        List.partition_tf(items, ~f=((key, _)) => is_old(key));
+      if (!List.is_empty(old)) {
         old_f(old);
       };
-      if (fresh != []) {
+      if (!List.is_empty(fresh)) {
         new_f(fresh);
       };
     };
