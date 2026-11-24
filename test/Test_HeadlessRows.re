@@ -40,7 +40,8 @@ type want =
   /* no cell: a `use` */
   | Shut;
 
-/* a let's name: the first Var through wrappers, as rows are named */
+/* a let's name: the first Var through wrappers, as rows are named (by the
+   first name the pattern binds: `(_, (_, c, d))` is c's row) */
 let rec pat_var = (p: Pat.t): option(string) =>
   switch (p.term) {
   | Var(x) => Some(x)
@@ -49,7 +50,7 @@ let rec pat_var = (p: Pat.t): option(string) =>
   | Projector(_, p)
   | TupLabel(_, p) => pat_var(p)
   | Ap(f, _) => pat_var(f)
-  | Tuple([p, ..._]) => pat_var(p)
+  | Tuple(ps) => List.find_map(ps, ~f=pat_var)
   | _ => None
   };
 
