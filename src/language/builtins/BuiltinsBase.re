@@ -222,7 +222,11 @@ let numeric_fns: list(BuiltinsUtil.fn) = [
             ),
           );
         } else {
-          Some(big_int(Bigint.(%)(m, n)));
+          /* The remainder that is never negative, which depends only on
+             the divisor's size. `%` raises on a negative divisor. */
+          Some(
+            big_int(Bigint.(m % abs(n))),
+          );
         };
       }),
     custom_statics: None,
