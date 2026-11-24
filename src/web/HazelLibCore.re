@@ -1289,6 +1289,17 @@ let rec of_jit =
     jit_function(~ty?, ~interp?, ts, v);
   } else if (HazelJitValue.is_array(v) && holds_function(v)) {
     jit_tuple(ts, ty, v);
+  } else if (String.equal(HazelJitValue.typeof(v), "object")
+             && !HazelJitValue.is_null(v)
+             && HazelJitValue.is_record(ty, v)
+             && record_holds_function(v)) {
+    /* (^ticket(847), idea A) a record holding a function (a program's tail, a module): each field by its own type, so
+       its functions are compiled ones with their converters, as jit_tuple makes them from an array */
+    jit_record(
+      ts,
+      ty,
+      v,
+    );
   } else {
     to_js(HazelJitValue.of_js(ts, ty, v));
   }
@@ -1296,6 +1307,41 @@ and holds_function = (v: Js.Unsafe.any): bool => {
   let n = Js.Unsafe.get(v, "length");
   List.exists(List.init(n, ~f=i => i), ~f=i =>
     String.equal(HazelJitValue.typeof(Js.Unsafe.get(v, i)), "function")
+  );
+}
+and record_holds_function = (v: Js.Unsafe.any): bool =>
+  List.exists(js_keys(v), ~f=k =>
+    String.equal(HazelJitValue.typeof(Js.Unsafe.get(v, k)), "function")
+  )
+and jit_record =
+    (ts: HazelJitValue.types, ty: option(Typ.t), v: Js.Unsafe.any)
+    : Js.Unsafe.any => {
+  let typed: list((string, Typ.t)) =
+    switch (
+      Option.map(
+        Option.bind(ty, ~f=HazelJitValue.shape(ts, 0)), ~f=(t: Typ.t) =>
+        t.term
+      )
+    ) {
+    | Some(Prod(tys)) =>
+      List.filter_map(tys, ~f=(t: Typ.t) => Typ.match_tup_label(t))
+    | _ => []
+    };
+  js_object(
+    List.map(
+      js_keys(v),
+      ~f=k => {
+        let l = HazelJit.label_of_key(k);
+        (
+          l,
+          of_jit(
+            ts,
+            List.Assoc.find(typed, ~equal=String.equal, l),
+            Js.Unsafe.get(v, k),
+          ),
+        );
+      },
+    ),
   );
 }
 /* a tuple holding a function: each component by its own type, the labels

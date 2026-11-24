@@ -930,6 +930,21 @@ total|};
       },
     ),
     test_case(
+      "jit: a program's functions, its tail a record, come back compiled, one calling another",
+      `Quick,
+      () => {
+        /* (^ticket(847), idea A) the tail (start = M.start, has = M.has) is a record, an object: each of its functions
+           made a compiled one with its converters (jit_record), not one that runs on the interpreter */
+        let spec =
+          as_js(
+            {|{"preamble": "type G = (body = [Int], dir = Int, t = Int) in", "modules": [{"name": "M", "text": "let start : Int -> G = fun n -> (body = [n, n + 1], dir = 1, t = 0);\nlet mem : (Int, [Int]) -> Bool = fun (v, xs) -> case xs | [] => false | x :: rest => x == v || mem(v, rest) end;\nlet has : G -> Bool = fun g -> mem(5, g.body)"}], "tail": "(start = M.start, has = M.has)"}|},
+          );
+        let v = field(HazelLibCore.jit_program(spec), "value");
+        let g = call(field(v, "start"), [num(5.)]);
+        check(string, "has", "true", json(call(field(v, "has"), [g])));
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {
