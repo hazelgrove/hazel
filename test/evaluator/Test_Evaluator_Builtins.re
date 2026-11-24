@@ -121,5 +121,28 @@ let tests = (
         ),
       )
     ),
+    /* 7 is 3 * 2 + 1 and -3 * -2 + 1; -7 is -4 * 2 + 1 and 4 * -2 + 1. */
+    test_case("int_mod is never negative, whatever the signs", `Quick, () =>
+      List.iter(
+        [
+          "int_mod(7, 2)",
+          "int_mod(-7, 2)",
+          "int_mod(7, -2)",
+          "int_mod(-7, -2)",
+        ],
+        ~f=parse_and_evaluate_test("1"),
+      )
+    ),
+    test_case("int_mod of a multiple is zero", `Quick, () =>
+      List.iter(
+        [
+          "int_mod(6, 3)",
+          "int_mod(-6, 3)",
+          "int_mod(6, -3)",
+          "int_mod(-6, -3)",
+        ],
+        ~f=parse_and_evaluate_test("0"),
+      )
+    ),
   ],
 );
