@@ -79,10 +79,11 @@ type row =
  * so backings hug code instead of painting indentation. Whitespace
  * only — comments are Secondary too and stay. The first row is never
  * trimmed: its left edge is the segment start. A blank row between the
- * first and last rows spans the overlap of the rows around it, or both
- * if they don't overlap, so the backing stays continuous. Whitespace
- * has no nibs of its own, so an edge made of whitespace is straight;
- * the segment's own start and end keep their tips. */
+ * first row and the last one with anything on it spans the overlap of the
+ * rows around it, or both if they don't overlap, so the backing stays
+ * continuous. Whitespace has no nibs of its own, so an edge made of
+ * whitespace is straight; the segment's start and the end of its last
+ * drawn row keep their tips. */
 let rows_of_segment =
     (
       ~measured: Measured.t,
@@ -222,17 +223,18 @@ let rows_of_segment =
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
     seg |> List.fold_map(~f=of_piece, ~init=start_shape) |> snd |> List.concat;
-  let rows = of_segment(shape_init, segment) |> ListUtil.split_at_nones;
-  let last_row = List.length(rows) - 1;
   let is_space =
     fun
     | Space => true
     | Content
     | Linebreak => false;
+  /* Each row with its items other than the linebreak ending it */
   let rows =
-    rows
-    |> List.filter_mapi(~f=(i, row) => {
-         let items =
+    of_segment(shape_init, segment)
+    |> ListUtil.split_at_nones
+    |> List.map(~f=row =>
+         (
+           row,
            List.filter(
              ~f=
                ((_, item)) =>
@@ -242,7 +244,18 @@ let rows_of_segment =
                  | Space => true
                  },
              row,
-           );
+           ),
+         )
+       );
+  /* The last row with anything to draw: a segment ending in a linebreak
+     ends in an empty row, which must not make the row above it interior */
+  let last_row =
+    List.foldi(rows, ~init=0, ~f=(i, last, (_, items)) =>
+      List.is_empty(items) ? last : i
+    );
+  let rows =
+    rows
+    |> List.filter_mapi(~f=(i, (row, items)) => {
          let blank = List.for_all(~f=((_, item)) => is_space(item), items);
          let rec trim =
            fun
