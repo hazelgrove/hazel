@@ -3,9 +3,8 @@ open Haz3lcore;
 open Web;
 
 let lesson = title =>
-  List.find(
-    (s: Tutorial.spec) => s.title == title,
-    TutorialSettings.lessons,
+  List.find_exn(TutorialSettings.lessons, ~f=(s: Tutorial.spec) =>
+    String.equal(s.title, title)
   );
 
 let with_settings = f => {
@@ -20,29 +19,34 @@ let with_settings = f => {
     );
   ProbeProj.Settings.go(SetWindow(Many));
   ProbeProj.Settings.go(SetSampleBase(Calls));
-  Fun.protect(
+  Exn.protect(
     ~finally=
       () => {
         enter(None);
         ProbeProj.Settings.s := saved;
       },
-    () => f(autoprobe, enter),
+    ~f=() => f(autoprobe, enter),
   );
 };
 
 let check_settings = (label, autoprobe, expected_auto, window, colors) => {
-  check(bool, label ++ " auto-probe", true, autoprobe^ == expected_auto);
+  check(
+    bool,
+    label ++ " auto-probe",
+    true,
+    AutoProbe.equal(autoprobe^, expected_auto),
+  );
   check(
     bool,
     label ++ " samples",
     true,
-    ProbeProj.Settings.s^.window == window,
+    Poly.equal(ProbeProj.Settings.s^.window, window),
   );
   check(
     bool,
     label ++ " colors",
     true,
-    ProbeProj.Settings.s^.sample_base == colors,
+    Poly.equal(ProbeProj.Settings.s^.sample_base, colors),
   );
 };
 
@@ -52,8 +56,8 @@ let tests = (
     test_case("other folders leave settings unchanged", `Quick, () =>
       with_settings((autoprobe, enter) => {
         TutorialSettings.lessons
-        |> List.filter(s => !Tutorial.is_probes_lesson(s))
-        |> List.iter(s => {
+        |> List.filter(~f=s => !Tutorial.is_probes_lesson(s))
+        |> List.iter(~f=(s: Tutorial.spec) => {
              enter(Some(s));
              check_settings(s.title, autoprobe, Caret, Many, Calls);
            })
@@ -132,11 +136,12 @@ let tests = (
           "startup schedules auto-probe Off",
           true,
           List.exists(
-            a =>
-              switch (a) {
-              | Page.Update.Globals(Set(SetAutoprobe(Off))) => true
-              | _ => false
-              },
+            ~f=
+              a =>
+                switch (a) {
+                | Page.Update.Globals(Set(SetAutoprobe(Off))) => true
+                | _ => false
+                },
             requested^,
           ),
         );
@@ -144,13 +149,13 @@ let tests = (
           bool,
           "startup resets samples",
           true,
-          ProbeProj.Settings.s^.window == Single,
+          Poly.equal(ProbeProj.Settings.s^.window, Single),
         );
         check(
           bool,
           "startup resets colors",
           true,
-          ProbeProj.Settings.s^.sample_base == Simple,
+          Poly.equal(ProbeProj.Settings.s^.sample_base, Simple),
         );
       })
     ),

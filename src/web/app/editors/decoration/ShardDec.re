@@ -57,12 +57,12 @@ let chevronf = (run: float, rise: float): list(SvgUtil.Path.cmd) =>
 let chevron = (direction: option(Direction.t), drawing_from: Direction.t) =>
   chevronf(
     caret_run(direction),
-    drawing_from == Left ? -. tip_height : tip_height,
+    Direction.equal(drawing_from, Left) ? -. tip_height : tip_height,
   );
 
 let chonky_path_base =
     ((l, r), x_offset, length: float, height: float): list(SvgUtil.Path.cmd) => {
-  List.flatten(
+  List.concat(
     SvgUtil.Path.[
       [
         M({
@@ -112,8 +112,8 @@ let simple =
     ~attr,
     path(
       (
-        Option.map(Nib.Shape.direction_of(Left), l),
-        Option.map(Nib.Shape.direction_of(Right), r),
+        Option.map(~f=Nib.Shape.direction_of(Left), l),
+        Option.map(~f=Nib.Shape.direction_of(Right), r),
       ),
       measurement.last.col - measurement.origin.col,
       measurement.last.row - measurement.origin.row,
