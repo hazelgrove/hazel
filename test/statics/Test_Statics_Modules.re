@@ -2705,7 +2705,7 @@ let test_renamed_alias_leaves_member_type =
 type T = Bool in
 module M = { type T = String } in
 let s : M.T = "a" in
-string_length(s)|},
+String.length(s)|},
     Some(int()),
   );
 
@@ -2716,7 +2716,7 @@ let test_renamed_alias_leaves_module_of_same_name =
 type N = Bool in
 module N = { type U = String } in
 let s : N.U = "a" in
-string_length(s)|},
+String.length(s)|},
     Some(int()),
   );
 
@@ -2727,7 +2727,7 @@ let test_renamed_alias_leaves_let_bound_module =
 type m = Bool in
 let m = { type T = String } in
 let y : m.T = "a" in
-string_length(y)|},
+String.length(y)|},
     Some(int()),
   );
 
@@ -2739,7 +2739,7 @@ type n = Int in
 type n = Bool in
 let n = M in
 let y : n.T = "a" in
-string_length(y)|},
+String.length(y)|},
     Some(int()),
   );
 
@@ -2763,7 +2763,7 @@ let test_renamed_alias_leaves_module_parameter_paths =
     {|type m = Int in
 type m = Bool in
 let f = fun (m : { type U = String }) ->
-  (string_length(("a" : m.U)), (true : m)) in
+  (String.length(("a" : m.U)), (true : m)) in
 f({ type U = String })|},
     Some(prod([int(), bool()])),
   );

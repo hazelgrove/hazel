@@ -949,14 +949,15 @@ let split =
           acc,
           ~old=doc.singles,
           ~into=doc.singles,
-          /* the root's own info, which no item holds */
+          /* the root's own info, which no item holds: the run's (a cut
+             world's root runs as cut, WorldTree.run_statics) */
           ~infos=
             List.filter_map(
               ~f=
                 id =>
                   Option.map(
                     ~f=i => (id, i),
-                    Id.Map.find_opt(id, ds.merged),
+                    Id.Map.find_opt(id, statics.info_map),
                   ),
               IdTagged.ids(root),
             ),

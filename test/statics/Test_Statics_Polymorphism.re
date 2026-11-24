@@ -50,13 +50,15 @@ let tests = (
       "A type application keeps an alias argument unexpanded",
       `Quick,
       () => {
-        let source = {|type Color = + Red + Green in
+        /* not Color: the standard library's module of that name would
+           have the alias renamed */
+        let source = {|type Paint = + Red + Green in
 let id = typfun A -> fun (x : A) -> x in
-let y : Int = id@<Color> in y|};
+let y : Int = id@<Paint> in y|};
         check(
           Alcotest.list(testable_typ),
           source,
-          [arrow(var("Color"), var("Color"))],
+          [arrow(var("Paint"), var("Paint"))],
           statics(parse_exp(source))
           |> errors
           |> List.concat_map(~f=snd)

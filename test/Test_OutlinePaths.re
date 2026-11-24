@@ -447,6 +447,7 @@ let arrows_redraw = () => {
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~leave=Virtual_dom.Vdom.Effect.Ignore,
       ~statics_on=true,
+      (),
     );
   let off = view(false);
   check(
@@ -1181,7 +1182,7 @@ let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
     },
   };
   /* [key] pressed with the cursor on [label]'s row */
-  let press = (~meta=false, ~alt=false, ~shift=false, ~code=?, key, label) => {
+  let press = (~cmd=false, ~alt=false, ~shift=false, ~code=?, key, label) => {
     cursor :=
       Array.find(visible, ~f=(r: S.visible_row) =>
         String.equal(r.r_node.o_label, label)
@@ -1197,7 +1198,7 @@ let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
         ~props,
         ~on,
         ~visible,
-        OutlineHarness.keydown(~meta, ~alt, ~shift, ~code?, key),
+        OutlineHarness.keydown(~cmd, ~alt, ~shift, ~code?, key),
       ),
     );
     {
@@ -1218,7 +1219,7 @@ let edit_keys =
     (
       press:
         (
-          ~meta: bool=?,
+          ~cmd: bool=?,
           ~alt: bool=?,
           ~shift: bool=?,
           ~code: string=?,
@@ -1228,12 +1229,12 @@ let edit_keys =
         asked,
     ) => [
   ("Space", !List.is_empty(press(" ", "b").k_toggled)),
-  ("⌘D", !List.is_empty(press(~meta=true, ~code="KeyD", "d", "b").k_ops)),
-  ("⌘⌫", !List.is_empty(press(~meta=true, "Backspace", "b").k_ops)),
+  ("⌘D", !List.is_empty(press(~cmd=true, ~code="KeyD", "d", "b").k_ops)),
+  ("⌘⌫", !List.is_empty(press(~cmd=true, "Backspace", "b").k_ops)),
   ("Delete", !List.is_empty(press("Delete", "b").k_ops)),
   ("⌥↑", !List.is_empty(press(~alt=true, "ArrowUp", "b").k_ops)),
   ("F2", press("F2", "b").k_text),
-  ("⌘Enter", press(~meta=true, "Enter", "b").k_text),
+  ("⌘Enter", press(~cmd=true, "Enter", "b").k_text),
 ];
 
 /* without a level above, the outline is as it always was: no crumbs or
@@ -1377,7 +1378,7 @@ let enclosing_level = () => {
     ~f=((name, took)) => check(bool, name ++ " refused", false, took),
     edit_keys(press)
     @ [
-      ("⌘.", press(~meta=true, ".", "b").k_menus > 0),
+      ("⌘.", press(~cmd=true, ".", "b").k_menus > 0),
       ("⇧F10", press(~shift=true, "F10", "b").k_menus > 0),
     ],
   );

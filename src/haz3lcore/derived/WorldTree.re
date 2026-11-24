@@ -437,7 +437,8 @@ let def_of = (item: Language.Mod.t): option(Language.Exp.t) =>
 /* sealed to the empty signature: its value has no members */
 let sealed_empty = (item: Language.Mod.t): bool =>
   switch (item.term) {
-  | ModLet({term: Asc(_, {term: Sig(Open([])), _}), _}, _) => true
+  | ModLet({term: Asc(_, {term: Sig(s), _}), _}, _) =>
+    List.is_empty(Language.Sig.items(s))
   | _ => false
   };
 
@@ -622,6 +623,8 @@ let run_elab =
 let run_statics = (c: cut, s: CachedStatics.t): CachedStatics.t => {
   let changed = ref([]);
   let elaborated = apply(~changed, c, s.elaborated);
+  /* a module root (members) is a module value too: it runs as cut */
+  changed := [(s.elaborated, Some(elaborated)), ...changed^];
   let ids = ref([]);
   let _: Language.Exp.t =
     Language.Exp.map_term(
