@@ -451,17 +451,17 @@ and Exp: {
           Module(
             List.map(
               ~f=
-              Mod.map_term(
-                ~f_exp,
-                ~f_pat,
-                ~f_typ,
-                ~f_tpat,
-                ~f_rul,
-                ~f_mod,
-                ~f_sig,
-                ~f_mpat,
-                ~f_any,
-              ),
+                Mod.map_term(
+                  ~f_exp,
+                  ~f_pat,
+                  ~f_typ,
+                  ~f_tpat,
+                  ~f_rul,
+                  ~f_mod,
+                  ~f_sig,
+                  ~f_mpat,
+                  ~f_any,
+                ),
               items,
             ),
           )
@@ -695,31 +695,31 @@ and Typ: {
           Sum(
             List.map(
               ~f=
-              fun
-              | ConstructorMap.Variant(c, ann, t) => {
-                  /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
-                   * in order to map over it. The main reason this was implemented is so that
-                   * id renaming passes work. */
-                  switch (
-                    typ_map_term({
-                      term: Var(c),
-                      annotation: IdTagged.IdTag.mk_internal(ann.ids),
-                    })
-                  ) {
-                  | {term: Var(c), annotation: {ids, _}} =>
-                    ConstructorMap.Variant(
-                      c,
-                      {
-                        ids,
-                        secondary: ann.secondary,
-                      },
+                fun
+                | ConstructorMap.Variant(c, ann, t) => {
+                    /* We turn a variant back into its original term (see MakeTerm.parse_sum_term)
+                     * in order to map over it. The main reason this was implemented is so that
+                     * id renaming passes work. */
+                    switch (
+                      typ_map_term({
+                        term: Var(c),
+                        annotation: IdTagged.IdTag.mk_internal(ann.ids),
+                      })
+                    ) {
+                    | {term: Var(c), annotation: {ids, _}} =>
+                      ConstructorMap.Variant(
+                        c,
+                        {
+                          ids,
+                          secondary: ann.secondary,
+                        },
                         Option.map(~f=typ_map_term, t),
-                    )
-                  | t => BadEntry(typ_map_term(t))
-                  };
-                }
-              | ConstructorMap.BadEntry(t) =>
-                ConstructorMap.BadEntry(typ_map_term(t)),
+                      )
+                    | t => BadEntry(typ_map_term(t))
+                    };
+                  }
+                | ConstructorMap.BadEntry(t) =>
+                  ConstructorMap.BadEntry(typ_map_term(t)),
               variants,
             ),
           )
@@ -745,7 +745,7 @@ and Typ: {
             );
           Sig(
             switch (s) {
-            | Open(items) => Open(List.map(item_map_term, items))
+            | Open(items) => Open(List.map(~f=item_map_term, items))
             | Closed(items) => Closed(ClosedSig.map(item_map_term, items))
             },
           );

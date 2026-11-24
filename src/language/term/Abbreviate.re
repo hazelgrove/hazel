@@ -249,11 +249,11 @@ module AbbrevSequence = {
       let all_labeled: bool =
         List.for_all(
           ~f=
-          item =>
-            switch (item |> Exp.term_of) {
-            | TupLabel(_, _) => true
-            | _ => false
-            },
+            item =>
+              switch (item |> Exp.term_of) {
+              | TupLabel(_, _) => true
+              | _ => false
+              },
           items,
         );
       /* Useful cost: same as min — items are shown when they can render

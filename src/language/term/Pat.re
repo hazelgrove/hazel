@@ -144,7 +144,7 @@ let rec has_hole_binder = (pat: t): bool =>
   | TupLabel(_, pat)
   | Ap(_, pat) => has_hole_binder(pat)
   | Tuple(pats)
-  | ListLit(pats) => List.exists(has_hole_binder, pats)
+  | ListLit(pats) => List.exists(~f=has_hole_binder, pats)
   | Cons(p1, p2) => has_hole_binder(p1) || has_hole_binder(p2)
   | Invalid(_)
   | Wild
@@ -251,26 +251,26 @@ let rec get_num_of_vars = (pat: t) =>
 
 let rec match_tup_label: t => option((LabeledTuple.label, t)) =
   p =>
-  switch (p.term) {
-  | Parens(p)
+    switch (p.term) {
+    | Parens(p)
     | Projector(_, p) => match_tup_label(p)
     | TupLabel(plab, p') =>
       switch (strip_wrappers(plab).term) {
       | Label(name) => Some((name, p'))
       | _ => None
       }
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | Wild
-  | ExplicitNonlabel
-  | Atom(_)
-  | ListLit(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_)
+    | Wild
+    | ExplicitNonlabel
+    | Atom(_)
+    | ListLit(_)
     | Constructor(_)
-  | Cons(_)
-  | Var(_)
-  | Tuple(_)
-  | Label(_)
+    | Cons(_)
+    | Var(_)
+    | Tuple(_)
+    | Label(_)
     | Ap(_)
     | Asc(_) => None
     };
@@ -326,7 +326,8 @@ let function_sugar =
           : arg;
       spine(fn, [arg, ...args]);
     | Var(_)
-    | Asc({term: Var(_), _}, _) when args != [] => Some((pat, args, ret_ty))
+    | Asc({term: Var(_), _}, _) when !List.is_empty(args) =>
+      Some((pat, args, ret_ty))
     | _ => None
     };
   spine(inner, []);

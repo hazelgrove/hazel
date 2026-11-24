@@ -40,7 +40,7 @@ let parse = (f, s) =>
     raise(
       Failure(
         "Exception "
-        ++ Printexc.to_string(Parser.Error)
+        ++ Stdlib.Printexc.to_string(Parser.Error)
         ++ " at: "
         ++ string_of_pos(curr),
       ),
@@ -49,4 +49,4 @@ let parse = (f, s) =>
 
 let parse_program = s => parse(Parser.program, s);
 let program_or_stop = s =>
-  Result.map_error(fst, parse_or_stop(Parser.program, s));
+  Result.map_error(parse_or_stop(Parser.program, s), ~f=fst);

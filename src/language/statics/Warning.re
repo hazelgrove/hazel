@@ -32,13 +32,13 @@ let loops_at = (binder: TPat.t, ty): option(string) =>
    stands for, whose recursive binder is [binder] itself. */
 let type_binding = (binder: TPat.t, ty): list(list_item) =>
   loops_at(binder, ty)
-  |> Option.map(name => TPat(NonContractive(name)))
+  |> Option.map(~f=name => TPat(NonContractive(name)))
   |> Option.to_list;
 
 /* The warnings for a written recursive type [ty] whose binder is [binder]. */
 let rec_type = (binder: TPat.t, ty): list(list_item) =>
   loops_at(binder, ty)
-  |> Option.map(name => Typ(NonContractive(name)))
+  |> Option.map(~f=name => Typ(NonContractive(name)))
   |> Option.to_list;
 
 let var_is_unused = (co_ctx, name): list(list_item) =>

@@ -522,25 +522,25 @@ module Selection = {
       };
     List.exists(
       ~f=
-      (sample: sample) =>
-        if (CallStack.equal(sample.call_stack, effective)) {
-          true;
-              /* rule (a) */
+        (sample: sample) =>
+          if (CallStack.equal(sample.call_stack, effective)) {
+            true;
+                /* rule (a) */
           } else if (!Option.equal(Id.equal, target_fn, cursor_fn)) {
-          /* rule (b) */
-          ListUtil.is_suffix_of(
-            ~eq=CallStack.equal_frame,
-            sample.call_stack,
-            effective,
-          )
-          || ListUtil.is_suffix_of(
-               ~eq=CallStack.equal_frame,
-               effective,
-               sample.call_stack,
-             );
-        } else {
-          false;
-        },
+            /* rule (b) */
+            ListUtil.is_suffix_of(
+              ~eq=CallStack.equal_frame,
+              sample.call_stack,
+              effective,
+            )
+            || ListUtil.is_suffix_of(
+                 ~eq=CallStack.equal_frame,
+                 effective,
+                 sample.call_stack,
+               );
+          } else {
+            false;
+          },
       target_samples,
     );
   };
@@ -611,13 +611,13 @@ module Selection = {
         };
       List.filter(
         ~f=
-        (sample: t) =>
-          is_pinned_probe
-          || sample.step_start >= ps
-          && sample.step_end <= pe
+          (sample: t) =>
+            is_pinned_probe
+            || sample.step_start >= ps
+            && sample.step_end <= pe
             || Option.is_some(ap_id)
-          && sample.step_start <= ps
-          && sample.step_end >= pe,
+            && sample.step_start <= ps
+            && sample.step_end >= pe,
         samples,
       );
     | Some(pinned_stack) =>
@@ -632,21 +632,21 @@ module Selection = {
       let pinned_ids = CallStack.ids_of_stack(pinned_stack);
       List.filter(
         ~f=
-        (sample: t) => {
-          let sample_ids = CallStack.ids_of_stack(sample.call_stack);
+          (sample: t) => {
+            let sample_ids = CallStack.ids_of_stack(sample.call_stack);
             Option.equal(Id.equal, pinned_head_id, ap_id)
-          /* Sample is at or below pin (current behavior) */
-          || ListUtil.is_suffix_of(pinned_ids, sample_ids)
-          /* Probe is on an application in the pinned call chain,
-           * and sample is above pin on same ancestral path (breadcrumbs) */
-          || ListUtil.is_suffix_of(sample_ids, pinned_ids)
-          && (
-            switch (ap_id) {
+            /* Sample is at or below pin (current behavior) */
+            || ListUtil.is_suffix_of(pinned_ids, sample_ids)
+            /* Probe is on an application in the pinned call chain,
+             * and sample is above pin on same ancestral path (breadcrumbs) */
+            || ListUtil.is_suffix_of(sample_ids, pinned_ids)
+            && (
+              switch (ap_id) {
               | Some(id) => List.mem(pinned_ids, id, ~equal=Id.equal)
-            | None => false
-            }
-          );
-        },
+              | None => false
+              }
+            );
+          },
         samples,
       );
     | None => samples
@@ -729,21 +729,21 @@ module Selection = {
     let suffix_scan = (stack: CallStack.t): option(int) =>
       List.fold_left(
         ~f=
-        (best: option((int, int)), (i, sample: t)) => {
-          let slen = List.length(sample.call_stack);
-          if (slen > 0
+          (best: option((int, int)), (i, sample: t)) => {
+            let slen = List.length(sample.call_stack);
+            if (slen > 0
                 && slen
                 > (best |> Option.map(~f=snd) |> Option.value(~default=0))
-              && ListUtil.is_suffix_of(
-                   ~eq=CallStack.equal_frame,
-                   sample.call_stack,
-                   stack,
-                 )) {
-            Some((i, slen));
-          } else {
-            best;
-          };
-        },
+                && ListUtil.is_suffix_of(
+                     ~eq=CallStack.equal_frame,
+                     sample.call_stack,
+                     stack,
+                   )) {
+              Some((i, slen));
+            } else {
+              best;
+            };
+          },
         ~init=None,
         List.mapi(~f=(i, s) => (i, s), samples),
       )
@@ -769,11 +769,11 @@ module Selection = {
         List.mapi(~f=(i, s: t) => (i, List.length(s.call_stack)), samples)
         |> List.fold_left(
              ~f=
-             (best, (i, depth)) =>
-               switch (best) {
-               | Some((_, d)) when d <= depth => best
-               | _ => Some((i, depth))
-               },
+               (best, (i, depth)) =>
+                 switch (best) {
+                 | Some((_, d)) when d <= depth => best
+                 | _ => Some((i, depth))
+                 },
              ~init=None,
            )
         |> Option.map(~f=fst)

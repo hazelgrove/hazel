@@ -95,7 +95,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
          hole item stands in for it. */
       let members =
         Sig.closed_members(s)
-        |> List.filter_map((m: Sig.member) =>
+        |> List.filter_map(~f=(m: Sig.member) =>
              switch (m) {
              | Val(x, ty) => Some((x, ty))
              | TypeManifest(_) => None
@@ -103,10 +103,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
            );
       let picked =
         Mod.value_bindings(items)
-        |> Option.map(bindings => {
+        |> Option.map(~f=bindings => {
              let declared =
                members
-               |> List.map(((x, ty)) => {
+               |> List.map(~f=((x, ty)) => {
                     let d =
                       switch (
                         Util.ListUtil.assoc_opt_by(String.equal, x, bindings)
@@ -119,14 +119,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
              let undeclared =
                Sig.has_hole_item(Sig.items(s))
                  ? bindings
-                   |> List.filter(((x, _)) =>
+                   |> List.filter(~f=((x, _)) =>
                         !
                           List.exists(
-                            ((y, _)) => String.equal(x, y),
+                            ~f=((y, _)) => String.equal(x, y),
                             members,
                           )
                       )
-                   |> List.map(((x, v)) => Mod.fresh(ModVal(x, v)))
+                   |> List.map(~f=((x, v)) => Mod.fresh(ModVal(x, v)))
                  : [];
              declared @ undeclared;
            });

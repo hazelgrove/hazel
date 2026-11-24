@@ -49,13 +49,12 @@ let binding = (p: Pat.t, def: Exp.t): (Pat.t, Exp.t) =>
     (
       f_name,
       List.fold_right(
-      args,
-      ~f=
-        (args, body) =>
-          (Fun(args, body, None, None): Exp.term)
-          |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
         args,
-        def_in_fun,
+        ~f=
+          (args, body) =>
+            (Fun(args, body, None, None): Exp.term)
+            |> IdTagged.fresh_deterministic(Pat.rep_id(args)),
+        ~init=def_in_fun,
       ),
     );
   | None => (p, def)
@@ -97,7 +96,7 @@ let rec written = (e: Exp.t): option(Exp.t) =>
 let add_binder_infos =
     (m: StaticsBase.Map.t, ~user_pat: Pat.t): StaticsBase.Map.t => {
   switch (
-    Option.bind(Pat.function_sugar(user_pat), ((f_name, _, _)) =>
+    Option.bind(Pat.function_sugar(user_pat), ~f=((f_name, _, _)) =>
       StaticsBase.Map.lookup_pat(Pat.rep_id(f_name), m)
     )
   ) {

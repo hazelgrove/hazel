@@ -232,7 +232,7 @@ let rec ty_comparable = (d1, d2) => {
   | (Module(items1), Module(items2)) =>
     switch (Mod.paired_bindings(items1, items2)) {
     | Some(pairs) =>
-      List.for_all(((v1, v2)) => ty_comparable(v1, v2), pairs)
+      List.for_all(~f=((v1, v2)) => ty_comparable(v1, v2), pairs)
     | None => false
     }
   | (Module(_), _) => false
@@ -343,14 +343,14 @@ let rec poly_equal = (d1, d2): option(bool) => {
   /* Module values: members equal, matched by name. */
   | (Module(items1), Module(items2)) =>
     let* pairs = Mod.paired_bindings(items1, items2);
-    List.fold_left(
-      (eq, (v1, v2)) => {
+    List.fold(
+      pairs,
+      ~init=Some(true),
+      ~f=(eq, (v1, v2)) => {
         let* eq = eq;
         let+ v_eq = poly_equal(v1, v2);
         eq && v_eq;
       },
-      Some(true),
-      pairs,
     );
   | (Module(_), _) => None
   | (ModuleExp(_), _) => None

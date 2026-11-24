@@ -126,7 +126,7 @@ let member_of_item = (item: t): option(member) =>
   };
 
 let members = (items: list(t)): list(member) =>
-  List.filter_map(member_of_item, items);
+  List.filter_map(~f=member_of_item, items);
 
 /* A hole item could declare any member. */
 let is_hole = (item: t): bool =>
@@ -139,7 +139,8 @@ let is_hole = (item: t): bool =>
   | Invalid(_) => false
   };
 
-let has_hole_item = (items: list(t)): bool => List.exists(is_hole, items);
+let has_hole_item = (items: list(t)): bool =>
+  List.exists(~f=is_hole, items);
 
 /* An open signature reached an operation that reads its members' types.
    Those read closed signatures only; Typ.close makes one where a type is
@@ -263,17 +264,19 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) =>
 
 let value_names = (ms: list(member)): list(Var.t) =>
   List.filter_map(
-    fun
-    | Val(x, _) => Some(x)
-    | TypeManifest(_) => None,
+    ~f=
+      fun
+      | Val(x, _) => Some(x)
+      | TypeManifest(_) => None,
     ms,
   );
 
 let type_names = (ms: list(member)): list(Var.t) =>
   List.filter_map(
-    fun
-    | TypeManifest(x, _) => Some(x)
-    | Val(_) => None,
+    ~f=
+      fun
+      | TypeManifest(x, _) => Some(x)
+      | Val(_) => None,
     ms,
   );
 
@@ -289,18 +292,20 @@ let same_kind = (a: member, b: member) =>
 
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   List.find_map(
-    fun
-    | Val(x, ty) when String.equal(x, name) => Some(ty)
-    | Val(_)
-    | TypeManifest(_) => None,
+    ~f=
+      fun
+      | Val(x, ty) when String.equal(x, name) => Some(ty)
+      | Val(_)
+      | TypeManifest(_) => None,
     ms,
   );
 
 let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   List.find_map(
-    fun
-    | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
-    | Val(_)
-    | TypeManifest(_) => None,
+    ~f=
+      fun
+      | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
+      | Val(_)
+      | TypeManifest(_) => None,
     ms,
   );

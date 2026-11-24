@@ -115,12 +115,12 @@ module Ctr = {
         map
         |> List.filter_map(
              ~f=
-             fun
-             | ConstructorMap.Variant(ctr, _, None) =>
-               Some((mk(ctr, 0), []))
-             | Variant(ctr, _, Some(arg_ty)) =>
-               Some((mk(ctr, 1), [arg_ty]))
-             | BadEntry(_) => None,
+               fun
+               | ConstructorMap.Variant(ctr, _, None) =>
+                 Some((mk(ctr, 0), []))
+               | Variant(ctr, _, Some(arg_ty)) =>
+                 Some((mk(ctr, 1), [arg_ty]))
+               | BadEntry(_) => None,
            )
         |> Map.of_list,
       )
@@ -193,11 +193,11 @@ module Matrix = {
   let of_constraints = (xis: list(Constraint.t)): t => {
     List.mapi(
       ~f=
-      (idx, xi) =>
-        {
-          idx,
-          cols: [xi],
-        },
+        (idx, xi) =>
+          {
+            idx,
+            cols: [xi],
+          },
       xis,
     );
   };
@@ -1148,14 +1148,14 @@ module CheckMatrix: CheckMatrix = {
                 let redundant_rows =
                   List.filter(
                     ~f=
-                    (idx: int) => {
-                      !Matrix.contains_row(idx, submatrix)
+                      (idx: int) => {
+                        !Matrix.contains_row(idx, submatrix)
                         || List.mem(
                              submatrix_redundant_rows,
                              idx,
                              ~equal=Int.equal,
                            )
-                    },
+                      },
                     redundant_rows,
                   );
 

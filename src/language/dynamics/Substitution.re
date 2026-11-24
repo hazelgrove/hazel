@@ -129,19 +129,21 @@ and in_mod_items =
   let shadow = (env, x) =>
     Environment.extend(env, (x, Exp.fresh(Var(x))));
   let (_, rev_items) =
-    List.fold_left(
-      ((env, acc), item: Mod.t) => {
+    List.fold(
+      items,
+      ~init=(env, []),
+      ~f=((env, acc), item: Mod.t) => {
         let (env', item') =
           switch (item.term) {
           | ModLet(p, e) => (
-              List.fold_left(shadow, env, Pat.bound_vars(p)),
+              List.fold(Pat.bound_vars(p), ~init=env, ~f=shadow),
               {
                 ...item,
                 term: (ModLet(p, in_exp(env, e)): Mod.term),
               },
             )
           | ModuleMod(mp, e) => (
-              List.fold_left(shadow, env, Mod.bound_names(item)),
+              List.fold(Mod.bound_names(item), ~init=env, ~f=shadow),
               {
                 ...item,
                 term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
@@ -168,8 +170,6 @@ and in_mod_items =
           };
         (env', [item', ...acc]);
       },
-      (env, []),
-      items,
     );
   List.rev(rev_items);
 }
@@ -218,10 +218,10 @@ and in_pat =
     let (env', l') =
       List.fold_left(
         ~f=
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
         ~init=(env_acc, []),
         l,
       );
@@ -230,10 +230,10 @@ and in_pat =
     let (env', l') =
       List.fold_left(
         ~f=
-        ((env_acc, l_acc), p) => {
-          let (env_new, p_new) = in_pat(env_outer, env_acc, p);
-          (env_new, l_acc @ [p_new]);
-        },
+          ((env_acc, l_acc), p) => {
+            let (env_new, p_new) = in_pat(env_outer, env_acc, p);
+            (env_new, l_acc @ [p_new]);
+          },
         ~init=(env_acc, []),
         l,
       );
@@ -289,7 +289,8 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         // The item types only: the generic traversal would also visit the
         // item patterns
         | Sig(Open(items)) =>
-          Sig(Open(List.map(Sig.map_typ(in_typ(env)), items))) |> rewrap
+          Sig(Open(List.map(~f=Sig.map_typ(in_typ(env)), items)))
+          |> rewrap
         | Sig(Closed(items)) =>
           Sig(Closed(ClosedSig.map(Sig.map_typ(in_typ(env)), items)))
           |> rewrap

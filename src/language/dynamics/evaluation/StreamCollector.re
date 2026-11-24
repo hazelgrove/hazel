@@ -145,7 +145,7 @@ module Inc = {
               let ex = Id.Map.find(id, inc.exit_);
               let covered =
                 List.exists(
-                  ((_, fe, fx, _)) => fe <= en && ex <= fx,
+                  ~f=((_, fe, fx, _)) => fe <= en && ex <= fx,
                   inc.frontier,
                 );
               if (covered) {
@@ -156,7 +156,7 @@ module Inc = {
               } else {
                 let covers = ((_, fe, fx, _)) => en <= fe && fx <= ex;
                 let frontier =
-                  if (List.exists(covers, inc.frontier)) {
+                  if (List.exists(~f=covers, inc.frontier)) {
                     /* take the first subsumed node's position (where
                        the walk appends the outer slice); drop the rest */
                     let rec go = (replaced, l) =>
@@ -200,11 +200,11 @@ module Inc = {
   let collect =
       (inc: t, stream: IncrEval.outbox(EvaluatorState.t)): EvaluatorState.t => {
     let state =
-      List.fold_left(
-        (acc, (_, _, _, entry: IncrEval.entry(EvaluatorState.t))) =>
-          EvaluatorState.append(acc, EvaluatorState.rebase(entry.state)),
-        EvaluatorState.empty,
+      List.fold(
         inc.frontier,
+        ~init=EvaluatorState.empty,
+        ~f=(acc, (_, _, _, entry: IncrEval.entry(EvaluatorState.t))) =>
+        EvaluatorState.append(acc, EvaluatorState.rebase(entry.state))
       );
     switch (stream.current) {
     | Some({id, state: cur})
@@ -212,11 +212,12 @@ module Inc = {
           !Id.equal(id, Id.invalid)
           && !
                List.exists(
-                 ((_, fe, fx, _)) =>
-                   switch (Id.Map.find_opt(id, inc.enter)) {
-                   | Some(en) => fe <= en && en <= fx
-                   | None => false
-                   },
+                 ~f=
+                   ((_, fe, fx, _)) =>
+                     switch (Id.Map.find_opt(id, inc.enter)) {
+                     | Some(en) => fe <= en && en <= fx
+                     | None => false
+                     },
                  inc.frontier,
                ) =>
       EvaluatorState.append(state, EvaluatorState.rebase(cur))
@@ -234,7 +235,7 @@ let collect_stream_state_inc =
     : (option(Inc.t), EvaluatorState.t) => {
   let inc =
     switch (prev) {
-    | Some(inc) when inc.Inc.inc_elab === d => inc
+    | Some(inc) when phys_equal(inc.Inc.inc_elab, d) => inc
     | _ => Inc.fresh(d)
     };
   switch (Inc.absorb(inc, stream)) {

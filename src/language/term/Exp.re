@@ -895,7 +895,7 @@ let add_name = (name: option(string), exp: t): t => {
 let graft_spine =
     (~rebuilt=(e: t) => e, hole_id: Id.t, acc: t, e: t): option(t) => {
   let rec spine = (e: t): option(t) =>
-    if (List.mem(hole_id, e.annotation.ids)) {
+    if (List.mem(e.annotation.ids, hole_id, ~equal=Poly.equal)) {
       Some(acc);
     } else {
       let re = (term: term) =>
@@ -904,17 +904,17 @@ let graft_spine =
           term,
         });
       switch (e.term) {
-      | Let(p, d, b) => spine(b) |> Option.map(b => re(Let(p, d, b)))
+      | Let(p, d, b) => spine(b) |> Option.map(~f=b => re(Let(p, d, b)))
       | Theorem(p, d, b) =>
-        spine(b) |> Option.map(b => re(Theorem(p, d, b)))
-      | Use(t, b) => spine(b) |> Option.map(b => re(Use(t, b)))
-      | Seq(a, b) => spine(b) |> Option.map(b => re(Seq(a, b)))
+        spine(b) |> Option.map(~f=b => re(Theorem(p, d, b)))
+      | Use(t, b) => spine(b) |> Option.map(~f=b => re(Use(t, b)))
+      | Seq(a, b) => spine(b) |> Option.map(~f=b => re(Seq(a, b)))
       | TyAlias(tp, ty, b) =>
-        spine(b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+        spine(b) |> Option.map(~f=b => re(TyAlias(tp, ty, b)))
       | ModuleExp(mp, d, b) =>
-        spine(b) |> Option.map(b => re(ModuleExp(mp, d, b)))
-      | Filter(f, b) => spine(b) |> Option.map(b => re(Filter(f, b)))
-      | Parens(b) => spine(b) |> Option.map(b => re(Parens(b)))
+        spine(b) |> Option.map(~f=b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) => spine(b) |> Option.map(~f=b => re(Filter(f, b)))
+      | Parens(b) => spine(b) |> Option.map(~f=b => re(Parens(b)))
       | _ => None
       };
     };

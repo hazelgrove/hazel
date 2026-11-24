@@ -463,7 +463,7 @@ let equality =
     | (TupLabel(l1, p1), TupLabel(l2, p2)) => pne(l1, l2) && pne(p1, p2)
     | (Label(l1), Label(l2)) => String.equal(l1, l2)
     | (ExplicitNonlabel, ExplicitNonlabel) => true
-    | (Constructor(c1, _), Constructor(c2, _)) => c1 == c2
+    | (Constructor(c1, _), Constructor(c2, _)) => String.equal(c1, c2)
     /* Non-name-binding pattern forms still need structural equality —
        without these, identical literal/list/cons member patterns
        compared unequal (reflexivity bug caught by the Menhir/MakeTerm
@@ -495,7 +495,8 @@ let equality =
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (MultiHole(xs1), MultiHole(xs2)) =>
-      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+      List.length(xs1) == List.length(xs2)
+      && List.for_all2_exn(~f=any', xs1, xs2)
     | _ => false
     };
   }
@@ -874,10 +875,10 @@ let equality =
         when List.length(rls1) == List.length(rls2) =>
       exp'(e1, e2)
       && List.for_all2_exn(rls1, rls2, ~f=((p1, e1), (p2, e2)) =>
-             switch (pat'(p1, p2)) {
-             | Some(alphas_exp') =>
+           switch (pat'(p1, p2)) {
+           | Some(alphas_exp') =>
              exp(Alphas.combine(alphas_exp', alphas_exp), alphas_typ, e1, e2)
-             | None => false
+           | None => false
            }
          )
     | (Rules(_, _), _) => false

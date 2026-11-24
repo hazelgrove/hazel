@@ -276,9 +276,9 @@ let id_of: t => Id.t =
 let ancestors = (~info_map: Id.Map.t(t), info: t): ancestors => {
   /* [hops] bounds a cycle, which only an inconsistent map could have */
   let rec go = (segs, hops, seg) =>
-    switch (ListUtil.last_opt(seg)) {
+    switch (List.last(seg)) {
     | Some(root) when hops > 0 =>
-      switch (Option.map(ancestors_of, Id.Map.find_opt(root, info_map))) {
+      switch (Option.map(~f=ancestors_of, Id.Map.find_opt(root, info_map))) {
       | Some([_, ..._] as above) => go([seg, ...segs], hops - 1, above)
       | _ => [seg, ...segs]
       }
@@ -418,7 +418,7 @@ let find_within_item =
     (0, 0, None),
     ((n, cand, found), a, child) => {
       let n = n + 1;
-      let found = found == None && p(a) ? Some((a, n)) : found;
+      let found = Option.is_none(found) && p(a) ? Some((a, n)) : found;
       let i = Id.Map.find_opt(a, info_map);
       if (item_continues(i, child)) {
         Up((n, cand, found));
@@ -582,7 +582,7 @@ let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
       | Ap({term: Var(_), _} as f, _) => f
       | _ => p
       };
-    List.map((b: Binding.t) => (b.name, b.id, MValue), Pat.bindings(p));
+    List.map(~f=(b: Binding.t) => (b.name, b.id, MValue), Pat.bindings(p));
   | ModType({term: Var(x), _} as tp, _) => [(x, TPat.rep_id(tp), MType)]
   | ModuleMod(mp, _) => mpat(mp)
   | ModType(_)
@@ -599,17 +599,15 @@ let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
    value or module member, or in a type ([typ]) a type or module member */
 let member_binder =
     (~typ: bool, items: list(Mod.t), name: string): option(Id.t) =>
-  List.fold_left(
-    (found, item) =>
-      List.fold_left(
-        (found, (x, id, kind)) =>
-          x == name && (kind == MModule || typ == (kind == MType))
-            ? Some(id) : found,
-        found,
-        item_members(item),
-      ),
-    None,
-    items,
+  List.fold(items, ~init=None, ~f=(found, item) =>
+    List.fold(item_members(item), ~init=found, ~f=(found, (x, id, kind)) =>
+      String.equal(x, name)
+      && (
+        Poly.equal(kind, MModule)
+        || Bool.equal(typ, Poly.equal(kind, MType))
+      )
+        ? Some(id) : found
+    )
   );
 
 /* the definition [binder] is bound to, when a `let`, `module` or member binds it:
@@ -702,7 +700,7 @@ let rec typ_binder =
        module's value binding */
     | (None, InfoTyp({ctx, _})) =>
       let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
+      Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
     | (None, _) => None
     };
   | Parens(t) => typ_binder(~info_map, ~fuel, t)
@@ -731,7 +729,7 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     }) =>
     switch (Id.Map.find_opt(a, info_map)) {
     | Some(InfoExp({user_term: {term: Dot(base, label), _}, _}) as access)
-        when Exp.rep_id(label) == Exp.rep_id(l) =>
+        when Id.equal(Exp.rep_id(label), Exp.rep_id(l)) =>
       let+ items = module_items(~info_map, base);
       {
         access,
@@ -750,7 +748,7 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     | Some(
         InfoTyp({user_term: {term: ProdProjection(base, label), _}, _}) as access,
       )
-        when Typ.rep_id(label) == Typ.rep_id(l) =>
+        when Id.equal(Typ.rep_id(label), Typ.rep_id(l)) =>
       let* b = typ_binder(~info_map, base);
       let+ items = binder_items(~info_map, b);
       {
@@ -769,7 +767,7 @@ let access_member = (m: member_access): option(Id.t) =>
 
 /* the member a dot's label names: `a` in `M.a`, `T` in `M.T` */
 let member_binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
-  Option.bind(member_access(~info_map, info), access_member);
+  Option.bind(member_access(~info_map, info), ~f=access_member);
 
 /* the name binder [info] binds: a variable's, type's or module's */
 let binder_name = (info: t): option(string) =>
@@ -802,7 +800,7 @@ let binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
 let as_member_reference = (~info_map: Id.Map.t(t), info: t): t =>
   switch (member_access(~info_map, info), info) {
   | (Some({access: InfoExp(access), name, _} as m), InfoExp(label))
-      when access_member(m) != None =>
+      when Option.is_some(access_member(m)) =>
     InfoExp({
       ...access,
       user_term: {
@@ -815,7 +813,7 @@ let as_member_reference = (~info_map: Id.Map.t(t), info: t): t =>
       dot_labels: [],
     })
   | (Some({access: InfoTyp(access), name, _} as m), InfoTyp(label))
-      when access_member(m) != None =>
+      when Option.is_some(access_member(m)) =>
     InfoTyp({
       ...access,
       user_term: {

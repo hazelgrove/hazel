@@ -47,7 +47,7 @@ let lookup = (co_ctx: t, name: Var.t): option(list(entry)) =>
   VarMap.lookup(co_ctx, name);
 let contains = (co_ctx: t, name: Var.t): bool =>
   VarMap.contains(co_ctx, name);
-let names = (co_ctx: t): list(Var.t) => List.map(fst, co_ctx);
+let names = (co_ctx: t): list(Var.t) => List.map(~f=fst, co_ctx);
 let filter_names = (pred: Var.t => bool, co_ctx: t): t =>
   VarMap.filter(((name, _)) => pred(name), co_ctx);
 
@@ -68,18 +68,18 @@ let union: list(t) => t =
   co_ctxs => {
     List.fold_left(
       ~f=
-      (acc, co_ctx) =>
-        List.fold_left(
+        (acc, co_ctx) =>
+          List.fold_left(
             ~f=
-          (acc, (name, entries)) =>
-            if (VarMap.contains(acc, name)) {
-              VarMap.update(acc, name, existing => existing @ entries);
-            } else {
-              VarMap.extend(acc, (name, entries));
-            },
+              (acc, (name, entries)) =>
+                if (VarMap.contains(acc, name)) {
+                  VarMap.update(acc, name, existing => existing @ entries);
+                } else {
+                  VarMap.extend(acc, (name, entries));
+                },
             ~init=acc,
-          co_ctx,
-        ),
+            co_ctx,
+          ),
       ~init=VarMap.empty,
       co_ctxs,
     );
@@ -116,9 +116,9 @@ let has_any = (co_ctx: t, vs: list(Var.t)): bool =>
 let of_bindings = (bindings: Binding.s): t =>
   union(
     List.map(
-    ~f=
-      (b: Binding.t) =>
-        singleton(b.name, b.id, Typ.fresh(Unknown(Internal))),
+      ~f=
+        (b: Binding.t) =>
+          singleton(b.name, b.id, Typ.fresh(Unknown(Internal))),
       bindings,
     ),
   );

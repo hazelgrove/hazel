@@ -324,7 +324,9 @@ module rec Exp: {
         | BinHole(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | e => [of_menhir_ast(e), ...acc]
         };
-      multi_hole(List.map(e => Language.Grammar.Exp(e), collect(e, [])));
+      multi_hole(
+        List.map(~f=e => Language.Grammar.Exp(e), collect(e, [])),
+      );
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
     | HintedTest(e, hint) =>
@@ -425,17 +427,17 @@ module rec Exp: {
          ones have no textual spelling and stay unsupported */
       let exps =
         List.filter_map(
-          fun
-          | Language.Grammar.Exp(e) => Some(e)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Exp(e) => Some(e)
+            | _ => None,
           es,
         );
       switch (List.length(exps) == List.length(es), exps) {
       | (true, [e1, e2, ...rest]) =>
-        List.fold_left(
-          (acc, e) => AST.BinHole(acc, of_core(e)),
-          BinHole(of_core(e1), of_core(e2)),
-          rest,
+        List.fold(
+          rest, ~init=AST.BinHole(of_core(e1), of_core(e2)), ~f=(acc, e) =>
+          AST.BinHole(acc, of_core(e))
         )
       | _ => raise(Failure("MultiHole not supported"))
       };
@@ -542,7 +544,7 @@ and Typ: {
       unknown(
         Hole(
           MultiHole(
-            List.map(t => Language.Grammar.Typ(t), collect(t, [])),
+            List.map(~f=t => Language.Grammar.Typ(t), collect(t, [])),
           ),
         ),
       );
@@ -561,16 +563,16 @@ and Typ: {
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
         List.map(
           ~f=
-          (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
-            switch (sumterm) {
-            | Variant(name, typ) =>
-              Variant(
-                name,
-                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+            (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
+              switch (sumterm) {
+              | Variant(name, typ) =>
+                Variant(
+                  name,
+                  ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
                   Option.map(~f=of_menhir_ast, typ),
-              )
-            | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
-            },
+                )
+              | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
+              },
           sumterms,
         );
       sum(converted_terms);
@@ -613,17 +615,17 @@ and Typ: {
          ones have no textual spelling and stay unsupported */
       let typs =
         List.filter_map(
-          fun
-          | Language.Grammar.Typ(t) => Some(t)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Typ(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(typs) == List.length(ts), typs) {
       | (true, [t1, t2, ...rest]) =>
-        List.fold_left(
-          (acc, t) => AST.BinHoleTyp(acc, of_core(t)),
-          BinHoleTyp(of_core(t1), of_core(t2)),
-          rest,
+        List.fold(
+          rest, ~init=AST.BinHoleTyp(of_core(t1), of_core(t2)), ~f=(acc, t) =>
+          AST.BinHoleTyp(acc, of_core(t))
         )
       | _ => raise(Failure("MultiHole not supported"))
       };
@@ -642,14 +644,14 @@ and Typ: {
       let sumterms =
         List.map(
           ~f=
-          (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
-            switch (variant) {
-            | Variant(name, _, None) => Variant(name, None)
+            (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
+              switch (variant) {
+              | Variant(name, _, None) => Variant(name, None)
               | Variant(name, _, Some(t)) =>
                 Variant(name, Some(of_core(t)))
-            | BadEntry(t) => BadEntry(of_core(t))
-            }
-          },
+              | BadEntry(t) => BadEntry(of_core(t))
+              }
+            },
           constructors,
         );
       SumTyp(sumterms);
@@ -678,7 +680,9 @@ and TPat: {
         | BinHoleTPat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | t => [of_menhir_ast(t), ...acc]
         };
-      multi_hole(List.map(t => Language.Grammar.TPat(t), collect(t, [])));
+      multi_hole(
+        List.map(~f=t => Language.Grammar.TPat(t), collect(t, [])),
+      );
     | VarTPat(s) => var(s)
     };
   };
@@ -691,17 +695,19 @@ and TPat: {
     | MultiHole(ts) =>
       let tpats =
         List.filter_map(
-          fun
-          | Language.Grammar.TPat(t) => Some(t)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.TPat(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(tpats) == List.length(ts), tpats) {
       | (true, [t1, t2, ...rest]) =>
-        List.fold_left(
-          (acc, t) => AST.BinHoleTPat(acc, of_core(t)),
-          BinHoleTPat(of_core(t1), of_core(t2)),
+        List.fold(
           rest,
+          ~init=AST.BinHoleTPat(of_core(t1), of_core(t2)),
+          ~f=(acc, t) =>
+          AST.BinHoleTPat(acc, of_core(t))
         )
       | _ => raise(Failure("MultiHole not supported"))
       };
@@ -723,7 +729,9 @@ and Pat: {
         | BinHolePat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | p => [of_menhir_ast(p), ...acc]
         };
-      multi_hole(List.map(p => Language.Grammar.Pat(p), collect(p, [])));
+      multi_hole(
+        List.map(~f=p => Language.Grammar.Pat(p), collect(p, [])),
+      );
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
@@ -762,17 +770,17 @@ and Pat: {
     | MultiHole(ps) =>
       let pats =
         List.filter_map(
-          fun
-          | Language.Grammar.Pat(p) => Some(p)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Pat(p) => Some(p)
+            | _ => None,
           ps,
         );
       switch (List.length(pats) == List.length(ps), pats) {
       | (true, [p1, p2, ...rest]) =>
-        List.fold_left(
-          (acc, p) => AST.BinHolePat(acc, of_core(p)),
-          BinHolePat(of_core(p1), of_core(p2)),
-          rest,
+        List.fold(
+          rest, ~init=AST.BinHolePat(of_core(p1), of_core(p2)), ~f=(acc, p) =>
+          AST.BinHolePat(acc, of_core(p))
         )
       | _ => raise(Failure("MultiHole not supported"))
       };

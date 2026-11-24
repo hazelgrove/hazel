@@ -108,7 +108,9 @@ let bound_names = (item: t): list(Var.t) =>
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) =>
-    binder(item) |> Option.map(Pat.bound_vars) |> Option.value(~default=[])
+    binder(item)
+    |> Option.map(~f=Pat.bound_vars)
+    |> Option.value(~default=[])
   };
 
 /* ==================== Evaluated bindings (dynamics) ====================
@@ -154,11 +156,12 @@ let split_pending = (items: list(t)): (list(t), option((t, list(t)))) => {
 
 let modval_defs = (items: list(t)): list(TermBase.Exp.t) =>
   List.filter_map(
-    (item: t) =>
-      switch (item.term) {
-      | ModVal(_, d) => Some(d)
-      | _ => None
-      },
+    ~f=
+      (item: t) =>
+        switch (item.term) {
+        | ModVal(_, d) => Some(d)
+        | _ => None
+        },
     items,
   );
 
@@ -184,7 +187,7 @@ let with_modval_defs =
 let value_bindings =
     (items: list(t)): option(list((Var.t, TermBase.Exp.t))) =>
   items
-  |> List.map((item: t) =>
+  |> List.map(~f=(item: t) =>
        switch (item.term) {
        | ModVal(x, d) => Some((x, d))
        | _ => None
@@ -200,9 +203,9 @@ let paired_bindings =
   switch (value_bindings(items1), value_bindings(items2)) {
   | (Some(b1), Some(b2)) when List.length(b1) == List.length(b2) =>
     b1
-    |> List.map(((x, v1)) =>
+    |> List.map(~f=((x, v1)) =>
          Util.ListUtil.assoc_opt_by(String.equal, x, b2)
-         |> Option.map(v2 => (v1, v2))
+         |> Option.map(~f=v2 => (v1, v2))
        )
     |> Util.OptUtil.sequence
   | _ => None
@@ -217,18 +220,21 @@ let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
     | None => false
     | Some((item, rest)) =>
       List.exists(
-        (item: t) => List.exists(String.equal(name), bound_names(item)),
+        ~f=
+          (item: t) =>
+            List.exists(~f=String.equal(name), bound_names(item)),
         [item, ...rest],
       )
     };
   rebound
     ? None
     : List.find_map(
-        (item: t) =>
-          switch (item.term) {
-          | ModVal(x, d) when String.equal(x, name) => Some(d)
-          | _ => None
-          },
+        ~f=
+          (item: t) =>
+            switch (item.term) {
+            | ModVal(x, d) when String.equal(x, name) => Some(d)
+            | _ => None
+            },
         evaluated,
       );
 };
@@ -237,11 +243,12 @@ let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
    [name]. */
 let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
   List.filter(
-    (item: t) =>
-      switch (item.term) {
-      | ModVal(x, _) => !String.equal(x, name)
-      | _ => true
-      },
+    ~f=
+      (item: t) =>
+        switch (item.term) {
+        | ModVal(x, _) => !String.equal(x, name)
+        | _ => true
+        },
     items,
   )
   @ [fresh(ModVal(name, d))];

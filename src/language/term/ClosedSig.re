@@ -7,6 +7,6 @@ let of_items = items => items;
 
 let items = closed => closed;
 
-let map = List.map;
+let map = (f, xs) => List.map(xs, ~f);
 
-let filter = List.filter;
+let filter = (f, xs) => List.filter(xs, ~f);

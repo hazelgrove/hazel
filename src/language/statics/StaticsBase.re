@@ -14,11 +14,11 @@ module Map = {
     ids
     |> List.fold_left(
          ~f=
-         (m, id) =>
-           switch (Id.Map.find_opt(id, m)) {
-           | Some(_) => m
-           | None => Id.Map.add(id, info, m)
-           },
+           (m, id) =>
+             switch (Id.Map.find_opt(id, m)) {
+             | Some(_) => m
+             | None => Id.Map.add(id, info, m)
+             },
          ~init=m,
        );
 
@@ -64,12 +64,12 @@ module Map = {
   let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t => {
     /* a label names the binder only when spelled alike: the others skip
        resolving their module */
-    let name = Option.bind(lookup(binding_id, m), Info.binder_name);
+    let name = Option.bind(lookup(binding_id, m), ~f=Info.binder_name);
     Id.Map.fold(
       (id, info, acc) => {
         let site =
           switch (Info.label_name(info)) {
-          | Some(l) when Some(l) != name => None
+          | Some(l) when !Option.equal(String.equal, Some(l), name) => None
           | _ => Info.binding_site(~info_map=m, info)
           };
         switch (site) {
@@ -139,11 +139,14 @@ module Map = {
           /* Pat.bindings drops the function-definition sugar's name: match
              that binding too, else the enclosing let is never found. */
           let binds = Pat.bindings(pat) @ Pat.bindings(Pat.binder(pat));
-          List.exists((b: Binding.t) => b.id == binding_id, binds)
+          List.exists(
+            ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
+            binds,
+          )
             ? Some(IdTagged.rep_id(def)) : climb(rest);
         | InfoMod({user_term: {term: ModuleMod(mp, def), _}, _}) =>
           List.exists(
-            (b: Binding.t) => b.id == binding_id,
+            ~f=(b: Binding.t) => Id.equal(b.id, binding_id),
             Pat.bindings(MPat.to_pat(mp)),
           )
             ? Some(IdTagged.rep_id(def)) : climb(rest)
@@ -255,21 +258,16 @@ let set_dot_labels_exp =
    quadratic, which bites on wide n-ary forms like module bodies */
 let map_m = (f, xs, m: Map.t) => {
   let (xs, m) =
-    List.fold_left(
-      ((xs, m), x) => f(x, m) |> (((x, m)) => ([x, ...xs], m)),
-      ([], m),
-      xs,
+    List.fold(xs, ~init=([], m), ~f=((xs, m), x) =>
+      f(x, m) |> (((x, m)) => ([x, ...xs], m))
     );
   (List.rev(xs), m);
 };
 
 let map_m2 = (f, xs, ys, m: Map.t) => {
   let (zs, m) =
-    List.fold_left2(
-      ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => ([z, ...zs], m)),
-      ([], m),
-      xs,
-      ys,
+    List.fold2_exn(xs, ys, ~init=([], m), ~f=((zs, m), x, y) =>
+      f(x, y, m) |> (((z, m)) => ([z, ...zs], m))
     );
   (List.rev(zs), m);
 };
@@ -432,20 +430,21 @@ let fold_patterns_with_modes =
       m,
     ) => {
   let (ctx, tys, cons, m, infos, elabs) =
-    List.fold_left2(
-      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-        |> (
-          ((info, elab, m)) => (
-            info.ctx,
-            [info.ty, ...tys],
-            [info.constraint_, ...cons],
-            m,
-            [info, ...infos],
-            [elab, ...elabs],
-          )
-        ),
-    ~init=(ctx, [], [], m, [], []),
+    List.fold2_exn(
+      ~f=
+        ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+          analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+          |> (
+            ((info, elab, m)) => (
+              info.ctx,
+              [info.ty, ...tys],
+              [info.constraint_, ...cons],
+              m,
+              [info, ...infos],
+              [elab, ...elabs],
+            )
+          ),
+      ~init=(ctx, [], [], m, [], []),
       ps,
       modes,
     );

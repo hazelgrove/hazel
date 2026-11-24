@@ -386,7 +386,7 @@ let is_explicit_hole = t =>
  * tokeniser treats as its own atomic token (won't glue with adjacent
  * commas, semicolons, or identifiers). */
 let implicit_hole_marker = "¿";
-let is_implicit_hole_marker = t => t == implicit_hole_marker;
+let is_implicit_hole_marker = t => String.equal(t, implicit_hole_marker);
 
 /* Concave-grout marker: `¿` stands in for CONVEX Grout (an operand
  * hole, grammatically expressible as `?`), but concave Grout is an
@@ -397,8 +397,9 @@ let is_implicit_hole_marker = t => t == implicit_hole_marker;
  * recovering parser. Same atomic-token character requirements as the
  * ¿ marker above. */
 let concave_hole_marker = "\xe2\xa7\x96"; /* ⧖ U+29D6 WHITE HOURGLASS */
-let is_concave_hole_marker = t => t == concave_hole_marker;
-let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
+let is_concave_hole_marker = t => String.equal(t, concave_hole_marker);
+let is_llm_hole = t =>
+  String.equal(t, llm_hole) || String.equal(t, llm_advanced_reasoning_hole);
 
 /* Projector invocation textual syntax */
 let projector_invoke_prefix = "^^";

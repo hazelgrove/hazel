@@ -71,7 +71,6 @@ let expected_members =
      );
 };
 
-
 /* An expectation on a binder pattern and the names it holds to it. */
 type pat_expectation = {
   ty: Typ.t,
@@ -84,23 +83,20 @@ type pat_expectation = {
 let meet_expectations =
     (~ctx: Ctx.t, es: list(option(pat_expectation)))
     : option(pat_expectation) =>
-  List.fold_left(
-    (acc, e) =>
-      switch (acc, e) {
-      | (None, e) => e
-      | (acc, None) => acc
-      | (Some(acc), Some(e)) =>
-        switch (Typ.meet(ctx, acc.ty, e.ty)) {
-        | Some(ty) =>
-          Some({
-            ty,
-            names: acc.names @ e.names,
-          })
-        | None => Some(acc)
-        }
-      },
-    None,
-    es,
+  List.fold(es, ~init=None, ~f=(acc, e) =>
+    switch (acc, e) {
+    | (None, e) => e
+    | (acc, None) => acc
+    | (Some(acc), Some(e)) =>
+      switch (Typ.meet(ctx, acc.ty, e.ty)) {
+      | Some(ty) =>
+        Some({
+          ty,
+          names: acc.names @ e.names,
+        })
+      | None => Some(acc)
+      }
+    }
   );
 
 /* The expectation on a binder pattern, assembled from the signature's
@@ -140,19 +136,23 @@ let rec expected_pat_type =
       ? Some({
           ty:
             Prod(
-              List.map(~f=
-                Option.fold(
-                  ~none=Unknown(SynSwitch) |> Typ.temp,
-                  ~some=(e: pat_expectation) =>
-                  e.ty
-                ),
+              List.map(
+                ~f=
+                  Option.value_map(
+                    ~default=Unknown(SynSwitch) |> Typ.temp,
+                    ~f=(e: pat_expectation) =>
+                    e.ty
+                  ),
                 es,
               ),
             )
             |> Typ.temp,
           names:
-            List.concat_map(~f=
-              Option.fold(~none=[], ~some=(e: pat_expectation) => e.names),
+            List.concat_map(
+              ~f=
+                Option.value_map(~default=[], ~f=(e: pat_expectation) =>
+                  e.names
+                ),
               es,
             ),
         })
@@ -160,7 +160,10 @@ let rec expected_pat_type =
   | Cons(p1, p2) =>
     meet_expectations(~ctx, [Option.map(~f=list_of, go(p1)), go(p2)])
   | ListLit(ps) =>
-    meet_expectations(~ctx, List.map(~f=p => Option.map(~f=list_of, go(p)), ps))
+    meet_expectations(
+      ~ctx,
+      List.map(~f=p => Option.map(~f=list_of, go(p)), ps),
+    )
   | TupLabel(_, _)
   | Ap(_, _)
   | Invalid(_)
@@ -208,20 +211,20 @@ let missing_items =
    hole in a binding position of a `let` pattern, or a hole module or type
    name. Holes in definitions and annotations do not count. */
 let has_hole_binder = (items: list(Mod.t)): bool =>
-  List.exists(~f=
-    (item: Mod.t) =>
-      switch (item.term) {
-      | EmptyHole
-      | MultiHole(_) => true
-      | ModLet(pat, _) => Pat.has_hole_binder(Pat.binder(pat))
-      | ModuleMod(mp, _) => MPat.has_hole(mp)
-      | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
-      | ModType(_)
-      | ModExp(_)
-      | ModVal(_)
-      | Invalid(_) => false
-      },
-
+  List.exists(
+    ~f=
+      (item: Mod.t) =>
+        switch (item.term) {
+        | EmptyHole
+        | MultiHole(_) => true
+        | ModLet(pat, _) => Pat.has_hole_binder(Pat.binder(pat))
+        | ModuleMod(mp, _) => MPat.has_hole(mp)
+        | ModType({term: EmptyHole | MultiHole(_), _}, _) => true
+        | ModType(_)
+        | ModExp(_)
+        | ModVal(_)
+        | Invalid(_) => false
+        },
     items,
   );
 
@@ -236,10 +239,10 @@ let extra_members =
     let want = Sig.members(ana_items);
     let extra_values =
       Sig.value_names(have)
-      |> List.filter(x => Option.is_none(Sig.find_value(want, x)));
+      |> List.filter(~f=x => Option.is_none(Sig.find_value(want, x)));
     let extra_types =
       Sig.type_names(have)
-      |> List.filter(t => Option.is_none(Sig.find_type_def(want, t)));
+      |> List.filter(~f=t => Option.is_none(Sig.find_type_def(want, t)));
     extra_values @ extra_types;
   };
 

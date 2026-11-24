@@ -640,8 +640,8 @@ module Transition = (EV: EV_MODE) => {
           // If the pattern is not a single variable, we need to unpack the results of inner evaulations
           List.map(
             ~f=
-            (Binding.{name: v, id: _}) =>
-              (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
+              (Binding.{name: v, id: _}) =>
+                (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
             Pat.bindings(dp),
           )
         };
@@ -721,11 +721,12 @@ module Transition = (EV: EV_MODE) => {
               /* Inherit name for user clarity */
               DHExp.ty_subst(tau, utpat, tfbody),
               Option.map(
-                x =>
-                  x
-                  ++ "@<"
-                  ++ Typ.pretty_print(Typ.surface_names(tau))
-                  ++ ">",
+                ~f=
+                  x =>
+                    x
+                    ++ "@<"
+                    ++ Typ.pretty_print(Typ.surface_names(tau))
+                    ++ ">",
                 name,
               ),
             ),
@@ -868,8 +869,8 @@ module Transition = (EV: EV_MODE) => {
             List.length(
               List.filter(
                 ~f=fun
-                | {term: Deferral(_), _} => true
-                | _ => false: Exp.t => bool,
+                   | {term: Deferral(_), _} => true
+                   | _ => false: Exp.t => bool,
                 d4s,
               ),
             );
@@ -1096,12 +1097,12 @@ module Transition = (EV: EV_MODE) => {
             let projected =
               List.filter_map(
                 ~f=
-                d => {
-                  switch (Exp.match_tup_label(d)) {
+                  d => {
+                    switch (Exp.match_tup_label(d)) {
                     | Some((s, e)) when String.equal(name, s) => Some(e)
-                  | _ => None
-                  }
-                },
+                    | _ => None
+                    }
+                  },
                 ds,
               );
 
@@ -1174,11 +1175,11 @@ module Transition = (EV: EV_MODE) => {
         tuple(
           List.map(
             ~f=
-            ((lab, d)) =>
-              switch (lab) {
-              | Some(l) => tup_label(label(l), d)
-              | None => d
-              },
+              ((lab, d)) =>
+                switch (lab) {
+                | Some(l) => tup_label(label(l), d)
+                | None => d
+                },
             LabeledTuple.extension(e1_entries, e2_entries),
           ),
         );
@@ -1426,10 +1427,8 @@ module Transition = (EV: EV_MODE) => {
           | DoesNotMatch => Indet
           | Matches(env') =>
             let prefix' =
-              List.fold_left(
-                (prefix, (x, v)) => Mod.add_modval(prefix, x, v),
-                prefix,
-                env',
+              List.fold(env', ~init=prefix, ~f=(prefix, (x, v)) =>
+                Mod.add_modval(prefix, x, v)
               );
             let env'' = Environment.add_bindings(env, env');
             let side_effects: list(EvaluatorState.effect) = [
@@ -1440,7 +1439,9 @@ module Transition = (EV: EV_MODE) => {
               }),
             ];
             let kind =
-              ModuleBind(env' |> List.map(fst) |> String.concat(", "));
+              ModuleBind(
+                env' |> List.map(~f=fst) |> String.concat(~sep=", "),
+              );
             switch (suffix) {
             | [] =>
               /* A value: a probed literal keeps its id, so re-traversing
@@ -1613,7 +1614,7 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | ModuleBind(s) => String.cat("module binding for ", s)
+  | ModuleBind(s) => "module binding for " ++ s
   | ModuleDiscardExp => "discard module expression"
   | Dot => "member access"
   | TupleExtension => "Tuple extension"

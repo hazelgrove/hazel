@@ -19,8 +19,8 @@ let builtins =
 let builtins =
   List.sort(
     ~compare=
-    (a: builtin, b: builtin) =>
-      String.compare(name_of_builtin(b), name_of_builtin(a)),
+      (a: builtin, b: builtin) =>
+        String.compare(name_of_builtin(b), name_of_builtin(a)),
     builtins,
   );
 
@@ -43,13 +43,13 @@ let ctx_entries =
    (Statics.mk) can hit */
 let ctx_init_base: Ctx.t = Ctx.of_entries(~use_mode=None, ctx_entries);
 let ctx_init: option(Operators.mode) => Ctx.t = {
-  let by_mode = Hashtbl.create(5);
+  let by_mode = Stdlib.Hashtbl.create(5);
   use_mode =>
-    switch (Hashtbl.find_opt(by_mode, use_mode)) {
+    switch (Stdlib.Hashtbl.find_opt(by_mode, use_mode)) {
     | Some(ctx) => ctx
     | None =>
       let ctx = Ctx.set_use_mode(ctx_init_base, use_mode);
-      Hashtbl.replace(by_mode, use_mode, ctx);
+      Stdlib.Hashtbl.replace(by_mode, use_mode, ctx);
       ctx;
     };
 };

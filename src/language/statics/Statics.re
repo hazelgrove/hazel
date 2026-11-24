@@ -112,13 +112,13 @@ and multi =
     : (list(CoCtx.t), list(Any.t), Map.t) => {
   let (co_ctxs, tms_elab, m) =
     List.fold_left(
-    ~f=
-      ((co_ctxs, tms_elab, m), any) => {
-        let (co_ctx, any_elab, m) =
-          any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-        ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
-      },
-    ~init=([], [], m),
+      ~f=
+        ((co_ctxs, tms_elab, m), any) => {
+          let (co_ctx, any_elab, m) =
+            any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
+          ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
+        },
+      ~init=([], [], m),
       tms,
     );
   (List.rev(co_ctxs), List.rev(tms_elab), m);
@@ -391,7 +391,7 @@ and uexp_to_info_map =
         let arrow_like = t => Typ.is_arrow_like(MatchedTyp.head(ctx, t));
         switch (norm |> Typ.term_of) {
         | Prod(syns) when List.length(syns) == num_vars =>
-          syns |> List.for_all(arrow_like)
+          syns |> List.for_all(~f=arrow_like)
         | _ when arrow_like(norm) => num_vars == 1
         | _ => false
         };
@@ -454,7 +454,11 @@ and uexp_to_info_map =
           ) {
           | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
             let tys =
-              List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+              List.map2_exn(
+                ~f=ana_ty_fn,
+                List.zip_exn(ty_fns1, ty_fns2),
+                ty_ps,
+              );
             Prod(tys) |> Typ.temp;
           | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), def_ana)
           };
@@ -529,7 +533,7 @@ and uexp_to_info_map =
       } else {
         let def_elab =
           def_elab
-          |> Exp.add_name(Option.map(s => s ++ "+", Pat.get_var(b.p)));
+          |> Exp.add_name(Option.map(~f=s => s ++ "+", Pat.get_var(b.p)));
         /* Give the fixpoint the function's surface id (which IS in
          * info_map, so it gets a cache entry), and give the inner Fun a
          * derived id (which isn't in info_map, but that's fine — the
@@ -714,26 +718,26 @@ and uexp_to_info_map =
       let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
         List.fold_left(
           ~f=
-          ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
-            switch (any) {
-            | Exp(e) =>
-              let (e_info, e_elab, m) = go(~ana=syn, e, m);
-              (
-                co_ctxs @ [e_info.co_ctx],
-                probe_targets @ [e_info.probe_targets],
-                elabs @ [e_elab],
-                m,
-              );
-            | _ =>
-              let (co_ctx, _any_elab, m) =
+            ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+              switch (any) {
+              | Exp(e) =>
+                let (e_info, e_elab, m) = go(~ana=syn, e, m);
+                (
+                  co_ctxs @ [e_info.co_ctx],
+                  probe_targets @ [e_info.probe_targets],
+                  elabs @ [e_elab],
+                  m,
+                );
+              | _ =>
+                let (co_ctx, _any_elab, m) =
                   any_to_info_map(
                     ~ctx,
                     ~ancestors=ancestors_inclusive,
                     any,
                     m,
                   );
-              (co_ctxs @ [co_ctx], probe_targets, elabs, m);
-            },
+                (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+              },
           ~init=([], [], [], m),
           tms,
         );
@@ -1226,11 +1230,11 @@ and uexp_to_info_map =
             prod(
               List.map(
                 ~f=
-                ((lab, d)) =>
-                  switch (lab) {
-                  | Some(l) => tup_label(label(l), d)
-                  | None => d
-                  },
+                  ((lab, d)) =>
+                    switch (lab) {
+                    | Some(l) => tup_label(label(l), d)
+                    | None => d
+                    },
                 LabeledTuple.extension(e1_entries, e2_entries),
               ),
             )
@@ -1303,124 +1307,124 @@ and uexp_to_info_map =
       let (es', es_elab, m) =
         List.fold2_exn(
           ~f=
-          ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
-            switch (e.term) {
-            | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (e_info, elab, m) = go(~ana, e, m);
-              let (e_info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label,
-                  e_info,
-                  m,
-                );
-              ([e_info, ...es], [elab, ...es_elab], m);
-            | TupLabel(label, value) =>
-              let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+            ((es, es_elab, m), ana, (inferred_label, e: Exp.t)) =>
+              switch (e.term) {
+              | TupLabel({term: ExplicitNonlabel, _}, _) =>
+                let (e_info, elab, m) = go(~ana, e, m);
+                let (e_info, m) =
+                  LabeledTupleStaticsHelpers.apply_inferred_label_exp(
+                    ~inferred_label,
+                    e_info,
+                    m,
+                  );
+                ([e_info, ...es], [elab, ...es_elab], m);
+              | TupLabel(label, value) =>
+                let (labmode, val_mode) =
+                  LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
                 let (value_info, value_elab, m) =
                   go(~ana=val_mode, value, m);
-              let (lab_name, label_invalid, m) =
-                switch (label.term) {
-                | Label(name) =>
-                  let (label_syn, label_marks, label_invalid) =
-                    LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name,
-                      ~expected_labels,
-                      ~duplicate_labels,
+                let (lab_name, label_invalid, m) =
+                  switch (label.term) {
+                  | Label(name) =>
+                    let (label_syn, label_marks, label_invalid) =
+                      LabeledTupleStaticsHelpers.validate_label_name(
+                        ~name,
+                        ~expected_labels,
+                        ~duplicate_labels,
+                      );
+                    let (_, _, m) =
+                      add(
+                        ~user_term=label,
+                        ~ancestors=ancestors_inclusive,
+                        ~elab_term=label,
+                        ~ctx,
+                        ~ana=labmode,
+                        ~elab_syn_ty=label_syn,
+                        ~marks=label_marks,
+                        ~co_ctx=CoCtx.empty,
+                        ~label_inference=None,
+                        ~inferred_label=None,
+                        ~dot_labels=[],
+                        ~label_sort=true,
+                        ~warnings=[],
+                        m,
+                      );
+                    (Some(name), label_invalid, m);
+                  | EmptyHole =>
+                    let (_, _, m) =
+                      add(
+                        ~user_term=label,
+                        ~ancestors=ancestors_inclusive,
+                        ~elab_term=label,
+                        ~ctx,
+                        ~ana=labmode,
+                        ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                        ~marks=[],
+                        ~co_ctx=CoCtx.empty,
+                        ~label_inference=None,
+                        ~inferred_label=None,
+                        ~dot_labels=[],
+                        ~label_sort=true,
+                        ~warnings=[],
+                        m,
+                      );
+                    (None, false, m);
+                  | _ =>
+                    let (_, _, m) = go(~ana=labmode, label, m);
+                    (
+                      None,
+                      false,
+                      m
+                      |> append_mark_exp(_, label, [BadLabel(Exp(label))])
+                      |> set_label_sort_exp(_, label, true),
                     );
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~ana=labmode,
-                      ~elab_syn_ty=label_syn,
-                      ~marks=label_marks,
-                      ~co_ctx=CoCtx.empty,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~dot_labels=[],
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (Some(name), label_invalid, m);
-                | EmptyHole =>
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~ana=labmode,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
-                      ~marks=[],
-                      ~co_ctx=CoCtx.empty,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~dot_labels=[],
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (None, false, m);
-                | _ =>
-                  let (_, _, m) = go(~ana=labmode, label, m);
-                  (
-                    None,
-                    false,
-                    m
-                    |> append_mark_exp(_, label, [BadLabel(Exp(label))])
-                    |> set_label_sort_exp(_, label, true),
-                  );
-                };
-              let (syn_tl, cms_tl) =
-                LabeledTupleStaticsHelpers.tup_label_self_type(
-                  ~lab_name,
-                  ~label_invalid,
-                  ~duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
+                  };
+                let (syn_tl, cms_tl) =
+                  LabeledTupleStaticsHelpers.tup_label_self_type(
+                    ~lab_name,
+                    ~label_invalid,
+                    ~duplicate_labels,
+                    ~value_ty=value_info.elab_syn_ty,
                     ~label_is_empty_hole=Poly.equal(label.term, EmptyHole),
-                  ~malformed_source=Exp(label),
-                );
-              /* Use the child `e`'s rewrap, NOT the outer Tuple's `rewrap`
-               * shadowed at the top of uexp_to_info_map. Falling back to the
-               * Tuple's rewrap stamps every elaborated TupLabel with the
-               * Tuple's id, so multiple labelled children all collide on a
-               * single rep_id — which silently corrupts IncrEval's id-keyed
-               * cache (last write wins). The Pat-tuple loop already does
-               * this correctly; mirror it here. */
-              let (_, e_rewrap) = Exp.unwrap(e);
-              let (e_info, elab, m) =
-                add(
-                  ~user_term=e,
-                  ~elab_term=TupLabel(label, value_elab) |> e_rewrap,
-                  ~ctx,
-                  ~ana,
-                  ~ancestors=ancestors_inclusive,
-                  ~elab_syn_ty=syn_tl,
-                  ~marks=cms_tl,
-                  ~co_ctx=value_info.co_ctx,
-                  ~probe_targets=value_info.probe_targets,
-                  ~label_inference=None,
-                  ~inferred_label,
-                  ~dot_labels=[],
-                  ~label_sort=false,
-                  ~warnings=[],
-                  m,
-                );
-              ([e_info, ...es], [elab, ...es_elab], m);
-            | _ =>
-              let (e_info, elab, m) = go(~ana, e, m);
-              let (e_info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_exp(
-                  ~inferred_label,
-                  e_info,
-                  m,
-                );
-              ([e_info, ...es], [elab, ...es_elab], m);
-            },
+                    ~malformed_source=Exp(label),
+                  );
+                /* Use the child `e`'s rewrap, NOT the outer Tuple's `rewrap`
+                 * shadowed at the top of uexp_to_info_map. Falling back to the
+                 * Tuple's rewrap stamps every elaborated TupLabel with the
+                 * Tuple's id, so multiple labelled children all collide on a
+                 * single rep_id — which silently corrupts IncrEval's id-keyed
+                 * cache (last write wins). The Pat-tuple loop already does
+                 * this correctly; mirror it here. */
+                let (_, e_rewrap) = Exp.unwrap(e);
+                let (e_info, elab, m) =
+                  add(
+                    ~user_term=e,
+                    ~elab_term=TupLabel(label, value_elab) |> e_rewrap,
+                    ~ctx,
+                    ~ana,
+                    ~ancestors=ancestors_inclusive,
+                    ~elab_syn_ty=syn_tl,
+                    ~marks=cms_tl,
+                    ~co_ctx=value_info.co_ctx,
+                    ~probe_targets=value_info.probe_targets,
+                    ~label_inference=None,
+                    ~inferred_label,
+                    ~dot_labels=[],
+                    ~label_sort=false,
+                    ~warnings=[],
+                    m,
+                  );
+                ([e_info, ...es], [elab, ...es_elab], m);
+              | _ =>
+                let (e_info, elab, m) = go(~ana, e, m);
+                let (e_info, m) =
+                  LabeledTupleStaticsHelpers.apply_inferred_label_exp(
+                    ~inferred_label,
+                    e_info,
+                    m,
+                  );
+                ([e_info, ...es], [elab, ...es_elab], m);
+              },
           ~init=([], [], m),
           ana_tys,
           List.zip_exn(inferred, es),
@@ -1737,7 +1741,7 @@ and uexp_to_info_map =
           switch (Typ.term_of(ty)) {
           | List(inner) =>
             let inner' = Typ.weak_head_normalize(ctx, inner);
-          phys_equal(inner', inner)
+            phys_equal(inner', inner)
               ? ty
               : {
                 ...ty,
@@ -1751,7 +1755,7 @@ and uexp_to_info_map =
           switch (e1_ty.term) {
           | Prod(ts)
           | List({term: Prod(ts), _}) =>
-          List.filter_map(~f=Typ.match_tup_label, ts) |> List.map(~f=fst)
+            List.filter_map(~f=Typ.match_tup_label, ts) |> List.map(~f=fst)
           | _ => []
           };
         let label_child = (~marks=[], ~elab_syn_ty, m) =>
@@ -2538,9 +2542,9 @@ and uexp_to_info_map =
       let (es, es_elabs, m) =
         List.fold2_exn(
           ~f=
-          ((es, elabs, m), e, ctx) =>
-            go(~ctx, ~ana, e, m)
-            |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
+            ((es, elabs, m), e, ctx) =>
+              go(~ctx, ~ana, e, m)
+              |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
           ~init=([], [], m),
           es,
           p_ctxs,
@@ -2554,20 +2558,20 @@ and uexp_to_info_map =
       let (constraints, ps_elabs, m) =
         List.fold_left(
           ~f=
-          (
             (
-              constraints: list(Coverage.Constraint.t),
-              ps_elabs: list(Pat.t),
-              m: Map.t,
-            ),
-            (p, co_ctx),
-          ) => {
-            let (info, p_elab, m) =
-              go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+              (
+                constraints: list(Coverage.Constraint.t),
+                ps_elabs: list(Pat.t),
+                m: Map.t,
+              ),
+              (p, co_ctx),
+            ) => {
+              let (info, p_elab, m) =
+                go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
 
-            let p_constraint = Info.pat_constraint(info);
-            ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
-          },
+              let p_constraint = Info.pat_constraint(info);
+              ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
+            },
           ~init=([], [], m),
           List.zip_exn(ps, e_co_ctxs),
         );
@@ -2590,16 +2594,16 @@ and uexp_to_info_map =
           (ps: list(Pat.t), redundant_rows: list(int), m: Map.t): Map.t =>
         List.fold_left(
           ~f=
-          (m, row) => {
+            (m, row) => {
               let p = List.nth_exn(ps, row);
-            switch (Id.Map.find(IdTagged.rep_id(p), m)) {
-            | Info.InfoPat(info) =>
-              let info =
-                prepend_pat_mark(info, Mark.Redundant, ~warnings=[], ());
-              add_info(IdTagged.ids(p), InfoPat(info), m);
-            | _ => failwith("Invalid sort for pattern.")
-            };
-          },
+              switch (Id.Map.find(IdTagged.rep_id(p), m)) {
+              | Info.InfoPat(info) =>
+                let info =
+                  prepend_pat_mark(info, Mark.Redundant, ~warnings=[], ());
+                add_info(IdTagged.ids(p), InfoPat(info), m);
+              | _ => failwith("Invalid sort for pattern.")
+              };
+            },
           ~init=m,
           redundant_rows,
         );
@@ -2786,10 +2790,10 @@ and uexp_to_info_map =
       let expected =
         switch (segment) {
         | None =>
-          Option.fold(
-            ~none=[],
-            ~some=ModuleHelpers.expected_members(~ctx, ~declared),
+          Option.value_map(
             ana_items,
+            ~default=[],
+            ~f=ModuleHelpers.expected_members(~ctx, ~declared),
           )
         | Some(s) => s.seg_expected
         };
@@ -2804,17 +2808,25 @@ and uexp_to_info_map =
       /* Each item with the names it exports: those it binds that no later
          item rebinds. */
       let exports: Id.Map.t(list(Var.t)) =
-        List.fold_right(items, ~f=(item: Mod.t, (by_item, rebound)) => {
-            let names = Mod.bound_names(item);
-            (
-              Id.Map.add(
-                Mod.rep_id(item),
-                List.filter(~f=x => !Sets.StringSet.mem(x, rebound), names),
-                by_item,
-              ),
-              Sets.StringSet.add_seq(List.to_seq(names), rebound),
-            );
-          }, ~init=(Id.Map.empty, Sets.StringSet.empty))
+        List.fold_right(
+          items,
+          ~f=
+            (item: Mod.t, (by_item, rebound)) => {
+              let names = Mod.bound_names(item);
+              (
+                Id.Map.add(
+                  Mod.rep_id(item),
+                  List.filter(
+                    ~f=x => !Sets.StringSet.mem(x, rebound),
+                    names,
+                  ),
+                  by_item,
+                ),
+                Sets.StringSet.add_seq(Stdlib.List.to_seq(names), rebound),
+              );
+            },
+          ~init=(Id.Map.empty, Sets.StringSet.empty),
+        )
         |> fst;
       let exported_by = (item: Mod.t): list(Var.t) =>
         switch (segment) {
@@ -2869,31 +2881,31 @@ and uexp_to_info_map =
         let exported = exported_by(item);
         let expected =
           List.filter(
-            (m: Sig.member) =>
-              switch (m) {
-              | Val(x, _) => List.exists(String.equal(x), exported)
-              | TypeManifest(_) => true
-              },
+            ~f=
+              (m: Sig.member) =>
+                switch (m) {
+                | Val(x, _) => List.exists(~f=String.equal(x), exported)
+                | TypeManifest(_) => true
+                },
             expected,
           );
         let ancestors = [Mod.rep_id(item), ...ancestors_inclusive];
         let expectation = ModuleHelpers.expected_pat_type(~ctx, expected, p);
         let ana_pat =
           Option.map(
-            (e: ModuleHelpers.pat_expectation) => e.ty,
+            ~f=(e: ModuleHelpers.pat_expectation) => e.ty,
             expectation,
           );
         let checked =
-          Option.fold(
-            ~none=[],
-            ~some=(e: ModuleHelpers.pat_expectation) => e.names,
-            expectation,
+          Option.value_map(
+            expectation, ~default=[], ~f=(e: ModuleHelpers.pat_expectation) =>
+            e.names
           );
         let (b, m) = let_binding(~ctx, ~ancestors, ~ana_pat, p, def, m);
         let (c, m) = go_rest(~ctx=b.ctx_scope, m);
         let export_uses =
           exported
-          |> List.map(name =>
+          |> List.map(~f=name =>
                CoCtx.singleton(
                  name,
                  Exp.rep_id(uexp),
@@ -2910,9 +2922,9 @@ and uexp_to_info_map =
           );
         let members =
           Pat.bound_vars(p)
-          |> List.filter_map(x =>
+          |> List.filter_map(~f=x =>
                Ctx.lookup_var(b.ctx_scope, x)
-               |> Option.map((entry: Ctx.var_entry) =>
+               |> Option.map(~f=(entry: Ctx.var_entry) =>
                     member(x, export(b.ctx_scope, entry.typ))
                   )
              );
@@ -3174,11 +3186,12 @@ and uexp_to_info_map =
               );
             let exps =
               List.filter(
-                (any: Any.t) =>
-                  switch (any) {
-                  | Exp(_) => true
-                  | _ => false
-                  },
+                ~f=
+                  (any: Any.t) =>
+                    switch (any) {
+                    | Exp(_) => true
+                    | _ => false
+                    },
                 tms_elab,
               );
             (
@@ -3476,11 +3489,12 @@ and upat_to_info_map =
          syntax, which an elaborated term does not carry. */
       let pats =
         List.filter(
-          (any: Any.t) =>
-            switch (any) {
-            | Pat(_) => true
-            | _ => false
-            },
+          ~f=
+            (any: Any.t) =>
+              switch (any) {
+              | Pat(_) => true
+              | _ => false
+              },
           tms_elab,
         );
       add(
@@ -3875,187 +3889,187 @@ and upat_to_info_map =
       let (ctx, tys, cons, m, info_pats, ps_elabs) =
         List.fold2_exn(
           ~f=
-          (
-            (ctx, tys, cons, m, info_all, elabs),
-            (inferred_label, e: Pat.t),
-            ana,
-          ) =>
-            switch (e.term) {
-            | TupLabel({term: ExplicitNonlabel, _}, _) =>
-              let (info, elab, m) =
-                go(
-                  ~ctx,
-                  ~ana,
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  e,
+            (
+              (ctx, tys, cons, m, info_all, elabs),
+              (inferred_label, e: Pat.t),
+              ana,
+            ) =>
+              switch (e.term) {
+              | TupLabel({term: ExplicitNonlabel, _}, _) =>
+                let (info, elab, m) =
+                  go(
+                    ~ctx,
+                    ~ana,
+                    ~duplicate_bindings=
+                      duplicate_bindings @ new_duplicate_bindings,
+                    e,
+                    m,
+                  );
+                let (info, m) =
+                  LabeledTupleStaticsHelpers.apply_inferred_label_pat(
+                    ~inferred_label,
+                    info,
+                    m,
+                  );
+                (
+                  info.ctx,
+                  [info.elab_syn_ty, ...tys],
+                  [info.constraint_, ...cons],
                   m,
+                  [info, ...info_all],
+                  [elab, ...elabs],
                 );
-              let (info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label,
-                  info,
-                  m,
-                );
-              (
-                info.ctx,
-                [info.elab_syn_ty, ...tys],
-                [info.constraint_, ...cons],
-                m,
-                [info, ...info_all],
-                [elab, ...elabs],
-              );
-            | TupLabel(label, value) =>
-              let (labmode, val_mode) =
-                LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
-              let (value_info, value_elab, m) =
-                go(
-                  ~ctx,
-                  ~ana=val_mode,
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  value,
-                  m,
-                );
-              let (lab_name, label_invalid, m) =
-                switch (label.term) {
-                | Label(name) =>
-                  let (label_syn, label_marks, label_invalid) =
-                    LabeledTupleStaticsHelpers.validate_label_name(
-                      ~name,
-                      ~expected_labels,
-                      ~duplicate_labels=new_duplicate_labels,
-                    );
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~co_ctx,
-                      ~ana=labmode,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=label_syn,
-                      ~marks=label_marks,
-                      ~constraint_=Coverage.Constraint.Truth,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (Some(name), label_invalid, m);
-                | EmptyHole =>
-                  let (_, _, m) =
-                    add(
-                      ~user_term=label,
-                      ~elab_term=label,
-                      ~ctx,
-                      ~co_ctx,
-                      ~ana=labmode,
-                      ~ancestors=ancestors_inclusive,
-                      ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
-                      ~marks=[],
-                      ~constraint_=Coverage.Constraint.Truth,
-                      ~label_inference=None,
-                      ~inferred_label=None,
-                      ~label_sort=true,
-                      ~warnings=[],
-                      m,
-                    );
-                  (None, false, m);
-                | _ =>
+              | TupLabel(label, value) =>
+                let (labmode, val_mode) =
+                  LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
+                let (value_info, value_elab, m) =
+                  go(
+                    ~ctx,
+                    ~ana=val_mode,
+                    ~duplicate_bindings=
+                      duplicate_bindings @ new_duplicate_bindings,
+                    value,
+                    m,
+                  );
+                let (lab_name, label_invalid, m) =
+                  switch (label.term) {
+                  | Label(name) =>
+                    let (label_syn, label_marks, label_invalid) =
+                      LabeledTupleStaticsHelpers.validate_label_name(
+                        ~name,
+                        ~expected_labels,
+                        ~duplicate_labels=new_duplicate_labels,
+                      );
+                    let (_, _, m) =
+                      add(
+                        ~user_term=label,
+                        ~elab_term=label,
+                        ~ctx,
+                        ~co_ctx,
+                        ~ana=labmode,
+                        ~ancestors=ancestors_inclusive,
+                        ~elab_syn_ty=label_syn,
+                        ~marks=label_marks,
+                        ~constraint_=Coverage.Constraint.Truth,
+                        ~label_inference=None,
+                        ~inferred_label=None,
+                        ~label_sort=true,
+                        ~warnings=[],
+                        m,
+                      );
+                    (Some(name), label_invalid, m);
+                  | EmptyHole =>
+                    let (_, _, m) =
+                      add(
+                        ~user_term=label,
+                        ~elab_term=label,
+                        ~ctx,
+                        ~co_ctx,
+                        ~ana=labmode,
+                        ~ancestors=ancestors_inclusive,
+                        ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                        ~marks=[],
+                        ~constraint_=Coverage.Constraint.Truth,
+                        ~label_inference=None,
+                        ~inferred_label=None,
+                        ~label_sort=true,
+                        ~warnings=[],
+                        m,
+                      );
+                    (None, false, m);
+                  | _ =>
                     let (p_info, p_elab, m) =
                       go(~ctx, ~ana=labmode, label, m);
-                  let (p_info, _, m) =
-                    add(
-                      ~user_term=p_info.user_term,
-                      ~elab_term=p_elab,
-                      ~ctx=p_info.ctx,
-                      ~co_ctx=p_info.co_ctx,
-                      ~ana=p_info.ana,
-                      ~ancestors=p_info.ancestors,
-                      ~elab_syn_ty=p_info.elab_syn_ty,
-                      ~marks=p_info.marks @ [BadLabel(Pat(label))],
-                      ~constraint_=p_info.constraint_,
-                      ~label_inference=p_info.label_inference,
-                      ~inferred_label=p_info.inferred_label,
-                      ~label_sort=true,
-                      ~warnings=p_info.warnings,
-                      m,
+                    let (p_info, _, m) =
+                      add(
+                        ~user_term=p_info.user_term,
+                        ~elab_term=p_elab,
+                        ~ctx=p_info.ctx,
+                        ~co_ctx=p_info.co_ctx,
+                        ~ana=p_info.ana,
+                        ~ancestors=p_info.ancestors,
+                        ~elab_syn_ty=p_info.elab_syn_ty,
+                        ~marks=p_info.marks @ [BadLabel(Pat(label))],
+                        ~constraint_=p_info.constraint_,
+                        ~label_inference=p_info.label_inference,
+                        ~inferred_label=p_info.inferred_label,
+                        ~label_sort=true,
+                        ~warnings=p_info.warnings,
+                        m,
+                      );
+                    (
+                      None,
+                      false,
+                      add_info(
+                        IdTagged.ids(p_info.user_term),
+                        InfoPat(p_info),
+                        m,
+                      ),
                     );
-                  (
-                    None,
-                    false,
-                    add_info(
-                      IdTagged.ids(p_info.user_term),
-                      InfoPat(p_info),
-                      m,
-                    ),
-                  );
-                };
-              let (syn_tl, cms_tl) =
-                LabeledTupleStaticsHelpers.tup_label_self_type(
-                  ~lab_name,
-                  ~label_invalid,
-                  ~duplicate_labels=new_duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
+                  };
+                let (syn_tl, cms_tl) =
+                  LabeledTupleStaticsHelpers.tup_label_self_type(
+                    ~lab_name,
+                    ~label_invalid,
+                    ~duplicate_labels=new_duplicate_labels,
+                    ~value_ty=value_info.elab_syn_ty,
                     ~label_is_empty_hole=Poly.equal(label.term, EmptyHole),
-                  ~malformed_source=Pat(label),
-                );
-              let constraint_ =
-                Coverage.Constraint.Tuple([value_info.constraint_]);
-              let (_, e_rewrap) = Pat.unwrap(e);
-              let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
-              let (info, _, m) =
-                add(
-                  ~user_term=e,
-                  ~elab_term=elab_tl,
-                  ~ctx=value_info.ctx,
-                  ~co_ctx,
-                  ~ana,
-                  ~ancestors=ancestors_inclusive,
-                  ~elab_syn_ty=syn_tl,
-                  ~marks=cms_tl,
-                  ~constraint_,
-                  ~label_inference=None,
-                  ~inferred_label,
-                  ~label_sort=false,
-                  ~warnings=[],
+                    ~malformed_source=Pat(label),
+                  );
+                let constraint_ =
+                  Coverage.Constraint.Tuple([value_info.constraint_]);
+                let (_, e_rewrap) = Pat.unwrap(e);
+                let elab_tl = TupLabel(label, value_elab) |> e_rewrap;
+                let (info, _, m) =
+                  add(
+                    ~user_term=e,
+                    ~elab_term=elab_tl,
+                    ~ctx=value_info.ctx,
+                    ~co_ctx,
+                    ~ana,
+                    ~ancestors=ancestors_inclusive,
+                    ~elab_syn_ty=syn_tl,
+                    ~marks=cms_tl,
+                    ~constraint_,
+                    ~label_inference=None,
+                    ~inferred_label,
+                    ~label_sort=false,
+                    ~warnings=[],
+                    m,
+                  );
+                (
+                  info.ctx,
+                  [info.elab_syn_ty, ...tys],
+                  [info.constraint_, ...cons],
                   m,
+                  [info, ...info_all],
+                  [elab_tl, ...elabs],
                 );
-              (
-                info.ctx,
-                [info.elab_syn_ty, ...tys],
-                [info.constraint_, ...cons],
-                m,
-                [info, ...info_all],
-                [elab_tl, ...elabs],
-              );
-            | _ =>
-              let (info, elab, m) =
-                go(
-                  ~ctx,
-                  ~ana,
-                  ~duplicate_bindings=
-                    duplicate_bindings @ new_duplicate_bindings,
-                  e,
+              | _ =>
+                let (info, elab, m) =
+                  go(
+                    ~ctx,
+                    ~ana,
+                    ~duplicate_bindings=
+                      duplicate_bindings @ new_duplicate_bindings,
+                    e,
+                    m,
+                  );
+                let (info, m) =
+                  LabeledTupleStaticsHelpers.apply_inferred_label_pat(
+                    ~inferred_label,
+                    info,
+                    m,
+                  );
+                (
+                  info.ctx,
+                  [info.elab_syn_ty, ...tys],
+                  [info.constraint_, ...cons],
                   m,
+                  [info, ...info_all],
+                  [elab, ...elabs],
                 );
-              let (info, m) =
-                LabeledTupleStaticsHelpers.apply_inferred_label_pat(
-                  ~inferred_label,
-                  info,
-                  m,
-                );
-              (
-                info.ctx,
-                [info.elab_syn_ty, ...tys],
-                [info.constraint_, ...cons],
-                m,
-                [info, ...info_all],
-                [elab, ...elabs],
-              );
-            },
+              },
           ~init=(ctx, [], [], m, [], []),
           List.zip_exn(inferred, ps),
           modes,
@@ -4320,7 +4334,7 @@ and utyp_to_info_map =
             Message.ProdProjectionMissingLabel(
               l,
               List.filter_map(
-                  ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst),
+                ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst),
                 tys,
               ),
             ),
@@ -4436,7 +4450,7 @@ and utyp_to_info_map =
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
     | (ModuleMemberExpected(member, {listed, hole}), Label(name)) =>
-      hole || List.exists(String.equal(name), listed)
+      hole || List.exists(~f=String.equal(name), listed)
         ? ok(Message.Type(ty))
         : err(
             ModuleTypeMemberNotFound(
@@ -4526,7 +4540,7 @@ and utyp_to_info_map =
       };
     let (ts, m) =
       map_m((t: Typ.t) => go(~expects=expects_of(t), t), ts, m);
-    add(~ty=Prod(List.map((t: Info.typ) => t.ty, ts)) |> rewrap, m);
+    add(~ty=Prod(List.map(~f=(t: Info.typ) => t.ty, ts)) |> rewrap, m);
   | ProdProjection(t, label) =>
     let (t, m) = go(~expects=ProductExpected, t, m);
     let label_expects: TypExpectation.t =
@@ -4560,7 +4574,7 @@ and utyp_to_info_map =
           LabelProjectionExpected(
             Some(
               List.filter_map(
-            ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst),
+                ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst),
                 ts,
               ),
             ),
@@ -4619,11 +4633,11 @@ and utyp_to_info_map =
     let (m, _, closed) =
       List.fold_left(
         ~f=
-        variant_to_info_map(
-          ~ctx,
-          ~ancestors=ancestors_inclusive,
-          ~ty_sum=utyp,
-        ),
+          variant_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~ty_sum=utyp,
+          ),
         ~init=(m, [], []),
         variants,
       );
@@ -4686,14 +4700,15 @@ and utyp_to_info_map =
         let scopes = Typ.sig_item_scopes(ctx, items);
         (
           List.map(
-            (scope: Typ.sig_item_scope) =>
-              (scope.ctx, scope.written, marks(scope.closed)),
+            ~f=
+              (scope: Typ.sig_item_scope) =>
+                (scope.ctx, scope.written, marks(scope.closed)),
             scopes,
           ),
           Sig(Closed(Typ.closed_of_scopes(scopes))) |> rewrap,
         );
       | Closed(items) => (
-          List.map(item => (ctx, item, []), ClosedSig.items(items)),
+          List.map(~f=item => (ctx, item, []), ClosedSig.items(items)),
           Typ.close(ctx, utyp),
         )
       };
@@ -4701,16 +4716,16 @@ and utyp_to_info_map =
       List.fold_left(
         ~f=
           (m, (ctx, item, marks)) => {
-          let (_, _, m) =
-            sig_to_info_map(
-              ~ctx,
-              ~ancestors=ancestors_inclusive,
-              ~marks,
-              item,
-              m,
-            );
-          m;
-        },
+            let (_, _, m) =
+              sig_to_info_map(
+                ~ctx,
+                ~ancestors=ancestors_inclusive,
+                ~marks,
+                item,
+                m,
+              );
+            m;
+          },
         ~init=m,
         scoped,
       );
@@ -5015,7 +5030,8 @@ let mk_impl = (~segment=None, (ana, ctx, e, probe_ids)) => {
   let _ =
     Grammar.map_exp_annotation(
       ({ids, _}: IdTagged.IdTag.t) => {
-        let info_opt = List.find_map(~f=id => Id.Map.find_opt(id, m_ref^), ids);
+        let info_opt =
+          List.find_map(~f=id => Id.Map.find_opt(id, m_ref^), ids);
         switch (info_opt) {
         | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
         | None => ()
@@ -5038,14 +5054,17 @@ let mk_cache_max = 16;
 
 let mk = ((ana, ctx, e, probe_ids) as key) => {
   let key_eq = ((ana', ctx', e', probe_ids')) =>
-    e' === e
-    && ctx' === ctx
-    && compare(ana', ana) == 0
-    && compare(probe_ids', probe_ids) == 0;
-  switch (List.find_opt(((k, _)) => key_eq(k), mk_cache^)) {
+    phys_equal(e', e)
+    && phys_equal(ctx', ctx)
+    && Poly.compare(ana', ana) == 0
+    && Poly.compare(probe_ids', probe_ids) == 0;
+  switch (List.find(~f=((k, _)) => key_eq(k), mk_cache^)) {
   | Some((k, r)) =>
     mk_cache :=
-      [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
+      [
+        (k, r),
+        ...List.filter(~f=((k', _)) => !phys_equal(k', k), mk_cache^),
+      ];
     r;
   | None =>
     let r = mk_impl(key);
