@@ -221,11 +221,12 @@ module rec Exp: {
     | Atom(c) => basic(c)
     | Var(x) => var(x)
     /* Grammar stores the name caret-less (MakeTerm parity) */
-    | LivelitName(l) => livelit_name(String.sub(l, 1, String.length(l) - 1))
+    | LivelitName(l) =>
+      livelit_name(String.sub(l, ~pos=1, ~len=String.length(l) - 1))
     | Constructor(x, ty) =>
-      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
+      constructor(x, Option.map(~f=Option.map(~f=Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
-    | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
+    | ListExp(l) => list_lit(List.map(~f=of_menhir_ast, l))
     | ParenExp(TupleExp([TupLabel(_) as tl])) =>
       parens(tuple([of_menhir_ast(tl)]))
     | ParenExp(e) => parens(of_menhir_ast(e))
@@ -235,7 +236,7 @@ module rec Exp: {
        TupLabel and diverge — MenhirParser cases 53/87 pin this) */
     | TupleExp([TupLabel(_) as tl]) => tuple([of_menhir_ast(tl)])
     | TupleExp([e]) => of_menhir_ast(e)
-    | TupleExp(e) => tuple(List.map(of_menhir_ast, e))
+    | TupleExp(e) => tuple(List.map(~f=of_menhir_ast, e))
     | TupleExtension(e1, e2) =>
       tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
@@ -279,8 +280,8 @@ module rec Exp: {
     | ApExp(e1, args) =>
       switch (args) {
       | TupleExp(l) =>
-        List.mem(AST.Deferral, l)
-          ? deferred_ap(of_menhir_ast(e1), List.map(of_menhir_ast, l))
+        List.mem(l, AST.Deferral, ~equal=Poly.equal)
+          ? deferred_ap(of_menhir_ast(e1), List.map(~f=of_menhir_ast, l))
           : ap(
               Language.Operators.Forward,
               of_menhir_ast(e1),
@@ -308,7 +309,7 @@ module rec Exp: {
       let d_scrut = of_menhir_ast(e);
       let d_rules =
         List.map(
-          ((pat, exp)) => (Pat.of_menhir_ast(pat), of_menhir_ast(exp)),
+          ~f=((pat, exp)) => (Pat.of_menhir_ast(pat), of_menhir_ast(exp)),
           l,
         );
       match(d_scrut, d_rules);
@@ -323,7 +324,9 @@ module rec Exp: {
         | BinHole(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | e => [of_menhir_ast(e), ...acc]
         };
-      multi_hole(List.map(e => Language.Grammar.Exp(e), collect(e, [])));
+      multi_hole(
+        List.map(~f=e => Language.Grammar.Exp(e), collect(e, [])),
+      );
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
     | HintedTest(e, hint) =>
@@ -354,7 +357,7 @@ module rec Exp: {
         annotation: true,
         term: of_menhir_ast(e).term,
       }
-    | Module(items) => module_(List.map(ModItem.of_menhir_ast, items))
+    | Module(items) => module_(List.map(~f=ModItem.of_menhir_ast, items))
     | ModuleExp(p, e1, e2) =>
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));
       module_exp(mp, of_menhir_ast(e1), of_menhir_ast(e2));
@@ -376,8 +379,8 @@ module rec Exp: {
     | Var(x) => Var(x)
     | LivelitName(s) => LivelitName("^" ++ s)
     | Deferral(InAp) => Deferral
-    | ListLit(l) => ListExp(List.map(of_core, l))
-    | Tuple(l) => TupleExp(List.map(of_core, l))
+    | ListLit(l) => ListExp(List.map(~f=of_core, l))
+    | Tuple(l) => TupleExp(List.map(~f=of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
@@ -398,7 +401,7 @@ module rec Exp: {
     | Match(e, l) =>
       CaseExp(
         of_core(e),
-        List.map(((p, e)) => (Pat.of_core(p), of_core(e)), l),
+        List.map(~f=((p, e)) => (Pat.of_core(p), of_core(e)), l),
       )
     | Asc(e, t) => Asc(of_core(e), Typ.of_core(t))
     | EmptyHole => EmptyHole
@@ -424,16 +427,17 @@ module rec Exp: {
          ones have no textual spelling and stay unsupported */
       let exps =
         List.filter_map(
-          fun
-          | Language.Grammar.Exp(e) => Some(e)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Exp(e) => Some(e)
+            | _ => None,
           es,
         );
       switch (List.length(exps) == List.length(es), exps) {
       | (true, [e1, e2, ...rest]) =>
         List.fold_left(
-          (acc, e) => AST.BinHole(acc, of_core(e)),
-          BinHole(of_core(e1), of_core(e2)),
+          ~f=(acc, e) => AST.BinHole(acc, of_core(e)),
+          ~init=AST.BinHole(of_core(e1), of_core(e2)),
           rest,
         )
       | _ => raise(Failure("MultiHole not supported"))
@@ -441,9 +445,9 @@ module rec Exp: {
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => ParenExp(of_core(e))
     | Constructor(s, typ) =>
-      Constructor(s, Option.map(Option.map(Typ.of_core), typ))
+      Constructor(s, Option.map(~f=Option.map(~f=Typ.of_core), typ))
     | DeferredAp(e, es) =>
-      ApExp(of_core(e), TupleExp(List.map(of_core, es)))
+      ApExp(of_core(e), TupleExp(List.map(~f=of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
     | Label(s) => Label(s)
     | ExplicitNonlabel => ExplicitNonlabel
@@ -455,7 +459,7 @@ module rec Exp: {
        meaningful. */
     | DrvQuote(_) => raise(Failure("DrvQuote not supported"))
     | Projector(_, e) => of_core(e)
-    | Module(items) => Module(List.map(ModItem.of_core, items))
+    | Module(items) => Module(List.map(~f=ModItem.of_core, items))
     | ModuleExp(mp, def, body) =>
       ModuleExp(pat_of_mpat(mp), of_core(def), of_core(body))
     };
@@ -511,7 +515,7 @@ and Typ: {
     | TupleType([]) => prod([])
     | TupleType([TupLabelType(_) as tl]) => prod([of_menhir_ast(tl)])
     | TupleType([t]) => of_menhir_ast(t)
-    | TupleType(ts) => prod(List.map(of_menhir_ast, ts))
+    | TupleType(ts) => prod(List.map(~f=of_menhir_ast, ts))
     | LabelType(s) => label(s)
     | ExplicitNonlabel => explicit_non_label()
     | TupLabelType(t1, t2) =>
@@ -529,7 +533,7 @@ and Typ: {
       unknown(
         Hole(
           MultiHole(
-            List.map(t => Language.Grammar.Typ(t), collect(t, [])),
+            List.map(~f=t => Language.Grammar.Typ(t), collect(t, [])),
           ),
         ),
       );
@@ -547,16 +551,17 @@ and Typ: {
       open Language;
       let converted_terms: list(ConstructorMap.variant(IndicatedG.typ)) =
         List.map(
-          (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
-            switch (sumterm) {
-            | Variant(name, typ) =>
-              Variant(
-                name,
-                ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
-                Option.map(of_menhir_ast, typ),
-              )
-            | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
-            },
+          ~f=
+            (sumterm: AST.sumterm): ConstructorMap.variant(IndicatedG.typ) =>
+              switch (sumterm) {
+              | Variant(name, typ) =>
+                Variant(
+                  name,
+                  ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+                  Option.map(~f=of_menhir_ast, typ),
+                )
+              | BadEntry(typ) => BadEntry(of_menhir_ast(typ))
+              },
           sumterms,
         );
       sum(converted_terms);
@@ -565,7 +570,7 @@ and Typ: {
     | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | Sig(items) => {
         annotation: false,
-        term: Sig(List.map(SigItem.of_menhir_ast, items)),
+        term: Sig(List.map(~f=SigItem.of_menhir_ast, items)),
       }
     | IndicationTyp(t) => {
         annotation: true,
@@ -591,7 +596,7 @@ and Typ: {
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
-    | Prod(ts) => TupleType(List.map(of_core, ts))
+    | Prod(ts) => TupleType(List.map(~f=of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(Hole(MultiHole(ts))) =>
@@ -599,16 +604,17 @@ and Typ: {
          ones have no textual spelling and stay unsupported */
       let typs =
         List.filter_map(
-          fun
-          | Language.Grammar.Typ(t) => Some(t)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Typ(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(typs) == List.length(ts), typs) {
       | (true, [t1, t2, ...rest]) =>
         List.fold_left(
-          (acc, t) => AST.BinHoleTyp(acc, of_core(t)),
-          BinHoleTyp(of_core(t1), of_core(t2)),
+          ~f=(acc, t) => AST.BinHoleTyp(acc, of_core(t)),
+          ~init=AST.BinHoleTyp(of_core(t1), of_core(t2)),
           rest,
         )
       | _ => raise(Failure("MultiHole not supported"))
@@ -627,20 +633,22 @@ and Typ: {
     | Sum(constructors) =>
       let sumterms =
         List.map(
-          (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
-            switch (variant) {
-            | Variant(name, _, None) => Variant(name, None)
-            | Variant(name, _, Some(t)) => Variant(name, Some(of_core(t)))
-            | BadEntry(t) => BadEntry(of_core(t))
-            }
-          },
+          ~f=
+            (variant: Language.ConstructorMap.variant(IndicatedG.typ)): AST.sumterm => {
+              switch (variant) {
+              | Variant(name, _, None) => Variant(name, None)
+              | Variant(name, _, Some(t)) =>
+                Variant(name, Some(of_core(t)))
+              | BadEntry(t) => BadEntry(of_core(t))
+              }
+            },
           constructors,
         );
       SumTyp(sumterms);
     /* Same as DrvQuote in the Exp case: no menhir syntax for Drv types. */
     | DrvQuoteTy(_) => raise(Failure("DrvQuoteTy not supported"))
     | Projector(_, t) => of_core(t)
-    | Sig(items) => Sig(List.map(SigItem.of_core, items))
+    | Sig(items) => Sig(List.map(~f=SigItem.of_core, items))
     };
   };
 }
@@ -660,7 +668,9 @@ and TPat: {
         | BinHoleTPat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | t => [of_menhir_ast(t), ...acc]
         };
-      multi_hole(List.map(t => Language.Grammar.TPat(t), collect(t, [])));
+      multi_hole(
+        List.map(~f=t => Language.Grammar.TPat(t), collect(t, [])),
+      );
     | VarTPat(s) => var(s)
     };
   };
@@ -673,16 +683,17 @@ and TPat: {
     | MultiHole(ts) =>
       let tpats =
         List.filter_map(
-          fun
-          | Language.Grammar.TPat(t) => Some(t)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.TPat(t) => Some(t)
+            | _ => None,
           ts,
         );
       switch (List.length(tpats) == List.length(ts), tpats) {
       | (true, [t1, t2, ...rest]) =>
         List.fold_left(
-          (acc, t) => AST.BinHoleTPat(acc, of_core(t)),
-          BinHoleTPat(of_core(t1), of_core(t2)),
+          ~f=(acc, t) => AST.BinHoleTPat(acc, of_core(t)),
+          ~init=AST.BinHoleTPat(of_core(t1), of_core(t2)),
           rest,
         )
       | _ => raise(Failure("MultiHole not supported"))
@@ -705,13 +716,15 @@ and Pat: {
         | BinHolePat(l, r) => collect(l, [of_menhir_ast(r), ...acc])
         | p => [of_menhir_ast(p), ...acc]
         };
-      multi_hole(List.map(p => Language.Grammar.Pat(p), collect(p, [])));
+      multi_hole(
+        List.map(~f=p => Language.Grammar.Pat(p), collect(p, [])),
+      );
     | AtomPat(c) => basic(c)
     | AscPat(p, t) => asc(of_menhir_ast(p), Typ.of_menhir_ast(t))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
-      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
-    | TuplePat(pats) => tuple(List.map(of_menhir_ast, pats))
+      constructor(x, Option.map(~f=Option.map(~f=Typ.of_menhir_ast), ty))
+    | TuplePat(pats) => tuple(List.map(~f=of_menhir_ast, pats))
     | ParenPat(p) => parens(of_menhir_ast(p))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) => cons(of_menhir_ast(p1), of_menhir_ast(p2))
@@ -720,7 +733,7 @@ and Pat: {
     | LabelPat(s) => label(s)
     | TupLabelPat(p1, p2) =>
       tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
-    | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
+    | ListPat(l) => list_lit(List.map(~f=of_menhir_ast, l))
     | IndicationPat(p) => {
         annotation: true,
         term: of_menhir_ast(p).term,
@@ -734,26 +747,27 @@ and Pat: {
     | Atom(c) => AtomPat(c)
     | Var(x) => VarPat(x)
     | Constructor(x, ty) =>
-      ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
-    | Tuple(l) => TuplePat(List.map(of_core, l))
+      ConstructorPat(x, Option.map(~f=Option.map(~f=Typ.of_core), ty))
+    | Tuple(l) => TuplePat(List.map(~f=of_core, l))
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
-    | ListLit(l) => ListPat(List.map(of_core, l))
+    | ListLit(l) => ListPat(List.map(~f=of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))
     | EmptyHole => EmptyHolePat
     | Wild => WildPat
     | MultiHole(ps) =>
       let pats =
         List.filter_map(
-          fun
-          | Language.Grammar.Pat(p) => Some(p)
-          | _ => None,
+          ~f=
+            fun
+            | Language.Grammar.Pat(p) => Some(p)
+            | _ => None,
           ps,
         );
       switch (List.length(pats) == List.length(ps), pats) {
       | (true, [p1, p2, ...rest]) =>
         List.fold_left(
-          (acc, p) => AST.BinHolePat(acc, of_core(p)),
-          BinHolePat(of_core(p1), of_core(p2)),
+          ~f=(acc, p) => AST.BinHolePat(acc, of_core(p)),
+          ~init=AST.BinHolePat(of_core(p1), of_core(p2)),
           rest,
         )
       | _ => raise(Failure("MultiHole not supported"))
