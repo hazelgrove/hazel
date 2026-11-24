@@ -14,7 +14,7 @@ let get_scratch_zipper = (page: Page.Model.t): option(Zipper.t) =>
   switch (page.editors) {
   | Scratch(model)
   | Documentation(model) =>
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     switch (scratchpad.kind) {
     | Code({editor, _}) => Some(editor.editor.editor.state.zipper)
     | Drv(_) => None

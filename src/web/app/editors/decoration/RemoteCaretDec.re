@@ -22,12 +22,12 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
 let truncate_name = (name: string): string => {
   /* If there's a space, take first word */
   let name =
-    switch (String.index_opt(name, ' ')) {
-    | Some(i) => String.sub(name, 0, i)
+    switch (String.index(name, ' ')) {
+    | Some(i) => String.sub(name, ~pos=0, ~len=i)
     | None => name
     };
   /* If longer than 8 chars, truncate with ellipsis */
-  String.length(name) > 8 ? String.sub(name, 0, 7) ++ "…" : name;
+  String.length(name) > 8 ? String.sub(name, ~pos=0, ~len=7) ++ "…" : name;
 };
 
 let main =
@@ -104,7 +104,7 @@ let find_shard_measurement =
     /* For tiles with shard_index, look up the specific shard */
     switch (Id.Map.find_opt(piece_id, measured.tiles)) {
     | Some(shards) =>
-      switch (List.assoc_opt(idx, shards)) {
+      switch (List.Assoc.find(shards, idx, ~equal=Int.equal)) {
       | Some(m) => Some(m)
       | None => Measured.find_by_id(piece_id, measured) /* Fallback */
       }
@@ -177,7 +177,7 @@ let view =
 let view_all =
     (~measured: Measured.t, ~font_metrics: FontMetrics.t): list(Node.t) => {
   PatchworkComm.get_remote_carets()
-  |> List.filter_map(((user_id, rc: PatchworkComm.remote_caret)) =>
+  |> List.filter_map(~f=((user_id, rc: PatchworkComm.remote_caret)) =>
        view(
          ~user_id,
          ~user_name=rc.user_name,

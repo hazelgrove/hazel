@@ -26,11 +26,11 @@ let validate_tile =
         ++ " tile mismatch: id="
         ++ Id.to_string(id)
         ++ " label="
-        ++ String.concat(",", label)
+        ++ String.concat(~sep=",", label)
         ++ " shards="
         ++ string_of_int(num_shards)
         ++ " (indices: "
-        ++ String.concat(",", List.map(string_of_int, shards))
+        ++ String.concat(~sep=",", List.map(~f=string_of_int, shards))
         ++ ")"
         ++ " children="
         ++ string_of_int(num_children)
@@ -54,9 +54,8 @@ let validate_tile =
    (e.g. Ap -> Parens) after a sync_replace round trip. */
 let form_of_label_mold = (label: Label.t, mold: Mold.t): (Form.t, Sort.t) =>
   switch (
-    List.find_opt(
-      ((_, m): (Form.t, Mold.t)) => m == mold,
-      Form.base_candidates(label),
+    List.find(Form.base_candidates(label), ~f=((_, m): (Form.t, Mold.t)) =>
+      Mold.equal(m, mold)
     )
   ) {
   | Some((f, _)) => (f, mold.out)
@@ -67,7 +66,7 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
   let piece_count = ref(0);
   let root_form = Form.Compound(Parens);
   let rec go_seg = (seg: Segment.t): Doc.t => {
-    seg |> List.map(go_piece) |> Doc.union_all;
+    seg |> List.map(~f=go_piece) |> Doc.union_all;
   }
   and go_piece = (piece: Piece.t): Doc.t => {
     piece_count := piece_count^ + 1;
@@ -92,7 +91,7 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
       let label = Tile.label(t);
       validate_tile(~context="seg_to_doc", ~id, ~label, ~shards, ~children);
       children
-      |> List.map(go_seg)
+      |> List.map(~f=go_seg)
       |> Doc.union_all
       |> Doc.add(
            id,
@@ -101,7 +100,7 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
              label,
              mold: Tile.mold(t),
              shards,
-             children: children |> List.map(List.map(Piece.id)),
+             children: children |> List.map(~f=List.map(~f=Piece.id)),
            }),
          );
     };
@@ -114,7 +113,7 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
         label: Form.label_of(root_form),
         mold: Form.mold_of(root_form, Exp),
         shards: [0, 1],
-        children: [List.map(Piece.id, seg)],
+        children: [List.map(seg, ~f=Piece.id)],
       }),
       go_seg(seg),
     );
@@ -133,7 +132,7 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
     | _ => failwith("Root not found")
     };
   let rec go_seg = (seg_ids: list(Id.t)): Segment.t => {
-    List.map(go_piece, seg_ids);
+    List.map(seg_ids, ~f=go_piece);
   }
   and go_piece = (piece_id: Id.t): Base.piece => {
     piece_count := piece_count^ + 1;
@@ -146,7 +145,7 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
         form,
         sort,
         shards,
-        children: List.map(go_seg, children),
+        children: List.map(children, ~f=go_seg),
       });
     | Some(Grout(grout)) => Grout(grout)
     | Some(Secondary(secondary)) => Secondary(secondary)

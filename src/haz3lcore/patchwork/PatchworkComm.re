@@ -9,8 +9,7 @@ open Util;
    Returns false in non-browser environments (e.g., Node.js tests). */
 let is_in_iframe = (): bool => {
   Js.Optdef.test(Js.Unsafe.global##.window)
-  &&
-  Js.Unsafe.global##.parent !== Js.Unsafe.global;
+  && !phys_equal(Js.Unsafe.global##.parent, Js.Unsafe.global);
 };
 
 /* Remote caret state for collaborative cursor display */
@@ -110,7 +109,7 @@ module JsConvert = {
   let of_mold = (mold: Mold.t): FlatDoc.Mold.t =>
     FlatDoc.Mold.create(
       ~out=of_sort(mold.out),
-      ~in_=mold.in_ |> List.map(of_sort),
+      ~in_=mold.in_ |> List.map(~f=of_sort),
       ~nibs=mold.nibs |> of_nibs,
       (),
     );
@@ -138,11 +137,11 @@ module JsConvert = {
           ++ " tile structure mismatch: id="
           ++ Id.to_string(id)
           ++ " label="
-          ++ String.concat(",", label)
+          ++ String.concat(~sep=",", label)
           ++ " shards="
           ++ string_of_int(num_shards)
           ++ " (indices: "
-          ++ String.concat(",", List.map(string_of_int, shards))
+          ++ String.concat(~sep=",", List.map(~f=string_of_int, shards))
           ++ ")"
           ++ " children="
           ++ string_of_int(num_children)
@@ -168,7 +167,7 @@ module JsConvert = {
       ~label=tile.label,
       ~mold=tile.mold |> of_mold,
       ~shards=tile.shards,
-      ~children=tile.children |> List.map(List.map(Id.to_string)),
+      ~children=tile.children |> List.map(~f=List.map(~f=Id.to_string)),
       (),
     );
   };
@@ -230,17 +229,23 @@ module JsConvert = {
   and to_mold: FlatDoc.Mold.t => Mold.t =
     mold => {
       out: to_sort(FlatDoc.Mold.get_out(mold)),
-      in_: FlatDoc.Mold.get_in(mold) |> List.map(to_sort),
+      in_: FlatDoc.Mold.get_in(mold) |> List.map(~f=to_sort),
       nibs: to_nibs(FlatDoc.Mold.get_nibs(mold)),
     }
   and to_tile: FlatDoc.FlatTile.t => FlatConvert.Flat.tile =
     tile => {
-      let id = Id.of_string(FlatDoc.FlatTile.get_id(tile)) |> Option.get;
+      let id =
+        Id.of_string(FlatDoc.FlatTile.get_id(tile)) |> Option.value_exn;
       let label = FlatDoc.FlatTile.get_label(tile);
       let shards = FlatDoc.FlatTile.get_shards(tile);
       let children =
         FlatDoc.FlatTile.get_children(tile)
-        |> List.map(List.map(id_str => Id.of_string(id_str) |> Option.get));
+        |> List.map(
+             ~f=
+               List.map(~f=id_str =>
+                 Id.of_string(id_str) |> Option.value_exn
+               ),
+           );
       validate_tile_structure(
         ~context="RECV",
         ~id,
@@ -258,7 +263,8 @@ module JsConvert = {
     }
   and to_secondary: FlatDoc.Secondary.t => Secondary.t =
     secondary => {
-      id: Id.of_string(FlatDoc.Secondary.get_id(secondary)) |> Option.get,
+      id:
+        Id.of_string(FlatDoc.Secondary.get_id(secondary)) |> Option.value_exn,
       content:
         to_secondary_content(FlatDoc.Secondary.get_content(secondary)),
     }
@@ -273,17 +279,19 @@ module JsConvert = {
     }
   and to_grout = (grout: FlatDoc.Grout.t): Grout.t => {
     {
-      id: Id.of_string(FlatDoc.Grout.get_id(grout)) |> Option.get,
+      id: Id.of_string(FlatDoc.Grout.get_id(grout)) |> Option.value_exn,
       shape: to_shape(FlatDoc.Grout.get_shape(grout)),
     };
   }
   and to_projector =
       (proj: FlatDoc.FlatProjector.t): FlatConvert.Flat.projector => {
     {
-      id: Id.of_string(FlatDoc.FlatProjector.get_id(proj)) |> Option.get,
+      id:
+        Id.of_string(FlatDoc.FlatProjector.get_id(proj)) |> Option.value_exn,
       kind: FlatDoc.FlatProjector.get_kind(proj),
       syntax:
-        Id.of_string(FlatDoc.FlatProjector.get_syntax(proj)) |> Option.get,
+        Id.of_string(FlatDoc.FlatProjector.get_syntax(proj))
+        |> Option.value_exn,
       model: FlatDoc.FlatProjector.get_model(proj),
     };
   }
@@ -332,7 +340,7 @@ module JsConvert = {
     let state = hazeldoc_of_flatdoc(map);
 
     // Convert deleted IDs to string list for JS
-    let deleted_strs = List.map(Id.to_string, deleted);
+    let deleted_strs = List.map(~f=Id.to_string, deleted);
 
     // Convert before state if provided
     let before_js =
@@ -384,8 +392,8 @@ module JsConvert = {
       let id_list = (doc: FlatConvert.Doc.t): string =>
         doc
         |> Id.Map.bindings
-        |> List.map(((id, _)) => Id.to_string(id))
-        |> String.concat(", ");
+        |> List.map(~f=((id, _)) => Id.to_string(id))
+        |> String.concat(~sep=", ");
       Firebug.console##log(
         Js.string(
           "[DELTA] old_doc ("
@@ -412,16 +420,18 @@ module JsConvert = {
       | Tile({id, label, shards, children, _}) =>
         let children_str =
           children
-          |> List.map(seg =>
-               "[" ++ String.concat(",", List.map(Id.to_string, seg)) ++ "]"
+          |> List.map(~f=seg =>
+               "["
+               ++ String.concat(~sep=",", List.map(~f=Id.to_string, seg))
+               ++ "]"
              )
-          |> String.concat(";");
+          |> String.concat(~sep=";");
         "Tile(id="
         ++ Id.to_string(id)
         ++ ",label=["
-        ++ String.concat(",", label)
+        ++ String.concat(~sep=",", label)
         ++ "],shards=["
-        ++ String.concat(",", List.map(string_of_int, shards))
+        ++ String.concat(~sep=",", List.map(~f=string_of_int, shards))
         ++ "],children=["
         ++ children_str
         ++ "])";
@@ -440,8 +450,8 @@ module JsConvert = {
          | Some(old_piece) =>
            // Debug: log ALL pieces for small docs
            if (old_count <= 10 && new_count <= 10) {
-             let phys_eq = old_piece === new_piece;
-             let struct_eq = old_piece == new_piece;
+             let phys_eq = phys_equal(old_piece, new_piece);
+             let struct_eq = Poly.equal(old_piece, new_piece);
              Firebug.console##log(
                Js.string(
                  "[DELTA] Piece "
@@ -460,7 +470,7 @@ module JsConvert = {
              );
            };
            // Piece exists, check if changed using structural inequality
-           if (old_piece != new_piece) {
+           if (!Poly.equal(old_piece, new_piece)) {
              changed := Id.Map.add(id, new_piece, changed^);
              changed_before := Id.Map.add(id, old_piece, changed_before^);
            };
@@ -519,7 +529,7 @@ module JsConvert = {
     // Create JS array for deleted IDs
     let deleted_array =
       delta.deleted
-      |> List.map(id => Id.to_string(id) |> Js.string)
+      |> List.map(~f=id => Id.to_string(id) |> Js.string)
       |> Array.of_list
       |> Js.array;
 
@@ -541,12 +551,12 @@ module JsConvert = {
 
     // Get keys from JS object using Object.keys()
     let keys_js_array = Js.Unsafe.global##.Object##keys(js_obj);
-    let keys = Js.to_array(keys_js_array) |> Array.map(Js.to_string);
+    let keys = Js.to_array(keys_js_array) |> Array.map(~f=Js.to_string);
 
     // Convert JS object to list of (key, value) pairs, then to OCaml Map
     keys
     |> Array.to_list
-    |> List.map(key => {
+    |> List.map(~f=key => {
          let js_piece =
            FlatDoc.HazelDoc.AnonymousInterface2.Pieces4.get(pieces_map, key);
          let piece = to_flat_piece(js_piece);
@@ -684,9 +694,9 @@ let listen = (schedule_action: Action.t => unit): unit => {
               "Tile(id="
               ++ Id.to_string(id)
               ++ ", label=["
-              ++ String.concat(",", label)
+              ++ String.concat(~sep=",", label)
               ++ "], shards=["
-              ++ String.concat(",", List.map(string_of_int, shards))
+              ++ String.concat(~sep=",", List.map(~f=string_of_int, shards))
               ++ "], children="
               ++ string_of_int(List.length(children))
               ++ ")"
@@ -772,9 +782,9 @@ let send_state =
         "Tile(id="
         ++ Id.to_string(id)
         ++ ", label=["
-        ++ String.concat(",", label)
+        ++ String.concat(~sep=",", label)
         ++ "], shards=["
-        ++ String.concat(",", List.map(string_of_int, shards))
+        ++ String.concat(~sep=",", List.map(~f=string_of_int, shards))
         ++ "], children="
         ++ string_of_int(List.length(children))
         ++ ")"
@@ -824,7 +834,10 @@ let send_state =
       Firebug.console##log(
         Js.string(
           "[DELTA SEND] Deleted IDs: ["
-          ++ String.concat(", ", List.map(Id.to_string, delta.deleted))
+          ++ String.concat(
+               ~sep=", ",
+               List.map(~f=Id.to_string, delta.deleted),
+             )
           ++ "]",
         ),
       );

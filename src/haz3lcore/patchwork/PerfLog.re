@@ -95,24 +95,18 @@ module Count = {
   };
 
   let rec pieces_in_segment_deep = (seg: Base.segment): int => {
-    List.fold_left(
-      (acc, piece) => {
-        acc
-        + 1
-        + (
-          switch (piece) {
-          | Base.Tile({children, _}) =>
-            List.fold_left(
-              (acc2, child_seg) => acc2 + pieces_in_segment_deep(child_seg),
-              0,
-              children,
-            )
-          | _ => 0
-          }
-        )
-      },
-      0,
-      seg,
-    );
+    List.fold(seg, ~init=0, ~f=(acc, piece) => {
+      acc
+      + 1
+      + (
+        switch (piece) {
+        | Base.Tile({children, _}) =>
+          List.fold(children, ~init=0, ~f=(acc2, child_seg) =>
+            acc2 + pieces_in_segment_deep(child_seg)
+          )
+        | _ => 0
+        }
+      )
+    });
   };
 };

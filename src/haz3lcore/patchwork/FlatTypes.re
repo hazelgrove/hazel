@@ -35,7 +35,7 @@ module Doc = {
   type nonrec t = t(Flat.piece);
 
   let union_all = (docs: list(t)): t => {
-    List.fold_left(union((_, _, a) => Some(a)), empty, docs);
+    List.fold(docs, ~init=empty, ~f=union((_, _, a) => Some(a)));
   };
 
   /* pp and show functions compatible with ppx_deriving_show */

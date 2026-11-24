@@ -163,14 +163,12 @@ module Store = {
   let load_default = (~settings) => {
     let (current, slides) = Lazy.force(Init.startup).scratch;
     let scratchpads =
-      List.map(
-        ((name, persistent)) =>
-          ScratchMode.Scratchpad.mk_code(
-            ~name,
-            ~editor=CellEditor.Model.unpersist(~settings, persistent),
-            (),
-          ),
-        slides,
+      List.map(slides, ~f=((name, persistent)) =>
+        ScratchMode.Scratchpad.mk_code(
+          ~name,
+          ~editor=CellEditor.Model.unpersist(~settings, persistent),
+          (),
+        )
       );
     Model.Scratch(
       ScratchMode.Model.{

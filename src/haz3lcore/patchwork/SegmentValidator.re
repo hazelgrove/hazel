@@ -14,7 +14,7 @@ let validate_shards_children = (seg: Segment.t): list(string) => {
   let errors = ref([]);
   let rec check = (seg: Segment.t, path: string) => {
     seg
-    |> List.iteri((i, p) =>
+    |> List.iteri(~f=(i, p) =>
          switch (p) {
          | Piece.Tile(t) =>
            let expected = List.length(t.children) + 1;
@@ -33,7 +33,7 @@ let validate_shards_children = (seg: Segment.t): list(string) => {
                ];
            };
            t.children
-           |> List.iteri((j, child) =>
+           |> List.iteri(~f=(j, child) =>
                 check(
                   child,
                   path
@@ -64,11 +64,11 @@ let validate_shape = (seg: Segment.t): list(string) => {
     };
     /* Recursively check tile children */
     seg
-    |> List.iter(p =>
+    |> List.iter(~f=p =>
          switch (p) {
          | Piece.Tile(t) =>
            t.children
-           |> List.iteri((j, child) =>
+           |> List.iteri(~f=(j, child) =>
                 check(child, path ++ "/child" ++ string_of_int(j))
               )
          | _ => ()
@@ -83,7 +83,7 @@ let validate_shape = (seg: Segment.t): list(string) => {
    Invariant: All piece IDs are unique across the entire edit state */
 let validate_unique_ids = (seg: Segment.t): list(string) => {
   let ids = Segment.ids(seg);
-  let unique_ids = List.sort_uniq(Id.compare, ids);
+  let unique_ids = List.dedup_and_sort(ids, ~compare=Id.compare);
   if (List.length(ids) != List.length(unique_ids)) {
     ["Duplicate piece IDs detected in segment"];
   } else {
@@ -100,7 +100,7 @@ let validate_all = (seg: Segment.t): unit => {
     @ validate_shape(seg)
     @ validate_unique_ids(seg);
   errors
-  |> List.iter(e =>
+  |> List.iter(~f=e =>
        Js_of_ocaml.Firebug.console##warn(
          Js_of_ocaml.Js.string("[SYNC VALIDATION] " ++ e),
        )
