@@ -258,6 +258,24 @@ and tuple = (vs: list(Exp.t)): Js.Unsafe.any => {
     | None => ()
     }
   );
+  /* (^ticket(851)) the labels by index under the runtime's symbol, as $R.tup keeps them, so a pattern by position in
+     compiled code can tell a labeled entry */
+  if (List.exists(parts, ~f=((l, _)) => Option.is_some(l))) {
+    Js.Unsafe.set(
+      arr,
+      Js.Unsafe.js_expr("Symbol.for(\"hazel-jit.labels\")"),
+      Js.array(
+        Array.of_list(
+          List.map(parts, ~f=((l, _)) =>
+            switch (l) {
+            | Some(l) => inject(Js.string(HazelJit.label_key(l)))
+            | None => inject(Js.null)
+            }
+          ),
+        ),
+      ),
+    );
+  };
   inject(arr);
 };
 
