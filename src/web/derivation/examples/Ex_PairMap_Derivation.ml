@@ -20,7 +20,7 @@ let exercise : DerivationExercise.spec =
              \")))))((Grout((id bbfcab4e-72c2-48dd-bc9e-fa4ae356e50c)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = " \194\191\n";
         };
@@ -155,7 +155,7 @@ let exercise : DerivationExercise.spec =
              7f089dd8-7a3b-421f-8fd7-fe113b5ef3f6)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $tau_pm = of_alfa_typ (Bool -> Bool) -> (Bool * Bool) -> \
@@ -238,7 +238,7 @@ let exercise : DerivationExercise.spec =
                          Bool))(sort(Drv \
                          Typ))))))))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "$gamma_pm |- (fun z -> if z then False else True) <= \
@@ -296,7 +296,7 @@ let exercise : DerivationExercise.spec =
                                Bool))(sort(Drv \
                                Typ)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text =
                               "$gamma_pmz |- (if z then False else True) <= Bool\n";
@@ -334,7 +334,7 @@ let exercise : DerivationExercise.spec =
                                      Bool))(sort(Drv \
                                      Typ)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "$gamma_pmz |- z <= Bool\n";
                                 };
@@ -375,7 +375,7 @@ let exercise : DerivationExercise.spec =
                                            Bool))(sort(Drv \
                                            Typ)))))()))(ancestors())))(caret \
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                           -1)(pinned_stack())(indicated_call())(time())(seq \
+                                           -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
                                           "$gamma_pmz |- z => Bool\n";
@@ -414,7 +414,7 @@ let exercise : DerivationExercise.spec =
                                      Bool))(sort(Drv \
                                      Typ)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "$gamma_pmz |- False <= Bool\n";
                                 };
@@ -456,7 +456,7 @@ let exercise : DerivationExercise.spec =
                                            Bool))(sort(Drv \
                                            Typ)))))()))(ancestors())))(caret \
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                           -1)(pinned_stack())(indicated_call())(time())(seq \
+                                           -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
                                           "$gamma_pmz |- False => Bool\n";
@@ -495,7 +495,7 @@ let exercise : DerivationExercise.spec =
                                      Bool))(sort(Drv \
                                      Typ)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "$gamma_pmz |- True <= Bool\n";
                                 };
@@ -537,7 +537,7 @@ let exercise : DerivationExercise.spec =
                                            Bool))(sort(Drv \
                                            Typ)))))()))(ancestors())))(caret \
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                           -1)(pinned_stack())(indicated_call())(time())(seq \
+                                           -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text =
                                           "$gamma_pmz |- True => Bool\n";
@@ -641,7 +641,7 @@ let exercise : DerivationExercise.spec =
                          Bool))(sort(Drv \
                          Typ))))))))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "$gamma_pm |- pairmap (fun z -> if z then False else \
@@ -679,7 +679,7 @@ let exercise : DerivationExercise.spec =
                                $tau_pm))(sort(Drv \
                                Typ)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "$gamma_pm |- pairmap => $tau_pm\n";
                           };

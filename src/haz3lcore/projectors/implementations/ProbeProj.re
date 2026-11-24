@@ -324,6 +324,7 @@ let select_samples =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         ~pinned_interval=dynamics.pinned_interval,
         dynamics.samples,
       )
@@ -1413,6 +1414,7 @@ let mv_least_distant_sample = (ctx: probe_ctx, _evt): Effect.t(unit) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       ~pinned_interval=dynamics.pinned_interval,
       dynamics.samples,
     );
@@ -1487,6 +1489,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     Sample.Selection.filter_by_pin(
       ~ap_id,
       ~pinned=dynamics.sample_focus.pinned_stack,
+      ~anti_pin=dynamics.sample_focus.anti_pin,
       ~pinned_interval=dynamics.pinned_interval,
       dynamics.samples,
     );
@@ -1783,6 +1786,18 @@ let key_handler =
       Many([focus_call(ctx), Stop_propagation, Prevent_default])
     | _ => Many([Stop_propagation, Prevent_default])
     }
+  | D("a") =>
+    /* Toggle anti-pin at the current sightline focus depth */
+    let focus = ctx.dynamics.sample_focus;
+    if (focus.pinned_stack != None && focus.index >= 0) {
+      Many([
+        parent(SampleFocus(ToggleAntiPin(focus.index))),
+        Stop_propagation,
+        Prevent_default,
+      ]);
+    } else {
+      Many([Stop_propagation, Prevent_default]);
+    };
   | D("Enter") =>
     /* Step into the indicated sample */
     switch (indicated_sample(ctx), ap_id) {
@@ -1898,6 +1913,7 @@ let prepare_offside =
       Sample.Selection.filter_by_pin(
         ~ap_id,
         ~pinned=dynamics.sample_focus.pinned_stack,
+        ~anti_pin=dynamics.sample_focus.anti_pin,
         ~pinned_interval=dynamics.pinned_interval,
         dynamics.samples,
       );

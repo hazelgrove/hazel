@@ -7,6 +7,7 @@ let view:
     ~globals: Globals.t,
     ~refractors: Haz3lcore.Refractors.t,
     ~info_map: Language.Statics.Map.t,
+    ~probe_map: Language.Dynamics.Map.t,
     ~indicated_id: option(Uuidm.t)
   ) =>
   Virtual_dom.Vdom.Node.t;

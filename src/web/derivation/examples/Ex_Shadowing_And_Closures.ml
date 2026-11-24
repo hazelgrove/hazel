@@ -14,7 +14,7 @@ let exercise : DerivationExercise.spec =
              cd34f700-a3dc-4c19-9101-b183ef19a43e)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text = "\194\191\n";
         };
@@ -157,7 +157,7 @@ let exercise : DerivationExercise.spec =
              905fd5cf-e3b2-478f-95c6-aa2989721336)(shape \
              Convex))))))(ancestors())))(caret \
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-             -1)(pinned_stack())(indicated_call())(time())(seq \
+             -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $e2 = of_alfa_exp\n\
@@ -193,7 +193,7 @@ let exercise : DerivationExercise.spec =
                          4223870f-d0e2-4303-bef2-7dc45e2cca95)(form(Tok \
                          4))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "4 \\=/ 4\n";
                     };
@@ -219,7 +219,7 @@ let exercise : DerivationExercise.spec =
                                77cee27b-df37-4835-b66b-d7b27090a07e)(content(Whitespace\" \
                                \"))))))))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "val 4 end\n";
                           };
@@ -247,7 +247,7 @@ let exercise : DerivationExercise.spec =
                          97aea718-4fbc-42ac-9f2d-a8f0c6aaeed3)(form(Tok \
                          1))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "1 \\=/ 1\n";
                     };
@@ -273,7 +273,7 @@ let exercise : DerivationExercise.spec =
                                16525be7-bdc8-4570-9397-cb95f759e8d2)(content(Whitespace\" \
                                \"))))))))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "val 1 end\n";
                           };
@@ -339,7 +339,7 @@ let exercise : DerivationExercise.spec =
                          88791522-2079-4296-b232-80e88be60367)(form(Tok \
                          z))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "fun z -> 4 * z \\=/ fun z -> 4 * z\n";
                     };
@@ -384,7 +384,7 @@ let exercise : DerivationExercise.spec =
                                381a65d3-7dc6-4020-b557-c9738c23d9ca)(content(Whitespace\" \
                                \"))))))))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "val fun z -> 4 * z end\n";
                           };
@@ -463,7 +463,7 @@ let exercise : DerivationExercise.spec =
                          e9c300ae-0de3-43f5-bdec-86be5d702c6d)(form(Tok \
                          4))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "let y = 4 - 3 in (fun z -> 4 * z)(y) \\=/ 4\n";
@@ -499,7 +499,7 @@ let exercise : DerivationExercise.spec =
                                1971988d-d47d-482d-93c2-266329058723)(form(Tok \
                                1))(sort(Drv Exp)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "4 - 3 \\=/ 1\n";
                           };
@@ -528,7 +528,7 @@ let exercise : DerivationExercise.spec =
                                      3))(sort(Drv \
                                      Exp)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "3 \\=/ 3\n";
                                 };
@@ -556,7 +556,7 @@ let exercise : DerivationExercise.spec =
                                            23716e46-2391-4a2f-9792-bad4e344b28e)(content(Whitespace\" \
                                            \"))))))))))()))(ancestors())))(caret \
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                           -1)(pinned_stack())(indicated_call())(time())(seq \
+                                           -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                         backup_text = "val 3 end\n";
                                       };
@@ -612,7 +612,7 @@ let exercise : DerivationExercise.spec =
                                90ba887a-9440-4596-bbd8-b9f175d03c8a)(form(Tok \
                                4))(sort(Drv Exp)))))()))(ancestors())))(caret \
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                               -1)(pinned_stack())(indicated_call())(time())(seq \
+                               -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                             backup_text = "(fun z -> 4 * z)(1) \\=/ 4\n";
                           };
@@ -650,7 +650,7 @@ let exercise : DerivationExercise.spec =
                                      4))(sort(Drv \
                                      Exp)))))()))(ancestors())))(caret \
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                                     -1)(pinned_stack())(indicated_call())(time())(seq \
+                                     -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                                   backup_text = "4 * 1 \\=/ 4\n";
                                 };
@@ -745,7 +745,7 @@ let exercise : DerivationExercise.spec =
                          e5935322-c5cd-446a-ae04-6bf5314d2ae8)(form(Tok \
                          4))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
                         "let f = fun z -> 4 * z in let y = 4 - 3 in f(y) \\=/ 4\n";
@@ -773,7 +773,7 @@ let exercise : DerivationExercise.spec =
                          b11036eb-f867-459c-bcbf-882bb3acd470)(form(Tok \
                          4))(sort(Drv Exp)))))()))(ancestors())))(caret \
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                         -1)(pinned_stack())(indicated_call())(time())(seq \
+                         -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text = "$e_example \\=/ 4\n";
                     };
