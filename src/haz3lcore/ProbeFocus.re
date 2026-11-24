@@ -120,18 +120,19 @@ let shows_aligned_sample =
       samples: list(Sample.t),
     )
     : bool =>
-  Sample.Selection.most_aligned_index(
-    ~ap_id,
-    ~below=
-      Sample.Selection.below_of(
-        ~cursor=z.refractors.sample_focus,
-        ~probe_id,
-        dynamics,
-      ),
-    z.refractors.sample_focus,
-    Sample.Selection.filter_by_pin(~ap_id, ~pinned=None, samples),
-  )
-  != None;
+  Option.is_some(
+    Sample.Selection.most_aligned_index(
+      ~ap_id,
+      ~below=
+        Sample.Selection.below_of(
+          ~cursor=z.refractors.sample_focus,
+          ~probe_id,
+          dynamics,
+        ),
+      z.refractors.sample_focus,
+      Sample.Selection.filter_by_pin(~ap_id, ~pinned=None, samples),
+    ),
+  );
 
 /* No focus at all: nothing has been selected or captured yet. Then no line
  * shows ⊖, but each shows its own first sample, possibly from different
@@ -145,13 +146,13 @@ let pinned_interval =
   | Some(r) =>
     Dynamics.Map.lookup(r.probe_id, dynamics)
     |> Option.value(~default=[])
-    |> List.find_opt(s => Sample.ref_matches(r, s))
-    |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+    |> List.find(~f=s => Sample.ref_matches(r, s))
+    |> Option.map(~f=(s: Sample.t) => (s.step_start, s.step_end))
   };
 
 let has_focus = (z: Zipper.t): bool =>
-  z.refractors.sample_focus.anchor != None
-  || z.refractors.sample_focus.call_stack != [];
+  Option.is_some(z.refractors.sample_focus.anchor)
+  || !List.is_empty(z.refractors.sample_focus.call_stack);
 
 let clear_pending_probe_cursor = (z: Zipper.t): Zipper.t =>
   Zipper.update_refractors(z, r =>

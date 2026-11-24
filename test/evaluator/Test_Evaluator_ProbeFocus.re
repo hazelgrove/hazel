@@ -394,7 +394,7 @@ let tests = (
           bool,
           "request resolved",
           true,
-          z'.refractors.pending_probe_cursor == None,
+          Option.is_none(z'.refractors.pending_probe_cursor),
         );
       },
     ),
@@ -424,7 +424,7 @@ let tests = (
           bool,
           "focus set",
           true,
-          z'.refractors.sample_focus.anchor != None,
+          Option.is_some(z'.refractors.sample_focus.anchor),
         );
         /* the else line's first sample, n = 2, is now the focus */
         shows(ed, z', 1, "2");
@@ -442,7 +442,7 @@ let tests = (
           bool,
           "a focus is set",
           true,
-          z.refractors.sample_focus.anchor != None,
+          Option.is_some(z.refractors.sample_focus.anchor),
         );
         shows(ed, z, 3, "\"one\"");
         let z' = edit_on_row(ed, z, 3);
@@ -549,7 +549,8 @@ let tests = (
           "explicit request for the line",
           true,
           switch (z.refractors.pending_probe_cursor) {
-          | Some({ids, only_if_not_aligned: false}) => List.mem(id, ids)
+          | Some({ids, only_if_not_aligned: false}) =>
+            List.mem(ids, id, ~equal=Id.equal)
           | _ => false
           },
         );
@@ -574,11 +575,14 @@ let tests = (
           bool,
           "explicit request kept",
           true,
-          z.refractors.pending_probe_cursor
-          == Some({
-               ids: [id3],
-               only_if_not_aligned: false,
-             }),
+          Option.equal(
+            Haz3lcore.Refractors.equal_pending_probe_cursor,
+            z.refractors.pending_probe_cursor,
+            Some({
+              ids: [id3],
+              only_if_not_aligned: false,
+            }),
+          ),
         );
       },
     ),
@@ -643,7 +647,7 @@ let tests = (
         let pin =
           switch (
             Haz3lcore.ProbeProj.enclosing_call_pin(
-              List.hd(samples_of(ed, probe_on_row(ed, 1))),
+              List.hd_exn(samples_of(ed, probe_on_row(ed, 1))),
             )
           ) {
           | Some(pin) => pin
@@ -673,7 +677,7 @@ let tests = (
           bool,
           "request resolved",
           true,
-          z'.refractors.pending_probe_cursor == None,
+          Option.is_none(z'.refractors.pending_probe_cursor),
         );
       },
     ),

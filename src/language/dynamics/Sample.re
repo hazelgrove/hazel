@@ -650,23 +650,22 @@ module Selection = {
     ref(None);
   let has_lines = (all: Id.Map.t(list(t))): (Id.t => bool) =>
     switch (lines_memo^) {
-    | Some((a, has)) when a === all => has
+    | Some((a, has)) when phys_equal(a, all) => has
     | _ =>
-      let fns: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+      let fns: Stdlib.Hashtbl.t(Id.t, unit) = Stdlib.Hashtbl.create(16);
       Id.Map.iter(
         (_, samples) =>
-          List.iter(
-            (s: t) =>
-              switch (s.call_stack) {
-              | [{fn_def_id: Some(fn), _}, ..._] when s.origin != Print =>
-                Hashtbl.replace(fns, fn, ())
-              | _ => ()
-              },
-            samples,
+          List.iter(samples, ~f=(s: t) =>
+            switch (s.call_stack) {
+            | [{fn_def_id: Some(fn), _}, ..._]
+                when !equal_origin(s.origin, Print) =>
+              Stdlib.Hashtbl.replace(fns, fn, ())
+            | _ => ()
+            }
           ),
         all,
       );
-      let has = fn => Hashtbl.mem(fns, fn);
+      let has = fn => Stdlib.Hashtbl.mem(fns, fn);
       lines_memo := Some((all, has));
       has;
     };
@@ -692,14 +691,14 @@ module Selection = {
         cursor.call_stack,
       );
     let fns_of = (stack: CallStack.t) =>
-      List.filter_map((f: CallStack.frame) => f.fn_def_id, stack)
-      |> List.filter(has_lines);
+      List.filter_map(stack, ~f=(f: CallStack.frame) => f.fn_def_id)
+      |> List.filter(~f=has_lines);
     let rec keep = (~fns, kept, outer_first: CallStack.t) =>
       switch (outer_first) {
       | [] => kept
       | [f, ...rest] =>
         switch (f.fn_def_id) {
-        | Some(id) when List.mem(id, fns) => kept
+        | Some(id) when List.mem(fns, id, ~equal=Id.equal) => kept
         | _ => keep(~fns, [f, ...kept], rest)
         }
       };
@@ -707,9 +706,16 @@ module Selection = {
     switch (cursor.anchor, List.rev(below)) {
     | (Some(r), [f, ...rest])
         when
-          r.probe_id == f.id
-          && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(eff)
-          && !List.exists(id => List.mem(id, fns), fns_of([f])) =>
+          Id.equal(r.probe_id, f.id)
+          && List.equal(
+               Id.equal,
+               CallStack.ids_of_stack(r.stack),
+               CallStack.ids_of_stack(eff),
+             )
+          && !
+               List.exists(fns_of([f]), ~f=id =>
+                 List.mem(fns, id, ~equal=Id.equal)
+               ) =>
       /* The clicked call's function joins the cut. A clicked recursive
          call of a function already where you are (the call line inside
          the recursion) is cut as before: its lines show the call where
@@ -726,7 +732,9 @@ module Selection = {
     switch (stack) {
     | [{fn_def_id: Some(fn), _}, ..._] =>
       ListUtil.take(List.length(path) - List.length(stack), path)
-      |> List.exists((f: CallStack.frame) => f.fn_def_id == Some(fn))
+      |> List.exists(~f=(f: CallStack.frame) =>
+           Option.equal(Id.equal, f.fn_def_id, Some(fn))
+         )
     | _ => false
     };
   let shadowed = (~path: CallStack.t, s: t): bool =>
@@ -755,27 +763,26 @@ module Selection = {
     let root_ids = ids(root);
     let n_root = List.length(root_ids);
     let path_ids = ids(path);
-    let shown: Hashtbl.t(Id.t, unit) = Hashtbl.create(64);
+    let shown: Stdlib.Hashtbl.t(Id.t, unit) = Stdlib.Hashtbl.create(64);
     /* instance (a call, as its stack's ids) → its samples, in eval order */
-    let instances: Hashtbl.t(list(Id.t), list(t)) = Hashtbl.create(64);
+    let instances: Stdlib.Hashtbl.t(list(Id.t), list(t)) =
+      Stdlib.Hashtbl.create(64);
     Id.Map.iter(
       (probe_id, samples) =>
-        List.iter(
-          (s: t) =>
-            if (s.origin != Print) {
-              let s_ids = ids(s.call_stack);
-              let n = List.length(s_ids);
-              if (ListUtil.is_suffix_of(s_ids, path_ids)) {
-                Hashtbl.replace(shown, probe_id, ());
-              };
-              if (n > n_root && ListUtil.is_suffix_of(root_ids, s_ids)) {
-                let prev =
-                  Hashtbl.find_opt(instances, s_ids)
-                  |> Option.value(~default=[]);
-                Hashtbl.replace(instances, s_ids, [s, ...prev]);
-              };
-            },
-          samples,
+        List.iter(samples, ~f=(s: t) =>
+          if (!equal_origin(s.origin, Print)) {
+            let s_ids = ids(s.call_stack);
+            let n = List.length(s_ids);
+            if (ListUtil.is_suffix_of(s_ids, path_ids)) {
+              Stdlib.Hashtbl.replace(shown, probe_id, ());
+            };
+            if (n > n_root && ListUtil.is_suffix_of(root_ids, s_ids)) {
+              let prev =
+                Stdlib.Hashtbl.find_opt(instances, s_ids)
+                |> Option.value(~default=[]);
+              Stdlib.Hashtbl.replace(instances, s_ids, [s, ...prev]);
+            };
+          }
         ),
       all,
     );
@@ -783,20 +790,19 @@ module Selection = {
      * ran, so a call sorts before the calls it makes (ties: shallower
      * first), and separate calls (one test's run, then the next) in the
      * order they ran. */
-    let entered: Hashtbl.t(list(Id.t), int) = Hashtbl.create(64);
-    Hashtbl.iter(
+    let entered: Stdlib.Hashtbl.t(list(Id.t), int) =
+      Stdlib.Hashtbl.create(64);
+    Stdlib.Hashtbl.iter(
       (key, samples) => {
         let first =
-          List.fold_left(
-            (m, s: t) => min(m, s.step_start),
-            max_int,
-            samples,
+          List.fold(samples, ~init=Int.max_value, ~f=(m, s: t) =>
+            min(m, s.step_start)
           );
         let rec up = (k: list(Id.t)) =>
           if (List.length(k) > n_root) {
-            switch (Hashtbl.find_opt(entered, k)) {
+            switch (Stdlib.Hashtbl.find_opt(entered, k)) {
             | Some(m) when m <= first => ()
-            | _ => Hashtbl.replace(entered, k, first)
+            | _ => Stdlib.Hashtbl.replace(entered, k, first)
             };
             switch (k) {
             | [_, ...parent] => up(parent)
@@ -808,11 +814,11 @@ module Selection = {
       instances,
     );
     let ordered =
-      Hashtbl.fold(
+      Stdlib.Hashtbl.fold(
         (key, rev_samples, acc) =>
           [
             (
-              Hashtbl.find(entered, key),
+              Stdlib.Hashtbl.find(entered, key),
               List.length(key),
               key,
               List.rev(rev_samples),
@@ -822,16 +828,17 @@ module Selection = {
         instances,
         [],
       )
-      |> List.sort(((e1, d1, _, _), (e2, d2, _, _)) =>
-           e1 != e2 ? compare(e1, e2) : compare(d1, d2)
+      |> List.sort(~compare=((e1, d1, _, _), (e2, d2, _, _)) =>
+           e1 != e2 ? Int.compare(e1, e2) : Int.compare(d1, d2)
          );
     /* true: shown; false: not shown (its function is shown elsewhere).
        Calls on the remembered part of the path are shown already. */
-    let status: Hashtbl.t(list(Id.t), bool) = Hashtbl.create(64);
-    Hashtbl.iter(
+    let status: Stdlib.Hashtbl.t(list(Id.t), bool) =
+      Stdlib.Hashtbl.create(64);
+    Stdlib.Hashtbl.iter(
       (key, _) =>
         if (ListUtil.is_suffix_of(key, path_ids)) {
-          Hashtbl.replace(status, key, true);
+          Stdlib.Hashtbl.replace(status, key, true);
         },
       instances,
     );
@@ -841,45 +848,37 @@ module Selection = {
       | [_, ...parent] =>
         List.length(parent) <= n_root
         || (
-          switch (Hashtbl.find_opt(status, parent)) {
+          switch (Stdlib.Hashtbl.find_opt(status, parent)) {
           | Some(shown) => shown
           | None => inside_shown(parent)
           }
         )
       };
-    List.fold_left(
-      (chosen, (_, _, key, samples)) =>
-        if (Hashtbl.mem(status, key)) {
-          chosen;
-        } else if (inside_shown(key)
-                   && !
-                        List.exists(
-                          (s: t) => Hashtbl.mem(shown, s.syntax_id),
-                          samples,
-                        )) {
-          Hashtbl.replace(status, key, true);
-          List.fold_left(
-            (chosen, s: t) =>
-              Id.Map.mem(s.syntax_id, chosen)
-                ? chosen : Id.Map.add(s.syntax_id, ref_of_sample(s), chosen),
-            chosen,
-            samples,
-          )
-          |> (
-            chosen => {
-              List.iter(
-                (s: t) => Hashtbl.replace(shown, s.syntax_id, ()),
-                samples,
-              );
-              chosen;
-            }
-          );
-        } else {
-          Hashtbl.replace(status, key, false);
-          chosen;
-        },
-      Id.Map.empty,
-      ordered,
+    List.fold(ordered, ~init=Id.Map.empty, ~f=(chosen, (_, _, key, samples)) =>
+      if (Stdlib.Hashtbl.mem(status, key)) {
+        chosen;
+      } else if (inside_shown(key)
+                 && !
+                      List.exists(samples, ~f=(s: t) =>
+                        Stdlib.Hashtbl.mem(shown, s.syntax_id)
+                      )) {
+        Stdlib.Hashtbl.replace(status, key, true);
+        List.fold(samples, ~init=chosen, ~f=(chosen, s: t) =>
+          Id.Map.mem(s.syntax_id, chosen)
+            ? chosen : Id.Map.add(s.syntax_id, ref_of_sample(s), chosen)
+        )
+        |> (
+          chosen => {
+            List.iter(samples, ~f=(s: t) =>
+              Stdlib.Hashtbl.replace(shown, s.syntax_id, ())
+            );
+            chosen;
+          }
+        );
+      } else {
+        Stdlib.Hashtbl.replace(status, key, false);
+        chosen;
+      }
     );
   };
 
@@ -900,7 +899,9 @@ module Selection = {
     switch (coordinated_memo^) {
     | Some((a, r, p, chosen))
         when
-          a === all && CallStack.equal(r, root) && CallStack.equal(p, path) => (
+          phys_equal(a, all)
+          && CallStack.equal(r, root)
+          && CallStack.equal(p, path) => (
         path,
         chosen,
       )
@@ -1165,7 +1166,9 @@ module Selection = {
                    skip; off the path (below it, in another branch, or
                    shadowed by a deeper call), only the coordinated
                    choice decides */
-                List.findi(samples, ~f=(_, s: t) => List.is_empty(s.call_stack))
+                List.findi(samples, ~f=(_, s: t) =>
+                  List.is_empty(s.call_stack)
+                )
                 |> Option.map(~f=fst)
               }
             | PerLine =>

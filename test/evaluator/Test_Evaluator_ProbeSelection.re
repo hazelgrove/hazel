@@ -1411,18 +1411,18 @@ let coordinated_pick =
     cursor,
     samples,
   )
-  |> Option.map(List.nth(samples));
+  |> Option.map(~f=List.nth_exn(samples));
 
 let per_line_pick =
     (~cursor, (_, samples): (Id.t, list(Sample.t))): option(Sample.t) =>
   Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
-  |> Option.map(List.nth(samples));
+  |> Option.map(~f=List.nth_exn(samples));
 
 /* the probe whose samples number n (unique in each program below) */
 let with_count = (n, all) =>
   Id.Map.bindings(all)
-  |> List.filter(((_, ss)) => List.length(ss) == n)
-  |> List.hd;
+  |> List.filter(~f=((_, ss)) => List.length(ss) == n)
+  |> List.hd_exn;
 
 let same_call = (a: option(Sample.t), b: option(Sample.t)) =>
   switch (a, b) {
@@ -1461,11 +1461,8 @@ in running_sum([1, 2, 3])|};
 
 /* the innermost call's stack: the parameter sample with the longest stack */
 let deepest = (ss: list(Sample.t)): Sample.t =>
-  List.fold_left(
-    (best: Sample.t, s: Sample.t) =>
-      List.length(s.call_stack) > List.length(best.call_stack) ? s : best,
-    List.hd(ss),
-    ss,
+  List.fold(ss, ~init=List.hd_exn(ss), ~f=(best: Sample.t, s: Sample.t) =>
+    List.length(s.call_stack) > List.length(best.call_stack) ? s : best
   );
 
 let coordinated_below_tests = [
@@ -1478,20 +1475,18 @@ let coordinated_below_tests = [
       let nums = with_count(4, all);
       /* the cons arm: three samples, each in a running_sum call only */
       let only_running_sum = (s: Sample.t) =>
-        List.for_all(
-          (f: CallStack.frame) =>
-            switch (f.name) {
-            | Some(n) => String.starts_with(~prefix="running_sum", n)
-            | None => false
-            },
-          s.call_stack,
+        List.for_all(s.call_stack, ~f=(f: CallStack.frame) =>
+          switch (f.name) {
+          | Some(n) => String.is_prefix(n, ~prefix="running_sum")
+          | None => false
+          }
         );
       let cons =
         Id.Map.bindings(all)
-        |> List.filter(((_, ss)) =>
-             List.length(ss) == 3 && List.for_all(only_running_sum, ss)
+        |> List.filter(~f=((_, ss)) =>
+             List.length(ss) == 3 && List.for_all(ss, ~f=only_running_sum)
            )
-        |> List.hd;
+        |> List.hd_exn;
       /* focus the innermost call, running_sum([]) */
       let cursor = mk_cursor(deepest(snd(nums)).call_stack);
       check(
@@ -1524,17 +1519,17 @@ let coordinated_below_tests = [
       let outer_len = 1;
       let callback =
         Id.Map.bindings(all)
-        |> List.filter(((id, ss)) =>
+        |> List.filter(~f=((id, ss)) =>
              List.length(ss) == 3 && !Id.equal(id, fst(nil))
            )
-        |> List.map(((id, ss)) =>
+        |> List.map(~f=((id, ss)) =>
              (id, ss, coordinated_pick(~cursor, all, (id, ss)))
            );
       /* the callback body's pick sits in the outer call: exactly one
          running_sum frame on its stack */
       let picks =
-        List.filter_map(((_, _, pick)) => pick, callback)
-        |> List.filter((s: Sample.t) =>
+        List.filter_map(callback, ~f=((_, _, pick)) => pick)
+        |> List.filter(~f=(s: Sample.t) =>
              List.length(s.call_stack) > outer_len + 1
            );
       check(bool, "the callback body shows a value", true, picks != []);
@@ -1564,7 +1559,9 @@ f(10)|},
         "f(1) through g, two frames deep",
         2,
         List.length(
-          Option.get(coordinated_pick(~cursor=mk_cursor([]), all, body)).
+          Option.value_exn(
+            coordinated_pick(~cursor=mk_cursor([]), all, body),
+          ).
             call_stack,
         ),
       );
@@ -1579,12 +1576,12 @@ f(10)|},
          outer end (frames below the index, as after moving up) */
       let neg =
         Id.Map.bindings(all)
-        |> List.filter(((_, ss)) => List.length(ss) == 1)
-        |> List.map(((_, ss)) => List.hd(ss))
-        |> List.sort((a: Sample.t, b: Sample.t) =>
+        |> List.filter(~f=((_, ss)) => List.length(ss) == 1)
+        |> List.map(~f=((_, ss)) => List.hd_exn(ss))
+        |> List.sort(~compare=(a: Sample.t, b: Sample.t) =>
              compare(List.length(a.call_stack), List.length(b.call_stack))
            )
-        |> List.hd;
+        |> List.hd_exn;
       let path = mk_cursor(neg.call_stack);
       let cursor = {
         ...path,
@@ -1618,12 +1615,10 @@ f(10)|},
       check(
         int,
         "x < 0 shows the first call",
-        List.fold_left(
-          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
-          max_int,
-          snd(lt),
+        List.fold(snd(lt), ~init=Int.max_value, ~f=(m, s: Sample.t) =>
+          min(m, List.length(s.call_stack))
         ),
-        List.length(Option.get(first).call_stack),
+        List.length(Option.value_exn(first).call_stack),
       );
       check(
         bool,
@@ -1633,14 +1628,14 @@ f(10)|},
       );
       let results =
         Id.Map.bindings(all)
-        |> List.filter(((_, ss)) => List.length(ss) == 1)
-        |> List.filter_map(coordinated_pick(~cursor, all));
+        |> List.filter(~f=((_, ss)) => List.length(ss) == 1)
+        |> List.filter_map(~f=coordinated_pick(~cursor, all));
       check(int, "one result line shows", 1, List.length(results));
       check(
         bool,
         "from the same call",
         true,
-        same_call(Some(List.hd(results)), first),
+        same_call(Some(List.hd_exn(results)), first),
       );
       check(
         bool,
@@ -1663,12 +1658,10 @@ f(10)|},
       check(
         int,
         "xs: the outermost go call",
-        List.fold_left(
-          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
-          max_int,
-          snd(xs),
+        List.fold(snd(xs), ~init=Int.max_value, ~f=(m, s: Sample.t) =>
+          min(m, List.length(s.call_stack))
         ),
-        List.length(Option.get(xs_pick).call_stack),
+        List.length(Option.value_exn(xs_pick).call_stack),
       );
       check(
         bool,
@@ -1692,17 +1685,15 @@ f(10)|},
       let xs = with_count(4, all);
       let nil = with_count(1, all);
       let outer =
-        List.fold_left(
-          (best: option(Sample.t), s: Sample.t) =>
-            switch (best) {
-            | Some(b)
-                when List.length(b.call_stack) <= List.length(s.call_stack) => best
-            | _ => Some(s)
-            },
-          None,
-          snd(xs),
+        List.fold(
+          snd(xs), ~init=None, ~f=(best: option(Sample.t), s: Sample.t) =>
+          switch (best) {
+          | Some(b)
+              when List.length(b.call_stack) <= List.length(s.call_stack) => best
+          | _ => Some(s)
+          }
         )
-        |> Option.get;
+        |> Option.value_exn;
       let cursor = mk_cursor(outer.call_stack);
       check(
         bool,
