@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 type t = ZipperBase.t;
 
@@ -12,10 +13,10 @@ type t = ZipperBase.t;
 
 module ShardKey = {
   type t = (Id.t, list(int));
-  let compare = compare;
+  let compare = Poly.compare;
 };
 
-module ShardKeySet = Set.Make(ShardKey);
+module ShardKeySet = Stdlib.Set.Make(ShardKey);
 
 type request = {
   left: list(Token.t),
@@ -37,7 +38,7 @@ let token_of_shard = (shard: Tile.t): option(Token.t) =>
   };
 
 let tokens_of_shards = (shards: list(Tile.t)): list(Token.t) =>
-  List.filter_map(token_of_shard, shards);
+  List.filter_map(~f=token_of_shard, shards);
 
 let rec local_missing_tokens_segment =
         (~side: Direction.t, seg: Segment.t): list(Token.t) =>
@@ -48,31 +49,32 @@ let rec local_missing_tokens_segment =
     }
   )
   |> List.concat_map(
-       fun
-       | Piece.Tile(tile) => {
-           let self =
-             if (!Tile.is_complete(tile) && Tile.is_multidelimiter(tile)) {
+       ~f=
+         fun
+         | Piece.Tile(tile) => {
+             let self =
+               if (!Tile.is_complete(tile) && Tile.is_multidelimiter(tile)) {
+                 (
+                   switch (side) {
+                   | Left => Tile.right_missing_shards(tile)
+                   | Right => Tile.left_missing_shards(tile)
+                   }
+                 )
+                 |> tokens_of_shards;
+               } else {
+                 [];
+               };
+             let children =
                (
                  switch (side) {
-                 | Left => Tile.right_missing_shards(tile)
-                 | Right => Tile.left_missing_shards(tile)
+                 | Left => List.rev(tile.children)
+                 | Right => tile.children
                  }
                )
-               |> tokens_of_shards;
-             } else {
-               [];
-             };
-           let children =
-             (
-               switch (side) {
-               | Left => List.rev(tile.children)
-               | Right => tile.children
-               }
-             )
-             |> List.concat_map(local_missing_tokens_segment(~side));
-           self @ children;
-         }
-       | _ => [],
+               |> List.concat_map(~f=local_missing_tokens_segment(~side));
+             self @ children;
+           }
+         | _ => [],
      );
 
 let request_of_relatives =
@@ -114,7 +116,7 @@ let consume_tokens_in_order =
 };
 
 let rec tokens_of_segment = (seg: Segment.t): list(Token.t) =>
-  List.concat_map(tokens_of_piece, seg)
+  List.concat_map(~f=tokens_of_piece, seg)
 
 and tokens_of_piece = (piece: Piece.t): list(Token.t) =>
   switch (piece) {
@@ -161,47 +163,51 @@ let rec any_generation_consumes_request =
 
 let shard_pieces = (tile: Tile.t): list(Piece.t) =>
   List.map(
-    shard =>
-      Piece.Tile({
-        ...tile,
-        shards: [shard],
-        children: [],
-      }),
+    ~f=
+      shard =>
+        Piece.Tile({
+          ...tile,
+          shards: [shard],
+          children: [],
+        }),
     tile.shards,
   );
 
 let rec has_incomplete_multi_deep = (seg: Segment.t): bool =>
   List.exists(
-    fun
-    | Piece.Tile(tile) =>
-      !Tile.is_complete(tile)
-      && Tile.is_multidelimiter(tile)
-      || List.exists(has_incomplete_multi_deep, tile.children)
-    | _ => false,
+    ~f=
+      fun
+      | Piece.Tile(tile) =>
+        !Tile.is_complete(tile)
+        && Tile.is_multidelimiter(tile)
+        || List.exists(~f=has_incomplete_multi_deep, tile.children)
+      | _ => false,
     seg,
   );
 
 let rec flatten_tiles_with_incomplete = (seg: Segment.t): Segment.t =>
   List.concat_map(
-    fun
-    | Piece.Tile(tile)
-        when
-          Tile.is_complete(tile)
-          && Tile.is_multidelimiter(tile)
-          && List.exists(has_incomplete_multi_deep, tile.children) =>
-      Aba.mk(
-        shard_pieces(tile),
-        List.map(flatten_tiles_with_incomplete, tile.children),
-      )
-      |> Aba.join(piece => [piece], Fun.id)
-      |> List.flatten
-    | Piece.Tile(tile) => [
-        Piece.Tile({
-          ...tile,
-          children: List.map(flatten_tiles_with_incomplete, tile.children),
-        }),
-      ]
-    | piece => [piece],
+    ~f=
+      fun
+      | Piece.Tile(tile)
+          when
+            Tile.is_complete(tile)
+            && Tile.is_multidelimiter(tile)
+            && List.exists(~f=has_incomplete_multi_deep, tile.children) =>
+        Aba.mk(
+          shard_pieces(tile),
+          List.map(~f=flatten_tiles_with_incomplete, tile.children),
+        )
+        |> Aba.join(piece => [piece], Fn.id)
+        |> List.concat
+      | Piece.Tile(tile) => [
+          Piece.Tile({
+            ...tile,
+            children:
+              List.map(~f=flatten_tiles_with_incomplete, tile.children),
+          }),
+        ]
+      | piece => [piece],
     seg,
   );
 
@@ -215,25 +221,26 @@ let crack_siblings = ((pre, suf): Siblings.t): Siblings.t =>
    mid-entry state pay a rescan. */
 let rec explode_incomplete = (seg: Segment.t): Segment.t =>
   List.concat_map(
-    fun
-    | Piece.Tile(tile)
-        when
-          !Tile.is_complete(tile)
-          && Tile.is_multidelimiter(tile)
-          && List.length(tile.shards) > 1 =>
-      Aba.mk(
-        shard_pieces(tile),
-        List.map(explode_incomplete, tile.children),
-      )
-      |> Aba.join(piece => [piece], Fun.id)
-      |> List.flatten
-    | Piece.Tile(tile) => [
-        Piece.Tile({
-          ...tile,
-          children: List.map(explode_incomplete, tile.children),
-        }),
-      ]
-    | piece => [piece],
+    ~f=
+      fun
+      | Piece.Tile(tile)
+          when
+            !Tile.is_complete(tile)
+            && Tile.is_multidelimiter(tile)
+            && List.length(tile.shards) > 1 =>
+        Aba.mk(
+          shard_pieces(tile),
+          List.map(~f=explode_incomplete, tile.children),
+        )
+        |> Aba.join(piece => [piece], Fn.id)
+        |> List.concat
+      | Piece.Tile(tile) => [
+          Piece.Tile({
+            ...tile,
+            children: List.map(~f=explode_incomplete, tile.children),
+          }),
+        ]
+      | piece => [piece],
     seg,
   );
 
@@ -250,24 +257,25 @@ let freshen_ancestor_shards =
     )
     : (Segment.t, Id.Map.t((Id.t, list(int)))) =>
   List.fold_right(
-    (piece, (acc_seg, acc_map)) =>
-      switch (piece) {
-      | Piece.Tile(tile) when tile.id == ancestor_id =>
-        let fresh_id = Id.mk();
-        (
-          [
-            Piece.Tile({
-              ...tile,
-              id: fresh_id,
-            }),
-            ...acc_seg,
-          ],
-          Id.Map.add(fresh_id, (ancestor_id, tile.shards), acc_map),
-        );
-      | _ => ([piece, ...acc_seg], acc_map)
-      },
+    ~f=
+      (piece, (acc_seg, acc_map)) =>
+        switch (piece) {
+        | Piece.Tile(tile) when tile.id == ancestor_id =>
+          let fresh_id = Id.mk();
+          (
+            [
+              Piece.Tile({
+                ...tile,
+                id: fresh_id,
+              }),
+              ...acc_seg,
+            ],
+            Id.Map.add(fresh_id, (ancestor_id, tile.shards), acc_map),
+          );
+        | _ => ([piece, ...acc_seg], acc_map)
+        },
+    ~init=([], fresh_map),
     seg,
-    ([], fresh_map),
   );
 
 /* Flatten one ancestor generation into the sibling scope, freshening the
@@ -334,28 +342,32 @@ let repair_fresh_ids =
   } else {
     let stolen_originals =
       List.fold_left(
-        (acc, piece) =>
-          switch (piece) {
-          | Piece.Tile(tile) => ShardKeySet.add((tile.id, tile.shards), acc)
-          | _ => acc
-          },
-        ShardKeySet.empty,
+        ~f=
+          (acc, piece) =>
+            switch (piece) {
+            | Piece.Tile(tile) =>
+              ShardKeySet.add((tile.id, tile.shards), acc)
+            | _ => acc
+            },
+        ~init=ShardKeySet.empty,
         fst(siblings) @ snd(siblings),
       );
     let repair =
       List.map(
-        fun
-        | Piece.Tile(tile) =>
-          switch (Id.Map.find_opt(tile.id, fresh_map)) {
-          | Some((original_id, shards))
-              when !ShardKeySet.mem((original_id, shards), stolen_originals) =>
-            Piece.Tile({
-              ...tile,
-              id: original_id,
-            })
-          | _ => Piece.Tile(tile)
-          }
-        | piece => piece,
+        ~f=
+          fun
+          | Piece.Tile(tile) =>
+            switch (Id.Map.find_opt(tile.id, fresh_map)) {
+            | Some((original_id, shards))
+                when
+                  !ShardKeySet.mem((original_id, shards), stolen_originals) =>
+              Piece.Tile({
+                ...tile,
+                id: original_id,
+              })
+            | _ => Piece.Tile(tile)
+            }
+          | piece => piece,
       );
     TupleUtil.map2(repair, siblings);
   };
@@ -380,28 +392,31 @@ let crack_rescan_repair =
    base scope and a candidate are scored from this single pass. */
 let rec collect_multitiles = (seg: Segment.t): (list(Id.t), int) =>
   List.fold_left(
-    ((complete_ids, incomplete), piece) =>
-      switch (piece) {
-      | Piece.Tile(tile) =>
-        let (complete_ids, incomplete) =
-          List.fold_left(
-            ((complete_ids, incomplete), child) => {
-              let (child_ids, child_incomplete) = collect_multitiles(child);
-              (child_ids @ complete_ids, child_incomplete + incomplete);
-            },
-            (complete_ids, incomplete),
-            tile.children,
-          );
-        if (!Tile.is_multidelimiter(tile)) {
-          (complete_ids, incomplete);
-        } else if (Tile.is_complete(tile)) {
-          ([tile.id, ...complete_ids], incomplete);
-        } else {
-          (complete_ids, incomplete + 1);
-        };
-      | _ => (complete_ids, incomplete)
-      },
-    ([], 0),
+    ~f=
+      ((complete_ids, incomplete), piece) =>
+        switch (piece) {
+        | Piece.Tile(tile) =>
+          let (complete_ids, incomplete) =
+            List.fold_left(
+              ~f=
+                ((complete_ids, incomplete), child) => {
+                  let (child_ids, child_incomplete) =
+                    collect_multitiles(child);
+                  (child_ids @ complete_ids, child_incomplete + incomplete);
+                },
+              ~init=(complete_ids, incomplete),
+              tile.children,
+            );
+          if (!Tile.is_multidelimiter(tile)) {
+            (complete_ids, incomplete);
+          } else if (Tile.is_complete(tile)) {
+            ([tile.id, ...complete_ids], incomplete);
+          } else {
+            (complete_ids, incomplete + 1);
+          };
+        | _ => (complete_ids, incomplete)
+        },
+    ~init=([], 0),
     seg,
   );
 
@@ -413,7 +428,9 @@ let stats_of = (~anchors: Id.Map.t(unit), seg: Segment.t): repair_stats => {
     complete_multitiles: List.length(complete_ids),
     incomplete_multitiles,
     preserved_anchors:
-      List.length(List.filter(id => Id.Map.mem(id, anchors), complete_ids)),
+      List.length(
+        List.filter(~f=id => Id.Map.mem(id, anchors), complete_ids),
+      ),
   };
 };
 
@@ -438,8 +455,8 @@ let accept_candidate =
      trivially preserved in the base itself. */
   let anchors =
     List.fold_left(
-      (m, id) => Id.Map.add(id, (), m),
-      Id.Map.empty,
+      ~f=(m, id) => Id.Map.add(id, (), m),
+      ~init=Id.Map.empty,
       base_complete_ids,
     );
   let base_stats = {
@@ -492,13 +509,14 @@ let siblings_have_incomplete = ((pre, suf): Siblings.t): bool =>
    spine-flattening path. */
 let rec has_orphaned_trailing_shard = (seg: Segment.t): bool =>
   List.exists(
-    fun
-    | Piece.Tile(tile) =>
-      !Tile.is_complete(tile)
-      && Tile.is_multidelimiter(tile)
-      && Tile.left_missing_shards(tile) != []
-      || List.exists(has_orphaned_trailing_shard, tile.children)
-    | _ => false,
+    ~f=
+      fun
+      | Piece.Tile(tile) =>
+        !Tile.is_complete(tile)
+        && Tile.is_multidelimiter(tile)
+        && Tile.left_missing_shards(tile) != []
+        || List.exists(~f=has_orphaned_trailing_shard, tile.children)
+      | _ => false,
     seg,
   );
 
@@ -638,7 +656,7 @@ let flatten_and_repair = (z: t): t => {
           ~outer_ancestors,
           z,
         );
-      result !== z ? result : ascend(depth + 1);
+      !phys_equal(result, z) ? result : ascend(depth + 1);
     };
   /* depth 0 = the sibling scope: the orphan's match can be a sibling
      (top level has no ancestors to flatten) */
@@ -661,7 +679,7 @@ let flatten_and_repair = (z: t): t => {
    rejects any flatten that would not strictly improve completeness. */
 let go_with = (~thorough: bool, z: t): t => {
   let repaired = go_request(z);
-  if (repaired !== z) {
+  if (!phys_equal(repaired, z)) {
     repaired;
   } else {
     let needs_repair =
