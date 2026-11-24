@@ -535,6 +535,18 @@ let get_binding_site = (info: t): option(Id.t) => {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* entry = Ctx.lookup_var(ctx, name);
     Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
+  /* a capitalized name bound as a variable more recently than any
+     constructor of that name is that variable, as statics reads it: a
+     module named like a builtin constructor (HTML's `Text`) */
+  | InfoExp({user_term: {term: Constructor(name, None), _}, ctx, _})
+      when
+        switch (Ctx.newest_var_or_ctr(ctx, name)) {
+        | Some(`Var(_)) => true
+        | Some(`Ctr(_))
+        | None => false
+        } =>
+    let* entry = Ctx.lookup_var(ctx, name);
+    Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
   | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, _}) =>
     switch (Ctx.lookup_ctr(ctx, name)) {

@@ -1786,17 +1786,17 @@ let view_impl =
         Editors.Update.Scratch(
           ScratchMode.Update.Workspace(
             AgentAction(
+              /* after the binding [insert_path] names, else last at the
+                 top level ("" is the top level) */
               Agent.Update.Action.DirectEdit(
-                "insert_after",
-                `Assoc(
-                  [("code", `String(code))]
-                  @ (
-                    switch (insert_path) {
-                    | Some(p) => [("path", `String(p))]
-                    | None => []
-                    }
-                  ),
-                ),
+                "insert",
+                `Assoc([
+                  ("code", `String(code)),
+                  switch (insert_path) {
+                  | Some(p) => ("after", `String(p))
+                  | None => ("last_in", `String(""))
+                  },
+                ]),
               ),
             ),
           ),

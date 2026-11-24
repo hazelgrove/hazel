@@ -285,6 +285,15 @@ module Namer = {
       | ModuleExp(mp, _, _) => mk_name_from_mpat(mp)
       | _ => raise(Failure("Not a valid expression to make a name from"))
       }
+    /* a module item: statics reads module literals' items as items, not
+       through the Let/TyAlias wrappers it once lowered them to */
+    | InfoMod({user_term, _}) =>
+      switch (user_term.term) {
+      | ModLet(pat, _) => mk_name_from_pat(pat)
+      | ModType(tpat, _) => mk_name_from_tpat(tpat)
+      | ModuleMod(mp, _) => mk_name_from_mpat(mp)
+      | _ => raise(Failure("Not a valid module item to make a name from"))
+      }
     | _ => raise(Failure("Not a valid term to make a name from"))
     };
   };
@@ -566,6 +575,20 @@ and build_binding =
     )
   // It is also useful to add type defintions to the def-structured AST
   | InfoExp({user_term: {term: TyAlias(_, typ, _), _}, _}) =>
+    build_children(
+      Utils.typ_to_info(typ, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
+  | InfoMod({user_term: {term: ModLet(_, def) | ModuleMod(_, def), _}, _}) =>
+    build_children(
+      Utils.exp_to_info(def, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
+  | InfoMod({user_term: {term: ModType(_, typ), _}, _}) =>
     build_children(
       Utils.typ_to_info(typ, info_map),
       new_path,
@@ -882,7 +905,12 @@ and build_whole = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
           Left,
         );
       let* current_term = Indicated.ci_of(valid_zipper, info_map);
-      Utils.top_level_term_of(~start_point=current_term, ~info_map);
+      /* a Mod root's whole-program statics has no `let` chain above its
+         items, only the root's module literal: the walk starts from it */
+      switch (Utils.top_level_term_of(~start_point=current_term, ~info_map)) {
+      | Some(_) as top => top
+      | None => Some(current_term)
+      };
     }
   ) {
   | None => None
@@ -996,6 +1024,28 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
         | _ =>
           Utils.child_expressions_of_exp(user_term)
           |> List.fold(~init=acc, ~f=(acc, e) => descend_exp(e, path, acc))
+        }
+      /* a member analyzed alone: its item's info, as statics reads module
+         items */
+      | InfoMod({user_term, _}) =>
+        switch (user_term.term) {
+        | ModLet(_, def)
+        | ModuleMod(_, def) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          descend_exp(def, node_path, acc);
+        | ModType(_, typ) =>
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          switch (Id.Map.find_opt(Typ.rep_id(typ), map)) {
+          | Some(ti) =>
+            switch (build_children(ti, node_path, acc, map)) {
+            | nm => nm
+            | exception (Stdlib.Not_found | Not_found_s(_)) => acc
+            }
+          | None => acc
+          };
+        | _ => acc
         }
       | _ => acc
       };
