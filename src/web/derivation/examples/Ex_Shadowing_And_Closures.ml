@@ -16,7 +16,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = "";
+          backup_text = "\194\191\n";
         };
       setup =
         {
@@ -34,9 +34,11 @@ let exercise : DerivationExercise.spec =
              \"))))(Tile((id \
              fa28fb6c-1afc-4a90-a7f0-d935840fd45e)(form(Compound \
              OfAlfaExp))(shards(0 1))(children(((Secondary((id \
-             9aa57a37-fbca-487c-8159-8484fe818669)(content(Whitespace\" \
+             621e534b-f259-4a6a-b9c4-418d234e16e4)(content(Whitespace\"\\n\"))))(Secondary((id \
+             90170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
              \"))))(Secondary((id \
-             621e534b-f259-4a6a-b9c4-418d234e16e4)(content(Whitespace\"\\n\"))))(Tile((id \
+             91170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+             \"))))(Tile((id \
              380b3d8e-eef4-48c5-a776-d099a678158e)(form(Compound \
              Let))(sort(Drv Exp))(shards(0 1 2))(children(((Secondary((id \
              6a537a57-abe6-4efe-8780-3e426e4569c5)(content(Whitespace\" \
@@ -78,7 +80,11 @@ let exercise : DerivationExercise.spec =
              \"))))(Tile((id \
              05195389-b0fa-41bd-85bf-746f5b37d819)(form(Compound \
              OfAlfaExp))(shards(0 1))(children(((Secondary((id \
-             6762fc97-4b88-4add-b4bf-ad3b0e043698)(content(Whitespace\"\\n\"))))(Tile((id \
+             6762fc97-4b88-4add-b4bf-ad3b0e043698)(content(Whitespace\"\\n\"))))(Secondary((id \
+             94170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+             \"))))(Secondary((id \
+             95170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+             \"))))(Tile((id \
              b9680f12-72a9-4449-9154-0ce29c0ed73d)(form(Compound \
              Let))(sort(Drv Exp))(shards(0 1 2))(children(((Secondary((id \
              07fe03dd-ca8e-4f3a-8825-9888358455a9)(content(Whitespace\" \
@@ -125,7 +131,11 @@ let exercise : DerivationExercise.spec =
              \"))))(Tile((id \
              bad0269f-0bcc-4cac-8b0f-85f9bf96cb8d)(form(Compound \
              OfAlfaExp))(shards(0 1))(children(((Secondary((id \
-             7ada529e-7c5e-464f-922e-e4ee9e4ab1af)(content(Whitespace\"\\n\"))))(Tile((id \
+             7ada529e-7c5e-464f-922e-e4ee9e4ab1af)(content(Whitespace\"\\n\"))))(Secondary((id \
+             98170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+             \"))))(Secondary((id \
+             99170000-0000-4000-8dec-7a6740fa3f14)(content(Whitespace\" \
+             \"))))(Tile((id \
              35487ee8-6b9f-4556-bf0f-1dfbedf8ac4b)(form(Compound \
              Let))(sort(Drv Exp))(shards(0 1 2))(children(((Secondary((id \
              1b386f69-7e8c-4787-b245-23bfe9506319)(content(Whitespace\" \
@@ -150,15 +160,15 @@ let exercise : DerivationExercise.spec =
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
-            "let $e2 = of_alfa_exp \n\
-             let y = y - 3 in f(y)\n\
+            "let $e2 = of_alfa_exp\n\
+            \  let y = y - 3 in f(y)\n\
              end in\n\
              let $e1 = of_alfa_exp\n\
-             let f = fun z -> y * z in $e2\n\
+            \  let f = fun z -> y * z in $e2\n\
              end in\n\
              let $e_example = of_alfa_exp\n\
-             let y = 4 in $e1\n\
-             end in";
+            \  let y = 4 in $e1\n\
+             end in\194\191\n";
         };
       rule_set = ALF;
       trees =
@@ -185,7 +195,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "4 \\=/ 4";
+                      backup_text = "4 \\=/ 4\n";
                     };
                   rule = Some E_Val;
                 },
@@ -211,7 +221,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "val 4 end";
+                            backup_text = "val 4 end\n";
                           };
                         rule = Some V_Num;
                       },
@@ -239,7 +249,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "1 \\=/ 1";
+                      backup_text = "1 \\=/ 1\n";
                     };
                   rule = Some E_Val;
                 },
@@ -265,7 +275,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "val 1 end";
+                            backup_text = "val 1 end\n";
                           };
                         rule = Some V_Num;
                       },
@@ -331,7 +341,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "fun z -> 4 * z \\=/ fun z -> 4 * z";
+                      backup_text = "fun z -> 4 * z \\=/ fun z -> 4 * z\n";
                     };
                   rule = Some E_Val;
                 },
@@ -376,7 +386,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "val fun z -> 4 * z end";
+                            backup_text = "val fun z -> 4 * z end\n";
                           };
                         rule = Some V_Fun;
                       },
@@ -456,7 +466,7 @@ let exercise : DerivationExercise.spec =
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
-                        "let y = 4 - 3 in (fun z -> 4 * z)(y) \\=/ 4";
+                        "let y = 4 - 3 in (fun z -> 4 * z)(y) \\=/ 4\n";
                     };
                   rule = Some E_Let;
                 },
@@ -491,7 +501,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "4 - 3 \\=/ 1";
+                            backup_text = "4 - 3 \\=/ 1\n";
                           };
                         rule = Some E_Minus;
                       },
@@ -520,7 +530,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "3 \\=/ 3";
+                                  backup_text = "3 \\=/ 3\n";
                                 };
                               rule = Some E_Val;
                             },
@@ -548,7 +558,7 @@ let exercise : DerivationExercise.spec =
                                            Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                            -1)(pinned_stack())(indicated_call())(time())(seq \
                                            0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                        backup_text = "val 3 end";
+                                        backup_text = "val 3 end\n";
                                       };
                                     rule = Some V_Num;
                                   },
@@ -604,7 +614,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "(fun z -> 4 * z)(1) \\=/ 4";
+                            backup_text = "(fun z -> 4 * z)(1) \\=/ 4\n";
                           };
                         rule = Some E_Ap;
                       },
@@ -642,7 +652,7 @@ let exercise : DerivationExercise.spec =
                                      Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                      -1)(pinned_stack())(indicated_call())(time())(seq \
                                      0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                                  backup_text = "4 * 1 \\=/ 4";
+                                  backup_text = "4 * 1 \\=/ 4\n";
                                 };
                               rule = Some E_Times;
                             },
@@ -738,7 +748,7 @@ let exercise : DerivationExercise.spec =
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                       backup_text =
-                        "let f = fun z -> 4 * z in let y = 4 - 3 in f(y) \\=/ 4";
+                        "let f = fun z -> 4 * z in let y = 4 - 3 in f(y) \\=/ 4\n";
                     };
                   rule = Some E_Let;
                 },
@@ -765,7 +775,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "$e_example \\=/ 4";
+                      backup_text = "$e_example \\=/ 4\n";
                     };
                   rule = Some E_Let;
                 },

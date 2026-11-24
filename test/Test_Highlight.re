@@ -16,8 +16,8 @@ let rows = (seg: Segment.t): list(string) => {
     ~shape_init=Some(Convex),
     seg,
   )
-  |> List.map(((m: Measured.measurement, (l, r))) =>
-       Printf.sprintf(
+  |> List.map(~f=((m: Measured.measurement, (l, r))) =>
+       sprintf(
          "%d %d-%d %s/%s",
          m.origin.row,
          m.origin.col,
@@ -95,6 +95,24 @@ let tests = (
         ["0 0-6 convex/none", "1 2-3 convex/convex"],
         rows(parse("1 +   \n  2")),
       )
+    ),
+    test_case(
+      "A trailing linebreak leaves the row above it last",
+      `Quick,
+      () => {
+        check(
+          list(string),
+          "whitespace-only row",
+          ["0 0-1 convex/convex", "1 0-2 none/convex"],
+          rows(parse("1\n  \n")),
+        );
+        check(
+          list(string),
+          "row ending in whitespace",
+          ["0 0-8 convex/convex"],
+          rows(parse("1 + 2   \n")),
+        );
+      },
     ),
     test_case("Row after a leading linebreak is trimmed", `Quick, () =>
       check(

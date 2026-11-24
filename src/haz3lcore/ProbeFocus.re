@@ -13,7 +13,7 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
     | Some(samples) =>
       let z' =
         SampleFocusPerform.resolve_pending_focus(z, samples, target_stack);
-      if (z'.refractors.sample_focus.pending_focus == None) {
+      if (Option.is_none(z'.refractors.sample_focus.pending_focus)) {
         FocusEffect.schedule(probe_id);
       };
       z';
@@ -23,25 +23,28 @@ let resolve_pending_focus = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =
 let cursor_is_aligned_uncached =
     (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let cursor = z.refractors.sample_focus;
-  if (cursor.call_stack == []) {
+  if (List.is_empty(cursor.call_stack)) {
     true;
   } else {
     let all_probe_ids =
-      List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
-      @ List.map(fst, z.refractors.manuals);
+      List.map(~f=fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+      @ List.map(~f=fst, z.refractors.manuals);
     List.exists(
-      id =>
-        switch (Dynamics.Map.lookup(id, dynamics)) {
-        | Some([_, ..._] as samples) =>
-          Sample.Selection.most_aligned_index(
-            ~ap_id=None,
-            ~below=Sample.Selection.below_of(~cursor, ~probe_id=id, dynamics),
-            cursor,
-            samples,
-          )
-          != None
-        | _ => false
-        },
+      ~f=
+        id =>
+          switch (Dynamics.Map.lookup(id, dynamics)) {
+          | Some([_, ..._] as samples) =>
+            Option.is_some(
+              Sample.Selection.most_aligned_index(
+                ~ap_id=None,
+                ~below=
+                  Sample.Selection.below_of(~cursor, ~probe_id=id, dynamics),
+                cursor,
+                samples,
+              ),
+            )
+          | _ => false
+          },
       all_probe_ids,
     );
   };
@@ -68,7 +71,11 @@ let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
   let manuals = z.refractors.manuals;
   switch (cia_key^) {
   | Some((d, e, m, c, verdict))
-      when d === dynamics && e === ephemerals && m === manuals && c == cursor => verdict
+      when
+        phys_equal(d, dynamics)
+        && phys_equal(e, ephemerals)
+        && phys_equal(m, manuals)
+        && Sample.Focus.equal(c, cursor) => verdict
   | _ =>
     let verdict = cursor_is_aligned_uncached(~dynamics, z);
     cia_key := Some((dynamics, ephemerals, manuals, cursor, verdict));
@@ -84,7 +91,7 @@ let caret_nearest_ephemeral =
   | _ =>
     let caret_pt = Zipper.Caret.point(syntax.measured, z);
     Id.Map.bindings(z.refractors.multis.ephemerals)
-    |> List.find_map(((id, _)) =>
+    |> List.find_map(~f=((id, _)) =>
          switch (
            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
          ) {
@@ -175,7 +182,7 @@ let resolve_pending_probe_cursor =
   let z =
     switch (z.refractors.pending_probe_cursor) {
     | Some({ids, _})
-        when !List.exists(id => ProbePerform.has_probe(id, z), ids) =>
+        when !List.exists(~f=id => ProbePerform.has_probe(id, z), ids) =>
       clear_pending_probe_cursor(z)
     | Some({only_if_not_aligned: true, _}) when !ProbePerform.auto_focus(z) =>
       clear_pending_probe_cursor(z)
@@ -190,8 +197,8 @@ let resolve_pending_probe_cursor =
       } else {
         /* Nothing is aligned, so there is always a gap to fill. */
         let all_ids =
-          List.map(fst, Id.Map.bindings(z.refractors.multis.ephemerals))
-          @ List.map(fst, z.refractors.manuals);
+          List.map(~f=fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+          @ List.map(~f=fst, z.refractors.manuals);
         switch (all_ids) {
         | [] => None
         | _ => Some((all_ids, false))
@@ -207,12 +214,15 @@ let resolve_pending_probe_cursor =
     let tag = id => (id, only_if_not_aligned);
     let candidates =
       switch (caret_nearest_ephemeral(~syntax, z)) {
-      | Some(nearest) when List.mem(nearest, ids) => [
+      | Some(nearest) when List.mem(ids, nearest, ~equal=Id.equal) => [
           tag(nearest),
-          ...List.map(tag, List.filter(i => i != nearest, ids)),
+          ...List.map(
+               ~f=tag,
+               List.filter(~f=i => !Id.equal(i, nearest), ids),
+             ),
         ]
-      | Some(nearest) => [(nearest, true), ...List.map(tag, ids)]
-      | None => List.map(tag, ids)
+      | Some(nearest) => [(nearest, true), ...List.map(~f=tag, ids)]
+      | None => List.map(~f=tag, ids)
       };
 
     let rec resolve = candidates =>
@@ -232,7 +242,9 @@ let resolve_pending_probe_cursor =
              the focus: capturing one outside it would leave the pinned
              lines with nothing to show. */
           let focus = z.refractors.sample_focus;
-          let pinned = focus.pinned_stack != None || focus.pinned_span != None;
+          let pinned =
+            Option.is_some(focus.pinned_stack)
+            || Option.is_some(focus.pinned_span);
           let samples =
             pinned
               ? Sample.Selection.filter_by_pin(
@@ -255,7 +267,7 @@ let resolve_pending_probe_cursor =
               ? clear_pending_probe_cursor(z) : resolve(rest);
           } else {
             switch (
-              samples == []
+              List.is_empty(samples)
                 ? None
                 : Sample.Selection.most_aligned_sample(
                     ~ap_id,
@@ -293,7 +305,7 @@ let resolve_pending_probe_cursor =
 let align_to_indicated_probe =
     (~is_edited: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =>
   if (!is_edited
-      || z.refractors.pending_probe_cursor != None
+      || Option.is_some(z.refractors.pending_probe_cursor)
       || !ProbePerform.auto_focus(z)) {
     z;
   } else {
@@ -322,10 +334,13 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
       let alive = (s: Sample.t) => {
         let s_ids = CallStack.ids_of_stack(s.call_stack);
         ListUtil.is_suffix_of(pinned_ids, s_ids)
-        || Some(s.syntax_id) == head_id
-        && s_ids == tail_ids;
+        || Option.equal(Id.equal, Some(s.syntax_id), head_id)
+        && List.equal(Id.equal, s_ids, tail_ids);
       };
-      Id.Map.exists((_, samples) => List.exists(alive, samples), dynamics)
+      Id.Map.exists(
+        (_, samples) => List.exists(~f=alive, samples),
+        dynamics,
+      )
         ? Some(stack) : None;
     | x => x
     }

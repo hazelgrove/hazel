@@ -20,10 +20,13 @@ let mk_table = (rows: list(list((string, Exp.t)))): Exp.t =>
   G.(
     list_lit(
       List.map(
-        fields =>
-          parens(
-            tuple(List.map(((l, v)) => tup_label(label(l), v), fields)),
-          ),
+        ~f=
+          fields =>
+            parens(
+              tuple(
+                List.map(~f=((l, v)) => tup_label(label(l), v), fields),
+              ),
+            ),
         rows,
       ),
     )
@@ -192,19 +195,23 @@ let registry_tests = [
           [("x", G.int(2))],
           [("x", G.int(3))],
         ]);
-      let rows = Option.get(live_renderer.drawer_rows(Sort.Exp, three));
+      let rows =
+        Option.value_exn(live_renderer.drawer_rows(Sort.Exp, three));
       check(bool, "fits the cap", true, rows <= ProbeProj.inline_rows_cap);
       check(
         bool,
         "the table",
         true,
-        ProbeProj.in_drawer(~id=live_renderer.id, rows),
+        ProbeProj.in_drawer(live_renderer, rows),
       );
       check(
         bool,
         "another view of that height",
         false,
-        ProbeProj.in_drawer(~id="cards", rows),
+        ProbeProj.in_drawer(
+          Option.value_exn(RichProbeRegistry.find("card")),
+          rows,
+        ),
       );
     },
   ),

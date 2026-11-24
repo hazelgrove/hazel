@@ -1,7 +1,6 @@
 /* List helpers that Stdlib.List lacks. The `_opt` variants return `None`
    where the plain ones raise. */
 
-let rev_if: (bool, list('a)) => list('a);
 /** Keeps the first of each group of elements the predicate considers equal. */
 let dedup_f: (('a, 'a) => bool, list('a)) => list('a);
 let dedup: list('a) => list('a);
@@ -16,7 +15,7 @@ let range: (~lo: int=?, int) => list(int);
 /** Splits around the first element satisfying the predicate. */
 let split: (list('x), 'x => bool) => (list('x), option('x), list('x));
 let combine_opt: (list('a), list('b)) => option(list(('a, 'b)));
-/** Same as `intersperse`. */
+/** Puts the separator between each pair of adjacent elements. */
 let join: ('x, list('x)) => list('x);
 let hd_opt: list('a) => option('a);
 let split_n_opt: (int, list('x)) => option((list('x), list('x)));
@@ -61,7 +60,6 @@ let split_at_nones: list(option('a)) => list(list('a));
 /** `List.rev_append`. */
 let rev_concat: (list('a), list('a)) => list('a);
 let unzip3: list(('a, 'b, 'c)) => (list('a), list('b), list('c));
-let intersperse: ('a, list('a)) => list('a);
 /** Concatenates the lists with the separator between each. */
 let flat_intersperse: ('a, list(list('a))) => list('a);
 let is_suffix_of: (~eq: ('a, 'a) => bool=?, list('a), list('a)) => bool;
@@ -69,11 +67,14 @@ let is_suffix_of: (~eq: ('a, 'a) => bool=?, list('a), list('a)) => bool;
     dropped. */
 let suffix_at_depth:
   (~eq: ('a, 'a) => bool=?, list('a), list('a)) => option(int);
-let truncate: (int, list('a)) => list('a);
-let remove_first_n: (int, list('a)) => list('a);
-/** `slice(i, k, xs)`: at most `k` elements starting at index `i`. */
-let slice: (int, int, list('x)) => list('x);
+/** The first `n` elements, or the whole list if it is shorter; `[]` when
+    `n <= 0`. */
 let take: (int, list('a)) => list('a);
+/** The list without its first `n` elements; the whole list when `n <= 0`. */
+let remove_first_n: (int, list('a)) => list('a);
+/** `slice(i, k, xs)`: at most `k` elements starting at index `i`. A negative
+    `i` starts at index 0, and a negative `k` gives `[]`. */
+let slice: (int, int, list('x)) => list('x);
 /** Stops walking once the list is longer than `n`. */
 let is_length: (int, list('a)) => bool;
 /** `insert(x, xs, i)` puts `x` at index `i`. */
@@ -81,8 +82,6 @@ let insert: ('a, list('a), int) => list('a);
 let remove: (list('a), int) => list('a);
 let remove_nth: (int, list('a)) => option(list('a));
 let fold_left_opt: (('a, 'b) => option('a), 'a, list('b)) => option('a);
-/** The elements of the first list whose key appears in the second. */
-let intersection_f: ('a => 'b, list('a), list('a)) => list('a);
 /** Like `List.map`, but `f` also sees every result so far, oldest first. */
 let map_with_history: ((list('y), 'x) => 'y, list('x)) => list('y);
 /** Stops at the first call that isn't `Some(true)` and returns it;

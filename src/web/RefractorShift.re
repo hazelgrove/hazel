@@ -4,15 +4,17 @@
  * still when Left/Right sample nav reflows the drawers above it. Gated on
  * refractor_rows ref identity (zero work on unrelated frames). Replaces the
  * old symptom-driven CaretAnchor, which conflated drawer shifts with unrelated
- * caret motion. Compensates the editor Main hands it (Page.Update.get_editor)
- * — in multi-cell views that is the primary cell only. */
+ * caret motion. Compensates the editor Main hands it: the selected cell's,
+ * so in multi-cell views (tutorials, exercises) any cell, not just the
+ * primary one. */
 
 open Js_of_ocaml;
 open Haz3lcore;
 
-/* Baseline keyed by editor identity (Editors.Model.editor_key): comparing one
- * editor's map against another's (slide/exercise/mode switch) would read its
- * already-open drawers as freshly opened and scroll #main for nothing. */
+/* Baseline keyed by editor identity (Main's key: Editors.Model.editor_key
+ * plus the selected cell): comparing one editor's map against another's
+ * (slide/exercise/mode or cell switch) would read its already-open drawers
+ * as freshly opened and scroll #main for nothing. */
 let prev: ref(option((string, Id.Map.t(int)))) = ref(None);
 
 /* A probe that owns the keyboard is the locus (the caret is hidden then). It
@@ -81,9 +83,11 @@ let update =
    * the same physical map while refractor shapes are unchanged. Cloning
    * or rebuilding the map elsewhere would silently defeat the gate. */
   | Some((key, prev_rows))
-      when key == editor_key && prev_rows === refractor_rows =>
+      when
+        String.equal(key, editor_key)
+        && phys_equal(prev_rows, refractor_rows) =>
     ()
-  | Some((key, prev_rows)) when key == editor_key =>
+  | Some((key, prev_rows)) when String.equal(key, editor_key) =>
     let delta_rows =
       above_locus_delta_rows(
         ~prev=prev_rows,
