@@ -648,6 +648,7 @@ module ResizeCursor = {
     let list = Dom_html.document##.body##.classList;
     on ? list##add(Js.string(cls)) : list##remove(Js.string(cls));
   };
+  let dragging = (on: bool) => set_class("sample-resizing", on);
   let ensure = () =>
     if (! installed^) {
       installed := true;
@@ -665,8 +666,24 @@ module ResizeCursor = {
           Js.bool(capture),
         )
         |> ignore;
+      let end_drag = () => {
+        ValueState.mousedown := None;
+        dragging(false);
+      };
       listen(Dom_html.document, "keydown", on_key(true));
       listen(Dom_html.document, "keyup", on_key(false));
+      /* The chip's own pointerup misses a drag that ends after the chip is
+         gone (Cmd+E mid-drag) or that the browser cancels */
+      List.iter(["pointerup", "pointercancel"], ~f=name =>
+        listen(
+          Dom_html.document,
+          name,
+          _ => {
+            end_drag();
+            Js._true;
+          },
+        )
+      );
       /* bubbling, so only the window's own blur: in the capture phase it
          would also see every element losing focus */
       listen(
@@ -675,11 +692,11 @@ module ResizeCursor = {
         "blur",
         _ => {
           set_class("shift-held", false);
+          end_drag();
           Js._true;
         },
       );
     };
-  let dragging = (on: bool) => set_class("sample-resizing", on);
 };
 
 let value_view =
