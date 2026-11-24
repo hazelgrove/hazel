@@ -29,7 +29,7 @@ let serializer: Js.Unsafe.any =
         });
         Object.keys(props).sort().forEach(function (k) {
           var v = props[k];
-          if (phys_equal(typeof v, 'string') || phys_equal(typeof v, 'number') || phys_equal(typeof v, 'boolean'))
+          if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')
             fields.push(k + ':' + JSON.stringify(String(v)));
         });
         Object.keys(props.style || {}).sort().forEach(function (k) {
