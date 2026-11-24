@@ -36,6 +36,6 @@ module Make = (R: S) => {
    * work it describes was already in flight. */
   let update = (pred: R.t => bool, f: R.t => R.t): unit =>
     when_enabled(() =>
-      history := List.map(r => pred(r) ? f(r) : r, history^)
+      history := List.map(~f=r => pred(r) ? f(r) : r, history^)
     );
 };
