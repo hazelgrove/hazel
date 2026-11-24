@@ -1339,7 +1339,15 @@ and uexp_to_info_map =
             |> Typ.temp;
           let (_, _, m) = go(~ana=ty, e1, m);
           (ty, m);
-        | _ => (Typ.normalize(ctx, info_e1.ty), m)
+        | _ =>
+          let head = Typ.weak_head_normalize(ctx, info_e1.ty);
+          switch (head.term) {
+          | List(elem) => (
+              List(Typ.weak_head_normalize(ctx, elem)) |> Typ.temp,
+              m,
+            )
+          | _ => (head, m)
+          };
         };
       };
       switch (ty.term) {
