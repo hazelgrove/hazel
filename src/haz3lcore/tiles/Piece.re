@@ -105,12 +105,6 @@ let shapes =
     p => Some(ProjectorCore.shapes(p)),
   );
 
-let is_convex = (p: t): bool =>
-  switch (shapes(p)) {
-  | Some((Convex, Convex)) => true
-  | _ => false
-  };
-
 let is_space: t => bool =
   fun
   | Secondary(s) => Secondary.is_space(s)
@@ -177,7 +171,7 @@ let mk_tile: ((Form.t, Sort.t), list(list(t))) => t =
       id: Id.mk(),
       form,
       sort,
-      shards: List.mapi((i, _) => i, Form.label_of(form)),
+      shards: List.mapi(~f=(i, _) => i, Form.label_of(form)),
       children,
     });
 

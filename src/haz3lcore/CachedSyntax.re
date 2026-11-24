@@ -66,10 +66,10 @@ let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
   Option.value(
     TermData.segment(id, term_data)
-    |> Option.map(Segment.unparenthesize)
-    |> Option.map(Segment.trim_secondary(Left))
-    |> Option.map(Segment.trim_secondary(Right))
-    |> Option.map(Segment.parenthesize),
+    |> Option.map(~f=Segment.unparenthesize)
+    |> Option.map(~f=Segment.trim_secondary(Left))
+    |> Option.map(~f=Segment.trim_secondary(Right))
+    |> Option.map(~f=Segment.parenthesize),
     ~default=
       Base.Secondary({
         id: Id.invalid,
@@ -83,7 +83,7 @@ let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
    can sit lines above the term's end, where the drawer is drawn */
 let rows_key = (id: Id.t, term_data: TermData.t): Id.t =>
   switch (
-    Option.bind(TermData.segment(id, term_data), seg =>
+    Option.bind(TermData.segment(id, term_data), ~f=seg =>
       Util.ListUtil.last_opt(Segment.tiles(seg))
     )
   ) {
@@ -186,7 +186,7 @@ let mk =
      once at their own sort, which the Exp-rooted [go] would misparse. Read
      ends an unfinished member at its member line, as completion does */
   let (terms, term_data, projectors, projector_list) =
-    if (root == Sort.Exp || root == Sort.Mod) {
+    if (Sort.equal(root, Sort.Exp) || Sort.equal(root, Sort.Mod)) {
       let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
         MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache=t_cache, segment);
       (terms, term_data, projectors, projector_list);
@@ -288,8 +288,8 @@ let refresh_shapes =
    * the old shape_map ref too so downstream phys-eq caches stay warm.
    * (Re-measures go through the chunk cache: only changed chunks.) */
   let shapes_equal =
-    Id.Map.equal((a, b) => a == b, shape_map, old.shape_map)
-    && refractor_rows === old.refractor_rows;
+    Id.Map.equal(Poly.equal, shape_map, old.shape_map)
+    && phys_equal(refractor_rows, old.refractor_rows);
   let (shape_map, measured) =
     shapes_equal
       ? (old.shape_map, old.measured)
@@ -327,10 +327,10 @@ let refresh_shapes =
    which semantics drops */
 let semantic_source = (z: Zipper.t, s: t): option(Segment.t) => {
   let (relatives, selection, segment) = s.zipped;
-  relatives === z.relatives
-  && selection === z.selection
-  && segment === s.segment
-  && z.selection.mode != Buffer(Unparsed)
+  phys_equal(relatives, z.relatives)
+  && phys_equal(selection, z.selection)
+  && phys_equal(segment, s.segment)
+  && !Poly.equal(z.selection.mode, Buffer(Unparsed))
     ? Some(segment) : None;
 };
 
@@ -340,7 +340,7 @@ let elaborated_phys_eq =
     (a: option(Language.Exp.t), b: option(Language.Exp.t)): bool =>
   switch (a, b) {
   | (None, None) => true
-  | (Some(x), Some(y)) => x === y
+  | (Some(x), Some(y)) => phys_equal(x, y)
   | _ => false
   };
 
@@ -358,12 +358,12 @@ let calculate =
       old: t,
     ) => {
   let refractor_inputs_changed =
-    z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals
-    || z.refractors.tail_target != old.cached_tail
-    || z.refractors.stepping != old.cached_stepping
+    !phys_equal(z.refractors.manuals, old.cached_manuals)
+    || !phys_equal(z.refractors.multis.ephemerals, old.cached_ephemerals)
+    || !Option.equal(Id.equal, z.refractors.tail_target, old.cached_tail)
+    || !Poly.equal(z.refractors.stepping, old.cached_stepping)
     || DrawerFit.layout^ != old.cached_layout
-    || z.refractors.proofs !== old.cached_proofs;
+    || !phys_equal(z.refractors.proofs, old.cached_proofs);
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */
@@ -391,8 +391,8 @@ let calculate =
         ~elaborated,
       );
     };
-  } else if (info_map !== old.shape_info_map
-             || dyn_map !== old.shape_dyn_map
+  } else if (!phys_equal(info_map, old.shape_info_map)
+             || !phys_equal(dyn_map, old.shape_dyn_map)
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)
              || refractor_inputs_changed) {
     refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old);
@@ -401,7 +401,7 @@ let calculate =
        on it, and every non-editor update (a streamed chat token) lands
        here */
     let selection_ids = Selection.selection_ids(z.selection);
-    selection_ids == old.selection_ids
+    List.equal(Id.equal, selection_ids, old.selection_ids)
       ? old
       : {
         ...old,

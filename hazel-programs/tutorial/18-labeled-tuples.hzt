@@ -40,5 +40,11 @@ type Point = (x=Float, y=Float) in
 let p : Point = ¿ in
 p
 
+@solution
+type Point = (x=Float, y=Float) in
+
+let p : Point = (x=1.0, y=1.0) in
+p
+
 @test
 test p.x == p.y end

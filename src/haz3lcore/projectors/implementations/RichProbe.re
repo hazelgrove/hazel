@@ -159,10 +159,10 @@ let pack_renderer =
       },
     init_model: (~statics, sort, exp) =>
       R.parse(~statics, sort, exp)
-      |> Option.map(v => PModel(id, model_id, R.init(v))),
+      |> Option.map(~f=v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
     drawer_rows: (~statics, sort, exp) =>
-      R.parse(~statics, sort, exp) |> Option.map(R.drawer_rows),
+      R.parse(~statics, sort, exp) |> Option.map(~f=R.drawer_rows),
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
       | (Some(m), Some(a)) => PModel(id, model_id, R.update(m, a))

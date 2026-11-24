@@ -1,7 +1,7 @@
 open Util;
 
 module CompletionDisplay = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Quiver
     | Flag
@@ -498,7 +498,8 @@ module Update = {
             show:
               !settings.sidebar.show
                 ? true
-                : settings.sidebar.panel == windowToSwitchTo ? false : true,
+                : Poly.equal(settings.sidebar.panel, windowToSwitchTo)
+                    ? false : true,
             panel: windowToSwitchTo,
           },
         }
@@ -553,8 +554,8 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_value_nodes:
-              List.mem(key, settings.sidebar.canvas_value_nodes)
-                ? List.filter(
+              List.mem(settings.sidebar.canvas_value_nodes, key, ~equal=Poly.equal)
+                ? List.filter(~f=
                     k => k != key,
                     settings.sidebar.canvas_value_nodes,
                   )
@@ -579,8 +580,8 @@ module Update = {
           sidebar: {
             ...settings.sidebar,
             canvas_card_live:
-              List.mem(key, settings.sidebar.canvas_card_live)
-                ? List.filter(
+              List.mem(settings.sidebar.canvas_card_live, key, ~equal=Poly.equal)
+                ? List.filter(~f=
                     k => k != key,
                     settings.sidebar.canvas_card_live,
                   )
@@ -760,8 +761,8 @@ module Update = {
         }
       | CompletionDisplay(mode) => {
           ...settings,
-          quiver: mode != CompletionDisplay.Hidden,
-          quiver_flagpole: mode == CompletionDisplay.Flag,
+          quiver: !CompletionDisplay.equal(mode, Hidden),
+          quiver_flagpole: CompletionDisplay.equal(mode, Flag),
         }
       | SetCanvasPaneWidth(w) => {
           ...settings,
@@ -807,12 +808,12 @@ module Update = {
       | ClearCanvasNodeOffsets(slide) => {
           ...settings,
           canvas_node_offsets:
-            List.filter(
+            List.filter(~f=
               (((s, _), _)) => s != slide,
               settings.canvas_node_offsets,
             ),
           canvas_node_pins:
-            List.filter(
+            List.filter(~f=
               (((s, _), _)) => s != slide,
               settings.canvas_node_pins,
             ),
@@ -914,7 +915,7 @@ module Update = {
       }
     )
     |> Updated.return(
-         ~scroll_active=false,
+         ~scroll=Never,
          /* canvas geometry and its render tick change nothing the program
             means: no statics/eval recompute for them (each CanvasTick was a
             full recompute — dozens per agent tool call); pins, offsets,

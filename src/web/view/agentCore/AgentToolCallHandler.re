@@ -1,15 +1,6 @@
-open Util;
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action = CompositionActions.action;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type result =
-  | Success(Model.t, Updated.t(CellEditor.Model.t))
-  | Failure(string);
 
 /** The elaborated form cached alongside [syntax], for projectors that key their
     init off elaboration ([[ProjectorInit]]'s [elaborate_syntax] kinds, e.g.
@@ -22,13 +13,12 @@ let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
   };
 
 /** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
-    projectors). Each such tool takes a list of HighLevelNodeMap paths and
-    runs a per-path operation; afterwards any paths that were actually
-    placed are auto-expanded via an AgentContext.Expand on the chat system.
+    projectors). Each such tool takes a list of paths (EntryPath) and runs a
+    per-path operation; afterwards any paths that were actually placed are
+    opened in the agent's view.
 
-    [resolve_path] maps a path string to an Id using the node map. Probes and
-    statics use [HighLevelNodeMap.Public.path_to_id_opt]; syntax projectors
-    use [path_to_syntax_projector_target_id_opt].
+    [resolve_path] maps a path to an id: probes and statics take the
+    entry's, syntax projectors its definition's.
 
     [perform] applies the action to one resolved id. [Some((z', should_expand))]
     means the operation changed state; [None] means resolved-but-noop (e.g.
@@ -37,10 +27,27 @@ let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
     If every input path either failed to resolve or was a resolved-noop, we
     return an Error so the agent gets a concrete failure signal instead of a
     silent-success tool message. */
+/* the entry [path] names: its anchor, the binding's term */
+let entry_id = (~root, seg, path: string): option(Id.t) =>
+  switch (EntryPath.resolve_string(~root, seg, path)) {
+  | Ok(f) => Some(f.id)
+  | Error(_) => None
+  };
+
+/* its definition's, where a syntax projector goes */
+let definition_id = (~root, seg, path: string): option(Id.t) =>
+  switch (EntryPath.resolve_string(~root, seg, path)) {
+  | Ok(f) =>
+    let (lv, k) = Util.ListUtil.last(f.steps);
+    EntryPath.part_root(lv, k, Definition);
+  | Error(_) => None
+  };
+
 let apply_overlay_action =
     (
+      ~settings: Settings.t,
       ~tool_label: string,
-      ~resolve_path: (HighLevelNodeMap.t, string) => option(Id.t),
+      ~resolve_path: (~root: Sort.t, Segment.t, string) => option(Id.t),
       ~perform:
          (~info_map: _, ~syntax: CachedSyntax.t, Zipper.t, Id.t) =>
          option((Zipper.t, bool)),
@@ -52,20 +59,42 @@ let apply_overlay_action =
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
   let root = editor.editor.root;
-  let info_map = CompositionGo.Public.mk_statics(~root, z);
-  switch (CompositionGo.Public.node_map_of(~root, z)) {
-  | None =>
-    Error(
-      Failure.Info(
-        "No bindings in the program. Add let/type bindings first.",
-      ),
-    )
-  | Some(node_map) =>
-    let syntax = CachedSyntax.init(~root, z);
-    let (new_z, paths_to_expand, n_changed, unresolved) =
-      List.fold_left(
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  /* the editor's statics when they describe this program, else per item
+     (DefStatics), as the edit check computes them */
+  let info_map =
+    CompositionGo.statics_for(
+      ~settings=settings.core,
+      ~statics_of=
+        CompositionGo.statics_of(
+          ~settings=settings.core,
+          ~root,
+          ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+          ~shared=editor.editor.syntax.t_cache,
+        ),
+      z,
+      editor.statics,
+    ).
+      info_map;
+
+  /* the editor's syntax when it describes [z], else made with its
+     incremental caches */
+  let syntax = {
+    let s = editor.editor.syntax;
+    let (relatives, selection, _) = s.zipped;
+    !s.old
+    && phys_equal(relatives, z.relatives)
+    && phys_equal(selection, z.selection)
+      ? s
+      : Util.PerfTimer.time("syntax", () =>
+          CachedSyntax.init(~root, ~m_cache=s.m_cache, ~t_cache=s.t_cache, z)
+        );
+  };
+  let (new_z, paths_to_expand, n_changed, unresolved) =
+    List.fold_left(
+      ~f=
         ((z, expanded, n_changed, unresolved), path) =>
-          switch (resolve_path(node_map, path)) {
+          switch (resolve_path(~root, seg, path)) {
           | Some(id) =>
             switch (perform(~info_map, ~syntax, z, id)) {
             | Some((z', should_expand)) =>
@@ -75,54 +104,74 @@ let apply_overlay_action =
             }
           | None => (z, expanded, n_changed, [path, ...unresolved])
           },
-        (z, [], 0, []),
-        paths,
-      );
-    if (List.length(paths) > 0 && n_changed == 0) {
-      let unresolved_sfx =
-        switch (unresolved) {
-        | [] => ""
-        | ps =>
-          " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
-        };
-      Error(
-        Failure.Info(
-          tool_label
-          ++ " tool did not update the program: no path produced a change."
-          ++ unresolved_sfx
-          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" or \"^graph/update\" for module/livelit members, \"name#k\" for duplicates).",
-        ),
-      );
-    } else {
-      let new_z = Materialize.all(new_z, ~root);
-      let new_editor_model = Editor.Model.mk(new_z, ~root);
-      let new_cws =
-        CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
+      ~init=(z, [], 0, []),
+      paths,
+    );
+  if (!List.is_empty(paths) && n_changed == 0) {
+    let unresolved_sfx =
+      switch (unresolved) {
+      | [] => ""
+      | ps =>
+        " Unresolved path(s): "
+        ++ String.concat(~sep=", ", List.rev(ps))
+        ++ "."
+      };
+    Error(
+      Failure.Info(
+        tool_label
+        ++ " tool did not update the program: no path produced a change."
+        ++ unresolved_sfx
+        ++ " Paths name entries (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
+      ),
+    );
+  } else {
+    let new_z = Materialize.all(new_z, ~root);
+    /* the editor's syntax, marked for its recalculation, keeps its
+       caches */
+    let new_editor_model = {
+      ...editor.editor,
+      state: {
+        zipper: new_z,
+        col_target: None,
+      },
+      syntax: CachedSyntax.mark_old(editor.editor.syntax),
+    };
+    let new_cws =
+      CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
-      if (List.length(paths_to_expand) > 0) {
-        let expand_action = AgentContext.Update.Expand(paths_to_expand);
-        let chat_system =
-          ChatSystem.Update.update(
+    /* placed overlays open their entries; a path the agent's view
+       doesn't name stays closed */
+    let outline = Outline.of_program(~root, Zipper.unselect_and_zip(new_z));
+    let opened =
+      List.filter_map(
+        ~f=
+          path =>
+            switch (Outline.resolve(outline, path)) {
+            | Ok(e) => Some(AgentContext.Model.of_outline(e))
+            | Error(_) => None
+            },
+        List.rev(paths_to_expand),
+      );
+    switch (
+      List.is_empty(opened)
+        ? Ok(agent.chat_system)
+        : ChatSystem.Update.update(
             ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AgentContextAction(expand_action),
+              Chat.Update.Action.AgentContextAction(Open(opened)),
               chat_id,
             ),
             agent.chat_system,
-          );
-        switch (chat_system) {
-        | Ok(updated_chat_system) =>
-          Ok((
-            {
-              ...agent,
-              chat_system: updated_chat_system,
-            },
-            new_cws,
-          ))
-        | Error(_) => Ok((agent, new_cws))
-        };
-      } else {
-        Ok((agent, new_cws));
-      };
+          )
+    ) {
+    | Ok(chat_system) =>
+      Ok((
+        {
+          ...agent,
+          chat_system,
+        },
+        new_cws,
+      ))
+    | Error(_) => Ok((agent, new_cws))
     };
   };
 };
@@ -130,7 +179,7 @@ let apply_overlay_action =
 let update =
     (
       ~settings: Settings.t,
-      action: action,
+      action: CompositionActions.action,
       agent: Model.t,
       editor: CodeWithStatics.Model.t,
       chat_id: Id.t,
@@ -139,6 +188,16 @@ let update =
   /* stamp agent activity so the canvas paces the resulting updates
      into distinct beats (CanvasBuffer) */
   CanvasBuffer.note_agent_action();
+  let with_chat_system =
+    Stdlib.Result.map(chat_system =>
+      (
+        {
+          ...agent,
+          chat_system,
+        },
+        editor,
+      )
+    );
   switch (action) {
   | EditorAction(agent_editor_action) =>
     let action = Action.Structural(agent_editor_action);
@@ -157,12 +216,7 @@ let update =
         agent,
         CodeWithStatics.Model.{
           editor: updated_editor,
-          /* the old statics describe the program BEFORE this edit: kept,
-             they made the tool's canvas snapshot blank (its beat showed
-             nothing) and the content landed later as an anonymous state
-             change. Empty = the snapshot computes this program's (a
-             DefStatics memo hit) and the editor's calculate refreshes. */
-          statics: CachedStatics.empty,
+          statics: editor.statics,
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
@@ -180,72 +234,7 @@ let update =
         )
       }
     };
-  | LanguageServerAction(_) =>
-    Error(Failure.Info("LanguageServerAction is not implemented yet"))
-  | InsertAtProgramBoundary(direction, code) =>
-    /* No-path variant of insert_before/insert_after: the code at the
-       program's start (Before) or end (After), at a Mod root as members
-       (CompositionGo.Public.insert_at_boundary). For an empty program
-       (just `?`), either boundary effectively seeds the program with the
-       provided code. */
-    let z = editor.editor.state.zipper;
-    let root = editor.editor.root;
-    /* the editor's statics for this program when it has them; the new
-       program's computed the editor's way, per item (the editor's
-       recompute is a DefStatics memo hit) */
-    let eff_settings =
-      Language.CoreSettings.{
-        ...settings.core,
-        probe_all: settings.core.probe_all && !Util.AgentPulse.in_burst(),
-      };
-    let initial_info_map =
-      editor.statics.info_map != Id.Map.empty
-        ? editor.statics.info_map
-        : CompositionGo.Public.statics_for(~settings=eff_settings, ~root, z);
-    /* inserted code arrives indentation-stripped; re-indent its new
-       lines like user Paste */
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
-    switch (
-      CompositionGo.Public.insert_at_boundary(~root, direction, z, code)
-    ) {
-    | Error(Action.Failure.Composition_action_failure(msg)) =>
-      Error(Failure.Info(msg))
-    | Error(_) =>
-      Error(Failure.Info("Failed to insert code at program boundary"))
-    | Ok(new_z) =>
-      let new_statics =
-        CompositionGo.Public.statics_for(
-          ~settings=eff_settings,
-          ~root,
-          new_z,
-        );
-      let old_errors = ErrorPrint.all(initial_info_map);
-      let new_errors = ErrorPrint.all(new_statics);
-      if (List.length(new_errors) > List.length(old_errors)) {
-        Error(
-          Failure.Info(
-            "Not applying the action you requested as it would introduce new static error(s): "
-            ++ String.concat(", ", new_errors)
-            ++ CompositionGo.Local.PerformUtils.reserved_word_note(code),
-          ),
-        );
-      } else {
-        let final_z =
-          CompositionGo.Local.PerformUtils.normalize_top_level(
-            ~root,
-            ~before=z,
-            CompositionGo.Local.mentions_trigger(code)
-              ? Materialize.all(new_z, ~root) : new_z,
-          )
-          |> LocalReformat.go_region(~before_pieces);
-        let new_editor_model = Editor.Model.mk(final_z, ~root);
-        let new_code_with_statics =
-          CodeWithStatics.Model.mk(new_editor_model);
-        CodeWithStatics.StaticsDebounce.force_on_next := true;
-        Ok((agent, new_code_with_statics));
-      };
-    };
+
   | WorkbenchAction(workbench_action) =>
     let action = AgentWorkbench.Update.Action.BackendAction(workbench_action);
     let chat_system =
@@ -256,38 +245,26 @@ let update =
         ),
         agent.chat_system,
       );
-    switch (chat_system) {
-    | Ok(updated_chat_system) =>
-      Ok((
-        {
-          ...agent,
-          chat_system: updated_chat_system,
-        },
-        editor,
-      ))
-    | Error(error) => Error(error)
-    };
+    with_chat_system(chat_system);
   | AgentContextAction(agent_context_action) =>
-    let action = agent_context_action;
-    let chat_system =
-      ChatSystem.Update.update(
-        ChatSystem.Update.Action.ChatAction(
-          Chat.Update.Action.AgentContextAction(action),
-          chat_id,
-        ),
-        agent.chat_system,
+    let outline =
+      Outline.of_program(
+        ~root=editor.editor.root,
+        Zipper.unselect_and_zip(editor.editor.state.zipper),
       );
-    switch (chat_system) {
-    | Ok(updated_chat_system) =>
-      Ok((
-        {
-          ...agent,
-          chat_system: updated_chat_system,
-        },
-        editor,
-      ))
-    | Error(error) => Error(error)
-    };
+    let chat_system =
+      switch (AgentContext.Update.resolve(outline, agent_context_action)) {
+      | Error(msg) => Error(Failure.Info(msg))
+      | Ok(action) =>
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.AgentContextAction(action),
+            chat_id,
+          ),
+          agent.chat_system,
+        )
+      };
+    with_chat_system(chat_system);
   | ProbeAction(probe_action) =>
     let paths =
       switch (probe_action) {
@@ -296,8 +273,9 @@ let update =
       | ToggleProbe(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Probe",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~resolve_path=entry_id,
       ~perform=
         (~info_map, ~syntax, z, id) =>
           switch (probe_action) {
@@ -326,33 +304,32 @@ let update =
       | ToggleStatics(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Statics",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~resolve_path=entry_id,
       ~perform=
         (~info_map, ~syntax, z, id) => {
-          let (z, should_expand) =
+          let z =
             switch (statics_action) {
             | PlaceStatics(_) =>
-              let z = ProbePerform.place_statics_at(~syntax, id, info_map, z);
-              let expand =
-                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
-                | Statics(_) => true
-                | _ => false
-                };
-              (z, expand);
+              ProbePerform.place_statics_at(~syntax, id, info_map, z)
             | RemoveStatics(_) =>
-              let z = ProbePerform.remove_statics_at(id, info_map, z);
-              (z, false);
+              ProbePerform.remove_statics_at(id, info_map, z)
             | ToggleStatics(_) =>
-              let z = ProbePerform.toggle_statics(~syntax, id, info_map, z);
-              let expand =
-                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
-                | Statics(_) => true
-                | _ => false
-                };
-              (z, expand);
+              ProbePerform.toggle_statics(~syntax, id, info_map, z)
             };
-          Some((z, should_expand));
+          /* its entry opens when it shows statics */
+          let expand =
+            switch (statics_action) {
+            | RemoveStatics(_) => false
+            | PlaceStatics(_)
+            | ToggleStatics(_) =>
+              switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
+              | Statics(_) => true
+              | _ => false
+              }
+            };
+          Some((z, expand));
         },
       ~paths,
       ~agent,
@@ -367,8 +344,9 @@ let update =
       | RemoveSyntaxProjector(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Syntax projector",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_syntax_projector_target_id_opt,
+      ~resolve_path=definition_id,
       ~perform=
         (~info_map as _, ~syntax, z, id) => {
           let z_opt =
@@ -396,7 +374,7 @@ let update =
                 z,
               )
             };
-          z_opt |> Option.map(z' => (z', true));
+          z_opt |> Option.map(~f=z' => (z', true));
         },
       ~paths,
       ~agent,

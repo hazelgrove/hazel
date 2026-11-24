@@ -11,7 +11,7 @@ let ids_from_info =
     (~info_map: Language.Statics.Map.t, ci: Language.Info.t): list(Id.t) => {
   let current_id = Language.Info.id_of(ci);
   Language.Statics.Map.var_highlight_ids(info_map, ci)
-  |> List.filter(id => !Id.equal(id, current_id));
+  |> List.filter(~f=id => !Id.equal(id, current_id));
 };
 
 /* Compute which IDs to highlight based on the currently indicated piece.
@@ -67,7 +67,11 @@ let caret_ids_memo:
 let compute_caret_ids_cached =
     (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) =>
   Util.Slot.get(
-    ~same=((m, i, se), (m', i', se')) => m === m' && i == i' && se == se',
+    ~same=
+      ((m, i, se), (m', i', se')) =>
+        phys_equal(m, m')
+        && Option.equal(Id.equal, i, i')
+        && Bool.equal(se, se'),
     caret_ids_memo,
     (info_map, Indicated.index(z), Selection.is_empty(z.selection)),
     () => compute_caret_ids(~info_map, z),
@@ -86,7 +90,7 @@ let view =
   div_c(
     "var-highlights",
     List.concat_map(
-      highlight_of_id(~measured, ~font_metrics, ~info_map),
+      ~f=highlight_of_id(~measured, ~font_metrics, ~info_map),
       ids,
     ),
   );

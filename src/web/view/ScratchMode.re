@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
@@ -11,7 +12,7 @@ module Persist = ScratchPersist;
 let slide_key = (~is_documentation, model: Model.t): string =>
   Persist.content_key(
     ScratchModel.prefix(~is_documentation),
-    List.nth(model.scratchpads, model.current).name,
+    List.nth_exn(model.scratchpads, model.current).name,
   );
 
 let current_cells = (model: Model.t): list(ScratchCell.t) =>
@@ -85,14 +86,14 @@ module Update = {
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
             ~prefix=ScratchModel.prefix(~is_documentation),
-            ~name=List.nth(model.scratchpads, model.current).name,
+            ~name=List.nth_exn(model.scratchpads, model.current).name,
             a,
             code,
           );
         Model.with_current_kind(Code(code), model);
       }
     | DrvAction(a) =>
-      switch (List.nth(model.scratchpads, model.current).kind) {
+      switch (List.nth_exn(model.scratchpads, model.current).kind) {
       | Drv(m) =>
         let* new_m =
           DerivationExerciseMode.Update.update(
@@ -139,7 +140,7 @@ module Update = {
     };
 
     let kind: Scratchpad.kind =
-      switch (List.nth(model.scratchpads, model.current).kind) {
+      switch (List.nth_exn(model.scratchpads, model.current).kind) {
       | Code(code) =>
         Code(
           Workspace.calculate(
@@ -177,12 +178,14 @@ module Selection = {
     /* the open cells: the one Divided.active names has the focus */
     | Stack(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
+    /* View as agent's map */
+    | LensMap(CellEditor.Selection.t)
     | TextBox;
 
   let get_cursor_info =
       (~inject: Update.t => Ui_effect.t(unit), ~selection, model: Model.t)
       : cursor(Update.t) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     let cursor =
       switch (selection, scratchpad.kind) {
       | (Cell(selection), Code({program: Whole(editor), _})) =>
@@ -205,6 +208,14 @@ module Selection = {
           Update.Workspace(Stack(e.e_id, side, a));
         | None => empty
         }
+      | (LensMap(selection), Code({lens: Some(l), _})) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Workspace(LensMap(a))),
+            ~selection,
+            l.map.editor,
+          );
+        Update.Workspace(LensMap(a));
       | (Drv(selection), Drv(m)) =>
         let+ a =
           DerivationExerciseMode.Selection.get_cursor_info(
@@ -218,6 +229,7 @@ module Selection = {
       | (Stack(_), Code({program: Whole(_), _}))
       | (Stack(_), Drv(_))
       | (Drv(_), Code(_))
+      | (LensMap(_), _)
       | (TextBox, _) => empty
       };
     cursor
@@ -256,31 +268,23 @@ module Selection = {
   /* the open cell holding [tile], and the caret's move there */
   let jump_in_divided =
       (~select=false, tile, d: Divided.t): option((Update.t, t)) => {
-    let find = tile => {
-      /* [select]: the whole definition, as in a whole editor */
-      let caret = (cell): CellEditor.Update.t =>
-        switch (CellEditor.Selection.jump_to_tile(~select, tile, cell)) {
-        | Some((u, _)) => u
-        | None => MainEditor(Perform(Move(Goal(TileId(tile)))))
-        };
-      let in_cell = cell =>
-        Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
-      Divided.cells(d)
-      |> List.find_map((e: ScratchCell.t) =>
-           List.find_map(
-             side => {
-               let cell = ScratchCell.pane(side, e);
-               in_cell(cell)
-                 ? Some((
-                     Update.Workspace(Stack(e.e_id, side, caret(cell))),
-                     Stack(MainEditor),
-                   ))
-                 : None;
-             },
-             [ScratchCell.Body, Header],
-           )
-         );
-    };
+    let find = tile =>
+      Divided.pane_of(tile, d)
+      |> Option.map(~f=((e: ScratchCell.t, side)) => {
+           /* [select]: the whole definition, as in a whole editor */
+           let caret: CellEditor.Update.t =
+             switch (
+               CellEditor.Selection.jump_to_tile(
+                 ~select,
+                 tile,
+                 ScratchCell.pane(side, e),
+               )
+             ) {
+             | Some((u, _)) => u
+             | None => MainEditor(Perform(Move(Goal(TileId(tile)))))
+             };
+           (Update.Workspace(Stack(e.e_id, side, caret)), Stack(MainEditor));
+         });
     switch (find(tile)) {
     | Some(_) as found => found
     /* a run member's row is its `;`, outside the run's cell: go to its
@@ -292,7 +296,7 @@ module Selection = {
           tile,
           Divided.document(d),
         ),
-        find,
+        ~f=find,
       )
     };
   };
@@ -300,17 +304,17 @@ module Selection = {
   let jump_to_tile =
       (~select=false, ~settings, tile, model: Model.t)
       : option((Update.t, t)) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     switch (scratchpad.kind) {
     | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(~select, tile, editor)
-      |> Option.map(((x, y)) =>
+      |> Option.map(~f=((x, y)) =>
            (Update.Workspace(CellAction(x)), Cell(y))
          )
     | Code({program: Divided(d), _}) => jump_in_divided(~select, tile, d)
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
-      |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
+      |> Option.map(~f=((x, y)) => (Update.DrvAction(x), Drv(y)))
     };
   };
 
@@ -328,7 +332,7 @@ module Selection = {
           OutlineTree.enclosing_row(
             ~info_map=statics.info_map,
             target_id,
-            statics.term,
+            Program.outline(Divided(d)),
           );
         /* the cell that holds [fid] once it's ensured; in single-
            definition mode (constellation main) the jump REPLACES the one
@@ -343,8 +347,8 @@ module Selection = {
         let doc = Divided.document(d);
         let root = Divided.root(d);
         let headless =
-          Focus.headless_content_deep(~root, fid, doc) != None
-          || Focus.test_run_deep(~root, fid, doc) != None;
+          Option.is_some(Focus.headless_content_deep(~root, fid, doc))
+          || Option.is_some(Focus.test_run_deep(~root, fid, doc));
         let side: ScratchCell.side =
           !headless
           && Focus.seg_contains_id(
@@ -367,7 +371,7 @@ module Selection = {
       (~single: bool, ~target_id: Haz3lcore.Id.t, ~d: Divided.t)
       : option((Update.t, t, list(Update.t))) =>
     cross_cell(~single, ~target_id, ~d)
-    |> Option.map(((ensure, selection, (j, side))) => {
+    |> Option.map(~f=((ensure, selection, (j, side))) => {
          let caret: CellEditor.Update.t =
            MainEditor(Perform(Move(Goal(TileId(target_id)))));
          (ensure, selection, [Update.Workspace(Stack(j, side, caret))]);
@@ -379,7 +383,7 @@ module Selection = {
       (~single=false, tile: Haz3lcore.Id.t, model: Model.t)
       : option((Update.t, t, list(Update.t))) =>
     switch (Model.current_program(model)) {
-    | Some(Divided(d)) when Divided.owner(tile, d) == None =>
+    | Some(Divided(d)) when Option.is_none(Divided.owner(tile, d)) =>
       cross_cell_target(~single, ~target_id=tile, ~d)
     | _ => None
     };
@@ -411,7 +415,7 @@ module Selection = {
             switch (info) {
             | Language.Info.InfoExp({user_term, _}) =>
               Option.map(
-                Language.Exp.rep_id,
+                ~f=Language.Exp.rep_id,
                 Language.FunctionSugar.written(user_term),
               )
             | _ => None
@@ -508,14 +512,20 @@ module Selection = {
   /* after an update, the selection follows the program between one
      editor and open cells */
   let follow = (selection: t, after: Model.t): t =>
-    switch (selection, Model.current_program(after)) {
-    | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
-    | (Cell(MainEditor), Some(Divided(_))) => Stack(MainEditor)
+    switch (selection, Model.current_code(after)) {
+    | (Stack(_), Some({program: Whole(_), _})) => Cell(MainEditor)
+    | (Cell(MainEditor), Some({program: Divided(_), _})) =>
+      Stack(MainEditor)
+    /* the map left with the lens */
+    | (LensMap(_), Some({lens: None, program: Whole(_), _})) =>
+      Cell(MainEditor)
+    | (LensMap(_), Some({lens: None, program: Divided(_), _})) =>
+      Stack(MainEditor)
     | _ => selection
     };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
+    let scratchpad = List.nth_exn(model.scratchpads, model.current);
     switch (selection, scratchpad.kind) {
     | (Drv(sel), Drv(m)) =>
       DerivationExerciseMode.Selection.get_derivation_info(~selection=sel, m)
@@ -564,7 +574,7 @@ module View = {
      the view: jsoo closures share one context per scope, so each render's
      handlers would retain the last one's vdom, leaking every generation */
   let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
-    List.assoc_opt(id, stack_cache^);
+    List.Assoc.find(stack_cache^, id, ~equal=Poly.equal);
 
   let view =
       (
@@ -575,7 +585,7 @@ module View = {
         ~selected: option(Selection.t),
         model: Model.t,
       ) => {
-    let current = List.nth(model.scratchpads, model.current);
+    let current = List.nth_exn(model.scratchpads, model.current);
     if (current.dormant) {
       [
         /* shown until hydration, which blocks on large slides; the same
@@ -610,12 +620,26 @@ module View = {
       ];
     } else {
       switch (current.kind) {
-      | Code({program, view, _}) =>
+      | Code({program, view, lens, _}) =>
+        /* View as agent: the request's program in place of the user's,
+           read-only */
+        let (program, view, locked) =
+          switch (lens) {
+          | Some(l) => (l.program, l.view, true)
+          | None => (program, view, false)
+          };
+        let banner =
+          switch (lens) {
+          | Some(l) => [
+              AgentLensView.banner(~go=a => inject(Workspace(a)), l),
+            ]
+          | None => []
+          };
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
-          let term = Divided.statics(d).term;
+          let outline = Program.outline(Divided(d));
           /* the zoomed module as one cell: the breadcrumb names it */
-          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let zoom_cell = SlideView.showing_zoom_cell(~outline, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
           let focus =
             switch (selected, Divided.focused(d)) {
@@ -625,10 +649,11 @@ module View = {
             };
           let rendered =
             List.mapi(
+              ~f=
               (i, e: ScratchCell.t) => {
                 let sel = (side: ScratchCell.side) =>
                   switch (focus) {
-                  | Some((j, s, sel)) when j == e.e_id && s == side =>
+                    | Some((j, s, sel)) when Id.equal(j, e.e_id) && s == side =>
                     Some(sel)
                   | _ => None
                   };
@@ -645,7 +670,9 @@ module View = {
                   k_program: current.name,
                 };
                 let draws = (c: CellEditor.Model.t) =>
-                  c.editor.editor.state.zipper.refractors.stepping != None
+                    Option.is_some(
+                      c.editor.editor.state.zipper.refractors.stepping,
+                    )
                   || !
                        Haz3lcore.Id.Map.is_empty(
                          c.editor.editor.state.zipper.refractors.proofs,
@@ -657,25 +684,33 @@ module View = {
                 | Some(c)
                     when
                       c.c_key == key
-                      && Option.equal((===), c.c_drawers, drawers)
-                      && c.c_header === e.e_header
-                      && c.c_body === e.e_body
-                      && c.c_settings === globals.Globals.Model.settings
-                      && c.c_font_metrics
-                      === globals.Globals.Model.font_metrics
-                      && c.c_colors === globals.Globals.Model.color_highlights
-                      && Option.equal((===), c.c_tests, tests) => (
+                        && Option.equal(phys_equal, c.c_drawers, drawers)
+                        && phys_equal(c.c_header, e.e_header)
+                        && phys_equal(c.c_body, e.e_body)
+                        && phys_equal(
+                             c.c_settings,
+                             globals.Globals.Model.settings,
+                           )
+                        && phys_equal(
+                             c.c_font_metrics,
+                             globals.Globals.Model.font_metrics,
+                           )
+                        && phys_equal(
+                             c.c_colors,
+                             globals.Globals.Model.color_highlights,
+                           )
+                        && Option.equal(phys_equal, c.c_tests, tests) => (
                     e.e_id,
                     c,
                   )
                 | _ =>
                   let qualifier =
-                    switch (OutlineTree.path_of(e.e_id, term)) {
+                      switch (OutlineTree.path_of(e.e_id, outline)) {
                     | [] => []
                     | path => [
                         span(
                           ~attrs=[Attr.classes(["focus-qualifier"])],
-                          [text(String.concat(".", path) ++ ".")],
+                            [text(String.concat(~sep=".", path) ++ ".")],
                         ),
                       ]
                     };
@@ -684,8 +719,9 @@ module View = {
                   /* no header pane: symbol cells, and every cell while a
                      zoomed module shows as its members */
                   let headerless = idx =>
-                    switch (List.nth_opt(cells, idx)) {
-                    | Some(e) => zoom_cell || ScratchCell.symbol(e) != None
+                      switch (List.nth(cells, idx)) {
+                      | Some(e) =>
+                        zoom_cell || Option.is_some(ScratchCell.symbol(e))
                     | None => false
                     };
                   let pane_focus =
@@ -702,7 +738,7 @@ module View = {
                       /* DOM focus must follow to the new pane after render,
                          or the caret vanishes and arrows scroll the page */
                       Haz3lcore.FocusEffect.schedule_cell();
-                      let id = List.nth(cells, idx).e_id;
+                        let id = List.nth_exn(cells, idx).e_id;
                       Effect.Many([
                         signal(MakeActive(Stack(MainEditor))),
                         inject(
@@ -734,16 +770,19 @@ module View = {
                      across a header; at the ends the plain move is
                      re-dispatched, keeping its line-start/end snap */
                   let qual_cols = idx =>
-                    switch (List.nth_opt(cells, idx)) {
+                      switch (List.nth(cells, idx)) {
                     | Some(e) =>
-                      switch (OutlineTree.path_of(e.ScratchCell.e_id, term)) {
+                        switch (
+                          OutlineTree.path_of(e.ScratchCell.e_id, outline)
+                        ) {
                       | [] => 0
-                      | path => String.length(String.concat(".", path)) + 1
+                        | path =>
+                          String.length(String.concat(~sep=".", path)) + 1
                       }
                     | None => 0
                     };
                   let body_last_row = idx =>
-                    switch (List.nth_opt(cells, idx)) {
+                      switch (List.nth(cells, idx)) {
                     | Some(e) =>
                       max(
                         0,
@@ -837,7 +876,7 @@ module View = {
                         a => inject(Workspace(Stack(e.e_id, side, a))),
                       ~selected=sel(side),
                       ~result_kind,
-                      ~locked=false,
+                        ~locked,
                       ~lines,
                       ~master?,
                       ~escape,
@@ -850,7 +889,10 @@ module View = {
                     | Some(sym) =>
                       div(
                         ~attrs=[
-                          Attr.classes(["focus-header", "focus-header-sym"]),
+                            Attr.classes([
+                              "focus-header",
+                              "focus-header-sym",
+                            ]),
                         ],
                         /* no qualifier chip: the symbol is the label; the
                            trailing ⇒ names what it's the result of, the
@@ -914,7 +956,8 @@ module View = {
                       div(
                         ~attrs=[
                           Attr.classes(
-                            ["focus-body"] @ (zoom_cell ? ["zoom-body"] : []),
+                              ["focus-body"]
+                              @ (zoom_cell ? ["zoom-body"] : []),
                           ),
                         ],
                         [
@@ -969,11 +1012,11 @@ module View = {
               ~signal=_ => Effect.Ignore,
               ~inject=_ => Effect.Ignore,
               ~selected=None,
-              ~locked=false,
+              ~locked,
               ~result_kind=`StatusLine,
               Divided.result(d),
             );
-          List.concat_map(((_, c)) => c.c_nodes, rendered)
+          List.concat_map(~f=((_, c)) => c.c_nodes, rendered)
           @ (
             List.is_empty(result_footer)
               ? []
@@ -986,12 +1029,37 @@ module View = {
             div(~attrs=[Attr.classes(["stack-slack"])], []),
           ];
         };
-        switch (program) {
-        | Divided(d) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+        /* Stacked: the map the request sent, above its cells */
+        let map = (l: AgentLens.t) =>
+          AgentLensView.map_panel(
+            ~globals,
+            ~go=a => inject(Workspace(a)),
+            ~signal=
+              fun
+              | MakeActive(s) => signal(MakeActive(LensMap(s))),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.LensMap(s)) => Some(s)
+              | _ => None
+              },
+            l,
+          );
+        switch (program, lens) {
+        | (_, Some({mode: Sent, _} as l)) =>
+          banner @ [AgentLensView.sent(l)]
+        | (_, Some({mode: Trajectory | Window, _} as l)) =>
+          banner @ [AgentLensView.trajectory(l)]
+        /* a request with nothing open */
+        | (Whole(_), Some(l)) =>
+          banner @ [map(l), AgentLensView.nothing_open]
+        | (Divided(d), _) =>
+          banner
+          @ (Option.map(~f=map, lens) |> Option.to_list)
+          @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ stack_views(d)
-        | Whole(editor) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+        | (Whole(editor), None) =>
+          banner
+          @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ [
             CellEditor.View.view(
               ~globals,
@@ -1005,7 +1073,7 @@ module View = {
                 | Some(Selection.Cell(s)) => Some(s)
                 | _ => None
                 },
-              ~locked=false,
+              ~locked,
               ~lines=true,
               ~result_kind=`StatusLine,
               editor,
@@ -1177,7 +1245,7 @@ module View = {
           ~signal=i => inject(Deck(SwitchSlide(i))),
           model.current,
           List.map(
-            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            ~f=(s: Scratchpad.t) => SlidePath.of_string(s.name),
             model.scratchpads,
           ),
         ),

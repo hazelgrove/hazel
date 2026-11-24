@@ -99,7 +99,7 @@ module Utils = {
   };
 
   let mk_prompt_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -115,7 +115,7 @@ module Utils = {
   };
   /** Shown when the user stops the agent or compaction and the HTTP reply arrives later. */
   let mk_response_cancelled_message = (~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -134,7 +134,7 @@ module Utils = {
       reads the typed payload off the role. Never sent to the API. */
   let mk_slash_command_output_message =
       (~payload: Model.slash_command_payload, ~content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -151,7 +151,7 @@ module Utils = {
   let mk_retry_note_message =
       (~content: string, ~sent_to_api: bool, ~deliver_as_user_on_api: bool)
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_message =
       switch (sent_to_api, deliver_as_user_on_api) {
       | (false, _) => None
@@ -179,7 +179,7 @@ module Utils = {
   };
 
   let mk_developer_notes_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -208,10 +208,11 @@ module Utils = {
         usage: option(OpenRouter.Reply.Model.usage),
       )
       : Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let reasoning =
       switch (reasoning) {
-      | Some(s) when String.trim(s) != "" => Some(String.trim(s))
+      | Some(s) when !String.equal(String.strip(s), "") =>
+        Some(String.strip(s))
       | _ => None
       };
     {
@@ -235,7 +236,7 @@ module Utils = {
 
   let mk_tool_result_message =
       (tool_result: AgentToolResult.tool_result): Model.t => {
-    let sanitized_content = String.trim(tool_result.content);
+    let sanitized_content = String.strip(tool_result.content);
 
     let msg =
       switch (tool_result.success, tool_result.content_is_payload) {
@@ -269,7 +270,7 @@ module Utils = {
   };
 
   let mk_user_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -283,65 +284,29 @@ module Utils = {
       reasoning_duration_ms: None,
     };
   };
-  /** Exact [content] string embedded in the context system message on the API (tags + footer).
-      Program text is [[CompositionView.Public.print]] with probes when present (see [[CompositionView]]). */
+  /** Exact [content] string embedded in the context system message on the
+      API (tags + footer). The view is [[CompositionView.render]]:
+      the map and the open entries, with errors and test results on their
+      entries. */
   let context_snapshot_body_for_llm =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
         agent_editor_content: string,
-        static_errors_content: string,
-        test_results_content: string,
         workbench_content: string,
       )
       : string => {
-    let sanitized_agent_editor_content = String.trim(agent_editor_content);
-    let sanitized_static_errors_content = String.trim(static_errors_content);
-    let sanitized_test_results_content = String.trim(test_results_content);
-    let sanitized_workbench_content = String.trim(workbench_content);
-
-    let session_mode_label = AgentGlobals.session_mode_label(session_mode);
-    let session_mode_block =
-      "\n<sessionMode>" ++ session_mode_label ++ "</sessionMode>\n";
-
-    let agent_editor_content_prefix = "\n<agentEditorView>\n```";
-    let agent_editor_content_suffix = "```\n</agentEditorView>\n";
-    let agent_editor_block =
-      agent_editor_content_prefix
-      ++ sanitized_agent_editor_content
-      ++ agent_editor_content_suffix;
-
-    let static_errors_content_prefix = "\n<staticErrorsInfo>\n";
-    let static_errors_content_suffix = "\n</staticErrorsInfo>\n";
-    let static_errors_block =
-      static_errors_content_prefix
-      ++ sanitized_static_errors_content
-      ++ static_errors_content_suffix;
-
-    let test_results_content_prefix = "\n<testResultsInfo>\n";
-    let test_results_content_suffix = "\n</testResultsInfo>\n";
-    let test_results_block =
-      test_results_content_prefix
-      ++ sanitized_test_results_content
-      ++ test_results_content_suffix;
-
-    let workbench_content_prefix = "\n<workbenchTaskInfo>\n";
-    let workbench_content_suffix = "\n</workbenchTaskInfo>\n";
-    let workbench_block =
-      workbench_content_prefix
-      ++ sanitized_workbench_content
-      ++ workbench_content_suffix;
-
-    let context_prefix = "\n<context>\n";
-    let context_suffix = "\n</context>\n";
-    let context_content =
-      context_prefix
-      ++ session_mode_block
-      ++ agent_editor_block
-      ++ static_errors_block
-      ++ test_results_block
-      ++ workbench_block
-      ++ context_suffix;
-    context_content
+    let block = (tag, body) =>
+      "\n<" ++ tag ++ ">\n" ++ body ++ "\n</" ++ tag ++ ">\n";
+    "\n<context>\n"
+    ++ "\n<sessionMode>"
+    ++ AgentGlobals.session_mode_label(session_mode)
+    ++ "</sessionMode>\n"
+    ++ block(
+         "agentEditorView",
+         "```\n" ++ String.strip(agent_editor_content) ++ "\n```",
+       )
+    ++ block("workbenchTaskInfo", String.strip(workbench_content))
+    ++ "\n</context>\n"
     ++ "\n[CONTEXT UPDATE — Do not respond to this. It is an automated snapshot of the current program state. Continue with your current task without acknowledging this message.]";
   };
 
@@ -359,30 +324,24 @@ module Utils = {
     };
   };
 
-  /** Rolling environment snapshot for the model: editor + **static errors** + tests + workbench.
-      Diagnostics belong in [<staticErrorsInfo>], not in separate system messages. See file header. */
+  /** Rolling environment snapshot for the model: the view and the workbench. */
   let mk_context_message =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
         agent_editor_content: string,
-        static_errors_content: string,
-        test_results_content: string,
         workbench_content: string,
       )
-      : Model.t => {
+      : Model.t =>
     mk_context_system_message(
       context_snapshot_body_for_llm(
         ~session_mode,
         agent_editor_content,
-        static_errors_content,
-        test_results_content,
         workbench_content,
       ),
     );
-  };
 
   let mk_api_failure_message = (content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     {
       id: Id.mk(),
       content: sanitized_content,
@@ -398,7 +357,7 @@ module Utils = {
 
   /** Summary of prior turns for the API; [method] is shown in the chat UI. */
   let mk_compaction_summary = (~method: string, content: string): Model.t => {
-    let sanitized_content = String.trim(content);
+    let sanitized_content = String.strip(content);
     let api_text =
       "[Prior conversation summary — "
       ++ method

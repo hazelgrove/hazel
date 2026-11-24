@@ -5,6 +5,149 @@ open Util.WebUtil;
 open Js_of_ocaml;
 open Widgets;
 
+/* the agent's preferences, its view's switches (for ablations; each
+   changes what a request sends) and its edit checks */
+let settings_group = (~globals: Globals.t): Node.t => {
+  let g = globals.settings.agent_globals;
+  let set = (a: AgentGlobals.Update.action, _) =>
+    Effect.Many([
+      globals.inject_global(Globals.Action.SetAgentGlobals(a)),
+      Effect.Stop_propagation,
+    ]);
+  let row = (name, tooltip, control) =>
+    div(
+      ~attrs=[clss(["agent-setting-row"]), Attr.title(tooltip)],
+      [
+        div(~attrs=[clss(["agent-setting-name"])], [text(name)]),
+        control,
+      ],
+    );
+  let switch_ = (name, tooltip, on, a) =>
+    row(name, tooltip, toggle(~tooltip, "", on, set(a)));
+  let choice = (name, tooltip, options) =>
+    row(
+      name,
+      tooltip,
+      div(
+        ~attrs=[clss(["segmented-control"])],
+        List.map(
+          ~f=
+            ((label, active, a)) =>
+              div(
+                ~attrs=[
+                  clss(["segment"] @ (active ? ["active"] : [])),
+                  Attr.on_click(set(a)),
+                ],
+                [text(label)],
+              ),
+          options,
+        ),
+      ),
+    );
+  let subhead = label =>
+    div(~attrs=[clss(["agent-setting-subhead"])], [text(label)]);
+  let effort = (label, e: option(OpenRouter.Payload.Model.effort_level)) => (
+    label,
+    Poly.equal(g.reasoning_effort, e),
+    AgentGlobals.Update.SetReasoningEffort(e),
+  );
+  let depth = d => (
+    string_of_int(d),
+    g.map_module_depth == d,
+    AgentGlobals.Update.SetMapModuleDepth(d),
+  );
+  div(
+    ~attrs=[clss(["agent-main-menu-section", "agent-settings"])],
+    [
+      div(~attrs=[clss(["agent-main-menu-label"])], [text("Settings")]),
+      choice(
+        "Reasoning effort",
+        "Sent only to models that support it",
+        [
+          effort("Off", None),
+          effort("Low", Some(Low)),
+          effort("Medium", Some(Medium)),
+          effort("High", Some(High)),
+        ],
+      ),
+      switch_(
+        "Show thinking",
+        "Show the model's reasoning in the chat",
+        g.show_thinking,
+        ToggleShowThinking,
+      ),
+      subhead("The map"),
+      switch_(
+        "Use counts",
+        "Each definition's uses",
+        g.view_uses,
+        ToggleView(Uses),
+      ),
+      switch_(
+        "Errors",
+        "An entry's errors and the first one's message",
+        g.view_errors,
+        ToggleView(Errors),
+      ),
+      switch_(
+        "Test status",
+        "Each test's result, and the tally",
+        g.view_test_status,
+        ToggleView(TestStatus),
+      ),
+      switch_(
+        "Program value",
+        "The program's value on its result",
+        g.view_value,
+        ToggleView(Value),
+      ),
+      choice(
+        "Module depth",
+        "How many levels of modules list their members",
+        [depth(0), depth(1), depth(2), depth(3)],
+      ),
+      switch_(
+        "Types in full",
+        "Type definitions in full, not folded",
+        g.map_types_in_full,
+        ToggleView(TypesInFull),
+      ),
+      subhead("Open entries"),
+      switch_(
+        "Error marks",
+        "Errors underlined under their lines",
+        g.view_carets,
+        ToggleView(Carets),
+      ),
+      switch_(
+        "Probe values",
+        "The values of placed probes",
+        g.view_probes,
+        ToggleView(Probes),
+      ),
+      switch_(
+        "Test marks",
+        "Each test's result at its line",
+        g.view_test_marks,
+        ToggleView(TestMarks),
+      ),
+      subhead("Edit checks"),
+      switch_(
+        "No new errors",
+        "Refuse a reply's edits that add static errors",
+        g.check_no_new_errors,
+        ToggleCheckNoNewErrors,
+      ),
+      switch_(
+        "No dangling uses",
+        "Refuse a delete that leaves uses behind",
+        g.check_dangling_uses,
+        ToggleCheckDanglingUses,
+      ),
+    ],
+  );
+};
+
 let view =
     (~globals: Globals.t, ~signal: Editors.View.signal => Effect.t(unit))
     : Node.t => {
@@ -39,10 +182,10 @@ let view =
     switch (float_of_string_opt(price)) {
     | Some(p) =>
       let per_million = p *. 1000000.0;
-      if (per_million == 0.0) {
+      if (Float.equal(per_million, 0.0)) {
         "Free";
       } else {
-        "$" ++ Printf.sprintf("%.4f", per_million);
+        "$" ++ sprintf("%.4f", per_million);
       };
     | None => "Unknown"
     };
@@ -370,7 +513,7 @@ let view =
                 ) => {
               let is_active =
                 switch (agent_globals.active_llm) {
-                | Some(active) => active.id == llm.id
+                | Some(active) => String.equal(active.id, llm.id)
                 | None => false
                 };
               let classes =
@@ -425,7 +568,7 @@ let view =
               );
             };
 
-            if (List.length(agent_globals.available_llms) == 0) {
+            if (List.is_empty(agent_globals.available_llms)) {
               div(
                 ~attrs=[clss(["llm-list-container"])],
                 [
@@ -439,16 +582,19 @@ let view =
               // Preserve the curated declaration order (most capable → cheapest).
               let recommended =
                 List.filter_map(
+                  ~f=
                   ((id, _tagline)) =>
-                    List.find_opt(
+                      List.find(
+                        ~f=
                       (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
-                        llm.id == id,
+                            String.equal(llm.id, id),
                       agent_globals.available_llms,
                     ),
                   OpenRouter.AvailableLLMs.recommended_entries,
                 );
               let master_sorted =
                 List.sort(
+                  ~compare=
                   (
                     a: OpenRouter.AvailableLLMs.Model.llm_info,
                     b: OpenRouter.AvailableLLMs.Model.llm_info,
@@ -459,6 +605,7 @@ let view =
               let filter = agent_globals.model_filter;
               let master_filtered =
                 List.filter(
+                  ~f=
                   (llm: OpenRouter.AvailableLLMs.Model.llm_info) => {
                     let name_match =
                       String.length(filter) == 0
@@ -476,7 +623,7 @@ let view =
               div(
                 ~attrs=[clss(["llm-sections"])],
                 (
-                  List.length(recommended) == 0
+                  List.is_empty(recommended)
                     ? []
                     : [
                       section_header("Recommended by the FP Lab"),
@@ -491,6 +638,7 @@ let view =
                           div(
                             ~attrs=[clss(["llm-list"])],
                             List.map(
+                              ~f=
                               (llm: OpenRouter.AvailableLLMs.Model.llm_info) =>
                                 render_llm_item(
                                   ~tagline=?
@@ -571,7 +719,7 @@ let view =
                       ]),
                     ],
                     [
-                      List.length(master_filtered) == 0
+                      List.is_empty(master_filtered)
                         ? div(
                             ~attrs=[clss(["llm-empty"])],
                             [
@@ -585,7 +733,7 @@ let view =
                           )
                         : div(
                             ~attrs=[clss(["llm-list"])],
-                            List.map(render_llm_item, master_filtered),
+                            List.map(~f=render_llm_item, master_filtered),
                           ),
                     ],
                   ),
@@ -620,6 +768,7 @@ let view =
           ),
         ],
       ),
+      settings_group(~globals),
       // Confirm Settings Button
       div(
         ~attrs=[clss(["confirm-settings-button-container"])],

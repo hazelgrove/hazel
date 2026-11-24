@@ -1,3 +1,4 @@
+open Poly;
 /** Unit tests for coding-agent UX: slash commands, compaction dialogue slicing,
     CompactionPrompt assembly, OpenRouter chat response parsing, context-meter math,
     workbench completion semantics.
@@ -25,7 +26,7 @@ let slash_command_tests = [
     `Quick,
     () => {
       let xs = ChatSlashCommands.filtered("");
-      let names = List.map(fst, xs);
+      let names = List.map(~f=fst, xs);
       check(
         list(string),
         "alphabetical order",
@@ -41,8 +42,9 @@ let slash_command_tests = [
         names,
       );
       List.iter(
-        ((_, desc)) =>
-          check_bool("desc non-empty", true, String.length(desc) > 0),
+        ~f=
+          ((_, desc)) =>
+            check_bool("desc non-empty", true, String.length(desc) > 0),
         xs,
       );
     },
@@ -52,7 +54,7 @@ let slash_command_tests = [
     `Quick,
     () => {
       let xs = ChatSlashCommands.filtered("c");
-      let names = List.map(fst, xs);
+      let names = List.map(~f=fst, xs);
       check(list(string), "c-prefix", ["compact"], names);
     },
   ),
@@ -95,10 +97,10 @@ let slash_command_tests = [
       let p = ChatSlashCommands.help_payload();
       let names =
         List.map(
-          (e: Message.Model.help_entry) => e.help_name,
+          ~f=(e: Message.Model.help_entry) => e.help_name,
           p.help_entries,
         );
-      let has = needle => List.mem(needle, names);
+      let has = needle => List.mem(names, needle, ~equal=Poly.equal);
       check_bool("compact listed", true, has("compact"));
       check_bool("session-usage listed", true, has("session-usage"));
       check_bool("account-usage listed", true, has("account-usage"));
@@ -214,11 +216,11 @@ let dialogue_slice_tests = [
       let chat = Chat.Utils.append(u, chat);
       let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "one message", 1, List.length(slice));
-      switch (List.hd(slice).role) {
+      switch (List.hd_exn(slice).role) {
       | User => ()
       | _ => fail("expected User")
       };
-      check_string("content", "hello", List.hd(slice).content);
+      check_string("content", "hello", List.hd_exn(slice).content);
     },
   ),
   test_case(
@@ -236,7 +238,7 @@ let dialogue_slice_tests = [
       let chat = Chat.Utils.append(u, chat);
       let slice = Chat.Utils.dialogue_slice_for_compaction_summary(chat);
       check(int, "summary + post-summary", 2, List.length(slice));
-      switch (List.hd(slice).role) {
+      switch (List.hd_exn(slice).role) {
       | Message.Model.System(Message.Model.CompactionSummary(m)) =>
         check_string("method", "test-method", m)
       | _ => fail("expected CompactionSummary first in slice")
@@ -244,12 +246,12 @@ let dialogue_slice_tests = [
       check_string(
         "prior body",
         "prior summary body",
-        List.hd(slice).content,
+        List.hd_exn(slice).content,
       );
       check_string(
         "after content",
         "after compact",
-        List.nth(slice, 1).content,
+        List.nth_exn(slice, 1).content,
       );
     },
   ),
@@ -312,7 +314,7 @@ let chat_context_meter_tests = [
         bool,
         "no meter until post-compaction agent reply",
         true,
-        Chat.Utils.context_meter_prompt_tokens(chat) == None,
+        Option.is_none(Chat.Utils.context_meter_prompt_tokens(chat)),
       );
     },
   ),
@@ -385,13 +387,60 @@ let agent_workbench_tests = [
         bool,
         "both subtasks completed",
         true,
-        List.for_all(AgentWorkbench.Utils.SubtaskUtils.is_completed, subs),
+        List.for_all(~f=AgentWorkbench.Utils.SubtaskUtils.is_completed, subs),
       );
       check(
         bool,
         "parent task completed",
         true,
         Option.is_some(t.completion_info),
+      );
+    },
+  ),
+  test_case(
+    "marking a subtask complete or failed moves on to the next",
+    `Quick,
+    () => {
+      module W = AgentWorkbench;
+      let apply = (model, action) =>
+        switch (W.Update.update(~model, ~action=BackendAction(action))) {
+        | Success(m) => m
+        | Failure(msg) => fail(msg)
+        };
+      let sub = title => W.Utils.SubtaskUtils.mk(~title, ~description="");
+      let task =
+        W.Utils.TaskUtils.mk(
+          ~title="Parent",
+          ~description="p",
+          ~subtasks=[sub("s1"), sub("s2"), sub("s3")],
+        );
+      let model =
+        List.fold(
+          [
+            W.Update.Action.BackendAction.CreateNewTask(task),
+            MarkActiveSubtaskComplete("did s1"),
+            MarkActiveSubtaskFailed("s2 failed"),
+          ],
+          ~init=W.Utils.MainUtils.init(),
+          ~f=apply,
+        );
+      let t =
+        W.Utils.TaskUtils.find_task(model, "Parent")
+        |> OptUtil.get_or_fail("task Parent");
+      check(option(string), "active", Some("s3"), t.active_subtask);
+      check(
+        list(option(string)),
+        "each subtask's own summary",
+        [Some("did s1"), Some("s2 failed"), None],
+        List.map(
+          ~f=
+            (s: W.Model.subtask) =>
+              Option.map(
+                ~f=(c: W.Model.completion_info) => c.summary,
+                s.completion_info,
+              ),
+          W.Utils.TaskUtils.ordered_subtasks_of(t),
+        ),
       );
     },
   ),
@@ -412,25 +461,27 @@ let chat_messages_for_openrouter_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("post"), chat);
       let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "prompt+dev+suffix", 4, List.length(ms));
-      switch (List.nth(ms, 0).role) {
+      switch (List.nth_exn(ms, 0).role) {
       | Message.Model.System(Message.Model.Prompt) => ()
       | _ => fail("expected Prompt first")
       };
-      switch (List.nth(ms, 1).role) {
+      switch (List.nth_exn(ms, 1).role) {
       | Message.Model.System(Message.Model.DeveloperNotes) => ()
       | _ => fail("expected DeveloperNotes second")
       };
       let has_compact =
         List.exists(
-          (m: Message.Model.t) =>
-            switch (m.role) {
-            | Message.Model.System(Message.Model.CompactionSummary(_)) => true
-            | _ => false
-            },
+          ~f=
+            (m: Message.Model.t) =>
+              switch (m.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                true
+              | _ => false
+              },
           ms,
         );
       check_bool("includes compaction summary", true, has_compact);
-      check_string("post user last", "post", List.nth(ms, 3).content);
+      check_string("post user last", "post", List.nth_exn(ms, 3).content);
     },
   ),
   test_case(
@@ -442,7 +493,7 @@ let chat_messages_for_openrouter_tests = [
         Chat.Utils.append(Message.Utils.mk_user_message("only"), chat);
       let ms = Chat.Utils.messages_for_openrouter(chat);
       check(int, "three messages", 3, List.length(ms));
-      check_string("user tail", "only", List.nth(ms, 2).content);
+      check_string("user tail", "only", List.nth_exn(ms, 2).content);
     },
   ),
 ];
@@ -516,7 +567,7 @@ let count_substring = (needle: string, hay: string): int => {
   let rec go = (i, acc) =>
     if (nlen == 0 || i > hlen - nlen) {
       acc;
-    } else if (String.sub(hay, i, nlen) == needle) {
+    } else if (String.equal(String.sub(hay, ~pos=i, ~len=nlen), needle)) {
       go(i + nlen, acc + 1);
     } else {
       go(i + 1, acc);
@@ -588,6 +639,7 @@ let prompt_caching_tests = [
           after_text: None,
           content: "GUIDE_BODY_MARKER",
           content_is_payload,
+          steps: [],
         };
         switch (Message.Utils.mk_tool_result_message(tr).api_message) {
         | Some(m) => or_msg_json(m)
@@ -643,8 +695,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -656,14 +706,14 @@ let prompt_caching_tests = [
       let anchored_count =
         List.length(
           List.filter(
-            (m: OpenRouter.Message.Model.t) => m.cache_anchor,
+            ~f=(m: OpenRouter.Message.Model.t) => m.cache_anchor,
             msgs,
           ),
         );
       check_int("two anchors", 2, anchored_count);
-      let snapshot = List.nth(msgs, 3);
+      let snapshot = List.nth_exn(msgs, 3);
       check_bool("snapshot unanchored", false, snapshot.cache_anchor);
-      let history = List.nth(msgs, 2);
+      let history = List.nth_exn(msgs, 2);
       check_bool("history message anchored", true, history.cache_anchor);
     },
   ),
@@ -681,8 +731,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -725,8 +773,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -763,8 +809,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -1013,7 +1057,7 @@ let toolcall_handler_tests = [
         CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
       let action =
         CompositionActions.EditorAction(
-          Action.Structural.Update(Action.Structural.Definition, "a", "1"),
+          Action.Structural.Replace("a:definition", "1"),
         );
       switch (
         Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
@@ -1024,18 +1068,15 @@ let toolcall_handler_tests = [
         )
       | Error(AgentResult.Failure.Info(msg)) =>
         let unknown = "Unknown error occured when trying to apply tool request to editor";
-        check_bool("not the old opaque message", false, msg == unknown);
         check_bool(
-          "includes Action.Failure.show text (Cant_derive or similar)",
-          true,
-          StringUtil.plain_search("Cant_derive", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_move", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_select", msg, 0) >= 0,
+          "not the old opaque message",
+          false,
+          String.equal(msg, unknown),
         );
         check_bool(
-          "suffix explains tool context",
+          "names the missing entry: " ++ msg,
           true,
-          StringUtil.plain_search("structural editor tool", msg, 0) >= 0,
+          StringUtil.plain_search("No entry \"a\"", msg, 0) >= 0,
         );
       };
     },
@@ -1051,16 +1092,12 @@ let context_llm_snapshot_tests = [
         Message.Utils.context_snapshot_body_for_llm(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       let msg =
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       check_string("body vs message.content", body, msg.content);
@@ -1079,20 +1116,13 @@ let context_llm_snapshot_tests = [
       let cws = CodeWithStatics.Model.mk(editor);
       let chat = Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
       let eval_result = EvalResult.Model.init;
-      let prog =
-        CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
-          cws.editor,
-          chat.agent_view,
-        );
-      let errs =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
-        )
-        |> String.concat("\n");
-      let tests =
-        Agent.Utils.test_results_for_context(
-          EvalResult.Model.test_results(eval_result),
+      let (prog, _, _) =
+        Agent.Utils.agent_view_of(
+          ~view=CompositionView.default_settings,
+          ~test_results=EvalResult.Model.test_results(eval_result),
+          ~value=EvalResult.Model.get_value(eval_result),
+          cws,
+          chat,
         );
       let wb =
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
@@ -1102,14 +1132,13 @@ let context_llm_snapshot_tests = [
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           prog,
-          errs,
-          tests,
           wb,
         ).
           content;
       let actual =
         Agent.Utils.llm_context_snapshot_text(
           ~session_mode=Web.AgentGlobals.Model.Edit,
+          ~view=CompositionView.default_settings,
           ~cell_result=eval_result,
           cws,
           chat,
@@ -1152,44 +1181,10 @@ let tool_call_summary_tests = [
     "category mapping: edit tools -> Edit",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      check_category(
-        "update_definition",
-        Edit,
-        mk_tc(~name="update_definition", ~args),
-      );
-      check_category("update_body", Edit, mk_tc(~name="update_body", ~args));
-      check_category(
-        "delete_binding_clause",
-        Edit,
-        mk_tc(~name="delete_binding_clause", ~args),
-      );
-      check_category(
-        "insert_before",
-        Edit,
-        mk_tc(~name="insert_before", ~args),
-      );
-    },
-  ),
-  test_case(
-    "category mapping: read tools -> Read",
-    `Quick,
-    () => {
-      let args = `Assoc([]);
-      check_category(
-        "view_entire_definition",
-        Read,
-        mk_tc(~name="view_entire_definition", ~args),
-      );
-      check_category(
-        "view_context",
-        Read,
-        mk_tc(~name="view_context", ~args),
-      );
-      check_category(
-        "show_references",
-        Read,
-        mk_tc(~name="show_references", ~args),
+      let args = `Assoc([("target", `String("fib"))]);
+      List.iter(
+        ~f=name => check_category(name, Edit, mk_tc(~name, ~args)),
+        ["insert", "replace", "delete", "move", "rename"],
       );
     },
   ),
@@ -1199,7 +1194,14 @@ let tool_call_summary_tests = [
     () => {
       let empty = `Assoc([]);
       let paths = `Assoc([("paths", `List([`String("x")]))]);
-      check_category("expand", View, mk_tc(~name="expand", ~args=paths));
+      check_category(
+        "open",
+        View,
+        mk_tc(
+          ~name="open",
+          ~args=`Assoc([("targets", `List([`String("x")]))]),
+        ),
+      );
       check_category(
         "place_syntax_projector",
         Projector,
@@ -1228,85 +1230,47 @@ let tool_call_summary_tests = [
     () => {
       let r =
         ToolCallSummary.of_tool_call(mk_tc(~name="nope", ~args=`Assoc([])));
-      check_bool("None", true, r == None);
+      check_bool("None", true, Option.is_none(r));
     },
   ),
   test_case(
-    "single-path edit: signifier and jump_paths from `path` string",
+    "an edit: signifier and jump_paths from its target",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="update_definition", ~args));
+      let args = `Assoc([("target", `String("fib:definition"))]);
+      let s = get_summary(mk_tc(~name="replace", ~args));
       check_signifier(
-        "update_definition",
-        Some("fib"),
-        mk_tc(~name="update_definition", ~args),
+        "replace",
+        Some("fib:definition"),
+        mk_tc(~name="replace", ~args),
       );
       check_bool("persists=true", true, s.persists);
-      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool(
+        "jump_paths=[fib:definition]",
+        true,
+        s.jump_paths == ["fib:definition"],
+      );
     },
   ),
   test_case(
-    "delete tools: persists=false",
+    "delete: persists=false",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="delete_body", ~args));
+      let args = `Assoc([("target", `String("fib"))]);
+      let s = get_summary(mk_tc(~name="delete", ~args));
       check_bool("persists=false", false, s.persists);
     },
   ),
   test_case(
-    "insert_before with no path: signifier=None and display_name='insert'",
-    `Quick,
-    () => {
-      let tc = mk_tc(~name="insert_before", ~args=`Assoc([]));
-      let s = get_summary(tc);
-      check_signifier("no signifier when path absent", None, tc);
-      check_bool("no jump_paths when path absent", true, s.jump_paths == []);
-      check_bool(
-        "display_name='insert'",
-        true,
-        ToolCallSummary.display_name_for(tc) == "insert",
-      );
-    },
-  ),
-  test_case(
-    "insert_test: an edit at its path, or none without one",
-    `Quick,
-    () => {
-      let at =
-        mk_tc(
-          ~name="insert_test",
-          ~args=`Assoc([("path", `String("fib"))]),
-        );
-      let s = get_summary(at);
-      check_category("insert_test", Edit, at);
-      check_signifier("insert_test", Some("fib"), at);
-      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
-      check_bool("persists=true", true, s.persists);
-      let bare = mk_tc(~name="insert_test", ~args=`Assoc([]));
-      check_signifier("no path", None, bare);
-      check_bool(
-        "display_name keeps the tool name",
-        true,
-        ToolCallSummary.display_name_for(bare) == "insert_test",
-      );
-    },
-  ),
-  test_case(
-    "insert_before with path: display_name preserves tool name",
+    "insert: signifier from its place",
     `Quick,
     () => {
       let tc =
-        mk_tc(
-          ~name="insert_before",
-          ~args=`Assoc([("path", `String("fib"))]),
-        );
-      check_bool(
-        "display_name unchanged when path present",
-        true,
-        ToolCallSummary.display_name_for(tc) == "insert_before",
-      );
+        mk_tc(~name="insert", ~args=`Assoc([("after", `String("fib"))]));
+      let s = get_summary(tc);
+      check_signifier("after fib", Some("fib"), tc);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool("persists=true", true, s.persists);
     },
   ),
   test_case(
@@ -1314,7 +1278,11 @@ let tool_call_summary_tests = [
     `Quick,
     () => {
       let args = `Assoc([("paths", `List([`String("a"), `String("b")]))]);
-      check_signifier("a, b", Some("a, b"), mk_tc(~name="expand", ~args));
+      check_signifier(
+        "a, b",
+        Some("a, b"),
+        mk_tc(~name="place_probe", ~args),
+      );
     },
   ),
   test_case(
@@ -1337,7 +1305,7 @@ let tool_call_summary_tests = [
       check_signifier(
         "a, b +3",
         Some("a, b +3"),
-        mk_tc(~name="expand", ~args),
+        mk_tc(~name="place_probe", ~args),
       );
     },
   ),
@@ -1400,7 +1368,10 @@ let tool_call_summary_tests = [
           "ends with ellipsis",
           true,
           String.length(sig_) > 1
-          && String.sub(sig_, String.length(sig_) - 3, 3) == {|…|},
+          && String.equal(
+               String.sub(sig_, ~pos=String.length(sig_) - 3, ~len=3),
+               {|…|},
+             ),
         );
       | None => fail("expected signifier")
       };
@@ -1440,19 +1411,6 @@ let tool_call_summary_tests = [
       );
     },
   ),
-  test_case(
-    "read tools: signifier=None, jump_paths=[], persists=false",
-    `Quick,
-    () => {
-      let s =
-        get_summary(
-          mk_tc(~name="view_entire_definition", ~args=`Assoc([])),
-        );
-      check_bool("signifier=None", true, s.signifier == None);
-      check_bool("jump_paths=[]", true, s.jump_paths == []);
-      check_bool("persists=false", false, s.persists);
-    },
-  ),
 ];
 
 let api_error_format_tests = [
@@ -1461,7 +1419,7 @@ let api_error_format_tests = [
     `Quick,
     () => {
       let s =
-        Agent.Update.format_api_error_content(
+        AgentSend.format_api_error_content(
           ~code=429,
           ~message="rate limited",
         );
@@ -1499,7 +1457,7 @@ let stream_accumulator_tests = [
       check_string("second delta", "world", d2.content_delta);
       let r = finalize_reply(acc);
       check_string("final content", "hello world", r.content);
-      check_bool("no reasoning", true, r.reasoning == None);
+      check_bool("no reasoning", true, Option.is_none(r.reasoning));
       check_int("no tool calls", 0, List.length(r.tool_calls));
     },
   ),
@@ -1534,7 +1492,7 @@ let stream_accumulator_tests = [
         feed_json(acc, {|{"choices":[{"delta":{"reasoning":"alone"}}]}|});
       let r = finalize_reply(acc);
       check_string("content takes over", "alone", r.content);
-      check_bool("reasoning cleared", true, r.reasoning == None);
+      check_bool("reasoning cleared", true, Option.is_none(r.reasoning));
     },
   ),
   test_case(
@@ -1735,7 +1693,7 @@ let streaming_markdown_tests = [
       let is_code_tail =
         switch (List.rev(blocks)) {
         | [Omd.Code_block(_, _, body), ..._] =>
-          String.trim(body) == "let x = 1"
+          String.equal(String.strip(body), "let x = 1")
         | _ => false
         };
       check_bool("tail is code block", true, is_code_tail);
@@ -1751,7 +1709,9 @@ let streaming_markdown_tests = [
       let rec go = i =>
         if (i <= n) {
           ignore(
-            AgentMessageMarkdown.view_streaming(String.sub(full, 0, i)),
+            AgentMessageMarkdown.view_streaming(
+              String.sub(full, ~pos=0, ~len=i),
+            ),
           );
           go(i + 1);
         };

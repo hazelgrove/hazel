@@ -249,7 +249,7 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         /* every capitalized token Lexer.mll reserves; a collision lexes
            as a type keyword and fails the parse (seed-dependent flake) */
         let reserved = Language.Token.base_typs @ ["Unknown", "Internal"];
-        if (List.mem(ident, reserved)) {
+        if (List.mem(reserved, ident, ~equal=String.equal)) {
           "Keyword";
         } else if (!avoids_builtin(ident)) {
           ident ++ "z";
@@ -408,7 +408,8 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
           leaf,
           {
             let* sizes = gen_sized_array(n);
-            let+ exps = flatten_a(Array.map((n: int) => self(n), sizes));
+            let+ exps =
+              flatten_a(Array.map(~f=(n: int) => self(n), sizes));
             ListExp(Array.to_list(exps));
           },
           {
@@ -416,6 +417,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let+ exps =
               flatten_a(
                 Array.map(
+                  ~f=
                   (n: int) =>
                     oneof([
                       {
@@ -480,7 +482,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             };
             let* e = self((n - 1) / 2);
             let* sizes = gen_sized_array((n - 1) / 2);
-            let+ cases = flatten_a(Array.map(case, sizes));
+            let+ cases = flatten_a(Array.map(~f=case, sizes));
             CaseExp(e, Array.to_list(cases));
           },
           {
@@ -541,6 +543,7 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let* items =
               flatten_a(
                 Array.map(
+                  ~f=
                   (size: int) =>
                     oneof([
                       {
@@ -614,6 +617,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let+ typs =
                   flatten_a(
                     Array.map(
+                      ~f=
                       (size: int) =>
                         oneof([
                           self(size),
@@ -656,6 +660,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
                 let+ sumterms =
                   flatten_a(
                     Array.map(
+                      ~f=
                       (n: int) => {
                         frequency([
                           (1, return(BadEntry(UnknownType(EmptyHole)))),
@@ -737,6 +742,7 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
                 let+ pats =
                   flatten_a(
                     Array.map(
+                      ~f=
                       (n: int) =>
                         oneof([
                           self(n),
@@ -754,7 +760,9 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
               {
                 let* sizes = gen_sized_array(n - 1);
                 let+ pats =
-                  flatten_a(Array.map((size: int) => self(size), sizes));
+                  flatten_a(
+                    Array.map(~f=(size: int) => self(size), sizes),
+                  );
                 ListPat(Array.to_list(pats));
               },
               {
@@ -1339,6 +1347,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | SumTyp(l) =>
           let payloads =
             List.filter_map(
+              ~f=
               fun
               | Variant(_, Some(t)) => Some(t)
               | BadEntry(t) => Some(t)

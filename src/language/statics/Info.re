@@ -76,6 +76,7 @@ type pat = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
   user_term: Typ.t,
+  ty: Typ.t, /* the type the annotation denotes: [user_term] closed (Typ.close) */
   ancestors,
   ctx: Ctx.t,
   expects: TypExpectation.t,
@@ -104,6 +105,10 @@ type mod_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
+  ty: option(Typ.t), /* of the binder a let or module item declares; a type item's definition */
+  co_ctx: CoCtx.t, /* of the item and the items after it, its bindings consumed */
+  scope_co_ctx: CoCtx.t /* of the items after it, which its bindings scope over */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -114,6 +119,7 @@ type sig_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -152,7 +158,6 @@ type t =
 let sort_of: t => Sort.t =
   fun
   | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
-  | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
@@ -271,9 +276,9 @@ let id_of: t => Id.t =
 let ancestors = (~info_map: Id.Map.t(t), info: t): ancestors => {
   /* [hops] bounds a cycle, which only an inconsistent map could have */
   let rec go = (segs, hops, seg) =>
-    switch (ListUtil.last_opt(seg)) {
+    switch (List.last(seg)) {
     | Some(root) when hops > 0 =>
-      switch (Option.map(ancestors_of, Id.Map.find_opt(root, info_map))) {
+      switch (Option.map(~f=ancestors_of, Id.Map.find_opt(root, info_map))) {
       | Some([_, ..._] as above) => go([seg, ...segs], hops - 1, above)
       | _ => [seg, ...segs]
       }
@@ -413,7 +418,7 @@ let find_within_item =
     (0, 0, None),
     ((n, cand, found), a, child) => {
       let n = n + 1;
-      let found = found == None && p(a) ? Some((a, n)) : found;
+      let found = Option.is_none(found) && p(a) ? Some((a, n)) : found;
       let i = Id.Map.find_opt(a, info_map);
       if (item_continues(i, child)) {
         Up((n, cand, found));
@@ -430,31 +435,15 @@ let find_within_item =
   );
 };
 
-/* the terms holding [info], innermost first, past its item to the
-   modules and definitions around it: its ancestors but for the items it
-   follows on an item chain, whose bodies hold the items after them */
-let containers = (~info_map: Id.Map.t(t), info: t): ancestors =>
-  climb(
-    ~info_map,
-    info,
-    [],
-    (held, a, child) =>
-      Up(
-        item_continues(Id.Map.find_opt(a, info_map), child)
-          ? held : [a, ...held],
-      ),
-    List.rev,
-  );
-
 let marks_of: t => list(Mark.t) =
   fun
   | InfoExp({marks, _})
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
-  | InfoTPat({marks, _}) => marks
+  | InfoTPat({marks, _})
+  | InfoMod({marks, _})
+  | InfoSig({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
-  | InfoMod(_)
-  | InfoSig(_)
   | InfoMPat(_)
   | Secondary(_) => [];
 
@@ -463,7 +452,7 @@ let marks_of: t => list(Mark.t) =
 let is_error = (ci: t): bool =>
   switch (ci) {
   | InfoDrv(drv) => DrvInfo.is_error(drv)
-  | _ => marks_of(ci) != []
+  | _ => !List.is_empty(marks_of(ci))
   };
 
 let warnings_of: t => list(Warning.list_item) =
@@ -478,7 +467,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoMPat(_)
   | Secondary(_) => [];
 
-let is_warning = (ci: t): bool => warnings_of(ci) != [];
+let is_warning = (ci: t): bool => !List.is_empty(warnings_of(ci));
 
 /* A term is "typable" if it can meaningfully be assigned a type and will
    have a runtime value. This includes expressions and patterns, but excludes
@@ -545,20 +534,20 @@ let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
   | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* entry = Ctx.lookup_var(ctx, name);
-    entry.id == Id.invalid ? None : Some(entry.id);
+    Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
   | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
   | InfoPat({user_term: {term: Constructor(name, _), _}, ctx, _}) =>
     switch (Ctx.lookup_ctr(ctx, name)) {
-    | Some(entry) when entry.id != Id.invalid => Some(entry.id)
+    | Some(entry) when !Id.equal(entry.id, Id.invalid) => Some(entry.id)
     | _ =>
       /* Fallback: capitalized names (modules) parse as Constructor
          but bind as VarEntry via the Constructor-to-Var fallback */
       let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
+      Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
     }
   | InfoTyp({user_term: {term: Var(name), _}, ctx, _}) =>
     let* id = Ctx.lookup_tvar_id(ctx, name);
-    id == Id.invalid ? None : Some(id);
+    Id.equal(id, Id.invalid) ? None : Some(id);
   | _ => None
   };
 };
@@ -593,7 +582,7 @@ let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
       | Ap({term: Var(_), _} as f, _) => f
       | _ => p
       };
-    List.map((b: Binding.t) => (b.name, b.id, MValue), Pat.bindings(p));
+    List.map(~f=(b: Binding.t) => (b.name, b.id, MValue), Pat.bindings(p));
   | ModType({term: Var(x), _} as tp, _) => [(x, TPat.rep_id(tp), MType)]
   | ModuleMod(mp, _) => mpat(mp)
   | ModType(_)
@@ -610,20 +599,18 @@ let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
    value or module member, or in a type ([typ]) a type or module member */
 let member_binder =
     (~typ: bool, items: list(Mod.t), name: string): option(Id.t) =>
-  List.fold_left(
-    (found, item) =>
-      List.fold_left(
-        (found, (x, id, kind)) =>
-          x == name && (kind == MModule || typ == (kind == MType))
-            ? Some(id) : found,
-        found,
-        item_members(item),
-      ),
-    None,
-    items,
+  List.fold(items, ~init=None, ~f=(found, item) =>
+    List.fold(item_members(item), ~init=found, ~f=(found, (x, id, kind)) =>
+      String.equal(x, name)
+      && (
+        Poly.equal(kind, MModule)
+        || Bool.equal(typ, Poly.equal(kind, MType))
+      )
+        ? Some(id) : found
+    )
   );
 
-/* the definition [binder] is bound to, when a `let` or `module` binds it:
+/* the definition [binder] is bound to, when a `let`, `module` or member binds it:
    as analyzed under its own id, since DefStatics binds a module literal
    to a stand-in and analyzes the literal on its own */
 let definition_of = (~info_map: Id.Map.t(t), binder: Id.t): option(Exp.t) => {
@@ -638,6 +625,17 @@ let definition_of = (~info_map: Id.Map.t(t), binder: Id.t): option(Exp.t) => {
       | Some(
           InfoExp({
             user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+            _,
+          }),
+        ) =>
+        switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+        | Some(InfoExp({user_term, _})) => Some(user_term)
+        | _ => Some(def)
+        }
+      /* a module's member */
+      | Some(
+          InfoMod({
+            user_term: {term: ModLet(_, def) | ModuleMod(_, def), _},
             _,
           }),
         ) =>
@@ -702,7 +700,7 @@ let rec typ_binder =
        module's value binding */
     | (None, InfoTyp({ctx, _})) =>
       let* entry = Ctx.lookup_var(ctx, name);
-      entry.id == Id.invalid ? None : Some(entry.id);
+      Id.equal(entry.id, Id.invalid) ? None : Some(entry.id);
     | (None, _) => None
     };
   | Parens(t) => typ_binder(~info_map, ~fuel, t)
@@ -731,7 +729,7 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     }) =>
     switch (Id.Map.find_opt(a, info_map)) {
     | Some(InfoExp({user_term: {term: Dot(base, label), _}, _}) as access)
-        when Exp.rep_id(label) == Exp.rep_id(l) =>
+        when Id.equal(Exp.rep_id(label), Exp.rep_id(l)) =>
       let+ items = module_items(~info_map, base);
       {
         access,
@@ -750,7 +748,7 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     | Some(
         InfoTyp({user_term: {term: ProdProjection(base, label), _}, _}) as access,
       )
-        when Typ.rep_id(label) == Typ.rep_id(l) =>
+        when Id.equal(Typ.rep_id(label), Typ.rep_id(l)) =>
       let* b = typ_binder(~info_map, base);
       let+ items = binder_items(~info_map, b);
       {
@@ -769,7 +767,7 @@ let access_member = (m: member_access): option(Id.t) =>
 
 /* the member a dot's label names: `a` in `M.a`, `T` in `M.T` */
 let member_binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
-  Option.bind(member_access(~info_map, info), access_member);
+  Option.bind(member_access(~info_map, info), ~f=access_member);
 
 /* the name binder [info] binds: a variable's, type's or module's */
 let binder_name = (info: t): option(string) =>
@@ -802,7 +800,7 @@ let binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
 let as_member_reference = (~info_map: Id.Map.t(t), info: t): t =>
   switch (member_access(~info_map, info), info) {
   | (Some({access: InfoExp(access), name, _} as m), InfoExp(label))
-      when access_member(m) != None =>
+      when Option.is_some(access_member(m)) =>
     InfoExp({
       ...access,
       user_term: {
@@ -815,7 +813,7 @@ let as_member_reference = (~info_map: Id.Map.t(t), info: t): t =>
       dot_labels: [],
     })
   | (Some({access: InfoTyp(access), name, _} as m), InfoTyp(label))
-      when access_member(m) != None =>
+      when Option.is_some(access_member(m)) =>
     InfoTyp({
       ...access,
       user_term: {

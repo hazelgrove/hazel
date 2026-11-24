@@ -11,7 +11,7 @@ let checked = z =>
   CachedStatics.init(
     ~settings,
     ~is_dynamic_term=true,
-    ~stitch=Fun.id,
+    ~stitch=Fn.id,
     ~root=Exp,
     z,
   );
@@ -38,7 +38,12 @@ let checked_compositional = z =>
 let checked_shared = z => {
   let syntax = CachedSyntax.init(~root=Exp, z);
   let source = CachedSyntax.semantic_source(z, syntax);
-  check(bool, "the syntax's segment is the source", true, source != None);
+  check(
+    bool,
+    "the syntax's segment is the source",
+    true,
+    Option.is_some(source),
+  );
   CachedStatics.init_compositional(
     ~settings,
     ~stitch=Fun.id,
@@ -105,7 +110,7 @@ let tests = [
             bool,
             "moved",
             true,
-            CachedSyntax.semantic_source(moved, syntax) == None,
+            Option.is_none(CachedSyntax.semantic_source(moved, syntax)),
           );
           let buffered = {
             ...z,
@@ -115,7 +120,7 @@ let tests = [
             bool,
             "unparsed buffer",
             true,
-            CachedSyntax.semantic_source(buffered, syntax) == None,
+            Option.is_none(CachedSyntax.semantic_source(buffered, syntax)),
           );
         },
       ),
@@ -216,13 +221,15 @@ let tests = [
           let z = zipper(let_input);
           let statics = checked(z);
           List.iter(
-            statics =>
-              check(
-                string,
-                "no speculative information",
-                "none",
-                ImpliedHole.at_caret(~root=Exp, ~statics, z) |> expected_type,
-              ),
+            ~f=
+              statics =>
+                check(
+                  string,
+                  "no speculative information",
+                  "none",
+                  ImpliedHole.at_caret(~root=Exp, ~statics, z)
+                  |> expected_type,
+                ),
             [
               {
                 ...statics,
@@ -251,7 +258,7 @@ let tests = [
               ~settings,
               ~is_edited,
               ~statics_mode,
-              ~stitch=Fun.id,
+              ~stitch=Fn.id,
               ~dynamics=Language.Dynamics.Map.empty,
               ~is_dynamic_term=true,
               model,
@@ -303,26 +310,31 @@ let tests = [
             bool,
             "ordinary indication stays unchanged",
             true,
-            cursor.info === normal,
+            phys_equal(cursor.info, normal),
           );
           check(
             bool,
             "quiver off",
             true,
-            CursorInspector.info_for_view(~quiver=false, cursor) === normal,
+            phys_equal(
+              CursorInspector.info_for_view(~quiver=false, cursor),
+              normal,
+            ),
           );
           check(
             bool,
             "read-only editor",
             true,
-            CursorInspector.info_for_view(
-              ~quiver=true,
-              {
-                ...cursor,
-                editor_read_only: true,
-              },
-            )
-            === normal,
+            phys_equal(
+              CursorInspector.info_for_view(
+                ~quiver=true,
+                {
+                  ...cursor,
+                  editor_read_only: true,
+                },
+              ),
+              normal,
+            ),
           );
         },
       ),

@@ -3,6 +3,7 @@ open Node;
 open Util.WebUtil;
 open Js_of_ocaml;
 open Util.JsUtil;
+open Poly;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
@@ -114,6 +115,28 @@ let debug_info_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+/* Not a panel: a click saves the session's coverage. Only coverage builds
+   have one. */
+let coverage_tab: option(Node.t) =
+  Option.map(CoverageExport.download, ~f=download =>
+    div(
+      ~attrs=[clss(["coverage-button"])],
+      [
+        tab(
+          Icons.export,
+          ~tooltip="Download coverage (.coverage files)",
+          _ =>
+            Effect.Many([
+              Effect.of_sync_fun(download, ()),
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+            ]),
+          false,
+        ),
+      ],
+    )
+  );
+
 let problems_tab_icon =
     (counts: list((SidebarModel.Settings.problem_category, int))): Node.t => {
   open SidebarModel.Settings;
@@ -122,28 +145,29 @@ let problems_tab_icon =
   /* Aggregate counts by badge group: sum counts sharing the same badge_cls */
   let grouped =
     List.fold_left(
+      ~f=
       (acc, (cat, n)) => {
         let cls = category_badge_cls(cat);
         let sev = category_badge_severity(cat);
         let label = category_badge_label(cat);
-        switch (List.assoc_opt(cls, acc)) {
+          switch (List.Assoc.find(acc, cls, ~equal=String.equal)) {
         | Some((total, s, _)) => [
             (cls, (total + n, max(s, sev), label)),
-            ...List.remove_assoc(cls, acc),
+              ...List.Assoc.remove(acc, cls, ~equal=String.equal),
           ]
         | None => [(cls, (n, sev, label)), ...acc]
         };
       },
-      [],
+      ~init=[],
       counts,
     );
   let sorted =
     List.sort(
-      ((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
+      ~compare=((_, (_, s1, _)), (_, (_, s2, _))) => compare(s2, s1),
       grouped,
     );
   let (status_class, icon_text, title) =
-    switch (List.find_opt(((_, (n, _, _))) => n > 0, sorted)) {
+    switch (List.find(~f=((_, (n, _, _))) => n > 0, sorted)) {
     | Some((cls, (n, _, label))) =>
       let plural = n > 1 ? label ++ "s" : label;
       (
@@ -214,7 +238,8 @@ let persistent_view =
         )
         @ (
           globals.settings.show_debug_panel ? [debug_info_tab(~globals)] : []
-        ),
+        )
+        @ Option.to_list(coverage_tab),
       ),
     ],
   );
@@ -226,11 +251,12 @@ let updateElementStyles = (new_width: int) => {
     ("history-menu", "right"),
   ];
   List.iter(
+    ~f=
     ((id, style)) => {
       switch (get_elem_by_id_opt(id)) {
       | Some(elem) =>
         let value =
-          style == "width"
+            String.equal(style, "width")
             ? string_of_int(new_width) ++ "px"
             : string_of_int(new_width + 20) ++ "px";
         let elem_style = Js.Unsafe.coerce(elem)##.style;
@@ -253,6 +279,7 @@ let resetElementStyles = () => {
     ("history-menu", "right"),
   ];
   List.iter(
+    ~f=
     ((id, style)) => {
       switch (get_elem_by_id_opt(id)) {
       | Some(elem) =>
@@ -338,11 +365,13 @@ let view =
     Haz3lcore.ProblemCollection.make(
       ~display_warnings=globals.settings.core.display_warnings,
       List.map(
+        ~f=
         ((label, editors: list(CodeWithStatics.Model.t))) =>
           Haz3lcore.ProblemCollection.{
             label,
             sources:
               List.map(
+                  ~f=
                 (e: CodeWithStatics.Model.t) =>
                   Haz3lcore.ProblemCollection.{
                     statics: e.statics,

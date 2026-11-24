@@ -1,3 +1,4 @@
+open Poly;
 /* The typing debounce: an edit defers its statics (and the eval request
    they feed) until a pause, and the frame after the pause runs them.
    CodeWithStatics.StaticsDebounce is the page's instance.
@@ -69,14 +70,14 @@ module Make = (E: Env) => {
   /* the next frame runs statics: the timer let them, or a caller asks */
   let force_on_next: ref(bool) = ref(false);
 
-  let pending = () => timer^ != None || force_on_next^;
+  let pending = () => Option.is_some(timer^) || force_on_next^;
 
   /* the last edit frames' durations, from their calculate to their paint */
   let recent: ref(list(float)) = ref([]);
   let frame_ms = () =>
-    switch (List.sort(Float.compare, recent^)) {
+    switch (List.sort(~compare=Float.compare, recent^)) {
     | [] => 0.
-    | sorted => List.nth(sorted, List.length(sorted) / 2)
+    | sorted => List.nth_exn(sorted, List.length(sorted) / 2)
     };
   let note_frame = (ms: float) =>
     recent := Util.ListUtil.take(5, [ms, ...recent^]);
@@ -165,28 +166,29 @@ module Browser = {
     | _ => 0.
     };
 
-  let last: ref(float) = ref(neg_infinity);
+  let last: ref(float) = ref(Float.neg_infinity);
   let last_input = () => last^;
   /* none under node (the tests) */
   let () = {
     let note = Js.wrap_callback(_ => last := now());
     List.iter(
-      name =>
-        try(
-          ignore(
-            Js.Unsafe.meth_call(
-              Dom_html.window,
-              "addEventListener",
-              [|
-                Js.Unsafe.inject(Js.string(name)),
-                Js.Unsafe.inject(note),
-                Js.Unsafe.inject(Js._true),
-              |],
-            ),
-          )
-        ) {
-        | _ => ()
-        },
+      ~f=
+        name =>
+          try(
+            ignore(
+              Js.Unsafe.meth_call(
+                Dom_html.window,
+                "addEventListener",
+                [|
+                  Js.Unsafe.inject(Js.string(name)),
+                  Js.Unsafe.inject(note),
+                  Js.Unsafe.inject(Js._true),
+                |],
+              ),
+            )
+          ) {
+          | _ => ()
+          },
       ["keydown", "pointerdown"],
     );
   };

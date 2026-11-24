@@ -74,6 +74,9 @@ let empty: t = of_entries(~use_mode=None, []);
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
+/* Raw: an alias bound here captures earlier types' references to its
+   name. Safe for a name Typ.unshadow has made fresh; otherwise use
+   Typ.extend_ctx. */
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
     ctx,
@@ -84,58 +87,30 @@ let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
     },
   );
 
-let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
-  switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) =>
-    extend_tvar(
-      ctx,
-      {
-        kind: Abstract,
-        name,
-        id: Id.invalid,
-      },
-    )
-  | None => ctx
-  };
-
-/* Bind the type member declared by a signature item, if any. Signature
-   items scope sequentially: later items may mention earlier type members. */
-let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
-  switch (item.term) {
-  | SigType({term: Var(name), _} as tp, ty) =>
-    extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
-  | SigType(_, _)
-  | SigLet(_)
-  | SigModule(_)
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => ctx
-  };
-
-let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
-  List.fold_left(extend_sig_item, ctx, items);
-
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
-    fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
-    | _ => None,
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.kind)
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
-    fun
-    | TVarEntry(v) when v.name == name => Some(v.id)
-    | _ => None,
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(v.id)
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
   List.find_map(
-    fun
-    | LivelitEntry(v) when v.name == name => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | LivelitEntry(v) when String.equal(v.name, name) => Some(v)
+      | _ => None,
     ctx.entries,
   );
 
@@ -148,9 +123,10 @@ let get_id: entry => Id.t =
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) when String.equal(v.name, name) => Some(v)
+      | _ => None,
     ctx.entries,
   );
 
@@ -166,18 +142,39 @@ let newest_var_or_ctr =
         ],
       ) =>
   List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(`Var(v))
-    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
+      | ConstructorEntry(c) when String.equal(c.name, name) => Some(`Ctr(c))
+      | _ => None,
+    ctx.entries,
+  );
+
+/* The NEWEST binding of a name as a type or a value: the root of a dotted
+   path (`M.T`) is whichever was bound later. */
+let newest_tvar_or_var =
+    (ctx: t, name: string)
+    : option(
+        [
+          | `TVar(kind)
+          | `Var(var_entry)
+        ],
+      ) =>
+  List.find_map(
+    ~f=
+      fun
+      | TVarEntry(v) when String.equal(v.name, name) => Some(`TVar(v.kind))
+      | VarEntry(v) when String.equal(v.name, name) => Some(`Var(v))
+      | _ => None,
     ctx.entries,
   );
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
-    fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
-    | _ => None,
+    ~f=
+      fun
+      | ConstructorEntry(t) when String.equal(t.name, name) => Some(t)
+      | _ => None,
     ctx.entries,
   );
 
@@ -209,31 +206,31 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t =>
   prepend_entries(
     ctx,
     List.filter_map(
-      fun
-      | ConstructorMap.Variant(ctr, ann, typ) => {
-          assert(ann.ids != []);
-          let ctr_id = List.hd(ann.ids);
-          Some(
-            ConstructorEntry({
-              name: ctr,
-              id: ctr_id,
-              typ:
-                switch (typ) {
-                | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-                | Some(typ) =>
-                  (
-                    Arrow(
-                      typ,
-                      (Var(name): TermBase.typ_term) |> IdTagged.fresh,
-                    ): TermBase.typ_term
-                  )
-                  |> IdTagged.fresh
-                },
-              custom_statics: None,
-            }),
-          );
-        }
-      | ConstructorMap.BadEntry(_) => None,
+      ~f=
+        fun
+        | ConstructorMap.Variant(ctr, ann, typ) => {
+            let ctr_id = List.hd_exn(ann.ids);
+            Some(
+              ConstructorEntry({
+                name: ctr,
+                id: ctr_id,
+                typ:
+                  switch (typ) {
+                  | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
+                  | Some(typ) =>
+                    (
+                      Arrow(
+                        typ,
+                        (Var(name): TermBase.typ_term) |> IdTagged.fresh,
+                      ): TermBase.typ_term
+                    )
+                    |> IdTagged.fresh
+                  },
+                custom_statics: None,
+              }),
+            );
+          }
+        | ConstructorMap.BadEntry(_) => None,
       ctrs,
     ),
   );
@@ -265,46 +262,48 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   };
 };
 
-module VarSet = Set.Make(Var);
+module VarSet = Stdlib.Set.Make(Var);
 
 /* Removes shadowed variables from the context */
 let filter_shadowed = (ctx: t): t =>
   ctx.entries
   |> List.fold_left(
-       ((kept, term_set, typ_set), entry) => {
-         switch (entry) {
-         | VarEntry({name, _})
-         | ConstructorEntry({name, _}) =>
-           VarSet.mem(name, term_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
-         | TVarEntry({name, _}) =>
-           VarSet.mem(name, typ_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], term_set, VarSet.add(name, typ_set))
-         | LivelitEntry({name, _}) =>
-           VarSet.mem(name, term_set)
-             ? (kept, term_set, typ_set)
-             : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
-         }
-       },
-       ([], VarSet.empty, VarSet.empty),
+       ~f=
+         ((kept, term_set, typ_set), entry) => {
+           switch (entry) {
+           | VarEntry({name, _})
+           | ConstructorEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+           | TVarEntry({name, _}) =>
+             VarSet.mem(name, typ_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], term_set, VarSet.add(name, typ_set))
+           | LivelitEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (kept, term_set, typ_set)
+               : ([entry, ...kept], VarSet.add(name, term_set), typ_set)
+           }
+         },
+       ~init=([], VarSet.empty, VarSet.empty),
      )
   |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
 
 let filter_stepper_filter_variables = (ctx: t): t =>
   ctx.entries
-  |> List.filter(entry =>
+  |> List.filter(~f=entry =>
        switch (entry) {
        | VarEntry({name, _})
        | ConstructorEntry({name, _})
        | LivelitEntry({name, _})
-       | TVarEntry({name, _}) => !String.starts_with(~prefix="$", name)
+       | TVarEntry({name, _}) => !String.is_prefix(~prefix="$", name)
        }
      )
   |> of_entries(~use_mode=ctx.use_mode);
 
-let is_base_typ = (name: string): bool => List.mem(name, Token.base_typs);
+let is_base_typ = (name: string): bool =>
+  List.exists(~f=String.equal(name), Token.base_typs);
 
 let empty_pre_elaboration =
   of_entries(~use_mode=Some(Operators.default_mode), []);
@@ -325,8 +324,9 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
 
 let get_var_entries = (ctx: t): list(var_entry) =>
   List.filter_map(
-    fun
-    | VarEntry(v) => Some(v)
-    | _ => None,
+    ~f=
+      fun
+      | VarEntry(v) => Some(v)
+      | _ => None,
     ctx.entries,
   );

@@ -1,3 +1,4 @@
+open Poly;
 /* budget-pruning of runtime values for shipping and display: a value
    can be a giant shared graph (a module value embeds every member AST).
    within-budget values come back physically intact; elisions are holes
@@ -31,7 +32,8 @@ exception Elided;
 let has_elision = (e: Exp.t): bool => {
   let f = (cont, x: Exp.t) =>
     switch (x.term) {
-    | EmptyHole when List.mem(elided, IdTagged.ids(x)) => raise(Elided)
+    | EmptyHole when List.mem(IdTagged.ids(x), elided, ~equal=Poly.equal) =>
+      raise(Elided)
     | _ => cont(x)
     };
   switch (Exp.map_term(~f_exp=f, e)) {
@@ -60,12 +62,13 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
           let kept = ref([]);
           let dropped = ref(false);
           List.iter(
-            el =>
-              if (budget^ <= 0) {
-                dropped := true;
-              } else {
-                kept := [go(el), ...kept^];
-              },
+            ~f=
+              el =>
+                if (budget^ <= 0) {
+                  dropped := true;
+                } else {
+                  kept := [go(el), ...kept^];
+                },
             elems,
           );
           (List.rev(dropped^ ? [hole(), ...kept^] : kept^), dropped^);
@@ -94,7 +97,7 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
           budget := budget^ - 1;
           let parts = ref([]);
           let collect = (cont, x: Exp.t) =>
-            if (x === e) {
+            if (phys_equal(x, e)) {
               cont(x);
             } else {
               parts := [x, ...parts^];
@@ -102,17 +105,22 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
             };
           ignore(Exp.map_term(~f_exp=collect, e));
           let size = x =>
-            Option.value(size_within(max(budget^, 0), x), ~default=max_int);
+            Option.value(
+              size_within(max(budget^, 0), x),
+              ~default=Int.max_value,
+            );
           let pruned =
             parts^
-            |> List.map(x => (x, size(x)))
-            |> List.stable_sort(((_, a), (_, b)) => compare(a, b))
-            |> List.map(((x, _)) => (x, go(x)));
+            |> List.map(~f=x => (x, size(x)))
+            |> List.stable_sort(~compare=((_, a), (_, b)) =>
+                 compare(a, b)
+               )
+            |> List.map(~f=((x, _)) => (x, go(x)));
           let replace = (cont, x: Exp.t) =>
-            if (x === e) {
+            if (phys_equal(x, e)) {
               cont(x);
             } else {
-              switch (List.find_opt(((y, _)) => y === x, pruned)) {
+              switch (List.find(~f=((y, _)) => phys_equal(y, x), pruned)) {
               | Some((_, p)) => p
               | None => x
               };

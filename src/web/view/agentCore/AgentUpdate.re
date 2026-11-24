@@ -8,14 +8,6 @@ module Utils = AgentUtils;
 
 module Action = AgentAction;
 
-/* Re-exported for external callers/tests ([Agent.Update.*]). */
-let defer_dispatch_send = AgentSend.defer_dispatch_send;
-let defer_eval_wait = AgentSend.defer_eval_wait;
-let max_eval_wait_attempts = AgentSend.max_eval_wait_attempts;
-let tool_allowed_in_mode = AgentSend.tool_allowed_in_mode;
-let backoff_ms = AgentSend.backoff_ms;
-let format_api_error_content = AgentSend.format_api_error_content;
-
 let update =
     (
       action: Action.t,
@@ -74,13 +66,13 @@ let update =
     )
   | FlushPendingSend(chat_id) =>
     AgentSend.flush_pending_send(chat_id, model, editor, schedule_action)
-  | HandleLLMResponse(reply, chat_id, flight_seq, elapsed_ms) =>
+  | HandleLLMResponse(reply, chat_id, flight_seq, thinking_ms) =>
     let (m, e) =
       AgentResponse.handle_llm_response(
         reply,
         chat_id,
         flight_seq,
-        elapsed_ms,
+        thinking_ms,
         model,
         editor,
         settings,
@@ -341,6 +333,9 @@ let update =
       }
       |> Updated.return,
     );
+  /* the workspace's (AgentLens) */
+  | ViewAsAgent(_)
+  | LeaveAgentView => (model, editor |> Updated.return_quiet)
   | SetActiveTimelineNode(node_index) => (
       {
         ...model,
@@ -352,11 +347,15 @@ let update =
     let disabled_tool_names =
       if (enabled) {
         List.filter(
-          (n: string) => n != name,
+          ~f=(n: string) => !String.equal(n, name),
           model.prompting.disabled_tool_names,
         );
       } else {
-        List.mem(name, model.prompting.disabled_tool_names)
+        List.mem(
+          model.prompting.disabled_tool_names,
+          name,
+          ~equal=String.equal,
+        )
           ? model.prompting.disabled_tool_names
           : [name, ...model.prompting.disabled_tool_names];
       };
@@ -372,10 +371,11 @@ let update =
     );
   | SetToolsInCategoryEnabled(category, enabled) =>
     let names_in_cat =
-      CompositionUtils.Public.tools
-      |> List.filter_map((tool: API.Json.t) =>
+      CompositionUtils.tools
+      |> List.filter_map(~f=(tool: API.Json.t) =>
            switch (ToolUtils.get_name(tool)) {
-           | Some(name) when ToolUtils.category_of_tool(name) == category =>
+           | Some(name)
+               when String.equal(ToolUtils.category_of_tool(name), category) =>
              Some(name)
            | _ => None
            }
@@ -383,14 +383,15 @@ let update =
     let disabled_tool_names =
       if (enabled) {
         List.filter(
-          (n: string) => !List.mem(n, names_in_cat),
+          ~f=(n: string) => !List.mem(names_in_cat, n, ~equal=String.equal),
           model.prompting.disabled_tool_names,
         );
       } else {
         List.fold_left(
+          ~f=
           (acc: list(string), n: string) =>
-            List.mem(n, acc) ? acc : [n, ...acc],
-          model.prompting.disabled_tool_names,
+              List.mem(acc, n, ~equal=String.equal) ? acc : [n, ...acc],
+          ~init=model.prompting.disabled_tool_names,
           names_in_cat,
         );
       };
@@ -406,8 +407,11 @@ let update =
     );
   | ToggleToolsViewExpanded(name) =>
     let tools_view_expanded =
-      List.mem(name, model.tools_view_expanded)
-        ? List.filter((n: string) => n != name, model.tools_view_expanded)
+      List.mem(model.tools_view_expanded, name, ~equal=String.equal)
+        ? List.filter(
+            ~f=(n: string) => !String.equal(n, name),
+            model.tools_view_expanded,
+          )
         : [name, ...model.tools_view_expanded];
     (
       {

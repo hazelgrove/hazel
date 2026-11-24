@@ -31,19 +31,19 @@ let row_ends_attr_name = "data-row-ends";
    rows read as 0), attached to a code container for `update`. */
 let row_ends_attr = (measured: Measured.t): Attr.t =>
   /* row_shape (not a direct rows map): Measured is chunked here */
-  List.init(Measured.num_rows(measured), r =>
+  List.init(Measured.num_rows(measured), ~f=r =>
     switch (Measured.row_shape(r, measured)) {
     | Some(sh) => string_of_int(Measured.Rows.(sh.max_col))
     | None => "0"
     }
   )
-  |> String.concat(",")
+  |> String.concat(~sep=",")
   |> Attr.create(row_ends_attr_name);
 
 let parse_row_ends = (s: Js.t(Js.js_string)): array(int) =>
   Js.to_string(s)
-  |> String.split_on_char(',')
-  |> List.map(s => Option.value(int_of_string_opt(s), ~default=0))
+  |> String.split(~on=',')
+  |> List.map(~f=s => Option.value(int_of_string_opt(s), ~default=0))
   |> Array.of_list;
 
 /* each container's last attribute and its parse: a frame that didn't
@@ -57,14 +57,19 @@ let row_ends_of_container = (el: Js.t(Dom_html.element)): array(int) =>
     el##getAttribute(Js.string(row_ends_attr_name)),
     () => [||],
     s =>
-      switch (List.find_opt(((c, a, _)) => c === el && a === s, parsed^)) {
+      switch (
+        List.find(
+          ~f=((c, a, _)) => phys_equal(c, el) && phys_equal(a, s),
+          parsed^,
+        )
+      ) {
       | Some((_, _, ends)) => ends
       | None =>
         let ends = parse_row_ends(s);
         parsed :=
           [
             (el, s, ends),
-            ...List.filter(((c, _, _)) => c !== el, parsed^),
+            ...List.filter(~f=((c, _, _)) => !phys_equal(c, el), parsed^),
           ];
         ends;
       },
@@ -109,7 +114,7 @@ let items_of_container =
       switch (
         attr("data-row"),
         attr("data-ocol"),
-        List.assq_opt(el, sizes^),
+        List.Assoc.find(sizes^, el, ~equal=phys_equal),
       ) {
       | (Some(row), Some(origin_col), Some((w_px, h_px))) =>
         items :=
@@ -131,6 +136,7 @@ let items_of_container =
   };
   (
     List.sort(
+      ~compare=
       (a: item, b: item) =>
         a.row == b.row
           ? compare(a.origin_col, b.origin_col) : compare(a.row, b.row),
@@ -145,19 +151,20 @@ let solve =
     (~font_metrics: FontMetrics.t, container, items: list(item))
     : list((Js.t(Dom_html.element), string)) => {
   let placed = ref([]);
-  if (items != []) {
+  if (!List.is_empty(items)) {
     let row_ends = row_ends_of_container(container);
     let row_end = (r: int): int =>
       r >= 0 && r < Array.length(row_ends) ? row_ends[r] : 0;
     /* (first row, last row, left col, right col) of placed displays */
     let occupied: ref(list((int, int, int, int))) = ref([]);
     List.iter(
+      ~f=
       (it: item) => {
         let rows_spanned =
           max(
             1,
             int_of_float(
-              Float.ceil(it.h_px /. font_metrics.row_height -. 0.2),
+                Float.round_up(it.h_px /. font_metrics.row_height -. 0.2),
             ),
           );
         let last_row = it.row + rows_spanned - 1;
@@ -172,17 +179,20 @@ let solve =
             max(floor_col^, max(row_end(r) + offside_offset, quiver));
         };
         let w_cols =
-          int_of_float(Float.ceil(it.w_px /. font_metrics.col_width));
+            int_of_float(Float.round_up(it.w_px /. font_metrics.col_width));
         /* first-fit: slide into the leftmost gap at or after the floor —
            a display can sit BEFORE one from a row above when the overhang
            above leaves room (no unnecessary staggering) */
         let blockers =
           occupied^
-          |> List.filter(((a, b, _, _)) => !(last_row < a || b < it.row))
-          |> List.map(((_, _, l, r)) => (l, r))
-          |> List.sort(((l1, _), (l2, _)) => compare(l1, l2));
+            |> List.filter(~f=((a, b, _, _)) =>
+                 !(last_row < a || b < it.row)
+               )
+            |> List.map(~f=((_, _, l, r)) => (l, r))
+            |> List.sort(~compare=((l1, _), (l2, _)) => compare(l1, l2));
         let x = ref(floor_col^);
-        List.iter(
+        List.iter(~f=
+            
           ((l, r)) =>
             if (x^ + w_cols + stack_gap <= l) {
               (); /* fits entirely before this blocker */
@@ -204,7 +214,7 @@ let solve =
 
 let place = ((el: Js.t(Dom_html.element), left: string)): unit => {
   let left = Js.string(left);
-  if (el##.style##.left !== left) {
+  if (!phys_equal(el##.style##.left, left)) {
     el##.style##.left := left;
   };
 };
@@ -222,7 +232,7 @@ let place_all = (): list(Js.t(Dom_html.element)) => {
     Js.Opt.iter(containers##item(i), c =>
       switch (items_of_container(c)) {
       | (items, []) =>
-        List.iter(place, solve(~font_metrics=metrics^, c, items))
+        List.iter(~f=place, solve(~font_metrics=metrics^, c, items))
       | (_, els) => unknown := els @ unknown^
       }
     );
@@ -233,9 +243,14 @@ let place_all = (): list(Js.t(Dom_html.element)) => {
 /* reads sizes, then places again */
 let measure = (els: list(Js.t(Dom_html.element))): Util.AfterLayout.write => {
   List.iter(
+    ~f=
     el =>
       if (Util.JsUtil.connected(el)) {
-        sizes := [(el, read_size(el)), ...List.remove_assq(el, sizes^)];
+          sizes :=
+            [
+              (el, read_size(el)),
+              ...List.Assoc.remove(sizes^, el, ~equal=phys_equal),
+            ];
       },
     els,
   );
@@ -248,6 +263,7 @@ let update = (~font_metrics: FontMetrics.t): unit => {
   metrics := font_metrics;
   sizes :=
     List.filter(
+      ~f=
       ((el, _)) =>
         Util.JsUtil.connected(el)
         || {
@@ -256,13 +272,14 @@ let update = (~font_metrics: FontMetrics.t): unit => {
         },
       sizes^,
     );
-  parsed := List.filter(((c, _, _)) => Util.JsUtil.connected(c), parsed^);
+  parsed :=
+    List.filter(~f=((c, _, _)) => Util.JsUtil.connected(c), parsed^);
   /* new displays: watched for size changes from now, and measured once
      the browser has laid them out */
   switch (place_all()) {
   | [] => ()
   | els =>
-    List.iter(Util.AfterLayout.watch(Lazy.force(watcher)), els);
+    List.iter(~f=Util.AfterLayout.watch(Lazy.force(watcher)), els);
     Util.AfterLayout.schedule(() => measure(els));
   };
 };

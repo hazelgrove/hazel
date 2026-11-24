@@ -1,22 +1,23 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* per-item persistence: exact restore (incomplete tiles and grout
    included), dirty-only writes, GC ordering, None on any inconsistency */
 
 let mem_store = (): (ItemPersist.store, ref(list((string, string)))) => {
-  let tbl: Hashtbl.t(string, string) = Hashtbl.create(16);
+  let tbl: Stdlib.Hashtbl.t(string, string) = Stdlib.Hashtbl.create(16);
   let log = ref([]);
   (
     {
-      get: k => Hashtbl.find_opt(tbl, k),
+      get: k => Stdlib.Hashtbl.find_opt(tbl, k),
       set: (k, v) => {
         log := [("set", k), ...log^];
-        Hashtbl.replace(tbl, k, v);
+        Stdlib.Hashtbl.replace(tbl, k, v);
       },
       remove: k => {
         log := [("remove", k), ...log^];
-        Hashtbl.remove(tbl, k);
+        Stdlib.Hashtbl.remove(tbl, k);
       },
     },
     log,
@@ -24,7 +25,7 @@ let mem_store = (): (ItemPersist.store, ref(list((string, string)))) => {
 };
 
 let sets = log =>
-  List.filter(((op, _)) => op == "set", log^) |> List.length;
+  List.filter(~f=((op, _)) => String.equal(op, "set"), log^) |> List.length;
 
 /* as typed, so incomplete tiles and grout survive */
 let seg_of_text = (text: string): Segment.t =>
@@ -94,9 +95,10 @@ let cases = [
       let seg' =
         List.concat(
           List.mapi(
-            (i, (_, s)) =>
-              i == 1
-                ? s @ [Piece.Secondary(Secondary.mk_space(Id.mk()))] : s,
+            ~f=
+              (i, (_, s)) =>
+                i == 1
+                  ? s @ [Piece.Secondary(Secondary.mk_space(Id.mk()))] : s,
             items,
           ),
         );
@@ -113,10 +115,11 @@ let cases = [
       let seg = seg_of_text(doc);
       let saved = ItemPersist.save(~store, ~prev=[], seg);
       let items = ItemPersist.items_of(seg);
-      let seg' = List.concat(List.map(snd, List.tl(items)));
+      let seg' = List.concat(List.map(~f=snd, List.tl_exn(items)));
       let _ = ItemPersist.save(~store, ~prev=saved, seg');
       let ops = List.rev(log^);
-      let removed = List.filter(((op, _)) => op == "remove", ops);
+      let removed =
+        List.filter(~f=((op, _)) => String.equal(op, "remove"), ops);
       check(int, "one key removed", 1, List.length(removed));
       let rec last_set_before_remove = (ops, seen_remove) =>
         switch (ops) {
@@ -149,7 +152,12 @@ let cases = [
       switch (saved) {
       | [(id, _), ..._] =>
         store.remove(ItemPersist.item_key(id));
-        check(bool, "load is None", true, ItemPersist.load(~store) == None);
+        check(
+          bool,
+          "load is None",
+          true,
+          Option.is_none(ItemPersist.load(~store)),
+        );
       | [] => fail("no items saved")
       };
     },
@@ -162,7 +170,12 @@ let cases = [
       let seg = seg_of_text(doc);
       let _ = ItemPersist.save(~store, ~prev=[], seg);
       store.set(ItemPersist.roster_key, "not a roster");
-      check(bool, "load is None", true, ItemPersist.load(~store) == None);
+      check(
+        bool,
+        "load is None",
+        true,
+        Option.is_none(ItemPersist.load(~store)),
+      );
     },
   ),
   test_case(
@@ -189,7 +202,7 @@ let cases = [
             bool,
             "loads the newer item",
             true,
-            seg_equal(loaded, newer @ List.concat_map(snd, rest)),
+            seg_equal(loaded, newer @ List.concat_map(~f=snd, rest)),
           )
         | None => fail("load returned None")
         };

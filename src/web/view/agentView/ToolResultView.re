@@ -35,17 +35,18 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-list"])],
         List.mapi(
-          (i, item) =>
-            div(
-              ~attrs=[clss(["arg-list-item"])],
-              [
-                span(
-                  ~attrs=[clss(["arg-list-index"])],
-                  [text(string_of_int(i + 1) ++ ".")],
-                ),
-                render_value(item),
-              ],
-            ),
+          ~f=
+            (i, item) =>
+              div(
+                ~attrs=[clss(["arg-list-item"])],
+                [
+                  span(
+                    ~attrs=[clss(["arg-list-index"])],
+                    [text(string_of_int(i + 1) ++ ".")],
+                  ),
+                  render_value(item),
+                ],
+              ),
           items,
         ),
       )
@@ -53,14 +54,15 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
       div(
         ~attrs=[clss(["arg-object"])],
         List.map(
-          ((key, value)) =>
-            div(
-              ~attrs=[clss(["arg-field"])],
-              [
-                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
-                render_value(value),
-              ],
-            ),
+          ~f=
+            ((key, value)) =>
+              div(
+                ~attrs=[clss(["arg-field"])],
+                [
+                  span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                  render_value(value),
+                ],
+              ),
           pairs,
         ),
       )
@@ -72,14 +74,15 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
     div(
       ~attrs=[clss(["tool-call-args-pretty"])],
       List.map(
-        ((key, value)) =>
-          div(
-            ~attrs=[clss(["arg-field"])],
-            [
-              span(~attrs=[clss(["arg-field-key"])], [text(key)]),
-              render_value(value),
-            ],
-          ),
+        ~f=
+          ((key, value)) =>
+            div(
+              ~attrs=[clss(["arg-field"])],
+              [
+                span(~attrs=[clss(["arg-field-key"])], [text(key)]),
+                render_value(value),
+              ],
+            ),
         pairs,
       ),
     )
@@ -94,7 +97,6 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
 let category_icon = (c: ToolCallSummary.category): Node.t =>
   switch (c) {
   | Edit => cat_edit
-  | Read => cat_read
   | View => cat_view
   | Projector => cat_projector
   | Probe => cat_probe
@@ -102,16 +104,20 @@ let category_icon = (c: ToolCallSummary.category): Node.t =>
   | Workbench => cat_workbench
   };
 
-/** Returns [[Some(id)]] for the first path in [[jump_paths]] that resolves in
-    [[node_map]]; [[None]] otherwise (including when [[node_map]] is [[None]]). */
+/** The entry the first of [[jump_paths]] that names one in [[outline]]
+    names. */
 let first_resolving_id =
-    (~node_map: option(HighLevelNodeMap.t), jump_paths: list(string))
-    : option(Id.t) =>
-  switch (node_map) {
+    (~outline: option(Outline.t), jump_paths: list(string)): option(Id.t) =>
+  switch (outline) {
   | None => None
-  | Some(nm) =>
+  | Some(o) =>
     List.find_map(
-      (p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
+      ~f=
+        (p: string) =>
+          switch (Outline.resolve(o, p)) {
+          | Ok(e) => Some(e.id)
+          | Error(_) => None
+          },
       jump_paths,
     )
   };
@@ -119,7 +125,7 @@ let first_resolving_id =
 let view =
     (
       ~globals: Globals.t,
-      ~node_map: option(HighLevelNodeMap.t)=?,
+      ~outline: option(Outline.t)=?,
       ~tool_result: AgentToolResult.tool_result,
       ~toggle_expanded: 'a => Effect.t(unit),
       (),
@@ -136,14 +142,14 @@ let view =
   let summary_opt = ToolCallSummary.of_tool_call(tool_result.tool_call);
   let resolved_id: option(Id.t) =
     switch (summary_opt) {
-    | Some(s) when s.jump_paths != [] =>
-      first_resolving_id(~node_map, s.jump_paths)
+    | Some(s) when !List.is_empty(s.jump_paths) =>
+      first_resolving_id(~outline, s.jump_paths)
     | _ => None
     };
   let is_stale: bool =
     switch (summary_opt) {
-    | Some(s) when s.persists && s.jump_paths != [] =>
-      resolved_id == None && node_map != None
+    | Some(s) when s.persists && !List.is_empty(s.jump_paths) =>
+      Option.is_none(resolved_id) && Option.is_some(outline)
     | _ => false
     };
   let category_node: Node.t =
@@ -192,7 +198,7 @@ let view =
           category_node,
           div(
             ~attrs=[clss(["tool-call-name"])],
-            [text(ToolCallSummary.display_name_for(tool_result.tool_call))],
+            [text(tool_result.tool_call.name)],
           ),
           signifier_node,
           div(

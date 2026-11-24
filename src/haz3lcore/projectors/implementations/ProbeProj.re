@@ -1,5 +1,6 @@
 open Util;
 open ProjectorBase;
+open Poly;
 open Virtual_dom.Vdom;
 
 open Js_of_ocaml;
@@ -84,7 +85,7 @@ let is_bare = (model: string): bool =>
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
-  |> Option.map((r: packed_renderer) =>
+  |> Option.map(~f=(r: packed_renderer) =>
        sexp_of_probe_model({
          ...init_probe_model,
          active_renderer: Some(r.empty_model),
@@ -216,7 +217,11 @@ module Settings = {
       }
     | ToggleWindow => {
         ...settings,
-        window: settings.window == Sample.Window.Single ? Many : Single,
+        window:
+          switch (settings.window) {
+          | Sample.Window.Single => Many
+          | Many => Single
+          },
       }
     | SetWindow(window) => {
         ...settings,
@@ -228,23 +233,26 @@ module Settings = {
       }
     | ToggleBeforeCutoff => {
         ...settings,
-        before_cutoff: settings.before_cutoff == None ? Some(1) : None,
+        before_cutoff:
+          Option.is_none(settings.before_cutoff) ? Some(1) : None,
       }
     | ToggleAfterCutoff => {
         ...settings,
-        after_cutoff: settings.after_cutoff == None ? Some(1) : None,
+        after_cutoff: Option.is_none(settings.after_cutoff) ? Some(1) : None,
       }
     | ToggleCallerCutoff => {
         ...settings,
-        caller_cutoff: settings.caller_cutoff == None ? Some(1) : None,
+        caller_cutoff:
+          Option.is_none(settings.caller_cutoff) ? Some(1) : None,
       }
     | ToggleCalleeCutoff => {
         ...settings,
-        callee_cutoff: settings.callee_cutoff == None ? Some(1) : None,
+        callee_cutoff:
+          Option.is_none(settings.callee_cutoff) ? Some(1) : None,
       }
     };
 
-  let offset = Hashtbl.create(100);
+  let offset = Stdlib.Hashtbl.create(100);
 
   let s = ref(init);
   let version = ref(0);
@@ -296,7 +304,7 @@ module Settings = {
   };
 
   let reset_mode = () => {
-    Hashtbl.clear(offset);
+    Stdlib.Hashtbl.clear(offset);
     s := init;
     open_dropdown := None;
     sticky := false;
@@ -319,7 +327,7 @@ module SampleLength = {
   type t = list((int, int));
 
   let find = (lengths: t, id: int): option(int) =>
-    List.assoc_opt(id, lengths);
+    List.Assoc.find(lengths, id, ~equal=Poly.equal);
 
   let is_explicit = (lengths: t, sample: Sample.t): bool =>
     find(lengths, sample.id) != None;
@@ -365,12 +373,12 @@ type probe_ctx = {
 
 module WindowState = {
   let get_offset = (k: Id.t): int =>
-    switch (Hashtbl.find_opt(offset, k)) {
+    switch (Stdlib.Hashtbl.find_opt(offset, k)) {
     | Some(v) => v
     | None => 0
     };
 
-  let set_offset = (k: Id.t, v: int) => Hashtbl.replace(offset, k, v);
+  let set_offset = (k: Id.t, v: int) => Stdlib.Hashtbl.replace(offset, k, v);
 
   let reform =
       (
@@ -419,7 +427,7 @@ let select_samples =
       dynamics.sample_focus,
       samples,
     );
-  if (first_idx == None && settings.window == Single) {
+  if (Option.is_none(first_idx) && Poly.equal(settings.window, Single)) {
     [];
   } else {
     let cursor_idx = first_idx |> Option.value(~default=0);
@@ -478,8 +486,8 @@ module DrawerHeight = {
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(sample_rows(~lengths, info.utility), samples);
-        List.fold_left(max, 1, heights);
+        let heights = List.map(~f=sample_rows(~lengths, info.utility), samples);
+        List.fold(heights, ~init=1, ~f=max);
       };
     | _ => 1
     };
@@ -494,7 +502,7 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   let text_box =
     e##.currentTarget
     |> Js.Opt.to_option
-    |> Option.map(JsUtil.get_child_with_class(_, "code"))
+    |> Option.map(~f=JsUtil.get_child_with_class(_, "code"))
     |> Option.join;
   switch (text_box) {
   | None => None
@@ -526,12 +534,16 @@ let depth_clss =
   switch (relation.relative_level_to_cursor) {
   | Same => ["depth-same"]
   | Below(n)
-      when settings.before_cutoff == None || Some(n) <= settings.before_cutoff => [
+      when
+        Option.is_none(settings.before_cutoff)
+        || Some(n) <= settings.before_cutoff => [
       "depth-below",
       "depth-" ++ string_of_int(n),
     ]
   | Above(n)
-      when settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+      when
+        Option.is_none(settings.after_cutoff)
+        || Some(n) <= settings.after_cutoff => [
       "depth-above",
       "depth-" ++ string_of_int(n),
     ]
@@ -572,23 +584,24 @@ let color_clss =
     ) {
     | (true, _, _) => ["focus"]
     | (_, Some(0), _) => ["related-before"]
-    | (_, Some(_), _) when settings.caller_cutoff == None => [
+    | (_, Some(_), _) when Option.is_none(settings.caller_cutoff) => [
         "related-before",
       ]
     | (_, _, Some(0)) => ["related-after"]
-    | (_, _, Some(_)) when settings.callee_cutoff == None => [
+    | (_, _, Some(_)) when Option.is_none(settings.callee_cutoff) => [
         "related-after",
       ]
     | (_, _, _) =>
       switch (relation.relative_level_to_cursor) {
       | Above(n)
           when
-            settings.after_cutoff == None || Some(n) <= settings.after_cutoff => [
+            Option.is_none(settings.after_cutoff)
+            || Some(n) <= settings.after_cutoff => [
           "tangent-before",
         ]
       | Below(n)
           when
-            settings.before_cutoff == None
+            Option.is_none(settings.before_cutoff)
             || Some(n) <= settings.before_cutoff => [
           "tangent-after",
         ]
@@ -597,7 +610,7 @@ let color_clss =
     };
   | StepRange => step_range_clss()
   | Hybrid =>
-    if (sample.call_stack == []) {
+    if (List.is_empty(sample.call_stack)) {
       step_range_clss();
     } else {
       let relation =
@@ -635,8 +648,8 @@ let cursor_clss =
 module Debug = {
   let stack = (stack: CallStack.t): string =>
     stack
-    |> List.map((f: CallStack.frame) => Id.str3(f.id))
-    |> String.concat("\n");
+    |> List.map(~f=(f: CallStack.frame) => Id.str3(f.id))
+    |> String.concat(~sep="\n");
 
   let str = (~ap_id: option(Id.t), sample: Sample.t): string =>
     "sample id: "
@@ -667,7 +680,7 @@ let pin_call = (ctx: probe_ctx) =>
 
 let focus_call = (ctx: probe_ctx) =>
   switch (Dynamics.Info.is_in(ctx.dynamics)) {
-  | Some(sample) when sample.call_stack != [] =>
+  | Some(sample) when !List.is_empty(sample.call_stack) =>
     ctx.parent(
       SampleFocus(
         TogglePin(
@@ -682,7 +695,8 @@ let focus_call = (ctx: probe_ctx) =>
 let find_best_budget = ProbePill.best_budget;
 
 module ValueState = {
-  let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
+  let mousedown: ref(option(Js.t(Dom_html.element))) =
+    ref(Stdlib.Option.None);
 };
 
 let value_view =
@@ -871,7 +885,7 @@ let value_view =
           }
         | None when ctx.auto_rich_on =>
           switch (
-            List.find_opt(
+            List.find(~f=
               (r: packed_renderer) =>
                 r.can_handle(
                   ~statics=Some(ctx.statics),
@@ -886,7 +900,7 @@ let value_view =
                     ctx.sort,
                     sample.value,
                   )
-                  || List.exists(
+                  || List.exists(~f=
                        (s: Sample.t) =>
                          r.auto_applies(
                            ~statics=Some(ctx.statics),
@@ -945,7 +959,7 @@ let value_view =
 let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
-    List.find_opt(
+    List.find(~f=
       (r: packed_renderer) =>
         r.auto_applies(~statics=info.statics, sort, value),
       renderers,
@@ -1023,8 +1037,8 @@ let step_into_sample =
   let dyn = sample.frame;
   let frame: CallStack.frame = {
     id: ap_id,
-    name: Option.bind(dyn, (f: CallStack.frame) => f.name),
-    fn_def_id: Option.bind(dyn, (f: CallStack.frame) => f.fn_def_id),
+    name: Option.bind(dyn, ~f=(f: CallStack.frame) => f.name),
+    fn_def_id: Option.bind(dyn, ~f=(f: CallStack.frame) => f.fn_def_id),
   };
   Effect.Many([
     local(SetDropdown(None)),
@@ -1043,7 +1057,7 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | _ => None
     };
   let is_builtin = name =>
-    Environment.lookup(Builtins.env_init, name) != None;
+    Option.is_some(Environment.lookup(Builtins.env_init, name));
   let static_ok =
     switch (fn_var_name) {
     | Some(name) => !is_builtin(name)
@@ -1177,7 +1191,7 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   | None => []
   | Some(indicated) =>
     renderers
-    |> List.filter_map(r =>
+    |> List.filter_map(~f=r =>
          r.can_handle(~statics=Some(ctx.statics), ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
@@ -1206,7 +1220,7 @@ let sample_primary_actions =
     [pin_action(ctx, sample)]
     @ (can_step_into ? [step_into_action(ctx, sample, ap_id)] : [])
     @ rich_items
-  | None when sample.call_stack != [] =>
+  | None when !List.is_empty(sample.call_stack) =>
     [focus_action(ctx, sample)] @ rich_items
   | None => rich_items
   };
@@ -1239,7 +1253,7 @@ let get_arg_var_info =
     switch (arg.term) {
     | Var(name) => [Some(name)]
     | Parens(inner) => [extract_var(inner)]
-    | Tuple(elements) => List.map(extract_var, elements)
+    | Tuple(elements) => List.map(~f=extract_var, elements)
     | _ => [None]
     }
   | _ => []
@@ -1305,10 +1319,11 @@ let sample_call_display =
         let num_elems = List.length(elements);
         let arg_rows =
           List.mapi(
+            ~f=
             (i, elem) =>
               arg_row(
                 ~var_info=
-                  switch (List.nth_opt(arg_var_info, i)) {
+                    switch (List.nth(arg_var_info, i)) {
                   | Some(v) => v
                   | None => None
                   },
@@ -1365,8 +1380,8 @@ let filtered_env_entries =
   sample.env
   |> ListUtil.dedup
   |> Sample.Env.remove_opaques
-  |> List.filter((en: Sample.Env.entry) =>
-       !List.mem(en.binding.name, filter_vars)
+  |> List.filter(~f=(en: Sample.Env.entry) =>
+       !List.mem(filter_vars, en.binding.name, ~equal=String.equal)
      );
 
 /* Variable bindings. filter_vars: names already shown in the call display. */
@@ -1379,7 +1394,7 @@ let sample_environment =
     )
     : list(Node.t) => {
   let elems = filtered_env_entries(~filter_vars, sample);
-  elems == []
+  List.is_empty(elems)
     ? []
     : [
       div(
@@ -1387,7 +1402,7 @@ let sample_environment =
         [
           div(
             ~attrs=[Attr.classes(["live-env"])],
-            List.map(env_val(ctx, view_seg, sample), elems),
+            List.map(~f=env_val(ctx, view_seg, sample), elems),
           ),
         ],
       ),
@@ -1405,9 +1420,10 @@ let hide_env = (statics: Language.Statics.Info.t): bool =>
 let sample_context_sections =
     (ctx: probe_ctx, ~include_rich: bool=true, view_seg, sample: Sample.t)
     : (bool, bool, list(Node.t)) => {
-  let filter_vars = List.filter_map(Fun.id, get_arg_var_info(ctx.statics));
+  let filter_vars =
+    List.filter_map(~f=Fun.id, get_arg_var_info(ctx.statics));
   let env_elems = filtered_env_entries(~filter_vars, sample);
-  let has_env = env_elems != [];
+  let has_env = !List.is_empty(env_elems);
   let has_call = Option.is_some(sample.args);
   let primary =
     sample_primary_actions(
@@ -1420,7 +1436,9 @@ let sample_context_sections =
   let env = sample_environment(ctx, ~filter_vars, view_seg, sample);
   /* Emit no nodes when empty so the caller suppresses the whole menu. */
   let nodes =
-    primary == [] && call_display == [] && env == []
+    List.is_empty(primary)
+    && List.is_empty(call_display)
+    && List.is_empty(env)
       ? []
       : [div(~attrs=[Attr.classes(["context-actions"])], primary)]
         @ call_display
@@ -1497,7 +1515,8 @@ let sample_view =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
           List.exists(
-            r =>
+            ~f=
+              r =>
               r.can_handle(
                 ~statics=Some(ctx.statics),
                 ctx.sort,
@@ -1507,7 +1526,9 @@ let sample_view =
           )
         | None => false
         };
-      !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
+      !(hide_env && Option.is_none(ctx.ap_id))
+      || !List.is_empty(sample.call_stack)
+      || has_rich;
     };
   /* `indicated-sample` marks the most-aligned sample, the DOM anchor
    * SampleAnchor uses to compensate scroll on Left/Right.
@@ -1641,11 +1662,11 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
        and walking them one by one reads as the key doing nothing */
     let next_idx_maybe =
       if (ctx.card) {
-        let cur = List.nth(samples, idx).value;
+        let cur = List.nth_exn(samples, idx).value;
         let rec find = i =>
           if (i < 0 || i >= n) {
             i;
-          } else if (Exp.fast_equal(List.nth(samples, i).value, cur)) {
+          } else if (Exp.fast_equal(List.nth_exn(samples, i).value, cur)) {
             find(i - offset);
           } else {
             i;
@@ -1655,7 +1676,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
         idx - offset;
       };
     if (next_idx_maybe >= 0 && next_idx_maybe < n) {
-      let sample = List.nth(samples, next_idx_maybe);
+      let sample = List.nth_exn(samples, next_idx_maybe);
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
       SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
@@ -1853,12 +1874,12 @@ let key_handler =
   };
   switch (key.key) {
   | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
-  | D("Escape") when Settings.open_dropdown^ != None =>
+  | D("Escape") when Option.is_some(Settings.open_dropdown^) =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when ctx.p_info.stepping != None =>
+  | D("Escape") when Option.is_some(ctx.p_info.stepping) =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
   | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
@@ -2024,13 +2045,14 @@ let prepare_offside =
     let id = info.id;
     let ap_id = Sample.Focus.cur_var_ap(statics);
     let active_renderer_id =
-      Option.map(RichProbe.renderer_id_of_model, model.active_renderer);
+      Option.map(~f=RichProbe.renderer_id_of_model, model.active_renderer);
     let auto_rich_ready =
       (model.auto_rich || settings.auto_rich_default)
-      && model.active_renderer == None
+      && Option.is_none(model.active_renderer)
       && List.exists(
+           ~f=
            (sample: Sample.t) =>
-             List.exists(
+             List.exists(~f=
                (r: packed_renderer) =>
                  r.auto_applies(~statics=Some(statics), sort, sample.value),
                renderers,
@@ -2206,7 +2228,7 @@ let live_offside_view =
     @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
-    ~menu_open=Settings.open_dropdown^ != None,
+    ~menu_open=Option.is_some(Settings.open_dropdown^),
     ~on_close=() => local(SetDropdown(None)),
     (),
   );
@@ -2243,7 +2265,7 @@ let live_offside_view =
           segment,
         );
       let indicated_sample_id =
-        indicated_sample(ctx) |> Option.map((s: Sample.t) => s.id);
+        indicated_sample(ctx) |> Option.map(~f=(s: Sample.t) => s.id);
       let sample_view =
         sample_view(
           ~display,
@@ -2255,17 +2277,18 @@ let live_offside_view =
         );
       let group_views =
         List.map(
+          ~f=
           samples =>
             Node.div(
               ~attrs=[Attr.classes(["sample-group"])],
-              List.map(sample_view, samples),
+                List.map(~f=sample_view, samples),
             ),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */
       let count_badge = count_badge_nodes(~count=num_total);
       let samples_part =
-        group_views == []
+        List.is_empty(group_views)
           ? []
           : [
             div(
@@ -2291,7 +2314,7 @@ let get_current = (~settings, info: info) => {
     | Some(closure) => Some(closure.value)
     | None =>
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, di);
-      ListUtil.hd_opt(samples) |> Option.map((s: Sample.t) => s.value);
+      ListUtil.hd_opt(samples) |> Option.map(~f=(s: Sample.t) => s.value);
     };
   | _ => None
   };
@@ -2334,7 +2357,7 @@ let rich_content =
   | (None, Some(exp))
       when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
     switch (
-      List.find_opt(
+      List.find(~f=
         (r: packed_renderer) =>
           r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
@@ -2383,7 +2406,7 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
   let values =
     site_is_html
       ? ctx.dynamics.samples
-      : List.filter(
+      : List.filter(~f=
           (s: Sample.t) => !MvuShape.is_html(s.value),
           ctx.dynamics.samples,
         );
@@ -2394,14 +2417,11 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
       ~pinned_interval=ctx.dynamics.pinned_interval,
       values,
     )
-    |> List.fold_left(
-         (best, s: Sample.t) =>
+    |> List.fold(~init=None, ~f=(best, s: Sample.t) =>
            switch (best) {
            | Some(b: Sample.t) when b.seq >= s.seq => best
            | _ => Some(s)
-           },
-         None,
-       );
+           });
   let focus = ctx.dynamics.sample_focus;
   let anchored_here =
     switch (focus.anchor) {
@@ -2436,13 +2456,12 @@ let card_sample = (ctx: probe_ctx): option(Sample.t) => {
 let card_rich =
     (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
     : option(Node.t) =>
-  List.find_map(
+  List.find_map(~f=
     (r: packed_renderer) =>
       r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
       || r.id == "table"
       && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
-        ? Option.bind(
-            r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
+        ? Option.bind(r.init_model(~statics=Some(ctx.statics), ctx.sort, value), ~f=pm =>
             r.render_model(
               pm,
               ~info=ctx.p_info,
@@ -2452,8 +2471,7 @@ let card_rich =
               ~parent=ctx.parent,
               ~sort=ctx.sort,
               (),
-            )
-          )
+            ))
         : None,
     renderers,
   );
@@ -2473,12 +2491,12 @@ let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
     switch (sample) {
     | None => None
     | Some(current: Sample.t) =>
-      List.mapi(
+      List.mapi(~f=
         (i, s: Sample.t) =>
           s.step_start == current.step_start ? Some(i) : None,
         samples,
       )
-      |> List.find_map(x => x)
+      |> List.find_map(~f=x => x)
     };
   let button = (~label, ~disabled, ~offset, glyph) =>
     Node.button(
@@ -2508,7 +2526,7 @@ let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
           button(
             ~label="Previous sample (←)",
             ~disabled=
-              Option.value(~default=true, Option.map(i => i <= 0, index)),
+              Option.value(~default=true, Option.map(~f=i => i <= 0, index)),
             ~offset=1,
             "‹",
           ),
@@ -2535,7 +2553,7 @@ let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
             ~disabled=
               Option.value(
                 ~default=true,
-                Option.map(i => i >= count - 1, index),
+                Option.map(~f=i => i >= count - 1, index),
               ),
             ~offset=-1,
             "›",
@@ -2719,12 +2737,12 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
         (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
-      List.find_opt(
+      List.find(~f=
         (r: packed_renderer) =>
           r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
-      |> Option.map((r: packed_renderer) =>
+      |> Option.map(~f=(r: packed_renderer) =>
            r.drawer_rows(~statics=info.statics, sort, exp)
          )
       |> Option.join
@@ -2940,7 +2958,7 @@ module M: Projector = {
                 Attr.on_click(_ => Effect.Stop_propagation),
               ],
               (
-                model.active_renderer != None
+                Option.is_some(model.active_renderer)
                   ? [
                     div(
                       ~attrs=[
@@ -2975,7 +2993,7 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let stepping = info.stepping != None;
+    let stepping = Option.is_some(info.stepping);
     let drawer = model.drawer_mode && !model.card_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
@@ -3035,13 +3053,13 @@ module M: Projector = {
                 ~view_seg,
                 ~sort,
               )
-              |> Option.map(content =>
+              |> Option.map(~f=content =>
                    rich_drawer_view(
                      ~local,
                      ~overflowing=drawer_overflow,
                      /* auto-rich (no explicit renderer) has nothing to close:
                         dismissal would just re-trigger */
-                     ~closable=model.active_renderer != None,
+                     ~closable=Option.is_some(model.active_renderer),
                      content,
                    )
                  )
@@ -3066,7 +3084,8 @@ module M: Projector = {
         /* the program stopped short of the ⇓ probe: how far it got */
         | (_, true)
             when
-              info.program_value && Settings.value_fallback^(info.id) != None =>
+              info.program_value
+              && Option.is_some(Settings.value_fallback^(info.id)) =>
           Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(

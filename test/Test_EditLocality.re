@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 
 /* what each incremental layer redoes for one edit: an identity slip costs
    whole-program time, not a wrong answer, so these bounds catch it */
@@ -16,7 +17,8 @@ let statics_of = (z: Zipper.t): CachedStatics.t =>
     MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
   );
 
-let perform = (~statics, z: Zipper.t, a: Action.t): Zipper.t =>
+let perform =
+    (~settings=settings, ~statics, z: Zipper.t, a: Action.t): Zipper.t =>
   switch (
     Perform.go(
       ~settings,
@@ -52,17 +54,14 @@ let at = (~statics, z, row, col) =>
 /* top-level pieces of [after]: pointer-equal to [before]'s piece with
    the same id, or new */
 let survival = (before: Segment.t, after: Segment.t): (int, int) => {
-  let tbl = Hashtbl.create(List.length(before));
-  List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), before);
-  List.fold_left(
-    ((kept, fresh), p) =>
-      switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
-      | Some(old) when old === p => (kept + 1, fresh)
-      | Some(_) => (kept, fresh)
-      | None => (kept, fresh + 1)
-      },
-    (0, 0),
-    after,
+  let tbl = Stdlib.Hashtbl.create(List.length(before));
+  List.iter(~f=p => Stdlib.Hashtbl.replace(tbl, Piece.id(p), p), before);
+  List.fold(after, ~init=(0, 0), ~f=((kept, fresh), p) =>
+    switch (Stdlib.Hashtbl.find_opt(tbl, Piece.id(p))) {
+    | Some(old) when phys_equal(old, p) => (kept + 1, fresh)
+    | Some(_) => (kept, fresh)
+    | None => (kept, fresh + 1)
+    }
   );
 };
 
@@ -119,9 +118,9 @@ type edit = {
   fallbacks: int,
 };
 
-let edit = (~statics, z: Zipper.t, a: Action.t): edit => {
+let edit = (~settings=?, ~statics, z: Zipper.t, a: Action.t): edit => {
   let f0 = Zipper.sparse_fallbacks^;
-  let z' = perform(~statics, z, a);
+  let z' = perform(~settings?, ~statics, z, a);
   {
     before: Zipper.unselect_and_zip(z),
     after: Zipper.unselect_and_zip(z'),
@@ -155,31 +154,85 @@ let undo = () => {
 /* deep in the program, so the tiles passed on the way down count */
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
-  let term = MakeTerm.Incr.term_of(seg);
   switch (
-    Web.ItemEdit.apply(
+    CorpusUtil.outline_op(
       MoveDown,
-      CorpusUtil.row(term, ["MetaRunner", "init"]),
+      CorpusUtil.row(CorpusUtil.outline_of(seg), ["MetaRunner", "init"]),
       seg,
     )
   ) {
-  | Some((after, _)) => {
+  | Ok((after, _)) => {
       before: seg,
       after,
       fallbacks: 0,
     }
-  | None => fail("move failed")
+  | Error(why) => fail("move failed: " ++ why)
   };
 };
 
-let agent = () =>
+/* as the editor runs agent edits: new lines are re-indented */
+let structural = a =>
   edit(
+    ~settings={
+      ...settings,
+      auto_reindent: true,
+    },
     ~statics=Lazy.force(dew_statics),
     Lazy.force(dew),
-    Structural(
-      Update(Definition, "final", "let r = MetaRunner.run_all(()) in r"),
-    ),
+    Structural(a),
   );
+
+let agent = () =>
+  structural(
+    Replace("final:definition", "let r = MetaRunner.run_all(()) in r"),
+  );
+
+/* new lines: the region re-indent maps the whole program */
+let agent_lines = () =>
+  structural(
+    Replace("final:definition", "let r =\n  MetaRunner.run_all(())\nin\nr"),
+  );
+let agent_insert = () =>
+  structural(
+    Insert(After("final"), "let extra =\n  final.ok\n  + 1\n  + 2\nin"),
+  );
+
+/* `M.x` labels are relabeled program-wide: Text and WateringTimer
+   change, with their members that use it */
+let agent_rename = () =>
+  structural(Rename("Text/int_to_text", None, "render_int"));
+
+/* a rename as the outline runs it: [final]'s binder and use, each a
+   kernel token replace */
+let relabel = () => {
+  let rec toks = (seg: Segment.t) =>
+    List.concat_map(
+      ~f=
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({form: Tok("final"), id, _}) => [id]
+          | Tile(t) => List.concat_map(~f=toks, t.children)
+          | _ => []
+          },
+      seg,
+    );
+  let before = Zipper.unselect_and_zip(Lazy.force(dew));
+  let replace = id => EntryEdit.Replace(Term(id), Token("outcome"));
+  switch (
+    EntryEdit.transaction(
+      ~root=Exp,
+      before,
+      List.map(~f=replace, toks(before)),
+    )
+  ) {
+  | Ok(c) => {
+      before,
+      after: c.program,
+      fallbacks: 0,
+    }
+  | Error(r) => fail(EntryEdit.describe(r.reason))
+  };
+};
 
 /* a space at [row]: Mega 2k's rows 100 and 900 are these lines too */
 let mega_insert = (row, ()) => {
@@ -226,7 +279,17 @@ let tests = (
     case("undo", undo),
     /* the two members swapped, and their module's shell */
     case("restructure", ~items=3, ~analyzed=8, restructure),
+    case("relabel", relabel),
     case("agent update", ~speed=`Slow, agent),
+    case("agent update, new lines", ~speed=`Slow, agent_lines),
+    /* the new let and the line breaks around it */
+    case(
+      "agent insert_after, new lines",
+      ~speed=`Slow,
+      ~fresh=4,
+      agent_insert,
+    ),
+    case("agent rename", ~speed=`Slow, ~items=6, ~analyzed=10, agent_rename),
     case("mega-1k row 900", ~typing=true, mega_insert(900)),
     case("mega-1k row 100", ~typing=true, mega_insert(100)),
   ],

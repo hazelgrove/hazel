@@ -5,6 +5,7 @@ open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
+open Poly;
 
 /* Re-export visible_rows type from Globals for convenience */
 type visible_rows = Globals.VisibleRows.t;
@@ -39,7 +40,7 @@ module ViewCache = {
     view: View.t,
     last_used: int /* tick of the last hit or store */
   };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+  let cache: Stdlib.Hashtbl.t(Id.t, entry) = Stdlib.Hashtbl.create(64);
 
   /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
      fresh probe ids per edit) would pin its entry, and with it a whole
@@ -63,23 +64,23 @@ module ViewCache = {
         ~font_metrics,
       )
       : option(View.t) =>
-    switch (Hashtbl.find_opt(cache, id)) {
+    switch (Stdlib.Hashtbl.find_opt(cache, id)) {
     | Some(e)
         when
-          e.statics_map === statics_map
-          && e.dynamics_map === dynamics_map
+          phys_equal(e.statics_map, statics_map)
+          && phys_equal(e.dynamics_map, dynamics_map)
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.stepping == stepping
           && e.program_value == program_value
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
-          && e.core_settings == core_settings
+          && Poly.equal(e.core_settings, core_settings)
           && e.settings_version == ProbeProj.Settings.version^
           && e.app_version == app_version
           && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
       if (e.last_used != tick^) {
-        Hashtbl.replace(
+        Stdlib.Hashtbl.replace(
           cache,
           id,
           {
@@ -108,7 +109,7 @@ module ViewCache = {
         ~font_metrics,
         ~view,
       ) =>
-    Hashtbl.replace(
+    Stdlib.Hashtbl.replace(
       cache,
       id,
       {
@@ -137,12 +138,12 @@ module ViewCache = {
     incr(tick);
     if (tick^ mod 8 == 0) {
       let stale =
-        Hashtbl.fold(
+        Stdlib.Hashtbl.fold(
           (id, e, acc) => tick^ - e.last_used > 24 ? [id, ...acc] : acc,
           cache,
           [],
         );
-      List.iter(Hashtbl.remove(cache), stale);
+      List.iter(~f=Stdlib.Hashtbl.remove(cache), stale);
     };
   };
 };
@@ -161,6 +162,7 @@ let filter_by_visibility =
   | None => data
   | Some({first, last}) =>
     List.filter(
+      ~f=
       item => {
         let (origin_row, last_row) = get_row_range(item);
         /* Projector is visible if it overlaps with visible range:
@@ -196,7 +198,7 @@ module Model = {
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p: option(Indicated.piece), id) =>
     switch (p) {
-    | Some({piece: p, side: d, _}) when Piece.id(p) == id =>
+    | Some({piece: p, side: d, _}) when Id.equal(Piece.id(p), id) =>
       Some(Direction.toggle(d))
     | _ => None
     };
@@ -230,14 +232,15 @@ module Model = {
       : status => {
     sort,
     error:
-      Option.map(Language.Info.is_error, info.statics)
+      Option.map(~f=Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
     warning:
-      Option.map(Language.Info.is_warning, info.statics)
+      Option.map(~f=Language.Info.is_warning, info.statics)
       |> Option.value(~default=false),
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
-    selected: editor_active ? List.mem(id, selection_ids) : false,
+    selected:
+      editor_active ? List.mem(selection_ids, id, ~equal=Id.equal) : false,
     placement: p.placement,
   };
 
@@ -253,6 +256,7 @@ module Model = {
       ) => {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
+      ~f=
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
@@ -423,7 +427,7 @@ let offside_wrapper =
       Attr.create("data-ocol", string_of_int(origin_col)),
       Attr.create(
         "style",
-        Printf.sprintf(
+        sprintf(
           "position: absolute; left: %fpx;",
           font_metrics.col_width *. float_of_int(offside_base),
         ),
@@ -625,7 +629,10 @@ let mk_view =
   | None =>
     ViewCache.misses := ViewCache.misses^ + 1;
     let (module P) = ProjectorInit.to_module(p.kind);
-    let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, p.id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
     let view =
       P.view({
         model: p.model,
@@ -641,7 +648,9 @@ let mk_view =
         parent: a =>
           switch (a) {
           | FocusById(id) =>
-            let target_idx = List.find_index(x => x == id, projector_list);
+            let target_idx =
+              List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+              |> Option.map(~f=fst);
             switch (target_idx) {
             | Some(target_idx) =>
               inject(Project(Focus(target_idx, Probe, None)))
@@ -707,7 +716,10 @@ let split_views =
       projector_list: list(Id.t),
     )
     : (Node.t, option(Node.t)) => {
-  let idx = List.find_index(x => x == p.id, projector_list) |> Option.get;
+  let idx =
+    List.findi(projector_list, ~f=(_, x) => Id.equal(x, p.id))
+    |> Option.map(~f=fst)
+    |> Option.value_exn;
   let chipped =
     !skip_inline && ProjectorCore.Placement.is_sidebar(p.placement);
   let views =
@@ -736,6 +748,7 @@ let split_views =
     let offside_view =
       views.offside
       |> Option.map(
+           ~f=
            offside_wrapper(
              font_metrics,
              offside_base,
@@ -746,7 +759,7 @@ let split_views =
       |> Option.to_list;
     let below_view =
       views.below
-      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.map(~f=below_wrapper(font_metrics, measurement.origin.col))
       |> Option.to_list;
     /* A Tab projector's wrapper div spans only its top row (that is all
        the measurement covers), so mount the GUI in an extent layer sized
@@ -785,7 +798,7 @@ let split_views =
       @ below_view,
     );
   };
-  let overlay_view = Option.map(v => wrapper([v]), views.overlay);
+  let overlay_view = Option.map(~f=v => wrapper([v]), views.overlay);
   (line_view, overlay_view);
 };
 
@@ -819,8 +832,9 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> filter_by_visibility(visible, _, get_row_range)
-    |> List.sort(by_measurement)
+    |> List.sort(~compare=by_measurement)
     |> List.map(
+         ~f=
          split_views(
            ~skip_inline=false,
            ~core_settings,
@@ -832,8 +846,8 @@ let all =
            projector_list,
          ),
        )
-    |> List.split;
-  let overlay_views = List.filter_map(Fun.id, overlay_views);
+    |> List.unzip;
+  let overlay_views = List.filter_map(~f=Fn.id, overlay_views);
   [
     div_c(
       "projectors",
@@ -891,11 +905,11 @@ let sidebar_views =
       );
     };
   projector_data
-  |> List.filter((d: Model.projector_data) =>
+  |> List.filter(~f=(d: Model.projector_data) =>
        ProjectorCore.Placement.is_sidebar(d.p.placement)
      )
-  |> List.sort((d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
-  |> List.map((d: Model.projector_data) => {
+  |> List.sort(~compare=(d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
+  |> List.map(~f=(d: Model.projector_data) => {
        let views =
          mk_view(inject, font_metrics, ~core_settings, d, projector_list);
        /* Same class list the code-site wrapper applies, so per-kind CSS
@@ -944,13 +958,19 @@ let key_handoff =
   | (Some(Right), (_, Some(Projector({placement: Sidebar, _})))) => None
   | (Some(Left), (Some(Projector({id, kind, _})), _)) =>
     let (module P) = ProjectorInit.to_module(kind);
-    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
+    Option.is_some(P.focusable.keyboard)
       ? Some(Focus(idx, kind, Some(Right))) : None;
   | (Some(Right), (_, Some(Projector({id, kind, _})))) =>
     let (module P) = ProjectorInit.to_module(kind);
-    let idx = List.find_index(x => x == id, projector_list) |> Option.get;
-    P.focusable.keyboard != None
+    let idx =
+      List.findi(projector_list, ~f=(_, x) => Id.equal(x, id))
+      |> Option.map(~f=fst)
+      |> Option.value_exn;
+    Option.is_some(P.focusable.keyboard)
       ? Some(Focus(idx, kind, Some(Left))) : None;
   | _ => None
   };

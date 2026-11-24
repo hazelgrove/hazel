@@ -1,5 +1,6 @@
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 /* Read-only code viewer with statics, but no interaction. Notably,
    since there is no interaction, the user can see that there is an
@@ -61,6 +62,7 @@ module Model = {
     info:
       Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
       |> Option.map(
+           ~f=
            Language.Info.as_member_reference(
              ~info_map=model.statics.info_map,
            ),
@@ -68,7 +70,7 @@ module Model = {
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
-      |> Option.map(({piece, _}: Indicated.piece) => piece),
+      |> Option.map(~f=({piece, _}: Indicated.piece) => piece),
     selected_text:
       Some(
         () => {
@@ -192,29 +194,29 @@ module Update = {
      * (per-item) editors compute their own. */
     let do_init = (editor: Editor.t) =>
       switch (
-        ctx == None
-        && ana == None
+        Option.is_none(ctx)
+        && Option.is_none(ana)
         && !is_dynamic_term
         && !compositional
-        && editor.root == Sort.Exp
+        && Sort.equal(editor.root, Sort.Exp)
           ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
       ) {
-      | Some(st) when stitch(st.term) === st.term => st
+      | Some(st) when phys_equal(stitch(st.term), st.term) => st
       | Some(_)
       | None =>
         PerfMetrics.time_statics(() =>
           Util.PerfTimer.time("editor-statics", () =>
-            editor.root == Sort.Typ
+            Sort.equal(editor.root, Sort.Typ)
               /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
                  entries for the inspector) under the provided ctx */
               ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
-              : editor.root == Sort.Pat
+            : Sort.equal(editor.root, Sort.Pat)
                   ? CachedStatics.init_pat(
                       ~settings,
                       ~ctx?,
                       editor.state.zipper,
                     )
-                  : editor.root == Sort.TPat
+                : Sort.equal(editor.root, Sort.TPat)
                       ? CachedStatics.init_tpat(
                           ~settings,
                           ~ctx?,
@@ -349,7 +351,8 @@ module View = {
      recompute */
   let view_memo_max = 4;
   let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool =>
-    Array.length(a) == Array.length(b) && Array.for_all2((===), a, b);
+    Array.length(a) == Array.length(b)
+    && Array.for_all2_exn(a, b, ~f=phys_equal);
 
   let view =
       (
@@ -390,9 +393,10 @@ module View = {
       Obj.repr(globals.settings),
     |];
     let nodes =
-      switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
+      switch (List.find(~f=e => key_eq(e.m_key, key), view_memo^)) {
       | Some(entry) =>
-        view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
+        view_memo :=
+          [entry, ...List.filter(~f=e => !phys_equal(e, entry), view_memo^)];
         entry.m_nodes;
       | None =>
         let refine_sort = (id, mold_out) =>
@@ -454,9 +458,9 @@ module View = {
               m_seg_len: seg_len,
               m_nodes: nodes,
             },
-            ...Util.ListUtil.truncate(
+            ...Util.ListUtil.take(
                  view_memo_max - 1,
-                 List.filter(e => e.m_seg_len != seg_len, view_memo^),
+                 List.filter(~f=e => e.m_seg_len != seg_len, view_memo^),
                ),
           ];
         nodes;

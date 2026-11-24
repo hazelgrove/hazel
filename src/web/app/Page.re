@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* The top-level UI component of Hazel */
 
@@ -19,7 +20,7 @@ module Model = {
     selection,
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let reset = (~font_metrics=?, ()) => {
     let globals = Globals.Model.init(~font_metrics?, ());
@@ -89,7 +90,7 @@ module Update = {
 
   let get_editor = (model: Model.t): CodeEditable.Model.t => {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({program: Whole(editor), _}) => editor.editor
       /* divided: the cell with the caret */
@@ -103,9 +104,10 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) =>
+      List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
+    | Config(m) => (List.nth_exn(m.configs, m.current) |> snd).editor
     };
   };
 
@@ -116,7 +118,7 @@ module Update = {
     let scratchpad_editors =
         (m: ScratchMode.Model.t)
         : list((option(string), list(CodeEditable.Model.t))) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
       | Code({program: Divided(d), _}) =>
@@ -124,10 +126,14 @@ module Update = {
         let cells = Divided.cells(d);
         let stack: list((option(string), list(CodeEditable.Model.t))) =
           List.map(
+            ~f=
             (e: ScratchCell.t) =>
               (
                 Some(
-                  Option.value(ScratchCell.header_name(e), ~default="cell"),
+                    Option.value(
+                      ScratchCell.header_name(e),
+                      ~default="cell",
+                    ),
                 ),
                 /* header too: binder and signature errors live there.
                    a ⇒ or `;` cell shows none, and its empty one is a hole */
@@ -158,7 +164,10 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+        (
+          None,
+          [List.nth_exn(m.exercises, m.current).cells.user_impl.editor],
+        ),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(
@@ -166,7 +175,7 @@ module Update = {
         m,
       )
     | Config(m) => [
-        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+        (None, [(List.nth_exn(m.configs, m.current) |> snd).editor]),
       ]
     };
   };
@@ -187,14 +196,14 @@ module Update = {
     | Start
     | Save;
 
-  let equal = (===);
+  let equal = phys_equal;
 
   /* a jump into a cell that isn't open, or to another cell's binder or
      function: the item opens now; once its cell is there, the follow-ups
      run in the pane holding the target (the caret's move, or the step
      into), which takes the focus */
   let jump_across = (~schedule_action, (ensure, selection, then_)) => {
-    List.iter(a => schedule_action(Editors(a)), then_);
+    List.iter(~f=a => schedule_action(Editors(a)), then_);
     Haz3lcore.FocusEffect.schedule_cell_top();
     (ensure, selection);
   };
@@ -208,7 +217,7 @@ module Update = {
       switch (ScratchMode.Model.current_program(m)) {
       | Some(Divided(_) as p) =>
         Program.tail_row(p)
-        |> Option.map(id =>
+        |> Option.map(~f=id =>
              Editors.Update.Scratch(Workspace(FocusEnsure(id)))
            )
       | _ => None
@@ -245,6 +254,12 @@ module Update = {
       };
     };
     switch (action) {
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -253,14 +268,14 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
       switch (action) {
       | TailProbe when settings.tail_probe =>
         Option.iter(
-          a => schedule_action(Editors(a)),
+          ~f=a => schedule_action(Editors(a)),
           open_tail_cell(model.editors),
         )
       | _ => ()
@@ -295,7 +310,7 @@ module Update = {
         },
       }
       |> Updated.return(
-           ~scroll_active=false,
+           ~scroll=Never,
            ~logged=
              !AgentGlobals.Update.is_credential_action(agent_globals_action),
            ~historic=
@@ -366,7 +381,7 @@ module Update = {
       );
       model |> return_quiet;
     | SetMetaDown(meta_down) =>
-      model.globals.meta_down == meta_down
+      Bool.equal(model.globals.meta_down, meta_down)
         ? model |> return_quiet
         : {
             ...model,
@@ -444,7 +459,8 @@ module Update = {
       let (filename, contents) =
         switch (model.editors) {
         | Config(model) =>
-          let (config_type, cell) = List.nth(model.configs, model.current);
+          let (config_type, cell) =
+            List.nth_exn(model.configs, model.current);
           let name = ConfigurationMode.Model.config_name_of_type(config_type);
           /* Config slides are text-backed like the doc slides: export the
              committed-.hz form, matching the scratch export below. */
@@ -458,7 +474,7 @@ module Update = {
           );
         | Scratch(model)
         | Documentation(model) =>
-          let current = List.nth(model.scratchpads, model.current);
+          let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
             | Code({program, _}) =>
@@ -488,7 +504,7 @@ module Update = {
             );
           (filename, contents);
         | Exercises(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = List.nth_exn(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
           let contents = ExercisesMode.Model.export_exercise_module(current);
@@ -633,9 +649,9 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      List.iter(~f=a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
       Benchmark.start();
       model |> Updated.return_quiet;
@@ -791,6 +807,10 @@ module Selection = {
          of_shortcut(
            ~action=inject(Globals(Set(Assist))),
            ToggleCompletion,
+         ),
+         of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
          ),
          of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
@@ -1172,6 +1192,69 @@ module View = {
     );
   };
 
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
+        ),
+      ],
+    );
+  };
+
   let top_bar =
       (~globals, ~inject: Update.t => Ui_effect.t(unit), ~cursor, ~editors) =>
     div(
@@ -1201,6 +1284,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
@@ -1279,7 +1363,7 @@ module View = {
       | Scratch(m)
       | Documentation(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
-        |> Option.map(p => {
+        |> Option.map(~f=p => {
              let tail = globals.settings.tail_probe;
              EvalResult.View.dynamics(
                ~tail,
@@ -1421,11 +1505,10 @@ module View = {
         ~inject_workspace=a => inject_editors(Scratch(Workspace(a))),
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
-        ~select_one=?
+        ~select_one=
           globals.settings.canvas_main || presenting
             ? Some(select_one) : None,
         ~statics_on=globals.settings.core.statics,
-        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(caret_editor.editor.state.zipper);
@@ -1521,14 +1604,12 @@ module View = {
                     ~selected_item,
                     ~definition_view=
                       presenting
-                        ? Option.bind(
-                            selected_item,
-                            id => {
+                        ? Option.bind(selected_item, ~f=id => {
                               let seg =
                                 Haz3lcore.Zipper.unselect_and_zip(
                                   current_editor.editor.state.zipper,
                                 );
-                              Option.map(
+                              Option.map(~f=
                                 def =>
                                   CanvasDefPreview.view(
                                     ~globals,
@@ -1542,8 +1623,7 @@ module View = {
                                   seg,
                                 ),
                               );
-                            },
-                          )
+                            })
                         : selected_item == None
                             ? None
                             : Some(

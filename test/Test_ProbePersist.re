@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 module Persist = Web.ScratchPersist;
 module Model = Web.ScratchModel.Model;
 
@@ -17,7 +18,7 @@ let load = (prefix: string): Model.t =>
     prefix,
     ~settings,
     ~default_names=
-      List.map(fst, snd(Lazy.force(Web.Init.startup).documentation)),
+      List.map(~f=fst, snd(Lazy.force(Web.Init.startup).documentation)),
     ~default_current=0,
   );
 
@@ -28,7 +29,7 @@ let current_code = (m: Model.t): Web.ScratchModel.Scratchpad.code =>
   };
 
 let current_name = (m: Model.t): string =>
-  List.nth(m.scratchpads, m.current).name;
+  List.nth_exn(m.scratchpads, m.current).name;
 
 /* [m] with [e] whole as its current slide's program */
 let with_whole = (e: Web.CellEditor.Model.t, m: Model.t): Model.t =>
@@ -42,7 +43,7 @@ let with_whole = (e: Web.CellEditor.Model.t, m: Model.t): Model.t =>
 
 let key_roundtrip = () => {
   let seg = CorpusUtil.seg_of("let x = 1 in\nx + 2");
-  let probes = [(List.hd(Segment.ids(seg)), probe)];
+  let probes = [(List.hd_exn(Segment.ids(seg)), probe)];
   Persist.write_side("probetest", "keys", side =>
     {
       ...side,
@@ -65,82 +66,11 @@ let key_roundtrip = () => {
   );
 };
 
-/* a slide saved under the keys :side replaced loads them, and its first
-   write folds them into :side */
-let legacy_side_keys = () => {
-  let seg = CorpusUtil.seg_of("let x = 1 in\nx + 2");
-  let probes = [(List.hd(Segment.ids(seg)), probe)];
-  let ck = Persist.content_key("legacytest", "s");
-  let x =
-    Web.OutlineTree.[
-      {
-        s_label: "x",
-        s_occ: 0,
-      },
-    ];
-  let ab_y =
-    Web.OutlineTree.[
-      {
-        s_label: "a b",
-        s_occ: 2,
-      },
-      {
-        s_label: "y",
-        s_occ: 1,
-      },
-    ];
-  List.iter(
-    ((suffix, v)) => Web.HazelDB.kv_save(ck ++ suffix, v),
-    [
-      (":caret", "3 5"),
-      (
-        ":pins",
-        {|(((pin_path(((s_label x)(s_occ 0))))(pin_run true))((pin_path(((s_label"a b")(s_occ 2))((s_label y)(s_occ 1))))(pin_run false)))|},
-      ),
-      (
-        ":view",
-        {|((vf_zoom((((s_label"a b")(s_occ 2))((s_label y)(s_occ 1)))))(vf_parked true))|},
-      ),
-      (
-        ":collapse",
-        {|((((s_label x)(s_occ 0)))(((s_label"a b")(s_occ 2))((s_label y)(s_occ 1))))|},
-      ),
-      (
-        ":probes",
-        Sexplib.Sexp.to_string(Refractors.RefractorList.sexp_of_t(probes)),
-      ),
-    ],
-  );
-  let expected =
-    Persist.{
-      caret: Some(Util.Point.mk(~row=3, ~col=5)),
-      pins: [(x, true), (ab_y, false)],
-      zoom: Some(ab_y),
-      parked: true,
-      collapse: [x, ab_y],
-      expand: [],
-      probes,
-    };
-  let read = () => Persist.read_side("legacytest", "s");
-  check(bool, "the old keys load", true, read() == expected);
-  Persist.write_side("legacytest", "s", side => side);
-  check(
-    bool,
-    "a write drops them",
-    true,
-    List.for_all(
-      sfx => Web.HazelDB.kv_get(ck ++ sfx) == None,
-      Persist.legacy_suffixes,
-    ),
-  );
-  check(bool, "and keeps what they held", true, read() == expected);
-};
-
 let save_then_load = () => {
   let m = load("probetest");
   let editor = Web.Program.whole(current_code(m).program);
   let z = editor.editor.editor.state.zipper;
-  let anchor = List.hd(Segment.ids(Zipper.unselect_and_zip(z)));
+  let anchor = List.hd_exn(Segment.ids(Zipper.unselect_and_zip(z)));
   let z =
     ZipperBase.update_refractors(z, r =>
       Refractors.{
@@ -162,9 +92,10 @@ let save_then_load = () => {
       bool,
       "the probe comes back on the per-item load",
       true,
-      List.mem_assoc(
-        anchor,
+      List.Assoc.mem(
         editor.editor.editor.state.zipper.refractors.manuals,
+        anchor,
+        ~equal=Poly.equal,
       ),
     );
   | Drv(_) => fail("loaded a derivation slide")
@@ -180,8 +111,8 @@ let bad_roster_drops_items = () => {
   let ns = Persist.items_ns("rostertest", name);
   let items = () =>
     Util.Maps.StringMap.bindings(Web.HazelDB.cache^)
-    |> List.filter(((k, _)) => String.starts_with(~prefix=ns, k));
-  check(bool, "the save wrote items", true, items() != []);
+    |> List.filter(~f=((k, _)) => String.is_prefix(~prefix=ns, k));
+  check(bool, "the save wrote items", true, !List.is_empty(items()));
   Web.HazelDB.kv_save(ns ++ ItemPersist.roster_key, "(not a roster");
   let _ = Persist.load_scratchpad(~settings, "rostertest", name);
   check(int, "no item keys left", 0, List.length(items()));
@@ -215,7 +146,7 @@ let idle_save_writes_nothing = () => {
     bool,
     "the first save wrote the caret",
     true,
-    Web.HazelDB.kv_get(caret) != None,
+    Option.is_some(Web.HazelDB.kv_get(caret)),
   );
   Web.HazelDB.kv_remove(caret);
   Persist.save_current("idletest", with_whole(e2, m));
@@ -223,7 +154,7 @@ let idle_save_writes_nothing = () => {
     bool,
     "the idle save skipped",
     true,
-    Web.HazelDB.kv_get(caret) == None,
+    Option.is_none(Web.HazelDB.kv_get(caret)),
   );
 };
 
@@ -243,7 +174,6 @@ let tests = (
   "ProbePersist",
   [
     test_case("probes key round trip", `Quick, key_roundtrip),
-    test_case("the keys :side replaced still load", `Quick, legacy_side_keys),
     test_case("save then load keeps probes", `Quick, save_then_load),
     test_case(
       "a bad roster drops the item keys",

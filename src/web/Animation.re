@@ -1,5 +1,6 @@
 open Util;
 open Js_of_ocaml;
+open Poly;
 
 /* This implements arbitrary gpu-accelerated css position
  * and scale transition animations via the the FLIP technique
@@ -62,13 +63,13 @@ module Js = {
     Js.Optdef.get(Js.Unsafe.get(Dom_html.window, "innerHeight"), _ => 0.0);
 
   let check_visible = (client_height, inner_height, box: box): bool => {
-    let viewHeight = max(client_height, inner_height);
-    !(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
+    let viewHeight = Float.max(client_height, inner_height);
+    !Float.(box.top +. box.height < 0.0 || box.top -. viewHeight >= 0.0);
   };
 
   let keyframes_unsafe = (keyframes: list(keyframe)): Js.t(Js.js_array('a)) =>
     keyframes
-    |> List.map(((prop: string, value: string)) =>
+    |> List.map(~f=((prop: string, value: string)) =>
          Js.Unsafe.obj([|(prop, Js.Unsafe.inject(Js.string(value)))|])
        )
     |> Array.of_list
@@ -102,10 +103,10 @@ module Js = {
       : unit => {
     let kf =
       frames
-      |> List.map(props =>
+      |> List.map(~f=props =>
            Js.Unsafe.obj(
              props
-             |> List.map(((p, v)) => (p, Js.Unsafe.inject(Js.string(v))))
+             |> List.map(~f=((p, v)) => (p, Js.Unsafe.inject(Js.string(v))))
              |> Array.of_list,
            )
          )
@@ -139,10 +140,9 @@ module Js = {
     );
 
   let animate = ({options, keyframes}, elem: Js.t(Dom_html.element)) =>
-    if (keyframes != []) {
+    if (!List.is_empty(keyframes)) {
       switch (animate_unsafe(keyframes, options, elem)) {
-      | exception exn =>
-        print_endline("Animation: " ++ Printexc.to_string(exn))
+      | exception exn => print_endline("Animation: " ++ Exn.to_string(exn))
       | () => ()
       };
     };
@@ -196,6 +196,7 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let client_height = client_height();
   let inner_height = inner_height();
   List.filter_map(
+    ~f=
     (tr: transition_internal) => {
       switch (JsUtil.get_elem_by_id_opt(tr.id)) {
       | None => None
@@ -222,7 +223,8 @@ let stagger_step = (per: int): int =>
 let stagger_span = (per: int): int =>
   min(stagger_span_cap, stagger_total^ * stagger_step(per));
 
-/* a glide (125ms, Actions.move) restarted mid-glide reads as decoration lag */
+/* the caret glide is 125ms (Actions.move); a new request while the
+   previous glide is still in flight reads as decoration lag */
 let last_caret_glide: ref(float) = ref(0.);
 let caret_glide_available = (): bool => {
   let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();
@@ -252,10 +254,10 @@ let is_held = (id: string): bool => {
   let (prefixes, until_ms) = held^;
   Js_of_ocaml.Js.Unsafe.coerce(Js_of_ocaml.Js.Unsafe.global)##._Date##now()
   < until_ms
-  && List.exists(
+  && List.exists(~f=
        p =>
          String.length(id) >= String.length(p)
-         && String.sub(id, 0, String.length(p)) == p,
+         && String.sub(id, ~pos=0, ~len=String.length(p)) == p,
        prefixes,
      );
 };
@@ -266,7 +268,7 @@ let slow_hook: ref(string => unit) = ref(_ => ());
 let request = (transitions: list(transition)): unit => {
   /* the avatar's motion has one owner at a time; say when a generic hop is
      requested for it (or dropped as held) so a replay can pin a teleport */
-  List.iter(
+  List.iter(~f=
     ({id, _}: transition) =>
       if (id == "canvas-avatar") {
         slow_hook^(
@@ -279,16 +281,17 @@ let request = (transitions: list(transition)): unit => {
   );
   /* the avatar's transform has one writer (CanvasEnact's driver) */
   let transitions =
-    List.filter(
+    List.filter(~f=
       ({id, _}: transition) => id != "canvas-avatar" && !is_held(id),
       transitions,
     );
   tracked_elems :=
     List.map(
+      ~f=
       ({id, animate}: transition) =>
         {
           id,
-          box: Option.map(box_of, JsUtil.get_elem_by_id_opt(id)),
+            box: Option.map(~f=box_of, JsUtil.get_elem_by_id_opt(id)),
           animate,
         },
       transitions,
@@ -299,7 +302,7 @@ let request = (transitions: list(transition)): unit => {
 module Keyframes = {
   let transform_translate = (top: float, left: float): keyframe => (
     "transform",
-    Printf.sprintf("translate(%fpx, %fpx)", left, top),
+    sprintf("translate(%fpx, %fpx)", left, top),
   );
 
   let translate = (~scale=1., init: box, final: box): list(keyframe) => {
@@ -318,7 +321,7 @@ module Keyframes = {
 
   let transform_scale_uniform = (scale: float): keyframe => (
     "transform",
-    Printf.sprintf("scale(%f, %f)", scale, scale),
+    sprintf("scale(%f, %f)", scale, scale),
   );
 
   let scale_from_zero: list(keyframe) = [
@@ -382,7 +385,7 @@ let attr_of =
   Js_of_ocaml.Js.Opt.to_option(
     el##getAttribute(Js_of_ocaml.Js.string(name)),
   )
-  |> Option.map(Js_of_ocaml.Js.to_string);
+  |> Option.map(~f=Js_of_ocaml.Js.to_string);
 let request_beat =
     (
       ~arrival_prefixes: list(string),
@@ -392,7 +395,7 @@ let request_beat =
       ~move_dur: int,
     )
     : unit => {
-  let ids = prefixes => List.concat_map(JsUtil.ids_with_prefix, prefixes);
+  let ids = prefixes => List.concat_map(~f=JsUtil.ids_with_prefix, prefixes);
   beat :=
     Some({
       arrival_prefixes,
@@ -400,14 +403,14 @@ let request_beat =
       geom_prefixes,
       geom_old:
         ids(geom_prefixes)
-        |> List.filter_map(id =>
+        |> List.filter_map(~f=id =>
              JsUtil.get_elem_by_id_opt(id)
-             |> Option.map(el =>
+             |> Option.map(~f=el =>
                   (
                     id,
                     geom_attrs
-                    |> List.filter_map(a =>
-                         attr_of(el, a) |> Option.map(v => (a, v))
+                    |> List.filter_map(~f=a =>
+                         attr_of(el, a) |> Option.map(~f=v => (a, v))
                        ),
                   )
                 )
@@ -431,26 +434,26 @@ let go_impl = (): unit => {
     switch (beat^) {
     | None => []
     | Some(b) =>
-      List.concat_map(JsUtil.ids_with_prefix, b.arrival_prefixes)
-      |> List.filter(id => !List.mem(id, b.existing))
-      |> List.filter_map(id =>
-           JsUtil.get_elem_by_id_opt(id) |> Option.map(el => (id, el))
+      List.concat_map(~f=JsUtil.ids_with_prefix, b.arrival_prefixes)
+      |> List.filter(~f=id => !List.mem(b.existing, id, ~equal=Poly.equal))
+      |> List.filter_map(~f=id =>
+           JsUtil.get_elem_by_id_opt(id) |> Option.map(~f=el => (id, el))
          )
     };
   /* movers wait for ALL arrivals, tracked or not */
   stagger_total :=
     List.length(arrivals)
-    + List.length(List.filter(((tr, _, _)) => tr.box == None, visible));
+    + List.length(List.filter(~f=((tr, _, _)) => tr.box == None, visible));
   stagger_index := 0;
   switch (beat^) {
   | Some(b) when arrivals != [] =>
     let step = stagger_step(b.b_stagger);
     last_arrivals := [];
     arrival_span_override := 0;
-    List.iter(
+    List.iter(~f=
       ((id, el)) => {
         let delay =
-          switch (List.assoc_opt(id, arrival_schedule^)) {
+          switch (List.Assoc.find(arrival_schedule^, id, ~equal=Poly.equal)) {
           | Some(d) => d
           | None =>
             /* a scored beat stages every arrival; one the score did not
@@ -482,7 +485,7 @@ let go_impl = (): unit => {
   };
   if (visible != []) {
     visible
-    |> List.iter(((tr, _, _) as x) => {
+    |> List.iter(~f=((tr, _, _) as x) => {
          animate_elem(x);
          if (tr.box == None) {
            incr(stagger_index);
@@ -502,14 +505,14 @@ let go_impl = (): unit => {
           ? max(stagger_span(b.b_stagger), arrival_span_override^) + 120 : 0
       };
     /* morph tracked geometry on the movers' timing */
-    List.iter(
+    List.iter(~f=
       ((id, olds)) =>
         switch (JsUtil.get_elem_by_id_opt(id)) {
         | None => ()
         | Some(el) =>
           let frames =
             olds
-            |> List.filter_map(((a, old)) =>
+            |> List.filter_map(~f=((a, old)) =>
                  switch (attr_of(el, a)) {
                  | Some(nw) when nw != old => Some((a, old, nw))
                  | _ => None
@@ -518,7 +521,7 @@ let go_impl = (): unit => {
           if (frames != []) {
             did_anything := true;
             let kf = side =>
-              List.map(
+              List.map(~f=
                 ((a, old, nw)) =>
                   (a, geom_css(a, side == `From ? old : nw)),
                 frames,
@@ -541,7 +544,7 @@ let go_impl = (): unit => {
        in — a dash reveal along the stroke, arrowhead held until the end.
        (The canvas's enactment re-stages new function edges with the
        avatar riding them; it cancels this first.) */
-    let known = List.map(fst, b.geom_old);
+    let known = List.map(~f=fst, b.geom_old);
     /* the draw-on trick needs ONE dash the length of the path; a dotted
        line's CSS dash pattern would override a presentation attribute, so
        the pattern goes on the inline style and, for dotted lines, keeps
@@ -560,16 +563,16 @@ let go_impl = (): unit => {
           ),
         );
       let strip_px = s => {
-        let s = String.trim(s);
+        let s = String.strip(s);
         let n = String.length(s);
-        n > 2 && String.sub(s, n - 2, 2) == "px"
-          ? String.sub(s, 0, n - 2) : s;
+        n > 2 && String.sub(s, ~pos=n - 2, ~len=2) == "px"
+          ? String.sub(s, ~pos=0, ~len=n - 2) : s;
       };
       let nums =
         css
-        |> String.split_on_char(',')
-        |> List.concat_map(String.split_on_char(' '))
-        |> List.filter_map(s => float_of_string_opt(strip_px(s)));
+        |> String.split(~on=',')
+        |> List.concat_map(~f=String.split(~on=' '))
+        |> List.filter_map(~f=s => float_of_string_opt(strip_px(s)));
       let (pattern, on_len) =
         switch (nums) {
         | [dot, gap, ..._] when dot +. gap > 0. && dot +. gap < 40. =>
@@ -577,9 +580,9 @@ let go_impl = (): unit => {
           let n = int_of_float(ceil(total /. period));
           let on_len = float_of_int(n) *. period;
           (
-            String.concat(
+            String.concat(~sep=
               " ",
-              List.init(n, _ => Printf.sprintf("%.2f %.2f", dot, gap)),
+              List.init(n, ~f=_ => Printf.sprintf("%.2f %.2f", dot, gap)),
             )
             ++ Printf.sprintf(" 0 %.1f", on_len),
             on_len,
@@ -605,7 +608,7 @@ let go_impl = (): unit => {
         "strokeDashoffset",
         Js_of_ocaml.Js.string(""),
       );
-      List.iter(
+      List.iter(~f=
         a =>
           ignore(
             Js_of_ocaml.Js.Unsafe.meth_call(
@@ -628,9 +631,9 @@ let go_impl = (): unit => {
           |],
         ),
       );
-    List.concat_map(JsUtil.ids_with_prefix, b.geom_prefixes)
-    |> List.filter(id => !List.mem(id, known))
-    |> List.iter(id =>
+    List.concat_map(~f=JsUtil.ids_with_prefix, b.geom_prefixes)
+    |> List.filter(~f=id => !List.mem(known, id, ~equal=Poly.equal))
+    |> List.iter(~f=id =>
          switch (JsUtil.get_elem_by_id_opt(id)) {
          | Some(el) =>
            let total: float =
@@ -643,7 +646,7 @@ let go_impl = (): unit => {
                "geom: %s len=%.0f %s",
                id,
                total,
-               switch (List.assoc_opt(id, geom_schedule^)) {
+               switch (List.Assoc.find(geom_schedule^, id, ~equal=Poly.equal)) {
                | Some(None) => "owned"
                | Some(Some(d)) => Printf.sprintf("at %dms", d)
                | None => "ORPHAN: unscheduled (beat default)"
@@ -659,12 +662,12 @@ let go_impl = (): unit => {
              | None => ()
              };
              let owned =
-               switch (List.assoc_opt(id, geom_schedule^)) {
+               switch (List.Assoc.find(geom_schedule^, id, ~equal=Poly.equal)) {
                | Some(None) => true
                | _ => false
                };
              let (delay, duration) =
-               switch (List.assoc_opt(id, geom_schedule^)) {
+               switch (List.Assoc.find(geom_schedule^, id, ~equal=Poly.equal)) {
                | Some(Some(d)) => (d, 320)
                | _ => (b.b_delay + wait, b.b_move_dur)
                };

@@ -2,12 +2,6 @@ open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 open Language;
 
-/* Semantic queries — extract information without modifying the editor */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type language_server =
-  | ShowUseSites(string)
-  | ShowReferences(string);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type probe_action =
   | PlaceProbe(list(string))
@@ -29,8 +23,6 @@ type syntax_projector_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | EditorAction(Action.Structural.t)
-  | LanguageServerAction(language_server)
-  | InsertAtProgramBoundary(Action.Structural.insert_target, string) /* no-path insert: prepend (Before) or append (After) to the whole program */
   | WorkbenchAction(AgentWorkbench.Update.Action.BackendAction.action)
   | AgentContextAction(AgentContext.Update.action)
   | ProbeAction(probe_action)

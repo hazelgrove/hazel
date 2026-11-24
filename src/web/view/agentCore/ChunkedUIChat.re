@@ -56,14 +56,6 @@ module Utils = {
     });
   };
 
-  let mk_agent_response_chunk = (message: Message.Model.t): Model.chunk => {
-    AgentResponseChunk({
-      content: [message],
-      agent_reasoning: [],
-      tool_results: [],
-    });
-  };
-
   let init = (): Model.t => {
     {
       prompt: "",
@@ -89,7 +81,7 @@ module Utils = {
     | Some(AgentResponseChunk(chunk)) => {
         ...model,
         log:
-          (model.log |> List.rev |> List.tl |> List.rev)
+          (model.log |> List.rev |> List.tl_exn |> List.rev)
           @ [Model.AgentResponseChunk(f(chunk))],
       }
     | _ => {

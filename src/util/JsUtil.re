@@ -61,12 +61,13 @@ let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
         Some(s);
       } else {
         loop(
-          Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce),
+          Js.Opt.to_option(s##.nextSibling)
+          |> Option.map(~f=Js.Unsafe.coerce),
         );
       }
     };
   loop(
-    Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce),
+    Js.Opt.to_option(element##.firstChild) |> Option.map(~f=Js.Unsafe.coerce),
   );
 };
 
@@ -111,7 +112,7 @@ let read_file = (file, k) => {
     Dom.handler(_ => {
       let result = reader##.result;
       let option = Js.Opt.to_option(File.CoerceTo.string(result));
-      let data = Option.map(Js.to_string, option);
+      let data = Option.map(~f=Js.to_string, option);
       k(data);
       Js._true;
     });
@@ -240,7 +241,7 @@ let focus_outline = (): unit =>
 /* where a keyboard-opened outline menu anchors: under the cursor's row */
 let outline_cursor_anchor = (): option((float, float)) =>
   query_selector("#outline-sidebar .outline-label.outline-cursor")
-  |> Option.map(el => {
+  |> Option.map(~f=el => {
        let rect = el##getBoundingClientRect;
        (rect##.left +. 16., rect##.bottom);
      });
@@ -329,7 +330,8 @@ let align_active_cell_top = (): unit =>
       let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
       let top_chrome = 48.; /* fixed top bar */
       let body_context = 140.; /* ~4 rows of body visible below */
-      let visible_enough = top >= top_chrome && top <= vh -. body_context;
+      let visible_enough =
+        Float.(top >= top_chrome && top <= vh -. body_context);
       if (!visible_enough) {
         let _: unit =
           Js.Unsafe.meth_call(
@@ -516,7 +518,7 @@ let scrolls_vertically = (el: Js.t(Dom_html.element)): bool => {
         [|Js.Unsafe.inject(el)|],
       );
     let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
-    oy == "auto" || oy == "scroll";
+    String.equal(oy, "auto") || String.equal(oy, "scroll");
   };
 };
 
@@ -601,7 +603,7 @@ let cached_client_height = (el: Js.t(Dom_html.element)): float => {
 };
 
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
-  if (delta != 0.) {
+  if (Float.(delta != 0.)) {
     let current = float_of_int(container##.scrollTop);
     let target = current +. delta;
     container##.scrollTop := int_of_float(target);
@@ -617,12 +619,12 @@ let scroll_vertically_into_view =
   let margin_px =
     Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
   let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
-  if (top_gap < 0.) {
+  if (Float.(top_gap < 0.)) {
     adjust_scroll(container, top_gap);
   } else {
     let bottom_gap =
       el_rect##.bottom -. (container_rect##.bottom -. margin_px);
-    if (bottom_gap > 0.) {
+    if (Float.(bottom_gap > 0.)) {
       adjust_scroll(container, bottom_gap);
     };
   };
@@ -672,6 +674,24 @@ let find_scroll_container_cached =
   };
 };
 
+/* Whether any of the caret shows in its scroll container, or in the
+ * viewport if it has none. Read before a re-render, this is what the user
+ * sees now, not what the coming layout will show. */
+let caret_in_view = (): bool =>
+  switch (get_elem_by_id_opt("caret")) {
+  | None => false
+  | Some(caret) =>
+    let rect = caret##getBoundingClientRect;
+    let (top, bottom) =
+      switch (find_scroll_container(caret)) {
+      | Some(container) =>
+        let c = container##getBoundingClientRect;
+        (c##.top, c##.bottom);
+      | None => (0., Float.of_int(Dom_html.window##.innerHeight))
+      };
+    Float.(rect##.bottom > top && rect##.top < bottom);
+  };
+
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>
@@ -683,7 +703,7 @@ let align_caret_near_top = (): unit =>
       let r = container##getBoundingClientRect;
       let h = Js.Optdef.get(r##.height, _ => 0.);
       let top = c##.top -. r##.top;
-      if (top < h *. 0.1 || top > h *. 0.75) {
+      if (Float.(top < h *. 0.1 || top > h *. 0.75)) {
         adjust_scroll(container, top -. h *. 0.2);
       };
     | None => ()
@@ -722,9 +742,11 @@ let reveal_last = (sel: string): unit =>
       let m = main##getBoundingClientRect;
       let below = r##.bottom -. m##.bottom;
       let above = r##.top -. m##.top;
-      let by = below > 0. ? min(below, above) : min(above, 0.);
-      if (by != 0.) {
-        main##.scrollTop :=  main##.scrollTop + int_of_float(Float.ceil(by));
+      let by =
+        Float.(below > 0.) ? Float.min(below, above) : Float.min(above, 0.);
+      if (Float.(by != 0.)) {
+        main##.scrollTop :=
+           main##.scrollTop + int_of_float(Float.round_up(by));
       };
     };
   }) {
@@ -739,7 +761,7 @@ module Fragment = {
       | Https({hu_fragment: str, _})
       | File({fu_fragment: str, _}) => str
       };
-    Url.Current.get() |> Option.map(fragment_of_url);
+    Url.Current.get() |> Option.map(~f=fragment_of_url);
   };
 };
 
@@ -831,7 +853,7 @@ let setup_focus_bar_scroll_compensation = () =>
           last_height := new_height;
           let scroll_top: float =
             Js.Unsafe.get(main, Js.string("scrollTop"));
-          if (delta != 0.0 && scroll_top > 0.0) {
+          if (Float.(delta != 0.0) && Float.(scroll_top > 0.0)) {
             Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
           };
         });
@@ -862,7 +884,7 @@ let get_local_storage = (key: string): option(string) =>
     let store =
       Dom_html.window##.localStorage |> Js.Optdef.get(_, () => assert(false));
     store##getItem(Js.string(key))
-    |> (x => Js.Opt.to_option(x) |> Option.map(Js.to_string));
+    |> (x => Js.Opt.to_option(x) |> Option.map(~f=Js.to_string));
   }) {
   | _ => None
   };
@@ -880,7 +902,7 @@ let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(
     Dom_html.window##prompt(Js.string(message), Js.string(default)),
   )
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Measure actual font metrics from the #font-specimen element.
@@ -889,8 +911,8 @@ let font_metrics_from_specimen = (): (float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    let col_width = Float.max(1.0, rect##.right -. rect##.left);
+    let row_height = Float.max(1.0, rect##.bottom -. rect##.top);
     (col_width, row_height);
   | None => (10.0, 10.0)
   };
@@ -904,7 +926,7 @@ let on_dpr_change = (callback: unit => unit): unit => {
       Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
       |> Js.float_of_number
       |> Js.to_float;
-    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let query = sprintf("(resolution: %fdppx)", dpr);
     let mql =
       Js.Unsafe.meth_call(
         Dom_html.window,
@@ -960,8 +982,10 @@ module QueryParams = {
   let get_param = (name: string): option(string) => {
     let q_opt =
       Url.Current.get()
-      |> Option.map(url =>
-           url |> get_arguments |> List.find_opt(((k, _)) => k == name)
+      |> Option.map(~f=url =>
+           url
+           |> get_arguments
+           |> List.find(~f=((k, _)) => String.equal(k, name))
          );
     switch (q_opt) {
     | Some(Some((_, v))) => Some(v)
@@ -971,10 +995,10 @@ module QueryParams = {
 
   let set_param = (name: string, value: string) => {
     Url.Current.get()
-    |> Option.iter(url => {
+    |> Option.iter(~f=url => {
          let args =
            get_arguments(url)
-           |> List.filter(((k, _)) => k != name)
+           |> List.filter(~f=((k, _)) => !String.equal(k, name))
            |> List.cons((name, value));
 
          let new_url = set_arguments(url, args);
@@ -1026,12 +1050,13 @@ let navigate_probes =
   /* Sort by top, then left */
   let sorted =
     List.sort(
+      ~compare=
       ((_, t1, l1), (_, t2, l2)) => {
-        let c = compare(t1, t2);
+          let c = Float.compare(t1, t2);
         if (c != 0) {
           c;
         } else {
-          compare(l1, l2);
+            Float.compare(l1, l2);
         };
       },
       items^,
@@ -1039,9 +1064,10 @@ let navigate_probes =
   /* Find current index */
   let current_idx = ref(-1);
   List.iteri(
+    ~f=
     (i, (el, _, _)) => {
       let id: string = Js.to_string(el##.id);
-      if (id == current_id) {
+        if (String.equal(id, current_id)) {
         current_idx := i;
       };
     },
@@ -1058,7 +1084,7 @@ let navigate_probes =
     if (idx < 0 || idx >= n) {
       None;
     } else {
-      let (el, _, _) = List.nth(sorted, idx);
+      let (el, _, _) = List.nth_exn(sorted, idx);
       let dominated =
         skip_unaligned
         && {
@@ -1066,7 +1092,7 @@ let navigate_probes =
             el##getAttribute(Js.string("data-cursor-aligned"))
             |> Js.Opt.to_option;
           switch (attr) {
-          | Some(s) => Js.to_string(s) != "true"
+          | Some(s) => !String.equal(Js.to_string(s), "true")
           | None => true
           };
         };
@@ -1107,7 +1133,7 @@ let observe_drawer_width = (~report: int => unit): unit =>
               | None => ()
               | Some(code) =>
                 let (col_width, _) = font_metrics_from_specimen();
-                if (col_width > 0.) {
+                if (Float.(col_width > 0.)) {
                   let px =
                     rect_prop(main, "right") -. rect_prop(code, "left");
                   report(max(20, int_of_float(px /. col_width) - 2));
@@ -1118,3 +1144,29 @@ let observe_drawer_width = (~report: int => unit): unit =>
       ();
     };
   };
+
+/* The rest of the first class beginning with [prefix] on the element an
+   event targets, or on one of its ancestors. */
+let class_at_target =
+    (~prefix: string, evt: Js.t(Dom_html.mouseEvent)): option(string) => {
+  let rec find = (el: Js.t(Dom_html.element)) => {
+    let classes =
+      Js.Opt.case(
+        el##getAttribute(Js.string("class")),
+        () => [],
+        c => String.split(~on=' ', Js.to_string(c)),
+      );
+    let n = String.length(prefix);
+    switch (List.find(~f=String.is_prefix(~prefix), classes)) {
+    | Some(c) => Some(String.sub(c, ~pos=n, ~len=String.length(c) - n))
+    | None =>
+      Js.Opt.case(
+        el##.parentNode,
+        () => None,
+        parent =>
+          Js.Opt.case(Dom_html.CoerceTo.element(parent), () => None, find),
+      )
+    };
+  };
+  Js.Opt.case(evt##.target, () => None, find);
+};

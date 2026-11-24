@@ -1,5 +1,6 @@
 open Alcotest;
 open Language;
+open Poly;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -29,16 +30,16 @@ let assert_elab_ids_present = u => {
   let _ =
     Grammar.map_exp_annotation(
       ({ids, _}: IdTagged.IdTag.t) => {
-        if (Id.equal(List.hd(ids), Id.invalid)) {
+        if (Id.equal(List.hd_exn(ids), Id.invalid)) {
           Alcotest.fail(
             "Invalid elaborated id in expression: " ++ Exp.show(elab),
           );
         };
-        switch (Statics.Map.lookup(List.hd(ids), info_map)) {
+        switch (Statics.Map.lookup(List.hd_exn(ids), info_map)) {
         | Some(_) => ()
         | None =>
           Alcotest.fail(
-            "No info found for elaborated id: " ++ Id.show(List.hd(ids)),
+            "No info found for elaborated id: " ++ Id.show(List.hd_exn(ids)),
           )
         };
       },
@@ -61,8 +62,8 @@ let adt_node_ids = exp => {
       go(arg);
     | Tuple(es) =>
       ids := [Exp.rep_id(e), ...ids^];
-      List.iter(go, es);
-    | ListLit(es) => List.iter(go, es)
+      List.iter(~f=go, es);
+    | ListLit(es) => List.iter(~f=go, es)
     | TupLabel(label, body) =>
       go(label);
       go(body);
@@ -101,7 +102,7 @@ let adt_node_ids = exp => {
     | FixF(_, body, _env) => go(body)
     | DeferredAp(fn, es) =>
       go(fn);
-      List.iter(go, es);
+      List.iter(~f=go, es);
     | _ => ()
     };
   go(exp);
@@ -781,6 +782,45 @@ in 1|},
         dhexp_of_uexp(parse_exp({|{ type T = Int; let x = 1 }|})),
       )
     ),
+    /* Built by hand: the parser does not put a pattern or a type inside a
+       hole. */
+    test_case("A hole item keeps only its expression children", `Quick, () =>
+      alco_check(
+        "a hole item with a pattern child",
+        Exp.(
+          module_([Mod.mod_let(Pat.var("x"), int(1)), Mod.empty_hole()])
+        ),
+        dhexp_of_uexp(
+          Exp.(
+            module_([
+              Mod.mod_let(Pat.var("x"), int(1)),
+              Mod.multi_hole([Grammar.Pat(Pat.var("y"))]),
+            ])
+          ),
+        ),
+      )
+    ),
+    test_case("A hole pattern keeps only its pattern children", `Quick, () =>
+      Alcotest.(check(bool))(
+        "a hole pattern with a type child is an empty hole",
+        true,
+        switch (
+          dhexp_of_uexp(
+            Exp.(
+              let_(
+                Pat.multi_hole([Grammar.Typ(Typ.int())]),
+                int(2),
+                int(1),
+              )
+            ),
+          ).
+            term
+        ) {
+        | Let({term: EmptyHole, _}, _, _) => true
+        | _ => false
+        },
+      )
+    ),
     test_case("Module in let binding elaborates in place", `Quick, () =>
       alco_check(
         {|let m = { let x = 1 } in m.x|},
@@ -801,7 +841,15 @@ in 1|},
           let_(
             Pat.asc(
               Pat.var("m"),
-              Typ.sig_([Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int()))]),
+              Language.Typ.temp(
+                Sig(
+                  Closed(
+                    Language.ClosedSig.of_items([
+                      Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int())),
+                    ]),
+                  ),
+                ),
+              ),
             ),
             module_([Mod.mod_let(Pat.var("x"), int(1))]),
             var("m"),
@@ -863,18 +911,18 @@ in 1|},
           | _
               when
                 List.exists(
-                  (==)(msg),
+                  ~f=(==)(msg),
                   [
                     "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
                     "weak_head_normalize exceeded 1000 recursive calls",
                   ],
                 ) =>
-            print_endline("Known failure: " ++ Printexc.to_string(e));
+            print_endline("Known failure: " ++ Exn.to_string(e));
             true;
           | _ => raise(e)
           }
         | exception e =>
-          print_endline("Skipping statics: " ++ Printexc.to_string(e));
+          print_endline("Skipping statics: " ++ Exn.to_string(e));
           true;
         }
       }),

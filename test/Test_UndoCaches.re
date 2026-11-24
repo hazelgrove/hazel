@@ -1,6 +1,7 @@
 open Alcotest;
 open Web;
 open Haz3lcore;
+open Poly;
 
 /* An undo snapshot drops its editors' caches. Restored, it takes the live
    editors': the members the step didn't change are the live program's
@@ -39,13 +40,13 @@ let rec frames = (m: History.Model.t, action: Page.Update.t) => {
          ~is_edited=true,
          ~dynamics=false,
        );
-  List.fold_left(
-    ((m, n), a) => {
+  List.fold(
+    scheduled^,
+    ~init=(m, 1),
+    ~f=((m, n), a) => {
       let (m, k) = frames(m, a);
       (m, n + k);
     },
-    (m, 1),
-    scheduled^,
   );
 };
 
@@ -91,12 +92,12 @@ let member_parses =
   let rec below = (e: MakeTerm.Incr.entry_full) =>
     switch (e.f_kids) {
     | Some((_, kids)) =>
-      List.concat_map(((id, k)) => [(id, k), ...below(k)], kids)
+      List.concat_map(~f=((id, k)) => [(id, k), ...below(k)], kids)
     | None => []
     };
   switch (e.editor.editor.syntax.t_cache.c_prev) {
   | Some((_, _, entries, _, _, _)) =>
-    List.concat_map(((_, e)) => below(e), entries)
+    List.concat_map(~f=((_, e)) => below(e), entries)
   | None => []
   };
 };
@@ -104,11 +105,12 @@ let member_parses =
 /* those of [after] that aren't [before]'s */
 let reparsed = (~before, after) =>
   List.filter(
-    ((id, e)) =>
-      switch (List.assoc_opt(id, before)) {
-      | Some(e') => e' !== e
-      | None => true
-      },
+    ~f=
+      ((id, e)) =>
+        switch (List.Assoc.find(before, id, ~equal=Poly.equal)) {
+        | Some(e') => !phys_equal(e', e)
+        | None => true
+        },
     after,
   );
 
@@ -171,11 +173,11 @@ let one_member = (~root: Sort.t, ()) => {
 let length = m => OM.row(m, ["List", "length"]);
 let is_open = (m, id) =>
   switch (Cells.program(m)) {
-  | Divided(d) => Divided.cell(id, d) != None
+  | Divided(d) => Option.is_some(Divided.cell(id, d))
   | Whole(_) => false
   };
 let body_editor = (m, id) =>
-  Option.get(Divided.cell(id, Cells.divided(m))).e_body;
+  Option.value_exn(Divided.cell(id, Cells.divided(m))).e_body;
 
 /* List.length open as a cell, the caret after its `| [] => 0` */
 let in_cell = () => {

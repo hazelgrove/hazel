@@ -45,6 +45,8 @@ let document: t => Segment.t;
 let cells: t => list(ScratchCell.t);
 /* the cell holding [id]: its item, a run member or any piece of its text */
 let owner: (Id.t, t) => option(ScratchCell.t);
+/* the open cell and its pane whose text holds [id] */
+let pane_of: (Id.t, t) => option((ScratchCell.t, ScratchCell.side));
 /* the cell keyed by [id] */
 let cell: (Id.t, t) => option(ScratchCell.t);
 let root: t => Sort.t;
@@ -63,7 +65,7 @@ let outside_editor: t => CodeEditable.Model.t;
 let open_:
   (
     ~info_map: Language.Statics.Map.t,
-    ~term: Language.Exp.t,
+    ~outline: OutlineTree.t,
     ~sym: string=?,
     ~inner: bool=?,
     Id.t,
@@ -71,7 +73,7 @@ let open_:
   ) =>
   option(t);
 let open_run:
-  (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, Id.t, t) =>
+  (~info_map: Language.Statics.Map.t, ~outline: OutlineTree.t, Id.t, t) =>
   option(t);
 let close: (Id.t, t) => after_close;
 let anchor_of: Zipper.t => option((Direction.t, Id.t));
@@ -79,7 +81,7 @@ let place_caret: ((Direction.t, Id.t), t) => t;
 let resplit:
   (
     ~info_map: Language.Statics.Map.t,
-    ~term: Language.Exp.t,
+    ~outline: OutlineTree.t,
     CellEditor.Model.t,
     t
   ) =>

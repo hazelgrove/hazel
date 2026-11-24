@@ -74,7 +74,7 @@ let bench_frames = (): option(Js_of_ocaml.Js.Unsafe.any) => {
 };
 
 let sync = (~enabled as e: bool): unit =>
-  sync(~enabled=e || bench_frames() != None);
+  sync(~enabled=e || Option.is_some(bench_frames()));
 
 /* The frame under construction: stage timings accumulate here and the counts
  * are refreshed as each editor recalculates, until `time_frame` commits it. */
@@ -103,7 +103,7 @@ let add =
     (cur: option(Core.Time_ns.Span.t), span: Core.Time_ns.Span.t)
     : option(Core.Time_ns.Span.t) =>
   Some(
-    Option.fold(~none=span, ~some=s => Core.Time_ns.Span.(s + span), cur),
+    Option.value_map(cur, ~default=span, ~f=s => Core.Time_ns.Span.(s + span)),
   );
 
 /* Time f, folding its span into the frame under construction with `into`, and
@@ -195,21 +195,25 @@ let time_frame: 'a. (unit => 'a) => 'a =
       let frame = current^;
       let total =
         frame.perform
-        |> Option.map(snd)
-        |> Option.fold(~none=calc, ~some=p => Core.Time_ns.Span.(p + calc));
+        |> Option.map(~f=snd)
+        |> Option.value_map(~default=calc, ~f=p =>
+             Core.Time_ns.Span.(p + calc)
+           );
       push({
         ...frame,
         total: Some(total),
       });
       Option.iter(
+        ~f=
         frames => {
           let ms = span =>
             Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
           let opt = o =>
-            Option.fold(
-              ~none=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
-              ~some=s => Js_of_ocaml.Js.Unsafe.inject(ms(s)),
+              Option.value_map(
               o,
+                ~default=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
+                ~f=s =>
+                Js_of_ocaml.Js.Unsafe.inject(ms(s))
             );
           ignore(
             Js_of_ocaml.Js.Unsafe.meth_call(
@@ -218,7 +222,7 @@ let time_frame: 'a. (unit => 'a) => 'a =
               [|
                 Js_of_ocaml.Js.Unsafe.inject(
                   Js_of_ocaml.Js.Unsafe.obj([|
-                    ("perform", opt(Option.map(snd, frame.perform))),
+                      ("perform", opt(Option.map(~f=snd, frame.perform))),
                     ("statics", opt(frame.statics)),
                     ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
                   |]),

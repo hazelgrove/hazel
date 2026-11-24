@@ -38,7 +38,7 @@ let is_refractor_trigger = (s: string): bool =>
    strings is_refractor_trigger accepts.
      "^^probe" / "^^probe_table" ==> Probe */
 let of_refractor_trigger = (s: string): ProjectorCore.Kind.t =>
-  Option.get(refractor_kind_of_token(s));
+  Option.value_exn(refractor_kind_of_token(s));
 
 let refractor_model_of_opt =
     (kind: ProjectorCore.Kind.t, opt: string): option(string) =>
@@ -71,7 +71,7 @@ let refractor_of_invoke_token =
     /* docked: a projector piece, not a refractor (see refractor_kind_of_token) */
     | Sidebar => None
     };
-  (kind, Option.bind(opt, refractor_model_of_opt(kind)));
+  (kind, Option.bind(opt, ~f=refractor_model_of_opt(kind)));
 };
 
 let exp_to_seg =
@@ -101,12 +101,13 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
    every fast-first parse: text-slide loading and paste. */
 let apply_refractors = (refractors: list((Id.t, string)), z: t): t =>
   List.fold_left(
+    ~f=
     (z, (id, trigger)) =>
       switch (refractor_of_invoke_token(trigger)) {
       | Some((kind, model)) => ZipperBase.add_manual(~model?, id, kind, z)
       | None => z
       },
-    z,
+    ~init=z,
     refractors,
   );
 
@@ -168,7 +169,7 @@ let refractor_to_invoke =
       seg: Segment.t,
     )
     : Segment.t => {
-  let opt = Option.bind(model, refractor_opt_of_model(kind));
+  let opt = Option.bind(model, ~f=refractor_opt_of_model(kind));
   [
     Piece.mk_tile(
       Form.classify_label(
@@ -205,7 +206,7 @@ let expand_livelit = (~ctx, z: t): option(t) =>
       when
         Tile.arity(lt) == 1
         && Token.is_livelit(Tile.token(lt, 0))
-        && w == Token.space =>
+        && String.equal(w, Token.space) =>
     let t = Tile.token(lt, 0);
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
     let seg = exp_to_seg(ll.model_default);
@@ -239,10 +240,14 @@ let expand_livelit = (~ctx, z: t): option(t) =>
 let insert = (~ci: option(Language.Info.t), z: t): t => {
   let ctx =
     ci
-    |> Option.map(Language.Info.ctx_of)
+    |> Option.map(~f=Language.Info.ctx_of)
     |> Option.value(~default=Language.Ctx.empty);
   let triggers = [expand_projector, expand_livelit(~ctx)];
-  List.fold_left((z, f) => Option.value(f(z), ~default=z), z, triggers);
+  List.fold_left(
+    ~f=(z, f) => Option.value(f(z), ~default=z),
+    ~init=z,
+    triggers,
+  );
 };
 
 /* These are just alternate conditional deletion logic. */
@@ -346,7 +351,7 @@ let refractor_seg_to_seg_with =
         /* Postfix operator: child comes before root Aba */
         let (_, child_end) = Skel.range(child);
         let root_indices = Aba.get_as(root);
-        let root_start = List.hd(root_indices);
+        let root_start = List.hd_exn(root_indices);
 
         let (map, child_result) = go(map, child);
         let between = ListUtil.sublist((child_end + 1, root_start), seg);
@@ -359,7 +364,7 @@ let refractor_seg_to_seg_with =
         let (_, left_end) = Skel.range(left);
         let (right_start, _) = Skel.range(right);
         let root_indices = Aba.get_as(root);
-        let root_start = List.hd(root_indices);
+        let root_start = List.hd_exn(root_indices);
         let root_end = ListUtil.last(root_indices);
 
         let (map, left_result) = go(map, left);
@@ -376,7 +381,7 @@ let refractor_seg_to_seg_with =
 
     /* Check if this term needs to be wrapped with a refractor invocation */
     let root_id = Segment.root_id(skel, seg);
-    switch (List.assoc_opt(root_id, map)) {
+    switch (List.Assoc.find(map, root_id, ~equal=Poly.equal)) {
     | Some(entry) => (
         ListUtil.remove_assoc(root_id, map),
         wrapper(entry, result),

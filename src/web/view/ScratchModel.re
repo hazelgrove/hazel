@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* what a mode's saved slides are keyed under */
 let prefix = (~is_documentation) => is_documentation ? "doc" : "scratch";
@@ -11,6 +12,9 @@ module Scratchpad = {
     /* what the slide shows of it: pins, zoom, parked */
     view: SlideView.t,
     agent: Agent.Model.t,
+    /* the main editor shows a request as the agent saw it */
+    [@sexp.default None] [@yojson.default None]
+    lens: option(AgentLens.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,6 +58,7 @@ module Scratchpad = {
         program: Whole(editor),
         view: SlideView.init,
         agent,
+        lens: None,
       }),
     dormant: false,
   };
@@ -92,16 +97,16 @@ module Model = {
   };
 
   let current_code = (model: t): option(Scratchpad.code) =>
-    switch (List.nth_opt(model.scratchpads, model.current)) {
+    switch (List.nth(model.scratchpads, model.current)) {
     | Some({kind: Code(code), _}) => Some(code)
     | _ => None
     };
 
   let current_program = (model: t): option(Program.t) =>
-    Option.map((c: Scratchpad.code) => c.program, current_code(model));
+    Option.map(~f=(c: Scratchpad.code) => c.program, current_code(model));
 
   let current_view = (model: t): option(SlideView.t) =>
-    Option.map((c: Scratchpad.code) => c.view, current_code(model));
+    Option.map(~f=(c: Scratchpad.code) => c.view, current_code(model));
 
   let map_current = (f: Scratchpad.t => Scratchpad.t, model: t): t => {
     ...model,
@@ -124,18 +129,19 @@ module Model = {
     ...model,
     scratchpads:
       List.map(
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code(code) =>
-            let code' = f(sp.name, code);
-            code' === code
-              ? sp
-              : {
-                ...sp,
-                kind: Code(code'),
-              };
-          | Drv(_) => sp
-          },
+        ~f=
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code(code) =>
+              let code' = f(sp.name, code);
+              phys_equal(code', code)
+                ? sp
+                : {
+                  ...sp,
+                  kind: Code(code'),
+                };
+            | Drv(_) => sp
+            },
         model.scratchpads,
       ),
   };
@@ -158,11 +164,12 @@ module Model = {
   let with_views_of = (~from: t, m: t): t => {
     let view_of = name =>
       List.find_map(
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code({view, _}) when sp.name == name => Some(view)
-          | _ => None
-          },
+        ~f=
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code({view, _}) when sp.name == name => Some(view)
+            | _ => None
+            },
         from.scratchpads,
       );
     map_code(
@@ -184,11 +191,12 @@ module Model = {
   let with_caches_of = (~from: t, m: t): t => {
     let program_of = name =>
       List.find_map(
-        (sp: Scratchpad.t) =>
-          switch (sp.kind) {
-          | Code({program, _}) when sp.name == name => Some(program)
-          | _ => None
-          },
+        ~f=
+          (sp: Scratchpad.t) =>
+            switch (sp.kind) {
+            | Code({program, _}) when sp.name == name => Some(program)
+            | _ => None
+            },
         from.scratchpads,
       );
     map_code(
@@ -208,5 +216,5 @@ module Model = {
   };
 
   let scratchpad_names = (model: t): list(string) =>
-    List.map((s: Scratchpad.t) => s.name, model.scratchpads);
+    List.map(~f=(s: Scratchpad.t) => s.name, model.scratchpads);
 };

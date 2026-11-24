@@ -1,11 +1,11 @@
 open Junit_alcotest;
 
-Printexc.register_printer(exn => {
+Stdlib.Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
   | DefStaticsCheck.Divergence(ds) =>
-    Some("DefStatics diverges: " ++ String.concat("; ", ds))
+    Some("DefStatics diverges: " ++ String.concat(~sep="; ", ds))
   | _ => None
   }
 });
@@ -13,7 +13,10 @@ Printexc.register_printer(exn => {
 /* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
    checks below; the full suite runs them on every edit. A test whose own
    assertion is the statics check arms it itself (DefStaticsCheck.armed) */
-let quick = Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
+let quick =
+  Array.exists(Stdlib.Sys.argv, ~f=a =>
+    String.equal(a, "-q") || String.equal(a, "--quick-tests")
+  );
 
 if (!quick) {
   /* every edit checks sparse normalization against the global pass */
@@ -30,7 +33,7 @@ if (!quick) {
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
-    ~argv=Sys.argv,
+    ~argv=Stdlib.Sys.argv,
     "HazelTests",
     [
       Test_AgentPersist.tests,
@@ -69,6 +72,7 @@ let (suite, exit_with_test_status) =
       Test_EditIdentity.tests,
       Test_CanvasPresentation.tests,
       Test_Restructure.tests,
+      Test_EntryEdit.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
@@ -76,7 +80,8 @@ let (suite, exit_with_test_status) =
       Test_ChunkViews.tests,
       Test_MakeTermIncr.tests,
       Test_ItemSpans.tests,
-      Test_CellsParity.tests,
+      Test_EntryPath.tests,
+      Test_AgentView.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
       Test_DefStaticsDelta.tests,
@@ -108,6 +113,7 @@ let (suite, exit_with_test_status) =
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
+      Test_Calc.tests,
       Test_Substitution.tests,
     ]
     @ Test_Unicode.tests
@@ -118,9 +124,14 @@ let (suite, exit_with_test_status) =
     @ Test_AgentModRoot.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
+    @ Test_AgentPerf.tests
+    @ Test_AgentReply.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
+    @ Test_Exp.tests
     @ Test_Typ.tests
+    @ Test_Mod.tests
+    @ Test_Sig.tests
     @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
@@ -146,7 +157,6 @@ let (suite, exit_with_test_status) =
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
-    @ [Test_ModAudit.tests]
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
@@ -165,6 +175,7 @@ let (suite, exit_with_test_status) =
     @ Test_LocalReformat.tests
     @ Test_Refactor.tests
     @ Test_MatchExp.tests
+    @ [Test_ProofHacks.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_MVU.tests,
@@ -187,9 +198,12 @@ let (suite, exit_with_test_status) =
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
+    @ Test_HazelDB.tests
+    @ [Test_WorkerClient.tests]
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]
@@ -197,6 +211,7 @@ let (suite, exit_with_test_status) =
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ [Test_ErrorPrint.tests]
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests

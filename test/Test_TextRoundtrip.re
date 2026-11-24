@@ -78,11 +78,11 @@ let slide_roundtrip_case =
    deferred so the suite doesn't hold every slide's zipper at once. */
 let doc_slide_cases =
   Web.Init.documentation_slides
-  |> List.filter(((name, _, _)) => !CorpusUtil.mega_scale(name))
-  |> List.map(((name, root, p: PersistentZipper.t)) =>
+  |> List.filter(~f=((name, _, _)) => !CorpusUtil.mega_scale(name))
+  |> List.map(~f=((name, root, p: PersistentZipper.t)) =>
        (name, root, () => PersistentZipper.unpersist(p, ~root))
      )
-  |> List.map(slide_roundtrip_case);
+  |> List.map(~f=slide_roundtrip_case);
 
 /* The .hzt lessons are authored as text too, so every section of each one
    must be a fixed point: what TutorialText parsed and the editor reprints
@@ -91,15 +91,17 @@ let doc_slide_cases =
    `hazel tutorial-verify --verbose` prints the diff. */
 let tutorial_lesson_cases =
   Web.TutorialText.all
-  |> List.concat_map((spec: Web.Tutorial.spec) =>
+  |> List.concat_map(~f=(spec: Web.Tutorial.spec) =>
        [
          (spec.title ++ " (impl)", Sort.Exp, () => spec.your_impl),
          (spec.title ++ " (tests)", Sort.Exp, () => spec.hidden_tests.tests),
          ...Option.to_list(spec.solution)
-            |> List.map(z => (spec.title ++ " (solution)", Sort.Exp, () => z)),
+            |> List.map(~f=z =>
+                 (spec.title ++ " (solution)", Sort.Exp, () => z)
+               ),
        ]
      )
-  |> List.map(slide_roundtrip_case);
+  |> List.map(~f=slide_roundtrip_case);
 
 let text_fixed_point_case = (~name, text) =>
   test_case(
@@ -223,7 +225,8 @@ let arb_exp_roundtrip =
       let text = render_exp_as_text(exp);
       switch (MarkerParse.of_text(~root=Exp, text)) {
       | None => false
-      | Some(z) => MarkerParse.to_text(z) == roundtripped_text(z)
+      | Some(z) =>
+        String.equal(MarkerParse.to_text(z), roundtripped_text(z))
       };
     },
   );
@@ -342,12 +345,13 @@ let debug_pieces = (tag, text) =>
           tag
           ++ " SLOW: "
           ++ String.concat(
-               " ",
+               ~sep=" ",
                List.map(
+                 ~f=
                  (p: Piece.t) =>
                    switch (p) {
                    | Tile(t) =>
-                     "T(" ++ String.concat("", Tile.label(t)) ++ ")"
+                       "T(" ++ String.concat(~sep="", Tile.label(t)) ++ ")"
                    | Grout({shape: Convex, _}) => "Gcvx"
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
@@ -365,12 +369,13 @@ let debug_pieces = (tag, text) =>
           tag
           ++ " FAST: "
           ++ String.concat(
-               " ",
+               ~sep=" ",
                List.map(
+                 ~f=
                  (p: Piece.t) =>
                    switch (p) {
                    | Tile(t) =>
-                     "T(" ++ String.concat("", Tile.label(t)) ++ ")"
+                       "T(" ++ String.concat(~sep="", Tile.label(t)) ++ ")"
                    | Grout({shape: Convex, _}) => "Gcvx"
                    | Grout({shape: Concave, _}) => "Gccv"
                    | Secondary(_) => "_"
@@ -406,16 +411,13 @@ let debug_parse_text = (tag, text) =>
    the recovering parser on every load. */
 let deep_concave_count = (seg: Segment.t): int => {
   let rec go = (seg: Segment.t) =>
-    List.fold_left(
-      (n, p: Piece.t) =>
+    List.fold(seg, ~init=0, ~f=(n, p: Piece.t) =>
         switch (p) {
         | Grout({shape: Concave, _}) => n + 1
         | Tile(t) =>
-          n + List.fold_left((m, kid) => m + go(kid), 0, t.children)
+        n + List.fold(t.children, ~init=0, ~f=(m, kid) => m + go(kid))
         | _ => n
-        },
-      0,
-      seg,
+      }
     );
   go(seg);
 };
@@ -425,7 +427,7 @@ let edited_grout_fast_case = (~name, typed) =>
     name,
     `Quick,
     () => {
-      let z = Option.get(Parser.to_zipper(typed, ~root=Exp));
+      let z = Option.value_exn(Parser.to_zipper(typed, ~root=Exp));
       let concave = deep_concave_count(Zipper.unselect_and_zip(z));
       check(bool, "typing left concave grout", true, concave > 0);
       let persisted = PersistentZipper.persist(z);

@@ -41,7 +41,7 @@ module Entry = {
             "slow log entry: %.0fms, %d chars: %s",
             ms,
             String.length(s),
-            String.sub(s, 0, min(160, String.length(s))),
+            String.sub(s, ~pos=0, ~len=min(160, String.length(s))),
           ),
         ),
       );
@@ -53,6 +53,7 @@ module Entry = {
     switch (sexp) {
     | Sexplib.Sexp.List(lst) =>
       List.rev_map(
+        ~f=
         entry_sexp =>
           try(Some(t_of_sexp(entry_sexp))) {
           | _ => None
@@ -65,7 +66,7 @@ module Entry = {
 };
 
 let get_and = (f: string => unit): unit =>
-  DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
+  DB.get_all(entries => f("(" ++ String.concat(~sep=" ", entries) ++ ")"));
 
 // Sync the cached count with the database
 let sync_count = (): unit =>
@@ -78,9 +79,9 @@ let import = (data: string): unit =>
       data
       |> Sexplib.Sexp.of_string
       |> Entry.s_of_sexp
-      |> List.iter(Entry.save)
+      |> List.iter(~f=Entry.save)
     ) {
-    | _ => Printf.printf("Log.Entry.import: Deserialization error")
+    | _ => printf("Log.Entry.import: Deserialization error")
     };
     // Sync count after import completes
     sync_count();
@@ -99,7 +100,7 @@ let to_actions = () => {
       "num of entries: " ++ string_of_int(List.length(entries)),
     );
     entries
-    |> List.iter(entry_str =>
+    |> List.iter(~f=entry_str =>
          try({
            let (_ts, action) =
              entry_str |> Sexplib.Sexp.of_string |> Entry.t_of_sexp;

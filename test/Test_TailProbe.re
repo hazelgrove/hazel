@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* The ⇓ toggle's probe: one drawer probe on the program's last
    expression, re-anchored as that expression changes */
@@ -18,7 +19,7 @@ let text = (syntax: CachedSyntax.t, id: Id.t): string =>
   switch (TermData.segment(id, syntax.term_data)) {
   | Some(seg) =>
     Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true, seg)
-    |> String.trim
+    |> String.strip
   | None => "<no segment>"
   };
 
@@ -63,7 +64,7 @@ let is_program_value = (z: Zipper.t, id: Id.t): bool =>
 /* ⇓ on over a program, with its tail */
 let tail_on = (src: string): (Zipper.t, Id.t) => {
   let z = update(~on=true, zipper(src));
-  (z, Option.get(z.refractors.tail_target));
+  (z, Option.value_exn(z.refractors.tail_target));
 };
 
 /* a pin or step-into makes the ⇓ probe a manual probe */
@@ -80,7 +81,7 @@ let promoted = (): (Zipper.t, Id.t) => {
 /* a manual probe already on the last expression, then ⇓ on */
 let manual_first = (): (Zipper.t, Id.t) => {
   let z = update(~on=true, zipper("let x = 1 in\n^^probe(x + 1)"));
-  (z, Option.get(AutoProbePerform.tail_id(snd(analysed(z)))));
+  (z, Option.value_exn(AutoProbePerform.tail_id(snd(analysed(z)))));
 };
 
 let finds_tail = () => {
@@ -106,9 +107,9 @@ let toggles = () => {
   let z = zipper("let x = 1 in\nx + 1");
   let on = update(~on=true, z);
   let tail = on.refractors.tail_target;
-  check(bool, "anchored", true, tail != None);
+  check(bool, "anchored", true, Option.is_some(tail));
   let entry =
-    Option.bind(tail, id =>
+    Option.bind(tail, ~f=id =>
       Id.Map.find_opt(id, on.refractors.multis.ephemerals)
     );
   check(
@@ -124,15 +125,23 @@ let toggles = () => {
     bool,
     "probed",
     true,
-    Id.Map.mem(Option.get(tail), CachedStatics.probe_ids_of_zipper(on)),
+    Id.Map.mem(
+      Option.value_exn(tail),
+      CachedStatics.probe_ids_of_zipper(on),
+    ),
   );
   let off = update(~on=false, on);
-  check(bool, "unanchored", true, off.refractors.tail_target == None);
+  check(
+    bool,
+    "unanchored",
+    true,
+    Option.is_none(off.refractors.tail_target),
+  );
   check(
     bool,
     "removed",
     false,
-    Id.Map.mem(Option.get(tail), off.refractors.multis.ephemerals),
+    Id.Map.mem(Option.value_exn(tail), off.refractors.multis.ephemerals),
   );
 };
 
@@ -144,7 +153,10 @@ let steady = () => {
     bool,
     "same ephemerals",
     true,
-    again.refractors.multis.ephemerals === z.refractors.multis.ephemerals,
+    phys_equal(
+      again.refractors.multis.ephemerals,
+      z.refractors.multis.ephemerals,
+    ),
   );
 };
 
@@ -156,9 +168,14 @@ let manual_wins = () => {
     bool,
     "a manual probe",
     true,
-    List.mem_assoc(last, z.refractors.manuals),
+    List.Assoc.mem(z.refractors.manuals, last, ~equal=Poly.equal),
   );
-  check(bool, "the tail", true, z.refractors.tail_target == Some(last));
+  check(
+    bool,
+    "the tail",
+    true,
+    Poly.equal(z.refractors.tail_target, Some(last)),
+  );
   check(
     bool,
     "no ephemeral beside it",
@@ -166,7 +183,7 @@ let manual_wins = () => {
     Id.Map.mem(last, z.refractors.multis.ephemerals),
   );
   check(bool, "not the program value", false, is_program_value(z, last));
-  check(bool, "steady", true, update(~on=true, z) === z);
+  check(bool, "steady", true, phys_equal(update(~on=true, z), z));
 };
 
 /* the ⇓ probe stays itself once made manual; ⇓ off makes it a drawer
@@ -175,15 +192,15 @@ let promoted_stays = () => {
   let (z, tail) = promoted();
   let again = update(~on=true, z);
   check(bool, "still the ⇓ probe", true, is_program_value(again, tail));
-  check(bool, "steady", true, again === z);
+  check(bool, "steady", true, phys_equal(again, z));
   let off = update(~on=false, z);
   check(bool, "off: not", false, is_program_value(off, tail));
   check(
     bool,
     "a drawer probe of its own",
     true,
-    List.assoc_opt(tail, off.refractors.manuals)
-    |> Option.map((e: Refractors.entry) => e.model)
+    List.Assoc.find(off.refractors.manuals, tail, ~equal=Poly.equal)
+    |> Option.map(~f=(e: Refractors.entry) => e.model)
     == Some(ProbeProj.tail_model),
   );
   check(
@@ -212,7 +229,12 @@ let promoted_reloads = () => {
         manuals: Web.ScratchPersist.read_probes("tailtest", "promoted", seg),
       }
     );
-  check(bool, "unanchored", true, loaded.refractors.tail_target == None);
+  check(
+    bool,
+    "unanchored",
+    true,
+    Option.is_none(loaded.refractors.tail_target),
+  );
   let z = update(~on=true, loaded);
   check(bool, "the ⇓ probe", true, is_program_value(z, tail));
   check(bool, "no rows", true, Id.Map.is_empty(reserved(z)));
@@ -250,8 +272,8 @@ let projector_flag = () => {
       ~tail=z.refractors.tail_target,
       (),
     )
-    |> List.exists((d: Web.ProjectorView.Model.projector_data) =>
-         d.p.id == id && d.info.program_value
+    |> List.exists(~f=(d: Web.ProjectorView.Model.projector_data) =>
+         Id.equal(d.p.id, id) && d.info.program_value
        );
   };
   check(bool, "the ⇓ probe", true, flag(tail_on("let x = 1 in\nx + 1")));
@@ -296,7 +318,7 @@ let promoted_reserves_nothing = () => {
     bool,
     "a manual probe",
     true,
-    List.mem_assoc(tail, z.refractors.manuals),
+    List.Assoc.mem(z.refractors.manuals, tail, ~equal=Poly.equal),
   );
   check(
     bool,
@@ -333,7 +355,7 @@ let rows_follow_role = () => {
 let rows_under_last_line = () => {
   let z = zipper("1 +\n2");
   let (_, syntax) = analysed(z);
-  let plus = Option.get(AutoProbePerform.tail_id(syntax));
+  let plus = Option.value_exn(AutoProbePerform.tail_id(syntax));
   let key = CachedSyntax.rows_key(plus, syntax.term_data);
   check(bool, "not the operator", true, key != plus);
   let seg = Zipper.unselect_and_zip(z);

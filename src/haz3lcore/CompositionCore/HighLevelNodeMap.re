@@ -86,7 +86,7 @@ module Utils = {
     | Tuple(es)
     | ListLit(es) => es
     | If(e1, e2, e3) => [e1, e2, e3]
-    | Match(e, branches) => [e, ...List.map(snd, branches)]
+    | Match(e, branches) => [e, ...List.map(~f=snd, branches)]
     | BuiltinFun(_)
     | Label(_)
     | EmptyHole
@@ -234,9 +234,9 @@ module Namer = {
     | Cons(pat1, pat2) =>
       mk_name_from_pat(pat1) ++ "::" ++ mk_name_from_pat(pat2)
     | Tuple(pats) =>
-      "(" ++ String.concat(", ", List.map(mk_name_from_pat, pats)) ++ ")"
+      "(" ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats)) ++ ")"
     | ListLit(pats) =>
-      "[" ++ String.concat(", ", List.map(mk_name_from_pat, pats)) ++ "]"
+      "[" ++ String.concat(~sep=", ", List.map(~f=mk_name_from_pat, pats)) ++ "]"
     | Wild => "{wild}"
     | EmptyHole => "{empty pattern hole}"
     | MultiHole(_) => "{multi hole}"
@@ -377,7 +377,7 @@ let parent_of = (node_map: t, node: node): option(node) => {
 };
 
 let children_of = (node_map: t, node: node): list(node) => {
-  List.map((id: Id.t) => find(node_map, id), node.children);
+  List.map(~f=(id: Id.t) => find(node_map, id), node.children);
 };
 
 let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
@@ -390,9 +390,9 @@ let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
       // Get all children of nodes in the current level
       let next_level =
         current_level
-        |> List.map((id: Id.t) => find(node_map, id))
-        |> List.map((node: node) => node.children)
-        |> List.flatten;
+        |> List.map(~f=(id: Id.t) => find(node_map, id))
+        |> List.map(~f=(node: node) => node.children)
+        |> List.concat;
 
       // Add current level to accumulator and recurse
       build_levels(next_level, [current_level, ...acc]);
@@ -403,7 +403,7 @@ let descendants_of = (node_map: t, node: node): list(list(Id.t)) => {
 };
 
 let siblings_of = (node_map: t, node: node): list(node) => {
-  List.map((id: Id.t) => find(node_map, id), node.siblings);
+  List.map(~f=(id: Id.t) => find(node_map, id), node.siblings);
 };
 
 /* `mod` binds tighter than `+/-`, so parens matter; also wrap negatives before mod. */
@@ -412,7 +412,7 @@ let next_sibling_of = (node: node): option(Id.t) => {
   if (len == 0) {
     None;
   } else {
-    List.nth_opt(node.siblings, (node.sibling_idx + 1) mod len);
+    List.nth(node.siblings, (node.sibling_idx + 1) mod len);
   };
 };
 
@@ -421,7 +421,7 @@ let prev_sibling_of = (node: node): option(Id.t) => {
   if (len == 0) {
     None;
   } else {
-    List.nth_opt(node.siblings, (node.sibling_idx - 1 + len) mod len);
+    List.nth(node.siblings, (node.sibling_idx - 1 + len) mod len);
   };
 };
 
@@ -431,7 +431,7 @@ let lowest_enclosing_node_of =
   | Some(node) => Some(node)
   | None =>
     let ancestors = Info.ancestors(~info_map, info);
-    List.find_map(
+    List.find_map(~f=
       (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
       ancestors,
     );
@@ -513,27 +513,19 @@ let rec build_children =
          works unchanged. Each binding member's wrapper is a node; other
          items (tests, a Mod root's trailing expression) are wrapped under
          fresh ids and make none. */
-      List.fold_left(
-        (node_map, item: Mod.t) =>
+      List.fold(items, ~init=node_map, ~f=(node_map, item: Mod.t) =>
           switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
           | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
             build_binding(wrapper, path, node_map, info_map)
           | _ => node_map
-          },
-        node_map,
-        items,
-      )
+          })
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
-      let es_mapped = List.map(exp_to_info, es);
+      let es_mapped = List.map(~f=exp_to_info, es);
       /* [build_children] threads the accumulated map, so each result already
          contains everything in the accumulator; no per-child merge needed. */
-      List.fold_left(
-        (acc_map: t, e: Info.t) =>
-          build_children(e, path, acc_map, info_map),
-        node_map,
-        es_mapped,
-      );
+      List.fold(es_mapped, ~init=node_map, ~f=(acc_map: t, e: Info.t) =>
+          build_children(e, path, acc_map, info_map));
     }
   | _ => node_map
   };
@@ -574,9 +566,9 @@ and build_binding =
 
 let sibling_idx_of = (path: list(Id.t), self: Id.t): int => {
   path
-  |> List.mapi((i, id) => (i, id))
-  |> List.find_opt(((_, id)) => id == self)
-  |> Option.map(fst)
+  |> List.mapi(~f=(i, id) => (i, id))
+  |> List.find(~f=((_, id)) => id == self)
+  |> Option.map(~f=fst)
   |> Option.value(~default=-1);
 };
 
@@ -603,8 +595,8 @@ let build_siblings_and_trim = (node_map: t): t => {
                current_id,
                {
                  ...current_node,
-                 path: List.tl(current_node.path), // removes dummy root
-                 siblings: List.map(id_of, children_of(node_map, parent)),
+                 path: List.tl_exn(current_node.path), // removes dummy root
+                 siblings: List.map(~f=id_of, children_of(node_map, parent)),
                  sibling_idx: sibling_idx_of(parent.children, current_id),
                },
                acc_map,
@@ -623,7 +615,7 @@ let gather_top_level = (node_map: t): list(Id.t) => {
   // build_siblings_and_trim...
   node_map
   |> Id.Map.bindings
-  |> List.filter_map(((id: Id.t, node: node)) => {
+  |> List.filter_map(~f=((id: Id.t, node: node)) => {
        switch (parent_of(node_map, node)) {
        | Some(_) => None
        | None => Some(id)
@@ -635,11 +627,11 @@ let gather_top_level = (node_map: t): list(Id.t) => {
    language's own member-access syntax, which a model reaches for first) is
    accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
+  String.split(~on='/', String.map(~f=c => c == '.' ? '/' : c, path));
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
-  List.map((id: Id.t) => id_to_name(node_map, id), id_path);
+  List.map(~f=(id: Id.t) => id_to_name(node_map, id), id_path);
 };
 
 /** Paths may carry a trailing `#k` (1-based) selecting the k-th binding, in
@@ -649,8 +641,8 @@ let split_disambiguator = (path: string): (string, option(int)) => {
   switch (String.rindex_opt(path, '#')) {
   | None => (path, None)
   | Some(i) =>
-    let base = String.sub(path, 0, i);
-    let suffix = String.sub(path, i + 1, String.length(path) - i - 1);
+    let base = String.sub(path, ~pos=0, ~len=i);
+    let suffix = String.sub(path, ~pos=i + 1, ~len=String.length(path) - i - 1);
     switch (int_of_string_opt(suffix)) {
     | Some(k) when k >= 1 => (base, Some(k))
     | _ => (path, None)
@@ -670,14 +662,14 @@ let sort_ids_in_program_order = (node_map: t, ids: list(Id.t)): list(Id.t) => {
     | c => c
     };
   };
-  List.sort(cmp, ids);
+  List.sort(~compare=cmp, ids);
 };
 
 let matches_for_path = (node_map: t, path_names: list(string)): list(Id.t) => {
   // Convert each node's path (list of Ids) to a list of names and compare
   // XXX: O(n) in bindings (not program size); fine until node maps get large.
   Id.Map.bindings(node_map)
-  |> List.filter_map(((id: Id.t, node: node)) =>
+  |> List.filter_map(~f=((id: Id.t, node: node)) =>
        id_path_to_name_path(node.path, node_map) == path_names
          ? Some(id) : None
      )
@@ -687,8 +679,8 @@ let matches_for_path = (node_map: t, path_names: list(string)): list(Id.t) => {
 let ambiguous_path_message = (base: string, ids: list(Id.t)): string => {
   let n = List.length(ids);
   let options =
-    List.init(n, i => "\"" ++ base ++ "#" ++ string_of_int(i + 1) ++ "\"")
-    |> String.concat(", ");
+    List.init(n, ~f=i => "\"" ++ base ++ "#" ++ string_of_int(i + 1) ++ "\"")
+    |> String.concat(~sep=", ");
   "Path \""
   ++ base
   ++ "\" is ambiguous: "
@@ -704,7 +696,7 @@ let path_to_id_opt = (node_map: t, path: string): option(Id.t) => {
   let matches = matches_for_path(node_map, split_path(base));
   switch (matches, occurrence) {
   | ([], _) => None
-  | (ids, Some(k)) => List.nth_opt(ids, k - 1)
+  | (ids, Some(k)) => List.nth(ids, k - 1)
   | ([id], None) => Some(id)
   | ([_, _, ..._], None) => None // ambiguous: refuse to guess (see path_to_id)
   };
@@ -755,7 +747,7 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
     let suffix_dist = StringUtil.levenshtein_distance(want_last, cand_last);
     let list_dist =
       StringUtil.levenshtein_list_distance(path_names, candidate_names);
-    let candidate_str = String.concat("/", candidate_names);
+    let candidate_str = String.concat(~sep="/", candidate_names);
     let char_dist = StringUtil.levenshtein_distance(path_str, candidate_str);
     let neg_depth = - List.length(node.path);
     (suffix_dist, list_dist, char_dist, neg_depth);
@@ -787,28 +779,24 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
   /* Called from error-handling paths (path_to_id failure branch); must not raise. */
   | [] => ""
   | bindings =>
-    let (first_id, first_node) = List.hd(bindings);
+    let (first_id, first_node) = List.hd_exn(bindings);
     let d0 = distance_for_node(first_node);
     let initial_acc = (first_id, first_node, d0);
 
     let (best_id, _best_node, _best_dist) =
-      List.fold_left(
-        ((acc_id, acc_node, acc_d), (id, node)) => {
+      List.fold(List.tl_exn(bindings), ~init=initial_acc, ~f=((acc_id, acc_node, acc_d), (id, node)) => {
           let d = distance_for_node(node);
           if (is_better(d, acc_d)) {
             (id, node, d);
           } else {
             (acc_id, acc_node, acc_d);
           };
-        },
-        initial_acc,
-        List.tl(bindings),
-      );
+        });
 
     let path = find(node_map, best_id).path;
-    String.concat(
+    String.concat(~sep=
       "/",
-      List.map((id: Id.t) => id_to_name(node_map, id), path),
+      List.map(~f=(id: Id.t) => id_to_name(node_map, id), path),
     );
   };
 };
@@ -818,13 +806,13 @@ let closest_valid_path_to_ill_path = (node_map: t, path: string): string => {
     agent can self-correct rather than guess. */
 let all_path_strings = (node_map: t): list(string) => {
   Id.Map.bindings(node_map)
-  |> List.map(((_, node: node)) =>
-       String.concat(
+  |> List.map(~f=((_, node: node)) =>
+       String.concat(~sep=
          "/",
-         List.map((id: Id.t) => id_to_name(node_map, id), node.path),
+         List.map(~f=(id: Id.t) => id_to_name(node_map, id), node.path),
        )
      )
-  |> List.sort_uniq(String.compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 };
 
 /** If [[path]] is a bare name (no `/`) and exactly one binding in the map has
@@ -837,12 +825,12 @@ let unique_suffix_match = (node_map: t, path: string): option(string) =>
   } else {
     let matches =
       Id.Map.bindings(node_map)
-      |> List.filter_map(((_, node: node)) => {
+      |> List.filter_map(~f=((_, node: node)) => {
            let names =
-             List.map((id: Id.t) => id_to_name(node_map, id), node.path);
+             List.map(~f=(id: Id.t) => id_to_name(node_map, id), node.path);
            switch (ListUtil.last_opt(names)) {
            | Some(last) when String.equal(last, path) =>
-             Some(String.concat("/", names))
+             Some(String.concat(~sep="/", names))
            | _ => None
            };
          });
@@ -868,7 +856,7 @@ let path_to_id = (node_map: t, path: string): Id.t => {
     let available_str =
       switch (available) {
       | [] => ""
-      | xs => "\nAvailable paths in the node map: " ++ String.concat(", ", xs)
+      | xs => "\nAvailable paths in the node map: " ++ String.concat(~sep=", ", xs)
       };
     raise(
       Failure(
@@ -884,7 +872,7 @@ let path_to_id = (node_map: t, path: string): Id.t => {
       ),
     );
   | (ids, Some(k)) =>
-    switch (List.nth_opt(ids, k - 1)) {
+    switch (List.nth(ids, k - 1)) {
     | Some(id) => id
     | None =>
       raise(
@@ -1007,7 +995,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
   let first_root =
     empty
       ? None
-      : List.find_map(
+      : List.find_map(~f=
           (it: DefStatics.item) => Id.Map.find_opt(it.d_id, it.d_map),
           ds.items,
         );
@@ -1066,7 +1054,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
           };
         | _ =>
           Utils.child_expressions_of_exp(user_term)
-          |> List.fold_left((acc, e) => descend_exp(e, path, acc), acc)
+          |> List.fold(~init=acc, ~f=(acc, e) => descend_exp(e, path, acc))
         }
       | _ => acc
       };
@@ -1084,7 +1072,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
       | [it] => [it.d_node]
       | [it, ...rest] =>
         let rest = respine(rest);
-        let next = List.hd(rest);
+        let next = List.hd_exn(rest);
         let node: Exp.t = it.d_node;
         let term: Exp.term =
           switch (node.term) {
@@ -1136,7 +1124,7 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
             };
           go(srcs, items, binds(src) ? add_item(path, it, node, acc) : acc);
         };
-      go(srcs, List.combine(items, respine(items)), node_map);
+      go(srcs, List.zip_exn(items, respine(items)), node_map);
     }
     and add_item =
         (path: list(Id.t), it: DefStatics.item, node: Exp.t, acc: t): t =>

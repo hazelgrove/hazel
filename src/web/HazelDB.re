@@ -17,7 +17,22 @@ module IDBStore = Ezjs_idb.Store(StringTr, StringTr);
 
 type db = Ezjs_min.t(Types.iDBDatabase);
 
-let db_name = "hazel";
+/* One database per git branch, so builds of different branches served from
+   the same origin (every preview on build.hazel.org) keep separate saved
+   state: a branch that changes a persisted type can't clobber, or be
+   clobbered by, another branch's data (#2204, and see #2454). `dev`, and
+   builds made outside a git checkout or from a detached HEAD, keep the
+   original name, so existing saved state there is untouched. The branch is
+   baked in at build time by scripts/build-info.sh. */
+let db_name_for_branch = (branch: string): string =>
+  switch (branch) {
+  | "dev"
+  | "unknown"
+  | "HEAD" => "hazel"
+  | branch => "hazel:" ++ branch
+  };
+
+let db_name = db_name_for_branch(BuildInfo.branch);
 let log_table = "log";
 let kv_table = "kv";
 
@@ -53,11 +68,12 @@ let write_transactions = ref(0); /* observability for tests */
 
 /* one transaction for all of [writes]: it commits whole or not at all */
 let commit = (writes: list(write)): unit =>
-  if (writes != []) {
+  if (!List.is_empty(writes)) {
     incr(write_transactions);
     with_db(db => {
       let store = kv_store(db);
       List.iter(
+        ~f=
         fun
         | Put(key, value) =>
           IDBStore.put(~key, ~callback=_ => (), store, value)
@@ -106,7 +122,7 @@ let kv_save_sexp = (key: string, sexp_of: 'a => Sexplib.Sexp.t, v: 'a): unit =>
 
 /* None when missing or unreadable */
 let kv_get_sexp = (key: string, of_sexp: Sexplib.Sexp.t => 'a): option('a) =>
-  Option.bind(kv_get(key), s =>
+  Option.bind(kv_get(key), ~f=s =>
     try(Some(of_sexp(Sexplib.Sexp.of_string(s)))) {
     | _ => None
     }
@@ -136,7 +152,7 @@ let kv_rekey = (rekey: string => option(string)): unit =>
     Util.Maps.StringMap.iter(
       (k, v) =>
         switch (rekey(k)) {
-        | Some(k') when k' != k =>
+        | Some(k') when !String.equal(k', k) =>
           kv_save(k', v);
           kv_remove(k);
         | _ => ()
@@ -164,8 +180,8 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
       pairs => {
         cache :=
           List.fold_left(
-            (m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
-            Util.Maps.StringMap.empty,
+            ~f=(m, (k, v)) => Util.Maps.StringMap.add(k, v, m),
+            ~init=Util.Maps.StringMap.empty,
             pairs,
           );
         callback(pairs);

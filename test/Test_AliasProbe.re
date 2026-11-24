@@ -2,8 +2,9 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* characterization: aliases in variable types resolve at the use site, so
-   a shadowing alias between binder and use wins; flip if that changes */
+/* characterization: a shadowing alias between binder and use is renamed
+   (Typ.unshadow), so the alias in a variable's type keeps the meaning it
+   had at the binder */
 
 let case = () => {
   let src = "type T = Int in\nlet x : T = 1 in\ntype T = Bool in\nx";
@@ -33,10 +34,10 @@ let case = () => {
           );
           check(
             bool,
-            "use-site normalization resolves to the SHADOWING alias",
+            "use-site normalization resolves to the alias at the binder",
             true,
             switch (Typ.term_of(Typ.normalize(ctx, elab_syn_ty))) {
-            | Atom(Bool) => true
+            | Atom(Int) => true
             | _ => false
             },
           );
@@ -51,5 +52,5 @@ let case = () => {
 
 let tests = (
   "AliasProbe",
-  [test_case("shadowed alias resolves at use site", `Quick, case)],
+  [test_case("a shadowed alias keeps its meaning", `Quick, case)],
 );

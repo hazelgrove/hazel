@@ -43,5 +43,8 @@ Use `3.0 *. 2.0` with the float multiplication operator `*.`.
 @code
 3.0 * 2.0
 
+@solution
+3.0 *. 2.0
+
 @test
 test answer ==. 6. end

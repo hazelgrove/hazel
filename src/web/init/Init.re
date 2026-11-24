@@ -19,7 +19,7 @@ let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
     @ B2t2.Slides.all_slides
     @ Constellation.Slides.all_slides,
   )
-  @ List.map(((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
+  @ List.map(~f=((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
@@ -33,7 +33,7 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, root, content: PersistentZipper.t)) =>
+      |> List.map(~f=((name, root, content: PersistentZipper.t)) =>
            (
              name,
              {
@@ -48,8 +48,8 @@ let startup: Lazy.t(PersistentData.t) =
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
   |> snd
-  |> List.find_opt(((n, _)) => n == name)
-  |> Option.map(snd);
+  |> List.find(~f=((n, _)) => String.equal(n, name))
+  |> Option.map(~f=snd);
 };
 
 let default_documentation_slide_name =
@@ -72,7 +72,7 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
     Ex_Shadowing_And_Closures.exercise,
     Ex_Type_Validation_Derivation.exercise,
   ]
-  |> List.map((spec: DerivationExercise.spec) =>
+  |> List.map(~f=(spec: DerivationExercise.spec) =>
        (
          SlidePath.to_string(
            SlidePath.mk(~folders=["Derivations"], spec.title),
@@ -84,8 +84,8 @@ let documentation_drv_slides: list((string, DerivationExercise.spec)) =
 let find_documentation_drv_spec =
     (name: string): option(DerivationExercise.spec) =>
   documentation_drv_slides
-  |> List.find_opt(((n, _)) => n == name)
-  |> Option.map(snd);
+  |> List.find(~f=((n, _)) => String.equal(n, name))
+  |> Option.map(~f=snd);
 
 let documentation_drv_slide_names = (): list(string) =>
-  List.map(fst, documentation_drv_slides);
+  List.map(~f=fst, documentation_drv_slides);

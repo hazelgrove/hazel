@@ -1,6 +1,7 @@
 open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
+open Poly;
 
 /* A theorem's proof, in a drawer below the theorem. The web layer renders
    the proof (Settings.view) and fits the drawer to it (Settings.rows).
@@ -11,13 +12,13 @@ module Settings = {
   let view: ref(Id.t => option(Node.t)) = ref(_ => None);
   /* the rows each theorem's proof takes, as counted from its stepper;
      DrawerFit adds what rendering measures */
-  let computed: Hashtbl.t(Id.t, int) = Hashtbl.create(8);
+  let computed: Stdlib.Hashtbl.t(Id.t, int) = Stdlib.Hashtbl.create(8);
   let computed_rows = (id: Id.t): int =>
-    Hashtbl.find_opt(computed, id) |> Option.value(~default=1);
+    Stdlib.Hashtbl.find_opt(computed, id) |> Option.value(~default=1);
   /* true when the drawer's rows changed */
   let set_computed = (id: Id.t, n: int): bool => {
     let before = DrawerFit.rows(id, computed_rows(id));
-    Hashtbl.replace(computed, id, n);
+    Stdlib.Hashtbl.replace(computed, id, n);
     if (DrawerFit.rows(id, n) == before) {
       false;
     } else {

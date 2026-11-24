@@ -202,4 +202,4 @@ module Js: BuiltinLivelit = {
   };
 };
 
-let livelits: list(raw_livelit) = [(module Js)] |> List.map(raw_of_builtin);
+let livelits: list(raw_livelit) = [(module Js)] |> List.map(~f=raw_of_builtin);

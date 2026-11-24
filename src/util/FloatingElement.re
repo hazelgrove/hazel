@@ -106,7 +106,7 @@ let get_data_string =
     (el: Js.t(Dom_html.element), name: string): option(string) => {
   el##getAttribute(Js.string("data-float-" ++ name))
   |> Js.Opt.to_option
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Read where a floating element goes; the write puts it there */
@@ -131,17 +131,18 @@ let measure_one = (el: Js.t(Dom_html.element)): option(unit => unit) => {
       /* Raised completion flags stay in the viewport while their pole
          still reaches a visible caret. Other floating elements opt out. */
       let min_top =
-        get_data_string(el, "min-top") |> Option.map(float_of_string);
+        get_data_string(el, "min-top") |> Option.map(~f=float_of_string);
       let viewport_top =
         switch (min_top) {
-        | Some(y) => max(y, raw_top)
+        | Some(y) => Float.max(y, raw_top)
         | None => raw_top
         };
       let shift = viewport_top -. raw_top;
+
       let visible =
         switch (min_top, get_data_string(el, "local-bottom")) {
         | (Some(y), Some(bottom)) =>
-          base_top +. float_of_string(bottom) >= y
+          Float.(base_top + float_of_string(bottom) >= y)
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
@@ -157,11 +158,13 @@ let measure_one = (el: Js.t(Dom_html.element)): option(unit => unit) => {
           let h = float_of_int(el##.offsetHeight);
           let w = float_of_int(el##.offsetWidth);
           let up =
-            viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
+            Float.(
+              viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top
+            );
           (
             Some(up),
             up ? rect##.top -. h : viewport_top,
-            viewport_left +. w > m##.right
+            Float.(viewport_left +. w > m##.right)
               ? Float.max(m##.left, m##.right -. w) : viewport_left,
           );
         | _ => (None, viewport_top, viewport_left)
@@ -201,11 +204,11 @@ let update_all = (): unit =>
       queued := false;
       let els = elements();
       let writes =
-        List.init(els##.length, i =>
+        List.init(els##.length, ~f=i =>
           Js.Opt.case(els##item(i), () => None, measure_one)
         )
-        |> List.filter_map(Fun.id);
-      () => List.iter(write => write(), writes);
+        |> List.filter_map(~f=Fun.id);
+      () => List.iter(~f=write => write(), writes);
     });
   };
 

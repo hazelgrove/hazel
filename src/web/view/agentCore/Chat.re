@@ -28,6 +28,12 @@ module Model = {
     agent_view: AgentContext.Model.t,
     agent_workbench: AgentWorkbench.Model.t, // The agent's todo lists/workbench associated with this chat
     context: option(Message.Model.t),
+    /* what [context] was made from, recorded when it is sent */
+    [@yojson.default None] [@sexp.default None]
+    context_basis: option(SentView.basis),
+    /* each request's view, oldest first */
+    [@yojson.default []] [@sexp.default []]
+    sent: list(SentView.t),
     created_at: float,
     current_view,
     [@yojson.default []]
@@ -66,7 +72,7 @@ module Utils = {
 
   let api_messages_of_messages =
       (messages: list(Message.Model.t)): list(OpenRouter.Message.Model.t) => {
-    List.filter_map(Message.Utils.api_message_of_message, messages);
+    List.filter_map(~f=Message.Utils.api_message_of_message, messages);
   };
 
   let json_of_messages =
@@ -81,7 +87,7 @@ module Utils = {
       ),
       (
         "messages",
-        `List(List.map(Message.Utils.json_of_message, messages)),
+        `List(List.map(~f=Message.Utils.json_of_message, messages)),
       ),
     ]);
   };
@@ -102,12 +108,13 @@ module Utils = {
     // Note: It should hold that the caller knows the passed message id will have a parent
     let parent =
       List.find_map(
-        (message: Message.Model.t) =>
-          if (List.mem(message_id, message.children)) {
-            Some(message);
-          } else {
-            None;
-          },
+        ~f=
+          (message: Message.Model.t) =>
+            if (List.mem(message.children, message_id, ~equal=Poly.equal)) {
+              Some(message);
+            } else {
+              None;
+            },
         linearize(chat),
       );
     parent
@@ -171,26 +178,113 @@ module Utils = {
   let update_context =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
+        ~agent_view: AgentContext.Model.t,
+        ~basis: option(SentView.basis),
         agent_editor_view: string,
-        static_errors_info: string,
-        test_results_info: string,
         chat: Model.t,
       )
       : Model.t => {
-    let workbench =
+    let context =
       Message.Utils.mk_context_message(
         ~session_mode,
         agent_editor_view,
-        static_errors_info,
-        test_results_info,
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
           chat.agent_workbench,
         ),
       );
     {
       ...chat,
-      context: Some(workbench),
+      agent_view,
+      context: Some(context),
+      context_basis: basis,
     };
+  };
+
+  /* a tool result message's after_text */
+  let after_text = (chat: Model.t, id: Id.t): option(string) =>
+    switch (find_message_opt(id, chat)) {
+    | Some({role: ToolResult(r), _}) => r.after_text
+    | _ => None
+    };
+
+  /* [chat] with a record of the request about to be sent: its context as
+     the payload carries it, and the payload's other inputs */
+  let record_sent = (~request: SentView.request, chat: Model.t): Model.t =>
+    switch (chat.context, chat.context_basis) {
+    | (Some(context), Some(b)) =>
+      let linear = linearize(chat);
+      let last_tool =
+        List.fold(linear, ~init=None, ~f=(acc, m: Message.Model.t) =>
+          switch (m.role) {
+          | ToolResult({after_text: Some(_), _}) => Some(m.id)
+          | _ => acc
+          }
+        );
+      let r: SentView.t = {
+        seq:
+          switch (List.last(chat.sent)) {
+          | Some(r) => r.seq + 1
+          | None => 1
+          },
+        time: JsUtil.timestamp(),
+        after: ListUtil.last(linear).id,
+        view: context.content,
+        opened: b.b_opened,
+        root: b.b_root,
+        program: Dropped,
+        probes: b.b_probes,
+        request: Some(request),
+      };
+      {
+        ...chat,
+        sent:
+          SentView.add(
+            ~after_text=after_text(chat),
+            ~last_tool,
+            chat.sent,
+            b,
+            r,
+          ),
+      };
+    | _ => chat
+    };
+
+  /* the request a message belongs to: the one an agent message answers,
+     else the one sent after it */
+  let sent_for = (chat: Model.t, id: Id.t): option(SentView.t) => {
+    let after = x =>
+      List.find(~f=(r: SentView.t) => Id.equal(r.after, x), chat.sent);
+    switch (find_message_opt(id, chat)) {
+    | Some({role: Agent(_), _}) =>
+      switch (
+        List.find(
+          ~f=
+            (m: Message.Model.t) =>
+              List.mem(m.children, id, ~equal=Poly.equal),
+          linearize(chat),
+        )
+      ) {
+      | Some(parent) => after(parent.id)
+      | None => None
+      }
+    | Some(_) => after(id)
+    | None => None
+    };
+  };
+
+  /* a record's program text */
+  let sent_text = (chat: Model.t, r: SentView.t): option(string) => {
+    let rec earlier = (acc, rs: list(SentView.t)) =>
+      switch (rs) {
+      | [x, ..._] when x.seq == r.seq => acc
+      | [x, ...rest] => earlier([x, ...acc], rest)
+      | [] => acc
+      };
+    SentView.text(
+      ~after_text=after_text(chat),
+      ~earlier=earlier([], chat.sent),
+      r,
+    );
   };
 
   let append_to_message_content =
@@ -277,13 +371,14 @@ module Utils = {
       msgs;
     } else {
       List.mapi(
-        (i, m: OpenRouter.Message.Model.t) =>
-          i == anchor_idx
-            ? {
-              ...m,
-              cache_anchor: true,
-            }
-            : m,
+        ~f=
+          (i, m: OpenRouter.Message.Model.t) =>
+            i == anchor_idx
+              ? {
+                ...m,
+                cache_anchor: true,
+              }
+              : m,
         msgs,
       );
     };
@@ -299,29 +394,35 @@ module Utils = {
     let messages = get(chat);
     let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
       List.fold_left(
-        (
-          (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
-          msg: Message.Model.t,
-        ) => {
-          let last_agent_idx' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(_)) => Some(i)
-            | _ => last_agent_idx
-            };
-          let last_agent_tokens' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
-            | _ => last_agent_tokens
-            };
-          let last_compaction_idx' =
-            switch (msg.role) {
-            | Message.Model.System(Message.Model.CompactionSummary(_)) =>
-              Some(i)
-            | _ => last_compaction_idx
-            };
-          (i + 1, last_agent_idx', last_agent_tokens', last_compaction_idx');
-        },
-        (0, None, None, None),
+        ~f=
+          (
+            (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
+            msg: Message.Model.t,
+          ) => {
+            let last_agent_idx' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(_)) => Some(i)
+              | _ => last_agent_idx
+              };
+            let last_agent_tokens' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
+              | _ => last_agent_tokens
+              };
+            let last_compaction_idx' =
+              switch (msg.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                Some(i)
+              | _ => last_compaction_idx
+              };
+            (
+              i + 1,
+              last_agent_idx',
+              last_agent_tokens',
+              last_compaction_idx',
+            );
+          },
+        ~init=(0, None, None, None),
         messages,
       );
     switch (last_compaction_idx, last_agent_idx, last_agent_tokens) {
@@ -342,6 +443,8 @@ module Utils = {
       agent_view: AgentContext.Utils.init(),
       agent_workbench: AgentWorkbench.Utils.MainUtils.init(),
       context: None,
+      context_basis: None,
+      sent: [],
       created_at: JsUtil.timestamp(),
       current_view: Messages,
       pending_send_queue: [],
@@ -359,9 +462,14 @@ module Update = {
       | AppendMessage(Message.Model.t)
       | SwitchBranch(Id.t, Id.t)
       | BranchOff(Id.t)
-      | AgentContextAction(AgentContext.Update.action)
+      | AgentContextAction(AgentContext.Update.resolved)
       | WorkbenchAction(AgentWorkbench.Update.Action.action)
-      | UpdateContext(AgentGlobals.Model.session_mode, string, string, string)
+      | UpdateContext(
+          AgentGlobals.Model.session_mode,
+          AgentContext.Model.t,
+          option(SentView.basis),
+          string,
+        )
       | AppendToMessageContent(Id.t, string)
       | OverwriteMessage(Id.t, Message.Model.t)
       | SwitchView(Model.current_view)
@@ -402,18 +510,13 @@ module Update = {
         })
       | Failure(error) => Error(Failure.Info(error))
       };
-    | UpdateContext(
-        session_mode,
-        agent_editor_view,
-        static_errors_info,
-        test_results_info,
-      ) =>
+    | UpdateContext(session_mode, agent_view, basis, agent_editor_view) =>
       Ok(
         Utils.update_context(
           ~session_mode,
+          ~agent_view,
+          ~basis,
           agent_editor_view,
-          static_errors_info,
-          test_results_info,
           model,
         ),
       )

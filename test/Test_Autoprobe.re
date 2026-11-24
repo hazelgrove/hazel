@@ -5,14 +5,15 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 open Action;
+open Poly;
 
 let caret_char = "¦";
 
 let string_to_ltr_actions = (s: string): list(Action.t) =>
-  s |> Token.to_list |> List.map(c => Action.Insert(c));
+  s |> Token.to_list |> List.map(~f=c => Action.Insert(c));
 
 let mv_l = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Left, ByChar)));
+  List.init(n, ~f=_ => Action.Move(Local(Left, ByChar)));
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   let perform = (a: Action.t, z: Zipper.t) =>
@@ -28,13 +29,14 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
       },
     );
   List.fold_left(
-    (z: Zipper.t, a: Action.t) =>
-      switch (perform(a, z)) {
-      | Ok(z) => z
-      | Error(err) =>
-        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
-      },
-    zip,
+    ~f=
+      (z: Zipper.t, a: Action.t) =>
+        switch (perform(a, z)) {
+        | Ok(z) => z
+        | Error(err) =>
+          Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
+        },
+    ~init=zip,
     actions,
   );
 };
@@ -46,7 +48,7 @@ let mk = (init: string): list(Action.t) => {
     switch (rest) {
     | [] => Alcotest.fail("No caret in: " ++ init)
     | [hd, ...tl] =>
-      hd == caret_char
+      String.equal(hd, caret_char)
         ? (List.rev(before), tl) : split([hd, ...before], tl)
     };
   let (before, after) = split([], Token.to_list(init));
@@ -94,15 +96,24 @@ let param_anchor_str = (z: Zipper.t): string => {
   switch (AutoProbePerform.current_toplevel_def(info_map, z)) {
   | None => "<no def>"
   | Some(def_id) =>
-    switch (ProbePerform.function_sugar_param_anchor(info_map, def_id)) {
-    | None => "<none>"
-    | Some(id) =>
+    switch (ProbePerform.function_sugar_param_anchors(info_map, def_id)) {
+    | [] => "<none>"
+    | ids =>
       let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
-      switch (TermData.segment(id, syntax.term_data)) {
-      | Some(seg) =>
-        Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=false, seg)
-      | None => "<id not in term_data>"
-      };
+      ids
+      |> List.map(~f=id =>
+           switch (TermData.segment(id, syntax.term_data)) {
+           | Some(seg) =>
+             Printer.of_segment(
+               ~holes=" ",
+               ~indent="",
+               ~is_single_line=false,
+               seg,
+             )
+           | None => "<id not in term_data>"
+           }
+         )
+      |> String.concat(~sep=" | ");
     }
   };
 };
@@ -239,7 +250,7 @@ let tyalias_tests = [
 ];
 
 /* fn-def sugar anchors the param pattern separately
- * (function_sugar_param_anchor) so params probe on the header line. */
+ * (function_sugar_param_anchors) so params probe on the header line. */
 let param_anchor_tests = [
   param(
     ~name="sugar one-line: param anchor is the param tuple",
@@ -250,6 +261,11 @@ let param_anchor_tests = [
     ~name="sugar no return type: param anchor is the param",
     ~input="let f(x: Int) = ¦x + 1 in f(1)",
     ~param="x: Int",
+  ),
+  param(
+    ~name="curried sugar: one param anchor per argument group",
+    ~input="let f(x: Int)(y: Int): Int = ¦x + y in f(1)(2)",
+    ~param="x: Int | y: Int",
   ),
   param(
     ~name="sugar: cursor in let body still resolves param anchor",
@@ -315,9 +331,9 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
     | None => ("<no body>", "<no body>")
     | Some(body_id) =>
       let param =
-        switch (ProbePerform.function_sugar_param_anchor(info_map, body_id)) {
-        | Some(p) => render(p)
-        | None => "<none>"
+        switch (ProbePerform.function_sugar_param_anchors(info_map, body_id)) {
+        | [] => "<none>"
+        | ps => ps |> List.map(~f=render) |> String.concat(~sep=" | ")
         };
       (render(body_id), param);
     }
@@ -349,6 +365,13 @@ let step_into_tests = [
     ~program="let f(x: Int) = x + 1 in f(2)",
     ~body="x + 1",
     ~param="x: Int",
+  ),
+  step_into(
+    ~name="curried sugar: resolves body + every param group",
+    ~fn="f",
+    ~program="let f(x: Int)(y: Int): Int = x + y in f(1)(2)",
+    ~body="x + y",
+    ~param="x: Int | y: Int",
   ),
   step_into(
     ~name="sugar: call nested under another let still resolves",
@@ -384,7 +407,7 @@ let all_probed_strs = (program: string): list(string) => {
   | None => []
   | Some(root_id) =>
     ProbeTargets.ids_from_term(~syntax, ~info_map, root_id)
-    |> List.filter_map(id =>
+    |> List.filter_map(~f=id =>
          switch (TermData.segment(id, syntax.term_data)) {
          | Some(seg) =>
            Some(
