@@ -202,13 +202,16 @@ let registry_tests = [
         bool,
         "the table",
         true,
-        ProbeProj.in_drawer(~id=live_renderer.id, rows),
+        ProbeProj.in_drawer(live_renderer, rows),
       );
       check(
         bool,
         "another view of that height",
         false,
-        ProbeProj.in_drawer(~id="cards", rows),
+        ProbeProj.in_drawer(
+          Option.value_exn(RichProbeRegistry.find("card")),
+          rows,
+        ),
       );
     },
   ),

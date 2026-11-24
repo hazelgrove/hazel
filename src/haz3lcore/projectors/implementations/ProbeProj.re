@@ -48,15 +48,15 @@ let probe_model_of_sexp = sexp =>
   };
 
 /* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
-   renderer <rid> (in its empty state) round-trips through text. The
-   table only draws in the drawer, so its trigger opens the drawer too. */
+   renderer <rid> (in its empty state) round-trips through text. A
+   drawer-only renderer's trigger opens the drawer too. */
 let model_string_for_renderer = (rid: string): option(string) =>
   RichProbeRegistry.find(rid)
   |> Option.map(~f=(r: packed_renderer) =>
        sexp_of_probe_model({
          ...init_probe_model,
          active_renderer: Some(r.empty_model),
-         drawer_mode: r.id == "table",
+         drawer_mode: r.drawer_only,
        })
        |> Sexplib.Sexp.to_string
      );
@@ -369,11 +369,10 @@ let pretty_seg_of_value =
    auto-opens it) */
 let inline_rows_cap = 4;
 
-/* Whether rich content `rows` tall, from renderer `id`, lives in the
-   drawer rather than in a sample chip. The table does at any height: its
-   column menus and + act on the value, and content in a chip is inert. */
-let in_drawer = (~id: string, rows: int): bool =>
-  rows > inline_rows_cap || id == "table";
+/* Whether rich content `rows` tall, from renderer `r`, lives in the
+   drawer rather than in a sample chip */
+let in_drawer = (r: packed_renderer, rows: int): bool =>
+  rows > inline_rows_cap || r.drawer_only;
 
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
@@ -844,7 +843,7 @@ let value_view =
                 r.can_handle(ctx.sort, sample.value)
                 && (
                   switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => !in_drawer(~id=r.id, n)
+                  | Some(n) => !in_drawer(r, n)
                   | None => true
                   }
                 ) =>
@@ -2300,14 +2299,18 @@ let rich_drawer_view =
     @ [content],
   );
 
-/* Rows the active rich renderer wants in the drawer, when it applies to
- * the indicated value (in Many mode, the tallest of the samples' views). */
-let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
+/* The rich renderer in use (picked, or the automatic pick) and the rows
+ * it wants in the drawer, when it applies to the indicated value (in Many
+ * mode, the tallest of the samples' views). */
+let rich_renderer_rows =
+    (model: probe_model, info: info): option((packed_renderer, int)) => {
   let sort =
     switch (info.statics) {
     | Some(statics) => Language.Statics.Info.sort_of(statics)
     | None => Sort.Exp
     };
+  let rows_of = (r: packed_renderer, rows: option(int)) =>
+    rows |> Option.map(~f=n => (r, n));
   switch (model.active_renderer) {
   | Some(pm) =>
     switch (
@@ -2318,9 +2321,9 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
     | (Some(r), Some(values), _) =>
       switch (List.filter_map(~f=r.drawer_rows(sort), values)) {
       | [] => None
-      | rows => Some(List.fold(~f=max, ~init=0, rows))
+      | rows => Some((r, List.fold(~f=max, ~init=0, rows)))
       }
-    | (Some(r), None, Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), None, Some(exp)) => rows_of(r, r.drawer_rows(sort, exp))
     | _ => None
     }
   | None when model.auto_rich =>
@@ -2329,22 +2332,23 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       List.find(renderers, ~f=(r: packed_renderer) =>
         r.auto_applies(sort, exp)
       )
-      |> Option.map(~f=(r: packed_renderer) => r.drawer_rows(sort, exp))
-      |> Option.join
+      |> Option.bind(~f=(r: packed_renderer) =>
+           rows_of(r, r.drawer_rows(sort, exp))
+         )
     | None => None
     }
   | None => None
   };
 };
 
-/* Whether the probe's rich view lives in the drawer (see in_drawer; an
-   automatic pick is never the table, which does not auto-apply) */
+let rich_drawer_rows = (model: probe_model, info: info): option(int) =>
+  rich_renderer_rows(model, info) |> Option.map(~f=snd);
+
+/* Whether the probe's rich view lives in the drawer (see in_drawer) */
 let rich_in_drawer = (model: probe_model, info: info): bool =>
-  switch (model.active_renderer, rich_drawer_rows(model, info)) {
-  | (Some(pm), Some(n)) =>
-    in_drawer(~id=RichProbe.renderer_id_of_model(pm), n)
-  | (None, Some(n)) => n > inline_rows_cap
-  | (_, None) => false
+  switch (rich_renderer_rows(model, info)) {
+  | Some((r, n)) => in_drawer(r, n)
+  | None => false
   };
 
 /* Leaving the drawer hides a rich view that only fits there, so drop the

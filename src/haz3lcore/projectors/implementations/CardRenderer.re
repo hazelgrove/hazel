@@ -51,6 +51,8 @@ let auto_applies = (v: value): bool =>
    of cards regardless of count. */
 let drawer_rows = (_: value): int => 4;
 
+let drawer_only = false;
+
 let update: (m, a) => m =
   (_, action) =>
     switch (action) {

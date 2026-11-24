@@ -51,6 +51,9 @@ let auto_applies = (_: value): bool => false;
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = ((_, rows): v): int => List.length(rows) + 1;
 
+/* Column menus and + act on the value */
+let drawer_only = true;
+
 /* Local builders that wrap Menu.item constructors with the column menu's
  * conventions: hover updates selection, tooltips on every leaf row. */
 let leaf = (~tooltip, label, action) =>
