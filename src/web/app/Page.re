@@ -126,23 +126,27 @@ module Update = {
         let cells = Divided.cells(d);
         let stack: list((option(string), list(CodeEditable.Model.t))) =
           List.map(
-            (e: ScratchCell.t) =>
-              (
-                Some(
-                  Option.value(ScratchCell.header_name(e), ~default="cell"),
-                ),
-                /* header too: binder and signature errors live there.
-                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+            ~f=
+              (e: ScratchCell.t) =>
                 (
-                  switch (e.e_kind) {
-                  | Def(_)
-                  | Members => [e.e_header.editor]
-                  | Headless(_)
-                  | Run(_) => []
-                  }
-                )
-                @ [e.e_body.editor],
-              ),
+                  Some(
+                    Option.value(
+                      ScratchCell.header_name(e),
+                      ~default="cell",
+                    ),
+                  ),
+                  /* header too: binder and signature errors live there.
+                     a ⇒ or `;` cell shows none, and its empty one is a hole */
+                  (
+                    switch (e.e_kind) {
+                    | Def(_)
+                    | Members => [e.e_header.editor]
+                    | Headless(_)
+                    | Run(_) => []
+                    }
+                  )
+                  @ [e.e_body.editor],
+                ),
             cells,
           );
         /* cells first: the panel dedups by id, so a problem shows in its
@@ -199,7 +203,7 @@ module Update = {
      run in the pane holding the target (the caret's move, or the step
      into), which takes the focus */
   let jump_across = (~schedule_action, (ensure, selection, then_)) => {
-    List.iter(a => schedule_action(Editors(a)), then_);
+    List.iter(~f=a => schedule_action(Editors(a)), then_);
     Haz3lcore.FocusEffect.schedule_cell_top();
     (ensure, selection);
   };
@@ -213,7 +217,7 @@ module Update = {
       switch (ScratchMode.Model.current_program(m)) {
       | Some(Divided(_) as p) =>
         Program.tail_row(p)
-        |> Option.map(id =>
+        |> Option.map(~f=id =>
              Editors.Update.Scratch(Workspace(FocusEnsure(id)))
            )
       | _ => None
@@ -253,7 +257,7 @@ module Update = {
       switch (action) {
       | TailProbe when settings.tail_probe =>
         Option.iter(
-          a => schedule_action(Editors(a)),
+          ~f=a => schedule_action(Editors(a)),
           open_tail_cell(model.editors),
         )
       | _ => ()
@@ -853,7 +857,6 @@ module View = {
       Bonsai.Effect.Expert.handle(inject(Globals(SetMetaDown(down))))
     );
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -1098,7 +1101,7 @@ module View = {
       | Scratch(m)
       | Documentation(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
-        |> Option.map(p => {
+        |> Option.map(~f=p => {
              let tail = globals.settings.tail_probe;
              EvalResult.View.dynamics(
                ~tail,

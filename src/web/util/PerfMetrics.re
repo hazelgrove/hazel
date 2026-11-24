@@ -74,7 +74,7 @@ let bench_frames = (): option(Js_of_ocaml.Js.Unsafe.any) => {
 };
 
 let sync = (~enabled as e: bool): unit =>
-  sync(~enabled=e || bench_frames() != None);
+  sync(~enabled=e || Option.is_some(bench_frames()));
 
 /* The frame under construction: stage timings accumulate here and the counts
  * are refreshed as each editor recalculates, until `time_frame` commits it. */
@@ -204,31 +204,33 @@ let time_frame: 'a. (unit => 'a) => 'a =
         total: Some(total),
       });
       Option.iter(
-        frames => {
-          let ms = span =>
-            Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
-          let opt = o =>
-            Option.fold(
-              ~none=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
-              ~some=s => Js_of_ocaml.Js.Unsafe.inject(ms(s)),
-              o,
+        ~f=
+          frames => {
+            let ms = span =>
+              Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
+            let opt = o =>
+              Option.value_map(
+                o,
+                ~default=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
+                ~f=s =>
+                Js_of_ocaml.Js.Unsafe.inject(ms(s))
+              );
+            ignore(
+              Js_of_ocaml.Js.Unsafe.meth_call(
+                frames,
+                "push",
+                [|
+                  Js_of_ocaml.Js.Unsafe.inject(
+                    Js_of_ocaml.Js.Unsafe.obj([|
+                      ("perform", opt(Option.map(~f=snd, frame.perform))),
+                      ("statics", opt(frame.statics)),
+                      ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
+                    |]),
+                  ),
+                |],
+              ),
             );
-          ignore(
-            Js_of_ocaml.Js.Unsafe.meth_call(
-              frames,
-              "push",
-              [|
-                Js_of_ocaml.Js.Unsafe.inject(
-                  Js_of_ocaml.Js.Unsafe.obj([|
-                    ("perform", opt(Option.map(snd, frame.perform))),
-                    ("statics", opt(frame.statics)),
-                    ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
-                  |]),
-                ),
-              |],
-            ),
-          );
-        },
+          },
         bench_frames(),
       );
       current :=
@@ -282,11 +284,11 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
         /* chunked Measured: tiles live per chunk (a split tile in two),
            rows are the cached total */
         tiles:
-          Array.fold_left(
-            (n, ch: Haz3lcore.Measured.chunk) =>
-              n + Haz3lcore.Id.Map.cardinal(ch.c_flat.tiles),
-            0,
+          Array.fold(
             syntax.measured.chunks,
+            ~init=0,
+            ~f=(n, ch: Haz3lcore.Measured.chunk) =>
+            n + Haz3lcore.Id.Map.cardinal(ch.c_flat.tiles)
           )
           - Haz3lcore.Id.Map.cardinal(syntax.measured.split),
         rows: Haz3lcore.Measured.num_rows(syntax.measured),

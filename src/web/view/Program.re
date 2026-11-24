@@ -70,7 +70,7 @@ let whole_memo = (p: t): CellEditor.Model.t =>
   | Divided(d) =>
     let e =
       Slot.get(~same=Divided.same_content, joined, d, () =>
-        Divided.join(~prev=?Option.map(snd, joined^), d)
+        Divided.join(~prev=?Option.map(~f=snd, joined^), d)
       );
     {
       editor: {
@@ -89,21 +89,24 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
   | Whole(_) => []
   | Divided(d) =>
     List.concat_map(
-      (e: ScratchCell.t) =>
-        switch (e.e_kind) {
-        | Run(ids) => List.map(id => (id, None), ids)
-        | Def(_)
-        | Members => [(e.e_id, ScratchCell.header_name(e))]
-        | Headless(_) => [
-            (e.e_id, None),
-            ...List.filter_map(
-                 fun
-                 | Piece.Tile(t) when t.id != e.e_id => Some((t.id, None))
-                 | _ => None,
-                 ScratchFocus.zip_of_cell(e.e_body),
-               ),
-          ]
-        },
+      ~f=
+        (e: ScratchCell.t) =>
+          switch (e.e_kind) {
+          | Run(ids) => List.map(~f=id => (id, None), ids)
+          | Def(_)
+          | Members => [(e.e_id, ScratchCell.header_name(e))]
+          | Headless(_) => [
+              (e.e_id, None),
+              ...List.filter_map(
+                   ~f=
+                     fun
+                     | Piece.Tile(t) when !Id.equal(t.id, e.e_id) =>
+                       Some((t.id, None))
+                     | _ => None,
+                   ScratchFocus.zip_of_cell(e.e_body),
+                 ),
+            ]
+          },
       Divided.cells(d),
     )
   };
@@ -153,20 +156,18 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
   | Whole(e) =>
     CachedStatics.probe_ids_of_zipper(e.editor.editor.state.zipper)
   | Divided(d) =>
-    List.fold_left(
-      (acc, e: ScratchCell.t) =>
-        List.fold_left(
-          (acc, c: CellEditor.Model.t) =>
-            Id.Map.union(
-              (_, (), ()) => Some(),
-              acc,
-              CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
-            ),
-          acc,
-          [e.e_header, e.e_body],
-        ),
-      Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d))),
+    List.fold(
       Divided.cells(d),
+      ~init=Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d))),
+      ~f=(acc, e: ScratchCell.t) =>
+      List.fold(
+        [e.e_header, e.e_body], ~init=acc, ~f=(acc, c: CellEditor.Model.t) =>
+        Id.Map.union(
+          (_, (), ()) => Some(),
+          acc,
+          CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
+        )
+      )
     )
   };
 
@@ -177,10 +178,10 @@ let tail_target = (p: t): option(Id.t) =>
   | Whole(e) => e.editor.editor.state.zipper.refractors.tail_target
   | Divided(d) =>
     Divided.cells(d)
-    |> List.find_opt((e: ScratchCell.t) =>
-         e.e_kind == Headless({js|⇒|js})
+    |> List.find(~f=(e: ScratchCell.t) =>
+         Poly.equal(e.e_kind, Headless({js|⇒|js}))
        )
-    |> Option.map((e: ScratchCell.t) =>
+    |> Option.map(~f=(e: ScratchCell.t) =>
          e.e_body.editor.editor.state.zipper.refractors.tail_target
        )
     |> Option.join
@@ -189,6 +190,6 @@ let tail_target = (p: t): option(Id.t) =>
 /* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
 let tail_row = (p: t): option(Id.t) =>
   OutlineTree.rows(outline(p))
-  |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)
-  |> Option.map((n: OutlineTree.node) => n.o_id)
+  |> List.find(~f=(n: OutlineTree.node) => Poly.equal(n.o_kind, KTrail))
+  |> Option.map(~f=(n: OutlineTree.node) => n.o_id)
   |> Option.join;

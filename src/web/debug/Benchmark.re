@@ -43,7 +43,7 @@ let non_empty_hole : Int = true in
 let str_to_inserts = (str: string): list(Editors.Update.t) =>
   List.init(
     String.length(str),
-    i => {
+    ~f=i => {
       let c = String.sub(str, ~pos=i, ~len=1);
       Editors.Update.Scratch(
         Workspace(CellAction(MainEditor(Perform(Insert(c))))),

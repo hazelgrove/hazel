@@ -294,46 +294,46 @@ let view =
               ~attrs=[clss(["history-chat-list"])],
               List.map(
                 ~f=
-                (chat: Chat.Model.t) => {
-                  let is_active = chat.id == chat_system.current;
-                  let classes =
-                    ["history-chat-item"] @ (is_active ? ["active"] : []);
-                  let switch_to_this_chat = _ => {
-                    Effect.Many([
-                      agent_inject(
-                        Agent.Update.Action.ChatSystemAction(
-                          ChatSystem.Update.Action.SwitchChat(chat.id),
-                        ),
-                      ),
-                      // Also switch back to Chat screen to view the selected chat
-                      agent_inject(
-                        Agent.Update.Action.ChatSystemAction(
-                          ChatSystem.Update.Action.SwitchScreen(
-                            ChatSystem.Model.Chat,
+                  (chat: Chat.Model.t) => {
+                    let is_active = Id.equal(chat.id, chat_system.current);
+                    let classes =
+                      ["history-chat-item"] @ (is_active ? ["active"] : []);
+                    let switch_to_this_chat = _ => {
+                      Effect.Many([
+                        agent_inject(
+                          Agent.Update.Action.ChatSystemAction(
+                            ChatSystem.Update.Action.SwitchChat(chat.id),
                           ),
                         ),
-                      ),
-                      Effect.Stop_propagation,
-                    ]);
-                  };
-                  let time_ago = TimeUtil.format_time_diff(chat.created_at);
-                  div(
-                    ~attrs=[
-                      clss(classes),
-                      Attr.on_click(switch_to_this_chat),
-                    ],
-                    [
-                      div(
-                        ~attrs=[clss(["history-chat-item-title"])],
-                        [text(chat.title)],
-                      ),
-                      div(
-                        ~attrs=[clss(["history-chat-item-time"])],
-                        [text(time_ago)],
-                      ),
-                    ],
-                  );
-                },
+                        // Also switch back to Chat screen to view the selected chat
+                        agent_inject(
+                          Agent.Update.Action.ChatSystemAction(
+                            ChatSystem.Update.Action.SwitchScreen(
+                              ChatSystem.Model.Chat,
+                            ),
+                          ),
+                        ),
+                        Effect.Stop_propagation,
+                      ]);
+                    };
+                    let time_ago = TimeUtil.format_time_diff(chat.created_at);
+                    div(
+                      ~attrs=[
+                        clss(classes),
+                        Attr.on_click(switch_to_this_chat),
+                      ],
+                      [
+                        div(
+                          ~attrs=[clss(["history-chat-item-title"])],
+                          [text(chat.title)],
+                        ),
+                        div(
+                          ~attrs=[clss(["history-chat-item-time"])],
+                          [text(time_ago)],
+                        ),
+                      ],
+                    );
+                  },
                 chats_list,
               ),
             ),

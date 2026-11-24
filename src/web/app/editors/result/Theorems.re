@@ -60,12 +60,17 @@ module Model = {
     let ids = Calc.get_saved([], model.thms);
     let proven =
       List.filter(
-        id =>
-          switch (Id.Map.find_opt(id, model.thm_map)) {
-          | Some(th: theorem) =>
-            StepperView.Model.get_validity(th.stepper_view) == Some(true)
-          | None => false
-          },
+        ~f=
+          id =>
+            switch (Id.Map.find_opt(id, model.thm_map)) {
+            | Some(th: theorem) =>
+              Option.equal(
+                Bool.equal,
+                StepperView.Model.get_validity(th.stepper_view),
+                Some(true),
+              )
+            | None => false
+            },
         ids,
       );
     (List.length(proven), List.length(ids));
@@ -105,17 +110,17 @@ module Model = {
     let correct =
       List.fold_left(
         ~f=
-        (acc, id) =>
-          acc
-          +. (
-            switch (Id.Map.find_opt(id, model.thm_map)) {
-            | Some(thm) =>
+          (acc, id) =>
+            acc
+            +. (
+              switch (Id.Map.find_opt(id, model.thm_map)) {
+              | Some(thm) =>
                 StepperView.Model.get_validity(thm.stepper_view)
                 == Some(true)
-                ? 1.0 : 0.0
-            | None => 0.0
-            }
-          ),
+                  ? 1.0 : 0.0
+              | None => 0.0
+              }
+            ),
         ~init=0.0,
         thms,
       );
@@ -200,10 +205,10 @@ module Update = {
         let theorems =
           List.map(
             ~f=
-            ((a, b, c, d)) => {
-              let d' = ProofRule.exp_to_rule(d);
-              (a, b, c, d');
-            },
+              ((a, b, c, d)) => {
+                let d' = ProofRule.exp_to_rule(d);
+                (a, b, c, d');
+              },
             theorems,
           );
         List.rev_map(~f=((id, _, _, _)) => id, theorems);
@@ -228,71 +233,71 @@ module Update = {
          })
       |> List.fold_left(
            ~f=
-           (acc, (id, name, env', rule: ProofRule.t)) =>
-             Id.Map.update(
-               id,
-               (opt: option(Model.theorem)) => {
-                 let Model.{
-                   name: _,
-                   ctx,
-                   env,
-                   sem_ctx,
-                   goal_exp,
-                   stepper_view,
-                 } =
-                   Option.value(~default=Model.theorem_init("?"), opt);
-
-                 let goal_exp =
-                   Calc.set(
-                     ~eq=Exp.fast_equal_with_lexemes,
-                     rule |> ProofRule.conclusion_exp,
-                     goal_exp,
-                   );
-
-                 let ctx =
-                   ctx
-                   |> {
-                     let.calc statics = statics;
-                     statics.info_map
-                     |> Statics.Map.ctx_of(id)
-                     |> Option.value(~default=Ctx.empty)
-                     |> List.fold_left(
-                            ~f=Ctx.extend,
-                            ~init=_,
-                          rule.bindings |> List.rev,
-                        );
-                   };
-
-                 let env = Calc.set(~eq=Environment.id_equal, env', env);
-
-                 let sem_ctx =
-                   sem_ctx
-                   |> {
-                     let.calc ctx = ctx
-                     and.calc env = env;
-                     SemanticCtx.of_ctx_and_env(ctx, env);
-                   };
-
-                 let stepper_view =
-                   StepperView.Update.calculate(
-                     ~settings,
-                     ~ctx=sem_ctx,
-                     ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
+             (acc, (id, name, env', rule: ProofRule.t)) =>
+               Id.Map.update(
+                 id,
+                 (opt: option(Model.theorem)) => {
+                   let Model.{
+                     name: _,
+                     ctx,
+                     env,
+                     sem_ctx,
                      goal_exp,
                      stepper_view,
-                   );
+                   } =
+                     Option.value(~default=Model.theorem_init("?"), opt);
 
-                 Some({
-                   name,
-                   ctx: ctx |> Calc.save,
-                   env: env |> Calc.save,
-                   sem_ctx: sem_ctx |> Calc.save,
-                   goal_exp: goal_exp |> Calc.save,
-                   stepper_view,
-                 });
-               },
-               acc,
-             ),
+                   let goal_exp =
+                     Calc.set(
+                       ~eq=Exp.fast_equal_with_lexemes,
+                       rule |> ProofRule.conclusion_exp,
+                       goal_exp,
+                     );
+
+                   let ctx =
+                     ctx
+                     |> {
+                       let.calc statics = statics;
+                       statics.info_map
+                       |> Statics.Map.ctx_of(id)
+                       |> Option.value(~default=Ctx.empty)
+                       |> List.fold_left(
+                            ~f=Ctx.extend,
+                            ~init=_,
+                            rule.bindings |> List.rev,
+                          );
+                     };
+
+                   let env = Calc.set(~eq=Environment.id_equal, env', env);
+
+                   let sem_ctx =
+                     sem_ctx
+                     |> {
+                       let.calc ctx = ctx
+                       and.calc env = env;
+                       SemanticCtx.of_ctx_and_env(ctx, env);
+                     };
+
+                   let stepper_view =
+                     StepperView.Update.calculate(
+                       ~settings,
+                       ~ctx=sem_ctx,
+                       ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
+                       goal_exp,
+                       stepper_view,
+                     );
+
+                   Some({
+                     name,
+                     ctx: ctx |> Calc.save,
+                     env: env |> Calc.save,
+                     sem_ctx: sem_ctx |> Calc.save,
+                     goal_exp: goal_exp |> Calc.save,
+                     stepper_view,
+                   });
+                 },
+                 acc,
+               ),
            ~init=thm_map,
          );
 
@@ -333,7 +338,7 @@ module Focus = {
 /* a proof drawer: its header row, then the proof's trace */
 let rows = (~settings: CoreSettings.t, model: Model.t, id: Id.t): option(int) =>
   Id.Map.find_opt(id, model.thm_map)
-  |> Option.map((thm: Model.theorem) =>
+  |> Option.map(~f=(thm: Model.theorem) =>
        1
        + ProbeSteps.stepper_rows(
            ~settings=proof_core(settings),
@@ -395,12 +400,16 @@ module View = {
     let globals = proof_globals(globals);
     let thms = model.thms |> Calc.get_saved([]);
     switch (
-      List.find_index(x => x == id, thms),
+      List.findi(thms, ~f=(_, x) => Id.equal(x, id)) |> Option.map(~f=fst),
       Id.Map.find_opt(id, model.thm_map),
     ) {
     | (Some(idx), Some(thm)) =>
       let proven =
-        StepperView.Model.get_validity(thm.stepper_view) == Some(true);
+        Option.equal(
+          Bool.equal,
+          StepperView.Model.get_validity(thm.stepper_view),
+          Some(true),
+        );
       Some(
         div_c(
           "theorem",
@@ -422,7 +431,7 @@ module View = {
               ],
               ~undo=
                 Option.map(
-                  a => inject(Update.TheoremUpdate(idx, a)),
+                  ~f=a => inject(Update.TheoremUpdate(idx, a)),
                   StepperView.Update.undo(thm.stepper_view),
                 ),
               [],
@@ -456,47 +465,47 @@ module View = {
     | xs =>
       List.mapi(
         ~f=
-        (idx, id) => {
+          (idx, id) => {
             let Model.{stepper_view, name, _} =
               Id.Map.find(id, model.thm_map);
-          let status =
-            switch (StepperView.Model.get_validity(stepper_view)) {
-            | Some(true) =>
-              Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "true"])],
-                [Node.text("proven true")],
-              )
-            | Some(false)
-            | None =>
-              Node.div(
-                ~attrs=[Attr.classes(["theorem-status", "unknown"])],
-                [Node.text("incomplete")],
-              )
-            };
-          let header =
-            WebUtil.div_c(
-              "theorem-header",
+            let status =
+              switch (StepperView.Model.get_validity(stepper_view)) {
+              | Some(true) =>
+                Node.div(
+                  ~attrs=[Attr.classes(["theorem-status", "true"])],
+                  [Node.text("proven true")],
+                )
+              | Some(false)
+              | None =>
+                Node.div(
+                  ~attrs=[Attr.classes(["theorem-status", "unknown"])],
+                  [Node.text("incomplete")],
+                )
+              };
+            let header =
+              WebUtil.div_c(
+                "theorem-header",
+                [
+                  Node.strong([Node.text("Proof of theorem ")]),
+                  Node.text(name),
+                  status,
+                ],
+              );
+            div_c(
+              "theorem",
               [
-                Node.strong([Node.text("Proof of theorem ")]),
-                Node.text(name),
-                status,
+                header,
+                ...stepper(
+                     ~globals,
+                     ~take_focus,
+                     ~inject,
+                     ~selected,
+                     idx,
+                     stepper_view,
+                   ),
               ],
             );
-          div_c(
-            "theorem",
-            [
-              header,
-              ...stepper(
-                   ~globals,
-                   ~take_focus,
-                   ~inject,
-                   ~selected,
-                   idx,
-                   stepper_view,
-                 ),
-            ],
-          );
-        },
+          },
         xs,
       )
     };

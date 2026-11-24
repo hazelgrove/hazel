@@ -120,17 +120,19 @@ let with_latest = (request_id, f) =>
 
 /* the pieces the worker holds: those of the last request posted to it,
    as it keeps exactly those. a new worker holds none */
-let held: Hashtbl.t(EvalPieces.hash, unit) = Hashtbl.create(256);
+let held: Stdlib.Hashtbl.t(EvalPieces.hash, unit) =
+  Stdlib.Hashtbl.create(256);
 
 /* what the worker holds once it receives [request] */
 let hold = (request: Request.t): unit => {
-  Hashtbl.reset(held);
+  Stdlib.Hashtbl.reset(held);
   List.iter(
-    ((_, v: Request.value)) =>
-      List.iter(
-        ((hash, _)) => Hashtbl.replace(held, hash, ()),
-        v.program.pieces,
-      ),
+    ~f=
+      ((_, v: Request.value)) =>
+        List.iter(
+          ~f=((hash, _)) => Stdlib.Hashtbl.replace(held, hash, ()),
+          v.program.pieces,
+        ),
     request.batch,
   );
 };
@@ -138,35 +140,38 @@ let hold = (request: Request.t): unit => {
 /* [request] as posted: its programs' layouts, and the pieces the worker
    doesn't hold ([full]: all of them) */
 let posted_of = (~full: bool, request: Request.t): Posted.t => {
-  let seen = Hashtbl.create(64);
+  let seen = Stdlib.Hashtbl.create(64);
   {
     request_id: request.request_id,
     batch:
       List.map(
-        ((key, v: Request.value)) =>
-          (
-            key,
-            Posted.{
-              layout: v.program.layout,
-              prev: v.prev,
-              stream: v.stream,
-            },
-          ),
+        ~f=
+          ((key, v: Request.value)) =>
+            (
+              key,
+              Posted.{
+                layout: v.program.layout,
+                prev: v.prev,
+                stream: v.stream,
+              },
+            ),
         request.batch,
       ),
     pieces:
       List.concat_map(
-        ((_, v: Request.value)) =>
-          List.filter(
-            ((hash, _)) =>
-              (full || !Hashtbl.mem(held, hash))
-              && !Hashtbl.mem(seen, hash)
-              && {
-                Hashtbl.replace(seen, hash, ());
-                true;
-              },
-            v.program.pieces,
-          ),
+        ~f=
+          ((_, v: Request.value)) =>
+            List.filter(
+              ~f=
+                ((hash, _)) =>
+                  (full || !Stdlib.Hashtbl.mem(held, hash))
+                  && !Stdlib.Hashtbl.mem(seen, hash)
+                  && {
+                    Stdlib.Hashtbl.replace(seen, hash, ());
+                    true;
+                  },
+              v.program.pieces,
+            ),
         request.batch,
       ),
   };
@@ -278,7 +283,7 @@ let restart_worker = (): unit => {
   | Some(w) => w##terminate
   | None => ()
   };
-  Hashtbl.reset(held);
+  Stdlib.Hashtbl.reset(held);
   retired_coverage := worker_coverage();
   live_coverage := None;
   worker_ref.contents = Some(init_worker());
@@ -290,36 +295,36 @@ let restart_worker = (): unit => {
 let start_eval_timeout = latest => {
   clear_timer(eval_timeout_id);
   set_deadline(eval_timeout_id, ~delay_ms=eval_timeout_ms, () =>
-          with_latest(
-            latest.request.request_id,
-            latest => {
-              restart_worker();
-              fail_latest(latest);
-            },
-          )
-    );
+    with_latest(
+      latest.request.request_id,
+      latest => {
+        restart_worker();
+        fail_latest(latest);
+      },
+    )
+  );
 };
 
 let rec start_ack_timeout = (~cold_start, latest) => {
   clear_timer(ack_timeout_id);
   let duration = cold_start ? ack_cold_start_timeout_ms : ack_timeout_ms;
   set_deadline(ack_timeout_id, ~delay_ms=duration, () =>
-          with_latest(latest.request.request_id, latest =>
-            if (latest.ack_retries >= max_ack_retries) {
-              restart_worker();
-              fail_latest(latest);
-            } else {
-              let latest = {
-                ...latest,
-                ack_retries: latest.ack_retries + 1,
-              };
-              latest_request := Some(latest);
-              restart_worker();
-              post_evaluate(get_worker(), latest.request);
-              start_ack_timeout(~cold_start=true, latest);
-            }
-          )
-    );
+    with_latest(latest.request.request_id, latest =>
+      if (latest.ack_retries >= max_ack_retries) {
+        restart_worker();
+        fail_latest(latest);
+      } else {
+        let latest = {
+          ...latest,
+          ack_retries: latest.ack_retries + 1,
+        };
+        latest_request := Some(latest);
+        restart_worker();
+        post_evaluate(get_worker(), latest.request);
+        start_ack_timeout(~cold_start=true, latest);
+      }
+    )
+  );
 };
 
 /* asked again after posting every piece: fail it rather than loop */

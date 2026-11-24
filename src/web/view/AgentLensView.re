@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* View as agent's banner and its Sent and Trajectory panels. On screen,
    text reads tidied (JSON indented, sections folded); every copy button
@@ -41,7 +42,7 @@ let stroked_icon = (cls: string, ds: list(string)): Node.t =>
       Attr.create("aria-hidden", "true"),
     ],
     List.map(
-      d => create_svg("path", ~attrs=[Attr.create("d", d)], []),
+      ~f=d => create_svg("path", ~attrs=[Attr.create("d", d)], []),
       ds,
     ),
   );
@@ -107,19 +108,24 @@ let banner =
         @ (enabled ? [] : [Attr.disabled]),
       [text(label)],
     );
-  let trajectory = l.mode == Trajectory || l.mode == Window;
+  let trajectory =
+    Poly.equal(l.mode, Trajectory) || Poly.equal(l.mode, Window);
   let segment = (mode: AgentLens.mode, label, title) =>
     Node.button(
       ~attrs=[
         Attr.classes([
           "lens-segment",
-          ...l.mode == mode || mode == Trajectory && trajectory
+          ...l.mode == mode || Poly.equal(mode, Trajectory) && trajectory
                ? ["active"] : [],
         ]),
         Attr.title(title),
         /* Trajectory, chosen again, keeps its exact-window toggle */
         Attr.on_click(_ =>
-          go(LensMode(mode == Trajectory && trajectory ? l.mode : mode))
+          go(
+            LensMode(
+              Poly.equal(mode, Trajectory) && trajectory ? l.mode : mode,
+            ),
+          )
         ),
       ],
       [text(label)],
@@ -175,14 +181,16 @@ let banner =
           trajectory
             ? [
               button(
-                ~cls=l.mode == Window ? ["on"] : [],
+                ~cls=Poly.equal(l.mode, Window) ? ["on"] : [],
                 ~title=
                   Printf.sprintf(
                     "The model's window for request %d: exactly the messages its body carried",
                     l.seq,
                   ),
                 "Exact window",
-                go(LensMode(l.mode == Window ? Trajectory : Window)),
+                go(
+                  LensMode(Poly.equal(l.mode, Window) ? Trajectory : Window),
+                ),
               ),
             ]
             : []
@@ -275,9 +283,9 @@ let map_panel =
       AgentLensMap.notes(~value=EvalResult.Model.get_value(result), l.map),
     )
     |> Array.to_list
-    |> List.mapi((row, c) => (row, c))
-    |> List.filter(((_, c)) => c != "")
-    |> List.map(((row, c)) => {
+    |> List.mapi(~f=(row, c) => (row, c))
+    |> List.filter(~f=((_, c)) => !String.equal(c, ""))
+    |> List.map(~f=((row, c)) => {
          let col =
            switch (Haz3lcore.Measured.row_shape(row, measured)) {
            | Some(r) => r.content_end
@@ -444,9 +452,9 @@ let rec section = (s: Trajectory.section): Node.t => {
       ),
       div(
         ~attrs=[Attr.classes(["traj-body"])],
-        (s.shown == "" ? [] : [pre("traj-shown", s.shown)])
+        (String.equal(s.shown, "") ? [] : [pre("traj-shown", s.shown)])
         @ (s.sent ? [pre("traj-raw", s.raw)] : [])
-        @ List.map(section, s.children),
+        @ List.map(~f=section, s.children),
       ),
     ],
   );
@@ -460,7 +468,7 @@ let trajectory = (l: AgentLens.t): Node.t =>
         panel_head(
           [
             text(
-              l.mode == Window
+              Poly.equal(l.mode, Window)
                 ? Printf.sprintf(
                     {js|The model's window for request %d · |js},
                     t.seq,
@@ -488,7 +496,7 @@ let trajectory = (l: AgentLens.t): Node.t =>
           ~attrs=[Attr.classes(["lens-panel-note"])],
           [
             text(
-              l.mode == Window
+              Poly.equal(l.mode, Window)
                 ? Printf.sprintf(
                     "What the model had in front of it for request %d: the request body%s",
                     t.seq,
@@ -501,7 +509,7 @@ let trajectory = (l: AgentLens.t): Node.t =>
         ),
         div(
           ~attrs=[Attr.classes(["traj-sections"])],
-          List.map(section, t.sections),
+          List.map(~f=section, t.sections),
         ),
       ]
     | None => [

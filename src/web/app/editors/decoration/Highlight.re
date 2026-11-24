@@ -1,6 +1,7 @@
 open Util;
 open Util.WebUtil;
 open Haz3lcore;
+open Poly;
 
 let shard_svg =
     (
@@ -16,11 +17,11 @@ let shard_svg =
   | Secondary(_) => (
       Option.map(
         ~f=
-        (s: Nib.Shape.t) =>
-          switch (s) {
-          | Concave(_) => Nib.Shape.Convex
-          | Convex => Nib.Shape.Concave(0)
-          },
+          (s: Nib.Shape.t) =>
+            switch (s) {
+            | Concave(_) => Nib.Shape.Convex
+            | Convex => Nib.Shape.Concave(0)
+            },
         start_shape,
       ),
       None,
@@ -373,15 +374,15 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
     Some(
       List.fold_left(
         ~f=
-        (bb, row) => {
-          let (l, r) = row_bounds(row);
-          {
+          (bb, row) => {
+            let (l, r) = row_bounds(row);
+            {
               min_col: Float.min(bb.min_col, l),
               max_col: Float.max(bb.max_col, r),
-            min_row: min(bb.min_row, row.row_num),
-            max_row: max(bb.max_row, row.row_num),
-          };
-        },
+              min_row: min(bb.min_row, row.row_num),
+              max_row: max(bb.max_row, row.row_num),
+            };
+          },
         ~init={
           min_col: l0,
           max_col: r0,
@@ -722,7 +723,7 @@ module RangeCache = {
   let slot:
     Slot.t(
       Measured.t,
-      Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
+      Stdlib.Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
     ) =
     Slot.mk();
   let for_gen =
@@ -730,13 +731,13 @@ module RangeCache = {
       : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
     /* measured is the stricter generation proxy: term_data only
        changes in mk, where measured is rebuilt too */
-    let tbl = Slot.get(slot, measured, () => Hashtbl.create(1024));
+    let tbl = Slot.get(slot, measured, () => Stdlib.Hashtbl.create(1024));
     id =>
-      switch (Hashtbl.find_opt(tbl, id)) {
+      switch (Stdlib.Hashtbl.find_opt(tbl, id)) {
       | Some(r) => r
       | None =>
         let r = TermData.extreme_measures(id, term_data, measured);
-        Hashtbl.replace(tbl, id, r);
+        Stdlib.Hashtbl.replace(tbl, id, r);
         r;
       };
   };
@@ -759,9 +760,9 @@ module IncrEvalCache = {
     switch (Expiring.find_opt(cache, id)) {
     | Some(e)
         when
-          e.e_meas === Obj.repr(measured)
+          phys_equal(e.e_meas, Obj.repr(measured))
           && e.e_range == range
-          && e.e_fm === Obj.repr(font_metrics)
+          && phys_equal(e.e_fm, Obj.repr(font_metrics))
           && e.e_sweep == sweep =>
       e.e_nodes
     | _ =>
@@ -797,8 +798,8 @@ let contour_of_range =
     [];
   } else {
     let rows =
-      List.init(final.row - origin.row + 1, i => origin.row + i)
-      |> List.filter_map(row =>
+      List.init(final.row - origin.row + 1, ~f=i => origin.row + i)
+      |> List.filter_map(~f=row =>
            switch (Measured.row_shape(row, measured)) {
            | None => None
            | Some(shape) =>
@@ -822,7 +823,7 @@ let contour_of_range =
            }
          );
     group_consecutive(rows)
-    |> List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep));
+    |> List.filter_map(~f=svg_of_group(~font_metrics, ~clss, ~sweep));
   };
 
 let colors =
@@ -835,8 +836,8 @@ let colors =
     "color-highlights",
     List.concat_map(
       ~f=
-      ((id, c)) =>
-        color(~syntax, ~font_metrics, ["highlight-code-" ++ c], id),
+        ((id, c)) =>
+          color(~syntax, ~font_metrics, ["highlight-code-" ++ c], id),
       switch (color_highlights) {
       | Some(colorMap) => ColorSteps.to_list(colorMap)
       | _ => []
@@ -902,9 +903,10 @@ let incr_eval =
     };
   let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
     let (first, last) = visible_bounds;
-    List.filter(~f=
-      ((_, (origin: Point.t, final: Point.t))) =>
-        origin.row <= last && final.row >= first,
+    List.filter(
+      ~f=
+        ((_, (origin: Point.t, final: Point.t))) =>
+          origin.row <= last && final.row >= first,
       ranges,
     );
   };
@@ -914,17 +916,14 @@ let incr_eval =
      regions (the worklist finishes roughly in program order), clamped to
      the visible window to bound path sizes */
   let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
-    List.fold_left(
-      (acc, (id, (o: Point.t, f: Point.t))) =>
-        switch (acc) {
-        | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
-            when o.row <= rf.row + 1 =>
-          let rf' = rf.row > f.row ? rf : f;
-          [(rid, (ro, rf')), ...rest];
-        | _ => [(id, (o, f)), ...acc]
-        },
-      [],
-      ranges,
+    List.fold(ranges, ~init=[], ~f=(acc, (id, (o: Point.t, f: Point.t))) =>
+      switch (acc) {
+      | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
+          when o.row <= rf.row + 1 =>
+        let rf' = rf.row > f.row ? rf : f;
+        [(rid, (ro, rf')), ...rest];
+      | _ => [(id, (o, f)), ...acc]
+      }
     )
     |> List.rev;
   let clamp_region = ((id, (o: Point.t, f: Point.t))) => {
@@ -941,27 +940,33 @@ let incr_eval =
         ? f
         : Point.{
             row: last,
-            col: Int.max_int,
+            col: Int.max_value,
           };
     (id, (o, f));
   };
   let regions =
     visible_ranges(pending_inactive_ranges)
     |> merge_regions
-    |> List.map(clamp_region);
+    |> List.map(~f=clamp_region);
   let nodes_of = (~sweep, clss, regions) =>
     List.concat_map(
-      ((id, range)) =>
-        IncrEvalCache.get(
-          ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~sweep, ~mk=() =>
-          contour_of_range(
-            ~font_metrics,
+      ~f=
+        ((id, range)) =>
+          IncrEvalCache.get(
+            ~id,
             ~measured=syntax.measured,
+            ~range,
+            ~font_metrics,
             ~sweep,
-            clss,
-            range,
-          )
-        ),
+            ~mk=() =>
+            contour_of_range(
+              ~font_metrics,
+              ~measured=syntax.measured,
+              ~sweep,
+              clss,
+              range,
+            )
+          ),
       regions,
     );
   let inactive_nodes =
@@ -971,7 +976,7 @@ let incr_eval =
      keeps animating) */
   let active_nodes =
     visible_ranges(active_ids)
-    |> List.map(clamp_region)
+    |> List.map(~f=clamp_region)
     |> nodes_of(~sweep=true, ["incremental-pending", "incremental-active"]);
   div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };

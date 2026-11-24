@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* Renaming from the outline: the binder, every reference statics
    resolves to it, and `M.x` labels for a member of module M. Ids are
@@ -47,18 +48,18 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
 let uses_memo = Util.Slot.mk();
 /* where [name] is used, as a value or a type */
 let uses = (~info_map: Statics.Map.t, name: string): list(Info.t) =>
-  Hashtbl.find_all(
+  Stdlib.Hashtbl.find_all(
     Util.Slot.get(
       uses_memo,
       info_map,
       () => {
-        let found = Hashtbl.create(1024);
+        let found = Stdlib.Hashtbl.create(1024);
         Id.Map.iter(
           (_, info: Info.t) =>
             switch (info) {
             | InfoExp({user_term: {term: Var(x), _}, _})
             | InfoTyp({user_term: {term: Var(x), _}, _}) =>
-              Hashtbl.add(found, x, info)
+              Stdlib.Hashtbl.add(found, x, info)
             | _ => ()
             },
           info_map,
@@ -74,39 +75,52 @@ let bound = (kind, ctx: Ctx.t, name: string): option(Id.t) =>
   | KType => Ctx.lookup_tvar_id(ctx, name)
   | KValue
   | KModule =>
-    Option.map((v: Ctx.var_entry) => v.id, Ctx.lookup_var(ctx, name))
+    Option.map(~f=(v: Ctx.var_entry) => v.id, Ctx.lookup_var(ctx, name))
   };
 
 /* why renaming [it] to [name] would change what some name refers to */
 let capture =
     (~info_map: Statics.Map.t, it: item, refs: list(Id.t), name: string)
     : option(string) => {
-  let ctx_at = id => Option.map(Info.ctx_of, Id.Map.find_opt(id, info_map));
+  let ctx_at = id =>
+    Option.map(~f=Info.ctx_of, Id.Map.find_opt(id, info_map));
   /* a reference would now find another [name] first */
   let shadowed =
     List.exists(
-      id =>
-        switch (Option.bind(ctx_at(id), ctx => bound(it.kind, ctx, name))) {
-        | Some(other) => other != it.binder
-        | None => false
-        },
+      ~f=
+        id =>
+          switch (
+            Option.bind(ctx_at(id), ~f=ctx => bound(it.kind, ctx, name))
+          ) {
+          | Some(other) => other != it.binder
+          | None => false
+          },
       refs,
     );
   /* an existing [name] in the item's scope, not one of its own, would now
      find the item */
   let captured =
     List.exists(
-      (info: Info.t) =>
-        bound(it.kind, Info.ctx_of(info), it.old) == Some(it.binder)
-        && Info.get_binding_site(info) != Some(it.binder),
+      ~f=
+        (info: Info.t) =>
+          Poly.equal(
+            bound(it.kind, Info.ctx_of(info), it.old),
+            Some(it.binder),
+          )
+          && !Poly.equal(Info.get_binding_site(info), Some(it.binder)),
       uses(~info_map, name),
     );
   /* another member of the item's module so named: `M.name` would read
      one of the two */
   let clash =
-    switch (Option.bind(it.owner, Info.binder_items(~info_map))) {
+    switch (Option.bind(it.owner, ~f=Info.binder_items(~info_map))) {
     | Some(items) =>
-      Rename.member_clash(~typ=it.kind == KType, items, it.binder, name)
+      Rename.member_clash(
+        ~typ=Poly.equal(it.kind, KType),
+        items,
+        it.binder,
+        name,
+      )
     | None => false
     };
   shadowed || captured || clash

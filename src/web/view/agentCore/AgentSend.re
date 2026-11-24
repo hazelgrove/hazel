@@ -83,12 +83,13 @@ let enabled_tools =
     : list(API.Json.t) =>
   List.filter(
     ~f=
-    (tool: API.Json.t) =>
-      switch (ToolUtils.get_name(tool)) {
-      | Some(name) =>
-        !List.mem(disabled, name, ~equal=Poly.equal) && tool_allowed_in_mode(mode, name)
-      | None => true
-      },
+      (tool: API.Json.t) =>
+        switch (ToolUtils.get_name(tool)) {
+        | Some(name) =>
+          !List.mem(disabled, name, ~equal=Poly.equal)
+          && tool_allowed_in_mode(mode, name)
+        | None => true
+        },
     CompositionUtils.tools,
   );
 // Exponential backoff
@@ -194,7 +195,7 @@ let request_of =
     : SentView.request => {
   model_id: llm_id,
   reasoning:
-    Option.map(e => OpenRouter.Payload.Model.Effort(e), reasoning_effort),
+    Option.map(~f=e => OpenRouter.Payload.Model.Effort(e), reasoning_effort),
   mode: session_mode,
   disabled_tools: model.prompting.disabled_tool_names,
 };
@@ -258,8 +259,8 @@ let send_llm_request =
     thinking :=
       Thinking.observe(
         ~now=clock^(),
-        ~reasoning=reasoning_delta != "",
-        ~other=content_delta != "" || tool_call_delta,
+        ~reasoning=!String.equal(reasoning_delta, ""),
+        ~other=!String.equal(content_delta, "") || tool_call_delta,
         thinking^,
       );
     /* Suppress empty deltas (many providers emit role-only or
@@ -291,11 +292,11 @@ let send_llm_request =
         usage:
           Option.map(
             ~f=
-            (u: OpenRouter.Reply.Model.usage) =>
-              {
-                ...u,
-                model_id: Some(payload.model_id),
-              },
+              (u: OpenRouter.Reply.Model.usage) =>
+                {
+                  ...u,
+                  model_id: Some(payload.model_id),
+                },
             reply.usage,
           ),
       };
@@ -468,7 +469,7 @@ let schedule_flush_pending_if_idle_for_chat =
     ();
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
-    if (chat.pending_send_queue != []) {
+    if (!List.is_empty(chat.pending_send_queue)) {
       schedule_action(Action.FlushPendingSend(chat_id));
     };
   };

@@ -121,12 +121,12 @@ module ViewCache = {
     incr(tick);
     if (tick^ mod 8 == 0) {
       let stale =
-        Hashtbl.fold(
+        Stdlib.Hashtbl.fold(
           (id, e, acc) => tick^ - e.last_used > 24 ? [id, ...acc] : acc,
           cache,
           [],
         );
-      List.iter(Hashtbl.remove(cache), stale);
+      List.iter(~f=Stdlib.Hashtbl.remove(cache), stale);
     };
   };
 };
@@ -146,13 +146,13 @@ let filter_by_visibility =
   | Some({first, last}) =>
     List.filter(
       ~f=
-      item => {
-        let (origin_row, last_row) = get_row_range(item);
-        /* Projector is visible if it overlaps with visible range:
-         * - Starts before visible area ends: origin_row <= last
-         * - Ends after visible area starts: last_row >= first */
-        origin_row <= last && last_row >= first;
-      },
+        item => {
+          let (origin_row, last_row) = get_row_range(item);
+          /* Projector is visible if it overlaps with visible range:
+           * - Starts before visible area ends: origin_row <= last
+           * - Ends after visible area starts: last_row >= first */
+          origin_row <= last && last_row >= first;
+        },
       data,
     )
   };
@@ -239,39 +239,39 @@ module Model = {
     let {projectors, measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
     List.filter_map(
       ~f=
-      ((id, _)) => {
-        let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Measured.find_pr_opt(p, measured);
-        let info =
-          ProjectorInfo.mk_info(
-            p,
-            ~sample_focus,
-            ~statics,
-            ~dynamics,
-            ~elaborated,
-          );
-        {
-          p,
-          info,
-          measurement,
-          offside_base:
-            offside_base(~offset=offside_offset, measurement, measured),
-          status:
-            mk_status(
+        ((id, _)) => {
+          let* p = Id.Map.find_opt(id, projectors);
+          let+ measurement = Measured.find_pr_opt(p, measured);
+          let info =
+            ProjectorInfo.mk_info(
               p,
-              ~sort=TermData.sort(id, term_data),
-              ~editor_active,
-              ~indicated,
-              ~selection_ids,
-              ~info,
-              ~id,
-            ),
-          statics_map: statics,
-          dynamics_map: dynamics,
-          sample_focus,
-          elaborated,
-        };
-      },
+              ~sample_focus,
+              ~statics,
+              ~dynamics,
+              ~elaborated,
+            );
+          {
+            p,
+            info,
+            measurement,
+            offside_base:
+              offside_base(~offset=offside_offset, measurement, measured),
+            status:
+              mk_status(
+                p,
+                ~sort=TermData.sort(id, term_data),
+                ~editor_active,
+                ~indicated,
+                ~selection_ids,
+                ~info,
+                ~id,
+              ),
+            statics_map: statics,
+            dynamics_map: dynamics,
+            sample_focus,
+            elaborated,
+          };
+        },
       Id.Map.bindings(projectors),
     );
   };
@@ -647,12 +647,12 @@ let split_views =
       views.offside
       |> Option.map(
            ~f=
-           offside_wrapper(
-             font_metrics,
-             offside_base,
-             ~row=measurement.origin.row,
-             ~origin_col=measurement.origin.col,
-           ),
+             offside_wrapper(
+               font_metrics,
+               offside_base,
+               ~row=measurement.origin.row,
+               ~origin_col=measurement.origin.col,
+             ),
          )
       |> Option.to_list;
     let below_view =
@@ -701,15 +701,15 @@ let all =
     |> List.sort(~compare=by_measurement)
     |> List.map(
          ~f=
-         split_views(
-           ~skip_inline=false,
-           ~core_settings,
-           inject,
-           make_active,
-           font_metrics,
-           _,
-           projector_list,
-         ),
+           split_views(
+             ~skip_inline=false,
+             ~core_settings,
+             inject,
+             make_active,
+             font_metrics,
+             _,
+             projector_list,
+           ),
        )
     |> List.unzip;
   let overlay_views = List.filter_map(~f=Fn.id, overlay_views);

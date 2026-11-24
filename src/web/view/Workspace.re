@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* One slide's program and what it shows: every program edit (cells,
    outline, agent) and every view change goes through here. */
@@ -15,14 +16,15 @@ type code = Scratchpad.code;
 let statics_ready = (program: Program.t): bool => {
   let info_map = Program.statics(program).info_map;
   List.exists(
-    (n: OutlineTree.node) =>
-      n.o_label != ""
-      && (
-        switch (n.o_id) {
-        | Some(id) => Id.Map.mem(id, info_map)
-        | None => false
-        }
-      ),
+    ~f=
+      (n: OutlineTree.node) =>
+        !String.equal(n.o_label, "")
+        && (
+          switch (n.o_id) {
+          | Some(id) => Id.Map.mem(id, info_map)
+          | None => false
+          }
+        ),
     OutlineTree.flatten(OutlineTree.rows(Program.outline(program))),
   );
 };
@@ -30,7 +32,10 @@ let statics_ready = (program: Program.t): bool => {
 /* a loaded slide's saved view, once statics can resolve it: against the
    placeholder, resolving drops pins */
 let saved_view = (~slide_key, code: code): option(Persist.side) =>
-  switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
+  switch (
+    Stdlib.Hashtbl.find_opt(Persist.pending_pins, slide_key),
+    code.program,
+  ) {
   | (Some(saved), Whole(_)) when statics_ready(code.program) => Some(saved)
   | _ => None
   };
@@ -78,7 +83,7 @@ open Action;
 let focuses_item = (action: Action.t, program: Program.t): bool =>
   switch (action, program) {
   | (FocusEnsure(_), Divided(_)) => true
-  | (FocusToggle(fid), Divided(d)) => Divided.owner(fid, d) == None
+  | (FocusToggle(fid), Divided(d)) => Option.is_none(Divided.owner(fid, d))
   | (FocusToggle(_), Whole(_)) => true
   | _ => false
   };
@@ -102,8 +107,9 @@ let project_cell_statics =
     term: item.d_node,
     elaborated: item.d_elab,
     info_map,
-    error_ids: List.filter(in_cell, item.d_error_ids),
-    warning_ids: List.filter(in_cell, item.d_warning_ids @ engine_warnings),
+    error_ids: List.filter(~f=in_cell, item.d_error_ids),
+    warning_ids:
+      List.filter(~f=in_cell, item.d_warning_ids @ engine_warnings),
     /* the cell's own probes: empty targets read as a probe change and
        swapped in a private analysis */
     targets:
@@ -129,9 +135,10 @@ let project_cell_statics =
 let item_of =
     (ds: Haz3lcore.DefStatics.t, e: ScratchCell.t)
     : option(Haz3lcore.DefStatics.item) =>
-  List.find_opt(
-    (it: Haz3lcore.DefStatics.item) =>
-      it.d_id == e.e_id || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+  List.find(
+    ~f=
+      (it: Haz3lcore.DefStatics.item) =>
+        Id.equal(it.d_id, e.e_id) || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
     ds.items,
   );
 
@@ -422,7 +429,7 @@ let update_code =
         ...code,
         program: Whole(new_ed),
       }
-    | Divided(_) when new_ed === editor => code
+    | Divided(_) when phys_equal(new_ed, editor) => code
     | Divided(d) =>
       resync(
         code,
@@ -440,11 +447,12 @@ let update_code =
     outline_view(
       (outline, program, v) =>
         if (List.mem(
+              v.pins,
               SlideView.{
                 p_id: fid,
                 p_run: false,
               },
-              v.pins,
+              ~equal=Poly.equal,
             )) {
           SlideView.unpin(fid, v);
         } else {
@@ -452,14 +460,15 @@ let update_code =
           switch (
             switch (program) {
             | Divided(d) =>
-              List.find_opt(
-                (e: ScratchCell.t) =>
-                  switch (e.e_kind) {
-                  | Run(ids) => List.mem(fid, ids)
-                  | Def(_)
-                  | Members
-                  | Headless(_) => false
-                  },
+              List.find(
+                ~f=
+                  (e: ScratchCell.t) =>
+                    switch (e.e_kind) {
+                    | Run(ids) => List.mem(ids, fid, ~equal=Poly.equal)
+                    | Def(_)
+                    | Members
+                    | Headless(_) => false
+                    },
                 Divided.cells(d),
               )
             | Whole(_) => None
@@ -489,8 +498,10 @@ let update_code =
           | None => ([fid], None)
           };
         switch (
-          List.find_opt(
-            (p: SlideView.pin) => p.p_run && List.mem(p.p_id, members),
+          List.find(
+            ~f=
+              (p: SlideView.pin) =>
+                p.p_run && List.mem(members, p.p_id, ~equal=Poly.equal),
             v.pins,
           )
         ) {
@@ -498,14 +509,14 @@ let update_code =
         | None =>
           let singles =
             List.filter(
-              (p: SlideView.pin) => !p.p_run && List.mem(p.p_id, members),
+              ~f=
+                (p: SlideView.pin) =>
+                  !p.p_run && List.mem(members, p.p_id, ~equal=Poly.equal),
               v.pins,
             );
           let v =
-            List.fold_left(
-              (v, p: SlideView.pin) => SlideView.unpin(p.p_id, v),
-              v,
-              singles,
+            List.fold(singles, ~init=v, ~f=(v, p: SlideView.pin) =>
+              SlideView.unpin(p.p_id, v)
             );
           Some(List.length(singles)) == size
             ? v : SlideView.pin(~outline, ~run=true, fid, v);
@@ -517,7 +528,7 @@ let update_code =
     outline_view(
       (outline, program, v) =>
         switch (program) {
-        | Divided(d) when Divided.owner(fid, d) == None =>
+        | Divided(d) when Option.is_none(Divided.owner(fid, d)) =>
           SlideView.pin(~outline, fid, v)
         | _ => v
         },
@@ -549,14 +560,14 @@ let update_code =
        slide hydrating first can't drop it */
     switch (saved_view(~slide_key, code)) {
     | Some(saved) =>
-      Hashtbl.remove(Persist.pending_pins, slide_key);
+      Stdlib.Hashtbl.remove(Persist.pending_pins, slide_key);
       view((outline, _, _) => Persist.resolve_view(saved, outline), code);
     | None => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) =>
     /* cleared here, not when scheduled: boot's calculate has a no-op
        scheduler, so the entry must survive until a real loop runs it */
-    Hashtbl.remove(Persist.pending_caret, slide_key);
+    Stdlib.Hashtbl.remove(Persist.pending_caret, slide_key);
     switch (code.program) {
     | Whole(editor) =>
       let* editor =
@@ -574,7 +585,7 @@ let update_code =
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
     let* program = program_action(~settings, a, code.program);
-    program === code.program
+    phys_equal(program, code.program)
       ? code
       : {
         ...code,
@@ -619,7 +630,7 @@ let update =
       AgentLens.build(
         ~settings=settings.core,
         ~view=AgentGlobals.view_settings(settings.agent_globals),
-        ~live=seq == None,
+        ~live=Option.is_none(seq),
         chat,
         seq,
       )
@@ -700,7 +711,7 @@ let update =
     let after = updated.model;
     let followed =
       Option.bind(
-        Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), chat =>
+        Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), ~f=chat =>
         AgentLens.follow(
           ~settings=settings.core,
           ~view=AgentGlobals.view_settings(settings.agent_globals),
@@ -734,7 +745,7 @@ let update =
    is already calculated (update replaces only edited cells), and reuse
    keeps the identity the view cache keys on */
 let calc_entry_memo:
-  Hashtbl.t(
+  Stdlib.Hashtbl.t(
     Haz3lcore.Id.t,
     (
       Language.CoreSettings.t,
@@ -743,7 +754,7 @@ let calc_entry_memo:
       ScratchCell.t,
     ),
   ) =
-  Hashtbl.create(8);
+  Stdlib.Hashtbl.create(8);
 
 /* a program's statics and run; its results come back through
    [dispatch] */
@@ -777,7 +788,7 @@ let calculate_program =
   let program =
     switch (program) {
     | Whole(editor) =>
-      Hashtbl.reset(calc_entry_memo);
+      Stdlib.Hashtbl.reset(calc_entry_memo);
       Program.Whole(
         CellEditor.Update.calculate(
           ~settings,
@@ -801,7 +812,7 @@ let calculate_program =
          (its key, e_id, follows only on view changes): counted before
          the cell calculates, so this frame's run samples it */
       let is_tail_cell = (e: ScratchCell.t) =>
-        tail_probe && e.e_kind == Headless({js|⇒|js});
+        tail_probe && Poly.equal(e.e_kind, Headless({js|⇒|js}));
       let tail_root = (e: ScratchCell.t) =>
         switch (Focus.zip_of_cell(e.e_body)) {
         | [] => None
@@ -811,14 +822,14 @@ let calculate_program =
           }
         };
       let probe_ids =
-        List.fold_left(
-          (acc, e: ScratchCell.t) =>
-            switch (is_tail_cell(e) ? tail_root(e) : None) {
-            | Some(id) => Id.Map.add(id, (), acc)
-            | None => acc
-            },
-          Program.probe_ids(Divided(d)),
+        List.fold(
           Divided.cells(d),
+          ~init=Program.probe_ids(Divided(d)),
+          ~f=(acc, e: ScratchCell.t) =>
+          switch (is_tail_cell(e) ? tail_root(e) : None) {
+          | Some(id) => Id.Map.add(id, (), acc)
+          | None => acc
+          }
         );
       let (d, ds) =
         if (statics_mode == StaticsMode.Force
@@ -847,7 +858,8 @@ let calculate_program =
             /* the cells' own pins (probe_ids adds the projectors') */
             pins: probe_ids,
           };
-          let fresh = it => !List.exists(p => p === it, prev_items);
+          let fresh = it =>
+            !List.exists(~f=p => phys_equal(p, it), prev_items);
           (
             d
             |> Divided.with_statics(statics)
@@ -884,7 +896,7 @@ let calculate_program =
         let st = Divided.statics(d);
         let full = id =>
           switch (stepping) {
-          | Some(s) => s.span.probe_id == id
+          | Some(s) => Id.equal(s.span.probe_id, id)
           | None => false
           };
         Id.Map.exists(
@@ -923,7 +935,7 @@ let calculate_program =
             ~is_edited,
             ~stepping=
               Option.map(
-                (st: Haz3lcore.ProjectorBase.stepping) => st.span,
+                ~f=(st: Haz3lcore.ProjectorBase.stepping) => st.span,
                 stepping,
               ),
             Divided.statics(d),
@@ -945,7 +957,7 @@ let calculate_program =
       /* unused-binder warnings span items: once per frame, not per cell */
       let frame_warns =
         lazy(
-          Option.map(Haz3lcore.DefStatics.all_warning_ids, ds)
+          Option.map(~f=Haz3lcore.DefStatics.all_warning_ids, ds)
           |> Option.value(~default=[])
         );
       /* a theorem's cell holds its statement: its proof goes under it */
@@ -960,7 +972,7 @@ let calculate_program =
         let (h, b) = (fit(e.e_header), fit(e.e_body));
         /* identity kept when nothing moved: the memo below keys on it */
         let e =
-          h === e.e_header && b === e.e_body
+          phys_equal(h, e.e_header) && phys_equal(b, e.e_body)
             ? e
             : {
               ...e,
@@ -969,12 +981,12 @@ let calculate_program =
             };
         let reuse =
           statics_mode != StaticsMode.Force
-            ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
+            ? switch (Stdlib.Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
               | Some((s', d', t', prev))
                   when
-                    prev === e
-                    && s' === settings
-                    && d' === extra_dyn
+                    phys_equal(prev, e)
+                    && phys_equal(s', settings)
+                    && phys_equal(d', extra_dyn)
                     && t' == (is_tail_cell(e), DrawerFit.layout^) =>
                 Some(prev)
               | _ => None
@@ -993,16 +1005,17 @@ let calculate_program =
              private one */
           let item =
             statics_mode == StaticsMode.Force
-              ? Option.bind(ds, ds => item_of(ds, e)) : None;
+              ? Option.bind(ds, ~f=ds => item_of(ds, e)) : None;
           let project = (c: CellEditor.Model.t) =>
             Option.map(
-              item =>
-                project_cell_statics(
-                  ~settings,
-                  ~item,
-                  ~engine_warnings=Lazy.force(frame_warns),
-                  c,
-                ),
+              ~f=
+                item =>
+                  project_cell_statics(
+                    ~settings,
+                    ~item,
+                    ~engine_warnings=Lazy.force(frame_warns),
+                    c,
+                  ),
               item,
             );
           let (proj_header, proj_body) = (
@@ -1012,7 +1025,7 @@ let calculate_program =
           /* dynamics off: a cell shows the whole program's samples, and
              its own run would be on the main thread with no step limit */
           let body_settings =
-            body_is_exp || body_is_typ || proj_body != None
+            body_is_exp || body_is_typ || Option.is_some(proj_body)
               ? Language.CoreSettings.{
                   ...settings,
                   dynamics: false,
@@ -1033,7 +1046,7 @@ let calculate_program =
               e_header:
                 CellEditor.Update.calculate(
                   ~settings=
-                    binds_module && proj_header == None
+                    binds_module && Option.is_none(proj_header)
                       ? statics_off(settings)
                       : Language.CoreSettings.{
                           ...settings,
@@ -1052,7 +1065,11 @@ let calculate_program =
                   ~settings=body_settings,
                   ~tail_probe=is_tail_cell(e),
                   ~proofs=
-                    List.mem(e.e_id, Lazy.force(program_theorems))
+                    List.mem(
+                      Lazy.force(program_theorems),
+                      e.e_id,
+                      ~equal=Poly.equal,
+                    )
                       ? ProofOf(e.e_id) : Theorems,
                   ~is_edited,
                   ~statics_mode,
@@ -1064,7 +1081,7 @@ let calculate_program =
                   e.e_body,
                 ),
             };
-          Hashtbl.replace(
+          Stdlib.Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
             (settings, extra_dyn, (is_tail_cell(e), DrawerFit.layout^), e'),
@@ -1075,9 +1092,10 @@ let calculate_program =
       let d = Divided.map_cells(calc_entry, d);
       /* entries only for the cells still open */
       let open_ids =
-        List.map((e: ScratchCell.t) => e.e_id, Divided.cells(d));
-      Hashtbl.filter_map_inplace(
-        (id, entry) => List.mem(id, open_ids) ? Some(entry) : None,
+        List.map(~f=(e: ScratchCell.t) => e.e_id, Divided.cells(d));
+      Stdlib.Hashtbl.filter_map_inplace(
+        (id, entry) =>
+          List.mem(open_ids, id, ~equal=Poly.equal) ? Some(entry) : None,
         calc_entry_memo,
       );
       Program.Divided(d);
@@ -1088,7 +1106,7 @@ let calculate_program =
     ~pos_of_key=key => key,
     ~dispatch,
     ~on_timeout=
-      List.iter(((key, _)) =>
+      List.iter(~f=((key, _)) =>
         dispatch(key, UpdateResult(ResultFail(Timeout)))
       ),
   );
@@ -1096,7 +1114,7 @@ let calculate_program =
 };
 
 /* the lens's cells, memoized apart from the program's */
-let lens_entry_memo = Hashtbl.create(8);
+let lens_entry_memo = Stdlib.Hashtbl.create(8);
 
 let calculate =
     (
@@ -1112,7 +1130,7 @@ let calculate =
     : code => {
   /* restore a loaded slide's saved caret: the Move runs as its own
      follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
+  switch (Stdlib.Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
   | Some(p) => schedule_action(RestoreCaret(p))
   | None => ()
   };
@@ -1132,21 +1150,22 @@ let calculate =
       ),
     lens:
       Option.map(
-        (l: AgentLens.t) => {
-          let program =
-            calc(
-              ~is_edited=false,
-              ~statics_mode,
-              ~calc_entry_memo=lens_entry_memo,
-              ~dispatch=a => schedule_action(LensResult(a)),
-              l.program,
-            );
-          {
-            ...l,
-            program,
-            map: AgentLensMap.calculate(~settings, program, l.map),
-          };
-        },
+        ~f=
+          (l: AgentLens.t) => {
+            let program =
+              calc(
+                ~is_edited=false,
+                ~statics_mode,
+                ~calc_entry_memo=lens_entry_memo,
+                ~dispatch=a => schedule_action(LensResult(a)),
+                l.program,
+              );
+            {
+              ...l,
+              program,
+              map: AgentLensMap.calculate(~settings, program, l.map),
+            };
+          },
         code.lens,
       ),
   };

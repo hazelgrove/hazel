@@ -1,6 +1,7 @@
 open Haz3lcore;
 open Util;
 open Virtual_dom.Vdom;
+open Poly;
 
 /* The outline sidebar. Its transient UI state lives in the refs below,
    which the view's handlers write at the event (keys can outrun renders);
@@ -76,7 +77,7 @@ open Action;
 type deck = (string, ScratchModel.Model.t);
 
 let current = ((_, m): deck): option(Scratchpad.t) =>
-  List.nth_opt(m.scratchpads, m.current);
+  List.nth(m.scratchpads, m.current);
 
 let slide_name = (deck: deck): string =>
   switch (current(deck)) {
@@ -86,14 +87,14 @@ let slide_name = (deck: deck): string =>
 
 /* the program the slide shows: View as agent's request, else its own */
 let program_of = (deck: option(deck)): option(Program.t) =>
-  switch (Option.bind(deck, current)) {
+  switch (Option.bind(deck, ~f=current)) {
   | Some({kind: Code({lens: Some(l), _}), _}) => Some(l.program)
   | Some({kind: Code({program, _}), _}) => Some(program)
   | _ => None
   };
 
 let folds = (deck: option(deck)): OutlineTree.folds =>
-  switch (deck, Option.bind(deck, current)) {
+  switch (deck, Option.bind(deck, ~f=current)) {
   | (_, Some({kind: Code({lens: Some(l), _}), _})) => l.folds
   | (Some((prefix, _) as d), _) => Persist.folds(prefix, slide_name(d))
   | (None, _) => []
@@ -118,29 +119,29 @@ let blank_body = (program: Program.t, id: Id.t): bool =>
 let spot = (program: Program.t, id: Id.t): option(OutlineFollow.spot) => {
   let lines = (cell: CellEditor.Model.t) => {
     let m = cell.editor.editor.syntax.measured;
-    Measured.chunk_for_id(id, m) == None
+    Option.is_none(Measured.chunk_for_id(id, m))
       ? None
       : Measured.find_by_id(id, m)
-        |> Option.map((m: Measured.measurement) =>
+        |> Option.map(~f=(m: Measured.measurement) =>
              (m.origin.row, m.last.row)
            );
   };
   switch (program) {
   | Whole(e) =>
-    Option.map(rows => OutlineFollow.Lines(None, rows), lines(e))
+    Option.map(~f=rows => OutlineFollow.Lines(None, rows), lines(e))
   | Divided(d) =>
     switch (Divided.owner(id, d)) {
     | None => None
     | Some(c) =>
       let i =
         Option.value(
-          List.find_index(
-            (e: ScratchCell.t) => e.e_id == c.e_id,
-            Divided.cells(d),
-          ),
+          List.findi(Divided.cells(d), ~f=(_, e: ScratchCell.t) =>
+            Id.equal(e.e_id, c.e_id)
+          )
+          |> Option.map(~f=fst),
           ~default=0,
         );
-      switch (c.e_id == id ? None : lines(c.e_body)) {
+      switch (Id.equal(c.e_id, id) ? None : lines(c.e_body)) {
       | Some(rows) => Some(Lines(Some(i), rows))
       | None => Some(Cell(i))
       };
@@ -150,7 +151,7 @@ let spot = (program: Program.t, id: Id.t): option(OutlineFollow.spot) => {
 
 /* what the editor shows for row [id] in [outline] */
 let shown = (id: Id.t, outline: OutlineTree.t): option(Id.t) =>
-  Option.bind(OutlineTree.node_of(id, outline), E.shown_of_node);
+  Option.bind(OutlineTree.node_of(id, outline), ~f=E.shown_of_node);
 
 /* the editor whose caret is in new definition [d]'s name: how its actions
    go, its zipper, and [d] (none: the zipper is the name, a cell's header) */
@@ -168,12 +169,14 @@ let live_pane =
     ))
   | Divided(dv) =>
     Option.map(
-      ((cell: ScratchCell.t, side: ScratchCell.side)) =>
-        (
-          a => Workspace.Action.Stack(cell.e_id, side, a),
-          ScratchCell.pane(side, cell).editor.editor.state.zipper,
-          cell.e_id == d && side == Header ? None : Some(d),
-        ),
+      ~f=
+        ((cell: ScratchCell.t, side: ScratchCell.side)) =>
+          (
+            a => Workspace.Action.Stack(cell.e_id, side, a),
+            ScratchCell.pane(side, cell).editor.editor.state.zipper,
+            Id.equal(cell.e_id, d) && Poly.equal(side, Header)
+              ? None : Some(d),
+          ),
       Divided.focused(dv),
     )
   };
@@ -181,9 +184,9 @@ let live_pane =
 /* new definition [d]'s name, the caret's place in it and the selection's,
    from the editor */
 let live_name = (program: Program.t, d: Id.t): option(E.live) =>
-  Option.bind(live_pane(program, d), ((_, z, def)) =>
+  Option.bind(live_pane(program, d), ~f=((_, z, def)) =>
     ItemEdit.name_at(~def, z)
-    |> Option.map(((l_name, l_at, l_anchor)) =>
+    |> Option.map(~f=((l_name, l_at, l_anchor)) =>
          E.{
            l_name,
            l_at,
@@ -195,8 +198,8 @@ let live_name = (program: Program.t, d: Id.t): option(E.live) =>
 /* why new definition [f]'s name, [name], won't do: a blank one will (it
    goes) */
 let name_refusal = (f: E.fresh, name: string): option(string) => {
-  let name = String.trim(name);
-  name == ""
+  let name = String.strip(name);
+  String.equal(name, "")
     ? None
     : OutlineRename.check_name(
         ItemEdit.rename_kind(fst(E.new_kind(f.f_kw))),
@@ -219,9 +222,9 @@ let refusal =
     : option(string) =>
   switch (t.line, t.fresh, t.pending) {
   | (New(_), Some(f), _) =>
-    Option.bind(live, (l: E.live) => name_refusal(f, l.l_name))
+    Option.bind(live, ~f=(l: E.live) => name_refusal(f, l.l_name))
   | (Row(_, Some(Item(row))), _, Some(typed))
-      when OutlineTree.node_of(row, outline) != None =>
+      when Option.is_some(OutlineTree.node_of(row, outline)) =>
     switch (
       ItemEdit.plan_rename(~mod_root, ~info_map, ~outline, ~seg, row, typed)
     ) {
@@ -256,7 +259,7 @@ let live_step =
         code,
       )
     ) {
-    | u when live_name(u.model.program, d) != None => Some(u)
+    | u when Option.is_some(live_name(u.model.program, d)) => Some(u)
     | _ => None
     | exception (Haz3lcore.Action.Failure.Exception(_)) => None
     }
@@ -280,7 +283,7 @@ let live_until =
   let rec go = (u: Updated.t(Scratchpad.code), n) =>
     switch (name(u.model)) {
     | Some({l_at, _})
-        when n > 0 && (side == Left ? l_at > target : l_at < target) =>
+        when n > 0 && (Poly.equal(side, Left) ? l_at > target : l_at < target) =>
       switch (
         live_step(~settings, ~schedule_workspace, ~slide_key, d, u.model, a)
       ) {
@@ -291,10 +294,8 @@ let live_until =
     };
   go(
     u,
-    Option.fold(
-      ~none=0,
-      ~some=(l: E.live) => E.units(l.l_name),
-      name(u.model),
+    Option.value_map(name(u.model), ~default=0, ~f=(l: E.live) =>
+      E.units(l.l_name)
     ),
   );
 };
@@ -328,7 +329,8 @@ let live_edit =
   | Some({l_name, l_at, l_anchor}) =>
     let len = E.units(l_name);
     let sel = l_anchor != l_at;
-    let inside = side => side == Direction.Left ? l_at > 0 : l_at < len;
+    let inside = side =>
+      Direction.equal(side, Direction.Left) ? l_at > 0 : l_at < len;
     let quiet = code |> Updated.return_quiet;
     let target = (side, r) => E.reach_to(l_name, l_at, side, r);
     switch (edit) {
@@ -336,7 +338,7 @@ let live_edit =
     /* the paste's text in the name, at the selection, and nothing more */
     | Paste(s) =>
       let (lo, hi) = (min(l_at, l_anchor), max(l_at, l_anchor));
-      Option.bind(E.fragment(s), s =>
+      Option.bind(E.fragment(s), ~f=s =>
         switch (step(code, Paste(s))) {
         | Some(u) as pasted
             when
@@ -365,17 +367,18 @@ let live_edit =
        does, and the reach is from there */
     | Step(side, r) =>
       Option.map(
-        (u: Updated.t(Scratchpad.code)) =>
-          switch (name(u.model)) {
-          | Some(l) =>
-            until(
-              move(side),
-              side,
-              E.reach_to(l.l_name, l.l_at, side, r),
-              u,
-            )
-          | None => u
-          },
+        ~f=
+          (u: Updated.t(Scratchpad.code)) =>
+            switch (name(u.model)) {
+            | Some(l) =>
+              until(
+                move(side),
+                side,
+                E.reach_to(l.l_name, l.l_at, side, r),
+                u,
+              )
+            | None => u
+            },
         sel ? step(code, move(side)) : Some(quiet),
       )
     /* at the name's end: no further */
@@ -385,8 +388,14 @@ let live_edit =
     /* from the name's start: a selection collapses there first */
     | SelectAll =>
       Option.map(
-        u =>
-          until(select(Right), Right, len, until(move(Left), Left, 0, u)),
+        ~f=
+          u =>
+            until(
+              select(Right),
+              Right,
+              len,
+              until(move(Left), Left, 0, u),
+            ),
         sel ? step(code, move(Left)) : Some(quiet),
       )
     };
@@ -401,16 +410,16 @@ let with_fresh =
     : Scratchpad.code => {
   let caret =
     Option.map(
-      id => (Direction.Left, id),
+      ~f=id => (Direction.Left, id),
       ItemEdit.name_slot(
-        ~mod_root=Program.root(code.program) == Sort.Mod,
+        ~mod_root=Sort.equal(Program.root(code.program), Sort.Mod),
         d,
         seg,
       ),
     );
   let code = Workspace.with_segment(~settings, ~caret?, code, seg);
   switch (code.program) {
-  | Divided(dv) when Divided.owner(d, dv) == None =>
+  | Divided(dv) when Option.is_none(Divided.owner(d, dv)) =>
     let st = Program.statics(code.program);
     switch (
       Divided.open_(
@@ -424,10 +433,8 @@ let with_fresh =
         ...code,
         program:
           Divided(
-            Option.fold(
-              ~none=dv,
-              ~some=c => Divided.place_caret(c, dv),
-              caret,
+            Option.value_map(caret, ~default=dv, ~f=c =>
+              Divided.place_caret(c, dv)
             ),
           ),
       }
@@ -449,7 +456,7 @@ let create =
     : Updated.t(Scratchpad.code) =>
   switch (line, text^) {
   | (New(anchor, place), Some(t))
-      when E.same_line(t.line, line) && t.fresh == None =>
+      when E.same_line(t.line, line) && Option.is_none(t.fresh) =>
     let program = code.program;
     let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
     switch (
@@ -479,17 +486,19 @@ let create =
       incr(flash);
       text :=
         Option.map(
-          path =>
-            E.at(
-              Row(path, Some(Item(anchor))),
-              ~col=
-                Option.fold(
-                  ~none=0,
-                  ~some=(n: OutlineTree.node) => E.units(n.o_label),
-                  OutlineTree.node_of(anchor, ctx.outline),
-                ),
-              ~seq=next_seq(),
-            ),
+          ~f=
+            path =>
+              E.at(
+                Row(path, Some(Item(anchor))),
+                ~col=
+                  Option.value_map(
+                    OutlineTree.node_of(anchor, ctx.outline),
+                    ~default=0,
+                    ~f=(n: OutlineTree.node) =>
+                    E.units(n.o_label)
+                  ),
+                ~seq=next_seq(),
+              ),
           OutlineTree.label_path(anchor, ctx.outline),
         );
       code |> Updated.return_quiet;
@@ -519,12 +528,13 @@ let remake =
     let program = code.program;
     let col =
       switch (keep_name, live_name(program, f.f_id)) {
-      | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => l_at
+      | (true, Some({l_name, l_at, _}))
+          when !String.equal(String.strip(l_name), "") => l_at
       | _ => 0
       };
     let made =
       ItemEdit.remake(
-        ~mod_root=Program.root(program) == Sort.Mod,
+        ~mod_root=Sort.equal(Program.root(program), Sort.Mod),
         ~keep=keep_name,
         place,
         anchor,
@@ -557,8 +567,8 @@ let remake =
           line: to_,
           fresh: Some(f),
           error:
-            Option.bind(t.error, _ =>
-              Option.bind(live_name(code.program, d), l =>
+            Option.bind(t.error, ~f=_ =>
+              Option.bind(live_name(code.program, d), ~f=l =>
                 name_refusal(f, l.l_name)
               )
             ),
@@ -574,8 +584,12 @@ let remake =
 let set_folded =
     (~prefix: string, ~name: string, path: OutlineTree.path, folded: bool) => {
   let cur = Persist.folds(prefix, name);
-  if (List.assoc_opt(path, cur) != Some(folded)) {
-    Hashtbl.replace(
+  if (!
+        Poly.equal(
+          List.Assoc.find(cur, path, ~equal=Poly.equal),
+          Some(folded),
+        )) {
+    Stdlib.Hashtbl.replace(
       Persist.slide_folds,
       Persist.content_key(prefix, name),
       OutlineTree.choose(path, folded, cur),
@@ -587,14 +601,14 @@ let set_folded =
 /* row [id] unfolded where [outline] has it: an item went into it */
 let unfold = (~prefix, ~name, id: Id.t, outline: OutlineTree.t) =>
   Option.iter(
-    path => set_folded(~prefix, ~name, path, false),
+    ~f=path => set_folded(~prefix, ~name, path, false),
     OutlineTree.label_path(id, outline),
   );
 
 /* the run of tests row [id] is in, unfolded: it went into it */
 let unfold_run = (~prefix, ~name, id: Id.t, outline: OutlineTree.t) =>
   Option.iter(
-    path => set_folded(~prefix, ~name, path, false),
+    ~f=path => set_folded(~prefix, ~name, path, false),
     OutlineTree.run_of(id, outline),
   );
 
@@ -612,12 +626,13 @@ let drop =
        only it changed since (its gaps were laid out for it) */
     let solid = seg =>
       Printer.of_segment(~holes="?", seg)
-      |> String.to_seq
-      |> Seq.filter(c => c != ' ' && c != '\n')
-      |> String.of_seq;
+      |> Stdlib.String.to_seq
+      |> Seq.filter(c => !Char.equal(c, ' ') && !Char.equal(c, '\n'))
+      |> Stdlib.String.of_seq;
     let seg =
       switch (blank_from^) {
-      | Some((id, before)) when id == d && solid(before) == solid(seg) => before
+      | Some((id, before))
+          when Id.equal(id, d) && solid(before) == solid(seg) => before
       | _ => seg
       };
     blank_from := None;
@@ -653,7 +668,7 @@ let update =
   /* the row's fold as shown, flipped: by hand, else its kind's default */
   | Collapse(path) =>
     Option.iter(
-      set_folded(~prefix, ~name, path),
+      ~f=set_folded(~prefix, ~name, path),
       OutlineTree.flipped(
         ~folds=Persist.folds(prefix, name),
         path,
@@ -668,10 +683,10 @@ let update =
     /* text mode's caret on the op's row */
     let on_row =
       switch (text^) {
-      | Some({line: Row(_, Some(Item(id))), _}) => id == fid
+      | Some({line: Row(_, Some(Item(id))), _}) => Id.equal(id, fid)
       | _ => false
       };
-    let typing = text^ != None;
+    let typing = Option.is_some(text^);
     let ctx =
       Workspace.item_ctx(
         ~settings,
@@ -684,8 +699,9 @@ let update =
     let from_run = {
       let run = OutlineTree.run_of(fid, ctx.outline);
       let lone =
-        Option.bind(run, OutlineTree.node_at(_, ctx.outline))
-        |> Option.map(OutlineTree.item_of) == Some(Some(fid));
+        Option.bind(run, ~f=OutlineTree.node_at(_, ctx.outline))
+        |> Option.map(~f=OutlineTree.item_of)
+        |> Poly.equal(Some(Some(fid)));
       let at_row =
         switch (from_menu, text^) {
         | (Some((On_run(a, b, _), _, _)), _) => a == fid && b == fid
@@ -696,12 +712,13 @@ let update =
         };
       lone && at_row
         ? Option.map(
-            path =>
-              OutlineTree.folded(
-                ~folds=Persist.folds(prefix, name),
-                path,
-                KTests,
-              ),
+            ~f=
+              path =>
+                OutlineTree.folded(
+                  ~folds=Persist.folds(prefix, name),
+                  path,
+                  KTests,
+                ),
             run,
           )
         : None;
@@ -709,7 +726,8 @@ let update =
     /* a delete leaves the cursor where the row was: its old path names
        another row when names repeat */
     let successor =
-      op == Delete ? OutlineTree.successor(fid, ctx.outline) : None;
+      Poly.equal(op, Delete)
+        ? OutlineTree.successor(fid, ctx.outline) : None;
     switch (ItemEdit.edit(ctx, Op(op, fid), Program.document(program))) {
     | Error(why) =>
       incr(flash);
@@ -720,12 +738,12 @@ let update =
     | Ok((new_seg, target)) =>
       let code = Workspace.with_segment(~settings, code, new_seg);
       let new_outline = Program.outline(code.program);
-      let col = Option.fold(~none=0, ~some=(t: E.t) => t.col, text^);
+      let col = Option.value_map(text^, ~default=0, ~f=(t: E.t) => t.col);
       /* the caret, or the cursor, onto row [id]: what's typed moves with
          it, or ([fresh]) a column on a line of its own */
       let put = (~fresh=?, id: option(Id.t)) => {
         let path =
-          Option.bind(id, id => OutlineTree.label_path(id, new_outline));
+          Option.bind(id, ~f=id => OutlineTree.label_path(id, new_outline));
         switch (text^, path, id) {
         | (Some(t), Some(path), Some(id)) =>
           let line = E.Row(path, Some(Item(id)));
@@ -742,7 +760,7 @@ let update =
             );
           OutlineFollow.wanted := shown(id, new_outline);
         /* the last row gone */
-        | (Some(_), None, _) when op == Delete => text := None
+        | (Some(_), None, _) when Poly.equal(op, Delete) => text := None
         | (Some(_), _, _) => ()
         | (None, _, _) => cursor := path
         };
@@ -764,17 +782,17 @@ let update =
           text :=
             Some({
               ...t,
-              line: Row(path, Option.bind(run, E.key_of_node)),
+              line: Row(path, Option.bind(run, ~f=E.key_of_node)),
               seq: next_seq(),
             });
-          OutlineFollow.wanted := Option.bind(run, E.shown_of_node);
+          OutlineFollow.wanted := Option.bind(run, ~f=E.shown_of_node);
         | None => cursor := Some(path)
         };
       };
       let run_after =
-        Option.bind(target, t => OutlineTree.run_of(t, new_outline));
+        Option.bind(target, ~f=t => OutlineTree.run_of(t, new_outline));
       switch (op, target, from_run, run_after) {
-      | (Delete, _, _, _) when !typing || on_row || from_run != None =>
+      | (Delete, _, _, _) when !typing || on_row || Option.is_some(from_run) =>
         put(~fresh=col, successor)
       | (MoveUp | MoveDown | Duplicate, _, Some(was), Some(path)) =>
         put_run(path, was)
@@ -788,14 +806,14 @@ let update =
       /* an item landing in a folded row unfolds it, so its row shows:
          Tab's, in a module or value; any op's, in a run of tests (a new
          run starts folded) */
-      switch (op, Option.bind(target, ItemEdit.parent_row(new_outline))) {
+      switch (op, Option.bind(target, ~f=ItemEdit.parent_row(new_outline))) {
       | (Indent, Some((parent, _))) =>
         unfold(~prefix, ~name, parent, new_outline)
       | _ => ()
       };
-      if (from_run == None) {
+      if (Option.is_none(from_run)) {
         Option.iter(
-          id => unfold_run(~prefix, ~name, id, new_outline),
+          ~f=id => unfold_run(~prefix, ~name, id, new_outline),
           target,
         );
       };
@@ -803,7 +821,7 @@ let update =
       switch (op, target, code.program) {
       | (MoveUp | MoveDown | Indent | Outdent, _, _) => ()
       | (_, Some(id), Whole(_)) => schedule_workspace(FocusToggle(id))
-      | (_, Some(id), Divided(d)) when Divided.owner(id, d) == None =>
+      | (_, Some(id), Divided(d)) when Option.is_none(Divided.owner(id, d)) =>
         schedule_workspace(FocusEnsure(id))
       | _ => ()
       };
@@ -815,7 +833,7 @@ let update =
        with what was typed and why; or, leaving anyway ([Done]), the name
        stays as it was and its row flashes */
     let refuse = why => {
-      if (after == Done) {
+      if (Poly.equal(after, Done)) {
         incr(flash);
       } else {
         text :=
@@ -836,7 +854,7 @@ let update =
       };
     switch (sv.sv_line) {
     | Row(_, Some(Item(row)))
-        when OutlineTree.node_of(row, ctx.outline) != None =>
+        when Option.is_some(OutlineTree.node_of(row, ctx.outline)) =>
       let seg = Program.document(program);
       switch (
         ItemEdit.plan_rename(
@@ -861,7 +879,7 @@ let update =
           let code = Workspace.with_segment(~settings, code, new_seg);
           landed(code, row);
           /* a kind's keyword leaves as a new definition's does */
-          if (rn.rn_kind != None) {
+          if (Option.is_some(rn.rn_kind)) {
             created := Some((row, fst(E.split_typed(sv.sv_text))));
           };
           code |> Updated.return;
@@ -892,8 +910,8 @@ let update =
           Some({
             ...t,
             error:
-              Option.bind(t.error, _ =>
-                Option.bind(live_name(u.model.program, f.f_id), l =>
+              Option.bind(t.error, ~f=_ =>
+                Option.bind(live_name(u.model.program, f.f_id), ~f=l =>
                   name_refusal(f, l.l_name)
                 )
               ),
@@ -916,7 +934,7 @@ let update =
     let name =
       switch (
         Option.map(
-          pat => String.trim(EntryLayout.text(pat)),
+          ~f=pat => String.strip(EntryLayout.text(pat)),
           ScratchFocus.find_pat(
             ~root=Program.root(program),
             f.f_id,
@@ -924,7 +942,8 @@ let update =
           ),
         )
       ) {
-      | Some(n) when after == Done && name_refusal(f, n) != None =>
+      | Some(n)
+          when Poly.equal(after, Done) && Option.is_some(name_refusal(f, n)) =>
         incr(flash);
         Some("");
       | name => name
@@ -944,17 +963,17 @@ let update =
         code |> Updated.return_quiet;
       | None =>
         /* a type or module's keyword leaves as its row comes */
-        created := f.f_kw == "" ? None : Some((f.f_id, f.f_kw));
+        created := String.equal(f.f_kw, "") ? None : Some((f.f_id, f.f_kw));
         let outline = Program.outline(program);
         /* a cell of its own stays open, pinned now it has a row */
         let code =
           switch (program) {
           | Divided(dv)
               when
-                Divided.cell(f.f_id, dv) != None
+                Option.is_some(Divided.cell(f.f_id, dv))
                 && !
                      List.exists(
-                       (p: SlideView.pin) => p.p_id == f.f_id,
+                       ~f=(p: SlideView.pin) => Id.equal(p.p_id, f.f_id),
                        code.view.pins,
                      ) =>
             Workspace.realize(
@@ -968,7 +987,7 @@ let update =
         /* the next line, below it or first inside it, unless the keys
            moved on meanwhile */
         | (Next, Some({line: New(a, _) as next, fresh: None, _}))
-            when a == f.f_id =>
+            when Id.equal(a, f.f_id) =>
           create(~settings, next, "", code)
         | _ =>
           if (E.exits(after)) {
@@ -990,7 +1009,10 @@ let update =
         when E.same_line(on, line) && f.f_kw != kw =>
       /* the name still the keyword typed, or blank to go back */
       switch (live_name(code.program, f.f_id)) {
-      | Some({l_name, _}) when kw == "" ? l_name == "" : l_name ++ " " == kw =>
+      | Some({l_name, _})
+          when
+            String.equal(kw, "")
+              ? String.equal(l_name, "") : l_name ++ " " == kw =>
         switch (
           remake(
             ~settings,
@@ -1065,7 +1087,8 @@ let shown_row = (~folds: OutlineTree.folds, r: Id.t, outline): E.key => {
       switch (E.key_of_node(n)) {
       | Some(k)
           when
-            n.o_id != Some(r) && OutlineTree.folded(~folds, path, n.o_kind) => k
+            !Option.equal(Id.equal, n.o_id, Some(r))
+            && OutlineTree.folded(~folds, path, n.o_kind) => k
       | _ => go(path, rest)
       };
     | [] => Item(r)
@@ -1094,28 +1117,34 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
        neighbours (a caret in a comment or between items) */
     let candidates =
       Option.to_list(Indicated.index(zipper))
-      @ List.map(((a: Ancestor.t, _)) => a.id, zipper.relatives.ancestors)
+      @ List.map(
+          ~f=((a: Ancestor.t, _)) => a.id,
+          zipper.relatives.ancestors,
+        )
       @ (
         switch (Siblings.neighbors(zipper.relatives.siblings)) {
-        | (l, r) => List.filter_map(x => Option.map(Piece.id, x), [r, l])
+        | (l, r) =>
+          List.filter_map(~f=x => Option.map(~f=Piece.id, x), [r, l])
         }
       );
     let row =
-      switch (List.find_map(row_of, candidates), p) {
+      switch (List.find_map(~f=row_of, candidates), p) {
       | (Some(r), _) => Some(r)
-      | (None, Divided(d)) => Option.map(fst, Divided.active(d))
+      | (None, Divided(d)) => Option.map(~f=fst, Divided.active(d))
       | (None, Whole(_)) => None
       };
     let folds = folds(deck);
     Option.map(
-      r =>
-        Util.Slot.get(
-          ~same=
-            ((t, r, f), (t', r', f')) => t === t' && r == r' && f === f',
-          shown_memo,
-          (outline, r, folds),
-          () => shown_row(~folds, r, outline),
-        ),
+      ~f=
+        r =>
+          Util.Slot.get(
+            ~same=
+              ((t, r, f), (t', r', f')) =>
+                phys_equal(t, t') && r == r' && phys_equal(f, f'),
+            shown_memo,
+            (outline, r, folds),
+            () => shown_row(~folds, r, outline),
+          ),
       row,
     );
   };
@@ -1140,10 +1169,10 @@ let same =
       (((info_map, error_ids), outline), results, rest),
       (((info_map', error_ids'), outline'), results', rest'),
     ) =>
-  info_map === info_map'
+  phys_equal(info_map, info_map')
   && error_ids == error_ids'
-  && outline === outline'
-  && Option.equal((===), results, results')
+  && phys_equal(outline, outline')
+  && Option.equal(phys_equal, results, results')
   && rest == rest';
 
 /* the outline of the slide's whole program in Scratch and Documentation,
@@ -1167,13 +1196,13 @@ let view =
     | Some(p) => Program.statics(p)
     | None => statics
     };
-  let is_deck = deck != None;
-  let name = Option.fold(~none="", ~some=slide_name, deck);
+  let is_deck = Option.is_some(deck);
+  let name = Option.value_map(deck, ~default="", ~f=slide_name);
   /* a menu, cursor or name being typed doesn't follow you to another
      slide */
   let slide =
     Option.map(
-      ((prefix, _) as d) => Persist.content_key(prefix, slide_name(d)),
+      ~f=((prefix, _) as d) => Persist.content_key(prefix, slide_name(d)),
       deck,
     );
   if (slide != owner^) {
@@ -1203,7 +1232,7 @@ let view =
     | None => None
     };
   let results =
-    Option.bind(program, p =>
+    Option.bind(program, ~f=p =>
       EvalResult.Model.test_results(Program.result(p))
     );
   /* a new definition's name, as the editor has it: it changes as the
@@ -1272,17 +1301,17 @@ let view =
               Util.Slot.get(
                 ~same=
                   ((p, t), (p', t')) =>
-                    Option.equal((===), p, p') && t === t',
+                    Option.equal(phys_equal, p, p') && phys_equal(t, t'),
                 refusals,
                 (program, outline),
                 () =>
                   ScratchFocus.refusals(
                     /* outside a slide, an editor is expression-rooted */
                     ~root=
-                      Option.fold(
-                        ~none=Sort.Exp,
-                        ~some=Program.root,
+                      Option.value_map(
                         program,
+                        ~default=Sort.Exp,
+                        ~f=Program.root,
                       ),
                     ~want=id => Id.Map.mem(id, OutlineTree.row_ids(outline)),
                     switch (program) {
@@ -1299,20 +1328,20 @@ let view =
           h_program: name,
           h_trail:
             switch (slide_view) {
-            | Some(v) => List.map(id => (id, label(id)), v.zoom)
+            | Some(v) => List.map(~f=id => (id, label(id)), v.zoom)
             | None => []
             },
           h_open,
           h_parked,
         },
-        zoom_root: Option.bind(slide_view, SlideView.zoom_root),
+        zoom_root: Option.bind(slide_view, ~f=SlideView.zoom_root),
         cursor: cursor^,
         created: created^,
         flash: flash^,
         refused: refused^,
         pinned:
           switch (slide_view) {
-          | Some(v) => List.map((p: SlideView.pin) => p.p_id, v.pins)
+          | Some(v) => List.map(~f=(p: SlideView.pin) => p.p_id, v.pins)
           | None => []
           },
         focused_entries: focused,
@@ -1322,9 +1351,9 @@ let view =
         menu_sel: menu_sel^,
         /* live ✓/✗ for test rows, from the whole program's result */
         test_status: id =>
-          Option.bind(results, (tr: Language.TestResults.t) =>
+          Option.bind(results, ~f=(tr: Language.TestResults.t) =>
             Language.TestMap.lookup(id, tr.test_map)
-            |> Option.map(Language.TestMap.joint_status)
+            |> Option.map(~f=Language.TestMap.joint_status)
           ),
         blank: id =>
           switch (program) {
@@ -1336,16 +1365,18 @@ let view =
           refusal(
             ~statics_on,
             ~mod_root=
-              Option.fold(
-                ~none=false,
-                ~some=p => Program.root(p) == Sort.Mod,
-                program,
+              Option.value_map(program, ~default=false, ~f=p =>
+                Sort.equal(Program.root(p), Sort.Mod)
               ),
             ~info_map=Lazy.from_val(statics.info_map),
             ~outline,
             ~seg=
               lazy(
-                Option.fold(~none=segment, ~some=Program.document, program)
+                Option.value_map(
+                  program,
+                  ~default=segment,
+                  ~f=Program.document,
+                )
               ),
             ~live,
           ),
@@ -1355,7 +1386,7 @@ let view =
         switch (program) {
         | Some(Divided(d)) =>
           switch (Divided.owner(id, d)) {
-          | Some(e) => e.e_id != id
+          | Some(e) => !Id.equal(e.e_id, id)
           | None => false
           }
         | _ => false
@@ -1367,7 +1398,7 @@ let view =
         switch (line) {
         | Row(path, key) =>
           switch (
-            Option.bind(E.item_of(key), id =>
+            Option.bind(E.item_of(key), ~f=id =>
               OutlineTree.label_path(id, outline)
             )
           ) {
@@ -1395,7 +1426,9 @@ let view =
         | (None, None) => Effect.Ignore
         };
       let save_current = (after: E.after) =>
-        Option.fold(~none=Effect.Ignore, ~some=t => save(t, after), text^);
+        Option.value_map(text^, ~default=Effect.Ignore, ~f=t =>
+          save(t, after)
+        );
       /* a New line's definition, made as the line starts */
       let create = (line: E.line, kw: string) =>
         switch (line) {
@@ -1447,11 +1480,12 @@ let view =
             text :=
               placed
                 ? Option.map(
-                    (t: E.t) =>
-                      {
-                        ...t,
-                        seq: next_seq(),
-                      },
+                    ~f=
+                      (t: E.t) =>
+                        {
+                          ...t,
+                          seq: next_seq(),
+                        },
                     t,
                   )
                 : t;
@@ -1469,10 +1503,11 @@ let view =
               switch (line) {
               | New(m, First | Last)
                   when !OutlineTree.expanded(~folds, m, outline) =>
-                Option.fold(
-                  ~none=Effect.Ignore,
-                  ~some=p => inject(Collapse(p)),
+                Option.value_map(
                   OutlineTree.label_path(m, outline),
+                  ~default=Effect.Ignore,
+                  ~f=p =>
+                  inject(Collapse(p))
                 )
               | _ => Effect.Ignore
               };
@@ -1520,7 +1555,7 @@ let view =
                 inject(Discard(line, f.f_id))
               | _ => Effect.Ignore
               };
-            Option.iter((t: E.t) => cursor := path_of(t.line), text^);
+            Option.iter(~f=(t: E.t) => cursor := path_of(t.line), text^);
             text := None;
             Effect.Many([drop, redraw]);
           },
@@ -1566,7 +1601,8 @@ let view =
             | None => inject(DefOp(op, id))
             | Some(t) =>
               /* a delete drops what's typed; other ops save it first */
-              let req = op == Delete ? Effect.Ignore : save(t, Stay);
+              let req =
+                Poly.equal(op, Delete) ? Effect.Ignore : save(t, Stay);
               text :=
                 Some({
                   ...t,

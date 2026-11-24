@@ -22,6 +22,8 @@
 
 (library
  (name workerServer)
+ (flags
+  (:standard -open Core))
  (modules WorkerServer EvalPieces CoverageHook)
  (wrapped false)
  (instrumentation

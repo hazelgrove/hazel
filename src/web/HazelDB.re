@@ -69,16 +69,17 @@ let write_transactions = ref(0); /* observability for tests */
 
 /* one transaction for all of [writes]: it commits whole or not at all */
 let commit = (writes: list(write)): unit =>
-  if (writes != []) {
+  if (!List.is_empty(writes)) {
     incr(write_transactions);
     with_db(db => {
       let store = kv_store(db);
       List.iter(
-        fun
-        | Put(key, value) =>
-          IDBStore.put(~key, ~callback=_ => (), store, value)
-        | Delete(key) =>
-          IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
+        ~f=
+          fun
+          | Put(key, value) =>
+            IDBStore.put(~key, ~callback=_ => (), store, value)
+          | Delete(key) =>
+            IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
         writes,
       );
     });
@@ -122,7 +123,7 @@ let kv_save_sexp = (key: string, sexp_of: 'a => Sexplib.Sexp.t, v: 'a): unit =>
 
 /* None when missing or unreadable */
 let kv_get_sexp = (key: string, of_sexp: Sexplib.Sexp.t => 'a): option('a) =>
-  Option.bind(kv_get(key), s =>
+  Option.bind(kv_get(key), ~f=s =>
     try(Some(of_sexp(Sexplib.Sexp.of_string(s)))) {
     | _ => None
     }
@@ -151,7 +152,7 @@ let kv_rekey = (rekey: string => option(string)): unit =>
     Util.Maps.StringMap.iter(
       (k, v) =>
         switch (rekey(k)) {
-        | Some(k') when k' != k =>
+        | Some(k') when !String.equal(k', k) =>
           kv_save(k', v);
           kv_remove(k);
         | _ => ()

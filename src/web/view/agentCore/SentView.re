@@ -1,5 +1,6 @@
 open Util;
 open Haz3lcore;
+open Poly;
 
 /* What each request showed the agent: the context message exactly as
    sent, the open set, and the program it was made from (probes are in
@@ -62,8 +63,8 @@ let editor_view = (view: string): string => {
   | i when i >= 0 =>
     let j = i + String.length(opening);
     switch (StringUtil.plain_search("\n```\n</agentEditorView>", view, j)) {
-    | k when k >= 0 => String.sub(view, j, k - j)
-    | _ => String.sub(view, j, String.length(view) - j)
+    | k when k >= 0 => String.sub(view, ~pos=j, ~len=k - j)
+    | _ => String.sub(view, ~pos=j, ~len=String.length(view) - j)
     };
   | _ => view
   };
@@ -115,11 +116,12 @@ let add =
   let program =
     switch (latest_first) {
     | [prev, ...earlier]
-        when text(~after_text, ~earlier, prev) == Some(b.b_text) =>
+        when Poly.equal(text(~after_text, ~earlier, prev), Some(b.b_text)) =>
       Unchanged
     | _ =>
       switch (last_tool) {
-      | Some(id) when after_text(id) == Some(b.b_text) => After(id)
+      | Some(id) when Poly.equal(after_text(id), Some(b.b_text)) =>
+        After(id)
       | _ => Text(b.b_text)
       }
     };
@@ -133,13 +135,13 @@ let add =
     ];
   /* drop from the front; the record after a dropped one takes its text
      if it read it */
-  let total = rs => List.fold_left((n, r) => n + chars(r), 0, rs);
+  let total = rs => List.fold(rs, ~init=0, ~f=(n, r) => n + chars(r));
   let rec trim = (rs: list(t)) =>
     switch (rs) {
     | [old, next, ...rest]
         when List.length(rs) > max_records || total(rs) > max_chars =>
       let next =
-        next.program == Unchanged
+        Poly.equal(next.program, Unchanged)
           ? {
             ...next,
             program:

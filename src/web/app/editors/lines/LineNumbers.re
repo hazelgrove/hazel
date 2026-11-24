@@ -13,8 +13,7 @@ module View = {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(Measured.piece_rows(measured));
     let empty_row = row => {
-      let result =
-        List.nth(List.rev(Measured.piece_rows(measured)), row);
+      let result = List.nth(List.rev(Measured.piece_rows(measured)), row);
       switch (result) {
       | Some(value) =>
         switch (value) {

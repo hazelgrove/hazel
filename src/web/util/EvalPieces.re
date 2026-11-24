@@ -23,8 +23,8 @@ type key =
 type hash = (int, int, int);
 
 let hash_of = (bytes: string): hash => (
-  Hashtbl.seeded_hash(17, bytes),
-  Hashtbl.seeded_hash(31, bytes),
+  Stdlib.Hashtbl.seeded_hash(17, bytes),
+  Stdlib.Hashtbl.seeded_hash(31, bytes),
   String.length(bytes),
 );
 
@@ -122,16 +122,16 @@ let slots = (layout: layout): list(slot) => {
     | ModuleValue(s) => [s, ...acc]
     };
   let rec chain = (c: chain, acc) =>
-    List.fold_left(
-      (acc, n: node) => {
+    List.fold(
+      c.items,
+      ~init=[c.roots, ...acc],
+      ~f=(acc, n: node) => {
         let acc = [n.slot, ...acc];
         switch (n.members) {
         | Some((f, c)) => chain(c, finish(f, acc))
         | None => acc
         };
       },
-      [c.roots, ...acc],
-      c.items,
     );
   switch (layout) {
   | Pieces({chain: c, finish: f, targets}) =>
@@ -196,10 +196,8 @@ let resolve = (b: built, e: entry): EvalInfo.entry => {
 };
 
 let add_entries = (b: built, entries: list(entry), map) =>
-  List.fold_left(
-    (map, e: entry) => Id.Map.add(e.id, resolve(b, e), map),
-    map,
-    entries,
+  List.fold(entries, ~init=map, ~f=(map, e: entry) =>
+    Id.Map.add(e.id, resolve(b, e), map)
   );
 
 /* [layout]'s program, its pieces from [piece]; Error: the keys of
@@ -209,7 +207,7 @@ let assemble =
     : result((Exp.t, EvalInfo.t), list(key)) => {
   let missing =
     List.filter_map(
-      (s: slot) => Option.is_some(piece(s.hash)) ? None : Some(s.key),
+      ~f=(s: slot) => Option.is_some(piece(s.hash)) ? None : Some(s.key),
       slots(layout),
     );
   let get = (s: slot): content =>
@@ -230,24 +228,21 @@ let assemble =
         };
         (
           value,
-          List.fold_left(
-            (map, e: entry) =>
-              Id.Map.add(
-                e.id,
-                EvalInfo.{
-                  elab_term:
-                    switch (e.elab) {
-                    | Value => value
-                    | Inline(x) => x
-                    | _ => raise(Malformed("a node entry of an item's term"))
-                    },
-                  co_ctx: e.co_ctx,
-                  probe_targets: e.probe_targets,
-                },
-                map,
-              ),
-            map,
-            entries,
+          List.fold(entries, ~init=map, ~f=(map, e: entry) =>
+            Id.Map.add(
+              e.id,
+              EvalInfo.{
+                elab_term:
+                  switch (e.elab) {
+                  | Value => value
+                  | Inline(x) => x
+                  | _ => raise(Malformed("a node entry of an item's term"))
+                  },
+                co_ctx: e.co_ctx,
+                probe_targets: e.probe_targets,
+              },
+              map,
+            )
           ),
         );
       | _ => raise(Malformed("a module's node piece holds no node"))
@@ -257,8 +252,10 @@ let assemble =
      items' bindings in order */
   let rec compose = (c: chain, map) => {
     let (top, bindings, built, map) =
-      List.fold_left(
-        ((below, bindings, built, map), n: node) => {
+      List.fold(
+        List.rev(c.items),
+        ~init=(None, [], Id.Map.empty, map),
+        ~f=((below, bindings, built, map), n: node) => {
           let it =
             switch (get(n.slot)) {
             | Item(it) => it
@@ -273,7 +270,7 @@ let assemble =
               (
                 plug(it.hollow, v),
                 Some(v),
-                Option.map(b => plug_binding(b, v), it.binding),
+                Option.map(~f=b => plug_binding(b, v), it.binding),
                 map,
               );
             };
@@ -308,20 +305,15 @@ let assemble =
             add_entries(b, it.entries, map),
           );
         },
-        (None, [], Id.Map.empty, map),
-        List.rev(c.items),
       );
     let map =
       switch (get(c.roots)) {
       | Roots(per_item) =>
-        List.fold_left(
-          (map, (id, entries)) =>
-            switch (Id.Map.find_opt(id, built)) {
-            | Some(b) => add_entries(b, entries, map)
-            | None => raise(Malformed("root entries of no item"))
-            },
-          map,
-          per_item,
+        List.fold(per_item, ~init=map, ~f=(map, (id, entries)) =>
+          switch (Id.Map.find_opt(id, built)) {
+          | Some(b) => add_entries(b, entries, map)
+          | None => raise(Malformed("root entries of no item"))
+          }
         )
       | _ => raise(Malformed("a chain's roots piece holds no roots"))
       };

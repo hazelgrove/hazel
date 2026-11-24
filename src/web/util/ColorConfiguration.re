@@ -426,17 +426,17 @@ let colors_of_group =
     (group_name: string, group: Exp.t): list((string, string)) =>
   List.concat_map(
     ~f=
-    (entry: Exp.t) =>
-      switch (entry.term) {
-      | TupLabel(l, v) =>
-        switch (l.term, C.of_exp(v)) {
-        | (Label(name), Some(c)) =>
-          let css = C.to_css(c);
+      (entry: Exp.t) =>
+        switch (entry.term) {
+        | TupLabel(l, v) =>
+          switch (l.term, C.of_exp(v)) {
+          | (Label(name), Some(c)) =>
+            let css = C.to_css(c);
             List.map(~f=t => (t, css), targets_of(group_name, name));
+          | _ => []
+          }
         | _ => []
-        }
-      | _ => []
-      },
+        },
     entries_of(group),
   );
 
@@ -446,37 +446,37 @@ let colors_of_group =
 let decoded_vars = (value: Exp.t): list((string, string)) =>
   List.concat_map(
     ~f=
-    (section: Exp.t) =>
-      switch (section.term) {
-      | TupLabel(l, body) =>
-        switch (l.term) {
-        | Label("palette") => colors_of_group("palette", body)
+      (section: Exp.t) =>
+        switch (section.term) {
+        | TupLabel(l, body) =>
+          switch (l.term) {
+          | Label("palette") => colors_of_group("palette", body)
           | Label(l) when String.equal(l, CS.polarity_field) =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(polarity_target, b ? "dark" : "light")]
-          | _ => []
-          }
+            switch (Unboxing.unbox(Atom(Bool), body)) {
+            | Matches(b) => [(polarity_target, b ? "dark" : "light")]
+            | _ => []
+            }
           | Label(l) when String.equal(l, CS.contrast_field) =>
-          switch (Unboxing.unbox(Atom(Bool), body)) {
-          | Matches(b) => [(contrast_target, b ? "high" : "normal")]
+            switch (Unboxing.unbox(Atom(Bool), body)) {
+            | Matches(b) => [(contrast_target, b ? "high" : "normal")]
+            | _ => []
+            }
+          /* roles nest one level deeper: group -> entries */
+          | Label("roles") =>
+            List.concat_map(
+              ~f=
+                (g: Exp.t) =>
+                  switch (g.term) {
+                  | TupLabel({term: Label(gname), _}, members) =>
+                    colors_of_group(gname, members)
+                  | _ => []
+                  },
+              entries_of(body),
+            )
           | _ => []
           }
-        /* roles nest one level deeper: group -> entries */
-        | Label("roles") =>
-          List.concat_map(
-              ~f=
-            (g: Exp.t) =>
-              switch (g.term) {
-              | TupLabel({term: Label(gname), _}, members) =>
-                colors_of_group(gname, members)
-              | _ => []
-              },
-            entries_of(body),
-          )
         | _ => []
-        }
-      | _ => []
-      },
+        },
     entries_of(value),
   );
 

@@ -286,15 +286,15 @@ let error_response = exn =>
   };
 
 /* the worker's own per-key incremental caches (async path) */
-let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
-  Hashtbl.create(4);
+let resident: Stdlib.Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
+  Stdlib.Hashtbl.create(4);
 
 let resolve_prev =
     (~key: key, prev: Request.prev_source): Language.EvaluatorState.incr_eval =>
   switch (prev) {
   | UseResident =>
     Option.value(
-      Hashtbl.find_opt(resident, key),
+      Stdlib.Hashtbl.find_opt(resident, key),
       ~default=Language.IncrEval.empty,
     )
   };
@@ -302,7 +302,11 @@ let resolve_prev =
 let store_resident = (key: key, response: Response.value): unit =>
   switch (response) {
   | Ok((_, state)) =>
-    Hashtbl.replace(resident, key, state.Language.EvaluatorState.incr_eval)
+    Stdlib.Hashtbl.replace(
+      resident,
+      key,
+      state.Language.EvaluatorState.incr_eval,
+    )
   | Error(_) => ()
   };
 
@@ -465,9 +469,9 @@ let start_evaluation =
   /* stream cadence scales with program size: each posted chunk costs
      the client a stream-collection + recalc cycle that grows with it */
   stream_min_interval_ms :=
-    max(
+    Float.max(
       100.,
-      min(
+      Float.min(
         1000.,
         float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
       ),
@@ -553,11 +557,12 @@ let slim_stream_update =
     completed: slim_entries(u.completed),
     current:
       Option.map(
-        (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
-          Language.IncrEval.{
-            ...c,
-            state: slim_state(c.state),
-          },
+        ~f=
+          (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
+            Language.IncrEval.{
+              ...c,
+              state: slim_state(c.state),
+            },
         u.current,
       ),
   };
@@ -589,9 +594,9 @@ let last_stream_post: ref(float) = ref(0.);
 let entry_has_effects =
     (e: Language.IncrEval.entry(Language.EvaluatorState.t)): bool =>
   Language.EvaluatorState.(
-    e.state.tests != []
+    !List.is_empty(e.state.tests)
     || !Util.Id.Map.is_empty(e.state.probes)
-    || e.state.theorems != []
+    || !List.is_empty(e.state.theorems)
   );
 
 /* [Effects]: husks (ids + step counts) only feed the pending-eval
@@ -617,7 +622,7 @@ let filter_stream_interest =
 
 let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
   let now: float = Js.Unsafe.global##.Date##now();
-  if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
+  if (force || Float.(now -. last_stream_post^ >= stream_min_interval_ms^)) {
     last_stream_post := now;
     let update =
       Language.Evaluator.drain_streaming_outbox(evaluation)
@@ -639,11 +644,12 @@ let post_reuse_plan = (model, request: Evaluation.t) =>
         /* the evaluation keeps the full plan; the client gets what it
            reads, as with streams */
         initial:
-          List.map(~f=
-            item => {
-              let (key, plan) = predict_reuse_for_request(item);
-              (key, slim_entries(plan));
-            },
+          List.map(
+            ~f=
+              item => {
+                let (key, plan) = predict_reuse_for_request(item);
+                (key, slim_entries(plan));
+              },
             request.batch,
           ),
       }),
@@ -804,8 +810,8 @@ and run_scheduled_slice = model => {
 
 /* the pieces of the last request received, by hash: what the client
    counts on the worker holding */
-let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
-  Hashtbl.create(256);
+let held: Stdlib.Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
+  Stdlib.Hashtbl.create(256);
 
 type received =
   | Composed(Evaluation.t)
@@ -816,41 +822,45 @@ type received =
    piece whose bytes don't hash to its listed hash isn't taken. the
    pieces it lists are held next, whatever it composes to */
 let receive = (posted: Posted.t): received => {
-  let fresh = Hashtbl.create(16);
+  let fresh = Stdlib.Hashtbl.create(16);
   List.iter(
-    ((hash, bytes)) =>
-      if (EvalPieces.hash_of(bytes) == hash) {
-        switch (EvalPieces.decode(bytes)) {
-        | content => Hashtbl.replace(fresh, hash, content)
-        | exception _ => ()
-        };
-      },
+    ~f=
+      ((hash, bytes)) =>
+        if (Poly.equal(EvalPieces.hash_of(bytes), hash)) {
+          switch (EvalPieces.decode(bytes)) {
+          | content => Stdlib.Hashtbl.replace(fresh, hash, content)
+          | exception _ => ()
+          };
+        },
     posted.pieces,
   );
-  let next = Hashtbl.create(Hashtbl.length(held) + 16);
+  let next = Stdlib.Hashtbl.create(Stdlib.Hashtbl.length(held) + 16);
   List.iter(
-    ((_, v: Posted.value)) =>
-      List.iter(
-        (s: EvalPieces.slot) =>
-          switch (
-            Hashtbl.find_opt(fresh, s.hash),
-            Hashtbl.find_opt(held, s.hash),
-          ) {
-          | (Some(c), _)
-          | (None, Some(c)) => Hashtbl.replace(next, s.hash, c)
-          | (None, None) => ()
-          },
-        EvalPieces.slots(v.layout),
-      ),
+    ~f=
+      ((_, v: Posted.value)) =>
+        List.iter(
+          ~f=
+            (s: EvalPieces.slot) =>
+              switch (
+                Stdlib.Hashtbl.find_opt(fresh, s.hash),
+                Stdlib.Hashtbl.find_opt(held, s.hash),
+              ) {
+              | (Some(c), _)
+              | (None, Some(c)) => Stdlib.Hashtbl.replace(next, s.hash, c)
+              | (None, None) => ()
+              },
+          EvalPieces.slots(v.layout),
+        ),
     posted.batch,
   );
-  Hashtbl.reset(held);
-  Hashtbl.iter(Hashtbl.replace(held), next);
-  let piece = Hashtbl.find_opt(held);
+  Stdlib.Hashtbl.reset(held);
+  Stdlib.Hashtbl.iter(Stdlib.Hashtbl.replace(held), next);
+  let piece = Stdlib.Hashtbl.find_opt(held);
   switch (
     List.map(
-      ((key, v: Posted.value)) =>
-        (key, v, EvalPieces.assemble(~piece, v.layout)),
+      ~f=
+        ((key, v: Posted.value)) =>
+          (key, v, EvalPieces.assemble(~piece, v.layout)),
       posted.batch,
     )
   ) {
@@ -858,32 +868,34 @@ let receive = (posted: Posted.t): received => {
   | composed =>
     let missing =
       List.concat_map(
-        ((_, _, r)) =>
-          switch (r) {
-          | Error(keys) => keys
-          | Ok(_) => []
-          },
+        ~f=
+          ((_, _, r)) =>
+            switch (r) {
+            | Error(keys) => keys
+            | Ok(_) => []
+            },
         composed,
       );
-    missing != []
+    !List.is_empty(missing)
       ? Missing(missing)
       : Composed({
           request_id: posted.request_id,
           batch:
             List.filter_map(
-              ((key, v: Posted.value, r)) =>
-                Stdlib.Result.to_option(r)
-                |> Option.map(((expr, eval_info_map)) =>
-                     (
-                       key,
-                       Evaluation.{
-                         expr,
-                         eval_info_map,
-                         prev: v.prev,
-                         stream: v.stream,
-                       },
-                     )
-                   ),
+              ~f=
+                ((key, v: Posted.value, r)) =>
+                  Stdlib.Result.to_option(r)
+                  |> Option.map(~f=((expr, eval_info_map)) =>
+                       (
+                         key,
+                         Evaluation.{
+                           expr,
+                           eval_info_map,
+                           prev: v.prev,
+                           stream: v.stream,
+                         },
+                       )
+                     ),
               composed,
             ),
         });
@@ -937,15 +949,16 @@ let install_message_handler = () => {
           request_id: posted.request_id,
           response:
             List.map(
-              ((key, _)) =>
-                (
-                  key,
-                  Error(
-                    Language.ProgramResult.UnknownException(
-                      "eval request: " ++ why,
+              ~f=
+                ((key, _)) =>
+                  (
+                    key,
+                    Error(
+                      Language.ProgramResult.UnknownException(
+                        "eval request: " ++ why,
+                      ),
                     ),
                   ),
-                ),
               posted.batch,
             ),
           eval_time: Core.Time_ns.Span.zero,

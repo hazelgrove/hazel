@@ -137,10 +137,10 @@ module Model = {
   let note_stop = (id: Id.t, stop: option(stop)) => {
     let same =
       switch (drawn_stop^) {
-      | Some((id', stop')) when id' == id =>
+      | Some((id', stop')) when Id.equal(id', id) =>
         switch (stop', stop) {
         | (None, None) => true
-        | (Some(Stuck(a)), Some(Stuck(b))) => a === b
+        | (Some(Stuck(a)), Some(Stuck(b))) => phys_equal(a, b)
         | (Some(Failed(a)), Some(Failed(b))) => a == b
         | _ => false
         }
@@ -186,7 +186,7 @@ module Model = {
 let display_budget = 5_000;
 
 let exceeds_display_budget = (e: Exp.t): bool =>
-  TermPrune.size_within(display_budget, e) == None;
+  Option.is_none(TermPrune.size_within(display_budget, e));
 
 /* single-slot memo: the view asks per render, the value is stable */
 let exceeds_memo: Slot.t(Exp.t, bool) = Slot.mk();
@@ -614,7 +614,8 @@ module Update = {
       streaming_outbox: streaming_outbox |> Calc.save,
       streaming_state: streaming_state |> Calc.save,
       pending_eval_ids,
-      edited_since_load: edited_since_load || is_edited && settled != None,
+      edited_since_load:
+        edited_since_load || is_edited && Option.is_some(settled),
       settled: Model.settle(settled, Calc.get_value(result)),
       display,
       theorems,
@@ -731,23 +732,23 @@ module View = {
     let code_view =
       Option.map(
         ~f=
-        (editor: CodeSelectable.Model.t) =>
-          CodeSelectable.View.view(
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(Evaluation())),
-            ~edit_mode=
-              EditMode.Editable({
-                inject: a => inject(EvalEditorAction(a)),
-                escape: _ => Ui_effect.Ignore,
-                escape_vertical: None,
-                take_focus: _ => Ui_effect.Ignore,
-                focus: selected ? Some() : None,
-              }),
-            ~globals,
-            ~dynamics=editor.dynamics,
-            editor,
-          ),
+          (editor: CodeSelectable.Model.t) =>
+            CodeSelectable.View.view(
+              ~signal=
+                fun
+                | MakeActive => signal(MakeActive(Evaluation())),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: a => inject(EvalEditorAction(a)),
+                  escape: _ => Ui_effect.Ignore,
+                  escape_vertical: None,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected ? Some() : None,
+                }),
+              ~globals,
+              ~dynamics=editor.dynamics,
+              editor,
+            ),
         editor,
       );
     let exn_view =
@@ -969,11 +970,11 @@ module View = {
       "test-decos",
       List.filter_map(
         ~f=
-        ((id, insts)) =>
-          switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-          | None => None
-          },
+          ((id, insts)) =>
+            switch (Haz3lcore.Measured.find_shards_by_id(id, measured)) {
+            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+            | None => None
+            },
         test_results.test_map,
       ),
     );

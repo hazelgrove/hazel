@@ -226,11 +226,11 @@ let view =
     let user_facing_messages =
       List.filter(
         ~f=
-        (msg: Message.Model.t) =>
-          switch (msg.role) {
-          | Message.Model.System(_) => false
-          | _ => true
-          },
+          (msg: Message.Model.t) =>
+            switch (msg.role) {
+            | Message.Model.System(_) => false
+            | _ => true
+            },
         messages,
       );
     let format_message = (msg: Message.Model.t): string => {
@@ -298,7 +298,8 @@ let view =
         )
       | _ => None
       };
-    let used_word = capped_note == None ? " context used" : " budget used";
+    let used_word =
+      Option.is_none(capped_note) ? " context used" : " budget used";
     let base_label = n_str ++ " / " ++ m_str ++ used_word;
     let title = pct =>
       switch (pct, capped_note) {
@@ -434,11 +435,11 @@ let view =
     let last_usage =
       List.fold_left(
         ~f=
-        (acc, m: Message.Model.t) =>
-          switch (m.role) {
-          | Agent(Some(u)) => Some(u)
-          | _ => acc
-          },
+          (acc, m: Message.Model.t) =>
+            switch (m.role) {
+            | Agent(Some(u)) => Some(u)
+            | _ => acc
+            },
         ~init=Stdlib.Option.none,
         Chat.Utils.get(current_chat),
       );
@@ -644,7 +645,7 @@ let view =
               ),
             ],
           ),
-      if (current_chat.pending_send_queue != []) {
+      if (!List.is_empty(current_chat.pending_send_queue)) {
         div(
           ~attrs=[clss(["chat-send-queue-panel"])],
           [
@@ -742,31 +743,31 @@ let view =
               ~attrs=[clss(["chat-slash-menu"])],
               List.mapi(
                 ~f=
-                (i, (name, desc)) =>
-                  div(
-                    ~attrs=[
-                      clss(
-                        ["chat-slash-menu-item"]
-                        @ (sm.selected_index == i ? ["selected"] : []),
-                      ),
-                      Attr.on_mousedown(_ =>
-                        Effect.Many([
-                          effect_run_slash_command(name),
-                          Effect.Prevent_default,
-                        ])
-                      ),
-                    ],
-                    [
-                      span(
-                        ~attrs=[clss(["chat-slash-cmd"])],
-                        [text("/" ++ name)],
-                      ),
-                      span(
-                        ~attrs=[clss(["chat-slash-desc"])],
-                        [text(desc)],
-                      ),
-                    ],
-                  ),
+                  (i, (name, desc)) =>
+                    div(
+                      ~attrs=[
+                        clss(
+                          ["chat-slash-menu-item"]
+                          @ (sm.selected_index == i ? ["selected"] : []),
+                        ),
+                        Attr.on_mousedown(_ =>
+                          Effect.Many([
+                            effect_run_slash_command(name),
+                            Effect.Prevent_default,
+                          ])
+                        ),
+                      ],
+                      [
+                        span(
+                          ~attrs=[clss(["chat-slash-cmd"])],
+                          [text("/" ++ name)],
+                        ),
+                        span(
+                          ~attrs=[clss(["chat-slash-desc"])],
+                          [text(desc)],
+                        ),
+                      ],
+                    ),
                 cmds,
               ),
             );

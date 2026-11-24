@@ -162,11 +162,11 @@ let update_context =
     switch (context_memo^) {
     | Some(m)
         when
-          m.m_zipper === editor.editor.state.zipper
-          && m.m_info === editor.statics.info_map
-          && m.m_dynamics === editor.dynamics
-          && m.m_tests === test_results
-          && m.m_value === value
+          phys_equal(m.m_zipper, editor.editor.state.zipper)
+          && phys_equal(m.m_info, editor.statics.info_map)
+          && phys_equal(m.m_dynamics, editor.dynamics)
+          && phys_equal(m.m_tests, test_results)
+          && phys_equal(m.m_value, value)
           && m.m_view == curr_chat.agent_view
           && m.m_view_settings == view =>
       m.m_out

@@ -3,6 +3,7 @@
    Alt↑↓ and Tab go, and a rename's tokens */
 open Haz3lcore;
 open Util;
+open Poly;
 
 module K = EntryEdit;
 module L = EntryLayout;
@@ -90,7 +91,10 @@ let plan =
       switch (new_template(op)) {
       | Some(t) =>
         Ok([
-          Insert(beside(~above=op == NewTestAbove, b, j, fid), Template(t)),
+          Insert(
+            beside(~above=Poly.equal(op, NewTestAbove), b, j, fid),
+            Template(t),
+          ),
         ])
       | None => Error(NoPlace)
       }
@@ -112,17 +116,18 @@ type spot = {
 
 let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) =>
   Option.map(
-    ((b: L.block, j, _)) => {
-      let k = up ? j - 1 : j + 1;
-      {
-        s_member: b.in_module,
-        s_item: L.bare(b, j),
-        s_trail: L.trail(b, j),
-        s_module: L.movable(b, k) ? L.module_at(b, k) : None,
-        s_value: L.movable(b, k) ? L.value_at(b, k) : None,
-        s_edge: !L.movable(b, k),
-      };
-    },
+    ~f=
+      ((b: L.block, j, _)) => {
+        let k = up ? j - 1 : j + 1;
+        {
+          s_member: b.in_module,
+          s_item: L.bare(b, j),
+          s_trail: L.trail(b, j),
+          s_module: L.movable(b, k) ? L.module_at(b, k) : None,
+          s_value: L.movable(b, k) ? L.value_at(b, k) : None,
+          s_edge: !L.movable(b, k),
+        };
+      },
     L.locate(~mod_root, fid, seg),
   );
 
@@ -233,8 +238,9 @@ let rename_kind = (kind: OutlineTree.kind): OutlineRename.kind =>
 
 /* where item [id]'s name is typed: its pattern's first piece */
 let name_slot = (~mod_root: bool, id: Id.t, seg: Segment.t): option(Id.t) =>
-  Option.bind(Nav.find_pat(~root=root_of(mod_root), id, seg), pat =>
-    List.find_opt(p => !Piece.is_secondary(p), pat) |> Option.map(Piece.id)
+  Option.bind(Nav.find_pat(~root=root_of(mod_root), id, seg), ~f=pat =>
+    List.find(~f=p => !Piece.is_secondary(p), pat)
+    |> Option.map(~f=Piece.id)
   );
 
 /* a name as the editor holds it: the text of item [def]'s pattern (or,
@@ -252,8 +258,8 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
     | ([], Some(_)) => None
     | ([(a, (gpre, gsuf)), ...rest], _) =>
       switch (def) {
-      | Some(d) when a.id == d =>
-        fst(a.children) == [] ? Some((before, after)) : None
+      | Some(d) when Id.equal(a.id, d) =>
+        List.is_empty(fst(a.children)) ? Some((before, after)) : None
       | _ =>
         let (l, r) = Ancestor.disassemble(a);
         out(
@@ -263,7 +269,7 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
         );
       }
     };
-  let selecting = z.selection.content != [];
+  let selecting = !List.is_empty(z.selection.content);
   let selected = L.text(z.selection.content);
   /* an inner caret splits the token to its right; a selection's is in the
      selection's own token, which sits between the siblings */
@@ -297,16 +303,16 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
       );
   Option.bind(
     out(before, after, z.relatives.ancestors),
-    ((before, after)) => {
+    ~f=((before, after)) => {
       let all = before ++ selected ++ after;
       let rec lead = i =>
         i < String.length(all) && String.contains(" \t\n\r", all.[i])
           ? lead(i + 1) : i;
-      let name = String.trim(all);
+      let name = String.strip(all);
       let from =
         OutlineEdit.units(before)
         + skipped
-        - OutlineEdit.units(String.sub(all, 0, lead(0)));
+        - OutlineEdit.units(String.sub(all, ~pos=0, ~len=lead(0)));
       let clamp = i => max(0, min(OutlineEdit.units(name), i));
       let (lo, hi) = (
         clamp(from),
@@ -315,7 +321,7 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
       /* a selection of the space around the name isn't in it */
       OutlineEdit.slice(name, lo, hi) != picked
         ? None
-        : z.selection.focus == Left
+        : Poly.equal(z.selection.focus, Left)
             ? Some((name, lo, hi)) : Some((name, hi, lo));
     },
   );
@@ -339,10 +345,10 @@ let refit =
   | Some((_, _, t) as at) =>
     let def = Option.value(Nav.def_at(at), ~default=[]);
     let named =
-      switch (List.filter(p => !Piece.is_secondary(p), Nav.pat_of(t))) {
-      | [Tile(b)] => b.id == it.binder
+      switch (List.filter(~f=p => !Piece.is_secondary(p), Nav.pat_of(t))) {
+      | [Tile(b)] => Id.equal(b.id, it.binder)
       | [Tile(b), Tile(colon), ..._] =>
-        b.id == it.binder && Tile.label(colon) == [":"]
+        Id.equal(b.id, it.binder) && Tile.label(colon) == [":"]
       | _ => false
       };
     switch (it.kind, kind) {
@@ -379,12 +385,13 @@ let plan_rename =
     )
     : result(option(renaming), string) => {
   let (kw, rest) = OutlineEdit.split_typed(typed);
-  let name = String.trim(rest);
+  let name = String.strip(rest);
   switch (OutlineRename.find_item(row, outline)) {
   | None => Error("this row has no name to change")
   | Some(it) =>
     let kind =
-      kw == "" ? it.kind : rename_kind(fst(OutlineEdit.new_kind(kw)));
+      String.equal(kw, "")
+        ? it.kind : rename_kind(fst(OutlineEdit.new_kind(kw)));
     let change =
       kind == it.kind
         ? Ok(None)
@@ -396,13 +403,14 @@ let plan_rename =
       OutlineRename.prepare(~info_map, ~kind, it, name)
       |> Result.map(~f=refs =>
            Option.map(
-             rn_refs =>
-               {
-                 rn_item: it,
-                 rn_name: name,
-                 rn_kind: change,
-                 rn_refs,
-               },
+             ~f=
+               rn_refs =>
+                 {
+                   rn_item: it,
+                   rn_name: name,
+                   rn_kind: change,
+                   rn_refs,
+                 },
              refs,
            )
          )
@@ -420,9 +428,9 @@ let apply_rename =
   let token = id => K.Replace(Term(id), Token(rn.rn_name));
   let tokens =
     List.map(
-      token,
+      ~f=token,
       List.filter(
-        id => K.is_token(~root, id, seg),
+        ~f=id => K.is_token(~root, id, seg),
         [rn.rn_item.binder, ...rn.rn_refs],
       ),
     );
@@ -448,9 +456,9 @@ type ctx = {
 /* row [fid]'s parent row in [term]'s outline, and its kind */
 let parent_row =
     (outline: OutlineTree.t, fid: Id.t): option((Id.t, OutlineTree.kind)) =>
-  switch (Option.map(List.rev, OutlineTree.trail_of(fid, outline))) {
+  switch (Option.map(~f=List.rev, OutlineTree.trail_of(fid, outline))) {
   | Some([_, parent, ..._]) =>
-    Option.map(k => (parent, k), OutlineTree.kind_of(parent, outline))
+    Option.map(~f=k => (parent, k), OutlineTree.kind_of(parent, outline))
   | _ => None
   };
 
@@ -519,7 +527,7 @@ let edit =
       ~mod_root,
       ~is_open=ctx.is_open,
       ~owner,
-      ~up=op == MoveUp,
+      ~up=Poly.equal(op, MoveUp),
       fid,
       seg,
     )
@@ -527,7 +535,7 @@ let edit =
   | Op(Indent, fid) =>
     indent(
       ~mod_root,
-      ~shown=id => OutlineTree.node_of(id, ctx.outline) != None,
+      ~shown=id => Option.is_some(OutlineTree.node_of(id, ctx.outline)),
       fid,
       seg,
     )

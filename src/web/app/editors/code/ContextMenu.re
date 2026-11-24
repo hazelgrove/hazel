@@ -449,7 +449,7 @@ let get_sections =
     /* Section 5: Projectors (fold, livelits) */
     Projectors.actions_data(z, info_map, ~elaborated),
   ]
-  |> List.filter(~f=section => section != []);
+  |> List.filter(~f=section => !List.is_empty(section));
 };
 
 /* Flatten sections by interspersing `Menu.Divider` between non-empty ones. */
@@ -457,12 +457,12 @@ let flatten_sections =
     (sections: list(list(Menu.item(command)))): list(Menu.item(command)) =>
   List.fold_left(
     ~f=
-    (acc, section) =>
-      switch (acc, section) {
-      | (_, []) => acc
-      | ([], items) => items
-      | (acc, items) => acc @ [Menu.divider] @ items
-      },
+      (acc, section) =>
+        switch (acc, section) {
+        | (_, []) => acc
+        | ([], items) => items
+        | (acc, items) => acc @ [Menu.divider] @ items
+        },
     ~init=[],
     sections,
   );

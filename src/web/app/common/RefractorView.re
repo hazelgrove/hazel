@@ -30,9 +30,9 @@ let measurement_of_tile =
     (id: Id.t, measured: Measured.t): option(Measured.measurement) =>
   Option.bind(
     Measured.find_shards_by_id(id, measured),
-    Util.ListUtil.last_opt,
+    ~f=Util.ListUtil.last_opt,
   )
-  |> Option.map(((_, m: Measured.measurement)) =>
+  |> Option.map(~f=((_, m: Measured.measurement)) =>
        Measured.{
          origin: m.last,
          last: m.last,
@@ -70,7 +70,7 @@ let row_range =
     )
     : (int, int) =>
   if (program_value) {
-    (measurement.origin.row, max_int);
+    (measurement.origin.row, Int.max_value);
   } else {
     let drawer_rows =
       Id.Map.find_opt(CachedSyntax.rows_key(id, term_data), refractor_rows)
@@ -102,7 +102,7 @@ let mk_data =
   Id.Map.bindings(refractors)
   |> List.filter_map(~f=((id, entry: Refractors.entry)) =>
        (
-         if (entry.kind == Proof) {
+         if (Poly.equal(entry.kind, Proof)) {
            measurement_of_tile(id, measured);
          } else if (program_value(id, entry)) {
            Some(measurement_of_end(measured));

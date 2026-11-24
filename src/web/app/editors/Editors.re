@@ -61,7 +61,7 @@ module Model = {
           | Some((id, side)) =>
             ":"
             ++ Haz3lcore.Id.to_string(id)
-            ++ (side == Divided.Header ? ":h" : ":b")
+            ++ (Poly.equal(side, Divided.Header) ? ":h" : ":b")
           | None => ":cells"
           }
         )
@@ -543,7 +543,7 @@ module Selection = {
   let scratch_across = ((a, s, ks)) => (
     Update.Scratch(a),
     Scratch(s),
-    List.map(k => Update.Scratch(k), ks),
+    List.map(~f=k => Update.Scratch(k), ks),
   );
 
   /* cross-cell jump-to-definition and step into in stacks */
@@ -554,7 +554,7 @@ module Selection = {
     | (Scratch(sa), Scratch(m))
     | (Scratch(sa), Documentation(m)) =>
       ScratchMode.Selection.stack_jump_override(sa, m)
-      |> Option.map(scratch_across)
+      |> Option.map(~f=scratch_across)
     | _ => None
     };
 
@@ -566,7 +566,7 @@ module Selection = {
     | Scratch(m)
     | Documentation(m) =>
       ScratchMode.Selection.closed_jump(tile, m)
-      |> Option.map(scratch_across)
+      |> Option.map(~f=scratch_across)
     | _ => None
     };
 
@@ -576,7 +576,7 @@ module Selection = {
     | (Scratch(sa), Scratch(m))
     | (Scratch(sa), Documentation(m)) =>
       ScratchMode.Selection.stack_add_selection(sa, m)
-      |> Option.map(s => Scratch(s))
+      |> Option.map(~f=s => Scratch(s))
     | _ => None
     };
 
@@ -772,20 +772,20 @@ module View = {
             ],
             List.map(
               ~f=
-              s =>
-                EditorModeView.option_view(
+                s =>
+                  EditorModeView.option_view(
                     String.equal(
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    | Config(_) => "Configuration"
+                      switch (editors) {
+                      | Scratch(_) => "Scratch"
+                      | Documentation(_) => "Documentation"
+                      | Tutorial(_) => "Tutorial"
+                      | Exercises(_) => "Exercises"
+                      | Config(_) => "Configuration"
                       },
                       s,
                     ),
-                  s,
-                ),
+                    s,
+                  ),
               [
                 "Scratch",
                 "Documentation",

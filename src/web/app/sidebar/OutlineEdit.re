@@ -1,4 +1,5 @@
 open Util;
+open Poly;
 
 /* The outline's text mode: a line-based text area of names. Every shown
    row is a line; a nameable row's line is its name, any other row is a
@@ -33,11 +34,11 @@ type def_op =
 /* a typed definition's kind from its leading keyword, and the keyword:
    `type `, `module `, or `let ` (a value, as no keyword is) */
 let new_kind = (text: string): (OutlineTree.kind, string) =>
-  String.starts_with(~prefix="type ", text)
+  String.is_prefix(~prefix="type ", text)
     ? (KType, "type ")
-    : String.starts_with(~prefix="module ", text)
+    : String.is_prefix(~prefix="module ", text)
         ? (KModule, "module ")
-        : String.starts_with(~prefix="let ", text)
+        : String.is_prefix(~prefix="let ", text)
             ? (KConst, "let ") : (KConst, "");
 
 /* a rename's typed text: its leading kind keyword, shown apart from the
@@ -45,13 +46,13 @@ let new_kind = (text: string): (OutlineTree.kind, string) =>
 let split_typed = (text: string): (string, string) => {
   let (_, kw) = new_kind(text);
   let n = String.length(kw);
-  (kw, String.sub(text, n, String.length(text) - n));
+  (kw, String.sub(text, ~pos=n, ~len=String.length(text) - n));
 };
 
 /* a kind keyword still short of its space: refused if saved as a name,
    but not yet underlined while typed, as the space makes it a kind */
 let kind_pending = (text: string): bool =>
-  List.mem(text, ["type", "module", "let"]);
+  List.mem(["type", "module", "let"], text, ~equal=Poly.equal);
 
 /* where a new definition goes: below its anchor, or first or last inside
    it (a module) */
@@ -85,7 +86,7 @@ type fresh = {
 /* the line Enter starts once new definition [f] is named: below it, or
    first inside it, a module (an empty one) */
 let next_line = (f: fresh): line =>
-  New(f.f_id, fst(new_kind(f.f_kw)) == KModule ? First : Below);
+  New(f.f_id, Poly.equal(fst(new_kind(f.f_kw)), KModule) ? First : Below);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -169,7 +170,7 @@ type after =
   | Done;
 
 /* a save that ends text mode */
-let exits = (a: after): bool => a == Leave || a == Done;
+let exits = (a: after): bool => Poly.equal(a, Leave) || Poly.equal(a, Done);
 
 /* a context menu's row: an item (its kind picks the menu's rows), or a
    tests label, by its first and last tests, and whether it's expanded */
@@ -190,7 +191,7 @@ type visible_row = {
 
 /* rows with a name to type; tests, ⇒, statements and the like have none */
 let nameable = (n: OutlineTree.node): bool =>
-  n.o_id != None
+  Option.is_some(n.o_id)
   && (
     switch (n.o_kind) {
     | KFn
@@ -205,8 +206,8 @@ let key_of_node = (n: OutlineTree.node): option(key) =>
   switch (n.o_id, n.o_kind) {
   | (Some(id), _) => Some(Item(id))
   | (None, KTests) =>
-    List.find_map((c: OutlineTree.node) => c.o_id, n.o_children)
-    |> Option.map(id => Run(id))
+    List.find_map(~f=(c: OutlineTree.node) => c.o_id, n.o_children)
+    |> Option.map(~f=id => Run(id))
   | (None, _) => None
   };
 let key_of = (r: visible_row): option(key) => key_of_node(r.r_node);
@@ -218,7 +219,8 @@ let shown_of_node = (n: OutlineTree.node): option(Id.t) => {
     | (KTest, Some(_) as t) => t
     | _ => n.o_id
     };
-  n.o_kind == KTests ? List.find_map(own, n.o_children) : own(n);
+  Poly.equal(n.o_kind, KTests)
+    ? List.find_map(~f=own, n.o_children) : own(n);
 };
 
 /* the item a key names, if a row has one */
@@ -257,10 +259,15 @@ let rec under = (p: OutlineTree.path, q: OutlineTree.path): bool =>
    inside it, or past the rows under it (below it, or last inside it, but
    above a function's ⇒, which stays last) */
 let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
-  let rows = Array.map(r => Of_row(r), visible);
+  let rows = Array.map(~f=r => Of_row(r), visible);
   switch (text) {
   | Some({line: New(a, place), _}) =>
-    switch (Array.find_index(r => r.r_node.o_id == Some(a), visible)) {
+    switch (
+      Array.findi(visible, ~f=(_, r) =>
+        Option.equal(Id.equal, r.r_node.o_id, Some(a))
+      )
+      |> Option.map(~f=fst)
+    ) {
     | None => rows
     | Some(i) =>
       let n = Array.length(visible);
@@ -269,8 +276,8 @@ let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
           ? past(j + 1) : j;
       let trail = j =>
         j > i
-        && visible[j].r_node.o_kind == KTrail
-        && visible[j].r_parent == Some(visible[i].r_path);
+        && Poly.equal(visible[j].r_node.o_kind, KTrail)
+        && Poly.equal(visible[j].r_parent, Some(visible[i].r_path));
       let k =
         switch (place) {
         | First => i + 1
@@ -280,9 +287,9 @@ let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
           trail(j - 1) ? j - 1 : j;
         };
       Array.concat([
-        Array.sub(rows, 0, k),
+        Array.sub(rows, ~pos=0, ~len=k),
         [|Of_new(a, place)|],
-        Array.sub(rows, k, n - k),
+        Array.sub(rows, ~pos=k, ~len=n - k),
       ]);
     }
   | _ => rows
@@ -308,12 +315,13 @@ let same_line = (a: line, b: line): bool =>
 let find =
     (~last: option(int)=?, lines: array(entry), line: line): option(int) => {
   let row_at = (f: visible_row => bool) =>
-    Array.find_index(
-      fun
+    Array.findi(lines, ~f=(_, e) =>
+      switch (e) {
       | Of_row(r) => f(r)
-      | Of_new(_) => false,
-      lines,
-    );
+      | Of_new(_) => false
+      }
+    )
+    |> Option.map(~f=fst);
   let near = () =>
     switch (last) {
     | Some(i) when Array.length(lines) > 0 =>
@@ -323,18 +331,19 @@ let find =
   switch (line) {
   | New(a, p) =>
     switch (
-      Array.find_index(
-        fun
+      Array.findi(lines, ~f=(_, e) =>
+        switch (e) {
         | Of_new(a', p') => a == a' && p == p'
-        | Of_row(_) => false,
-        lines,
+        | Of_row(_) => false
+        }
       )
+      |> Option.map(~f=fst)
     ) {
     | Some(i) => Some(i)
     | None => near()
     }
   | Row(path, key) =>
-    let by_key = key == None ? None : row_at(r => key_of(r) == key);
+    let by_key = Option.is_none(key) ? None : row_at(r => key_of(r) == key);
     switch (by_key) {
     | Some(i) => Some(i)
     | None =>
@@ -385,7 +394,7 @@ let word_edge = (name: string, at: int, side: Direction.t): int => {
     };
   let word = i =>
     wordish(i)
-    || slice(name, i, i + 1) == "'"
+    || String.equal(slice(name, i, i + 1), "'")
     && wordish(i - 1)
     && wordish(i + 1);
   let rec skip = (i, f) =>
@@ -410,10 +419,10 @@ let reach_to = (name: string, at: int, side: Direction.t, r: reach): int =>
    name characters, but no `.` (qualified names, floats) or the `?^$`
    that start or end special tokens */
 let fragment = (text: string): option(string) => {
-  let s = String.trim(text);
-  s != ""
+  let s = String.strip(text);
+  !String.equal(s, "")
   && Language.Token.is_potential_operand(s)
-  && !String.exists(c => String.contains(".?^$", c), s)
+  && !String.exists(s, ~f=c => String.contains(".?^$", c))
     ? Some(s) : None;
 };
 
@@ -440,7 +449,7 @@ type press = {
 };
 
 let press_of = (~composing: bool, k: Key.t): press => {
-  let mac = k.sys == Mac;
+  let mac = Poly.equal(k.sys, Mac);
   {
     key:
       switch (k.key) {
@@ -448,10 +457,10 @@ let press_of = (~composing: bool, k: Key.t): press => {
       | U(key) => key
       },
     code: k.code,
-    alt: k.alt == Down,
-    meta: (mac ? k.meta : k.ctrl) == Down,
-    ctrl: (mac ? k.ctrl : k.meta) == Down,
-    shift: k.shift == Down,
+    alt: Poly.equal(k.alt, Down),
+    meta: Poly.equal(mac ? k.meta : k.ctrl, Down),
+    ctrl: Poly.equal(mac ? k.ctrl : k.meta, Down),
+    shift: Poly.equal(k.shift, Down),
     composing,
   };
 };
@@ -493,20 +502,21 @@ let structural = (p: press): option(structural) =>
   p.composing
     ? None
     : List.find_map(
-        ((trigger, mods, s)) =>
-          (
-            switch (trigger) {
-            | Key(k) => p.key == k
-            | Code(c) => p.code == c
-            }
-          )
-          && only(
-               ~alt=List.mem(Alt, mods),
-               ~meta=List.mem(Cmd, mods),
-               ~shift=List.mem(Shift, mods),
-               p,
-             )
-            ? Some(s) : None,
+        ~f=
+          ((trigger, mods, s)) =>
+            (
+              switch (trigger) {
+              | Key(k) => p.key == k
+              | Code(c) => p.code == c
+              }
+            )
+            && only(
+                 ~alt=List.mem(mods, Alt, ~equal=Poly.equal),
+                 ~meta=List.mem(mods, Cmd, ~equal=Poly.equal),
+                 ~shift=List.mem(mods, Shift, ~equal=Poly.equal),
+                 p,
+               )
+              ? Some(s) : None,
         structural_keys,
       );
 
@@ -568,8 +578,10 @@ type outcome =
 /* the line where Enter puts a new definition, for a nameable row: first
    inside an expanded module or an empty one ([blank]), else below */
 let new_place = (~blank: Id.t => bool, r: visible_row): place =>
-  r.r_node.o_kind == KModule
-  && (r.r_expanded || Option.fold(~none=false, ~some=blank, r.r_node.o_id))
+  Poly.equal(r.r_node.o_kind, KModule)
+  && (
+    r.r_expanded || Option.value_map(r.r_node.o_id, ~default=false, ~f=blank)
+  )
     ? First : Below;
 
 let len_of_line = (e: entry): int => units(name_of_line(e));
@@ -602,18 +614,19 @@ let toward = (lines: array(entry), ~target: int, j: int) =>
 let row_at =
     (lines: array(entry), path: OutlineTree.path): option(visible_row) =>
   Array.find_map(
-    fun
-    | Of_row(r) when r.r_path == path => Some(r)
-    | _ => None,
+    ~f=
+      fun
+      | Of_row(r) when r.r_path == path => Some(r)
+      | _ => None,
     lines,
   );
 
 /* the row whose items [r] is one of, a run's tests being their level's
    items; none at the top level */
 let level_row = (lines: array(entry), r: visible_row): option(visible_row) =>
-  switch (Option.bind(r.r_parent, row_at(lines))) {
-  | Some(run) when run.r_node.o_kind == KTests =>
-    Option.bind(run.r_parent, row_at(lines))
+  switch (Option.bind(r.r_parent, ~f=row_at(lines))) {
+  | Some(run) when Poly.equal(run.r_node.o_kind, KTests) =>
+    Option.bind(run.r_parent, ~f=row_at(lines))
   | parent => parent
   };
 
@@ -636,47 +649,54 @@ let beside =
       | Some(r) => r.r_node.o_children
       | None =>
         List.filter_map(
-          fun
-          | Of_row({r_parent: None, r_node, _}) => Some(r_node)
-          | _ => None,
+          ~f=
+            fun
+            | Of_row({r_parent: None, r_node, _}) => Some(r_node)
+            | _ => None,
           Array.to_list(lines),
         )
       }
     )
-    |> List.concat_map((n: OutlineTree.node) =>
-         n.o_kind == KTests ? n.o_children : [n]
+    |> List.concat_map(~f=(n: OutlineTree.node) =>
+         Poly.equal(n.o_kind, KTests) ? n.o_children : [n]
        )
-    |> List.filter((n: OutlineTree.node) => skip == None || n.o_id != skip);
+    |> List.filter(~f=(n: OutlineTree.node) =>
+         Option.is_none(skip) || !Option.equal(Id.equal, n.o_id, skip)
+       );
   /* item [id] in [level]'s, and the items before and after it */
   let split = (level, id) => {
     let rec go = (above, ns: list(OutlineTree.node)) =>
       switch (ns) {
       | [] => None
-      | [n, ...rest] when n.o_id == Some(id) => Some((above, n, rest))
+      | [n, ...rest] when Option.equal(Id.equal, n.o_id, Some(id)) =>
+        Some((above, n, rest))
       | [n, ...rest] => go(Some(n), rest)
       };
     go(None, items(level));
   };
   let row_of = (id: Id.t) =>
     Array.find_map(
-      fun
-      | Of_row(r) when r.r_node.o_id == Some(id) => Some(r)
-      | _ => None,
+      ~f=
+        fun
+        | Of_row(r) when Option.equal(Id.equal, r.r_node.o_id, Some(id)) =>
+          Some(r)
+        | _ => None,
       lines,
     );
   switch (e) {
   | Of_row(r) =>
     Option.bind(
       r.r_node.o_id,
-      id => {
+      ~f=id => {
         let level = level_row(lines, r);
         Option.map(
-          ((above, _, rest)) =>
-            {
-              b_level: level,
-              b_above: above,
-              b_below: ListUtil.hd_opt(rest),
-            },
+          ~f=
+            ((above, _, rest)) =>
+              {
+                b_level: level,
+                b_above: above,
+                b_below: List.hd(rest),
+              },
           split(level, id),
         );
       },
@@ -684,42 +704,44 @@ let beside =
   | Of_new(a, Below) =>
     Option.bind(
       row_of(a),
-      r => {
+      ~f=r => {
         let level = level_row(lines, r);
         Option.map(
-          ((_, n, rest)) =>
-            {
-              b_level: level,
-              b_above: Some(n),
-              b_below: ListUtil.hd_opt(rest),
-            },
+          ~f=
+            ((_, n, rest)) =>
+              {
+                b_level: level,
+                b_above: Some(n),
+                b_below: List.hd(rest),
+              },
           split(level, a),
         );
       },
     )
   | Of_new(a, place) =>
     Option.map(
-      r => {
-        let ns = items(Some(r));
-        switch (place, ListUtil.split_last_opt(ns)) {
-        | (First, _) => {
-            b_level: Some(r),
-            b_above: None,
-            b_below: ListUtil.hd_opt(ns),
-          }
-        /* last in a function: above its ⇒ */
-        | (_, Some((init, {o_kind: KTrail, _} as trail))) => {
-            b_level: Some(r),
-            b_above: ListUtil.last_opt(init),
-            b_below: Some(trail),
-          }
-        | _ => {
-            b_level: Some(r),
-            b_above: ListUtil.last_opt(ns),
-            b_below: None,
-          }
-        };
-      },
+      ~f=
+        r => {
+          let ns = items(Some(r));
+          switch (place, ListUtil.split_last_opt(ns)) {
+          | (First, _) => {
+              b_level: Some(r),
+              b_above: None,
+              b_below: List.hd(ns),
+            }
+          /* last in a function: above its ⇒ */
+          | (_, Some((init, {o_kind: KTrail, _} as trail))) => {
+              b_level: Some(r),
+              b_above: List.last(init),
+              b_below: Some(trail),
+            }
+          | _ => {
+              b_level: Some(r),
+              b_above: List.last(ns),
+              b_below: None,
+            }
+          };
+        },
       row_of(a),
     )
   };
@@ -772,7 +794,8 @@ let live_key =
     j == at
       ? Type(Step(up ? Left : Right, Edge))
       : toward(lines, ~target=Option.value(t.col_target, ~default=col), j);
-  let at_side = (side: Direction.t) => side == Left ? col == 0 : col >= len;
+  let at_side = (side: Direction.t) =>
+    Poly.equal(side, Left) ? col == 0 : col >= len;
   /* ←→ Home End: the caret by [r], or with Shift the selection's moving
      end; a character past the name's end goes on to the next line */
   let horizontal = (side: Direction.t, r: reach) =>
@@ -780,24 +803,24 @@ let live_key =
       Type(Select(side, r));
     } else if (sel || !at_side(side)) {
       Type(Step(side, r));
-    } else if (r != Char) {
+    } else if (!Poly.equal(r, Char)) {
       Swallow;
-    } else if (side == Left) {
+    } else if (Poly.equal(side, Left)) {
       at > 0 ? to_end(at - 1) : Swallow;
     } else {
       at < n - 1 ? to_start(at + 1) : Swallow;
     };
   /* the line above, where the caret goes when this one does */
   let above = () => at > 0 ? to_end(at - 1) : Save(Leave);
-  let blank = String.trim(name) == "";
-  let kw = Option.fold(~none="", ~some=f => f.f_kw, t.fresh);
+  let blank = String.equal(String.strip(name), "");
+  let kw = Option.value_map(t.fresh, ~default="", ~f=f => f.f_kw);
   let alone = only(p);
   /* where the line goes in a level ([out]: out of one): last into the
      module or value above it; out of the module or value it's the last
      line of, just after that */
   let shifted = (~out) =>
     switch (
-      beside(~skip=Option.map(f => f.f_id, t.fresh), lines, lines[at]),
+      beside(~skip=Option.map(~f=f => f.f_id, t.fresh), lines, lines[at]),
       out,
     ) {
     | (Some({b_above: Some({o_id: Some(m), _} as above), _}), false)
@@ -805,7 +828,7 @@ let live_key =
       Some(New(m, Last))
     | (Some({b_level: Some(level), b_below, _}), true)
         when leaves(~level, b_below) =>
-      Option.map(m => New(m, Below), level.r_node.o_id)
+      Option.map(~f=m => New(m, Below), level.r_node.o_id)
     | _ => None
     };
   switch (structural(p)) {
@@ -861,11 +884,11 @@ let live_key =
     /* ⌥: a word; ⌘: the name's start or end */
     | ("ArrowLeft" | "ArrowRight") as k when !p.ctrl && !(p.alt && p.meta) =>
       horizontal(
-        k == "ArrowLeft" ? Left : Right,
+        String.equal(k, "ArrowLeft") ? Left : Right,
         p.alt ? Word : p.meta ? Edge : Char,
       )
     | ("Home" | "End") as k when !p.alt && !p.meta && !p.ctrl =>
-      horizontal(k == "Home" ? Left : Right, Edge)
+      horizontal(String.equal(k, "Home") ? Left : Right, Edge)
     | "ArrowUp"
     | "ArrowDown"
     | "ArrowLeft"
@@ -877,14 +900,17 @@ let live_key =
     | "Backspace" when p.meta || p.ctrl => Swallow
     | "Backspace" when !blank => Type(Erase(Left, p.alt ? Word : Char))
     /* at a blank name's start: a type or module's keyword goes first */
-    | "Backspace" when kw != "" && t.fresh != None => Rekind("")
+    | "Backspace" when !String.equal(kw, "") && Option.is_some(t.fresh) =>
+      Rekind("")
     /* a blank name: the line goes, and its definition with it */
     | "Backspace" => above()
     | "Delete" when !p.meta && !p.ctrl && !p.shift && !blank =>
       Type(Erase(Right, p.alt ? Word : Char))
     | "Delete" => Flash
     /* the page's undo takes the definition away, typed name and all */
-    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "z" =>
+    | _
+        when
+          only(~meta=true, p) && String.equal(String.lowercase(p.key), "z") =>
       switch (t.fresh) {
       | Some(_) when at > 0 =>
         let (l, c) = end_of(lines, at - 1);
@@ -893,9 +919,13 @@ let live_key =
       /* not in yet: the Enter that made it */
       | None => above()
       }
-    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "a" =>
+    | _
+        when
+          only(~meta=true, p) && String.equal(String.lowercase(p.key), "a") =>
       Type(SelectAll)
-    | _ when only(~meta=true, p) && String.lowercase_ascii(p.key) == "v" =>
+    | _
+        when
+          only(~meta=true, p) && String.equal(String.lowercase(p.key), "v") =>
       Paste
     /* what's drawn: what was just seen selected (the clipboard is written
        as the key goes down) */
@@ -903,7 +933,7 @@ let live_key =
       sel
         ? Copy(
             slice(name, min(col, anchor), max(col, anchor)),
-            String.lowercase_ascii(c) == "x",
+            String.equal(String.lowercase(c), "x"),
           )
         : Swallow
     | _ when p.meta => Page
@@ -911,11 +941,11 @@ let live_key =
     /* a value's name begun `type ` or `module `: that kind instead */
     | " "
         when
-          kw == ""
-          && t.fresh != None
+          String.equal(kw, "")
+          && Option.is_some(t.fresh)
           && !sel
           && col == len
-          && (name == "type" || name == "module") =>
+          && (String.equal(name, "type") || String.equal(name, "module")) =>
       Rekind(name ++ " ")
     | _ when Unicode.count_codepoints(p.key) == 1 => Type(Insert(p.key))
     | _ => Swallow
@@ -960,10 +990,11 @@ let decide_row =
      stays last */
   let op = o =>
     switch (OutlineTree.item_of(r.r_node)) {
-    | Some(id) when r.r_node.o_kind != KTrail => Op(o, id)
+    | Some(id) when !Poly.equal(r.r_node.o_kind, KTrail) => Op(o, id)
     | _ => Flash
     };
-  let unsaved = t.pending != None && t.pending != Some(r.r_name);
+  let unsaved =
+    Option.is_some(t.pending) && !Poly.equal(t.pending, Some(r.r_name));
   /* [s] into the name at the caret: the new text, and the caret after it */
   let typed = (s: string, a: int, b: int) => {
     let (text, col) =
@@ -977,7 +1008,8 @@ let decide_row =
   let alone = only(p);
   switch (structural(p)) {
   | Some(Item(o)) => op(o)
-  | Some(Fold) => r.r_node.o_children != [] ? Fold(r.r_path) : Flash
+  | Some(Fold) =>
+    !List.is_empty(r.r_node.o_children) ? Fold(r.r_path) : Flash
   | Some(Menu) => Menu
   | Some(Leave) => Exit
   | None =>
@@ -1004,7 +1036,7 @@ let decide_row =
       | (KTests, _) =>
         switch (
           List.filter_map(
-            (c: OutlineTree.node) => c.o_id,
+            ~f=(c: OutlineTree.node) => c.o_id,
             r.r_node.o_children,
           )
         ) {
@@ -1057,12 +1089,13 @@ let decide_row =
     | "Backspace" when p.meta => Swallow
     | "Backspace" when here_ghost => Flash
     /* at the field's start, a keyword typed before it goes first */
-    | "Backspace" when kw != "" && !sel && col == 0 => Edit(value, 0)
+    | "Backspace" when !String.equal(kw, "") && !sel && col == 0 =>
+      Edit(value, 0)
     | "Backspace" when sel || col > 0 =>
       p.alt || p.ctrl ? own(Swallow) : own(typed("", col - 1, col))
     | "Backspace" =>
       switch (item) {
-      | Some(id) when String.trim(value) == "" && blank(id) =>
+      | Some(id) when String.equal(String.strip(value), "") && blank(id) =>
         Remove(
           id,
           at > 0
@@ -1078,7 +1111,10 @@ let decide_row =
     | "Delete" when alone => Flash
     | _
         when
-          p.meta && !p.alt && !p.ctrl && String.lowercase_ascii(p.key) == "z" =>
+          p.meta
+          && !p.alt
+          && !p.ctrl
+          && String.equal(String.lowercase(p.key), "z") =>
       p.shift ? Page : unsaved ? Revert : Page
     | _ when p.meta => here_ghost ? Page : Field
     | _ when p.ctrl => here_ghost ? Swallow : Field

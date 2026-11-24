@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Poly;
 
 /* the outline row holding the editor's caret, marked by a style rule
    rather than a class so the memoized outline needn't re-render per caret
@@ -61,8 +62,8 @@ let follow_cursor = (): unit => {
       ),
     );
   let follow = (key, scroll) =>
-    if (last_cursor^ != Some(key)) {
-      let moved = last_cursor^ != None;
+    if (!Poly.equal(last_cursor^, Some(key))) {
+      let moved = Option.is_some(last_cursor^);
       last_cursor := Some(key);
       scroll(moved);
     };
@@ -70,7 +71,7 @@ let follow_cursor = (): unit => {
   switch (find(" .outline-label.outline-new"), cursor, find("")) {
   /* a new definition being named, below the cursor's row */
   | (Some(el), _, _) =>
-    follow("+" ++ Option.fold(~none="", ~some=key_of, cursor), _ =>
+    follow("+" ++ Option.value_map(cursor, ~default="", ~f=key_of), _ =>
       scroll_after_layout(() => scroll_nearest(el))
     )
   | (None, Some(el), _) =>
@@ -121,7 +122,7 @@ let reveal = (s: spot): unit => {
     Dom.list_of_nodeList(
       Dom_html.document##querySelectorAll(Js.string("#main " ++ sel)),
     );
-  let nth = (sel, i) => List.nth_opt(all(sel), i);
+  let nth = (sel, i) => List.nth(all(sel), i);
   let code_in = (el: Js.t(Dom_html.element)) =>
     Js.Opt.to_option(el##querySelector(Js.string(".code-container")));
   let (_, row_h) = Util.JsUtil.font_metrics_from_specimen();
@@ -135,28 +136,34 @@ let reveal = (s: spot): unit => {
   };
   switch (s) {
   | Lines(None, rows) =>
-    Option.iter(lines(rows), nth(".code-editor .code-container", 0))
+    Option.iter(~f=lines(rows), nth(".code-editor .code-container", 0))
   | Lines(Some(i), rows) =>
-    Option.iter(lines(rows), Option.bind(nth(".focus-body", i), code_in))
+    Option.iter(
+      ~f=lines(rows),
+      Option.bind(nth(".focus-body", i), ~f=code_in),
+    )
   | Cell(i) =>
     Option.iter(
-      (body: Js.t(Dom_html.element)) => {
-        /* its header, and a few of its lines */
-        let head =
-          Js.Opt.case(
-            Js.Unsafe.coerce(body)##.previousElementSibling,
-            () => body,
-            (h: Js.t(Dom_html.element)) =>
-              Js.to_bool(h##.classList##contains(Js.string("focus-header")))
-                ? h : body,
+      ~f=
+        (body: Js.t(Dom_html.element)) => {
+          /* its header, and a few of its lines */
+          let head =
+            Js.Opt.case(
+              Js.Unsafe.coerce(body)##.previousElementSibling,
+              () => body,
+              (h: Js.t(Dom_html.element)) =>
+                Js.to_bool(
+                  h##.classList##contains(Js.string("focus-header")),
+                )
+                  ? h : body,
+            );
+          let b = rect(body);
+          show_span(
+            body,
+            rect(head)##.top,
+            min(b##.bottom, b##.top +. 4. *. row_h),
           );
-        let b = rect(body);
-        show_span(
-          body,
-          rect(head)##.top,
-          min(b##.bottom, b##.top +. 4. *. row_h),
-        );
-      },
+        },
       nth(".focus-body", i),
     )
   };
@@ -213,15 +220,16 @@ let replay = (): unit =>
     switch (drawn, body) {
     | (Some(_), Some(body)) =>
       List.iter(
-        init =>
-          ignore(
-            Js.Unsafe.coerce(body)##dispatchEvent(
-              Js.Unsafe.new_obj(
-                Js.Unsafe.global##._KeyboardEvent,
-                [|Js.Unsafe.inject(Js.string("keydown")), init|],
+        ~f=
+          init =>
+            ignore(
+              Js.Unsafe.coerce(body)##dispatchEvent(
+                Js.Unsafe.new_obj(
+                  Js.Unsafe.global##._KeyboardEvent,
+                  [|Js.Unsafe.inject(Js.string("keydown")), init|],
+                ),
               ),
             ),
-          ),
         keys,
       )
     | _ => ()

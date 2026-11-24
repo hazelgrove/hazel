@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* View as agent, Stacked: the map the request sent, as a read-only
    editor. Its pieces are the map's (CompositionView.map_of: folded
@@ -30,10 +31,8 @@ let note_settings = (view: CV.settings): CV.settings => {
 };
 
 let ids_of = (seg: Segment.t): Id.Map.t(unit) =>
-  List.fold_left(
-    (m, id) => Id.Map.add(id, (), m),
-    Id.Map.empty,
-    Segment.ids(seg),
+  List.fold(Segment.ids(seg), ~init=Id.Map.empty, ~f=(m, id) =>
+    Id.Map.add(id, (), m)
   );
 
 let build =
@@ -62,7 +61,7 @@ let build =
   let shown = ids_of(fst(CV.map_of(ctx([]), o)));
   let (seg, notes) =
     CV.map_of(
-      ctx(List.filter(id => !Id.Map.mem(id, shown), statics.error_ids)),
+      ctx(List.filter(~f=id => !Id.Map.mem(id, shown), statics.error_ids)),
       o,
     );
   {
@@ -76,8 +75,10 @@ let build =
     notes,
     tail:
       List.find_map(
-        (e: Outline.entry) =>
-          e.kind == Tail ? CV.last_content(Outline.core(e.lv, e.k)) : None,
+        ~f=
+          (e: Outline.entry) =>
+            Poly.equal(e.kind, Tail)
+              ? CV.last_content(Outline.core(e.lv, e.k)) : None,
         o.entries,
       ),
   };
@@ -93,12 +94,12 @@ let calculate =
   let st = Program.statics(program);
   let cws = m.editor.editor;
   let statics =
-    cws.statics.info_map === st.info_map
-    && cws.statics.elaborated === st.elaborated
+    phys_equal(cws.statics.info_map, st.info_map)
+    && phys_equal(cws.statics.elaborated, st.elaborated)
       ? cws.statics
       : {
         let shown = ids_of(segment(m));
-        let on_map = List.filter(id => Id.Map.mem(id, shown));
+        let on_map = List.filter(~f=id => Id.Map.mem(id, shown));
         {
           ...st,
           error_ids: on_map(st.error_ids),
@@ -157,13 +158,14 @@ let notes = (~value: option(Language.Exp.t), m: t): list(CV.note) =>
   | (Some(v), Some(tail)) =>
     let part = {js|⇒ |js} ++ CV.comment_safe(ProbeText.format_value(v));
     List.map(
-      (n: CV.note) =>
-        n.at == tail && n.last
-          ? {
-            ...n,
-            parts: n.parts @ [part],
-          }
-          : n,
+      ~f=
+        (n: CV.note) =>
+          n.at == tail && n.last
+            ? {
+              ...n,
+              parts: n.parts @ [part],
+            }
+            : n,
       m.notes,
     );
   | _ => m.notes
@@ -177,7 +179,8 @@ let comments =
       notes: list(CV.note),
     )
     : array(string) =>
-  CV.annotate(Array.make(rows, ""), find, notes) |> Array.map(String.trim);
+  CV.annotate(Array.create(~len=rows, ""), find, notes)
+  |> Array.map(~f=String.strip);
 
 /* the map as text, its notes at line ends: the map the request sent,
    less the notes left out here */
@@ -191,5 +194,5 @@ let text = (~value: option(Language.Exp.t)=?, m: t): string => {
   CV.annotate(lines, find, notes(~value, m))
   |> Array.to_list
   |> CV.strip_trailing_blank
-  |> String.concat("\n");
+  |> String.concat(~sep="\n");
 };

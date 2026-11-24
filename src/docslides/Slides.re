@@ -22,7 +22,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Perf / Mega 2k", [%blob "mega-2k.hz"]),
     ("Perf / Mega 4k", [%blob "mega-4k.hz"]),
   ]
-  |> List.map(((name, text)) =>
+  |> List.map(~f=((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))
      );
 

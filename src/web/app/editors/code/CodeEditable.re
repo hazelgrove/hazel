@@ -276,13 +276,13 @@ module Selection = {
       |> (
         l =>
           List.findi(l, ~f=(_, (id, _)) =>
-           switch (Measured.find_by_id(id, measured)) {
-           | Some(m) => m.last.row == caret_row
-           | None => false
-           }
+            switch (Measured.find_by_id(id, measured)) {
+            | Some(m) => m.last.row == caret_row
+            | None => false
+            }
           )
           |> Option.map(~f=fst)
-         );
+      );
     switch (probe_on_row) {
     | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
     | None => None
@@ -506,11 +506,11 @@ module View = {
                 ~seg=Lazy.force(engine_seg),
                 z,
               )
-              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
+              |> Option.bind(_, ~f=(i: CanonicalCompletion.insertion) =>
                    List.nth(i.delimiters, 0)
                  )
               |> Option.bind(_, ~f=(d: CanonicalCompletion.delimiter_info) =>
-                   d.typed_len == None
+                   Option.is_none(d.typed_len)
                      ? Some(CompletionQuery.padding(z, d)) : None
                  ),
             ~measured=syntax.measured,
@@ -590,11 +590,11 @@ module View = {
         let ids = Haz3lcore.Segment.ids(selection);
         List.exists(
           ~f=
-          id =>
-            List.exists(
+            id =>
+              List.exists(
                 ~f=((id2, _)) => Id.equal(id, id2),
-              refractors.manuals,
-            ),
+                refractors.manuals,
+              ),
           ids,
         );
       };
@@ -754,7 +754,10 @@ module View = {
         ~term_data=model.editor.syntax.term_data,
         refractor_data,
         List.map(~f=fst, zipper.refractors.manuals)
-        @ List.map(~f=fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))
+        @ List.map(
+            ~f=fst,
+            Id.Map.to_list(zipper.refractors.multis.ephemerals),
+          )
         @ List.map(~f=fst, Id.Map.to_list(zipper.refractors.proofs)),
       );
     let projectors =
@@ -776,7 +779,8 @@ module View = {
       );
     ProjectorView.ViewCache.log_frame();
     let incr_eval_overlay =
-      if (globals.settings.show_incremental_deco && pending_eval_ids != []) {
+      if (globals.settings.show_incremental_deco
+          && !List.is_empty(pending_eval_ids)) {
         [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
@@ -1008,7 +1012,7 @@ module View = {
             (key: string): option((Haz3lcore.Action.vertical, int)) =>
           switch (escape_vertical) {
           | None => None
-          | Some(_) when z.selection.content != [] => None
+          | Some(_) when !List.is_empty(z.selection.content) => None
           | Some(_) =>
             let measured = model.editor.syntax.measured;
             let Util.Point.{row, col} =
@@ -1049,10 +1053,10 @@ module View = {
               _,
             }
               when Option.is_some(caret_row_edge(k)) =>
-            let (v, col) = Option.get(caret_row_edge(k));
+            let (v, col) = Option.value_exn(caret_row_edge(k));
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(escape_vertical, v, col),
+              Option.value_exn(escape_vertical, v, col),
             ]);
           | {
               key: D("ArrowLeft" | "ArrowUp"),
@@ -1064,7 +1068,7 @@ module View = {
             }
               when
                 z.caret == Outer
-                && z.relatives.ancestors == []
+                && List.is_empty(z.relatives.ancestors)
                 && Option.is_none(
                      fst(Siblings.neighbors(z.relatives.siblings)),
                    ) =>
@@ -1079,7 +1083,7 @@ module View = {
             }
               when
                 z.caret == Outer
-                && z.relatives.ancestors == []
+                && List.is_empty(z.relatives.ancestors)
                 && Option.is_none(
                      snd(Siblings.neighbors(z.relatives.siblings)),
                    ) =>

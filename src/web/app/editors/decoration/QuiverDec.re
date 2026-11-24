@@ -377,8 +377,8 @@ let coalesce_overlaps =
     let by_idx =
       List.sort(
         ~compare=
-        (a: positioned_insertion, b: positioned_insertion) =>
-          Int.compare(a.idx, b.idx),
+          (a: positioned_insertion, b: positioned_insertion) =>
+            Int.compare(a.idx, b.idx),
         members,
       );
     let (owned, others) =
@@ -393,7 +393,7 @@ let coalesce_overlaps =
       (bs: list((positioned_insertion, list(positioned_insertion)))) =>
     List.sort(
       ~compare=
-      ((a: positioned_insertion, _), (b: positioned_insertion, _)) =>
+        ((a: positioned_insertion, _), (b: positioned_insertion, _)) =>
           Tuple2.compare(
             ~cmp1=Int.compare,
             ~cmp2=Int.compare,
@@ -442,7 +442,7 @@ let bubbles =
   let is_owned = (ins: CanonicalCompletion.insertion) =>
     List.exists(
       ~f=
-      (o: CanonicalCompletion.insertion) =>
+        (o: CanonicalCompletion.insertion) =>
           Id.equal(o.adjacent_id, ins.adjacent_id)
           && Direction.equal(o.side, ins.side),
       owned,
@@ -476,10 +476,10 @@ let bubbles =
   let sorted =
     List.sort(
       ~compare=
-      (a: positioned_insertion, b: positioned_insertion) => {
-        let row_cmp = Int.compare(a.row, b.row);
-        row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
-      },
+        (a: positioned_insertion, b: positioned_insertion) => {
+          let row_cmp = Int.compare(a.row, b.row);
+          row_cmp != 0 ? row_cmp : Int.compare(a.col, b.col);
+        },
       caret_bubble @ resting,
     );
   coalesce_overlaps(~font_metrics, sorted);

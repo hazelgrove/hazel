@@ -1084,24 +1084,24 @@ and Stepper: {
     let next_step =
       Option.map(
         ~f=
-        view_step(
-          ~globals,
-          ~is_toplevel,
-          ~take_focus=f => take_focus(Next(f)),
-          ~hide_stepper,
-          ~inject=x => inject(NextStep(x)),
-          ~focus=
-            switch (focus) {
-            | Some(Next(s)) => Some(s)
-            | _ => None
-            },
-          ~undo=
-            if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
-              undo;
-            } else {
-              Some(inject(RemoveStep));
-            },
-        ),
+          view_step(
+            ~globals,
+            ~is_toplevel,
+            ~take_focus=f => take_focus(Next(f)),
+            ~hide_stepper,
+            ~inject=x => inject(NextStep(x)),
+            ~focus=
+              switch (focus) {
+              | Some(Next(s)) => Some(s)
+              | _ => None
+              },
+            ~undo=
+              if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
+                undo;
+              } else {
+                Some(inject(RemoveStep));
+              },
+          ),
         model.next_step,
       )
       |> Option.value(~default=[]);

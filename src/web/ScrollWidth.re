@@ -38,7 +38,7 @@ let set_all = (main: Js.t(Dom_html.element), v: string): unit => {
         els##item(i),
         (el: Js.t(Dom_html.element)) => {
           let style = Js.Unsafe.coerce(el##.style);
-          if (style##getPropertyValue(prop) !== v) {
+          if (!phys_equal(style##getPropertyValue(prop), v)) {
             style##setProperty(prop, v);
           };
         },
@@ -60,9 +60,9 @@ let watched:
   ref(None);
 let watch = (main: Js.t(Dom_html.element)): unit =>
   switch (watched^) {
-  | Some((m, _)) when m === main => ()
+  | Some((m, _)) when phys_equal(m, main) => ()
   | old =>
-    Option.iter(((_, o)) => o##disconnect, old);
+    Option.iter(~f=((_, o)) => o##disconnect, old);
     let last = ref(-1.);
     let o =
       ResizeObserver.observe(
@@ -72,7 +72,7 @@ let watch = (main: Js.t(Dom_html.element)): unit =>
             for (i in 0 to entries##.length - 1) {
               Js.Optdef.iter(Js.array_get(entries, i), e =>
                 Js.Optdef.iter(Js.array_get(e##.contentBoxSize, 0), s =>
-                  if (s##.inlineSize != last^) {
+                  if (Float.(s##.inlineSize != last^)) {
                     last :=  s##.inlineSize;
                     incr(width_changes);
                   }
@@ -101,13 +101,13 @@ let update =
     let stale =
       switch (last_key^) {
       | Some((m, rsm, v, sf, fm, w, vr)) =>
-      !phys_equal(m, measured)
-      || !phys_equal(rsm, refractor_rows)
+        !phys_equal(m, measured)
+        || !phys_equal(rsm, refractor_rows)
         || v != version
-        || sf != sample_focus
-        || fm != font_metrics
+        || !Language.Sample.Focus.equal(sf, sample_focus)
+        || !FontMetrics.equal(fm, font_metrics)
         || w != width_changes^
-        || vr != visible_rows
+        || !Option.equal(Globals.VisibleRows.equal, vr, visible_rows)
       | None => true
       };
     if (stale) {
@@ -136,6 +136,6 @@ let update =
         });
       };
     } else if (! measuring^) {
-      Option.iter(set_all(main), value^);
+      Option.iter(~f=set_all(main), value^);
     };
   };

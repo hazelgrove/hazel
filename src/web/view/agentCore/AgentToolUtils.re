@@ -46,14 +46,14 @@ let registry: list((string, entry)) = {
   let entries = (category, gating, names) =>
     List.map(
       ~f=
-      name =>
-        (
-          name,
-          {
-            category,
-            gating,
-          },
-        ),
+        name =>
+          (
+            name,
+            {
+              category,
+              gating,
+            },
+          ),
       names,
     );
   entries("View", Ungated, ["open", "close"])

@@ -35,12 +35,12 @@ let handle_llm_response =
       cell_editor |> Updated.return_quiet,
     )
   | _ =>
-    let is_empty = String.strip(reply.content) == "";
+    let is_empty = String.equal(String.strip(reply.content), "");
     let reasoning_duration_ms =
       Option.is_some(reply.reasoning) ? thinking_ms : None;
 
     // Empty response with no tool calls: retry with failure context (up to max_empty_retries)
-    if (reply.tool_calls == [] && is_empty) {
+    if (List.is_empty(reply.tool_calls) && is_empty) {
       let current_retry =
         Option.value(~default=-1, model.last_empty_retry_attempt);
       let next_retry = current_retry + 1;

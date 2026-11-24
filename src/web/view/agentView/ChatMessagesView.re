@@ -224,14 +224,14 @@ module ViewComponents = {
          })
       |> List.fold_left(
            ~f=
-           (acc, (name, cat, desc, enabled, exp)) => {
+             (acc, (name, cat, desc, enabled, exp)) => {
                switch (List.Assoc.find(acc, cat, ~equal=String.equal)) {
-             | Some(items) =>
+               | Some(items) =>
                  List.Assoc.remove(acc, cat, ~equal=String.equal)
-               @ [(cat, [(name, desc, enabled, exp), ...items])]
-             | None => [(cat, [(name, desc, enabled, exp)])] @ acc
-             }
-           },
+                 @ [(cat, [(name, desc, enabled, exp), ...items])]
+               | None => [(cat, [(name, desc, enabled, exp)])] @ acc
+               }
+             },
            ~init=[],
          )
       |> List.rev
@@ -352,8 +352,8 @@ module ViewComponents = {
             ~attrs=[clss(["tools-view-category-items"])],
             List.map(
               ~f=
-              ((name, desc, enabled, exp)) =>
-                render_tool(name, desc, enabled, exp),
+                ((name, desc, enabled, exp)) =>
+                  render_tool(name, desc, enabled, exp),
               List.rev(items),
             ),
           ),
@@ -463,82 +463,82 @@ let chat_messages_scroll_stamp =
   let mix = (n: int) => acc := Stdlib.Hashtbl.hash((acc^, n));
   List.iter(
     ~f=
-    (chunk: ChunkedUIChat.Model.chunk) =>
-      switch (chunk) {
-      | UserMessage({content, origin_id}) =>
-        mix(1);
-        mix(String.length(content));
+      (chunk: ChunkedUIChat.Model.chunk) =>
+        switch (chunk) {
+        | UserMessage({content, origin_id}) =>
+          mix(1);
+          mix(String.length(content));
           mix(Stdlib.Hashtbl.hash(origin_id));
-      | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
-        mix(2);
-        List.iter(
+        | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
+          mix(2);
+          List.iter(
             ~f=
-          (m: Message.Model.t) => {
-            mix(String.length(m.content));
+              (m: Message.Model.t) => {
+                mix(String.length(m.content));
                 mix(Stdlib.Hashtbl.hash(m.id));
-            switch (m.reasoning) {
-            | Some(r) => mix(String.length(r))
-            | None => mix(0)
-            };
-            switch (m.role) {
-            | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
-            | Agent(_) => mix(3)
-            | User => mix(4)
-            | System(_) => mix(5)
-            };
-          },
-          content,
-        );
+                switch (m.reasoning) {
+                | Some(r) => mix(String.length(r))
+                | None => mix(0)
+                };
+                switch (m.role) {
+                | ToolResult(tr) => mix(tr.expanded ? 1 : 0)
+                | Agent(_) => mix(3)
+                | User => mix(4)
+                | System(_) => mix(5)
+                };
+              },
+            content,
+          );
           List.iter(~f=s => mix(String.length(s)), agent_reasoning);
-        List.iter(
+          List.iter(
             ~f=
-          (tr: AgentToolResult.tool_result) => {
-            mix(String.length(tr.content));
-            mix(tr.expanded ? 1 : 0);
-            mix(tr.success ? 1 : 0);
+              (tr: AgentToolResult.tool_result) => {
+                mix(String.length(tr.content));
+                mix(tr.expanded ? 1 : 0);
+                mix(tr.success ? 1 : 0);
                 mix(Stdlib.Hashtbl.hash(tr.tool_call.id));
-          },
-          tool_results,
-        );
-      | CompactionNotice({method, content}) =>
-        mix(6);
-        mix(String.length(method));
-        mix(String.length(content));
-      | ErrorMessage(s) =>
-        mix(7);
-        mix(String.length(s));
-      | ResponseCancelledMessage(s) =>
-        mix(8);
-        mix(String.length(s));
-      | SlashCommandOutputMessage(payload) =>
-        mix(9);
-        switch (payload) {
-        | CostOutput(p) =>
-          mix(91);
-          mix(p.cost_input_tokens);
-          mix(p.cost_output_tokens);
-          mix(String.length(p.cost_model));
-        | CreditsOutput(p) =>
-          mix(92);
-          mix(int_of_float(p.credits_used *. 1000.));
-          mix(int_of_float(p.credits_total *. 1000.));
-        | UsageOutput(p) =>
-          mix(93);
-          mix(int_of_float(p.usage_total *. 1000.));
-        | KeyOutput(k) =>
-          mix(96);
-          mix(String.length(k));
-        | HelpOutput(p) =>
-          mix(94);
-          mix(List.length(p.help_entries));
-        | Notice(s) =>
-          mix(97);
+              },
+            tool_results,
+          );
+        | CompactionNotice({method, content}) =>
+          mix(6);
+          mix(String.length(method));
+          mix(String.length(content));
+        | ErrorMessage(s) =>
+          mix(7);
           mix(String.length(s));
-        | SlashError(s) =>
-          mix(95);
+        | ResponseCancelledMessage(s) =>
+          mix(8);
           mix(String.length(s));
-        };
-      },
+        | SlashCommandOutputMessage(payload) =>
+          mix(9);
+          switch (payload) {
+          | CostOutput(p) =>
+            mix(91);
+            mix(p.cost_input_tokens);
+            mix(p.cost_output_tokens);
+            mix(String.length(p.cost_model));
+          | CreditsOutput(p) =>
+            mix(92);
+            mix(int_of_float(p.credits_used *. 1000.));
+            mix(int_of_float(p.credits_total *. 1000.));
+          | UsageOutput(p) =>
+            mix(93);
+            mix(int_of_float(p.usage_total *. 1000.));
+          | KeyOutput(k) =>
+            mix(96);
+            mix(String.length(k));
+          | HelpOutput(p) =>
+            mix(94);
+            mix(List.length(p.help_entries));
+          | Notice(s) =>
+            mix(97);
+            mix(String.length(s));
+          | SlashError(s) =>
+            mix(95);
+            mix(String.length(s));
+          };
+        },
     chunked_chat.log,
   );
   mix(awaiting_dots ? 11 : 0);
@@ -1197,132 +1197,134 @@ let view =
       let (linear_display_rev, pending_batch) =
         List.fold_left(
           ~f=
-          ((acc, batch), msg: Message.Model.t) => {
-            let flush = (acc, batch) =>
-              switch (List.rev(batch)) {
-              | [] => acc
-              | xs => [wrap_batch(xs), ...acc]
-              };
-            switch (msg.role) {
-            | ToolResult(tool_result) => (
-                acc,
-                [render_tool_node(msg, tool_result), ...batch],
-              )
-            | Agent(usage_opt) =>
-              let acc = flush(acc, batch);
-              let metadata_node: option(Node.t) =
-                switch (usage_opt) {
-                | Some(usage) =>
-                  Some(
-                    render_token_chip(
-                      ~msg_id=msg.id,
-                      ~usage,
-                      ~prev_usage=prev_agent_usage_ref^,
-                    ),
-                  )
-                | None => None
+            ((acc, batch), msg: Message.Model.t) => {
+              let flush = (acc, batch) =>
+                switch (List.rev(batch)) {
+                | [] => acc
+                | xs => [wrap_batch(xs), ...acc]
                 };
-              prev_agent_usage_ref := usage_opt;
+              switch (msg.role) {
+              | ToolResult(tool_result) => (
+                  acc,
+                  [render_tool_node(msg, tool_result), ...batch],
+                )
+              | Agent(usage_opt) =>
+                let acc = flush(acc, batch);
+                let metadata_node: option(Node.t) =
+                  switch (usage_opt) {
+                  | Some(usage) =>
+                    Some(
+                      render_token_chip(
+                        ~msg_id=msg.id,
+                        ~usage,
+                        ~prev_usage=prev_agent_usage_ref^,
+                      ),
+                    )
+                  | None => None
+                  };
+                prev_agent_usage_ref := usage_opt;
                 let show_thinking =
                   globals.settings.agent_globals.show_thinking;
-              let format_thinking_duration = (ms: int): string => {
-                let secs = max(0, ms / 1000);
-                if (secs < 60) {
-                  "Thought for " ++ string_of_int(secs) ++ "s";
-                } else {
-                  let m = secs / 60;
-                  let s = secs mod 60;
-                  "Thought for "
-                  ++ string_of_int(m)
-                  ++ "m "
-                  ++ string_of_int(s)
-                  ++ "s";
+                let format_thinking_duration = (ms: int): string => {
+                  let secs = max(0, ms / 1000);
+                  if (secs < 60) {
+                    "Thought for " ++ string_of_int(secs) ++ "s";
+                  } else {
+                    let m = secs / 60;
+                    let s = secs mod 60;
+                    "Thought for "
+                    ++ string_of_int(m)
+                    ++ "m "
+                    ++ string_of_int(s)
+                    ++ "s";
+                  };
                 };
-              };
-              let reasoning_node: option(Node.t) =
-                switch (show_thinking, msg.reasoning) {
-                | (true, Some(text_content))
+                let reasoning_node: option(Node.t) =
+                  switch (show_thinking, msg.reasoning) {
+                  | (true, Some(text_content))
                       when !String.equal(String.strip(text_content), "") =>
-                  let header_text =
-                    switch (msg.reasoning_duration_ms) {
-                    | Some(ms) => format_thinking_duration(ms)
-                    | None => "Thinking"
-                    };
-                  Some(
-                    div(
-                      ~attrs=[clss(["agent-thinking-block"])],
-                      [
-                        div(
-                          ~attrs=[clss(["agent-thinking-header"])],
-                          [text(header_text)],
-                        ),
-                        div(
-                          ~attrs=[clss(["agent-thinking-text"])],
-                          [AgentMessageMarkdown.view(text_content)],
-                        ),
-                      ],
-                    ),
-                  );
-                | _ => None
-                };
-              let content_node: option(Node.t) =
+                    let header_text =
+                      switch (msg.reasoning_duration_ms) {
+                      | Some(ms) => format_thinking_duration(ms)
+                      | None => "Thinking"
+                      };
+                    Some(
+                      div(
+                        ~attrs=[clss(["agent-thinking-block"])],
+                        [
+                          div(
+                            ~attrs=[clss(["agent-thinking-header"])],
+                            [text(header_text)],
+                          ),
+                          div(
+                            ~attrs=[clss(["agent-thinking-text"])],
+                            [AgentMessageMarkdown.view(text_content)],
+                          ),
+                        ],
+                      ),
+                    );
+                  | _ => None
+                  };
+                let content_node: option(Node.t) =
                   if (!String.equal(msg.content, "")
                       && !String.equal(String.strip(msg.content), "")) {
-                  Some(
-                    div(
-                      ~attrs=[clss(["agent-message"])],
-                      [AgentMessageMarkdown.view(msg.content)],
-                    ),
-                  );
-                } else {
-                  None;
-                };
-              /* the request this turn answers, as the agent saw it */
-              let lens_node: option(Node.t) =
-                Chat.Utils.sent_for(current_chat, msg.id)
-                |> Option.map((r: SentView.t) =>
-                     div(
-                       ~attrs=[
-                         clss(["agent-view-as"]),
-                         Attr.title("Show this request's view in the editor"),
-                         Attr.on_click(_ =>
-                           Effect.Many([
-                             agent_inject(
-                               Agent.Update.Action.ViewAsAgent(
-                                 current_chat_id,
-                                 Some(r.seq),
+                    Some(
+                      div(
+                        ~attrs=[clss(["agent-message"])],
+                        [AgentMessageMarkdown.view(msg.content)],
+                      ),
+                    );
+                  } else {
+                    None;
+                  };
+                /* the request this turn answers, as the agent saw it */
+                let lens_node: option(Node.t) =
+                  Chat.Utils.sent_for(current_chat, msg.id)
+                  |> Option.map(~f=(r: SentView.t) =>
+                       div(
+                         ~attrs=[
+                           clss(["agent-view-as"]),
+                           Attr.title(
+                             "Show this request's view in the editor",
+                           ),
+                           Attr.on_click(_ =>
+                             Effect.Many([
+                               agent_inject(
+                                 Agent.Update.Action.ViewAsAgent(
+                                   current_chat_id,
+                                   Some(r.seq),
+                                 ),
                                ),
-                             ),
-                             Effect.Stop_propagation,
-                           ])
-                         ),
-                       ],
-                       [Icons.agent_view, text("View as agent")],
-                     )
-                   );
-              let nodes =
-                List.filter_map(
-                  x => x,
-                  [reasoning_node, content_node, metadata_node, lens_node],
-                );
-              switch (nodes) {
-              | [] => (acc, [])
-              | xs => (List.rev_append(xs, acc), [])
+                               Effect.Stop_propagation,
+                             ])
+                           ),
+                         ],
+                         [Icons.agent_view, text("View as agent")],
+                       )
+                     );
+                let nodes =
+                  List.filter_map(
+                    ~f=x => x,
+                    [reasoning_node, content_node, metadata_node, lens_node],
+                  );
+                switch (nodes) {
+                | [] => (acc, [])
+                | xs => (List.rev_append(xs, acc), [])
+                };
+              | System(RetryNote) =>
+                let acc = flush(acc, batch);
+                let node =
+                  div(
+                    ~attrs=[
+                      clss(["agent-system-message", "agent-retry-note"]),
+                    ],
+                    [text(msg.content)],
+                  );
+                ([node, ...acc], []);
+              | System(ResponseCancelled)
+              | _ => (acc, batch)
               };
-            | System(RetryNote) =>
-              let acc = flush(acc, batch);
-              let node =
-                div(
-                  ~attrs=[
-                    clss(["agent-system-message", "agent-retry-note"]),
-                  ],
-                  [text(msg.content)],
-                );
-              ([node, ...acc], []);
-            | System(ResponseCancelled)
-            | _ => (acc, batch)
-            };
-          },
+            },
           ~init=([], []),
           agent_chunk.content,
         );
@@ -1335,7 +1337,11 @@ let view =
         );
 
       let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
-        List.mem(tool_result.tool_call.name, Agent.ToolUtils.edit_tool_names);
+        List.mem(
+          Agent.ToolUtils.edit_tool_names,
+          tool_result.tool_call.name,
+          ~equal=Poly.equal,
+        );
 
       let edit_tool_results =
         agent_chunk.tool_results |> List.filter(~f=is_edit_tool_call);
@@ -1475,7 +1481,7 @@ let view =
             let msg_id_opt =
               List.find(
                 ~f=
-                ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
+                  ((_, msg_tr): (Id.t, AgentToolResult.tool_result)) =>
                     String.equal(
                       msg_tr.tool_call.id,
                       tool_result.tool_call.id,
@@ -1541,20 +1547,20 @@ let view =
             let (elements, _) =
               List.fold_left(
                 ~f=
-                ((acc, node_idx), tool_result: AgentToolResult.tool_result) => {
-                  let tool_link = render_summary_tool_link(tool_result);
-                  if (tool_result.success) {
-                    let next_node: timeline_node = {
-                      segment: tool_result.after_text,
-                      label: "After Edit " ++ string_of_int(node_idx),
-                      index: node_idx,
+                  ((acc, node_idx), tool_result: AgentToolResult.tool_result) => {
+                    let tool_link = render_summary_tool_link(tool_result);
+                    if (tool_result.success) {
+                      let next_node: timeline_node = {
+                        segment: tool_result.after_text,
+                        label: "After Edit " ++ string_of_int(node_idx),
+                        index: node_idx,
+                      };
+                      let node_view = render_node(next_node);
+                      (acc @ [tool_link, node_view], node_idx + 1);
+                    } else {
+                      (acc @ [tool_link], node_idx);
                     };
-                    let node_view = render_node(next_node);
-                    (acc @ [tool_link, node_view], node_idx + 1);
-                  } else {
-                    (acc @ [tool_link], node_idx);
-                  };
-                },
+                  },
                 ~init=([], 1),
                 all_edits,
               );

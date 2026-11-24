@@ -250,7 +250,7 @@ let view_tokens =
       [node];
     };
 
-  let nodes = List.concat_map(of_token, tokens);
+  let nodes = List.concat_map(~f=of_token, tokens);
   /* a trailing linebreak gets no final line box in pre flow, leaving the
      editor a row short: a zero-width space reserves the last row */
   switch (List.rev(tokens)) {
@@ -286,7 +286,7 @@ let view =
     ~reserve_trailing_row?,
     ~refine_sort?,
     ~buffer_ids,
-    List.map(p => Measured.Whole(p), segment),
+    List.map(~f=p => Measured.Whole(p), segment),
   );
 
 /* one block per measured chunk (editor.css), memoized by anchor: an
@@ -333,7 +333,7 @@ module ChunkViews = {
     if (renders^ mod 64 == 0) {
       Measured.IdTbl.filter_map_inplace(
         (_, es) =>
-          switch (List.filter(e => e.cv_seen >= renders^ - 16, es)) {
+          switch (List.filter(~f=e => e.cv_seen >= renders^ - 16, es)) {
           | [] => None
           | es => Some(es)
           },
@@ -344,7 +344,7 @@ module ChunkViews = {
   let find = (owner: int, anchor: Id.t): option(entry) =>
     switch (Measured.IdTbl.find_opt(cache, anchor)) {
     | Some(es) =>
-      switch (List.find_opt(e => e.cv_owner == owner, es)) {
+      switch (List.find(~f=e => e.cv_owner == owner, es)) {
       | Some(e) as found =>
         e.cv_seen = renders^;
         found;
@@ -355,7 +355,7 @@ module ChunkViews = {
   let replace = (anchor: Id.t, e: entry) => {
     let others =
       switch (Measured.IdTbl.find_opt(cache, anchor)) {
-      | Some(es) => List.filter(o => o.cv_owner != e.cv_owner, es)
+      | Some(es) => List.filter(~f=o => o.cv_owner != e.cv_owner, es)
       | None => []
       };
     Measured.IdTbl.replace(cache, anchor, [e, ...others]);
@@ -365,54 +365,48 @@ module ChunkViews = {
 /* every tile in the chunk subtree (of_delim consults term_data and
    refine_sort per tile; grout/secondary render from pieces alone) */
 let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        List.fold_left(
-          (acc, s) => chunk_tiles(s, acc),
-          [t, ...acc],
-          t.children,
-        )
-      | _ => acc
-      },
-    acc,
-    seg,
+  List.fold(seg, ~init=acc, ~f=(acc, p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      List.fold(t.children, ~init=[t, ...acc], ~f=(acc, s) =>
+        chunk_tiles(s, acc)
+      )
+    | _ => acc
+    }
   );
 
 /* a chunk's tiles: whole pieces' subtrees, and its split tiles (their
    children render in other chunks) */
 let token_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
-  List.fold_left(
-    (acc, tok: Measured.token) =>
-      switch (tok) {
-      | Whole(p) => chunk_tiles([p], acc)
-      | Shard(t, _) => [t, ...acc]
-      },
-    [],
-    tokens,
+  List.fold(tokens, ~init=[], ~f=(acc, tok: Measured.token) =>
+    switch (tok) {
+    | Whole(p) => chunk_tiles([p], acc)
+    | Shard(t, _) => [t, ...acc]
+    }
   );
 
 /* the tiles at the chunk's own level: at the program's top level, unless
    the chunk is nested in a module body */
 let top_tiles = (tokens: list(Measured.token)): list(Tile.t) =>
   List.filter_map(
-    (tok: Measured.token) =>
-      switch (tok) {
-      | Whole(Tile(t))
-      | Shard(t, _) => Some(t)
-      | Whole(_) => None
-      },
+    ~f=
+      (tok: Measured.token) =>
+        switch (tok) {
+        | Whole(Tile(t))
+        | Shard(t, _) => Some(t)
+        | Whole(_) => None
+        },
     tokens,
   );
 
 let token_ids = (tokens: list(Measured.token)): list(Id.t) =>
   List.concat_map(
-    (tok: Measured.token) =>
-      switch (tok) {
-      | Whole(p) => Segment.ids_of_piece(p)
-      | Shard(t, _) => [t.id]
-      },
+    ~f=
+      (tok: Measured.token) =>
+        switch (tok) {
+        | Whole(p) => Segment.ids_of_piece(p)
+        | Shard(t, _) => [t.id]
+        },
     tokens,
   );
 
@@ -434,11 +428,11 @@ let view_chunked =
   let n = Array.length(measured.chunks);
   let sorts_of = (tiles: list(Tile.t)) =>
     tiles
-    |> List.map((t: Tile.t) =>
+    |> List.map(~f=(t: Tile.t) =>
          (
            refine_sort(t.id, Tile.mold(t).out),
            Option.map(
-             (d: TermData.data) => d.sort,
+             ~f=(d: TermData.data) => d.sort,
              Id.Map.find_opt(t.id, term_data),
            ),
          )
@@ -460,23 +454,25 @@ let view_chunked =
         ch.c_tokens,
       ),
     );
-  List.init(n, i => i)
-  |> List.map(i => {
+  List.init(n, ~f=i => i)
+  |> List.map(~f=i => {
        let ch = measured.chunks[i];
        let final = i == n - 1;
        let stable = (e: ChunkViews.entry) =>
-         e.cv_flat === Obj.repr(ch.c_flat)
+         phys_equal(e.cv_flat, Obj.repr(ch.c_flat))
          && e.cv_final == final
-         && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
-         && e.cv_fm === Obj.repr(font_metrics)
-         && e.cv_settings === Obj.repr(settings);
+         && (
+           !e.cv_buffered || phys_equal(e.cv_buffer, Obj.repr(buffer_ids))
+         )
+         && phys_equal(e.cv_fm, Obj.repr(font_metrics))
+         && phys_equal(e.cv_settings, Obj.repr(settings));
        switch (ChunkViews.find(measured.owner, ch.c_anchor)) {
        | Some(e)
            when
              stable(e)
-             && e.cv_info === statics_ident
+             && phys_equal(e.cv_info, statics_ident)
              && (
-               e.cv_td === Obj.repr(term_data)
+               phys_equal(e.cv_td, Obj.repr(term_data))
                || e.cv_top_sorts == sorts_of(e.cv_top)
              ) =>
          e.cv_td = Obj.repr(term_data);
@@ -502,9 +498,9 @@ let view_chunked =
            cv_top: top,
            cv_top_sorts: sorts_of(top),
            cv_buffered:
-             buffer_ids != []
+             !List.is_empty(buffer_ids)
              && List.exists(
-                  id => List.mem(id, buffer_ids),
+                  ~f=id => List.mem(buffer_ids, id, ~equal=Poly.equal),
                   token_ids(ch.c_tokens),
                 ),
            cv_buffer: Obj.repr(buffer_ids),

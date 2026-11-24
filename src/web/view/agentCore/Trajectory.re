@@ -1,5 +1,6 @@
 open Util;
 open Haz3lcore;
+open Poly;
 
 /* What went over the API up to a request: its system prompt, tools and
    messages, and each earlier request's context where it was sent. Rebuilt
@@ -68,21 +69,25 @@ let chat_at = (chat: Chat.Model.t, r: SentView.t): option(Chat.Model.t) => {
   let parent =
     Id.Map.fold(
       (id, m: Message.Model.t, acc) =>
-        List.fold_left((acc, c) => Id.Map.add(c, id, acc), acc, m.children),
+        List.fold(m.children, ~init=acc, ~f=(acc, c) =>
+          Id.Map.add(c, id, acc)
+        ),
       chat.message_map,
       Id.Map.empty,
     );
   let rec up = (id, path) =>
-    id == chat.root
+    Id.equal(id, chat.root)
       ? Some([id, ...path])
-      : Option.bind(Id.Map.find_opt(id, parent), p => up(p, [id, ...path]));
+      : Option.bind(Id.Map.find_opt(id, parent), ~f=p =>
+          up(p, [id, ...path])
+        );
   let rec link = (map, ids) =>
     switch (ids) {
     | [a, b, ...rest] =>
       link(
         Id.Map.update(
           a,
-          Option.map((m: Message.Model.t) =>
+          Option.map(~f=(m: Message.Model.t) =>
             {
               ...m,
               current_child: Some(b),
@@ -95,7 +100,7 @@ let chat_at = (chat: Chat.Model.t, r: SentView.t): option(Chat.Model.t) => {
     | [a] =>
       Id.Map.update(
         a,
-        Option.map((m: Message.Model.t) =>
+        Option.map(~f=(m: Message.Model.t) =>
           {
             ...m,
             current_child: None,
@@ -106,12 +111,13 @@ let chat_at = (chat: Chat.Model.t, r: SentView.t): option(Chat.Model.t) => {
     | [] => map
     };
   Option.map(
-    path =>
-      {
-        ...chat,
-        message_map: link(chat.message_map, path),
-        context: Some(Message.Utils.mk_context_system_message(r.view)),
-      },
+    ~f=
+      path =>
+        {
+          ...chat,
+          message_map: link(chat.message_map, path),
+          context: Some(Message.Utils.mk_context_system_message(r.view)),
+        },
     Id.Map.mem(r.after, chat.message_map) ? up(r.after, []) : None,
   );
 };
@@ -135,7 +141,7 @@ let rebuild =
       );
     let sources =
       List.filter(
-        (m: Message.Model.t) => Option.is_some(m.api_message),
+        ~f=(m: Message.Model.t) => Option.is_some(m.api_message),
         Chat.Utils.messages_for_openrouter({
           ...at,
           context: None,
@@ -144,7 +150,7 @@ let rebuild =
     let rec pair = (ss, js) =>
       switch (ss, js) {
       | ([s, ...ss], [j, ...js]) => [(Some(s), j), ...pair(ss, js)]
-      | ([], js) => List.map(j => (None, j), js)
+      | ([], js) => List.map(~f=j => (None, j), js)
       | (_, []) => []
       };
     Some((body, pair(sources, messages)));
@@ -153,13 +159,13 @@ let rebuild =
 
 /* the body of request [seq], exactly as sent */
 let body = (chat: Chat.Model.t, seq: int): option(string) =>
-  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
-    Option.map(((b, _)) => API.Json.to_string(b), rebuild(chat, r))
+  Option.bind(List.find(~f=(r: SentView.t) => r.seq == seq, chat.sent), ~f=r =>
+    Option.map(~f=((b, _)) => API.Json.to_string(b), rebuild(chat, r))
   );
 
 let field = (key, json: API.Json.t): option(API.Json.t) =>
   switch (json) {
-  | `Assoc(fs) => List.assoc_opt(key, fs)
+  | `Assoc(fs) => List.Assoc.find(fs, key, ~equal=Poly.equal)
   | _ => None
   };
 
@@ -178,20 +184,20 @@ let pretty_args = (args: string): string =>
   switch (Yojson.Safe.from_string(args)) {
   | `Assoc(fields) =>
     fields
-    |> List.map(((k, v)) =>
+    |> List.map(~f=((k, v)) =>
          switch (v) {
          | `String(s) when String.contains(s, '\n') =>
            k
            ++ ":\n"
            ++ (
-             String.split_on_char('\n', s)
-             |> List.map(l => "  " ++ l)
-             |> String.concat("\n")
+             String.split(~on='\n', s)
+             |> List.map(~f=l => "  " ++ l)
+             |> String.concat(~sep="\n")
            )
          | v => k ++ ": " ++ API.Json.to_string(v)
          }
        )
-    |> String.concat("\n")
+    |> String.concat(~sep="\n")
   | json => pretty(json)
   | exception _ => args
   };
@@ -199,17 +205,27 @@ let pretty_args = (args: string): string =>
 /* a section's first words, on one line */
 let first_words = (s: string): string => {
   let words =
-    String.split_on_char(' ', String.map(c => c == '\n' ? ' ' : c, s))
-    |> List.filter(w => w != "");
+    String.split(
+      ~on=' ',
+      String.map(~f=c => Char.equal(c, '\n') ? ' ' : c, s),
+    )
+    |> List.filter(~f=w => !String.equal(w, ""));
   let line =
-    String.concat(" ", ListUtil.take(min(12, List.length(words)), words));
-  String.length(line) > 80 ? String.sub(line, 0, 80) ++ {js|…|js} : line;
+    String.concat(
+      ~sep=" ",
+      ListUtil.take(min(12, List.length(words)), words),
+    );
+  String.length(line) > 80
+    ? String.sub(line, ~pos=0, ~len=80) ++ {js|…|js} : line;
 };
 
 /* its first line that has anything on it */
 let first_line = (s: string): string =>
   switch (
-    List.find_opt(l => String.trim(l) != "", String.split_on_char('\n', s))
+    List.find(
+      ~f=l => !String.equal(String.strip(l), ""),
+      String.split(~on='\n', s),
+    )
   ) {
   | Some(l) => first_words(l)
   | None => ""
@@ -282,7 +298,7 @@ let tokens = (n: int): string =>
    it, and its usage, after */
 let thinking = (~generated=false, m: Message.Model.t): list(section) =>
   switch (m.reasoning) {
-  | Some(r) when String.trim(r) != "" =>
+  | Some(r) when !String.equal(String.strip(r), "") =>
     let s =
       unsent(
         Thinking,
@@ -313,7 +329,7 @@ let usage = (m: Message.Model.t): list(section) =>
     let text =
       pretty(
         switch (OpenRouter.Reply.Model.yojson_of_usage(u)) {
-        | `Assoc(fs) => `Assoc(List.filter(((_, v)) => v != `Null, fs))
+        | `Assoc(fs) => `Assoc(List.filter(~f=((_, v)) => v != `Null, fs))
         | j => j
         },
       );
@@ -321,7 +337,7 @@ let usage = (m: Message.Model.t): list(section) =>
       unsent(
         ~brief=
           String.concat(
-            {js| · |js},
+            ~sep={js| · |js},
             [
               tokens(u.prompt_tokens) ++ " in",
               tokens(u.completion_tokens) ++ " out",
@@ -364,7 +380,7 @@ let message_section =
   let s = (~folded=false, ~children=[], ~brief=?, kind, label) =>
     section(
       ~folded,
-      ~in_request=place == This,
+      ~in_request=Poly.equal(place, This),
       ~children,
       ~brief?,
       kind,
@@ -379,7 +395,8 @@ let message_section =
   | System(_) => [
       s(
         System,
-        string_field("role", json) == "user" ? "User note" : "System note",
+        String.equal(string_field("role", json), "user")
+          ? "User note" : "System note",
       ),
     ]
   | User => [s(User, "User")]
@@ -396,30 +413,31 @@ let message_section =
       switch (field("tool_calls", json)) {
       | Some(`List(calls)) =>
         List.map(
-          call => {
-            let f = Option.value(field("function", call), ~default=`Null);
-            let name = string_field("name", f);
-            let args = string_field("arguments", f);
-            section(
-              ~folded=true,
-              ~in_request=place == This,
-              ~shown=pretty_args(args),
-              ~brief="",
-              Call,
-              ToolCallSummary.line({
-                id: string_field("id", call),
-                name,
-                args: OpenRouter.Utils.parse_tool_args(`String(args)),
-              }),
-              args,
-              call,
-            );
-          },
+          ~f=
+            call => {
+              let f = Option.value(field("function", call), ~default=`Null);
+              let name = string_field("name", f);
+              let args = string_field("arguments", f);
+              section(
+                ~folded=true,
+                ~in_request=Poly.equal(place, This),
+                ~shown=pretty_args(args),
+                ~brief="",
+                Call,
+                ToolCallSummary.line({
+                  id: string_field("id", call),
+                  name,
+                  args: OpenRouter.Utils.parse_tool_args(`String(args)),
+                }),
+                args,
+                call,
+              );
+            },
           calls,
         )
       | _ => []
       };
-    thinking(~generated=place == Generated, m)
+    thinking(~generated=Poly.equal(place, Generated), m)
     @ [
       s(
         ~children=calls,
@@ -456,19 +474,21 @@ let note_section = (~generated=false, m: Message.Model.t): list(section) =>
 /* a context for reading: no blank lines around its tags */
 let tidy = (s: string): string => {
   let tag = l => {
-    let l = String.trim(l);
-    l == "```"
+    let l = String.strip(l);
+    String.equal(l, "```")
     || String.length(l) > 1
-    && l.[0] == '<'
-    && l.[String.length(l) - 1] == '>';
+    && Char.equal(l.[0], '<')
+    && Char.equal(l.[String.length(l) - 1], '>');
   };
-  let lines = Array.of_list(String.split_on_char('\n', String.trim(s)));
+  let lines = Array.of_list(String.split(~on='\n', String.strip(s)));
   let n = Array.length(lines);
   let near_tag = i =>
     i > 0 && tag(lines[i - 1]) || i < n - 1 && tag(lines[i + 1]);
   Array.to_list(lines)
-  |> List.filteri((i, l) => String.trim(l) != "" || !near_tag(i))
-  |> String.concat("\n");
+  |> List.filteri(~f=(i, l) =>
+       !String.equal(String.strip(l), "") || !near_tag(i)
+     )
+  |> String.concat(~sep="\n");
 };
 
 /* a request carries only its own context; the earlier ones show where
@@ -496,51 +516,59 @@ let context_section =
    user turn by its message then its rounds, nothing unsent */
 let rec lines = (s: section): list(string) =>
   switch (s.kind) {
-  | Round => List.concat_map(lines, s.children)
-  | User => [s.raw, ...List.concat_map(lines, s.children)]
+  | Round => List.concat_map(~f=lines, s.children)
+  | User => [s.raw, ...List.concat_map(~f=lines, s.children)]
   | _ when !s.sent => []
   | _ => [s.raw]
   };
 
 /* a reply's text, else its calls */
 let gist = (children: list(section)): string =>
-  switch (List.find_opt((c: section) => c.kind == Assistant, children)) {
-  | Some(a) when String.trim(a.text) != "" => first_words(a.text)
+  switch (
+    List.find(~f=(c: section) => Poly.equal(c.kind, Assistant), children)
+  ) {
+  | Some(a) when !String.equal(String.strip(a.text), "") =>
+    first_words(a.text)
   | Some(a) =>
-    String.concat("; ", List.map((c: section) => c.label, a.children))
+    String.concat(
+      ~sep="; ",
+      List.map(~f=(c: section) => c.label, a.children),
+    )
   | None => ""
   };
 
 let round_section = (~selected: int, seq: int, children: list(section)) => {
   let calls =
-    List.fold_left(
-      (n, c: section) =>
-        n
-        + List.length(
-            List.filter((k: section) => k.kind == Call, c.children),
+    List.fold(children, ~init=0, ~f=(n, c: section) =>
+      n
+      + List.length(
+          List.filter(
+            ~f=(k: section) => Poly.equal(k.kind, Call),
+            c.children,
           ),
-      0,
-      children,
+        )
     );
-  let reply = List.exists((c: section) => c.kind != Context, children);
+  let reply =
+    List.exists(~f=(c: section) => !Poly.equal(c.kind, Context), children);
   /* a request with no reply yet: its context is all there is to read */
   let children =
     List.map(
-      (c: section) =>
-        c.kind == Context && !reply
-          ? {
-            ...c,
-            folded: false,
-          }
-          : c,
+      ~f=
+        (c: section) =>
+          Poly.equal(c.kind, Context) && !reply
+            ? {
+              ...c,
+              folded: false,
+            }
+            : c,
       children,
     );
-  let text = String.concat("\n", List.concat_map(lines, children));
+  let text = String.concat(~sep="\n", List.concat_map(~f=lines, children));
   {
     kind: Round,
     label:
       String.concat(
-        {js| · |js},
+        ~sep={js| · |js},
         [Printf.sprintf("Round %d", seq)]
         @ (
           calls > 0
@@ -553,7 +581,7 @@ let round_section = (~selected: int, seq: int, children: list(section)) => {
     text,
     raw: text,
     folded: seq != selected,
-    in_request: List.exists((c: section) => c.in_request, children),
+    in_request: List.exists(~f=(c: section) => c.in_request, children),
     sent: true,
     children,
   };
@@ -582,7 +610,8 @@ let group = (~selected: int, items: list(item)): list(section) => {
     switch (turn) {
     | Some((u: section, kids)) =>
       let kids = List.rev(kids);
-      let rounds = List.filter((r: section) => r.kind == Round, kids);
+      let rounds =
+        List.filter(~f=(r: section) => Poly.equal(r.kind, Round), kids);
       let label =
         switch (List.length(rounds)) {
         | 0 => u.label
@@ -596,7 +625,8 @@ let group = (~selected: int, items: list(item)): list(section) => {
           ...u,
           label,
           folded:
-            !List.exists((r: section) => !r.folded, rounds) && rounds != [],
+            !List.exists(~f=(r: section) => !r.folded, rounds)
+            && !List.is_empty(rounds),
           children: u.children @ kids,
         },
         ...top,
@@ -604,30 +634,23 @@ let group = (~selected: int, items: list(item)): list(section) => {
     | None => top
     };
   let (top, turn, round) =
-    List.fold_left(
-      ((top, turn, round), item) =>
-        switch (item) {
-        | Item({kind: User, _} as u) =>
-          let (top, turn) = close_round((top, turn, round));
-          (close_turn((top, turn)), Some((u, [])), None);
-        | Item(s) =>
-          switch (round, turn) {
-          | (Some((seq, kids)), _) => (
-              top,
-              turn,
-              Some((seq, [s, ...kids])),
-            )
-          | (None, Some((u, rounds))) =>
-            /* before the turn's first request: loose in the turn */
-            (top, Some((u, [s, ...rounds])), None)
-          | (None, None) => ([s, ...top], None, None)
-          }
-        | Opens(seq) =>
-          let (top, turn) = close_round((top, turn, round));
-          (top, turn, Some((seq, [])));
-        },
-      ([], None, None),
-      items,
+    List.fold(items, ~init=([], None, None), ~f=((top, turn, round), item) =>
+      switch (item) {
+      | Item({kind: User, _} as u) =>
+        let (top, turn) = close_round((top, turn, round));
+        (close_turn((top, turn)), Some((u, [])), None);
+      | Item(s) =>
+        switch (round, turn) {
+        | (Some((seq, kids)), _) => (top, turn, Some((seq, [s, ...kids])))
+        | (None, Some((u, rounds))) =>
+          /* before the turn's first request: loose in the turn */
+          (top, Some((u, [s, ...rounds])), None)
+        | (None, None) => ([s, ...top], None, None)
+        }
+      | Opens(seq) =>
+        let (top, turn) = close_round((top, turn, round));
+        (top, turn, Some((seq, [])));
+      }
     );
   List.rev(close_turn(close_round((top, turn, round))));
 };
@@ -641,10 +664,15 @@ let head_sections = (seq: int, body: API.Json.t): list(section) => {
     };
   let own =
     `Assoc(
-      List.filter(((k, _)) => k != "tools" && k != "messages", fields),
+      List.filter(
+        ~f=
+          ((k, _)) =>
+            !String.equal(k, "tools") && !String.equal(k, "messages"),
+        fields,
+      ),
     );
   let tools =
-    switch (List.assoc_opt("tools", fields)) {
+    switch (List.Assoc.find(fields, "tools", ~equal=Poly.equal)) {
     | Some(`List(ts)) => ts
     | _ => []
     };
@@ -668,15 +696,16 @@ let head_sections = (seq: int, body: API.Json.t): list(section) => {
       ~shown="",
       ~children=
         List.map(
-          tool =>
-            section(
-              ~folded=true,
-              ~shown=pretty(tool),
-              Tool,
-              name(tool),
-              API.Json.to_string(tool),
-              tool,
-            ),
+          ~f=
+            tool =>
+              section(
+                ~folded=true,
+                ~shown=pretty(tool),
+                Tool,
+                name(tool),
+                API.Json.to_string(tool),
+                tool,
+              ),
           tools,
         ),
       Tools,
@@ -721,14 +750,16 @@ let role_section = (json: API.Json.t): section => {
 /* the rounds that begin after message [id]: the requests sent after it */
 let opens = (rs: list(SentView.t), id: Id.t): list(item) =>
   List.filter_map(
-    (q: SentView.t) => q.after == id ? Some(Opens(q.seq)) : None,
+    ~f=
+      (q: SentView.t) => Id.equal(q.after, id) ? Some(Opens(q.seq)) : None,
     rs,
   );
 
 /* the transcript after message [id] on the current branch */
 let rec following = (chat: Chat.Model.t, id: Id.t): list(Message.Model.t) =>
   switch (
-    Option.bind(Chat.Utils.find_message_opt(id, chat), (m: Message.Model.t) =>
+    Option.bind(
+      Chat.Utils.find_message_opt(id, chat), ~f=(m: Message.Model.t) =>
       m.current_child
     )
   ) {
@@ -746,8 +777,8 @@ let reply_of = (chat: Chat.Model.t, r: SentView.t): option(Message.Model.t) => {
   let rec go = id =>
     switch (
       Option.bind(
-        Chat.Utils.find_message_opt(id, chat), (m: Message.Model.t) =>
-        Option.bind(m.current_child, c =>
+        Chat.Utils.find_message_opt(id, chat), ~f=(m: Message.Model.t) =>
+        Option.bind(m.current_child, ~f=c =>
           Chat.Utils.find_message_opt(c, chat)
         )
       )
@@ -765,7 +796,7 @@ let reply_of = (chat: Chat.Model.t, r: SentView.t): option(Message.Model.t) => {
 
 /* whether request [seq]'s reply, or its error or cancel, is in */
 let replied = (chat: Chat.Model.t, seq: int): bool =>
-  switch (List.find_opt((r: SentView.t) => r.seq == seq, chat.sent)) {
+  switch (List.find(~f=(r: SentView.t) => r.seq == seq, chat.sent)) {
   | Some(r) => Option.is_some(reply_of(chat, r))
   | None => false
   };
@@ -799,13 +830,14 @@ let response = (chat: Chat.Model.t, r: SentView.t): section => {
     /* its size: what the model wrote */
     let text =
       String.concat(
-        "\n",
+        ~sep="\n",
         List.filter_map(
-          (c: section) =>
-            switch (c.kind) {
-            | Usage => None
-            | _ => Some(c.sent ? c.raw : c.text)
-            },
+          ~f=
+            (c: section) =>
+              switch (c.kind) {
+              | Usage => None
+              | _ => Some(c.sent ? c.raw : c.text)
+              },
           children,
         ),
       );
@@ -841,53 +873,56 @@ let response = (chat: Chat.Model.t, r: SentView.t): section => {
    order, each section's JSON the body's own; its context last. Then the
    reply, the rest of what the model had in front of it as it answered */
 let window = (chat: Chat.Model.t, seq: int): option(t) =>
-  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
+  Option.bind(List.find(~f=(r: SentView.t) => r.seq == seq, chat.sent), ~f=r =>
     Option.map(
-      ((body, parts)) => {
-        let last = List.length(parts) - 1;
-        let upto = List.filter((q: SentView.t) => q.seq <= seq, chat.sent);
-        let t =
-          assemble(
-            ~replied=Option.is_some(reply_of(chat, r)),
-            seq,
-            body,
-            group(
-              ~selected=seq,
-              List.concat(
-                List.mapi(
-                  (i, (m: option(Message.Model.t), json)) =>
-                    switch (m) {
-                    | Some(m) =>
-                      List.map(
-                        s => Item(s),
-                        List.filter(
-                          (s: section) => s.sent,
-                          message_section(m, json, ~place=This),
-                        ),
-                      )
-                      @ opens(upto, m.id)
-                    | None when i == last => [
-                        Item(
-                          context_section(
-                            ~window=true,
-                            ~selected=true,
-                            seq,
-                            json,
-                          ),
-                        ),
-                      ]
-                    | None => [Item(role_section(json))]
-                    },
-                  parts,
+      ~f=
+        ((body, parts)) => {
+          let last = List.length(parts) - 1;
+          let upto =
+            List.filter(~f=(q: SentView.t) => q.seq <= seq, chat.sent);
+          let t =
+            assemble(
+              ~replied=Option.is_some(reply_of(chat, r)),
+              seq,
+              body,
+              group(
+                ~selected=seq,
+                List.concat(
+                  List.mapi(
+                    ~f=
+                      (i, (m: option(Message.Model.t), json)) =>
+                        switch (m) {
+                        | Some(m) =>
+                          List.map(
+                            ~f=s => Item(s),
+                            List.filter(
+                              ~f=(s: section) => s.sent,
+                              message_section(m, json, ~place=This),
+                            ),
+                          )
+                          @ opens(upto, m.id)
+                        | None when i == last => [
+                            Item(
+                              context_section(
+                                ~window=true,
+                                ~selected=true,
+                                seq,
+                                json,
+                              ),
+                            ),
+                          ]
+                        | None => [Item(role_section(json))]
+                        },
+                    parts,
+                  ),
                 ),
               ),
-            ),
-          );
-        {
-          ...t,
-          sections: t.sections @ [response(chat, r)],
-        };
-      },
+            );
+          {
+            ...t,
+            sections: t.sections @ [response(chat, r)],
+          };
+        },
       rebuild(chat, r),
     )
   );
@@ -898,8 +933,8 @@ let window = (chat: Chat.Model.t, seq: int): option(t) =>
    and the reply to [seq] itself, sent only later. A turn per user
    message, a round per request */
 let build = (chat: Chat.Model.t, seq: int): option(t) => {
-  let upto = List.filter((r: SentView.t) => r.seq <= seq, chat.sent);
-  switch (List.find_opt((r: SentView.t) => r.seq == seq, upto)) {
+  let upto = List.filter(~f=(r: SentView.t) => r.seq <= seq, chat.sent);
+  switch (List.find(~f=(r: SentView.t) => r.seq == seq, upto)) {
   | None => None
   | Some(r) =>
     switch (chat_at(chat, r), rebuild(chat, r)) {
@@ -907,30 +942,29 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
       let path = Chat.Utils.linearize(at);
       let on_path =
         List.filter(
-          (q: SentView.t) =>
-            List.exists((m: Message.Model.t) => m.id == q.after, path),
+          ~f=
+            (q: SentView.t) =>
+              List.exists(
+                ~f=(m: Message.Model.t) => Id.equal(m.id, q.after),
+                path,
+              ),
           upto,
         );
-      let rebuilt = List.map(q => (q, rebuild(chat, q)), on_path);
+      let rebuilt = List.map(~f=q => (q, rebuild(chat, q)), on_path);
       /* each message's JSON as the latest request sent it */
       let sent =
-        List.fold_left(
-          (acc, (q: SentView.t, b)) =>
-            switch (b) {
-            | Some((_, ms)) =>
-              List.fold_left(
-                (acc, (m: option(Message.Model.t), j)) =>
-                  switch (m) {
-                  | Some(m) => Id.Map.add(m.id, (q.seq, j), acc)
-                  | None => acc
-                  },
-                acc,
-                ms,
-              )
-            | None => acc
-            },
-          Id.Map.empty,
-          rebuilt,
+        List.fold(rebuilt, ~init=Id.Map.empty, ~f=(acc, (q: SentView.t, b)) =>
+          switch (b) {
+          | Some((_, ms)) =>
+            List.fold(
+              ms, ~init=acc, ~f=(acc, (m: option(Message.Model.t), j)) =>
+              switch (m) {
+              | Some(m) => Id.Map.add(m.id, (q.seq, j), acc)
+              | None => acc
+              }
+            )
+          | None => acc
+          }
         );
       let context = ((q: SentView.t, b)) =>
         context_section(
@@ -947,7 +981,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
         );
       let items = (m: Message.Model.t) =>
         List.map(
-          s => Item(s),
+          ~f=s => Item(s),
           switch (Id.Map.find_opt(m.id, sent)) {
           | Some((last, json)) =>
             message_section(m, json, ~place=last < seq ? Until(last) : This)
@@ -955,37 +989,43 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
           },
         )
         @ List.concat_map(
-            ((q: SentView.t, _) as qb) =>
-              q.after == m.id ? [Opens(q.seq), Item(context(qb))] : [],
+            ~f=
+              ((q: SentView.t, _) as qb) =>
+                Id.equal(q.after, m.id)
+                  ? [Opens(q.seq), Item(context(qb))] : [],
             rebuilt,
           );
       /* the reply: up to the next request, or to the next user message */
       let later =
         List.filter_map(
-          (q: SentView.t) => q.seq > seq ? Some(q.after) : None,
+          ~f=(q: SentView.t) => q.seq > seq ? Some(q.after) : None,
           chat.sent,
         );
       let rec reply = (ms: list(Message.Model.t)) =>
         switch (ms) {
         | [{role: User, _}, ..._]
         | [] => []
-        | [m, ...rest] => [m, ...List.mem(m.id, later) ? [] : reply(rest)]
+        | [m, ...rest] => [
+            m,
+            ...List.mem(later, m.id, ~equal=Poly.equal) ? [] : reply(rest),
+          ]
         };
       let replied =
         List.concat_map(
-          (m: Message.Model.t) =>
-            List.map(
-              s => Item(s),
-              switch (m.api_message) {
-              | Some(a) =>
-                message_section(
-                  m,
-                  OpenRouter.Message.Utils.json_of_message(a),
-                  ~place=After,
-                )
-              | None => note_section(m)
-              },
-            ),
+          ~f=
+            (m: Message.Model.t) =>
+              List.map(
+                ~f=s => Item(s),
+                switch (m.api_message) {
+                | Some(a) =>
+                  message_section(
+                    m,
+                    OpenRouter.Message.Utils.json_of_message(a),
+                    ~place=After,
+                  )
+                | None => note_section(m)
+                },
+              ),
           reply(following(chat, r.after)),
         );
       Some(
@@ -993,7 +1033,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
           ~replied=Option.is_some(reply_of(chat, r)),
           seq,
           body,
-          group(~selected=seq, List.concat_map(items, path) @ replied),
+          group(~selected=seq, List.concat_map(~f=items, path) @ replied),
         ),
       );
     | _ => None
@@ -1003,11 +1043,11 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
 
 /* the trajectory in one piece: each section's JSON as sent, a line each */
 let to_lines = (t: t): string =>
-  String.concat("\n", List.concat_map(lines, t.sections));
+  String.concat(~sep="\n", List.concat_map(~f=lines, t.sections));
 
 /* a section's size, by Unicode character */
 let chars = (s: string): int => {
   let n = ref(0);
-  String.iter(c => Char.code(c) land 0xC0 != 0x80 ? incr(n) : (), s);
+  String.iter(~f=c => Char.to_int(c) land 0xC0 != 0x80 ? incr(n) : (), s);
   n^;
 };

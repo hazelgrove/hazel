@@ -109,12 +109,12 @@ module Utils = {
     let parent =
       List.find_map(
         ~f=
-        (message: Message.Model.t) =>
+          (message: Message.Model.t) =>
             if (List.mem(message.children, message_id, ~equal=Poly.equal)) {
-            Some(message);
-          } else {
-            None;
-          },
+              Some(message);
+            } else {
+              None;
+            },
         linearize(chat),
       );
     parent
@@ -214,18 +214,15 @@ module Utils = {
     | (Some(context), Some(b)) =>
       let linear = linearize(chat);
       let last_tool =
-        List.fold_left(
-          (acc, m: Message.Model.t) =>
-            switch (m.role) {
-            | ToolResult({after_text: Some(_), _}) => Some(m.id)
-            | _ => acc
-            },
-          None,
-          linear,
+        List.fold(linear, ~init=None, ~f=(acc, m: Message.Model.t) =>
+          switch (m.role) {
+          | ToolResult({after_text: Some(_), _}) => Some(m.id)
+          | _ => acc
+          }
         );
       let r: SentView.t = {
         seq:
-          switch (ListUtil.last_opt(chat.sent)) {
+          switch (List.last(chat.sent)) {
           | Some(r) => r.seq + 1
           | None => 1
           },
@@ -256,12 +253,14 @@ module Utils = {
      else the one sent after it */
   let sent_for = (chat: Model.t, id: Id.t): option(SentView.t) => {
     let after = x =>
-      List.find_opt((r: SentView.t) => r.after == x, chat.sent);
+      List.find(~f=(r: SentView.t) => Id.equal(r.after, x), chat.sent);
     switch (find_message_opt(id, chat)) {
     | Some({role: Agent(_), _}) =>
       switch (
-        List.find_opt(
-          (m: Message.Model.t) => List.mem(id, m.children),
+        List.find(
+          ~f=
+            (m: Message.Model.t) =>
+              List.mem(m.children, id, ~equal=Poly.equal),
           linearize(chat),
         )
       ) {
@@ -373,13 +372,13 @@ module Utils = {
     } else {
       List.mapi(
         ~f=
-        (i, m: OpenRouter.Message.Model.t) =>
-          i == anchor_idx
-            ? {
-              ...m,
-              cache_anchor: true,
-            }
-            : m,
+          (i, m: OpenRouter.Message.Model.t) =>
+            i == anchor_idx
+              ? {
+                ...m,
+                cache_anchor: true,
+              }
+              : m,
         msgs,
       );
     };
@@ -396,33 +395,33 @@ module Utils = {
     let (_, last_agent_idx, last_agent_tokens, last_compaction_idx) =
       List.fold_left(
         ~f=
-        (
-          (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
-          msg: Message.Model.t,
-        ) => {
-          let last_agent_idx' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(_)) => Some(i)
-            | _ => last_agent_idx
-            };
-          let last_agent_tokens' =
-            switch (msg.role) {
-            | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
-            | _ => last_agent_tokens
-            };
-          let last_compaction_idx' =
-            switch (msg.role) {
-            | Message.Model.System(Message.Model.CompactionSummary(_)) =>
-              Some(i)
-            | _ => last_compaction_idx
-            };
+          (
+            (i, last_agent_idx, last_agent_tokens, last_compaction_idx),
+            msg: Message.Model.t,
+          ) => {
+            let last_agent_idx' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(_)) => Some(i)
+              | _ => last_agent_idx
+              };
+            let last_agent_tokens' =
+              switch (msg.role) {
+              | Message.Model.Agent(Some(u)) => Some(u.prompt_tokens)
+              | _ => last_agent_tokens
+              };
+            let last_compaction_idx' =
+              switch (msg.role) {
+              | Message.Model.System(Message.Model.CompactionSummary(_)) =>
+                Some(i)
+              | _ => last_compaction_idx
+              };
             (
               i + 1,
               last_agent_idx',
               last_agent_tokens',
               last_compaction_idx',
             );
-        },
+          },
         ~init=(0, None, None, None),
         messages,
       );

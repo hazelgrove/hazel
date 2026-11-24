@@ -174,26 +174,26 @@ let legend_view =
   let items =
     List.filter_map(
       ~f=
-      ((cat, n)) =>
-        n > 0
-          ? Some(
-              span(
-                ~attrs=[clss(["legend-item"])],
-                [
-                  span(
-                    ~attrs=[
-                      clss([
-                        "legend-swatch",
-                        SidebarModel.Settings.category_cls(cat),
-                      ]),
-                    ],
-                    [],
-                  ),
-                  text(SidebarModel.Settings.category_short_label(cat)),
-                ],
-              ),
-            )
-          : None,
+        ((cat, n)) =>
+          n > 0
+            ? Some(
+                span(
+                  ~attrs=[clss(["legend-item"])],
+                  [
+                    span(
+                      ~attrs=[
+                        clss([
+                          "legend-swatch",
+                          SidebarModel.Settings.category_cls(cat),
+                        ]),
+                      ],
+                      [],
+                    ),
+                    text(SidebarModel.Settings.category_short_label(cat)),
+                  ],
+                ),
+              )
+            : None,
       counts,
     );
   div(~attrs=[clss(["problem-legend"])], items);
@@ -374,31 +374,31 @@ let view =
       let label = Option.value(g.label, ~default="");
       List.filter_map(
         ~f=
-        ((cat, lps)) =>
+          ((cat, lps)) =>
             if (List.is_empty(lps)) {
-            None;
-          } else {
-            Some(
-              section_view(
-                ~title=SidebarModel.Settings.category_label(cat),
-                ~cls=SidebarModel.Settings.category_section_cls(cat),
-                ~collapsed=
-                  SidebarModel.Settings.is_collapsed(
-                    label,
-                    cat,
-                    problems_settings,
-                  ),
-                ~on_toggle=
-                  _ =>
-                    globals.inject_global(
+              None;
+            } else {
+              Some(
+                section_view(
+                  ~title=SidebarModel.Settings.category_label(cat),
+                  ~cls=SidebarModel.Settings.category_section_cls(cat),
+                  ~collapsed=
+                    SidebarModel.Settings.is_collapsed(
+                      label,
+                      cat,
+                      problems_settings,
+                    ),
+                  ~on_toggle=
+                    _ =>
+                      globals.inject_global(
                         Set(
                           Sidebar(Problems(ToggleCollapsed(label, cat))),
-                    ),
+                        ),
                       ),
                   List.map(~f=render, lps),
-              ),
-            );
-          },
+                ),
+              );
+            },
         g.problems_by_category,
       );
     };
@@ -416,41 +416,41 @@ let view =
          count. */
       List.map(
         ~f=
-        (g: problem_group) => {
-          let label = Option.value(g.label, ~default="");
-          let total =
+          (g: problem_group) => {
+            let label = Option.value(g.label, ~default="");
+            let total =
               g.counts
               |> Stdlib.List.to_seq
               |> Stdlib.Seq.map(snd)
               |> Stdlib.Seq.fold_left((+), 0);
-          let collapsed =
-            SidebarModel.Settings.is_editor_collapsed(
-              label,
-              problems_settings,
-            );
-          div(
-            ~attrs=[clss(["problem-editor-group"])],
-            [
-              div(
-                ~attrs=[
-                  clss(["problem-editor-header"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(
+            let collapsed =
+              SidebarModel.Settings.is_editor_collapsed(
+                label,
+                problems_settings,
+              );
+            div(
+              ~attrs=[clss(["problem-editor-group"])],
+              [
+                div(
+                  ~attrs=[
+                    clss(["problem-editor-header"]),
+                    Attr.on_click(_ =>
+                      globals.inject_global(
                         Set(
                           Sidebar(Problems(ToggleEditorCollapsed(label))),
                         ),
-                    )
-                  ),
-                ],
-                [
-                  text(collapsed ? "▸ " : "▾ "),
-                  text(label ++ " (" ++ string_of_int(total) ++ ")"),
-                ],
-              ),
-            ]
-            @ (collapsed ? [] : render_group(g)),
-          );
-        },
+                      )
+                    ),
+                  ],
+                  [
+                    text(collapsed ? "▸ " : "▾ "),
+                    text(label ++ " (" ++ string_of_int(total) ++ ")"),
+                  ],
+                ),
+              ]
+              @ (collapsed ? [] : render_group(g)),
+            );
+          },
         gs,
       )
     };

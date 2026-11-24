@@ -1,5 +1,6 @@
 open Util;
 open Language;
+open Poly;
 
 /* The stepper a probe drawer shows for one sample: the probed expression,
    closed over the sample's values, stepped from there. */
@@ -50,10 +51,10 @@ let closed_exp =
   open OptUtil.Syntax;
   let* info = Statics.Map.lookup_exp(span.probe_id, info_map);
   let* samples = Dynamics.Map.lookup(span.probe_id, dynamics);
-  let* sample = List.find_opt(Sample.ref_matches(span), samples);
+  let* sample = List.find(~f=Sample.ref_matches(span), samples);
   let+ bindings =
     sample.env
-    |> List.map((en: Sample.Env.entry) =>
+    |> List.map(~f=(en: Sample.Env.entry) =>
          switch (en.value) {
          | Val(d) => Some((en.binding.name, d))
          | Opaque => None
@@ -93,13 +94,13 @@ let calculate =
       };
     let same_exp =
       switch (exp, ps.exp) {
-      | (Some(a), Some(b)) => a === b || Exp.fast_equal(a, b)
+      | (Some(a), Some(b)) => phys_equal(a, b) || Exp.fast_equal(a, b)
       | (None, None) => true
       | _ => false
       };
     let fresh =
       switch (prev) {
-      | Some(p) => p !== ps
+      | Some(p) => !phys_equal(p, ps)
       | None => true
       };
     if (!fresh && same_exp && !ps.dirty && !Calc.is_new(settings)) {
@@ -204,8 +205,8 @@ let one_line = (s: string): string => {
   } else {
     /* back off to a UTF-8 character boundary */
     let rec cut = i =>
-      i > 0 && Char.code(s.[i]) land 0xC0 == 0x80 ? cut(i - 1) : i;
-    String.sub(s, 0, cut(cap)) ++ {js|…|js};
+      i > 0 && Char.to_int(s.[i]) land 0xC0 == 0x80 ? cut(i - 1) : i;
+    String.sub(s, ~pos=0, ~len=cut(cap)) ++ {js|…|js};
   };
 };
 
@@ -223,7 +224,7 @@ let bar = (~classes=[], ~label, ~name, ~title=?, ~status=[], ~undo, controls) =>
             Node.span(
               ~attrs=[
                 Attr.classes(["steps-bar-expr"]),
-                ...Option.to_list(Option.map(Attr.title, title)),
+                ...Option.to_list(Option.map(~f=Attr.title, title)),
               ],
               [Node.text(name)],
             ),
@@ -273,7 +274,7 @@ let view =
         ~label="Stepper",
         ~name=stepped,
         ~title=stepped,
-        ~undo=Option.map(inject, StepperView.Update.undo(ps.stepper)),
+        ~undo=Option.map(~f=inject, StepperView.Update.undo(ps.stepper)),
         [
           Widgets.button(~tooltip="Stepper settings", Icons.gear, _ =>
             set(ShowSettings)

@@ -64,7 +64,11 @@ let caret_ids_memo:
 let compute_caret_ids_cached =
     (~info_map: Language.Statics.Map.t, z: Zipper.t): list(Id.t) =>
   Util.Slot.get(
-    ~same=((m, i, se), (m', i', se')) => m === m' && i == i' && se == se',
+    ~same=
+      ((m, i, se), (m', i', se')) =>
+        phys_equal(m, m')
+        && Option.equal(Id.equal, i, i')
+        && Bool.equal(se, se'),
     caret_ids_memo,
     (info_map, Indicated.index(z), Selection.is_empty(z.selection)),
     () => compute_caret_ids(~info_map, z),

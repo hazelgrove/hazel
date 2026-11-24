@@ -101,28 +101,28 @@ module Model = {
     model.current,
     List.map(
       ~f=
-      ((config_type: config_type, m: CellEditor.Model.t)) => {
-        let name = persistence_key(config_type);
-        let current_zipper = m.editor.editor.state.zipper;
-        /* Built-in sources are text-backed and mint fresh ids on every
-           parse, so id-sensitive segment equality can never match.
-           Compare the text projection instead, and store nothing for an
-           untouched slide so a later change to the default is picked up. */
-        let default_text =
-          default_source(config_type)
-          |> snd
-          |> ((z: PersistentZipper.t) => z.backup_text)
-          |> StringUtil.strip_final_newline;
-        let unchanged =
+        ((config_type: config_type, m: CellEditor.Model.t)) => {
+          let name = persistence_key(config_type);
+          let current_zipper = m.editor.editor.state.zipper;
+          /* Built-in sources are text-backed and mint fresh ids on every
+             parse, so id-sensitive segment equality can never match.
+             Compare the text projection instead, and store nothing for an
+             untouched slide so a later change to the default is picked up. */
+          let default_text =
+            default_source(config_type)
+            |> snd
+            |> ((z: PersistentZipper.t) => z.backup_text)
+            |> StringUtil.strip_final_newline;
+          let unchanged =
             String.equal(
-          MarkerParse.seg_to_text(
-            ~refractors=current_zipper.refractors.manuals,
-            Zipper.zip(current_zipper),
+              MarkerParse.seg_to_text(
+                ~refractors=current_zipper.refractors.manuals,
+                Zipper.zip(current_zipper),
               ),
               default_text,
             );
-        (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
-      },
+          (name, unchanged ? None : Some(CellEditor.Model.persist(m)));
+        },
       model.configs,
     ),
   );
@@ -155,30 +155,30 @@ module Model = {
           String.equal(
             persistence_key(config_type),
             List.nth_exn(slides, current) |> fst,
-        )
+          )
         )
         |> Option.map(~f=fst)
         |> Option.value(~default=0),
       configs:
         List.map(
           ~f=
-          (config_type: config_type) =>
-            List.find_map(
+            (config_type: config_type) =>
+              List.find_map(
                 ~f=
-              s =>
+                  s =>
                     String.equal(fst(s), persistence_key(config_type))
-                  ? Some(get_persistent(s)) : None,
-              slides,
-            )
-            |> OptUtil.get(() =>
-                 (
-                   config_type,
-                   default_source(config_type)
-                   |> snd
-                   |> CellEditor.Model.from_persistent_zipper(~root=Exp)
-                   |> CellEditor.Model.unpersist(~settings),
-                 )
-               ),
+                      ? Some(get_persistent(s)) : None,
+                slides,
+              )
+              |> OptUtil.get(() =>
+                   (
+                     config_type,
+                     default_source(config_type)
+                     |> snd
+                     |> CellEditor.Model.from_persistent_zipper(~root=Exp)
+                     |> CellEditor.Model.unpersist(~settings),
+                   )
+                 ),
           all_of_config_type,
         ),
     };
@@ -194,12 +194,12 @@ module StoreConfig =
       0,
       List.map(
         ~f=
-        x =>
-          Model.default_source(x)
-          |> PairUtil.map_snd(
-               CellEditor.Model.from_persistent_zipper(~root=Exp),
-             )
-          |> PairUtil.map_snd(Option.some),
+          x =>
+            Model.default_source(x)
+            |> PairUtil.map_snd(
+                 CellEditor.Model.from_persistent_zipper(~root=Exp),
+               )
+            |> PairUtil.map_snd(Option.some),
         Model.all_of_config_type,
       ),
     );
@@ -607,8 +607,8 @@ module View = {
           model.current,
           List.map(
             ~f=
-            ((config_type, _)) =>
-              SlidePath.of_string(Model.config_name_of_type(config_type)),
+              ((config_type, _)) =>
+                SlidePath.of_string(Model.config_name_of_type(config_type)),
             model.configs,
           ),
         ),

@@ -247,7 +247,7 @@ let handle_compaction_reply =
       compaction_method_override: None,
     };
     let content = String.strip(reply.content);
-    if (String.equal(content, "") && reply.tool_calls != []) {
+    if (String.equal(content, "") && !List.is_empty(reply.tool_calls)) {
       let err =
         Message.Utils.mk_api_failure_message(
           "Compaction returned tool calls instead of a text summary. Try another model, or one that does not emit tools on compaction.",

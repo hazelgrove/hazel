@@ -28,13 +28,14 @@ let label_view = (label: string): Node.t =>
 
 let parts_view = (~view_type, parts: list(Haz3lcore.ErrorPrint.part)) =>
   List.map(
-    (part: Haz3lcore.ErrorPrint.part) =>
-      switch (part) {
-      | Text(s) => text(s)
-      | Code(s) => code(s)
-      | Label(s) => label_view(s)
-      | Type(ty) => view_type(ty)
-      },
+    ~f=
+      (part: Haz3lcore.ErrorPrint.part) =>
+        switch (part) {
+        | Text(s) => text(s)
+        | Code(s) => code(s)
+        | Label(s) => label_view(s)
+        | Type(ty) => view_type(ty)
+        },
     parts,
   );
 
@@ -142,7 +143,7 @@ let view_type =
   let binders = Typ.binding_sites_in(~ctx, tys, typ);
   let index = name =>
     ListUtil.findi_opt(((shown, _)) => String.equal(shown, name), binders)
-    |> Option.map(fst);
+    |> Option.map(~f=fst);
   let (segment, vars, binder_tiles) =
     Haz3lcore.TypToSegment.typ_to_segment_with_var_ids(
       ~settings=code_view_settings,
@@ -150,19 +151,19 @@ let view_type =
     );
   let links =
     List.filter_map(
-      ((name, tile)) => index(name) |> Option.map(i => (tile, i)),
+      ~f=((name, tile)) => index(name) |> Option.map(~f=i => (tile, i)),
       vars @ binder_tiles,
     );
   let classes = tile =>
-    switch (List.find_opt(((t, _)) => Id.compare(t, tile) == 0, links)) {
+    switch (List.find(~f=((t, _)) => Id.compare(t, tile) == 0, links)) {
     | Some((_, i)) => ["binding-link", "binding-link-" ++ string_of_int(i)]
     | None => []
     };
   let jump = evt =>
     switch (
       Util.JsUtil.class_at_target(~prefix="binding-link-", evt)
-      |> Fun.flip(Option.bind, int_of_string_opt)
-      |> Fun.flip(Option.bind, List.nth_opt(binders))
+      |> Option.bind(~f=int_of_string_opt)
+      |> Option.bind(~f=List.nth(binders))
     ) {
     | Some((_, id)) => globals.inject_global(JumpToTile(id))
     | None => Effect.Ignore
@@ -170,7 +171,7 @@ let view_type =
   /* A name with a tag (see Typ.split_tag) does not parse as a type, so the
      sort its token shows as is said here. */
   let is_tile = (tiles, id) =>
-    List.exists(((_, t)) => Id.compare(t, id) == 0, tiles);
+    List.exists(~f=((_, t)) => Id.compare(t, id) == 0, tiles);
   let refine_sort = (id, sort: Haz3lcore.Sort.t): Haz3lcore.Sort.t =>
     if (is_tile(vars, id)) {
       Typ;
@@ -372,7 +373,7 @@ let label_not_found_view = (name, labels): list(Node.t) => [
   text("Label "),
   label_view(name),
   text(" not found in tuple's labels: "),
-  ...List.map(label_view, labels),
+  ...List.map(~f=label_view, labels),
 ];
 
 let common_warn_view =
@@ -593,7 +594,8 @@ let underdetermined_typ_view =
     @ (
       ListUtil.join(
         [text(" and ")],
-        [product_error, label_error] |> List.filter(~f=x => x != []),
+        [product_error, label_error]
+        |> List.filter(~f=x => !List.is_empty(x)),
       )
       |> List.concat
     );
@@ -776,7 +778,6 @@ let exp_mark_err_view =
     switch (additional) {
     | None => div_err(inexhaustive_view(~globals, cls_str, example))
     | Some(tys) =>
-
       div_err([
         div_err([
           text(elements_noun(cls) ++ " have inconsistent types:"),
@@ -788,7 +789,7 @@ let exp_mark_err_view =
         |> code_box_container,
         ...inexhaustive_view(
              ~globals,
-             "; " ++ String.uncapitalize_ascii(cls_str),
+             "; " ++ String.uncapitalize(cls_str),
              example,
            ),
       ])
@@ -982,7 +983,7 @@ let exp_view =
     };
   let inferred_label = info.inferred_label;
   let marks = info.marks;
-  switch (marks != []) {
+  switch (!List.is_empty(marks)) {
   | false =>
     switch (message) {
     | Exp(Default) =>
@@ -1145,7 +1146,7 @@ let pat_view =
     };
 
   let marks = info.marks;
-  marks != []
+  !List.is_empty(marks)
     ? pat_marks_err_view(~globals, ~show_type_colon, cls, marks, info)
     : {
       let ok =
@@ -1397,7 +1398,7 @@ let view =
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
   | _ when !globals.settings.core.statics =>
-    dynamics == None ? div_empty : bar_view([])
+    Option.is_none(dynamics) ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,

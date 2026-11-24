@@ -66,9 +66,9 @@ let get_string_list_field =
     let strs =
       List.filter_map(
         ~f=
-        fun
-        | `String(s) => Some(s)
-        | _ => None,
+          fun
+          | `String(s) => Some(s)
+          | _ => None,
         items,
       );
     Some(strs);
@@ -105,7 +105,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   let edit = (~persists: bool) => {
     let path =
       List.find_map(
-        key => get_string_field(args, key),
+        ~f=key => get_string_field(args, key),
         ["target", "before", "after", "first_in", "last_in"],
       );
     Some({
@@ -221,7 +221,7 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
 /* long text by its size */
 let lines = (s: string): string =>
   Haz3lcore.CompositionView.plural(
-    List.length(String.split_on_char('\n', String.trim(s))),
+    List.length(String.split(~on='\n', String.strip(s))),
     "line",
     "lines",
   );
@@ -231,26 +231,28 @@ let generic_fields = (args: API.Json.t): list(string) =>
   switch (args) {
   | `Assoc(fields) =>
     List.filter_map(
-      ((k, v): (string, API.Json.t)) =>
-        switch (v) {
-        | `String(s) when String.contains(String.trim(s), '\n') =>
-          Some(k ++ ": " ++ lines(s))
-        | `String(s) => Some(k ++ ": " ++ truncate_free_text(s))
-        | `Int(_)
-        | `Float(_)
-        | `Bool(_) => Some(k ++ ": " ++ API.Json.to_string(v))
-        | `List(_) =>
-          switch (get_string_list_field(args, k)) {
-          | Some(ss) when ss != [] => Some(k ++ ": " ++ join_paths(ss))
+      ~f=
+        ((k, v): (string, API.Json.t)) =>
+          switch (v) {
+          | `String(s) when String.contains(String.strip(s), '\n') =>
+            Some(k ++ ": " ++ lines(s))
+          | `String(s) => Some(k ++ ": " ++ truncate_free_text(s))
+          | `Int(_)
+          | `Float(_)
+          | `Bool(_) => Some(k ++ ": " ++ API.Json.to_string(v))
+          | `List(_) =>
+            switch (get_string_list_field(args, k)) {
+            | Some(ss) when !List.is_empty(ss) =>
+              Some(k ++ ": " ++ join_paths(ss))
+            | _ => None
+            }
+          | `Assoc(_) =>
+            switch (get_string_field(v, "title")) {
+            | Some(t) => Some(k ++ ": " ++ truncate_free_text(t))
+            | None => Some(k ++ {js|: {…}|js})
+            }
           | _ => None
-          }
-        | `Assoc(_) =>
-          switch (get_string_field(v, "title")) {
-          | Some(t) => Some(k ++ ": " ++ truncate_free_text(t))
-          | None => Some(k ++ {js|: {…}|js})
-          }
-        | _ => None
-        },
+          },
       fields,
     )
   | _ => []
@@ -263,11 +265,17 @@ let line = (tc: OpenRouter.Reply.Model.tool_call): string => {
   let str = get_string_field(tc.args);
   let place =
     List.find_map(
-      key =>
-        Option.map(
-          p => String.map(c => c == '_' ? ' ' : c, key) ++ " \"" ++ p ++ "\"",
-          str(key),
-        ),
+      ~f=
+        key =>
+          Option.map(
+            ~f=
+              p =>
+                String.map(~f=c => Char.equal(c, '_') ? ' ' : c, key)
+                ++ " \""
+                ++ p
+                ++ "\"",
+            str(key),
+          ),
       ["before", "after", "first_in", "last_in"],
     );
   let parts =
@@ -275,18 +283,18 @@ let line = (tc: OpenRouter.Reply.Model.tool_call): string => {
     | "rename" =>
       let target =
         Option.value(str("target"), ~default="")
-        ++ Option.fold(~none="", ~some=n => ": " ++ n, str("name"));
+        ++ Option.value_map(str("name"), ~default="", ~f=n => ": " ++ n);
       [target ++ {js| → |js} ++ Option.value(str("to"), ~default="")];
     | "insert"
     | "replace"
     | "delete"
     | "move" =>
       List.filter_map(
-        x => x,
+        ~f=x => x,
         [
           str("target"),
           place,
-          Option.map(c => "code: " ++ lines(c), str("code")),
+          Option.map(~f=c => "code: " ++ lines(c), str("code")),
         ],
       )
     | _ =>
@@ -295,5 +303,5 @@ let line = (tc: OpenRouter.Reply.Model.tool_call): string => {
       | None => generic_fields(tc.args)
       }
     };
-  String.concat({js| · |js}, [tc.name, ...parts]);
+  String.concat(~sep={js| · |js}, [tc.name, ...parts]);
 };

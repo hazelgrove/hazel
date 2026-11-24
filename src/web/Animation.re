@@ -153,15 +153,15 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
   let inner_height = inner_height();
   List.filter_map(
     ~f=
-    (tr: transition_internal) => {
-      switch (JsUtil.get_elem_by_id_opt(tr.id)) {
-      | None => None
-      | Some(elem) =>
-        let new_box = box_of(elem);
-        check_visible(client_height, inner_height, new_box)
-          ? Some((tr, elem, Some(new_box))) : None;
-      }
-    },
+      (tr: transition_internal) => {
+        switch (JsUtil.get_elem_by_id_opt(tr.id)) {
+        | None => None
+        | Some(elem) =>
+          let new_box = box_of(elem);
+          check_visible(client_height, inner_height, new_box)
+            ? Some((tr, elem, Some(new_box))) : None;
+        }
+      },
     tracked_elems,
   );
 };
@@ -169,7 +169,7 @@ let filter_visible_elements = (tracked_elems: list(transition_internal)) => {
 /* Execute animations. This is called during the
  * render phase, after recalc but before repaint */
 let go = (): unit =>
-  if (tracked_elems^ != []) {
+  if (!List.is_empty(tracked_elems^)) {
     tracked_elems^ |> filter_visible_elements |> List.iter(~f=animate_elem);
     tracked_elems := [];
   };
@@ -193,12 +193,12 @@ let request = (transitions: list(transition)): unit => {
   tracked_elems :=
     List.map(
       ~f=
-      ({id, animate}: transition) =>
-        {
-          id,
+        ({id, animate}: transition) =>
+          {
+            id,
             box: Option.map(~f=box_of, JsUtil.get_elem_by_id_opt(id)),
-          animate,
-        },
+            animate,
+          },
       transitions,
     )
     @ tracked_elems^;

@@ -12,10 +12,10 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 /* each slide's root sort: mod_slides are module bodies, the rest Exp */
 let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
   List.map(
-    ((n, z)) => (n, Sort.Exp, z),
+    ~f=((n, z)) => (n, Sort.Exp, z),
     Docslides.Slides.all_slides @ B2t2.Slides.all_slides,
   )
-  @ List.map(((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
+  @ List.map(~f=((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first

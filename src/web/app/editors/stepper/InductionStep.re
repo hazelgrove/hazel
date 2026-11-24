@@ -231,16 +231,16 @@ module F =
     let (cases, constraints, validities) =
       List.map(
         ~f=
-        InductionCase.calculate(
-          ~settings,
-          ~scrut_ty,
-          ~scrut_co_ctx,
-          ~elab_scrut=elab_scrut_sub,
-          ~ctx,
-          ~info_map,
-          ~exp,
-          ~ana,
-        ),
+          InductionCase.calculate(
+            ~settings,
+            ~scrut_ty,
+            ~scrut_co_ctx,
+            ~elab_scrut=elab_scrut_sub,
+            ~ctx,
+            ~info_map,
+            ~exp,
+            ~ana,
+          ),
         cases,
       )
       |> ListUtil.unzip3;
@@ -248,16 +248,16 @@ module F =
     let new_join_exp =
       List.fold_left(
         ~f=
-        (acc, case: InductionCase.model) =>
-          switch (acc, case.last_exp) {
-          | (None, Calc.Pending) => None
-          | (None, Calc.Calculated(last_exp)) => Some(last_exp)
-          | (Some(acc), Calc.Pending) => Some(acc)
-          | (Some(acc), Calc.Calculated(last_exp))
-              when Exp.fast_equal(acc, last_exp) =>
-            Some(acc)
-          | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
-          },
+          (acc, case: InductionCase.model) =>
+            switch (acc, case.last_exp) {
+            | (None, Calc.Pending) => None
+            | (None, Calc.Calculated(last_exp)) => Some(last_exp)
+            | (Some(acc), Calc.Pending) => Some(acc)
+            | (Some(acc), Calc.Calculated(last_exp))
+                when Exp.fast_equal(acc, last_exp) =>
+              Some(acc)
+            | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
+            },
         ~init=None,
         cases,
       );
@@ -276,10 +276,10 @@ module F =
         and.calc scrut_ty = scrut_ty;
         let constraints = List.filter_map(~f=Fn.id, constraints);
         Poly.equal(
-        Coverage.check(
-          constraints,
-          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
-        ).
+          Coverage.check(
+            constraints,
+            Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+          ).
             exhaustiveness,
           Exhaustive,
         );
@@ -292,12 +292,12 @@ module F =
         and.calc is_exhaustive = is_exhaustive;
         List.fold_left(
           ~f=
-          (v1, v2) =>
-            switch (v1, v2) {
-            | (Some(true), Some(true)) => Some(true)
-            | (Some(false), Some(false)) => Some(false)
-            | (_, _) => None
-            },
+            (v1, v2) =>
+              switch (v1, v2) {
+              | (Some(true), Some(true)) => Some(true)
+              | (Some(false), Some(false)) => Some(false)
+              | (_, _) => None
+              },
           ~init=is_exhaustive ? Some(true) : None,
           validities,
         );
@@ -409,21 +409,21 @@ module F =
     let cases =
       List.mapi(
         ~f=
-        (i, case) =>
-          InductionCase.view(
-            ~globals,
-            ~inject=x => inject(CaseUpdate(i, x)),
-            ~take_focus=x => take_focus(Case(i, x)),
-            ~remove_case=inject(RemoveCase(i)),
-            ~hide_stepper,
-            ~focus=
-              switch (focus) {
-              | Some(Case(j, s)) when i == j => Some(s)
-              | Some(_)
-              | None => None
-              },
-            case,
-          ),
+          (i, case) =>
+            InductionCase.view(
+              ~globals,
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~take_focus=x => take_focus(Case(i, x)),
+              ~remove_case=inject(RemoveCase(i)),
+              ~hide_stepper,
+              ~focus=
+                switch (focus) {
+                | Some(Case(j, s)) when i == j => Some(s)
+                | Some(_)
+                | None => None
+                },
+              case,
+            ),
         model.cases,
       );
 

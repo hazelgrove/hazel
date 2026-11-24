@@ -30,7 +30,7 @@ let shards_of_tiles = (tiles: tile_data) =>
      );
 
 let rep_tips = (tiles: tile_data) => {
-  assert(tiles != []);
+  assert(!List.is_empty(tiles));
   let (_, rep_mold, _) = List.hd_exn(tiles);
   let (l, r) = rep_mold.nibs;
   let (l, r) = ShardDec.tips_of_shapes((l.shape, r.shape));
@@ -150,17 +150,17 @@ let inner_lines =
     |> List.concat_map(
          ~f=
            List.map(~f=((l, r)) => {
-           let first = snd(l).origin;
-           let last = snd(r).origin;
-           (first, m_horizontal(~hx, ~first, ~last));
-         }),
+             let first = snd(l).origin;
+             let last = snd(r).origin;
+             (first, m_horizontal(~hx, ~first, ~last));
+           }),
        );
   let verticals =
     shard_rows
     |> ListUtil.neighbors
     |> List.filter_map(~f=((l, r)) => {
-         assert(l != []);
-         assert(r != []);
+         assert(!List.is_empty(l));
+         assert(!List.is_empty(r));
          let first = snd(List.hd_exn(l)).origin;
          let last = snd(List.hd_exn(r)).origin;
          if (last.row > first.row) {
@@ -218,7 +218,7 @@ let paths =
   | [(id, {out: mold_out, _}, _), ..._] =>
     let sort = refine_sort(id, mold_out);
     let shards = shards_of_tiles(tiles);
-    assert(shards != []);
+    assert(!List.is_empty(shards));
     let path_cls = ["child-line", Sort.class_of(sort)] @ line_clss;
     let hx = Stdlib.abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
@@ -252,25 +252,25 @@ let shards =
     : list(Node.t) =>
   List.concat_map(
     ~f=
-    ((id, mold: Mold.t, shards: list(Shards.shard))) => {
-      let sort = refine_sort(id, mold.out);
-      List.map(
+      ((id, mold: Mold.t, shards: list(Shards.shard))) => {
+        let sort = refine_sort(id, mold.out);
+        List.map(
           ~f=
-        ((index: int, measurement: Measured.measurement)) =>
-          ShardDec.simple(
-            ~attr?,
-            {
-              font_metrics,
-              measurement,
+            ((index: int, measurement: Measured.measurement)) =>
+              ShardDec.simple(
+                ~attr?,
+                {
+                  font_metrics,
+                  measurement,
                   tips:
                     ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-            },
+                },
                 Option.to_list(base_clss)
                 @ ["indicated", Sort.class_of(sort)],
-          ),
-        shards,
-      );
-    },
+              ),
+          shards,
+        );
+      },
     tiles,
   );
 
@@ -297,7 +297,7 @@ let rep_of = (id: Id.t, terms: TermMap.t): option((Id.t, Language.Any.t)) =>
   switch (Id.Map.find_opt(id, terms)) {
   | Some(t) =>
     let rep = Language.Any.rep_id(t);
-    Option.map(t => (rep, t), Id.Map.find_opt(rep, terms));
+    Option.map(~f=t => (rep, t), Id.Map.find_opt(rep, terms));
   | None => None
   };
 
@@ -370,7 +370,8 @@ let term =
       | Some((l, r)) =>
         let r = apply_clip(clip_right, r);
         let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
+        let tiles =
+          is_module ? List.filter(~f=is_not_semi_tile, tiles) : tiles;
         term(
           ~refine_sort,
           ~font_metrics,
@@ -469,8 +470,8 @@ let completion_clip =
               |> List.map(~f=((_, sm): Shards.shard) => sm.last)
               |> List.fold_left(
                    ~f=
-                   (acc, pt: Point.t) =>
-                     Point.compare(pt, acc) > 0 ? pt : acc,
+                     (acc, pt: Point.t) =>
+                       Point.compare(pt, acc) > 0 ? pt : acc,
                    ~init=p,
                  );
             Some(own_last);
@@ -486,7 +487,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
-    Option.bind(Id.Map.find_opt(Piece.id(p), syntax.terms), t =>
+    Option.bind(Id.Map.find_opt(Piece.id(p), syntax.terms), ~f=t =>
       TermData.extreme_measures(
         Language.Any.rep_id(t),
         syntax.term_data,
@@ -611,14 +612,14 @@ module Errors = {
       is_warning ? "warnings" : "errors",
       List.map(
         ~f=
-        of_id(
-          ~refine_sort,
-          ~is_warning,
-          ~simple_indication,
-          ~font_metrics,
-          ~syntax,
-          ~completion,
-        ),
+          of_id(
+            ~refine_sort,
+            ~is_warning,
+            ~simple_indication,
+            ~font_metrics,
+            ~syntax,
+            ~completion,
+          ),
         error_ids,
       ),
     );
@@ -674,7 +675,7 @@ module Indicated = {
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
-    | _ when z.selection.content != [] => []
+    | _ when !List.is_empty(z.selection.content) => []
     | Some({piece: Tile(t) as p, _}) =>
       let clip_right = completion_clip(~syntax, ~completion, t);
       of_piece(~refine_sort, ~font_metrics, ~syntax, ~clip_right, p);
@@ -694,15 +695,15 @@ module Indicated = {
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
-    | _ when z.selection.content != [] => []
+    | _ when !List.is_empty(z.selection.content) => []
     | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
       let root =
         Option.bind(
           Id.Map.find_opt(Piece.id(p), syntax.terms),
-          t => {
+          ~f=t => {
             let rep_id = Language.Any.rep_id(t);
             Option.map(
-              root => (rep_id, root),
+              ~f=root => (rep_id, root),
               TermData.root_piece(rep_id, syntax.term_data),
             );
           },
