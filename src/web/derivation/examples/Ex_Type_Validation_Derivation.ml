@@ -16,7 +16,7 @@ let exercise : DerivationExercise.spec =
              Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
              -1)(pinned_stack())(indicated_call())(time())(seq \
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-          backup_text = "";
+          backup_text = "\194\191\n";
         };
       setup =
         {
@@ -89,7 +89,7 @@ let exercise : DerivationExercise.spec =
              0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
           backup_text =
             "let $delta = of_ctx [valid A end] end in\n\
-             let $delta' = of_ctx (x : A)::$delta end in";
+             let $delta' = of_ctx (x : A)::$delta end in\194\191\n";
         };
       rule_set = RecursiveALFA;
       trees =
@@ -154,7 +154,7 @@ let exercise : DerivationExercise.spec =
                          Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                          -1)(pinned_stack())(indicated_call())(time())(seq \
                          0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                      backup_text = "$delta |- (fun x : A -> x) : A -> A";
+                      backup_text = "$delta |- (fun x : A -> x) : A -> A\n";
                     };
                   rule = Some T_FunAnn;
                 },
@@ -188,7 +188,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "$delta |- valid A end";
+                            backup_text = "$delta |- valid A end\n";
                           };
                         rule = Some TV_TVar;
                       },
@@ -223,7 +223,7 @@ let exercise : DerivationExercise.spec =
                                Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
                                -1)(pinned_stack())(indicated_call())(time())(seq \
                                0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
-                            backup_text = "$delta' |- x : A";
+                            backup_text = "$delta' |- x : A\n";
                           };
                         rule = Some T_Var;
                       },
