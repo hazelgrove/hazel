@@ -21,7 +21,10 @@ module Utils = {
 
   let remove_paths = (paths: list(string), agent_view: Model.t): Model.t => {
     expanded_paths:
-      List.filter(p => !List.mem(p, paths), agent_view.expanded_paths),
+      List.filter(
+        ~f=p => !List.mem(paths, p, ~equal=Poly.equal),
+        agent_view.expanded_paths,
+      ),
   };
 
   let freshen_paths = (model: Model.t, node_map: HighLevelNodeMap.t): Model.t => {
@@ -30,12 +33,13 @@ module Utils = {
 
       expanded_paths:
         List.filter(
-          (path: string) => {
-            switch (path_to_id_opt(node_map, path)) {
-            | Some(_) => true
-            | None => false
-            }
-          },
+          ~f=
+            (path: string) => {
+              switch (path_to_id_opt(node_map, path)) {
+              | Some(_) => true
+              | None => false
+              }
+            },
           model.expanded_paths,
         ),
     };

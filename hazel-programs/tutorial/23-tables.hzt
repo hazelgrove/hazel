@@ -82,6 +82,10 @@ Second row
 let table : [(level=String, difficulty=Int)] =¿  in
 table
 
+@solution
+let table : [(level=String, difficulty=Int)] = ^^table([(level="wasteland", difficulty=3), (level="ocean", difficulty=2)]) in
+table
+
 @test
 test length(table) == 2 end;
 test nth(table, 0) == (level="wasteland", difficulty=3) end;

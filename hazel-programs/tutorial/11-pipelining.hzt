@@ -145,6 +145,14 @@ let positive_floats : [Int] -> [Float] = fun ns ->
 in
 positive_floats([-1, 2, 1])
 
+@solution
+let positive_floats : [Int] -> [Float] = fun ns ->
+  ns
+  |> filter(_, fun n -> n >= 0)
+  |> map(_, float_of_int)
+in
+positive_floats([-1, 2, 1])
+
 @test
 test positive_floats([-1, 2, 1]) == [2., 1.] end;
 test positive_floats([]) == [] end

@@ -1,6 +1,7 @@
 open Util;
 open Calc.Syntax;
 open Language;
+open Poly;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind
@@ -90,12 +91,12 @@ module Model = {
   let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+    |> Option.map(~f=(d: Dynamics.t) => d.probe_map);
 
   let test_results = (model: t): option(TestResults.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.test_results);
+    |> Option.map(~f=(d: Dynamics.t) => d.test_results);
 
   let dynamics = (model: t): Dynamics.Map.t =>
     switch (probe_results(model)) {
@@ -144,6 +145,20 @@ module Update = {
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | TheoremsAction(Theorems.Update.t);
+
+  /* Whether a cell the user can't edit still takes this action: evaluation
+     results arrive as these whether or not the cell is editable. Exhaustive on
+     purpose, so a new action has to be classified here. */
+  let applies_to_read_only = (action: t): bool =>
+    switch (action) {
+    | UpdateResult(_)
+    | UpdateStreamingEval(_)
+    | MergeStreamingEval(_) => true
+    | ToggleStepper
+    | StepperAction(_)
+    | EvalEditorAction(_)
+    | TheoremsAction(_) => false
+    };
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
@@ -402,8 +417,10 @@ module Update = {
         let.calc result = result
         and.calc streaming_outbox = streaming_outbox;
         switch (result, streaming_outbox) {
-        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
-          streaming_outbox.completed
+        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) => {
+            ...streaming_outbox.completed,
+            steps: Calc.get_saved(IncrEval.empty, incr_eval).steps,
+          }
         | (ProgramResult.ResultPending(_), None) =>
           incr_eval |> Calc.get_saved(IncrEval.empty)
         | (ProgramResult.ResultFail(_), _) => IncrEval.empty
@@ -438,7 +455,7 @@ module Update = {
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
-             Option.map(((exp, editor)) =>
+             Option.map(~f=((exp, editor)) =>
                (
                  exp,
                  CodeSelectable.Update.calculate(
@@ -581,25 +598,26 @@ module View = {
         result: ProgramResult.t(ProgramResult.inner),
         editor: option(('a, CodeSelectable.Model.t)),
       ) => {
-    let editor = Option.map(snd, editor);
+    let editor = Option.map(~f=snd, editor);
     let code_view =
       Option.map(
-        (editor: CodeSelectable.Model.t) =>
-          CodeSelectable.View.view(
-            ~signal=
-              fun
-              | MakeActive => signal(MakeActive(Evaluation())),
-            ~edit_mode=
-              EditMode.Editable({
-                inject: a => inject(EvalEditorAction(a)),
-                escape: _ => Ui_effect.Ignore,
-                take_focus: _ => Ui_effect.Ignore,
-                focus: selected ? Some() : None,
-              }),
-            ~globals,
-            ~dynamics=editor.dynamics,
-            editor,
-          ),
+        ~f=
+          (editor: CodeSelectable.Model.t) =>
+            CodeSelectable.View.view(
+              ~signal=
+                fun
+                | MakeActive => signal(MakeActive(Evaluation())),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: a => inject(EvalEditorAction(a)),
+                  escape: _ => Ui_effect.Ignore,
+                  take_focus: _ => Ui_effect.Ignore,
+                  focus: selected ? Some() : None,
+                }),
+              ~globals,
+              ~dynamics=editor.dynamics,
+              editor,
+            ),
         editor,
       );
     let exn_view =
@@ -703,11 +721,12 @@ module View = {
     WebUtil.div_c(
       "test-decos",
       List.filter_map(
-        ((id, insts)) =>
-          switch (Id.Map.find_opt(id, measured.tiles)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
-          | None => None
-          },
+        ~f=
+          ((id, insts)) =>
+            switch (Id.Map.find_opt(id, measured.tiles)) {
+            | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+            | None => None
+            },
         test_results.test_map,
       ),
     );
@@ -764,7 +783,7 @@ module View = {
               model.theorems,
             );
       let theorems =
-        List.length(theorems) == 0
+        List.is_empty(theorems)
           ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 

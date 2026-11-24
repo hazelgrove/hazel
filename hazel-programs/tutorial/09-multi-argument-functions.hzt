@@ -47,6 +47,10 @@ perimeter(10, 2) should be 24
 let perimeter : (Int, Int) -> Int = ¿ in
 perimeter(3, 4)
 
+@solution
+let perimeter : (Int, Int) -> Int = fun (width, height) -> 2 * (width + height) in
+perimeter(3, 4)
+
 @test
 test perimeter(1, 1) == 4 end;
 test perimeter(5, 10) == 30 end;

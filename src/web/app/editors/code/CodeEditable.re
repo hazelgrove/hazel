@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Util;
+open Poly;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
 // This file follows conventions in [docs/ui-architecture.md]
@@ -49,11 +50,11 @@ module Update = {
             * new probe its bindings. */
            ~is_edit=Action.is_edit(action),
            ~recalculate=true,
-           ~scroll_active={
+           ~scroll={
              switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
+             | Move(Point(_)) => Updated.Never
+             | Select(All) => Never
+             | Select(Resize(Point(_))) => Never
              | Move(_)
              | Select(_)
              | Destruct(_)
@@ -69,17 +70,24 @@ module Update = {
              | Format(_)
              | AdjustIndent(_, _)
              | ApplyCompletion(_)
-             | ToggleLineComment => true
+             | ToggleLineComment => Always
              | Project(_)
              | Unselect(_)
              | Structural(_)
-             | Probe(_) => false
+             | Probe(_) => Never
              };
            },
          );
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
+      /* Rapid input snaps instead of gliding: every qualifying action
+         starts a fresh 125ms caret translate, so under key repeat the
+         caret is perpetually mid-glide, visibly trailing the text.
+         Animate only when the previous glide has had time to finish —
+         discrete jumps keep the animation, bursts stay tight. */
+      settings.core.flip_animations
+      && Action.should_animate(action)
+      && Animation.caret_glide_available()
         ? Animation.request([Animation.Actions.move("caret")]) : ();
 
       perform(action, model);
@@ -237,7 +245,10 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     switch (Indicated.index(z)) {
     | Some(id) =>
-      switch (List.find_index(((rid, _)) => rid == id, refractors)) {
+      switch (
+        List.findi(refractors, ~f=(_, (rid, _)) => rid == id)
+        |> Option.map(~f=fst)
+      ) {
       | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
       | None => None
       }
@@ -254,12 +265,16 @@ module Selection = {
       z.refractors.manuals @ Id.Map.to_list(z.refractors.multis.ephemerals);
     let probe_on_row =
       refractors
-      |> List.find_index(((id, _)) =>
-           switch (Measured.find_by_id(id, measured)) {
-           | Some(m) => m.last.row == caret_row
-           | None => false
-           }
-         );
+      |> (
+        l =>
+          List.findi(l, ~f=(_, (id, _)) =>
+            switch (Measured.find_by_id(id, measured)) {
+            | Some(m) => m.last.row == caret_row
+            | None => false
+            }
+          )
+          |> Option.map(~f=fst)
+      );
     switch (probe_on_row) {
     | Some(idx) => Some(Update.Perform(Project(Focus(idx, Probe, None))))
     | None => None
@@ -341,7 +356,7 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(k) |> Option.map(~f=x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key: Key.t) =>
     /* Context menu key dispatch (Escape/ArrowUp/ArrowDown/Enter) is handled
@@ -477,10 +492,10 @@ module View = {
             ~flagpole=globals.settings.quiver_flagpole,
             ~head_padding=
               CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
-              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
-                   List.nth_opt(i.delimiters, 0)
+              |> Option.bind(_, ~f=(i: CanonicalCompletion.insertion) =>
+                   List.nth(i.delimiters, 0)
                  )
-              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+              |> Option.bind(_, ~f=(d: CanonicalCompletion.delimiter_info) =>
                    d.typed_len == None
                      ? Some(CompletionQuery.padding(z, d)) : None
                  ),
@@ -496,7 +511,7 @@ module View = {
             ~droppable=
               z.caret == Outer
                 ? Zipper.missing_shards_hd(z)
-                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                  |> Option.map(~f=(t: Haz3lcore.Tile.t) =>
                        (t.id, Haz3lcore.Tile.l_shard(t))
                      )
                 : None,
@@ -541,11 +556,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -553,11 +567,12 @@ module View = {
       } else {
         let ids = Haz3lcore.Segment.ids(selection);
         List.exists(
-          id =>
-            List.exists(
-              ((id2, _)) => Id.equal(id, id2),
-              refractors.manuals,
-            ),
+          ~f=
+            id =>
+              List.exists(
+                ~f=((id2, _)) => Id.equal(id, id2),
+                refractors.manuals,
+              ),
           ids,
         );
       };
@@ -575,7 +590,8 @@ module View = {
          sub-token string must re-parse on paste, not round-trip to the
          full segment. */
       let cache_for_paste =
-        str == full && !selection_has_refractors(z.refractors, segment)
+        String.equal(str, full)
+        && !selection_has_refractors(z.refractors, segment)
           ? Effect.of_sync_fun(
               () => Haz3lcore.Parser.set_segment_cache(Some(segment), str),
               (),
@@ -711,8 +727,11 @@ module View = {
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
         refractor_data,
-        List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        List.map(~f=fst, zipper.refractors.manuals)
+        @ List.map(
+            ~f=fst,
+            Id.Map.to_list(zipper.refractors.multis.ephemerals),
+          ),
       );
     let projectors =
       ProjectorView.all(
@@ -847,9 +866,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -969,7 +1001,9 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && fst(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     fst(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Left)])
           | {
               key: D("ArrowRight" | "ArrowDown"),
@@ -982,11 +1016,11 @@ module View = {
               when
                 z.caret == Outer
                 && z.relatives.ancestors == []
-                && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
+                && Option.is_none(
+                     snd(Siblings.neighbors(z.relatives.siblings)),
+                   ) =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1077,6 +1111,12 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */

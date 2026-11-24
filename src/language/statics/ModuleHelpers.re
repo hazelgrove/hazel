@@ -16,7 +16,7 @@ type lowered = {
    We filter to names that are expression variables (not type aliases). */
 let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => {
   Typ.free_vars(typ)
-  |> List.filter_map(name =>
+  |> List.filter_map(~f=name =>
        switch (Ctx.lookup_var(ctx, name)) {
        | Some(_) =>
          Some(CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp))
@@ -35,7 +35,7 @@ let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
       collect_pat_type_refs(ctx, p),
     ])
   | Tuple(ps)
-  | ListLit(ps) => CoCtx.union(List.map(collect_pat_type_refs(ctx), ps))
+  | ListLit(ps) => CoCtx.union(List.map(~f=collect_pat_type_refs(ctx), ps))
   | Cons(p1, p2)
   | TupLabel(p1, p2)
   | Ap(p1, p2) =>
@@ -74,20 +74,22 @@ let single_bound_var = (p: Pat.t): option(Var.t) =>
 
 let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   switch (pat.term) {
-  | Var(n) when n == name => pat
+  | Var(n) when String.equal(n, name) => pat
   | Asc(inner, _) => pat_for_bound_name(name, inner)
   | Tuple(ps)
   | ListLit(ps) =>
     ps
-    |> List.find_opt(p => List.mem(name, Pat.bound_vars(p)))
-    |> Option.map(pat_for_bound_name(name))
+    |> List.find(~f=p =>
+         List.mem(Pat.bound_vars(p), name, ~equal=String.equal)
+       )
+    |> Option.map(~f=pat_for_bound_name(name))
     |> Option.value(~default=pat)
   | Cons(p1, p2)
   | TupLabel(p1, p2)
   | Ap(p1, p2) =>
-    if (List.mem(name, Pat.bound_vars(p1))) {
+    if (List.mem(Pat.bound_vars(p1), name, ~equal=String.equal)) {
       pat_for_bound_name(name, p1);
-    } else if (List.mem(name, Pat.bound_vars(p2))) {
+    } else if (List.mem(Pat.bound_vars(p2), name, ~equal=String.equal)) {
       pat_for_bound_name(name, p2);
     } else {
       pat;
@@ -118,7 +120,7 @@ let item_bound_names = (item: Mod.t): list(Var.t) =>
   };
 
 let collect_later_names = (items: list(Mod.t)): list(Var.t) =>
-  items |> List.map(item_bound_names) |> List.flatten;
+  items |> List.map(~f=item_bound_names) |> List.concat;
 
 let value_exports = (items: list(Mod.t)): list(value_export) => {
   let rec go = (items: list(Mod.t)): list(value_export) =>
@@ -126,23 +128,28 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
     | [] => []
     | [item, ...rest] =>
       let later_names = collect_later_names(rest);
-      let keep = name => !List.mem(name, later_names);
+      let keep = name => !List.mem(later_names, name, ~equal=String.equal);
       let exports =
         switch (item.term) {
         | ModLet(pat, _) =>
+          /* Funlet: the whole binder carries the function's type (see
+             FunctionSugar.add_binder_infos). Searching it by name could
+             land on a parameter that shadows the function, e.g.
+             `let g(x)(g) = …`. */
+          let is_funlet = Option.is_some(FunctionSugar.detect(pat));
           modlet_bound_vars(pat)
-          |> List.filter(keep)
-          |> List.map(name =>
+          |> List.filter(~f=keep)
+          |> List.map(~f=name =>
                {
                  name,
-                 pat: pat_for_bound_name(name, pat),
+                 pat: is_funlet ? pat : pat_for_bound_name(name, pat),
                }
-             )
+             );
         | ModuleMod(mp, _) =>
           let pat = mpat_to_pat(mp);
           mpat_names(mp)
-          |> List.filter(keep)
-          |> List.map(name =>
+          |> List.filter(~f=keep)
+          |> List.map(~f=name =>
                {
                  name,
                  pat: pat_for_bound_name(name, pat),
@@ -162,7 +169,7 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
 let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
   let fields =
     exports
-    |> List.map(({name, _}) =>
+    |> List.map(~f=({name, _}) =>
          Exp.fresh(
            TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
          )
@@ -170,41 +177,29 @@ let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
   Exp.fresh(Tuple(fields));
 };
 
-let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
-  switch (ty.term) {
-  | Parens(inner) => strip_typ_parens(inner)
-  | _ => ty
-  };
-
 let extract_ana_labels = (ana: Typ.t): list((Var.t, Typ.t)) =>
-  switch (strip_typ_parens(ana).term) {
-  | Prod(fields) =>
-    fields
-    |> List.filter_map((field: Typ.t) =>
-         switch (field.term) {
-         | TupLabel({term: Label(name), _}, typ) => Some((name, typ))
-         | _ => None
-         }
-       )
+  switch (Typ.strip_wrappers(ana).term) {
+  | Prod(fields) => fields |> List.filter_map(~f=Typ.match_tup_label)
   | _ => []
   };
 
 let type_exports_type = (exports: list((Var.t, Typ.t))): Typ.t => {
   let deduped =
     List.fold_right(
-      ((name, ty), (seen, acc)) =>
-        if (List.mem(name, seen)) {
-          (seen, acc);
-        } else {
-          ([name, ...seen], [(name, ty), ...acc]);
-        },
+      ~f=
+        ((name, ty), (seen, acc)) =>
+          if (List.mem(seen, name, ~equal=String.equal)) {
+            (seen, acc);
+          } else {
+            ([name, ...seen], [(name, ty), ...acc]);
+          },
+      ~init=([], []),
       exports,
-      ([], []),
     )
     |> snd;
   Prod(
     deduped
-    |> List.map(((name, ty)) =>
+    |> List.map(~f=((name, ty)) =>
          TupLabel(Label(name) |> Typ.temp, ty) |> Typ.temp
        ),
   )
@@ -221,52 +216,56 @@ let type_exports_alias_type =
 let rec collect_type_exports =
         (ctx: Ctx.t, items: list(Mod.t)): list((Var.t, Typ.t)) =>
   items
-  |> List.fold_left(
-       ((ctx, acc), item: Mod.t) =>
-         switch (item.term) {
-         | ModType(tpat, typ) =>
-           switch (tpat.term) {
-           | Var(name) =>
-             let (resolved, alias_ty) =
-               if (List.mem(name, Typ.free_vars(typ))) {
-                 let ty_rec = Rec(Var(name) |> TPat.fresh, typ) |> Typ.temp;
-                 (ty_rec, ty_rec);
-               } else {
-                 let locals = List.map(fst, acc);
-                 (
-                   Typ.normalize(~expand=n => List.mem(n, locals), ctx, typ),
-                   typ,
-                 );
-               };
-             let ctx =
-               Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
-             (ctx, [(name, resolved), ...acc]);
-           | _ => (ctx, acc)
-           }
-         | ModuleMod(mp, def) =>
-           let rhs_exports_ty =
-             switch (def.term) {
-             | Module(inner_items) =>
-               collect_type_exports(ctx, inner_items)
-               |> type_exports_alias_type
-             | Var(rhs)
-             | Constructor(rhs, _) =>
-               switch (Ctx.lookup_tvar(ctx, rhs)) {
-               | Some(Singleton(exports_ty)) => Some(exports_ty)
+  |> List.fold(
+       ~f=
+         ((ctx, acc), item: Mod.t) =>
+           switch (item.term) {
+           | ModType(tpat, typ) =>
+             switch (tpat.term) {
+             | Var(name) =>
+               let (resolved, alias_ty) =
+                 switch (Typ.recursive_def(name, typ)) {
+                 | Typ.Recursive(ty_rec) => (ty_rec, ty_rec)
+                 | Typ.Plain =>
+                   let locals = List.map(~f=fst, acc);
+                   (
+                     Typ.normalize(
+                       ~expand=n => List.mem(locals, n, ~equal=String.equal),
+                       ctx,
+                       typ,
+                     ),
+                     typ,
+                   );
+                 };
+               let ctx =
+                 Ctx.extend_alias(ctx, name, TPat.rep_id(tpat), alias_ty);
+               (ctx, [(name, resolved), ...acc]);
+             | _ => (ctx, acc)
+             }
+           | ModuleMod(mp, def) =>
+             let rhs_exports_ty =
+               switch (Exp.strip_wrappers(def).term) {
+               | Module(inner_items) =>
+                 collect_type_exports(ctx, inner_items)
+                 |> type_exports_alias_type
+               | Var(rhs)
+               | Constructor(rhs, _) =>
+                 switch (Ctx.lookup_tvar(ctx, rhs)) {
+                 | Some(Singleton(exports_ty)) => Some(exports_ty)
+                 | _ => None
+                 }
                | _ => None
-               }
-             | _ => None
+               };
+             switch (mpat_names(mp), rhs_exports_ty) {
+             | ([name], Some(exports_ty)) =>
+               let ctx =
+                 Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
+               (ctx, [(name, exports_ty), ...acc]);
+             | _ => (ctx, acc)
              };
-           switch (mpat_names(mp), rhs_exports_ty) {
-           | ([name], Some(exports_ty)) =>
-             let ctx =
-               Ctx.extend_alias(ctx, name, MPat.rep_id(mp), exports_ty);
-             (ctx, [(name, exports_ty), ...acc]);
            | _ => (ctx, acc)
-           };
-         | _ => (ctx, acc)
-         },
-       (ctx, []),
+           },
+       ~init=(ctx, []),
      )
   |> snd
   |> List.rev;
@@ -274,13 +273,28 @@ let rec collect_type_exports =
 /* Funlet patterns are deliberately left unascribed: Asc(f(args), member_ty)
    would be read by FunctionSugar.detect as a RETURN-type annotation. */
 let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
-  switch (pat.term) {
+  switch (Pat.strip_wrappers(pat).term) {
   | Var(name) =>
-    switch (List.assoc_opt(name, ana_labels)) {
+    switch (List.Assoc.find(ana_labels, name, ~equal=String.equal)) {
     | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
     | None => pat
     }
-  | _ => pat
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Cons(_)
+  | Tuple(_)
+  | Label(_)
+  | TupLabel(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_)
+  | Asc(_) => pat
   };
 
 let wrap_item =
@@ -327,9 +341,9 @@ let lower =
   {
     expanded:
       List.fold_right(
-        wrap_item(~ana_labels),
+        ~f=wrap_item(~ana_labels),
+        ~init=labeled_tuple_exp(value_exports),
         items,
-        labeled_tuple_exp(value_exports),
       ),
     value_exports,
     type_exports: collect_type_exports(ctx, items),
@@ -389,23 +403,24 @@ let rec restore_module_body_id = (~id, exp: Exp.t): Exp.t => {
 let reclassify_expanded_module_items =
     (items: list(Mod.t), m: StaticsBase.Map.t) =>
   List.fold_left(
-    (m, item: Mod.t) => {
-      let ids = IdTagged.ids(item);
-      let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
-      switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
-      | Some(info) =>
-        StaticsBase.Map.add_info(
-          ids,
-          Info.InfoExp({
-            ...info,
-            cls: mod_cls,
-          }),
-          m,
-        )
-      | None => m
-      };
-    },
-    m,
+    ~f=
+      (m, item: Mod.t) => {
+        let ids = IdTagged.ids(item);
+        let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
+        switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
+        | Some(info) =>
+          StaticsBase.Map.add_info(
+            ids,
+            Info.InfoExp({
+              ...info,
+              cls: mod_cls,
+            }),
+            m,
+          )
+        | None => m
+        };
+      },
+    ~init=m,
     items,
   );
 
@@ -419,7 +434,7 @@ let module_actual_type =
     : Typ.t => {
   let fields =
     value_exports
-    |> List.map(({name, pat}) => {
+    |> List.map(~f=({name, pat}) => {
          let ty =
            switch (StaticsBase.Map.lookup_pat(Pat.rep_id(pat), m)) {
            | Some({ty, ctx: pat_ctx, _}) =>
@@ -427,7 +442,7 @@ let module_actual_type =
                 (they are unbound outside the braces); globals/builtins
                 stay compact per the type-normalization invariant. */
              Typ.normalize(
-               ~expand=n => List.mem(n, local_names),
+               ~expand=n => List.mem(local_names, n, ~equal=String.equal),
                pat_ctx,
                ty,
              )

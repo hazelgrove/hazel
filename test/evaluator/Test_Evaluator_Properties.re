@@ -1,6 +1,7 @@
 open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
+open Poly;
 
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
@@ -30,7 +31,7 @@ let qcheck_evaluator_does_not_crash_test =
         | Failure(msg)
             when
               List.exists(
-                (==)(msg),
+                ~f=(==)(msg),
                 ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
@@ -40,7 +41,7 @@ let qcheck_evaluator_does_not_crash_test =
       }
     | exception e =>
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -95,23 +96,21 @@ let check_evaluator_stepper_consistent =
       if (require_comparison) {
         failf(
           "evaluation raised %s, so nothing was compared; re-minimize the counterexample",
-          Printexc.to_string(e),
+          Exn.to_string(e),
         );
       } else {
-        print_endline(
-          "Skipping evaluation failure: " ++ Printexc.to_string(e),
-        );
+        print_endline("Skipping evaluation failure: " ++ Exn.to_string(e));
       }
     }
   | exception e =>
     if (require_comparison) {
       failf(
         "statics/elaborate raised %s, so nothing was compared; re-minimize the counterexample",
-        Printexc.to_string(e),
+        Exn.to_string(e),
       );
     } else {
       print_endline(
-        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
       );
     }
   };
@@ -221,8 +220,7 @@ let qcheck_pattern_equivalence_test =
     ) {
     | e =>
       print_endline(
-        "Skipping pattern equivalence test due to error: "
-        ++ Printexc.to_string(e),
+        "Skipping pattern equivalence test due to error: " ++ Exn.to_string(e),
       );
       true;
     }
@@ -255,7 +253,7 @@ let qcheck_preservation_test =
                 Builtins.ctx_init(Some(Int)),
                 next,
               );
-            Statics.Map.ty_of(next.annotation.ids |> List.hd, statics);
+            Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
           }
         ) {
         | Some(ty) =>
@@ -353,9 +351,14 @@ let eval_limited =
 
 /* Check that incremental eval and fresh eval agree on `exp` with one of its int
    literals bumped by one — `literal_index`, taken modulo how many there are.
-   Skips and `require_comparison` as above. */
+   Skips and `require_comparison` as above. With `values_only`, a program
+   whose fresh result is not a value (it got stuck) is skipped too: the
+   shape of #2457, which is pinned by its own test below. */
 let check_incremental_against_fresh_after_edit =
     (
+      ~values_only: bool=false,
+      ~step_limit: int=10000,
+      ~compared: option(ref(int))=?,
       ~literal_index: int,
       ~testable: testable(Exp.t),
       ~msg: string,
@@ -373,11 +376,11 @@ let check_incremental_against_fresh_after_edit =
   /* Only swallow known-benign static/dynamic failures so real
    * incremental-eval disagreements surface as clean failures. */
   let try_eval = (~prev=?, eval_info, elab) =>
-    try(Some(eval_limited(~prev?, ~eval_info, ~step_limit=10000, elab))) {
+    try(Some(eval_limited(~prev?, ~eval_info, ~step_limit, elab))) {
     | Failure(msg)
         when
           List.exists(
-            (==)(msg),
+            ~f=(==)(msg),
             ["type application in dynamics", "Type meet of ap"],
           ) =>
       None
@@ -390,7 +393,7 @@ let check_incremental_against_fresh_after_edit =
   | [] => no_comparison("the program has no int literal to edit")
   | lits =>
     let (target_id, old_value) =
-      List.nth(lits, literal_index mod List.length(lits));
+      List.nth_exn(lits, literal_index mod List.length(lits));
     /* +1 keeps the type fixed, so the edit typechecks the same as the
      * original while still changing the value at `target_id`. */
     let new_value = Bigint.(old_value + of_int(1));
@@ -426,8 +429,16 @@ let check_incremental_against_fresh_after_edit =
         | (
             Some(LimitedCompleted((e_fresh, _))),
             Some(LimitedCompleted((e_incr, _))),
+          )
+            when values_only && !ValueChecker.is_value(e_fresh) =>
+          ignore(e_incr);
+          no_comparison("the edited program got stuck (not a value)");
+        | (
+            Some(LimitedCompleted((e_fresh, _))),
+            Some(LimitedCompleted((e_incr, _))),
           ) =>
-          check(testable, msg, e_fresh, e_incr)
+          Option.iter(compared, ~f=incr);
+          check(testable, msg, e_fresh, e_incr);
         | _ =>
           no_comparison(
             "the edited program did not evaluate to a result both ways",
@@ -475,6 +486,112 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
       );
     }
   });
+
+/* The property above with stuck results set aside (#2457's shape): every
+   program that evaluates to a value both ways must agree, after any
+   literal edit. */
+let qcheck_incremental_matches_fresh_for_values =
+  QCheck.Test.make(
+    ~name=
+      "Incremental eval agrees with fresh eval after a literal edit, when the result is a value",
+    ~count=2000,
+    QCheck.pair(
+      QCheck.small_nat,
+      QCheck_Util.arb_exp(~minimal_idents=true, 30),
+    ),
+    ((seed, exp)) => {
+      check_incremental_against_fresh_after_edit(
+        ~values_only=true,
+        ~literal_index=seed,
+        ~testable=testable_core_exp,
+        ~msg="Incremental eval and fresh eval agree",
+        ~require_comparison=false,
+        exp,
+      );
+      true;
+    },
+  );
+
+/* Recursive lets, which random programs rarely contain, and which is where
+   incremental reuse needs the most care: a recursive definition's own name
+   is bound by its fixpoint, while every other name it reads must still be
+   tracked (an outer variable, an outer binding it shadows, a module's
+   recursive member). Each template's literals take distinctive values so
+   that each edit lands on the literal meant; every comparison must happen. */
+let recursive_templates = [
+  (
+    "a recursive function",
+    "let f = fun n -> if n == 0 then {a} else f(n - 1) + {b} in f({c})",
+  ),
+  (
+    "an outer variable read inside the recursion",
+    "let k = {a} in let go = fun i -> if i == 0 then k else go(i - 1) in go({c}) + {b}",
+  ),
+  (
+    "an outer variable read in the base case",
+    "let outer = {a} in let go = fun i -> if i == 0 then outer + {b} else go(i - 1) in go({c})",
+  ),
+  (
+    "a recursive name shadowing an outer binding",
+    "let go = {a} in let go = fun i -> if i == 0 then {b} else go(i - 1) in go({c})",
+  ),
+  (
+    "a recursive helper inside a recursive function",
+    "let f = fun n -> let g = fun m -> if m == 0 then {a} else g(m - 1) + 1 in if n == 0 then g({b}) else f(n - 1) in f({c})",
+  ),
+  (
+    "a module's recursive member",
+    "module M = { let sum = fun n -> if n == 0 then {a} else n + sum(n - 1); let k = {b} } in M.sum({c}) + M.k",
+  ),
+];
+
+let fill = (template: string, a: int, b: int, c: int): string =>
+  List.fold_left(
+    [("{a}", a), ("{b}", b), ("{c}", c)],
+    ~init=template,
+    ~f=(s, (hole, v)) =>
+    Str.global_replace(Str.regexp_string(hole), string_of_int(v), s)
+  );
+
+let incremental_recursive_lets_tests =
+  List.map(recursive_templates, ~f=((name, template)) =>
+    test_case(
+      "Incremental eval agrees with fresh eval after a literal edit: " ++ name,
+      `Quick,
+      () =>
+      List.iter(
+        [(17, 23, 3), (17, 5, 4), (41, 23, 4), (41, 5, 3)],
+        ~f=((a, b, c)) => {
+          let exp = parse_exp(fill(template, a, b, c));
+          let lits = collect_int_lits(exp);
+          List.iter([a, b, c], ~f=v =>
+            switch (
+              List.findi(lits, ~f=(_, (_, n)) =>
+                Bigint.equal(n, Bigint.of_int(v))
+              )
+            ) {
+            | Some((literal_index, _)) =>
+              check_incremental_against_fresh_after_edit(
+                ~values_only=true,
+                ~literal_index,
+                ~testable=testable_core_exp,
+                ~msg=
+                  Printf.sprintf(
+                    "%s, editing %d: incremental and fresh agree",
+                    fill(template, a, b, c),
+                    v,
+                  ),
+                ~require_comparison=true,
+                exp,
+              )
+            | None =>
+              failf("no literal %d in %s", v, fill(template, a, b, c))
+            }
+          );
+        },
+      )
+    )
+  );
 
 let incremental_literal_edit_known_bug_test =
   test_case(
@@ -782,6 +899,7 @@ let tests = (
     stepper_confluence_known_bug_test,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
     qcheck_incremental_matches_fresh_after_edit_disabled,
+    QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_for_values),
     incremental_literal_edit_known_bug_test,
     /* Preservation does not currently hold: stepping can produce a type that
        is not more precise than the original. */
@@ -792,5 +910,6 @@ let tests = (
         ignore(QCheck_alcotest.to_alcotest(qcheck_preservation_test));
       }
     }),
-  ],
+  ]
+  @ incremental_recursive_lets_tests,
 );

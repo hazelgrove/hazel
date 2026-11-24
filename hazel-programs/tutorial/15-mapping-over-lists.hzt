@@ -48,6 +48,10 @@ double_all([5]) should be [10]
 let double_all : [Int] -> [Int] = ¿ in
 double_all([1, 2, 3])
 
+@solution
+let double_all : [Int] -> [Int] = fun xs -> map(xs, fun x -> x * 2) in
+double_all([1, 2, 3])
+
 @test
 test double_all([1, 2, 3]) == [2, 4, 6] end;
 test double_all([]) == [] end;
