@@ -63,8 +63,8 @@ let drag_cursor_classes = [
 
 let set_drag_cursor = (cls: option(string)): unit => {
   let body = Js_of_ocaml.Dom_html.document##.body;
-  List.iter(~f=
-    c => body##.classList##remove(Js_of_ocaml.Js.string(c)),
+  List.iter(
+    ~f=c => body##.classList##remove(Js_of_ocaml.Js.string(c)),
     drag_cursor_classes,
   );
   switch (cls) {
@@ -157,10 +157,11 @@ let live_value = (info: ProjectorBase.info): option(DHExp.t) =>
   | None => None
   | Some({samples, _}) =>
     List.fold(samples, ~init=None, ~f=(acc, s: Sample.t) =>
-        switch (acc) {
-        | Some(best: Sample.t) when best.seq >= s.seq => acc
-        | _ => Some(s)
-        })
+      switch (acc) {
+      | Some(best: Sample.t) when best.seq >= s.seq => acc
+      | _ => Some(s)
+      }
+    )
     |> Option.map(~f=(s: Sample.t) => MvuShape.strip_wrappers(s.value))
   };
 

@@ -49,9 +49,10 @@ let equal_constructor =
 
 let is_empty = (x: t('a)): bool =>
   List.for_all(
-    ~f=fun
-    | Variant(_, _, _) => false
-    | BadEntry(_) => true,
+    ~f=
+      fun
+      | Variant(_, _, _) => false
+      | BadEntry(_) => true,
     x,
   );
 
@@ -67,26 +68,29 @@ let same_constructor =
 
 let has_bad_entry = (x: t('a)): bool =>
   List.exists(
-    ~f=fun
-    | BadEntry(_) => true
-    | Variant(_) => false,
+    ~f=
+      fun
+      | BadEntry(_) => true
+      | Variant(_) => false,
     x,
   );
 
 let has_good_entry = (x: t('a)): bool =>
   List.exists(
-    ~f=fun
-    | BadEntry(_) => false
-    | Variant(_) => true,
+    ~f=
+      fun
+      | BadEntry(_) => false
+      | Variant(_) => true,
     x,
   );
 
 let free_variables = (f, m) =>
   m
   |> List.map(
-       ~f=fun
-       | Variant(_, _, Some(value)) => f(value)
-       | _ => [],
+       ~f=
+         fun
+         | Variant(_, _, Some(value)) => f(value)
+         | _ => [],
      )
   |> List.concat;
 
@@ -109,17 +113,19 @@ let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
   /* First ys entry per constructor name, plus the positions of ys BadEntries */
-  let ys_first: Stdlib.Hashtbl.t(string, 'a) = Stdlib.Hashtbl.create(List.length(ys));
+  let ys_first: Stdlib.Hashtbl.t(string, 'a) =
+    Stdlib.Hashtbl.create(List.length(ys));
   let ys_bad = ref([]);
   List.iteri(
-    ~f=(i, y) =>
-      switch (constructor_key(y)) {
-      | Some(key) =>
-        if (!Stdlib.Hashtbl.mem(ys_first, key)) {
-          Stdlib.Hashtbl.add(ys_first, key, y);
-        }
-      | None => ys_bad := [(i, y), ...ys_bad^]
-      },
+    ~f=
+      (i, y) =>
+        switch (constructor_key(y)) {
+        | Some(key) =>
+          if (!Stdlib.Hashtbl.mem(ys_first, key)) {
+            Stdlib.Hashtbl.add(ys_first, key, y);
+          }
+        | None => ys_bad := [(i, y), ...ys_bad^]
+        },
     ys,
   );
   let ys_bad = List.rev(ys_bad^);
@@ -131,55 +137,59 @@ let venn_regions =
   let bad_consumed: Stdlib.Hashtbl.t(int, unit) =
     Stdlib.Hashtbl.create(List.length(ys_bad));
   /* Constructor names of xs already processed; later duplicates are dropped */
-  let seen_keys: Stdlib.Hashtbl.t(string, unit) = Stdlib.Hashtbl.create(List.length(xs));
+  let seen_keys: Stdlib.Hashtbl.t(string, unit) =
+    Stdlib.Hashtbl.create(List.length(xs));
   /* BadEntry xs already processed, for the same dedup on payloads */
   let seen_bad = ref([]);
   let acc = ref([]);
   let left = ref([]);
   List.iter(
-    ~f=x =>
-      switch (constructor_key(x)) {
-      | Some(key) =>
-        if (!Stdlib.Hashtbl.mem(seen_keys, key)) {
-          Stdlib.Hashtbl.replace(seen_keys, key, ());
-          switch (Stdlib.Hashtbl.find_opt(ys_first, key)) {
-          | Some(y) =>
-            Stdlib.Hashtbl.replace(matched_keys, key, ());
-            acc := [(x, y), ...acc^];
-          | None => left := [x, ...left^]
-          };
-        }
-      | None =>
-        let first_match = ref(None);
-        List.iter(
-          ~f=((i, y)) =>
-            if (!Stdlib.Hashtbl.mem(bad_consumed, i) && f(x, y)) {
-              Stdlib.Hashtbl.replace(bad_consumed, i, ());
-              if (Option.is_none(first_match^)) {
-                first_match := Some(y);
-              };
-            },
-          ys_bad,
-        );
-        switch (first_match^) {
-        | Some(y) => acc := [(x, y), ...acc^]
-        | None =>
-          if (!List.exists(~f=f(x, _), seen_bad^)) {
-            left := [x, ...left^];
+    ~f=
+      x =>
+        switch (constructor_key(x)) {
+        | Some(key) =>
+          if (!Stdlib.Hashtbl.mem(seen_keys, key)) {
+            Stdlib.Hashtbl.replace(seen_keys, key, ());
+            switch (Stdlib.Hashtbl.find_opt(ys_first, key)) {
+            | Some(y) =>
+              Stdlib.Hashtbl.replace(matched_keys, key, ());
+              acc := [(x, y), ...acc^];
+            | None => left := [x, ...left^]
+            };
           }
-        };
-        seen_bad := [x, ...seen_bad^];
-      },
+        | None =>
+          let first_match = ref(None);
+          List.iter(
+            ~f=
+              ((i, y)) =>
+                if (!Stdlib.Hashtbl.mem(bad_consumed, i) && f(x, y)) {
+                  Stdlib.Hashtbl.replace(bad_consumed, i, ());
+                  if (Option.is_none(first_match^)) {
+                    first_match := Some(y);
+                  };
+                },
+            ys_bad,
+          );
+          switch (first_match^) {
+          | Some(y) => acc := [(x, y), ...acc^]
+          | None =>
+            if (!List.exists(~f=f(x, _), seen_bad^)) {
+              left := [x, ...left^];
+            }
+          };
+          seen_bad := [x, ...seen_bad^];
+        },
     xs,
   );
   /* Whatever of ys nothing in xs consumed, in the original order */
   let right =
     List.filteri(
-      ~f=(i, y) =>
-        switch (constructor_key(y)) {
-        | Some(key) => !Stdlib.Hashtbl.mem(matched_keys, key)
-        | None => !Stdlib.Hashtbl.mem(bad_consumed, i)
-        },
+      ~f=
+        (i, y) =>
+          switch (constructor_key(y)) {
+          | Some(key) => !Stdlib.Hashtbl.mem(matched_keys, key)
+          | None => !Stdlib.Hashtbl.mem(bad_consumed, i)
+          },
       ys,
     );
   (acc^ |> List.rev, left^ |> List.rev, right);
@@ -248,10 +258,11 @@ let match_synswitch =
     let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
     let inter' =
       List.map(
-        ~f=fun
-        | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
-          Variant(ctr, ids, Some(match_synswitch(value1, value2)))
-        | (v, _) => v,
+        ~f=
+          fun
+          | (Variant(ctr, ids, Some(value1)), Variant(_, _, Some(value2))) =>
+            Variant(ctr, ids, Some(match_synswitch(value1, value2)))
+          | (v, _) => v,
         inter,
       );
     inter' @ left;
@@ -268,14 +279,15 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) =>
     switch (venn_regions(same_constructor(eq), m1, m2)) {
     | (inter, [], []) =>
       List.for_all(
-        ~f=((x, y)) =>
-          switch (x, y) {
-          | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
-            eq(value1, value2)
-          | (Variant(_, _, None), Variant(_, _, None)) => true
-          | (BadEntry(x), BadEntry(y)) => eq(x, y)
-          | _ => false
-          },
+        ~f=
+          ((x, y)) =>
+            switch (x, y) {
+            | (Variant(_, _, Some(value1)), Variant(_, _, Some(value2))) =>
+              eq(value1, value2)
+            | (Variant(_, _, None), Variant(_, _, None)) => true
+            | (BadEntry(x), BadEntry(y)) => eq(x, y)
+            | _ => false
+            },
         inter,
       )
     | _ => false
@@ -286,17 +298,18 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   let changed = ref(false);
   let result =
     List.map(
-      ~f=variant => {
-        switch (variant) {
-        | Variant(ctr, args, value) =>
-          let value' = f(value);
-          if (!phys_equal(value', value)) {
-            changed := true;
-          };
-          Variant(ctr, args, value');
-        | BadEntry(value) => BadEntry(value)
-        }
-      },
+      ~f=
+        variant => {
+          switch (variant) {
+          | Variant(ctr, args, value) =>
+            let value' = f(value);
+            if (!phys_equal(value', value)) {
+              changed := true;
+            };
+            Variant(ctr, args, value');
+          | BadEntry(value) => BadEntry(value)
+          }
+        },
       m,
     );
   if (changed^) {
@@ -308,11 +321,12 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
 
 let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
   List.map(
-    ~f=fun
-    | Variant(ctr, args, Some(value)) =>
-      Variant(ctr, args, Some(f(value)))
-    | Variant(ctr, args, None) => Variant(ctr, args, None)
-    | BadEntry(value) => BadEntry(f(value)),
+    ~f=
+      fun
+      | Variant(ctr, args, Some(value)) =>
+        Variant(ctr, args, Some(f(value)))
+      | Variant(ctr, args, None) => Variant(ctr, args, None)
+      | BadEntry(value) => BadEntry(f(value)),
     m,
   );
 };
@@ -320,10 +334,11 @@ let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
 // TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(
-    ~f=fun
-    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
-      Some(value)
-    | Variant(_)
-    | BadEntry(_) => None,
+    ~f=
+      fun
+      | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
+        Some(value)
+      | Variant(_)
+      | BadEntry(_) => None,
     m,
   );

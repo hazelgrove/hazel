@@ -806,7 +806,9 @@ let sidebar_views =
   |> List.filter(~f=(d: Model.projector_data) =>
        ProjectorCore.Placement.is_sidebar(d.p.placement)
      )
-  |> List.sort(~compare=(d1, d2) => compare(syntax_order(d1), syntax_order(d2)))
+  |> List.sort(~compare=(d1, d2) =>
+       compare(syntax_order(d1), syntax_order(d2))
+     )
   |> List.map(~f=(d: Model.projector_data) => {
        let views =
          mk_view(inject, font_metrics, ~core_settings, d, projector_list);

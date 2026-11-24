@@ -766,7 +766,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | Arrow(t1, t2) =>
     let t1' = normalize(ctx, t1);
     let t2' = normalize(ctx, t2);
-    phys_equal(t1, t1') && phys_equal(t2, t2') ? ty : Arrow(t1', t2') |> rewrap;
+    phys_equal(t1, t1') && phys_equal(t2, t2')
+      ? ty : Arrow(t1', t2') |> rewrap;
   | Prod(ts) =>
     let ts' = List.map(~f=normalize(ctx), ts);
     let duplicate_labels =
@@ -774,7 +775,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
     let ts'' =
       List.is_empty(duplicate_labels)
         ? ts' : remove_duplicate_labels(~duplicate_labels, ts');
-    List.length(ts) == List.length(ts'') && List.for_all2_exn(ts, ts'', ~f=phys_equal)
+    List.length(ts) == List.length(ts'')
+    && List.for_all2_exn(ts, ts'', ~f=phys_equal)
       ? ty : Prod(ts'') |> rewrap;
   | ProdProjection(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
   | ProdExtension(_) => weak_head_normalize(ctx, ty) |> normalize(ctx)
@@ -782,7 +784,8 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   | TupLabel(label, t) =>
     let label' = normalize(ctx, label);
     let t' = normalize(ctx, t);
-    phys_equal(label, label') && phys_equal(t, t') ? ty : TupLabel(label', t') |> rewrap;
+    phys_equal(label, label') && phys_equal(t, t')
+      ? ty : TupLabel(label', t') |> rewrap;
   | Sum(ts) =>
     let ts' = ConstructorMap.map(Option.map(~f=normalize(ctx)), ts);
     phys_equal(ts, ts') ? ty : Sum(ts') |> rewrap;

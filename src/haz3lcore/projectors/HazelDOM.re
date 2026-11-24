@@ -432,7 +432,8 @@ let svg_tags = [
   "animateTransform",
 ];
 
-let is_svg_tag = (tag: string): bool => List.mem(svg_tags, tag, ~equal=String.equal);
+let is_svg_tag = (tag: string): bool =>
+  List.mem(svg_tags, tag, ~equal=String.equal);
 
 let rec render_elem = (~elide_errors=false, mvu: t, d: DHExp.t): Node.t =>
   switch (of_constructor(d)) {

@@ -194,12 +194,13 @@ let rec subscribe = (ctx: context, sub: DHExp.t): list(sub_handle) => {
 // Cleanup all active subscriptions
 let cleanup = (handles: active_subs): unit => {
   Js_of_ocaml.(
-    List.iter(~f=
-      handle =>
-        switch (handle) {
-        | IntervalHandle(id) => Dom_html.window##clearInterval(id)
-        | EventHandle(cleanup_fn) => cleanup_fn()
-        },
+    List.iter(
+      ~f=
+        handle =>
+          switch (handle) {
+          | IntervalHandle(id) => Dom_html.window##clearInterval(id)
+          | EventHandle(cleanup_fn) => cleanup_fn()
+          },
       handles,
     )
   );
