@@ -73,6 +73,27 @@ let (replace_temp, replace_temp_exp) = {
   );
 };
 
+let distinct_ids = (typ: t): t => {
+  let seen = ref(Id.Set.empty);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, term) => {
+      let shared =
+        List.exists(id => Id.Set.mem(id, seen^), IdTagged.ids(term));
+      let term = shared ? IdTagged.new_ids(term) : term;
+      seen :=
+        List.fold_left(
+          (set, id) => Id.Set.add(id, set),
+          seen^,
+          IdTagged.ids(term),
+        );
+      continue(term);
+    };
+  map_term(~f_typ=f, ~f_tpat=f, typ);
+};
+
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
   | [] => Unknown(Hole(EmptyHole))

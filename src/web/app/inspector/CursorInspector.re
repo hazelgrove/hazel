@@ -156,7 +156,7 @@ let type_menu_showing: ContextMenu.parts = {
 };
 
 let type_editor_of_type = (~ctx=?, typ: Typ.t): (Id.t, CodeEditable.Model.t) => {
-  let typ = Typ.replace_temp(typ);
+  let typ = typ |> Typ.replace_temp |> Typ.distinct_ids;
   let zipper =
     ExpToSegment.typ_to_segment(~settings=code_view_settings, typ)
     |> Zipper.unzip;
