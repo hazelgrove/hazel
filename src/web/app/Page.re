@@ -621,7 +621,17 @@ module Update = {
       let model = {
         ...model,
         cursor_inspector:
-          CursorInspector.Model.set_focus_main(model.cursor_inspector),
+          switch (action) {
+          | Scratch(
+              ScratchMode.Update.CellAction(
+                CellEditor.Update.ResultAction(
+                  EvalResult.Update.UpdateResult(_),
+                ),
+              ),
+            ) =>
+            model.cursor_inspector
+          | _ => CursorInspector.Model.set_focus_main(model.cursor_inspector)
+          },
       };
       {
         ...updated_editors,
