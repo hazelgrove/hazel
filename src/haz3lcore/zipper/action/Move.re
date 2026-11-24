@@ -1,6 +1,7 @@
 open Util;
 open OptUtil.Syntax;
 open Zipper;
+open Poly;
 
 let by_char_left = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
@@ -133,16 +134,17 @@ let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
  * agree. */
 let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
   List.exists(
-    (p: Piece.t) =>
-      Piece.id(p) == id
-      || (
-        switch (p) {
-        | Tile(t) => List.exists(has_id_deep(id), t.children)
-        | Projector(pr) => has_id_deep(id, [pr.syntax])
-        | Grout(_)
-        | Secondary(_) => false
-        }
-      ),
+    ~f=
+      (p: Piece.t) =>
+        Id.equal(Piece.id(p), id)
+        || (
+          switch (p) {
+          | Tile(t) => List.exists(t.children, ~f=has_id_deep(id))
+          | Projector(pr) => has_id_deep(id, [pr.syntax])
+          | Grout(_)
+          | Secondary(_) => false
+          }
+        ),
     seg,
   );
 
@@ -395,10 +397,10 @@ let vertical =
 };
 
 let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
-  switch (do_towards_point(~measured, local(ByChar), goal, z)) {
-  | None => Some(z)
-  | Some(z) => Some(z)
-  };
+  Some(
+    do_towards_point(~measured, local(ByChar), goal, z)
+    |> Option.value(~default=z),
+  );
 
 /* P8: structural placement — rebuild the zipper at the extreme
    instead of token-walking there (the walk costs ~90ms/press on a
@@ -438,27 +440,38 @@ let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
 
 /* Move to the line boundary, then skip back past leading/trailing
- * spaces to the first/last content on the line. */
+ * spaces to the first/last content on the line. A line of only spaces
+ * has no content, so stay at the boundary. */
 let to_linebreak = (d: Direction.t, z: t): option(t) => {
   let+ z = to_linebreak_raw(d, z);
-  skip_spaces(Direction.toggle(d), z);
+  let skipped = skip_spaces(Direction.toggle(d), z);
+  Zipper.linebreak_on(
+    Direction.toggle(d),
+    Zipper.generalized_neighbors(skipped),
+  )
+    ? z : skipped;
 };
 
 let to_next_problem =
-    (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
+    (
+      ~measured: Measured.t,
+      ~problem_ids: Stdlib.Seq.t(Id.t),
+      d: Direction.t,
+      z: t,
+    )
     : option(t) => {
   let cursor_pos = Zipper.Caret.point(measured, z);
   /* Sort problem IDs by measured position */
   let sorted =
     problem_ids
-    |> Seq.filter_map(id =>
+    |> Stdlib.Seq.filter_map(id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
          | None => None
          }
        )
-    |> List.of_seq
-    |> List.sort(((_, p1), (_, p2)) => Point.compare(p1, p2));
+    |> Stdlib.List.of_seq
+    |> List.sort(~compare=((_, p1), (_, p2)) => Point.compare(p1, p2));
   switch (sorted) {
   | [] => None
   | _ =>
@@ -466,24 +479,24 @@ let to_next_problem =
       switch (d) {
       | Right =>
         switch (
-          List.find_opt(
-            ((_, pos)) => Point.compare(pos, cursor_pos) > 0,
+          List.find(
+            ~f=((_, pos)) => Point.compare(pos, cursor_pos) > 0,
             sorted,
           )
         ) {
         | Some((id, _)) => Some(id)
-        | None => Some(fst(List.hd(sorted))) /* wrap to first */
+        | None => Some(fst(List.hd_exn(sorted))) /* wrap to first */
         }
       | Left =>
         let rev = List.rev(sorted);
         switch (
-          List.find_opt(
-            ((_, pos)) => Point.compare(pos, cursor_pos) < 0,
+          List.find(
+            ~f=((_, pos)) => Point.compare(pos, cursor_pos) < 0,
             rev,
           )
         ) {
         | Some((id, _)) => Some(id)
-        | None => Some(fst(List.hd(rev))) /* wrap to last */
+        | None => Some(fst(List.hd_exn(rev))) /* wrap to last */
         };
       };
     switch (target) {
@@ -496,7 +509,7 @@ let to_next_problem =
 let move_dispatch =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: Seq.t(Id.t),
+      ~problem_ids: Stdlib.Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       ~refractor_rows: Id.Map.t(int),
@@ -557,7 +570,7 @@ let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
 let go =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: Seq.t(Id.t),
+      ~problem_ids: Stdlib.Seq.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       ~refractor_rows: Id.Map.t(int),
@@ -582,7 +595,9 @@ let go =
     | Local(Left, ByChar | BySmart)
     | Local(Right, ByChar | BySmart) => Some(z)
     | _ =>
-      switch (
+      /* Always empty selection on move action,
+       * even if we don't actually move */
+      Some(
         move_dispatch(
           ~statics,
           ~problem_ids,
@@ -592,11 +607,7 @@ let go =
           a,
           z,
         )
-      ) {
-      | Some(z) => Some(z)
-      /* Always empty selection on move action,
-       * even if we don't actually move */
-      | None => Some(z)
-      }
+        |> Option.value(~default=z),
+      )
     };
   };

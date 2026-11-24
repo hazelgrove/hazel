@@ -58,7 +58,10 @@ let apply_override =
       action: ContextualAction.t,
     )
     : ContextualAction.t =>
-  switch (action.id, List.assoc_opt(action.label, overrides)) {
+  switch (
+    action.id,
+    List.Assoc.find(overrides, action.label, ~equal=String.equal),
+  ) {
   /* A dynamic entry's label can coincide with a registry label; it stays
      unbound. */
   | (None, _) => action
@@ -76,8 +79,8 @@ let initialize =
     ) => {
   let opts =
     actions
-    |> List.map(apply_override(~overrides))
-    |> List.map(of_contextual_action)
+    |> List.map(~f=apply_override(~overrides))
+    |> List.map(~f=of_contextual_action)
     |> Array.of_list;
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };
