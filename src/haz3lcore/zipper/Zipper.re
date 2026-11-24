@@ -49,16 +49,17 @@ let unzip_to_piece =
     : option(t) => {
   let rec has_match_deep = (seg: Segment.t): bool =>
     List.exists(
-      (p: Piece.t) =>
-        matches(p)
-        || (
-          switch (p) {
-          | Tile(t) => List.exists(has_match_deep, t.children)
-          | Projector(pr) => has_match_deep([pr.syntax])
-          | Grout(_)
-          | Secondary(_) => false
-          }
-        ),
+      ~f=
+        (p: Piece.t) =>
+          matches(p)
+          || (
+            switch (p) {
+            | Tile(t) => List.exists(t.children, ~f=has_match_deep)
+            | Projector(pr) => has_match_deep([pr.syntax])
+            | Grout(_)
+            | Secondary(_) => false
+            }
+          ),
       seg,
     );
   let rec in_seg =
@@ -128,7 +129,7 @@ let unzip_to_piece =
 
 let unzip_to_id =
     (~side: Direction.t=Left, id: Id.t, seg: Segment.t): option(t) =>
-  unzip_to_piece(~side, p => Piece.id(p) == id, seg);
+  unzip_to_piece(~side, p => Id.equal(Piece.id(p), id), seg);
 
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));

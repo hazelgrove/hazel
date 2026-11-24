@@ -556,7 +556,7 @@ let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   let z' = Zipper.unselect(z);
   switch (
     Zipper.unzip_to_id(~side=Left, Piece.id(l), Zipper.zip(z'))
-    |> Option.map((placed: t) => placed.relatives)
+    |> Option.map(~f=(placed: t) => placed.relatives)
   ) {
   | Some({siblings: (ls, [p, ..._] as rs), _} as relatives)
       when piece_matches_shard(p, l) =>

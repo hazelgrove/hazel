@@ -123,20 +123,21 @@ let slides_agree = (~limit=?, dir, ()) => {
 /* Single-token tiles are shards of their own, in document order. */
 let rec single_shards = (seg: Segment.t): list((Id.t, int)) =>
   List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        (
-          switch (t.shards) {
-          | [idx] => [(t.id, idx)]
-          | _ => []
-          }
-        )
-        @ List.concat_map(single_shards, t.children)
-      | Projector(pr) => single_shards([pr.syntax])
-      | Grout(_)
-      | Secondary(_) => []
-      },
+    ~f=
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          (
+            switch (t.shards) {
+            | [idx] => [(t.id, idx)]
+            | _ => []
+            }
+          )
+          @ List.concat_map(t.children, ~f=single_shards)
+        | Projector(pr) => single_shards([pr.syntax])
+        | Grout(_)
+        | Secondary(_) => []
+        },
     seg,
   );
 
@@ -149,25 +150,30 @@ let shards_agree = (name, text) =>
     let all = single_shards(Zipper.zip(z0));
     let n = List.length(all);
     let step = max(1, n / 15);
-    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let targets = List.filteri(all, ~f=(i, _) => i mod step == 0);
     let starts = [z0, nth_right(n / 3, z0)];
     List.iter(
-      z =>
-        List.iter(
-          ((id, idx)) =>
-            if (Move.jump_to_shard(z, id, idx)
-                != Move.jump_to_shard_by_walking(z, id, idx)) {
-              fail(
-                Printf.sprintf(
-                  "%s: shard %d of %s differs",
-                  name,
-                  idx,
-                  Id.to_string(id),
-                ),
-              );
-            },
-          targets,
-        ),
+      ~f=
+        z =>
+          List.iter(
+            ~f=
+              ((id, idx)) =>
+                if (!
+                      Poly.equal(
+                        Move.jump_to_shard(z, id, idx),
+                        Move.jump_to_shard_by_walking(z, id, idx),
+                      )) {
+                  fail(
+                    sprintf(
+                      "%s: shard %d of %s differs",
+                      name,
+                      idx,
+                      Id.to_string(id),
+                    ),
+                  );
+                },
+            targets,
+          ),
       starts,
     );
     List.length(targets);
@@ -177,9 +183,8 @@ let slides_shards_agree = (dir, ()) => {
   let before = Move.direct_jumps^;
   let checked =
     slides(dir)
-    |> List.fold_left(
-         (acc, (name, text)) => acc + shards_agree(name, text),
-         0,
+    |> List.fold(~init=0, ~f=(acc, (name, text)) =>
+         acc + shards_agree(name, text)
        );
   check(bool, "some targets", true, checked > 0);
   check(
@@ -200,25 +205,26 @@ let ranges_agree = (name, text) =>
     let term_data = MakeTerm.from_zip_for_sem(z0, ~root=Exp).term_data;
     let all =
       Id.Map.bindings(term_data)
-      |> List.filter_map(((id, _)) =>
+      |> List.filter_map(~f=((id, _)) =>
            TermData.extremes_shards(id, term_data)
          );
     let step = max(1, List.length(all) / 15);
-    let targets = List.filteri((i, _) => i mod step == 0, all);
+    let targets = List.filteri(all, ~f=(i, _) => i mod step == 0);
     let z = Zipper.caret_to_end(z0);
     List.iter(
-      ((l, r)) => {
-        let walked = Select.shard_range_by_walking(l, r, z);
-        if (Select.shard_range(l, r, z) != walked) {
-          fail(
-            Printf.sprintf(
-              "%s: range from %s differs",
-              name,
-              Id.to_string(Piece.id(l)),
-            ),
-          );
-        };
-      },
+      ~f=
+        ((l, r)) => {
+          let walked = Select.shard_range_by_walking(l, r, z);
+          if (!Poly.equal(Select.shard_range(l, r, z), walked)) {
+            fail(
+              sprintf(
+                "%s: range from %s differs",
+                name,
+                Id.to_string(Piece.id(l)),
+              ),
+            );
+          };
+        },
       targets,
     );
     List.length(targets);
@@ -228,9 +234,8 @@ let slides_ranges_agree = (dir, ()) => {
   let before = Select.direct_ranges^;
   let checked =
     slides(dir)
-    |> List.fold_left(
-         (acc, (name, text)) => acc + ranges_agree(name, text),
-         0,
+    |> List.fold(~init=0, ~f=(acc, (name, text)) =>
+         acc + ranges_agree(name, text)
        );
   check(bool, "some targets", true, checked > 0);
   check(

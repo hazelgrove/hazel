@@ -203,7 +203,7 @@ let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
       is_shard(tile_id, shard_idx),
       Zipper.zip(z'),
     )
-    |> Option.map((placed: t) =>
+    |> Option.map(~f=(placed: t) =>
          {
            ...z',
            relatives: placed.relatives,

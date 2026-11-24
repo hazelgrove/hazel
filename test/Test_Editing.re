@@ -1857,10 +1857,10 @@ a + b¦|},
     `Quick,
     () => {
       let big =
-        List.init(150, i =>
+        List.init(150, ~f=i =>
           "let x" ++ string_of_int(i) ++ " = " ++ string_of_int(i) ++ " in"
         )
-        |> String.concat("\n")
+        |> String.concat(~sep="\n")
         |> (defs => defs ++ "\n¦0");
       let mid = parse_zipper(big);
       /* one run each: the walk is slow enough to time singly */
