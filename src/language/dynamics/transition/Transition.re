@@ -1242,7 +1242,9 @@ module Transition = (EV: EV_MODE) => {
               });
             | ListLit(ds) =>
               let mapped =
-                List.map(ds, ~f=d => Dot(d, int_term |> Exp.fresh) |> Exp.fresh);
+                List.map(ds, ~f=d =>
+                  Dot(d, int_term |> Exp.fresh) |> Exp.fresh
+                );
               let ls = ListLit(mapped) |> Exp.fresh;
               Step({
                 expr: ls,

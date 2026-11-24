@@ -356,4 +356,6 @@ let rec contains_tuple = (dp: t): bool =>
    pattern is a runtime check on the scrutinee's shape; rewriting the def
    would erase that check. */
 let is_irrefutable_tuple_pattern = (dp: t): bool =>
-  is_irrefutable(dp) && contains_tuple(dp) && !List.is_empty(bound_vars(dp));
+  is_irrefutable(dp)
+  && contains_tuple(dp)
+  && !List.is_empty(bound_vars(dp));
