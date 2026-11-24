@@ -52,12 +52,12 @@ let union = (a: t('a), b: t('a)): t('a) =>
   };
 
 let rec same_shape = (a: t('a), b: t('a)): bool =>
-  a === b
+  phys_equal(a, b)
   || a.hash == b.hash
   && (
     switch (a.node, b.node) {
     | (Empty, Empty) => true
-    | (Leaf(x), Leaf(y)) => x == y
+    | (Leaf(x), Leaf(y)) => Poly.equal(x, y)
     | (Branch(la, ra), Branch(lb, rb)) =>
       same_shape(la, lb) && same_shape(ra, rb)
     | (Empty | Leaf(_) | Branch(_), _) => false
@@ -71,15 +71,16 @@ let elements = (t: t('a)): list('a) => {
     | Leaf(x) => [x, ...acc]
     | Branch(a, b) => go(go(acc, b), a)
     };
-  List.sort_uniq(compare, go([], t));
+  List.dedup_and_sort(~compare=Poly.compare, go([], t));
 };
 
 let equal = (a: t('a), b: t('a)): bool =>
-  a.hash == b.hash && (same_shape(a, b) || elements(a) == elements(b));
+  a.hash == b.hash
+  && (same_shape(a, b) || Poly.equal(elements(a), elements(b)));
 
 let rec mem = (x: 'a, t: t('a)): bool =>
   switch (t.node) {
   | Empty => false
-  | Leaf(y) => x == y
+  | Leaf(y) => Poly.equal(x, y)
   | Branch(a, b) => mem(x, a) || mem(x, b)
   };

@@ -1,4 +1,5 @@
 open Js_of_ocaml;
+open Poly;
 
 /* Reading layout without forcing it. A ResizeObserver reports after the
    browser lays a frame out and before it paints, so reads there cost no
@@ -24,7 +25,9 @@ let watchers: ref(array(watcher)) = ref([||]);
 let guard = (name: string, f: unit => 'a, default: 'a): 'a =>
   try(f()) {
   | exn =>
-    print_endline("AfterLayout " ++ name ++ ": " ++ Printexc.to_string(exn));
+    print_endline(
+      "AfterLayout " ++ name ++ ": " ++ Stdlib.Printexc.to_string(exn),
+    );
     default;
   };
 
@@ -42,7 +45,7 @@ let pass =
       _,
     )
     : unit => {
-  let changed = Array.make(Array.length(watchers^), []);
+  let changed = Array.create(~len=Array.length(watchers^), []);
   for (i in entries##.length - 1 downto 0) {
     Js.Optdef.iter(
       Js.array_get(entries, i),
@@ -60,16 +63,18 @@ let pass =
   pending := [];
   let watched =
     List.filter_map(
-      w =>
-        switch (changed[w]) {
-        | [] => None
-        | els => Some(guard("watcher", () => (watchers^[w])(els), () => ()))
-        },
-      List.init(Array.length(changed), Fun.id),
+      ~f=
+        w =>
+          switch (changed[w]) {
+          | [] => None
+          | els =>
+            Some(guard("watcher", () => (watchers^[w])(els), () => ()))
+          },
+      List.init(Array.length(changed), ~f=Fun.id),
     );
   let writes =
-    watched @ List.map(read => guard("read", read, () => ()), reads);
-  List.iter(write => guard("write", write, ()), writes);
+    watched @ List.map(~f=read => guard("read", read, () => ()), reads);
+  List.iter(~f=write => guard("write", write, ()), writes);
 };
 
 /* made on first use: there is no ResizeObserver outside a browser */
@@ -105,7 +110,7 @@ let watcher = (f: watcher): int => {
 };
 
 let watch = (w: int, el: Js.t(Dom_html.element)): unit =>
-  if (id_of(el) == None) {
+  if (Option.is_none(id_of(el))) {
     ignore(
       Js.Unsafe.meth_call(
         Lazy.force(ids),
@@ -119,7 +124,7 @@ let watch = (w: int, el: Js.t(Dom_html.element)): unit =>
   };
 
 let unwatch = (el: Js.t(Dom_html.element)): unit =>
-  if (id_of(el) != None) {
+  if (Option.is_some(id_of(el))) {
     ignore(
       Js.Unsafe.meth_call(
         Lazy.force(ids),

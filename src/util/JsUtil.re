@@ -222,7 +222,7 @@ let focus_outline = (): unit =>
 /* where a keyboard-opened outline menu anchors: under the cursor's row */
 let outline_cursor_anchor = (): option((float, float)) =>
   query_selector("#outline-sidebar .outline-label.outline-cursor")
-  |> Option.map(el => {
+  |> Option.map(~f=el => {
        let rect = el##getBoundingClientRect;
        (rect##.left +. 16., rect##.bottom);
      });
@@ -311,7 +311,8 @@ let align_active_cell_top = (): unit =>
       let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
       let top_chrome = 48.; /* fixed top bar */
       let body_context = 140.; /* ~4 rows of body visible below */
-      let visible_enough = top >= top_chrome && top <= vh -. body_context;
+      let visible_enough =
+        Float.(top >= top_chrome && top <= vh -. body_context);
       if (!visible_enough) {
         let _: unit =
           Js.Unsafe.meth_call(
@@ -456,7 +457,7 @@ let scrolls_vertically = (el: Js.t(Dom_html.element)): bool => {
         [|Js.Unsafe.inject(el)|],
       );
     let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
-    oy == "auto" || oy == "scroll";
+    String.equal(oy, "auto") || String.equal(oy, "scroll");
   };
 };
 
@@ -641,7 +642,7 @@ let align_caret_near_top = (): unit =>
       let r = container##getBoundingClientRect;
       let h = Js.Optdef.get(r##.height, _ => 0.);
       let top = c##.top -. r##.top;
-      if (top < h *. 0.1 || top > h *. 0.75) {
+      if (Float.(top < h *. 0.1 || top > h *. 0.75)) {
         adjust_scroll(container, top -. h *. 0.2);
       };
     | None => ()
@@ -680,9 +681,11 @@ let reveal_last = (sel: string): unit =>
       let m = main##getBoundingClientRect;
       let below = r##.bottom -. m##.bottom;
       let above = r##.top -. m##.top;
-      let by = below > 0. ? min(below, above) : min(above, 0.);
-      if (by != 0.) {
-        main##.scrollTop :=  main##.scrollTop + int_of_float(Float.ceil(by));
+      let by =
+        Float.(below > 0.) ? Float.min(below, above) : Float.min(above, 0.);
+      if (Float.(by != 0.)) {
+        main##.scrollTop :=
+           main##.scrollTop + int_of_float(Float.round_up(by));
       };
     };
   }) {
@@ -987,26 +990,26 @@ let navigate_probes =
   let sorted =
     List.sort(
       ~compare=
-      ((_, t1, l1), (_, t2, l2)) => {
+        ((_, t1, l1), (_, t2, l2)) => {
           let c = Float.compare(t1, t2);
-        if (c != 0) {
-          c;
-        } else {
+          if (c != 0) {
+            c;
+          } else {
             Float.compare(l1, l2);
-        };
-      },
+          };
+        },
       items^,
     );
   /* Find current index */
   let current_idx = ref(-1);
   List.iteri(
     ~f=
-    (i, (el, _, _)) => {
-      let id: string = Js.to_string(el##.id);
+      (i, (el, _, _)) => {
+        let id: string = Js.to_string(el##.id);
         if (String.equal(id, current_id)) {
-        current_idx := i;
-      };
-    },
+          current_idx := i;
+        };
+      },
     sorted,
   );
   /* Find target, optionally skipping unaligned probes */
@@ -1069,7 +1072,7 @@ let observe_drawer_width = (~report: int => unit): unit =>
               | None => ()
               | Some(code) =>
                 let (col_width, _) = font_metrics_from_specimen();
-                if (col_width > 0.) {
+                if (Float.(col_width > 0.)) {
                   let px =
                     rect_prop(main, "right") -. rect_prop(code, "left");
                   report(max(20, int_of_float(px /. col_width) - 2));
@@ -1090,11 +1093,11 @@ let class_at_target =
       Js.Opt.case(
         el##getAttribute(Js.string("class")),
         () => [],
-        c => String.split_on_char(' ', Js.to_string(c)),
+        c => String.split(~on=' ', Js.to_string(c)),
       );
     let n = String.length(prefix);
-    switch (List.find_opt(String.starts_with(~prefix), classes)) {
-    | Some(c) => Some(String.sub(c, n, String.length(c) - n))
+    switch (List.find(~f=String.is_prefix(~prefix), classes)) {
+    | Some(c) => Some(String.sub(c, ~pos=n, ~len=String.length(c) - n))
     | None =>
       Js.Opt.case(
         el##.parentNode,

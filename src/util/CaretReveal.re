@@ -6,6 +6,7 @@
    throttled rAF check re-reads ground truth and heals drift */
 
 open Js_of_ocaml;
+open Poly;
 
 let margin_ratio = 0.10; /* trigger band, fraction of viewport height
                             (matches scroll_vertically_into_view) */
@@ -76,9 +77,9 @@ let listened:
   ref(None);
 let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit =>
   switch (listened^) {
-  | Some((c, _)) when c === container => ()
+  | Some((c, _)) when phys_equal(c, container) => ()
   | old =>
-    Option.iter(((_, id)) => Dom_html.removeEventListener(id), old);
+    Option.iter(~f=((_, id)) => Dom_html.removeEventListener(id), old);
     let id =
       Dom_html.addEventListener(
         container,
@@ -142,7 +143,7 @@ let schedule_verify = (): unit =>
           switch (geom^, published^, JsUtil.get_elem_by_id_opt("caret")) {
           | (Some(g), Some((row, rh)), Some(caret))
               when
-                caret === g.caret_el
+                phys_equal(caret, g.caret_el)
                 && JsUtil.connected(g.container)
                 && !animating(caret) =>
             /* reading here costs the frame's own layout, not an
@@ -159,7 +160,7 @@ let schedule_verify = (): unit =>
                 row,
                 rh,
               );
-            if (abs_float(fresh -. g.editor_top) > heal_tolerance_px) {
+            if (Float.abs(fresh -. g.editor_top) > heal_tolerance_px) {
               g.editor_top = fresh;
               apply(g, decide(g, row, rh));
             };
@@ -270,7 +271,10 @@ let reveal = (): unit => {
     let caret_now = JsUtil.get_elem_by_id_opt("caret");
     switch (geom^, caret_now) {
     | (Some(g), Some(caret))
-        when burst && caret === g.caret_el && JsUtil.connected(g.container) =>
+        when
+          burst
+          && phys_equal(caret, g.caret_el)
+          && JsUtil.connected(g.container) =>
       /* synchronous on purpose: under long-task holds the rAF can
          lag behind keystrokes; the write keeps the caret pinned */
       apply(g, decide(g, row, rh));

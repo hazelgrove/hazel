@@ -379,16 +379,16 @@ module Payload = {
       let messages_json =
         List.map(
           ~f=
-          (m: Message.Model.t) => {
-            let m =
-              cache_enabled
-                ? m
-                : {
-                  ...m,
-                  cache_anchor: false,
-                };
-            Message.Utils.json_of_message(m);
-          },
+            (m: Message.Model.t) => {
+              let m =
+                cache_enabled
+                  ? m
+                  : {
+                    ...m,
+                    cache_anchor: false,
+                  };
+              Message.Utils.json_of_message(m);
+            },
           payload.messages,
         );
       let base_fields = [
@@ -555,23 +555,23 @@ module Utils = {
       let texts =
         List.filter_map(
           ~f=
-          (part: Json.t) =>
-            switch (part) {
-            | `String(s) => Some(s)
-            | _ =>
-              switch (Json.dot("text", part)) {
-              | Some(t) =>
-                switch (Json.str(t)) {
-                | Some(s) => Some(s)
-                | None => message_content_string(t)
+            (part: Json.t) =>
+              switch (part) {
+              | `String(s) => Some(s)
+              | _ =>
+                switch (Json.dot("text", part)) {
+                | Some(t) =>
+                  switch (Json.str(t)) {
+                  | Some(s) => Some(s)
+                  | None => message_content_string(t)
+                  }
+                | None =>
+                  switch (Json.dot("content", part)) {
+                  | Some(c) => message_content_string(c)
+                  | None => None
+                  }
                 }
-              | None =>
-                switch (Json.dot("content", part)) {
-                | Some(c) => message_content_string(c)
-                | None => None
-                }
-              }
-            },
+              },
           parts,
         );
       Some(String.concat(~sep="", texts));
@@ -986,19 +986,19 @@ module Utils = {
         List.sort(~compare=((a, _), (b, _)) => compare(a, b), entries);
       List.filter_map(
         ~f=
-        ((_, p: partial_tool_call)) => {
-          let* id = p.id^;
-          let* name = p.name^;
-          let args_str = Buffer.contents(p.args_buf);
-          let args = parse_tool_args(`String(args_str));
-          Some(
-            {
-              id,
-              name,
-              args,
-            }: Reply.Model.tool_call,
-          );
-        },
+          ((_, p: partial_tool_call)) => {
+            let* id = p.id^;
+            let* name = p.name^;
+            let args_str = Buffer.contents(p.args_buf);
+            let args = parse_tool_args(`String(args_str));
+            Some(
+              {
+                id,
+                name,
+                args,
+              }: Reply.Model.tool_call,
+            );
+          },
         sorted,
       );
     };
@@ -1134,11 +1134,11 @@ module AvailableLLMs = {
         let params_str =
           List.map(
             ~f=
-            param =>
-              switch (param) {
-              | `String(s) => s
-              | _ => ""
-              },
+              param =>
+                switch (param) {
+                | `String(s) => s
+                | _ => ""
+                },
             params,
           );
         List.mem(params_str, "tools", ~equal=String.equal); /*&& List.mem("tool_choice", params_str)*/
@@ -1155,9 +1155,9 @@ module AvailableLLMs = {
             let parsed_models =
               List.filter_map(
                 ~f=
-                (model: Json.t) =>
-                  switch (model) {
-                  | `Assoc(model_fields) =>
+                  (model: Json.t) =>
+                    switch (model) {
+                    | `Assoc(model_fields) =>
                       let id_opt =
                         List.Assoc.find(
                           model_fields,
@@ -1176,13 +1176,13 @@ module AvailableLLMs = {
                           "pricing",
                           ~equal=String.equal,
                         );
-                    let params_opt =
+                      let params_opt =
                         List.Assoc.find(
                           model_fields,
                           "supported_parameters",
                           ~equal=String.equal,
                         );
-                    let context_length =
+                      let context_length =
                         switch (
                           List.Assoc.find(
                             model_fields,
@@ -1190,79 +1190,79 @@ module AvailableLLMs = {
                             ~equal=String.equal,
                           )
                         ) {
-                      | Some(`Int(n)) => Some(n)
-                      | Some(`Float(f)) => Some(int_of_float(f))
-                      | _ => None
-                      };
-
-                    if (!has_required_parameters(params_opt)) {
-                      None;
-                    } else {
-                      let supports_reasoning =
-                        switch (params_opt) {
-                        | Some(`List(params)) =>
-                          List.exists(
-                              ~f=
-                            fun
-                            | `String("reasoning") => true
-                            | _ => false,
-                            params,
-                          )
-                        | _ => false
+                        | Some(`Int(n)) => Some(n)
+                        | Some(`Float(f)) => Some(int_of_float(f))
+                        | _ => None
                         };
-                      switch (id_opt, name_opt, pricing_opt) {
-                      | (
-                          Some(`String(id)),
-                          Some(`String(name)),
-                          Some(`Assoc(pricing_fields)),
-                        ) =>
+
+                      if (!has_required_parameters(params_opt)) {
+                        None;
+                      } else {
+                        let supports_reasoning =
+                          switch (params_opt) {
+                          | Some(`List(params)) =>
+                            List.exists(
+                              ~f=
+                                fun
+                                | `String("reasoning") => true
+                                | _ => false,
+                              params,
+                            )
+                          | _ => false
+                          };
+                        switch (id_opt, name_opt, pricing_opt) {
+                        | (
+                            Some(`String(id)),
+                            Some(`String(name)),
+                            Some(`Assoc(pricing_fields)),
+                          ) =>
                           let prompt =
                             List.Assoc.find(
                               pricing_fields,
                               "prompt",
                               ~equal=String.equal,
                             );
-                        let completion =
+                          let completion =
                             List.Assoc.find(
                               pricing_fields,
                               "completion",
                               ~equal=String.equal,
                             );
-                        switch (prompt, completion) {
-                        | (Some(`String(p)), Some(`String(c))) =>
-                          Some(
-                            {
-                              id,
-                              name,
-                              pricing: {
-                                prompt: p,
-                                completion: c,
-                              },
-                              context_length,
-                              supports_reasoning,
-                            }: Model.llm_info,
-                          )
+                          switch (prompt, completion) {
+                          | (Some(`String(p)), Some(`String(c))) =>
+                            Some(
+                              {
+                                id,
+                                name,
+                                pricing: {
+                                  prompt: p,
+                                  completion: c,
+                                },
+                                context_length,
+                                supports_reasoning,
+                              }: Model.llm_info,
+                            )
+                          | _ => None
+                          };
                         | _ => None
                         };
-                      | _ => None
                       };
-                    };
-                  | _ => None
-                  },
+                    | _ => None
+                    },
                 models,
               );
             let sorted =
               List.sort(
                 ~compare=
-                (a: Model.llm_info, b: Model.llm_info) =>
-                  String.compare(a.name, b.name),
+                  (a: Model.llm_info, b: Model.llm_info) =>
+                    String.compare(a.name, b.name),
                 parsed_models,
               );
             let (free, paid) =
               List.partition_tf(
                 ~f=
-                (model: Model.llm_info) =>
-                  StringUtil.match(StringUtil.regexp("free"), model.name),
+                  (model: Model.llm_info) =>
+                    StringUtil.match(StringUtil.regexp("free"), model.name),
                 sorted,
               );
             Some(free @ paid);

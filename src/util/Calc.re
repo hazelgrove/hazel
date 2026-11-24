@@ -21,12 +21,12 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
 let combine_list = (xs: list(t('a))): t(list('a)) =>
   List.fold_left(
     ~f=
-    (acc, x) =>
-      switch (acc, x) {
-      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
-      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
-        NewValue([x, ...acc])
-      },
+      (acc, x) =>
+        switch (acc, x) {
+        | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+        | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+          NewValue([x, ...acc])
+        },
     ~init=OldValue([]),
     xs |> List.rev,
   );
@@ -131,10 +131,10 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
    a new t('a) that indicates whether the value has changed. The same object is
    unchanged whatever eq says, so a non-reflexive eq costs one recompute rather
    than one per frame. */
-let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
+let set = (~eq: ('a, 'a) => bool=Poly.equal, x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
-  | Calculated(x') when x === x' || eq(x, x') => OldValue(x)
+  | Calculated(x') when phys_equal(x, x') || eq(x, x') => OldValue(x)
   | Calculated(_) => NewValue(x)
   };
 

@@ -158,11 +158,13 @@ let measure_one = (el: Js.t(Dom_html.element)): option(unit => unit) => {
           let h = float_of_int(el##.offsetHeight);
           let w = float_of_int(el##.offsetWidth);
           let up =
-            viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
+            Float.(
+              viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top
+            );
           (
             Some(up),
             up ? rect##.top -. h : viewport_top,
-            viewport_left +. w > m##.right
+            Float.(viewport_left +. w > m##.right)
               ? Float.max(m##.left, m##.right -. w) : viewport_left,
           );
         | _ => (None, viewport_top, viewport_left)
@@ -202,11 +204,11 @@ let update_all = (): unit =>
       queued := false;
       let els = elements();
       let writes =
-        List.init(els##.length, i =>
+        List.init(els##.length, ~f=i =>
           Js.Opt.case(els##item(i), () => None, measure_one)
         )
-        |> List.filter_map(Fun.id);
-      () => List.iter(write => write(), writes);
+        |> List.filter_map(~f=Fun.id);
+      () => List.iter(~f=write => write(), writes);
     });
   };
 
