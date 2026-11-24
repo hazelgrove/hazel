@@ -2164,6 +2164,7 @@ and calc_member_chain =
 and calc_chain =
     (
       ~settings,
+      ~propagate=true,
       ~probe_ids,
       ~probe_dirty: item => bool,
       ~member: option(member_level)=?,
@@ -2187,7 +2188,9 @@ and calc_chain =
   let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
   /* q's exports leave the chain here */
   let vacate = (q: item, dirty_vars, dirty_tnames) =>
-    seed_delta(export_delta(q.d_exports, []), dirty_vars, dirty_tnames);
+    propagate
+      ? seed_delta(export_delta(q.d_exports, []), dirty_vars, dirty_tnames)
+      : (dirty_vars, dirty_tnames);
   let rec go = (ps, ns, ctx, renames, dirty_vars, dirty_tnames, acc, changes) =>
     switch (ps, ns) {
     | (ps, []) =>
@@ -2329,11 +2332,11 @@ and calc_chain =
           let incoming = shadow_filter(it.d_exports, dirty_vars);
           let incoming_t = tshadow(it.d_exports, dirty_tnames);
           let (dirty_vars, dirty_tnames) =
-            seed_delta(delta, incoming, incoming_t);
+            propagate ? seed_delta(delta, incoming, incoming_t) : ([], []);
           /* a move changes shadowing order, so its names may resolve to a
              different binder downstream: all its exports go dirty */
           let (dirty_vars, dirty_tnames) =
-            moved_in
+            moved_in && propagate
               ? (
                 List.dedup_and_sort(
                   ~compare,
@@ -2347,10 +2350,13 @@ and calc_chain =
               )
               : (dirty_vars, dirty_tnames);
           let dirty_tnames =
-            List.dedup_and_sort(
-              ~compare,
-              ttransit(it.d_exports, ~dirty_vars, dirty_tnames) @ dirty_tnames,
-            );
+            propagate
+              ? List.dedup_and_sort(
+                  ~compare,
+                  ttransit(it.d_exports, ~dirty_vars, dirty_tnames)
+                  @ dirty_tnames,
+                )
+              : dirty_tnames;
           go(
             ps,
             nt,
@@ -2400,15 +2406,47 @@ let chain_root = (~prev: option(t), e: Exp.t) => {
   };
 };
 
+/* TEMP instrumentation (paired with CachedStatics.prof) */
+let prof: ref(bool) = ref(false);
+let ptime = (label: string, f: unit => 'a): 'a =>
+  if (prof^) {
+    let t0 = Stdlib.Sys.time();
+    let x = f();
+    Printf.printf(
+      "[staticsProf]   calc.%-18s %6.1fms\n",
+      label,
+      (Stdlib.Sys.time() -. t0) *. 1000.,
+    );
+    x;
+  } else {
+    f();
+  };
+
 /* INVARIANT down the walk: [ctx] differs from the previous run's only at
    dirty names. a clean item (same head, d_free/d_tfree avoid the dirty
    sets) is reused; its map may keep stale ctx entries for dirty names it
    doesn't use, sound for typing though its Γ display can lag */
+/* [propagate=false] clamps downstream dirtying: items whose CONTENT
+   changed still re-analyze, but their export/type deltas seed no
+   dirty names — downstream items keep their previous (now stale)
+   results, with exports re-chained onto the new ctx so a later
+   analysis of any downstream item sees fresh upstream bindings. This
+   is the W2b main-thread mode: rename/type-edit cascades cost one
+   item here; the full propagation runs worker-side and lands async
+   (plans/w2-worker-residency.md §10-11). Nested chains (members)
+   propagate as usual: only the top-level chain is clamped. */
 let calc =
-    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+    (
+      ~settings,
+      ~propagate=true,
+      ~prev: option(t)=?,
+      ~probe_ids=Id.Map.empty,
+      whole: Exp.t,
+    )
+    : t => {
   last_analyzed := 0;
   summed := 0;
-  let (nodes, root) = chain_root(~prev, whole);
+  let (nodes, root) = ptime("chain_root", () => chain_root(~prev, whole));
   /* probe ids are an analysis input (witness stamping): only items whose
      maps contain a toggled probe id re-analyze */
   let probe_delta =
@@ -2437,31 +2475,43 @@ let calc =
     | _ => probe_dirty
     };
   let (items, changes) =
-    calc_chain(
-      ~settings,
-      ~probe_ids,
-      ~probe_dirty,
-      ~member=?Option.map(~f=((_, _, _, mc)) => mc, root),
-      ~keep_ctx=true,
-      ~prevs=Option.value_map(prev, ~default=[], ~f=(p: t) => p.items),
-      ~dirty_vars=[],
-      ~dirty_tnames=[],
-      ~ctx_in=ctx0,
-      nodes,
+    ptime("calc_chain", () =>
+      calc_chain(
+        ~settings,
+        ~propagate,
+        ~probe_ids,
+        ~probe_dirty,
+        ~member=?Option.map(~f=((_, _, _, mc)) => mc, root),
+        ~keep_ctx=true,
+        ~prevs=Option.value_map(prev, ~default=[], ~f=(p: t) => p.items),
+        ~dirty_vars=[],
+        ~dirty_tnames=[],
+        ~ctx_in=ctx0,
+        nodes,
+      )
     );
+  if (prof^) {
+    Printf.printf(
+      "[staticsProf]   calc.analyzed=%d items=%d\n",
+      last_analyzed^,
+      List.length(items),
+    );
+  };
   /* a Module root's members list it as their parent */
   let (sums, merged, _) =
-    step_chain(
-      ~probe_ids,
-      ~container=[],
-      ~srcs=
-        switch (root) {
-        | Some((members, _, _, _)) => List.map(~f=Option.some, members)
-        | None => []
-        },
-      ~prev=Option.map(~f=(p: t) => (p.sums, p.merged), prev),
-      items,
-      changes,
+    ptime("step_chain", () =>
+      step_chain(
+        ~probe_ids,
+        ~container=[],
+        ~srcs=
+          switch (root) {
+          | Some((members, _, _, _)) => List.map(~f=Option.some, members)
+          | None => []
+          },
+        ~prev=Option.map(~f=(p: t) => (p.sums, p.merged), prev),
+        items,
+        changes,
+      )
     );
   let elab = Option.bind(top_sum(sums), ~f=s => s.s_elab);
   let program_elab =
@@ -2555,17 +2605,26 @@ let all_warning_ids = (t: t): list(Id.t) =>
 /* set by the test runner to check each calc_auto result */
 let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
 
+/* W2b main-thread mode: clamp downstream propagation (set by the web
+   layer's flip toggle; see CachedStatics.init_compositional_term).
+   TOGGLE-OFF MUST BUST THE CACHE — a clamped chain records fresh
+   exports without having propagated them, so a later incremental calc
+   cannot recover the missed dirt (Test_PropagateClamp). */
+let clamp: ref(bool) = ref(false);
+
+/* increments only when a calc actually re-analyzed something (caret
+   motion and identical reparses stay clean): the clamped mode's
+   eval-request trigger */
+let semantic_gen: ref(int) = ref(0);
+
 /* the last calc per document, most recent first, so switching documents
    doesn't force a cold pass; keyed by the term's rep id, stable unless
    the first item is replaced */
 let slots: ref(list((Id.t, t))) = ref([]);
 let slots_cap = 8;
 
-let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
-  /* a probe change keeps the slot: calc re-analyzes just the affected items */
-  let key = Exp.rep_id(whole);
-  let prev = List.Assoc.find(slots^, key, ~equal=Poly.equal);
-  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+let remember = (t: t): unit => {
+  let key = Exp.rep_id(t.term);
   slots :=
     [
       (key, t),
@@ -2574,7 +2633,30 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
            List.Assoc.remove(slots^, key, ~equal=Poly.equal),
          ),
     ];
-  Option.iter(~f=check => check(settings, t), after_calc^);
+};
+
+/* bust every cache calc_auto can read from — flip toggles must not
+   leave clamped chains reusable (Test_PropagateClamp: a clamped chain
+   cannot be caught up incrementally) */
+let reset_caches = (): unit => slots := [];
+
+/* update the keyed entry a graft rewrote: the next calc_auto takes its
+   prev from [slots], so the graft survives an ordinary recalculation */
+let replace_slot_entry = remember;
+
+let calc_auto =
+    (~settings, ~propagate=true, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+  /* a probe change keeps the slot: calc re-analyzes just the affected items */
+  let prev = List.Assoc.find(slots^, Exp.rep_id(whole), ~equal=Poly.equal);
+  let t = calc(~settings, ~propagate, ~prev?, ~probe_ids, whole);
+  if (last_analyzed^ > 0 || Option.is_none(prev)) {
+    incr(semantic_gen);
+  };
+  remember(t);
+  /* a clamped result is stale downstream by design: nothing to check */
+  if (propagate) {
+    Option.iter(~f=check => check(settings, t), after_calc^);
+  };
   t;
 };
 

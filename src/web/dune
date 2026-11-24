@@ -28,7 +28,7 @@
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
- (libraries core language)
+ (libraries core language haz3lcore)
  (js_of_ocaml)
  (preprocess
   (pps
