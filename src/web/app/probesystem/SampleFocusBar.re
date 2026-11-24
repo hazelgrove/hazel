@@ -325,7 +325,7 @@ let switch_sibling =
   } else {
     /* Build new outermost-first stack with the frame at view_index replaced */
     let new_stack_rev =
-      List.mapi((i, f) => i == view_index ? new_frame : f, call_stack_rev);
+      List.mapi(call_stack_rev, ~f=(i, f) => i == view_index ? new_frame : f);
     /* Truncate the stack at the switch point: keep prefix + new frame,
      * drop everything deeper since the subtree may differ */
     let truncated_rev = Util.ListUtil.slice(0, view_index + 1, new_stack_rev);
@@ -442,18 +442,18 @@ let key_handler =
           ~view_index,
           probe_map,
         );
-      let current_frame = List.nth(call_stack_rev, view_index);
+      let current_frame = List.nth_exn(call_stack_rev, view_index);
       let current_pos =
-        List.find_index(
-          f => CallStack.equal_frame(f, current_frame),
-          siblings,
-        );
+        List.findi(siblings, ~f=(_, f) =>
+          CallStack.equal_frame(f, current_frame)
+        )
+        |> Option.map(~f=fst);
       let direction = key.key == D("ArrowUp") ? (-1) : 1;
       switch (current_pos) {
       | Some(pos) =>
         let next_pos =
           (pos + direction + List.length(siblings)) mod List.length(siblings);
-        let next_frame = List.nth(siblings, next_pos);
+        let next_frame = List.nth_exn(siblings, next_pos);
         if (CallStack.equal_frame(next_frame, current_frame)) {
           Stop_propagation;
         } else {
@@ -574,15 +574,10 @@ let tree_entry =
 
 /* Compute the maximum depth across all flattened lines */
 let max_depth = (lines: list(list(Sample.CallTree.line_entry))): int =>
-  List.fold_left(
-    (acc, line) =>
-      List.fold_left(
-        (acc, entry: Sample.CallTree.line_entry) => max(acc, entry.depth),
-        acc,
-        line,
-      ),
-    0,
-    lines,
+  List.fold(lines, ~init=0, ~f=(acc, line) =>
+    List.fold(line, ~init=acc, ~f=(acc, entry: Sample.CallTree.line_entry) =>
+      max(acc, entry.depth)
+    )
   );
 
 /* Render the tree view of the call tree.
@@ -603,68 +598,71 @@ let tree_view =
   let n_cols = max_depth(lines) + 1;
   /* Each depth gets 2 grid columns: one for branch char, one for name.
    * Total grid columns = n_cols * 2. */
-  let grid_template = String.concat(" ", List.init(n_cols, _ => "auto auto"));
+  let grid_template =
+    String.concat(~sep=" ", List.init(n_cols, ~f=_ => "auto auto"));
   /* Emit all cells for all lines into a single flat list.
    * Each cell is placed by grid-row and grid-column. */
   let all_cells =
     List.mapi(
-      (row_idx, line: list(Sample.CallTree.line_entry)) =>
-        List.mapi(
-          (i, entry: Sample.CallTree.line_entry) => {
-            let row = row_idx + 1;
-            /* Branch character cell */
-            let branch_col = entry.depth * 2 + 1;
-            let branch_char =
-              if (i == 0 && entry.depth == 0) {
-                "";
-              } else if (i == 0 && entry.depth > 0) {
-                entry.is_last_child ? {js|└|js} : {js|├|js};
-              } else {
-                {js|─|js};
-              };
-            let pos = (r, c) =>
-              Css_gen.create(
-                ~field="grid-area",
-                ~value=
-                  string_of_int(r)
-                  ++ " / "
-                  ++ string_of_int(c)
-                  ++ " / "
-                  ++ string_of_int(r + 1)
-                  ++ " / "
-                  ++ string_of_int(c + 1),
-              );
-            let branch_cell =
-              span(
-                ~attrs=[
-                  Attr.classes(["tree-branch"]),
-                  Attr.style(pos(row, branch_col)),
-                ],
-                [text(branch_char)],
-              );
-            /* Entry name cell */
-            let name_col = entry.depth * 2 + 2;
-            let entry_cell =
-              span(
-                ~attrs=[
-                  Attr.classes(["tree-name-cell"]),
-                  Attr.style(pos(row, name_col)),
-                ],
-                [
-                  tree_entry(
-                    ~globals,
-                    ~info_map,
-                    ~sightline_rev,
-                    ~index,
-                    entry,
-                  ),
-                ],
-              );
-            [branch_cell, entry_cell];
-          },
-          line,
-        )
-        |> List.concat,
+      ~f=
+        (row_idx, line: list(Sample.CallTree.line_entry)) =>
+          List.mapi(
+            ~f=
+              (i, entry: Sample.CallTree.line_entry) => {
+                let row = row_idx + 1;
+                /* Branch character cell */
+                let branch_col = entry.depth * 2 + 1;
+                let branch_char =
+                  if (i == 0 && entry.depth == 0) {
+                    "";
+                  } else if (i == 0 && entry.depth > 0) {
+                    entry.is_last_child ? {js|└|js} : {js|├|js};
+                  } else {
+                    {js|─|js};
+                  };
+                let pos = (r, c) =>
+                  Css_gen.create(
+                    ~field="grid-area",
+                    ~value=
+                      string_of_int(r)
+                      ++ " / "
+                      ++ string_of_int(c)
+                      ++ " / "
+                      ++ string_of_int(r + 1)
+                      ++ " / "
+                      ++ string_of_int(c + 1),
+                  );
+                let branch_cell =
+                  span(
+                    ~attrs=[
+                      Attr.classes(["tree-branch"]),
+                      Attr.style(pos(row, branch_col)),
+                    ],
+                    [text(branch_char)],
+                  );
+                /* Entry name cell */
+                let name_col = entry.depth * 2 + 2;
+                let entry_cell =
+                  span(
+                    ~attrs=[
+                      Attr.classes(["tree-name-cell"]),
+                      Attr.style(pos(row, name_col)),
+                    ],
+                    [
+                      tree_entry(
+                        ~globals,
+                        ~info_map,
+                        ~sightline_rev,
+                        ~index,
+                        entry,
+                      ),
+                    ],
+                  );
+                [branch_cell, entry_cell];
+              },
+            line,
+          )
+          |> List.concat,
       lines,
     )
     |> List.concat;
@@ -744,7 +742,7 @@ let view =
      * to reversed (outermost-first) view index */
     let anti_pin = sample_focus.anti_pin;
     let n = List.length(call_stack);
-    let anti_pin_view_index = Option.map(depth => n - 1 - depth, anti_pin);
+    let anti_pin_view_index = Option.map(anti_pin, ~f=depth => n - 1 - depth);
     let has_pin = pinned_stack != None;
 
     /* Build a single breadcrumb entry (separator + entry node) for stack index i */

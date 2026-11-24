@@ -1824,7 +1824,7 @@ let call_tree_tests = [
         Id.Map.singleton(Id.invalid, [mk_sample([frame(id_a)])]);
       let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       check(int, "one root node", 1, List.length(tree));
-      let root = List.hd(tree);
+      let root = List.hd_exn(tree);
       check(
         bool,
         "root frame matches",
@@ -1851,7 +1851,7 @@ let call_tree_tests = [
         );
       let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       check(int, "one root (A)", 1, List.length(tree));
-      let root = List.hd(tree);
+      let root = List.hd_exn(tree);
       check(int, "two children (B and C)", 2, List.length(root.children));
     },
   ),
@@ -1867,7 +1867,7 @@ let call_tree_tests = [
       let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       let lines = Sample.CallTree.flatten(tree);
       check(int, "one line", 1, List.length(lines));
-      let line = List.hd(lines);
+      let line = List.hd_exn(lines);
       check(int, "two entries on the line", 2, List.length(line));
     },
   ),
@@ -1895,10 +1895,10 @@ let call_tree_tests = [
         List.length(lines),
       );
       /* Line 1 should have A and B */
-      let line1 = List.nth(lines, 0);
+      let line1 = List.nth_exn(lines, 0);
       check(int, "line 1: 2 entries (A, B)", 2, List.length(line1));
       /* Line 2 should have just C */
-      let line2 = List.nth(lines, 1);
+      let line2 = List.nth_exn(lines, 1);
       check(int, "line 2: 1 entry (C)", 1, List.length(line2));
     },
   ),
@@ -1916,7 +1916,7 @@ let call_tree_tests = [
       let tree = Sample.CallTree.of_probe_map(~sightline_rev=[], probe_map);
       let lines = Sample.CallTree.flatten(tree);
       check(int, "one line (linear chain)", 1, List.length(lines));
-      let line = List.hd(lines);
+      let line = List.hd_exn(lines);
       check(int, "three entries", 3, List.length(line));
     },
   ),

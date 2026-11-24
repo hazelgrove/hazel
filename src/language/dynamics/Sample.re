@@ -898,58 +898,58 @@ module Selection = {
       Id.Map.iter(
         (_, samples) =>
           List.iter(
-            (sample: t) => {
-              let sample_rev = List.rev(sample.call_stack);
-              let sample_len = List.length(sample_rev);
-              if (sample_len > view_index) {
-                let sample_prefix = ListUtil.slice(0, view_index, sample_rev);
-                let sample_prefix_ids = CallStack.ids_of_stack(sample_prefix);
-                if (sample_prefix_ids == prefix_ids) {
-                  let frame_at_depth = List.nth(sample_rev, view_index);
-                  switch (
-                    List.find_opt(
-                      ((f, _)) => CallStack.equal_frame(f, frame_at_depth),
-                      frame_seqs^,
-                    )
-                  ) {
-                  | Some((_, existing_seq)) =>
-                    /* Update min_seq if this sample is earlier */
-                    if (sample.seq < existing_seq) {
-                      frame_seqs :=
-                        List.map(
-                          ((f, s)) =>
+            ~f=
+              (sample: t) => {
+                let sample_rev = List.rev(sample.call_stack);
+                let sample_len = List.length(sample_rev);
+                if (sample_len > view_index) {
+                  let sample_prefix =
+                    ListUtil.slice(0, view_index, sample_rev);
+                  let sample_prefix_ids =
+                    CallStack.ids_of_stack(sample_prefix);
+                  if (List.equal(Id.equal, sample_prefix_ids, prefix_ids)) {
+                    let frame_at_depth = List.nth_exn(sample_rev, view_index);
+                    switch (
+                      List.find(frame_seqs^, ~f=((f, _)) =>
+                        CallStack.equal_frame(f, frame_at_depth)
+                      )
+                    ) {
+                    | Some((_, existing_seq)) =>
+                      /* Update min_seq if this sample is earlier */
+                      if (sample.seq < existing_seq) {
+                        frame_seqs :=
+                          List.map(frame_seqs^, ~f=((f, s)) =>
                             CallStack.equal_frame(f, frame_at_depth)
-                              ? (f, sample.seq) : (f, s),
-                          frame_seqs^,
-                        );
-                    }
-                  | None =>
-                    frame_seqs :=
-                      frame_seqs^ @ [(frame_at_depth, sample.seq)]
+                              ? (f, sample.seq) : (f, s)
+                          );
+                      }
+                    | None =>
+                      frame_seqs :=
+                        frame_seqs^ @ [(frame_at_depth, sample.seq)]
+                    };
                   };
                 };
-              };
-            },
+              },
             samples,
           ),
         probe_map,
       );
       /* Sort by min seq, then rotate to sightline (same cycle as tree) */
       let sorted =
-        List.sort(
-          ((_, a_seq), (_, b_seq)) => compare(a_seq, b_seq),
-          frame_seqs^,
+        List.sort(frame_seqs^, ~compare=((_, a_seq), (_, b_seq)) =>
+          Int.compare(a_seq, b_seq)
         );
       let current_frame =
-        view_index < n ? Some(List.nth(call_stack_rev, view_index)) : None;
+        view_index < n
+          ? Some(List.nth_exn(call_stack_rev, view_index)) : None;
       let rotated =
         switch (current_frame) {
         | Some(cf) =>
           switch (
-            List.find_index(
-              ((f, _)) => CallStack.equal_frame(f, cf),
-              sorted,
+            List.findi(sorted, ~f=(_, (f, _)) =>
+              CallStack.equal_frame(f, cf)
             )
+            |> Option.map(~f=fst)
           ) {
           | Some(i) =>
             let before = ListUtil.slice(0, i, sorted);
@@ -959,7 +959,7 @@ module Selection = {
           }
         | None => sorted
         };
-      List.map(fst, rotated);
+      List.map(rotated, ~f=fst);
     };
   };
 
@@ -1024,17 +1024,18 @@ module CallTree = {
       let found = ref(false);
       let forest' =
         List.map(
-          (node: node) =>
-            if (CallStack.equal_frame(node.frame, frame)) {
-              found := true;
-              {
-                ...node,
-                children: insert_path(rest, seq, node.children),
-                min_seq: min(node.min_seq, seq),
-              };
-            } else {
-              node;
-            },
+          ~f=
+            (node: node) =>
+              if (CallStack.equal_frame(node.frame, frame)) {
+                found := true;
+                {
+                  ...node,
+                  children: insert_path(rest, seq, node.children),
+                  min_seq: min(node.min_seq, seq),
+                };
+              } else {
+                node;
+              },
           forest,
         );
       if (found^) {
@@ -1054,7 +1055,7 @@ module CallTree = {
   /* Rotate a list to start at the element matching a predicate,
    * preserving relative order (eval-order cycle). */
   let rotate_to = (pred: 'a => bool, xs: list('a)): list('a) =>
-    switch (List.find_index(pred, xs)) {
+    switch (List.findi(xs, ~f=(_, x) => pred(x)) |> Option.map(~f=fst)) {
     | Some(i) =>
       let before = ListUtil.slice(0, i, xs);
       let after = ListUtil.slice(i, List.length(xs) - i, xs);
@@ -1068,28 +1069,28 @@ module CallTree = {
       (~sightline_rev: CallStack.t, ~depth: int, children: list(node))
       : list(node) => {
     let sorted =
-      List.sort(
-        (a: node, b: node) => compare(a.min_seq, b.min_seq),
-        children,
+      List.sort(children, ~compare=(a: node, b: node) =>
+        Int.compare(a.min_seq, b.min_seq)
       );
     let on_sightline = (n: node): bool =>
       depth < List.length(sightline_rev)
-      && CallStack.equal_frame(List.nth(sightline_rev, depth), n.frame);
+      && CallStack.equal_frame(List.nth_exn(sightline_rev, depth), n.frame);
     rotate_to(on_sightline, sorted);
   };
 
   /* Recursively sort all children in the tree */
   let rec sort_tree = (~sightline_rev: CallStack.t, ~depth: int, forest: t): t =>
     List.map(
-      (node: node) => {
-        let sorted_children =
-          sort_children(~sightline_rev, ~depth=depth + 1, node.children);
-        {
-          ...node,
-          children:
-            sort_tree(~sightline_rev, ~depth=depth + 1, sorted_children),
-        };
-      },
+      ~f=
+        (node: node) => {
+          let sorted_children =
+            sort_children(~sightline_rev, ~depth=depth + 1, node.children);
+          {
+            ...node,
+            children:
+              sort_tree(~sightline_rev, ~depth=depth + 1, sorted_children),
+          };
+        },
       sort_children(~sightline_rev, ~depth, forest),
     );
 
@@ -1100,13 +1101,13 @@ module CallTree = {
     let forest =
       Id.Map.fold(
         (_, samples, forest) =>
-          List.fold_left(
-            (acc, s: sample) => {
+          List.fold(
+            samples,
+            ~init=forest,
+            ~f=(acc, s: sample) => {
               let path = List.rev(s.call_stack);
               insert_path(path, s.seq, acc);
             },
-            forest,
-            samples,
           ),
         probe_map,
         [],
@@ -1177,18 +1178,19 @@ module CallTree = {
         );
         let n_rest = List.length(rest);
         List.iteri(
-          (i, child) => {
-            /* Flush current line and start new */
-            lines := lines^ @ [current_line^];
-            current_line := [];
-            walk(
-              ~depth=depth + 1,
-              ~ancestors=path,
-              ~is_last=i == n_rest - 1,
-              ~has_siblings=true,
-              child,
-            );
-          },
+          ~f=
+            (i, child) => {
+              /* Flush current line and start new */
+              lines := lines^ @ [current_line^];
+              current_line := [];
+              walk(
+                ~depth=depth + 1,
+                ~ancestors=path,
+                ~is_last=i == n_rest - 1,
+                ~has_siblings=true,
+                child,
+              );
+            },
           rest,
         );
       };
@@ -1196,23 +1198,24 @@ module CallTree = {
 
     let n_roots = List.length(forest);
     List.iteri(
-      (i, node) => {
-        if (i > 0) {
-          lines := lines^ @ [current_line^];
-          current_line := [];
-        };
-        walk(
-          ~depth=0,
-          ~ancestors=[],
-          ~is_last=i == n_roots - 1,
-          ~has_siblings=n_roots > 1,
-          node,
-        );
-      },
+      ~f=
+        (i, node) => {
+          if (i > 0) {
+            lines := lines^ @ [current_line^];
+            current_line := [];
+          };
+          walk(
+            ~depth=0,
+            ~ancestors=[],
+            ~is_last=i == n_roots - 1,
+            ~has_siblings=n_roots > 1,
+            node,
+          );
+        },
       forest,
     );
     /* Don't forget the last line */
-    if (current_line^ != []) {
+    if (!List.is_empty(current_line^)) {
       lines := lines^ @ [current_line^];
     };
     lines^;
@@ -1226,10 +1229,10 @@ module CallTree = {
     let path_len = List.length(entry.path);
     let sight_len = List.length(sightline_rev);
     path_len <= sight_len
-    && List.for_all2(
-         CallStack.equal_frame,
+    && List.for_all2_exn(
          entry.path,
          ListUtil.slice(0, path_len, sightline_rev),
+         ~f=CallStack.equal_frame,
        );
   };
 
@@ -1242,15 +1245,13 @@ module CallTree = {
       switch (path) {
       | [] => None
       | [frame] =>
-        List.find_opt(
-          (n: node) => CallStack.equal_frame(n.frame, frame),
-          nodes,
+        List.find(nodes, ~f=(n: node) =>
+          CallStack.equal_frame(n.frame, frame)
         )
       | [frame, ...rest] =>
         switch (
-          List.find_opt(
-            (n: node) => CallStack.equal_frame(n.frame, frame),
-            nodes,
+          List.find(nodes, ~f=(n: node) =>
+            CallStack.equal_frame(n.frame, frame)
           )
         ) {
         | Some(n) => find_node(rest, n.children)
