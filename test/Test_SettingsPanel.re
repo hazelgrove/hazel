@@ -59,7 +59,7 @@ let removed_drag_toggle = () => {
         Atom("core"),
         List([List([Atom("drag_refactor"), Atom("true")]), ...fields]),
       ])
-    | List(items) => List(List.map(add, items))
+    | List(items) => List(List.map(~f=add, items))
     | atom => atom
     };
   let loaded =

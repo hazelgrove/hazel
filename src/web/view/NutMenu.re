@@ -253,8 +253,11 @@ let code_display = (~globals: Globals.t): section => {
         ),
         toggle(
           "Drag ladders",
-          globals.settings.core.drag_chain
-          != Language.CoreSettings.DragChain.Off,
+          !
+            Poly.equal(
+              globals.settings.core.drag_chain,
+              Language.CoreSettings.DragChain.Off,
+            ),
           DragChain,
           "A drag runs through its refactoring repeated, landing on the nearest step at release",
         ),

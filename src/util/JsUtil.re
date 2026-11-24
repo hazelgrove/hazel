@@ -16,8 +16,8 @@ let ids_with_prefix = (prefix: string): list(string) =>
   ) {
   | exception _ => []
   | nodes =>
-    List.init(nodes##.length, i => nodes##item(i))
-    |> List.filter_map(n =>
+    List.init(nodes##.length, ~f=i => nodes##item(i))
+    |> List.filter_map(~f=n =>
          Js.Opt.case(
            n,
            () => None,

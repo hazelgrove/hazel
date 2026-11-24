@@ -305,14 +305,13 @@ let go_refactor = (~enabled: bool, z: Zipper.t): Zipper.t =>
     let canon = Indentation.level_map(full);
     let targets =
       collect_lb_indents(full)
-      |> List.filter_map(((id, cur)) =>
+      |> List.filter_map(~f=((id, cur)) =>
            switch (Id.Map.find_opt(id, canon)) {
            | Some(lvl) when lvl != cur => Some((id, lvl))
            | _ => None
            }
          )
-      |> List.to_seq
-      |> Id.Map.of_seq;
+      |> Id.Map.of_list;
     Id.Map.is_empty(targets)
       ? z : ZipperBase.MapSegment.go(set_lb_indents(targets), z);
   };

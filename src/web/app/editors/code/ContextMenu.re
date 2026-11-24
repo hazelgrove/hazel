@@ -198,9 +198,9 @@ let refactor_data =
       (Step, "⏎"),
       (Bind, "="),
     ]
-    |> List.filter_map(((g, glyph)) =>
+    |> List.filter_map(~f=((g, glyph)) =>
          Refactor.gesture(~info_map, ~term, g, z)
-         |> Option.map(k => (k, glyph))
+         |> Option.map(~f=k => (k, glyph))
        );
   let hint = (kind: Action.refactor): option(string) =>
     switch (kind) {
@@ -211,8 +211,10 @@ let refactor_data =
     | LiftFunction => Some(chord("↑↑"))
     | _ =>
       let glyphs =
-        resolved |> List.filter(((k, _)) => k == kind) |> List.map(snd);
-      let has = g => List.mem(g, glyphs);
+        resolved
+        |> List.filter(~f=((k, _)) => k == kind)
+        |> List.map(~f=snd);
+      let has = g => List.mem(glyphs, g, ~equal=Poly.equal);
       switch (glyphs) {
       | [] => None
       | _ when has("↑") && has("↓") => Some(chord("↕"))
@@ -223,10 +225,10 @@ let refactor_data =
   /* gesture-bound entries gather at the top (stable within groups) */
   let (spatial, rest) =
     Refactor.menu_items(~info_map, ~term, z)
-    |> List.partition(((kind, _, _)) => hint(kind) != None);
+    |> List.partition_tf(~f=((kind, _, _)) => hint(kind) != None);
   spatial
   @ rest
-  |> List.map(((kind, label, tooltip)) =>
+  |> List.map(~f=((kind, label, tooltip)) =>
        action_item(
          ~shortcut=?hint(kind),
          ~tooltip,

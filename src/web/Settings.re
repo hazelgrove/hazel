@@ -152,7 +152,7 @@ module Store =
             Js_of_ocaml.Js.to_bool(
               global##matchMedia(Js_of_ocaml.Js.string("(pointer: coarse)"))##.matches,
             );
-          coarse && min(w, h) <= 600.;
+          coarse && Float.(min(w, h) <= 600.);
         | _ => false
         };
       {

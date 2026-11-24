@@ -13,7 +13,8 @@ let insist_window_ms = 1100.;
 let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
 let insist_armed = signature =>
   switch (insist_pending^) {
-  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | Some((s, t)) =>
+    Poly.equal(s, signature) && Float.(insist_now() -. t < insist_window_ms)
   | None => false
   };
 open Util;
@@ -333,7 +334,7 @@ module Selection = {
            ~term=model.statics.term,
            model.editor.state.zipper,
          )
-         |> List.map(((kind, label, _tooltip)) =>
+         |> List.map(~f=((kind, label, _tooltip)) =>
               ContextualAction.of_dynamic(
                 ~action=inject(Perform(Refactor(kind))),
                 ~section=Refactoring,

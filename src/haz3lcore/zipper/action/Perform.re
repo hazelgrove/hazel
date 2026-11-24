@@ -583,7 +583,7 @@ let rec go =
       z,
     )
     |> Option.map(
-         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+         ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
        )
     |> return(Cant_refactor)
   | RefactorPath(steps) =>
@@ -595,7 +595,7 @@ let rec go =
       z,
     )
     |> Option.map(
-         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+         ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
        )
     |> return(Cant_refactor)
   | RefactorGesture(g) =>
@@ -619,7 +619,7 @@ let rec go =
         k,
         z,
       )
-      |> Option.map(z' =>
+      |> Option.map(~f=z' =>
            switch (toggle) {
            | Some((tile, shard)) =>
              Move.jump_to_shard(z', tile, shard) |> Option.value(~default=z')
@@ -627,7 +627,7 @@ let rec go =
            }
          )
       |> Option.map(
-           LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+           ~f=LocalReformat.go_refactor(~enabled=settings.auto_reindent),
          )
       |> return(Cant_refactor);
     | None => Error(Cant_refactor)

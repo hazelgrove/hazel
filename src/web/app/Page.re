@@ -693,7 +693,7 @@ module MetaListener = {
     if (! installed^) {
       installed := true;
       ["keydown", "keyup"]
-      |> List.iter(name => {
+      |> List.iter(~f=name => {
            let _ =
              Dom_html.addEventListener(
                Dom_html.document,

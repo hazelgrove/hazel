@@ -227,7 +227,7 @@ let paths =
        term end; inner: between delimiter rows (a drag rides or fades
        each by role) */
     let as_role = (role, paths) =>
-      paths |> List.map(svg(~font_metrics, ~path_cls=path_cls @ [role]));
+      paths |> List.map(~f=svg(~font_metrics, ~path_cls=path_cls @ [role]));
     List.concat([
       l_path(
         ~flip=false,
