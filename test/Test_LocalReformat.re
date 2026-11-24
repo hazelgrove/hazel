@@ -12,9 +12,9 @@ let settings = {
 
 let type_all = (s: string): list(Action.t) =>
   s
-  |> String.to_seq
-  |> List.of_seq
-  |> List.map(c => Action.Insert(String.make(1, c)));
+  |> Stdlib.String.to_seq
+  |> Stdlib.List.of_seq
+  |> List.map(~f=c => Action.Insert(String.make(1, c)));
 
 let text_of = (z: Zipper.t): string =>
   Printer.of_segment(~holes="?", ~refractors=[], Zipper.unselect_and_zip(z));
