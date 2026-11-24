@@ -1176,10 +1176,7 @@ let rec reassemble_reforge = (sort: Sort.t, seg: t): t =>
       let t = Tile.reassemble(match);
       let children =
         if (Tile.is_complete(t)) {
-          List.map2_exn(
-            t.children,
-            Tile.mold(t).in_,
-            ~f=(child, child_sort) =>
+          List.map2_exn(t.children, Tile.mold(t).in_, ~f=(child, child_sort) =>
             if (child_sort != sort) {
               reforge(child_sort, child);
             } else {

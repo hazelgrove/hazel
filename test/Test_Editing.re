@@ -4154,7 +4154,8 @@ let cut_paste_sort_recovery_tests = [
           ~f=
             fun
             | Piece.Tile(t)
-                when Label.equal(Tile.effective_label(t), ["let", "=", "in"]) =>
+                when
+                  Label.equal(Tile.effective_label(t), ["let", "=", "in"]) =>
               Some(t)
             | _ => None,
         );
