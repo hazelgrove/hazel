@@ -29,10 +29,10 @@ depends: [
   "ocaml-index"
   "qcheck"
   "qcheck-alcotest"
-  "alcotest" {< "1.10.0"}
   "ppx_deriving_qcheck"
   "bignum"
   "csv"
+  "core"
   "odoc" {with-doc}
 ]
 build: [

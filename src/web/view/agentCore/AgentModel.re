@@ -87,7 +87,7 @@ module Persistent = {
      chats pick up prompt upgrades (same policy as tools). */
   let prompt_sentinel = "[[HAZEL:SYSTEM_PROMPT]]";
   let current_prompt = (): string =>
-    Haz3lcore.CompositionPrompt.self |> String.concat("\n");
+    Haz3lcore.CompositionPrompt.self |> String.concat(~sep="\n");
 
   let map_prompt_messages =
       (f: Message.Model.t => Message.Model.t, cs: ChatSystem.Model.t)
@@ -115,9 +115,9 @@ module Persistent = {
   let persist = (model: Model.t): t => {
     let cur = current_prompt();
     /* chat root messages hold the TRIMMED prompt (mk_prompt_message) */
-    let cur_msg = String.trim(cur);
+    let cur_msg = String.strip(cur);
     let swap_out = (msg: Message.Model.t) =>
-      msg.content == cur_msg
+      String.equal(msg.content, cur_msg)
         ? {
           ...msg,
           content: prompt_sentinel,
@@ -130,7 +130,7 @@ module Persistent = {
       prompting: {
         ...model.prompting,
         system_prompt:
-          model.prompting.system_prompt == cur
+          String.equal(model.prompting.system_prompt, cur)
             ? prompt_sentinel : model.prompting.system_prompt,
         /* Never persist the tool registry: unpersist restamps it from
            code, and the JSON runs to ~40KB per slide of dead weight. */
@@ -141,9 +141,9 @@ module Persistent = {
 
   let unpersist = (p: t): Model.t => {
     let cur = current_prompt();
-    let cur_msg = String.trim(cur);
+    let cur_msg = String.strip(cur);
     let swap_in = (msg: Message.Model.t) =>
-      msg.content == prompt_sentinel
+      String.equal(msg.content, prompt_sentinel)
         ? {
           ...msg,
           content: cur_msg,
@@ -156,7 +156,7 @@ module Persistent = {
       prompting: {
         ...p.prompting,
         system_prompt:
-          p.prompting.system_prompt == prompt_sentinel
+          String.equal(p.prompting.system_prompt, prompt_sentinel)
             ? cur : p.prompting.system_prompt,
         /* Always use the in-code tool registry so new tools (probes, statics, …)
            appear after upgrades; disabled_tool_names still applies per name. */
