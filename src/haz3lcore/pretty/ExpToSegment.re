@@ -760,7 +760,7 @@ let rec parenthesize =
     let paren_def = e => parenthesize(e) |> paren_at(Precedence.let_);
     Module(
       items
-      |> List.map((item: Mod.t) => {
+      |> List.map(~f=(item: Mod.t) => {
            let term: Mod.term =
              switch (item.term) {
              | ModLet(p, e) =>
@@ -779,12 +779,13 @@ let rec parenthesize =
              | MultiHole(xs) =>
                MultiHole(
                  List.map(
-                   parenthesize_any(
-                     ~parenthesization,
-                     ~show_ascriptions,
-                     ~show_filters,
-                   ),
                    xs,
+                   ~f=
+                     parenthesize_any(
+                       ~parenthesization,
+                       ~show_ascriptions,
+                       ~show_filters,
+                     ),
                  ),
                )
              | (EmptyHole | Invalid(_)) as term => term
