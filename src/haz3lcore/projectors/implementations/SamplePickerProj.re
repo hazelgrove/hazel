@@ -129,7 +129,10 @@ module M: Projector = {
         [
           Node.div(
             ~attrs=[Attr.classes(["sample-grid"])],
-            List.map(all_samples, ~f=sample_option(~current, ~parent, ~info)),
+            List.map(
+              all_samples,
+              ~f=sample_option(~current, ~parent, ~info),
+            ),
           ),
         ],
       ),
