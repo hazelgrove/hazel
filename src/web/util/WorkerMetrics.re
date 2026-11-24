@@ -26,7 +26,7 @@ let set_encodings = (encodings: list(WorkerServer.encoding)): unit =>
 
 let active_encodings = (): list(WorkerServer.encoding) =>
   List.filter(
-    e => List.mem(e, enabled_encodings^),
+    ~f=e => List.mem(enabled_encodings^, e, ~equal=Poly.equal),
     WorkerServer.all_of_encoding,
   );
 
@@ -94,7 +94,7 @@ let measure:
         }
       ) {
       | () => None
-      | exception exn => Some(Printexc.to_string(exn))
+      | exception exn => Some(Exn.to_string(exn))
       };
     {
       encoding,
@@ -110,15 +110,16 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
   when_enabled(() => {
     let request =
       List.map(
-        (e: WorkerServer.encoding) => {
-          module M = (val WorkerServer.module_of_encoding(e));
-          measure(
-            ~encoding=e,
-            ~encode=() => M.encode_request(msg),
-            ~size=M.size_request,
-            ~decode=M.decode_request,
-          );
-        },
+        ~f=
+          (e: WorkerServer.encoding) => {
+            module M = (val WorkerServer.module_of_encoding(e));
+            measure(
+              ~encoding=e,
+              ~encode=() => M.encode_request(msg),
+              ~size=M.size_request,
+              ~decode=M.decode_request,
+            );
+          },
         active_encodings(),
       );
     let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
@@ -134,15 +135,16 @@ let record_response = (id: int, resp: WorkerServer.ServerMessage.t): unit =>
   when_enabled(() => {
     let response =
       List.map(
-        (e: WorkerServer.encoding) => {
-          module M = (val WorkerServer.module_of_encoding(e));
-          measure(
-            ~encoding=e,
-            ~encode=() => M.encode_response(resp),
-            ~size=M.size_response,
-            ~decode=M.decode_response,
-          );
-        },
+        ~f=
+          (e: WorkerServer.encoding) => {
+            module M = (val WorkerServer.module_of_encoding(e));
+            measure(
+              ~encoding=e,
+              ~encode=() => M.encode_response(resp),
+              ~size=M.size_response,
+              ~decode=M.decode_response,
+            );
+          },
         active_encodings(),
       );
     update(
