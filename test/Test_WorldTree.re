@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 module P = Test_DefStaticsParity;
 
@@ -10,12 +11,12 @@ module P = Test_DefStaticsParity;
 let mod_seg = src => CorpusUtil.seg_of(~root=Mod, src);
 
 let text = (seg: Segment.t): string =>
-  Printer.of_segment(~holes="?", seg) |> String.trim;
+  Printer.of_segment(~holes="?", seg) |> String.strip;
 
 let ms = f => {
-  let t0 = Sys.time();
+  let t0 = Stdlib.Sys.time();
   let r = f();
-  (r, (Sys.time() -. t0) *. 1000.);
+  (r, (Stdlib.Sys.time() -. t0) *. 1000.);
 };
 
 let small = () =>
@@ -31,7 +32,7 @@ let small = () =>
       (["Scratch", "Scratchpad 1"], Some(mod_seg("a + 1"))),
     ],
   )
-  |> Option.get;
+  |> Option.value_exn;
 
 let holes = ["Documentation", "Basics", "Holes"];
 let lists = ["Documentation", "Basics", "Lists"];
@@ -54,15 +55,14 @@ let checked = (~path, seg) => {
       term,
     );
   let folders =
-    List.init(List.length(path) - 1, i =>
-      WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
-    );
+    List.init(List.length(path) - 1, ~f=i =>
+      WorldTree.folder_id(Util.ListUtil.take(i + 1, path)));
   let trail = folders @ [WorldTree.slide_id(path)];
   let elab =
     WorldTree.run_elab(
       ~cached=Builtins.is_library_name,
       ~trail,
-      Option.get(DefStatics.whole_elab(ds)),
+      Option.value_exn(DefStatics.whole_elab(ds)),
     );
   let (_, state) =
     Evaluator.evaluate(
@@ -86,11 +86,11 @@ let checked = (~path, seg) => {
         | Gone => []
         };
       List.length(
-        List.filter(id => List.mem(id, mine), DefStatics.all_error_ids(ds)),
+        List.filter(~f=id => List.mem(mine, id, ~equal=Poly.equal), DefStatics.all_error_ids(ds)),
       );
     },
     /* by result: ids differ between parses */
-    List.sort(compare, List.map(snd, P.tests_of(state))),
+    List.sort(~compare=compare, List.map(~f=snd, P.tests_of(state))),
   );
 };
 
@@ -181,16 +181,16 @@ module Scratch = {
     0,
     List.length(DefStatics.all_error_ids(ds)),
   );
-  let whole = Option.get(DefStatics.whole_elab(ds));
+  let whole = Option.value_exn(DefStatics.whole_elab(ds));
   let items = (e: Exp.t) =>
     switch (e.term) {
     | Module(items) => items
     | _ => fail("not a module")
     };
   let named = (name, e) =>
-    List.find(i => List.mem(name, WorldTree.binds(i)), items(e));
-  let names = e => List.concat_map(WorldTree.binds, items(e));
-  let body = i => Option.get(WorldTree.def_of(i));
+    List.find_exn(~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal), items(e));
+  let names = e => List.concat_map(~f=WorldTree.binds, items(e));
+  let body = i => Option.value_exn(WorldTree.def_of(i));
   let doc = named("Documentation", whole);
   let trail = [Mod.rep_id(doc), Mod.rep_id(named("Intro", body(doc)))];
   let elab =
@@ -229,7 +229,7 @@ module Scratch = {
     list(string),
     "the slide's tests alone, passing",
     ["Pass"],
-    List.map(snd, P.tests_of(state)),
+    List.map(~f=snd, P.tests_of(state)),
   );
   /* zoomed out: all the folder shows, or all but the library */
   let doc = named("Documentation", whole);
@@ -265,7 +265,7 @@ let summary = () => {
     list(string),
     "what it defines",
     ["bad", "f", "x"],
-    List.sort(compare, s.defines),
+    List.sort(~compare=compare, s.defines),
   );
   check(list(string), "what it uses", ["List"], s.uses);
 };
@@ -279,22 +279,22 @@ let corpus = () => {
   let doc = "hazel-programs/world/documentation/";
   let loaded = [doc ++ "basic-reference.hz", doc ++ "tables.hz"];
   let place = path => {
-    let name = Filename.remove_extension(Filename.basename(path));
+    let name = Stdlib.Filename.remove_extension(Filename.basename(path));
     let dir = Filename.basename(Filename.dirname(path));
     ["Documentation", dir, name];
   };
   let entries =
-    List.map(
+    List.map(~f=
       ((path, root, src)) =>
         (
           place(path),
-          List.mem(path, loaded)
+          List.mem(loaded, path, ~equal=Poly.equal)
             ? World.members_of(~root, CorpusUtil.seg_of(~root, src)) : None,
         ),
       slides,
     );
   let (w, t_assemble) =
-    ms(() => Option.get(WorldTree.assemble(~library, entries)));
+    ms(() => Option.value_exn(WorldTree.assemble(~library, entries)));
   let (_, t_check) = ms(() => checked(~path=place(doc ++ "tables.hz"), w));
   print_endline(
     Printf.sprintf(
@@ -304,15 +304,15 @@ let corpus = () => {
       t_check,
     ),
   );
-  List.iter(
+  List.iter(~f=
     path => {
-      let (_, root, src) = List.find(((p, _, _)) => p == path, slides);
+      let (_, root, src) = List.find_exn(~f=((p, _, _)) => p == path, slides);
       let (e, t) =
         Test_MemberForm.checked(~root, CorpusUtil.seg_of(~root, src));
       check(
         pair(int, list(string)),
         path,
-        (e, List.sort(compare, List.map(snd, t))),
+        (e, List.sort(~compare=compare, List.map(~f=snd, t))),
         checked(~path=place(path), w),
       );
     },

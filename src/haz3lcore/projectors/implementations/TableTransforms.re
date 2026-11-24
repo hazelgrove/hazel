@@ -465,8 +465,8 @@ let sort_column =
     (column_type: option(Typ.t), header: string, descending: bool)
     : option(list(transform)) => {
   switch (
-    Option.bind(column_type, atom_cls_of_typ)
-    |> Option.map(Atom.compare_module)
+    Option.bind(column_type, ~f=atom_cls_of_typ)
+    |> Option.map(~f=Atom.compare_module)
     |> Option.join
   ) {
   | Some(compare_module) =>

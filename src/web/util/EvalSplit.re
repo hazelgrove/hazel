@@ -555,28 +555,25 @@ let node_piece =
 let empty_piece =
     (
       acc: acc,
-      ~old: Hashtbl.t(P.key, cached),
-      ~into: Hashtbl.t(P.key, cached),
+      ~old: Stdlib.Hashtbl.t(P.key, cached),
+      ~into: Stdlib.Hashtbl.t(P.key, cached),
       it: DefStatics.item,
       ~src: option(Mod.t),
     ) => {
-  let hollow: Exp.t =
+  /* the value run empty: a let's definition, or a member's binding (its
+     module of it) */
+  let hollow: Exp.t = {
+    let empty = (def: Exp.t): Exp.t => {
+      ...def,
+      term: Module([]),
+    };
     switch (it.d_elab.term) {
-    | Let(p, def, body) => {
-        ...it.d_elab,
-        term:
-          Let(
-            p,
-            {
-              ...def,
-              term: Module([]),
-            },
-            body,
-          ),
-      }
+    | Let(_, def, _)
+    | Module([{term: ModLet(_, def), _}]) => P.plug(it.d_elab, empty(def))
     | _ => raise(Unsplittable("a module run empty is not a let"))
     };
-  let binding = lazy(Option.bind(src, src => bind(src, it, hollow)));
+  };
+  let binding = lazy(Option.bind(src, ~f=src => bind(src, hollow)));
   piece(
     acc,
     ~old,
@@ -585,7 +582,7 @@ let empty_piece =
     ~holds=
       fun
       | Emptied(e, was) =>
-        e === it.d_elab && same_binding(was, Lazy.force(binding))
+        phys_equal(e, it.d_elab) && same_binding(was, Lazy.force(binding))
       | _ => false,
     ~make=() =>
     (
@@ -606,12 +603,12 @@ let empty_piece =
 let dropped_keys =
     (it: DefStatics.item, s: DefStatics.sum, ~shadowed: list(Id.t)): int => {
   let has = id =>
-    Id.Map.mem(id, it.d_map) || List.mem_assoc(id, s.s_overlay);
+    Id.Map.mem(id, it.d_map) || List.Assoc.mem(s.s_overlay, id, ~equal=Poly.equal);
   Id.Map.cardinal(it.d_map)
   + List.length(
-      List.filter(((id, _)) => !Id.Map.mem(id, it.d_map), s.s_overlay),
+      List.filter(~f=((id, _)) => !Id.Map.mem(id, it.d_map), s.s_overlay),
     )
-  - List.length(List.filter(has, List.sort_uniq(compare, shadowed)));
+  - List.length(List.filter(~f=has, List.dedup_and_sort(~compare=compare, shadowed)));
 };
 
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
@@ -633,7 +630,7 @@ let rec chain =
   if (List.length(items) != List.length(sums)) {
     raise(Unsplittable("items and sums differ"));
   };
-  if (Option.is_some(cut) && srcs == []) {
+  if (Option.is_some(cut) && List.is_empty(srcs)) {
     raise(Unsplittable("a cut of no module's members"));
   };
   let srcs =
@@ -826,9 +823,9 @@ let rec chain =
     | Some(Inside(c)) => Some(cut_whole(it, s, src, ~inner_cut=Some(c)))
     };
   let cuts =
-    List.filter_map(
+    List.filter_map(~f=
       Fun.id,
-      List.map2(cut_item, List.combine(items, sums), srcs),
+      List.map2_exn(~f=cut_item, List.zip_exn(items, sums), srcs),
     );
   let roots =
     roots_piece(
@@ -837,7 +834,7 @@ let rec chain =
       ~into=cache.pieces,
       roots,
       ~skip=shadowed,
-      List.filter_map(snd, cuts),
+      List.filter_map(~f=snd, cuts),
     );
   (
     {
@@ -909,7 +906,7 @@ let split =
     : P.layout => {
   let ds =
     switch (DefStatics.last(statics.term)) {
-    | Some(ds) when Option.is_some(run) || ds.merged === statics.info_map => ds
+    | Some(ds) when Option.is_some(run) || phys_equal(ds.merged, statics.info_map) => ds
     | _ => raise(Unsplittable("no analysis of these statics"))
     };
   /* the program is the top chain, finished as DefStatics.whole_elab */
@@ -919,7 +916,7 @@ let split =
     | None => (statics.elaborated, None)
     };
   switch (DefStatics.whole_elab(ds)) {
-  | Some(e) when e === whole => ()
+  | Some(e) when phys_equal(e, whole) => ()
   | Some(_) => raise(Unsplittable("an elaboration not DefStatics'"))
   | None => raise(Unsplittable("an elaboration gap"))
   };

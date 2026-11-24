@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 module P = Test_DefStaticsParity;
 
@@ -11,11 +12,11 @@ let convert = (src: string): option(Segment.t) =>
   MemberForm.of_exp_root(CorpusUtil.seg_of(~root=Exp, src));
 
 let text = (seg: Segment.t): string =>
-  Printer.of_segment(~holes="?", seg) |> String.trim;
+  Printer.of_segment(~holes="?", seg) |> String.strip;
 
 let shape = (name, src, expected) =>
   test_case(name, `Quick, () =>
-    check(option(string), name, expected, Option.map(text, convert(src)))
+    check(option(string), name, expected, Option.map(~f=text, convert(src)))
   );
 
 /* the type errors and the tests' results a program has at [root] */
@@ -35,7 +36,7 @@ let checked = (~root: Sort.t, seg: Segment.t) => {
 let corpus = () => {
   let converted = ref(0);
   let kept = ref([]);
-  List.iter(
+  List.iter(~f=
     ((path, _, src)) => {
       let seg = CorpusUtil.seg_of(~root=Exp, src);
       switch (MemberForm.of_exp_root(seg)) {
@@ -49,7 +50,7 @@ let corpus = () => {
       };
     },
     /* the expression programs: the world's slides are members already */
-    List.filter(
+    List.filter(~f=
       ((_, root, _)) => root == Sort.Exp,
       CorpusUtil.slide_corpus(),
     ),
@@ -59,7 +60,7 @@ let corpus = () => {
       "converted %d slides; kept %d: %s",
       converted^,
       List.length(kept^),
-      String.concat(", ", List.rev(kept^)),
+      String.concat(~sep=", ", List.rev(kept^)),
     ),
   );
 };
@@ -91,7 +92,7 @@ let tests = (
         list(string),
         "test results",
         ["Pass"],
-        List.map(
+        List.map(~f=
           snd,
           snd(
             checked(

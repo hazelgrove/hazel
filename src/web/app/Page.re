@@ -111,7 +111,7 @@ module Update = {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m)
     | World(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) => List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     | Config(m) => (List.nth_exn(m.configs, m.current) |> snd).editor
     };
@@ -413,7 +413,7 @@ module Update = {
         | Scratch(model)
         | Documentation(model)
         | World(model) =>
-          let current = List.nth(model.scratchpads, model.current);
+          let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
             | Code(code) =>
@@ -1223,7 +1223,7 @@ module View = {
        shown in the slide's place while [lib] holds it */
     let workspace = a => inject(Editors(Scratch(Workspace(a))));
     let enclosing: option(OutlineControl.enclosing) =
-      switch (Option.bind(deck, OutlineControl.current)) {
+      switch (Option.bind(deck, ~f=OutlineControl.current)) {
       | Some({kind: Code({lib, _}), _}) =>
         Some({
           e_above: {
@@ -1253,7 +1253,7 @@ module View = {
                 })
               },
           },
-          e_shown: lib != None,
+          e_shown: Option.is_some(lib),
           e_go: shown => workspace(ShowLibrary(shown)),
           e_chip: workspace(ResetLibrary),
         })

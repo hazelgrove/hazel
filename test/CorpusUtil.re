@@ -23,7 +23,7 @@ let bench_enabled =
 /* the perf corpora: the world tree's Documentation › Perf slides */
 let mega_path = (name: string): string => {
   let path = "hazel-programs/world/documentation/perf/" ++ name;
-  Sys.file_exists(path)
+  Stdlib.Sys.file_exists(path)
     ? path : "../hazel-programs/world/documentation/perf/" ++ name;
 };
 
@@ -84,10 +84,10 @@ let mega_seg = (~root: Sort.t=Exp, name: string): Segment.t =>
    folder's order marks it exp (WorldFolder); elsewhere, an expression */
 let root_of = (path: string): Sort.t => {
   let dir = Filename.dirname(path);
-  let stem = Filename.remove_extension(Filename.basename(path));
+  let stem = Stdlib.Filename.remove_extension(Filename.basename(path));
   let exp =
-    !List.mem("world", String.split_on_char('/', dir))
-    || List.exists(
+    !List.mem(String.split(~on='/', dir), "world", ~equal=Poly.equal)
+    || List.exists(~f=
          ((s, _, exp)) => s == stem && exp,
          WorldFolder.order_of(dir),
        );
@@ -100,17 +100,17 @@ let root_of = (path: string): Sort.t => {
    (mega_seg), neither among them. Elsewhere, expression programs */
 let slide_corpus = (): list((string, Sort.t, string)) => {
   let rec find = (~in_world, ~top, dir: string): list((string, Sort.t)) =>
-    switch (Sys.readdir(dir)) {
+    switch (Stdlib.Sys.readdir(dir)) {
     | entries =>
       entries
       |> Array.to_list
       |> List.concat_map(~f=entry => {
            let path = Filename.concat(dir, entry);
-           switch (Sys.is_directory(path)) {
-           | true when entry == "perf" && in_world => []
+           switch (Stdlib.Sys.is_directory(path)) {
+           | true when String.equal(entry, "perf") && in_world => []
            | true =>
              find(
-               ~in_world=in_world || entry == "world",
+               ~in_world=in_world || String.equal(entry, "world"),
                ~top=entry == "world",
                path,
              )
@@ -127,8 +127,8 @@ let slide_corpus = (): list((string, Sort.t, string)) => {
     Stdlib.Sys.file_exists("hazel-programs")
       ? "hazel-programs" : "../hazel-programs";
   find(~in_world=false, ~top=false, root)
-  |> List.sort(compare)
-  |> List.filter_map(((path, sort)) =>
+  |> List.sort(~compare=compare)
+  |> List.filter_map(~f=((path, sort)) =>
        Option.map(
          ~f=
          src =>

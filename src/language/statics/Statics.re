@@ -1735,7 +1735,7 @@ and uexp_to_info_map =
           | found => found
           };
         let labels =
-          Sig.dedup_names(
+          Util.ListUtil.dedup_f(String.equal, 
             Sig.value_names(members) @ List.map(~f=fst, ctors),
           );
         let dot = (~marks=?, ~message=?, ~elab_syn_ty, child) =>
@@ -4273,20 +4273,24 @@ and upat_to_info_map =
       };
       /* what may follow `M.` here: a constructor, or a sub-module */
       let members = items =>
-        Sig.dedup_names(
-          List.map(fst, Typ.sig_ctors(ctx, items))
+        Util.ListUtil.dedup_f(String.equal, 
+          List.map(~f=fst, Typ.sig_ctors(ctx, items))
           @ Typ.sig_module_member_names(ctx, items),
         );
       let not_found = (items, name): Mark.t =>
-        ModuleMemberNotFound({
-          name,
-          members: members(items),
-          type_member: List.mem(name, Sig.type_names(Sig.members(items))),
-        });
+        List.mem(Sig.type_names(Sig.members(items)), name, ~equal=String.equal)
+          ? ModuleMemberIsType(name)
+          : ModuleMemberNotFound({
+              name,
+              members: members(items),
+            });
+      /* a module's signature, as its items */
+      let sig_items = ty =>
+        Typ.as_sig(ctx, ty) |> Option.map(~f=ClosedSig.items);
       let label_info = (~ancestors, items, l, ty, marks, m) =>
         path_info(
           ~label_sort=true,
-          ~dot_labels=Option.fold(~none=[], ~some=members, items),
+          ~dot_labels=Option.value_map(items, ~default=[], ~f=members),
           ~ancestors,
           l,
           ty,
@@ -4302,9 +4306,9 @@ and upat_to_info_map =
           let path_info = path_info(~cls=Cls.Exp(Var));
           switch (Ctx.lookup_var(ctx, name)) {
           | Some({typ, _}) =>
-            let items = Typ.as_sig(~rec_counter=0, ctx, typ);
+            let items = sig_items(typ);
             let marks =
-              items == None
+              Option.is_none(items)
                 ? [
                   Mark.TypWantModule({
                     name,
@@ -4326,8 +4330,10 @@ and upat_to_info_map =
           let ancestors' = [Pat.rep_id(p), ...ancestors];
           let (items, m) = module_path(~ancestors=ancestors', inner, m);
           let sub =
-            Option.bind(items, items => Typ.sig_project_value(items, name));
-          let sub_items = Option.bind(sub, Typ.as_sig(~rec_counter=0, ctx));
+            Option.bind(items, ~f=items =>
+              Sig.find_value(Sig.members(items), name)
+            );
+          let sub_items = Option.bind(sub, ~f=sig_items);
           let label_marks =
             switch (items, sub_items) {
             | (Some(items), None) => [not_found(items, name)]
@@ -4352,7 +4358,7 @@ and upat_to_info_map =
       switch (label.term) {
       | Label(name) =>
         let ctor_ty =
-          Option.bind(items, items => Typ.sig_project_ctor(ctx, items, name));
+          Option.bind(items, ~f=items => Typ.sig_project_ctor(ctx, items, name));
         let label_marks =
           switch (items, ctor_ty) {
           | (Some(items), None) => [not_found(items, name)]
@@ -5303,7 +5309,7 @@ let mk_impl = (~segment=None, (ana, ctx, e, probe_ids)) => {
    =
     (continue, x) => {
       let ids = x.annotation.ids;
-      switch (List.find_map(id => Id.Map.find_opt(id, m_ref^), ids)) {
+      switch (List.find_map(~f=id => Id.Map.find_opt(id, m_ref^), ids)) {
       | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
       | None => ()
       };

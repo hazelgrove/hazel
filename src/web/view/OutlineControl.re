@@ -96,7 +96,7 @@ let slide_name = (deck: deck): string =>
 
 /* the slide's module, if its program is the library's world */
 let world_of = (deck: option(deck)): option(Id.t) =>
-  switch (Option.bind(deck, current)) {
+  switch (Option.bind(deck, ~f=current)) {
   | Some({kind: Code({world, _}), _}) => world
   | _ => None
   };
@@ -109,7 +109,7 @@ let world_defaults = (deck: option(deck)) => {
     lazy(
       switch (deck) {
       | Some((_, m)) =>
-        List.map(
+        List.map(~f=
           (sp: Scratchpad.t) => WorldDeck.slide_id(sp.name),
           m.scratchpads,
         )
@@ -121,12 +121,12 @@ let world_defaults = (deck: option(deck)) => {
     | (None, _)
     | (_, None) => None
     | (Some(open_), Some(id)) when id == open_ => Some(false)
-    | (Some(_), Some(id)) when List.mem(id, Lazy.force(slides)) =>
+    | (Some(_), Some(id)) when List.mem(Lazy.force(slides), id, ~equal=Poly.equal) =>
       Some(true)
     | (Some(_), Some(id)) =>
       List.length(path) == 1
       && n.o_kind == KModule
-      && !List.mem(id, WorldSlide.tree_heads)
+      && !List.mem(WorldSlide.tree_heads, id, ~equal=Poly.equal)
         ? Some(true) : None
     };
 };
@@ -1442,14 +1442,14 @@ let view =
           id => Id.Map.find_opt(id, Lazy.force(refused));
         },
         folded: (path, n) =>
-          switch (List.assoc_opt(path, folds), world_folded(path, n)) {
+          switch (List.Assoc.find(folds, path, ~equal=Poly.equal), world_folded(path, n)) {
           | (Some(f), _) => f
           | (None, Some(f)) => f
           | (None, None) => OutlineTree.folded(~folds, path, n.o_kind)
           },
         header: {
           h_level: level,
-          h_program: world == None ? name : "",
+          h_program: Option.is_none(world) ? name : "",
           h_trail:
             switch (slide_view) {
             | Some(v) => List.map(~f=id => (id, label(id)), v.zoom)

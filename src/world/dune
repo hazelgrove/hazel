@@ -13,4 +13,7 @@
 (library
  (name worldSlides)
  (modules WorldSlides)
+ (flags
+  (:standard -open Core))
+ (libraries core)
  (js_of_ocaml))

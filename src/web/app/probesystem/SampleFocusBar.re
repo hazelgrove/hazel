@@ -131,7 +131,7 @@ let get_definition_target =
     | Some(_) => body_id_opt
     /* a library function's definition is not in the editor */
     | None =>
-      Option.bind(fn_def_id, id =>
+      Option.bind(fn_def_id, ~f=id =>
         is_in_user_code(~info_map, id) ? Some(id) : None
       )
     };

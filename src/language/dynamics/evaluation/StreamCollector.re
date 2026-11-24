@@ -219,7 +219,7 @@ module Inc = {
     let frontier =
       switch (current) {
       | Some((Some(cur), _)) =>
-        List.filter(
+        List.filter(~f=
           ((_, fe, fx, _)) => !within(cur, (fe, fx)),
           inc.frontier,
         )

@@ -1962,7 +1962,7 @@ let coercion_tests = {
               ]),
             ),
           ];
-          List.iter(
+          List.iter(~f=
             ((a, b)) =>
               check(
                 opt_typ,

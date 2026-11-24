@@ -370,9 +370,9 @@ let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
   /* the last item, unless a `;` ends it */
   let last_member = () => {
     let lv = ItemSpans.top(~root=Mod, syntax.segment);
-    switch (Util.ListUtil.last_opt(Array.to_list(lv.spans))) {
+    switch (List.last(Array.to_list(lv.spans))) {
     | Some({kind: Stmt | Tail, sep: None, core: (a, b), _}) when b > a =>
-      let item = Array.to_list(Array.sub(lv.pieces, a, b - a));
+      let item = Array.to_list(Array.sub(lv.pieces, ~pos=a, ~len=b - a));
       switch (Segment.root_id(Segment.skel(item), item)) {
       | id => exp_at(id)
       | exception _ => None
@@ -382,7 +382,7 @@ let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
   };
   switch (program_exp(syntax)) {
   | Some(e) => Some(Exp.rep_id(tail_of(e)))
-  | None => Option.map(e => Exp.rep_id(tail_of(e)), last_member())
+  | None => Option.map(~f=e => Exp.rep_id(tail_of(e)), last_member())
   };
 };
 

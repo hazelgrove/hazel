@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 module Deck = Web.WorldDeck;
 module Model = Web.ScratchModel.Model;
 
@@ -9,7 +10,7 @@ module Model = Web.ScratchModel.Model;
 let settings = Language.CoreSettings.on;
 
 let current = (m: Model.t) =>
-  switch (List.nth(m.scratchpads, m.current)) {
+  switch (List.nth_exn(m.scratchpads, m.current)) {
   | {name, kind: Code(code), dormant: false} => (name, code)
   | _ => fail("the current slide isn't live code")
   };
@@ -48,8 +49,8 @@ let deck = () =>
       bool,
       "Documentation's and Scratch's slides",
       true,
-      List.mem(tables, Model.scratchpad_names(m))
-      && List.mem("Scratch / Scratchpad 1", Model.scratchpad_names(m)),
+      List.mem(Model.scratchpad_names(m), tables, ~equal=Poly.equal)
+      && List.mem(Model.scratchpad_names(m), "Scratch / Scratchpad 1", ~equal=Poly.equal),
     );
     check(string, "the current slide, loaded", "loaded", body(code, name));
     check(string, "another, not", "unloaded", body(code, tables));
@@ -75,14 +76,14 @@ let deck = () =>
       bool,
       "the first slide holds no program",
       true,
-      List.nth(m.scratchpads, index(m, name)).dormant,
+      List.nth_exn(m.scratchpads, index(m, name)).dormant,
     );
     Deck.save(m);
     check(
       bool,
       "stored under the world's key",
       true,
-      Web.ScratchPersist.stored(Deck.prefix, tables) != None,
+      Option.is_some(Web.ScratchPersist.stored(Deck.prefix, tables)),
     );
     let (name'', _) = current(Deck.load(~settings));
     check(string, "reloads at the slide it was on", tables, name'');
@@ -104,7 +105,7 @@ let add_delete = () =>
       bool,
       "in Scratch's deck too",
       true,
-      List.mem("Scratchpad 2", Deck.deck_names("scratch")),
+      List.mem(Deck.deck_names("scratch"), "Scratchpad 2", ~equal=Poly.equal),
     );
     let m = Deck.delete_current(~settings, m);
     let (name', code') = current(m);
@@ -119,7 +120,7 @@ let add_delete = () =>
       bool,
       "and from Scratch's deck",
       false,
-      List.mem("Scratchpad 2", Deck.deck_names("scratch")),
+      List.mem(Deck.deck_names("scratch"), "Scratchpad 2", ~equal=Poly.equal),
     );
   });
 
@@ -184,7 +185,7 @@ let rec unfold_after = (~id, seg: Segment.t): Segment.t => {
     | [Piece.Tile(t), ...rest] => [
         Piece.Tile({
           ...t,
-          children: List.map(unfold_after(~id), t.children),
+          children: List.map(~f=unfold_after(~id), t.children),
         }),
         ...level(rest, false),
       ]
@@ -232,12 +233,12 @@ let unfold_loads = () =>
 let summaries = () =>
   Test_WorldSlide.shipped(() => {
     Web.HazelDB.kv_clear();
-    Hashtbl.reset(Web.WorldSummaries.table);
+    Stdlib.Hashtbl.reset(Web.WorldSummaries.table);
     let m = Deck.load(~settings);
     let (_, code) = current(m);
     let doc = Web.Program.document(code.program);
     let rec go = n =>
-      if (n > 0 && Web.WorldSummaries.missing(doc) != []) {
+      if (n > 0 && !List.is_empty(Web.WorldSummaries.missing(doc))) {
         ignore(Web.WorldSummaries.step(~settings, doc));
         go(n - 1);
       } else {
@@ -265,15 +266,15 @@ let summaries = () =>
       bool,
       "the perf corpora skipped",
       true,
-      Web.WorldSummaries.find("Documentation / Perf / Mega 4k") == None,
+      Option.is_none(Web.WorldSummaries.find("Documentation / Perf / Mega 4k")),
     );
     let rows = Web.WorldSummaries.error_rows();
     check(
       bool,
       "its row and folders marked",
       true,
-      List.mem(Deck.slide_id(errs), rows)
-      && List.mem(WorldTree.folder_id(["Documentation", "B2T2"]), rows),
+      List.mem(rows, Deck.slide_id(errs), ~equal=Poly.equal)
+      && List.mem(rows, WorldTree.folder_id(["Documentation", "B2T2"]), ~equal=Poly.equal),
     );
   });
 

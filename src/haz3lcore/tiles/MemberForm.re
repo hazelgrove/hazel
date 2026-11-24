@@ -43,29 +43,30 @@ let of_exp_root = (seg: Segment.t): option(Segment.t) => {
   let lv = ItemSpans.top(~root=Exp, seg);
   let n = Array.length(lv.pieces);
   /* the piece index of each span's head tile, and of its `;` */
-  let heads = Hashtbl.create(16);
-  let seps = Hashtbl.create(16);
+  let heads = Stdlib.Hashtbl.create(16);
+  let seps = Stdlib.Hashtbl.create(16);
   let ok =
     Array.for_all(
+      ~f=
       (s: ItemSpans.span) =>
         switch (s.kind) {
         | Tail => true
         | Use => false
         | Stmt =>
-          Option.iter(i => Hashtbl.replace(seps, i, ()), s.sep);
+          Option.iter(~f=i => Stdlib.Hashtbl.replace(seps, i, ()), s.sep);
           true;
         | Def =>
           let rec find = i =>
             i >= s.hi
               ? None
-              : Piece.id(lv.pieces[i]) == s.anchor ? Some(i) : find(i + 1);
-          switch (Option.map(i => (i, lv.pieces[i]), find(s.lo))) {
+              : Id.equal(Piece.id(lv.pieces[i]), s.anchor) ? Some(i) : find(i + 1);
+          switch (Option.map(~f=i => (i, lv.pieces[i]), find(s.lo))) {
           | Some((
               i,
               Piece.Tile({form: Compound(fam), shards: [0, 1, 2], _}),
             ))
-              when member_family(fam) != None =>
-            Hashtbl.replace(heads, i, ());
+              when Option.is_some(member_family(fam)) =>
+            Stdlib.Hashtbl.replace(heads, i, ());
             true;
           | _ => false
           };
@@ -75,14 +76,14 @@ let of_exp_root = (seg: Segment.t): option(Segment.t) => {
   ok
     ? Some(
         List.concat(
-          List.init(n, i =>
+          List.init(n, ~f=i =>
             switch (lv.pieces[i]) {
             | Piece.Tile({form: Compound(fam), children: [p, d], _} as t)
-                when Hashtbl.mem(heads, i) =>
+                when Stdlib.Hashtbl.mem(heads, i) =>
               [
                 Piece.Tile({
                   ...t,
-                  form: Compound(Option.get(member_family(fam))),
+                  form: Compound(Option.value_exn(member_family(fam))),
                   sort: Mod,
                   shards: [0, 1],
                   children: [p],
@@ -90,15 +91,14 @@ let of_exp_root = (seg: Segment.t): option(Segment.t) => {
                 ...trim_end(d),
               ]
               @ [member_semi(t.id)]
-            | Piece.Tile(t) when Hashtbl.mem(seps, i) => [
+            | Piece.Tile(t) when Stdlib.Hashtbl.mem(seps, i) => [
                 Piece.Tile({
                   ...t,
                   sort: Mod,
                 }),
               ]
             | p => [p]
-            }
-          ),
+            }),
         ),
       )
     : None;

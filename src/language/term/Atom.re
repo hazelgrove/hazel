@@ -247,7 +247,7 @@ let compare_of_cls: cls => option(compare_entry) =
 /* The library module whose `compare` orders the class (`Int.compare`),
    for generated code */
 let compare_module = (cls: cls): option(string) =>
-  compare_of_cls(cls) |> Option.map(_ => show_cls(cls));
+  compare_of_cls(cls) |> Option.map(~f=_ => show_cls(cls));
 
 let compare_builtins: list((string, compare_entry)) =
   all_of_cls

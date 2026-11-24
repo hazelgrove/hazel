@@ -428,7 +428,7 @@ let corpora = (): list((string, Sort.t, Segment.t)) => {
     ),
   ]
   @ List.filter_map(
-      ((path, root, src)) =>
+      ~f=((path, root, src)) =>
         CorpusUtil.contains("documentation/module", path)
           ? Some((path, root, seg_of(~root, src))) : None,
       CorpusUtil.slide_corpus(),

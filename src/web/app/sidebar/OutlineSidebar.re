@@ -690,7 +690,7 @@ let level_rows = (level: level): list((string, string)) =>
   };
 
 let level_rows_view = (~on: handlers, level: level): list(Node.t) =>
-  List.map(
+  List.map(~f=
     ((label, title)) =>
       div(
         ~attrs=[clss(["outline-leaf"])],
@@ -1442,7 +1442,7 @@ and rows_view =
     ~f=
     ((n: OutlineTree.node, seg)) =>
       /* a bare statement (`e;`) is no definition: no row */
-      n.o_id != None && n.o_id == fresh || n.o_kind == KStmt
+      Option.is_some(n.o_id) && n.o_id == fresh || n.o_kind == KStmt
         ? []
         : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
           @ new_row_after(~props, ~tm, n),
@@ -2085,10 +2085,10 @@ let header_view =
   /* no program crumb: the level above's crumb is the program (a world) */
   let crumbs =
     (
-      header.h_program == ""
-        ? [] : [(Option.none, short_name(header.h_program))]
+      String.equal(header.h_program, "")
+        ? [] : [(Stdlib.Option.none, short_name(header.h_program))]
     )
-    @ List.map(((id, l)) => (Option.some(id), l), header.h_trail);
+    @ List.map(~f=((id, l)) => (Option.some(id), l), header.h_trail);
   let n = List.length(crumbs);
   let sep =
     span(~attrs=[clss(["outline-crumb-sep"])], [text({js|›|js})]);
@@ -2127,7 +2127,7 @@ let header_view =
     );
   /* a level above: its crumb leads, or at it its crumbs and chip are all */
   let level_nodes =
-    List.mapi(
+    List.mapi(~f=
       (i, (label, title, go)) => {
         let here = go == Here ? ["outline-crumb-here"] : [];
         switch (level_alarm(header.h_level)) {
@@ -2184,10 +2184,10 @@ let header_view =
   let crumb_nodes =
     switch (header.h_level) {
     | Plain => crumb_nodes
-    | InSlide(_) => List.concat_map(c => [c, sep], level_nodes) @ crumb_nodes
+    | InSlide(_) => List.concat_map(~f=c => [c, sep], level_nodes) @ crumb_nodes
     | Enclosing(_) =>
       List.concat(
-        List.mapi((i, c) => i == 0 ? [c] : [sep, c], level_nodes),
+        List.mapi(~f=(i, c) => i == 0 ? [c] : [sep, c], level_nodes),
       )
       @ chip
     };
@@ -2263,7 +2263,7 @@ let visible_rows =
       ~f=
       ((n: OutlineTree.node, seg)) =>
         /* a bare statement (`e;`) is no definition: no row */
-        n.o_id != None && n.o_id == skip || n.o_kind == KStmt
+        Option.is_some(n.o_id) && n.o_id == skip || n.o_kind == KStmt
           ? []
           : {
             let path = prefix @ [seg];

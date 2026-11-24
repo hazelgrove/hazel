@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Poly;
 
 /* The standard library as a document the app shows at the program level
    (plans/stdlib.md §6, §9b). Shown, it is the code that runs (installed
@@ -41,7 +42,7 @@ let segment = (text: string): Segment.t =>
       switch (LibraryBake.parse(text)) {
       | Ok({segment, _}) => segment
       /* an edit the fast path refuses: the editor's own parser */
-      | Error(_) => Parser.to_segment(text, ~root=Mod) |> Option.get
+      | Error(_) => Parser.to_segment(text, ~root=Mod) |> Option.value_exn
       };
     parsed := Some((text, seg));
     seg;
@@ -93,7 +94,7 @@ let last_statics: ref(option(DefStatics.t)) = ref(None);
    (its shape, not its errors) */
 let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
   switch (installed^) {
-  | Some(i) when i === seg => Ok(false)
+  | Some(i) when phys_equal(i, seg) => Ok(false)
   | _ =>
     /* read through completion, as statics reads a program: an open form
        (`let q = (1 + 2`) closes on its line instead of taking every later
@@ -104,7 +105,7 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
         LibraryBake.of_items(
           ~strict=false,
           ~prev=?last_statics^,
-          ~hash=Digest.to_hex(Digest.string(text)),
+          ~hash=Stdlib.Digest.to_hex(Stdlib.Digest.string(text)),
           items,
         )
       ) {
@@ -118,7 +119,7 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
         running_parse :=
           (
             switch (parsed^) {
-            | Some((t, s)) when t == text && s === seg => Some(text)
+            | Some((t, s)) when t == text && phys_equal(s, seg) => Some(text)
             | _ => None
             }
           );
@@ -158,7 +159,7 @@ let apply_after_ms = 300.0;
 let apply_timer: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
 
 let cancel_apply = () => {
-  Option.iter(
+  Option.iter(~f=
     id => Js_of_ocaml.Dom_html.window##clearTimeout(id),
     apply_timer^,
   );
@@ -183,7 +184,7 @@ let apply_when_idle = (~fire: unit => unit): unit => {
 
 /* the library as [ed] holds it, if edited since the last install */
 let apply_editor = (ed: CellEditor.Model.t): result(bool, string) =>
-  ! dirty^ && installed^ != None
+  ! dirty^ && Option.is_some(installed^)
     ? Ok(false)
     : apply_segment(text_of(ed), ed.editor.editor.syntax.segment);
 
@@ -204,7 +205,7 @@ let targets = (~settings: Language.CoreSettings.t): Language.Sample.targets =>
     Util.Slot.get(
       ~same=
         ((z: Zipper.t, s, p), (z': Zipper.t, s', p')) =>
-          z.refractors === z'.refractors && s === s' && p == p',
+          phys_equal(z.refractors, z'.refractors) && phys_equal(s, s') && p == p',
       targets_memo,
       (z, statics, settings.probe_all),
       () =>

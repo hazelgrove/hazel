@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 /* The shipped standard library (plans/stdlib.md), installed at startup
    (haz3ltest.re). */
@@ -55,7 +56,7 @@ let tests = (
       `Quick,
       () => {
         let env = Builtins.env_init();
-        let list = Option.get(Environment.lookup(env, "List"));
+        let list = Option.value_exn(Environment.lookup(env, "List"));
         check(
           bool,
           "named",
@@ -83,14 +84,14 @@ let tests = (
             Test_Evaluator_Prelude.parse_exp("List.length([1, 2])"),
           );
         let env = Builtins.env_for(elab);
-        let evaluated = x => List.mem_assoc(x, Builtins.library_modules^);
+        let evaluated = x => List.Assoc.mem(Builtins.library_modules^, x, ~equal=Poly.equal);
         check(bool, "List", true, evaluated("List"));
         check(bool, "not Color", false, evaluated("Color"));
         check(
           bool,
           "Color not bound",
           true,
-          Environment.lookup(env, "Color") == None,
+          Option.is_none(Environment.lookup(env, "Color")),
         );
       },
     ),
@@ -169,7 +170,7 @@ let tests = (
               },
             Exp.fresh(Module(items)),
           );
-        let call = Option.get(call^);
+        let call = Option.value_exn(call^);
         switch (LibraryBake.of_items(~strict=true, ~hash="t", items)) {
         | Error(msg) => fail(msg)
         | Ok({baked, _}) =>
@@ -217,7 +218,7 @@ let tests = (
           list(string),
           "definitions only",
           ["A", "y"],
-          Array.to_list(Array.map((d: Library.def) => d.name, baked.defs)),
+          Array.to_list(Array.map(~f=(d: Library.def) => d.name, baked.defs)),
         );
         let (_, errors) =
           bake(

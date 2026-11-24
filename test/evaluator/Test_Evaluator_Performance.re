@@ -42,7 +42,7 @@ let count_exps = (p: Exp.t => bool, e: Exp.t): int => {
 
 let is_var = (x, e: Exp.t) =>
   switch (e.term) {
-  | Var(y) => x == y
+  | Var(y) => String.equal(x, y)
   | _ => false
   };
 
@@ -126,9 +126,9 @@ let tests = (
         let values =
           Sample.Map.fold(
             (_, samples, acc) =>
-              List.concat_map(
+              List.concat_map(~f=
                 (s: Sample.t) =>
-                  List.filter_map(
+                  List.filter_map(~f=
                     (en: Sample.Env.entry) =>
                       switch (en.value) {
                       | Val(v) => Some(v)
@@ -143,7 +143,7 @@ let tests = (
             [],
           );
         check(int, "one captured value", 1, List.length(values));
-        List.iter(check_shown_small("sample env value"), values);
+        List.iter(~f=check_shown_small("sample env value"), values);
       },
     ),
   ],

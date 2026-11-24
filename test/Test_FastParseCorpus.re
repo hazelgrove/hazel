@@ -182,13 +182,13 @@ let tests = (
                  final newline — other edge whitespace is content) */
               let src =
                 read_file(path) |> Util.StringUtil.strip_final_newline;
-              let f0 = Sys.time();
-              let known_gap = List.mem(Filename.basename(path), known_gaps);
+              let f0 = Stdlib.Sys.time();
+              let known_gap = List.mem(known_gaps, Filename.basename(path), ~equal=Poly.equal);
               let root = CorpusUtil.root_of(path);
               /* an empty program has nothing to read, and the typing
                  parser makes its hole at no cost */
               let r =
-                src == ""
+                String.equal(src, "")
                   ? Some([])
                   : known_gap
                       ? None

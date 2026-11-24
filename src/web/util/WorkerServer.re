@@ -534,7 +534,7 @@ let slim_state = (state: Language.EvaluatorState.t) =>
     ...clear_transient(state),
     probes:
       Id.Map.map(
-        List.map((s: Language.Sample.t) =>
+        List.map(~f=(s: Language.Sample.t) =>
           {
             ...s,
             value:
@@ -994,7 +994,7 @@ let install_message_handler = () => {
       Language.Library.install(blob);
       /* cached results were computed against the old library; the held
          pieces are still the program's */
-      Hashtbl.reset(resident);
+      Stdlib.Hashtbl.reset(resident);
       planned_reuse := [];
     };
 

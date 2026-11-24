@@ -16,10 +16,10 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
    TextArea projector holding the file's content */
 let world_slides =
     (folder: string): list((string, Sort.t, PersistentZipper.t)) =>
-  List.filter_map(
+  List.filter_map(~f=
     (s: WorldSlides.slide) =>
       switch (s.path) {
-      | [top, ...rest] when top == folder && rest != [] =>
+      | [top, ...rest] when String.equal(top, folder) && !List.is_empty(rest) =>
         let text =
           switch (s.kind) {
           | Program => s.text
@@ -27,7 +27,7 @@ let world_slides =
             "^^text(\"" ++ StringUtil.escape_linebreaks(s.text) ++ "\")"
           };
         Some((
-          String.concat(" / ", rest),
+          String.concat(~sep=" / ", rest),
           s.exp ? Sort.Exp : Sort.Mod,
           PersistentZipper.of_slide_text(text),
         ));
@@ -47,7 +47,7 @@ let startup: Lazy.t(PersistentData.t) =
     scratch: (
       0,
       world_slides("Scratch")
-      |> List.map(((name, root, content: PersistentZipper.t)) =>
+      |> List.map(~f=((name, root, content: PersistentZipper.t)) =>
            (
              name,
              {

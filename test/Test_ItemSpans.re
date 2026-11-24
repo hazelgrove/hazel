@@ -14,9 +14,9 @@ module S = ItemSpans;
    (Mod-rooted), where the repo has them */
 let stdlib_corpus = (): list((string, string)) => {
   let dir =
-    Sys.file_exists("hazel-programs/world")
+    Stdlib.Sys.file_exists("hazel-programs/world")
       ? "hazel-programs/world" : "../hazel-programs/world";
-  switch (Sys.readdir(dir)) {
+  switch (Stdlib.Sys.readdir(dir)) {
   | files =>
     files
     |> Array.to_list

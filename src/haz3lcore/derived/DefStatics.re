@@ -406,22 +406,22 @@ let export_delta =
           ),
         );
   let vars =
-    List.concat_map(e => is_type_entry(e) ? [] : [entry_name(e)], changed);
-  let tnames = List.concat_map(tnames_of_entry, changed);
+    List.concat_map(~f=e => is_type_entry(e) ? [] : [entry_name(e)], changed);
+  let tnames = List.concat_map(~f=tnames_of_entry, changed);
   /* an unchanged constructor of a changed sum means something else now
      (`A : Int -> t` names t), and a use mentions the constructor only */
   let tnames =
     tnames
-    @ List.concat_map(
+    @ List.concat_map(~f=
         fun
         | Ctx.ConstructorEntry({name, typ, _})
-            when List.exists(v => List.mem(v, tnames), Typ.free_vars(typ)) => [
+            when List.exists(~f=v => List.mem(tnames, v, ~equal=Poly.equal), Typ.free_vars(typ)) => [
             ctor_key(name),
           ]
         | _ => [],
         old @ new_,
       );
-  vars == [] && tnames == []
+  List.is_empty(vars) && List.is_empty(tnames)
     ? Unchanged
     : Changed({
         vars: List.dedup_and_sort(~compare, vars),
@@ -2528,7 +2528,7 @@ let calc =
         user_term: s,
         elab_term: value,
         ancestors: [],
-        ctx: ctx0,
+        ctx: ctx_in,
         ana: Typ.temp(Unknown(SynSwitch)),
         elab_syn_ty: ty,
         marks: [],
@@ -2596,7 +2596,7 @@ let calc_auto =
     (~settings, ~ctx_in=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
-  let prev = List.assoc_opt(key, slots^);
+  let prev = List.Assoc.find(slots^, key, ~equal=Poly.equal);
   let t = calc(~settings, ~ctx_in?, ~prev?, ~probe_ids, whole);
   slots :=
     [
@@ -2613,12 +2613,12 @@ let calc_auto =
 /* the last calc of [whole]'s document, in whatever context: for callers
    that check it made what they hold */
 let last = (whole: Exp.t): option(t) =>
-  List.assoc_opt(Exp.rep_id(whole), slots^);
+  List.Assoc.find(slots^, Exp.rep_id(whole), ~equal=Poly.equal);
 
 /* the last calc of [whole]'s document, if still cached and against the
    current library */
 let cached = (~ctx_in=ctx0(), whole: Exp.t): option(t) =>
   switch (last(whole)) {
-  | Some(t) when t.ctx_in === ctx_in => Some(t)
+  | Some(t) when phys_equal(t.ctx_in, ctx_in) => Some(t)
   | _ => None
   };

@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* A slide in the library's world (plans/world-tree.md, step 1): its
    program is the standard library's items, then the slide as a module
@@ -31,16 +32,14 @@ let enabled: Lazy.t(bool) =
 let enter =
     (~name: string, ~root: Sort.t, seg: Segment.t)
     : option((Segment.t, Id.t)) =>
-  LibraryDoc.shipped^ == "" || !Lazy.force(enabled)
+  String.equal(LibraryDoc.shipped^, "") || !Lazy.force(enabled)
     ? None
-    : Option.bind(World.members_of(~root, seg), members =>
-        Option.bind(World.slide_id(name), slide =>
-          Option.map(
+    : Option.bind(World.members_of(~root, seg), ~f=members =>
+        Option.bind(World.slide_id(name), ~f=slide =>
+          Option.map(~f=
             doc => (doc, slide),
             World.assemble(~library=library(), ~name, members),
-          )
-        )
-      );
+          )));
 
 /* one parse and layout cache for every world's editor: a slide opened
    after another reuses the library's items as the last one left them */
@@ -55,11 +54,11 @@ let ctx = (): Language.Ctx.t =>
 /* the same pieces: zipping rebuilds the tiles around the caret as they
    were, so only those are compared, down to where they share */
 let rec same_seg = (a: Segment.t, b: Segment.t): bool =>
-  a === b
+  phys_equal(a, b)
   || List.length(a) == List.length(b)
-  && List.for_all2(same_piece, a, b)
+  && List.for_all2_exn(~f=same_piece, a, b)
 and same_piece = (a: Piece.t, b: Piece.t): bool =>
-  a === b
+  phys_equal(a, b)
   || (
     switch (a, b) {
     | (Tile(t), Tile(u)) =>
@@ -68,7 +67,7 @@ and same_piece = (a: Piece.t, b: Piece.t): bool =>
       && t.sort == u.sort
       && t.shards == u.shards
       && List.length(t.children) == List.length(u.children)
-      && List.for_all2(same_seg, t.children, u.children)
+      && List.for_all2_exn(~f=same_seg, t.children, u.children)
     | (Tile(_), _)
     | (_, Tile(_)) => false
     | _ => a == b
@@ -83,10 +82,10 @@ let tree_heads = [
   WorldTree.folder_id(["Scratch"]),
 ];
 let library_end = (~slide: Id.t, doc: Segment.t): (Id.t, list(Id.t)) =>
-  List.exists(
+  List.exists(~f=
     (p: Piece.t) =>
       switch (p) {
-      | Tile(t) => List.mem(t.id, tree_heads)
+      | Tile(t) => List.mem(tree_heads, t.id, ~equal=Poly.equal)
       | _ => false
       },
     doc,
@@ -125,7 +124,7 @@ let run_statics =
     (~zoom: list(Id.t), s: CachedStatics.t)
     : (CachedStatics.t, option(WorldTree.run)) =>
   Slot.get(
-    ~same=((a, s), (b, s')) => a == b && s === s',
+    ~same=((a, s), (b, s')) => a == b && phys_equal(s, s'),
     run_memo,
     (zoom, s),
     () =>
@@ -153,9 +152,8 @@ let run_statics =
    at a module root */
 let own_editor = (code: ScratchModel.Scratchpad.code): CellEditor.Model.t =>
   switch (
-    Option.bind(code.world, slide =>
-      World.split(~slide, Program.document(code.program))
-    )
+    Option.bind(code.world, ~f=slide =>
+      World.split(~slide, Program.document(code.program)))
   ) {
   | Some({members, _}) =>
     CellEditor.Model.mk(Editor.Model.mk(Zipper.unzip(members), ~root=Mod))

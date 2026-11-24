@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Poly;
 module Persist = Web.ScratchPersist;
 module Model = Web.ScratchModel.Model;
 module LibraryDoc = Web.LibraryDoc;
@@ -34,12 +35,12 @@ let load = (prefix: string): Model.t =>
     prefix,
     ~settings,
     ~default_names=
-      List.map(fst, snd(Lazy.force(Web.Init.startup).documentation)),
+      List.map(~f=fst, snd(Lazy.force(Web.Init.startup).documentation)),
     ~default_current=0,
   );
 
 let current = (m: Model.t): (string, Web.ScratchModel.Scratchpad.code) =>
-  switch (List.nth(m.scratchpads, m.current)) {
+  switch (List.nth_exn(m.scratchpads, m.current)) {
   | {name, kind: Code(code), _} => (name, code)
   | _ => fail("expected a code slide")
   };
@@ -55,11 +56,11 @@ let parts = (code: Web.ScratchModel.Scratchpad.code): World.parts =>
   };
 
 let text = (seg: Segment.t): string =>
-  Printer.of_segment(~holes="?", seg) |> String.trim;
+  Printer.of_segment(~holes="?", seg) |> String.strip;
 
 let contains = (s: string, sub: string): bool => {
   let (n, k) = (String.length(s), String.length(sub));
-  let rec go = i => i + k <= n && (String.sub(s, i, k) == sub || go(i + 1));
+  let rec go = i => i + k <= n && (String.sub(s, ~pos=i, ~len=k) == sub || go(i + 1));
   go(0);
 };
 
@@ -116,22 +117,22 @@ let opens_and_stores = () =>
 let library_edits = () =>
   shipped(() => {
     let (_, code) = current(load("worldedit"));
-    let slide = Option.get(code.world);
+    let slide = Option.value_exn(code.world);
     let doc = Web.Program.document(code.program);
     check(
       bool,
       "as loaded",
       true,
-      WorldSlide.library_edit(~slide, doc) == None,
+      Option.is_none(WorldSlide.library_edit(~slide, doc)),
     );
     let rebuilt =
-      List.map(
+      List.map(~f=
         (p: Piece.t) =>
           switch (p) {
           | Tile(t) =>
             Piece.Tile({
               ...t,
-              children: List.map(kid => List.map(Fun.id, kid), t.children),
+              children: List.map(~f=kid => List.map(~f=Fun.id, kid), t.children),
             })
           | p => p
           },
@@ -141,7 +142,7 @@ let library_edits = () =>
       bool,
       "its tiles rebuilt as they were",
       true,
-      WorldSlide.library_edit(~slide, rebuilt) == None,
+      Option.is_none(WorldSlide.library_edit(~slide, rebuilt)),
     );
     let (edited, found) =
       CorpusUtil.edit_token(
@@ -156,14 +157,14 @@ let library_edits = () =>
       bool,
       "a renamed definition",
       true,
-      WorldSlide.library_edit(~slide, edited) != None,
+      Option.is_some(WorldSlide.library_edit(~slide, edited)),
     );
   });
 
 /* no library shipped (as in the other tests): slides stay as they are */
 let unshipped = () => {
   let (_, code) = current(load("worldnone"));
-  check(bool, "no world", true, code.world == None);
+  check(bool, "no world", true, Option.is_none(code.world));
 };
 
 let tests = (

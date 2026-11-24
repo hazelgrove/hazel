@@ -673,7 +673,7 @@ let refusals =
       ~f=
       (p: Piece.t) => {
         let id = Piece.id(p);
-        let path = () => Option.bind(under, Lazy.force);
+        let path = () => Option.bind(under, ~f=Lazy.force);
         if (want(id)) {
           switch (path()) {
           | Some(path)

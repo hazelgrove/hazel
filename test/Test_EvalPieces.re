@@ -784,7 +784,7 @@ let same_results = (name, st: CachedStatics.t) => {
 let results = () => {
   let n = ref(0);
   List.iter(
-    ((path, root, src)) =>
+    ~f=((path, root, src)) =>
       switch (CorpusUtil.parse(~root, src)) {
       | Some(seg) =>
         same_results(
@@ -849,14 +849,10 @@ let id_in = (path, e: Exp.t) => {
     | Module(items) => items
     | _ => fail("not a module")
     };
-  List.fold_left(
-    ((ids, e), name) => {
-      let i = List.find(i => List.mem(name, WorldTree.binds(i)), items(e));
-      ([Mod.rep_id(i), ...ids], Option.get(WorldTree.def_of(i)));
-    },
-    ([], e),
-    path,
-  )
+  List.fold(path, ~init=([], e), ~f=((ids, e), name) => {
+      let i = List.find_exn(~f=i => List.mem(WorldTree.binds(i), name, ~equal=Poly.equal), items(e));
+      ([Mod.rep_id(i), ...ids], Option.value_exn(WorldTree.def_of(i)));
+    })
   |> fst
   |> List.rev;
 };
@@ -930,12 +926,12 @@ let world = () => {
     (st, encoded);
   };
   let item_key = (st: CachedStatics.t, path): EvalPieces.key =>
-    Item(List.nth(id_in(path, st.elaborated), List.length(path) - 1));
-  let has = (key, encoded) => List.mem(key, encoded);
+    Item(List.nth_exn(id_in(path, st.elaborated), List.length(path) - 1));
+  let has = (key, encoded) => List.mem(encoded, key, ~equal=Poly.equal);
   let seg = CorpusUtil.seg_of(~root=Mod, world_src);
   let intro = ["Documentation", "Intro"];
   let (st, encoded) = run("the slide", ~zoom=intro, seg);
-  let holes = List.nth(id_in(["Documentation", "Holes"], st.elaborated), 1);
+  let holes = List.nth_exn(id_in(["Documentation", "Holes"], st.elaborated), 1);
   check(
     bool,
     "the sealed one, empty",
@@ -1023,15 +1019,14 @@ let shipped_world = () =>
     fresh_worker();
     let m = Deck.load(~settings);
     let (name, code) =
-      switch (List.nth(m.scratchpads, m.current)) {
+      switch (List.nth_exn(m.scratchpads, m.current)) {
       | {name, kind: Code(code), _} => (name, code)
       | _ => fail("no code")
       };
     let path = Deck.path(name);
     let zoom = _ =>
-      List.init(List.length(path) - 1, i =>
-        WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
-      )
+      List.init(List.length(path) - 1, ~f=i =>
+        WorldTree.folder_id(Util.ListUtil.take(i + 1, path)))
       @ [Deck.slide_id(name)];
     let run = (label, seg) => {
       let (_, rs, encoded, v) = world_run_at(~zoom, seg);

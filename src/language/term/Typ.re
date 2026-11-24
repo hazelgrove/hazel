@@ -2026,8 +2026,8 @@ let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
     | (_, Sig(Open(_))) => raise(Sig.OpenSignature)
     | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
       let+ tys =
-        List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)
-        |> OptUtil.sequence;
+        List.map2_exn(~f=(f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)
+        |> Option.all;
       Prod(tys) |> temp;
     | (TupLabel(lf, f), TupLabel(lt, t)) =>
       let* l = meet(ctx, lt, lf);
@@ -2060,7 +2060,7 @@ and sig_sub =
       | None => hole_from
       }
     };
-  List.for_all(provided, Sig.members(ClosedSig.items(to_)));
+  List.for_all(~f=provided, Sig.members(ClosedSig.items(to_)));
 };
 
 /* REQUIRES NORMALIZED TYPES
@@ -2175,23 +2175,18 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
    type counts, and a later type's constructor shadows an earlier one's. */
 let sig_ctors = (ctx: Ctx.t, items: list(Sig.t)): list((Constructor.t, t)) => {
   let defs =
-    List.fold_left(
-      (acc, m: Sig.member) =>
+    List.fold(Sig.members(items), ~init=[], ~f=(acc, m: Sig.member) =>
         switch (m) {
         | TypeManifest(name, def) =>
-          List.remove_assoc(name, acc) @ [(name, def)]
+          List.Assoc.remove(acc, name, ~equal=String.equal) @ [(name, def)]
         | Val(_) => acc
-        },
-      [],
-      Sig.members(items),
-    );
-  List.fold_left(
-    (acc, (_, def)) =>
+        });
+  List.fold(defs, ~init=[], ~f=(acc, (_, def)) =>
       switch (get_sum_constructors(ctx, def)) {
       | None => acc
       | Some(sm) =>
         let ctrs =
-          List.filter_map(
+          List.filter_map(~f=
             fun
             | ConstructorMap.Variant(c, _, arg) =>
               Some((
@@ -2204,16 +2199,13 @@ let sig_ctors = (ctx: Ctx.t, items: list(Sig.t)): list((Constructor.t, t)) => {
             | ConstructorMap.BadEntry(_) => None,
             sm,
           );
-        List.filter(((c, _)) => !List.mem_assoc(c, ctrs), acc) @ ctrs;
-      },
-    [],
-    defs,
-  );
+        List.filter(~f=((c, _)) => !List.Assoc.mem(ctrs, c, ~equal=String.equal), acc) @ ctrs;
+      });
 };
 
 let sig_project_ctor =
     (ctx: Ctx.t, items: list(Sig.t), name: Constructor.t): option(t) =>
-  List.assoc_opt(name, sig_ctors(ctx, items));
+  List.Assoc.find(sig_ctors(ctx, items), name, ~equal=String.equal);
 
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {

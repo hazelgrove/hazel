@@ -1019,7 +1019,7 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
   let static_fn_is_builtin =
     switch (statics) {
     | InfoExp({user_term: {term: Ap(_, fn, _), _}, _}) =>
-      Option.fold(~none=false, ~some=is_builtin, root_name(fn))
+      Option.value_map(root_name(fn), ~default=false, ~f=is_builtin)
     | _ => false
     };
   let dynamic_ok =

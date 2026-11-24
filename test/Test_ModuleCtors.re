@@ -16,26 +16,26 @@ let statics = (src: string): (Statics.Map.t, Exp.t, Exp.t) => {
 let mark_name = (m: Mark.t): string => {
   let s = Mark.show(m);
   let s =
-    String.starts_with(~prefix="(", s)
-      ? String.sub(s, 1, String.length(s) - 1) : s;
+    String.is_prefix(~prefix="(", s)
+      ? String.sub(s, ~pos=1, ~len=String.length(s) - 1) : s;
   let stop =
-    switch (String.index_opt(s, '('), String.index_opt(s, ' ')) {
+    switch (String.index(s, '('), String.index(s, ' ')) {
     | (Some(i), Some(j)) => min(i, j)
     | (Some(i), None)
     | (None, Some(i)) => i
     | (None, None) => String.length(s)
     };
-  String.sub(s, 0, stop);
+  String.sub(s, ~pos=0, ~len=stop);
 };
 
 let marks = (src: string): list(string) => {
   let (map, _, _) = statics(src);
   Id.Map.fold(
-    (_, info, acc) => List.map(mark_name, Info.marks_of(info)) @ acc,
+    (_, info, acc) => List.map(~f=mark_name, Info.marks_of(info)) @ acc,
     map,
     [],
   )
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 };
 
 let no_errors = src =>
@@ -45,15 +45,15 @@ let has_mark = (name, src) => {
   let ms = marks(src);
   check(
     bool,
-    name ++ " among [" ++ String.concat(", ", ms) ++ "] in: " ++ src,
+    name ++ " among [" ++ String.concat(~sep=", ", ms) ++ "] in: " ++ src,
     true,
-    List.mem(name, ms),
+    List.mem(ms, name, ~equal=Poly.equal),
   );
 };
 
 let eval = (src: string): Exp.t => {
   let (map, _, elab) = statics(src);
-  if (Statics.Map.error_ids(map) != []) {
+  if (!List.is_empty(Statics.Map.error_ids(map))) {
     check(list(string), "static errors in: " ++ src, [], marks(src));
   };
   Test_Evaluator_Prelude.evaluate(elab);
@@ -183,15 +183,21 @@ let unused = (src: string): list(string) => {
   let (map, _, _) = statics(src);
   Id.Map.fold(
     (_, info, acc) =>
-      List.map(
-        (Warning.Pat(UnusedVar(name)): Warning.list_item) => name,
+      List.filter_map(
+        ~f=
+          (w: Warning.list_item) =>
+            switch (w) {
+            | Pat(UnusedVar(name)) => Some(name)
+            | TPat(_)
+            | Typ(_) => None
+            },
         Info.warnings_of(info),
       )
       @ acc,
     map,
     [],
   )
-  |> List.sort_uniq(compare);
+  |> List.dedup_and_sort(~compare=String.compare);
 };
 
 let patterns = [
@@ -276,9 +282,9 @@ let patterns = [
 let library_type = (module_name, builtin: Typ.t) => {
   let ctx = ctx();
   let declared =
-    Option.bind(Ctx.lookup_var(ctx, module_name), (v: Ctx.var_entry) =>
-      Option.bind(Typ.as_sig(~rec_counter=0, ctx, v.typ), items =>
-        Typ.sig_project_type(items, "t")
+    Option.bind(Ctx.lookup_var(ctx, module_name), ~f=(v: Ctx.var_entry) =>
+      Option.bind(Typ.as_sig(ctx, v.typ), ~f=items =>
+        Sig.find_type_def(Sig.members(ClosedSig.items(items)), "t")
       )
     );
   check(

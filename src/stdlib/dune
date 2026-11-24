@@ -19,7 +19,9 @@
 (library
  (name stdlibBaked)
  (modules StdlibBaked)
- (libraries language)
+ (flags
+  (:standard -open Core))
+ (libraries core language)
  (js_of_ocaml)
  (preprocess
   (pps ppx_blob js_of_ocaml-ppx))
@@ -28,7 +30,9 @@
 (library
  (name stdlibServed)
  (modules StdlibServed)
- (libraries language)
+ (flags
+  (:standard -open Core))
+ (libraries core language)
  (js_of_ocaml)
  (preprocess
   (pps js_of_ocaml-ppx)))

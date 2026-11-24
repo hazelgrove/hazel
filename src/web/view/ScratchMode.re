@@ -12,7 +12,7 @@ module Persist = ScratchPersist;
 let slide_key = (~deck, model: Model.t): string =>
   Persist.content_key(
     ScratchModel.prefix(deck),
-    List.nth(model.scratchpads, model.current).name,
+    List.nth_exn(model.scratchpads, model.current).name,
   );
 
 module Update = {
@@ -63,7 +63,7 @@ module Update = {
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
             ~prefix=ScratchModel.prefix(deck),
-            ~name=List.nth(model.scratchpads, model.current).name,
+            ~name=List.nth_exn(model.scratchpads, model.current).name,
             a,
             code,
           );
@@ -290,7 +290,7 @@ module Selection = {
     switch (scratchpad.kind) {
     | Code({lib: Some(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
-      |> Option.map(((x, y)) =>
+      |> Option.map(~f=((x, y)) =>
            (Update.Workspace(LibraryAction(x)), Library(y))
          )
     | Code({program: Whole(editor), _}) =>
@@ -652,11 +652,9 @@ module View = {
           let qualifier_of = id => {
             let path = OutlineTree.path_of(id, outline);
             switch (
-              Option.bind(world, slide =>
-                Option.bind(OutlineTree.trail_of(id, outline), trail =>
-                  ListUtil.findi_opt(m => m == slide, trail)
-                )
-              )
+              Option.bind(world, ~f=slide =>
+                Option.bind(OutlineTree.trail_of(id, outline), ~f=trail =>
+                  ListUtil.findi_opt(m => m == slide, trail)))
             ) {
             | Some((i, _)) =>
               snd(ListUtil.split_n(min(i + 1, List.length(path)), path))

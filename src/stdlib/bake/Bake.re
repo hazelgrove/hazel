@@ -6,11 +6,11 @@
    app shows as the library document */
 open Haz3lcore;
 
-let read = path => In_channel.with_open_bin(path, In_channel.input_all);
+let read = path => Stdlib.In_channel.with_open_bin(path, Stdlib.In_channel.input_all);
 
 let write_base64 = (path, v) =>
-  Out_channel.with_open_bin(path, oc =>
-    Out_channel.output_string(
+  Stdlib.Out_channel.with_open_bin(path, oc =>
+    Stdlib.Out_channel.output_string(
       oc,
       Js_of_ocaml.Js.to_string(
         Js_of_ocaml.Js.Unsafe.global##btoa(
@@ -21,18 +21,18 @@ let write_base64 = (path, v) =>
   );
 
 let () =
-  switch (Array.to_list(Sys.argv)) {
-  | [_, out, text_out, ...args] when args != [] =>
+  switch (Array.to_list(Stdlib.Sys.argv)) {
+  | [_, out, text_out, ...args] when !List.is_empty(args) =>
     let files =
       switch (args) {
-      | [dir] when Sys.is_directory(dir) => WorldFolder.library(dir)
+      | [dir] when Stdlib.Sys.is_directory(dir) => WorldFolder.library(dir)
       | files => files
       };
     let text =
       files
-      |> List.map(read)
-      |> List.map(String.trim)
-      |> String.concat(";\n");
+      |> List.map(~f=read)
+      |> List.map(~f=String.strip)
+      |> String.concat(~sep=";\n");
     switch (LibraryBake.of_text(~strict=true, text)) {
     | Error(msg) =>
       prerr_endline("bake: " ++ msg);
@@ -47,18 +47,18 @@ let () =
         Printf.sprintf(
           "bake: entries %dKB, definitions %dKB; segment %s",
           String.length(baked.entries) / 1024,
-          Array.fold_left(
-            (n, d: Language.Library.def) => n + String.length(d.elab),
-            0,
+          Array.fold(
             baked.defs,
+            ~init=0,
+            ~f=(n, d: Language.Library.def) => n + String.length(d.elab),
           )
           / 1024,
           kb(segment),
         ),
       );
       write_base64(out, baked);
-      Out_channel.with_open_bin(text_out, oc =>
-        Out_channel.output_string(oc, text)
+      Stdlib.Out_channel.with_open_bin(text_out, oc =>
+        Stdlib.Out_channel.output_string(oc, text)
       );
     };
   | _ =>

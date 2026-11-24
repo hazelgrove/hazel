@@ -2,4 +2,6 @@
 
 (executable
  (name gen)
- (libraries worldFolder))
+ (flags
+  (:standard -open Core))
+ (libraries core worldFolder))

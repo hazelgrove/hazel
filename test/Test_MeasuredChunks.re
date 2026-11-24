@@ -702,7 +702,7 @@ let corpus_case = (~root=Sort.Exp, file: string, ~min_chunks: int, ()) => {
 let slides = () => {
   let checked = ref(0);
   List.iter(
-    ((path, root, src)) =>
+    ~f=((path, root, src)) =>
       switch (CorpusUtil.parse(~root, src)) {
       | Some(seg) =>
         incr(checked);

@@ -69,8 +69,8 @@ let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
         },
       dot_labels,
     )
-  | InfoPat({dot_labels, _}) when dot_labels != [] =>
-    List.map(
+  | InfoPat({dot_labels, _}) when !List.is_empty(dot_labels) =>
+    List.map(~f=
       label =>
         TyDiSuggestion.{
           content: label,

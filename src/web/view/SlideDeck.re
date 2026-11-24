@@ -95,7 +95,7 @@ let encode_scratch_slide = (model: Model.t): unit => {
   switch (scratchpad.kind) {
   | Code(code) =>
     let c = WorldSlide.own_editor(code) |> CellEditor.Model.to_string;
-    JsUtil.QueryParams.set_param("root", code.world == None ? "exp" : "mod");
+    JsUtil.QueryParams.set_param("root", Option.is_none(code.world) ? "exp" : "mod");
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   | Drv(_) => ()
   };
@@ -255,12 +255,12 @@ let update =
         }
         : model |> return_quiet
     | RenameSlide when deck == World =>
-      let current = List.nth(model.scratchpads, model.current);
+      let current = List.nth_exn(model.scratchpads, model.current);
       switch (
         prompt_slide_name(
           ~existing_scratchpads=
             model.scratchpads
-            |> List.to_seq
+            |> Stdlib.List.to_seq
             |> Seq.map((s: Scratchpad.t) => s.name)
             |> Seq.filter(n => n != current.name),
           current.name,
@@ -327,7 +327,7 @@ let update =
         WorkerClient.cancel();
         Persist.forget_slide(
           ScratchModel.prefix(deck),
-          List.nth(model.scratchpads, model.current).name,
+          List.nth_exn(model.scratchpads, model.current).name,
         );
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)

@@ -96,9 +96,10 @@ let check_file = (path: string): unit => {
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
   let txt = read_file(path) |> ParsedCorpus.normalize;
-  let empty = txt == "";
+  let empty = String.is_empty(txt);
   /* module members: both read as the module they are the body of */
-  let txt = CorpusUtil.root_of(path) == Mod ? "{\n" ++ txt ++ "\n}" : txt;
+  let txt =
+    Sort.equal(CorpusUtil.root_of(path), Mod) ? "{\n" ++ txt ++ "\n}" : txt;
   let mk =
     switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
     | Some(seg) => Some(MakeTerm.go(seg).term)

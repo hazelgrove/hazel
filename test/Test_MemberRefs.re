@@ -232,7 +232,7 @@ let sealed = () => {
     "3:7 type T = Int",
     f12(~off=2, ~root, sealed_src, "M.T"),
   );
-  List.iter(
+  List.iter(~f=
     ((what, mk)) => {
       let z = at(~off=2, ~root, sealed_src, "M.a");
       check(

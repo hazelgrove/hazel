@@ -747,7 +747,7 @@ and Pat: {
     | TupLabelPat(p1, p2) =>
       tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
     | DotPat(p, s) => dot(of_menhir_ast(p), label(s))
-    | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
+    | ListPat(l) => list_lit(List.map(~f=of_menhir_ast, l))
     | IndicationPat(p) => {
         annotation: true,
         term: of_menhir_ast(p).term,

@@ -396,7 +396,7 @@ module Update = {
       lazy(
         EvalInfo.of_info_map(
           ~probe_all=Calc.get_value(settings).probe_all,
-          ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
+          ~external_ids=List.map(~f=fst, Id.Map.bindings(extra_targets)),
           ~targets=Calc.get_value(targets),
           statics.info_map,
         )
@@ -420,7 +420,7 @@ module Update = {
             program:
               EvalSplit.program(
                 ~probe_all=settings.probe_all,
-                ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
+                ~external_ids=List.map(~f=fst, Id.Map.bindings(extra_targets)),
                 ~targets=Calc.get_value(targets),
                 ~run?,
                 statics,

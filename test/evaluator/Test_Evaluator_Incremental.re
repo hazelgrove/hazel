@@ -1844,24 +1844,24 @@ let test_module_member_moved_above_dependency = () => {
  * preserving every other id. Simulates editing a `module M : { ... }`
  * annotation in place. */
 let drop_sig_member = (~name: string, exp: Exp.t): Exp.t => {
-  let f_typ = (continue, t: Typ.t): Typ.t =>
-    switch (t.term) {
-    | Sig(items) =>
-      let items =
-        List.filter(
-          (item: Sig.t) =>
-            switch (Sig.member_of_item(item)) {
-            | Some(Val(x, _)) => x != name
-            | _ => true
-            },
-          items,
-        );
-      {
-        ...t,
-        term: (Sig(items): Typ.term),
+  let f_typ = (continue, t: Typ.t): Typ.t => {
+    let keep = (item: Sig.t) =>
+      switch (Sig.member_of_item(item)) {
+      | Some(Val(x, _)) => !String.equal(x, name)
+      | _ => true
       };
+    switch (t.term) {
+    | Sig(Open(items)) => {
+        ...t,
+        term: (Sig(Open(List.filter(~f=keep, items))): Typ.term),
+      }
+    | Sig(Closed(items)) => {
+        ...t,
+        term: (Sig(Closed(ClosedSig.filter(keep, items))): Typ.term),
+      }
     | _ => continue(t)
     };
+  };
   TermBase.Exp.map_term(~f_typ, exp);
 };
 

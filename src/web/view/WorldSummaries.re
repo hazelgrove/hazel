@@ -1,10 +1,11 @@
 open Haz3lcore;
+open Poly;
 
 /* what the World's unloaded slides are (WorldSummary), computed one a
    tick while the editor is idle (plans/world-tree.md, summaries). Held for
    the session, against the library they were analyzed with */
 
-let table: Hashtbl.t(string, (string, WorldSummary.t)) = Hashtbl.create(64);
+let table: Stdlib.Hashtbl.t(string, (string, WorldSummary.t)) = Stdlib.Hashtbl.create(64);
 
 /* bumped as summaries arrive: views keyed on it redraw */
 let version = ref(0);
@@ -14,8 +15,8 @@ let version = ref(0);
 let wanted = ref(false);
 
 let library = () =>
-  Digest.string(
-    LibraryDoc.source^ != "" ? LibraryDoc.source^ : LibraryDoc.shipped^,
+  Stdlib.Digest.string(
+    !String.equal(LibraryDoc.source^, "") ? LibraryDoc.source^ : LibraryDoc.shipped^,
   );
 
 let last_library = ref("");
@@ -43,7 +44,7 @@ let idle = (): bool =>
 
 /* [name]'s summary, made against the library as it is */
 let find = (name: string): option(WorldSummary.t) =>
-  switch (Hashtbl.find_opt(table, name)) {
+  switch (Stdlib.Hashtbl.find_opt(table, name)) {
   | Some((lib, s)) when lib == library() => Some(s)
   | _ => None
   };
@@ -52,7 +53,7 @@ let find = (name: string): option(WorldSummary.t) =>
 let skipped = (name: string): bool =>
   switch (WorldDeck.legacy(name)) {
   | Some(("doc", inner)) =>
-    List.exists(
+    List.exists(~f=
       ((n, root, _)) => n == inner && root == Sort.Exp,
       Init.documentation_slides,
     )
@@ -61,9 +62,9 @@ let skipped = (name: string): bool =>
 
 /* the slides [doc] holds unloaded that have no summary yet */
 let missing = (doc: Segment.t): list(string) =>
-  List.filter_map(
+  List.filter_map(~f=
     ((name, s)) =>
-      s == WorldTree.Folded && !skipped(name) && find(name) == None
+      s == WorldTree.Folded && !skipped(name) && Option.is_none(find(name))
         ? Some(name) : None,
     WorldDeck.shown(doc),
   );
@@ -83,7 +84,7 @@ let step = (~settings: Language.CoreSettings.t, doc: Segment.t): bool =>
           Language.Builtins.ctx_init(Some(Language.Operators.default_mode)),
         fst(WorldDeck.members(name)),
       );
-    Hashtbl.replace(table, name, (library(), summary));
+    Stdlib.Hashtbl.replace(table, name, (library(), summary));
     wanted := rest != [];
     let shows = summary.errors > 0;
     if (shows) {
@@ -95,14 +96,13 @@ let step = (~settings: Language.CoreSettings.t, doc: Segment.t): bool =>
 /* the World's slides summarized with errors, as outline rows: each slide
    and the folders above it */
 let error_rows = (): list(Id.t) =>
-  List.concat_map(
+  List.concat_map(~f=
     name =>
       switch (find(name)) {
       | Some(s) when s.errors > 0 =>
         let path = WorldDeck.path(name);
-        List.init(List.length(path) - 1, i =>
-          WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
-        )
+        List.init(List.length(path) - 1, ~f=i =>
+          WorldTree.folder_id(Util.ListUtil.take(i + 1, path)))
         @ [WorldTree.slide_id(path)];
       | _ => []
       },

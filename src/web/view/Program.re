@@ -178,12 +178,12 @@ let tail_target = (p: t): option(Id.t) =>
   | Whole(e) => e.editor.editor.state.zipper.refractors.tail_target
   | Divided(d) =>
     Divided.cells(d)
-    |> List.find_map((e: ScratchCell.t) =>
+    |> List.find_map(~f=(e: ScratchCell.t) =>
          switch (e.e_kind) {
-         | Headless(s) when s == {js|⇒|js} =>
+         | Headless(s) when String.equal(s, {js|⇒|js}) =>
            Some(e.e_body.editor.editor.state.zipper.refractors.tail_target)
          | Members =>
-           Option.map(
+           Option.map(~f=
              Option.some,
              e.e_body.editor.editor.state.zipper.refractors.tail_target,
            )

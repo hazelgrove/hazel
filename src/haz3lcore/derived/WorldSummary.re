@@ -20,14 +20,14 @@ let entry_name = (e: Language.Ctx.entry): option(string) =>
 
 let of_statics = (ds: DefStatics.t): t => {
   let defines =
-    List.concat_map(
-      (it: DefStatics.item) => List.filter_map(entry_name, it.d_exports),
+    List.concat_map(~f=
+      (it: DefStatics.item) => List.filter_map(~f=entry_name, it.d_exports),
       ds.items,
     )
     |> ListUtil.dedup;
   let uses =
-    List.concat_map((it: DefStatics.item) => it.d_free, ds.items)
-    |> List.filter(x => !List.mem(x, defines))
+    List.concat_map(~f=(it: DefStatics.item) => it.d_free, ds.items)
+    |> List.filter(~f=x => !List.mem(defines, x, ~equal=Poly.equal))
     |> ListUtil.dedup;
   {
     errors: List.length(DefStatics.all_error_ids(ds)),

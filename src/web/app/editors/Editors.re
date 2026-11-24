@@ -41,7 +41,7 @@ module Model = {
     | Scratch(m)
     | Documentation(m)
     | World(m) =>
-      switch (List.nth_opt(m.scratchpads, m.current)) {
+      switch (List.nth(m.scratchpads, m.current)) {
       | Some(sp) =>
         switch (sp.kind) {
         | Code(_) => true

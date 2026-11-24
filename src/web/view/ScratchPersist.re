@@ -75,7 +75,7 @@ let with_folds = (folds: OutlineTree.folds, side: side): side => {
 
 /* a world slide's module, by outline path (WorldSlide): what the side
    stores is the slide's own, its paths below this one */
-let world_roots: Hashtbl.t(string, OutlineTree.path) = Hashtbl.create(8);
+let world_roots: Stdlib.Hashtbl.t(string, OutlineTree.path) = Stdlib.Hashtbl.create(8);
 
 /* [path] as the slide's own: None when it's outside the slide */
 let out_of_world =
@@ -83,16 +83,16 @@ let out_of_world =
     : option(OutlineTree.path) => {
   let n = List.length(root);
   List.length(path) >= n
-  && List.for_all2((==), root, Util.ListUtil.take(n, path))
+  && List.for_all2_exn(~f=(==), root, Util.ListUtil.take(n, path))
     ? Some(snd(Util.ListUtil.split_n(n, path))) : None;
 };
 
 /* the live folds as stored: a world slide's, its own */
 let stored_folds = (ck: string, folds: OutlineTree.folds): OutlineTree.folds =>
-  switch (Hashtbl.find_opt(world_roots, ck)) {
+  switch (Stdlib.Hashtbl.find_opt(world_roots, ck)) {
   | Some(root) =>
-    List.filter_map(
-      ((path, f)) => Option.map(p => (p, f), out_of_world(root, path)),
+    List.filter_map(~f=
+      ((path, f)) => Option.map(~f=p => (p, f), out_of_world(root, path)),
       folds,
     )
   | None => folds
@@ -208,21 +208,21 @@ let write_folds = (prefix: string, name: string): unit =>
    slide's module) and zoomed to it at least: the side stores the slide's
    own. Its folds go there too, once */
 let into_world = (ck: string, root: OutlineTree.path, side: side): side => {
-  if (!Hashtbl.mem(world_roots, ck)) {
-    Hashtbl.replace(world_roots, ck, root);
-    switch (Hashtbl.find_opt(slide_folds, ck)) {
+  if (!Stdlib.Hashtbl.mem(world_roots, ck)) {
+    Stdlib.Hashtbl.replace(world_roots, ck, root);
+    switch (Stdlib.Hashtbl.find_opt(slide_folds, ck)) {
     | Some(folds) =>
-      Hashtbl.replace(
+      Stdlib.Hashtbl.replace(
         slide_folds,
         ck,
-        List.map(((p, f)) => (root @ p, f), folds),
+        List.map(~f=((p, f)) => (root @ p, f), folds),
       )
     | None => ()
     };
   };
   {
     ...side,
-    pins: List.map(((p, run)) => (root @ p, run), side.pins),
+    pins: List.map(~f=((p, run)) => (root @ p, run), side.pins),
     zoom: Some(root @ Option.value(side.zoom, ~default=[])),
   };
 };
@@ -419,8 +419,8 @@ let save_current' = (prefix: string, model: Model.t): unit => {
     let outline = Program.outline(program);
     /* a world slide's module, as the outline paths it */
     let root =
-      Option.bind(world, slide => OutlineTree.label_path(slide, outline));
-    Option.iter(Hashtbl.replace(world_roots, ck), root);
+      Option.bind(world, ~f=slide => OutlineTree.label_path(slide, outline));
+    Option.iter(~f=Stdlib.Hashtbl.replace(world_roots, ck), root);
     let own = path =>
       switch (root) {
       | Some(root) => out_of_world(root, path)
@@ -454,7 +454,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
           | Gone => None
           }
         )
-        |> Option.map(members => {
+        |> Option.map(~f=members => {
              let ids = Segment.ids(members);
              (
                Zipper.unzip(members)
@@ -462,8 +462,8 @@ let save_current' = (prefix: string, model: Model.t): unit => {
                     Refractors.{
                       ...r,
                       manuals:
-                        List.filter(
-                          ((id, _)) => List.mem(id, ids),
+                        List.filter(~f=
+                          ((id, _)) => List.mem(ids, id, ~equal=Poly.equal),
                           Program.probes(program),
                         ),
                     }
@@ -474,7 +474,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       };
     switch (stored) {
     | Some((z, stored_root)) when !content_unchanged =>
-      Hashtbl.replace(last_saved_content, ck, stamp);
+      Stdlib.Hashtbl.replace(last_saved_content, ck, stamp);
       /* text, without a live editor (syntax init and zipper sexps are
          slow) */
       save_items(prefix, sp.name, z);
@@ -551,14 +551,13 @@ let save_current' = (prefix: string, model: Model.t): unit => {
           List.filter_map(
             ~f=
             (p: SlideView.pin) =>
-              Option.bind(OutlineTree.label_path(p.p_id, outline), own)
-              |> Option.map(path => (path, p.p_run)),
+              Option.bind(OutlineTree.label_path(p.p_id, outline), ~f=own)
+              |> Option.map(~f=path => (path, p.p_run)),
             view.pins,
           ),
         zoom:
-          Option.bind(SlideView.zoom_root(view), m =>
-            Option.bind(OutlineTree.label_path(m, outline), own)
-          )
+          Option.bind(SlideView.zoom_root(view), ~f=m =>
+            Option.bind(OutlineTree.label_path(m, outline), ~f=own))
           /* zoomed to the slide's module: its whole */
           |> (
             fun
@@ -641,7 +640,7 @@ let open_slide =
   | Some((doc, slide)) =>
     /* its view restores once its outline is known, zoomed to its module
        at least (into_world) */
-    Hashtbl.replace(
+    Stdlib.Hashtbl.replace(
       pending_pins,
       content_key(prefix, name),
       read_side(prefix, name),
@@ -712,7 +711,7 @@ let open_text =
 
 let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t => {
   stage_side(prefix, name);
-  Hashtbl.remove(world_roots, content_key(prefix, name));
+  Stdlib.Hashtbl.remove(world_roots, content_key(prefix, name));
   switch (load_slide_kind(prefix, name)) {
   | Some(CodePersist({editor: e, agent})) =>
     let persisted =
@@ -726,7 +725,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
       | Some(seg) =>
         /* prime the dirty cache: the first autosave tick after a load
            should rewrite nothing */
-        Hashtbl.replace(
+        Stdlib.Hashtbl.replace(
           last_item_saves,
           content_key(prefix, name),
           ItemPersist.items_of(seg),
@@ -744,7 +743,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
         /* the text copy re-mints ids, so no stored item slice can be
            reused: drop them rather than leave them */
         let ns = items_ns(prefix, name);
-        HazelDB.kv_remove_where(k => String.starts_with(~prefix=ns, k));
+        HazelDB.kv_remove_where(k => String.is_prefix(~prefix=ns, k));
         open_text(~settings, ~prefix, ~name, persisted);
       };
     Scratchpad.mk_code(
@@ -802,7 +801,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
         ~name,
         ~editor,
         ~agent=?
-          Option.map(Agent.Persistent.unpersist, load_agent(prefix, name)),
+          Option.map(~f=Agent.Persistent.unpersist, load_agent(prefix, name)),
         ~world?,
         (),
       );

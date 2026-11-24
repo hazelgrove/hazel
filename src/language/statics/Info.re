@@ -774,7 +774,7 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     }) =>
     switch (Id.Map.find_opt(a, info_map)) {
     | Some(InfoPat({user_term: {term: Dot(base, label), _}, _}) as access)
-        when Pat.rep_id(label) == Pat.rep_id(l) =>
+        when Id.equal(Pat.rep_id(label), Pat.rep_id(l)) =>
       let* b = pat_binder(~info_map, base);
       let+ items = binder_items(~info_map, b);
       {

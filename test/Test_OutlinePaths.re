@@ -1183,11 +1183,10 @@ let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
   /* [key] pressed with the cursor on [label]'s row */
   let press = (~meta=false, ~alt=false, ~shift=false, ~code=?, key, label) => {
     cursor :=
-      Array.find_opt(
-        (r: S.visible_row) => r.r_node.o_label == label,
-        visible,
+      Array.find(visible, ~f=(r: S.visible_row) =>
+        String.equal(r.r_node.o_label, label)
       )
-      |> Option.map((r: S.visible_row) => r.r_path);
+      |> Option.map(~f=(r: S.visible_row) => r.r_path);
     toggled := [];
     ops := [];
     text := None;
@@ -1204,7 +1203,7 @@ let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
     {
       k_toggled: toggled^,
       k_ops: ops^,
-      k_text: text^ != None,
+      k_text: Option.is_some(text^),
       k_menus: menus^,
       k_went: went^,
       k_cursor: cursor^,
@@ -1228,11 +1227,11 @@ let edit_keys =
         ) =>
         asked,
     ) => [
-  ("Space", press(" ", "b").k_toggled != []),
-  ("⌘D", press(~meta=true, ~code="KeyD", "d", "b").k_ops != []),
-  ("⌘⌫", press(~meta=true, "Backspace", "b").k_ops != []),
-  ("Delete", press("Delete", "b").k_ops != []),
-  ("⌥↑", press(~alt=true, "ArrowUp", "b").k_ops != []),
+  ("Space", !List.is_empty(press(" ", "b").k_toggled)),
+  ("⌘D", !List.is_empty(press(~meta=true, ~code="KeyD", "d", "b").k_ops)),
+  ("⌘⌫", !List.is_empty(press(~meta=true, "Backspace", "b").k_ops)),
+  ("Delete", !List.is_empty(press("Delete", "b").k_ops)),
+  ("⌥↑", !List.is_empty(press(~alt=true, "ArrowUp", "b").k_ops)),
   ("F2", press("F2", "b").k_text),
   ("⌘Enter", press(~meta=true, "Enter", "b").k_text),
 ];
@@ -1241,11 +1240,11 @@ let edit_keys =
    rows of a level, edits taken, ⌥← zooms out */
 let plain_level = () => {
   module S = Web.OutlineSidebar;
-  check(bool, "no crumbs", true, S.level_crumbs(Plain) == []);
-  check(bool, "no rows", true, S.level_rows(Plain) == []);
-  check(bool, "no chip", true, S.level_chip(Plain) == None);
+  check(bool, "no crumbs", true, List.is_empty(S.level_crumbs(Plain)));
+  check(bool, "no rows", true, List.is_empty(S.level_rows(Plain)));
+  check(bool, "no chip", true, Option.is_none(S.level_chip(Plain)));
   let (_, _, press) = at_level(Plain);
-  List.iter(
+  List.iter(~f=
     ((name, took)) => check(bool, name ++ " edits", true, took),
     edit_keys(press),
   );
@@ -1253,13 +1252,13 @@ let plain_level = () => {
     bool,
     "⌥← zooms out",
     true,
-    press(~alt=true, "ArrowLeft", "b").k_went == [],
+    List.is_empty(press(~alt=true, "ArrowLeft", "b").k_went),
   );
   check(
     bool,
     "⌥→ zooms in",
     true,
-    press(~alt=true, "ArrowRight", "M").k_went == [],
+    List.is_empty(press(~alt=true, "ArrowRight", "M").k_went),
   );
   /* OutlineControl: Plain unless a caller supplies a level above */
   let deck = slide_deck();
@@ -1301,10 +1300,10 @@ let in_slide_level = () => {
     true,
     S.level_crumbs(InSlide(above)) == [("up", "out to up", Up)],
   );
-  check(bool, "no rows", true, S.level_rows(InSlide(above)) == []);
-  check(bool, "no chip", true, S.level_chip(InSlide(above)) == None);
+  check(bool, "no rows", true, List.is_empty(S.level_rows(InSlide(above))));
+  check(bool, "no chip", true, Option.is_none(S.level_chip(InSlide(above))));
   let (term, _, press) = at_level(InSlide(above));
-  List.iter(
+  List.iter(~f=
     ((name, took)) => check(bool, name ++ " edits", true, took),
     edit_keys(press),
   );
@@ -1320,7 +1319,7 @@ let in_slide_level = () => {
     bool,
     "⌥← zoomed in: zooms out",
     true,
-    press(~alt=true, "ArrowLeft", "a").k_went == [],
+    List.is_empty(press(~alt=true, "ArrowLeft", "a").k_went),
   );
 };
 
@@ -1364,7 +1363,7 @@ let enclosing_level = () => {
     S.level_rows(level) == [("Slide", "back into Docs / Slide")],
   );
   let (term, on, press) = at_level(level);
-  List.iter(
+  List.iter(~f=
     ((name, took)) => check(bool, name ++ " refused", false, took),
     edit_keys(press)
     @ [
@@ -1388,7 +1387,7 @@ let enclosing_level = () => {
     bool,
     "⌥←: nothing above",
     true,
-    press(~alt=true, "ArrowLeft", "b").k_went == [],
+    List.is_empty(press(~alt=true, "ArrowLeft", "b").k_went),
   );
   check(
     bool,
@@ -1407,7 +1406,7 @@ let enclosing_level = () => {
     bool,
     "the chip's",
     true,
-    S.level_effect(on, Chip) === on.above_chip,
+    phys_equal(S.level_effect(on, Chip), on.above_chip),
   );
 };
 
@@ -1416,7 +1415,7 @@ let enclosing_level = () => {
 let above_folds = () => {
   module C = Web.OutlineControl;
   let segment =
-    Option.get(
+    Option.value_exn(
       CorpusUtil.typed_seg(
         "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
       ),
@@ -1439,29 +1438,29 @@ let above_folds = () => {
       (),
     );
   let f =
-    Option.get(
+    Option.value_exn(
       OutlineTree.label_path(CorpusUtil.row_by_label(term, "f"), term),
     );
   C.above_folds := [];
   let up = view(true);
-  check(bool, "the same folds: the same outline", true, view(true) === up);
+  check(bool, "the same folds: the same outline", true, phys_equal(view(true), up));
   C.fold_above(term, f);
   check(bool, "folded", true, C.above_folds^ == [(f, true)]);
-  check(bool, "a fold: a new outline", false, view(true) === up);
+  check(bool, "a fold: a new outline", false, phys_equal(view(true), up));
   let slide = view(false);
   C.fold_above(term, f);
   check(bool, "unfolded", true, C.above_folds^ == [(f, false)]);
-  check(bool, "the slide's outline: unchanged", true, view(false) === slide);
+  check(bool, "the slide's outline: unchanged", true, phys_equal(view(false), slide));
   check(
     bool,
     "the slide's folds: none",
     true,
-    Web.ScratchPersist.folds("scratch", "Docs / Slide") == [],
+    List.is_empty(Web.ScratchPersist.folds("scratch", "Docs / Slide")),
   );
   /* a run there starts folded too: its first flip opens it */
   let runs = term_of_text(runs);
   let run =
-    Option.get(
+    Option.value_exn(
       OutlineTree.run_of(CorpusUtil.row_by_label(runs, "3"), runs),
     );
   C.above_folds := [];
@@ -1487,7 +1486,7 @@ let alarmed_level = () => {
     bool,
     "none by default",
     true,
-    S.level_alarm(InSlide(above)) == None,
+    Option.is_none(S.level_alarm(InSlide(above))),
   );
   check(
     bool,
@@ -1505,7 +1504,7 @@ let alarmed_level = () => {
     bool,
     "the pill holds the chip's way out",
     true,
-    S.level_chip(Enclosing(alarmed, "s")) == None,
+    Option.is_none(S.level_chip(Enclosing(alarmed, "s"))),
   );
 };
 

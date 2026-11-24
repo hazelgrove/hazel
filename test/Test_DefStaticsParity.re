@@ -190,7 +190,7 @@ let mega = (~root, ~eval=true, ~delta=false, file, steps, ()) =>
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
   List.iter(
-    ((path, root, src)) =>
+    ~f=((path, root, src)) =>
       switch (CorpusUtil.parse(~root, src)) {
       | None => ()
       | Some(seg) =>
@@ -325,9 +325,9 @@ let items_leave_binders_unflagged = () => {
     ),
   );
   List.iter(
-    ((path, root, src)) =>
+    ~f=((path, root, src)) =>
       Option.iter(
-        seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
+        ~f=seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
         CorpusUtil.parse(~root, src),
       ),
     CorpusUtil.slide_corpus(),

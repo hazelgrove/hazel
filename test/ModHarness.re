@@ -75,8 +75,8 @@ let read_any = (paths: list(string)): option(string) =>
    branches), else copies in test/programs */
 let stdlib = (name: string): option(string) =>
   read_any([
-    "hazel-programs/stdlib/" ++ name,
-    "../hazel-programs/stdlib/" ++ name,
+    "hazel-programs/world/" ++ name,
+    "../hazel-programs/world/" ++ name,
     "test/programs/" ++ name,
     "../test/programs/" ++ name,
   ]);

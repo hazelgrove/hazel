@@ -93,12 +93,12 @@ let witnessing =
 let outside: list(Id.t) => SubexpProbeTargets.t = {
   let last = ref(([], SubexpProbeTargets.empty));
   external_ids =>
-    if (fst(last^) === external_ids) {
+    if (phys_equal(fst(last^), external_ids)) {
       snd(last^);
     } else {
       let o =
         SubexpProbeTargets.union_all(
-          List.map(
+          List.map(~f=
             id =>
               SubexpProbeTargets.add_self(
                 ~is_probed=true,
@@ -129,7 +129,7 @@ let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
               w.full,
             )) {
           ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));
-        } else if (w.external_ids != []) {
+        } else if (!List.is_empty(w.external_ids)) {
           ProbeTargets(
             SubexpProbeTargets.union(probe_targets, outside(w.external_ids)),
           );

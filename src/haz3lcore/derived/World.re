@@ -11,9 +11,11 @@
    ids; the wrapper's come from the slide's name, so a split finds it. */
 
 /* the identifier a slide's display name gives its module */
+open Poly;
+
 let module_name = (name: string): string => {
   let b = Stdlib.Buffer.create(String.length(name));
-  String.iter(
+  String.iter(~f=
     c =>
       switch (c) {
       | 'a' .. 'z'
@@ -28,7 +30,7 @@ let module_name = (name: string): string => {
   | "" => "Slide"
   | s =>
     switch (s.[0]) {
-    | 'a' .. 'z' => String.capitalize_ascii(s)
+    | 'a' .. 'z' => String.capitalize(s)
     | 'A' .. 'Z' => s
     | _ => "Slide" ++ s
     }
@@ -46,22 +48,21 @@ let wrapper = (name: string): option(Segment.t) => {
 
 /* the wrapper's module tile: the slide's row in the outline */
 let slide_id = (name: string): option(Id.t) =>
-  Option.bind(wrapper(name), seg =>
-    List.find_map(
+  Option.bind(wrapper(name), ~f=seg =>
+    List.find_map(~f=
       (p: Piece.t) =>
         switch (p) {
         | Tile(t) => Some(t.id)
         | _ => None
         },
       seg,
-    )
-  );
+    ));
 
 let is_brace = (t: Tile.t) => Tile.has_label(t, ["{", "}"]);
 
 /* [seg]'s brace tile's child replaced */
 let with_body = (seg: Segment.t, body: Segment.t): Segment.t =>
-  List.map(
+  List.map(~f=
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when is_brace(t) =>
@@ -81,7 +82,7 @@ let newline = (id: Id.t, salt: string): Piece.t =>
    empty body parses with (a body of nothing is no term) */
 let body = (anchor: Id.t, members: Segment.t): Segment.t => {
   let empty =
-    List.for_all(
+    List.for_all(~f=
       (p: Piece.t) =>
         switch (p) {
         | Secondary(_) => true
@@ -107,11 +108,11 @@ let body = (anchor: Id.t, members: Segment.t): Segment.t => {
 /* [kid] (a body) without what [body] added */
 let members_of_body = (anchor: Id.t, kid: Segment.t): Segment.t => {
   let ours =
-    List.map(
+    List.map(~f=
       salt => Id.derive(~salt, anchor),
       ["world-open", "world-close", "world-hole"],
     );
-  List.filter((p: Piece.t) => !List.mem(Piece.id(p), ours), kid);
+  List.filter(~f=(p: Piece.t) => !List.mem(ours, Piece.id(p), ~equal=Poly.equal), kid);
 };
 
 /* the `;` ending the library's last member, when it has none */
@@ -125,7 +126,7 @@ let library_end = (anchor: Id.t): Piece.t =>
   });
 
 let last_content = (seg: Segment.t): option(Piece.t) =>
-  List.find_opt(
+  List.find(~f=
     (p: Piece.t) =>
       switch (p) {
       | Secondary(_) => false
@@ -152,13 +153,12 @@ let prefix = (~anchor: Id.t, library: Segment.t): Segment.t => {
 let assemble =
     (~library: Segment.t, ~name: string, members: Segment.t)
     : option(Segment.t) =>
-  Option.bind(wrapper(name), w =>
-    Option.map(
+  Option.bind(wrapper(name), ~f=w =>
+    Option.map(~f=
       anchor =>
         prefix(~anchor, library) @ with_body(w, body(anchor, members)),
       slide_id(name),
-    )
-  );
+    ));
 
 type parts = {
   library: Segment.t,
@@ -180,7 +180,7 @@ let at_slide =
 };
 
 let body_of = (from_slide: Segment.t): option(Segment.t) =>
-  List.find_map(
+  List.find_map(~f=
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) when is_brace(t) =>
@@ -202,27 +202,26 @@ let split = (~slide: Id.t, seg: Segment.t): option(parts) => {
     derived("world-gap-1"),
     derived("world-gap-2"),
   ];
-  Option.bind(at_slide(~slide, seg), ((before, from_slide)) =>
-    Option.map(
+  Option.bind(at_slide(~slide, seg), ~f=((before, from_slide)) =>
+    Option.map(~f=
       body =>
         {
           library:
-            List.filter(
-              (p: Piece.t) => !List.mem(Piece.id(p), ours),
+            List.filter(~f=
+              (p: Piece.t) => !List.mem(ours, Piece.id(p), ~equal=Poly.equal),
               before,
             ),
           members: members_of_body(slide, body),
         },
       body_of(from_slide),
-    )
-  );
+    ));
 };
 
 /* [seg] with [library] in place of its library's items: the slide's
    module as it is */
 let with_library =
     (~slide: Id.t, ~library: Segment.t, seg: Segment.t): option(Segment.t) =>
-  Option.map(
+  Option.map(~f=
     ((_, from_slide)) => prefix(~anchor=slide, library) @ from_slide,
     at_slide(~slide, seg),
   );
@@ -234,7 +233,7 @@ let run_elab = (~slide: Id.t, elab: Language.Exp.t): Language.Exp.t =>
   switch (elab.term) {
   | Module(items) =>
     switch (
-      List.find_opt(
+      List.find(~f=
         (item: Language.Mod.t) => Language.Mod.rep_id(item) == slide,
         items,
       )

@@ -27,7 +27,7 @@ let get = (~sync=false, url: string, k: option(Js.t(Js.js_string)) => unit) => {
   if (!sync) {
     xhr##.onreadystatechange :=
       Js.wrap_callback(() =>
-        if (xhr##.readyState == XmlHttpRequest.DONE) {
+        if (Poly.equal(xhr##.readyState, XmlHttpRequest.DONE)) {
           finish();
         }
       );
@@ -83,10 +83,10 @@ let load = (k: string => unit) => {
   get(
     source_file,
     text => {
-      if (text == None) {
+      if (Option.is_none(text)) {
         missing(source_file);
       };
-      source := Some(Option.fold(~none="", ~some=Js.to_string, text));
+      source := Some(Option.value_map(text, ~default="", ~f=Js.to_string));
       ready();
     },
   );

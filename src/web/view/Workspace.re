@@ -643,12 +643,12 @@ let update_code =
     )
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
   /* a world's library is its own items: the program level */
-  | ShowLibrary(shown) when code.world != None =>
+  | ShowLibrary(shown) when Option.is_some(code.world) =>
     outline_view(
       (outline, _, v) =>
         shown
           ? SlideView.zoom_to(None, v)
-          : SlideView.zoom_in(~outline, Option.get(code.world), v),
+          : SlideView.zoom_in(~outline, Option.value_exn(code.world), v),
       code,
     )
   | ShowLibrary(shown) => show_library(shown, code)
@@ -666,7 +666,7 @@ let update_code =
     let applied =
       switch (code.world, code.lib) {
       | (Some(slide), _) =>
-        Option.map(
+        Option.map(~f=
           lib =>
             LibraryDoc.apply_segment(
               Printer.of_segment(~holes="?", lib),
@@ -705,7 +705,7 @@ let update_code =
       ~is_edit=false,
       {
         ...code,
-        lib: Option.map(_ => LibraryDoc.editor(), code.lib),
+        lib: Option.map(~f=_ => LibraryDoc.editor(), code.lib),
       },
     );
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
@@ -725,14 +725,13 @@ let update_code =
        slide hydrating first can't drop it */
     switch (saved_view(~slide_key, code)) {
     | Some(saved) =>
-      Hashtbl.remove(Persist.pending_pins, slide_key);
+      Stdlib.Hashtbl.remove(Persist.pending_pins, slide_key);
       view(
         (outline, _, _) =>
           Persist.resolve_view(
             switch (
-              Option.bind(code.world, slide =>
-                OutlineTree.label_path(slide, outline)
-              )
+              Option.bind(code.world, ~f=slide =>
+                OutlineTree.label_path(slide, outline))
             ) {
             | Some(root) => Persist.into_world(slide_key, root, saved)
             | None => saved
@@ -743,12 +742,12 @@ let update_code =
       );
     | None => code |> return_quiet /* statics not ready: retry */
     }
-  | RestoreCaret(p) when code.world != None =>
+  | RestoreCaret(p) when Option.is_some(code.world) =>
     /* a world slide's caret is in its members' cell, once it opens */
-    let slide = Option.get(code.world);
+    let slide = Option.value_exn(code.world);
     switch (code.program) {
-    | Divided(d) when Divided.cell(slide, d) != None =>
-      Hashtbl.remove(Persist.pending_caret, slide_key);
+    | Divided(d) when Option.is_some(Divided.cell(slide, d)) =>
+      Stdlib.Hashtbl.remove(Persist.pending_caret, slide_key);
       cell_update(slide, Body, MainEditor(Perform(Move(Point(p, None)))));
     | _ => code |> return_quiet
     };
@@ -969,7 +968,7 @@ let calculate_program =
       program: Program.t,
     )
     : Program.t => {
-  let ctx = Option.map(_ => WorldSlide.ctx(), world);
+  let ctx = Option.map(~f=_ => WorldSlide.ctx(), world);
   let worker_request = ref([]);
   let queue_worker =
     Some(
@@ -985,9 +984,9 @@ let calculate_program =
     };
   /* a world runs what its view shows and what that needs, the library
      from the bake; the library's probes are its own items' */
-  let run = Option.map(_ => WorldSlide.run_statics(~zoom), world);
+  let run = Option.map(~f=_ => WorldSlide.run_statics(~zoom), world);
   let library_targets =
-    world == None
+    Option.is_none(world)
       ? LibraryDoc.targets(~settings) : Language.Sample.no_targets;
   let program =
     switch (program) {
@@ -1241,14 +1240,11 @@ let calculate_program =
                the whole slide is the slide's own cost again */
             | (_, Some(ds)) when is_world_cell(e) => item_of(ds, e)
             | (_, None) when is_world_cell(e) =>
-              Option.bind(
-                Haz3lcore.DefStatics.cached(
+              Option.bind(Haz3lcore.DefStatics.cached(
                   ~ctx_in=?ctx,
                   Divided.statics(d).term,
-                ),
-                ds =>
-                item_of(ds, e)
-              )
+                ), ~f=ds =>
+                item_of(ds, e))
             | _ => None
             };
           let project = (c: CellEditor.Model.t) =>
@@ -1375,11 +1371,11 @@ let calculate_slide =
     : code => {
   /* restore a loaded slide's saved caret: the Move runs as its own
      follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
+  switch (Stdlib.Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
   /* a world slide's, once its members' cell is open */
   | (Some(p), Some(slide)) =>
     switch (code.program) {
-    | Divided(d) when Divided.cell(slide, d) != None =>
+    | Divided(d) when Option.is_some(Divided.cell(slide, d)) =>
       schedule_action(RestoreCaret(p))
     | _ => ()
     }
@@ -1445,7 +1441,7 @@ let calculate =
   /* the library, checked, with the slide's samples (its probes are in
      the slide's run); edited, it applies once typing pauses */
   let lib =
-    Option.map(
+    Option.map(~f=
       LibraryDoc.calculate(
         ~settings,
         ~is_edited,
@@ -1454,8 +1450,8 @@ let calculate =
       ),
       code.lib,
     );
-  Option.iter(ed => LibraryDoc.kept := Some(ed), lib);
-  if (is_edited && lib != None) {
+  Option.iter(~f=ed => LibraryDoc.kept := Some(ed), lib);
+  if (is_edited && Option.is_some(lib)) {
     LibraryDoc.apply_when_idle(~fire=() => schedule_action(ApplyLibrary));
   };
   /* the library changed since this slide last ran: check and run it

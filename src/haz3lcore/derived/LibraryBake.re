@@ -12,10 +12,10 @@ let rec top_names = (items: list(Mod.t)): list(Var.t) =>
     let here =
       switch (item.term) {
       | ModLet(p, _) => Pat.bound_vars(p)
-      | ModuleMod(mp, _) => ModuleHelpers.mpat_names(mp)
+      | ModuleMod(mp, _) => Option.to_list(MPat.name(mp))
       | _ => []
       };
-    List.filter(x => !List.mem(x, later), here) @ later;
+    List.filter(~f=x => !List.mem(later, x, ~equal=Poly.equal), here) @ later;
   };
 
 /* the items as the let/module/type chain a slide would write, ending in
@@ -28,9 +28,7 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
   switch (items) {
   | [] => Some(tail)
   | [item, ...rest] =>
-    Option.bind(
-      chain(rest, tail),
-      body => {
+    Option.bind(chain(rest, tail), ~f=body => {
         let link = (term: Exp.term): Exp.t =>
           IdTagged.mk_internal([Mod.rep_id(item)], term);
         switch (item.term) {
@@ -43,8 +41,7 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
         | Invalid(_)
         | ModVal(_) => Some(body)
         };
-      },
-    )
+      })
   };
 
 /* the elaborated chain's definitions in order: a loop, not recursion,
@@ -68,14 +65,14 @@ let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
 /* each definition with the earlier ones it mentions (the latest of each
    name), keeping its source's ids */
 let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
-  let latest = Hashtbl.create(64);
+  let latest = Stdlib.Hashtbl.create(64);
   defs
-  |> List.mapi((i, (name, def)) => {
+  |> List.mapi(~f=(i, (name, def)) => {
        let deps =
-         Builtins.mentioned(~keep=Hashtbl.mem(latest), def)
-         |> List.map(Hashtbl.find(latest))
-         |> List.sort_uniq(compare);
-       Hashtbl.replace(latest, name, i);
+         Builtins.mentioned(~keep=Stdlib.Hashtbl.mem(latest), def)
+         |> List.map(~f=Stdlib.Hashtbl.find(latest))
+         |> List.dedup_and_sort(~compare=compare);
+       Stdlib.Hashtbl.replace(latest, name, i);
        Library.{
          name,
          deps,
@@ -107,7 +104,7 @@ let of_items =
     )
     : result(baked, string) => {
   let names = top_names(items);
-  let tail = Exp.fresh(Tuple(List.map(x => Exp.fresh(Var(x)), names)));
+  let tail = Exp.fresh(Tuple(List.map(~f=x => Exp.fresh(Var(x)), names)));
   let base = Builtins.ctx_base(Some(Operators.default_mode));
   switch (chain(items, tail)) {
   | None => Error("the library did not chain")
@@ -135,7 +132,7 @@ let of_items =
       | None => Error("the library's context does not extend the builtins'")
       | Some(added) =>
         defs(elab)
-        |> Result.map(defs =>
+        |> Result.map(~f=defs =>
              {
                baked: {
                  hash,
@@ -166,8 +163,8 @@ let of_text =
   | Ok({segment, _}) =>
     switch (MakeTerm.Incr.term_of_mod(segment).term) {
     | Module(items) =>
-      of_items(~strict, ~hash=Digest.to_hex(Digest.string(text)), items)
-      |> Result.map(({baked, errors, _}) => (baked, errors, segment))
+      of_items(~strict, ~hash=Stdlib.Digest.to_hex(Stdlib.Digest.string(text)), items)
+      |> Result.map(~f=({baked, errors, _}) => (baked, errors, segment))
     | _ => Error("the library did not parse as module items")
     }
   };

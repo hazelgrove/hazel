@@ -36,7 +36,7 @@ let work =
     Evaluator.evaluate_counting_work(
       ~prev,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   (result, state.incr_eval, steps);

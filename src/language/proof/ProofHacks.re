@@ -313,6 +313,7 @@ and get_inductive_hypotheses_inner = (m, t, pat) =>
   | Atom(_)
   | ListLit(_)
   | Constructor(_)
+  | Dot(_)
   | Cons(_)
   | Var(_)
   | Tuple(_)

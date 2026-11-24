@@ -6,22 +6,23 @@
    byte: each rewrite replaces one identifier token of the source. */
 open Haz3lcore;
 open Language;
+open Poly;
 
 type renames = list((string, string));
 
 /* `let old = New.path;` lines; other lines (comments) are skipped */
 let renames_of_text = (text: string): renames =>
   Stdlib.String.split_on_char('\n', text)
-  |> List.filter_map(line =>
+  |> List.filter_map(~f=line =>
        switch (
          Stdlib.String.split_on_char(' ', Stdlib.String.trim(line))
-         |> List.filter(w => w != "")
+         |> List.filter(~f=w => !String.equal(w, ""))
        ) {
        | ["let", old, "=", target] =>
          let n = Stdlib.String.length(target);
          Some((
            old,
-           n > 0 && target.[n - 1] == ';'
+           n > 0 && Char.equal(target.[n - 1], ';')
              ? Stdlib.String.sub(target, 0, n - 1) : target,
          ));
        | _ => None
@@ -39,7 +40,7 @@ type plan = {
    name, or is unbound, and its new home module is the library's there. */
 let plan = (~renames: renames, term: Exp.t): plan => {
   let library_id = name =>
-    List.find_map(
+    List.find_map(~f=
       fun
       | Ctx.VarEntry(v) when v.name == name => Some(v.id)
       | _ => None,
@@ -61,7 +62,7 @@ let plan = (~renames: renames, term: Exp.t): plan => {
           _,
         })
           when !label_sort && id == Exp.rep_id(user) =>
-        switch (List.assoc_opt(name, renames)) {
+        switch (List.Assoc.find(renames, name, ~equal=Poly.equal)) {
         | None => acc
         | Some(target) =>
           let resolves_to_library =
@@ -69,7 +70,7 @@ let plan = (~renames: renames, term: Exp.t): plan => {
             | None => true
             | Some(v) => Some(v.id) == library_id(name)
             };
-          let home = List.hd(Stdlib.String.split_on_char('.', target));
+          let home = List.hd_exn(Stdlib.String.split_on_char('.', target));
           let home_visible =
             switch (Ctx.lookup_var(ctx, home)) {
             | Some(v) => Some(v.id) == library_id(home)
@@ -110,7 +111,7 @@ let plan = (~renames: renames, term: Exp.t): plan => {
 /* The alignment keeps word-like tokens only (names, keywords, true, _),
    which the lexer and the parsed segment spell alike. */
 let wordish = (s: string): bool =>
-  s != ""
+  !String.equal(s, "")
   && (
     switch (s.[0]) {
     | 'a' .. 'z'
@@ -138,13 +139,13 @@ let source_words = (text: string): option(list((int, string))) => {
 
 /* The segment's word tokens in text order, each with its tile's id */
 let rec segment_words = (seg: Segment.t): list((string, Id.t)) =>
-  List.concat_map(
+  List.concat_map(~f=
     (p: Piece.t) =>
       switch (p) {
       | Tile(t) =>
         let label = Tile.label(t);
         let shard = i => {
-          let s = List.nth(label, i);
+          let s = List.nth_exn(label, i);
           wordish(s) ? [(s, t.id)] : [];
         };
         switch (t.shards) {
@@ -152,7 +153,7 @@ let rec segment_words = (seg: Segment.t): list((string, Id.t)) =>
         | [first, ...rest] =>
           shard(first)
           @ List.concat(
-              List.map2(
+              List.map2_exn(~f=
                 (child, i) => segment_words(child) @ shard(i),
                 t.children,
                 rest,
@@ -189,7 +190,7 @@ let edits = (~renamed: Id.Map.t(string), ~text: string, z: Zipper.t) => {
       ),
     )
   | Some(src) =>
-    List.fold_left2(
+    Stdlib.List.fold_left2(
       (acc, (start, s), (w, id)) =>
         switch (acc) {
         | Error(_) => acc
@@ -220,7 +221,7 @@ let edits = (~renamed: Id.Map.t(string), ~text: string, z: Zipper.t) => {
       src,
       words,
     )
-    |> Result.map(List.rev)
+    |> Result.map(~f=List.rev)
   };
 };
 
@@ -228,18 +229,14 @@ let edits = (~renamed: Id.Map.t(string), ~text: string, z: Zipper.t) => {
 let apply = (edits: list(edit), text: string): string => {
   let buf = Stdlib.Buffer.create(Stdlib.String.length(text) + 64);
   let pos =
-    List.fold_left(
-      (pos, e) => {
+    List.fold(edits, ~init=0, ~f=(pos, e) => {
         Stdlib.Buffer.add_string(
           buf,
           Stdlib.String.sub(text, pos, e.start - pos),
         );
         Stdlib.Buffer.add_string(buf, e.new_);
         e.start + Stdlib.String.length(e.old);
-      },
-      0,
-      edits,
-    );
+      });
   Stdlib.Buffer.add_string(
     buf,
     Stdlib.String.sub(text, pos, Stdlib.String.length(text) - pos),
@@ -264,13 +261,16 @@ let behavior = (term: Exp.t): string => {
         id == Info.id_of(info)
           ? switch (Info.marks_of(info)) {
             | [] => acc
-            | marks => [ErrorPrint.string_of_marks(info, marks), ...acc]
+            | marks => [
+                ErrorPrint.string_of_marks(~info_map, info, marks),
+                ...acc,
+              ]
             }
           : acc,
       info_map,
       [],
     )
-    |> List.sort(compare);
+    |> List.sort(~compare=compare);
   let run =
     switch (Run.evaluate_with_tests(term)) {
     | (result, tests) =>
@@ -278,9 +278,9 @@ let behavior = (term: Exp.t): string => {
       ++ "\ntests: "
       ++ Stdlib.String.concat(
            " ",
-           List.map(TestStatus.to_string, tests.statuses),
+           List.map(~f=TestStatus.to_string, tests.statuses),
          )
-    | exception e => "raised " ++ Printexc.to_string(e)
+    | exception e => "raised " ++ Stdlib.Printexc.to_string(e)
     };
   Stdlib.String.concat("\n", ["errors:", ...errors] @ [run]);
 };
@@ -309,10 +309,9 @@ type part = {
 let rewrite =
     (~renames, ~text, ~unparsed, ~parts: list(part), ~runs: list(Exp.t))
     : outcome => {
-  let plans = List.map(plan(~renames), runs);
+  let plans = List.map(~f=plan(~renames), runs);
   let (renamed, disagreements) =
-    List.fold_left(
-      ((acc, bad), p: plan) =>
+    List.fold(plans, ~init=(Id.Map.empty, Id.Set.empty), ~f=((acc, bad), p: plan) =>
         Id.Map.fold(
           (id, d, (acc, bad)) =>
             switch (Id.Map.find_opt(id, acc)) {
@@ -321,10 +320,7 @@ let rewrite =
             },
           p.decisions,
           (acc, bad),
-        ),
-      (Id.Map.empty, Id.Set.empty),
-      plans,
-    );
+        ));
   let renamed =
     Id.Map.filter_map(
       (id, d) => Id.Set.mem(id, disagreements) ? None : d,
@@ -332,7 +328,7 @@ let rewrite =
     );
   let problems =
     unparsed
-    @ List.concat_map((p: plan) => p.problems, plans)
+    @ List.concat_map(~f=(p: plan) => p.problems, plans)
     @ (
       Id.Set.is_empty(disagreements)
         ? []
@@ -344,12 +340,12 @@ let rewrite =
         ]
     );
   let placed =
-    List.map(
+    List.map(~f=
       p =>
         switch (edits(~renamed, ~text=p.body, p.zipper)) {
         | Ok(es) =>
           Ok(
-            List.map(
+            List.map(~f=
               e =>
                 {
                   ...e,
@@ -363,7 +359,7 @@ let rewrite =
       parts,
     );
   switch (
-    List.find_map(
+    List.find_map(~f=
       fun
       | Error(why) => Some(why)
       | Ok(_) => None,
@@ -378,8 +374,8 @@ let rewrite =
     }
   | None =>
     let es =
-      List.concat_map(Result.get_ok, placed)
-      |> List.sort((a, b) => compare(a.start, b.start));
+      List.concat_map(~f=Stdlib.Result.get_ok, placed)
+      |> List.sort(~compare=(a, b) => compare(a.start, b.start));
     {
       text: apply(es, text),
       edits: es,
@@ -394,7 +390,7 @@ let verified =
     (~verify, ~before: string, o: outcome, behaviors: string => string) => {
   ...o,
   changed:
-    !verify || o.edits == []
+    !verify || List.is_empty(o.edits)
       ? None
       : {
         let (b, a) = (behaviors(before), behaviors(o.text));
@@ -446,7 +442,7 @@ let stitch = (~wrapper: bool, code: Exp.t, tests: Exp.t): Exp.t =>
   );
 
 let is_space = c =>
-  c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\012';
+  Char.equal(c, ' ') || Char.equal(c, '\t') || Char.equal(c, '\n') || Char.equal(c, '\r') || c == '\012';
 
 /* [lines] (file offset, text) as one text, newline terminated and
    trimmed as TutorialText trims a section, with a map from its offsets
@@ -454,7 +450,7 @@ let is_space = c =>
 let text_of_lines =
     (lines: list((int, string))): option((string, int => int)) => {
   let body =
-    Stdlib.String.concat("", List.map(((_, l)) => l ++ "\n", lines));
+    Stdlib.String.concat("", List.map(~f=((_, l)) => l ++ "\n", lines));
   let n = Stdlib.String.length(body);
   let rec lead = i => i < n && is_space(body.[i]) ? lead(i + 1) : i;
   let lead = lead(0);
@@ -478,14 +474,11 @@ let text_of_lines =
 /* The text's lines, each with its offset */
 let lines_of = (content: string): list((int, string)) =>
   Stdlib.String.split_on_char('\n', content)
-  |> List.fold_left(
-       ((offset, acc), line) =>
+  |> List.fold(~init=(0, []), ~f=((offset, acc), line) =>
          (
            offset + Stdlib.String.length(line) + 1,
            [(offset, line), ...acc],
-         ),
-       (0, []),
-     )
+         ))
   |> snd
   |> List.rev;
 
@@ -493,15 +486,11 @@ let lines_of = (content: string): list((int, string)) =>
    dropped) */
 let tagged_lines =
     (content: string): list((Web.TutorialText.marker, (int, string))) =>
-  List.fold_left(
-    ((cur, acc), (offset, line)) =>
+  List.fold(lines_of(content), ~init=(Web.TutorialText.Code, []), ~f=((cur, acc), (offset, line)) =>
       switch (Web.TutorialText.marker_of_line(line)) {
       | Some(m) => (m, acc)
       | None => (cur, [(cur, (offset, line)), ...acc])
-      },
-    (Web.TutorialText.Code, []),
-    lines_of(content),
-  )
+      })
   |> snd
   |> List.rev;
 
@@ -517,26 +506,22 @@ let fences = (lines: list((int, string))): list(list((int, string))) => {
     | _ => false
     };
   let (_, rev) =
-    List.fold_left(
-      ((cur, acc), (offset, l)) =>
+    List.fold(lines, ~init=(None, []), ~f=((cur, acc), (offset, l)) =>
         switch (cur) {
         | None => (opens(l) ? Some([]) : None, acc)
-        | Some(body) when Stdlib.String.trim(l) == "```" => (
+        | Some(body) when String.equal(Stdlib.String.trim(l), "```") => (
             None,
             [List.rev(body), ...acc],
           )
         | Some(body) => (Some([(offset, l), ...body]), acc)
-        },
-      (None, []),
-      lines,
-    );
+        });
   List.rev(rev);
 };
 
 let fence_parts = (lines): list((string, string, int => int)) =>
-  List.filter_map(
+  List.filter_map(~f=
     fence =>
-      Option.map(
+      Option.map(~f=
         ((body, to_file)) => ("a ```hazel fence", body, to_file),
         text_of_lines(fence),
       ),
@@ -545,9 +530,9 @@ let fence_parts = (lines): list((string, string, int => int)) =>
 
 /* Parsed parts, and a problem for each that does not parse */
 let parse_parts = (texts: list((string, string, int => int))) => (
-  List.filter_map(
+  List.filter_map(~f=
     ((label, body, to_file)) =>
-      Option.map(
+      Option.map(~f=
         zipper =>
           {
             label,
@@ -559,9 +544,9 @@ let parse_parts = (texts: list((string, string, int => int))) => (
       ),
     texts,
   ),
-  List.filter_map(
+  List.filter_map(~f=
     ((label, body, _)) =>
-      parse(body) == None ? Some(label ++ " does not parse") : None,
+      Option.is_none(parse(body)) ? Some(label ++ " does not parse") : None,
     texts,
   ),
 );
@@ -574,7 +559,7 @@ let lesson = (~renames, ~verify, content: string): outcome => {
   let wrapper = Web.TutorialText.parse_sections(content).wrapper;
   let tagged = tagged_lines(content);
   let section_lines = (keep: Web.TutorialText.marker => bool) =>
-    List.filter_map(((m, l)) => keep(m) ? Some(l) : None, tagged);
+    List.filter_map(~f=((m, l)) => keep(m) ? Some(l) : None, tagged);
   let code_like: Web.TutorialText.marker => bool =
     fun
     | Code
@@ -582,9 +567,9 @@ let lesson = (~renames, ~verify, content: string): outcome => {
     | Solution => true
     | _ => false;
   let sections =
-    List.filter_map(
+    List.filter_map(~f=
       ((label, m)) =>
-        Option.map(
+        Option.map(~f=
           ((body, to_file)) => (label, body, to_file),
           text_of_lines(section_lines(Web.TutorialText.equal_marker(m))),
         ),
@@ -598,21 +583,21 @@ let lesson = (~renames, ~verify, content: string): outcome => {
   let (fence_parsed, unparsed_fences) =
     parse_parts(fence_parts(section_lines(m => !code_like(m))));
   let term = label =>
-    List.find_map(
+    List.find_map(~f=
       p => p.label == label ? Some(term_of(p.zipper)) : None,
       code_parts,
     );
   let tests =
     Option.value(
       term("@test"),
-      ~default=term_of(Option.get(parse("test true end"))),
+      ~default=term_of(Option.value_exn(parse("test true end"))),
     );
   let runs =
-    List.filter_map(
-      code => Option.map(c => stitch(~wrapper, c, tests), term(code)),
+    List.filter_map(~f=
+      code => Option.map(~f=c => stitch(~wrapper, c, tests), term(code)),
       ["@code", "@solution"],
     )
-    @ List.map(p => term_of(p.zipper), fence_parsed);
+    @ List.map(~f=p => term_of(p.zipper), fence_parsed);
   let o =
     rewrite(
       ~renames,
@@ -624,19 +609,19 @@ let lesson = (~renames, ~verify, content: string): outcome => {
   let behaviors = content => {
     let s = Web.TutorialText.parse_sections(content);
     let term = text =>
-      Option.map(term_of, parse(Stdlib.String.trim(text)))
+      Option.map(~f=term_of, parse(Stdlib.String.trim(text)))
       |> Option.value(~default=EmptyHole |> Exp.fresh);
-    let tests = term(s.test == "" ? "test true end" : s.test);
+    let tests = term(String.equal(s.test, "") ? "test true end" : s.test);
     let prose =
-      List.filter_map(
+      List.filter_map(~f=
         ((m, l)) => code_like(m) ? None : Some(l),
         tagged_lines(content),
       );
-    List.map(
+    List.map(~f=
       code => behavior(stitch(~wrapper, term(code), tests)),
       [s.code, ...Option.to_list(s.solution)],
     )
-    @ List.map(
+    @ List.map(~f=
         ((_, body, _)) => behavior(term(body)),
         fence_parts(prose),
       )
@@ -654,13 +639,13 @@ let markdown = (~renames, ~verify, content: string): outcome => {
       ~text=content,
       ~unparsed,
       ~parts,
-      ~runs=List.map(p => term_of(p.zipper), parts),
+      ~runs=List.map(~f=p => term_of(p.zipper), parts),
     );
   let behaviors = content =>
     lines_of(content)
     |> fence_parts
-    |> List.map(((_, body, _)) =>
-         Option.map(z => behavior(term_of(z)), parse(body))
+    |> List.map(~f=((_, body, _)) =>
+         Option.map(~f=z => behavior(term_of(z)), parse(body))
          |> Option.value(~default="does not parse")
        )
     |> Stdlib.String.concat("\n--\n");
@@ -674,10 +659,10 @@ let report = (path: string, o: outcome): unit => {
       path,
       List.length(o.edits),
       List.length(o.edits) == 1 ? "" : "s",
-      o.changed == None ? "" : ", BEHAVIOR CHANGED",
+      Option.is_none(o.changed) ? "" : ", BEHAVIOR CHANGED",
     ),
   );
-  List.iter(p => prerr_endline("  problem: " ++ p), o.problems);
+  List.iter(~f=p => prerr_endline("  problem: " ++ p), o.problems);
   switch (o.changed) {
   | Some((before, after)) =>
     prerr_endline("  before:\n" ++ before ++ "\n  after:\n" ++ after)
@@ -686,9 +671,9 @@ let report = (path: string, o: outcome): unit => {
 };
 
 let read = path =>
-  path == "-"
-    ? In_channel.input_all(stdin)
-    : In_channel.with_open_bin(path, In_channel.input_all);
+  String.equal(path, "-")
+    ? Stdlib.In_channel.input_all(Stdlib.stdin)
+    : Stdlib.In_channel.with_open_bin(path, Stdlib.In_channel.input_all);
 
 /* `hazel migrate --renames T [--write] [--verify] FILE...`: a .hzt file
    is a lesson, anything else one program; `-` reads stdin and prints the
@@ -705,13 +690,13 @@ let run =
     )
     : unit => {
   let renames = renames_of_text(read(renames_path));
-  List.iter(
+  List.iter(~f=
     path =>
       if (json) {
         let programs =
           switch (Yojson.Safe.from_string(read(path))) {
           | `List(items) =>
-            List.map(
+            List.map(~f=
               fun
               | `String(s) => s
               | _ => failwith("expected a JSON list of strings"),
@@ -725,7 +710,7 @@ let run =
             | e => {
                 text,
                 edits: [],
-                problems: ["raised " ++ Printexc.to_string(e)],
+                problems: ["raised " ++ Stdlib.Printexc.to_string(e)],
                 changed: None,
               }
             };
@@ -739,7 +724,7 @@ let run =
             (
               "edits",
               `List(
-                List.map(
+                List.map(~f=
                   e =>
                     `List([
                       `Int(e.start),
@@ -752,15 +737,15 @@ let run =
             ),
             (
               "problems",
-              `List(List.map(p => `String(p), o.problems @ changed)),
+              `List(List.map(~f=p => `String(p), o.problems @ changed)),
             ),
           ]);
         };
-        let out = Yojson.Safe.to_string(`List(List.map(result, programs)));
+        let out = Yojson.Safe.to_string(`List(List.map(~f=result, programs)));
         switch (output) {
         | Some(file) =>
-          Out_channel.with_open_bin(file, oc =>
-            Out_channel.output_string(oc, out)
+          Stdlib.Out_channel.with_open_bin(file, oc =>
+            Stdlib.Out_channel.output_string(oc, out)
           )
         | None => print_endline(out)
         };
@@ -779,16 +764,16 @@ let run =
           | e => {
               text,
               edits: [],
-              problems: ["raised " ++ Printexc.to_string(e)],
+              problems: ["raised " ++ Stdlib.Printexc.to_string(e)],
               changed: None,
             }
           };
         report(path, o);
-        if (path == "-") {
+        if (String.equal(path, "-")) {
           print_string(o.text);
         } else if (write && o.text != text) {
-          Out_channel.with_open_bin(path, oc =>
-            Out_channel.output_string(oc, o.text)
+          Stdlib.Out_channel.with_open_bin(path, oc =>
+            Stdlib.Out_channel.output_string(oc, o.text)
           );
         };
       },

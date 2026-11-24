@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 module P = Test_DefStaticsParity;
 
@@ -8,8 +9,8 @@ module P = Test_DefStaticsParity;
    sealed module (World) */
 
 let library_text = () =>
-  Option.get(
-    Test_ModAudit.read_any([
+  Option.value_exn(
+    ModHarness.read_any([
       "_build/default/src/stdlib/stdlib.hz",
       "../src/stdlib/stdlib.hz",
     ]),
@@ -18,28 +19,27 @@ let library_text = () =>
 let library = () => CorpusUtil.seg_of(~root=Mod, library_text());
 
 let assembled = (~root=Sort.Exp, ~library, ~name, seg) =>
-  Option.bind(World.members_of(~root, seg), members =>
-    World.assemble(~library, ~name, members)
-  );
+  Option.bind(World.members_of(~root, seg), ~f=members =>
+    World.assemble(~library, ~name, members));
 
 /* a test's id, as tests_of shows it, is one of [seg]'s */
 let in_seg = (seg: Segment.t) => {
-  let ids = Hashtbl.create(256);
-  List.iter(id => Hashtbl.replace(ids, Id.show(id), ()), Segment.ids(seg));
-  shown => Hashtbl.mem(ids, shown);
+  let ids = Stdlib.Hashtbl.create(256);
+  List.iter(~f=id => Stdlib.Hashtbl.replace(ids, Id.show(id), ()), Segment.ids(seg));
+  shown => Stdlib.Hashtbl.mem(ids, shown);
 };
 
 let round_trip = () => {
   let library = library();
   let members =
-    Option.get(
+    Option.value_exn(
       MemberForm.of_exp_root(
         CorpusUtil.seg_of(~root=Exp, "let x = List.length([1]) in\nx"),
       ),
     );
   let doc =
-    Option.get(World.assemble(~library, ~name="Scratchpad 1", members));
-  let slide = Option.get(World.slide_id("Scratchpad 1"));
+    Option.value_exn(World.assemble(~library, ~name="Scratchpad 1", members));
+  let slide = Option.value_exn(World.slide_id("Scratchpad 1"));
   switch (World.split(~slide, doc)) {
   | None => fail("the slide's module is lost")
   | Some(parts) =>
@@ -48,14 +48,14 @@ let round_trip = () => {
       "the library's pieces, as they were",
       true,
       List.length(parts.library) == List.length(library)
-      && List.for_all2((===), parts.library, library),
+      && List.for_all2_exn(~f=phys_equal, parts.library, library),
     );
     check(
       bool,
       "the slide's members, as they were",
       true,
       List.length(parts.members) == List.length(members)
-      && List.for_all2((===), parts.members, members),
+      && List.for_all2_exn(~f=phys_equal, parts.members, members),
     );
   };
   check(
@@ -63,14 +63,11 @@ let round_trip = () => {
     "a new library in place, the slide's module as it was",
     true,
     switch (
-      Option.bind(
-        World.with_library(~slide, ~library, doc),
-        World.split(~slide),
-      )
+      Option.bind(World.with_library(~slide, ~library, doc), ~f=World.split(~slide))
     ) {
     | Some(parts) =>
       let same = (a, b) =>
-        List.length(a) == List.length(b) && List.for_all2((===), a, b);
+        List.length(a) == List.length(b) && List.for_all2_exn(~f=phys_equal, a, b);
       same(parts.library, library) && same(parts.members, members);
     | None => false
     },
@@ -79,9 +76,9 @@ let round_trip = () => {
     option(string),
     "another slide's module isn't this one",
     None,
-    Option.map(
+    Option.map(~f=
       _ => "split",
-      World.split(~slide=Option.get(World.slide_id("Other")), doc),
+      World.split(~slide=Option.value_exn(World.slide_id("Other")), doc),
     ),
   );
 };
@@ -93,7 +90,7 @@ let run_alone = (doc: Segment.t) => {
   let (map, elab) =
     Statics.mk_unmemoized(P.settings, DefStatics.ctx0(), term);
   let elab =
-    World.run_elab(~slide=Option.get(World.slide_id("Slide")), elab);
+    World.run_elab(~slide=Option.value_exn(World.slide_id("Slide")), elab);
   switch (
     Evaluator.evaluate(
       ~eval_info=
@@ -116,7 +113,7 @@ let run_alone = (doc: Segment.t) => {
 let corpus = () => {
   let library = library();
   let n = ref(0);
-  List.iter(
+  List.iter(~f=
     ((path, root, src)) => {
       /* one parse: a parse's ids are fresh */
       let seg = CorpusUtil.seg_of(~root, src);
@@ -132,7 +129,7 @@ let corpus = () => {
           list(pair(string, string)),
           path ++ ": the slide's tests",
           t0,
-          List.filter(((id, _)) => mine(id), t1),
+          List.filter(~f=((id, _)) => mine(id), t1),
         );
         check(
           list(pair(string, string)),

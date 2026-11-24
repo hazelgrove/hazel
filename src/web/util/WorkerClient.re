@@ -267,7 +267,7 @@ let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
   () => {
     let worker = Worker.create(name);
     setup_worker_message_handler(worker);
-    Option.iter(post_library(worker), library^);
+    Option.iter(~f=post_library(worker), library^);
     worker;
   };
 
@@ -291,7 +291,7 @@ let get_worker = () =>
 /* posted before any later evaluation request (postMessage is FIFO) */
 let install_library = (blob: string): unit => {
   library := Some(blob);
-  Option.iter(w => post_library(w, blob), worker_ref.contents);
+  Option.iter(~f=w => post_library(w, blob), worker_ref.contents);
 };
 
 let restart_worker = (): unit => {

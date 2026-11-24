@@ -1,5 +1,6 @@
 open Haz3lcore;
 open Util;
+open Poly;
 
 /* The world tree's deck (plans/world-tree.md, step 2): every
    Documentation and Scratch slide in one program (WorldTree), the
@@ -27,10 +28,10 @@ let slide_id = (name: string): Id.t => WorldTree.slide_id(path(name));
 /* where a slide was kept before the tree: its deck's prefix and name */
 let legacy = (name: string): option((string, string)) =>
   switch (path(name)) {
-  | ["Documentation", ...rest] when rest != [] =>
-    Some(("doc", String.concat(sep, rest)))
-  | ["Scratch", ...rest] when rest != [] =>
-    Some(("scratch", String.concat(sep, rest)))
+  | ["Documentation", ...rest] when !List.is_empty(rest) =>
+    Some(("doc", String.concat(~sep=sep, rest)))
+  | ["Scratch", ...rest] when !List.is_empty(rest) =>
+    Some(("scratch", String.concat(~sep=sep, rest)))
   | _ => None
   };
 
@@ -47,12 +48,12 @@ let read_names = (): list(string) => {
     };
   let drv = Init.documentation_drv_slide_names();
   let docs =
-    deck("doc", List.map(fst, snd(Lazy.force(Init.startup).documentation)))
-    |> List.filter(n => !List.mem(n, drv));
+    deck("doc", List.map(~f=fst, snd(Lazy.force(Init.startup).documentation)))
+    |> List.filter(~f=n => !List.mem(drv, n, ~equal=Poly.equal));
   let scratch =
-    deck("scratch", List.map(fst, snd(Lazy.force(Init.startup).scratch)));
-  List.map(n => "Documentation" ++ sep ++ n, docs)
-  @ List.map(n => "Scratch" ++ sep ++ n, scratch);
+    deck("scratch", List.map(~f=fst, snd(Lazy.force(Init.startup).scratch)));
+  List.map(~f=n => "Documentation" ++ sep ++ n, docs)
+  @ List.map(~f=n => "Scratch" ++ sep ++ n, scratch);
 };
 let names = (): list(string) =>
   switch (names_memo^) {
@@ -69,7 +70,7 @@ let names = (): list(string) =>
 let members = (name: string): (Segment.t, Refractors.RefractorList.t) => {
   let shipped = (p, n) => {
     let persisted =
-      p == "doc"
+      String.equal(p, "doc")
         ? Init.default_documentation_slide_name(n)
         : Init.empty_cell_editor_persistent(~root=Exp);
     let root = persisted.editor.root;
@@ -94,7 +95,7 @@ let members = (name: string): (Segment.t, Refractors.RefractorList.t) => {
 
 /* the slides whose members are in the program this session: what saves
    write (a slide not loaded holds an empty stand-in) */
-let loaded: Hashtbl.t(string, unit) = Hashtbl.create(16);
+let loaded: Stdlib.Hashtbl.t(string, unit) = Stdlib.Hashtbl.create(16);
 
 let zipper = (~probes, doc: Segment.t): Zipper.t =>
   Zipper.unzip(~direction=Left, doc)
@@ -119,48 +120,48 @@ let editor = (~settings, ~probes, doc: Segment.t): CellEditor.Model.t =>
    puts it in the world's paths, under the slide's module) */
 let stage_view = (name: string): unit => {
   Persist.stage_side(prefix, name);
-  Hashtbl.replace(
+  Stdlib.Hashtbl.replace(
     Persist.pending_pins,
     Persist.content_key(prefix, name),
     Persist.read_side(prefix, name),
   );
-  Hashtbl.remove(Persist.world_roots, Persist.content_key(prefix, name));
+  Stdlib.Hashtbl.remove(Persist.world_roots, Persist.content_key(prefix, name));
 };
 
 /* the deck, its program with [current]'s members loaded */
 let load = (~settings): Model.t => {
-  Hashtbl.reset(loaded);
+  Stdlib.Hashtbl.reset(loaded);
   forget_names();
   let names = names();
   let current =
     switch (Persist.load_meta(prefix)) {
     | Some({current, names: saved}) =>
-      switch (List.nth_opt(saved, current)) {
+      switch (List.nth(saved, current)) {
       | Some(n) =>
         ListUtil.findi_opt(m => m == n, names)
-        |> Option.map(fst)
+        |> Option.map(~f=fst)
         |> Option.value(~default=0)
       | None => 0
       }
     | None => 0
     };
-  let current_name = List.nth(names, current);
+  let current_name = List.nth_exn(names, current);
   let (mine, probes) = members(current_name);
-  Hashtbl.replace(loaded, current_name, ());
+  Stdlib.Hashtbl.replace(loaded, current_name, ());
   let doc =
     WorldTree.assemble(
       ~library=WorldSlide.library(),
-      List.map(
+      List.map(~f=
         n => (path(n), n == current_name ? Some(mine) : None),
         names,
       ),
     )
-    |> Option.get;
+    |> Option.value_exn;
   stage_view(current_name);
   {
     current,
     scratchpads:
-      List.mapi(
+      List.mapi(~f=
         (i, n) =>
           i == current
             ? Scratchpad.mk_code(
@@ -183,7 +184,7 @@ let stored_probes = (name: string, members: Segment.t) => {
     | (p, n) => Persist.read_probes(p, n, members)
     };
   switch (from((prefix, name))) {
-  | [] => Option.fold(~none=[], ~some=from, legacy(name))
+  | [] => Option.value_map(legacy(name), ~default=[], ~f=from)
   | probes => probes
   };
 };
@@ -191,7 +192,7 @@ let stored_probes = (name: string, members: Segment.t) => {
 /* switched to the current slide: the live program moves there, with the
    slide's members loaded if they aren't yet */
 let hydrate_current = (~settings, model: Model.t): Model.t => {
-  let target = List.nth(model.scratchpads, model.current);
+  let target = List.nth_exn(model.scratchpads, model.current);
   let live =
     ListUtil.findi_opt(
       (sp: Scratchpad.t) =>
@@ -214,23 +215,23 @@ let hydrate_current = (~settings, model: Model.t): Model.t => {
         (WorldTree.load(~slide, mine, doc), probes @ own);
       /* loaded by a zoom-out: its stored probes weren't */
       | Loaded(mine) =>
-        let have = List.map(fst, probes);
+        let have = List.map(~f=fst, probes);
         (
           doc,
           probes
-          @ List.filter(
-              ((id, _)) => !List.mem(id, have),
+          @ List.filter(~f=
+              ((id, _)) => !List.mem(have, id, ~equal=Poly.equal),
               stored_probes(target.name, mine),
             ),
         );
       | Gone => (doc, probes)
       };
-    Hashtbl.replace(loaded, target.name, ());
+    Stdlib.Hashtbl.replace(loaded, target.name, ());
     stage_view(target.name);
     {
       ...model,
       scratchpads:
-        List.mapi(
+        List.mapi(~f=
           (i, sp: Scratchpad.t) =>
             if (i == k) {
               Scratchpad.dormant_code(old);
@@ -256,18 +257,18 @@ let tables_memo = ref(None);
 let tables = () => {
   let names = names();
   switch (tables_memo^) {
-  | Some((n, t)) when n === names => t
+  | Some((n, t)) when phys_equal(n, names) => t
   | _ =>
-    let slides = Hashtbl.create(97);
-    let folders = Hashtbl.create(31);
-    List.iter(
+    let slides = Stdlib.Hashtbl.create(97);
+    let folders = Stdlib.Hashtbl.create(31);
+    List.iter(~f=
       name => {
         let p = path(name);
-        Hashtbl.replace(slides, WorldTree.slide_id(p), name);
-        List.iteri(
+        Stdlib.Hashtbl.replace(slides, WorldTree.slide_id(p), name);
+        List.iteri(~f=
           (i, _) =>
             if (i < List.length(p) - 1) {
-              Hashtbl.replace(
+              Stdlib.Hashtbl.replace(
                 folders,
                 WorldTree.folder_id(ListUtil.take(i + 1, p)),
                 (),
@@ -287,21 +288,21 @@ let tables = () => {
 let shown = (doc: Segment.t): list((string, WorldTree.shown)) => {
   let (slides, folders) = tables();
   WorldTree.skeleton(
-    ~folder=Hashtbl.mem(folders),
-    ~slide=Hashtbl.mem(slides),
+    ~folder=Stdlib.Hashtbl.mem(folders),
+    ~slide=Stdlib.Hashtbl.mem(slides),
     doc,
   )
-  |> List.map(((id, s)) => (Hashtbl.find(slides, id), s));
+  |> List.map(~f=((id, s)) => (Stdlib.Hashtbl.find(slides, id), s));
 };
 
 /* a slide's `⋯` opened in the code: its members load in place, with
    their probes, as if they had been there all along (no undo step) */
 let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
-  switch (List.nth(model.scratchpads, model.current)) {
+  switch (List.nth_exn(model.scratchpads, model.current)) {
   | {kind: Code({world: Some(_), program, _} as code), dormant: false, _} =>
     let doc = Program.document(program);
     switch (
-      List.filter_map(
+      List.filter_map(~f=
         ((name, s)) => s == WorldTree.Opened ? Some(name) : None,
         shown(doc),
       )
@@ -309,18 +310,14 @@ let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
     | [] => model
     | opened =>
       let (doc, probes) =
-        List.fold_left(
-          ((doc, probes), name) => {
+        List.fold(opened, ~init=(doc, []), ~f=((doc, probes), name) => {
             let (mine, own) = members(name);
-            Hashtbl.replace(loaded, name, ());
+            Stdlib.Hashtbl.replace(loaded, name, ());
             (
               WorldTree.load(~slide=slide_id(name), mine, doc),
               probes @ own,
             );
-          },
-          (doc, []),
-          opened,
-        );
+          });
       Model.with_current_kind(
         Code(
           Workspace.with_segment(~settings, ~more_probes=probes, code, doc),
@@ -332,7 +329,7 @@ let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
   };
 
 /* per loaded slide, the members last written */
-let last_saved: Hashtbl.t(string, Segment.t) = Hashtbl.create(16);
+let last_saved: Stdlib.Hashtbl.t(string, Segment.t) = Stdlib.Hashtbl.create(16);
 
 /* the loaded slides other than the current one, where changed (an edit
    at the program level), as members at a module root; the current one,
@@ -340,24 +337,24 @@ let last_saved: Hashtbl.t(string, Segment.t) = Hashtbl.create(16);
 let save = (model: Model.t): unit =>
   HazelDB.kv_batch(() => {
     Persist.save_current'(prefix, model);
-    switch (List.nth(model.scratchpads, model.current)) {
+    switch (List.nth_exn(model.scratchpads, model.current)) {
     | {kind: Code({program, _}), dormant: false, name: current} =>
       let doc = lazy(Program.document(program));
       let probes = lazy(Program.probes(program));
-      Hashtbl.iter(
+      Stdlib.Hashtbl.iter(
         (name, ()) =>
           if (name != current) {
             switch (WorldTree.body(~slide=slide_id(name), Lazy.force(doc))) {
             | Loaded(mine) =>
               let same =
-                switch (Hashtbl.find_opt(last_saved, name)) {
+                switch (Stdlib.Hashtbl.find_opt(last_saved, name)) {
                 | Some(prev) =>
                   List.length(prev) == List.length(mine)
-                  && List.for_all2((===), prev, mine)
+                  && List.for_all2_exn(~f=phys_equal, prev, mine)
                 | None => false
                 };
               if (!same) {
-                Hashtbl.replace(last_saved, name, mine);
+                Stdlib.Hashtbl.replace(last_saved, name, mine);
                 let ids = Segment.ids(mine);
                 let z =
                   Zipper.unzip(mine)
@@ -365,8 +362,8 @@ let save = (model: Model.t): unit =>
                        Refractors.{
                          ...r,
                          manuals:
-                           List.filter(
-                             ((id, _)) => List.mem(id, ids),
+                           List.filter(~f=
+                             ((id, _)) => List.mem(ids, id, ~equal=Poly.equal),
                              Lazy.force(probes),
                            ),
                        }
@@ -407,10 +404,10 @@ let deck_names = (p: string): list(string) =>
   switch (Persist.load_meta(p)) {
   | Some(m) => m.names
   | None =>
-    List.map(
+    List.map(~f=
       fst,
       snd(
-        p == "doc"
+        String.equal(p, "doc")
           ? Lazy.force(Init.startup).documentation
           : Lazy.force(Init.startup).scratch,
       ),
@@ -438,20 +435,18 @@ let set_deck_names = (p: string, names: list(string)): unit => {
    has them */
 let reassemble =
     (~fresh: list((string, Segment.t)), doc: Segment.t): option(Segment.t) =>
-  Option.bind(
-    WorldTree.split_library(
+  Option.bind(WorldTree.split_library(
       ~anchor=WorldTree.root_anchor,
       ~heads=WorldSlide.tree_heads,
       doc,
-    ),
-    ((library, _)) =>
+    ), ~f=((library, _)) =>
     WorldTree.assemble(
       ~library,
-      List.map(
+      List.map(~f=
         n =>
           (
             path(n),
-            switch (List.assoc_opt(n, fresh)) {
+            switch (List.Assoc.find(fresh, n, ~equal=Poly.equal)) {
             | Some(m) => Some(m)
             | None =>
               switch (WorldTree.body(~slide=slide_id(n), doc)) {
@@ -463,8 +458,7 @@ let reassemble =
           ),
         names(),
       ),
-    )
-  );
+    ));
 
 /* [model] after the deck's slides changed: the live program re-assembled
    for them, on [current] */
@@ -477,7 +471,7 @@ let rebuild =
     )
     : Model.t =>
   switch (
-    List.find_map(
+    List.find_map(~f=
       (sp: Scratchpad.t) =>
         switch (sp.kind) {
         | Code(code) when !sp.dormant => Some(code)
@@ -493,7 +487,7 @@ let rebuild =
       moved
       @ (
         switch (WorldTree.body(~slide=slide_id(current), doc)) {
-        | _ when List.mem_assoc(current, moved) => []
+        | _ when List.Assoc.mem(moved, current, ~equal=Poly.equal) => []
         | Loaded(_) => []
         | Unloaded
         | Gone => [(current, fst(members(current)))]
@@ -502,16 +496,16 @@ let rebuild =
     switch (reassemble(~fresh, doc)) {
     | None => model
     | Some(doc) =>
-      Hashtbl.replace(loaded, current, ());
+      Stdlib.Hashtbl.replace(loaded, current, ());
       stage_view(current);
       let names = names();
       {
         current:
           ListUtil.findi_opt(n => n == current, names)
-          |> Option.map(fst)
+          |> Option.map(~f=fst)
           |> Option.value(~default=0),
         scratchpads:
-          List.map(
+          List.map(~f=
             n =>
               n == current
                 ? Scratchpad.mk_code(
@@ -536,15 +530,15 @@ let rebuild =
 let add_scratch = (~settings, model: Model.t): Model.t => {
   let scratch = deck_names("scratch");
   let used =
-    List.filter_map(
+    List.filter_map(~f=
       n =>
-        switch (String.split_on_char(' ', n)) {
+        switch (String.split(~on=' ', n)) {
         | ["Scratchpad", k] => int_of_string_opt(k)
         | _ => None
         },
       scratch,
     );
-  let rec free = k => List.mem(k, used) ? free(k + 1) : k;
+  let rec free = k => List.mem(used, k, ~equal=Poly.equal) ? free(k + 1) : k;
   let name = "Scratchpad " ++ string_of_int(free(1));
   set_deck_names("scratch", scratch @ [name]);
   rebuild(~settings, ~current="Scratch" ++ sep ++ name, model);
@@ -552,17 +546,17 @@ let add_scratch = (~settings, model: Model.t): Model.t => {
 
 /* the current slide gone (its keys too), the one before it current */
 let delete_current = (~settings, model: Model.t): Model.t => {
-  let name = List.nth(model.scratchpads, model.current).name;
+  let name = List.nth_exn(model.scratchpads, model.current).name;
   switch (legacy(name)) {
   | Some((p, n)) =>
-    set_deck_names(p, List.filter(m => m != n, deck_names(p)));
+    set_deck_names(p, List.filter(~f=m => m != n, deck_names(p)));
     Persist.forget_slide(prefix, name);
-    Hashtbl.remove(loaded, name);
+    Stdlib.Hashtbl.remove(loaded, name);
     switch (names()) {
     | [] => model
     | names =>
       let current =
-        List.nth(
+        List.nth_exn(
           names,
           max(0, min(model.current - 1, List.length(names) - 1)),
         );
@@ -575,9 +569,9 @@ let delete_current = (~settings, model: Model.t): Model.t => {
 /* the current slide under [name] (a path in the same deck): its body as
    the program has it, its keys and its place in its deck's list moved */
 let rename_current = (~settings, name: string, model: Model.t): Model.t => {
-  let old = List.nth(model.scratchpads, model.current).name;
+  let old = List.nth_exn(model.scratchpads, model.current).name;
   let body =
-    List.find_map(
+    List.find_map(~f=
       (sp: Scratchpad.t) =>
         switch (sp.kind) {
         | Code(code) when !sp.dormant =>
@@ -597,12 +591,12 @@ let rename_current = (~settings, name: string, model: Model.t): Model.t => {
     );
   switch (legacy(old), legacy(name), body) {
   | (Some((p, n)), Some((p', n')), Some(body))
-      when p == p' && name != old && !List.mem(name, names()) =>
-    set_deck_names(p, List.map(m => m == n ? n' : m, deck_names(p)));
+      when p == p' && name != old && !List.mem(names(), name, ~equal=Poly.equal) =>
+    set_deck_names(p, List.map(~f=m => m == n ? n' : m, deck_names(p)));
     Persist.rename_slide(prefix, old, name);
     Persist.rename_slide(p, n, n');
-    Hashtbl.remove(loaded, old);
-    Hashtbl.remove(Persist.world_roots, Persist.content_key(prefix, old));
+    Stdlib.Hashtbl.remove(loaded, old);
+    Stdlib.Hashtbl.remove(Persist.world_roots, Persist.content_key(prefix, old));
     rebuild(~settings, ~moved=[(name, body)], ~current=name, model);
   | _ => model
   };
@@ -612,16 +606,15 @@ let rename_current = (~settings, name: string, model: Model.t): Model.t => {
    folders', then its own */
 let trail = (name: string): list(Id.t) => {
   let p = path(name);
-  List.init(List.length(p) - 1, i =>
-    WorldTree.folder_id(ListUtil.take(i + 1, p))
-  )
+  List.init(List.length(p) - 1, ~f=i =>
+    WorldTree.folder_id(ListUtil.take(i + 1, p)))
   @ [WorldTree.slide_id(p)];
 };
 
 /* zoomed into another slide's module (or a module inside it), that slide
    is current: the top bar follows the outline, and its members load */
 let follow_zoom = (~settings, model: Model.t): Model.t =>
-  switch (List.nth(model.scratchpads, model.current)) {
+  switch (List.nth_exn(model.scratchpads, model.current)) {
   | {kind: Code({world: Some(slide), view, _}), dormant: false, _} =>
     switch (SlideView.zoom_root(view)) {
     | Some(m) when m != slide =>
@@ -629,7 +622,7 @@ let follow_zoom = (~settings, model: Model.t): Model.t =>
       let above = view.zoom;
       switch (
         ListUtil.findi_opt(
-          (sp: Scratchpad.t) => List.mem(slide_id(sp.name), above),
+          (sp: Scratchpad.t) => List.mem(above, slide_id(sp.name), ~equal=Poly.equal),
           model.scratchpads,
         )
       ) {
