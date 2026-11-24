@@ -142,14 +142,14 @@ module M: Projector = {
 
   /* Convert normalized (0-1) position to value */
   let pos_to_value = (pos: float, min_val: float, max_val: float): float => {
-    let clamped = max(0.0, min(1.0, pos));
+    let clamped = Float.max(0.0, Float.min(1.0, pos));
     min_val +. clamped *. (max_val -. min_val);
   };
 
   /* Convert value to normalized (0-1) position */
   let value_to_pos = (v: float, min_val: float, max_val: float): float => {
     let normalized = (v -. min_val) /. (max_val -. min_val);
-    max(0.0, min(1.0, normalized));
+    Float.max(0.0, Float.min(1.0, normalized));
   };
 
   let view = ({model, info, parent, local, _}: View.args(model, action)) => {

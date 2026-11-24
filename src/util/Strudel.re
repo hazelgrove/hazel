@@ -28,7 +28,8 @@ let is_function = (name: string): bool => {
 };
 
 /* Check if Strudel is ready (note function exists) */
-let isReady: unit => bool = () => state^ == Ready && is_function("note");
+let isReady: unit => bool =
+  () => Poly.equal(state^, Ready) && is_function("note");
 
 /* Get current load state */
 let getLoadState: unit => load_state = () => state^;
@@ -109,7 +110,7 @@ let loadStrudel: (unit => unit) => unit =
           state := Ready;
           let callbacks = pending_callbacks^;
           pending_callbacks := [];
-          List.iter(cb => cb(), callbacks);
+          List.iter(callbacks, ~f=cb => cb());
         });
       Js.Unsafe.set(script, "onload", onLoad);
 
@@ -277,7 +278,7 @@ module PlayState = {
   /* Use Uuidm.t directly since util doesn't depend on Language.Id */
   type player_id = Uuidm.t;
 
-  let current: ref(option(player_id)) = ref(Option.None);
+  let current: ref(option(player_id)) = ref(None);
   /* Track last played description to detect actual changes */
   let last_desc: ref(string) = ref("");
 
@@ -285,33 +286,35 @@ module PlayState = {
    * Key insight: pattern.play() internally calls scheduler.setPattern(),
    * which updates the running scheduler without restarting the clock. */
   let play_or_update = (id: player_id, p: pattern, desc: string) => {
-    let is_new_pattern = last_desc^ != desc;
-    let is_new_player = current^ != Option.Some(id);
+    let is_new_pattern = !String.equal(last_desc^, desc);
+    let is_new_player = !Option.equal(Uuidm.equal, current^, Some(id));
 
     if (is_new_pattern || is_new_player) {
       /* If switching to a different player, stop the previous one first */
-      if (is_new_player && current^ != Option.None) {
+      if (is_new_player && Option.is_some(current^)) {
         stopMusic();
       };
       /* Don't call hush() here - let scheduler.setPattern handle the update */
       playPattern(p);
-      current := Option.Some(id);
+      current := Some(id);
       last_desc := desc;
     };
   };
 
   let stop = () => {
     stopMusic();
-    current := Option.None;
+    current := None;
     last_desc := "";
   };
 
-  let is_playing = (id: player_id) => current^ == Option.Some(id);
+  let is_playing = (id: player_id) =>
+    Option.equal(Uuidm.equal, current^, Some(id));
 
   /* Stop playback if any of the given IDs is the currently playing player */
   let stop_if_playing_any = (ids: list(player_id)) =>
     switch (current^) {
-    | Some(playing_id) when List.mem(playing_id, ids) => stop()
+    | Some(playing_id) when List.mem(ids, playing_id, ~equal=Uuidm.equal) =>
+      stop()
     | _ => ()
     };
 };

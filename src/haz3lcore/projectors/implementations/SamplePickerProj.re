@@ -34,7 +34,7 @@ module M: Projector = {
 
   /* Validate that string is a simple sample name (no mini-notation) */
   let is_simple_sample = (s: string): bool => {
-    let trimmed = String.trim(s);
+    let trimmed = String.strip(s);
     /* Must be non-empty, no spaces, no special chars */
     String.length(trimmed) > 0
     && !String.contains(trimmed, ' ')
@@ -110,7 +110,7 @@ module M: Projector = {
 
   /* Create a sample option button */
   let sample_option = (~current, ~parent, ~info, sample) => {
-    let is_selected = current == sample;
+    let is_selected = String.equal(current, sample);
     Node.button(
       ~attrs=[
         Attr.classes(["sample-option"] @ (is_selected ? ["selected"] : [])),
@@ -129,7 +129,7 @@ module M: Projector = {
         [
           Node.div(
             ~attrs=[Attr.classes(["sample-grid"])],
-            List.map(sample_option(~current, ~parent, ~info), all_samples),
+            List.map(all_samples, ~f=sample_option(~current, ~parent, ~info)),
           ),
         ],
       ),

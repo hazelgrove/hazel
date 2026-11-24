@@ -92,7 +92,7 @@ module M: Projector = {
   /* Convert value (0-1) to rotation angle (-135 to 135 degrees) */
   let value_to_angle = (v: float, min_val: float, max_val: float): float => {
     let normalized = (v -. min_val) /. (max_val -. min_val);
-    let clamped = max(0.0, min(1.0, normalized));
+    let clamped = Float.max(0.0, Float.min(1.0, normalized));
     (-135.0) +. clamped *. 270.0;
   };
 
@@ -100,7 +100,7 @@ module M: Projector = {
   let angle_to_value =
       (angle_deg: float, min_val: float, max_val: float): float => {
     /* Clamp angle to valid knob range (-135 to 135 degrees) */
-    let clamped_angle = max(-135.0, min(135.0, angle_deg));
+    let clamped_angle = Float.max(-135.0, Float.min(135.0, angle_deg));
     /* Map -135..135 to 0..1 */
     let normalized = (clamped_angle +. 135.0) /. 270.0;
     min_val +. normalized *. (max_val -. min_val);
@@ -113,12 +113,12 @@ module M: Projector = {
 
     /* Calculate indicator position on the knob edge */
     let angle_rad = angle *. Float.pi /. 180.0;
-    let indicator_x = 50.0 +. 30.0 *. sin(angle_rad);
-    let indicator_y = 50.0 -. 30.0 *. cos(angle_rad);
+    let indicator_x = 50.0 +. 30.0 *. Float.sin(angle_rad);
+    let indicator_y = 50.0 -. 30.0 *. Float.cos(angle_rad);
 
     /* Check if at min/max for tick highlighting */
-    let at_min = value <= min_val +. 0.001;
-    let at_max = value >= max_val -. 0.001;
+    let at_min = Float.(value <= min_val +. 0.001);
+    let at_max = Float.(value >= max_val -. 0.001);
 
     /* Handler for updating value based on mouse position */
     let handle_mouse = evt => {
@@ -136,7 +136,7 @@ module M: Projector = {
       let dx = svg_x -. 50.0;
       let dy = svg_y -. 50.0;
       /* atan2(dx, -dy) gives angle from 12 o'clock position */
-      let angle_rad = atan2(dx, -. dy);
+      let angle_rad = Float.atan2(dx, -. dy);
       let angle_deg = angle_rad *. 180.0 /. Float.pi;
       let new_value = angle_to_value(angle_deg, min_val, max_val);
       parent(SetSyntax(put(info, new_value)));

@@ -34,7 +34,7 @@ module M: Projector = {
 
   /* Validate that string is a simple note pattern (no complex mini-notation) */
   let is_simple_pattern = (s: string): bool => {
-    let trimmed = String.trim(s);
+    let trimmed = String.strip(s);
     /* Allow empty or space-separated tokens without complex syntax */
     String.length(trimmed) == 0
     || !String.contains(trimmed, '*')
@@ -108,7 +108,7 @@ module M: Projector = {
 
   /* Create a scale option button */
   let scale_option = (~current, ~parent, ~info, (name, pattern)) => {
-    let is_selected = current == pattern;
+    let is_selected = String.equal(current, pattern);
     Node.button(
       ~attrs=[
         Attr.classes(["scale-option"] @ (is_selected ? ["selected"] : [])),
@@ -128,11 +128,11 @@ module M: Projector = {
         [
           Node.div(
             ~attrs=[Attr.classes(["current-pattern"])],
-            [Node.text(current == "" ? "(empty)" : current)],
+            [Node.text(String.is_empty(current) ? "(empty)" : current)],
           ),
           Node.div(
             ~attrs=[Attr.classes(["scale-options"])],
-            List.map(scale_option(~current, ~parent, ~info), scales),
+            List.map(scales, ~f=scale_option(~current, ~parent, ~info)),
           ),
         ],
       ),

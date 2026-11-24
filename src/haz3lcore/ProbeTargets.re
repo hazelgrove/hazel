@@ -96,7 +96,9 @@ let probe_status =
       );
     let all_player =
       List.for_all(
-        (entry: Refractors.entry) => entry.kind == Player,
+        ~f=
+          (entry: Refractors.entry) =>
+            ProjectorCore.Kind.equal(entry.kind, Player),
         manual_entries,
       );
     if (all_statics) {

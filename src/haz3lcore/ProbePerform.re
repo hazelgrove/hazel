@@ -669,7 +669,7 @@ let rec is_sound_type = (ty: Typ.t): bool =>
    Player can only be applied to expressions with type Sound. */
 let can_player = (id: Id.t, info_map: Statics.Map.t): bool => {
   let target_ids = target_subterm_ids(id, info_map);
-  if (target_ids == []) {
+  if (List.is_empty(target_ids)) {
     false;
   } else {
     /* Check if the expression has type Sound */
@@ -690,8 +690,8 @@ let toggle_player =
     let target_ids = target_subterm_ids(id, info_map);
     let add_player = z =>
       List.fold_left(
-        (z, id) => Zipper.add_manual(id, Player, z),
-        z,
+        ~f=(z, id) => Zipper.add_manual(id, Player, z),
+        ~init=z,
         target_ids,
       );
     switch (probe_status(id, info_map, z.refractors)) {

@@ -60,7 +60,7 @@ let get_float = (exp: Exp.t): option(float) => {
 let get_tuple = (exp: Exp.t): option(list(Exp.t)) => {
   let unwrapped = unwrap_value(exp);
   switch (unwrapped.term) {
-  | Tuple(elems) => Some(List.map(unwrap_value, elems))
+  | Tuple(elems) => Some(List.map(elems, ~f=unwrap_value))
   | _ => None
   };
 };
@@ -70,7 +70,7 @@ let get_list = (exp: Exp.t): option(list(Exp.t)) => {
   let rec extract_list = (exp: Exp.t): option(list(Exp.t)) => {
     let unwrapped = unwrap_value(exp);
     switch (unwrapped.term) {
-    | ListLit(elems) => Some(List.map(unwrap_value, elems))
+    | ListLit(elems) => Some(List.map(elems, ~f=unwrap_value))
     | Cons(hd, tl) =>
       switch (extract_list(tl)) {
       | Some(rest) => Some([unwrap_value(hd), ...rest])
@@ -157,7 +157,7 @@ let rec interpret_sound = (exp: Exp.t): option(Util.Strudel.pattern) =>
     | Some(arg) =>
       switch (get_list(arg)) {
       | Some(elems) =>
-        let patterns = List.filter_map(interpret_sound, elems);
+        let patterns = List.filter_map(elems, ~f=interpret_sound);
         List.length(patterns) > 0 ? Some(Util.Strudel.seq(patterns)) : None;
       | None => None
       }
@@ -168,7 +168,7 @@ let rec interpret_sound = (exp: Exp.t): option(Util.Strudel.pattern) =>
     | Some(arg) =>
       switch (get_list(arg)) {
       | Some(elems) =>
-        let patterns = List.filter_map(interpret_sound, elems);
+        let patterns = List.filter_map(elems, ~f=interpret_sound);
         List.length(patterns) > 0
           ? Some(Util.Strudel.stack(patterns)) : None;
       | None => None
@@ -307,7 +307,7 @@ let rec sound_description = (exp: Exp.t): string =>
       switch (get_list(arg)) {
       | Some(elems) =>
         "seq["
-        ++ String.concat(", ", List.map(sound_description, elems))
+        ++ String.concat(~sep=", ", List.map(elems, ~f=sound_description))
         ++ "]"
       | None => "Seq(?)"
       }
@@ -319,7 +319,7 @@ let rec sound_description = (exp: Exp.t): string =>
       switch (get_list(arg)) {
       | Some(elems) =>
         "stack["
-        ++ String.concat(", ", List.map(sound_description, elems))
+        ++ String.concat(~sep=", ", List.map(elems, ~f=sound_description))
         ++ "]"
       | None => "Stack(?)"
       }

@@ -70,14 +70,14 @@ module M: Projector = {
     } else {
       /* Last character should be octave digit */
       let octave_char = token.[len - 1];
-      if (octave_char < '0' || octave_char > '9') {
+      if (Char.(octave_char < '0' || octave_char > '9')) {
         None;
       } else {
-        let octave = Char.code(octave_char) - Char.code('0');
+        let octave = Char.to_int(octave_char) - Char.to_int('0');
         let note_name =
-          String.lowercase_ascii(String.sub(token, 0, len - 1))
+          String.lowercase(String.sub(token, ~pos=0, ~len=len - 1))
           |> normalize_note;
-        if (List.mem(note_name, all_notes)) {
+        if (List.mem(all_notes, note_name, ~equal=String.equal)) {
           Some((note_name, octave));
         } else {
           None;
@@ -91,26 +91,26 @@ module M: Projector = {
   let validate_pattern = (pattern: string): option(int) => {
     let tokens =
       pattern
-      |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0);
+      |> String.split(~on=' ')
+      |> List.filter(~f=s => String.length(s) > 0);
 
     if (List.length(tokens) == 0) {
       /* Empty pattern is valid, default to octave 4 */
       Some(4);
     } else {
       /* Parse all tokens */
-      let parsed = List.map(parse_note, tokens);
-      if (List.exists(opt => opt == None, parsed)) {
+      let parsed = List.map(tokens, ~f=parse_note);
+      if (List.exists(parsed, ~f=Option.is_none)) {
         None;
             /* Some token didn't parse as a valid note */
       } else {
         /* All parsed - check they're all same octave */
-        let notes = List.filter_map(x => x, parsed);
-        let octaves = List.map(snd, notes);
+        let notes = List.filter_map(parsed, ~f=x => x);
+        let octaves = List.map(notes, ~f=snd);
         switch (octaves) {
         | [] => Some(4)
         | [first, ...rest] =>
-          if (List.for_all(o => o == first, rest)) {
+          if (List.for_all(rest, ~f=o => o == first)) {
             Some(first);
           } else {
             None; /* Mixed octaves */
@@ -195,11 +195,11 @@ module M: Projector = {
       token;
     } else {
       let octave_char = token.[len - 1];
-      if (octave_char < '0' || octave_char > '9') {
+      if (Char.(octave_char < '0' || octave_char > '9')) {
         token;
       } else {
         let note_name =
-          String.lowercase_ascii(String.sub(token, 0, len - 1));
+          String.lowercase(String.sub(token, ~pos=0, ~len=len - 1));
         normalize_note(note_name) ++ String.make(1, octave_char);
       };
     };
@@ -210,17 +210,17 @@ module M: Projector = {
   let toggle_note = (pattern: string, note: string): string => {
     let notes =
       pattern
-      |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0);
-    let normalized_notes = List.map(normalize_full_note, notes);
-    if (List.mem(note, normalized_notes)) {
+      |> String.split(~on=' ')
+      |> List.filter(~f=s => String.length(s) > 0);
+    let normalized_notes = List.map(notes, ~f=normalize_full_note);
+    if (List.mem(normalized_notes, note, ~equal=String.equal)) {
       /* Remove the note - filter by normalized comparison */
       notes
-      |> List.filter(n => normalize_full_note(n) != note)
-      |> String.concat(" ");
+      |> List.filter(~f=n => !String.equal(normalize_full_note(n), note))
+      |> String.concat(~sep=" ");
     } else {
       /* Add the note at the end */
-      notes @ [note] |> String.concat(" ");
+      notes @ [note] |> String.concat(~sep=" ");
     };
   };
 
@@ -228,10 +228,10 @@ module M: Projector = {
   let has_note = (pattern: string, note: string): bool => {
     let notes =
       pattern
-      |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0)
-      |> List.map(normalize_full_note);
-    List.mem(note, notes);
+      |> String.split(~on=' ')
+      |> List.filter(~f=s => String.length(s) > 0)
+      |> List.map(~f=normalize_full_note);
+    List.mem(notes, note, ~equal=String.equal);
   };
 
   /* Create a white key */
@@ -246,7 +246,7 @@ module M: Projector = {
           parent(SetSyntax(put(info, new_pattern)));
         }),
       ],
-      [Node.text(String.uppercase_ascii(note))],
+      [Node.text(String.uppercase(note))],
     );
   };
 
@@ -276,15 +276,12 @@ module M: Projector = {
   let view = ({model: {octave}, info, parent, _}: View.args(model, action)) => {
     let pattern = get(info);
     let white_keys =
-      List.map(
-        note => white_key(~pattern, ~parent, ~info, ~octave, note),
-        white_notes,
+      List.map(white_notes, ~f=note =>
+        white_key(~pattern, ~parent, ~info, ~octave, note)
       );
     let black_keys =
-      List.map(
-        ((note, pos)) =>
-          black_key(~pattern, ~parent, ~info, ~octave, note, pos),
-        black_notes,
+      List.map(black_notes, ~f=((note, pos)) =>
+        black_key(~pattern, ~parent, ~info, ~octave, note, pos)
       );
     View.mk(
       Node.div(

@@ -43,17 +43,16 @@ module M: Projector = {
   let validate_pattern = (pattern: string): bool => {
     let tokens =
       pattern
-      |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0);
+      |> String.split(~on=' ')
+      |> List.filter(~f=s => String.length(s) > 0);
 
     /* Empty pattern is valid */
     if (List.length(tokens) == 0) {
       true;
     } else {
       /* Check each token is valid */
-      List.for_all(
-        token => List.mem(token, valid_tokens),
-        tokens,
+      List.for_all(tokens, ~f=token =>
+        List.mem(valid_tokens, token, ~equal=String.equal)
       );
     };
   };
@@ -131,44 +130,38 @@ module M: Projector = {
     /* Parse mini-notation: "bd ~ sd ~" means bd on step 0, sd on step 2 */
     let tokens =
       pattern
-      |> String.split_on_char(' ')
-      |> List.filter(s => String.length(s) > 0);
+      |> String.split(~on=' ')
+      |> List.filter(~f=s => String.length(s) > 0);
     let per_step = max(1, List.length(tokens)) / steps;
     List.map(
-      ((drum, _)) => {
+      drums,
+      ~f=((drum, _)) => {
         let active_steps =
-          List.mapi(
-            (i, token) =>
-              if (token == drum) {
-                Some(i / max(1, per_step));
-              } else {
-                None;
-              },
-            tokens,
+          List.mapi(tokens, ~f=(i, token) =>
+            if (String.equal(token, drum)) {
+              Some(i / max(1, per_step));
+            } else {
+              None;
+            }
           )
-          |> List.filter_map(x => x);
+          |> List.filter_map(~f=x => x);
         (drum, active_steps);
       },
-      drums,
     );
   };
 
   /* Generate pattern string from grid state */
   let generate_pattern =
       (grid: list((string, list(int))), steps: int): string => {
-    let pattern = Array.make(steps, "~");
-    List.iter(
-      ((drum, active_steps)) =>
-        List.iter(
-          step =>
-            if (step >= 0 && step < steps) {
-              pattern[step] = drum;
-            },
-          active_steps,
-        ),
-      grid,
+    let pattern = Array.create(~len=steps, "~");
+    List.iter(grid, ~f=((drum, active_steps)) =>
+      List.iter(active_steps, ~f=step =>
+        if (step >= 0 && step < steps) {
+          pattern[step] = drum;
+        }
+      )
     );
-    Array.to_list(pattern) |> String.concat(" ");
+    Array.to_list(pattern) |> String.concat(~sep=" ");
   };
 
   /* Toggle a step for a drum */
@@ -176,18 +169,16 @@ module M: Projector = {
       (pattern: string, drum: string, step: int, steps: int): string => {
     let grid = parse_pattern(pattern, steps);
     let new_grid =
-      List.map(
-        ((d, active)) =>
-          if (d == drum) {
-            if (List.mem(step, active)) {
-              (d, List.filter(s => s != step, active));
-            } else {
-              (d, [step, ...active]);
-            };
+      List.map(grid, ~f=((d, active)) =>
+        if (String.equal(d, drum)) {
+          if (List.mem(active, step, ~equal=Int.equal)) {
+            (d, List.filter(active, ~f=s => s != step));
           } else {
-            (d, active);
-          },
-        grid,
+            (d, [step, ...active]);
+          };
+        } else {
+          (d, active);
+        }
       );
     generate_pattern(new_grid, steps);
   };
@@ -195,8 +186,8 @@ module M: Projector = {
   /* Check if a step is active for a drum */
   let is_active =
       (grid: list((string, list(int))), drum: string, step: int): bool =>
-    switch (List.find_opt(((d, _)) => d == drum, grid)) {
-    | Some((_, active)) => List.mem(step, active)
+    switch (List.find(grid, ~f=((d, _)) => String.equal(d, drum))) {
+    | Some((_, active)) => List.mem(active, step, ~equal=Int.equal)
     | None => false
     };
 
@@ -230,7 +221,7 @@ module M: Projector = {
         ),
         Node.div(
           ~attrs=[Attr.classes(["grid-cells"])],
-          List.init(steps, step =>
+          List.init(steps, ~f=step =>
             grid_cell(~pattern, ~parent, ~info, ~steps, drum, step, grid)
           ),
         ),
@@ -242,10 +233,8 @@ module M: Projector = {
     let pattern = get(info);
     let grid = parse_pattern(pattern, steps);
     let rows =
-      List.map(
-        ((drum, label)) =>
-          drum_row(~pattern, ~parent, ~info, ~steps, drum, label, grid),
-        drums,
+      List.map(drums, ~f=((drum, label)) =>
+        drum_row(~pattern, ~parent, ~info, ~steps, drum, label, grid)
       );
     View.mk(
       Node.div(
