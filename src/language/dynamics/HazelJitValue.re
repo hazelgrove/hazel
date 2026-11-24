@@ -610,7 +610,15 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
   }
   if (Array.isArray(b)) return {n: b};
   var rec = function (t) { var ks = Object.keys(t); if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(function (k) { return k === "c" || k === "v"; })) return false; return true; };
-  if (rec(a) || rec(b)) return {n: b};   // (^ticket(847)) a record: replaced whole
+  // (^ticket(847)) a record: field by field, by index in its keys' order (the tuple's entries' order), as a tuple
+  if (rec(a) || rec(b)) {
+    if (!(rec(a) && rec(b))) return {n: b};
+    var ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.length !== kb.length) return {n: b};
+    var chr = [];
+    for (var j = 0; j < ka.length; j++) { if (ka[j] !== kb[j]) return {n: b}; var dr = diff(a[ka[j]], b[kb[j]]); if (dr !== null) chr.push([j, dr]); }
+    return chr.length ? {t: chr} : null;
+  }
   if (Object.hasOwn(a, "c")) {
     if (!Object.hasOwn(b, "c") || a.c !== b.c || Object.hasOwn(a, "v") !== Object.hasOwn(b, "v")) return {n: b};
     if (!Object.hasOwn(a, "v")) return null;
