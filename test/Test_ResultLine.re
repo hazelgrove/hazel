@@ -48,7 +48,52 @@ let settles = () => {
   );
 };
 
+/* a load can run the stand-in elaboration statics make while dynamics
+   are off; that's no run of the program, so it never settles */
+let placeholder = () => {
+  let term = Exp.fresh(EmptyHole);
+  let elab = (settings: CoreSettings.t) =>
+    Haz3lcore.CachedStatics.init_from_term(
+      ~settings,
+      ~is_dynamic_term=false,
+      term,
+    ).
+      elaborated;
+  check(
+    bool,
+    "dynamics and elaboration off",
+    true,
+    Haz3lcore.CachedStatics.is_placeholder(
+      elab({
+        ...CoreSettings.on,
+        dynamics: false,
+        elaborate: false,
+      }),
+    ),
+  );
+  check(
+    bool,
+    "statics off",
+    true,
+    Haz3lcore.CachedStatics.is_placeholder(
+      elab({
+        ...CoreSettings.on,
+        statics: false,
+      }),
+    ),
+  );
+  check(
+    bool,
+    "a real elaboration",
+    false,
+    Haz3lcore.CachedStatics.is_placeholder(elab(CoreSettings.on)),
+  );
+};
+
 let tests = (
   "ResultLine",
-  [test_case("the last finished run", `Quick, settles)],
+  [
+    test_case("the last finished run", `Quick, settles),
+    test_case("the stand-in elaboration", `Quick, placeholder),
+  ],
 );

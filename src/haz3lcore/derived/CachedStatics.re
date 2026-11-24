@@ -30,6 +30,18 @@ let empty: t = {
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
+let statics_disabled = "Statics disabled";
+let dynamics_disabled = "Dynamics & Elaboration disabled";
+
+/* the elaboration's stand-in while statics or dynamics are off: what it
+   evaluates to is no run of the program */
+let is_placeholder = (elaborated: Exp.t): bool =>
+  switch (elaborated.term) {
+  | Var(x) =>
+    String.equal(x, statics_disabled) || String.equal(x, dynamics_disabled)
+  | _ => false
+  };
+
 /* Predicate for whether a term should be probed when ProbeAll is on.
  * Currently const true - probes all expressions / patterns */
 let should_probe = (info: Info.t): bool =>
@@ -129,9 +141,9 @@ let init_from_term =
   let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
     switch () {
-    | _ when !settings.statics => dh_err("Statics disabled")
+    | _ when !settings.statics => dh_err(statics_disabled)
     | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
+      dh_err(dynamics_disabled)
     | _ => elaborated
     };
   let targets = compute_targets(~settings, ~info_map, ~probe_ids, ());

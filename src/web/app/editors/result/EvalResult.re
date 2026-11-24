@@ -618,11 +618,13 @@ module Update = {
           |> Theorems.Update.calculate(~settings, ~statics, ~dynamics)
         : theorems;
 
-    /* only a new result settles; a change redraws the probe views, whose
-       cache can't see the ⇓ drawer's stop */
+    /* only a new result of the program settles (not of the stand-in
+       elaboration a load can briefly run); a change redraws the probe
+       views, whose cache can't see the ⇓ drawer's stop */
     let settled' =
       switch (result) {
-      | NewValue(r) =>
+      | NewValue(r)
+          when !Haz3lcore.CachedStatics.is_placeholder(Calc.get_value(elab)) =>
         Model.settle(
           settled,
           switch (r) {
@@ -635,6 +637,7 @@ module Update = {
                d.probe_map
              ),
         )
+      | NewValue(_)
       | OldValue(_) => settled
       };
     if (!phys_equal(settled', settled)) {
