@@ -20,6 +20,7 @@ depends: [
   "ezjs_idb"
   "bonsai"
   "ppx_deriving"
+  "ppxlib"
   "ptmap"
   "uuidm" {= "0.9.8"}
   "unionFind"

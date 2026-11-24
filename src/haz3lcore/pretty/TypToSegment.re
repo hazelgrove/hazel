@@ -30,19 +30,11 @@ let diff_ids = (~ctx=?, ~against: t, t: t) =>
 
 let ids_sufficient = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   let {typ, _} = prepare(~settings, typ);
-  let ok = ref(true);
-  let _ =
-    Typ.map_term(
-      ~f_typ=
-        (cont, ty) => {
-          if (List.length(ty.annotation.ids) < PadIds.necessary_ids(ty)) {
-            ok := false;
-          };
-          cont(ty);
-        },
-      typ,
-    );
-  ok^;
+  Any.subterms(Typ(typ))
+  |> List.filter_map(~f=Any.is_typ)
+  |> List.for_all(~f=(ty: Typ.t) =>
+       List.length(ty.annotation.ids) >= PadIds.necessary_ids(ty)
+     );
 };
 
 let typ_to_segment =

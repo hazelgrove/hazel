@@ -132,19 +132,20 @@ let merge_outbox =
 let copy_descendant_entries =
     (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
     : t('state) => {
-  let acc = ref(incr);
-  let f_exp = (continue, e: Exp.t): Exp.t => {
-    let sub_id = Exp.rep_id(e);
-    if (!Id.equal(sub_id, root_id)) {
-      switch (Id.Map.find_opt(sub_id, prev.entries)) {
-      | Some(sub_entry) => acc := add_entry(sub_id, sub_entry, acc^)
-      | None => ()
-      };
-    };
-    continue(e);
-  };
-  let _ = TermBase.Exp.map_term(~f_exp, root);
-  acc^;
+  Any.subterms(Exp(root))
+  |> List.filter_map(~f=Any.is_exp)
+  |> List.fold(
+       ~init=incr,
+       ~f=(acc, e) => {
+         let sub_id = Exp.rep_id(e);
+         switch (Id.Map.find_opt(sub_id, prev.entries)) {
+         | Some(sub_entry) when !Id.equal(sub_id, root_id) =>
+           add_entry(sub_id, sub_entry, acc)
+         | Some(_)
+         | None => acc
+         };
+       },
+     );
 };
 
 /* Surface ids covered by cache entries: each entry short-circuits a subtree,
@@ -152,17 +153,14 @@ let copy_descendant_entries =
  * pending-eval worklist (to drop settled ids) and by the frozen debug tint
  * (to paint a reuse prediction). */
 let visible_ids = (incr: t('state)): list(Id.t) => {
-  let acc = ref([]);
-  let collect_subtree = (root: Exp.t): unit => {
-    let f_exp = (continue, e: Exp.t): Exp.t => {
-      acc := [Exp.rep_id(e), ...acc^];
-      continue(e);
-    };
-    let _ = TermBase.Exp.map_term(~f_exp, root);
-    ();
-  };
-  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
-  acc^;
+  Id.Map.fold(
+    (_, entry, acc) =>
+      Any.subterms(Exp(entry.prev_elab))
+      |> List.filter_map(~f=Any.is_exp)
+      |> List.fold(~init=acc, ~f=(acc, e) => [Exp.rep_id(e), ...acc]),
+    incr.entries,
+    [],
+  );
 };
 
 /* Ids the UI should paint as "frozen" for a reuse plan / prediction. */

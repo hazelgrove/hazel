@@ -221,6 +221,16 @@ let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
   );
 };
 
+/* Folds over the payload types, in order, as map_preserving maps them. */
+let fold = (f: ('a, 'acc) => 'acc, m: t('a), acc: 'acc): 'acc =>
+  List.fold(m, ~init=acc, ~f=(acc, entry) =>
+    switch (entry) {
+    | Variant(_, _, Some(value))
+    | BadEntry(value) => f(value, acc)
+    | Variant(_, _, None) => acc
+    }
+  );
+
 // TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(

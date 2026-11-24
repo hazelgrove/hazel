@@ -40,6 +40,7 @@
   ezjs_idb
   bonsai
   ppx_deriving
+  ppxlib ; src/ppx_children
   ptmap
   (uuidm
    (= 0.9.8)) ; 0.9.9 has breaking deprecated changes

@@ -12,14 +12,16 @@ type deferral_position_t =
   | InAp
   | OutsideAp;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+/* `children` generates map_children_* and fold_children_* (src/ppx_children). */
+[@deriving (show({with_path: false}), sexp, yojson, eq, children)]
+[@children.node]
 type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
   | Typ(typ_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
-  | Drv(DrvGrammar.any_t('a))
+  | Drv([@children.opaque] DrvGrammar.any_t('a))
   | Mod(mod_t('a))
   | Sig(sig_t('a))
   | MPat(mpat_t('a))
@@ -32,13 +34,13 @@ and exp_term('a) =
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
-  | DrvQuote(DrvGrammar.any_t('a), DrvSort.t)
+  | DrvQuote([@children.opaque] DrvGrammar.any_t('a), DrvSort.t)
   | ListLit(list(exp_t('a)))
   /* The type double-option field of this constructor is required to assign the correct
      statics to constructors after evaluation. In dynamic expressions `Some(None)` means
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
      this field is None.*/
-  | Constructor(string, option(option(typ_t('a))))
+  | Constructor(string, [@children.opaque] option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -52,7 +54,11 @@ and exp_term('a) =
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
-  | FixF(pat_t('a), exp_t('a), option(Environment.t(exp_t('a))))
+  | FixF(
+      pat_t('a),
+      exp_t('a),
+      [@children.opaque] option(Environment.t(exp_t('a))),
+    )
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
@@ -63,7 +69,10 @@ and exp_term('a) =
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
-  | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
+  | Closure(
+      [@show.opaque] [@children.opaque] Environment.t(exp_t('a)),
+      exp_t('a),
+    )
   | Parens(exp_t('a)) // (
   | Projector(projector_data, exp_t('a))
   | Cons(exp_t('a), exp_t('a))
@@ -76,6 +85,7 @@ and exp_term('a) =
   | Asc(exp_t('a), typ_t('a))
   | Module(list(mod_t('a)))
   | ModuleExp(mpat_t('a), exp_t('a), exp_t('a))
+[@children.node]
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -85,7 +95,7 @@ and pat_term('a) =
   | ExplicitNonlabel
   | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
-  | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
+  | Constructor(string, [@children.opaque] option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
@@ -95,6 +105,7 @@ and pat_term('a) =
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
   | Asc(pat_t('a), typ_t('a))
+[@children.node]
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -103,7 +114,12 @@ and typ_term('a) =
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
-  | Sum(ConstructorMap.t(typ_t('a)))
+  | Sum(
+      [@children.container
+        (ConstructorMap.map_preserving, ConstructorMap.fold)
+      ]
+      ConstructorMap.t(typ_t('a)),
+    )
   | Prod(list(typ_t('a)))
   | ExplicitNonlabel
   | Label(string)
@@ -116,17 +132,20 @@ and typ_term('a) =
   | ProdProjection(typ_t('a), typ_t('a))
   | ProdExtension(typ_t('a), typ_t('a))
   | Sig(list(sig_t('a)))
+[@children.node]
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Var(string)
+[@children.node]
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
   | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
+[@children.node]
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and mod_term('a) =
   | Invalid(string)
@@ -136,6 +155,7 @@ and mod_term('a) =
   | ModType(tpat_t('a), typ_t('a))
   | ModExp(exp_t('a))
   | ModuleMod(mpat_t('a), exp_t('a))
+[@children.node]
 and mod_t('a) = Annotated.t(mod_term('a), 'a)
 and sig_term('a) =
   | Invalid(string)
@@ -143,6 +163,7 @@ and sig_term('a) =
   | MultiHole(list(any_t('a)))
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
+[@children.node]
 and sig_t('a) = Annotated.t(sig_term('a), 'a)
 and mpat_term('a) =
   | Invalid(string)
@@ -150,6 +171,7 @@ and mpat_term('a) =
   | MultiHole(list(any_t('a)))
   | Var(Var.t)
   | Asc(mpat_t('a), typ_t('a))
+[@children.node]
 and mpat_t('a) = Annotated.t(mpat_term('a), 'a)
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
