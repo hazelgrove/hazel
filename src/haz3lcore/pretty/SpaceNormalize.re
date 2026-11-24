@@ -21,16 +21,17 @@ let tight_before = [")", "]", ",", ";", ">", "."];
 let self_delim = ["(", ")", "[", "]", ",", ";", "{", "}"];
 
 let is_symbolic = (t: Token.t): bool =>
-  !Token.is_wordish(t) && !List.mem(t, self_delim);
+  !Token.is_wordish(t) && !List.mem(self_delim, t, ~equal=String.equal);
 
 /* Tokens that always deserve surrounding space when synthesized next
  * to something (keyword forms, rule delimiters) */
 let spaced = (t: Token.t): bool =>
-  Token.is_keyword(t) || List.mem(t, ["|", "=>"]);
+  Token.is_keyword(t) || List.mem(["|", "=>"], t, ~equal=String.equal);
 
 /* Junctions where canonicalization deletes spacing entirely */
 let tight_junction = (prev: Token.t, next: Token.t): bool =>
-  List.mem(prev, tight_after) || List.mem(next, tight_before);
+  List.mem(tight_after, prev, ~equal=String.equal)
+  || List.mem(tight_before, next, ~equal=String.equal);
 
 /* An application/indexing opener: a `(`/`[` tile that takes a left
  * operand (concave left nib) hugs that operand: `f (x)` -> `f(x)`.
@@ -95,7 +96,8 @@ let canonical_sep =
   };
 
 let needs_space = (prev: Token.t, next: Token.t): bool =>
-  if (List.mem(prev, tight_after) || List.mem(next, tight_before)) {
+  if (List.mem(tight_after, prev, ~equal=String.equal)
+      || List.mem(tight_before, next, ~equal=String.equal)) {
     false;
   } else if (spaced(prev) || spaced(next)) {
     true;
@@ -114,9 +116,7 @@ let space = () => Piece.secondary(Secondary.mk_space(Id.mk()));
 /* Last/first token of a piece, textually */
 let last_token = (p: Piece.t): option(Token.t) =>
   switch (p) {
-  | Tile(t) =>
-    let l = Tile.effective_label(t);
-    l == [] ? None : Some(List.nth(l, List.length(l) - 1));
+  | Tile(t) => List.last(Tile.effective_label(t))
   | _ => None
   };
 let first_token = (p: Piece.t): option(Token.t) =>
@@ -175,11 +175,11 @@ and normalize_piece = (~canonicalize=false, p: Piece.t): Piece.t =>
     let shards_tokens = Tile.effective_label(t);
     let children =
       t.children
-      |> List.mapi((i, child) => {
+      |> List.mapi(~f=(i, child) => {
            let child = go(~canonicalize, child);
            /* pad the child against its surrounding shards */
-           let left = List.nth_opt(shards_tokens, i);
-           let right = List.nth_opt(shards_tokens, i + 1);
+           let left = List.nth(shards_tokens, i);
+           let right = List.nth(shards_tokens, i + 1);
            let child =
              if (canonicalize) {
                /* collapse a leading space run against the left shard */
@@ -198,7 +198,7 @@ and normalize_piece = (~canonicalize=false, p: Piece.t): Piece.t =>
            let child =
              switch (child, left) {
              | ([Piece.Tile(_), ..._], Some(l)) =>
-               switch (first_token(List.hd(child))) {
+               switch (first_token(List.hd_exn(child))) {
                | Some(b) when needs_space(l, b) => [space(), ...child]
                | _ => child
                }

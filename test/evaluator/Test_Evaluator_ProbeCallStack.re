@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /**
  * Tests for probe sample call_stack behavior.
@@ -25,15 +26,15 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(snd);
+  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
 };
 
 /* Show call stack for debugging */
 let show_call_stack = (cs: CallStack.t): string =>
   "["
   ++ String.concat(
-       ", ",
-       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
+       ~sep=", ",
+       List.map(~f=(f: CallStack.frame) => Id.str3(f.id), cs),
      )
   ++ "]";
 
@@ -64,7 +65,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -85,7 +86,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -118,7 +119,7 @@ in ^^probe(celsius(72.)); ^^probe(celsius(100.))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -140,12 +141,12 @@ in f(5)|});
           bool,
           "Inner probe should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -163,7 +164,7 @@ in f(1); f(2)|});
           bool,
           "Both probes should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         /* They should have DIFFERENT call_stacks (different app_ids) */
         check(
@@ -175,7 +176,7 @@ in f(1); f(2)|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -199,7 +200,7 @@ in ^^probe(f(5))|});
         /* One sample should be from the app probe (empty call_stack),
          * one from inside the function (non-empty call_stack) */
         let (app_sample, inner_sample) =
-          if (List.length(s1.call_stack) == 0) {
+          if (List.is_empty(s1.call_stack)) {
             (s1, s2);
           } else {
             (s2, s1);
@@ -219,7 +220,7 @@ in ^^probe(f(5))|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -243,12 +244,12 @@ in m.f(5)|},
           bool,
           "Probe inside module function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -268,12 +269,12 @@ in m.f(3)|},
           bool,
           "Probe inside module keyword function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -293,7 +294,7 @@ in m.f(1); m.f(2)|},
           bool,
           "Both should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         check(
           bool,
@@ -304,7 +305,7 @@ in m.f(1); m.f(2)|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -316,7 +317,7 @@ in m.f(1); m.f(2)|},
  * binding site is only a parameter). These tests pin down which calls record
  * a navigable fn_def_id. */
 let frame_fn_def_id = (s: Sample.t): option(Id.t) =>
-  Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id);
+  Option.bind(s.frame, ~f=(f: CallStack.frame) => f.fn_def_id);
 
 let single_sample = (label, code): Sample.t => {
   let samples = get_all_samples(code);
@@ -362,17 +363,18 @@ let step_into_frame_tests = [
         let samples =
           EvaluatorState.get_probes(state)
           |> Id.Map.bindings
-          |> List.concat_map(snd);
+          |> List.concat_map(~f=snd);
         let dump =
           List.map(
-            (s: Sample.t) =>
-              switch (frame_fn_def_id(s)) {
-              | None => "noFnDef"
-              | Some(id) => term_kind(info_map, id)
-              },
+            ~f=
+              (s: Sample.t) =>
+                switch (frame_fn_def_id(s)) {
+                | None => "noFnDef"
+                | Some(id) => term_kind(info_map, id)
+                },
             samples,
           )
-          |> String.concat(",");
+          |> String.concat(~sep=",");
         let resolves = (s: Sample.t) =>
           switch (frame_fn_def_id(s)) {
           | None => false
@@ -383,7 +385,7 @@ let step_into_frame_tests = [
             }
           };
         let total = List.length(samples);
-        let ok = List.length(List.filter(resolves, samples));
+        let ok = List.length(List.filter(~f=resolves, samples));
         check(int, label ++ ": resolved [" ++ dump ++ "]", total, ok);
       };
       /* annotated let-bound fn (like crop-plotter's setCell) via deferred */
