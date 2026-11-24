@@ -99,10 +99,10 @@ let typed_in = (name, marked, typed) =>
       let z =
         Test_Editing.perform(
           Test_TabDispatch.padding_zipper(marked),
-          List.map(c => Action.Insert(c), Token.to_list(typed)),
+          List.map(Token.to_list(typed), ~f=c => Action.Insert(c)),
         );
       let loaded =
-        Util.StringUtil.plain_split(marked, "¦") |> String.concat(typed);
+        Util.StringUtil.plain_split(marked, "¦") |> String.concat(~sep=typed);
       check(
         bool,
         "MakeTerm reads the typed and loaded text identically: " ++ name,
@@ -115,7 +115,7 @@ let typed_in = (name, marked, typed) =>
             exp
         )(
           MakeTerm.go(Zipper.unselect_and_zip(z)).term,
-          MakeTerm.go(Option.get(Parser.to_segment(loaded, ~root=Exp))).
+          MakeTerm.go(Option.value_exn(Parser.to_segment(loaded, ~root=Exp))).
             term,
         ),
       );
