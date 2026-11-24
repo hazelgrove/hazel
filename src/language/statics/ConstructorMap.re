@@ -213,7 +213,7 @@ let meet =
     )
     : option(t('a)) =>
   /* Short-circuit: physical equality - meet of identical maps is that map */
-  if (m1 === m2) {
+  if (phys_equal(m1, m2)) {
     Some(m1);
   } else {
     let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
@@ -246,7 +246,7 @@ let match_synswitch =
     )
     : t('a) =>
   /* Short-circuit: physical equality */
-  if (m1 === m2) {
+  if (phys_equal(m1, m2)) {
     m1;
   } else {
     let (inter, left, _) = venn_regions(same_constructor(eq), m1, m2);
@@ -264,7 +264,7 @@ let match_synswitch =
 
 let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) =>
   /* Short-circuit: physical equality */
-  if (m1 === m2) {
+  if (phys_equal(m1, m2)) {
     true;
   } else if (List.length(m1) != List.length(m2)) {
     false;
@@ -296,7 +296,7 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
         switch (variant) {
         | Variant(ctr, args, value) =>
           let value' = f(value);
-          if (value' !== value) {
+          if (!phys_equal(value', value)) {
             changed := true;
           };
           Variant(ctr, args, value');

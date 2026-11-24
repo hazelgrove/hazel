@@ -40,7 +40,7 @@ let show_cls: cls => string =
 let temp: term => t =
   term => {
     term,
-    annotation: IdTagged.IdTag.temp(),
+    annotation: IdTagged.IdTag.temp,
   };
 
 /* ==================== Member view ====================

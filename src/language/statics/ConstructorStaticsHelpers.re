@@ -93,8 +93,8 @@ let syn_marks_ctr =
    Ascriptions.re resolves the Var lazily via weak_head_normalize. */
 let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   let is_builtin_alias = (name: string): bool =>
-    List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
-    && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid);
+    List.exists(~f=((n, _)) => String.equal(n, name), BuiltinsADT.type_aliases)
+    && Option.equal(Id.equal, Ctx.lookup_tvar_id(ctx, name), Some(Id.invalid));
   switch (Typ.term_of(ty)) {
   | Rec(tp, _) =>
     switch (TPat.tyvar_of_utpat(tp)) {
@@ -104,35 +104,35 @@ let rec compact_builtin_recs = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   | Arrow(t1, t2) =>
     let t1' = compact_builtin_recs(ctx, t1);
     let t2' = compact_builtin_recs(ctx, t2);
-    if (t1' === t1 && t2' === t2) {
+    if (phys_equal(t1', t1) && phys_equal(t2', t2)) {
       ty;
     } else {
       Arrow(t1', t2') |> Typ.temp;
     };
   | List(t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       List(t') |> Typ.temp;
     };
   | Prod(ts) =>
-    let ts' = List.map(compact_builtin_recs(ctx), ts);
-    if (List.for_all2((===), ts, ts')) {
+    let ts' = List.map(~f=compact_builtin_recs(ctx), ts);
+    if (List.for_all2_exn(~f=phys_equal, ts, ts')) {
       ty;
     } else {
       Prod(ts') |> Typ.temp;
     };
   | TupLabel(l, t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       TupLabel(l, t') |> Typ.temp;
     };
   | Parens(t) =>
     let t' = compact_builtin_recs(ctx, t);
-    if (t' === t) {
+    if (phys_equal(t', t)) {
       ty;
     } else {
       Parens(t') |> Typ.temp;
@@ -156,11 +156,11 @@ let normalize_ctr_type = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
   switch (return_type_name) {
   | Some(name)
       when
-        List.exists(((n, _)) => n == name, BuiltinsADT.type_aliases)
-        && Ctx.lookup_tvar_id(ctx, name) == Some(Id.invalid) => ty
+        List.exists(~f=((n, _)) => String.equal(n, name), BuiltinsADT.type_aliases)
+        && Option.equal(Id.equal, Ctx.lookup_tvar_id(ctx, name), Some(Id.invalid)) => ty
   | _ =>
     let compacted = compact_builtin_recs(ctx, ty);
-    if (compacted !== ty) {
+    if (!phys_equal(compacted, ty)) {
       compacted;
     } else {
       Typ.normalize(ctx, ty);

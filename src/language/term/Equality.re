@@ -128,7 +128,7 @@ let equality =
   let rec exp =
           (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) =>
     /* Short-circuit: physical equality */
-    if (e1 === e2) {
+    if (phys_equal(e1, e2)) {
       true;
     } else {
       let exp' = exp(alphas_exp, alphas_typ);
@@ -675,7 +675,7 @@ let equality =
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool =>
     /* Short-circuit: physical equality */
-    if (t1 === t2) {
+    if (phys_equal(t1, t2)) {
       true;
     } else {
       // This function takes alphas_exp for the theorem keyword branches which have expressions in types.

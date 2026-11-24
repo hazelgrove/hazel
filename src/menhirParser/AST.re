@@ -226,7 +226,7 @@ let nonascii_name_suffix: QCheck.Gen.t(string) =
    type expands to thousands of nodes and dominated the suite's runtime. */
 let builtin_ctr_names: list(string) =
   Language.Builtins.ctx_init(None).entries
-  |> List.filter_map((entry: Language.Ctx.entry) =>
+  |> List.filter_map(~f=(entry: Language.Ctx.entry) =>
        switch (entry) {
        | ConstructorEntry({name, _}) => Some(name)
        | _ => None
@@ -234,7 +234,7 @@ let builtin_ctr_names: list(string) =
      );
 
 let avoids_builtin = (name: string): bool =>
-  !List.mem(name, builtin_ctr_names);
+  !List.mem(builtin_ctr_names, name, ~equal=Poly.equal);
 
 let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
   (~minimal_idents) =>

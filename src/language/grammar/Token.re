@@ -432,8 +432,8 @@ let split_invoke_placement = (body: t): (t, ProjectorPlacement.t) =>
     ? (
       String.sub(
         body,
-        0,
-        String.length(body) - String.length(projector_invoke_sidebar),
+        ~pos=0,
+        ~len=String.length(body) - String.length(projector_invoke_sidebar),
       ),
       ProjectorPlacement.Sidebar,
     )
