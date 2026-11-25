@@ -901,10 +901,7 @@ module Local = {
             =>
               Zipper.replace_selection(
                 Right,
-                pad_fusing_edges(
-                  z,
-                  EditIdentity.reuse(z.selection.content, segment),
-                ),
+                pad_fusing_edges(z, IdMatch.reuse(z, segment)),
                 z,
               )
               |> Zipper.unselect
@@ -959,10 +956,7 @@ module Local = {
             PerfTimer.time("splice", () =>
               Zipper.insert_segment(
                 z,
-                pad_fusing_edges(
-                  z,
-                  EditIdentity.reuse(z.selection.content, segment),
-                ),
+                pad_fusing_edges(z, IdMatch.reuse(z, segment)),
                 ~root=splice_root,
               )
             ),
