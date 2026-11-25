@@ -1349,8 +1349,20 @@ and exp_inner =
   | UnOp(SInt(Minus), e) => "$R.sneg(" ++ go(e) ++ ")"
   | UnOp(Float(Minus), e) => "(-(" ++ go(e) ++ "))"
   | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
-  | BinOp(op, a, b) =>
-    let (a, b) = (go(a), go(b));
+  | BinOp(op, ea, eb) =>
+    let (a, b) = (go(ea), go(eb));
+    /* (^ticket(853)) a number, string or boolean written out: == with it is ===, which is $R.eq's own first test, and
+       false for anything else, as $R.eq's answer is (an Int is one value one way, a number while it is safe and a BigInt
+       past that, so === compares two) */
+    let rec literal = (e: Exp.t): bool =>
+      switch (Exp.term_of(e)) {
+      | Parens(e) => literal(e)
+      | Atom(Int(_) | Nat(_) | SInt(_) | Float(_) | Bool(_) | String(_)) =>
+        true
+      | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus) | Float(Minus), e) =>
+        literal(e)
+      | _ => false
+      };
     let infix = o => "(" ++ a ++ " " ++ o ++ " " ++ b ++ ")";
     switch (op) {
     /* (^ticket(757)) exact, through the runtime; a number and a BigInt compare correctly as they are */
@@ -1397,6 +1409,8 @@ and exp_inner =
     | Bool(And) => infix("&&")
     | Bool(Or) => infix("||")
     | String(Concat) => infix("+")
+    | Poly(Equals) when literal(ea) || literal(eb) => infix("===")
+    | Poly(NotEquals) when literal(ea) || literal(eb) => infix("!==")
     | Poly(Equals) => "$R.eq(" ++ a ++ ", " ++ b ++ ")"
     | Poly(NotEquals) => "(!$R.eq(" ++ a ++ ", " ++ b ++ "))"
     };
