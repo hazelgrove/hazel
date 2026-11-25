@@ -1345,7 +1345,7 @@ and exp_inner =
         ~init="$R.nomatch(\"case\")",
       );
     "(" ++ tmp ++ " = " ++ go(scrut) ++ ", " ++ arms ++ ")";
-  | UnOp(Int(Minus) | Nat(Minus), e) => "$R.ineg(" ++ go(e) ++ ")"
+  | UnOp(Int(Minus) | Nat(Minus), e) => "(-(" ++ go(e) ++ "))"
   | UnOp(SInt(Minus), e) => "$R.sneg(" ++ go(e) ++ ")"
   | UnOp(Float(Minus), e) => "(-(" ++ go(e) ++ "))"
   | UnOp(Bool(Not), e) => "(!(" ++ go(e) ++ "))"
@@ -1370,11 +1370,12 @@ and exp_inner =
     | Nat(op) =>
       let call = f => "$R." ++ f ++ "(" ++ a ++ ", " ++ b ++ ")";
       switch (op) {
-      | Plus => call("iadd")
-      | Minus => call("isub")
-      | Times => call("imul")
+      /* (^ticket(853), a bench build only: what exact Ints cost) plain JS numbers */
+      | Plus => infix("+")
+      | Minus => infix("-")
+      | Times => infix("*")
       | Power => call("ipow")
-      | Divide => call("idiv")
+      | Divide => "Math.trunc(" ++ a ++ " / " ++ b ++ ")"
       | LessThan => infix("<")
       | LessThanOrEqual => infix("<=")
       | GreaterThan => infix(">")
