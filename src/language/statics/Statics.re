@@ -233,8 +233,9 @@ and uexp_to_info_map =
       switch (mismatch) {
       | None => marks
       | Some(_) when mismatch_marked_within => marks
-      | Some(m) when List.is_empty(marks) => [m] // TODO: we should probably eventually add this on top of existing marks
-      | Some(_) => marks
+      /* Beside any other marks: the node settles on ana either way, so a
+         mismatch left out here would be reported nowhere. */
+      | Some(m) => marks @ [m]
       };
     let message =
       OptUtil.get(
@@ -1752,10 +1753,13 @@ and uexp_to_info_map =
           (info, elab_term, m);
         | None =>
           let elab_term = Constructor(ctr, Some(None)) |> rewrap;
+          /* A free constructor's type is a placeholder: being free is what
+             keeps it from fitting ana. */
           add(
             ~elab_term,
             ~elab_syn_ty=syn_res,
             ~marks=marks_res,
+            ~mismatch_marked_within=true,
             ~co_ctx=CoCtx.empty,
             m,
           );
@@ -1769,8 +1773,7 @@ and uexp_to_info_map =
         let marks_res =
           switch (expectation_mismatch_mark(ctx, ana, syn_res)) {
           | None => marks_res
-          | Some(m) when List.is_empty(marks_res) => [m]
-          | Some(_) => marks_res
+          | Some(m) => marks_res @ [m]
           };
         add(
           ~elab_term,

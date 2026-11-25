@@ -242,6 +242,40 @@ let tests = (
         "Unexpected label c; expecting labels a, b",
       ],
     ),
+    test_case(
+      "A mismatch is kept beside a node's other marks",
+      `Quick,
+      () => {
+        let map = statics(parse_exp("[fun 1 -> 2] : [Int]"));
+        switch (infos(map)) {
+        | [{user_term: {term: Fun(_), _}, marks, _}] =>
+          check(
+            list(string),
+            "marks",
+            ["InexhaustiveMatch", "ExpectationMismatch"],
+            List.map(marks, ~f=m =>
+              switch (m) {
+              | InexhaustiveMatch(_) => "InexhaustiveMatch"
+              | ExpectationMismatch(_) => "ExpectationMismatch"
+              | _ => "other"
+              }
+            ),
+          )
+        | infos =>
+          fail(
+            Printf.sprintf(
+              "expected only the function marked, got %d",
+              List.length(infos),
+            ),
+          )
+        };
+      },
+    ),
+    marked_once(
+      "A free constructor is marked only for being free",
+      "let xs : [Int] = A in xs",
+      "Constructor is not defined",
+    ),
     types_of(
       "A function's syn type keeps its body's error",
       "let f : Int -> Bool = fun x -> x + 1 in f",
