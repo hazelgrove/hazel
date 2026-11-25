@@ -261,14 +261,13 @@ and in_pat =
     let (env', p1') = in_pat(env_acc, p1);
     let (env'', p2') = in_pat(env', p2);
     (env'', Cons(p1', p2') |> Pat.fresh);
+  /* An application's head and a field's label bind nothing (Pat.bindings). */
   | Ap(p1, p2) =>
-    let (env', p1') = in_pat(env_acc, p1);
-    let (env'', p2') = in_pat(env', p2);
-    (env'', Ap(p1', p2') |> Pat.fresh);
+    let (env', p2') = in_pat(env_acc, p2);
+    (env', Ap(p1, p2') |> Pat.fresh);
   | TupLabel(p1, p2) =>
-    let (env', p1') = in_pat(env_acc, p1);
-    let (env'', p2') = in_pat(env', p2);
-    (env'', TupLabel(p1', p2') |> Pat.fresh);
+    let (env', p2') = in_pat(env_acc, p2);
+    (env', TupLabel(p1, p2') |> Pat.fresh);
   | Asc(p1, t) =>
     let t' = in_typ(memo, ~danger, env_outer, t);
     let (env', p1') = in_pat(env_acc, p1);

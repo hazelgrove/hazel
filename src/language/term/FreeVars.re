@@ -37,7 +37,9 @@
    those names under the binder as plain syntax. The new name avoids every
    name free beneath the binder.
 
- Expressions inside types (`proof_of`) are outside these rules. The terms
+ An expression inside a type (`proof_of`) is read where the type stands:
+ one in a pattern's ascription or in a function's argument type is outside
+ that binder, and takes the values of the environment around it. The terms
  both see are elaborated, so their modules are already lowered to `let`s:
  neither treats a module item as a binder.
 
@@ -95,17 +97,48 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
     let fixed = ref([]);
     let parts = ref([]);
     let add = names => parts := [names, ...parts^];
+    /* The names in the types a pattern is ascribed
+       (`h : proof_of n > k end`), which its own binders don't bind. */
+    let ascribed = (p: Pat.t): t => {
+      let found = ref(empty);
+      let _ =
+        Pat.map_term(
+          ~f_exp=
+            (_, e) => {
+              found := union(found^, exp(~memo?, e));
+              e;
+            },
+          p,
+        );
+      found^;
+    };
+    let in_typ = (t: Typ.t): t => {
+      let found = ref(empty);
+      let _ =
+        Typ.map_term(
+          ~f_exp=
+            (_, e) => {
+              found := union(found^, exp(~memo?, e));
+              e;
+            },
+          t,
+        );
+      found^;
+    };
     let under = (p: Pat.t, body: Exp.t) => {
       let names = exp(~memo?, body);
-      {
-        ...names,
-        vars:
-          List.fold(
-            ~f=(vars, x) => Names.remove(x, vars),
-            ~init=names.vars,
-            Pat.bound_vars(p),
-          ),
-      };
+      union(
+        ascribed(p),
+        {
+          ...names,
+          vars:
+            List.fold(
+              ~f=(vars, x) => Names.remove(x, vars),
+              ~init=names.vars,
+              Pat.bound_vars(p),
+            ),
+        },
+      );
     };
     let _ =
       Exp.map_term(
@@ -119,7 +152,10 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
             | BuiltinFun(name) =>
               fixed := [name, ...fixed^];
               e;
-            | Fun(p, body, _, _)
+            | Fun(p, body, t, _) =>
+              Option.iter(~f=t => add(in_typ(t)), t);
+              add(under(p, body));
+              e;
             | Forall(p, body)
             | FixF(p, body, None) =>
               add(under(p, body));
@@ -141,13 +177,15 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
               e;
             | Invalid(_)
             | EmptyHole
-            | MultiHole(_)
             | Deferral(_)
             | Undefined
             | Atom(_)
             | Label(_)
             | ExplicitNonlabel
             | LivelitName(_) => e
+            /* a hole's pieces are substituted into, as any operands are
+               (`x !!! 1`) */
+            | MultiHole(_)
             | DynamicErrorHole(_)
             | DrvQuote(_)
             | ListLit(_)

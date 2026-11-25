@@ -481,7 +481,9 @@ let tests = (
         check(exp, "x -> 1, y -> 2 in let x = 3 in (x, y)", expected, result);
       },
     ),
-    /* Freshening a shadowing binder must not rewrite free refs on the RHS. */
+    /* A shadowing binder must not rewrite free refs on the RHS. An entry
+       `y ↦ y` replaces nothing, so nothing is renamed either (the terms
+       are compared up to bound names). */
     test_case(
       "shadowing let RHS keeps outer var",
       `Quick,
@@ -489,9 +491,13 @@ let tests = (
         let env = Environment.of_list([("y", Exp.var("y"))]);
         let expr = Exp.let_(Pat.var("y"), Exp.var("y"), Exp.var("y"));
         let result = Substitution.in_exp(env, expr);
-        let expected =
-          Exp.let_(Pat.var("y'"), Exp.var("y"), Exp.var("y'"));
-        check(exp, "let y = y in y  =>  let y' = y in y'", expected, result);
+        check(exp, "let y = y in y stays as it is", expr, result);
+        check(
+          bool,
+          "the definition's y is still free",
+          true,
+          FreeVars.Names.mem("y", FreeVars.all(FreeVars.exp(result))),
+        );
       },
     ),
     /* A `Sig` type carries patterns, so substituting through a function's
@@ -512,6 +518,112 @@ let tests = (
           "substitution reaches under a Sig annotation",
           expected,
           result,
+        );
+      },
+    ),
+    /* An expression in a binder's ascription is outside that binder, and a
+       value put there has its names: `k ↦ n + 1` under `fun n ->` renames
+       that `n`, also when `k` occurs only in an inner binder's type. */
+    test_case(
+      "a value put in a binder's ascription is not captured",
+      `Quick,
+      () => {
+        let proposition = (n, k) =>
+          Language.Typ.fresh(ProofOf(Exp.bin_op(Int(GreaterThan), n, k)));
+        let term = (outer, ty) =>
+          Exp.fn(
+            Pat.var(outer),
+            Exp.fn(Pat.asc(Pat.var("h"), ty), Exp.var("h"), None, None),
+            None,
+            None,
+          );
+        let value = Exp.bin_op(Int(Plus), Exp.var("n"), Exp.int(1));
+        let result =
+          Substitution.in_exp(
+            Environment.of_list([("k", value)]),
+            term("n", proposition(Exp.var("n"), Exp.var("k"))),
+          );
+        check(
+          exp,
+          "k -> n + 1 in fun n -> fun (h : proof_of n > k end) -> h",
+          term("n'", proposition(Exp.var("n'"), value)),
+          result,
+        );
+        check(
+          bool,
+          "the value's n is free in the result",
+          true,
+          FreeVars.Names.mem("n", FreeVars.all(FreeVars.exp(result))),
+        );
+        /* in a function's argument type too */
+        let typed = (outer, ty) =>
+          Exp.fn(
+            Pat.var(outer),
+            Exp.fn(Pat.var("h"), Exp.var("h"), Some(ty), None),
+            None,
+            None,
+          );
+        check(
+          exp,
+          "k -> n + 1 in a function's argument type",
+          typed("n'", proposition(Exp.var("n'"), value)),
+          Substitution.in_exp(
+            Environment.of_list([("k", value)]),
+            typed("n", proposition(Exp.var("n"), Exp.var("k"))),
+          ),
+        );
+      },
+    ),
+    /* A hole's pieces are substituted into, so a name put there is as
+       free as one put anywhere else. */
+    test_case(
+      "a value put in a hole is not captured",
+      `Quick,
+      () => {
+        let hole = (l, r) =>
+          Language.Exp.fresh(MultiHole([Exp(l), Exp(r)]));
+        let term = (param, piece) =>
+          Exp.fn(Pat.var(param), hole(piece, Exp.int(1)), None, None);
+        let result =
+          Substitution.in_exp(
+            Environment.of_list([("x", Exp.var("y"))]),
+            term("y", Exp.var("x")),
+          );
+        check(
+          exp,
+          "x -> y in fun y -> x !!! 1",
+          term("y'", Exp.var("y")),
+          result,
+        );
+        check(
+          bool,
+          "the value's y is free in the result",
+          true,
+          FreeVars.Names.mem("y", FreeVars.all(FreeVars.exp(result))),
+        );
+      },
+    ),
+    /* The head of an application pattern and the label of a field are no
+       binders, so a use of that name in the body is still the outer one. */
+    test_case(
+      "a pattern's head and label bind nothing",
+      `Quick,
+      () => {
+        let rule = (p, body) => Exp.match(Exp.var("e"), [(p, body)]);
+        let env = Environment.of_list([("f", Exp.int(1))]);
+        let head = Pat.ap(Pat.var("f"), Pat.var("x"));
+        check(
+          exp,
+          "f -> 1 in case e | f(x) => f end",
+          rule(head, Exp.int(1)),
+          Substitution.in_exp(env, rule(head, Exp.var("f"))),
+        );
+        let field = Pat.tup_label(Pat.var("f"), Pat.var("x"));
+        check(
+          exp,
+          "f -> 1 in case e | (f=x) => f end",
+          rule(field, Exp.int(1)),
+          Substitution.in_exp(env, rule(field, Exp.var("f"))),
         );
       },
     ),
