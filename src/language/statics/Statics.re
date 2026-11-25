@@ -559,10 +559,6 @@ and uexp_to_info_map =
       let inner_ana_ty = MatchedTyp.list_tolerant(ctx, ana);
       let anas = List.init(List.length(es), ~f=_ => inner_ana_ty);
       let ((es, es_elabs), m) = map_m_go(m, anas, es);
-      /* Use elements' synthesized types consistently for both the meet and
-         the per-element ascription decision. Using `e.ty` (ana-coerced)
-         would disagree with the syn-based meet and cause spurious Asc
-         wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map(~f=(e: Info.exp) => e.elab_syn_ty, es);
       let meet_ty =
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
@@ -572,7 +568,12 @@ and uexp_to_info_map =
         );
       let list_syn_ty =
         List(
-          meet_syn_types(ctx, List.map(~f=(e: Info.exp) => e.syn_ty, es)),
+          meet_syn_types(
+            ctx,
+            ~settled=
+              Option.value(meet_ty, ~default=Unknown(Internal) |> Typ.temp),
+            List.map(~f=(e: Info.exp) => e.syn_ty, es),
+          ),
         )
         |> Typ.temp;
       switch (meet_ty) {
@@ -641,6 +642,7 @@ and uexp_to_info_map =
           List(
             meet_syn_types(
               ctx,
+              ~settled=inner_elab_syn_ty,
               [hd.syn_ty, MatchedTyp.list_tolerant(ctx, tl.syn_ty)],
             ),
           )
@@ -663,10 +665,21 @@ and uexp_to_info_map =
          a non-list constructor type but the result should still be `[?]`). */
       let elem_ty1 = MatchedTyp.list_tolerant(ctx, e1.elab_syn_ty);
       let elem_ty2 = MatchedTyp.list_tolerant(ctx, e2.elab_syn_ty);
+      let elem_meet =
+        Typ.meet_all(
+          ~empty=Unknown(Internal) |> Typ.temp,
+          ctx,
+          [elem_ty1, elem_ty2],
+        );
       let syn_ty =
         List(
           meet_syn_types(
             ctx,
+            ~settled=
+              Option.value(
+                elem_meet,
+                ~default=Unknown(Internal) |> Typ.temp,
+              ),
             [
               MatchedTyp.list_tolerant(ctx, e1.syn_ty),
               MatchedTyp.list_tolerant(ctx, e2.syn_ty),
@@ -674,13 +687,7 @@ and uexp_to_info_map =
           ),
         )
         |> Typ.temp;
-      switch (
-        Typ.meet_all(
-          ~empty=Unknown(Internal) |> Typ.temp,
-          ctx,
-          [elem_ty1, elem_ty2],
-        )
-      ) {
+      switch (elem_meet) {
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
@@ -2473,7 +2480,8 @@ and uexp_to_info_map =
           )
           |> rewrap,
         ~elab_syn_ty=syn_if,
-        ~syn_ty=meet_syn_types(ctx, [cons.syn_ty, alt.syn_ty]),
+        ~syn_ty=
+          meet_syn_types(ctx, ~settled=syn_if, [cons.syn_ty, alt.syn_ty]),
         ~marks=cms_if,
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
         ~probe_targets=
@@ -2601,7 +2609,11 @@ and uexp_to_info_map =
         ~elab_term,
         ~elab_syn_ty=syn_ty_match,
         ~syn_ty=
-          meet_syn_types(ctx, List.map(~f=(e: Info.exp) => e.syn_ty, es)),
+          meet_syn_types(
+            ctx,
+            ~settled=syn_ty_match,
+            List.map(~f=(e: Info.exp) => e.syn_ty, es),
+          ),
         ~marks=marks_match',
         ~co_ctx,
         ~probe_targets,

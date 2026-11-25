@@ -286,11 +286,13 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
   };
 
 /* The syn type of several things written together (list elements, branches):
-   their meet, or unknown if they have none. Their inconsistency is marked
-   where their elab syn types are met. */
-let meet_syn_types = (ctx: Ctx.t, tys: list(Typ.t)): Typ.t =>
+   their meet. If they have none, the type they were settled to, `settled`:
+   where they disagree, the disagreement is marked on whichever of them
+   failed, or on the whole where they could not be settled, so it is not
+   what this node's syn type should report. */
+let meet_syn_types = (ctx: Ctx.t, ~settled: Typ.t, tys: list(Typ.t)): Typ.t =>
   Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys)
-  |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+  |> Option.value(~default=settled);
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {

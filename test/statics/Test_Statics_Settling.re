@@ -232,6 +232,33 @@ let tests = (
       ~elab_syn=T.(arrow(int(), bool())),
     ),
     types_of(
+      "An if whose branches disagree has the type its branches were settled to",
+      {|let r : Int = if true then 1 else "s" in r|},
+      fun
+      | If(_) => true
+      | _ => false,
+      ~syn=T.int(),
+      ~elab_syn=T.int(),
+    ),
+    types_of(
+      "An if whose branches agree on the wrong type keeps that type",
+      {|let r : Int = if true then "a" else "b" in r|},
+      fun
+      | If(_) => true
+      | _ => false,
+      ~syn=T.string(),
+      ~elab_syn=T.int(),
+    ),
+    types_of(
+      "A list whose elements disagree has the type its elements were settled to",
+      {|let xs : [Int] = [1, "s"] in xs|},
+      fun
+      | ListLit(_) => true
+      | _ => false,
+      ~syn=T.(list(int())),
+      ~elab_syn=T.(list(int())),
+    ),
+    types_of(
       "Parentheses pass up the syn type of what they enclose",
       "((a=1, b=1)) : Int",
       fun
