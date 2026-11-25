@@ -2527,6 +2527,27 @@ let hole_pieces =
   };
 };
 
+/* The module name a `let` pattern binds when it is a capitalized variable,
+   with the type it is ascribed (`module M : T = …` elaborates to
+   `let M : T = …`). */
+let rec module_binder = (p: Pat.t): option(MPat.t) =>
+  switch (p.term) {
+  | Var(name) when Token.is_ctr(name) =>
+    Some({
+      annotation: p.annotation,
+      term: Var(name),
+    })
+  | Asc(inner, t) =>
+    module_binder(inner)
+    |> Option.map(~f=(inner: MPat.t): MPat.t =>
+         {
+           annotation: p.annotation,
+           term: Asc(inner, t),
+         }
+       )
+  | _ => None
+  };
+
 /* Assumes parentheses have already been added as necessary. */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
@@ -2900,18 +2921,14 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, e @ [mk_form(Dot, exp |> Exp.rep_id, [])] @ l);
   /* Elaboration turns `module M = e in body` into a `let` binding the
      variable `M`, which `let M` can't write: it reads as a constructor. */
-  | Let({term: Var(name), _} as p, e1, e2) when Token.is_ctr(name) =>
-    let mp: MPat.t = {
-      ...p,
-      term: Var(name),
-    };
+  | Let(p, e1, e2) when Option.is_some(module_binder(p)) =>
     exp_to_pretty(
       ~settings,
       {
         ...exp,
-        term: ModuleExp(mp, e1, e2),
+        term: ModuleExp(Option.value_exn(module_binder(p)), e1, e2),
       },
-    );
+    )
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

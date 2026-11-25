@@ -3251,18 +3251,51 @@ let defensive_print_stable_tests = (
         check(string, "printed", "(x=1, b=2)", defensive_print(tuple));
       },
     ),
-    test_case("An elaborated module binding reads back", `Quick, () =>
-      List.iter(["module Z = `a` in ()", "module Z = (x=1) in Z.x"], ~f=text =>
+    test_case(
+      "An elaborated module binding reads back",
+      `Quick,
+      () => {
         List.iter(
-          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
-          check(
-            bool,
-            defensive_print(term),
-            true,
-            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          [
+            "module Z = `a` in ()",
+            "module Z = (x=1) in Z.x",
+            "module M : (x=Int) = (x=1) in M.x",
+            "module M : { let x : Int } = { let x = 1 } in M.x",
+          ],
+          ~f=text =>
+          List.iter(
+            Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+            check(
+              bool,
+              defensive_print(term),
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            )
           )
-        )
-      )
+        );
+        /* the binding is still a module's, with the type it is ascribed,
+           and an ordinary variable's is still a `let` */
+        let first = text =>
+          defensive_print(
+            List.hd_exn(
+              List.rev(
+                Evaluated.terms(0, Option.value_exn(Typed.read(text))),
+              ),
+            ),
+          );
+        check(
+          string,
+          "an ascribed module binding",
+          "module M:(x=Int) = (x=1) in M.x",
+          first("module M : (x=Int) = (x=1) in M.x"),
+        );
+        check(
+          string,
+          "an ascribed variable's binding",
+          "let m:(x=Int) = (x=1) in m.x",
+          first("let m : (x=Int) = (x=1) in m.x"),
+        );
+      },
     ),
     test_case("An elaborated constructor pattern reads back", `Quick, () =>
       List.iter(["case () | A => () end", "forall B -> 1"], ~f=text =>
