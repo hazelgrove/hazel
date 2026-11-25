@@ -2520,7 +2520,8 @@ and uexp_to_info_map =
         FixF(p_elab, Asc(e_elab, p'.ty) |> Exp.fresh, env) |> rewrap;
       add(
         ~elab_term,
-        ~elab_syn_ty=p'.elab_syn_ty,
+        ~elab_syn_ty=p'.ty,
+        ~syn_ty=p'.syn_ty,
         ~marks=[],
         ~co_ctx=
           CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx), pat_typ_refs]),
@@ -2987,8 +2988,10 @@ and upat_to_info_map =
         ~co_ctx=co_ctx,
         ~ana=ana,
         ~ancestors=ancestors_inclusive,
-        ~elab_syn_ty: Typ.t,
-        ~syn_ty=elab_syn_ty,
+        /* The type this pattern's rule gives it, built from its
+           children's settled types (their ty). */
+        ~rule_ty: Typ.t,
+        ~syn_ty=rule_ty,
         ~marks: list(Mark.t)=[],
         ~warnings: list(Warning.list_item)=[],
         ~probe_targets: SubexpProbeTargets.t=SubexpProbeTargets.empty,
@@ -2996,17 +2999,19 @@ and upat_to_info_map =
         ~label_inference: option(Info.label_inference(Info.pat))=None,
         ~inferred_label: option(LabeledTuple.label)=None,
         ~label_sort=false,
+        /* As for expressions: what keeps this pattern from fitting ana is
+           already marked, on it or on a part of it. */
+        ~mismatch_marked_within=false,
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    /* A mismatch is marked here, beside any other marks, and goes no
+       further up: ty settles on ana, and parents build from ty. */
     let marks =
-      if (!List.is_empty(marks)) {
-        marks;
-      } else {
-        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
-        | None => marks
-        | Some(m) => marks @ [m]
-        };
+      switch (expectation_mismatch_mark(ctx, ana, rule_ty)) {
+      | None => marks
+      | Some(_) when mismatch_marked_within => marks
+      | Some(m) => marks @ [m]
       };
     let message =
       !List.is_empty(marks)
@@ -3018,7 +3023,7 @@ and upat_to_info_map =
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = fixed_typ(ctx, ana, rule_ty);
     let warning_acc =
       warnings
       @ (
@@ -3042,7 +3047,6 @@ and upat_to_info_map =
       );
     let info: Info.pat = {
       cls,
-      elab_syn_ty,
       syn_ty,
       marks,
       ana,
@@ -3135,7 +3139,7 @@ and upat_to_info_map =
       let (_, _, m) =
         multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~rule_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[IsMulti],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3143,7 +3147,7 @@ and upat_to_info_map =
       );
     | Invalid(token) =>
       add(
-        ~elab_syn_ty=SynTy.unknown_internal(),
+        ~rule_ty=SynTy.unknown_internal(),
         ~marks=[BadToken(token)],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3151,7 +3155,7 @@ and upat_to_info_map =
       )
     | EmptyHole =>
       add(
-        ~elab_syn_ty=unknown,
+        ~rule_ty=unknown,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Hole(None),
@@ -3164,7 +3168,7 @@ and upat_to_info_map =
       | Ok(Nat(nat)) =>
         add(
           ~elab_term=Atom(Nat(nat)) |> rewrap,
-          ~elab_syn_ty=Atom(Nat) |> Typ.temp,
+          ~rule_ty=Atom(Nat) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(nat),
@@ -3173,7 +3177,7 @@ and upat_to_info_map =
       | Ok(Int(int)) =>
         add(
           ~elab_term=Atom(Int(int)) |> rewrap,
-          ~elab_syn_ty=Atom(Int) |> Typ.temp,
+          ~rule_ty=Atom(Int) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.BigInt(int),
@@ -3182,7 +3186,7 @@ and upat_to_info_map =
       | Ok(SInt(int)) =>
         add(
           ~elab_term=Atom(SInt(int)) |> rewrap,
-          ~elab_syn_ty=Atom(SInt) |> Typ.temp,
+          ~rule_ty=Atom(SInt) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.SInt(int),
@@ -3191,7 +3195,7 @@ and upat_to_info_map =
       | Ok(Float(float)) =>
         add(
           ~elab_term=Atom(Float(float)) |> rewrap,
-          ~elab_syn_ty=Atom(Float) |> Typ.temp,
+          ~rule_ty=Atom(Float) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.Float(float),
@@ -3200,7 +3204,7 @@ and upat_to_info_map =
       | Ok(Bool(bool)) =>
         add(
           ~elab_term=Atom(Bool(bool)) |> rewrap,
-          ~elab_syn_ty=Atom(Bool) |> Typ.temp,
+          ~rule_ty=Atom(Bool) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=
@@ -3210,7 +3214,7 @@ and upat_to_info_map =
       | Ok(String(string)) =>
         add(
           ~elab_term=Atom(String(string)) |> rewrap,
-          ~elab_syn_ty=Atom(String) |> Typ.temp,
+          ~rule_ty=Atom(String) |> Typ.temp,
           ~marks=[],
           ~ctx,
           ~constraint_=Coverage.Constraint.String(string),
@@ -3219,7 +3223,7 @@ and upat_to_info_map =
       | Error(BadInt(str)) =>
         add(
           ~elab_term=Invalid(str) |> rewrap,
-          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~rule_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[BadToken(str)],
           ~ctx,
           ~constraint_=Coverage.Constraint.Hole(None),
@@ -3272,17 +3276,27 @@ and upat_to_info_map =
           refined_modes,
           m,
         );
-      let syn_tys = List.map(~f=(info: Info.pat) => info.elab_syn_ty, infos);
       let probe_targets =
         SubexpProbeTargets.union_all(
           List.map(~f=Info.pat_probe_targets, infos),
         );
-      switch (Typ.meet_all(~empty=unknown, ctx, syn_tys)) {
+      let elem_meet = Typ.meet_all(~empty=unknown, ctx, tys);
+      let syn_ty =
+        List(
+          meet_syn_types(
+            ctx,
+            ~settled=Option.value(elem_meet, ~default=unknown),
+            List.map(~f=(info: Info.pat) => info.syn_ty, infos),
+          ),
+        )
+        |> Typ.temp;
+      switch (elem_meet) {
       | None =>
         let syn_no_meet = SynTy.meet_of(List, Unknown(Internal) |> Typ.temp);
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
-          ~elab_syn_ty=syn_no_meet,
+          ~rule_ty=syn_no_meet,
+          ~syn_ty,
           ~marks=
             should_emit_nomeet_mark(ctx, ana, syn_no_meet)
               ? [NoMeet(List, Typ.add_source(ids, tys))] : [],
@@ -3294,7 +3308,8 @@ and upat_to_info_map =
       | Some(ty) =>
         add(
           ~elab_term=ListLit(ps_elabs) |> rewrap,
-          ~elab_syn_ty=List(ty) |> Typ.temp,
+          ~rule_ty=List(ty) |> Typ.temp,
+          ~syn_ty,
           ~marks=[],
           ~ctx,
           ~probe_targets,
@@ -3321,7 +3336,16 @@ and upat_to_info_map =
         go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
-        ~elab_syn_ty=List(hd.elab_syn_ty) |> Typ.temp,
+        ~rule_ty=List(hd.ty) |> Typ.temp,
+        ~syn_ty=
+          List(
+            meet_syn_types(
+              ctx,
+              ~settled=hd.ty,
+              [hd.syn_ty, MatchedTyp.list_tolerant(ctx, tl.syn_ty)],
+            ),
+          )
+          |> Typ.temp,
         ~marks=[],
         ~ctx=tl.ctx,
         ~probe_targets=
@@ -3331,7 +3355,7 @@ and upat_to_info_map =
       );
     | Wild =>
       add(
-        ~elab_syn_ty=unknown,
+        ~rule_ty=unknown,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3353,7 +3377,7 @@ and upat_to_info_map =
       List.exists(~f=l => String.equal(name, l), duplicate_bindings)
         ? {
           add(
-            ~elab_syn_ty=unknown,
+            ~rule_ty=unknown,
             ~marks=[Mark.DuplicateVar(name, unknown)],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -3361,7 +3385,7 @@ and upat_to_info_map =
           );
         }
         : add(
-            ~elab_syn_ty=unknown,
+            ~rule_ty=unknown,
             ~marks=[],
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
@@ -3379,7 +3403,7 @@ and upat_to_info_map =
           ~co_ctx,
           ~ana=syn,
           ~ancestors=ancestors_inclusive,
-          ~elab_syn_ty=ExplicitNonlabel |> Typ.temp,
+          ~rule_ty=ExplicitNonlabel |> Typ.temp,
           ~marks=[],
           ~constraint_=Coverage.Constraint.Truth,
           ~label_inference=None,
@@ -3391,7 +3415,7 @@ and upat_to_info_map =
       (p, p_elab, add_info(ids, InfoPat(p), m));
     | ExplicitNonlabel =>
       add(
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+        ~rule_ty=Unknown(Internal) |> Typ.temp,
         ~marks=[ExplicitNonlabel],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3412,7 +3436,7 @@ and upat_to_info_map =
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=Label(name) |> Typ.temp,
+              ~rule_ty=Label(name) |> Typ.temp,
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -3431,7 +3455,7 @@ and upat_to_info_map =
               ~co_ctx,
               ~ana=labmode,
               ~ancestors=ancestors_inclusive,
-              ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+              ~rule_ty=Unknown(SynSwitch) |> Typ.temp,
               ~marks=[],
               ~constraint_=Coverage.Constraint.Truth,
               ~label_inference=None,
@@ -3451,7 +3475,7 @@ and upat_to_info_map =
               ~co_ctx=p_info.co_ctx,
               ~ana=p_info.ana,
               ~ancestors=p_info.ancestors,
-              ~elab_syn_ty=p_info.elab_syn_ty,
+              ~rule_ty=p_info.ty,
               ~syn_ty=p_info.syn_ty,
               ~marks=p_info.marks @ [BadLabel(Pat(label))],
               ~constraint_=p_info.constraint_,
@@ -3472,11 +3496,11 @@ and upat_to_info_map =
           ~malformed_source=Pat(label),
         );
       add(
-        ~elab_syn_ty=
+        ~rule_ty=
           LabeledTupleStaticsHelpers.tup_label_type(
             ~lab_name,
             ~label_is_empty_hole,
-            p.elab_syn_ty,
+            p.ty,
           ),
         ~syn_ty=syn_tl,
         ~marks=cms_tl,
@@ -3557,7 +3581,7 @@ and upat_to_info_map =
                   );
                 (
                   info.ctx,
-                  tys @ [info.elab_syn_ty],
+                  tys @ [info.ty],
                   cons @ [info.constraint_],
                   m,
                   info_all @ [info],
@@ -3592,7 +3616,7 @@ and upat_to_info_map =
                         ~co_ctx,
                         ~ana=labmode,
                         ~ancestors=ancestors_inclusive,
-                        ~elab_syn_ty=label_syn,
+                        ~rule_ty=label_syn,
                         ~marks=label_marks,
                         ~constraint_=Coverage.Constraint.Truth,
                         ~label_inference=None,
@@ -3611,7 +3635,7 @@ and upat_to_info_map =
                         ~co_ctx,
                         ~ana=labmode,
                         ~ancestors=ancestors_inclusive,
-                        ~elab_syn_ty=Unknown(SynSwitch) |> Typ.temp,
+                        ~rule_ty=Unknown(SynSwitch) |> Typ.temp,
                         ~marks=[],
                         ~constraint_=Coverage.Constraint.Truth,
                         ~label_inference=None,
@@ -3632,7 +3656,7 @@ and upat_to_info_map =
                         ~co_ctx=p_info.co_ctx,
                         ~ana=p_info.ana,
                         ~ancestors=p_info.ancestors,
-                        ~elab_syn_ty=p_info.elab_syn_ty,
+                        ~rule_ty=p_info.ty,
                         ~syn_ty=p_info.syn_ty,
                         ~marks=p_info.marks @ [BadLabel(Pat(label))],
                         ~constraint_=p_info.constraint_,
@@ -3674,11 +3698,11 @@ and upat_to_info_map =
                     ~co_ctx,
                     ~ana,
                     ~ancestors=ancestors_inclusive,
-                    ~elab_syn_ty=
+                    ~rule_ty=
                       LabeledTupleStaticsHelpers.tup_label_type(
                         ~lab_name,
                         ~label_is_empty_hole,
-                        value_info.elab_syn_ty,
+                        value_info.ty,
                       ),
                     ~syn_ty=syn_tl,
                     ~marks=cms_tl,
@@ -3691,7 +3715,7 @@ and upat_to_info_map =
                   );
                 (
                   info.ctx,
-                  tys @ [info.elab_syn_ty],
+                  tys @ [info.ty],
                   cons @ [info.constraint_],
                   m,
                   info_all @ [info],
@@ -3715,7 +3739,7 @@ and upat_to_info_map =
                   );
                 (
                   info.ctx,
-                  tys @ [info.elab_syn_ty],
+                  tys @ [info.ty],
                   cons @ [info.constraint_],
                   m,
                   info_all @ [info],
@@ -3749,11 +3773,13 @@ and upat_to_info_map =
           List.map(~f=(p: Info.pat) => p.syn_ty, info_pats),
         );
       add(
-        ~elab_syn_ty=
+        ~rule_ty=
           Prod(Typ.remove_duplicate_labels(~duplicate_labels, tys))
           |> Typ.temp,
         ~syn_ty=syn_tp,
         ~marks=cms_tp,
+        /* A label error already says why the tuple does not fit. */
+        ~mismatch_marked_within=!List.is_empty(cms_tp),
         ~ctx,
         ~constraint_,
         ~probe_targets=
@@ -3772,7 +3798,7 @@ and upat_to_info_map =
       );
     | Label(name) =>
       add(
-        ~elab_syn_ty=Label(name) |> Typ.temp,
+        ~rule_ty=Label(name) |> Typ.temp,
         ~marks=[],
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
@@ -3782,9 +3808,9 @@ and upat_to_info_map =
       let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Parens(p_elab) |> rewrap,
-        ~elab_syn_ty=p.elab_syn_ty,
+        ~rule_ty=p.ty,
         ~syn_ty=p.syn_ty,
-        ~marks=p.marks,
+        ~marks=[],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
         ~constraint_=p.constraint_,
@@ -3794,9 +3820,9 @@ and upat_to_info_map =
       let (p, p_elab, m) = go(~ctx, ~ana, p, ~duplicate_bindings, m);
       add(
         ~elab_term=Projector(data, p_elab) |> rewrap,
-        ~elab_syn_ty=p.elab_syn_ty,
+        ~rule_ty=p.ty,
         ~syn_ty=p.syn_ty,
-        ~marks=p.marks,
+        ~marks=[],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
         ~constraint_=p.constraint_,
@@ -3811,14 +3837,16 @@ and upat_to_info_map =
           Ctx.lookup_ctr(ctx, ctr),
         ) {
         | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
-        | (_, Some({typ: elab_syn_ty, _})) =>
-          Some(Typ.normalize(ctx, elab_syn_ty))
+        | (_, Some({typ, _})) => Some(Typ.normalize(ctx, typ))
         | _ => None
         };
       add(
         ~elab_term=Constructor(ctr, Some(elab_ty)) |> rewrap,
-        ~elab_syn_ty=syn_ctr,
+        ~rule_ty=syn_ctr,
         ~marks=cms_ctr,
+        /* A free constructor's type is a placeholder: being free is what
+           keeps it from fitting ana. */
+        ~mismatch_marked_within=!List.is_empty(cms_ctr),
         ~ctx,
         ~constraint_=Coverage.Constraint.Ap(ctr, None),
         m,
@@ -3835,7 +3863,10 @@ and upat_to_info_map =
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
-      let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn'.elab_syn_ty);
+      /* The argument is checked against the constructor's own argument
+         type; the application has the result type it settled on. */
+      let (ty_in, syn_out) = MatchedTyp.arrow_tolerant(ctx, fn'.syn_ty);
+      let (_, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn'.ty);
       let (arg, arg_elab, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
@@ -3844,7 +3875,8 @@ and upat_to_info_map =
         };
       add(
         ~elab_term=Ap(fn_elab, arg_elab) |> rewrap,
-        ~elab_syn_ty=ty_out,
+        ~rule_ty=ty_out,
+        ~syn_ty=syn_out,
         ~marks=[],
         ~ctx=arg.ctx,
         ~probe_targets=
@@ -3864,7 +3896,7 @@ and upat_to_info_map =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
-        ~elab_syn_ty=ann_ty,
+        ~rule_ty=ann_ty,
         ~marks=[],
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
