@@ -7,9 +7,9 @@ version=1 id=b0000022-0022-0022-0022-000000000022
 @prompt
 # Sample colors
 
-When you click a sample, other samples take on colors showing how their run relates to the focussed one: **green** is the focus's own run, **pink** ran before, **blue** ran after. We switched this slide to the full color scheme so they show; the **legend** at the bottom of the Task Reference sidebar explains them (and lets you switch schemes).
+When you click a sample, other samples take on colors showing how their run relates to the focussed one: **green** is the focus's own run, **pink** ran before, **blue** ran after. We switched this slide to the Hybrid color scheme so they show; the **legend** at the bottom of the Reference sidebar explains them (and lets you switch schemes).
 
-One nuance worth having seen once: a call that *contains* the focus started before it (so it shows **pink**), and a call running *inside* the focus finishes after it (so it shows **blue**). Containment reads as before/after. Containment relations are distinguished from before/after by text color, as seen in the legend. Containment can be used to spot the sample of the function call that led to the currently focussed sample, and conversely can distinguish samples coming from a focused call.
+One nuance worth having seen once: a call that *contains* the focus started before it (so it shows **pink**), and a call running *inside* the focus finishes after it (so it shows **blue**). By background color alone, containment reads as before/after; the text color tells them apart, as the legend shows. Containment can be used to spot the sample of the function call that led to the currently focussed sample, and conversely can distinguish samples coming from a focused call.
 
 **Try this**
 1. `first`, `second`, and `third` are probed. Click `second`'s sample: `first` is pink (ran before), `third` is blue (ran after).
