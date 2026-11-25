@@ -2324,6 +2324,31 @@ let join_hole_pieces =
   };
 };
 
+/* A hole's printed pieces, whatever its sort: around the operator the hole
+   is made of when it has one (MakeTerm.lone_op: a stranded prefix
+   operator, or an infix one no form reads there), else side by side. */
+let hole_pieces =
+    (
+      ~secondary,
+      sort: Sort.t,
+      ann: IdTagged.IdTag.t,
+      pieces: list(Any.t),
+      segs: list(Segment.t),
+    )
+    : Segment.t => {
+  let (@) = concat_segment(~secondary);
+  let id = () =>
+    switch (ann.ids) {
+    | [id, ..._] => id
+    | [] => Id.mk()
+    };
+  switch (op_lexeme(ann), segs) {
+  | (Some(op), [x]) => [pre_op_tile(id(), sort, op), ...x]
+  | (Some(op), [l, r]) => l @ [op_tile(id(), sort, op)] @ r
+  | _ => join_hole_pieces(~secondary, ann.ids, pieces, segs)
+  };
+};
+
 /* Assumes parentheses have already been added as necessary. */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
@@ -2510,26 +2535,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       ]
       @ r,
     );
-  | MultiHole([x]) when Option.is_some(op_lexeme(exp.annotation)) =>
-    /* Stranded prefix op (see MakeTerm's Pre captures) */
-    let op = Option.value_exn(op_lexeme(exp.annotation));
-    let+ x = any_to_pretty(~settings, x);
-    wrap(exp, [pre_op_tile(exp |> Exp.rep_id, Sort.Exp, op), ...x]);
-  | MultiHole([l, r]) when Option.is_some(op_lexeme(exp.annotation)) =>
-    /* Unknown infix operator (see MakeTerm's exp Bin fallthrough) */
-    let op = Option.value_exn(op_lexeme(exp.annotation));
-    let id = exp |> Exp.rep_id;
-    let+ l = any_to_pretty(~settings, l)
-    and+ r = any_to_pretty(~settings, r);
-    wrap(exp, l @ [op_tile(id, Sort.Exp, op)] @ r);
   | MultiHole(pieces) =>
     // TODO: Add optional newlines
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
     wrap(
       exp,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(exp),
+        Sort.Exp,
+        exp.annotation,
         pieces,
         segs,
       ),
@@ -2975,74 +2989,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Module(items) =>
     /* Non-empty module: { item1; item2; ... } */
     let id = exp |> Exp.rep_id;
-    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      items
-      |> List.map(~f=(item: Mod.t) =>
-           switch (item.term) {
-           | ModLet(p, e) =>
-             let+ p = pat_to_pretty(~settings, p)
-             and+ e = exp_to_pretty(~settings, e);
-             wrap_item(
-               item,
-               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
-               @ e,
-             );
-           | ModType(tp, t) =>
-             let+ tp = tpat_to_pretty(~settings, tp)
-             and+ t = typ_to_pretty(~settings, t);
-             wrap_item(
-               item,
-               [mk_form(~sort=Sort.Mod, ModType, item |> Mod.rep_id, [tp])]
-               @ t,
-             );
-           | ModExp(e) =>
-             /* No wrap_item: a bare-expression item's ModExp wrapper shares
-                its rep id (hence its secondary) with the inner exp, whose own
-                wrap already emits it — wrapping both duplicates the runs,
-                growing whitespace on every roundtrip. */
-             exp_to_pretty(~settings, e)
-           | EmptyHole =>
-             let item_id = item |> Mod.rep_id;
-             let seg =
-               switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => mod_item_token_to_pretty(item_id, tok)
-               | None => [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ]
-               };
-             p_just(wrap_item(item, seg));
-           | Invalid(s) =>
-             p_just(
-               wrap_item(
-                 item,
-                 text_to_pretty(item |> Mod.rep_id, Sort.Mod, s),
-               ),
-             )
-           | ModuleMod(mp, e) =>
-             let mp_seg = mpat_to_seg(~settings, mp);
-             let+ e = exp_to_pretty(~settings, e);
-             wrap_item(
-               item,
-               [
-                 mk_form(
-                   ~sort=Sort.Mod,
-                   ModuleMod,
-                   item |> Mod.rep_id,
-                   [mp_seg],
-                 ),
-               ]
-               @ e,
-             );
-           | MultiHole(es) =>
-             let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.concat(es));
-           }
-         )
-      |> all;
+      items |> List.map(~f=mod_to_pretty(~settings)) |> all;
     /* Join items with semicolons and wrap in braces */
     let ids =
       IdTagged.ids(exp)
@@ -3075,6 +3023,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
 }
 and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
   let content =
     switch (mp.term) {
     | Var(name) => text_to_pretty(mp |> MPat.rep_id, Sort.MPat, name)
@@ -3100,9 +3049,10 @@ and mpat_to_seg = (~settings: Settings.t, mp: MPat.t): Segment.t => {
         List.map(pieces, ~f=piece =>
           PrettySegment.select(any_to_pretty(~settings, piece))
         );
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(mp),
+        Sort.MPat,
+        mp.annotation,
         pieces,
         segs,
       );
@@ -3271,27 +3221,15 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       pat,
       [Piece.Projector(ProjectorCore.mk(~id, kind, syntax, model))],
     );
-  | MultiHole([x]) when Option.is_some(op_lexeme(pat.annotation)) =>
-    /* Stranded prefix op (see MakeTerm's Pre captures) */
-    let op = Option.value_exn(op_lexeme(pat.annotation));
-    let+ x = any_to_pretty(~settings, x);
-    wrap(pat, [pre_op_tile(pat |> Pat.rep_id, Sort.Pat, op), ...x]);
-  | MultiHole([l, r]) when Option.is_some(op_lexeme(pat.annotation)) =>
-    /* Unknown infix operator in pattern position (see MakeTerm's pat
-       Bin fallthrough) */
-    let op = Option.value_exn(op_lexeme(pat.annotation));
-    let id = pat |> Pat.rep_id;
-    let+ l = any_to_pretty(~settings, l)
-    and+ r = any_to_pretty(~settings, r);
-    wrap(pat, l @ [op_tile(id, Sort.Pat, op)] @ r);
   | MultiHole(pieces) =>
     let+ segs =
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     wrap(
       pat,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(pat),
+        Sort.Pat,
+        pat.annotation,
         pieces,
         segs,
       ),
@@ -3387,29 +3325,15 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }
       },
     )
-  | Unknown(Hole(MultiHole([x])))
-      when Option.is_some(op_lexeme(typ.annotation)) =>
-    /* Stranded prefix op (see MakeTerm's Pre captures) */
-    let op = Option.value_exn(op_lexeme(typ.annotation));
-    let+ x = any_to_pretty(~settings, x);
-    wrap(typ, [pre_op_tile(typ |> Typ.rep_id, Sort.Typ, op), ...x]);
-  | Unknown(Hole(MultiHole([l, r])))
-      when Option.is_some(op_lexeme(typ.annotation)) =>
-    /* Unknown infix operator in type position (see MakeTerm's typ Bin
-       fallthrough) */
-    let op = Option.value_exn(op_lexeme(typ.annotation));
-    let id = typ |> Typ.rep_id;
-    let+ l = any_to_pretty(~settings, l)
-    and+ r = any_to_pretty(~settings, r);
-    wrap(typ, l @ [op_tile(id, Sort.Typ, op)] @ r);
   | Unknown(Hole(MultiHole(pieces))) =>
     let+ segs =
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     wrap(
       typ,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(typ),
+        Sort.Typ,
+        typ.annotation,
         pieces,
         segs,
       ),
@@ -3612,51 +3536,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       IdTagged.ids(typ) |> PadIds.pad_ids(PadIds.necessary_ids(typ));
     let id = List.hd_exn(ids);
     let ids = List.tl_exn(ids);
-    let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
     let+ items_pretty =
-      items
-      |> List.map(~f=(item: Sig.t) =>
-           switch (item.term) {
-           | SigLet(p) =>
-             let+ p = pat_to_pretty(~settings, p);
-             wrap_item(
-               item,
-               [mk_form(~sort=Sort.Sig, SigLet, item |> Sig.rep_id, [])] @ p,
-             );
-           | SigType(tp, t) =>
-             let+ tp = tpat_to_pretty(~settings, tp)
-             and+ t = go(t);
-             wrap_item(
-               item,
-               [mk_form(~sort=Sort.Sig, ModType, item |> Sig.rep_id, [tp])]
-               @ t,
-             );
-           | EmptyHole =>
-             let item_id = item |> Sig.rep_id;
-             let seg =
-               switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Sig, tok)
-               | None => [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ]
-               };
-             p_just(wrap_item(item, seg));
-           | Invalid(s) =>
-             p_just(
-               wrap_item(
-                 item,
-                 text_to_pretty(item |> Sig.rep_id, Sort.Sig, s),
-               ),
-             )
-           | MultiHole(es) =>
-             let+ es = es |> List.map(~f=any_to_pretty(~settings)) |> all;
-             wrap_item(item, List.concat(es));
-           }
-         )
-      |> all;
+      items |> List.map(~f=sig_to_pretty(~settings)) |> all;
     /* Join items with semicolons and wrap in braces */
     let body =
       switch (items_pretty) {
@@ -3674,7 +3555,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   let wrap = wrap_with_secondary(~secondary=settings.secondary);
-  /* Use settings-aware concatenation and form building */
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) =>
     wrap(tpat, invalid_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t))
@@ -3697,9 +3577,10 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       pieces |> List.map(~f=any_to_pretty(~settings: Settings.t)) |> all;
     wrap(
       tpat,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(tpat),
+        Sort.TPat,
+        tpat.annotation,
         pieces,
         segs,
       ),
@@ -3707,8 +3588,10 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | Var(v) => wrap(tpat, text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v))
   };
 }
+/* One item of a module's body, or one stranded inside a hole. */
 and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
   let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = (~sort=Sort.Mod, fam, id, children) =>
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
   switch (item.term) {
@@ -3751,17 +3634,20 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
     wrap_item(
       item,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(item),
+        Sort.Mod,
+        item.annotation,
         pieces,
         segs,
       ),
     );
   };
 }
+/* One item of a signature, or one stranded inside a hole. */
 and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
   let wrap_item = wrap_with_secondary(~secondary=settings.secondary);
+  let (@) = concat_segment(~secondary=settings.secondary);
   let mk_form = (~sort=Sort.Sig, fam, id, children) =>
     mk_form(~secondary=settings.secondary, ~sort, fam, id, children);
   switch (item.term) {
@@ -3792,9 +3678,10 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
     wrap_item(
       item,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(item),
+        Sort.Sig,
+        item.annotation,
         pieces,
         segs,
       ),
@@ -3837,9 +3724,10 @@ and rul_to_pretty = (~settings: Settings.t, rul: Rul.t): pretty => {
     let+ segs = pieces |> List.map(~f=any_to_pretty(~settings)) |> all;
     wrap(
       rul,
-      join_hole_pieces(
+      hole_pieces(
         ~secondary=settings.secondary,
-        IdTagged.ids(rul),
+        Sort.Rul,
+        rul.annotation,
         pieces,
         segs,
       ),

@@ -2139,9 +2139,11 @@ module Evaluated = {
             | EmptyHole => value()
             | _ => continue(e)
             },
-        /* Evaluation doesn't reach the holes in patterns and types. */
+        /* Evaluation doesn't reach the holes in patterns, types and type
+           patterns. */
         ~f_pat=(_, p) => p,
         ~f_typ=(_, t) => t,
+        ~f_tpat=(_, tp) => tp,
         elab,
       )
       |> Substitution.in_exp(
@@ -2180,7 +2182,14 @@ module Evaluated = {
    reads the `:` as an operator in a type hole), so the same tokens can
    group differently inside a hole without anything outside it changing.
    The tokens are compared, parens, spacing and the holes between them
-   aside (grout prints as `?`, and where it falls is the grouping too). */
+   aside (grout prints as `?`, and where it falls is the grouping too).
+   An item of a module or a signature that is a multihole compares the
+   same way: the items a hole is split into (MakeTerm.flatten_mod,
+   flatten_sig) are holes of one piece, which read back as the piece
+   (`{ let w x }` in a signature is `let w` and a hole holding the pattern
+   `x`; its print `{ let w; x }` reads `x` as an item no form reads, and a
+   hole holding only a `?` as an empty item). An item that is a token no
+   form reads, or empty, is compared as it is. */
 let holes_as_text = (e: Exp.t): Exp.t => {
   let text = (hole: Any.t) =>
     print_seg(
@@ -2215,6 +2224,33 @@ let holes_as_text = (e: Exp.t): Exp.t => {
         switch (tp.term) {
         | MultiHole(_) => TPat.fresh(Invalid(text(TPat(tp))))
         | _ => continue(tp)
+        },
+    ~f_mpat=
+      (continue, mp) =>
+        switch (mp.term) {
+        | MultiHole(_) => MPat.fresh(Invalid(text(MPat(mp))))
+        | _ => continue(mp)
+        },
+    ~f_mod=
+      (continue, m) =>
+        switch (m.term) {
+        | MultiHole(_)
+        | ModExp({term: MultiHole(_), _}) =>
+          switch (text(Mod(m))) {
+          | "" => Mod.fresh(EmptyHole)
+          | tokens => Mod.fresh(Invalid(tokens))
+          }
+        | _ => continue(m)
+        },
+    ~f_sig=
+      (continue, s) =>
+        switch (s.term) {
+        | MultiHole(_) =>
+          switch (text(Sig(s))) {
+          | "" => Sig.fresh(EmptyHole)
+          | tokens => Sig.fresh(Invalid(tokens))
+          }
+        | _ => continue(s)
         },
     e,
   );
@@ -2879,6 +2915,176 @@ let defensive_print_stable_tests = (
         },
       )
     ),
+    /* An operator the grammar doesn't know stays in the text whatever the
+       sorts of its operands (an expression hole before it and a type after
+       it, in `use !!! rec …`). */
+    test_case("An unknown operator keeps its token", `Quick, () =>
+      List.iter(
+        [
+          "use !!! rec y -> 7 Nat in ()",
+          "use !!! Int in ()",
+          "1 : !!! Int",
+          "1 : Int !!! Bool",
+          "x : y !!! 1",
+          "type a !!! b = Int in 1",
+          "1 : (poly ? !!! -> ())",
+        ],
+        ~f=text => {
+          check(
+            bool,
+            "the !!! survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring="!!!"),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    ),
+    /* Among a module's or a signature's items too, and in a module's name:
+       a hole made of an operator is one item, where one of juxtaposed
+       pieces is split into items (`{ let w x }` in a signature), which
+       read back as the pieces. */
+    test_case("An unknown operator among items keeps its token", `Quick, () => {
+      List.iter(
+        [
+          ("1 : { a !!! b; let x }", "a !!! b; let x"),
+          ("1 : { let a; !!! b }", "!!! b"),
+          ("1 : { a; b !!! c; d }", "a; b !!! c; d"),
+          ("1 : { truetype\n? =\nFloat; let x }", "? = Float"),
+          ("{ module M !!! N = 1 }", "M !!! N"),
+          ("{ module !!! N = 1 }", "!!! N"),
+          ("{ type t = Int !!! let b = 2 }", "Int !!! "),
+          ("1 : { let w x }", "let w; x"),
+          ("{ module B = w ? }", "module B = w; ?"),
+          ("{ let x = 1 ^w^ }", "let x = 1; ^w^"),
+          ("{ type !!! ^_^ = SInt\n? }", "!!! ^_^ = SInt; ?"),
+        ],
+        ~f=((text, kept)) => {
+          check(
+            bool,
+            kept ++ " survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring=kept),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    }),
+    /* A signature that is one hole (an operator's, or an expression's form
+       stranded there) keeps that hole's ids for the hole: the ids a
+       signature takes from its body are its `;`s. */
+    test_case("A one-hole signature shares no id with its hole", `Quick, () =>
+      List.iter(
+        [
+          "1 : { x !!! y }",
+          "1 : { if a then b else c }",
+          "1 : { let a !!! let b }",
+        ],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          let of_sigs = ref([]);
+          let of_others = ref([]);
+          let other = (continue, x) => {
+            of_others := IdTagged.ids(x) @ of_others^;
+            continue(x);
+          };
+          let _ =
+            Exp.map_term(
+              ~f_typ=
+                (continue, t) => {
+                  switch (t.term) {
+                  | Sig(_) => of_sigs := IdTagged.ids(t) @ of_sigs^
+                  | _ => of_others := IdTagged.ids(t) @ of_others^
+                  };
+                  continue(t);
+                },
+              ~f_exp=other,
+              ~f_pat=other,
+              ~f_sig=other,
+              term,
+            );
+          check(
+            bool,
+            text,
+            false,
+            List.exists(of_sigs^, ~f=id =>
+              List.mem(of_others^, id, ~equal=Id.equal)
+            ),
+          );
+        },
+      )
+    ),
+    /* A field marked `_=` cast to an entry whose label is a hole keeps its
+       `_=` and casts its value: stripped, the value was left under the
+       entry itself, which printed as a type that reads back as another. */
+    test_case("A `_=` field at an entry with a hole for a label", `Quick, () =>
+      List.iter(
+        Evaluated.terms(
+          1,
+          Option.value_exn(Typed.read("(_ = x)\n: ( \"s\"a =\n(^w^))")),
+        ),
+        ~f=term =>
+        check(
+          bool,
+          defensive_print(term),
+          true,
+          print_reads_back(~as_written=Canonicalize.elaborated, term),
+        )
+      )
+    ),
+    /* Known gap: a `_=` one-tuple at a labeled one-field type elaborates
+       to that field holding the bare `_=` field, whose print reads back as
+       the field holding a one-tuple. Goes red once the two agree. */
+    test_case(
+      "Known gap: a label filled in around a `_=` field",
+      `Quick,
+      () => {
+        let elaborated =
+          List.hd_exn(
+            List.rev(
+              Evaluated.terms(
+                0,
+                Option.value_exn(Typed.read("(_=1) : (a=Int)")),
+              ),
+            ),
+          );
+        check(
+          string,
+          "printed",
+          "(a=(_=1)):(a=Int)",
+          defensive_print(elaborated),
+        );
+        check(
+          bool,
+          "reads back as the same term",
+          false,
+          switch (
+            print_reads_back(~as_written=Canonicalize.elaborated, elaborated)
+          ) {
+          | same => same
+          | exception _ => false
+          },
+        );
+      },
+    ),
     test_case(
       "A type pattern hole spaces its pieces evenly",
       `Quick,
@@ -2993,6 +3199,30 @@ let defensive_print_stable_tests = (
         )
       )
     ),
+    /* A type hole joined by an operator is no constructor application. */
+    test_case("An unknown operator in a sum keeps its token", `Quick, () =>
+      List.iter(
+        ["type T = + A !!! (Int) + B in 1"],
+        ~f=text => {
+          check(
+            bool,
+            "the !!! survives in " ++ text,
+            true,
+            Option.value_map(
+              reprint(text),
+              ~default=false,
+              ~f=String.is_substring(~substring="!!!"),
+            ),
+          );
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          );
+        },
+      )
+    ),
     /* `->` joins the hole at its own precedence, tighter than `+`. */
     test_case("A hole joined by a known operator reads back", `Quick, () =>
       List.iter(["w ? -> 1 + 2"], ~f=text =>
@@ -3046,11 +3276,13 @@ let defensive_print_stable_tests = (
         );
       },
     ),
-    test_case("Known bug (#2856): a typed token is lost", `Quick, () =>
+    /* A word after a type pattern's piece joins it as an operator the
+       grammar doesn't know, and prints back as one. */
+    test_case("A word joining a type pattern's pieces survives", `Quick, () =>
       check(
         bool,
         "the w survives",
-        false,
+        true,
         Option.value_map(
           reprint("{ type ? x Nat w }"),
           ~default=false,
