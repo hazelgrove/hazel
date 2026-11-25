@@ -1394,6 +1394,25 @@ let found_shapes = [
     "Labeled type field as singleton prod",
     {|use (a=Int) in 1|},
   ),
+  /* An ascription binds tighter than an operator after its type: the `-`
+     subtracts, where the editor used to read it as the start of an `->`
+     and the rest into the type. */
+  menhir_maketerm_equivalent_test(
+    "Subtraction after an ascription",
+    {|1 : Int - y|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Subtraction after an ascription, in parens",
+    {|(x : Int - 1) * 2|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List concatenation after an ascription",
+    {|x : [Int] @ [2]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "An arrow after an ascription's type is still an arrow",
+    {|f : Int -> Int|},
+  ),
   /* `_` names no module in either parser; `?` is a hole in both. */
   menhir_maketerm_equivalent_test(
     "Wildcard module binder",

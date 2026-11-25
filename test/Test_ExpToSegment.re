@@ -2827,6 +2827,58 @@ let defensive_print_stable_tests = (
         );
       },
     ),
+    /* A `-` after an ascription's type subtracts, whatever follows it and
+       whether or not parens enclose it: read as the start of an `->` it
+       took a token no sort has a form for into the type, and a variable
+       only outside parens. */
+    test_case("A minus after an ascription's type subtracts", `Quick, () =>
+      List.iter(
+        [
+          "(1 : Int - o^o)",
+          "1 : Int - o^o",
+          "x\n... (_ :\nString - o^o)",
+          "(1 : Int - y)",
+          "1 : Int -",
+        ],
+        ~f=text => {
+          let term = Option.value_exn(Typed.read(text));
+          /* a word that starts a keyword is no operator: it joins what is
+             around it at the type's sort, so what follows it is a type */
+          check(
+            bool,
+            "what follows `th` in 1 : Int th x is a type",
+            true,
+            switch (Option.value_exn(Typed.read("1 : Int th x")).term) {
+            | MultiHole([_, Typ(_)]) => true
+            | _ => false
+            },
+          );
+          check(
+            bool,
+            "a subtraction from an ascription in " ++ text,
+            true,
+            {
+              let found = ref(false);
+              let _ =
+                Exp.map_term(
+                  ~f_exp=
+                    (continue, e) => {
+                      switch (e.term) {
+                      | BinOp(Int(Minus), {term: Asc(_), _}, _) =>
+                        found := true
+                      | _ => ()
+                      };
+                      continue(e);
+                    },
+                  term,
+                );
+              found^;
+            },
+          );
+          check(bool, text, true, print_reads_back(term));
+        },
+      )
+    ),
     test_case(
       "A type pattern hole spaces its pieces evenly",
       `Quick,

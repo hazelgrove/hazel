@@ -183,6 +183,31 @@ let shape_affix =
 let is_unmolded = (t: Tile.t): bool =>
   List.is_empty(Form.base_candidates(Tile.label(t)));
 
+/* Whether a tile molded as the start of a longer delimiter (the `-` of an
+   `->` still being typed) is an infix operator of its own in an
+   expression. After a type in an expression it is that operator, as `+`
+   is: an ascription binds tighter, so `1 : Int - 2` subtracts, as Menhir
+   reads it, and the `-` of an arrow becomes one once its `>` is typed. A
+   word that starts a keyword (`th`, `in`) is no operator, and stays. */
+let is_exp_op_backup = (t: Tile.t): bool =>
+  switch (t.form) {
+  | TokInfix(_) =>
+    List.exists(
+      Form.base_candidates(Tile.label(t)), ~f=((form, m: Mold.t)) =>
+      m.out == Sort.Exp
+      && Mold.is_infix_op(m)
+      && (
+        switch (form) {
+        | TokInfix(_) => false
+        | Tok(_)
+        | Compound(_) => true
+        }
+      )
+    )
+  | Tok(_)
+  | Compound(_) => false
+  };
+
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
@@ -423,7 +448,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       | Some(t)
           when
             Tile.has_label_of(t, Comma)
-            || Tile.has_label_of(t, Plus)
+            || (Tile.has_label_of(t, Plus) || is_exp_op_backup(t))
             && List.exists(~f=y => Sort.equal(Sort.Exp, y), parent_sorts) => (
           [],
           shape,
