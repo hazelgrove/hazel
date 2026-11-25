@@ -54,7 +54,7 @@ let test_happy_path_proven = () =>
  * definitional, so the goal the body sees is the contracted `x + 1 == 1 + x`
  * — which is what makes a plain pointwise `rewrite` reach it. */
 let test_body_goal_is_pointwise = () => {
-  let src = {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => ? in t|};
+  let src = {|theorem t = (fun x: Int -> x + 1) == (fun x: Int -> 1 + x) proof funext x => ? in t|};
   let (pm, proof) = run(src);
   let goal = incoming_of(pm, funext_body(proof));
   check_exp(
@@ -71,7 +71,7 @@ let test_body_goal_is_pointwise = () => {
  * `refl` on `inv(x) == inv(x)` a claim about `inv` applied to an
  * arbitrary argument rather than a claim about `inv`'s body. */
 let test_named_function_stays_applied = () => {
-  let src = {|let inv = fun x -> 1 / x in theorem t = inv == inv proof funext x => ? in t|};
+  let src = {|let inv = fun x: Int -> 1 / x in theorem t = inv == inv proof funext x => ? in t|};
   let (pm, proof) = run(src);
   let goal = incoming_of(pm, funext_body(proof));
   let is_ap = (e: Exp.t) =>
@@ -101,7 +101,7 @@ let test_named_function_refl_proves = () =>
   check_status(
     "`inv == inv` closes pointwise by refl without applying inv",
     ProofMap.Proven,
-    {|let inv = fun x -> 1 / x in theorem t = inv == inv proof funext x => from inv(x) == inv(x) do rewrite refl end end in t|},
+    {|let inv = fun x: Int -> 1 / x in theorem t = inv == inv proof funext x => from inv(x) == inv(x) do rewrite refl end end in t|},
   );
 
 /* --- 2. Control: refl at identical functions, without funext ---------- */
@@ -143,6 +143,67 @@ let test_non_arrow_equality_marked = () => {
   );
 };
 
+/* Funext is only for functions on data: at a function-typed argument,
+ * values and standard values differ, and pointwise equality over the
+ * standard ones would equate `fun h -> !!h` with `fun h -> true`. An
+ * argument whose type is unknown might be a function. */
+let refused_domain = (src: string): bool => {
+  let (pm, proof) = run(src);
+  has_mark_kind(
+    pm,
+    proof,
+    fun
+    | ProofMark.FunextNotFirstOrder(_) => true
+    | _ => false,
+  );
+};
+
+let test_function_argument_refused = () =>
+  Alcotest.check(
+    Alcotest.bool,
+    "funext over function arguments is refused",
+    true,
+    refused_domain(
+      {|theorem t = (fun h: (Int -> Int) -> 0) == (fun h: (Int -> Int) -> 0) proof funext h => ? in t|},
+    ),
+  );
+
+let test_unknown_argument_refused = () =>
+  Alcotest.check(
+    Alcotest.bool,
+    "funext over an argument of unknown type is refused",
+    true,
+    refused_domain(
+      {|theorem t = (fun x -> x) == (fun x -> x) proof funext x => ? in t|},
+    ),
+  );
+
+let test_data_arguments_accepted = () =>
+  List.iter(
+    ~f=
+      ((what, src)) =>
+        Alcotest.check(
+          Alcotest.bool,
+          "funext over " ++ what ++ " applies",
+          false,
+          refused_domain(src),
+        ),
+    [
+      (
+        "a tuple with a list",
+        {|theorem t = (fun p: (Int, [Bool]) -> p) == (fun p: (Int, [Bool]) -> p) proof funext p => ? in t|},
+      ),
+      (
+        "a sum type",
+        {|type Shape = + Dot + Box(Int) in theorem t = (fun s: Shape -> s) == (fun s: Shape -> s) proof funext s => ? in t|},
+      ),
+      (
+        "a recursive sum type",
+        {|type Ints = + Nil + Cons(Int, Ints) in theorem t = (fun l: Ints -> l) == (fun l: Ints -> l) proof funext l => ? in t|},
+      ),
+    ],
+  );
+
 /* --- 4. Control: the hole, with no funext ----------------------------- */
 
 /* A bare hole against a function equality is Incomplete. If this flips
@@ -161,7 +222,7 @@ let test_funext_hole_body_incomplete = () =>
   check_status(
     "funext with a hole body is Incomplete",
     ProofMap.Incomplete,
-    {|theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof funext x => ? in t|},
+    {|theorem t = (fun x: Int -> x + 1) == (fun x: Int -> 1 + x) proof funext x => ? in t|},
   );
 
 /* --- 5. Currying: one arrow per funext -------------------------------- */
@@ -184,7 +245,7 @@ let test_two_arrow_nested_funext = () => {
 
 /* The inner funext's goal is the twice-applied pointwise equality. */
 let test_two_arrow_inner_goal = () => {
-  let src = {|theorem t = (fun x -> fun y -> x + y) == (fun x -> fun y -> y + x) proof funext x => funext y => ? in t|};
+  let src = {|theorem t = (fun x: Int -> fun y: Int -> x + y) == (fun x: Int -> fun y: Int -> y + x) proof funext x => funext y => ? in t|};
   let (pm, proof) = run(src);
   let inner = funext_body(proof);
   let inner_goal = incoming_of(pm, funext_body(inner));
@@ -208,7 +269,7 @@ let test_two_arrow_inner_goal = () => {
  * `inv == (fun x -> 1 / x)` by evaluating the application is not a
  * clean Proven. */
 let test_partial_function_not_cleanly_proven = () => {
-  let src = {|let inv = fun x -> 1 / x in theorem t = inv == (fun x -> 1 / x) proof funext x => from inv(x) == inv(x) do rewrite refl end end in t|};
+  let src = {|let inv = fun x: Int -> 1 / x in theorem t = inv == (fun x: Int -> 1 / x) proof funext x => from inv(x) == inv(x) do rewrite refl end end in t|};
   let (pm, proof) = run(src);
   let status = ProofMap.full_status_of_proof(pm, proof);
   Alcotest.check(
@@ -351,7 +412,7 @@ let check_no_duplicate_ids = (msg: string, e: Exp.t) => {
 
 /* The minimal shape: one binder, written into both sides. */
 let test_body_goal_ids_unique_minimal = () => {
-  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof funext x => ? in t|};
+  let src = {|theorem t = (fun x: Int -> x) == (fun x: Int -> x) proof funext x => ? in t|};
   let (pm, proof) = run(src);
   check_no_duplicate_ids(
     "the pointwise body goal has no duplicate ids",
@@ -386,7 +447,7 @@ let test_body_goal_ids_unique_named = () => {
  * tiles belong to the theorem's own editor, and sharing them makes a
  * click inside the inner stepper jump out to the parent row. */
 let test_body_goal_ids_disjoint_from_outer = () => {
-  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof funext x => ? in t|};
+  let src = {|theorem t = (fun x: Int -> x) == (fun x: Int -> x) proof funext x => ? in t|};
   let (pm, proof) = run(src);
   let outer = all_ids(incoming_of(pm, proof));
   let body = all_ids(incoming_of(pm, funext_body(proof)));
@@ -409,7 +470,7 @@ let test_body_goal_ids_disjoint_from_outer = () => {
  * child is the wrapping form, rather than an Exp paren around a
  * sort-mismatched `funext`. */
 let test_parens_parse_shape = () => {
-  let src = {|theorem t = (fun x -> x) == (fun x -> x) proof ( funext x => ) in t|};
+  let src = {|theorem t = (fun x: Int -> x) == (fun x: Int -> x) proof ( funext x => ) in t|};
   let proof = find_theorem_proof(parse_exp(src));
   switch (proof) {
   | Some({term: Parens({term: Funext(_, {term: EmptyHole, _}), _}), _}) =>
@@ -536,6 +597,21 @@ let tests = (
       "funext on a non-arrow `==` is marked ExpectedFunEqGoal",
       `Quick,
       test_non_arrow_equality_marked,
+    ),
+    test_case(
+      "funext over function arguments is refused",
+      `Quick,
+      test_function_argument_refused,
+    ),
+    test_case(
+      "funext over an argument of unknown type is refused",
+      `Quick,
+      test_unknown_argument_refused,
+    ),
+    test_case(
+      "funext over data arguments applies",
+      `Quick,
+      test_data_arguments_accepted,
     ),
     test_case(
       "control: a hole against a function equality stays Incomplete",

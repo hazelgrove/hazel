@@ -283,19 +283,77 @@ let test_contraction_avoids_capture = () => {
   );
 };
 
-/* The argument has no value, but beta at any argument doesn't ask for
- * one, so this is provable. */
+/* The argument has no value, so contracting needs it standard: the
+ * step goes through, resting on `0 != 0`. */
 let test_contraction_drops_an_argument_with_no_value = () => {
   let (pm, proof) =
     run_named(
       "t",
       "theorem t = (fun x -> 0)(1 / 0) == 0 proof from (fun x -> 0)(1 / 0) do step end; step in t",
     );
+  check_mark_free("the step contracts", pm, proof);
   check(
-    bool,
-    "proven",
-    true,
-    Poly.equal(ProofMap.full_status_of_proof(pm, proof), ProofMap.Proven),
+    list(string),
+    "resting on the argument's condition",
+    ["0 != 0 [Pending]"],
+    List.map(~f=show_obligation, ProofMap.obligations_of_proof(pm, proof)),
+  );
+};
+
+/* Whichever path contracts: the evaluator for a lambda or `let`, the
+ * checker for a named function. A standard argument needs nothing. */
+let contraction_conditions = (definitions: string, redex: string, result) => {
+  let (pm, proof) =
+    run_named(
+      "t",
+      definitions
+      ++ " theorem t = "
+      ++ redex
+      ++ " == "
+      ++ result
+      ++ " proof from "
+      ++ redex
+      ++ " do step end; rewrite refl end in t",
+    );
+  check_mark_free(redex ++ " contracts", pm, proof);
+  ProofMap.obligations_of_proof(pm, proof)
+  |> List.map(~f=(ob: Obligation.t) => print_exp(ob.goal));
+};
+
+let loop = "let loop = fun (x : Int) -> loop(x) + 1 in";
+
+let test_contraction_conditions = () => {
+  check(
+    list(string),
+    "a lambda",
+    ["!! loop(0)"],
+    contraction_conditions(loop, "(fun (x : Int) -> 0)(loop(0))", "0"),
+  );
+  check(
+    list(string),
+    "a named function",
+    ["!! loop(0)"],
+    contraction_conditions(
+      loop ++ " let g = fun (x : Int) -> 0 in",
+      "g(loop(0))",
+      "0",
+    ),
+  );
+  check(
+    list(string),
+    "a let",
+    ["!! loop(0)"],
+    contraction_conditions(loop, "(let y = loop(0) in 0)", "0"),
+  );
+  check(
+    list(string),
+    "a standard argument",
+    [],
+    contraction_conditions(
+      "",
+      "(fun (x : Int) -> x + 1)(2 + 3)",
+      "2 + 3 + 1",
+    ),
   );
 };
 
@@ -318,9 +376,14 @@ let tests = (
       test_contraction_avoids_capture,
     ),
     test_case(
-      "a contraction can drop an argument with no value",
+      "a contraction at an argument with no value needs it standard",
       `Quick,
       test_contraction_drops_an_argument_with_no_value,
+    ),
+    test_case(
+      "a contraction needs its argument standard, by either path",
+      `Quick,
+      test_contraction_conditions,
     ),
     test_case(
       "an occurrence is a positive literal",

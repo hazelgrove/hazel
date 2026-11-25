@@ -114,6 +114,7 @@ and sumtype = list(sumterm)
 and pat =
   | ParenPat(pat)
   | AscPat(pat, typ)
+  | StandardPat(pat, pat)
   | EmptyHolePat
   | WildPat
   | AtomPat(Language.Atom.t)
@@ -140,6 +141,7 @@ and exp =
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
+  | Standard(exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp, proof, exp)
   | Fun(pat, exp, option(string))
@@ -883,6 +885,12 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e);
             return(UnOp(op, shrunk));
           }
+        | Standard(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Standard(shrunk));
+          }
         | Let(p, e1, e2) =>
           of_list([e1, e2])
           <+> (
@@ -1276,6 +1284,12 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           <+> {
             let* shrunk = shrink_typ(t);
             return(AscPat(p, shrunk));
+          }
+        | StandardPat(p, h) =>
+          return(p)
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(StandardPat(shrunk, h));
           }
         | ApPat(p1, p2) =>
           {

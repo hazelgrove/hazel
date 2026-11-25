@@ -1415,13 +1415,38 @@ module Picking = {
       () => {
         let goal =
           root_goal(
-            "theorem t = (fun x -> x + 1) == (fun x -> 1 + x) proof ? in t",
+            "theorem t = (fun x: Int -> x + 1) == (fun x: Int -> 1 + x) proof ? in t",
           );
         check(
           string,
           "funext",
           "funext ? => ?",
           writes(Picker.Strategies.intros(goal), "Funext"),
+        );
+      },
+    ),
+    test_case(
+      "no Funext for functions whose argument isn't data",
+      `Quick,
+      () => {
+        let offered = src =>
+          Picker.Strategies.intros(root_goal(src))
+          |> List.exists(~f=(s: Picker.Strategies.strategy) =>
+               String.equal(s.label, "Funext")
+             );
+        check(
+          bool,
+          "function argument",
+          false,
+          offered(
+            "theorem t = (fun h: (Int -> Int) -> 0) == (fun h: (Int -> Int) -> 0) proof ? in t",
+          ),
+        );
+        check(
+          bool,
+          "unknown argument type",
+          false,
+          offered("theorem t = (fun x -> x) == (fun x -> x) proof ? in t"),
         );
       },
     ),
@@ -1527,6 +1552,65 @@ module Picking = {
             "len(ys) == len([]) + len(ys)",
           )),
           ghost(goal),
+        );
+      },
+    ),
+    test_case(
+      "a step that leaves a case with no arm picked is not the ghost",
+      `Quick,
+      () => {
+        let len = "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in ";
+        let theorem = statement =>
+          root_goal(len ++ "theorem t = " ++ statement ++ " proof ? in t");
+        check(
+          ghost_t,
+          "the next step that isn't one is the ghost",
+          Some(("step", "from ($e + 2) do step end", "len(ys) + 3 == 3")),
+          ghost(theorem("forall ys: [Int] -> len(ys) + (1 + 2) == 3")),
+        );
+        check(
+          ghost_t,
+          "with no other step there is no ghost",
+          None,
+          ghost(theorem("forall ys: [Int] -> len(ys) == 0")),
+        );
+        check(
+          ghost_t,
+          "a call whose case picks an arm is the ghost",
+          Some(("step", "from $e($e) do step end", "1 + len(ys) == 2")),
+          ghost(
+            theorem("forall y: Int -> forall ys: [Int] -> len(y :: ys) == 2"),
+          ),
+        );
+        let goal = theorem("forall ys: [Int] -> len(ys) == 0");
+        let asked =
+          Picker.Ghost.mk(goal, ~selected=Some(node(goal, "len(ys)")));
+        check(
+          option(pair(string, bool)),
+          "the call itself, selected, still has its step as the ghost",
+          Some(("step", true)),
+          Option.map(asked, ~f=(g: Picker.Ghost.t) =>
+            (g.rule, Test_ProofMap.contains(print(g.result), "case ys"))
+          ),
+        );
+      },
+    ),
+    test_case(
+      "a case whose scrutinee can still step is not passed over",
+      `Quick,
+      () => {
+        let goal =
+          root_goal(
+            "let is_two = fun n -> case n * 2 | 2 => true | _ => false end in theorem t = is_two(1) == true proof ? in t",
+          );
+        check(
+          option(pair(string, bool)),
+          "ghost",
+          Some(("step", true)),
+          Option.map(
+            Picker.Ghost.mk(goal, ~selected=None), ~f=(g: Picker.Ghost.t) =>
+            (g.rule, Test_ProofMap.contains(print(g.result), "case 1 * 2"))
+          ),
         );
       },
     ),
@@ -2058,7 +2142,7 @@ module Insertion = {
 /* Goals as rows show them: as written, naming the program's
  * definitions. */
 module Display = {
-  let sum = {|let sum(xs) = case xs
+  let sum = {|let sum(xs: [Int]) = case xs
 | [] => 0
 | x::xs => x + sum(xs)
 end
@@ -2521,7 +2605,16 @@ module Structure = {
           "a division the instantiation brings in",
           ["Definedness"],
           kinds_at(
-            "theorem t = forall z -> 8 / z == 8 / z proof from 8 / z == 8 / z do rewrite refl end end in t",
+            "theorem t = forall z: Int -> 8 / z > 0 || true proof rewrite or_true end in t",
+            first,
+          ),
+        );
+        check(
+          list(string),
+          "a term with no value the step needs standard",
+          ["Standardness"],
+          kinds_at(
+            "let loop = fun (u : Int) -> loop(u) + 1 in theorem t = 0 * loop(0) == 0 proof from 0 * loop(0) do algebra 0 end end; rewrite refl end in t",
             first,
           ),
         );

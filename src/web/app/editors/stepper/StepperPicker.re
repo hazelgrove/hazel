@@ -262,6 +262,27 @@ module EvalSteps = {
     };
   };
 
+  /* Whether the checker's `step` on `node` leaves a `case` that picks no
+   * arm and has no step left to take, as `len(xs)`'s does for an unknown
+   * `xs`: the step only writes out the function's cases. A `case` whose
+   * scrutinee can still step may yet pick one. */
+  let leaves_unpicked_case = (~env, node: Exp.t): bool =>
+    switch (Evaluator.Proofs.step(~env, ~at=Root, node)) {
+    | Some({ProofCheck.outgoing, _}) =>
+      switch (Exp.term_of(ProofSyntax.unwrap(outgoing))) {
+      | Match(_) =>
+        switch (
+          EvaluatorStep.get_status(~settings=CoreSettings.on, outgoing, env)
+        ) {
+        | AvailableSteps([]) => true
+        | AvailableSteps([_, ..._])
+        | AutoStep(_) => false
+        }
+      | _ => false
+      }
+    | None => false
+    };
+
   /* The `n` for which the checker's `from <n+1>th <node> do` finds
    * `node` itself in `goal` rather than an equal node before it.
    *
@@ -919,8 +940,16 @@ module Ghost = {
      * on the other side is left alone, as stepping it only makes the sides
      * differ, and the left side goes first; then the outermost part. With
      * nothing selected, only evaluation's own steps count, so a redex it
-     * won't contract yet doesn't displace the step it takes. */
+     * won't contract yet doesn't displace the step it takes.
+     *
+     * A step that leaves a `case` with no arm picked is passed over, as
+     * it only writes out the function's cases, unless its part is the
+     * very thing selected. */
     let preferred_step = {
+      let asked_for = (source: Exp.t) => selected != None && is_node(source);
+      let passed_over = (source: Exp.t) =>
+        !asked_for(source)
+        && EvalSteps.leaves_unpicked_case(~env=Goal.env(goal), source);
       let sides =
         switch (Exp.term_of(ProofSyntax.unwrap(node))) {
         | BinOp(Poly(Equals), l, r) => Some((l, r))
@@ -953,11 +982,13 @@ module Ghost = {
          )
       |> List.filter_map(~f=((idx, offer: EvalSteps.offer)) =>
            Exp.find_by_id(offer.source, goal.written)
-           |> Option.map(~f=source => (rank(source), idx))
+           |> Option.map(~f=source => (rank(source), idx, source))
          )
-      |> List.stable_sort(~compare=((a, _), (b, _)) => compare(a, b))
-      |> List.map(~f=snd)
-      |> ListUtil.hd_opt;
+      |> List.stable_sort(~compare=((a, _, _), (b, _, _)) =>
+           compare(a, b)
+         )
+      |> List.find(~f=((_, _, source)) => !passed_over(source))
+      |> Option.map(~f=((_, idx, _)) => idx);
     };
     /* Reflexivity inside the part, as in `n == 1 ==> n == n`, only when
      * no eval step is left. */

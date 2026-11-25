@@ -18,7 +18,8 @@ type cls =
   | Projector
   | ApFunc
   | ApCons
-  | Asc;
+  | Asc
+  | Standard;
 
 include TermBase.Pat;
 
@@ -64,7 +65,8 @@ let rec strip_wrappers = (p: t): t =>
   | Label(_)
   | TupLabel(_)
   | Ap(_)
-  | Asc(_) => p
+  | Asc(_)
+  | Standard(_) => p
   };
 
 let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
@@ -73,6 +75,7 @@ let rec ctr_name = (p: Grammar.pat_t('a)): option(Constructor.t) =>
   | Parens(p)
   | Projector(_, p) => ctr_name(p)
   | Asc(_)
+  | Standard(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -108,7 +111,8 @@ let cls_of_term: Grammar.pat_term('a) => cls =
   | Parens(_) => Parens
   | Projector(_) => Projector
   | Ap(f, _) => Option.is_some(ctr_name(f)) ? ApCons : ApFunc
-  | Asc(_) => Asc;
+  | Asc(_) => Asc
+  | Standard(_) => Standard;
 
 let show_cls: cls => string =
   fun
@@ -135,14 +139,16 @@ let show_cls: cls => string =
   | Projector => "Projector"
   | ApCons => "Constructor application"
   | ApFunc => "Function definition"
-  | Asc => "Annotation";
+  | Asc => "Annotation"
+  | Standard => "Binder with a named standardness fact";
 
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)
   | Projector(_, pat)
   | TupLabel(_, pat)
-  | Asc(pat, _) => is_var(pat)
+  | Asc(pat, _)
+  | Standard(pat, _) => is_var(pat)
   | Var(v) => Some(v)
   | Invalid(_)
   | EmptyHole
@@ -167,6 +173,7 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Standard(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
     | Tuple(pats) =>
       pats |> List.for_all(~f=x => x |> is_var |> Option.is_some)
@@ -192,7 +199,8 @@ let rec get_var = (pat: t) => {
   | Projector(_, pat)
   | TupLabel(_, pat) => get_var(pat)
   | Var(x) => Some(x)
-  | Asc(x, _) => get_var(x)
+  | Asc(x, _)
+  | Standard(x, _) => get_var(x)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -217,6 +225,7 @@ let rec get_num_of_vars = (pat: t) =>
     | Parens(pat)
     | Projector(_, pat)
     | Asc(pat, _)
+    | Standard(pat, _)
     | TupLabel(_, pat) => get_num_of_vars(pat)
     | Tuple(pats) => is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
     | Label(_)
@@ -259,7 +268,8 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
     | Tuple(_)
     | Label(_)
     | Ap(_)
-    | Asc(_) => None
+    | Asc(_)
+    | Standard(_) => None
     };
 
 let get_label: t => option(LabeledTuple.label) =
@@ -276,6 +286,7 @@ let rec bindings = (dp: t): Binding.s =>
   | ExplicitNonlabel
   | Constructor(_) => []
   | Asc(y, _)
+  | Standard(y, _)
   | Parens(y)
   | Projector(_, y)
   | TupLabel(_, y) => bindings(y)
@@ -290,6 +301,15 @@ let rec bindings = (dp: t): Binding.s =>
   | Add(dp1, dp2) => bindings(dp1) @ bindings(dp2)
   | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)
+  };
+
+/* `p !! h`, through parentheses: the binder and the pattern naming its
+ * standardness fact. */
+let rec standard_fact = (p: t): option((t, t)) =>
+  switch (p.term) {
+  | Parens(p) => standard_fact(p)
+  | Standard(p, h) => Some((p, h))
+  | _ => None
   };
 
 let bound_vars = (dp: t): list(Var.t) =>
@@ -353,6 +373,7 @@ module Addition = {
     | Label(_)
     | TupLabel(_)
     | Projector(_)
+    | Standard(_)
     | Ap(_) => None
     };
 

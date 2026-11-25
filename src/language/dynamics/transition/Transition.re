@@ -116,6 +116,7 @@ type step_kind =
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
+  | Standard
   | BinOp(Operators.op_bin)
   | MarkIncomparable
   | Dot
@@ -164,6 +165,7 @@ let provenance_of_kind: step_kind => provenance =
   | DeferredAp
   | BuiltinAp(_)
   | UnOp(_)
+  | Standard
   | BinOp(_)
   | Dot
   | Conditional(_)
@@ -231,6 +233,110 @@ module type EV_MODE = {
     (requirements('a, 'c => 'b), requirement('c)) =>
     requirements(('a, 'c), 'b);
   let otherwise: (Environment.t(Exp.t), 'a) => requirements(unit, 'a);
+};
+
+/* What `!!v` steps to, for a final `v`, or None if it is stuck. A datum
+ * is standard when its parts are: an atom, a label or a nullary
+ * constructor gives `true`, and a compound gives the `&&` of `!!` over its
+ * parts. A function is standard when it gives a standard result on every
+ * standard argument, so `!!f` steps to `forall (x : T) -> !!f(x)`. That
+ * forall is stuck: evaluation never shows a function standard, only a
+ * proof can. It never steps to `false`. */
+let rec standard_reduct = (v: DHExp.t): option(DHExp.t) => {
+  let all_standard = (parts: list(DHExp.t)): DHExp.t =>
+    switch (List.rev(parts)) {
+    | [] => Atom(Bool(true)) |> DHExp.fresh
+    | [last, ...rest] =>
+      List.fold_left(
+        ~f=
+          (acc, part) =>
+            BinOp(Bool(And), Standard(part) |> DHExp.fresh, acc)
+            |> DHExp.fresh,
+        ~init=Standard(last) |> DHExp.fresh,
+        rest,
+      )
+    };
+  let is_known = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Unknown(_) => false
+    | _ => true
+    };
+  let is_arrow = (t: Typ.t) =>
+    switch (Typ.term_of(t)) {
+    | Arrow(_) => true
+    | _ => false
+    };
+  /* A function value is a lambda, under its closure. */
+  let rec lambda = (v: DHExp.t) =>
+    switch (DHExp.term_of(v)) {
+    | Closure(_, v) => lambda(v)
+    | _ => v
+    };
+  switch (DHExp.term_of(lambda(v))) {
+  | Parens(v)
+  | Asc(v, _) => standard_reduct(v)
+  /* The statics store the parameter's type in an elaborated lambda. */
+  | Fun(_, _, Some(param_ty), _) when is_known(param_ty) =>
+    let rec fresh = x =>
+      Exp.occurs_free_any([x], v) ? fresh(Var.next_name(x)) : x;
+    let x = fresh("x");
+    Some(
+      Forall(
+        Pat.fresh(Asc(Pat.fresh(Var(x)), param_ty)),
+        Standard(Ap(Forward, v, Var(x) |> DHExp.fresh) |> DHExp.fresh)
+        |> DHExp.fresh,
+      )
+      |> DHExp.fresh,
+    );
+  | Atom(_)
+  | Label(_) => Some(Atom(Bool(true)) |> DHExp.fresh)
+  | Constructor(_, Some(Some(t))) when is_known(t) && !is_arrow(t) =>
+    Some(Atom(Bool(true)) |> DHExp.fresh)
+  | Tuple(parts)
+  | ListLit(parts) => Some(all_standard(parts))
+  | Cons(h, t) => Some(all_standard([h, t]))
+  | TupLabel(_, v)
+  | Ap(_, {term: Constructor(_), _}, v) => Some(all_standard([v]))
+  | Fun(_)
+  | Constructor(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_)
+  | DynamicErrorHole(_)
+  | Deferral(_)
+  | Undefined
+  | DrvQuote(_)
+  | TypFun(_)
+  | ExplicitNonlabel
+  | Dot(_)
+  | LivelitName(_)
+  | Var(_)
+  | Let(_)
+  | Theorem(_)
+  | Forall(_)
+  | FixF(_)
+  | TyAlias(_)
+  | Use(_)
+  | Ap(_)
+  | TypAp(_)
+  | DeferredAp(_)
+  | If(_)
+  | Seq(_)
+  | Test(_)
+  | HintedTest(_)
+  | Filter(_)
+  | Closure(_)
+  | Projector(_)
+  | ListConcat(_)
+  | UnOp(_)
+  | Standard(_)
+  | BinOp(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | TupleExtension(_)
+  | Module(_)
+  | ModuleExp(_) => None
+  };
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -589,6 +695,19 @@ module Transition = (EV: EV_MODE) => {
     | Forall(_) =>
       let. _ = otherwise(env, d);
       Indet;
+    | Standard(d1) =>
+      let. _ = otherwise(env, d1 => Standard(d1) |> rewrap)
+      and. d1' = req_final(req(env), d1 => Standard(d1) |> wrap_ctx, d1);
+      switch (standard_reduct(d1')) {
+      | Some(expr) =>
+        Step({
+          expr,
+          side_effects: [],
+          kind: Standard,
+          is_value: false,
+        })
+      | None => Indet
+      };
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
@@ -1399,6 +1518,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BinOp(_)
   | Dot
   | UnOp(_)
+  | Standard
   | ListCons
   | ListConcat
   | TupleExtension => false
@@ -1453,6 +1573,7 @@ let stepper_justification: step_kind => string =
   | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"
+  | Standard => "standardness"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
