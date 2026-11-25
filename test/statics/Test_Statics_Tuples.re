@@ -12,17 +12,12 @@ module ShapeMessages = {
       () => {
         let map = statics(parse_exp(program));
         let tuple =
-          Id.Map.fold(
-            (_, info: Info.t, found) =>
-              switch (info) {
-              | InfoExp({user_term: {term: Tuple(_), _}, _} as info) =>
-                Some(info)
-              | _ => found
-              },
+          info_where(
             map,
-            None,
-          )
-          |> Option.value_exn;
+            fun
+            | Tuple(_) => true
+            | _ => false,
+          );
         check(
           Alcotest.string,
           "message",

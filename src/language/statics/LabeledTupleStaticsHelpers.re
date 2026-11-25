@@ -125,7 +125,25 @@ let shape_mismatch_message =
       Some(
         List.map(tys, ~f=t => Typ.match_tup_label(t) |> Option.map(~f=fst)),
       )
-    | _ => None
+    | Prod([])
+    | Unknown(_)
+    | Atom(_)
+    | DrvQuoteTy(_)
+    | Var(_)
+    | List(_)
+    | Arrow(_)
+    | Sum(_)
+    | ExplicitNonlabel
+    | Label(_)
+    | TupLabel(_)
+    | Parens(_)
+    | Projector(_)
+    | Rec(_)
+    | Poly(_)
+    | ProofOf(_)
+    | ProdProjection(_)
+    | ProdExtension(_)
+    | Sig(_) => None
     };
   switch (labels(ana), labels(syn)) {
   | (Some(expected), Some(actual)) =>

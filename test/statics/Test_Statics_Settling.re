@@ -40,22 +40,6 @@ let unmarked = (name, program) =>
     )
   );
 
-let info_where = (map: Statics.Map.t, matches: Exp.term => bool): Info.exp =>
-  switch (
-    Id.Map.fold(
-      (_, info: Info.t, found) =>
-        switch (info) {
-        | InfoExp(info) when matches(info.user_term.term) => Some(info)
-        | _ => found
-        },
-      map,
-      None,
-    )
-  ) {
-  | Some(info) => info
-  | None => fail("no expression of the expected form")
-  };
-
 /* The syn type keeps the error the elab syn type has settled on ana. */
 let types_of = (name, program, matches, ~syn, ~elab_syn) =>
   test_case(
