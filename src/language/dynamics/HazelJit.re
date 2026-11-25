@@ -10,8 +10,11 @@
      SInt                   a JS number within 32 bits, each result checked (^ticket(758)): outside, IntegerOverflow
      Float                  a JS number
      Bool, String           a JS boolean, a JS string
-     a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
-     a list                 null for [], {$h, $t} for a cons, so :: is O(1)
+     a record               (^ticket(847)) a tuple whose every entry is labeled: a plain JS object, its keys the labels
+                            in the type's order
+     another tuple          a JS array of its components; a labeled component is also a property of the array, by its
+                            label, and the labels are under $R.L (Symbol.for("hazel-jit.labels"))
+     a list                null for [], {$h, $t} for a cons, so :: is O(1)
      a constructor          {$c: name} or {$c: name, $v: payload}
      (^ticket(847), decision 2) a record keeps a label beginning with $ under "$" ++ label (label_key), so no record has
      the key $h, $t, $c or $v, and a cell or a constructor is told from a record by one key
@@ -972,7 +975,7 @@ and exp_inner =
       ++ "))";
     | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
     }
-  | Fun(p, body, _, _) => func(st, lex, ~term=e, p, body)
+  | Fun(p, body, _, _) => func(st, lex, ~term=e, ~self=None, p, body)
   | FixF(p, body, _) =>
     let rec name_of = (p: Pat.t): option(string) =>
       switch (Pat.term_of(p)) {
@@ -1006,11 +1009,29 @@ and exp_inner =
       | TypFun(_, e, _) => is_fun(e)
       | _ => false
       };
+    /* (^ticket(853)) the function a recursive definition makes, if it is one: compiled knowing its own name, so a call of
+       itself in tail position is a turn of a loop (func's ~self) */
+    let rec fun_of = (e: Exp.t): option((Exp.t, Pat.t, Exp.t)) =>
+      switch (Exp.term_of(e)) {
+      | Fun(fp, fbody, _, _) => Some((e, fp, fbody))
+      | Parens(e)
+      | TypFun(_, e, _) => fun_of(e)
+      | Asc(e, t) =>
+        no_type_hole(t);
+        fun_of(e);
+      | _ => None
+      };
     switch (name_of(p)) {
     | Some(x) =>
       let inner = {decls: []};
       let j = fresh(st, inner, x);
-      let body = exp(st, inner, [(x, j), ...lex], body);
+      let lex' = [(x, j), ...lex];
+      let body =
+        switch (fun_of(body)) {
+        | Some((fe, fp, fbody)) =>
+          func(st, lex', ~term=fe, ~self=Some(j), fp, fbody)
+        | None => exp(st, inner, lex', body)
+        };
       "(() => { "
       ++ body_with_decls(
            inner,
@@ -1277,7 +1298,21 @@ and exp_inner =
   };
 }
 /* A function: its own JS function, its parameter matched against its pattern */
-and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
+/* (^ticket(853); Matthew, 2026-11-25: "let's work on turning tail calls into loops next") ~self: the JS name a recursive
+   definition gives this function (FixF). Its body is then statements (tail, below), and a call of itself in tail position
+   gives its parameter the new argument and goes round a loop, for (;;), where it was a JS call: no stack to overflow on a
+   long list, and no call. The function's variables are declared inside the loop, so each pass has its own: a closure
+   made in one pass keeps that pass's values, as a call's would. Each pass counts a step, as each call did. */
+and func =
+    (
+      st: state,
+      lex,
+      ~term: Exp.t,
+      ~self: option(string),
+      p: Pat.t,
+      body: Exp.t,
+    )
+    : string => {
   let inner = {decls: []};
   st.counter = st.counter + 1;
   let arg = "a$" ++ string_of_int(st.counter);
@@ -1287,24 +1322,44 @@ and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
   let check =
     List.is_empty(tests)
       ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
+  let looped = ref(false);
   let b =
-    try(exp(st, inner, lex', body)) {
+    try(
+      switch (self) {
+      | Some(sj) => tail(st, inner, lex', ~self=(sj, arg), ~looped, body)
+      | None => exp(st, inner, lex', body)
+      }
+    ) {
     | exn =>
       st.frames = List.tl_exn(st.frames);
       raise(exn);
     };
   st.frames = List.tl_exn(st.frames);
-  let value =
-    List.is_empty(check) && List.is_empty(binds)
-      ? b : "(" ++ String.concat(~sep=", ", check @ binds @ [b]) ++ ")";
+  let code =
+    switch (self) {
+    | None =>
+      let value =
+        List.is_empty(check) && List.is_empty(binds)
+          ? b : "(" ++ String.concat(~sep=", ", check @ binds @ [b]) ++ ")";
+      step ++ body_with_decls(inner, value);
+    | Some(_) =>
+      let decls =
+        switch (inner.decls) {
+        | [] => ""
+        | ds => "let " ++ String.concat(~sep=", ", List.rev(ds)) ++ "; "
+        };
+      let pre = String.concat(List.map(check @ binds, ~f=s => s ++ "; "));
+      looped^
+        ? "for (;;) { " ++ decls ++ step ++ pre ++ b ++ " }"
+        : step ++ decls ++ pre ++ b;
+    };
   /* tagged with its term and its captured values, so the way back can make it a Hazel closure (HazelJitValue) */
   let k = Stdlib.Hashtbl.length(st.funs);
   Stdlib.Hashtbl.replace(st.funs, k, (term, List.map(caps^, ~f=fst)));
   "$R.fn(("
   ++ arg
   ++ ") => { "
-  ++ step
-  ++ body_with_decls(inner, value)
+  ++ code
   ++ " }, "
   ++ string_of_int(k)
   ++ ", "
@@ -1314,6 +1369,99 @@ and func = (st: state, lex, ~term: Exp.t, p: Pat.t, body: Exp.t): string => {
       : "[" ++ String.concat(~sep=", ", List.map(caps^, ~f=snd)) ++ "]"
   )
   ++ ")";
+}
+/* (^ticket(853)) a recursive function's body as statements, each path ending in a return; or, at a call of the function
+   itself in tail position (its name still the definition's: lex finds ~self's JS name), in giving its parameter the
+   call's argument and going round the loop again (continue), which sets ~looped. Through what passes the tail position on,
+   as exp has them: an if's branches, a let's and a sequence's last part, a case's arms; anything else is returned. The
+   call's own name is still compiled, so a function that captures it (it is a closure's variable for the way back,
+   HazelJitValue) still does. */
+and tail =
+    (
+      st: state,
+      scope: scope,
+      lex: list((string, string)),
+      ~self: (string, string),
+      ~looped: ref(bool),
+      e: Exp.t,
+    )
+    : string => {
+  let go = exp(st, scope, lex);
+  let again = tail(st, scope, lex, ~self, ~looped);
+  let (sj, arg) = self;
+  let rec is_self = (f: Exp.t): bool =>
+    switch (Exp.term_of(f)) {
+    | Parens(f) => is_self(f)
+    | Var(x) =>
+      Option.equal(
+        String.equal,
+        List.Assoc.find(lex, ~equal=String.equal, x),
+        Some(sj),
+      )
+    | _ => false
+    };
+  let stmts = ss => String.concat(List.map(ss, ~f=s => s ++ "; "));
+  switch (Exp.term_of(e)) {
+  | Parens(e)
+  | TypFun(_, e, _)
+  | Use(_, e) => again(e)
+  | Asc(e, t)
+  | TypAp(e, t) =>
+    no_type_hole(t);
+    again(e);
+  | TyAlias(tp, ty, e) =>
+    note_alias(st, tp, ty);
+    again(e);
+  | If(c, a, b) =>
+    "if ("
+    ++ go(c)
+    ++ ") { "
+    ++ again(a)
+    ++ " } else { "
+    ++ again(b)
+    ++ " }"
+  /* in parentheses: a statement that began with { (a list's cell, say) would be a block */
+  | Seq(a, b) => "(" ++ go(a) ++ "); " ++ again(b)
+  | Let(p, e1, e2) when ! params_on^ =>
+    let tmp = fresh(st, scope, "let");
+    let v1 = go(e1);
+    let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+    let check =
+      List.is_empty(tests)
+        ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
+    stmts([tmp ++ " = " ++ v1] @ check @ binds)
+    ++ tail(st, scope, lex', ~self, ~looped, e2);
+  | Match(scrut, rules) =>
+    let tmp = fresh(st, scope, "m");
+    let s = go(scrut);
+    let arms =
+      List.fold_right(
+        rules,
+        ~f=
+          ((p, body), rest) => {
+            let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+            let then_ =
+              stmts(binds) ++ tail(st, scope, lex', ~self, ~looped, body);
+            List.is_empty(tests)
+              ? then_
+              : "if ("
+                ++ conj(tests)
+                ++ ") { "
+                ++ then_
+                ++ " } else { "
+                ++ rest
+                ++ " }";
+          },
+        ~init="return $R.nomatch(\"case\");",
+      );
+    tmp ++ " = " ++ s ++ "; " ++ arms;
+  | Ap(Forward | Reverse, f, a) when is_self(f) =>
+    let _: string = go(f);
+    looped := true;
+    let v = go(a);
+    arg ++ " = " ++ v ++ "; continue;";
+  | _ => "return " ++ go(e) ++ ";"
+  };
 }
 /* A module: its members, in order, each seeing the ones before it, gathered into one value whose properties are their
    names (as a labeled tuple's), so `M.x` is a property read. Types are erased. A name defined twice is its last. */

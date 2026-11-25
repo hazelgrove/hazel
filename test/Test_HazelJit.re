@@ -892,9 +892,70 @@ let unicode_string_tests = [
    does one hazel-jit does not compile; the rest are run both ways and their values compared as the sweep compares
    them. Printed for ^report(54); a difference, or compiled JS that throws where the interpreter has a value, fails. */
 
+/* (^ticket(853)) a recursive function's calls of itself in tail position, a loop */
+let count_src = n =>
+  "let count = fun (n, acc) -> if n == 0 then acc else count(n - 1, acc + 1) in count("
+  ++ string_of_int(n)
+  ++ ", 0)";
+let loop_tests = [
+  agreement("a tail call as a loop: a count", count_src(1000)),
+  agreement(
+    "closures made in a loop keep their own pass's values",
+    "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, (fun u -> n * 10) :: acc) in let call = fun fs -> case fs | [] => [] | f :: r => f(0) :: call(r) end in call(build(3, []))",
+  ),
+  agreement(
+    "a tail call through a case, a let and a sequence",
+    "let last = fun xs -> case xs | [] => 0 | [x] => x | _ :: rest => let r = rest in (1; last(r)) end in last([1, 2, 3, 4])",
+  ),
+  agreement(
+    "calls of itself in tail position and not, in one function",
+    "let g = fun n -> if n == 0 then 0 else if n < 5 then 1 + g(n - 1) else g(n - 1) in g(20)",
+  ),
+  agreement(
+    "a tail call of another function by the same name is a call",
+    "let f = fun n -> if n == 0 then 0 else let f = fun m -> m + 100 in f(n - 1) in f(5)",
+  ),
+  agreement(
+    "a tail call whose argument calls itself",
+    "let h = fun (n, acc) -> if n == 0 then acc else h(n - 1, acc + h(0, n)) in h(10, 0)",
+  ),
+  test_case(
+    "a long tail recursion, compiled: a loop, with no stack to overflow",
+    `Quick,
+    () => {
+      let js = compiled_src(count_src(1000000));
+      check(bool, "a loop", true, contains(js, "for (;;)"));
+      check(
+        string,
+        "count(1000000, 0)",
+        "1000000",
+        Js.to_string(
+          Js.Unsafe.meth_call(
+            run_js(HazelJit.Runtime.source, js),
+            "toString",
+            [||],
+          ),
+        ),
+      );
+      check(
+        bool,
+        "no loop where the call is not in tail position",
+        false,
+        contains(
+          compiled_src(
+            "let fact = fun n -> if n == 0 then 1 else n * fact(n - 1) in fact(10)",
+          ),
+          "for (;;)",
+        ),
+      );
+    },
+  ),
+];
+
 let tests = (
   "HazelJit",
-  invalid_tests
+  loop_tests
+  @ invalid_tests
   @ big_int_tests
   @ mutual_tests
   @ partial_tests
