@@ -144,37 +144,21 @@ type entry = {
   holes: bool,
 };
 
-/* (^ticket(769)) The argument cast to the declared parameter type as the interpreter's own application of the function
-   casts it (Ascriptions.transition): a tuple's, a list's or a constructor's parts each to its own type; a part already
-   cast kept; anything else, a hole among them, cast whole. One level (~deep=false) is what the interpreter binds when it
-   applies the function, so a fallback, given that, runs as the interpreter alone does, and a stuck answer shows (1 : Int)
-   where it does (CI 45709997915: pick(?, 1, 2)). All the way down (~deep=true), a number's cast gone, is what a finished
-   answer holds, so a hole carried through compiled code comes back as (? : Int), as the interpreter's answer has it. */
-let rec cast_parts =
-        (~deep: bool, ts: HazelJitValue.types, e: Exp.t, t: Typ.t): Exp.t => {
-  let part = (e, t) =>
-    deep ? cast_parts(~deep, ts, e, t) : Exp.fresh(Asc(e, t));
-  switch (Exp.term_of(e), t.term) {
-  | (Asc(_), _) => e
-  | (Parens(e'), _) => cast_parts(~deep, ts, e', t)
-  | (_, Parens(t')) => cast_parts(~deep, ts, e, t')
-  | (_, Unknown(_)) => e
-  | (Atom(_), Atom(_)) when deep => e
-  | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-    Exp.fresh(Tuple(List.map2_exn(es, tys, ~f=part)))
-  | (TupLabel(l, inner), TupLabel(_, inner_ty)) when deep =>
-    Exp.fresh(TupLabel(l, part(inner, inner_ty)))
-  | (ListLit(es), List(ty)) =>
-    Exp.fresh(ListLit(List.map(es, ~f=e => part(e, ty))))
-  | (Cons(h, tl), List(ty)) => Exp.fresh(Cons(part(h, ty), part(tl, t)))
-  | (Ap(Forward, {term: Constructor(c, _), _} as con, payload), _) =>
-    switch (Option.join(Stdlib.Hashtbl.find_opt(ts.ctors, c))) {
-    | Some(pt) => Exp.fresh(Ap(Forward, con, part(payload, pt)))
-    | None => Exp.fresh(Asc(e, t))
-    }
-  | _ => Exp.fresh(Asc(e, t))
+/* (^ticket(769)) Casts as the interpreter makes them, by its own cast step (Ascriptions), so that a hole, or a stuck
+   answer, shows in mixed mode the casts it shows in the interpreter alone (CI 45709997915 and 45710016850: six answers
+   parted in casts only, (? : Int) for ?, (1 : Int) for 1). Applying a function of declared type, the interpreter casts
+   the argument one step (cast_one: a tuple's, a list's or a constructor's parts each wrapped in its own type's cast) and
+   binds that; a cast it steps through as a value it resolves all the way (cast_all, transition_multiple: a number's cast
+   gone, a hole's kept); and the answer is cast to the declared result type the same way. A part already cast is kept. */
+let cast_one = (arg: Exp.t, t: Typ.t): Exp.t =>
+  switch (Exp.term_of(arg)) {
+  | Asc(_) => arg
+  | _ =>
+    let a = Exp.fresh(Asc(arg, t));
+    Option.value(Ascriptions.transition(a), ~default=a);
   };
-};
+let cast_all = (e: Exp.t, t: Typ.t): Exp.t =>
+  Ascriptions.transition_multiple(Exp.fresh(Asc(e, t)));
 
 let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
   incr(fallbacks);
@@ -189,7 +173,7 @@ let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
   );
   /* the argument cast to the declared parameter type, as the interpreter alone has it at the call (let inc : Int -> Int =
      ... in inc(?) is (? : Int) + 1; CI 11-17), unless it carries a cast already; (^ticket(769)) part by part, one level */
-  let arg = cast_parts(~deep=false, entry.ts, arg, entry.param);
+  let arg = cast_one(arg, entry.param);
   switch (entry.closure^) {
   | Some(c) => Some(Exp.fresh(Ap(Forward, c, arg)))
   | None => None
@@ -240,9 +224,7 @@ let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
         holes
           ? {
             HazelJitValue.opaque_begin();
-            HazelJitValue.to_js(
-              cast_parts(~deep=true, entry.ts, arg, entry.param),
-            );
+            HazelJitValue.to_js(cast_all(arg, entry.param));
           }
           : js_arg;
       switch (holes ? checked_of(entry) : Ok(entry.fn)) {
@@ -267,7 +249,8 @@ let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
             fall_back("an answer that does not carry back", entry, arg);
           | e =>
             HazelJitValue.holes_back := false;
-            Some(e);
+            /* (^ticket(769)) an answer that may hold a hole, cast to the declared result type as the interpreter casts it */
+            Some(holes || entry.holes ? cast_all(e, entry.result) : e);
           };
         };
       };
