@@ -217,6 +217,17 @@ module ErrorSlicing = {
     };
   };
 
+  let qualified = (typ: Typ.t): bool =>
+    switch (Typ.term_of(strip_parens(typ))) {
+    | ProdProjection(_) => true
+    | TypParamAp(head, _) =>
+      switch (Typ.term_of(strip_parens(head))) {
+      | ProdProjection(_) => true
+      | _ => false
+      }
+    | _ => false
+    };
+
   let rec queries =
           (ctx: Ctx.t, syn: Typ.t, ana: Typ.t): option((Typ.t, Typ.t)) =>
     switch (Typ.meet(ctx, syn, ana)) {
@@ -263,6 +274,12 @@ module ErrorSlicing = {
           Some((wrap(ss, qs), wrap(aas, qa)));
         | None => Some((shell(syn), shell(ana)))
         };
+      | (TupLabel(sl, s), TupLabel(al, a)) =>
+        switch (queries(ctx, s, a)) {
+        | Some((qs, qa)) =>
+          Some((Typ.fresh(TupLabel(sl, qs)), Typ.fresh(TupLabel(al, qa))))
+        | None => Some((shell(syn), shell(ana)))
+        }
       | (List(s), List(a)) =>
         switch (queries(ctx, s, a)) {
         | Some((qs, qa)) =>
@@ -299,6 +316,30 @@ module ErrorSlicing = {
           Some((wrap(ss, qs), wrap(aas, qa)));
         | None => Some((shell(syn), shell(ana)))
         };
+      | _ when qualified(syn) || qualified(ana) =>
+        let unfold = typ =>
+          qualified(typ) ? Typ.weak_head_normalize(ctx, typ) : typ;
+        let (syn', ana') = (unfold(syn), unfold(ana));
+        Typ.fast_equal(syn', syn) && Typ.fast_equal(ana', ana)
+          ? Some((shell(syn), shell(ana))) : queries(ctx, syn', ana');
+      | (TypParamAp(_) | Var(_), Prod(_) | Arrow(_) | List(_))
+      | (Prod(_) | Arrow(_) | List(_), TypParamAp(_) | Var(_)) =>
+        let unfold = typ =>
+          switch (Typ.term_of(strip_parens(typ))) {
+          | TypParamAp(_)
+          | Var(_) => strip_parens(Typ.weak_head_normalize(ctx, typ))
+          | _ => typ
+          };
+        let (syn', ana') = (unfold(syn), unfold(ana));
+        let aligned =
+          switch (Typ.term_of(syn'), Typ.term_of(ana')) {
+          | (Prod(_), Prod(_))
+          | (Arrow(_), Arrow(_))
+          | (List(_), List(_)) => true
+          | _ => false
+          };
+        aligned
+          ? queries(ctx, syn', ana') : Some((shell(syn), shell(ana)));
       | _ => Some((shell(syn), shell(ana)))
       }
     };
@@ -1106,7 +1147,42 @@ module Update = {
     | TypeEditor(TypeTarget.t, CodeEditable.Update.t)
     | OpenMenu(TypeTarget.t, float, float)
     | Focus(TypeTarget.t)
+    | Expand(TypeTarget.t, Id.t)
     | CloseMenu;
+
+  let rec mentions = (id: Id.t, ty: Typ.t): bool =>
+    List.mem(id, IdTagged.ids(ty))
+    || List.exists(mentions(id), Typ.children(ty));
+
+  let names_a_type = (ty: Typ.t): bool =>
+    switch (Typ.term_of(ty)) {
+    | TypParamAp(_)
+    | ProdProjection(_)
+    | Var(_) => true
+    | _ => false
+    };
+
+  let expand_at = (ctx: Ctx.t, id: Id.t, ty: Typ.t): Typ.t => {
+    let expanded = ref(false);
+    Typ.map_term(
+      ~f_typ=
+        (continue, t: Typ.t) => {
+          let mapped = continue(t);
+          if (expanded^ || !names_a_type(t) || !mentions(id, t)) {
+            mapped;
+          } else {
+            let unfolded = Typ.weak_head_normalize(ctx, t);
+            if (names_a_type(unfolded)) {
+              mapped;
+            } else {
+              expanded := true;
+              unfolded;
+            };
+          };
+        },
+      ty,
+    );
+  };
 
   let can_undo = (_: t) => false;
 
@@ -1163,6 +1239,34 @@ module Update = {
       )
       : Updated.t(Model.t) =>
     switch (action, cursor_info) {
+    | (Expand(target, id), Some(ci)) =>
+      let row = Model.row(target, model);
+      switch (row.active, row.editor) {
+      | (true, Model.EditorSlot.SomeEditor(editor)) =>
+        switch (TypeSlicing.typ_of_editor(editor)) {
+        | Some(typ) =>
+          let ctx = Info.ctx_of(ci);
+          let (_, editor) =
+            type_editor_of_type(~ctx, expand_at(ctx, id, typ));
+          {
+            ...
+              Model.put_row(
+                target,
+                {
+                  ...row,
+                  editor: Model.EditorSlot.SomeEditor(editor),
+                },
+                model,
+              ),
+            menu: Model.NoMenu,
+            focus_target: Model.Fold(target),
+          }
+          |> Updated.return_quiet;
+        | None => model |> Updated.return_quiet
+        }
+      | _ => model |> Updated.return_quiet
+      };
+    | (Expand(_), None) => model |> Updated.return_quiet
     | (TypeEditor(_, _) | OpenMenu(_, _, _) | Focus(_) | CloseMenu, _) =>
       switch (action) {
       | Focus(target) =>
@@ -1209,6 +1313,7 @@ module Update = {
         }
         |> Updated.return_quiet
       | Toggle(_)
+      | Expand(_)
       | ExplainError => model |> Updated.return_quiet
       }
     | (_, None) => model |> Updated.return_quiet
@@ -1320,6 +1425,7 @@ module Update = {
           menu: Model.NoMenu,
         }
         |> Updated.return_quiet
+      | Expand(_) => model |> Updated.return_quiet
       };
     };
 };
@@ -1430,6 +1536,29 @@ let type_slot =
            )
         |> ListUtil.join([ContextMenu.divider])
         |> List.concat;
+      let expand_item =
+        switch (
+          Indicated.ci_of(editor.editor.state.zipper, editor.statics.info_map)
+        ) {
+        | Some(ci) => [
+            div(
+              ~attrs=[
+                clss(["named-menu-item"]),
+                Attr.on_pointerdown(_ =>
+                  Effect.Many([
+                    Effect.Stop_propagation,
+                    Effect.Prevent_default,
+                    inject(Update.Expand(target, Info.id_of(ci))),
+                  ])
+                ),
+              ],
+              [text("Expand type alias")],
+            ),
+            ContextMenu.divider,
+          ]
+        | None => []
+        };
+      let items = expand_item @ items;
       [
         div(
           ~attrs=[
