@@ -323,16 +323,26 @@ and uexp_to_info_map =
     let labeled = (ty: Typ.t): Typ.t =>
       Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
     let (_, rewrap) = Exp.unwrap(uexp);
+    /* A value lifted at each level of a nested one-field type (`5` at
+       `(a=(b=Int))`) is the same node at every level, so an outer level
+       derives its ids from the field the level below made: no two levels
+       share one. */
+    let source =
+      switch (value.label_inference, value_elab.term) {
+      | (Some(SingletonLabelInference(_)), Tuple([field])) =>
+        Exp.rep_id(field)
+      | _ => Exp.rep_id(uexp)
+      };
     let elab_term =
       rewrap(
         Tuple([
           Exp.labeled_field(
             ~salt="autolabel:field",
-            ~source=Exp.rep_id(uexp),
+            ~source,
             l,
             IdTagged.derived(
               ~salt="autolabel:value",
-              Exp.rep_id(uexp),
+              source,
               value_elab.term,
             ),
           ),
@@ -3119,16 +3129,22 @@ and upat_to_info_map =
     let labeled = (ty: Typ.t): Typ.t =>
       Prod([TupLabel(Label(l) |> Typ.temp, ty) |> Typ.temp]) |> Typ.temp;
     let (_, rewrap) = Pat.unwrap(upat);
+    let source =
+      switch (value.label_inference, value_elab.term) {
+      | (Some(SingletonLabelInference(_)), Tuple([field])) =>
+        Pat.rep_id(field)
+      | _ => Pat.rep_id(upat)
+      };
     let elab_term =
       rewrap(
         Tuple([
           Pat.labeled_field(
             ~salt="autolabel:field",
-            ~source=Pat.rep_id(upat),
+            ~source,
             l,
             IdTagged.derived(
               ~salt="autolabel:value",
-              Pat.rep_id(upat),
+              source,
               value_elab.term,
             ),
           ),

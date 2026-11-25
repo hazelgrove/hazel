@@ -643,6 +643,26 @@ let regression_tests = [
   ),
 ];
 
+/* The ids more than one expression or pattern of a program's elaboration
+   has. Types are left out: one that statics makes up takes no id. */
+let elab_repeated_ids = (src: string): list(string) => {
+  let exp = parse(src);
+  switch (Statics.Map.lookup_exp(Exp.rep_id(exp), uncached_info_map(exp))) {
+  | None => ["no entry for " ++ src]
+  | Some({elab_term, _}) =>
+    let acc = ref([]);
+    let collect = (cont, term) => {
+      acc := IdTagged.ids(term) @ acc^;
+      cont(term);
+    };
+    let _ = Exp.map_term(~f_exp=collect, ~f_pat=collect, elab_term);
+    acc^
+    |> List.filter(~f=id => !Id.equal(id, Id.invalid))
+    |> List.find_all_dups(~compare=Id.compare)
+    |> List.map(~f=Id.show);
+  };
+};
+
 /* One example of each cause the statics properties have found. */
 let no_nested_id_drift = (src: string) =>
   switch (elab_nested_ids_drifting(Statics.Map.empty, parse(src))) {
@@ -728,6 +748,23 @@ let found_cause_tests = [
           "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
         parse(src),
       )
+    )
+  ),
+  /* Each level of a nested one-field type a value or a pattern is lifted
+     into makes up nodes of its own, with ids of their own. */
+  Alcotest.test_case(
+    "Elaboration ids are distinct: nested singleton lifts", `Quick, () =>
+    List.iter(
+      [
+        "let p : (a=(b=Int)) = 5 in p",
+        "let p : (a=(b=(c=Int))) = 5 in p",
+        "let f : (a=(b=Int)) -> Int = fun x -> x in f",
+        "case 5 | (x : (a=(b=(c=Int)))) => x end",
+      ],
+      ~f=src => {
+        no_nested_id_drift(src);
+        Alcotest.(check(list(string), src, [], elab_repeated_ids(src)));
+      },
     )
   ),
 ];
