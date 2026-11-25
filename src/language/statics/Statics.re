@@ -848,7 +848,7 @@ and uexp_to_info_map =
         | None =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[NoMeet(PolyEq, Typ.add_source(ids, tys))],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -857,7 +857,7 @@ and uexp_to_info_map =
         | Some(ty) when Typ.has_fun_up_to_aliases(ctx, ty) =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[CompareFun(ty)],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -866,7 +866,7 @@ and uexp_to_info_map =
         | Some(_) =>
           add(
             ~elab_term=elab_poly,
-            ~elab_syn_ty=Atom(Bool) |> Typ.fresh,
+            ~elab_syn_ty=Atom(Bool) |> Typ.temp,
             ~marks=[],
             ~co_ctx=co_poly,
             ~probe_targets=probe_targets_poly,
@@ -918,30 +918,7 @@ and uexp_to_info_map =
         Typ.weak_head_normalize(ctx, t2.ty).term,
       ) {
       | (Prod(ts1), Prod(ts2)) =>
-        let extract_entry: Typ.t => (option(string), Typ.t) = (
-          t =>
-            switch (Typ.match_tup_label(t)) {
-            | Some((name, t)) => (Some(name), t)
-            | None => (None, t)
-            }
-        );
-        let e1_entries = List.map(~f=extract_entry, ts1);
-        let e2_entries = List.map(~f=extract_entry, ts2);
-
-        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
-          IdTagged.FreshGrammar.Typ.(
-            prod(
-              List.map(
-                ~f=
-                  ((lab, d)) =>
-                    switch (lab) {
-                    | Some(l) => tup_label(label(l), d)
-                    | None => d
-                    },
-                LabeledTuple.extension(e1_entries, e2_entries),
-              ),
-            )
-          );
+        let ty = Typ.product_extension(ts1, ts2) |> Typ.temp;
 
         add(
           ~elab_term,
@@ -954,7 +931,7 @@ and uexp_to_info_map =
       | _ =>
         add(
           ~elab_term,
-          ~elab_syn_ty=IdTagged.FreshGrammar.Typ.unknown(Internal),
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[],
           ~co_ctx,
           ~probe_targets,
@@ -1494,7 +1471,7 @@ and uexp_to_info_map =
           | Some(typ) =>
             add(
               ~elab_term=dot_elab,
-              ~elab_syn_ty=List(typ) |> Typ.fresh,
+              ~elab_syn_ty=List(typ) |> Typ.temp,
               ~marks=[],
               ~dot_labels=available_labels,
               ~co_ctx=dot_co_ctx,
@@ -1828,7 +1805,7 @@ and uexp_to_info_map =
         };
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana = Poly(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
+      let typfn_ana = Poly(EmptyHole |> TPat.temp, syn) |> Typ.temp;
       let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) =
         utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
@@ -2380,7 +2357,7 @@ and uexp_to_info_map =
         go_pat(
           ~is_synswitch=false,
           ~co_ctx=CoCtx.empty,
-          ~ana=binds ? binder_ana(p, Typ.fresh(ProofOf(e1))) : syn,
+          ~ana=binds ? binder_ana(p, Typ.temp(ProofOf(e1))) : syn,
           p,
           m,
         );
@@ -3358,7 +3335,7 @@ and upat_to_info_map =
          performed for `Let` patterns once the def's type is known. */
       let (hd, hd_elab, m) = go(~ctx, ~ana=refined_inner, hd, m);
       let (tl, tl_elab, m) =
-        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.fresh, tl, m);
+        go(~ctx=hd.ctx, ~ana=List(refined_inner) |> Typ.temp, tl, m);
       add(
         ~elab_term=Cons(hd_elab, tl_elab) |> rewrap,
         ~elab_syn_ty=List(hd.elab_syn_ty) |> Typ.temp,
@@ -4045,7 +4022,7 @@ and utyp_to_info_map =
         ok(
           Message.WHNormalizedTo({
             unnormalized: utyp,
-            whnormalized: Typ.product_extension(t1s, t2s) |> Typ.fresh,
+            whnormalized: Typ.product_extension(t1s, t2s) |> Typ.temp,
           }),
         )
       | (Prod(_), _) =>

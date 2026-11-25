@@ -525,7 +525,7 @@ let product_extension = (tys1: list(t), tys2: list(t)): term => {
     )
     |> List.map(~f=((l, ty)) =>
          switch (l) {
-         | Some(l) => TupLabel(fresh(Label(l)), ty) |> temp
+         | Some(l) => TupLabel(temp(Label(l)), ty) |> temp
          | None => ty
          }
        );
@@ -939,7 +939,7 @@ type alias_def =
 
 let recursive_def = (name: Var.t, def: t): alias_def =>
   List.exists(free_vars(def), ~f=String.equal(name))
-    ? Recursive(Rec(TPat.fresh(Var(name)), def) |> temp) : Plain;
+    ? Recursive(Rec(TPat.temp(Var(name)), def) |> temp) : Plain;
 
 /* Structural canonicalization WITHOUT alias expansion: desugars Sig,
    computes tuple projections/extensions, dedups labels, strips wrapper

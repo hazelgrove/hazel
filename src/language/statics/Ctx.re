@@ -169,14 +169,20 @@ let is_abstract = (ctx: t, name: string): bool =>
   | None => false
   };
 
+/* A type the context makes up, standing for nothing in the source. It takes
+   no id: statics runs again on every edit, and a fresh id here would reach
+   the elaboration (a constructor's type, an unbound name's hole) as an id
+   that differs from run to run. */
+let made_up = (term: TermBase.Typ.term): TermBase.Typ.t => {
+  term,
+  annotation: IdTagged.IdTag.temp(),
+};
+
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
-  | None =>
-    Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
-    )
+  | None => Some(made_up(Unknown(Hole(Invalid(name)))))
   };
 
 let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
@@ -193,15 +199,8 @@ let add_ctrs = (ctx: t, name: string, ctrs: TermBase.Typ.sum_map): t => {
                 id: ctr_id,
                 typ:
                   switch (typ) {
-                  | None => (Var(name): TermBase.typ_term) |> IdTagged.fresh
-                  | Some(typ) =>
-                    (
-                      Arrow(
-                        typ,
-                        (Var(name): TermBase.typ_term) |> IdTagged.fresh,
-                      ): TermBase.typ_term
-                    )
-                    |> IdTagged.fresh
+                  | None => made_up(Var(name))
+                  | Some(typ) => made_up(Arrow(typ, made_up(Var(name))))
                   },
                 custom_statics: None,
               }),

@@ -667,6 +667,22 @@ let found_cause_tests = [
   Alcotest.test_case("Elaboration ids persist: ():: []", `Quick, () =>
     no_nested_id_drift("():: []")
   ),
+  /* A type statics makes up (the `Bool` of a comparison, the list type a
+     cons pattern's tail is checked at) reaches the elaboration as a list's
+     element type or a cast, so it must not take a fresh id. */
+  Alcotest.test_case("Elaboration ids persist: [1 == 2]", `Quick, () =>
+    no_nested_id_drift("[1 == 2]")
+  ),
+  Alcotest.test_case("Elaboration ids persist: [1 == 2, ?]", `Quick, () =>
+    no_nested_id_drift("[1 == 2, ?]")
+  ),
+  Alcotest.test_case(
+    "Elaboration ids persist: a cons pattern's tail in a list", `Quick, () =>
+    no_nested_id_drift("case ? | _ :: tl => [tl] | _ => ? end")
+  ),
+  Alcotest.test_case("Elaboration ids persist: [[1].a]", `Quick, () =>
+    no_nested_id_drift("[[(a=1)].a]")
+  ),
   /* A placeholder `_` outside an application, behind a type alias that
      elaboration erases, must not become a second placeholder. */
   Alcotest.test_case(
