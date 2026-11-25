@@ -12,9 +12,7 @@ open Language;
    - Crash properties keep the raw generator: crashing on any term is a bug.
    - Id-keyed properties (elaboration ids, incremental evaluation) keep it
      raw too: they compare a term's ids across runs, which any term
-     exercises. The nested-id property is the exception: it runs on
-     canonical terms, as a generated constructor's type payload drifts by
-     a path no user term takes.
+     exercises.
    The nodes a rewrite adds take ids derived from the node they wrap, so a
    canonical term still has distinct ids, as a parsed one does. */
 
@@ -410,9 +408,48 @@ let typ = (t: Typ.t): Typ.t =>
    `let` of the variable `M`, and the module's uses into variables, all
    written as constructors; unwraps the hole a non-name after `.` reads as;
    and makes `?` and unbound type variables into holes of other kinds. */
+/* The binder of the `let` a `module M = …` or `module M : T = …`
+   elaborates to: the capitalized variable, under the type it is ascribed.
+   Written out here, not taken from the printer this is compared with. */
+let rec module_binder = (p: Pat.t): option(MPat.t) =>
+  switch (p.term) {
+  | Var(name) when Token.is_ctr(name) =>
+    Some({
+      annotation: p.annotation,
+      term: Var(name),
+    })
+  | Asc(inner, t) =>
+    Option.map(module_binder(inner), ~f=(inner: MPat.t): MPat.t =>
+      {
+        annotation: p.annotation,
+        term: Asc(inner, t),
+      }
+    )
+  | _ => None
+  };
+
 let elaborated = (e: Exp.t): Exp.t => {
   let f_exp = (continue: Exp.t => Exp.t, e: Exp.t): Exp.t => {
     let e = continue(e);
+    /* Statics makes a literal or an operator a Nat's or an SInt's by the
+       type it is used at (`use SInt in 1`, `x + 1` at Nat). Both print as
+       an Int's, and read back as one. */
+    let e: Exp.t =
+      switch (e.term) {
+      | Atom(a) => {
+          ...e,
+          term: Atom(atom(a)),
+        }
+      | BinOp(Nat(op) | SInt(op), l, r) => {
+          ...e,
+          term: BinOp(Int(op), l, r),
+        }
+      | UnOp(Nat(op) | SInt(op), operand) => {
+          ...e,
+          term: UnOp(Int(op), operand),
+        }
+      | _ => e
+      };
     switch (e.term) {
     | BuiltinFun(name) => {
         ...e,
@@ -432,17 +469,9 @@ let elaborated = (e: Exp.t): Exp.t => {
             None,
           ),
       }
-    | Let({term: Var(name), _} as p, def, body) when Token.is_ctr(name) => {
+    | Let(p, def, body) when Option.is_some(module_binder(p)) => {
         ...e,
-        term:
-          ModuleExp(
-            {
-              ...p,
-              term: Var(name),
-            },
-            def,
-            body,
-          ),
+        term: ModuleExp(Option.value_exn(module_binder(p)), def, body),
       }
     | Var(name) when Token.is_ctr(name) => {
         ...e,
@@ -456,6 +485,27 @@ let elaborated = (e: Exp.t): Exp.t => {
     | Dot(l, r) => {
         ...e,
         term: Dot(l, Exp.fresh(MultiHole([Exp(r)]))),
+      }
+    /* A negative literal is read as the negation of a literal, by the
+       integer minus statics re-kinds. */
+    | Atom(Int(n)) when Bigint.(n < zero) => {
+        ...e,
+        term: UnOp(Int(Minus), Exp.fresh(Atom(Int(Bigint.neg(n))))),
+      }
+    | Atom(Float(f)) when Float.ieee_negative(f) => {
+        ...e,
+        term: UnOp(Int(Minus), Exp.fresh(Atom(Float(-. f)))),
+      }
+    /* Float negation has no syntax of its own and prints as `0.0 -. e`. */
+    | UnOp(Float(Minus), operand) => {
+        ...e,
+        term: BinOp(Float(Minus), Exp.fresh(Atom(Float(0.0))), operand),
+      }
+    /* A one-tuple without its `_=` (elaboration takes it off a pattern's
+       field, a cast off an expression's) prints with it. */
+    | Tuple([elt]) when !is_tup_label(elt) => {
+        ...e,
+        term: Tuple([unlabeled(~owner=e, elt)]),
       }
     | _ => e
     };
@@ -471,15 +521,29 @@ let elaborated = (e: Exp.t): Exp.t => {
         ...t,
         term: Var(name),
       }
+    | Prod([{term: TupLabel(_), _}]) => t
+    | Prod([elt]) => {
+        ...t,
+        term:
+          Prod([Typ.fresh(TupLabel(Typ.fresh(ExplicitNonlabel), elt))]),
+      }
     | _ => t
     };
   };
   let f_pat = (continue: Pat.t => Pat.t, p: Pat.t): Pat.t => {
     let p = continue(p);
     switch (p.term) {
+    | Atom(a) => {
+        ...p,
+        term: Atom(atom(a)),
+      }
     | Constructor(name, Some(_)) => {
         ...p,
         term: Constructor(name, None),
+      }
+    | Tuple([elt]) when !is_tup_label_pat(elt) => {
+        ...p,
+        term: Tuple([unlabeled_pat(~owner=p, elt)]),
       }
     | _ => p
     };

@@ -3066,6 +3066,31 @@ let defensive_print_stable_tests = (
         )
       )
     ),
+    /* Statics makes a literal or an operator a Nat's or an SInt's by the
+       type it is used at, and both print as an Int's. */
+    test_case(
+      "A literal or an operator of another kind reads back", `Quick, () =>
+      List.iter(
+        [
+          "use SInt in 1",
+          "debug use SInt in 1 in 2",
+          "use SInt in -1",
+          "use Nat in (fun 1 -> 2, [1], -1)",
+          "fun (x: Nat) -> (x + 1, x - 1 < 2, -x)",
+          "use SInt in fun x -> x * 2 + 1",
+        ],
+        ~f=text =>
+        List.iter(
+          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
     /* A signature that is one hole (an operator's, or an expression's form
        stranded there) keeps that hole's ids for the hole: the ids a
        signature takes from its body are its `;`s. */
