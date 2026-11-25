@@ -73,7 +73,7 @@ let focus_of = (model: History.Model.t): Language.Sample.Focus.t =>
   Page.Update.get_editor(model.current).editor.state.zipper.refractors.
     sample_focus;
 let pinned = (model: History.Model.t) =>
-  focus_of(model).pinned_stack != None;
+  Option.is_some(focus_of(model).pinned_stack);
 
 let tests = (
   "Undo",
