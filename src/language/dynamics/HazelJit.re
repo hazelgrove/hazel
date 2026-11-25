@@ -475,6 +475,8 @@ type state = {
   /* (^ticket(853)) the JS names bound to a named function that has a direct form (func), with how many parts its tuple
      has: a call of one with its tuple written out passes the parts as JS arguments */
   direct: Stdlib.Hashtbl.t(string, int),
+  /* (^ticket(853)) each constructor without an argument the code builds, by name: the constant made once for it */
+  nullary: Stdlib.Hashtbl.t(string, string),
 };
 
 /* (^ticket(853)) where a recursive function's call of itself in tail position puts its argument: its one parameter, or,
@@ -1040,9 +1042,23 @@ and exp_inner =
       };
     | None => unsupported("a projection by something other than a label")
     }
+  /* (^ticket(853); Matthew, 2026-11-25: "constructions without arguments") a constructor without an argument is one
+     constant, made once before the program's code: a Hazel value has no identity, and a page does not change what it is
+     given (the rule for a page), so every use can share it */
   | Constructor(name, t) =>
     note_ctor(st, name, t);
-    "{$c: " ++ js_string(name) ++ "}";
+    switch (Stdlib.Hashtbl.find_opt(st.nullary, name)) {
+    | Some(k) => k
+    | None =>
+      st.counter = st.counter + 1;
+      let k = "k$" ++ sanitize(name) ++ "$" ++ string_of_int(st.counter);
+      Stdlib.Hashtbl.replace(st.nullary, name, k);
+      st.globals = [
+        "const " ++ k ++ " = {$c: " ++ js_string(name) ++ "};",
+        ...st.globals,
+      ];
+      k;
+    };
   /* (^ticket(761)) x |> f is Ap(Reverse, f, x) (MakeTerm), stepped as f(x) is (Transition's Ap(dir, ...)): only how it
      is written differs */
   | Ap(Forward | Reverse, f, arg) =>
@@ -1847,6 +1863,7 @@ let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
     funs: Stdlib.Hashtbl.create(16),
     frames: [],
     direct: Stdlib.Hashtbl.create(16),
+    nullary: Stdlib.Hashtbl.create(16),
   };
   let scope = {decls: []};
   let v = exp(st, scope, [], e);
