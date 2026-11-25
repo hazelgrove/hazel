@@ -24,6 +24,19 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* Drawer folds, by path into the value, shared by the probe's samples:
+     a group the user opened (true) or folded (false), and the items a
+     sequence shows after `…+N` clicks. See ValueOutline. */
+  [@default []]
+  folds: list((string, bool)),
+  [@default []]
+  shown: list((string, int)),
+  /* the drawer's height cap in rows, once its edge is dragged */
+  [@default None]
+  drawer_rows: option(int),
+  /* the drawer's sample width, once the first sample is resized */
+  [@default None]
+  drawer_width: option(int),
 };
 
 let init_probe_model: probe_model = {
@@ -32,6 +45,10 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  folds: [],
+  shown: [],
+  drawer_rows: None,
+  drawer_width: None,
 };
 
 /* Any deserialization failure resets to defaults (transient UI state). */
@@ -51,15 +68,23 @@ let probe_model_of_sexp = sexp =>
    renderer <rid> (in its empty state) round-trips through text. A
    drawer-only renderer's trigger opens the drawer too. */
 let model_string_for_renderer = (rid: string): option(string) =>
-  RichProbeRegistry.find(rid)
-  |> Option.map(~f=(r: packed_renderer) =>
-       sexp_of_probe_model({
-         ...init_probe_model,
-         active_renderer: Some(r.empty_model),
-         drawer_mode: r.drawer_only,
-       })
-       |> Sexplib.Sexp.to_string
-     );
+  rid == "drawer"
+    ? Some(
+        sexp_of_probe_model({
+          ...init_probe_model,
+          drawer_mode: true,
+        })
+        |> Sexplib.Sexp.to_string,
+      )
+    : RichProbeRegistry.find(rid)
+      |> Option.map(~f=(r: packed_renderer) =>
+           sexp_of_probe_model({
+             ...init_probe_model,
+             active_renderer: Some(r.empty_model),
+             drawer_mode: r.drawer_only,
+           })
+           |> Sexplib.Sexp.to_string
+         );
 
 /* Canvas wells pass their stored model (or the default) through this to
    turn on automatic rich rendering. */
@@ -83,6 +108,7 @@ let model_string_auto_rich = (stored: option(string)): string => {
 let renderer_of_model_string = (model: string): option(string) =>
   switch (probe_model_of_sexp(Sexplib.Sexp.of_string(model))) {
   | {active_renderer: Some(PModel(rid, _, _)), _} => Some(rid)
+  | {active_renderer: None, drawer_mode: true, _} => Some("drawer")
   | {active_renderer: None, _} => None
   | exception _ => None
   };
@@ -96,6 +122,10 @@ type action =
   | ToggleAutoRich
   | ToggleDrawerMode
   | SetDrawerMode(bool)
+  | SetFold(string, bool)
+  | ShowItems(string, int)
+  | SetDrawerRows(int)
+  | SetDrawerWidth(int)
   | ToggleDropdown(string)
   | SetDropdown(option(string))
   | ResetSettings;
@@ -262,6 +292,10 @@ type probe_ctx = {
   /* the parent editor's caret is on this probe's term */
   indicated: bool,
   p_info: info,
+  /* drawer folds, height and width live in the model */
+  model: probe_model,
+  /* the first sample shown, whose width is the drawer's */
+  first_sample: option(int),
 };
 
 module WindowState = {
@@ -375,8 +409,12 @@ let in_drawer = (r: packed_renderer, rows: int): bool =>
   rows > inline_rows_cap || r.drawer_only;
 
 module DrawerHeight = {
-  /* Cap; taller content scrolls inside `.below-wrapper`. */
+  /* Cap until the drawer's edge is dragged; taller content scrolls
+     inside `.below-wrapper`. */
   let max_rows = 15;
+
+  let cap = (model: probe_model): int =>
+    Option.value(model.drawer_rows, ~default=max_rows);
 
   /* Row count via Measured (a naive top-level linebreak scan undercounts
    * because reassemble re-nests the formatter's flat output). */
@@ -384,30 +422,66 @@ module DrawerHeight = {
     Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
     |> Measured.total_rows;
 
-  let sample_rows = (utility: utility, sample: Sample.t): int => {
-    let width =
-      Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
-      |> Option.value(~default=Settings.s^.drawer.width);
-    row_count(pretty_seg_of_value(utility, ~width, sample.value));
+  /* The first sample's width is the probe's, and resizing it resizes them
+     all. A later sample can be resized on its own: resizing it for all
+     would move it out from under the pointer. */
+  let first_shown = (samples: list(Sample.t)): option(int) =>
+    switch (Sample.Selection.collate(samples) |> snd |> List.concat) {
+    | [s, ..._] => Some(s.id)
+    | [] => None
+    };
+
+  let sample_width =
+      (model: probe_model, ~first: option(int), sample: Sample.t): int => {
+    let probe_wide =
+      Option.value(model.drawer_width, ~default=Settings.s^.drawer.width);
+    first == Some(sample.id)
+      ? probe_wide
+      : Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        |> Option.value(~default=probe_wide);
   };
 
+  let folds = (model: probe_model): ValueOutline.folds => {
+    opened: model.folds,
+    shown: model.shown,
+  };
+
+  let outline =
+      (model: probe_model, utility, ~first, sample: Sample.t)
+      : ValueOutline.out =>
+    ValueOutline.layout(
+      utility,
+      sample.value,
+      ~width=sample_width(model, ~first, sample),
+      ~rows=cap(model),
+      ~folds=folds(model),
+    );
+
   /* Uncapped content height in rows. */
-  let content_rows = (info: info): int =>
+  let content_rows = (model: probe_model, info: info): int =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
       let ap_id = Sample.Focus.cur_var_ap(statics);
       let samples = select_samples(~settings, ~id=info.id, ~ap_id, dynamics);
-      switch (samples) {
-      | [] => 1
-      | _ =>
-        let heights = List.map(~f=sample_rows(info.utility), samples);
-        List.fold_left(~f=max, ~init=1, heights);
-      };
+      let first = first_shown(samples);
+      List.fold_left(
+        ~f=
+          (acc, sample) =>
+            max(
+              acc,
+              ValueOutline.rows(
+                outline(model, info.utility, ~first, sample),
+              ),
+            ),
+        ~init=1,
+        samples,
+      );
     | _ => 1
     };
 
-  let compute = (info: info): int => min(max_rows, content_rows(info));
+  let compute = (model: probe_model, info: info): int =>
+    min(cap(model), content_rows(model, info));
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
@@ -757,7 +831,9 @@ let value_view =
           find_best_budget(width_at, target_width);
         | Block => target_width
         };
-      local(ChangeLength(sample.id, budget));
+      display == Block && ctx.first_sample == Some(sample.id)
+        ? local(SetDrawerWidth(budget))
+        : local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
     };
   };
@@ -772,12 +848,24 @@ let value_view =
           SampleLength.get(settings.window, sample);
         };
       let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
-      (seg, [length_cls(length)]);
-    | Block =>
-      let width =
-        Stdlib.Hashtbl.find_opt(SampleLength.lengths, sample.id)
-        |> Option.value(~default=settings.drawer.width);
-      (pretty_seg_of_value(utility, ~width, sample.value), []);
+      (Some(seg), [length_cls(length)]);
+    | Block => (None, [])
+    };
+  let text_view = () =>
+    switch (seg) {
+    | Some(seg) => view_seg(~text_only=false, seg)
+    | None =>
+      ValueOutlineView.mk(
+        ~on_fold=(key, b) => local(SetFold(key, b)),
+        ~on_show=(key, n) => local(ShowItems(key, n)),
+        ~view_seg=view_seg(~text_only=false),
+        DrawerHeight.outline(
+          ctx.model,
+          utility,
+          ~first=ctx.first_sample,
+          sample,
+        ),
+      )
     };
 
   div(
@@ -902,7 +990,7 @@ let value_view =
         };
       switch (rich_node) {
       | Some(n) => [div(~attrs=[Attr.classes(["value-rich"])], [n])]
-      | None => [view_seg(~text_only=false, seg)]
+      | None => [text_view()]
       };
     },
   );
@@ -1820,6 +1908,20 @@ let key_handler =
   | D("Home") =>
     blur_to_editor();
     Many([Stop_propagation, Prevent_default]);
+  | D(("ArrowRight" | "ArrowLeft") as dir)
+      when key.shift == Down && drawer_mode_active =>
+    /* in the drawer, the probe's sample width, 4 columns a step */
+    let width =
+      Option.value(
+        ctx.model.drawer_width,
+        ~default=ctx.settings.drawer.width,
+      );
+    let step = dir == "ArrowRight" ? 4 : (-4);
+    Many([
+      local(SetDrawerWidth(max(20, width + step))),
+      Stop_propagation,
+      Prevent_default,
+    ]);
   | D("ArrowRight") when key.shift == Down =>
     let effect =
       switch (indicated_sample(ctx)) {
@@ -1990,6 +2092,8 @@ let prepare_offside =
       auto_unbounded: model.auto_rich,
       indicated,
       p_info: info,
+      model,
+      first_sample: None,
     };
     let filtered_samples =
       Sample.Selection.filter_by_pin(
@@ -2068,6 +2172,10 @@ let prepare_offside =
         dynamics,
       );
     let (num_shown, groups) = Sample.Selection.collate(samples);
+    let ctx = {
+      ...ctx,
+      first_sample: DrawerHeight.first_shown(samples),
+    };
     let is_evaluating =
       switch (dynamics.sample_focus.pending_focus) {
       | Some({probe_id, _}) => probe_id == id
@@ -2384,6 +2492,96 @@ let set_drawer_mode =
   };
 };
 
+/* Rows the drawer takes: the rich view's, or the samples', within the cap. */
+let drawer_rows = (model: probe_model, info: info): int =>
+  switch (rich_drawer_rows(model, info)) {
+  | Some(n) => min(DrawerHeight.cap(model), n)
+  | None => DrawerHeight.compute(model, info)
+  };
+
+module DrawerEdge = {
+  /* The drawer's bottom edge. Dragging it sets the probe's height cap; the
+     fit then opens or folds groups to use the rows. Moves are tracked on
+     the document, since a captured pointer sends no mousemove. */
+  let view =
+      (~model: probe_model, ~focus: unit => Effect.t(unit), local): Node.t => {
+    let start = (e: Js.t(Dom_html.pointerEvent)) => {
+      let wrapper: option(Js.t(Dom_html.element)) =
+        Js.Opt.to_option(e##.currentTarget)
+        |> Option.bind(~f=edge =>
+             Js.Opt.to_option(
+               Js.Unsafe.meth_call(
+                 edge,
+                 "closest",
+                 [|Js.Unsafe.inject(Js.string(".below-wrapper"))|],
+               ),
+             )
+           );
+      switch (wrapper) {
+      | None => ()
+      | Some(w) =>
+        let top = w##getBoundingClientRect##.top;
+        let (_, row_height) = JsUtil.font_metrics_from_specimen();
+        let last = ref(DrawerHeight.cap(model));
+        let listeners = ref([]);
+        let stop = () => {
+          List.iter(listeners^, ~f=Dom_html.removeEventListener);
+          listeners := [];
+        };
+        let move = (ev: Js.t(Dom_html.pointerEvent)) => {
+          let y = float_of_int(ev##.clientY) -. top;
+          let r =
+            max(2, min(60, int_of_float(Float.round(y /. row_height))));
+          if (r != last^) {
+            last := r;
+            Ui_effect.Expert.handle(local(SetDrawerRows(r)));
+          };
+          Js._false;
+        };
+        let doc = Dom_html.document;
+        listeners :=
+          [
+            Dom_html.addEventListener(
+              doc,
+              Dom_html.Event.make("pointermove"),
+              Dom_html.handler(move),
+              Js._true,
+            ),
+            Dom_html.addEventListener(
+              doc,
+              Dom_html.Event.make("pointerup"),
+              Dom_html.handler(_ => {
+                stop();
+                Js._true;
+              }),
+              Js._true,
+            ),
+            Dom_html.addEventListener(
+              doc,
+              Dom_html.Event.make("pointercancel"),
+              Dom_html.handler(_ => {
+                stop();
+                Js._true;
+              }),
+              Js._true,
+            ),
+          ];
+      };
+      /* focusing the probe brings the caret here, so caret anchoring
+         doesn't scroll the editor while the drawer grows */
+      Effect.Many([focus(), Effect.Stop_propagation, Effect.Prevent_default]);
+    };
+    div(
+      ~attrs=[
+        Attr.classes(["drawer-edge"]),
+        Attr.title("Drag to resize the drawer"),
+        Attr.on_pointerdown(start),
+      ],
+      [],
+    );
+  };
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type a = action;
 
@@ -2427,11 +2625,7 @@ module M: Projector = {
 
   let placeholder = (model: model, info) =>
     if (model.drawer_mode) {
-      let rows =
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => min(DrawerHeight.max_rows, n)
-        | None => DrawerHeight.compute(info)
-        };
+      let rows = drawer_rows(model, info);
       ProjectorCore.Shape.{
         horizontal: 0,
         vertical: Tab(rows),
@@ -2461,6 +2655,30 @@ module M: Projector = {
       Settings.version := Settings.version^ + 1;
       FocusEffect.schedule(info.id);
       set_drawer_mode(model, info, b);
+    | SetFold(key, b) => {
+        ...model,
+        folds: [
+          (key, b),
+          ...List.Assoc.remove(model.folds, ~equal=String.equal, key),
+        ],
+      }
+    | ShowItems(key, n) => {
+        ...model,
+        shown: [
+          (key, n),
+          ...List.Assoc.remove(model.shown, ~equal=String.equal, key),
+        ],
+      }
+    | SetDrawerRows(n) => {
+        ...model,
+        drawer_rows: Some(max(2, n)),
+      }
+    | SetDrawerWidth(w) =>
+      Settings.version := Settings.version^ + 1;
+      {
+        ...model,
+        drawer_width: Some(max(8, w)),
+      };
     | ToggleDropdown(did) =>
       Settings.set_open_dropdown(
         Settings.open_dropdown^ == Some(did) ? None : Some(did),
@@ -2570,8 +2788,9 @@ module M: Projector = {
       drawer
       && (
         switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > DrawerHeight.max_rows
-        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
+        | Some(n) => n > DrawerHeight.cap(model)
+        | None =>
+          DrawerHeight.content_rows(model, info) > DrawerHeight.cap(model)
         }
       );
     /* In drawer mode an active rich renderer replaces the sample view in
@@ -2663,20 +2882,31 @@ module M: Projector = {
         switch (data_opt, drawer) {
         | (Some(data), true) =>
           Some(
-            live_offside_view(
-              ~display=Block,
-              ~include_nav_bar=false,
-              ~drawer_mode_active=true,
-              ~rich_content=rich_drawer,
-              ~scrollable=drawer_overflow,
-              data,
-              local,
-              view_seg,
-              ~settings,
+            div(
+              ~attrs=[Attr.classes(["drawer-body"])],
+              [
+                live_offside_view(
+                  ~display=Block,
+                  ~include_nav_bar=false,
+                  ~drawer_mode_active=true,
+                  ~rich_content=rich_drawer,
+                  ~scrollable=drawer_overflow,
+                  data,
+                  local,
+                  view_seg,
+                  ~settings,
+                ),
+                DrawerEdge.view(
+                  ~model,
+                  ~focus=() => parent(FocusById(info.id)),
+                  local,
+                ),
+              ],
             ),
           )
         | _ => None
         },
+      below_rows: drawer ? Some(drawer_rows(model, info)) : None,
       error: false,
     };
   };
