@@ -190,12 +190,14 @@ let non_name_chars = operator_chars ++ excluded_chars;
  * byte-oriented, so `¿` in a class excludes its two bytes independently --
  * rejecting `¢ £ ± ¬` and anything ending 0xBF -- and `\s` rejects anything
  * containing byte 0xA0. */
+/* A name, or a number with a `.` in it. The number starts with a digit, as
+ * Menhir's does: `_.a` is a projection from `_`, not one token. */
 let is_potential_operand =
   unicode_match(
     unicode_regexp(
       "^([^"
       ++ non_name_chars
-      ++ "]+)$|^([0-9_]+\\.(?:[^"
+      ++ "]+)$|^([0-9][0-9_]*\\.(?:[^"
       ++ non_name_chars
       ++ {|\^\$]|\.)*)$|},
     ),

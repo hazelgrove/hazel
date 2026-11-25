@@ -1690,6 +1690,13 @@ let found_shapes = [
       )
     ),
   ),
+  /* A number starts with a digit in both parsers, so `_.a` is a projection
+     from `_` rather than one token. */
+  menhir_maketerm_equivalent_test("Projection from an underscore", {|_.a|}),
+  menhir_maketerm_equivalent_test(
+    "Non-label after an underscore's dot",
+    {|_.(())|},
+  ),
   /* PBT MenhirParser 86 (QCHECK_SEED=42): generator-only ghosts on the
      Canonicalize round-trip path (same pipeline as the QCheck test). */
   menhir_ast_roundtrip_test(
