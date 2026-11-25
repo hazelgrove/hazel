@@ -642,7 +642,8 @@ let fresh = (st: state, scope: scope, base: string): string => {
 
 /* A function's body: its declarations, then its value */
 /* (^ticket(763)) the step a compiled function counts, first in its body: the runtime's fuel and deadline (Runtime.limit) */
-let step = "if (--$R.fuel < 0 || (($R.fuel & 16383) === 0 && performance.now() > $R.deadline)) $R.out(); ";
+/* (^ticket(853), a bench build only: what the step count costs) no step counted */
+let step = "";
 
 let body_with_decls = (scope: scope, expr: string): string =>
   switch (scope.decls) {
