@@ -267,6 +267,7 @@ module Update = {
             };
           };
         let result_changed = Calc.is_new(ev_calc);
+        let result_ctx = Haz3lcore.CachedStatics.result_ctx(statics);
         ev_calc
         |> Calc.make_new  // TODO[Matt]: Could eventually replace this by keeping track of whether the editor selection has changed
         |> Calc.map_if_new(
@@ -276,7 +277,13 @@ module Update = {
                  CodeSelectable.Update.calculate(
                    ~settings=settings |> Calc.get_value,
                    ~is_dynamic_term=true,
-                   ~stitch=_ => exp,
+                   ~ctx=result_ctx,
+                   ~stitch=
+                     _ =>
+                       Haz3lcore.CachedStatics.erase_free_tvars(
+                         result_ctx,
+                         exp,
+                       ),
                    ~dynamics=Dynamics.Map.empty,
                    ~is_edited=is_edited || result_changed,
                    editor,

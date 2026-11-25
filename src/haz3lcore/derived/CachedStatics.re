@@ -28,6 +28,137 @@ let empty: t = {
 
 let dh_err = (error: string): DHExp.t => Var(error) |> DHExp.fresh;
 
+let rec spine_tail = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Let(_, _, body)
+  | TyAlias(_, _, body)
+  | Seq(_, body)
+  | ModuleExp(_, _, body) => spine_tail(body)
+  | _ => e
+  };
+
+let result_ctx = (statics: t): Ctx.t => {
+  let base = Builtins.ctx_init(None);
+  switch (
+    Statics.Map.ctx_of(
+      Exp.rep_id(spine_tail(statics.term)),
+      statics.info_map,
+    )
+  ) {
+  | None => base
+  | Some(ctx) =>
+    let erase = t => Typ.unfold_nominals(ctx, Typ.normalize(ctx, t));
+    {
+      ...base,
+      entries:
+        List.filter_map(
+          (entry: Ctx.entry) =>
+            switch (entry) {
+            | TVarEntry({kind: Singleton(t), _} as v) =>
+              Some(
+                Ctx.TVarEntry({
+                  ...v,
+                  kind: Singleton(erase(t)),
+                }),
+              )
+            | TVarEntry(_) => Some(entry)
+            | ConstructorEntry(c) =>
+              Some(
+                Ctx.ConstructorEntry({
+                  ...c,
+                  typ: erase(c.typ),
+                }),
+              )
+            | _ => None
+            },
+          ctx.entries,
+        )
+        @ base.entries,
+    };
+  };
+};
+
+let erase_unbound_applications = (ctx: Ctx.t, ty: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) =>
+        switch (t.term) {
+        | TypParamAp({term: Var(head), _}, _)
+            when Ctx.lookup_tvar(ctx, head) == None => {
+            ...t,
+            term: Unknown(Internal),
+          }
+        | _ => continue(t)
+        },
+    ty,
+  );
+
+let erase_free_in_typ = (ctx: Ctx.t, ty: Typ.t): Typ.t => {
+  let ty = erase_unbound_applications(ctx, ty);
+  List.fold_left(
+    (ty, name) =>
+      Ctx.lookup_tvar(ctx, name) == None
+        ? Typ.subst(
+            Unknown(Internal) |> Typ.temp,
+            Var(name) |> TPat.fresh,
+            ty,
+          )
+        : ty,
+    ty,
+    List.sort_uniq(compare, Typ.free_vars(ty)),
+  );
+};
+
+let rec erase_free_tvars = (ctx: Ctx.t, exp: Exp.t): Exp.t =>
+  Exp.map_term(
+    ~f_pat=
+      (continue, p: Pat.t) =>
+        switch (p.term) {
+        | Constructor(c, Some(Some({term: Poly(_), _}))) => {
+            ...p,
+            term: Constructor(c, None),
+          }
+        | Constructor(c, Some(Some(t))) => {
+            ...p,
+            term: Constructor(c, Some(Some(erase_free_in_typ(ctx, t)))),
+          }
+        | _ => continue(p)
+        },
+    ~f_typ=(_, ty) => erase_free_in_typ(ctx, ty),
+    ~f_exp=
+      (continue, e: Exp.t) =>
+        switch (e.term) {
+        | TypAbs(tp, body, name) => {
+            ...e,
+            term:
+              TypAbs(
+                tp,
+                erase_free_tvars(Ctx.extend_dummy_tvar(ctx, tp), body),
+                name,
+              ),
+          }
+        | TyAlias(tp, ty, body) => {
+            ...e,
+            term:
+              TyAlias(
+                tp,
+                erase_free_in_typ(ctx, ty),
+                erase_free_tvars(Ctx.extend_dummy_tvar(ctx, tp), body),
+              ),
+          }
+        | Constructor(c, Some(Some({term: Poly(_), _}))) => {
+            ...e,
+            term: Constructor(c, None),
+          }
+        | Constructor(c, Some(Some(t))) => {
+            ...e,
+            term: Constructor(c, Some(Some(erase_free_in_typ(ctx, t)))),
+          }
+        | _ => continue(e)
+        },
+    exp,
+  );
+
 /* Predicate for whether a term should be probed when ProbeAll is on.
  * Currently const true - probes all expressions / patterns */
 let should_probe = (info: Info.t): bool =>
