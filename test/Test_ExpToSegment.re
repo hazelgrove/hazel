@@ -1073,8 +1073,8 @@ let roundtrip_defensive_paren_tests = (
       | None => Alcotest.fail({|Failed to parse|})
       }
     ),
-    /* A hint is always parenthesized, so printing must not add a layer to
-       a hint that already has one. */
+    /* A hint that could start with `test` takes parens, a literal one none,
+       and printing must not add a layer to a hint that already has one. */
     test_case(
       {|Hint stays put through print-parse cycles|},
       `Quick,
@@ -1890,9 +1890,6 @@ let arb_segment_fixpoint =
     ~count=50,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-      /* Module items MakeTerm cannot mold yet; see
-         Test_Menhir.is_unsupported_mod_item. */
-      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
@@ -1901,7 +1898,9 @@ let arb_segment_fixpoint =
            )
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
       switch (Parser.to_segment(text, ~root=Exp)) {
-      | None => true /* unparseable render: out of scope for P2 */
+      /* The reader turns an exception into None. */
+      | None =>
+        QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
@@ -1959,7 +1958,6 @@ let arb_perturbed_fixpoint =
       QCheck.small_nat,
     ),
     ((exp, seed)) => {
-      QCheck.assume(!Test_Menhir.has_unsupported_mod_item(exp));
       let text =
         exp
         |> ExpToSegment.exp_to_segment(
@@ -1969,7 +1967,8 @@ let arb_perturbed_fixpoint =
         |> Printer.of_segment(~holes="?", ~refractors=[], _);
       let text = perturb_spaces(seed, text);
       switch (Parser.to_segment(text, ~root=Exp)) {
-      | None => true
+      | None =>
+        QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
@@ -2382,6 +2381,33 @@ let rec paren_after_hole_piece = (seg: Segment.t): bool =>
   };
 let paren_pieces_read_back = false;
 
+/* Runs of spaces as one. The Defensive print writes its own spacing, and
+   the grout between a hole's pieces shows as a space of its own (`x  y`),
+   so where a hole's pieces group differently on the second read (see
+   holes_as_text) the same tokens are spaced differently: `rec  ?` as two
+   pieces, `rec ?` as the start of a `rec` type. */
+let single_spaced = (text: string): string => {
+  /* outside string literals and quoted labels, neither of which has
+     escapes; `quote` is the one that is open */
+  let (kept, _, _) =
+    String.fold(
+      text,
+      ~init=([], None, ' '),
+      ~f=((kept, quote, prev), c) => {
+        let quote =
+          switch (quote) {
+          | Some(q) when Char.equal(c, q) => None
+          | Some(_) => quote
+          | None when Char.equal(c, '"') || Char.equal(c, '`') => Some(c)
+          | None => None
+          };
+        Char.equal(c, ' ') && Char.equal(prev, ' ') && Option.is_none(quote)
+          ? (kept, quote, c) : ([c, ...kept], quote, c);
+      },
+    );
+  String.of_char_list(List.rev(kept));
+};
+
 /* Evaluation drops the marks of missing shards, so a term evaluated from an
    incomplete parse says `~from_incomplete`. An elaborated term is compared
    in the shape it is written in (`~as_written=Canonicalize.elaborated`). */
@@ -2389,7 +2415,7 @@ let print_reads_back =
     (~from_incomplete=false, ~as_written=(e: Exp.t) => e, term: Exp.t): bool => {
   let text = defensive_print(term);
   switch (Typed.read(text)) {
-  | None => true
+  | None => QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
   | Some(reread) =>
     let text' = defensive_print(reread);
     if (from_incomplete
@@ -2402,8 +2428,9 @@ let print_reads_back =
       | Some(text'') when incomplete_reprints_hold =>
         String.equal(text', text'')
         || QCheck.Test.fail_reportf("Reprinted %s as %s", text', text'')
-      | Some(_)
-      | None => true
+      | Some(_) => true
+      | None =>
+        QCheck.Test.fail_reportf("Reprinted text doesn't read: %s", text')
       };
     } else {
       let same_term =
@@ -2411,14 +2438,36 @@ let print_reads_back =
           holes_as_text(as_written(term)),
           holes_as_text(reread),
         );
-      String.equal(text, text')
-      && same_term
-      || QCheck.Test.fail_reportf(
-           "%s%s as %s",
-           same_term ? "Reprinted " : "Read back as another term: ",
-           text,
-           text',
-         );
+      (
+        String.equal(single_spaced(text), single_spaced(text'))
+        && same_term
+        || QCheck.Test.fail_reportf(
+             "%s%s as %s",
+             same_term ? "Reprinted " : "Read back as another term: ",
+             text,
+             text',
+           )
+      )
+      /* From the reprint on, the text holds still exactly, unless the
+         second read is itself of a kind whose reprints don't yet (above). */
+      && (
+        switch (reprint(text')) {
+        | Some(text'') =>
+          String.equal(text', text'')
+          || is_incomplete(reread)
+          || !stray_keywords_read_back
+          && has_stray_keyword(reread)
+          || !paren_pieces_read_back
+          && paren_after_hole_piece(exp_to_segment(reread))
+          || QCheck.Test.fail_reportf(
+               "Reprinted %s a second time as %s",
+               text',
+               text'',
+             )
+        | None =>
+          QCheck.Test.fail_reportf("Reprinted text doesn't read: %s", text')
+        }
+      );
     };
   };
 };
@@ -2434,12 +2483,17 @@ let arb_typed_invalid_forms =
     ((exp, seed)) => {
       let text = Typed.text(seed, exp);
       switch (Typed.read(text)) {
-      | None => true
+      /* The reader turns an exception into None. */
+      | None => QCheck.Test.fail_reportf("Typed text doesn't read: %s", text)
       | Some(term) =>
-        let _ =
-          QCheck_Util.skip_alias_loop(() =>
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term)
-          );
+        /* Statics must not crash on it either; its known failure doesn't
+           keep the term from being printed. */
+        switch (
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term)
+        ) {
+        | _ => ()
+        | exception e when QCheck_Util.is_alias_loop(e) => ()
+        };
         print_reads_back(term);
       };
     },
@@ -2455,7 +2509,11 @@ let arb_evaluated_invalid_forms =
     ),
     ((exp, seed)) =>
     switch (Typed.read(Typed.text(seed, exp))) {
-    | None => true
+    | None =>
+      QCheck.Test.fail_reportf(
+        "Typed text doesn't read: %s",
+        Typed.text(seed, exp),
+      )
     | Some(typed) =>
       List.for_all(
         Evaluated.terms(seed, typed),
@@ -3297,6 +3355,20 @@ let defensive_print_stable_tests = (
         );
       },
     ),
+    /* The pieces of a hole can group otherwise on a second read, spaced
+       otherwise: `rec  ?` as two pieces after `true`, which no type starts
+       with, and `rec ?` as a type's once the hole is in parens. */
+    test_case(
+      "A hole regrouped on its second read is spaced otherwise", `Quick, () =>
+      check(
+        bool,
+        "reads back",
+        true,
+        print_reads_back(
+          Option.value_exn(Typed.read("1 : true(rec ? -> Int)")),
+        ),
+      )
+    ),
     test_case(
       "A type pattern hole spaces its pieces evenly",
       `Quick,
@@ -3308,6 +3380,7 @@ let defensive_print_stable_tests = (
           reprint("type x y z = Int in 2"),
         );
         let once = reprint("{ type ?    ^o^  Nat w ?:Bool");
+        check(bool, "a module item reads", true, Option.is_some(once));
         check(
           option(string),
           "a module item reprints as itself",

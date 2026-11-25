@@ -177,14 +177,44 @@ let is_multihole = (e: Language.Exp.t): bool =>
   | _ => false
   };
 
+/* A module literal checked against a type that names fields. Its items
+   are checked against
+   the type's fields through ascriptions the lowering adds and the
+   elaboration leaves out (ModuleHelpers.is_signature_ascription), so the
+   type recorded for it is the signature's, where its elaboration
+   synthesizes its own: `{ let x = 48 } : (x=Bool)` records `(x=Bool)` for
+   a term that re-checks as `(x=Int)`. The error is reported at the item,
+   and lowering goes away with modules-ii (#2493); pinned below. */
+let is_checked_module = (info_map: Statics.Map.t, e: Language.Exp.t): bool =>
+  switch (Exp.term_of(e), Statics.Map.lookup_exp(Exp.rep_id(e), info_map)) {
+  /* the lowering ascribes only a `let` of a variable the type names
+     (ModuleHelpers.modlet_pat) */
+  | (Module(items), Some({ana, _})) =>
+    let labels = List.map(~f=fst, ModuleHelpers.extract_ana_labels(ana));
+    List.exists(items, ~f=(item: Mod.t) =>
+      switch (item.term) {
+      | ModLet(p, _) =>
+        switch (Pat.strip_wrappers(p).term) {
+        | Var(name) => List.mem(labels, name, ~equal=String.equal)
+        | _ => false
+        }
+      | _ => false
+      }
+    );
+  | _ => false
+  };
+
 let differing_subs =
-    (info_map: Statics.Map.t, exp: Language.Exp.t): list(syn_disagreement) => {
+    (~checked_modules=false, info_map: Statics.Map.t, exp: Language.Exp.t)
+    : list(syn_disagreement) => {
   let results = ref([]);
   let _ =
     Exp.map_term(
       ~f_exp=
         (cont, sub) => {
-          if (!is_bare_label(sub) && !is_multihole(sub)) {
+          if (!is_bare_label(sub)
+              && !is_multihole(sub)
+              && (checked_modules || !is_checked_module(info_map, sub))) {
             switch (syn_and_elab_of(info_map, sub)) {
             | None => ()
             | Some((recorded_ty, ctx, elab_term)) =>
@@ -458,9 +488,6 @@ let qcheck_elab_nested_ids_persist =
       QCheck.assume(!has_internal_syntax(exp));
       switch (safe_statics(exp)) {
       | `Skip => QCheck.assume_fail()
-      | `Ok(info_map, _)
-          when !List.is_empty(Statics.Map.error_ids(info_map)) =>
-        QCheck.assume_fail()
       | `Ok(_) =>
         switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
         | [] => true
@@ -613,20 +640,36 @@ let regression_tests = [
      labels the same way the expression side does. */
   Alcotest.test_case(
     "Elaboration ids persist: labeled tuple pattern", `Quick, () =>
-    check_no_violations(
-      ~violations=elab_nested_ids_drifting,
-      ~show=msg => msg,
-      ~msg="every id in every elab_term is the same on both runs",
-      parse("case (1, 2) | (a, b) => 0 end : (a=Int, b=Int) -> Int"),
+    List.iter(
+      [
+        "let f : (a=Int, b=Int) -> Int = fun (a, b) -> 0 in f",
+        "let (a, b) : (a=Int, b=Int) = (1, 2) in a",
+        "case (1, 2) | (a, b) => 0 end : (a=Int, b=Int) -> Int",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=elab_nested_ids_drifting,
+        ~show=msg => msg,
+        ~msg="every id in every elab_term is the same on both runs",
+        parse(src),
+      )
     )
   ),
   Alcotest.test_case(
     "Elaboration ids persist: singleton-lifted pattern", `Quick, () =>
-    check_no_violations(
-      ~violations=elab_nested_ids_drifting,
-      ~show=msg => msg,
-      ~msg="every id in every elab_term is the same on both runs",
-      parse("case (1, 2) | x => 0 end : (a=(Int, Int)) -> Int"),
+    List.iter(
+      [
+        "let f : (a=(Int, Int)) -> Int = fun (x, y) -> 0 in f",
+        "let x : (a=(Int, Int)) = (1, 2) in x",
+        "case (1, 2) | x => 0 end : (a=(Int, Int)) -> Int",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=elab_nested_ids_drifting,
+        ~show=msg => msg,
+        ~msg="every id in every elab_term is the same on both runs",
+        parse(src),
+      )
     )
   ),
   /* A module item punning on its value's only label (`let y = (y=1)` binds
@@ -764,6 +807,65 @@ let found_cause_tests = [
       ~f=src => {
         no_nested_id_drift(src);
         Alcotest.(check(list(string), src, [], elab_repeated_ids(src)));
+      },
+    )
+  ),
+  /* Known gap (#2493): the disagreement differing_subs skips (see
+     is_checked_module). Goes red once a checked module's recorded type and
+     its elaboration agree; then drop the skip too. */
+  Alcotest.test_case(
+    "Known gap (#2493): a checked module records its signature's types",
+    `Quick,
+    () =>
+    List.iter(
+      [
+        ("{ let x = 48 } : (x=Bool)", true),
+        ("{ let x = 48 } : (x=?)", true),
+        /* a type that names none of its fields ascribes nothing, and the
+           module is compared like any other term */
+        ("{ let y = 48 } : ?", false),
+        ("{ let y = 1 } + 1", false),
+        ("{ let y = 48 } : (x=Bool, z=Int)", false),
+        ("{ let (x, y) = (1, 2) } : (x=Bool, y=Bool)", false),
+      ],
+      ~f=((src, skipped)) => {
+        let exp = parse(src);
+        let is_module = (e: Language.Exp.t) =>
+          switch (Exp.term_of(e)) {
+          | Module(_) => true
+          | _ => false
+          };
+        switch (safe_statics(exp)) {
+        | `Skip => Alcotest.fail("statics skipped " ++ src)
+        | `Ok(info_map, _) =>
+          let found = ref(false);
+          let _ =
+            Exp.map_term(
+              ~f_exp=
+                (continue, e) => {
+                  if (is_module(e) && is_checked_module(info_map, e)) {
+                    found := true;
+                  };
+                  continue(e);
+                },
+              exp,
+            );
+          Alcotest.(
+            check(bool, "its module is skipped: " ++ src, skipped, found^)
+          );
+          Alcotest.(
+            check(
+              bool,
+              "the module's recorded and re-synthesized types differ: " ++ src,
+              skipped,
+              List.exists(
+                differing_subs(~checked_modules=true, info_map, exp),
+                ~f=({sub, _}) =>
+                is_module(sub)
+              ),
+            )
+          );
+        };
       },
     )
   ),

@@ -96,10 +96,9 @@ let arb_fuzzed = {
     open Gen;
     let* core_exp = QCheck_Util.arb_exp_full(~minimal_idents=false, 5).gen;
     let+ choices = array_size(int_bound(24), int_bound(4));
-    /* Same module-item gaps the equivalence property carves out. */
-    (print_core(core_exp), choices, Test_Menhir.is_carved_out(core_exp));
+    (print_core(core_exp), choices);
   };
-  make(~print=((txt, _, _)) => txt, gen);
+  make(~print=((txt, _)) => txt, gen);
 };
 
 let qcheck_fuzz_test =
@@ -107,13 +106,14 @@ let qcheck_fuzz_test =
     ~name="Menhir and MakeTerm agree on whitespace-fuzzed text",
     ~count=300,
     arb_fuzzed,
-    ((txt, choices, unsupported)) => {
-      QCheck.assume(!unsupported);
+    ((txt, choices)) => {
       let fuzzed = fuzz_whitespace(choices, txt);
       switch (make_term_parse(fuzzed), menhir_parse(fuzzed)) {
       | (Some(mk), Some(mh)) => equal_terms(mk, mh)
       | (Some(_), None) => false /* menhir must accept what the editor accepts here */
-      | (None, _) => QCheck.assume_fail() /* printer artifact; not this test's business */
+      /* The editor's reader turns an exception into None. */
+      | (None, _) =>
+        QCheck.Test.fail_reportf("The editor doesn't read: %s", fuzzed)
       };
     },
   );

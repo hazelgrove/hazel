@@ -1,6 +1,5 @@
 open Alcotest;
 open Language;
-open Poly;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -910,28 +909,11 @@ in 1|},
         ~count=1000,
         QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
         exp => {
-        switch (dhexp_of_uexp(exp)) {
-        | _ => true
-        | exception (Failure(msg) as e) =>
-          switch (msg) {
-          | _
-              when
-                List.exists(
-                  ~f=(==)(msg),
-                  [
-                    "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
-                    "weak_head_normalize exceeded 1000 recursive calls",
-                  ],
-                ) =>
-            print_endline("Known failure: " ++ Exn.to_string(e));
-            true;
-          | _ => raise(e)
-          }
-        | exception e =>
-          print_endline("Skipping statics: " ++ Exn.to_string(e));
+          /* Only the alias loop (#1627, #2570) is let by. */
+          let _ = QCheck_Util.skip_alias_loop(() => dhexp_of_uexp(exp));
           true;
-        }
-      }),
+        },
+      ),
     ),
     /* PBT Elaboration 41 (QCHECK_SEED=1337): quoted label binder under list
        → Coverage.all_ctrs_of_type on bare Label "a". */

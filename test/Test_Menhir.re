@@ -163,53 +163,6 @@ let menhir_maketerm_print_equivalent_test = (name: string, exp: AST.exp) =>
     },
   );
 
-/* Module items the two parsers still disagree on: the `…-in` binder forms.
-   Inside `{ }` the editor molds `let` as a module-item `let … =`, which has no
-   `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
-   `1 in y` (`in` left as an unknown infix), where Menhir reads an expression
-   item. Which reading is intended is undecided (#2754). Parenthesizing the item
-   avoids it. Pinned by known-bug tests below; generated terms containing one
-   are discarded rather than judged. */
-let is_unsupported_mod_item = (e: Exp.t): bool =>
-  switch (Exp.term_of(e)) {
-  | Let(_)
-  | ModuleExp(_)
-  | TyAlias(_) => true
-  | _ => false
-  };
-
-let has_unsupported_mod_item = (e: Exp.t): bool => {
-  let found = ref(false);
-  let _ =
-    TermBase.Exp.map_term(
-      ~f_exp=
-        (cont, e) => {
-          switch (e.term) {
-          | Module(items) =>
-            List.iter(
-              ~f=
-                (item: Mod.t) =>
-                  switch (item.term) {
-                  | ModExp(inner) when is_unsupported_mod_item(inner) =>
-                    found := true
-                  | _ => ()
-                  },
-              items,
-            )
-          | _ => ()
-          };
-          cont(e);
-        },
-      ~f_pat=(cont, p) => cont(p),
-      ~f_typ=(cont, t) => cont(t),
-      e,
-    );
-  found^;
-};
-
-/* Shapes the Menhir properties do not judge. */
-let is_carved_out = (e: Exp.t): bool => has_unsupported_mod_item(e);
-
 /* Menhir and MakeTerm read the same printed term the same way. */
 let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
@@ -217,7 +170,6 @@ let qcheck_menhir_maketerm_equivalent_test =
     ~count=100,
     QCheck_Util.arb_exp_full(~minimal_idents=false, 5),
     core_exp => {
-      QCheck.assume(!is_carved_out(core_exp));
       let segment =
         Haz3lcore.ExpToSegment.(
           exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
@@ -270,7 +222,6 @@ let qcheck_menhir_serialized_equivalent_test =
       let core_exp =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp)
         |> Canonicalize.exp;
-      QCheck.assume(!is_carved_out(core_exp));
       let segment =
         Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
@@ -1601,8 +1552,13 @@ let found_shapes = [
     "Case as module item",
     {|{ case _ | _ => 1 end }|},
   ),
-  /* The `…-in` binder forms read differently as bare module items (see
-     is_unsupported_mod_item). */
+  /* The `…-in` binder forms read differently as bare module items. Inside
+     `{ }` the editor molds `let` as a module item's `let … =`, which has no
+     `in` shard, so `{ let y = 1 in y }` is a module let whose definition is
+     `1 in y` (`in` left as an unknown infix), where Menhir reads an
+     expression item. Which reading is intended is undecided (#2754).
+     Defensive printing parenthesizes such an item, so no generated term
+     prints as one. */
   parsers_disagree_test(
     "Known bug (#2754): a let-in as a module item",
     {|{ let y = 1 in y }|},

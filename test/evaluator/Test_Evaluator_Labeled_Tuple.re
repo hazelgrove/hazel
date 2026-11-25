@@ -18,8 +18,6 @@ let tests = (
     test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
-    /* Both entries are kept. The second `a` is not field `b`, so its cast
-       to `b`'s type stays rather than relabeling the value. */
     /* An empty label matches any label, so the cast is pushed in. */
     test_case("A cast to a label pushes into a wildcard label", `Quick, () =>
       evaluation_test(
@@ -31,6 +29,8 @@ let tests = (
         ),
       )
     ),
+    /* Both entries are kept. The second `a` is not field `b`, so its cast
+       to `b`'s type stays rather than relabeling the value. */
     test_case("Repeated label ascribed to a labeled tuple type", `Quick, () =>
       check(
         dhexp_typ,

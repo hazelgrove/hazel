@@ -138,12 +138,12 @@ let arb_typ_canonical = (~minimal_idents=false, ~size=?, depth: int) =>
 
 /* Statics doesn't finish on a name whose type alias reaches back to it
    through another binding (`{ type y = x; module x = y; type z = x }`,
-   #2570): normalizing hits its cap, or a name in a signature type
-   overflows the stack. A property skips such a term. Delete this when
-   #2686 and #2732 land and its pinned test in Test_Statics_Types goes
-   red. */
-let skip_alias_loop = (statics: unit => 'a): 'a => {
-  let capped = msg =>
+   #2570): normalizing hits its cap. A property skips such a term. Delete
+   this when #2686 and #2732 land and its pinned test in
+   Test_Statics_Types goes red. */
+let is_alias_loop = (e: exn): bool =>
+  switch (e) {
+  | Failure(msg) =>
     List.mem(
       [
         "normalize exceeded 1000 recursive calls",
@@ -151,10 +151,12 @@ let skip_alias_loop = (statics: unit => 'a): 'a => {
       ],
       msg,
       ~equal=String.equal,
-    );
+    )
+  | _ => false
+  };
+
+let skip_alias_loop = (statics: unit => 'a): 'a =>
   switch (statics()) {
   | result => result
-  | exception (Failure(msg)) when capped(msg) => assume_fail()
-  | exception Stack_overflow => assume_fail()
+  | exception e when is_alias_loop(e) => assume_fail()
   };
-};

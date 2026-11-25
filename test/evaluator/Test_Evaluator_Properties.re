@@ -9,43 +9,22 @@ let qcheck_evaluator_does_not_crash_test =
     ~count=1000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-    switch (
-      {
-        let (_, elab) =
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
-        elab;
-      }
-    ) {
-    | exp =>
+      /* Statics has a property of its own; here only its known failure is
+         let by, so that a crash in evaluation, or a new one in statics, is
+         one. */
+      let elab = QCheck_Util.skip_alias_loop(() => elaborate(exp));
       switch (
         Evaluator.evaluate_and_limit(
           ~env=Builtins.env_init,
           ~step_limit=10000,
-          exp,
+          elab,
         )
       ) {
       | LimitedCompleted(_)
       | StepLimitExceeded => true
-      | exception e =>
-        switch (e) {
-        | Failure(msg)
-            when
-              List.exists(
-                ~f=(==)(msg),
-                ["type application in dynamics", "Type meet of ap"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
-              ) =>
-          print_endline("Skipping failure: " ++ msg);
-          true;
-        | _ => raise(e)
-        }
-      }
-    | exception e =>
-      print_endline(
-        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
-      );
-      true;
-    }
-  });
+      };
+    },
+  );
 
 let testable_core_exp =
   testable(
@@ -63,10 +42,16 @@ let testable_core_exp_up_to_proofs =
     )
   );
 
-/* Check that the evaluator and the stepper are consistent on `uexp`. The step
-   limit and known issues that raise are skipped — or, with
+/* Check that the evaluator and the stepper are consistent on `uexp`. A
+   reduction that doesn't finish within the limit is skipped — or, with
    `require_comparison`, failed, so a fixed counterexample that stops reaching
-   the comparison says so instead of passing. */
+   the comparison says so instead of passing. Anything either raises is a
+   failure, statics' known one aside.
+
+   `step_limit` counts the stepper's steps. The evaluator counts trampoline
+   operations, of which a step takes a hundred or so (`(fun x -> x + 1)(1)`
+   is about 95): at the stepper's own limit it gave up on a quarter of
+   generated programs, the ones that compute the most. */
 let check_evaluator_stepper_consistent =
     (
       ~step_limit: int,
@@ -75,55 +60,36 @@ let check_evaluator_stepper_consistent =
       ~require_comparison: bool,
       uexp: Exp.t,
     )
-    : unit =>
+    : unit => {
+  let elaborated_exp =
+    require_comparison
+      ? elaborate(uexp) : QCheck_Util.skip_alias_loop(() => elaborate(uexp));
   switch (
-    {
-      let (_, elab) =
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-      elab;
-    }
+    Evaluator.evaluate_and_limit(
+      ~env=Builtins.env_init,
+      ~step_limit=1000 * step_limit,
+      elaborated_exp,
+    ),
+    full_small_step_reduction(~step_limit, elaborated_exp),
   ) {
-  | elaborated_exp =>
-    switch (
-      Evaluator.evaluate_and_limit(
-        ~env=Builtins.env_init,
-        ~step_limit,
-        elaborated_exp,
-      ),
-      full_small_step_reduction(~step_limit, elaborated_exp),
-    ) {
-    | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
-      check(testable, msg, fst(smallstep_exp), bigstep_exp)
-    | (_, StepLimitExceeded)
-    | (StepLimitExceeded, _) =>
-      if (require_comparison) {
-        failf(
-          "reduction did not terminate within %d steps, so nothing was compared; re-minimize the counterexample",
-          step_limit,
-        );
-      }
-    | exception e =>
-      if (require_comparison) {
-        failf(
-          "evaluation raised %s, so nothing was compared; re-minimize the counterexample",
-          Exn.to_string(e),
-        );
-      } else {
-        print_endline("Skipping evaluation failure: " ++ Exn.to_string(e));
-      }
-    }
-  | exception e =>
+  | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
+    check(testable, msg, fst(smallstep_exp), bigstep_exp)
+  /* The stepper finished within its steps, and the evaluator didn't within
+     ten times the operations they come to. */
+  | (StepLimitExceeded, LimitedCompleted(_)) =>
+    failf(
+      "the stepper finished within %d steps and the evaluator did not finish",
+      step_limit,
+    )
+  | (_, StepLimitExceeded) =>
     if (require_comparison) {
       failf(
-        "statics/elaborate raised %s, so nothing was compared; re-minimize the counterexample",
-        Exn.to_string(e),
-      );
-    } else {
-      print_endline(
-        "Skipping statics/elaborate failure: " ++ Exn.to_string(e),
+        "reduction did not terminate within %d steps, so nothing was compared; re-minimize the counterexample",
+        step_limit,
       );
     }
   };
+};
 
 let qcheck_stepper_confluence =
   QCheck.Test.make(
@@ -146,8 +112,7 @@ let qcheck_stepper_confluence =
 /* `e : T` and `let x : T = e in x` evaluate to the same thing. The binder is a
    name the generator never produces (it only makes single letters), or it
    would capture a free `x` in `e`: a definition that mentions its own binder
-   elaborates to a fixpoint. Statics/dynamics failures skip the case; the
-   comparison itself must stay outside the catch-all. */
+   elaborates to a fixpoint. Only statics' alias loop skips the case. */
 let pattern_equivalence_binder = "pe_bound";
 
 /* Values compared up to leftover casts: `() : (rec o^o -> `y`)` and
@@ -188,19 +153,22 @@ let qcheck_pattern_equivalence_test =
           uexp,
           var(pattern_equivalence_binder),
         );
+      let (first, second) =
+        QCheck_Util.skip_alias_loop(() =>
+          (elaborate(first), elaborate(second))
+        );
       switch (
         Evaluator.evaluate_and_limit(
           ~env=Builtins.env_init,
           ~step_limit=10000,
-          elaborate(first),
+          first,
         ),
         Evaluator.evaluate_and_limit(
           ~env=Builtins.env_init,
           ~step_limit=10000,
-          elaborate(second),
+          second,
         ),
       ) {
-      | exception _ => QCheck.assume_fail()
       /* Only finished values are compared. A stuck result keeps its
          leftover ascriptions wherever evaluation stopped, which differs
          between the two forms (`o^o : (x=?)` against `(x=o^o)`) without
@@ -283,7 +251,6 @@ let has_rec_with_unused_binder = (ty: Typ.t): bool => {
 };
 
 // Taking a step should result in a consistent type that is more precise than the original type
-[@warning "-52"]
 let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
@@ -291,56 +258,49 @@ let qcheck_preservation_test =
     QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
     uexp => {
     switch (
-      switch (
-        {
-          let (elab, ty) =
-            QCheck_Util.skip_alias_loop(() => {
-              let (statics, elab) =
-                Statics.mk(
-                  CoreSettings.on,
-                  Builtins.ctx_init(Some(Int)),
-                  uexp,
-                );
-              (elab, elaborated_type(statics, uexp));
-            });
-          QCheck.assume(!has_rec_with_unused_binder(ty));
-          let stepped = single_step(elab);
-          (stepped, ty);
-        }
-      ) {
-      | (Some(next), orig_ty) =>
-        /* `next` is already elaborated: re-check with no ambient
-           mode, as CachedStatics does, or `Operators.replace_*` turns
-           a Float negation back into an Int one. */
-        switch (
-          {
-            let (statics, _) =
-              Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
-            Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
-          }
-        ) {
-        | Some(ty) =>
-          Typ.is_more_precise(
-            Ctx.empty,
-            QCheck_Util.erase_proof_props(ty),
-            QCheck_Util.erase_proof_props(orig_ty),
-          )
-            ? true
-            : Alcotest.fail(
-                "Preservation failed: original type "
-                ++ Typ.show(orig_ty)
-                ++ " is not more precise than stepped type "
-                ++ Typ.show(ty),
-              )
-        | _ =>
-          Alcotest.fail("No type information found for stepped expression")
-        }
-      | (None, _) => true // If we can't take a step, we don't have to check preservation
+      {
+        let (elab, ty) =
+          QCheck_Util.skip_alias_loop(() => {
+            let (statics, elab) =
+              Statics.mk(
+                CoreSettings.on,
+                Builtins.ctx_init(Some(Int)),
+                uexp,
+              );
+            (elab, elaborated_type(statics, uexp));
+          });
+        QCheck.assume(!has_rec_with_unused_binder(ty));
+        let stepped = single_step(elab);
+        (stepped, ty);
       }
     ) {
-    | ret => ret
-    | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
-    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
+    | (Some(next), orig_ty) =>
+      /* `next` is already elaborated: re-check with no ambient
+         mode, as CachedStatics does, or `Operators.replace_*` turns
+         a Float negation back into an Int one. */
+      switch (
+        QCheck_Util.skip_alias_loop(() => {
+          let (statics, _) =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
+          Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics);
+        })
+      ) {
+      | Some(ty) =>
+        Typ.is_more_precise(
+          Ctx.empty,
+          QCheck_Util.erase_proof_props(ty),
+          QCheck_Util.erase_proof_props(orig_ty),
+        )
+          ? true
+          : Alcotest.fail(
+              "Preservation failed: original type "
+              ++ Typ.show(orig_ty)
+              ++ " is not more precise than stepped type "
+              ++ Typ.show(ty),
+            )
+      | _ => Alcotest.fail("No type information found for stepped expression")
+      }
+    | (None, _) => true // If we can't take a step, we don't have to check preservation
     }
   });
 
@@ -363,9 +323,8 @@ let qcheck_preservation_test =
  * id spaces would be disjoint and nothing would match prev.
  *
  * Known skips (the property still passes): expressions with no int literal
- * to edit (nothing to test), anything that hits the step limit, and anything
- * that raises from statics/evaluation (filtered the same way as the
- * other evaluator QCheck tests in this file). */
+ * to edit (nothing to test), a program that hits the step limit evaluated
+ * from scratch, and statics' alias loop (QCheck_Util.is_alias_loop). */
 
 /* Collect every (id, value) pair for Atom(Int _) leaves in the tree.
  * We key on the Atom's own rep_id so the later substitute pass can
@@ -437,21 +396,13 @@ let check_incremental_against_fresh_after_edit =
         reason,
       );
     };
-  /* Only swallow known-benign static/dynamic failures so real
-   * incremental-eval disagreements surface as clean failures. */
-  let try_eval = (~prev=?, eval_info, elab) =>
-    try(Some(eval_limited(~prev?, ~eval_info, ~step_limit, elab))) {
-    | Failure(msg)
-        when
-          List.exists(
-            ~f=(==)(msg),
-            ["type application in dynamics", "Type meet of ap"],
-          ) =>
-      None
-    };
+  /* Only statics' known failure is let by, so that anything else either
+     raises is a failure. */
+  let eval = (~prev=?, eval_info, elab) =>
+    eval_limited(~prev?, ~eval_info, ~step_limit, elab);
   let try_statics = exp =>
     try(Some(statics_and_elab(exp))) {
-    | _ => None
+    | e when QCheck_Util.is_alias_loop(e) => None
     };
   switch (collect_int_lits(exp)) {
   | [] => no_comparison("the program has no int literal to edit")
@@ -479,26 +430,28 @@ let check_incremental_against_fresh_after_edit =
         );
       /* Baseline run (no prev) of the original — its incr_eval becomes
        * the cache handed to the incremental run of the edited exp. */
-      switch (try_eval(info_slice_orig, elab_orig)) {
-      | None
-      | Some(StepLimitExceeded) =>
+      switch (eval(info_slice_orig, elab_orig)) {
+      | StepLimitExceeded =>
         no_comparison("the unedited program did not evaluate to a result")
-      | Some(LimitedCompleted((_, state_before))) =>
+      | LimitedCompleted((_, state_before)) =>
         /* Edited evaluated two ways: incrementally (reusing the baseline's
          * cache) and from scratch (empty prev). These must agree. */
-        let fresh = try_eval(info_slice_edit, elab_edit);
+        let fresh = eval(info_slice_edit, elab_edit);
         let incr_eval_result =
-          try_eval(~prev=state_before.incr_eval, info_slice_edit, elab_edit);
+          eval(~prev=state_before.incr_eval, info_slice_edit, elab_edit);
         switch (fresh, incr_eval_result) {
-        | (
-            Some(LimitedCompleted((e_fresh, _))),
-            Some(LimitedCompleted((e_incr, _))),
-          ) =>
+        | (LimitedCompleted((e_fresh, _)), LimitedCompleted((e_incr, _))) =>
           Option.iter(compared, ~f=incr);
           check(testable, msg, e_fresh, e_incr);
-        | _ =>
+        /* Reusing a cache is no more work than evaluating from scratch. */
+        | (LimitedCompleted(_), StepLimitExceeded) =>
+          Alcotest.fail(
+            msg
+            ++ ": evaluated from scratch within the step limit, and not incrementally",
+          )
+        | (StepLimitExceeded, _) =>
           no_comparison(
-            "the edited program did not evaluate to a result both ways",
+            "the edited program did not evaluate to a result from scratch",
           )
         };
       };
@@ -686,7 +639,7 @@ let gradual_guarantee_holds = ((uexp: Exp.t, seed: int)): bool => {
       ~step_limit,
       elaborate(e),
     );
-  switch (run(~step_limit=1000, uexp)) {
+  switch (run(~step_limit=10000, uexp)) {
   | LimitedCompleted((value, _)) when ValueChecker.is_value(value) =>
     switch (run(~step_limit=10000, loosened)) {
     | LimitedCompleted((loosened_value, _)) =>
@@ -702,7 +655,6 @@ let gradual_guarantee_holds = ((uexp: Exp.t, seed: int)): bool => {
     }
   | LimitedCompleted(_)
   | StepLimitExceeded => true
-  | exception _ => QCheck.assume_fail()
   };
 };
 
@@ -775,6 +727,50 @@ let qcheck_gradual_guarantee_labeled_singletons = {
     gradual_guarantee_holds((parse_exp(src), seed))
   );
 };
+
+/* Pattern equivalence fails on this (seeds 32 and 46, on the branch before
+   the fixes too). `a` is a type variable nothing binds. As the type of a
+   `let`'s pattern, the one-tuple type `(_=a)` lets the pattern be lifted
+   into the value's label, so `p` is bound to the field's value; as an
+   ascription on the value it is not, and the value is left as it is. Which
+   of the two a one-tuple type should do at a labeled one-field value is a
+   question about the lifting rules. */
+let pattern_equivalence_unlabeled_one_tuple_pin =
+  test_case(
+    "Known bug: a `_=` one-tuple type on a pattern lifts into the value's label",
+    `Quick,
+    () => {
+      let result = (src: string) =>
+        switch (
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=10000,
+            elaborate(parse_exp(src)),
+          )
+        ) {
+        | LimitedCompleted((value, _)) => Some(value)
+        | StepLimitExceeded => None
+        };
+      let ascribed = result("(x=A) : (_=a)");
+      let bound = result("let p : (_=a) = (x=A) in p");
+      check(
+        bool,
+        "both finish",
+        true,
+        Option.is_some(ascribed) && Option.is_some(bound),
+      );
+      check(
+        bool,
+        "the two forms evaluate to the same thing",
+        false,
+        Option.equal(
+          Alcotest.equal(pattern_equivalence_testable),
+          ascribed,
+          bound,
+        ),
+      );
+    },
+  );
 
 /* Preservation excludes a `rec` type with an unused binder
    (has_rec_with_unused_binder), because of this. */
@@ -1751,6 +1747,7 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_preservation_test),
     QCheck_alcotest.to_alcotest(ListTypes.property),
     incremental_reused_function_regression_test,
+    pattern_equivalence_unlabeled_one_tuple_pin,
     preservation_rec_unused_binder_pin,
   ]
   @ incremental_recursive_lets_tests
