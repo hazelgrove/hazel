@@ -1009,10 +1009,64 @@ let arg_tests = [
   ),
 ];
 
+/* (^ticket(853)) constructors without arguments made once, a module's members by name, == against a literal */
+let more_tests = [
+  agreement(
+    "constructors without arguments, one constant each",
+    "type C = + A + B(Int) in let f = fun x -> if x then A else B(1) in (f(true), f(false), f(true) == f(true), [A, A, B(2)])",
+  ),
+  agreement(
+    "a member of a record of variables, by name",
+    "let m = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in m.f(m.a)",
+  ),
+  agreement(
+    "a record of variables shadowed by one that is not",
+    "let m = (let a = 1 in (a = a)) in let r = m.a in let m = (a = 2) in r + m.a",
+  ),
+  agreement(
+    "== and != against literals",
+    {|let f = fun x -> if x == 0 then "zero" else if x != 1 then "many" else "one" in (f(0), f(1), f(5), "a" == "a", 1.5 == 1.5, true == false, 0 - 1 == -1)|},
+  ),
+  agreement(
+    "== against a literal past 2^53",
+    "let big = 9007199254740993 in (big == 9007199254740993, big + 1 == 9007199254740994, big == 1)",
+  ),
+  test_case(
+    "as compiled: one constant, a member by name, ===",
+    `Quick,
+    () => {
+      let js = compiled_src("type C = + A + B(Int) in [A, B(1), A]");
+      let occurrences = (s, part) => {
+        let n = String.length(part);
+        let rec go = (i, acc) =>
+          switch (String.substr_index(s, ~pos=i, ~pattern=part)) {
+          | Some(j) => go(j + n, acc + 1)
+          | None => acc
+          };
+        go(0, 0);
+      };
+      check(int, "one constant for A", 1, occurrences(js, "{$c: \"A\"}"));
+      let js =
+        compiled_src(
+          "let m = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in m.f(m.a)",
+        );
+      check(
+        bool,
+        "no guarded read of f",
+        false,
+        contains(js, "[\"f\"] !== undefined"),
+      );
+      let js = compiled_src("let f = fun x -> x == 0 in f(3)");
+      check(bool, "=== 0", true, contains(js, "=== 0"));
+    },
+  ),
+];
+
 let tests = (
   "HazelJit",
   loop_tests
   @ arg_tests
+  @ more_tests
   @ invalid_tests
   @ big_int_tests
   @ mutual_tests
