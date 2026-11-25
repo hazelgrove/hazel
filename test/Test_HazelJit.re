@@ -709,6 +709,15 @@ let mixed_measured_tests = [
     "the Petri net rule, whole types declared, 100 events",
     petri_typed,
   ),
+  /* (^ticket(769), the baseline: hazel-jit before holes) the two timings of trial/769-jit-holes-2, run here for before */
+  mixed_measured(
+    "a list of 2,000 built with a hole in it, and its length",
+    "let build : Int -> [Int] = fun n -> if n == 0 then [?] else n :: build(n - 1) in let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in len(build(2000))",
+  ),
+  mixed_measured(
+    "500 calls across, from an interpreted loop, each carrying a hole",
+    "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in let loop = fun (i, acc) -> if i == 0 then acc else loop(i - 1, swap(i, ?) :: acc) in loop(500, [])",
+  ),
 ];
 
 let mixed_tests = [
