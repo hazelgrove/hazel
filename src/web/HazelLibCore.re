@@ -619,7 +619,8 @@ let run_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
    function of one argument, $R, and runtime, the source of the object to
    pass as $R. new Function("$R", js)(eval("(" + runtime + ")")) is then
    the program's value in hazel-jit's shapes (HazelJit.re says them: a list
-   is null or {h, t}, a constructor {c, v}, a tuple an array with its
+   is null or {$h, $t}, a constructor {$c, $v}, a tuple whose every entry is
+   labeled a plain object by its labels, any other tuple an array with its
    labels as keys too). A page can keep the two strings in a file and skip
    Hazel altogether, as hazeljs-examples' compiled.js files do.
 
@@ -633,7 +634,34 @@ let run_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
 
    compiled: whether the value runs compiled; when not, reason says why
    (the first form hazel-jit does not compile: a hole, a test, ...) and
-   jit's value is the interpreter's, as run gives it. */
+   jit's value is the interpreter's, as run gives it.
+
+   The rule for a page (^ticket(847), decision 4 of ^report(54); Matthew,
+   2026-11-24: "Yes, take the leans"): what a page gives a compiled
+   function, and what it gets back, it does not change afterwards, as React
+   has it for its state. Hazel's values never change, and the converters keep
+   a record of plain values as the page's own object and remember what they
+   converted, so a page that changes one would change a Hazel value under
+   compiled code. Make a changed copy instead ({...r, x: 2}, [...xs, 5]).
+
+     Hazel.development(on)       -> on, a boolean: while on, what a page gives
+                                    a compiled function (one with converters,
+                                    from a declared type) and what it gets
+                                    back are frozen, all the way down, so a
+                                    page that breaks the rule throws where it
+                                    does (in strict code; elsewhere the change
+                                    is ignored) rather than giving a wrong
+                                    answer later. For development: freezing
+                                    costs a walk of every value that crosses. */
+
+let development = (on: bool): bool => {
+  Js.Unsafe.set(
+    Js.Unsafe.global,
+    "$hazelJitDevelopment",
+    Js.Unsafe.inject(Js.bool(on)),
+  );
+  on;
+};
 
 let js_keys = (v: Js.Unsafe.any): list(string) =>
   Js.to_array(
@@ -957,11 +985,11 @@ module Direct = {
               ++ ": return "
               ++ (
                 switch (t) {
-                | None => "{c: " ++ q(c) ++ "}"
+                | None => "{$c: " ++ q(c) ++ "}"
                 | Some(t) =>
-                  "{c: "
+                  "{$c: "
                   ++ q(c)
-                  ++ ", v: "
+                  ++ ", $v: "
                   ++ inn(st, recs, t, v ++ ".value")
                   ++ "}"
                 }
@@ -1138,7 +1166,7 @@ module Direct = {
                   "{tag: "
                   ++ q(c)
                   ++ ", value: "
-                  ++ out(st, recs, t, v ++ ".v")
+                  ++ out(st, recs, t, v ++ ".$v")
                   ++ "}"
                 }
               )
@@ -1150,9 +1178,9 @@ module Direct = {
           ++ v
           ++ " !== \"object\" || typeof "
           ++ v
-          ++ ".c !== \"string\") fail(); switch ("
+          ++ ".$c !== \"string\") fail(); switch ("
           ++ v
-          ++ ".c) { "
+          ++ ".$c) { "
           ++ String.concat(arms)
           ++ "default: fail(); } }";
         },
@@ -1188,8 +1216,8 @@ module Direct = {
   const $oI = v => typeof v === "number" ? v : typeof v === "bigint" ? Number(v) : fail();
   const $Uin = v => v == null || (Array.isArray(v) && v.length === 0) ? [] : fail();
   const $Uout = v => Array.isArray(v) && v.length === 0 ? null : fail();
-  const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { h: f(v[i]), t: r }; return r; };
-  const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.t) { if (typeof p !== "object" || !("h" in p)) fail(); a.push(f(p.h)); } return a; };
+  const $Lin = (v, f) => { if (!Array.isArray(v)) fail(); let r = null; for (let i = v.length - 1; i >= 0; i--) r = { $h: f(v[i]), $t: r }; return r; };
+  const $Lout = (v, f) => { const a = []; for (let p = v; p !== null; p = p.$t) { if (typeof p !== "object" || !("$h" in p)) fail(); a.push(f(p.$h)); } return a; };
   /* (^ticket(795), ^report(63) #runs) a type's memo as links on the objects themselves, not two WeakMaps: on the games'
      own runs the WeakMaps' lookups and inserts, and the collector's work for them, were most of the jit's crossing
      (Mahjong solitaire's run: 15.4 ms through the jit with WeakMaps, 6.1 ms with links, 6.4 ms ahead of time). A page's
@@ -1198,6 +1226,9 @@ module Direct = {
      property. (The registry is the page's, shared by every compiled function and every copy of the library on it.) */
   const $L = Symbol.for("hazel-jit.labels");
   const $id = (x, f) => f(x);   // (^ticket(847): a record of plain values, checked and passed as it is)
+  /* (^ticket(847), decision 4) under Hazel.development(true), what crosses is frozen all the way down; an object frozen
+     already (and what it holds) is left, and so is a typed array, which cannot be frozen */
+  const $freeze = x => { if (x !== null && typeof x === "object" && !Object.isFrozen(x) && !ArrayBuffer.isView(x)) { Object.freeze(x); for (const k of Object.keys(x)) $freeze(x[k]); } return x; };
   const REG = globalThis.$hazelJitMemo || (globalThis.$hazelJitMemo = new Map());
   const $wm = k => { let m = REG.get(k); if (!m) REG.set(k, m = { s: Symbol("hazel-jit.converted"), f: null }); else if (!m.s) { m.s = Symbol("hazel-jit.converted"); m.f = null; } return m; };
   const $plink = (m, a, b) => { if (Object.isExtensible(a)) Object.defineProperty(a, m.s, { value: b }); else (m.f || (m.f = new WeakMap())).set(a, b); };
@@ -1264,10 +1295,10 @@ module Direct = {
           ++ "\n  const OUT = r => "
           ++ back
           ++ ";"
-          ++ "\n  return function (...args) { let a, r;"
+          ++ "\n  return function (...args) { let a, r, o; const dev = globalThis.$hazelJitDevelopment === true; if (dev) $freeze(args);"
           ++ "\n    try { a = IN(args); } catch (e) { if (e === FAIL) return slow(...args); throw e; }"
           ++ "\n    try { r = f(a); } catch (e) { return slow(...args); }"
-          ++ "\n    try { return OUT(r); } catch (e) { if (e === FAIL) return slow(...args); throw e; } }; })",
+          ++ "\n    try { o = OUT(r); } catch (e) { if (e === FAIL) return slow(...args); throw e; } return dev ? $freeze(o) : o; }; })",
         )
       };
     | _ => None

@@ -152,8 +152,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
         is_null(v)
           ? Some("a list shorter than " ++ Exp.show(e))
           : (
-            switch (agree(e, get(v, "h"))) {
-            | None => walk(rest, get(v, "t"))
+            switch (agree(e, get(v, "$h"))) {
+            | None => walk(rest, get(v, "$t"))
             | d => d
             }
           )
@@ -163,8 +163,8 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     is_null(js)
       ? Some("[] for a cons")
       : (
-        switch (agree(h, get(js, "h"))) {
-        | None => agree(t, get(js, "t"))
+        switch (agree(h, get(js, "$h"))) {
+        | None => agree(t, get(js, "$t"))
         | d => d
         }
       )
@@ -218,15 +218,15 @@ let rec agree = (e: Exp.t, js: Js.Unsafe.any): option(string) => {
     want(
       typeof(js) == "object"
       && !is_null(js)
-      && Js.to_string(Js.Unsafe.coerce(get(js, "c"))) == name,
+      && Js.to_string(Js.Unsafe.coerce(get(js, "$c"))) == name,
       "the constructor " ++ name,
     )
   /* (a constructor applied either way, Some(3) or 3 |> Some, is the same value; the interpreter keeps how it was written) */
   | Ap(Forward | Reverse, {term: Constructor(name, _), _}, arg) =>
     typeof(js) == "object"
     && !is_null(js)
-    && Js.to_string(Js.Unsafe.coerce(get(js, "c"))) == name
-      ? agree(arg, get(js, "v")) : Some("the constructor " ++ name)
+    && Js.to_string(Js.Unsafe.coerce(get(js, "$c"))) == name
+      ? agree(arg, get(js, "$v")) : Some("the constructor " ++ name)
   | Module(items) =>
     List.fold_left(items, ~init=None, ~f=(acc, item: Mod.t) =>
       switch (acc, item.term) {

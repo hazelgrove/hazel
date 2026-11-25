@@ -11,8 +11,10 @@
      Float                  a JS number
      Bool, String           a JS boolean, a JS string
      a tuple                a JS array of its components; a labeled component is also a property of the array, by its label
-     a list                 null for [], {h, t} for a cons, so :: is O(1)
-     a constructor          {c: name} or {c: name, v: payload}
+     a list                 null for [], {$h, $t} for a cons, so :: is O(1)
+     a constructor          {$c: name} or {$c: name, $v: payload}
+     (^ticket(847), decision 2) a record keeps a label beginning with $ under "$" ++ label (label_key), so no record has
+     the key $h, $t, $c or $v, and a cell or a constructor is told from a record by one key
      a function             a JS function of one argument (a tuple argument is an array)
 
    The code is expressions all the way down: a let's (or a match's) bindings are assigned, in a comma expression, to
@@ -64,8 +66,8 @@ let no_type_hole = (t: Typ.t): unit => {
 /* What a compiled term needs at run time, passed to the compiled function as $R (Runtime.source is its JS text). */
 module Runtime = {
   let source = {|{
-  append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.t) xs.push(p.h);
-    let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; },
+  append(a, b) { if (a === null) return b; const xs = []; for (let p = a; p !== null; p = p.$t) xs.push(p.$h);
+    let r = b; for (let i = xs.length - 1; i >= 0; i--) r = {$h: xs[i], $t: r}; return r; },
   /* (^ticket(851)) a labeled tuple keeps its labels by index (a key, or null where unlabeled) under this symbol, which
      Object.keys, JSON and the comparisons do not see; tup, the label builtins and HazelJitValue.tuple set it */
   L: Symbol.for("hazel-jit.labels"),
@@ -74,10 +76,9 @@ module Runtime = {
      an array as before (its labels as properties, and under L) */
   tup(vs, ls) { if (ls.length > 0 && ls.every(l => l !== null)) { const o = {}; for (let i = 0; i < ls.length; i++) o[ls[i]] = vs[i]; return o; }
     for (let i = 0; i < ls.length; i++) if (ls[i] !== null) vs[ls[i]] = vs[i]; vs[this.L] = ls; return vs; },
-  /* (^ticket(847)) a record: a plain object that is not a list's cell (exactly h and t) nor a constructor (c, a string, and
-     perhaps v). A record whose fields are exactly those reads as one of them: decision 2 of ^report(54) #records */
-  isrec(t) { if (t === null || typeof t !== "object" || Array.isArray(t)) return false; const ks = Object.keys(t);
-    if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(k => k === "c" || k === "v")) return false; return true; },
+  /* (^ticket(847)) a record: a plain object that is not a list's cell ($t) nor a constructor ($c), keys no record has
+     (decision 2 of ^report(54) #records-decide; Matthew, 2026-11-24: "Yes, take the leans") */
+  isrec(t) { return t !== null && typeof t === "object" && !Array.isArray(t) && !("$t" in t) && !("$c" in t); },
   /* (^ticket(851)) a pattern by position, (a, b), met a tuple with a label at one of those positions: the statics label
      such a pattern when the matched type is labeled, so this is a type they did not know, and the interpreter binds the
      labeled entry itself (x = 5, not 5), where compiled code would read the component; so the run is the interpreter's */
@@ -89,8 +90,8 @@ module Runtime = {
     if (Array.isArray(t)) return t[k];
     if (t === null) return null;
     if (typeof t === "object" && Object.prototype.hasOwnProperty.call(t, k)) return t[k];   // (^ticket(847)) a record's field
-    if (typeof t === "object" && "h" in t) { const xs = []; for (let p = t; p !== null; p = p.t) xs.push(this.dot(p.h, k));
-      let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {h: xs[i], t: r}; return r; }
+    if (typeof t === "object" && "$t" in t) { const xs = []; for (let p = t; p !== null; p = p.$t) xs.push(this.dot(p.$h, k));
+      let r = null; for (let i = xs.length - 1; i >= 0; i--) r = {$h: xs[i], $t: r}; return r; }
     this.indet("a projection by " + k);
   },
   /* (^ticket(761)) a tuple's labels by index, null where unlabeled, read as HazelJitValue.of_tuple reads them: each
@@ -128,9 +129,9 @@ module Runtime = {
     if (Array.isArray(b)) return false;
     if (this.isrec(a)) { if (!this.isrec(b)) return false; const ka = Object.keys(a); if (ka.length !== Object.keys(b).length) return false;   // (^ticket(847))
       for (const k of ka) if (!Object.prototype.hasOwnProperty.call(b, k) || !this.eq(a[k], b[k])) return false; return true; }
-    if ("c" in a) return ("c" in b) && a.c === b.c && this.eq(a.v, b.v);
+    if ("$c" in a) return ("$c" in b) && a.$c === b.$c && this.eq(a.$v, b.$v);
     let p = a, q = b;
-    while (p !== null && q !== null) { if (!this.eq(p.h, q.h)) return false; p = p.t; q = q.t; }
+    while (p !== null && q !== null) { if (!this.eq(p.$h, q.$h)) return false; p = p.$t; q = q.$t; }
     return p === q;
   },
   nomatch(where) { throw new Error("hazel-jit: no pattern matched in " + where); },
@@ -189,11 +190,11 @@ module Runtime = {
       const find = x => {
         if (x === null || typeof x !== "object") return undefined;
         if (Array.isArray(x)) { for (const y of x) { const r = find(y); if (r !== undefined) return r; } return undefined; }
-        if ("c" in x) {
-          if (x.c === "SpliceRef" && Array.isArray(x.v) && x.v[0] === id) return x.v[1];
-          return "v" in x ? find(x.v) : undefined;
+        if ("$c" in x) {
+          if (x.$c === "SpliceRef" && Array.isArray(x.$v) && x.$v[0] === id) return x.$v[1];
+          return "$v" in x ? find(x.$v) : undefined;
         }
-        if ("h" in x) { for (let p = x; p !== null; p = p.t) { const r = find(p.h); if (r !== undefined) return r; } }
+        if ("$t" in x) { for (let p = x; p !== null; p = p.$t) { const r = find(p.$h); if (r !== undefined) return r; } }
         return undefined;
       };
       const r = find(model);
@@ -220,7 +221,7 @@ module Runtime = {
       return g.slice(i, i + n).join(""); },
     /* a literal separator; the empty one splits into graphemes */
     string_split: ([sep, s]) => { const p = sep === "" ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(s), x => x.segment) : s.split(sep);
-      let r = null; for (let i = p.length - 1; i >= 0; i--) r = { h: p[i], t: r }; return r; },
+      let r = null; for (let i = p.length - 1; i >= 0; i--) r = { $h: p[i], $t: r }; return r; },
     string_uppercase: s => s.toUpperCase(), string_lowercase: s => s.toLowerCase(),
     string_trim: s => s.trim(),
     /* (^ticket(761), the sweep's most frequent missing builtins) as HazelString has them: a pattern a JS RegExp with the
@@ -236,7 +237,7 @@ module Runtime = {
       if (m.index <= 0) return 0;
       let acc = 0; for (let i = 0; i < n; i++) { acc += g[i].length; if (acc > m.index) return i; } return n;
     },
-    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.t) a.push(p.h); return a.join(sep); },
+    string_join: ([sep, xs]) => { const a = []; for (let p = xs; p !== null; p = p.$t) a.push(p.$h); return a.join(sep); },
     string_escaped: s => {
       let out = "";
       for (const c of s) {
@@ -248,7 +249,7 @@ module Runtime = {
     },
     string_capitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toUpperCase() + g.slice(1).join("") : s; },
     string_uncapitalize: s => { const g = (t => Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), x => x.segment))(s); return g.length ? g[0].toLowerCase() + g.slice(1).join("") : s; },
-    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t !== null && typeof t === "object" && !("h" in t && "t" in t && Object.keys(t).length === 2) && !(typeof t.c === "string" && Object.keys(t).every(k => k === "c" || k === "v")) ? Object.values(t) : t,
+    omit_all_labels: t => Array.isArray(t) ? Array.from(t) : t !== null && typeof t === "object" && !("$t" in t) && !("$c" in t) ? Object.values(t) : t,
     /* (^ticket(761)) BuiltinsTupleOperations' label builtins: a tuple, then label literals ({lab: name}); a label the
        tuple lacks stops the run (the interpreter's projection is stuck there), as an invalid operation's does */
     project_labels: ([t, ...ls]) => ls.map(({ lab }) => { if (t === null || typeof t !== "object" || !Object.prototype.hasOwnProperty.call(t, lab)) { const e = new Error("hazel-jit: indeterminate: a projection by " + lab); e.$indet = lab; throw e; } return t[lab]; }),
@@ -257,7 +258,7 @@ module Runtime = {
     /* (^ticket(761)) from_lvs: a list of (label = String, value = v), as a tuple with those labels, in order
        (BuiltinsTupleOperations); one entry is a tuple of one, none the empty tuple */
     from_lvs: l => { const vs = [], ks = [];
-      for (let p = l; p !== null; p = p.t) { const k = p.h.label; vs.push(p.h.value);
+      for (let p = l; p !== null; p = p.$t) { const k = p.$h.label; vs.push(p.$h.value);
         ks.push(k === "length" || k === "__proto__" || k[0] === "$" ? "$" + k : k); }
       if (ks.length) { const o = {}; ks.forEach((k, i) => { o[k] = vs[i]; }); return o; } return vs; },   // (^ticket(847)) every entry labeled: a record
     /* (^ticket(761), found by the slides' check) to_lvs: a tuple's labeled entries as a list of (label = String,
@@ -266,14 +267,14 @@ module Runtime = {
       const stuck = () => { const e = new Error("hazel-jit: indeterminate: to_lvs"); e.$indet = "to_lvs"; throw e; };
       // (^ticket(847)) a record: its keys in order, each entry a record (label, value) too
       if (t !== null && typeof t === "object" && !Array.isArray(t)) { const ks = Object.keys(t); let r = null;
-        for (let i = ks.length - 1; i >= 0; i--) { const k = ks[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k; r = { h: { label: name, value: t[k] }, t: r }; } return r; }
+        for (let i = ks.length - 1; i >= 0; i--) { const k = ks[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k; r = { $h: { label: name, value: t[k] }, $t: r }; } return r; }
       if (!Array.isArray(t)) stuck();
       const ls = t.map(() => null);
       for (const k of Object.keys(t)) { if (/^[0-9]+$/.test(k)) continue; const i = ls.findIndex((x, j) => x === null && t[j] === t[k]); if (i >= 0) ls[i] = k; }
       if (ls.some(l => l === null)) stuck();
       let r = null;
       for (let i = t.length - 1; i >= 0; i--) { const k = ls[i], name = k.length > 1 && k[0] === "$" ? k.slice(1) : k;
-        r = { h: { label: name, value: t[i] }, t: r }; }
+        r = { $h: { label: name, value: t[i] }, $t: r }; }
       return r; },
     omit_labels: ([t, ...ls]) => { const drop = new Set(ls.map(({ lab }) => lab)), vs = [], out = [];
       // (^ticket(847)) a record's labels are its keys; what is left, every entry labeled, is a record again
@@ -286,15 +287,15 @@ module Runtime = {
     /* the compare builtins (BuiltinsADT.of_atom_compare), Lt, Eq or Gt as Atom.compare_of_cls has them: Int, SInt, Nat by
        value (a number and a BigInt compare as they are); Float as OCaml's Float.compare, nan equal to itself and below
        every other float; String as String.compare, byte by byte in UTF-8, which is code point order */
-    int_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
-    sint_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
-    nat_compare: ([a, b]) => ({ c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    int_compare: ([a, b]) => ({ $c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    sint_compare: ([a, b]) => ({ $c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
+    nat_compare: ([a, b]) => ({ $c: a < b ? "Lt" : a > b ? "Gt" : "Eq" }),
     float_compare: ([a, b]) => { const x = a !== a, y = b !== b;
-      return { c: x ? (y ? "Eq" : "Lt") : y ? "Gt" : a < b ? "Lt" : a > b ? "Gt" : "Eq" }; },
+      return { $c: x ? (y ? "Eq" : "Lt") : y ? "Gt" : a < b ? "Lt" : a > b ? "Gt" : "Eq" }; },
     string_compare: ([a, b]) => { const x = Array.from(a, ch => ch.codePointAt(0)), y = Array.from(b, ch => ch.codePointAt(0));
-      for (let i = 0; i < x.length && i < y.length; i++) if (x[i] !== y[i]) return { c: x[i] < y[i] ? "Lt" : "Gt" };
-      return { c: x.length < y.length ? "Lt" : x.length > y.length ? "Gt" : "Eq" }; },
-    invert_ord: o => o.c === "Lt" ? { c: "Gt" } : o.c === "Gt" ? { c: "Lt" } : o,
+      for (let i = 0; i < x.length && i < y.length; i++) if (x[i] !== y[i]) return { $c: x[i] < y[i] ? "Lt" : "Gt" };
+      return { $c: x.length < y.length ? "Lt" : x.length > y.length ? "Gt" : "Eq" }; },
+    invert_ord: o => o.$c === "Lt" ? { $c: "Gt" } : o.$c === "Gt" ? { $c: "Lt" } : o,
     abs: n => typeof n === "number" ? Math.abs(n) : (n < 0n ? -n : n), abs_float: Math.abs, ceil: Math.ceil, floor: Math.floor, round: Math.round,
     sqrt: Math.sqrt, exp: Math.exp, log: Math.log, log10: Math.log10,
     sin: Math.sin, cos: Math.cos, tan: Math.tan, asin: Math.asin, acos: Math.acos, atan: Math.atan,
@@ -629,17 +630,17 @@ let rec pat =
       switch (ps) {
       | [] => (tests @ [v ++ " === null"], binds, lex)
       | [p, ...rest] =>
-        let (t, b, lex) = pat(st, scope, lex, p, v ++ ".h");
+        let (t, b, lex) = pat(st, scope, lex, p, v ++ ".$h");
         go(
           rest,
-          v ++ ".t",
+          v ++ ".$t",
           (tests @ [v ++ " !== null"] @ t, binds @ b, lex),
         );
       };
     go(ps, v, ([], [], lex));
   | Cons(ph, pt) =>
-    let (t1, b1, lex) = pat(st, scope, lex, ph, v ++ ".h");
-    let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".t");
+    let (t1, b1, lex) = pat(st, scope, lex, ph, v ++ ".$h");
+    let (t2, b2, lex) = pat(st, scope, lex, pt, v ++ ".$t");
     ([v ++ " !== null"] @ t1 @ t2, b1 @ b2, lex);
   | Tuple(ps) =>
     let (tests, binds, lex, _, positional) =
@@ -700,12 +701,12 @@ let rec pat =
       pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
     | None => unsupported("a tuple label that is not a name")
     }
-  | Constructor(name, _) => ([v ++ ".c === " ++ js_string(name)], [], lex)
+  | Constructor(name, _) => ([v ++ ".$c === " ++ js_string(name)], [], lex)
   | Ap(c, arg) =>
     switch (Pat.term_of(c)) {
     | Constructor(name, _) =>
-      let (t, b, lex) = pat(st, scope, lex, arg, v ++ ".v");
-      ([v ++ ".c === " ++ js_string(name)] @ t, b, lex);
+      let (t, b, lex) = pat(st, scope, lex, arg, v ++ ".$v");
+      ([v ++ ".$c === " ++ js_string(name)] @ t, b, lex);
     | _ => unsupported("an applied pattern that is not a constructor")
     }
   | EmptyHole
@@ -832,10 +833,10 @@ and exp_inner =
   | ListLit(es) =>
     List.fold_right(
       es,
-      ~f=(e, acc) => "{h: " ++ go(e) ++ ", t: " ++ acc ++ "}",
+      ~f=(e, acc) => "{$h: " ++ go(e) ++ ", $t: " ++ acc ++ "}",
       ~init="null",
     )
-  | Cons(h, t) => "{h: " ++ go(h) ++ ", t: " ++ go(t) ++ "}"
+  | Cons(h, t) => "{$h: " ++ go(h) ++ ", $t: " ++ go(t) ++ "}"
   | ListConcat(a, b) => "$R.append(" ++ go(a) ++ ", " ++ go(b) ++ ")"
   | Tuple(es) =>
     let parts =
@@ -900,9 +901,8 @@ and exp_inner =
   /* (^ticket(847), on trial/847-records-objects; Matthew, 2026-11-24: "A, add direct reads") e.k read in place, a record's
      own property (or a labeled array's), one load the engine caches by the record's shape, where $R.dot read it by a key it
      is given, a load no cache can follow across every label a program reads. $R.dot stays for the rest, so the answer is
-     its answer: a list (null, or a cell: both h and t, never undefined), each element's k, as a table's column; and
-     anything that is not an object holding k, the interpreter's (a record whose fields include both h and t goes the slow
-     way, rightly). A label Object.prototype also has (toString, say) is never read in place: a cell or a constructor
+     its answer: a list (null, or a cell, whose $t no record has and which is never undefined), each element's k, as a
+     table's column; and anything that is not an object holding k, the interpreter's. A label Object.prototype also has (toString, say) is never read in place: a cell or a constructor
      would find the prototype's. A term that is not a JS name is held in a variable of the function's, to read it once. */
   | Dot(e1, l) =>
     switch (label_of(l)) {
@@ -931,11 +931,9 @@ and exp_inner =
         ++ v
         ++ " === \"object\" && "
         ++ r
-        ++ " !== undefined && ("
+        ++ " !== undefined && "
         ++ v
-        ++ ".h === undefined || "
-        ++ v
-        ++ ".t === undefined) ? "
+        ++ ".$t === undefined ? "
         ++ r
         ++ " : $R.dot("
         ++ v
@@ -947,14 +945,14 @@ and exp_inner =
     }
   | Constructor(name, t) =>
     note_ctor(st, name, t);
-    "{c: " ++ js_string(name) ++ "}";
+    "{$c: " ++ js_string(name) ++ "}";
   /* (^ticket(761)) x |> f is Ap(Reverse, f, x) (MakeTerm), stepped as f(x) is (Transition's Ap(dir, ...)): only how it
      is written differs */
   | Ap(Forward | Reverse, f, arg) =>
     switch (Exp.term_of(f), Exp.term_of(arg)) {
     | (Constructor(name, t), _) =>
       note_ctor(st, name, t);
-      "{c: " ++ js_string(name) ++ ", v: " ++ go(arg) ++ "}";
+      "{$c: " ++ js_string(name) ++ ", $v: " ++ go(arg) ++ "}";
     | (Dot(_, l), Var("%model"))
         when
           params_on^

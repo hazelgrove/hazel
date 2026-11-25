@@ -1,8 +1,9 @@
 /* hazel-jit's boundary (^ticket(694), slice 3): a Hazel value carried into the JS that compiled code works on, a JS value
    carried back as a Hazel value, and a livelit's view run that way.
 
-   Into JS (to_js): numbers, booleans and strings as JS's; a list as cons cells ({h, t}, null for []); a tuple as an array,
-   each labeled component also a property by its label; a constructor as {c} or {c, v}. A value of another form (a
+   Into JS (to_js): numbers, booleans and strings as JS's; a list as cons cells ({$h, $t}, null for []); a tuple as an array,
+   each labeled component also a property by its label, and one whose every component is labeled a plain object (^ticket(847));
+   a constructor as {$c} or {$c, $v} (keys no record has: decision 2 of ^report(54)). A value of another form (a
    function in a model, say) is not carried: Unsupported, and the caller runs the interpreter as before.
 
    Back from JS (of_js): the same, the other way; and a JS number, which does not say whether it was an Int or a Float,
@@ -187,7 +188,7 @@ let get = (v: Js.Unsafe.any, k: string): Js.Unsafe.any =>
 /* ---- into JS */
 
 let cons = (h: Js.Unsafe.any, t: Js.Unsafe.any): Js.Unsafe.any =>
-  Js.Unsafe.obj([|("h", h), ("t", t)|]);
+  Js.Unsafe.obj([|("$h", h), ("$t", t)|]);
 
 let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   switch (Exp.term_of(v)) {
@@ -226,9 +227,9 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Cons(h, t) => cons(to_js(h), to_js(t))
   | Tuple(vs) => tuple(vs)
   | TupLabel(_) => tuple([v])
-  | Constructor(name, _) => Js.Unsafe.obj([|("c", jstr(name))|])
+  | Constructor(name, _) => Js.Unsafe.obj([|("$c", jstr(name))|])
   | Ap(Forward, {term: Constructor(name, _), _}, arg) =>
-    Js.Unsafe.obj([|("c", jstr(name)), ("v", to_js(arg))|])
+    Js.Unsafe.obj([|("$c", jstr(name)), ("$v", to_js(arg))|])
   | _ =>
     let s = Exp.show(v);
     unsupported(
@@ -409,8 +410,8 @@ let rec of_js =
   | "object" when is_null(v) => G.Exp.list_lit([])
   | "object" when is_array(v) => of_tuple(~seen, ts, ty, v)
   | "object" when is_record(ty, v) => of_record(~seen, ts, ty, v)
-  | "object" when has(v, "c") =>
-    let name = Js.to_string(Js.Unsafe.coerce(get(v, "c")));
+  | "object" when has(v, "$c") =>
+    let name = Js.to_string(Js.Unsafe.coerce(get(v, "$c")));
     /* (ticket 768: the astrology rules' answer in mixed mode, CI run 44339771193) a constructor met in compiled code
        under annotations that are not fast_equal has none in the table, and came back bare, so the interpreter kept the
        declared result's cast around it as an ascription: Sun : Body, where its own value is Sun with Body's sum as its
@@ -439,7 +440,7 @@ let rec of_js =
         }
       };
     let ann = Option.map(t, ~f=t => Some(t));
-    if (has(v, "v")) {
+    if (has(v, "$v")) {
       let arg_ty =
         switch (Option.bind(t, ~f=shape(ts, 0))) {
         | Some({term: Arrow(a, _), _}) => Some(a)
@@ -448,12 +449,12 @@ let rec of_js =
       G.Exp.ap(
         Forward,
         G.Exp.constructor(name, ann),
-        of_js(~seen, ts, arg_ty, get(v, "v")),
+        of_js(~seen, ts, arg_ty, get(v, "$v")),
       );
     } else {
       G.Exp.constructor(name, ann);
     };
-  | "object" when has(v, "h") =>
+  | "object" when has(v, "$h") =>
     let elt =
       switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
       | Some(List(t)) => Some(t)
@@ -462,13 +463,16 @@ let rec of_js =
     let rec walk = (v, acc) =>
       is_null(v)
         ? List.rev(acc)
-        : walk(get(v, "t"), [of_js(~seen, ts, elt, get(v, "h")), ...acc]);
+        : walk(
+            get(v, "$t"),
+            [of_js(~seen, ts, elt, get(v, "$h")), ...acc],
+          );
     G.Exp.list_lit(walk(v, []));
   | t => unsupported("a JS " ++ t ++ " in the answer")
   };
 }
 /* (^ticket(847), idea A) a plain object as a record: when the expected type is a product with every entry labeled; with
-   no type, when it is not shaped as a list's cell (exactly h and t) or a constructor (c, a string, and perhaps v) */
+   no type, when it is not a list's cell ($t) nor a constructor ($c), keys no record has (decision 2) */
 and is_record = (ty: option(Typ.t), v: Js.Unsafe.any): bool =>
   switch (Option.map(ty, ~f=(t: Typ.t) => t.term)) {
   | Some(Prod([_, ..._] as tys)) =>
@@ -477,9 +481,7 @@ and is_record = (ty: option(Typ.t), v: Js.Unsafe.any): bool =>
   | _ =>
     Js.to_bool(
       Js.Unsafe.fun_call(
-        Js.Unsafe.pure_js_expr(
-          {|(t => { const ks = Object.keys(t); if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(k => k === "c" || k === "v")) return false; return true; })|},
-        ),
+        Js.Unsafe.pure_js_expr({|(t => !("$t" in t) && !("$c" in t))|}),
         [|v|],
       ),
     )
@@ -609,7 +611,7 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
     return ch.length ? {t: ch} : null;
   }
   if (Array.isArray(b)) return {n: b};
-  var rec = function (t) { var ks = Object.keys(t); if (ks.length === 2 && "h" in t && "t" in t) return false; if (typeof t.c === "string" && ks.every(function (k) { return k === "c" || k === "v"; })) return false; return true; };
+  var rec = function (t) { return !("$t" in t) && !("$c" in t); };
   // (^ticket(847)) a record: field by field, by index in its keys' order (the tuple's entries' order), as a tuple
   if (rec(a) || rec(b)) {
     if (!(rec(a) && rec(b))) return {n: b};
@@ -619,25 +621,25 @@ let diff_js: Lazy.t(Js.Unsafe.any) =
     for (var j = 0; j < ka.length; j++) { if (ka[j] !== kb[j]) return {n: b}; var dr = diff(a[ka[j]], b[kb[j]]); if (dr !== null) chr.push([j, dr]); }
     return chr.length ? {t: chr} : null;
   }
-  if (Object.hasOwn(a, "c")) {
-    if (!Object.hasOwn(b, "c") || a.c !== b.c || Object.hasOwn(a, "v") !== Object.hasOwn(b, "v")) return {n: b};
-    if (!Object.hasOwn(a, "v")) return null;
-    var dc = diff(a.v, b.v);
+  if (Object.hasOwn(a, "$c")) {
+    if (!Object.hasOwn(b, "$c") || a.$c !== b.$c || Object.hasOwn(a, "$v") !== Object.hasOwn(b, "$v")) return {n: b};
+    if (!Object.hasOwn(a, "$v")) return null;
+    var dc = diff(a.$v, b.$v);
     return dc === null ? null : {c: dc};
   }
-  if (Object.hasOwn(a, "h")) {
-    if (!Object.hasOwn(b, "h")) return {n: b};
+  if (Object.hasOwn(a, "$h")) {
+    if (!Object.hasOwn(b, "$h")) return {n: b};
     var ops = [], keep = 0;
     for (;;) {
       if (a === b) break;
       if (a === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({a: b}); break; }
       if (b === null) { if (keep) ops.push({k: keep}); keep = 0; ops.push({cut: 1}); break; }
-      if (b.t === a) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.h}); b = b.t; continue; }
-      if (a.t === b) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.t; continue; }
-      var de = diff(a.h, b.h);
+      if (b.$t === a) { if (keep) ops.push({k: keep}); keep = 0; ops.push({i: b.$h}); b = b.$t; continue; }
+      if (a.$t === b) { if (keep) ops.push({k: keep}); keep = 0; ops.push({x: 1}); a = a.$t; continue; }
+      var de = diff(a.$h, b.$h);
       if (de === null) keep++;
       else { if (keep) ops.push({k: keep}); keep = 0; ops.push({e: de}); }
-      a = a.t; b = b.t;
+      a = a.$t; b = b.$t;
     }
     return ops.length ? {l: ops} : null;
   }
@@ -731,7 +733,10 @@ let rec patch =
         let rec walk_js = (v, acc) =>
           is_null(v)
             ? acc
-            : walk_js(get(v, "t"), [of_js(ts, elt, get(v, "h")), ...acc]);
+            : walk_js(
+                get(v, "$t"),
+                [of_js(ts, elt, get(v, "$h")), ...acc],
+              );
         /* acc: the new list's elements so far, reversed; xs: what is left of the old list */
         let rec go = (ops, xs, acc) =>
           switch (ops) {
@@ -936,19 +941,19 @@ let call_update =
           );
         if (String.equal(typeof(cmd), "object")
             && !is_null(cmd)
-            && has(cmd, "c")
+            && has(cmd, "$c")
             && String.equal(
-                 Js.to_string(Js.Unsafe.coerce(get(cmd, "c"))),
+                 Js.to_string(Js.Unsafe.coerce(get(cmd, "$c"))),
                  "Pure",
                )
-            && has(cmd, "v")) {
+            && has(cmd, "$v")) {
           let ty =
             Option.map(
               Stdlib.Hashtbl.find_opt(v.types.aliases, "Model"),
               ~f=(t: Typ.t) =>
               t
             );
-          patch(v.types, ty, model, diff(before, get(cmd, "v")));
+          patch(v.types, ty, model, diff(before, get(cmd, "$v")));
         } else {
           unsupported("an update command other than Pure");
         };

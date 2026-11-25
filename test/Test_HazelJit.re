@@ -931,6 +931,16 @@ let tests = (
       "a record whose fields are h and t, and one with h alone",
       "let c = (h = 1, t = 2) in let d = (h = 10, w = 20) in c.h + c.t + d.h + d.w",
     ),
+    /* (^ticket(847), decision 2) cells and constructors are {$h, $t} and {$c, $v}, keys no record has: a record shaped as
+       the old ones were is a record to equality, the label builtins and the value boundary */
+    agreement(
+      "records shaped as cells and constructors once were, compared, extended and given back",
+      "let a = (h = 1, t = 2) in let b = (c = \"Lt\") in let d = (c = \"Gt\", v = 3) in (a == (h = 1, t = 2), b == (c = \"Lt\"), d == (c = \"Gt\", v = 4), a, b, d)",
+    ),
+    agreement(
+      "a list of records shaped as cells, a column of it, and a constructor holding one",
+      "let rows = [(h = 1, t = 2), (h = 3, t = 4)] in (rows.h, rows, Some((c = \"x\", v = rows)))",
+    ),
     agreement(
       "a label Object.prototype also has",
       "let r = (toString = 1, valueOf = 2, constructor = 3) in r.toString + r.valueOf + r.constructor",

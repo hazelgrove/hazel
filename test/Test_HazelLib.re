@@ -945,6 +945,57 @@ total|};
       },
     ),
     test_case(
+      "jit: under Hazel.development(true), what crosses is frozen; off, it is not",
+      `Quick,
+      () => {
+        /* (^ticket(847), decision 4) the rule for a page, checked in development */
+        let frozen = (x: Js.Unsafe.any): bool =>
+          Js.to_bool(
+            Js.Unsafe.coerce(
+              Js.Unsafe.fun_call(
+                Js.Unsafe.pure_js_expr("(x => Object.isFrozen(x))"),
+                [|x|],
+              ),
+            ),
+          );
+        let f =
+          field(
+            HazelLibCore.jit(
+              "let f : ((x = Int, y = Int), [Int]) -> ((x = Int, y = Int), [Int]) = fun (p, xs) -> ((x = p.y, y = p.x), 0 :: xs) in f",
+            ),
+            "value",
+          );
+        let call_with = () => {
+          let p = as_js({|{"x": 1, "y": 2}|});
+          let xs = as_js("[3, 4]");
+          (p, xs, call(f, [p, xs]));
+        };
+        let _ = HazelLibCore.development(true);
+        let (p, xs, r) = call_with();
+        let _ = HazelLibCore.development(false);
+        check(
+          list(bool),
+          "frozen: the record given, the list given, the answer, its record, its list",
+          [true, true, true, true, true],
+          [
+            frozen(p),
+            frozen(xs),
+            frozen(r),
+            frozen(Js.Unsafe.get(r, 0)),
+            frozen(Js.Unsafe.get(r, 1)),
+          ],
+        );
+        check(string, "the answer", {|[{"x":2,"y":1},[0,3,4]]|}, json(r));
+        let (p, xs, r) = call_with();
+        check(
+          list(bool),
+          "off: nothing frozen",
+          [false, false, false],
+          [frozen(p), frozen(xs), frozen(r)],
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {
