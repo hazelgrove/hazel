@@ -930,6 +930,83 @@ total|};
       },
     ),
     test_case(
+      "jit: a program's functions, its tail a record, come back compiled, one calling another",
+      `Quick,
+      () => {
+        /* (^ticket(847), idea A) the tail (start = M.start, has = M.has) is a record, an object: each of its functions
+           made a compiled one with its converters (jit_record), not one that runs on the interpreter */
+        let spec =
+          as_js(
+            {|{"preamble": "type G = (body = [Int], dir = Int, t = Int) in", "modules": [{"name": "M", "text": "let start : Int -> G = fun n -> (body = [n, n + 1], dir = 1, t = 0);\nlet mem : (Int, [Int]) -> Bool = fun (v, xs) -> case xs | [] => false | x :: rest => x == v || mem(v, rest) end;\nlet has : G -> Bool = fun g -> mem(5, g.body)"}], "tail": "(start = M.start, has = M.has)"}|},
+          );
+        let v = field(HazelLibCore.jit_program(spec), "value");
+        let g = call(field(v, "start"), [num(5.)]);
+        check(string, "has", "true", json(call(field(v, "has"), [g])));
+      },
+    ),
+    test_case(
+      "jit: under Hazel.development(true), what crosses is frozen; off, it is not",
+      `Quick,
+      () => {
+        /* (^ticket(847), decision 4) the rule for a page, checked in development */
+        let frozen = (x: Js.Unsafe.any): bool =>
+          Js.to_bool(
+            Js.Unsafe.coerce(
+              Js.Unsafe.fun_call(
+                Js.Unsafe.pure_js_expr("(x => Object.isFrozen(x))"),
+                [|x|],
+              ),
+            ),
+          );
+        let f =
+          field(
+            HazelLibCore.jit(
+              "let f : ((x = Int, y = Int), [Int]) -> ((x = Int, y = Int), [Int]) = fun (p, xs) -> ((x = p.y, y = p.x), 0 :: xs) in f",
+            ),
+            "value",
+          );
+        /* the pair as one array, f([p, xs]), or spread, f(p, xs): both through the converters (only the old way, the
+           interpreter's, gives back an answer it has not frozen, so a frozen answer says the call went the fast way) */
+        let call_with = (~spread) => {
+          let p = as_js({|{"x": 1, "y": 2}|});
+          let xs = as_js("[3, 4]");
+          (
+            p,
+            xs,
+            spread
+              ? call(f, [p, xs])
+              : call(f, [Js.Unsafe.inject(Js.array([|p, xs|]))]),
+          );
+        };
+        let _ = HazelLibCore.development(true);
+        let (p, xs, r) = call_with(~spread=false);
+        let (_, _, r2) = call_with(~spread=true);
+        let _ = HazelLibCore.development(false);
+        check(
+          list(bool),
+          "frozen: the record given, the list given, the answer, its record, its list; the answer to a spread call",
+          [true, true, true, true, true, true],
+          [
+            frozen(p),
+            frozen(xs),
+            frozen(r),
+            frozen(Js.Unsafe.get(r, 0)),
+            frozen(Js.Unsafe.get(r, 1)),
+            frozen(r2),
+          ],
+        );
+        check(string, "the answer", {|[{"x":2,"y":1},[0,3,4]]|}, json(r));
+        check(string, "the answer, spread", json(r), json(r2));
+        let (p, xs, r) = call_with(~spread=false);
+        check(
+          list(bool),
+          "off: nothing frozen",
+          [false, false, false],
+          [frozen(p), frozen(xs), frozen(r)],
+        );
+      },
+    ),
+    test_case(
       "jit: a call the compiled code cannot finish is the interpreter's",
       `Quick,
       () => {

@@ -36,5 +36,24 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(compile_program)),
       ),
       ("jitProgram", Js.Unsafe.inject(Js.wrap_callback(jit_program))),
+      (
+        "development",
+        Js.Unsafe.inject(
+          Js.wrap_callback((on: Js.Unsafe.any) =>
+            Js.bool(
+              development(
+                Js.to_bool(
+                  Js.Unsafe.coerce(
+                    Js.Unsafe.fun_call(
+                      Js.Unsafe.pure_js_expr("(x => x === true)"),
+                      [|on|],
+                    ),
+                  ),
+                ),
+              ),
+            )
+          ),
+        ),
+      ),
     |]),
   );
