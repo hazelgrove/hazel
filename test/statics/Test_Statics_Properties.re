@@ -710,6 +710,26 @@ let found_cause_tests = [
       parse("() <= - 0.000002"),
     )
   ),
+  /* A recursive function's elaboration is a fixpoint, which synthesizes
+     the type its binder is ascribed. */
+  Alcotest.test_case(
+    "Sub-expression synthesis: an ascribed recursive function", `Quick, () =>
+    List.iter(
+      [
+        "let f : ? -> ? = fun x -> f(x) + 1 in f",
+        "let f : Int -> ? = fun x -> f(x) in f",
+        "let f = fun x -> f(x) + 1 in f",
+      ],
+      ~f=src =>
+      check_no_violations(
+        ~violations=differing_subs,
+        ~show=show_syn_disagreement,
+        ~msg=
+          "every sub-expression's recorded elab_syn_ty agrees with a fresh synthesis",
+        parse(src),
+      )
+    )
+  ),
 ];
 
 let tests = (

@@ -2287,13 +2287,18 @@ and uexp_to_info_map =
               add_info(
                 [fun_id],
                 /* The program has the FixF at this id, so record it (and the
-                   type it synthesizes, its binder's) as the elab_term too:
-                   evaluation and the cache see the FixF. */
+                   type it synthesizes, its binder's: the one the binder is
+                   ascribed, or the one written in for it above) as the
+                   elab_term too: evaluation and the cache see the FixF. */
                 Info.InfoExp({
                   ...info,
                   co_ctx: CoCtx.mk(ctx, p_ana.ctx, info.co_ctx),
                   elab_term: fixf,
-                  elab_syn_ty: ty_p_ana,
+                  elab_syn_ty:
+                    switch (Pat.term_of(p_elab)) {
+                    | Asc(_) => p_ana.elab_syn_ty
+                    | _ => ty_p_ana
+                    },
                 }),
                 m,
               )
