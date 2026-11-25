@@ -331,17 +331,6 @@ let wrapper_id = (item: Mod.t): Id.t =>
   | MultiHole(_) => Id.derive(~salt="module-item-wrapper", Mod.rep_id(item))
   };
 
-let wrapper_ids = (item: Mod.t): list(Id.t) =>
-  switch (item.term) {
-  | ModLet(_)
-  | ModType(_)
-  | ModuleMod(_) => IdTagged.ids(item)
-  | ModExp(_)
-  | EmptyHole
-  | Invalid(_)
-  | MultiHole(_) => [wrapper_id(item)]
-  };
-
 let wrap_item =
     (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t => {
   let wrap = (term: Exp.term) =>
