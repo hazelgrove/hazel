@@ -179,7 +179,7 @@ module Map = {
 
   let ty_of = (id: Id.t, m: t): option(Typ.t) =>
     switch (lookup(id, m)) {
-    | Some(InfoExp({ty, _}))
+    | Some(InfoExp({elab_syn_ty, _})) => Some(elab_syn_ty)
     | Some(InfoPat({ty, _})) => Some(ty)
     | _ => None
     };
@@ -301,7 +301,6 @@ let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
         ...info,
         elab_syn_ty: new_syn_ty,
         syn_ty: new_syn_ty,
-        ty: new_syn_ty,
       }),
       m,
     )

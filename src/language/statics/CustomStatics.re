@@ -78,7 +78,7 @@ let analyze_argument =
   open S;
   let (arg_info, _, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
-  switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
+  switch (extract_entries(Typ.normalize(ctx, arg_info.elab_syn_ty))) {
   | Success(entries) => (
       Some(List.map(~f=typ_entry_to_tuple_entry, entries)),
       arg_info,
@@ -254,7 +254,9 @@ let handle_tuple_operation =
         labels_to_info_map((module S), ~ctx, ~expected_labels?, labs, m);
 
       let args_typ =
-        Typ.to_product([tup_info.ty] @ List.map(~f=__ => unknown, labs));
+        Typ.to_product(
+          [tup_info.elab_syn_ty] @ List.map(~f=__ => unknown, labs),
+        );
 
       let m =
         Map.add_info(
@@ -264,7 +266,6 @@ let handle_tuple_operation =
             elab_syn_ty: args_typ,
             syn_ty: args_typ,
             marks: [],
-            ty: fixed_typ(ctx, syn, args_typ),
             ana: syn,
             message: Message.Exp(Message.Default),
             warnings: [],
@@ -465,15 +466,9 @@ let group_by_label_statics =
           arg.annotation.ids,
           InfoExp({
             cls: Cls.Exp(Exp.cls_of_term(arg.term)),
-            elab_syn_ty: Prod([table_info.ty, unknown]) |> Typ.temp,
+            elab_syn_ty: Prod([table_info.elab_syn_ty, unknown]) |> Typ.temp,
             syn_ty: Prod([table_info.syn_ty, unknown]) |> Typ.temp,
             marks: [],
-            ty:
-              fixed_typ(
-                ctx,
-                syn,
-                Prod([table_info.ty, unknown]) |> Typ.temp,
-              ),
             ana: syn,
             message: Message.Exp(Message.Default),
             warnings: [],
@@ -554,10 +549,12 @@ let to_lvs_statics =
       arg: Exp.t,
     ) => {
   open S;
-  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+  let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.elab_syn_ty);
   let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+  /* What the argument's type is known to be, its expectation included. */
+  let arg_ty = fixed_typ(ctx, ty_in, arg.elab_syn_ty);
 
-  switch (Typ.normalize(ctx, arg.ty).term) {
+  switch (Typ.normalize(ctx, arg_ty).term) {
   | Prod(entries) =>
     let entries =
       Util.OptUtil.traverse(Typ.match_tup_optional_label, entries);
@@ -626,10 +623,13 @@ let omit_all_labels_statics =
       arg: Exp.t,
     ) => {
   S.(
-    let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn_info.ty);
+    let (ty_in, ty_out) =
+      MatchedTyp.arrow_tolerant(ctx, fn_info.elab_syn_ty);
     let (arg, _, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
+    /* What the argument's type is known to be, its expectation included. */
+    let arg_ty = fixed_typ(ctx, ty_in, arg.elab_syn_ty);
 
-    switch (Typ.normalize(ctx, arg.ty).term) {
+    switch (Typ.normalize(ctx, arg_ty).term) {
     | Prod(entries) =>
       let entries =
         List.map(

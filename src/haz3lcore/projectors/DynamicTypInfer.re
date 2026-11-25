@@ -13,7 +13,7 @@ let type_of_sample = (~ctx: Ctx.t, sample: Sample.t): option(Typ.t) => {
   |> Option.bind(
        ~f=
          fun
-         | Info.InfoExp(e) => Some(e.ty)
+         | Info.InfoExp(e) => Some(e.elab_syn_ty)
          | _ => None,
      );
 };

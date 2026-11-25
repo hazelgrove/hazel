@@ -431,7 +431,6 @@ let exp_view = (~globals, ~raw, info: Info.exp): list(Node.t) =>
       field_typ(~globals, ~raw, "ana", info.ana),
       field_typ(~globals, ~raw, "syn_ty", info.syn_ty),
       field_typ(~globals, ~raw, "elab_syn_ty", info.elab_syn_ty),
-      field_typ(~globals, ~raw, "ty (post-fix)", info.ty),
       field_str("marks", marks_str(info.marks)),
       field_str("warnings", warnings_str(info.warnings)),
       field_ctx(~globals, ~raw, "ctx", info.ctx),

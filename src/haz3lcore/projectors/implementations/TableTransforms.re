@@ -58,8 +58,9 @@ let strip_parens =
 
 let get_type_from_info = (info: info): option(Typ.t) =>
   switch (info.statics) {
-  | Some(InfoExp({ty, ctx, _})) =>
-    let ty = Typ.normalize(ctx, ty);
+  | Some(InfoExp({elab_syn_ty, ana, ctx, _})) =>
+    /* What the table's type is known to be, its expectation included. */
+    let ty = Typ.normalize(ctx, Statics.fixed_typ(ctx, ana, elab_syn_ty));
     Typ.contains_unknown(ty) ? None : Some(ty);
   | _ => None
   };
@@ -73,9 +74,7 @@ let get_dynamic_type = (exp: Exp.t): option(Typ.t) => {
        _,
        ~f=
          fun
-         | InfoExp(e) => {
-             Some(e.ty);
-           }
+         | InfoExp(e) => Some(e.elab_syn_ty)
          | _ => None,
      );
 };

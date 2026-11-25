@@ -11,9 +11,13 @@ open OptUtil.Syntax;
    it. elab_syn_ty is the type its elaboration synthesizes, which parents
    build theirs from: the type this node's rule builds from its children's
    elab_syn_ty, or ana where that is inconsistent with ana. The
-   inconsistency is marked here and goes no further up. A pattern's
-   elab_syn_ty is not settled this way, as the elaborated pattern could not
-   carry ana. Both sorts also record ty, their elab syn type refined by ana.
+   inconsistency is marked here and goes no further up. Where ana agrees
+   with it but says more (a hole expected to be an Int), elab_syn_ty stays as
+   the rule built it: the elaboration is not ascribed for that.
+
+   A pattern's elab_syn_ty is not settled this way: it is what the pattern
+   demands on its own. A pattern also records ty, its elab syn type refined
+   by ana, which is the type of the value it matches.
    Marks on Info are statics errors; use marks_of for problem display.
 
    See Message.re for inspector payload types; statics computes marks/messages.
@@ -51,7 +55,6 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   message: Message.t, /* DERIVED: non-error inspector payload (Exp only) */
   warnings: list(Warning.list_item),
-  ty: Typ.t, /* DERIVED: elab_syn_ty refined by ana */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool, /* When in the position of a label */
@@ -328,7 +331,6 @@ let exp_probe_targets: exp => SubexpProbeTargets.t =
   ({probe_targets, _}) => probe_targets;
 let pat_probe_targets: pat => SubexpProbeTargets.t =
   ({probe_targets, _}) => probe_targets;
-let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;

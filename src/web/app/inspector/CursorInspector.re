@@ -645,7 +645,8 @@ let exp_mark_err_view =
     };
   let lifted_ty =
     switch (info.label_inference) {
-    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | Some(SingletonLabelInference(_)) =>
+      Some(Statics.fixed_typ(info.ctx, info.ana, info.elab_syn_ty))
     | _ => None
     };
   let inferred_label = info.inferred_label;
@@ -851,7 +852,8 @@ let exp_view =
     };
   let lifted_ty =
     switch (info.label_inference) {
-    | Some(SingletonLabelInference(_)) => Some(info.ty)
+    | Some(SingletonLabelInference(_)) =>
+      Some(Statics.fixed_typ(info.ctx, info.ana, info.elab_syn_ty))
     | _ => None
     };
   let inferred_label = info.inferred_label;

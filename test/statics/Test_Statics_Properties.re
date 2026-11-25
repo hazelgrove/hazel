@@ -78,9 +78,11 @@ let check_no_violations =
 let elab_type_of =
     (info_map: Statics.Map.t, exp: Language.Exp.t): option(Typ.t) =>
   switch (Statics.Map.lookup_exp(Exp.rep_id(exp), info_map)) {
-  | Some({ana, ty, ctx, _}) =>
+  | Some({ana, elab_syn_ty, ctx, _}) =>
     Some(
-      Typ.match_synswitch(ana, ty) |> Typ.normalize(ctx) |> Typ.all_ids_temp,
+      Typ.match_synswitch(ana, elab_syn_ty)
+      |> Typ.normalize(ctx)
+      |> Typ.all_ids_temp,
     )
   | None => None
   };
