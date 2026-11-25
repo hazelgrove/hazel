@@ -3277,6 +3277,57 @@ let defensive_print_stable_tests = (
         )
       )
     ),
+    /* An operator no form has binds tightest when read, so an operand
+       that isn't one token takes parens. */
+    test_case(
+      "An unknown operator's operands",
+      `Quick,
+      () => {
+        let unparenthesized = (e: Exp.t): Exp.t =>
+          Exp.map_term(
+            ~f_exp=
+              (continue, e) =>
+                switch (e.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(e)
+                },
+            e,
+          );
+        List.iter(
+          [
+            "(1 + x) !!! 2",
+            "1 !!! (x + 2)",
+            "(f(x)) !!! (y.a)",
+            "(- x) !!! 1",
+          ],
+          ~f=text => {
+            let term = unparenthesized(Option.value_exn(Typed.read(text)));
+            check(bool, text, true, print_reads_back(term));
+          },
+        );
+        List.iter(
+          [
+            "1 + (x !!! 2)",
+            "x !!! y",
+            "(x !!! y)(z)",
+            "1 !!! - x",
+            "1 !!! ! y",
+          ],
+          ~f=text =>
+          check(option(string), text, Some(text), reprint(text))
+        );
+        /* A prefix operator on the right ends a type as it stands, and
+           wouldn't inside parens. */
+        check(
+          bool,
+          "(^_^:Int !!!; ! ^y)",
+          true,
+          print_reads_back(
+            Option.value_exn(Typed.read("(^_^:Int !!!; ! ^y)")),
+          ),
+        );
+      },
+    ),
     /* A type hole joined by an operator is no constructor application. */
     test_case("An unknown operator in a sum keeps its token", `Quick, () =>
       List.iter(

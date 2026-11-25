@@ -151,19 +151,22 @@ let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
 /* Insertion-time sort context is unrecorded, so approximate: host
    sort, then Exp, then the undefined-token fallbacks. Residual sort
    drift is absorbed by equiv_mod_grout(~mold_sorts=false). */
-let op_tile_with =
-    (~shape_filter, ~fallback: (Form.t, Sort.t), id, sort, op): Piece.t => {
+let op_form =
+    (~shape_filter, ~fallback: (Form.t, Sort.t), sort, op): (Form.t, Sort.t) => {
   let cands =
     Form.base_candidates([op])
     |> List.filter(~f=((_, m): (Form.t, Mold.t)) => shape_filter(m));
   let at_sort = srt =>
     List.filter(~f=((_, m): (Form.t, Mold.t)) => m.out == srt, cands);
-  let (form, sort) =
-    switch (at_sort(sort), at_sort(Sort.Exp)) {
-    | ([(f, m), ..._], _)
-    | ([], [(f, m), ..._]) => (f, m.out)
-    | ([], []) => fallback
-    };
+  switch (at_sort(sort), at_sort(Sort.Exp)) {
+  | ([(f, m), ..._], _)
+  | ([], [(f, m), ..._]) => (f, m.out)
+  | ([], []) => fallback
+  };
+};
+
+let op_tile_with = (~shape_filter, ~fallback, id, sort, op): Piece.t => {
+  let (form, sort) = op_form(~shape_filter, ~fallback, sort, op);
   Tile({
     id,
     form,
@@ -173,16 +176,26 @@ let op_tile_with =
   });
 };
 
-let op_tile = (id, sort, op): Piece.t =>
-  op_tile_with(
+let infix_op_form = (sort, op): (Form.t, Sort.t) =>
+  op_form(
     ~shape_filter=Mold.is_infix_op,
     ~fallback=
       Form.is_infix_delimiter_op_prefix(op)
         ? (Form.TokInfix(op), sort) : (Form.Tok(op), Sort.Any),
-    id,
     sort,
     op,
   );
+
+let op_tile = (id, sort, op): Piece.t => {
+  let (form, sort) = infix_op_form(sort, op);
+  Tile({
+    id,
+    form,
+    sort,
+    shards: [0],
+    children: [],
+  });
+};
 
 /* Stranded prefix op (the unary - of `? : - ?` on the typ side) */
 let pre_op_tile = (id, sort, op): Piece.t =>
@@ -196,8 +209,8 @@ let pre_op_tile = (id, sort, op): Piece.t =>
     op,
   );
 
-/* A multihole groups as the parser molds what joins its pieces: grout, or
-   an operator the grammar doesn't know, at concave_grout, and a known
+/* How loosely a multihole sits among what is around it: as grout does,
+   or an operator the grammar doesn't know, at concave_grout, and a known
    operator out of place (`->` in an expression, `=` in a tuple) at its
    own precedence. */
 let hole_precedence = (sort: Sort.t, ann: IdTagged.IdTag.t): Precedence.t => {
@@ -215,6 +228,22 @@ let hole_precedence = (sort: Sort.t, ann: IdTagged.IdTag.t): Precedence.t => {
   | _ => Precedence.concave_grout
   };
 };
+
+/* How tightly a hole's operator holds its operands when it is read back:
+   at the precedence of the tile it prints as (op_tile), which is the
+   tightest for an operator no form has (`!!!`: see Form.unmolded_mold).
+   Beside such an operator only an indivisible operand goes bare
+   (`(1 + x) !!! 2`). */
+let operand_precedence = (sort: Sort.t, ann: IdTagged.IdTag.t): Precedence.t =>
+  switch (op_lexeme(ann)) {
+  | None => Precedence.concave_grout
+  | Some(op) =>
+    let (form, sort) = infix_op_form(sort, op);
+    switch (Form.mold_of(form, sort).nibs) {
+    | ({shape: Concave(p), _}, _) => Int.max(p, Precedence.max + 1)
+    | ({shape: Convex, _}, _) => hole_precedence(sort, ann)
+    };
+  };
 
 let quoted_label_lexeme =
     (~settings: Settings.t, ann: IdTagged.IdTag.t, label: string): string =>
@@ -691,8 +720,41 @@ let paren_juxtaposed =
     | MPat(_)
     | Any(_) => piece
     };
+  /* An infix operator's operands. A prefix operator's application on the
+     right is its operand as it stands: nothing before it can take its
+     operand from it. */
+  let operand = (~right=false, piece: Any.t): Any.t =>
+    switch (piece) {
+    | Exp({term: UnOp(_), _}) when right => piece
+    | Exp(e) =>
+      Exp(paren_at(~parenthesization, operand_precedence(Sort.Exp, ann), e))
+    | Pat(p) =>
+      Pat(
+        paren_pat_at(
+          ~parenthesization,
+          operand_precedence(Sort.Pat, ann),
+          p,
+        ),
+      )
+    | Typ(t) =>
+      Typ(
+        paren_typ_at(
+          ~parenthesization,
+          operand_precedence(Sort.Typ, ann),
+          t,
+        ),
+      )
+    | TPat(_)
+    | Rul(_)
+    | Drv(_)
+    | Mod(_)
+    | Sig(_)
+    | MPat(_)
+    | Any(_) => piece
+    };
   let pieces =
     switch (op_lexeme(ann), pieces) {
+    | (Some(_), [l, r]) => [operand(l), operand(~right=true, r)]
     | (Some(_), _) => List.map(~f=paren, pieces)
     | (None, [_] as lone) when enclosed => lone
     | (None, [first, ...rest]) => [paren(first), ...rest]
