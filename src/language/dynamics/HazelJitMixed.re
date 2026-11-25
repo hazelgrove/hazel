@@ -29,11 +29,16 @@ let not_compiled: ref(list((string, string))) = ref([]);
 /* calls made through a compiled function, and those that fell back to the interpreter, since the counts were reset */
 let calls = ref(0);
 let fallbacks = ref(0);
+/* (^ticket(769)) calls whose argument held a hole, run by a function's checked version; checked versions compiled */
+let hole_calls = ref(0);
+let checked_made = ref(0);
 let fallback_reasons: Stdlib.Hashtbl.t(string, int) =
   Stdlib.Hashtbl.create(8);
 let reset_counts = () => {
   calls := 0;
   fallbacks := 0;
+  hole_calls := 0;
+  checked_made := 0;
   Stdlib.Hashtbl.reset(fallback_reasons);
 };
 
@@ -132,6 +137,9 @@ type entry = {
   param: Typ.t,
   result: Typ.t,
   closure: ref(option(Exp.t)),
+  /* (^ticket(769)) what was compiled, for the checked version, made the first time a call's argument holds a hole */
+  unit_: Exp.t,
+  checked_fn: ref(option(result(U.any, string))),
 };
 
 let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
@@ -158,27 +166,67 @@ let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
   };
 };
 
-/* the compiled function applied: into JS, run, back by the declared result type; or the interpreter's own closure */
+/* (^ticket(769)) a function's checked version: the same unit compiled with HazelJit.checked, so that a hole carried in
+   stops the run where the code would look inside it, and the call is the interpreter's */
+let checked_of = (entry: entry): result(U.any, string) =>
+  switch (entry.checked_fn^) {
+  | Some(r) => r
+  | None =>
+    let r =
+      switch (
+        HazelJit.compile_full(
+          ~checked=true,
+          ~env=Builtins.env_init,
+          entry.unit_,
+        )
+      ) {
+      | exception (HazelJit.Unsupported(why)) => Error(why)
+      | c =>
+        switch (HazelJitValue.instantiate(c.src)) {
+        | exception exn => Error(HazelJitValue.message(exn))
+        | fn => Ok(fn)
+        }
+      };
+    incr(checked_made);
+    entry.checked_fn := Some(r);
+    r;
+  };
+
+/* the compiled function applied: into JS, run, back by the declared result type; or the interpreter's own closure. (^ticket(769))
+   An argument holding a hole crosses with the hole opaque, and runs the checked version. */
 let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
   incr(calls);
-  switch (HazelJitValue.to_js(arg)) {
-  | exception _ =>
-    fall_back("an argument that does not carry into JS", entry, arg)
-  | js_arg =>
-    switch (with_budget(() => U.fun_call(entry.fn, [|js_arg|]))) {
-    | exception exn =>
-      let m = HazelJitValue.message(exn);
-      let why =
-        String.length(m) > 40 ? String.sub(m, ~pos=0, ~len=40) ++ "..." : m;
-      fall_back("the compiled run stopped: " ++ why, entry, arg);
-    | v =>
-      switch (HazelJitValue.of_js(entry.ts, Some(entry.result), v)) {
-      | exception _ =>
-        fall_back("an answer that does not carry back", entry, arg)
-      | e => Some(e)
-      }
+  HazelJitValue.opaque_begin();
+  Stdlib.Fun.protect(~finally=HazelJitValue.opaque_end, () => {
+    switch (HazelJitValue.to_js(arg)) {
+    | exception _ =>
+      fall_back("an argument that does not carry into JS", entry, arg)
+    | js_arg =>
+      let holes = HazelJitValue.opaque_count() > 0;
+      switch (holes ? checked_of(entry) : Ok(entry.fn)) {
+      | Error(why) =>
+        fall_back("a hole, and no checked version: " ++ why, entry, arg)
+      | Ok(fn) =>
+        if (holes) {
+          incr(hole_calls);
+        };
+        switch (with_budget(() => U.fun_call(fn, [|js_arg|]))) {
+        | exception exn =>
+          let m = HazelJitValue.message(exn);
+          let why =
+            String.length(m) > 40
+              ? String.sub(m, ~pos=0, ~len=40) ++ "..." : m;
+          fall_back("the compiled run stopped: " ++ why, entry, arg);
+        | v =>
+          switch (HazelJitValue.of_js(entry.ts, Some(entry.result), v)) {
+          | exception _ =>
+            fall_back("an answer that does not carry back", entry, arg)
+          | e => Some(e)
+          }
+        };
+      };
     }
-  };
+  });
 };
 
 let made = ref(0);
@@ -221,6 +269,8 @@ let rewrite = (program: Exp.t): Exp.t => {
             param,
             result,
             closure: ref(None),
+            unit_: unit,
+            checked_fn: ref(None),
           };
           let compiled_name = "%jit:" ++ f ++ ":" ++ n;
           let keep_name = "%jit-keep:" ++ f ++ ":" ++ n;

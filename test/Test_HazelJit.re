@@ -733,6 +733,94 @@ let mixed_tests = [
     "let inc : Int -> Int = fun x -> x + 1 in inc(?)",
     ["inc"],
   ),
+  /* (^ticket(769); Matthew, 2026-11-25: "arguments with holes. JIT code with holes.") a hole in the argument crosses
+     opaque: compiled code that only moves it answers with the very hole (the checked version, HazelJitMixed.checked_of);
+     code that would look inside it stops, and that call is the interpreter's */
+  mixed(
+    "mixed, a hole carried: swapped, the same hole back",
+    "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in swap(1, ?)",
+    ["swap"],
+  ),
+  mixed(
+    "mixed, a hole carried: a list's length, never looking at an element",
+    "let len : [Int] -> Int = fun xs -> case xs | [] => 0 | _ :: rest => 1 + len(rest) end in len([1, ?, 3])",
+    ["len"],
+  ),
+  mixed(
+    "mixed, a hole carried: out of a constructor's argument",
+    "type Box = + B(Int) in let unbox : Box -> Int = fun b -> case b | B(x) => x end in unbox(B(?))",
+    ["unbox"],
+  ),
+  mixed(
+    "mixed, a hole carried: twice into a list",
+    "let twice : Int -> [Int] = fun x -> [x, x] in twice(?)",
+    ["twice"],
+  ),
+  mixed(
+    "mixed, a hole carried: a record's other field read",
+    "let gety : (x = Int, y = Int) -> Int = fun r -> r.y in gety((x = ?, y = 2))",
+    ["gety"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: matched against a constructor, the interpreter's",
+    "type Shape = + Circle(Float) + Square(Float) in let round : Shape -> Bool = fun s -> case s | Circle(_) => true | _ => false end in round(?)",
+    ["round"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: a record's field added to, the interpreter's",
+    "let getx : (x = Int, y = Int) -> Int = fun r -> r.x + 1 in getx((x = ?, y = 2))",
+    ["getx"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: a condition, the interpreter's",
+    "let pick : (Bool, Int, Int) -> Int = fun (c, a, b) -> if c then a else b in pick(?, 1, 2)",
+    ["pick"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: lists compared, the interpreter's",
+    "let same : ([Int], [Int]) -> Bool = fun (a, b) -> a == b in same([1, ?], [1, 2])",
+    ["same"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole opened: one call carries it, the other opens it",
+    "let pick : (Bool, Int, Int) -> Int = fun (c, a, b) -> if c then a else b in (pick(true, ?, 1), pick(?, 1, 2))",
+    ["pick"],
+  ),
+  test_case(
+    "mixed, a hole carried: the call ran the checked version",
+    `Quick,
+    () => {
+      let elab =
+        elaborate(
+          parse_exp(
+            "let swap : (Int, Int) -> (Int, Int) = fun (a, b) -> (b, a) in swap(1, ?)",
+          ),
+        );
+      let rewritten = HazelJitMixed.rewrite(elab);
+      let (calls, made) = (
+        HazelJitMixed.hole_calls^,
+        HazelJitMixed.checked_made^,
+      );
+      let _ = Test_Evaluator_Prelude.evaluate(rewritten);
+      check(
+        bool,
+        "a call with a hole ran compiled",
+        true,
+        HazelJitMixed.hole_calls^ > calls,
+      );
+      check(
+        bool,
+        "its checked version was made",
+        true,
+        HazelJitMixed.checked_made^ > made,
+      );
+    },
+  ),
   mixed(
     ~fell_back=true,
     "mixed: divide by zero, that call the interpreter's, stuck at the error",
