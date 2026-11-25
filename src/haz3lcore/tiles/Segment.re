@@ -194,7 +194,7 @@ let is_exp_op_backup = (t: Tile.t): bool =>
   | TokInfix(_) =>
     List.exists(
       Form.base_candidates(Tile.label(t)), ~f=((form, m: Mold.t)) =>
-      m.out == Sort.Exp
+      Sort.equal(m.out, Sort.Exp)
       && Mold.is_infix_op(m)
       && (
         switch (form) {
@@ -273,10 +273,12 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         (p: Piece.t) =>
           switch (p) {
           | Tile(kid) =>
-            kid.sort == Sort.Any
-            || (kid.sort == Mod || kid.sort == Sig)
-            && expected != Mod
-            && expected != Sig
+            let is = Sort.equal(kid.sort);
+            let expects = Sort.equal(expected);
+            is(Sort.Any)
+            || (is(Mod) || is(Sig))
+            && !expects(Mod)
+            && !expects(Sig);
           | Grout(_)
           | Secondary(_)
           | Projector(_) => false
@@ -817,15 +819,21 @@ and remold_mod = (shape, seg: t): t =>
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
       | None =>
-        /* No Mod form: a bare expression is a module item, so read on as
-           an expression from this tile, which then leads into its own
-           operand's sort (the type after the `:` of `{ x:T }`). A tile
-           with no Exp form either stays as it is. */
-        let (remolded, shape', rest) = remold_exp_uni(shape, seg, [Mod]);
-        switch (remolded) {
-        | [] => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
-        | [_, ..._] => remolded @ remold_mod(shape', rest)
-        };
+        /* No Mod form - try Exp since bare expressions are valid module items */
+        switch (remold_tile(Exp, shape, t)) {
+        /* A token no sort reads (`^w^`, `!!!`) starts an expression item
+           all the same: what follows it keeps an expression's sorts (the
+           type after the `:` of `{ ^w^:T }`), as it does inside one. */
+        | None when is_unmolded(t) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
+          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
+        | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
+        | Some(t) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
+          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
+        }
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -970,7 +978,8 @@ module Trim = {
   let add_grout = (shape: Nib.Shape.t, (wss, gs): t): t =>
     cons_g(Grout.mk_fits_shape(shape), (wss, gs));
 
-  // assumes grout in trim fit r but may not fit l
+  // grout in trim usually fits r but may not fit l; grout left over from
+  // before a neighbor changed shape may fit neither (see below)
   let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (_, gs) = trim;

@@ -109,7 +109,7 @@ let is_split_point = (~root: Sort.t, c: string, z: Zipper.t): bool =>
     ) {
     | Some(Tile(t)) =>
       switch (snd(Tile.nibs(t))) {
-      | {shape: Concave(_), sort} => sort == root
+      | {shape: Concave(_), sort} => Sort.equal(sort, root)
       | {shape: Convex, _} => false
       }
     | Some(Projector(_) | Secondary(_) | Grout(_))

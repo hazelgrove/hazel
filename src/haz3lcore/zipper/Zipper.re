@@ -870,11 +870,17 @@ let missing_shards_hd = (z: t): option(Tile.t) =>
 
 let find_missing_shard = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok) || Form.Expansion.is_leading(tok)) {
-    /* Ambiguous polymorphs (`|`) and leading expanders (`test`) also appear
-       as non-leading shards of other incomplete forms, and a deep missing-shard
-       match steals them during LTR insert — nested `test…end` inside
-       `hint _ test _ end` would complete HintedTest instead of expanding
-       Test. Only match at the top of the stack. */
+    /* An ambiguous polymorph occurs both on its own as an infix operator
+       and as a delimiter of a multi-delimiter form, and a token that opens
+       a form (`test`, `forall`, `|`, `(`) may also be what an incomplete
+       tile further down the stack is missing: `test` is the middle of
+       `hint … test … end`, and several forms end in the `->` that
+       `forall … ->` does. A deep missing-shard match would always take
+       that reading: a `test … end` typed inside a hint's body would
+       complete the hint, and a `forall y ->` typed after other arrows left
+       its binder molded as an expression. So these match an incomplete
+       tile only at the top of the stack; elsewhere they open a tile of
+       their own. */
     missing_shards_hd(z)
     |> Option.map(~f=Tile.effective_label) == Some([tok])
       ? missing_shards_hd(z) : None;
