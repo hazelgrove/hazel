@@ -60,6 +60,22 @@ let agrees = src => {
 };
 let agreement = (name, src) => test_case(name, `Quick, () => agrees(src));
 
+/* (^ticket(769)) a term as text short enough to read in a CI log: its annotations gone, its spaces folded */
+let compact = (e: Exp.t): string => {
+  let s = Exp.show(e);
+  let s =
+    Str.global_replace(
+      Str.regexp(
+        "annotation =[ \n]*{ ids = <opaque>; secondary = (\\[\\], \\[\\]); incomplete = \\[\\];[ \n]*lexeme = [^}]*}",
+      ),
+      "",
+      s,
+    );
+  let s = Str.global_replace(Str.regexp("[ \n]+"), " ", s);
+  let s = Str.global_replace(Str.regexp_string("{ term = "), "", s);
+  String.length(s) > 900 ? String.sub(s, ~pos=0, ~len=900) ++ "..." : s;
+};
+
 /* (^ticket(766)) mixed mode: the program rewritten, the functions named compiled, and its answer the interpreter's alone;
    ~fell_back, whether some call went back to the interpreter */
 let mixed = (~fell_back=false, name, src, names) =>
@@ -88,9 +104,9 @@ let mixed = (~fell_back=false, name, src, names) =>
       check(
         bool,
         "the interpreter's answer: "
-        ++ Exp.show(expected)
+        ++ compact(expected)
         ++ "\nmixed: "
-        ++ Exp.show(got),
+        ++ compact(got),
         true,
         same_value(expected, got),
       );
