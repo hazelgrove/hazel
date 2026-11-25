@@ -185,7 +185,16 @@ module Runtime = {
   sample(id, v) { if (this.samples !== null) this.samples[id] = v; return v; },
   reach(why) { throw new Error("hazel-jit: not compiled, and reached: " + why); },
   missing(why) { const f = () => { throw new Error("hazel-jit: not compiled: " + why); }; f.$missing = why; return f; },
-  fn(f, k, e) { f.$k = k; f.$e = e; return f; },
+  /* (^ticket(853)) d: a named function's direct form, its tuple's parts as JS arguments (func), or undefined; every
+     function has the property, so every function has one shape */
+  fn(f, k, e, d) { f.$k = k; f.$e = e; f.$d = d; return f; },
+  /* (^ticket(853)) a call with its tuple written out, of a function not known where it is compiled: the parts as JS
+     arguments to its direct form if it has one, or the tuple, as before */
+  c2(f, a, b) { const d = f.$d; return d !== undefined ? d(a, b) : f([a, b]); },
+  c3(f, a, b, c) { const d = f.$d; return d !== undefined ? d(a, b, c) : f([a, b, c]); },
+  c4(f, a, b, c, e) { const d = f.$d; return d !== undefined ? d(a, b, c, e) : f([a, b, c, e]); },
+  c5(f, a, b, c, e, g) { const d = f.$d; return d !== undefined ? d(a, b, c, e, g) : f([a, b, c, e, g]); },
+  c6(f, a, b, c, e, g, h) { const d = f.$d; return d !== undefined ? d(a, b, c, e, g, h) : f([a, b, c, e, g, h]); },
   b: {
     /* (^ticket(722)) %splice_value((model, id)): the value inside the model's SpliceRef((id, v)), found as the
        interpreter's BuiltinsADT.splice_value finds it, first in a walk from the root, left to right */
@@ -463,7 +472,102 @@ type state = {
      functions being compiled, innermost first: how many bindings were in scope where each began, and what it captures */
   funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
   mutable frames: list((int, ref(list((string, string))))),
+  /* (^ticket(853)) the JS names bound to a named function that has a direct form (func), with how many parts its tuple
+     has: a call of one with its tuple written out passes the parts as JS arguments */
+  direct: Stdlib.Hashtbl.t(string, int),
 };
+
+/* (^ticket(853)) where a recursive function's call of itself in tail position puts its argument: its one parameter, or,
+   for a direct form, each part of the tuple in its own */
+type self_target =
+  | SelfArg(string)
+  | SelfParams(list(string));
+
+/* (^ticket(853)) a tuple pattern whose every entry is unlabeled, of two or more: a function with it as its parameter has a
+   direct form, the parts its JS parameters */
+let rec direct_params = (p: Pat.t): option(list(Pat.t)) =>
+  switch (Pat.term_of(p)) {
+  | Parens(p)
+  | Asc(p, _) => direct_params(p)
+  | Tuple(ps)
+      when
+        List.length(ps) >= 2
+        && List.for_all(ps, ~f=(p: Pat.t) =>
+             switch (Pat.term_of(p)) {
+             | TupLabel(_) => false
+             | _ => true
+             }
+           ) =>
+    Some(ps)
+  | _ => None
+  };
+/* the parts of a tuple written out, every entry unlabeled, of two or more */
+let rec literal_parts = (e: Exp.t): option(list(Exp.t)) =>
+  switch (Exp.term_of(e)) {
+  | Parens(e) => literal_parts(e)
+  | Tuple(es)
+      when
+        List.length(es) >= 2
+        && List.for_all(es, ~f=(e: Exp.t) =>
+             switch (Exp.term_of(e)) {
+             | TupLabel(_) => false
+             | _ => true
+             }
+           ) =>
+    Some(es)
+  | _ => None
+  };
+let rec fix_name = (p: Pat.t): option(string) =>
+  switch (Pat.term_of(p)) {
+  | Var(x) => Some(x)
+  | Parens(p)
+  | Asc(p, _) => fix_name(p)
+  | _ => None
+  };
+/* how many parts a term's direct form takes, when it is a named function that has one: a function of a tuple pattern,
+   or a recursive definition of one (as named and FixF compile them) */
+let rec direct_arity = (e: Exp.t): option(int) =>
+  switch (Exp.term_of(e)) {
+  | Parens(e)
+  | TypFun(_, e, _)
+  | Asc(e, _) => direct_arity(e)
+  | Fun(p, _, _, _) => Option.map(direct_params(p), ~f=List.length)
+  | FixF(p, body, _) when Option.is_some(fix_name(p)) =>
+    let rec fun_of = (e: Exp.t) =>
+      switch (Exp.term_of(e)) {
+      | Parens(e)
+      | TypFun(_, e, _)
+      | Asc(e, _) => fun_of(e)
+      | Fun(p, _, _, _) => Option.map(direct_params(p), ~f=List.length)
+      | _ => None
+      };
+    fun_of(body);
+  | _ => None
+  };
+/* (^ticket(851)) the entries at positions is (ascending) of the tuple at v, read by position: unlabeled in the value too,
+   or the run is the interpreter's */
+let positional_guard = (v: string, is: list(int)): string =>
+  "Array.isArray("
+  ++ v
+  ++ ") ? ("
+  ++ v
+  ++ "[$R.L] === undefined || $R.nolab("
+  ++ v
+  ++ ", ["
+  ++ String.concat(~sep=", ", List.map(is, ~f=string_of_int))
+  ++ "])) : $R.indet(\"a pattern by position against a labeled entry\")";
+/* (^ticket(853)) a name bound to a named function with a direct form (p a name, e such a function), in lex' as the
+   binding compiles it: its calls with the tuple written out go to the direct form */
+let note_direct =
+    (st: state, p: Pat.t, e: Exp.t, lex': list((string, string))): unit =>
+  switch (fix_name(p), direct_arity(e)) {
+  | (Some(x), Some(k)) =>
+    switch (List.Assoc.find(lex', ~equal=String.equal, x)) {
+    | Some(j) => Stdlib.Hashtbl.replace(st.direct, j, k)
+    | None => ()
+    }
+  | _ => ()
+  };
 
 let note_alias = (st: state, tp: TPat.t, ty: Typ.t): unit =>
   switch (tp.term) {
@@ -683,17 +787,7 @@ let rec pat =
       switch (positional) {
       | [] => []
       /* (^ticket(847)) a record, an object, has every entry labeled: read by position, it is the interpreter's too */
-      | is => [
-          "Array.isArray("
-          ++ v
-          ++ ") ? ("
-          ++ v
-          ++ "[$R.L] === undefined || $R.nolab("
-          ++ v
-          ++ ", ["
-          ++ String.concat(~sep=", ", List.rev_map(is, ~f=string_of_int))
-          ++ "])) : $R.indet(\"a pattern by position against a labeled entry\")",
-        ]
+      | is => [positional_guard(v, List.rev(is))]
       };
     (guard @ tests, binds, lex);
   | TupLabel(l, p') when pat_is_nonlabel(l) =>
@@ -973,9 +1067,26 @@ and exp_inner =
       ++ ")("
       ++ go(arg)
       ++ "))";
-    | _ => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
+    | _ =>
+      /* (^ticket(853); Matthew, 2026-11-25: "followed by passing function arguments as JS arguments") a call with its
+         tuple written out: of a function known here to have a direct form, its parts as that form's JS arguments, with
+         no array; of one not known, the same if it turns out to have one ($R.c2 ...), else the tuple, as before */
+      switch (literal_parts(arg)) {
+      | None => "(" ++ go(f) ++ ")(" ++ go(arg) ++ ")"
+      | Some(es) =>
+        let fv = go(f);
+        let n = List.length(es);
+        let args = String.concat(~sep=", ", List.map(es, ~f=go));
+        switch (Stdlib.Hashtbl.find_opt(st.direct, fv)) {
+        | Some(k) when k == n => fv ++ ".$d(" ++ args ++ ")"
+        | _ when n <= 6 =>
+          "$R.c" ++ string_of_int(n) ++ "(" ++ fv ++ ", " ++ args ++ ")"
+        | _ => "(" ++ fv ++ ")([" ++ args ++ "])"
+        };
+      }
     }
-  | Fun(p, body, _, _) => func(st, lex, ~term=e, ~self=None, p, body)
+  | Fun(p, body, _, _) =>
+    func(st, lex, ~term=e, ~self=None, ~direct=false, p, body)
   | FixF(p, body, _) =>
     let rec name_of = (p: Pat.t): option(string) =>
       switch (Pat.term_of(p)) {
@@ -1029,7 +1140,12 @@ and exp_inner =
       let body =
         switch (fun_of(body)) {
         | Some((fe, fp, fbody)) =>
-          func(st, lex', ~term=fe, ~self=Some(j), fp, fbody)
+          /* named: its calls of itself with the tuple written out go to its direct form */
+          switch (direct_params(fp)) {
+          | Some(ps) => Stdlib.Hashtbl.replace(st.direct, j, List.length(ps))
+          | None => ()
+          };
+          func(st, lex', ~term=fe, ~self=Some(j), ~direct=true, fp, fbody);
         | None => exp(st, inner, lex', body)
         };
       "(() => { "
@@ -1111,9 +1227,10 @@ and exp_inner =
       | (true, false) =>
         last_param := None;
         go(e1);
-      | (false, _) => go(e1)
+      | (false, _) => named(st, scope, lex, e1)
       };
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+    note_direct(st, p, e1, lex');
     let check =
       List.is_empty(tests)
         ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
@@ -1309,24 +1426,71 @@ and func =
       lex,
       ~term: Exp.t,
       ~self: option(string),
+      ~direct: bool,
       p: Pat.t,
       body: Exp.t,
     )
     : string => {
   let inner = {decls: []};
   st.counter = st.counter + 1;
-  let arg = "a$" ++ string_of_int(st.counter);
+  let n = st.counter;
+  let arg = "a$" ++ string_of_int(n);
   let caps = ref([]);
   st.frames = [(List.length(lex), caps), ...st.frames];
-  let (tests, binds, lex') = pat(st, inner, lex, p, arg);
+  /* (^ticket(853); Matthew, 2026-11-25: "followed by passing function arguments as JS arguments") a named function whose
+     parameter is a tuple pattern of unlabeled parts has a direct form: the parts are its JS parameters, each matched
+     against its part's pattern, so a call that knows it (st.direct) or finds it ($R.c2 ...) makes no array. Its value
+     is still a function of one argument, the tuple, for every other caller (a page, the interpreter, a builtin): it
+     checks what the pattern by position checks, then calls the direct form. A function passed as it is made (an
+     argument's fun) keeps one form: it is called through a builtin's f(x), and making it costs one function, not two. */
+  let parts =
+    switch (direct ? direct_params(p) : None) {
+    | Some(ps) =>
+      let rec types = (p: Pat.t) =>
+        switch (Pat.term_of(p)) {
+        | Parens(p) => types(p)
+        | Asc(p, t) =>
+          no_type_hole(t);
+          types(p);
+        | _ => ()
+        };
+      types(p);
+      Some(ps);
+    | None => None
+    };
+  let (params, tests, binds, lex') =
+    switch (parts) {
+    | Some(ps) =>
+      let params =
+        List.mapi(ps, ~f=(i, _) => arg ++ "_" ++ string_of_int(i));
+      let (tests, binds, lex') =
+        List.fold2_exn(
+          ps,
+          params,
+          ~init=([], [], lex),
+          ~f=((ts, bs, lex), p, v) => {
+            let (t, b, lex) = pat(st, inner, lex, p, v);
+            (ts @ t, bs @ b, lex);
+          },
+        );
+      (params, tests, binds, lex');
+    | None =>
+      let (tests, binds, lex') = pat(st, inner, lex, p, arg);
+      ([arg], tests, binds, lex');
+    };
   let check =
     List.is_empty(tests)
       ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"fun\")"];
   let looped = ref(false);
+  let target =
+    switch (parts) {
+    | Some(_) => SelfParams(params)
+    | None => SelfArg(arg)
+    };
   let b =
     try(
       switch (self) {
-      | Some(sj) => tail(st, inner, lex', ~self=(sj, arg), ~looped, body)
+      | Some(sj) => tail(st, inner, lex', ~self=(sj, target), ~looped, body)
       | None => exp(st, inner, lex', body)
       }
     ) {
@@ -1356,20 +1520,54 @@ and func =
   /* tagged with its term and its captured values, so the way back can make it a Hazel closure (HazelJitValue) */
   let k = Stdlib.Hashtbl.length(st.funs);
   Stdlib.Hashtbl.replace(st.funs, k, (term, List.map(caps^, ~f=fst)));
-  "$R.fn(("
-  ++ arg
-  ++ ") => { "
-  ++ code
-  ++ " }, "
-  ++ string_of_int(k)
-  ++ ", "
-  ++ (
-    List.is_empty(caps^)
-      ? "null"
-      : "[" ++ String.concat(~sep=", ", List.map(caps^, ~f=snd)) ++ "]"
-  )
-  ++ ")";
+  let tags =
+    string_of_int(k)
+    ++ ", "
+    ++ (
+      List.is_empty(caps^)
+        ? "null"
+        : "[" ++ String.concat(~sep=", ", List.map(caps^, ~f=snd)) ++ "]"
+    );
+  let f =
+    "(" ++ String.concat(~sep=", ", params) ++ ") => { " ++ code ++ " }";
+  switch (parts) {
+  | None => "$R.fn(" ++ f ++ ", " ++ tags ++ ")"
+  | Some(ps) =>
+    /* the function of one argument: named, to call its own direct form ($d) */
+    let w = "w$" ++ string_of_int(n);
+    "$R.fn(function "
+    ++ w
+    ++ "("
+    ++ arg
+    ++ ") { ("
+    ++ positional_guard(arg, List.mapi(ps, ~f=(i, _) => i))
+    ++ ") || $R.nomatch(\"fun\"); return "
+    ++ w
+    ++ ".$d("
+    ++ String.concat(
+         ~sep=", ",
+         List.mapi(ps, ~f=(i, _) => arg ++ "[" ++ string_of_int(i) ++ "]"),
+       )
+    ++ "); }, "
+    ++ tags
+    ++ ", "
+    ++ f
+    ++ ")";
+  };
 }
+/* (^ticket(853)) a term a name is bound to (by a let, a module's member, a builtin written in Hazel): a function there is
+   named, and has a direct form when its parameter is a tuple pattern (func) */
+and named = (st: state, scope: scope, lex, e: Exp.t): string =>
+  switch (Exp.term_of(e)) {
+  | Parens(e')
+  | TypFun(_, e', _) => named(st, scope, lex, e')
+  | Asc(e', t) =>
+    no_type_hole(t);
+    named(st, scope, lex, e');
+  | Fun(p, body, _, _) =>
+    func(st, lex, ~term=e, ~self=None, ~direct=true, p, body)
+  | _ => exp(st, scope, lex, e)
+  }
 /* (^ticket(853)) a recursive function's body as statements, each path ending in a return; or, at a call of the function
    itself in tail position (its name still the definition's: lex finds ~self's JS name), in giving its parameter the
    call's argument and going round the loop again (continue), which sets ~looped. Through what passes the tail position on,
@@ -1381,14 +1579,14 @@ and tail =
       st: state,
       scope: scope,
       lex: list((string, string)),
-      ~self: (string, string),
+      ~self: (string, self_target),
       ~looped: ref(bool),
       e: Exp.t,
     )
     : string => {
   let go = exp(st, scope, lex);
   let again = tail(st, scope, lex, ~self, ~looped);
-  let (sj, arg) = self;
+  let (sj, target) = self;
   let rec is_self = (f: Exp.t): bool =>
     switch (Exp.term_of(f)) {
     | Parens(f) => is_self(f)
@@ -1456,10 +1654,22 @@ and tail =
       );
     tmp ++ " = " ++ s ++ "; " ++ arms;
   | Ap(Forward | Reverse, f, a) when is_self(f) =>
-    let _: string = go(f);
-    looped := true;
-    let v = go(a);
-    arg ++ " = " ++ v ++ "; continue;";
+    switch (target, literal_parts(a)) {
+    | (SelfArg(arg), _) =>
+      let _: string = go(f);
+      looped := true;
+      let v = go(a);
+      arg ++ " = " ++ v ++ "; continue;";
+    /* a direct form's parts, each its parameter: the body reads its pattern's variables, never the parameters, so one
+       part's new value can be given before the next is worked out */
+    | (SelfParams(ps), Some(es)) when List.length(es) == List.length(ps) =>
+      let _: string = go(f);
+      looped := true;
+      let vs = List.map(es, ~f=go);
+      stmts(List.map2_exn(ps, vs, ~f=(p, v) => p ++ " = " ++ v))
+      ++ "continue;";
+    | (SelfParams(_), _) => "return " ++ go(e) ++ ";"
+    }
   | _ => "return " ++ go(e) ++ ";"
   };
 }
@@ -1485,11 +1695,18 @@ and module_ = (st: state, lex, items: list(Mod.t)): string => {
         let tmp = fresh(st, inner, "def");
         /* a member with a form hazel-jit does not compile is a stub that says why if it is called: a view uses
            some of its module's members, not all (a livelit's expand, say, may be a quotation) */
-        let v =
-          try(exp(st, inner, lex, e)) {
-          | Unsupported(why) => "$R.missing(" ++ js_string(why) ++ ")"
+        let (v, compiled) =
+          try((named(st, inner, lex, e), true)) {
+          | Unsupported(why) => (
+              "$R.missing(" ++ js_string(why) ++ ")",
+              false,
+            )
           };
         let (tests, binds, lex') = pat(st, inner, lex, p, tmp);
+        /* (^ticket(853)) a stub has no direct form */
+        if (compiled) {
+          note_direct(st, p, e, lex');
+        };
         let check =
           List.is_empty(tests)
             ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"module\")"];
@@ -1578,11 +1795,17 @@ and global = (st: state, x: string): string =>
            variables */
         let frames = st.frames;
         st.frames = [];
+        /* (^ticket(853)) named, as a let's function is; known to be direct before its body, which may call it */
+        switch (direct_arity(d)) {
+        | Some(k) => Stdlib.Hashtbl.replace(st.direct, j, k)
+        | None => ()
+        };
         let v =
-          try(exp(st, scope, [], d)) {
+          try(named(st, scope, [], d)) {
           | Unsupported(_) as exn =>
             st.frames = frames;
             Stdlib.Hashtbl.remove(st.global_names, x);
+            Stdlib.Hashtbl.remove(st.direct, j);
             raise(exn);
           };
         st.frames = frames;
@@ -1623,6 +1846,7 @@ let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
     aliases: Stdlib.Hashtbl.create(8),
     funs: Stdlib.Hashtbl.create(16),
     frames: [],
+    direct: Stdlib.Hashtbl.create(16),
   };
   let scope = {decls: []};
   let v = exp(st, scope, [], e);

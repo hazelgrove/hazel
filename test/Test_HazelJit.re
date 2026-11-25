@@ -952,9 +952,67 @@ let loop_tests = [
   ),
 ];
 
+/* (^ticket(853)) a named function of a tuple pattern: its parts as JS arguments where the call has them written out */
+let arg_tests = [
+  agreement(
+    "a function of a pair, called with its pair written out",
+    "let add = fun (a, b) -> a * 10 + b in add(4, 2)",
+  ),
+  agreement(
+    "the same, called with a pair held in a variable",
+    "let add = fun (a, b) -> a * 10 + b in let t = (4, 2) in add(t)",
+  ),
+  agreement(
+    "the same, handed to a builtin that calls it",
+    "let add = fun (acc, x) -> acc * 10 + x in fold_left([1, 2, 3], add, 0)",
+  ),
+  agreement(
+    "a function of three, its parts patterns of their own",
+    "let f = fun ((a, b), [c], 0) -> a + b + c in f((1, 2), [3], 0)",
+  ),
+  agreement(
+    "a function made in a call, of a pair, called by the function it is given to",
+    "let ap = fun (g, x) -> g(x, x + 1) in ap(fun (a, b) -> a * b, 4)",
+  ),
+  agreement(
+    "a recursive function of a pair, its calls of itself in tail position and not",
+    "let f = fun (n, acc) -> if n == 0 then acc else if n < 3 then f(n - 1, acc + f(0, n)) else f(n - 1, acc + 1) in f(10, 0)",
+  ),
+  test_case(
+    "as compiled: the direct form called by its known name, with no array",
+    `Quick,
+    () => {
+      let js = compiled_src("let add = fun (a, b) -> a + b in add(4, 2)");
+      check(bool, "a call of $d", true, contains(js, ".$d(4, 2)"));
+      check(bool, "no pair made", false, contains(js, "[4, 2]"));
+    },
+  ),
+  test_case(
+    "a record given to a function of a pair: the run stops for the interpreter",
+    `Quick,
+    () =>
+    switch (
+      run_js(
+        HazelJit.Runtime.source,
+        compiled_src("let g = fun (a, b) -> a - b in g((x = 5, y = 2))"),
+      )
+    ) {
+    | _ => fail("answered past a labeled entry read by position")
+    | exception (Js_error.Exn(e)) =>
+      check(
+        string,
+        "the error",
+        "hazel-jit: indeterminate: a pattern by position against a labeled entry",
+        Js_error.message(e),
+      )
+    }
+  ),
+];
+
 let tests = (
   "HazelJit",
   loop_tests
+  @ arg_tests
   @ invalid_tests
   @ big_int_tests
   @ mutual_tests
