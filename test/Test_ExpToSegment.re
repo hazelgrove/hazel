@@ -2817,7 +2817,34 @@ let defensive_print_stable_tests = (
             MultiHole([piece("x:[Bool]"), piece("[1, 2]")]): Exp.term,
           );
         check(bool, defensive_print(hole), true, print_reads_back(hole));
+        /* A piece whose last operand is the ascription ends in the type
+           too. */
+        List.iter(
+          ["():: x:[Bool]", "fun y -> x:[Bool]", "- x:[Bool]"],
+          ~f=first => {
+            let hole =
+              Exp.fresh(
+                MultiHole([piece(first), piece("[1, 2]")]): Exp.term,
+              );
+            check(
+              bool,
+              defensive_print(hole),
+              true,
+              print_reads_back(hole),
+            );
+          },
+        );
       },
+    ),
+    /* A hole of one piece inside parens is already enclosed: parens of its
+       own would grow by a pair on each reprint. */
+    defensive_print_stable_test(
+      "An expression form in parens where a type goes",
+      "1 : (if a then b else c)",
+    ),
+    defensive_print_stable_test(
+      "An expression form in parens where a pattern goes",
+      "fun (if a then b else c) -> 1",
     ),
     /* An operator whose operand is still to be typed, or a token no sort
        has a form for, doesn't change the sort of what follows it: the text
@@ -3355,15 +3382,16 @@ let defensive_print_stable_tests = (
       )
     ),
     test_case(
-      "Known bug (#2856): parens grow around an unclosed paren in a type",
+      "Parens don't grow around an unclosed paren in a type",
       `Quick,
       () => {
         let once = reprint("fun o^o:(?)  (Bool)(debug(x in ^x) w ?");
         check(
           bool,
           "a reprint holds still",
-          false,
-          Option.equal(String.equal, once, Option.bind(~f=reprint, once)),
+          true,
+          Option.is_some(once)
+          && Option.equal(String.equal, once, Option.bind(~f=reprint, once)),
         );
       },
     ),

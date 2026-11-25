@@ -537,14 +537,117 @@ let has_incomplete = (e: Exp.t): bool => {
   found^;
 };
 
+/* Whether a term's text ends inside a type, so that what is written after
+   it would be read into that type: an ascription, or a form whose last
+   operand is one (`():: "s":[()]`, `fun x -> y:T`). Read off a term that
+   has its parens already. */
+let rec ends_in_type = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Asc(_) => true
+  | Fun(_, e, _, _)
+  | TypFun(_, e, _)
+  | FixF(_, e, _)
+  | Forall(_, e)
+  | Let(_, _, e)
+  | Theorem(_, _, e)
+  | TyAlias(_, _, e)
+  | Use(_, e)
+  | Filter(_, e)
+  | ModuleExp(_, _, e)
+  | If(_, _, e)
+  | Seq(_, e)
+  | BinOp(_, _, e)
+  | Cons(_, e)
+  | ListConcat(_, e)
+  | TupleExtension(_, e)
+  | UnOp(_, e)
+  | TupLabel(_, e)
+  | Dot(_, e)
+  | DynamicErrorHole(e, _)
+  | Closure(_, e)
+  /* `x |> f` */
+  | Ap(Reverse, e, _) => ends_in_type(e)
+  | Tuple(es) =>
+    switch (List.last(es)) {
+    | Some(e) => ends_in_type(e)
+    | None => false
+    }
+  | MultiHole(pieces) =>
+    switch (List.last(pieces)) {
+    | Some(Exp(e)) => ends_in_type(e)
+    | Some(Pat(p)) => pat_ends_in_type(p)
+    | Some(Typ(_)) => true
+    | Some(TPat(_) | Rul(_) | Drv(_) | Mod(_) | Sig(_) | MPat(_) | Any(_))
+    | None => false
+    }
+  | Invalid(_)
+  | EmptyHole
+  | Deferral(_)
+  | Undefined
+  | Atom(_)
+  | DrvQuote(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | LivelitName(_)
+  | Var(_)
+  | ProofObject(_)
+  | Ap(Forward, _, _)
+  | TypAp(_)
+  | DeferredAp(_)
+  | Test(_)
+  | HintedTest(_)
+  | Parens(_)
+  | Projector(_)
+  | BuiltinFun(_)
+  | Match(_)
+  | Module(_) => false
+  }
+and pat_ends_in_type = (p: Pat.t): bool =>
+  switch (p.term) {
+  | Asc(_) => true
+  | Cons(_, p)
+  | TupLabel(_, p) => pat_ends_in_type(p)
+  | Tuple(ps) =>
+    switch (List.last(ps)) {
+    | Some(p) => pat_ends_in_type(p)
+    | None => false
+    }
+  | MultiHole(pieces) =>
+    switch (List.last(pieces)) {
+    | Some(Exp(e)) => ends_in_type(e)
+    | Some(Pat(p)) => pat_ends_in_type(p)
+    | Some(Typ(_)) => true
+    | Some(TPat(_) | Rul(_) | Drv(_) | Mod(_) | Sig(_) | MPat(_) | Any(_))
+    | None => false
+    }
+  | Invalid(_)
+  | EmptyHole
+  | Wild
+  | ExplicitNonlabel
+  | Atom(_)
+  | ListLit(_)
+  | Constructor(_)
+  | Var(_)
+  | Label(_)
+  | Parens(_)
+  | Projector(_)
+  | Ap(_) => false
+  };
+
 /* A multihole's pieces are operands of the grout or operator between
    them, so the first takes parens as a left operand of it would
    (`(fix _ -> x)  y`). After an operator so do the others; after grout
    they never do, since parens after a piece read back as an application
-   of it (`f x + 1` printed as `f(x + 1)`). */
+   of it (`f x + 1` printed as `f(x + 1)`). A hole of one piece that
+   something already encloses (`(if a then b else c)` where a type goes)
+   has no operand to be told from, and parens there would grow by a pair
+   on each reprint. */
 let paren_juxtaposed =
     (
       ~parenthesization: Settings.parenthesization,
+      ~enclosed: bool,
       ann: IdTagged.IdTag.t,
       pieces: list(Any.t),
     )
@@ -573,9 +676,9 @@ let paren_juxtaposed =
      (`x:[Bool]  [1, 2]` reads `[1, 2]` into the type). */
   let close_type = (piece: Any.t): Any.t =>
     switch (piece) {
-    | Exp({term: Asc(_), _} as e) =>
+    | Exp(e) when ends_in_type(e) =>
       Exp(paren_at(~parenthesization, Precedence.max, e))
-    | Pat({term: Asc(_), _} as p) =>
+    | Pat(p) when pat_ends_in_type(p) =>
       Pat(paren_pat_at(~parenthesization, Precedence.max, p))
     | Exp(_)
     | Pat(_)
@@ -591,6 +694,7 @@ let paren_juxtaposed =
   let pieces =
     switch (op_lexeme(ann), pieces) {
     | (Some(_), _) => List.map(~f=paren, pieces)
+    | (None, [_] as lone) when enclosed => lone
     | (None, [first, ...rest]) => [paren(first), ...rest]
     | (None, []) => []
     };
@@ -939,7 +1043,11 @@ let rec parenthesize =
           ),
         xs,
       )
-      |> paren_juxtaposed(~parenthesization, exp.annotation),
+      |> paren_juxtaposed(
+           ~parenthesization,
+           ~enclosed=already_paren,
+           exp.annotation,
+         ),
     )
     |> rewrap
   | Module(items) =>
@@ -1127,7 +1235,11 @@ and parenthesize_pat =
           ),
         xs,
       )
-      |> paren_juxtaposed(~parenthesization, pat.annotation),
+      |> paren_juxtaposed(
+           ~parenthesization,
+           ~enclosed=already_paren,
+           pat.annotation,
+         ),
     )
     |> rewrap
   | Asc(p, t) when show_ascriptions =>
@@ -1329,7 +1441,11 @@ and parenthesize_typ =
               ),
             xs,
           )
-          |> paren_juxtaposed(~parenthesization, typ.annotation),
+          |> paren_juxtaposed(
+               ~parenthesization,
+               ~enclosed=already_paren,
+               typ.annotation,
+             ),
         ),
       ),
     )
