@@ -114,9 +114,15 @@ module Runtime = {
     lb.forEach((l, i) => { if (l === null || !la.includes(l)) { vs.push(vb[i]); ls.push(l); } });
     return this.tup(vs, ls);
   },
+  /* (^ticket(847)) Hazel's == on Ints is this, so eq is kept small enough for the engine to inline where it compares numbers
+     (Go's membership tests, mem(q, group)), and two objects go to eqo: with a record's case in eq itself, Go's run took 1.15
+     times today's on the laptop, and 0.96 with it apart */
   eq(a, b) {
     if (a === b) return true;
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
+    return this.eqo(a, b);
+  },
+  eqo(a, b) {
     if (Array.isArray(a)) { if (!Array.isArray(b) || a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (!this.eq(a[i], b[i])) return false; return true; }
     if (Array.isArray(b)) return false;
