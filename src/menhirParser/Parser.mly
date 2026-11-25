@@ -300,6 +300,16 @@ noLeadSumHead:
     | OPEN_PAREN; l = label; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(LabelType(l), t)]) }
     | OPEN_PAREN; WILD; SINGLE_EQUAL; t = typ; CLOSE_PAREN { TupleType([TupLabelType(ExplicitNonlabelType, t)]) }
 
+(* A list type. Its brackets enclose the element as parens do, so what
+   parens read bare, brackets do too: a comma makes the element a tuple type
+   (`[Int, String]` is a list of pairs) and a labeled entry a one-field one
+   (`[a=Int]`). MakeTerm reads them so, and the printer writes them so. *)
+%inline listTyp:
+    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | OPEN_SQUARE_BRACKET; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_SQUARE_BRACKET { ArrayType(TupleType(hd :: types)) }
+    | OPEN_SQUARE_BRACKET; l = label; SINGLE_EQUAL; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(TupleType([TupLabelType(LabelType(l), t)])) }
+    | OPEN_SQUARE_BRACKET; WILD; SINGLE_EQUAL; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(TupleType([TupLabelType(ExplicitNonlabelType, t)])) }
+
 (* Atomic types: shared by typ_inner and noLeadSumHead so the two meet in
    one reduce/reduce state (on PLUS, inside a leading-plus sum, where either
    reduction flattens to the same Sum) rather than one per atom. *)
@@ -320,9 +330,10 @@ typAtom:
     | UNIT { TupleType([]) }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | t = labeledSingletonTyp { ParenTyp(t) }
-    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | t = listTyp { t }
 
-// We don't support sum types without the leading plus in the parser syntax
+// A sum with its leading plus. One without is read from its first variant
+// (noLeadSumHead below).
 sumTyp:
     | PLUS; s = sumTerm; { splice_sumterm s } %prec SUM_TYP
     | PLUS; s = sumTerm; t = sumTyp { splice_sumterm s @ flatten_sumterms t } 
@@ -498,7 +509,7 @@ ascTyp:
     | UNIT { TupleType([]) }
     | QUESTION { UnknownType(EmptyHole) }
     | t = tupleType { t }
-    | OPEN_SQUARE_BRACKET; t = typ; CLOSE_SQUARE_BRACKET { ArrayType(t) }
+    | t = listTyp { t }
     | OPEN_PAREN; t = typ; CLOSE_PAREN { ParenTyp(t) }
     | t = labeledSingletonTyp { ParenTyp(t) }
 

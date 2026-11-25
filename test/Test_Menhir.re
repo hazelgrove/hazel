@@ -1650,6 +1650,37 @@ let found_shapes = [
     "Quoted-label ascription as module item",
     {|{ `b`:String }|},
   ),
+  /* A list type's brackets enclose its element as parens do, so the printer
+     writes a tuple or labeled element bare (QCHECK_SEED=1, 4, 6). */
+  menhir_maketerm_equivalent_test(
+    "List type of a labeled singleton",
+    {|use [a=()] in []|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of an explicitly unlabeled singleton",
+    {|1 : [_=Int]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple",
+    {|1 : [Int, String]|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple with a labeled field",
+    {|_ @< (Nat) > @< [g=Void, String] >|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "List type of a tuple as a fun parameter's ascription",
+    {|fun x : [Int, b=String] -> x|},
+  ),
+  menhir_ast_roundtrip_test(
+    "List type of a labeled field",
+    AST.(
+      Use(
+        ArrayType(TupLabelType(LabelType("a"), TupleType([]))),
+        ListExp([]),
+      )
+    ),
+  ),
   /* PBT MenhirParser 86 (QCHECK_SEED=42): generator-only ghosts on the
      Canonicalize round-trip path (same pipeline as the QCheck test). */
   menhir_ast_roundtrip_test(
