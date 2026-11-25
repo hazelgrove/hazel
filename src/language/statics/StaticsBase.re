@@ -472,7 +472,7 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
     | Some({term: Unknown(Internal), _}) => d
     | Some(ty)
         when !Typ.fast_equal(Typ.normalize(ctx, ty), Typ.normalize(ctx, t)) =>
-      asc(d, ty)
+      asc(d, Typ.normalize(ctx, ty))
     | _ => d
     }
   );

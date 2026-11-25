@@ -127,7 +127,7 @@ let rec kind_of_typ = (ctx: Ctx.t, ty: Typ.t): TypKind.t => {
 
 let unfold_nominals_in_elab = (ctx: Ctx.t, name: string, e: Exp.t): Exp.t =>
   if (Typ.is_nominal(ctx, name)) {
-    let unfold = Typ.unfold_nominals(ctx);
+    let unfold = t => Typ.unfold_nominals(ctx, Typ.normalize(ctx, t));
     Exp.map_term(
       ~f_typ=(_, t) => unfold(t),
       ~f_exp=
@@ -3783,6 +3783,9 @@ and upat_to_info_map =
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+      let syn_ctr =
+        ty == None
+          ? ConstructorStaticsHelpers.instantiate_unknown(syn_ctr) : syn_ctr;
       let elab_ty =
         switch (
           ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr),

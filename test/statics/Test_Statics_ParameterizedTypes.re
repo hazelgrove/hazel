@@ -128,6 +128,27 @@ let x : Option(Int) = ? in x
       },
     ),
     test_case(
+      "constructor pattern on an unannotated scrutinee",
+      `Quick,
+      () => {
+        let marks =
+          static_errors(
+            {|
+type Option(a) = + None + Some(a) in
+let get = fun r -> case r | None => 0 | Some(x) => x + 1 end in
+get(Some(3))
+|},
+          );
+
+        Alcotest.check(
+          list(testable_issue),
+          "Static Errors",
+          [],
+          List.map(ms => Marks([ms]), marks),
+        );
+      },
+    ),
+    test_case(
       "expected Option(Int) drives Some(Int)",
       `Quick,
       () => {

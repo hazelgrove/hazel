@@ -66,6 +66,24 @@ let syn_marks_ctr =
     }
   };
 
+let rec instantiate_unknown = (ty: Typ.t): Typ.t =>
+  switch (ty.term) {
+  | Poly(binder, body) =>
+    instantiate_unknown(
+      List.fold_left(
+        (acc, name) =>
+          Typ.subst(
+            Unknown(Internal) |> Typ.fresh,
+            Var(name) |> TPat.fresh,
+            acc,
+          ),
+        body,
+        TPat.tyvars_of(binder),
+      ),
+    )
+  | _ => ty
+  };
+
 /* Left-to-right type-application spine of a `TypParamAp` chain. The
    multi-arg form `TypParamAp(T, TypTuple([a, b]))` flattens to
    `[a, b]`; a curried chain `TypParamAp(TypParamAp(T, a), b)` (no

@@ -248,6 +248,14 @@ let rec collect_type_exports =
                 case). */
              let type_ctor_kind =
                TypKind.of_param_count(List.length(params));
+             let recursive = List.mem(name, Typ.free_vars(typ));
+             let typ =
+               recursive
+                 ? typ
+                 : Typ.normalize(
+                     List.fold_left(Ctx.extend_dummy_tvar, ctx, params),
+                     typ,
+                   );
              let ty_lam: Typ.t =
                switch (params) {
                | [] => typ
@@ -258,7 +266,7 @@ let rec collect_type_exports =
                  TypFun(tuple_binder, typ) |> Typ.temp;
                };
              let alias_ty =
-               if (List.mem(name, Typ.free_vars(typ))) {
+               if (recursive) {
                  Rec(Var(name) |> TPat.fresh, ty_lam) |> Typ.temp;
                } else {
                  ty_lam;

@@ -544,6 +544,13 @@ let test_qualified_type_parameterized =
     Some(int()),
   );
 
+let test_qualified_type_parameterized_sibling =
+  fully_consistent_typecheck(
+    "Qualified type access: parameterized type using a parameterized sibling",
+    {|module M = { type P(X) = (x = X, y = Float); type S(X) = (a = [P(X)], b = Float) } in let g = fun (ys : (a = [(x = Int, y = Float)], b = Float)) -> ys.b in let xs : M.S(Int) = (a = [], b = 1.) in g(xs)|},
+    Some(float()),
+  );
+
 let test_qualified_type_parameterized_recursive =
   fully_consistent_typecheck(
     "Qualified type access: recursive parameterized type",
@@ -726,6 +733,7 @@ let tests = (
     /* Qualified type access aliasing tests (Phase 1b) */
     test_qualified_type_parameterized,
     test_qualified_type_parameterized_recursive,
+    test_qualified_type_parameterized_sibling,
     test_qualified_recursive_type,
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,
