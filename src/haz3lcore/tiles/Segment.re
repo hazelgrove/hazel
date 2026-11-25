@@ -175,6 +175,14 @@ let shape_affix =
   go((d == Left ? List.rev : Fn.id)(affix), r);
 };
 
+/* Whether no sort has a form for the tile (`!!!`, `^w^`). Such a tile has
+   no say in which sort's run it sits in: the run goes on past it, so what
+   follows `!!!` in a type is still read as a type, as what follows a `?`
+   there is. A tile with a form at another sort ends the run instead: it
+   is where that sort's run begins. */
+let is_unmolded = (t: Tile.t): bool =>
+  List.is_empty(Form.base_candidates(Tile.label(t)));
+
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
@@ -206,8 +214,23 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         fun
         | [_] as ts => ts
         | ts =>
-          ts
-          |> List.filter(~f=t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+          /* Shape picks among candidates (a prefix or an infix `-`, parens
+             or an application). When none fits, the piece before is
+             missing an operand, or this one follows an operand it can't
+             join; regrouting puts a hole between them either way, so shape
+             has nothing to pick by and the first candidate stands, as a
+             lone one does. Keeping the tile's old mold instead would make
+             its sort depend on whether that hole is written: the `=` of
+             `fun (a + = _) ->` stayed an expression's, and of
+             `fun (a + ? = _) ->` became a pattern's. */
+          switch (
+            List.filter(ts, ~f=t =>
+              Nib.Shape.fits(shape, fst(Tile.shapes(t)))
+            )
+          ) {
+          | [] => ts
+          | fitting => fitting
+          }
       )
       |> ListUtil.hd_opt
     };
@@ -311,6 +334,9 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(sort, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) = remold_uni(snd(Tile.shapes(t)), tl);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -384,6 +410,10 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           shape,
           seg,
         )
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_typ_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -421,6 +451,10 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -484,6 +518,10 @@ and remold_tpat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_tpat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -544,6 +582,10 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_exp_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -695,6 +737,10 @@ and remold_mod_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
+      | None when is_unmolded(t) =>
+        let (remolded, shape, rest) =
+          remold_mod_uni(snd(Tile.shapes(t)), tl, parent_sorts);
+        ([Tile(t), ...remolded], shape, rest);
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -746,14 +792,15 @@ and remold_mod = (shape, seg: t): t =>
     | Tile(t) =>
       switch (remold_tile(Mod, shape, t)) {
       | None =>
-        /* No Mod form - try Exp since bare expressions are valid module items */
-        switch (remold_tile(Exp, shape, t)) {
-        | None => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
-        | Some(t) =>
-          let (remolded, shape, rest) =
-            remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
-          [Piece.Tile(t), ...remolded] @ remold_mod(shape, rest);
-        }
+        /* No Mod form: a bare expression is a module item, so read on as
+           an expression from this tile, which then leads into its own
+           operand's sort (the type after the `:` of `{ x:T }`). A tile
+           with no Exp form either stays as it is. */
+        let (remolded, shape', rest) = remold_exp_uni(shape, seg, [Mod]);
+        switch (remolded) {
+        | [] => [Tile(t), ...remold_mod(snd(Tile.shapes(t)), tl)]
+        | [_, ..._] => remolded @ remold_mod(shape', rest)
+        };
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
         let remolded = remold(~shape=r.shape, tl, r.sort);
@@ -909,7 +956,7 @@ module Trim = {
         };
       Aba.mk([List.concat(trim |> fst) @ extra], []);
     } else {
-      let (_, gs) as merged = merge(trim);
+      let (wss, gs) as merged = merge(trim);
       switch (gs) {
       | [] => add_grout(l, merged)
       | [_, ..._] => merged

@@ -959,6 +959,13 @@ end|}),
     roundtrip_test({|Module: bare exp item|}, {|{ 1 }|}),
     roundtrip_test({|Module: bare exp items|}, {|{ 1; 2 }|}),
     roundtrip_test({|Module: let then bare exp|}, {|{ let x = 1; x }|}),
+    /* The item's expression run ends at the invalid token; the `:` after
+       it still leads into a type. */
+    roundtrip_test(
+      {|Module: ascription after an invalid token|},
+      {|{ let x = ^w^:Void }|},
+    ),
+    roundtrip_test({|Module: ascribed bare exp item|}, {|{ 1; x:Int; 2 }|}),
     roundtrip_test(
       {|Module: with type alias|},
       {|{ type T = Int; let x = 1 }|},
@@ -2756,6 +2763,50 @@ let defensive_print_stable_tests = (
             MultiHole([piece("x:[Bool]"), piece("[1, 2]")]): Exp.term,
           );
         check(bool, defensive_print(hole), true, print_reads_back(hole));
+      },
+    ),
+    /* An operator whose operand is still to be typed, or a token no sort
+       has a form for, doesn't change the sort of what follows it: the text
+       reads the same with the missing operand written as `?`. */
+    test_case(
+      "What follows a missing operand or an unknown token keeps its sort",
+      `Quick,
+      () => {
+        List.iter(
+          [
+            "fun (a !!! = _) -> 1",
+            "fun (a + = _) -> 1",
+            "fun (x :: = y) -> 1",
+            "theorem (_ !!! = _, _) = x in x",
+            "1 : !!! (poly\ny -> Int)",
+            "fun x : Int !!! Bool -> x",
+            "case x | A !!! B => 1 end",
+          ],
+          ~f=text =>
+          check(
+            bool,
+            text,
+            true,
+            print_reads_back(Option.value_exn(Typed.read(text))),
+          )
+        );
+        List.iter(
+          [
+            ("fun (a !!! = _) -> 1", "fun (a !!! ? = _) -> 1"),
+            ("fun (a + = _) -> 1", "fun (a + ? = _) -> 1"),
+            ("1 : !!! (poly y -> Int)", "1 : ? !!! (poly y -> Int)"),
+          ],
+          ~f=((implicit, written)) =>
+          check(
+            bool,
+            implicit ++ " reads as " ++ written,
+            true,
+            Canonicalize.roundtrip_eq.exp(
+              holes_as_text(Option.value_exn(Typed.read(implicit))),
+              holes_as_text(Option.value_exn(Typed.read(written))),
+            ),
+          )
+        );
       },
     ),
     test_case(
