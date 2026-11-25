@@ -333,7 +333,7 @@ typAtom:
     | t = listTyp { t }
 
 // A sum with its leading plus. One without is read from its first variant
-// (noLeadSumHead below).
+// (noLeadSumHead above, used in typ_inner).
 sumTyp:
     | PLUS; s = sumTerm; { splice_sumterm s } %prec SUM_TYP
     | PLUS; s = sumTerm; t = sumTyp { splice_sumterm s @ flatten_sumterms t } 

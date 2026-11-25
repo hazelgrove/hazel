@@ -157,8 +157,10 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
 /* Flatten a signature term into a list of signature items.
    Signature sequences (from semicolons) are stored as MultiHole([Sig(s1), Sig(s2)])
    during parsing and need to be flattened into a proper list for Sig(items).
-   Non-Sig children are wrapped to isolate breakage, matching flatten_mod.
-   A hole made of an operator (its lexeme: see item_op) stays one item. */
+   Non-Sig children are wrapped to isolate breakage, as flatten_mod wraps a
+   module's (which also keeps a bare hole or invalid token as the item
+   itself). A hole made of an operator (its lexeme: see item_op) stays one
+   item. */
 let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
   switch (s.term) {
   | MultiHole(_) when Option.is_some(s.annotation.lexeme) => [s]
@@ -461,8 +463,9 @@ let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
     )
   /* Constructor applications in sum type definitions are implemented as having type sort;
      until they are reimplemented as their own sort, we must prevent these from being parsed
-     into types, where they can go on to mess with statics. Thus we let them fall through to
-     be parsed as multiholes, and then recognize them when we parse sum type definitions */
+     into types, where they can go on to mess with statics. So typ_term reads one as a hole
+     of the constructor and its parenthesized argument (its Post case), and it is recognized
+     here, when a sum type definition is parsed. */
   | {
       term:
         Unknown(
@@ -512,10 +515,12 @@ let op_lexeme = (f: Form.t): option(Token.t) =>
 /* The operator a form is, when it is one single-token tile around its
    operands. A hole made of such a form records the operator as its lexeme,
    whatever the operands' sorts, so the hole prints the operator back
-   (`x !!! y`, `? !!! rec`, a stranded `:: x`), in every sort (among a
-   module's or a signature's items: item_op). The elaborator reads the
-   lexeme as a stuck application, so juxtaposition must not carry one:
-   grout, whose pseudo-token is " ", has none (see op_lexeme). */
+   (`x !!! y`, `? !!! rec`, a stranded `:: x`): in an expression, a
+   pattern, a type or a type pattern, and among a module's or a
+   signature's items (item_op). A derivation's holes don't keep it. The
+   elaborator reads the lexeme as a stuck application, so juxtaposition
+   must not carry one: grout, whose pseudo-token is " ", has none (see
+   op_lexeme). */
 let lone_op: unsorted => option(Token.t) =
   fun
   | Bin(_, ([(_, (F(f), []))], []), _)
@@ -525,7 +530,10 @@ let lone_op: unsorted => option(Token.t) =
   | Post(_)
   | Bin(_) => None;
 
-/* The kids of a form no case reads, for the hole it becomes. */
+/* The kids of a form no case reads, for the hole it becomes. Not only a
+   read: it also records the form's operator, when it is one, as the
+   pending lexeme (set_lexeme), which the hole's node then takes; so call
+   it once, where the hole is made. */
 let hole_kids = (tm: unsorted): list(Any.t) => {
   Option.iter(~f=set_lexeme, lone_op(tm));
   kids_of_unsorted(tm);
@@ -537,18 +545,12 @@ let hole_kids = (tm: unsorted): list(Any.t) => {
    and flatten_sig split so that the items still bind. The `;` between
    items is not one: splitting writes it back. */
 let item_op = (tm: unsorted): option(Token.t) =>
-  switch (lone_op(tm)) {
-  | Some(";") => None
-  /* only a token the printer writes back as an operator
-     (ExpToSegment.op_lexeme): a signature's stranded `let` is none */
-  | Some(t)
-      when
-        !(
-          Token.is_potential_operator(t)
-          || Form.is_infix_delimiter_op_prefix(t)
-        ) =>
-    None
-  | op => op
+  switch (tm) {
+  | Bin(_, ([(_, (F(f), []))], []), _) when is_semi_form(f) => None
+  | _ =>
+    /* only a token the printer writes back as an operator: a
+       signature's stranded `let` is none */
+    Option.filter(lone_op(tm), ~f=Form.is_op_lexeme)
   };
 
 let is_hole_label = (t: string) =>
@@ -1595,16 +1597,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(Sum([parse_sum_term(t)]))
     | _ => ret(hole(tm))
     }
-  | Bin(Typ(t1), tiles, Typ(t2)) as tm
-      when Option.is_some(is_typ_bsum(tiles)) =>
-    switch (is_typ_bsum(tiles)) {
-    | Some(between_kids) =>
-      ret(Sum(List.map(~f=parse_sum_term, [t1] @ between_kids @ [t2])))
-    | None => ret(hole(tm))
-    }
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
-    switch (is_tuple_typ(tiles)) {
-    | Some(between_kids) =>
+    switch (is_typ_bsum(tiles), is_tuple_typ(tiles)) {
+    | (Some(between_kids), _) =>
+      ret(Sum(List.map(~f=parse_sum_term, [l] @ between_kids @ [r])))
+    | (None, Some(between_kids)) =>
       let tuple_children: list(Typ.t) =
         [l]
         @ between_kids
@@ -1617,7 +1614,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
            });
 
       ret(Prod(tuple_children));
-    | None =>
+    | (None, None) =>
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
       | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
@@ -1767,6 +1764,8 @@ and sig_ = unsorted => {
 }
 and sig_term: unsorted => TermBase.Sig.term = {
   let ret = (term: TermBase.Sig.term) => term;
+  /* As hole_kids does, this records an operator the form is as the
+     pending lexeme, for the hole's node to take. */
   let hole = (tm: unsorted) => {
     Option.iter(~f=set_lexeme, item_op(tm));
     Sig.hole(kids_of_unsorted(tm));

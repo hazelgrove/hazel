@@ -134,30 +134,27 @@ let hole_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
 
 let op_lexeme = (ann: IdTagged.IdTag.t): option(string) =>
   switch (ann.lexeme) {
-  | Some(l)
-      when
-        Token.is_potential_operator(l)
-        || Form.is_infix_delimiter_op_prefix(l) =>
-    Some(l)
+  | Some(l) when Form.is_op_lexeme(l) => Some(l)
   | _ => None
   };
 
-/* Reconstruct an unknown-op tile from its lexeme, mirroring insertion
-   molding: a DEFINED token stranded in an unparseable position keeps
-   its defined bin mold (the : of `? : ? t ?` keeps Cast's mold);
-   operand-shaped keyword prefixes get the concave-grout bin mold of
-   the host sort (TokInfix); truly unknown ops the Any-sorted
-   max-precedence fallback (Tok at Any). */
-/* Insertion-time sort context is unrecorded, so approximate: host
-   sort, then Exp, then the undefined-token fallbacks. Residual sort
-   drift is absorbed by equiv_mod_grout(~mold_sorts=false). */
+/* The form and sort of the tile an operator hole's lexeme prints as,
+   mirroring insertion molding: a DEFINED token stranded in an
+   unparseable position keeps its defined mold (the : of `? : ? t ?`
+   keeps Cast's mold). Insertion-time sort context is unrecorded, so
+   approximate: the host sort, then Exp, then the caller's fallback for
+   a token no form has. Residual sort drift is absorbed by
+   equiv_mod_grout(~mold_sorts=false). */
 let op_form =
     (~shape_filter, ~fallback: (Form.t, Sort.t), sort, op): (Form.t, Sort.t) => {
   let cands =
     Form.base_candidates([op])
     |> List.filter(~f=((_, m): (Form.t, Mold.t)) => shape_filter(m));
   let at_sort = srt =>
-    List.filter(~f=((_, m): (Form.t, Mold.t)) => m.out == srt, cands);
+    List.filter(
+      ~f=((_, m): (Form.t, Mold.t)) => Sort.equal(m.out, srt),
+      cands,
+    );
   switch (at_sort(sort), at_sort(Sort.Exp)) {
   | ([(f, m), ..._], _)
   | ([], [(f, m), ..._]) => (f, m.out)
@@ -176,6 +173,10 @@ let op_tile_with = (~shape_filter, ~fallback, id, sort, op): Piece.t => {
   });
 };
 
+/* The fallbacks for an infix operator no form has: an operand-shaped
+   keyword prefix gets the concave-grout bin mold of the host sort
+   (TokInfix); a truly unknown operator the Any-sorted max-precedence
+   one (Tok at Any). */
 let infix_op_form = (sort, op): (Form.t, Sort.t) =>
   op_form(
     ~shape_filter=Mold.is_infix_op,
@@ -222,7 +223,8 @@ let hole_precedence = (sort: Sort.t, ann: IdTagged.IdTag.t): Precedence.t => {
       |> List.filter(~f=Mold.is_infix_op)
     | None => []
     };
-  let at_sort = List.filter(infix, ~f=(m: Mold.t) => m.out == sort);
+  let at_sort =
+    List.filter(infix, ~f=(m: Mold.t) => Sort.equal(m.out, sort));
   switch (at_sort @ infix) {
   | [{nibs: ({shape: Concave(p), _}, _), _}, ..._] => p
   | _ => Precedence.concave_grout
@@ -522,59 +524,40 @@ let paren_typ_assoc_at =
       ? Typ.fresh(Parens(typ)) : typ
   };
 
+/* Whether a `test` is written somewhere in e. */
+let contains_test = (e: Exp.t): bool => {
+  exception Found;
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) =>
+          switch (e.term) {
+          | Test(_)
+          | HintedTest(_) => raise(Found)
+          | _ => continue(e)
+          },
+      e,
+    )
+  ) {
+  | _ => false
+  | exception Found => true
+  };
+};
+
 /* Whether some part of e is missing a delimiter. Parens around it can't
    nest with the delimiter it has: `(module M = { … ) }`. */
 let has_incomplete = (e: Exp.t): bool => {
-  let found = ref(false);
-  let note = (ann: IdTagged.IdTag.t) =>
-    if (!List.is_empty(ann.incomplete)) {
-      found := true;
-    };
-  let _ =
-    Exp.map_term(
-      ~f_exp=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_pat=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_typ=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_tpat=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_rul=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_mod=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_sig=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
-      ~f_mpat=
-        (continue, x) => {
-          note(x.annotation);
-          continue(x);
-        },
+  exception Found;
+  switch (
+    Grammar.map_exp_annotation(
+      (ann: IdTagged.IdTag.t) =>
+        List.is_empty(ann.incomplete) ? ann : raise(Found),
       e,
-    );
-  found^;
+    )
+  ) {
+  | _ => false
+  | exception Found => true
+  };
 };
 
 /* Whether a term's text ends inside a type, so that what is written after
@@ -678,9 +661,12 @@ and pat_ends_in_type = (p: Pat.t): bool =>
 
 /* A multihole's pieces are operands of the grout or operator between
    them, so the first takes parens as a left operand of it would
-   (`(fix _ -> x)  y`). After an operator so do the others; after grout
-   they never do, since parens after a piece read back as an application
-   of it (`f x + 1` printed as `f(x + 1)`). A hole of one piece that
+   (`(fix _ -> x)  y`). The two operands of an operator take them at the
+   precedence the operator's tile reads back at (operand_precedence),
+   except a prefix operator's application on the right, which goes bare
+   (`operand` below). After grout the later pieces never take them, since
+   parens after a piece read back as an application of it (`f x + 1`
+   printed as `f(x + 1)`). A hole of one piece that
    something already encloses (`(if a then b else c)` where a type goes)
    has no operand to be told from, and parens there would grow by a pair
    on each reprint. */
@@ -906,10 +892,17 @@ let rec parenthesize =
       switch (l.term) {
       | MultiHole([Exp({term: Parens(_) | Tuple([]) | Atom(_), _})])
           when Option.is_none(op_lexeme(l.annotation)) => l
-      | Label(_)
+      /* A name that is not a label (what is left of `t.(x)` once a step
+         has taken the parens off `x`) keeps parens: bare, it would read as
+         the label of that name, and project. */
       | Var(_)
       | BuiltinFun(_)
-      | Constructor(_)
+      | Constructor(_) =>
+        switch (parenthesization) {
+        | Defensive => Parens(l) |> Exp.fresh
+        | Structural => l
+        }
+      | Label(_)
       | EmptyHole
       | Parens(_)
       | Tuple([])
@@ -1022,21 +1015,17 @@ let rec parenthesize =
   | Asc(e, _) => parenthesize(~already_paren, e) // skip ascription if not showing
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | HintedTest(e, hint) =>
-    /* A hint that could start with `test…end` is parenthesized: otherwise
+    /* A hint with a `test` of its own in it is parenthesized: otherwise
        that `test` completes HintedTest's own `test` shard during LTR insert
-       instead of expanding a nested Test. A literal, a variable or a hint
-       already in parens can't, so it prints as written. */
+       instead of expanding a nested Test. Any other hint prints as
+       written. */
     let hint = parenthesize(hint);
     HintedTest(
       parenthesize(e) |> paren_at(Precedence.min),
       switch (hint.term) {
-      | Parens(_)
-      | Atom(_)
-      | Var(_)
-      | Constructor(_)
-      | EmptyHole
-      | ListLit(_) => hint
-      | _ => paren_at(Precedence.max, hint)
+      | Parens(_) => hint
+      | _ when contains_test(hint) => paren_at(Precedence.max, hint)
+      | _ => hint
       },
     )
     |> rewrap;
@@ -1156,12 +1145,49 @@ and parenthesize_mod_item =
   let parenthesize =
     parenthesize(~parenthesization, ~show_filters, ~show_ascriptions);
   let paren_at = paren_at(~parenthesization);
-  /* An item ends at a `;`, so an expression at that level or looser gets
-     parens. Parens around a part missing a delimiter would cross it, so
-     those stay bare. */
-  let payload = (e: Exp.t): Exp.t => {
+  /* An item ends at a `;`, and among items `let`, `type` and `module`
+     open an item, not an expression's `… in` form (#2754). So a
+     definition takes parens when it opens with one of those, or when its
+     last part is a sequence that nothing closes (`fun x -> a; b`). Any
+     other reads the same without them (`let f = fun x -> x`).
+
+     An expression that is an item by itself keeps the parens of anything
+     as loose as a `;`: where an item starts, the editor molds a form's
+     binder by the module's sort (the `y` of a bare `forall y -> …` as an
+     expression), and in parens it is molded as it is anywhere else.
+
+     Parens around a part missing a delimiter would cross it, so those
+     stay bare. */
+  let rec ends_in_seq = (e: Exp.t): bool =>
+    switch (e.term) {
+    | Seq(_) => true
+    | Fun(_, body, _, _)
+    | FixF(_, body, _)
+    | TypFun(_, body, _)
+    | Forall(_, body)
+    | Let(_, _, body)
+    | Theorem(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body)
+    | Use(_, body)
+    | Filter(_, body)
+    | If(_, _, body)
+    | Projector(_, body)
+    | DynamicErrorHole(body, _) => ends_in_seq(body)
+    | _ => false
+    };
+  let opens_item = (e: Exp.t): bool =>
+    switch (e.term) {
+    | Let(_)
+    | Theorem(_)
+    | TyAlias(_)
+    | ModuleExp(_) => true
+    | _ => false
+    };
+  let payload = (~bare=false, e: Exp.t): Exp.t => {
     let e = parenthesize(e);
-    has_incomplete(e) ? e : paren_at(Precedence.semi, e);
+    (bare || opens_item(e) || ends_in_seq(e)) && !has_incomplete(e)
+      ? paren_at(Precedence.semi, e) : e;
   };
   let term: Mod.term =
     switch (item.term) {
@@ -1177,7 +1203,7 @@ and parenthesize_mod_item =
         payload(e),
       )
     | ModuleMod(mp, e) => ModuleMod(mp, payload(e))
-    | ModExp(e) => ModExp(payload(e))
+    | ModExp(e) => ModExp(payload(~bare=true, e))
     | ModType(tp, t) =>
       ModType(
         tp,
@@ -1376,14 +1402,11 @@ and parenthesize_typ =
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
-  /* The brackets enclose the element like parens: `[1, 2]` stays as
-     written. */
+  /* A tuple or labeled element keeps parens of its own, `[(Int, String)]`:
+     both parsers read it bare too, but bare it looks like a list of two
+     types. */
   | List(t) =>
-    List(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
   | Prod([t])
       when
@@ -2932,24 +2955,27 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     wrap(exp, e @ [mk_form(Dot, exp |> Exp.rep_id, [])] @ l);
   /* Elaboration turns `module M = e in body` into a `let` binding the
      variable `M`, which `let M` can't write: it reads as a constructor. */
-  | Let(p, e1, e2) when Option.is_some(module_binder(p)) =>
-    exp_to_pretty(
-      ~settings,
-      {
-        ...exp,
-        term: ModuleExp(Option.value_exn(module_binder(p)), e1, e2),
-      },
-    )
   | Let(p, e1, e2) =>
-    // TODO: Add optional newlines
-    let id = exp |> Exp.rep_id;
-    // This step undoes the adding of fixpoints that happens in elaboration.
-    let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
-    let+ p = pat_to_pretty(~settings: Settings.t, p)
-    and+ e1 = go(e1)
-    and+ e2 = go(e2);
-    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
-    wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
+    switch (module_binder(p)) {
+    | Some(m) =>
+      exp_to_pretty(
+        ~settings,
+        {
+          ...exp,
+          term: ModuleExp(m, e1, e2),
+        },
+      )
+    | None =>
+      // TODO: Add optional newlines
+      let id = exp |> Exp.rep_id;
+      // This step undoes the adding of fixpoints that happens in elaboration.
+      let e1 = settings.hide_fixpoints ? Exp.unfix(e1, p) : e1;
+      let+ p = pat_to_pretty(~settings: Settings.t, p)
+      and+ e1 = go(e1)
+      and+ e2 = go(e2);
+      let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
+      wrap(exp, [mk_form(Let, id, [p, e1])] @ e2);
+    }
   | Theorem(p, thm, e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -3828,8 +3854,9 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(ModType, item |> Mod.rep_id, [tp])] @ t);
   | ModExp(e) =>
-    /* No wrap_item: ModExp shares its rep id (hence secondary) with the
-       inner exp; see the Module case in exp_to_pretty. */
+    /* No wrap_item: a bare-expression item shares its rep id with the
+       expression it holds (MakeTerm.mod_term reads both off the same
+       tiles), so the expression's own wrap writes the item's secondary. */
     exp_to_pretty(~settings, e)
   | ModuleMod(mp, e) =>
     let mp_seg = mpat_to_seg(~settings, mp);

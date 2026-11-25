@@ -39,22 +39,6 @@ let tests = (
         );
       },
     ),
-    /* Print/parse can change a float's binary representation, so canonical
-       form is whatever Atom.to_literal round-trips to. */
-    test_case(
-      "floats normalize to their printed form",
-      `Quick,
-      () => {
-        let f = 1.72128496811e-05;
-        let printed = float_of_string(Language.Atom.to_literal(Float(f)));
-        check(
-          exp_eq,
-          "float through to_literal",
-          Canonicalize.exp(Fresh.Exp.float(printed)),
-          Canonicalize.exp(Fresh.Exp.float(f)),
-        );
-      },
-    ),
     test_case("DynamicErrorHole unwraps", `Quick, () => {
       check(
         exp_eq,
@@ -266,11 +250,16 @@ let tests = (
         );
       },
     ),
-    test_case("Dot of Var → Label", `Quick, () => {
+    /* Only a Label is a field. A variable after the dot is what a step
+       leaves of `m.(x)`, and prints with its parens. */
+    test_case("Dot of Var → a hole of it", `Quick, () => {
       check(
         exp_eq,
-        "m.x",
-        Fresh.Exp.dot(Fresh.Exp.var("m"), Fresh.Exp.label("x")),
+        "m.(x)",
+        Fresh.Exp.dot(
+          Fresh.Exp.var("m"),
+          Fresh.Exp.multi_hole([Exp(Fresh.Exp.var("x"))]),
+        ),
         Canonicalize.exp(
           Fresh.Exp.dot(Fresh.Exp.var("m"), Fresh.Exp.var("x")),
         ),
@@ -307,6 +296,30 @@ let tests = (
         }
       | None => fail("Failed to parse")
       }
+    ),
+    /* Canonicalize only chooses between terms that print the same tokens
+       (a pair of parens aside). A rewrite that changed the text would hide
+       a difference from every round-trip, which runs it on both sides. */
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="Canonicalizing a term doesn't change the tokens it prints",
+        ~count=1000,
+        QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+        e => {
+          let tokens = (text: string): string =>
+            String.filter(text, ~f=c =>
+              !(
+                Char.is_whitespace(c)
+                || Char.equal(c, '(')
+                || Char.equal(c, ')')
+              )
+            );
+          let before = Test_ExpToSegment.defensive_print(e);
+          let after = Test_ExpToSegment.defensive_print(Canonicalize.exp(e));
+          String.equal(tokens(before), tokens(after))
+          || QCheck.Test.fail_reportf("%s became %s", before, after);
+        },
+      ),
     ),
     /* A wrap must not give two nodes one id: a property looking nodes up
        by id would see only one of them. */

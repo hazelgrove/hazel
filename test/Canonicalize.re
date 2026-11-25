@@ -172,11 +172,8 @@ let as_dot_field = (e: Exp.t): Exp.t => {
   | EmptyHole
   /* Conversion has already wrapped a generated non-field. */
   | MultiHole(_) => e
-  | Var(s)
-  | Constructor(s, _) => {
-      ...e,
-      term: Label(s),
-    }
+  /* A name too: only a Label is a field. Both parsers make a bare name
+     after `.` a Label, and the printer parenthesizes one that isn't. */
   | _ => {
       annotation: derived_ids(~salt="canonical-dot-field", e),
       term: MultiHole([Exp(e)]),
@@ -402,12 +399,6 @@ let pat = (p: Pat.t): Pat.t =>
 let typ = (t: Typ.t): Typ.t =>
   TermBase.Typ.map_term(~f_exp, ~f_pat, ~f_typ, t);
 
-/* An elaborated or evaluated term in the shape its print reads back as.
-   Elaboration writes in types (a function's argument type, which prints as
-   an ascription, and a constructor's); turns `module M = e in body` into a
-   `let` of the variable `M`, and the module's uses into variables, all
-   written as constructors; unwraps the hole a non-name after `.` reads as;
-   and makes `?` and unbound type variables into holes of other kinds. */
 /* The binder of the `let` a `module M = …` or `module M : T = …`
    elaborates to: the capitalized variable, under the type it is ascribed.
    Written out here, not taken from the printer this is compared with. */
@@ -428,6 +419,12 @@ let rec module_binder = (p: Pat.t): option(MPat.t) =>
   | _ => None
   };
 
+/* An elaborated or evaluated term in the shape its print reads back as.
+   Elaboration writes in types (a function's argument type, which prints as
+   an ascription, and a constructor's); turns `module M = e in body` into a
+   `let` of the variable `M`, and the module's uses into variables, all
+   written as constructors; unwraps the hole a non-name after `.` reads as;
+   and makes `?` and unbound type variables into holes of other kinds. */
 let elaborated = (e: Exp.t): Exp.t => {
   let f_exp = (continue: Exp.t => Exp.t, e: Exp.t): Exp.t => {
     let e = continue(e);
@@ -469,9 +466,13 @@ let elaborated = (e: Exp.t): Exp.t => {
             None,
           ),
       }
-    | Let(p, def, body) when Option.is_some(module_binder(p)) => {
-        ...e,
-        term: ModuleExp(Option.value_exn(module_binder(p)), def, body),
+    | Let(p, def, body) =>
+      switch (module_binder(p)) {
+      | Some(m) => {
+          ...e,
+          term: ModuleExp(m, def, body),
+        }
+      | None => e
       }
     | Var(name) when Token.is_ctr(name) => {
         ...e,
@@ -481,7 +482,7 @@ let elaborated = (e: Exp.t): Exp.t => {
         ...e,
         term: Constructor(name, None),
       }
-    | Dot(_, {term: Label(_) | Var(_) | Constructor(_) | EmptyHole, _}) => e
+    | Dot(_, {term: Label(_) | EmptyHole, _}) => e
     | Dot(l, r) => {
         ...e,
         term: Dot(l, Exp.fresh(MultiHole([Exp(r)]))),
