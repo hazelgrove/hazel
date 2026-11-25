@@ -329,6 +329,26 @@ let tests = (
       {|case [1] | [1, "s"] => 0 | _ => 1 end|},
       "Expecting type Int but got inconsistent type String",
     ),
+    one_mark_anywhere(
+      "An ascription that does not fit is marked on its type",
+      {|let x : Int = ("s" : String) in x|},
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "An ascription is marked on the part of its type that does not fit",
+      {|let p : (a=Int, b=[Int]) = ((a=1, b=["s"]) : (a=Int, b=[String])) in p|},
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "A pattern's ascription is marked on its type",
+      "let f : Int -> Int = fun (x : String) -> 1 in f(1)",
+      "Expecting type Int but got inconsistent type String",
+    ),
+    one_mark_anywhere(
+      "A whole parenthesized type that does not fit is marked whole",
+      "let x : Int = (? : (Int, Int)) in x",
+      "Expecting type Int but got inconsistent type (Int, Int)",
+    ),
     types_of(
       "A function's syn type keeps its body's error",
       "let f : Int -> Bool = fun x -> x + 1 in f",

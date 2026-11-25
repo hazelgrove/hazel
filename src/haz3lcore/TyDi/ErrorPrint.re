@@ -240,6 +240,12 @@ let typ_mark_string: Mark.t => string =
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
     prn("Expected a tuple type, found type %s", Print.typ(ty))
+  | ExpectationMismatch({ana, syn}) =>
+    prn(
+      "Expecting type %s but got inconsistent type %s",
+      Print.typ(ana),
+      Print.typ(syn),
+    )
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =

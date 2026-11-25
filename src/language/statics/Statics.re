@@ -466,10 +466,15 @@ and uexp_to_info_map =
         inserted_ascription(e_elab) |> Option.value(~default=e_elab);
       let typ_refs =
         ModuleHelpers.collect_module_refs_in_typ(ctx, Typ.rep_id(t2), t2);
+      /* If the ascribed type does not fit what is expected, the mark goes
+         on the part of the written type that does not fit. */
+      let misfit = Option.is_some(expectation_mismatch_mark(ctx, ana, t_ty));
+      let m = misfit ? mark_misfit_ascription(ctx, ~ann=t2, ~ana, m) : m;
       add(
         ~elab_term=Asc(e_elab, Typ.normalize(ctx, t2)) |> rewrap,
         ~elab_syn_ty=t_ty,
         ~marks=[],
+        ~mismatch_marked_within=misfit,
         ~co_ctx=CoCtx.union([e.co_ctx, typ_refs]),
         ~probe_targets=e.probe_targets,
         m,
@@ -3894,10 +3899,17 @@ and upat_to_info_map =
       let ann_ty = Typ.desugar_sig(ctx, ann.user_term);
       let (p, p_elab, m) =
         go(~ctx, ~under_ascription=true, ~ana=ann_ty, p, m);
+      /* As for an ascribed expression: the mark goes on the part of the
+         written type that does not fit what is expected. */
+      let misfit =
+        Option.is_some(expectation_mismatch_mark(ctx, ana, ann_ty));
+      let m =
+        misfit ? mark_misfit_ascription(ctx, ~ann=ann.user_term, ~ana, m) : m;
       add(
         ~elab_term=Asc(p_elab, Typ.normalize(ctx, ann.user_term)) |> rewrap,
         ~rule_ty=ann_ty,
         ~marks=[],
+        ~mismatch_marked_within=misfit,
         ~ctx=p.ctx,
         ~probe_targets=p.probe_targets,
         ~constraint_=p.constraint_,
