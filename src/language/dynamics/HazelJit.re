@@ -188,6 +188,10 @@ module Runtime = {
   /* (^ticket(853)) d: a named function's direct form, its tuple's parts as JS arguments (func), or undefined; every
      function has the property, so every function has one shape */
   fn(f, k, e, d) { f.$k = k; f.$e = e; f.$d = d; return f; },
+  /* (^ticket(858), a bench build only) an option unboxed: None is undefined, Some(x) is x, but for an x that is undefined
+     or itself a box, which is boxed one deeper ({$none: depth}), as ReScript and Melange box Some(None) */
+  some(x) { return x === undefined ? { $none: 0 } : x !== null && typeof x === "object" && x.$none !== undefined ? { $none: x.$none + 1 } : x; },
+  unsome(x) { return x !== null && typeof x === "object" && x.$none !== undefined ? (x.$none === 0 ? undefined : { $none: x.$none - 1 }) : x; },
   /* (^ticket(853)) a call with its tuple written out, of a function not known where it is compiled: the parts as JS
      arguments to its direct form if it has one, or the tuple, as before */
   c2(f, a, b) { const d = f.$d; return d !== undefined ? d(a, b) : f([a, b]); },
@@ -836,9 +840,13 @@ let rec pat =
       pat(st, scope, lex, p', v ++ "[" ++ js_string(label_key(name)) ++ "]")
     | None => unsupported("a tuple label that is not a name")
     }
+  | Constructor("None", _) => ([v ++ " === undefined"], [], lex)
   | Constructor(name, _) => ([v ++ ".$c === " ++ js_string(name)], [], lex)
   | Ap(c, arg) =>
     switch (Pat.term_of(c)) {
+    | Constructor("Some", _) =>
+      let (t, b, lex) = pat(st, scope, lex, arg, "$R.unsome(" ++ v ++ ")");
+      ([v ++ " !== undefined"] @ t, b, lex);
     | Constructor(name, _) =>
       let (t, b, lex) = pat(st, scope, lex, arg, v ++ ".$v");
       ([v ++ ".$c === " ++ js_string(name)] @ t, b, lex);
@@ -1109,6 +1117,9 @@ and exp_inner =
   /* (^ticket(853); Matthew, 2026-11-25: "constructions without arguments") a constructor without an argument is one
      constant, made once before the program's code: a Hazel value has no identity, and a page does not change what it is
      given (the rule for a page), so every use can share it */
+  | Constructor("None", t) =>
+    note_ctor(st, "None", t);
+    "undefined";
   | Constructor(name, t) =>
     note_ctor(st, name, t);
     switch (Stdlib.Hashtbl.find_opt(st.nullary, name)) {
@@ -1127,6 +1138,9 @@ and exp_inner =
      is written differs */
   | Ap(Forward | Reverse, f, arg) =>
     switch (Exp.term_of(f), Exp.term_of(arg)) {
+    | (Constructor("Some", t), _) =>
+      note_ctor(st, "Some", t);
+      "$R.some(" ++ go(arg) ++ ")";
     | (Constructor(name, t), _) =>
       note_ctor(st, name, t);
       "{$c: " ++ js_string(name) ++ ", $v: " ++ go(arg) ++ "}";
