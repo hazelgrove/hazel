@@ -52,6 +52,42 @@ let testable_core_exp_up_to_proofs =
    operations, of which a step takes a hundred or so (`(fun x -> x + 1)(1)`
    is about 95): at the stepper's own limit it gave up on a quarter of
    generated programs, the ones that compute the most. */
+type consistency =
+  | Compared
+  | NotFinished;
+
+let evaluator_stepper_consistency =
+    (
+      ~step_limit: int,
+      ~testable: testable(Exp.t),
+      ~msg: string,
+      elaborated_exp: Exp.t,
+    )
+    : consistency => {
+  let evaluator_limit = 1000 * step_limit;
+  switch (
+    Evaluator.evaluate_and_limit(
+      ~env=Builtins.env_init,
+      ~step_limit=evaluator_limit,
+      elaborated_exp,
+    ),
+    full_small_step_reduction(~step_limit, elaborated_exp),
+  ) {
+  | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
+    check(testable, msg, fst(smallstep_exp), bigstep_exp);
+    Compared;
+  /* The stepper finished within its steps, and the evaluator didn't within
+     ten times the operations they come to. */
+  | (StepLimitExceeded, LimitedCompleted(_)) =>
+    failf(
+      "the stepper finished within %d steps and the evaluator did not finish within %d operations",
+      step_limit,
+      evaluator_limit,
+    )
+  | (_, StepLimitExceeded) => NotFinished
+  };
+};
+
 let check_evaluator_stepper_consistent =
     (
       ~step_limit: int,
@@ -65,23 +101,15 @@ let check_evaluator_stepper_consistent =
     require_comparison
       ? elaborate(uexp) : QCheck_Util.skip_alias_loop(() => elaborate(uexp));
   switch (
-    Evaluator.evaluate_and_limit(
-      ~env=Builtins.env_init,
-      ~step_limit=1000 * step_limit,
+    evaluator_stepper_consistency(
+      ~step_limit,
+      ~testable,
+      ~msg,
       elaborated_exp,
-    ),
-    full_small_step_reduction(~step_limit, elaborated_exp),
-  ) {
-  | (LimitedCompleted((bigstep_exp, _)), LimitedCompleted(smallstep_exp)) =>
-    check(testable, msg, fst(smallstep_exp), bigstep_exp)
-  /* The stepper finished within its steps, and the evaluator didn't within
-     ten times the operations they come to. */
-  | (StepLimitExceeded, LimitedCompleted(_)) =>
-    failf(
-      "the stepper finished within %d steps and the evaluator did not finish",
-      step_limit,
     )
-  | (_, StepLimitExceeded) =>
+  ) {
+  | Compared => ()
+  | NotFinished =>
     if (require_comparison) {
       failf(
         "reduction did not terminate within %d steps, so nothing was compared; re-minimize the counterexample",
@@ -106,6 +134,81 @@ let qcheck_stepper_confluence =
       );
       true;
     },
+  );
+
+/* The property skips a program whose reduction doesn't finish within its
+   steps, so it means something only while most programs are compared. Of
+   this fixed sample of what it generates, all but a few are. */
+let stepper_consistency_sample = 300;
+let stepper_consistency_min_compared = 285;
+let stepper_consistency_compares_most =
+  test_case(
+    "Evaluator and stepper: most generated programs are compared",
+    `Quick,
+    () => {
+      let terms =
+        QCheck.Gen.generate(
+          ~n=stepper_consistency_sample,
+          ~rand=Stdlib.Random.State.make([|42|]),
+          QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5).gen,
+        );
+      let compared =
+        List.count(terms, ~f=uexp =>
+          switch (elaborate(uexp)) {
+          | exception e when QCheck_Util.is_alias_loop(e) => false
+          | elaborated =>
+            switch (
+              evaluator_stepper_consistency(
+                ~step_limit=100,
+                ~testable=testable_core_exp_up_to_proofs,
+                ~msg="Small step reduction and big step reduction are equal",
+                elaborated,
+              )
+            ) {
+            | Compared => true
+            | NotFinished => false
+            }
+          }
+        );
+      check(
+        bool,
+        Printf.sprintf(
+          "at least %d of %d programs compared (got %d)",
+          stepper_consistency_min_compared,
+          stepper_consistency_sample,
+          compared,
+        ),
+        true,
+        compared >= stepper_consistency_min_compared,
+      );
+    },
+  );
+
+/* Floors for three more properties that skip what they can't judge, each
+   over a fixed sample of what the property generates. They are low: the
+   generator rarely makes a program with no static error. The template
+   properties beside each one (labeled singletons, recursive lets) are
+   where most of its checking is done; a floor only says the generated
+   half hasn't gone to nothing. */
+let judged_sample = 1000;
+let judged_terms = (arb: QCheck.arbitrary('a)): list('a) =>
+  QCheck.Gen.generate(
+    ~n=judged_sample,
+    ~rand=Stdlib.Random.State.make([|42|]),
+    arb.gen,
+  );
+let at_least = (name: string, floor: int, judged: int) =>
+  check(
+    bool,
+    Printf.sprintf(
+      "%s: at least %d of %d (got %d)",
+      name,
+      floor,
+      judged_sample,
+      judged,
+    ),
+    true,
+    judged >= floor,
   );
 
 // Property that states let x : T = e in x is equivalent to e : T
@@ -135,112 +238,20 @@ let pattern_equivalence_testable =
       exp,
   );
 
-let qcheck_pattern_equivalence_test =
-  QCheck.Test.make(
-    ~name="Pattern equivalence",
-    ~count=1000,
-    QCheck.pair(
-      QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
-      QCheck_Util.arb_typ_canonical(~minimal_idents=true, 5),
-    ),
-    ((uexp, typ)) => {
-      open IdTagged.FreshGrammar;
-      open Exp;
-      let first = asc(uexp, typ);
-      let second =
-        let_(
-          Pat.asc(Pat.var(pattern_equivalence_binder), typ),
-          uexp,
-          var(pattern_equivalence_binder),
-        );
-      let (first, second) =
-        QCheck_Util.skip_alias_loop(() =>
-          (elaborate(first), elaborate(second))
-        );
-      switch (
-        Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
-          ~step_limit=10000,
-          first,
-        ),
-        Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
-          ~step_limit=10000,
-          second,
-        ),
-      ) {
-      /* Only finished values are compared. A stuck result keeps its
-         leftover ascriptions wherever evaluation stopped, which differs
-         between the two forms (`o^o : (x=?)` against `(x=o^o)`) without
-         either being wrong. */
-      | (
-          LimitedCompleted((first_exp, _)),
-          LimitedCompleted((second_exp, _)),
-        )
-          when
-            ValueChecker.is_value(first_exp)
-            && ValueChecker.is_value(second_exp) =>
-        Alcotest.check(
-          pattern_equivalence_testable,
-          "Evaluated expressions are equal",
-          first_exp,
-          second_exp,
-        );
-        true;
-      | (
-          LimitedCompleted((first_exp, _)),
-          LimitedCompleted((second_exp, _)),
-        )
-          when
-            !ValueChecker.is_value(first_exp)
-            && !ValueChecker.is_value(second_exp) =>
-        true
-      | (LimitedCompleted(_), LimitedCompleted(_)) =>
-        QCheck.Test.fail_report(
-          "One evaluation finished as a value, the other stuck",
-        )
-      | (StepLimitExceeded, StepLimitExceeded) => true
-      | (LimitedCompleted(_), StepLimitExceeded)
-      | (StepLimitExceeded, LimitedCompleted(_)) =>
-        QCheck.Test.fail_report(
-          "One of the evaluations exceeded the step limit",
-        )
-      };
-    },
-  );
-
-/* Carved out until `is_more_precise` compares recursive types as trees
-   (the equirecursive stack, #2736, #2737, #2740): a `rec` whose binder its body never
-   uses (`rec x -> ?`, or an invalid binder) is its body, so a step that
-   sees through it (`_ : (rec x -> ?)` to `_`, type `?`) looks less precise. */
-let has_rec_with_unused_binder = (ty: Typ.t): bool => {
+/* Carved out of pattern equivalence: a one-tuple type `(_=T)`. On a `let`'s
+   pattern it lifts the pattern into a labeled one-field value's label, and
+   as an ascription on the value it doesn't, so the two forms give different
+   values (pinned by pattern_equivalence_unlabeled_one_tuple_pin, which goes
+   red when they agree). */
+let has_unlabeled_one_tuple = (ty: Typ.t): bool => {
   let found = ref(false);
-  let uses = (name, body) => {
-    let hit = ref(false);
-    let _ =
-      Typ.map_term(
-        ~f_typ=
-          (continue, t: Typ.t) => {
-            switch (t.term) {
-            | Var(v) when v == name => hit := true
-            | _ => ()
-            };
-            continue(t);
-          },
-        body,
-      );
-    hit^;
-  };
   let _ =
     Typ.map_term(
       ~f_typ=
         (continue, t: Typ.t) => {
           switch (t.term) {
-          | Rec(tp, body) =>
-            switch (TPat.tyvar_of_utpat(tp)) {
-            | Some(name) when uses(name, body) => ()
-            | _ => found := true
-            }
+          | Prod([{term: TupLabel({term: ExplicitNonlabel, _}, _), _}]) =>
+            found := true
           | _ => ()
           };
           continue(t);
@@ -249,6 +260,180 @@ let has_rec_with_unused_binder = (ty: Typ.t): bool => {
     );
   found^;
 };
+
+/* How two programs that should evaluate alike compare. Two finished
+   results are compared whether or not they are values, up to leftover
+   ascriptions (pattern_equivalence_testable): a stuck result keeps its
+   casts wherever evaluation stopped, which differs between the two forms
+   (`o^o : (x=?)` against `(x=o^o)`) without either being wrong. */
+type equivalence =
+  | Same
+  | BothOverLimit
+  | Different(Exp.t, Exp.t)
+  | OneStuck
+  | OneOverLimit;
+
+let evaluate_alike = (first: Exp.t, second: Exp.t): equivalence => {
+  let run = (e: Exp.t) =>
+    Evaluator.evaluate_and_limit(
+      ~env=Builtins.env_init,
+      ~step_limit=10000,
+      elaborate(e),
+    );
+  switch (run(first), run(second)) {
+  | (LimitedCompleted((first, _)), LimitedCompleted((second, _))) =>
+    switch (ValueChecker.is_value(first), ValueChecker.is_value(second)) {
+    | (true, true) =>
+      Alcotest.equal(pattern_equivalence_testable, first, second)
+        ? Same : Different(first, second)
+    | (false, false) =>
+      Alcotest.equal(pattern_equivalence_testable, first, second)
+        ? Same : Different(first, second)
+    | (true, false)
+    | (false, true) => OneStuck
+    }
+  | (StepLimitExceeded, StepLimitExceeded) => BothOverLimit
+  | (LimitedCompleted(_), StepLimitExceeded)
+  | (StepLimitExceeded, LimitedCompleted(_)) => OneOverLimit
+  };
+};
+
+/* `e : T` against `let x : T = e in x`. */
+let pattern_equivalence_forms_alike = (uexp: Exp.t, typ: Typ.t): equivalence => {
+  IdTagged.FreshGrammar.(
+    Exp.(
+      evaluate_alike(
+        asc(uexp, typ),
+        let_(
+          Pat.asc(Pat.var(pattern_equivalence_binder), typ),
+          uexp,
+          var(pattern_equivalence_binder),
+        ),
+      )
+    )
+  );
+};
+
+let pattern_equivalence_arb =
+  QCheck.pair(
+    QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
+    QCheck_Util.arb_typ_canonical(~minimal_idents=true, 5),
+  );
+
+let pattern_equivalence_compares_some =
+  test_case(
+    "Pattern equivalence: some generated programs are compared", `Quick, () =>
+    at_least(
+      "pairs whose two forms both finish and are compared",
+      850,
+      List.count(judged_terms(pattern_equivalence_arb), ~f=((uexp, typ)) =>
+        !has_unlabeled_one_tuple(typ)
+        && (
+          switch (pattern_equivalence_forms_alike(uexp, typ)) {
+          | Same => true
+          | BothOverLimit
+          | Different(_)
+          | OneStuck
+          | OneOverLimit => false
+          | exception e when QCheck_Util.is_alias_loop(e) => false
+          }
+        )
+      ),
+    )
+  );
+
+let qcheck_pattern_equivalence_test =
+  QCheck.Test.make(
+    ~name="Pattern equivalence",
+    ~count=1000,
+    pattern_equivalence_arb,
+    ((uexp, typ)) => {
+      QCheck.assume(!has_unlabeled_one_tuple(typ));
+      switch (
+        QCheck_Util.skip_alias_loop(() =>
+          pattern_equivalence_forms_alike(uexp, typ)
+        )
+      ) {
+      | Same
+      | BothOverLimit => true
+      | Different(first, second) =>
+        Alcotest.check(
+          pattern_equivalence_testable,
+          "Evaluated expressions are equal",
+          first,
+          second,
+        );
+        true;
+      | OneStuck =>
+        QCheck.Test.fail_report(
+          "One evaluation finished as a value, the other stuck",
+        )
+      | OneOverLimit =>
+        QCheck.Test.fail_report(
+          "One of the evaluations exceeded the step limit",
+        )
+      };
+    },
+  );
+
+/* The same comparison over every pairing of these values and types: the
+   ones where the rules for a one-field tuple decide the outcome (which
+   label a field takes, whether a lone value is lifted into one). The two
+   forms agree on all but the cells listed, which are the carve-out's
+   (has_unlabeled_one_tuple): a labeled field at a `_=` one-tuple type
+   whose field type is unknown. A change to those rules shows here as the
+   cells it moves. */
+let pattern_equivalence_grid =
+  test_case(
+    "Pattern equivalence over one-field tuples",
+    `Quick,
+    () => {
+      let values = ["1", "(_=1)", "(a=1)", "(b=1)", "(_=1, 2)", "(a=1, _=2)"];
+      let types = [
+        "Int",
+        "?",
+        "(_=Int)",
+        "(a=Int)",
+        "(_=?)",
+        "(a=?)",
+        "(_=Int, Int)",
+        "(a=Int, Int)",
+        "(a=Int, b=Int)",
+      ];
+      let differing =
+        List.concat_map(values, ~f=value =>
+          List.filter_map(
+            types,
+            ~f=typ => {
+              let ascribed = Printf.sprintf("%s : %s", value, typ);
+              switch (
+                evaluate_alike(
+                  parse_exp(ascribed),
+                  parse_exp(
+                    Printf.sprintf("let p : %s = %s in p", typ, value),
+                  ),
+                )
+              ) {
+              | Same
+              | BothOverLimit => None
+              | Different(_) => Some(ascribed ++ ": different values")
+              | OneStuck => Some(ascribed ++ ": one is stuck")
+              | OneOverLimit => Some(ascribed ++ ": one doesn't finish")
+              };
+            },
+          )
+        );
+      check(
+        list(string),
+        "the cells where the two forms differ",
+        [
+          "(a=1) : (_=?): different values",
+          "(b=1) : (_=?): different values",
+        ],
+        differing,
+      );
+    },
+  );
 
 // Taking a step should result in a consistent type that is more precise than the original type
 let qcheck_preservation_test =
@@ -269,7 +454,6 @@ let qcheck_preservation_test =
               );
             (elab, elaborated_type(statics, uexp));
           });
-        QCheck.assume(!has_rec_with_unused_binder(ty));
         let stepped = single_step(elab);
         (stepped, ty);
       }
@@ -460,14 +644,37 @@ let check_incremental_against_fresh_after_edit =
   };
 };
 
+let incremental_arb =
+  QCheck.pair(
+    QCheck.small_nat,
+    QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
+  );
+
+let incremental_compares_some =
+  test_case(
+    "Incremental eval: some generated programs are compared",
+    `Quick,
+    () => {
+      let compared = ref(0);
+      List.iter(judged_terms(incremental_arb), ~f=((seed, exp)) =>
+        check_incremental_against_fresh_after_edit(
+          ~literal_index=seed,
+          ~compared,
+          ~testable=testable_core_exp,
+          ~msg="Incremental eval and fresh eval agree",
+          ~require_comparison=false,
+          exp,
+        )
+      );
+      at_least("programs with an edited literal compared", 60, compared^);
+    },
+  );
+
 let qcheck_incremental_matches_fresh_after_edit =
   QCheck.Test.make(
     ~name="Incremental eval agrees with fresh eval after a literal edit",
     ~count=2000,
-    QCheck.pair(
-      QCheck.small_nat,
-      QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
-    ),
+    incremental_arb,
     ((seed, exp)) => {
       check_incremental_against_fresh_after_edit(
         ~literal_index=seed,
@@ -623,51 +830,64 @@ let with_unknown_annotations = (seed: int, e: Exp.t): Exp.t => {
   );
 };
 
-let gradual_guarantee_holds = ((uexp: Exp.t, seed: int)): bool => {
+/* What became of a program put to the gradual guarantee. Only a program
+   with no static error that finishes as a value is judged, and the
+   judgment says something only if a binding did get its `?`. */
+type gradual_case =
+  | IllTyped
+  | NotAValue
+  | Unchanged
+  | Compared;
+
+let gradual_guarantee_case = ((uexp: Exp.t, seed: int)): gradual_case => {
   let loosened = with_unknown_annotations(seed, uexp);
-  let well_typed = e => {
-    let (info_map, _) =
-      QCheck_Util.skip_alias_loop(() =>
-        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), e)
-      );
-    List.is_empty(Statics.Map.error_ids(info_map));
-  };
-  QCheck.assume(well_typed(uexp) && well_typed(loosened));
+  let well_typed = e =>
+    switch (Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), e)) {
+    | (info_map, _) => List.is_empty(Statics.Map.error_ids(info_map))
+    | exception e when QCheck_Util.is_alias_loop(e) => false
+    };
   let run = (~step_limit, e) =>
     Evaluator.evaluate_and_limit(
       ~env=Builtins.env_init,
       ~step_limit,
       elaborate(e),
     );
-  switch (run(~step_limit=10000, uexp)) {
-  | LimitedCompleted((value, _)) when ValueChecker.is_value(value) =>
-    switch (run(~step_limit=10000, loosened)) {
-    | LimitedCompleted((loosened_value, _)) =>
-      Alcotest.check(
-        pattern_equivalence_testable,
-        "Annotated with ?, the program evaluates to the same value",
-        value,
-        loosened_value,
-      );
-      true;
-    | StepLimitExceeded =>
-      QCheck.Test.fail_report("Annotated with ?, the program didn't finish")
-    }
-  | LimitedCompleted(_)
-  | StepLimitExceeded => true
+  if (!(well_typed(uexp) && well_typed(loosened))) {
+    IllTyped;
+  } else {
+    switch (run(~step_limit=10000, uexp)) {
+    | LimitedCompleted((value, _)) when ValueChecker.is_value(value) =>
+      /* the annotated program has its casts to do as well: ten times the
+         room, so that only one that really doesn't finish fails */
+      switch (run(~step_limit=100000, loosened)) {
+      | LimitedCompleted((loosened_value, _)) =>
+        Alcotest.check(
+          pattern_equivalence_testable,
+          "Annotated with ?, the program evaluates to the same value",
+          value,
+          loosened_value,
+        );
+        Exp.fast_equal(uexp, loosened) ? Unchanged : Compared;
+      | StepLimitExceeded =>
+        QCheck.Test.fail_report("Annotated with ?, the program didn't finish")
+      }
+    | LimitedCompleted(_)
+    | StepLimitExceeded => NotAValue
+    };
   };
 };
 
-let qcheck_gradual_guarantee =
-  QCheck.Test.make(
-    ~name="Annotating bindings with ? keeps the value",
-    ~count=1000,
-    QCheck.pair(
-      QCheck_Util.arb_exp_canonical(~minimal_idents=true, 5),
-      QCheck.small_nat,
-    ),
-    gradual_guarantee_holds,
-  );
+/* The programs the guarantee is put to are made to have no static error
+   and to finish as a value (the full generator makes one with a binding
+   to annotate about once in a thousand, so it isn't used here): one that
+   doesn't is a broken generator, not a case to skip. */
+let gradual_guarantee_holds = (src: string, seed: int): bool =>
+  switch (gradual_guarantee_case((parse_exp(src), seed))) {
+  | Compared
+  | Unchanged => true
+  | IllTyped => QCheck.Test.fail_reportf("%s has a static error", src)
+  | NotAValue => QCheck.Test.fail_reportf("%s doesn't finish as a value", src)
+  };
 
 /* Generated programs rarely give a one-field labeled type a value to lift,
    which is where a `?` hides the type statics lifts by. These do: a value
@@ -701,10 +921,12 @@ let qcheck_gradual_guarantee_labeled_singletons = {
       "let v = " ++ v ++ " in " ++ use("(v : (a=" ++ t ++ ")).a"),
     ((v, _, use)) =>
       "let f = fun y -> let (a=x) = y in " ++ use("x") ++ " in f(" ++ v ++ ")",
+    /* the last rule is for `(b=1)`: a rule passes a record under another
+       label on */
     ((v, _, use)) =>
       "let f = fun y -> case y | (a=x) => "
       ++ use("x")
-      ++ " end in f("
+      ++ " | _ => 0 end in f("
       ++ v
       ++ ")",
   ];
@@ -724,7 +946,7 @@ let qcheck_gradual_guarantee_labeled_singletons = {
       ),
     ),
     ((src, seed)) =>
-    gradual_guarantee_holds((parse_exp(src), seed))
+    gradual_guarantee_holds(src, seed)
   );
 };
 
@@ -751,43 +973,109 @@ let pattern_equivalence_unlabeled_one_tuple_pin =
         | LimitedCompleted((value, _)) => Some(value)
         | StepLimitExceeded => None
         };
-      let ascribed = result("(x=A) : (_=a)");
-      let bound = result("let p : (_=a) = (x=A) in p");
+      /* The ascription leaves the value as it is; the pattern binds the
+         field's value, under the pattern's type. */
       check(
-        bool,
-        "both finish",
-        true,
-        Option.is_some(ascribed) && Option.is_some(bound),
+        option(string),
+        "(x=A) : (_=a)",
+        Some("(x=A)"),
+        Option.map(result("(x=A) : (_=a)"), ~f=QCheck_Util.show_core_exp),
       );
       check(
-        bool,
-        "the two forms evaluate to the same thing",
-        false,
-        Option.equal(
-          Alcotest.equal(pattern_equivalence_testable),
-          ascribed,
-          bound,
+        option(string),
+        "let p : (_=a) = (x=A) in p",
+        Some("A:(_=(a))"),
+        Option.map(
+          result("let p : (_=a) = (x=A) in p"),
+          ~f=QCheck_Util.show_core_exp,
         ),
       );
     },
   );
 
-/* Preservation excludes a `rec` type with an unused binder
-   (has_rec_with_unused_binder), because of this. */
-let preservation_rec_unused_binder_pin =
+/* Why `proof_object` and `proof_of` aren't generated, and why properties
+   that compare types erase what a `proof_of` quotes
+   (QCheck_Util.erase_proof_props): the type `proof_of y end` escapes the
+   binder of `y`, and the step that substitutes `y` changes it to
+   `proof_of 1 end`, which is compared by expression equality. Goes red
+   when proofs are separated from expressions. */
+let preservation_proof_of_pin =
   test_case(
-    "Known bug: `?` is not as precise as `rec x -> ?`",
+    "Known bug (#2753): a step changes what a proof's type quotes",
+    `Quick,
+    () => {
+      let uexp = parse_exp("let y = 1 in proof_object y end");
+      let (statics, elab) =
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+      let orig_ty = elaborated_type(statics, uexp);
+      switch (single_step(elab)) {
+      | None => fail("expected a step")
+      | Some(next) =>
+        let (statics', _) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
+        switch (
+          Statics.Map.ty_of(next.annotation.ids |> List.hd_exn, statics')
+        ) {
+        | None => fail("no type for the stepped term")
+        | Some(ty) =>
+          check(
+            bool,
+            "the stepped type is at least as precise",
+            false,
+            Typ.is_more_precise(Ctx.empty, ty, orig_ty),
+          )
+        };
+      };
+    },
+  );
+
+/* A `rec` whose binder its body never uses is its body, so a step that
+   sees through it (`_ : (rec x -> ?)` to `_`, type `?`) preserves the
+   type. Preservation used to exclude such types. */
+let preservation_rec_unused_binder =
+  test_case(
+    "`?` is as precise as `rec x -> ?`",
     `Quick,
     () => {
       let unknown = () => Typ.fresh(Unknown(Internal));
+      let vacuous = (binder: TPat.term) =>
+        Typ.fresh(Rec(TPat.fresh(binder), unknown()));
+      List.iter(
+        [
+          ("rec x -> ?", vacuous(Var("x"))),
+          ("rec ? -> ?", vacuous(EmptyHole)),
+        ],
+        ~f=((name, ty)) => {
+          check(
+            bool,
+            "? is as precise as " ++ name,
+            true,
+            Typ.is_more_precise(Ctx.empty, unknown(), ty),
+          );
+          check(
+            bool,
+            name ++ " is as precise as ?",
+            true,
+            Typ.is_more_precise(Ctx.empty, ty, unknown()),
+          );
+        },
+      );
+      /* A binder the body uses stays: Int is not one unrolling of it. */
       check(
         bool,
-        "? is as precise as rec x -> ?",
+        "Int is as precise as rec x -> (Int, x)",
         false,
         Typ.is_more_precise(
           Ctx.empty,
-          unknown(),
-          Typ.fresh(Rec(TPat.fresh(Var("x")), unknown())),
+          Typ.fresh(Atom(Int)),
+          Typ.fresh(
+            Rec(
+              TPat.fresh(Var("x")),
+              Typ.fresh(
+                Prod([Typ.fresh(Atom(Int)), Typ.fresh(Var("x"))]),
+              ),
+            ),
+          ),
         ),
       );
     },
@@ -1200,8 +1488,7 @@ let one_step_preserves = (src: string) => {
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
   let orig_ty = elaborated_type(statics, uexp);
   switch (single_step(elab)) {
-  /* As in the property: a final term has nothing to preserve. */
-  | None => ()
+  | None => fail(src ++ ": expected a step")
   | Some(next) =>
     let (statics', _) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(None), next);
@@ -1513,7 +1800,7 @@ let found_cause_tests = [
   ),
   /* Known bug: a cast pushed into a `let` keeps the `let`'s id, so the cache
      serves the old cast after an edit changes only the cast's type. Pinned
-     with the disagreement; goes red once fixed. */
+     with the disagreement; goes red once fixed (#2829 fixes it). */
   test_case("Known bug: a cast pushed into a module-let is cached", `Quick, () =>
     incremental_agrees(
       ~testable=neg(testable_core_exp),
@@ -1632,13 +1919,14 @@ module ListTypes = {
     let uexp = parse_exp(src);
     let (statics, elab) =
       Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+    /* The generator makes well-typed programs that finish. */
     if (!List.is_empty(Statics.Map.error_ids(statics))) {
-      None;
+      Some("the generated program has a static error: " ++ src);
     } else {
       let orig_ty = elaborated_type(statics, uexp);
       let rec go = (steps, e) =>
         if (steps > 200) {
-          None;
+          Some("the generated program takes more than 200 steps: " ++ src);
         } else {
           switch (single_step(e)) {
           | None => None
@@ -1679,6 +1967,40 @@ module ListTypes = {
       | None => true
       | Some(msg) => QCheck.Test.fail_report(msg)
       }
+    );
+
+  /* The same programs put to the gradual guarantee: they are well typed,
+     finish, and bind a function under a type (`let tl : [Int] -> [Int] =
+     fun l -> …`), so a `?` on a binder has casts on lists to hide. */
+  let arb_with_seed =
+    QCheck.pair(QCheck.make(~print=s => s, gen_ints(3)), QCheck.small_nat);
+
+  let gradual_guarantee =
+    QCheck.Test.make(
+      ~name="Annotating bindings with ? keeps the value: list programs",
+      ~count=500,
+      arb_with_seed,
+      ((src, seed)) =>
+      gradual_guarantee_holds(src, seed)
+    );
+
+  let gradual_guarantee_compares_some =
+    test_case(
+      "Annotating bindings with ?: some list programs get an annotation",
+      `Quick,
+      () =>
+      at_least(
+        "programs compared with a binding annotated",
+        120,
+        List.count(judged_terms(arb_with_seed), ~f=((src, seed)) =>
+          switch (gradual_guarantee_case((parse_exp(src), seed))) {
+          | Compared => true
+          | IllTyped
+          | NotAValue
+          | Unchanged => false
+          }
+        ),
+      )
     );
 };
 
@@ -1739,8 +2061,10 @@ let tests = (
     yielding_streaming_current_id_invalid_race_test,
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
+    stepper_consistency_compares_most,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
-    QCheck_alcotest.to_alcotest(qcheck_gradual_guarantee),
+    QCheck_alcotest.to_alcotest(ListTypes.gradual_guarantee),
+    ListTypes.gradual_guarantee_compares_some,
     QCheck_alcotest.to_alcotest(qcheck_gradual_guarantee_labeled_singletons),
     QCheck_alcotest.to_alcotest(qcheck_incremental_matches_fresh_after_edit),
     incremental_literal_edit_regression_test,
@@ -1748,7 +2072,11 @@ let tests = (
     QCheck_alcotest.to_alcotest(ListTypes.property),
     incremental_reused_function_regression_test,
     pattern_equivalence_unlabeled_one_tuple_pin,
-    preservation_rec_unused_binder_pin,
+    pattern_equivalence_grid,
+    pattern_equivalence_compares_some,
+    incremental_compares_some,
+    preservation_rec_unused_binder,
+    preservation_proof_of_pin,
   ]
   @ incremental_recursive_lets_tests
   @ found_cause_tests,

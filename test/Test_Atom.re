@@ -10,6 +10,16 @@ let tests = (
         [0.0000172, 1.72128496811e-05, 1e20, 1.0 /. 3.0, 0.1, 100.0, (-2.5)],
         ~f=f => {
           let text = Atom.to_literal(Float(f));
+          /* the shortest such decimal: one digit fewer reads back as
+             another float */
+          let shorter = String.drop_suffix(text, 1);
+          check(
+            bool,
+            text ++ " has no digit to spare",
+            false,
+            String.is_suffix(shorter, ~suffix=".")
+              ? false : Float.equal(float_of_string(shorter), f),
+          );
           check(bool, text, true, Float.equal(float_of_string(text), f));
           check(
             bool,

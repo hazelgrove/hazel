@@ -27,12 +27,12 @@ let qcheck_explainthis_does_not_crash =
     ~count=1000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-    /* Statics failures are out of scope; we only assert that ExplainThis
-       itself does not raise for any sub-term it is asked to document. The
-       color map is harvested too, since that is where the explanation's
-       markdown is parsed. */
+    /* ExplainThis must not raise for any sub-term it is asked to document.
+       The color map is harvested too, since that is where the explanation's
+       markdown is parsed. Statics' one known failure (the alias loop,
+       #2570) is let by; anything else it raises fails here too. */
     switch (statics(exp)) {
-    | exception _ => true
+    | exception e when QCheck_Util.is_alias_loop(e) => true
     | info_map =>
       Id.Map.iter(
         (_id, info: Info.t) => {

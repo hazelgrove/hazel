@@ -98,7 +98,7 @@ let arb_fuzzed = {
     let+ choices = array_size(int_bound(24), int_bound(4));
     (print_core(core_exp), choices);
   };
-  make(~print=((txt, _)) => txt, gen);
+  make(~print=((txt, choices)) => fuzz_whitespace(choices, txt), gen);
 };
 
 let qcheck_fuzz_test =
@@ -109,8 +109,15 @@ let qcheck_fuzz_test =
     ((txt, choices)) => {
       let fuzzed = fuzz_whitespace(choices, txt);
       switch (make_term_parse(fuzzed), menhir_parse(fuzzed)) {
-      | (Some(mk), Some(mh)) => equal_terms(mk, mh)
-      | (Some(_), None) => false /* menhir must accept what the editor accepts here */
+      | (Some(mk), Some(mh)) =>
+        equal_terms(mk, mh)
+        || QCheck.Test.fail_reportf(
+             "The parsers read it differently: %s",
+             fuzzed,
+           )
+      /* Menhir must accept what the editor accepts here. */
+      | (Some(_), None) =>
+        QCheck.Test.fail_reportf("Menhir doesn't read: %s", fuzzed)
       /* The editor's reader turns an exception into None. */
       | (None, _) =>
         QCheck.Test.fail_reportf("The editor doesn't read: %s", fuzzed)

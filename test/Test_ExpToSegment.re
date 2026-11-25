@@ -102,14 +102,7 @@ let tests = (
         );
       },
     ),
-    test_case(
-      "Negative ints",
-      `Quick,
-      () => {
-        let _ = Alcotest.skip(); // TODO: Fix negative ints
-        equivalent_to_make_term("-1");
-      },
-    ),
+    test_case("Negative ints", `Quick, () => {equivalent_to_make_term("-1")}),
     test_case(
       "Empty Ids on ExpToSegment constructor",
       `Quick,
@@ -1034,8 +1027,8 @@ end|}),
 
    === KNOWN LIMITATIONS ===
 
-   - Float literals: normalized to full precision (2.0 becomes 2.000000)
-     This is done upstream in the parser/lexer.
+   - Float literals print as the shortest decimal that reads back as the
+     same float (Atom.to_literal), so `2.0` stays `2.0`.
 
    ============================================================================ */
 
@@ -1972,11 +1965,28 @@ let arb_perturbed_fixpoint =
       | Some(seg) =>
         let term = MakeTerm.go(seg).term;
         let seg2 = exp_to_segment_roundtrip(term);
-        String.equal(print_seg(seg), print_seg(seg2))
-        && List.equal(String.equal, tile_ids(seg), tile_ids(seg2))
-        && Segment.equiv_mod_grout(seg, seg2)
+        let holds = (what: string, held: bool) =>
+          held
+          || QCheck.Test.fail_reportf(
+               "%s differ.\nRead: %s\nPrinted back: %s",
+               what,
+               print_seg(seg),
+               print_seg(seg2),
+             );
+        holds("The texts", String.equal(print_seg(seg), print_seg(seg2)))
+        && holds(
+             "The tile ids",
+             List.equal(String.equal, tile_ids(seg), tile_ids(seg2)),
+           )
+        && holds("The segments", Segment.equiv_mod_grout(seg, seg2))
         /* P3 closure: reparsing the print gives the same term */
-        && Language.Exp.fast_equal_with_lexemes(term, MakeTerm.go(seg2).term);
+        && holds(
+             "The terms read from the two",
+             Language.Exp.fast_equal_with_lexemes(
+               term,
+               MakeTerm.go(seg2).term,
+             ),
+           );
       };
     },
   );
@@ -2114,18 +2124,9 @@ module Evaluated = {
     "(a=1)",
   ];
 
-  let terms = (seed: int, typed: Exp.t): list(Exp.t) => {
-    let st = Stdlib.Random.State.make([|seed|]);
-    let value = () =>
-      Option.value_exn(
-        Parser.to_term(
-          List.nth_exn(
-            values,
-            Stdlib.Random.State.int(st, List.length(values)),
-          ),
-          ~root=Exp,
-        ),
-      );
+  /* The elaboration of `typed` with a `value()` in each hole and for each
+     free name, and its first steps. */
+  let terms_with = (value: unit => Exp.t, typed: Exp.t): list(Exp.t) => {
     let (_, elab) =
       QCheck_Util.skip_alias_loop(() =>
         Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), typed)
@@ -2173,6 +2174,31 @@ module Evaluated = {
         );
     go(3, filled, [filled]);
   };
+
+  let read_value = (text: string): Exp.t =>
+    Option.value_exn(Parser.to_term(text, ~root=Exp));
+
+  /* For a property: the values are drawn by `seed`. */
+  let terms = (seed: int, typed: Exp.t): list(Exp.t) => {
+    let st = Stdlib.Random.State.make([|seed|]);
+    terms_with(
+      () =>
+        read_value(
+          List.nth_exn(
+            values,
+            Stdlib.Random.State.int(st, List.length(values)),
+          ),
+        ),
+      typed,
+    );
+  };
+
+  /* For a fixed input: each value in turn, in every hole and for every
+     free name, so the test doesn't lean on what a seed happens to draw. */
+  let terms_for_each_value = (typed: Exp.t): list(Exp.t) =>
+    List.concat_map(values, ~f=text =>
+      terms_with(() => read_value(text), typed)
+    );
 };
 
 /* A term with each multihole replaced by its tokens, for comparing terms
@@ -2349,9 +2375,8 @@ let reprint = (text: string): option(string) =>
    so its first print may group it otherwise. That is the completion
    reading layout as it should, not printing losing anything: from the
    first print on, reading and printing again should hold still. It
-   doesn't yet (#2856: tokens lost in the parse, parens growing around an
-   unclosed paren in a type, case rules in an unclosed paren), so for
-   these only the no-crash half is checked until
+   doesn't yet (#2856: case rules in an unclosed paren, pinned below), so
+   for these only the no-crash half is checked until
    `incomplete_reprints_hold` can be switched on. */
 let incomplete_reprints_hold = false;
 
@@ -2381,6 +2406,61 @@ let rec paren_after_hole_piece = (seg: Segment.t): bool =>
   };
 let paren_pieces_read_back = false;
 
+/* Whether a module has an item that is a hole of one piece which is not an
+   expression. The reader splits a hole that holds items into its items, so
+   that they still bind (MakeTerm.flatten_mod), and a piece of another sort
+   left between them (the type `SInt` of `{ let x = 9 : w SInt }`) becomes
+   an item of its own. Alone after a `;` its print reads back as an
+   expression, so no text reads back as that item. Only the no-crash half
+   is checked for these until `split_pieces_read_back` can be switched on
+   (pinned below: "Known gap: a type split out of a module item"). */
+let has_split_piece = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_mod=
+        (continue, item: Mod.t) => {
+          switch (item.term) {
+          | ModExp({term: MultiHole([Exp(_)]), _}) => ()
+          | ModExp({term: MultiHole([_]), _}) => found := true
+          | _ => ()
+          };
+          continue(item);
+        },
+      e,
+    );
+  found^;
+};
+let split_pieces_read_back = false;
+
+/* Whether a labeled field holds a bare `_=` field. Elaboration makes one
+   of `(_=1) : (a=Int)`: the entry's label is filled in around the `_=`
+   field, and its print, `(a=(_=1))`, reads back as `a` holding a
+   one-tuple. Only the no-crash half is checked for these until
+   `filled_labels_read_back` can be switched on (pinned below: "Known gap:
+   a label filled in around a `_=` field"). */
+let has_filled_label = (e: Exp.t): bool => {
+  let found = ref(false);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (continue, e) => {
+          switch (e.term) {
+          | TupLabel(
+              {term: Label(_), _},
+              {term: TupLabel({term: ExplicitNonlabel, _}, _), _},
+            ) =>
+            found := true
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  found^;
+};
+let filled_labels_read_back = false;
+
 /* Runs of spaces as one. The Defensive print writes its own spacing, and
    the grout between a hole's pieces shows as a space of its own (`x  y`),
    so where a hole's pieces group differently on the second read (see
@@ -2408,11 +2488,41 @@ let single_spaced = (text: string): string => {
   String.of_char_list(List.rev(kept));
 };
 
+/* Whether what was typed is still there in the print of what was read: the
+   typed text's characters, in order, all occur in it. Spaces, parens and
+   `?` aside: printing adds those. holes_as_text takes a hole's text from
+   the printer, so a token the reader or the printer dropped inside a hole
+   would be missing on both sides of that comparison. */
+let typed_text_survives = (~typed: string, printed: string): bool => {
+  let skeleton = (text: string): list(char) =>
+    String.to_list(text)
+    |> List.filter(~f=c =>
+         !(
+           Char.is_whitespace(c)
+           || List.mem(['(', ')', '?'], c, ~equal=Char.equal)
+         )
+       );
+  let rec occurs_in = (small: list(char), big: list(char)): bool =>
+    switch (small, big) {
+    | ([], _) => true
+    | ([_, ..._], []) => false
+    | ([s, ...rest], [b, ...big]) =>
+      Char.equal(s, b) ? occurs_in(rest, big) : occurs_in(small, big)
+    };
+  occurs_in(skeleton(typed), skeleton(printed));
+};
+
 /* Evaluation drops the marks of missing shards, so a term evaluated from an
    incomplete parse says `~from_incomplete`. An elaborated term is compared
    in the shape it is written in (`~as_written=Canonicalize.elaborated`). */
 let print_reads_back =
-    (~from_incomplete=false, ~as_written=(e: Exp.t) => e, term: Exp.t): bool => {
+    (
+      ~from_incomplete=false,
+      ~as_written=(e: Exp.t) => e,
+      ~typed: option(string)=?,
+      term: Exp.t,
+    )
+    : bool => {
   let text = defensive_print(term);
   switch (Typed.read(text)) {
   | None => QCheck.Test.fail_reportf("Printed text doesn't read: %s", text)
@@ -2423,7 +2533,11 @@ let print_reads_back =
         || !stray_keywords_read_back
         && has_stray_keyword(term)
         || !paren_pieces_read_back
-        && paren_after_hole_piece(exp_to_segment(term))) {
+        && paren_after_hole_piece(exp_to_segment(term))
+        || !split_pieces_read_back
+        && has_split_piece(term)
+        || !filled_labels_read_back
+        && has_filled_label(term)) {
       switch (reprint(text')) {
       | Some(text'') when incomplete_reprints_hold =>
         String.equal(text', text'')
@@ -2439,6 +2553,18 @@ let print_reads_back =
           holes_as_text(reread),
         );
       (
+        switch (typed) {
+        | Some(typed) =>
+          typed_text_survives(~typed, text)
+          || QCheck.Test.fail_reportf(
+               "Typed %s, and its print has lost some of it: %s",
+               typed,
+               text,
+             )
+        | None => true
+        }
+      )
+      && (
         String.equal(single_spaced(text), single_spaced(text'))
         && same_term
         || QCheck.Test.fail_reportf(
@@ -2494,7 +2620,7 @@ let arb_typed_invalid_forms =
         | _ => ()
         | exception e when QCheck_Util.is_alias_loop(e) => ()
         };
-        print_reads_back(term);
+        print_reads_back(~typed=text, term);
       };
     },
   );
@@ -2824,12 +2950,11 @@ let defensive_print_stable_tests = (
         ~f=text => {
           let term = Typed.read(text);
           check(bool, "read " ++ text, true, Option.is_some(term));
-          check(
-            bool,
-            "prints " ++ text,
-            true,
-            print_reads_back(Option.value_exn(term)),
-          );
+          let term = Option.value_exn(term);
+          /* something is missing from each, so of printing only that it
+             doesn't crash and that a reprint reads is checked */
+          check(bool, "incomplete " ++ text, true, is_incomplete(term));
+          check(bool, "prints " ++ text, true, print_reads_back(term));
         },
       )
     ),
@@ -2963,17 +3088,6 @@ let defensive_print_stable_tests = (
         ],
         ~f=text => {
           let term = Option.value_exn(Typed.read(text));
-          /* a word that starts a keyword is no operator: it joins what is
-             around it at the type's sort, so what follows it is a type */
-          check(
-            bool,
-            "what follows `th` in 1 : Int th x is a type",
-            true,
-            switch (Option.value_exn(Typed.read("1 : Int th x")).term) {
-            | MultiHole([_, Typ(_)]) => true
-            | _ => false
-            },
-          );
           check(
             bool,
             "a subtraction from an ascription in " ++ text,
@@ -2999,6 +3113,86 @@ let defensive_print_stable_tests = (
           check(bool, text, true, print_reads_back(term));
         },
       )
+    ),
+    /* A word that starts a keyword (`th` of `then`) is no operator of an
+       expression: after an ascription's type it joins what is around it
+       at the type's sort, as before, so what follows it is read as a
+       type. */
+    test_case("A keyword's prefix after an ascription's type", `Quick, () =>
+      check(
+        bool,
+        "what follows `th` in 1 : Int th x is a type",
+        true,
+        switch (Option.value_exn(Typed.read("1 : Int th x")).term) {
+        | MultiHole([_, Typ(_)]) => true
+        | _ => false
+        },
+      )
+    ),
+    /* What is left of `t.(x)` once a step has taken the parens off `x`: a
+       name that is no label. Bare, it would read as the label `x`, and
+       project. */
+    test_case(
+      "A name after a dot that is not a label keeps its parens",
+      `Quick,
+      () => {
+        let names: list((Exp.term, string)) = [
+          (Var("x"), "t. (x)"),
+          (Constructor("A", None), "t. (A)"),
+          (BuiltinFun("int_of_float"), "t. (int_of_float)"),
+        ];
+        List.iter(
+          names,
+          ~f=((name, expected)) => {
+            let term =
+              Exp.fresh(Dot(Exp.fresh(Var("t")), Exp.fresh(name)));
+            check(string, "printed", expected, defensive_print(term));
+            check(
+              bool,
+              "reads back",
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            );
+          },
+        );
+      },
+    ),
+    /* The carve-out has_split_piece makes. The stray `w` leaves `SInt`
+       outside the ascription's type; the hole joining the item and `SInt`
+       is split so that `x` still binds, and `SInt`, a type, is an item of
+       its own, which the print writes after a `;`, where it reads as the
+       constructor. */
+    test_case(
+      "Known gap: a type split out of a module item",
+      `Quick,
+      () => {
+        let items = (text: string): list(Mod.term) =>
+          switch (Option.value_exn(Typed.read(text)).term) {
+          | Module(items) => List.map(items, ~f=(item: Mod.t) => item.term)
+          | _ => []
+          };
+        let typed = "{ let x = 9 : w SInt }";
+        check(
+          bool,
+          "the type is an item of its own",
+          true,
+          switch (items(typed)) {
+          | [ModLet(_), ModExp({term: MultiHole([Typ(_)]), _})] => true
+          | _ => false
+          },
+        );
+        let printed = Option.value_exn(reprint(typed));
+        check(string, "its print", "{ let x = 9:w; SInt }", printed);
+        check(
+          bool,
+          "the print reads back with the type as an expression",
+          true,
+          switch (items(printed)) {
+          | [ModLet(_), ModExp({term: Constructor("SInt", _), _})] => true
+          | _ => false
+          },
+        );
+      },
     ),
     /* An operator the grammar doesn't know stays in the text whatever the
        sorts of its operands (an expression hole before it and a type after
@@ -3114,7 +3308,10 @@ let defensive_print_stable_tests = (
         ],
         ~f=text =>
         List.iter(
-          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
           check(
             bool,
             defensive_print(term),
@@ -3139,7 +3336,10 @@ let defensive_print_stable_tests = (
         ],
         ~f=text =>
         List.iter(
-          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
           check(
             bool,
             defensive_print(term),
@@ -3167,7 +3367,9 @@ let defensive_print_stable_tests = (
           ],
           ~f=text =>
           List.iter(
-            Evaluated.terms(1, Option.value_exn(Typed.read(text))),
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
             ~f=term => {
               check(
                 bool,
@@ -3231,7 +3433,10 @@ let defensive_print_stable_tests = (
         /* in a pattern too, and for a float's negative zero */
         List.iter(["fun -5 -> 1", "case 1 | -5 => 1 | _ => 2 end"], ~f=text =>
           List.iter(
-            Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
+            ~f=term =>
             check(
               bool,
               defensive_print(term),
@@ -3255,6 +3460,39 @@ let defensive_print_stable_tests = (
           "- -5 reads back",
           true,
           print_reads_back(~as_written=Canonicalize.elaborated, negated(-5)),
+        );
+      },
+    ),
+    /* An unknown operator after a declaration's name joins the name to
+       what follows it, so the declaration is of a hole and `a` is not
+       declared, where a space leaves `let a` an item of its own. */
+    test_case(
+      "An unknown operator after a declaration's name",
+      `Quick,
+      () => {
+        let items = (text: string): list(Sig.term) =>
+          switch (Option.value_exn(Typed.read(text)).term) {
+          | Asc(_, {term: Sig(items), _}) =>
+            List.map(items, ~f=(item: Sig.t) => item.term)
+          | _ => []
+          };
+        check(
+          bool,
+          "joined by an operator",
+          true,
+          switch (items("1 : { let a !!! let b }")) {
+          | [SigLet({term: MultiHole(_), _})] => true
+          | _ => false
+          },
+        );
+        check(
+          bool,
+          "joined by a space",
+          true,
+          switch (items("1 : { let a let b }")) {
+          | [SigLet({term: Var("a"), _}), MultiHole(_)] => true
+          | _ => false
+          },
         );
       },
     ),
@@ -3293,6 +3531,12 @@ let defensive_print_stable_tests = (
             );
           check(
             bool,
+            "a signature in " ++ text,
+            false,
+            List.is_empty(of_sigs^),
+          );
+          check(
+            bool,
             text,
             false,
             List.exists(of_sigs^, ~f=id =>
@@ -3307,8 +3551,7 @@ let defensive_print_stable_tests = (
        entry itself, which printed as a type that reads back as another. */
     test_case("A `_=` field at an entry with a hole for a label", `Quick, () =>
       List.iter(
-        Evaluated.terms(
-          1,
+        Evaluated.terms_for_each_value(
           Option.value_exn(Typed.read("(_ = x)\n: ( \"s\"a =\n(^w^))")),
         ),
         ~f=term =>
@@ -3330,28 +3573,27 @@ let defensive_print_stable_tests = (
         let elaborated =
           List.hd_exn(
             List.rev(
-              Evaluated.terms(
-                0,
+              Evaluated.terms_for_each_value(
                 Option.value_exn(Typed.read("(_=1) : (a=Int)")),
               ),
             ),
           );
+        let printed = defensive_print(elaborated);
+        check(string, "printed", "(a=(_=1)):(a=Int)", printed);
         check(
-          string,
-          "printed",
-          "(a=(_=1)):(a=Int)",
-          defensive_print(elaborated),
+          bool,
+          "the carve-out sees it",
+          true,
+          has_filled_label(elaborated),
         );
         check(
           bool,
           "reads back as the same term",
           false,
-          switch (
-            print_reads_back(~as_written=Canonicalize.elaborated, elaborated)
-          ) {
-          | same => same
-          | exception _ => false
-          },
+          Canonicalize.roundtrip_eq.exp(
+            holes_as_text(Canonicalize.elaborated(elaborated)),
+            holes_as_text(Option.value_exn(Typed.read(printed))),
+          ),
         );
       },
     ),
@@ -3359,15 +3601,31 @@ let defensive_print_stable_tests = (
        otherwise: `rec  ?` as two pieces after `true`, which no type starts
        with, and `rec ?` as a type's once the hole is in parens. */
     test_case(
-      "A hole regrouped on its second read is spaced otherwise", `Quick, () =>
-      check(
-        bool,
-        "reads back",
-        true,
-        print_reads_back(
-          Option.value_exn(Typed.read("1 : true(rec ? -> Int)")),
-        ),
-      )
+      "A hole regrouped on its second read is spaced otherwise",
+      `Quick,
+      () => {
+        let term = Option.value_exn(Typed.read("1 : true(rec ? -> Int)"));
+        check(bool, "reads back", true, print_reads_back(term));
+        /* The difference print_reads_back lets by (single_spaced). Goes red
+           once the first print is the fixed point, and the allowance with
+           it. */
+        let first = defensive_print(term);
+        check(
+          bool,
+          "the first print has the grout's space: " ++ first,
+          true,
+          String.is_substring(first, ~substring="rec  ?"),
+        );
+        check(
+          option(bool),
+          "the reprint has one",
+          Some(false),
+          Option.map(
+            reprint(first),
+            ~f=String.is_substring(~substring="rec  ?"),
+          ),
+        );
+      },
     ),
     test_case(
       "A type pattern hole spaces its pieces evenly",
@@ -3422,8 +3680,7 @@ let defensive_print_stable_tests = (
     ),
     test_case("A step inside a hole keeps its operator", `Quick, () =>
       List.iter(
-        Evaluated.terms(
-          9,
+        Evaluated.terms_for_each_value(
           Option.value_exn(Typed.read("((0 w (? >=. zz _))(use _ in y))")),
         ),
         ~f=term => {
@@ -3471,7 +3728,10 @@ let defensive_print_stable_tests = (
           ],
           ~f=text =>
           List.iter(
-            Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+            Evaluated.terms_for_each_value(
+              Option.value_exn(Typed.read(text)),
+            ),
+            ~f=term =>
             check(
               bool,
               defensive_print(term),
@@ -3486,7 +3746,9 @@ let defensive_print_stable_tests = (
           defensive_print(
             List.hd_exn(
               List.rev(
-                Evaluated.terms(0, Option.value_exn(Typed.read(text))),
+                Evaluated.terms_for_each_value(
+                  Option.value_exn(Typed.read(text)),
+                ),
               ),
             ),
           );
@@ -3507,7 +3769,10 @@ let defensive_print_stable_tests = (
     test_case("An elaborated constructor pattern reads back", `Quick, () =>
       List.iter(["case () | A => () end", "forall B -> 1"], ~f=text =>
         List.iter(
-          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          Evaluated.terms_for_each_value(
+            Option.value_exn(Typed.read(text)),
+          ),
+          ~f=term =>
           check(
             bool,
             defensive_print(term),
@@ -3531,6 +3796,18 @@ let defensive_print_stable_tests = (
                 | Parens(inner) => continue(inner)
                 | _ => continue(e)
                 },
+            ~f_pat=
+              (continue, p) =>
+                switch (p.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(p)
+                },
+            ~f_typ=
+              (continue, t) =>
+                switch (t.term) {
+                | Parens(inner) => continue(inner)
+                | _ => continue(t)
+                },
             e,
           );
         List.iter(
@@ -3539,6 +3816,13 @@ let defensive_print_stable_tests = (
             "1 !!! (x + 2)",
             "(f(x)) !!! (y.a)",
             "(- x) !!! 1",
+            /* a type's and a pattern's operands likewise */
+            "1 : (Int -> Bool) !!! Int",
+            "1 : Int !!! (Bool -> Int)",
+            "1 : ([Int] -> Bool) !!! (+ A + B)",
+            "let (x :: y) !!! z = 1 in 2",
+            "let z !!! (x :: y) = 1 in 2",
+            "fun (C(x) !!! (y : Int)) -> 1",
           ],
           ~f=text => {
             let term = unparenthesized(Option.value_exn(Typed.read(text)));

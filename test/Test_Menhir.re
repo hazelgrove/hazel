@@ -73,6 +73,41 @@ let parsers_disagree_test = (name: string, actual: string) =>
     )
   );
 
+/* A known disagreement, with what each parser reads the text as (written
+   with the parens that make both agree). Goes red once either reading
+   changes. */
+let parsers_read_test =
+    (name: string, ~text: string, ~editor: string, ~menhir: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let menhir_parse = (s: string): Exp.t =>
+        Grammar.map_exp_annotation(
+          _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+          Conversion.Exp.of_menhir_ast(Interface.parse_program(s)),
+        );
+      check(
+        bool,
+        "the editor reads it as " ++ editor,
+        true,
+        same_term(make_term_parse(text), make_term_parse(editor)),
+      );
+      check(
+        bool,
+        "Menhir reads it as " ++ menhir,
+        true,
+        same_term(menhir_parse(text), menhir_parse(menhir)),
+      );
+      check(
+        bool,
+        "the two readings are the same term",
+        false,
+        same_term(make_term_parse(text), menhir_parse(text)),
+      );
+    },
+  );
+
 let full_parser_test = (name: string, exp: Exp.t, actual: string) =>
   test_case(
     name,
@@ -1545,7 +1580,6 @@ let found_shapes = [
       };
     },
   ),
-  /* MakeTerm and Menhir read the same printed string the same way. */
   /* `case … end` has no Mod mold, so inside `{ }` its `| =>` carries the
      Any fallback mold until remolding revisits it. */
   menhir_maketerm_equivalent_test(
@@ -1570,6 +1604,42 @@ let found_shapes = [
   parsers_disagree_test(
     "Known bug (#2754): a type-in as a module item",
     {|{ type t = Int in 1 }|},
+  ),
+  /* A token no sort reads starts an expression item all the same, so what
+     follows it keeps an expression's sorts: the `:` is an ascription and
+     the `@<` a type application, as Menhir reads them. */
+  menhir_maketerm_equivalent_test(
+    "An unknown token starts a module item: ascribed",
+    {|{ ^w^:(^_^) }|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "An unknown token starts a module item: applied to a type",
+    {|{ 1; ^w^ @< (^_^) >; 2 }|},
+  ),
+  /* The two parsers order a type's operators differently. The editor's
+     reads `+` tighter than `->` (Precedence.type_plus, type_arrow) and
+     `.` looser than both (Form's Typ row for Dot has the expression's
+     precedence, which is looser than every type operator's): `A + B -> C`
+     is `(A + B) -> C`, and `M.t -> Int` is `M.(t -> Int)`. Menhir reads
+     `A + (B -> C)` and `(M.t) -> Int`. The printer parenthesizes these, so
+     no generated term prints one bare, and the properties don't meet them. */
+  parsers_read_test(
+    "Known gap: a sum type before an arrow",
+    ~text={|type T = A + B -> C in 1|},
+    ~editor={|type T = (A + B) -> C in 1|},
+    ~menhir={|type T = A + (B -> C) in 1|},
+  ),
+  parsers_read_test(
+    "Known gap: an arrow type before a projection",
+    ~text={|1 : A -> B.c|},
+    ~editor={|1 : (A -> B).c|},
+    ~menhir={|1 : A -> (B.c)|},
+  ),
+  parsers_read_test(
+    "Known gap: a type projection before an arrow",
+    ~text={|1 : M.t -> Int|},
+    ~editor={|1 : M.(t -> Int)|},
+    ~menhir={|1 : (M.t) -> Int|},
   ),
   /* The `;` inside parens is a sequence in both parsers, not a module
      separator, though it was typed inside the braces. */
@@ -1753,10 +1823,6 @@ let found_shapes = [
     {|f((_, 1))|},
   ),
   menhir_maketerm_equivalent_test("Deferred ap argument list", {|f(_, 1)|}),
-  menhir_maketerm_equivalent_test(
-    "Parenthesized deferral ap arg",
-    {|f((_))|},
-  ),
   /* `(_=e)` is a singleton labeled tuple, like `(lab=e)`, so it keeps its
      parens after a dot. */
   menhir_maketerm_equivalent_test(

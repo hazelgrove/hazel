@@ -1072,6 +1072,16 @@ let insertion_tests = [
       ],
     ~goal="let a = (1 + test¦ 2 end) in a",
   ),
+  /* `test` typed after an unclosed paren inside a `hint … test … end`
+     doesn't complete the hint: it starts a `test` of its own, where the
+     paren is. Whether a hint's `test` should be told from a test's is
+     #2755. */
+  test(
+    ~name=
+      "Known behaviour (#2755): test typed past an unclosed paren in a hint",
+    ~acts=string_to_ltr_actions("hint (1 test"),
+    ~goal="hint (1 ~test¦?",
+  ),
 ];
 
 let destruct_tests = [

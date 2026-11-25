@@ -454,16 +454,30 @@ module PlainTests = {
     );
   };
 
-  let skip_known_bug = (message: string, expression: string) =>
-    test_case("Known Bug: " ++ message, `Quick, () => {
-      [@warning "-21"]
-      {
-        let uexp = parse_exp(expression);
-        Alcotest.skip();
-        let _ = dhexp_of_uexp(uexp);
+  /* Programs elaboration once crashed or hung on. */
+  let elaborates = (message: string, expression: string) =>
+    test_case(
+      message,
+      `Quick,
+      () => {
+        let _ = dhexp_of_uexp(parse_exp(expression));
         ();
-      }
-    });
+      },
+    );
+  /* Statics doesn't finish on a type alias that reaches back to itself
+     through another (#2570). Goes red when it does. */
+  let alias_loop_pin = (message: string, expression: string) =>
+    test_case("Known bug (#2570): " ++ message, `Quick, () =>
+      Alcotest.check(
+        Alcotest.bool,
+        "statics hits the alias loop",
+        true,
+        switch (dhexp_of_uexp(parse_exp(expression))) {
+        | _ => false
+        | exception e => QCheck_Util.is_alias_loop(e)
+        },
+      )
+    );
   let tests = [
     /* Terms built without source ids (`Exp.temp`) all carry the invalid
        id; the nodes elaboration adds around them still need ids of their
@@ -887,20 +901,20 @@ in 1|},
         );
       },
     ),
-    skip_known_bug(
-      "Nontermination in typ normalization",
+    elaborates(
+      "A type alias of itself, used in a type application",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
     ),
-    skip_known_bug(
-      "Nontermination in typ normalization (mutually recursive aliases)",
+    alias_loop_pin(
+      "mutually recursive type aliases",
       "type x = y in type y = x in (()) @< x >",
     ),
-    skip_known_bug(
-      "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+    elaborates(
+      "A type applied in a pattern's ascription",
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
-    skip_known_bug(
-      "Type meet of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+    elaborates(
+      "A type application in a sum's argument",
       "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
@@ -909,7 +923,7 @@ in 1|},
         ~count=1000,
         QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
         exp => {
-          /* Only the alias loop (#1627, #2570) is let by. */
+          /* Only the alias loop (#2570) is let by. */
           let _ = QCheck_Util.skip_alias_loop(() => dhexp_of_uexp(exp));
           true;
         },
@@ -933,12 +947,16 @@ in 1|},
       `Quick,
       () => {
         let casts = ref(0);
+        let fixpoints = ref(0);
         let _ =
           Language.Exp.map_term(
             ~f_exp=
               (continue, e: Language.Exp.t) => {
                 switch (e.term) {
-                | FixF(_, {term: Asc(_), _}, _) => casts := casts^ + 1
+                | FixF(_, {term: Asc(_), _}, _) =>
+                  casts := casts^ + 1;
+                  fixpoints := fixpoints^ + 1;
+                | FixF(_) => fixpoints := fixpoints^ + 1
                 | _ => ()
                 };
                 continue(e);
@@ -950,6 +968,7 @@ in 1|},
             ),
           );
         check(int, "fixpoint bodies with a cast", 0, casts^);
+        check(int, "fixpoints in the elaboration", 1, fixpoints^);
       },
     ),
     /* An alias is erased at runtime, so a cast must not name one. */
@@ -1021,11 +1040,12 @@ module MenhirElaborationTests = {
       dhexp_of_uexp(bin_op_uexp),
     );
 
-  //Inconsistent branches menhir test
+  /* Inconsistent branches: elaboration puts each under an ascription to
+     an unknown type. */
   let inconsistent_case_menhir_str = "
     case 4 == 3
-    | true => 24
-    | false => false
+    | true => (24 : ?)
+    | false => (false : ?)
     end
 ";
   let inconsistent_case_uexp: Exp.t =
@@ -1036,20 +1056,12 @@ module MenhirElaborationTests = {
       )
     );
 
-  /* Skipped: menhir wraps each match-branch body in Asc(_, Unknown(SynSwitch))
-     where MakeTerm does not, so the two parses are unequal. Same
-     menhir/MakeTerm divergence class as the tests skipped via
-     [skip_menhir_maketerm_equivalent_test] in Test_Menhir.re. */
   let inconsistent_case_menhir = () =>
-    [@warning "-21"]
-    {
-      Alcotest.skip();
-      alco_check_menhir(
-        "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
-        inconsistent_case_menhir_str,
-        inconsistent_case_uexp,
-      );
-    };
+    alco_check_menhir(
+      "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+      inconsistent_case_menhir_str,
+      inconsistent_case_uexp,
+    );
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));

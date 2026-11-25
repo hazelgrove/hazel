@@ -1,21 +1,8 @@
 open Language;
 open Test_Statics_Prelude;
-open Poly;
 
-let is_known_statics_failure = msg =>
-  List.exists(
-    ~f=(==)(msg),
-    [
-      "normalize exceeded 1000 recursive calls",
-      "weak_head_normalize exceeded 1000 recursive calls",
-      "Recursion limit exceeded in all_ctrs_of_typ",
-    ],
-  )
-  || String.is_prefix(
-       msg,
-       ~prefix="all_ctrs_of_type called with a non-normalized type:",
-     );
-
+/* Statics' one known failure (QCheck_Util.is_alias_loop) is let by;
+   anything else it raises is a failure. */
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
@@ -24,13 +11,7 @@ let qcheck_statics_does_not_crash =
     exp => {
     switch (statics(exp)) {
     | _m => true
-    | exception Stack_overflow => true // TODO https://github.com/hazelgrove/hazel/issues/1622
-    | exception (Failure(f) as e) =>
-      if (is_known_statics_failure(f)) {
-        true;
-      } else {
-        raise(e);
-      }
+    | exception e when QCheck_Util.is_alias_loop(e) => true
     }
   });
 
@@ -42,20 +23,16 @@ let safe_statics = (~ctx=?, exp) => {
     };
   switch (Statics.mk(CoreSettings.on, ctx, exp)) {
   | result => `Ok(result)
-  | exception Stack_overflow => `Skip
-  | exception (Failure(f) as e) =>
-    if (is_known_statics_failure(f)) {
-      `Skip;
-    } else {
-      raise(e);
-    }
+  | exception e when QCheck_Util.is_alias_loop(e) => `Skip
   };
 };
 
 /* Assert that `violations` finds nothing in the info map `exp` produces.
-   Programs statics cannot process are skipped, as in `safe_statics`. */
+   A program statics cannot process is skipped, as in `safe_statics`,
+   unless `skipped` says otherwise. */
 let check_no_violations =
     (
+      ~skipped=() => (),
       ~violations: (Statics.Map.t, Language.Exp.t) => list('a),
       ~show: 'a => string,
       ~msg: string,
@@ -63,7 +40,7 @@ let check_no_violations =
     )
     : unit =>
   switch (safe_statics(exp)) {
-  | `Skip => ()
+  | `Skip => skipped()
   | `Ok(info_map, _elab) =>
     Alcotest.(
       check(
@@ -86,23 +63,26 @@ let elab_type_of =
   };
 
 /* Property: running statics on the elaborated expression yields the same type
-   as the original expression. */
-let check_elaboration_preserves_type = (exp: Language.Exp.t): unit =>
+   as the original expression. A program statics cannot process, or one
+   with no type recorded at its root, is not compared: `skipped` says what
+   to do then (nothing, for a generated program). */
+let check_elaboration_preserves_type =
+    (~skipped=(_: string) => (), exp: Language.Exp.t): unit =>
   switch (safe_statics(exp)) {
-  | `Skip => ()
+  | `Skip => skipped("statics skipped the program")
   | `Ok(m_user, elab) =>
     switch (elab_type_of(m_user, exp)) {
-    | None => ()
+    | None => skipped("the program has no type recorded")
     | Some(user_ty) =>
       /* Re-check with `use_mode = None`, as `CachedStatics` does for
          already-elaborated terms: `Operators.replace_*` re-specialize
          literals to the ambient mode, so a `Some(Int)` pass rewrites
          `use SInt in -?` back to an `Int` minus. */
       switch (safe_statics(~ctx=Builtins.ctx_init(None), elab)) {
-      | `Skip => ()
+      | `Skip => skipped("statics skipped the elaboration")
       | `Ok(m_elab, _) =>
         switch (elab_type_of(m_elab, elab)) {
-        | None => ()
+        | None => skipped("the elaboration has no type recorded")
         | Some(elab_ty) =>
           Alcotest.check(
             testable_typ,
@@ -205,8 +185,15 @@ let is_checked_module = (info_map: Statics.Map.t, e: Language.Exp.t): bool =>
   };
 
 let differing_subs =
-    (~checked_modules=false, info_map: Statics.Map.t, exp: Language.Exp.t)
+    (
+      ~checked_modules=false,
+      ~erase_proofs=true,
+      info_map: Statics.Map.t,
+      exp: Language.Exp.t,
+    )
     : list(syn_disagreement) => {
+  let erase = (ty: Typ.t): Typ.t =>
+    erase_proofs ? QCheck_Util.erase_proof_props(ty) : ty;
   let results = ref([]);
   let _ =
     Exp.map_term(
@@ -219,10 +206,7 @@ let differing_subs =
             | None => ()
             | Some((recorded_ty, ctx, elab_term)) =>
               let parent_ty =
-                recorded_ty
-                |> Typ.normalize(ctx)
-                |> QCheck_Util.erase_proof_props
-                |> Typ.all_ids_temp;
+                recorded_ty |> Typ.normalize(ctx) |> erase |> Typ.all_ids_temp;
               /* elab_term is already elaborated: no ambient use mode, or
                  a Float negation re-specializes to Int. */
               switch (
@@ -238,7 +222,7 @@ let differing_subs =
                   let fresh_ty =
                     elab_syn_ty
                     |> Typ.normalize(elab_ctx)
-                    |> QCheck_Util.erase_proof_props
+                    |> erase
                     |> Typ.all_ids_temp;
                   if (!Typ.fast_equal(parent_ty, fresh_ty)) {
                     let disagreement = {
@@ -348,7 +332,7 @@ let elab_ids_drifting =
   let drifted =
     Id.Map.merge(
       (info_id, first, second) =>
-        first == second
+        Option.equal(Id.equal, first, second)
           ? None
           : Some(
               Drifted({
@@ -446,23 +430,6 @@ let elab_nested_ids_drifting =
   @ List.map(~f=id => "only in second run: " ++ Id.to_string(id), extra);
 };
 
-/* Forms no parse returns, which reach statics by paths the editor never
-   takes, so this property doesn't ask them to be deterministic. */
-let has_internal_syntax = (e: Language.Exp.t): bool => {
-  let found = ref(false);
-  let check = (cont, term) => {
-    switch ((IdTagged.term_of(term): Exp.term)) {
-    | Closure(_)
-    | DrvQuote(_)
-    | BuiltinFun(_) => found := true
-    | _ => ()
-    };
-    cont(term);
-  };
-  let _ = Exp.map_term(~f_exp=check, e);
-  found^;
-};
-
 let qcheck_elab_ids_persist =
   QCheck.Test.make(
     ~name="Elaboration ids are the same on every run",
@@ -485,21 +452,19 @@ let qcheck_elab_nested_ids_persist =
     ~count=2000,
     QCheck_Util.arb_exp_full(~minimal_idents=true, 5),
     exp => {
-      QCheck.assume(!has_internal_syntax(exp));
-      switch (safe_statics(exp)) {
-      | `Skip => QCheck.assume_fail()
-      | `Ok(_) =>
-        switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
-        | [] => true
-        | violations =>
-          Alcotest.fail(
-            "Elaboration ids drift between runs:\n"
-            ++ String.concat(~sep="\n", violations),
-          )
-        }
-      };
-    },
-  );
+    switch (safe_statics(exp)) {
+    | `Skip => QCheck.assume_fail()
+    | `Ok(_) =>
+      switch (elab_nested_ids_drifting(Statics.Map.empty, exp)) {
+      | [] => true
+      | violations =>
+        Alcotest.fail(
+          "Elaboration ids drift between runs:\n"
+          ++ String.concat(~sep="\n", violations),
+        )
+      }
+    }
+  });
 
 /* The user aliases an elaborated term's types mention. The runtime reads
    those types with no context, so there should be none. A node's context
@@ -575,7 +540,45 @@ let parse = (src: string): Language.Exp.t =>
   };
 
 /* Long-mode counterexamples, pinned. */
+/* A fixed program that statics skips checks nothing: fail instead. */
+let check_elaboration_preserves_type = exp =>
+  check_elaboration_preserves_type(~skipped=Alcotest.fail, exp);
+let check_no_violations = (~violations, ~show, ~msg, exp) =>
+  check_no_violations(
+    ~skipped=() => Alcotest.fail("statics skipped the program: " ++ msg),
+    ~violations,
+    ~show,
+    ~msg,
+    exp,
+  );
+
 let regression_tests = [
+  /* `module x = def in body` is checked non-recursively but elaborates to
+     a `let`, which a fresh run checks as recursive. The two differ only in
+     what a `proof_of` quotes, which the properties erase (#2753), so they
+     don't meet it. Compared with nothing erased, it shows. */
+  Alcotest.test_case(
+    "Known bug (#2752): a self-referencing module binding re-checks differently",
+    `Quick,
+    () => {
+      let exp =
+        parse("proof_object module x = typfun y -> x in undefined end");
+      switch (safe_statics(exp)) {
+      | `Skip => Alcotest.fail("statics skipped the program")
+      | `Ok(info_map, _) =>
+        Alcotest.(
+          check(
+            bool,
+            "every sub-expression's recorded type agrees with a fresh synthesis",
+            false,
+            List.is_empty(
+              differing_subs(~erase_proofs=false, info_map, exp),
+            ),
+          )
+        )
+      };
+    },
+  ),
   /* A list pattern whose elements have no common type is typed `[?]`,
      which took a fresh id; the fixpoint's body cast carries it into the
      elaboration. */

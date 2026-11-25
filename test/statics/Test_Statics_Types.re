@@ -705,9 +705,15 @@ let tests = (
           );
         },
       ),
-    skip_known_bug(
-      "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
-      {|fun (?: (Float((+ A(Bool))))) -> ""|},
+    /* Statics once raised here ("all_ctrs_of_type called with a
+       non-normalized type", #1626). */
+    test_case(
+      "a type applied to a sum in a pattern's ascription",
+      `Quick,
+      () => {
+        let _ = statics(parse_exp({|fun (?: (Float((+ A(Bool))))) -> ""|}));
+        ();
+      },
     ),
     // These overflowed Typ.normalize and raised Not_found respectively, so
     // reaching a type at all is the regression being pinned.
@@ -1041,7 +1047,15 @@ let tests = (
             Builtins.env_init,
           )
           |> SemanticCtx.ctx_for_new_term;
-        check(bool, "use mode is Float", true, ctx.use_mode == Some(Float));
+        check(
+          bool,
+          "use mode is Float",
+          true,
+          switch (ctx.use_mode) {
+          | Some(Float) => true
+          | _ => false
+          },
+        );
       },
     ),
     /* Boolean negation is never re-kinded, so checking it mustn't peek at
