@@ -821,6 +821,51 @@ let mixed_tests = [
       );
     },
   ),
+  /* (^ticket(769), step 2: "JIT code with holes") a hole in a function's own code: compiled, checked, its hole a constant
+     opaque value carried out as the hole itself; where its code would open it, that call is the interpreter's */
+  mixed(
+    "mixed, a hole compiled: a function answering a hole",
+    "let later : Int -> Int = fun x -> ? in later(1)",
+    ["later"],
+  ),
+  mixed(
+    "mixed, a hole compiled: a pair with a hole in it",
+    "let half_done : Int -> (Int, Int) = fun x -> (x, ?) in half_done(5)",
+    ["half_done"],
+  ),
+  mixed(
+    "mixed, a hole compiled: the branch with the hole not taken, and taken",
+    "let maybe : Bool -> Int = fun b -> if b then 1 else ? in (maybe(true), maybe(false))",
+    ["maybe"],
+  ),
+  mixed(
+    ~fell_back=true,
+    "mixed, a hole compiled and opened: x + ?, the interpreter's",
+    "let add_hole : Int -> Int = fun x -> x + ? in add_hole(1)",
+    ["add_hole"],
+  ),
+  test_case(
+    "a hole compiled when asked: the unit checked, holding a hole",
+    `Quick,
+    () => {
+      let elab =
+        elaborate(
+          parse_exp("let f : Int -> (Int, Int) = fun x -> (x, ?) in f"),
+        );
+      let c =
+        HazelJit.compile_full(~holes=true, ~env=Builtins.env_init, elab);
+      check(bool, "holds a hole", true, c.holes);
+      check(
+        bool,
+        "not compiled without ~holes",
+        true,
+        switch (HazelJit.compile_full(~env=Builtins.env_init, elab)) {
+        | _ => false
+        | exception (HazelJit.Unsupported(_)) => true
+        },
+      );
+    },
+  ),
   mixed(
     ~fell_back=true,
     "mixed: divide by zero, that call the interpreter's, stuck at the error",

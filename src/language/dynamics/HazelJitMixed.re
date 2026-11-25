@@ -140,6 +140,8 @@ type entry = {
   /* (^ticket(769)) what was compiled, for the checked version, made the first time a call's argument holds a hole */
   unit_: Exp.t,
   checked_fn: ref(option(result(U.any, string))),
+  /* (^ticket(769), step 2) a hole compiled in it: fn is checked already, and its answers may hold its holes */
+  holes: bool,
 };
 
 let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
@@ -176,6 +178,7 @@ let checked_of = (entry: entry): result(U.any, string) =>
       switch (
         HazelJit.compile_full(
           ~checked=true,
+          ~holes=true,
           ~env=Builtins.env_init,
           entry.unit_,
         )
@@ -218,11 +221,15 @@ let call = (entry: entry, arg: Exp.t): option(Exp.t) => {
               ? String.sub(m, ~pos=0, ~len=40) ++ "..." : m;
           fall_back("the compiled run stopped: " ++ why, entry, arg);
         | v =>
+          HazelJitValue.holes_back := entry.holes;
           switch (HazelJitValue.of_js(entry.ts, Some(entry.result), v)) {
           | exception _ =>
-            fall_back("an answer that does not carry back", entry, arg)
-          | e => Some(e)
-          }
+            HazelJitValue.holes_back := false;
+            fall_back("an answer that does not carry back", entry, arg);
+          | e =>
+            HazelJitValue.holes_back := false;
+            Some(e);
+          };
         };
       };
     }
@@ -247,7 +254,9 @@ let rewrite = (program: Exp.t): Exp.t => {
     switch (name_of(p), declared_result(p, def), is_function(strip(def))) {
     | (Some(f), Some((param, result)), true) =>
       let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
-      switch (HazelJit.compile_full(~env=Builtins.env_init, unit)) {
+      switch (
+        HazelJit.compile_full(~holes=true, ~env=Builtins.env_init, unit)
+      ) {
       | exception (HazelJit.Unsupported(why)) =>
         not_compiled := [(f, why), ...not_compiled^];
         None;
@@ -270,7 +279,9 @@ let rewrite = (program: Exp.t): Exp.t => {
             result,
             closure: ref(None),
             unit_: unit,
-            checked_fn: ref(None),
+            /* (^ticket(769), step 2) a unit with a hole is compiled checked already (HazelJit.compile_full) */
+            checked_fn: ref(c.holes ? Some(Ok(fn)) : None),
+            holes: c.holes,
           };
           let compiled_name = "%jit:" ++ f ++ ":" ++ n;
           let keep_name = "%jit-keep:" ++ f ++ ":" ++ n;

@@ -55,6 +55,31 @@ let chk = (v: string): list(string) =>
   checked^ ? ["$R.no(" ++ v ++ ")"] : [];
 let opw = (s: string): string => checked^ ? "$R.op(" ++ s ++ ")" : s;
 
+/* (^ticket(769), step 2: "JIT code with holes") An empty hole, or invalid text, compiled: a constant opaque value standing
+   for the hole's own term, as the interpreter's value of a hole is the hole itself (Transition.re keeps no environment for
+   one: "uncomment for hole closures"). Its term is held here by a negative key, {$opaque: -k}, and HazelJitValue.of_js
+   gives it back; a cast around the hole, (? : Int), is held with it. Only where the caller asks (compile_full ~holes,
+   mixed mode); everywhere else a hole is Unsupported, as the rule of 2026-11-13 had it. A multihole and an error hole stay
+   the interpreter's, since each keeps its environment. A unit with a hole in it is compiled checked: its own code may meet
+   its holes. */
+let holes_ok = ref(false);
+let holes_met = ref(false);
+let hole_terms: Stdlib.Hashtbl.t(int, Exp.t) = Stdlib.Hashtbl.create(8);
+let hole_site = (e: Exp.t): string => {
+  let k = 0 - (Stdlib.Hashtbl.length(hole_terms) + 1);
+  Stdlib.Hashtbl.replace(hole_terms, k, e);
+  holes_met := true;
+  "$R.hole(" ++ string_of_int(k) ++ ")";
+};
+let rec is_hole = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Parens(e)
+  | Asc(e, _) => is_hole(e)
+  | EmptyHole
+  | Invalid(_) => true
+  | _ => false
+  };
+
 let no_type_hole = (t: Typ.t): unit => {
   let found = ref(false);
   let _ =
@@ -163,6 +188,8 @@ module Runtime = {
   eqc(a, b) { this.deep(a); this.deep(b); return this.eq(a, b); },
   appendc(a, b) { for (let p = this.op(a); p !== null; p = this.op(p.$t)) {} return this.append(a, b); },
   bc(name) { const c = this.bcs || (this.bcs = {}); return c[name] || (c[name] = (...xs) => this.b[name](...xs.map(x => this.dp(x)))); },
+  /* (^ticket(769), step 2) a hole in compiled code: one frozen opaque value for its site (HazelJit.hole_site) */
+  hole(k) { const h = this.hs || (this.hs = new Map()); let o = h.get(k); if (o === undefined) { o = Object.freeze({$opaque: k}); h.set(k, o); } return o; },
   /* (^ticket(757)) Int and Nat, exact as the interpreter's Bigint: a JS number while it is a safe integer, a BigInt past
      that; each result normalized (inorm), so equal values are one value and === compares them. Measured in Node against
      plain numbers: fib x1.6, list walks x0.7-0.9, arithmetic-heavy updates x3.7 (plain BigInt: x4.1, x1.5, x9.6) */
@@ -985,6 +1012,8 @@ and exp_inner =
   | TyAlias(tp, ty, e) =>
     note_alias(st, tp, ty);
     go(e);
+  /* (^ticket(769), step 2) a hole and its cast, held whole */
+  | Asc(inner, _) when holes_ok^ && is_hole(inner) => hole_site(e)
   | Asc(e, t)
   | TypAp(e, t) =>
     no_type_hole(t);
@@ -1473,6 +1502,8 @@ and exp_inner =
   | BuiltinFun(name) => builtin(name)
   | Closure(env, e) when List.is_empty(Environment.to_list(env)) => go(e)
   | Closure(_) => unsupported("a closure with its own environment")
+  | Invalid(_)
+  | EmptyHole when holes_ok^ => hole_site(e)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -1991,43 +2022,62 @@ type compiled = {
   ctors: Stdlib.Hashtbl.t(string, option(Typ.t)),
   aliases: Stdlib.Hashtbl.t(string, Typ.t),
   funs: Stdlib.Hashtbl.t(int, (Exp.t, list(string))),
+  /* (^ticket(769)) whether it holds a hole (compile_full ~holes), so it was compiled checked */
+  holes: bool,
 };
 
-let compile_full =
-    (~checked as c=false, ~env: Environment.t(Exp.t), e: Exp.t): compiled => {
-  let was = checked^;
+let rec compile_full =
+        (
+          ~checked as c=false,
+          ~holes=false,
+          ~env: Environment.t(Exp.t),
+          e: Exp.t,
+        )
+        : compiled => {
+  let (was, was_ok, was_met) = (checked^, holes_ok^, holes_met^);
   checked := c;
-  Stdlib.Fun.protect(
-    ~finally=() => checked := was,
-    () => {
-      let st = {
-        env,
-        counter: 0,
-        globals: [],
-        global_names: Stdlib.Hashtbl.create(8),
-        ctors: Stdlib.Hashtbl.create(16),
-        aliases: Stdlib.Hashtbl.create(8),
-        funs: Stdlib.Hashtbl.create(16),
-        frames: [],
-        direct: Stdlib.Hashtbl.create(16),
-        nullary: Stdlib.Hashtbl.create(16),
-        record_lits: Stdlib.Hashtbl.create(16),
-        records: Stdlib.Hashtbl.create(16),
-      };
-      let scope = {decls: []};
-      let v = exp(st, scope, [], e);
-      {
-        src:
-          "\"use strict\"; "
-          ++ String.concat(~sep=" ", List.rev(st.globals))
-          ++ " "
-          ++ body_with_decls(scope, v),
-        ctors: st.ctors,
-        aliases: st.aliases,
-        funs: st.funs,
-      };
-    },
-  );
+  holes_ok := holes;
+  holes_met := false;
+  let r =
+    Stdlib.Fun.protect(
+      ~finally=
+        () => {
+          checked := was;
+          holes_ok := was_ok;
+          holes_met := was_met;
+        },
+      () => {
+        let st = {
+          env,
+          counter: 0,
+          globals: [],
+          global_names: Stdlib.Hashtbl.create(8),
+          ctors: Stdlib.Hashtbl.create(16),
+          aliases: Stdlib.Hashtbl.create(8),
+          funs: Stdlib.Hashtbl.create(16),
+          frames: [],
+          direct: Stdlib.Hashtbl.create(16),
+          nullary: Stdlib.Hashtbl.create(16),
+          record_lits: Stdlib.Hashtbl.create(16),
+          records: Stdlib.Hashtbl.create(16),
+        };
+        let scope = {decls: []};
+        let v = exp(st, scope, [], e);
+        {
+          src:
+            "\"use strict\"; "
+            ++ String.concat(~sep=" ", List.rev(st.globals))
+            ++ " "
+            ++ body_with_decls(scope, v),
+          ctors: st.ctors,
+          aliases: st.aliases,
+          funs: st.funs,
+          holes: holes_met^,
+        };
+      },
+    );
+  /* (^ticket(769), step 2) a hole met, compiled unchecked: compiled again, checked */
+  r.holes && !c ? compile_full(~checked=true, ~holes, ~env, e) : r;
 };
 
 let compile = (~env: Environment.t(Exp.t), e: Exp.t): string =>

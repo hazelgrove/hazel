@@ -222,6 +222,9 @@ let is_opaque = (v: Js.Unsafe.any): bool =>
   String.equal(typeof(v), "object") && !is_null(v) && has(v, "$opaque");
 let opaque_key = (v: Js.Unsafe.any): int =>
   int_of_float(Js.float_of_number(Js.Unsafe.coerce(get(v, "$opaque"))));
+/* (^ticket(769), step 2) set while an answer from code with a hole compiled in it comes back: its holes are opaque too,
+   held by negative keys in HazelJit.hole_terms */
+let holes_back = ref(false);
 
 let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   switch (Exp.term_of(v)) {
@@ -378,8 +381,11 @@ let whole = (f: float): Bigint.t =>
 let rec of_js =
         (~seen=[], ts: types, ty: option(Typ.t), v: Js.Unsafe.any): Exp.t =>
   /* (^ticket(769)) an opaque value: the very term that went in */
-  if (opaque_count() > 0 && is_opaque(v)) {
-    Stdlib.Hashtbl.find(opaque_terms, opaque_key(v));
+  if ((opaque_count() > 0 || holes_back^) && is_opaque(v)) {
+    let k = opaque_key(v);
+    k < 0
+      ? Stdlib.Hashtbl.find(HazelJit.hole_terms, k)
+      : Stdlib.Hashtbl.find(opaque_terms, k);
   } else {
     let ty = Option.bind(ty, ~f=shape(ts, 0));
     switch (typeof(v)) {
