@@ -7,7 +7,7 @@ wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
 @prompt
 `fold_left` combines a list into a single value, carrying a running accumulator from left to right:
 ```hazelnostatics
-fold_left(list, fun (a, b) -> "..." , start)
+fold_left(list, fun (a, b) -> "...", start)
 ```
 Each step, the callback receives two things: the running value so far, and the next element from the list. Which parameter is which, `a` or `b`? We have forgotten. Rather than guess, check the probe samples to figure it out.
 

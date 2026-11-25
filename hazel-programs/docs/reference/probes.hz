@@ -8,12 +8,12 @@
 
 # INTRODUCTION #
 
-# Probe permit a kind of inline evaluation, #
+# Probes permit a kind of inline evaluation, #
 # similar to value hints in Emacs or IntelliJ. #
 
 # You can put one on any expression or pattern to see #
 # the values it takes on during evaluation. Sampled #
-# values are sorted by left-to-right by most-recent. #
+# values are sorted left-to-right by most-recent. #
 
 # When a sample is selected, you can hover over it to see #
 # relevant environment variables, and all /other/ samples #
@@ -28,7 +28,7 @@
 
 # TUTORIAL #
 
-# The expression 10 * 10 below has a probe.  #
+# The expression 10 + 10 below has a probe.  #
 # Its value, 20, is shown in a cell to the right. #
 let chips = ^^probe(10 + 10) in
 

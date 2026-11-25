@@ -22,7 +22,7 @@ Hazel also has classic print-statement debugging. On the tasks ahead you can dec
 print(42);
 "done"
 ```
-`print` writes a value to the Console and continues. Each entry shows a sequence number and a source line.
+`print` writes a value to the Console and continues. Each entry shows the value and its source line.
 
 @code
 print("test");

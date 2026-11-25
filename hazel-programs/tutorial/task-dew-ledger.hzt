@@ -2,7 +2,7 @@
 Probes / Task - Dew Ledger
 
 @flags
-show_report version=1 id=d0000034-0034-0034-0034-000000000034
+show_report version=2 id=d0000034-0034-0034-0034-000000000034
 
 @prompt
 # Task: The dew ledger
@@ -50,16 +50,16 @@ let init : Model = (dew = 0, jars = 0) in
 
 # Apply one action to the ledger #
 let update(m: Model, action: Action): Model =
-    case action
-    | Collect(n) =>
-        (dew = m.dew + n, jars = m.jars)
-    | Bottle =>
-        if m.dew < 10
-        then m  # not enough to fill a jar #
-        else (dew = m.dew - 10, jars = m.jars + 1)
-    | Spill =>
-        (dew = m.dew, jars = m.jars / 2)
-    end
+  case action
+  | Collect(n) =>
+    (dew = m.dew + n, jars = m.jars)
+  | Bottle =>
+    if m.dew < 10
+    then m  # not enough to fill a jar #
+    else (dew = m.dew - 10, jars = m.jars + 1)
+  | Spill =>
+    (dew = m.dew, jars = m.jars / 2)
+  end
 in
 
 # ===== TESTS ===== #
