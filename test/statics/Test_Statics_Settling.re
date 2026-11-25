@@ -33,6 +33,17 @@ let marked_once = (name, program, message) =>
     },
   );
 
+/* No node is marked. */
+let unmarked = (name, program) =>
+  test_case(name, `Quick, () =>
+    check(
+      int,
+      "marked expressions",
+      0,
+      List.length(infos(statics(parse_exp(program)))),
+    )
+  );
+
 let info_where = (map: Statics.Map.t, matches: Exp.term => bool): Info.exp =>
   switch (
     Id.Map.fold(
@@ -158,6 +169,7 @@ let programs = [
   "((a=1, b=1)) : Int",
   "[1, 2] : Int",
   {|[1, "s"] : [Int]|},
+  {|[1, "s", 3]|},
   "let x : String = 4 in x",
   {|if false then 1 else ("" : ?)|},
   "module M = { let x = 1 } in M + 1",
@@ -190,6 +202,25 @@ let tests = (
       "A list that is not of the expected type is marked with its type",
       "[1, 2] : Int",
       "Expecting type Int but got inconsistent type [Int]",
+    ),
+    marked_once(
+      "A list in synthesis whose elements do not meet is marked",
+      {|[1, "s", 3]|},
+      "Expecting elements to have consistent types but got types: Int, String, Int",
+    ),
+    marked_once(
+      "Lists appended in synthesis whose elements do not meet are marked",
+      {|[1] @ ["s"]|},
+      "Expecting operands to have consistent types but got types: [Int], [String]",
+    ),
+    marked_once(
+      "Against a list type, only the element that does not fit is marked",
+      {|let xs : [Int] = [1, "s"] in xs|},
+      "Expecting type Int but got inconsistent type String",
+    ),
+    unmarked(
+      "Against an unknown type, elements need not meet",
+      {|let f : ? -> ? = fun x -> x in f([1, "s"])|},
     ),
     types_of(
       "A function's syn type keeps its body's error",

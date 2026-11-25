@@ -315,18 +315,22 @@ let rec ana_skip_explicit_nonlabel = (ty_ana: Typ.t): Typ.t =>
   | _ => ty_ana
   };
 
+/* Whether a list whose elements do not meet, so that it synthesizes
+   `syn_no_meet`, is marked for it. In synthesis it is: nothing else gives
+   its elements a type. Against an expectation its elements were each checked
+   against the element type, so they can only fail to meet where the
+   expectation is not a list, and the mark says the list does not fit. */
 let should_emit_nomeet_mark =
-    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): bool =>
-  switch (
-    Typ.meet(
-      ctx,
-      ana_skip_explicit_nonlabel(ana),
-      ana_skip_explicit_nonlabel(elab_syn_ty),
+    (ctx: Ctx.t, ana: Typ.t, syn_no_meet: Typ.t): bool => {
+  let ana = ana_skip_explicit_nonlabel(ana);
+  switch (ana.term) {
+  | Unknown(SynSwitch) => true
+  | _ =>
+    Option.is_none(
+      Typ.meet(ctx, ana, ana_skip_explicit_nonlabel(syn_no_meet)),
     )
-  ) {
-  | Some(_) => false
-  | None => true
   };
+};
 
 let syn_ana_ok_common =
     (ctx: Ctx.t, ty_ana: Typ.t, syn_ty: Typ.t): Message.ok_common => {

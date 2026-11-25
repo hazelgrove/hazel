@@ -99,14 +99,7 @@ let term_view = (~globals: Globals.t, ~force_error=false, ci) => {
   );
 };
 
-let elements_noun: Cls.t => string =
-  fun
-  | Exp(Match | If) => "Branches"
-  | Exp(ListLit)
-  | Pat(ListLit) => "Elements"
-  | Exp(ListConcat)
-  | Exp(BinOp(Poly(_))) => "Operands"
-  | _ => "Sub-expressions";
+let elements_noun = Cls.elements_noun;
 
 let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   secondary: AutoFormat,

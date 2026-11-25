@@ -29,7 +29,8 @@ module Print = {
 
 let prn = sprintf;
 
-let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
+let core_mark_string =
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
     switch (
@@ -62,7 +63,11 @@ let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | NoMeet(PolyEq, tys)
   | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) =>
     prn(
-      "Expecting branches to have consistent types but got types: %s",
+      "Expecting %s to have consistent types but got types: %s",
+      cls
+      |> Option.value_map(~default="branches", ~f=cls =>
+           String.lowercase(Cls.elements_noun(cls))
+         ),
       List.map(~f=Print.typ, Typ.of_source(tys)) |> String.concat(~sep=", "),
     )
   | NoMeet(wrap, _tys) =>
@@ -98,8 +103,9 @@ let drv_error: DrvInfo.error => string =
       List.map(~f=DrvSort.to_string, actuals) |> String.concat(~sep=", "),
     );
 
-let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
-  let common_from_core = () => core_mark_string(ctx, ana, m);
+let exp_mark_to_string =
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
+  let common_from_core = () => core_mark_string(~cls?, ctx, ana, m);
   switch (m) {
   | Free(name) => "Variable " ++ name ++ " is not bound"
   | InexhaustiveMatch(_) => "Match is not exhaustive"
@@ -177,18 +183,20 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
 };
 
 let pat_marks_to_string =
-    (ctx: Ctx.t, ana: Typ.t, marks: list(Mark.t)): string =>
+    (~cls: option(Cls.t)=?, ctx: Ctx.t, ana: Typ.t, marks: list(Mark.t))
+    : string =>
   switch (marks) {
   | [Redundant, ...tl] =>
     switch (Mark.highest(tl)) {
     | None => "Redundant"
-    | Some(m) => core_mark_string(ctx, ana, m) ++ "; pattern is redundant"
+    | Some(m) =>
+      core_mark_string(~cls?, ctx, ana, m) ++ "; pattern is redundant"
     }
   | [ExpectedConstructor, ..._] => "Expected a constructor"
   | _ =>
     switch (Mark.highest(marks)) {
     | None => "(static error)"
-    | Some(m) => core_mark_string(ctx, ana, m)
+    | Some(m) => core_mark_string(~cls?, ctx, ana, m)
     }
   };
 
@@ -234,12 +242,12 @@ let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>
     | Some(err) => drv_error(err)
     | None => "(static error)"
     }
-  | InfoExp({ctx, ana, _}) =>
+  | InfoExp({ctx, ana, cls, _}) =>
     switch (Mark.highest(marks)) {
-    | Some(m) => exp_mark_to_string(ctx, ana, m)
+    | Some(m) => exp_mark_to_string(~cls, ctx, ana, m)
     | None => "(static error)"
     }
-  | InfoPat({ctx, ana, _}) => pat_marks_to_string(ctx, ana, marks)
+  | InfoPat({ctx, ana, cls, _}) => pat_marks_to_string(~cls, ctx, ana, marks)
   | InfoTyp(_) =>
     switch (marks) {
     | [] => "(static error)"
