@@ -892,9 +892,182 @@ let unicode_string_tests = [
    does one hazel-jit does not compile; the rest are run both ways and their values compared as the sweep compares
    them. Printed for ^report(54); a difference, or compiled JS that throws where the interpreter has a value, fails. */
 
+/* (^ticket(853)) a recursive function's calls of itself in tail position, a loop */
+let count_src = n =>
+  "let count = fun (n, acc) -> if n == 0 then acc else count(n - 1, acc + 1) in count("
+  ++ string_of_int(n)
+  ++ ", 0)";
+let loop_tests = [
+  agreement("a tail call as a loop: a count", count_src(1000)),
+  agreement(
+    "closures made in a loop keep their own pass's values",
+    "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, (fun u -> n * 10) :: acc) in let call = fun fs -> case fs | [] => [] | f :: r => f(0) :: call(r) end in call(build(3, []))",
+  ),
+  agreement(
+    "a tail call through a case, a let and a sequence",
+    "let last = fun xs -> case xs | [] => 0 | [x] => x | _ :: rest => let r = rest in (1; last(r)) end in last([1, 2, 3, 4])",
+  ),
+  agreement(
+    "calls of itself in tail position and not, in one function",
+    "let g = fun n -> if n == 0 then 0 else if n < 5 then 1 + g(n - 1) else g(n - 1) in g(20)",
+  ),
+  agreement(
+    "a tail call of another function by the same name is a call",
+    "let f = fun n -> if n == 0 then 0 else let f = fun m -> m + 100 in f(n - 1) in f(5)",
+  ),
+  agreement(
+    "a tail call whose argument calls itself",
+    "let h = fun (n, acc) -> if n == 0 then acc else h(n - 1, acc + h(0, n)) in h(10, 0)",
+  ),
+  test_case(
+    "a long tail recursion, compiled: a loop, with no stack to overflow",
+    `Quick,
+    () => {
+      let js = compiled_src(count_src(1000000));
+      check(bool, "a loop", true, contains(js, "for (;;)"));
+      check(
+        string,
+        "count(1000000, 0)",
+        "1000000",
+        Js.to_string(
+          Js.Unsafe.meth_call(
+            run_js(HazelJit.Runtime.source, js),
+            "toString",
+            [||],
+          ),
+        ),
+      );
+      check(
+        bool,
+        "no loop where the call is not in tail position",
+        false,
+        contains(
+          compiled_src(
+            "let fact = fun n -> if n == 0 then 1 else n * fact(n - 1) in fact(10)",
+          ),
+          "for (;;)",
+        ),
+      );
+    },
+  ),
+];
+
+/* (^ticket(853)) a named function of a tuple pattern: its parts as JS arguments where the call has them written out */
+let arg_tests = [
+  agreement(
+    "a function of a pair, called with its pair written out",
+    "let add = fun (a, b) -> a * 10 + b in add(4, 2)",
+  ),
+  agreement(
+    "the same, called with a pair held in a variable",
+    "let add = fun (a, b) -> a * 10 + b in let t = (4, 2) in add(t)",
+  ),
+  agreement(
+    "the same, handed to a builtin that calls it",
+    "let add = fun (acc, x) -> acc * 10 + x in fold_left([1, 2, 3], add, 0)",
+  ),
+  agreement(
+    "a function of three, its parts patterns of their own",
+    "let f = fun ((a, b), [c], 0) -> a + b + c in f((1, 2), [3], 0)",
+  ),
+  agreement(
+    "a function made in a call, of a pair, called by the function it is given to",
+    "let ap = fun (g, x) -> g(x, x + 1) in ap(fun (a, b) -> a * b, 4)",
+  ),
+  agreement(
+    "a recursive function of a pair, its calls of itself in tail position and not",
+    "let f = fun (n, acc) -> if n == 0 then acc else if n < 3 then f(n - 1, acc + f(0, n)) else f(n - 1, acc + 1) in f(10, 0)",
+  ),
+  test_case(
+    "as compiled: the direct form called by its known name, with no array",
+    `Quick,
+    () => {
+      let js = compiled_src("let add = fun (a, b) -> a + b in add(4, 2)");
+      check(bool, "a call of $d", true, contains(js, ".$d(4, 2)"));
+      check(bool, "no pair made", false, contains(js, "[4, 2]"));
+    },
+  ),
+  test_case(
+    "a record given to a function of a pair: the run stops for the interpreter",
+    `Quick,
+    () =>
+    switch (
+      run_js(
+        HazelJit.Runtime.source,
+        compiled_src("let g = fun (a, b) -> a - b in g((x = 5, y = 2))"),
+      )
+    ) {
+    | _ => fail("answered past a labeled entry read by position")
+    | exception (Js_error.Exn(e)) =>
+      check(
+        string,
+        "the error",
+        "hazel-jit: indeterminate: a pattern by position against a labeled entry",
+        Js_error.message(e),
+      )
+    }
+  ),
+];
+
+/* (^ticket(853)) constructors without arguments made once, a module's members by name, == against a literal */
+let more_tests = [
+  agreement(
+    "constructors without arguments, one constant each",
+    "type C = + A + B(Int) in let f = fun x -> if x then A else B(1) in (f(true), f(false), f(true) == f(true), [A, A, B(2)])",
+  ),
+  agreement(
+    "a member of a record of variables, by name",
+    "let M = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in M.f(M.a)",
+  ),
+  agreement(
+    "a record of variables shadowed by one that is not",
+    "let M = (let a = 1 in (a = a)) in let r = M.a in let M = (a = 2) in r + M.a",
+  ),
+  agreement(
+    "== and != against literals",
+    {|let f = fun x -> if x == 0 then "zero" else if x != 1 then "many" else "one" in (f(0), f(1), f(5), "a" == "a", 1.5 == 1.5, true == false, 0 - 1 == -1)|},
+  ),
+  agreement(
+    "== against a literal past 2^53",
+    "let big = 9007199254740993 in (big == 9007199254740993, big + 1 == 9007199254740994, big == 1)",
+  ),
+  test_case(
+    "as compiled: one constant, a member by name, ===",
+    `Quick,
+    () => {
+      let js = compiled_src("type C = + A + B(Int) in [A, B(1), A]");
+      let occurrences = (s, part) => {
+        let n = String.length(part);
+        let rec go = (i, acc) =>
+          switch (String.substr_index(s, ~pos=i, ~pattern=part)) {
+          | Some(j) => go(j + n, acc + 1)
+          | None => acc
+          };
+        go(0, 0);
+      };
+      check(int, "one constant for A", 1, occurrences(js, "{$c: \"A\"}"));
+      let js =
+        compiled_src(
+          "let M = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in M.f(M.a)",
+        );
+      check(
+        bool,
+        "no guarded read of f",
+        false,
+        contains(js, "[\"f\"] !== undefined"),
+      );
+      let js = compiled_src("let f = fun x -> x == 0 in f(3)");
+      check(bool, "=== 0", true, contains(js, "=== 0"));
+    },
+  ),
+];
+
 let tests = (
   "HazelJit",
-  invalid_tests
+  loop_tests
+  @ arg_tests
+  @ more_tests
+  @ invalid_tests
   @ big_int_tests
   @ mutual_tests
   @ partial_tests
