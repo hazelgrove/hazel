@@ -1017,11 +1017,11 @@ let more_tests = [
   ),
   agreement(
     "a member of a record of variables, by name",
-    "let M = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in M.f(M.a)",
+    "let m = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in m.f(m.a)",
   ),
   agreement(
     "a record of variables shadowed by one that is not",
-    "let M = (let a = 1 in (a = a)) in let r = M.a in let M = (a = 2) in r + M.a",
+    "let m = (let a = 1 in (a = a)) in let r = m.a in let m = (a = 2) in r + m.a",
   ),
   agreement(
     "== and != against literals",
@@ -1048,7 +1048,7 @@ let more_tests = [
       check(int, "one constant for A", 1, occurrences(js, "{$c: \"A\"}"));
       let js =
         compiled_src(
-          "let M = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in M.f(M.a)",
+          "let m = (let a = 3 in let f = fun x -> x + a in (a = a, f = f)) in m.f(m.a)",
         );
       check(
         bool,
