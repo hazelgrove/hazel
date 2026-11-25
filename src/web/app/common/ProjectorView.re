@@ -226,9 +226,11 @@ module Model = {
                 ~selection_ids,
                 ~info,
                 /* A projector hides its syntax, so it shows an error
-                   anywhere in it, not only on the term it replaces. */
+                   anywhere in it, not only on the term it replaces, nor
+                   only outside the projectors it folds in turn. */
                 ~error=
-                  List.exists(Segment.ids(info.syntax), ~f=id =>
+                  List.exists(
+                    Segment.ids_through_projectors(info.syntax), ~f=id =>
                     Language.Statics.Map.lookup(id, statics)
                     |> Option.exists(~f=Language.Info.is_error)
                   ),

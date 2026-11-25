@@ -1171,6 +1171,21 @@ and ids_of_piece = (p: Piece.t): list(Id.t) =>
   | Projector(_) => [Piece.id(p)]
   };
 
+/* Like ids, and also the ids of the syntax every projector in `s` folds
+   away. */
+let rec ids_through_projectors = (s: t): list(Id.t) =>
+  List.concat_map(s, ~f=p =>
+    switch (p) {
+    | Tile(t) => [
+        Piece.id(p),
+        ...ids_through_projectors(List.concat(t.children)),
+      ]
+    | Projector(pr) => [Piece.id(p), ...ids_through_projectors([pr.syntax])]
+    | Grout(_)
+    | Secondary(_) => [Piece.id(p)]
+    }
+  );
+
 let first_string =
   fun
   | [] => "EMPTY"

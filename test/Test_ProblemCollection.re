@@ -369,6 +369,50 @@ let tuple_mark_drawn_over_parens = () => {
   );
 };
 
+/* A projector folding another sees the errors in what that one folds. */
+let error_inside_nested_fold = () => {
+  let src = {|let a = ^^fold(1 + ^^fold("s")) in a|};
+  let z =
+    switch (Haz3lcore.Parser.to_zipper(~root=Exp, src)) {
+    | Some(z) => z
+    | None => fail("Failed to parse: " ++ src)
+    };
+  let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
+  let statics =
+    Haz3lcore.CachedStatics.init(
+      ~settings=Language.CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=Fn.id,
+      ~root=Exp,
+      editor.state.zipper,
+    );
+  /* The outer projector is the one whose syntax holds the most ids. */
+  let folded = (p: Haz3lcore.Base.projector) =>
+    Haz3lcore.Segment.ids_through_projectors([p.syntax]);
+  let outer =
+    Haz3lcore.Id.Map.bindings(editor.syntax.projectors)
+    |> List.map(~f=snd)
+    |> List.max_elt(~compare=(a, b) =>
+         Int.compare(List.length(folded(a)), List.length(folded(b)))
+       );
+  switch (outer, statics.error_ids) {
+  | (Some(outer), [error]) =>
+    check(
+      bool,
+      "the outer projector's syntax includes the error",
+      true,
+      List.mem(folded(outer), error, ~equal=Haz3lcore.Id.equal),
+    )
+  | (_, errors) =>
+    fail(
+      Printf.sprintf(
+        "expected a projector and one error, got %d errors",
+        List.length(errors),
+      ),
+    )
+  };
+};
+
 /* ---------- ProblemCollection.make tests ---------- */
 
 let make_empty_inputs = () => {
@@ -607,6 +651,11 @@ let nearest_measured_id_cases = [
     "A tuple's mark is drawn over its parentheses",
     `Quick,
     tuple_mark_drawn_over_parens,
+  ),
+  test_case(
+    "A projector sees errors inside a projector it folds",
+    `Quick,
+    error_inside_nested_fold,
   ),
 ];
 
