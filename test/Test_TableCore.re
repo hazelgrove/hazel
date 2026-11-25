@@ -60,7 +60,7 @@ let assert_table_headers =
     (msg: string, expected_headers: list(string), exp: Language.Exp.t) =>
   switch (TableCore.parse_table(exp)) {
   | Some((headers, _rows)) =>
-    let header_strs = List.filter_map(Fun.id, headers);
+    let header_strs = List.filter_map(~f=Fn.id, headers);
     Alcotest.(check(list(string), msg, expected_headers, header_strs));
   | None => Alcotest.fail(msg ++ ": parse_table returned None")
   };
@@ -81,6 +81,16 @@ let assert_table_shape =
   | None => Alcotest.fail(msg ++ ": parse_table returned None")
   };
 };
+
+let assert_numeric_columns =
+    (msg: string, expected: list(bool), exp: Language.Exp.t) =>
+  switch (TableCore.parse_table(exp)) {
+  | Some((_headers, rows)) =>
+    Alcotest.(
+      check(list(bool), msg, expected, TableCore.numeric_columns(rows))
+    )
+  | None => Alcotest.fail(msg ++ ": parse_table returned None")
+  };
 
 let tests = (
   "TableCore.parse_table",
@@ -167,6 +177,37 @@ let tests = (
           2,
           exp,
         );
+      },
+    ),
+    test_case(
+      "Numeric columns: number literals, not strings or bools",
+      `Quick,
+      () => {
+        let exp =
+          elaborate_and_find_list(
+            {|type Row = (name=String, n=Int, x=Float, ok=Bool) in
+              let t : [Row] = [("a", 1, 1.5, true), ("b", 2, 0., false)] in t|},
+          );
+        assert_numeric_columns(
+          "numeric flags",
+          [false, true, true, false],
+          exp,
+        );
+      },
+    ),
+    test_case(
+      "Numeric columns: a hole leaves its column unaligned",
+      `Quick,
+      () => {
+        let exp =
+          elaborate_and_find_list(
+            {|type Row = (name=String, age=Int, score=Int) in
+              let t : [Row] = [
+                ("Alice", 12, ?),
+                ("Bob", 17, 9)
+              ] in t|},
+          );
+        assert_numeric_columns("hole in score", [false, true, false], exp);
       },
     ),
   ],

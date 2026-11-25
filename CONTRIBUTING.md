@@ -79,6 +79,15 @@ The `make dev` and `make release` commands do three things:
 4. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/web/www/hazel.js`) using `js_of_ocaml`.
 
+## Git Hooks
+
+`make deps` installs a `pre-commit` hook (under `scripts/git-hooks/`) by setting `core.hooksPath`. On every commit the hook runs `dune fmt --auto-promote` and re-stages any *fully staged* files the formatter touched, so commits never contain unformatted code.
+
+- `dune fmt` formats the whole tree, but only staged files are ever re-staged — your unrelated unstaged WIP won't be swept into the commit. Committed code is already formatted, so if the formatter changes a file you didn't stage, the commit is aborted: either the formatter's behavior changed (e.g. a different `ocamlformat` or `refmt` version) or that file has unformatted edits of yours. The changes are left in your working tree to review with `git diff`.
+- If the formatter changes a *partially staged* file (one with both staged and unstaged edits), the commit is aborted instead: re-staging it automatically would sweep your unstaged edits into the commit. The formatting fixes are left unstaged in your working tree; stage what you want (`git add` or `git add -p`) and commit again.
+- If you ever need to bypass the hook (e.g. to share a WIP refactor that you don't want autoformatted yet), pass `--no-verify` to `git commit`.
+- If your clone predates this and the hook isn't running, run `make deps` (or `make install-hooks`) once to install it.
+
 ## Live Building 
 For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 
 for file changes and rebuild immediately. You can also run `make watch-release` to continuously build the release
@@ -131,13 +140,16 @@ Since source maps are generated, browser developer tools should show reason code
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
 
 ### Manual Reset
-If you want to do a fully clean reset and debug mode isn't working, you need to manually clear local storage by going into your browser development tools. In Chrome devtools, you do so via Application > Storage > Local Storage. You may also want to clear the IndexedDB, which logs edit actions.
+If you want to do a fully clean reset and debug mode isn't working, you need to manually clear local storage by going into your browser development tools. In Chrome devtools, you do so via Application > Storage > Local Storage. You may also want to clear the IndexedDB, which holds saved state and logs edit actions. Each git branch's build has its own IndexedDB database, named `hazel:<branch>` (`dev` and builds outside a git checkout use plain `hazel`), so delete the one for the build you're resetting.
 
 ## Testing
 You can run all of the unit tests located in `test` by running `make test`. Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest). See more documentation in the [test README](test/README.md).
 
 ### Test Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
+
+### Coverage From Browser Sessions
+Unit-test coverage can't see what a person exercises in the editor. To get coverage of a manual (or scripted) browser session, build with `make coverage-web`, use Hazel, and download the counters from the sidebar; [docs/browser-coverage.md](docs/browser-coverage.md) walks through it. When **reviewing a PR that changes behavior**, `make coverage-web-diff` lists which of the PR's changed lines your session never ran; see "Reviewing a PR with it" in that doc.
 
 ## Continuous Integration
 
@@ -146,10 +158,11 @@ tab on Github](https://github.com/hazelgrove/hazel/actions).
 
 `.github/workflows/ci.yml` runs on **every branch push** and in the merge queue.
 It does no work itself; it calls `.github/workflows/checks.yml`, which is where
-the two checks live:
+the three checks live. They run in parallel:
 
-- **Fast checks** — formatting, the strict-warning gate (`make ci-check`), and
-  the suite under alcotest's `-q` filter, which skips the `Slow`-tagged cases.
+- **Static checks** — formatting and the strict-warning gate (`make ci-check`).
+- **Fast checks** — the suite under alcotest's `-q` filter, which skips the
+  `Slow`-tagged cases.
 - **Full tests** — the full suite including the `Slow` QCheck property tests,
   plus the Codecov upload. This is the authoritative check.
 
@@ -157,18 +170,19 @@ the two checks live:
 `Slow`-tagged cases are the large majority of the suite's runtime. If you want
 that signal before opening a PR, run `make test` locally.
 
-Both jobs render a table of results into their own job summary, reachable from
+`Fast checks` and `Full tests` render a table of results into their own job summary, reachable from
 the run page. They deliberately create no `Test Report` check of their own: a
 check run belongs to a commit rather than to a workflow, and GitHub picks which
 of the commit's check suites it joins, which used to file the test results under
 `Deploy branch preview`.
 
-`.github/workflows/fork-ci.yml` runs the same two checks for **pull requests
+`.github/workflows/fork-ci.yml` runs the same checks for **pull requests
 from forks**, which push no branch here and so never reach `ci.yml`. It skips
 only the Codecov upload, since a fork gets no secrets.
 
 `.github/workflows/deploy.yml` runs on **every branch push** and builds in
-`release` mode, deploying to `https://hazel.org/build/<branch name>`.
+`release` mode, deploying to `https://build.hazel.org/<branch name>/` (see
+[docs/deployment.md](docs/deployment.md)).
 Deliberately not gated on the checks: a red suite should not stop you looking at
 your branch.
 
@@ -181,14 +195,13 @@ job summary.
 All of them share `.github/actions/setup-hazel-toolchain`, which is where the
 OCaml version and the opam switch cache live.
 
-Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
-
-Note for core team: If another archive needs to be performed, make sure to redeploy the following
-branches manually since we refer to them in various public material (websites and
-published papers):
-
-  dev
-  livelits
+Builds from before July 2024, once a separate archive, are served alongside the
+rest at `https://build.hazel.org/<branch name>/`; old
+`hazel.org/build-pre-july2024/…` and `hazel.org/build/…` links redirect there.
+Branch names starting with `_` are reserved and never deployed:
+`build.hazel.org/_archive/` holds builds cited in published material, such as
+the PLDI '21 livelits build behind `hazel.org/livelits`, so no push can
+overwrite them.
 
 ## Developer Documentation
 There is some developer documentation available in the `docs` directory, though it is far from complete and comprehensive. 

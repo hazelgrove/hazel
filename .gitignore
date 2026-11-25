@@ -60,6 +60,7 @@ hazel.opam.locked.old
 
 # Code coverage
 _coverage/
+_coverage-web/
 node_modules/**
 node_modules
 

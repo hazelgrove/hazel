@@ -1,6 +1,6 @@
 open Junit_alcotest;
 
-Printexc.register_printer(exn => {
+Stdlib.Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
@@ -14,7 +14,7 @@ Printexc.register_printer(exn => {
 let (suite, exit_with_test_status) =
   run_and_report(
     ~and_exit=true,
-    ~argv=Sys.argv,
+    ~argv=Stdlib.Sys.argv,
     "HazelTests",
     [
       Test_LazyHydration.tests,
@@ -81,6 +81,7 @@ let (suite, exit_with_test_status) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
+    @ [Test_ProofHacks.tests]
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
@@ -96,13 +97,18 @@ let (suite, exit_with_test_status) =
     @ Test_Autoprobe.tests
     @ [
       Test_VarHighlight.tests,
+      Test_Highlight.tests,
       Test_Evaluator_ProbeNav.tests,
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
+      Test_PerfBudgets.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
+    @ Test_HazelDB.tests
+    @ [Test_WorkerClient.tests]
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
     @ [Test_TutorialProbeSettings.tests]
@@ -113,6 +119,7 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
+    @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests],

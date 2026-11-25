@@ -71,11 +71,48 @@ let form_of_builtin:
   | Fn({name, imp, _}) => Some((name, imp))
   | HazelFn(_) => None;
 
+/* Library terms are built once per process by Fresh, so their ids carry
+   Id.mk's per-process random bits: a call inside a library function (map
+   calling its callback, say) made a frame with a different id in every
+   evaluator worker, and a focus or pin through it stopped matching after a
+   worker restart. Re-id each term from its name and node order instead:
+   the same ids in every process, and v5 so disjoint from Id.mk's v4 ones. */
+let with_stable_ids = (name: string, imp: Exp.t): Exp.t => {
+  let count = ref(0);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, term) =>
+      {
+        ...term,
+        annotation: {
+          ...term.annotation,
+          ids:
+            List.map(
+              ~f=
+                _ => {
+                  incr(count);
+                  Id.mk_str(
+                    "builtin " ++ name ++ " " ++ string_of_int(count^),
+                  );
+                },
+              term.annotation.ids,
+            ),
+        },
+      }
+      |> continue;
+  Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, imp);
+};
+
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
-  | Const({name, imp, _}) => (name, imp)
-  | HazelFn({name, imp, _}) => (name, imp)
-  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | Const({name, imp, _}) => (name, with_stable_ids(name, imp))
+  | HazelFn({name, imp, _}) => (name, with_stable_ids(name, imp))
+  | Fn({name, _}) => (
+      name,
+      with_stable_ids(name, Fresh.Exp.builtin_fun(name)),
+    );
 
 let name_of_builtin: builtin => string =
   fun
@@ -96,7 +133,7 @@ let extend = (map: VarMap.t_(builtin), builtin: builtin): VarMap.t_(builtin) => 
 };
 
 let to_map: list(builtin) => VarMap.t_(builtin) =
-  List.fold_left(extend, VarMap.empty);
+  List.fold_left(~f=extend, ~init=VarMap.empty);
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -134,8 +171,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
       imp: (d: DHExp.t) => {
         let-unbox x = (Atom(k1), d);
         switch (f(x)) {
-        | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
-        | R(_) => None
+        | Ok(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
+        | Error(_) => None
         };
       },
       custom_statics: None,
@@ -157,8 +194,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
             let-unbox x = (Atom(k1), x);
             let-unbox y = (Atom(k2), y);
             switch (f(x, y)) {
-            | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
-            | R(_) => None
+            | Ok(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
+            | Error(_) => None
             };
           }
         ),

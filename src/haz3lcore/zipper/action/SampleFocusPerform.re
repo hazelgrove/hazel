@@ -44,7 +44,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
           opened: Some(data.step_start),
         }),
       indicated_call:
-        id != None ? id : z.refractors.sample_focus.indicated_call,
+        Option.is_some(id) ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
         switch (id) {
         | Some(ap_id) =>
@@ -101,10 +101,12 @@ let toggle_pin_call =
         pinned_span: None,
       }
     | _ =>
-      /* Prefer the pinned sample's own identity (carried on the action
-       * by sites that have it in hand); fall back to decomposing the
-       * pin stack [probed_ap_frame, ...sample_stack] — identity without
-       * `opened`, ambiguous across iterations of the same site. */
+      /* Given a sample, pin exactly its span. Call pins pass none: the
+       * pin stack [call_frame, ...sample_stack] names the call, whose
+       * span is the call site's sample at sample_stack (opened=None
+       * takes the first). If the call site is not probed, nothing
+       * resolves the span and the pin filters by stack instead
+       * (Selection.filter_by_pin). */
       let pinned_span: option(Sample.span_ref) =
         switch (capture) {
         | Some(c) =>
@@ -142,8 +144,8 @@ let resolve_pending_focus =
     (z: Zipper.t, samples: list(Sample.t), target_stack: CallStack.t)
     : Zipper.t => {
   let matching_sample =
-    List.find_opt(
-      (s: Sample.t) => CallStack.equal(s.call_stack, target_stack),
+    List.find(
+      ~f=(s: Sample.t) => CallStack.equal(s.call_stack, target_stack),
       samples,
     );
   switch (matching_sample) {

@@ -11,8 +11,8 @@ let table_of =
   switch (any) {
   | Exp(exp) =>
     parse_table(exp)
-    |> Option.bind(_, ((headers, rows)) =>
-         OptUtil.traverse(Fun.id, headers) |> Option.map(hs => (hs, rows))
+    |> Option.bind(_, ~f=((headers, rows)) =>
+         OptUtil.traverse(Fn.id, headers) |> Option.map(~f=hs => (hs, rows))
        )
   | _ => None
   };
@@ -34,25 +34,31 @@ let table =
       ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
-    ) =>
+    ) => {
+  let numeric = numeric_columns(rows);
   table_view(
     /* Same shape as TableRenderer's headers, `.column-label` included: the
        stylesheet hangs header typography off that class, so a bare <th> gets
        whatever color it happens to inherit -- which in dark was the muted
        code color, 22 points of lightness off the header's own fill. */
     ~header_cells=
-      List.map(
-        h =>
-          Node.th([
-            Node.span(
-              ~attrs=[Attr.classes(["column-label"])],
-              [Node.text(h)],
+      List.mapi(
+        ~f=
+          (i, h) =>
+            Node.th(
+              ~attrs=numeric_attrs(numeric, i),
+              [
+                Node.span(
+                  ~attrs=[Attr.classes(["column-label"])],
+                  [Node.text(h)],
+                ),
+              ],
             ),
-          ]),
         headers,
       ),
-    ~rows=List.map(row_cells(info.utility, view_seg), rows),
+    ~rows=List.map(~f=row_cells(~numeric, info.utility, view_seg), rows),
   );
+};
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -76,7 +82,7 @@ module M: Projector = {
     switch (get(info)) {
     | None =>
       let s = info.utility.seg_to_string(info.syntax);
-      let lines = String.split_on_char('\n', s);
+      let lines = String.split(s, ~on='\n');
       let n_lines = List.length(lines);
       let max_width = Unicode.Width.max_columns(lines);
       /* +1 vertical line reserved for the inline error banner
@@ -99,19 +105,19 @@ module M: Projector = {
 
       let header_row_chars =
         header
-        |> List.map(Unicode.Width.columns_of_string)
-        |> List.fold_left((+), 0);
+        |> List.map(~f=Unicode.Width.columns_of_string)
+        |> List.fold_left(~f=(+), ~init=0);
       let widest_row_chars =
         rows
-        |> List.map(row =>
+        |> List.map(~f=row =>
              row
-             |> List.map(e =>
+             |> List.map(~f=e =>
                   Abbreviate.abbreviate_exp(~available=max_column_length, e)
                   |> snd
                 )
-             |> List.fold_left((+), 0, _)
+             |> List.fold_left(~f=(+), ~init=0, _)
            )
-        |> List.fold_left(max, 0, _);
+        |> List.fold_left(~f=max, ~init=0, _);
       let content_chars = max(header_row_chars, widest_row_chars);
 
       let num_rows = List.length(rows);

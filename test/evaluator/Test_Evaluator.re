@@ -4,6 +4,7 @@ let tests =
     Test_Evaluator_ProbeSteps.tests,
     Test_Evaluator_ProbeCallStack.tests,
     Test_Evaluator_ProbeSelection.tests,
+    Test_Evaluator_ProbeFocus.tests,
   ]
   @ Test_Evaluator_Probes.tests
   @ [
@@ -28,4 +29,5 @@ let tests =
     Test_Evaluator_Performance.tests,
     Test_Evaluator_Modules.tests,
     Test_Evaluator_Incremental.tests,
+    Test_Evaluator_IncrCorpus.tests,
   ];

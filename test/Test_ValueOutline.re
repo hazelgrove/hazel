@@ -9,7 +9,7 @@ let matches = (re: string, s: string): bool =>
 let contains = (sub: string, s: string): bool =>
   switch (Str.search_forward(Str.regexp_string(sub), s, 0)) {
   | _ => true
-  | exception Not_found => false
+  | exception Stdlib.Not_found => false
   };
 
 /* The value the first probe in [code] saw first. */
@@ -32,22 +32,21 @@ let rec lines = (~indent="", o: out): list(string) =>
     [indent ++ prefix(label) ++ text ++ suffix];
   | Block(b) =>
     [indent ++ prefix(b.label) ++ b.opener]
-    @ List.concat_map(lines(~indent=indent ++ "  "), b.kids)
+    @ List.concat_map(b.kids, ~f=lines(~indent=indent ++ "  "))
     @ [indent ++ b.closer ++ b.suffix]
   | Packed(rows) =>
-    List.map(
-      toks =>
-        indent
-        ++ String.concat(
-             " ",
-             List.map(
+    List.map(rows, ~f=toks =>
+      indent
+      ++ String.concat(
+           ~sep=" ",
+           List.map(
+             toks,
+             ~f=
                fun
                | Item(s) => s
                | PackedMore(_, h, _) => count_note(h),
-               toks,
-             ),
            ),
-      rows,
+         )
     )
   };
 
@@ -109,7 +108,7 @@ let test_fit_folds_records = () =>
 let test_taller_drawer_opens_more = () => {
   let ls = show(~rows=24, value(beds));
   check(int, "rows", 22, List.length(ls));
-  check(string, "first record opens", "  (", List.nth(ls, 1));
+  check(string, "first record opens", "  (", List.nth_exn(ls, 1));
 };
 
 let test_user_folds_layer_on_fit = () => {
@@ -127,7 +126,7 @@ let test_user_folds_layer_on_fit = () => {
     string,
     "the opened record's field",
     {|    tags = ["vine", "summer", "red"],|},
-    List.nth(opened, 5),
+    List.nth_exn(opened, 5),
   );
   let root_folded =
     show(
@@ -143,14 +142,19 @@ let test_user_folds_layer_on_fit = () => {
 let test_fill_packs_short_items = () => {
   let ls = show(value(squares(60)));
   check(int, "60 squares pack into 7 rows", 7, List.length(ls));
-  check(bool, "nothing is hidden", false, List.exists(contains("…"), ls));
+  check(
+    bool,
+    "nothing is hidden",
+    false,
+    List.exists(ls, ~f=contains("…")),
+  );
 };
 
 let test_long_list_stops_at_count = () => {
   let v = value(squares(600));
   let ls = show(v);
   check(int, "fills the drawer", 15, List.length(ls));
-  let last_items = List.nth(ls, 13);
+  let last_items = List.nth_exn(ls, 13);
   check(
     bool,
     "the last packed row ends in a count",
@@ -170,63 +174,59 @@ let test_long_list_stops_at_count = () => {
 
 let test_constructor_slots = () => {
   let ls = show(value(tree));
-  check(string, "root opens", "Node(", List.hd(ls));
+  check(string, "root opens", "Node(", List.hd_exn(ls));
   /* the key between two folded subtrees still shows */
   check(
     bool,
     "a folded constructor keeps its slots",
     true,
-    List.exists(matches(".*…), 20, Node("), ls),
+    List.exists(ls, ~f=matches(".*…), 20, Node(")),
   );
   check(
     bool,
     "a constructor name is never cut",
     false,
-    List.exists(contains("Le…"), ls),
+    List.exists(ls, ~f=contains("Le…")),
   );
 };
 
 /* Every row fits the width, at any width, for every value. */
 let test_rows_fit_width = () =>
   List.iter(
-    code => {
+    [beds, squares(60), squares(600), tree],
+    ~f=code => {
       let v = value(code);
-      List.iter(
-        width =>
-          List.iter(
-            l =>
-              if (Util.Unicode.length(l) > width) {
-                failf(
-                  "%d-column row is %d wide: %s",
-                  width,
-                  Util.Unicode.length(l),
-                  l,
-                );
-              },
-            show(~width, v),
-          ),
-        [24, 32, 40, 50, 64, 80, 110],
+      List.iter([24, 32, 40, 50, 64, 80, 110], ~f=width =>
+        List.iter(show(~width, v), ~f=l =>
+          if (Util.Unicode.length(l) > width) {
+            failf(
+              "%d-column row is %d wide: %s",
+              width,
+              Util.Unicode.length(l),
+              l,
+            );
+          }
+        )
       );
     },
-    [beds, squares(60), squares(600), tree],
   );
 
 /* The fit never needs more rows than the cap (from 3 rows up). */
 let test_fit_within_cap = () =>
   List.iter(
-    code => {
+    [beds, squares(60), squares(600), tree],
+    ~f=code => {
       let v = value(code);
       List.iter(
-        rows => {
+        [3, 5, 8, 12, 15, 20, 30],
+        ~f=rows => {
           let n = List.length(show(~rows, v));
           if (n > rows) {
             failf("cap %d, %d rows", rows, n);
           };
         },
-        [3, 5, 8, 12, 15, 20, 30],
       );
     },
-    [beds, squares(60), squares(600), tree],
   );
 
 let tests = (

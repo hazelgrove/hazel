@@ -57,6 +57,12 @@ let price : Float = 50. in
 let total = price +. tip in
 total
 
+@solution
+let price : Float = 50. in
+let tip = price *. 0.2 in
+let total = price +. tip in
+total
+
 @test
 test tip ==. 10. end;
 test total ==. 60. end

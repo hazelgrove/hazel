@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Poly;
 
 /* The top-level UI component of Hazel */
 
@@ -19,7 +20,7 @@ module Model = {
     selection,
   };
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let reset = (~font_metrics=?, ()) => {
     let globals = Globals.Model.init(~font_metrics?, ());
@@ -68,7 +69,7 @@ module Update = {
 
   let get_editor = (model: Model.t): CodeEditable.Model.t => {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => editor.editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
@@ -80,9 +81,10 @@ module Update = {
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
     | Documentation(m) => get_scratchpad_editor(m)
-    | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    | Tutorial(m) =>
+      List.nth_exn(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
-    | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
+    | Config(m) => (List.nth_exn(m.configs, m.current) |> snd).editor
     };
   };
 
@@ -93,7 +95,7 @@ module Update = {
     let scratchpad_editors =
         (m: ScratchMode.Model.t)
         : list((option(string), list(CodeEditable.Model.t))) => {
-      let sp = List.nth(m.scratchpads, m.current);
+      let sp = List.nth_exn(m.scratchpads, m.current);
       switch (sp.kind) {
       | Code({editor, _}) => [(None, [editor.editor])]
       | Drv(dm) =>
@@ -108,7 +110,10 @@ module Update = {
     | Scratch(m) => scratchpad_editors(m)
     | Documentation(m) => scratchpad_editors(m)
     | Tutorial(m) => [
-        (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
+        (
+          None,
+          [List.nth_exn(m.exercises, m.current).cells.user_impl.editor],
+        ),
       ]
     | Exercises(m) =>
       ExercisesMode.Model.get_problem_editors(
@@ -116,7 +121,7 @@ module Update = {
         m,
       )
     | Config(m) => [
-        (None, [(List.nth(m.configs, m.current) |> snd).editor]),
+        (None, [(List.nth_exn(m.configs, m.current) |> snd).editor]),
       ]
     };
   };
@@ -137,7 +142,7 @@ module Update = {
     | Start
     | Save;
 
-  let equal = (===);
+  let equal = phys_equal;
 
   let update_global =
       (
@@ -148,6 +153,12 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    /* Measuring the font happens at load, again when web fonts settle (the
+       #font-specimen size observer), and on zoom, none of which is the user
+       moving the caret. New metrics move the caret, so keep it in view if it
+       was; but a caret the user has scrolled away from stays where it is
+       (an unconditional scroll here jumped the view back to it, and a click
+       aimed below landed on something else). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -156,7 +167,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll=IfCaretVisible)
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
@@ -183,7 +194,7 @@ module Update = {
           },
         },
       }
-      |> Updated.return(~scroll_active=false);
+      |> Updated.return(~scroll=Never);
     | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
@@ -219,7 +230,7 @@ module Update = {
       );
       model |> return_quiet;
     | SetMetaDown(meta_down) =>
-      model.globals.meta_down == meta_down
+      Bool.equal(model.globals.meta_down, meta_down)
         ? model |> return_quiet
         : {
             ...model,
@@ -229,6 +240,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -251,7 +271,8 @@ module Update = {
       let (filename, contents) =
         switch (model.editors) {
         | Config(model) =>
-          let (config_type, cell) = List.nth(model.configs, model.current);
+          let (config_type, cell) =
+            List.nth_exn(model.configs, model.current);
           let name = ConfigurationMode.Model.config_name_of_type(config_type);
           /* Config slides are text-backed like the doc slides: export the
              committed-.hz form, matching the scratch export below. */
@@ -265,7 +286,7 @@ module Update = {
           );
         | Scratch(model)
         | Documentation(model) =>
-          let current = List.nth(model.scratchpads, model.current);
+          let current = List.nth_exn(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
             | Code({editor, _}) =>
@@ -295,7 +316,7 @@ module Update = {
             );
           (filename, contents);
         | Exercises(model) =>
-          let current = List.nth(model.exercises, model.current);
+          let current = List.nth_exn(model.exercises, model.current);
           let filename =
             ExercisesMode.Model.get_exercise_module_name(current) ++ ".ml";
           let contents = ExercisesMode.Model.export_exercise_module(current);
@@ -395,9 +416,9 @@ module Update = {
         ...model,
         selection,
       }
-      |> Updated.return(~is_edit=false, ~scroll_active=false, ~historic=false)
+      |> Updated.return(~is_edit=false, ~scroll=Never, ~historic=false)
     | Benchmark(Start) =>
-      List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
+      List.iter(~f=a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
       Benchmark.start();
       model |> Updated.return_quiet;
@@ -553,6 +574,10 @@ module Selection = {
            ToggleCompletion,
          ),
          of_shortcut(
+           ~action=inject(Globals(Set(DisplayWarnings))),
+           ToggleWarnings,
+         ),
+         of_shortcut(
            ~action=inject(Globals(Set(SecondaryIcons))),
            ToggleShowWhitespace,
          ),
@@ -636,7 +661,7 @@ module View = {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
       let meta_down = key.meta == Down;
       let meta_effects =
-        model.globals.meta_down == meta_down
+        Bool.equal(model.globals.meta_down, meta_down)
           ? [] : [inject(Globals(SetMetaDown(meta_down)))];
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
@@ -729,27 +754,13 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        /* Leave focus alone when it is moving INTO a projector. An
-           interactive projector (the keybinding recorder) needs to hold
-           focus; without this guard it receives focus and has it taken back
-           in the same frame, so it can never capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started. */
+      Attr.on_blur(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        /* Focus events bubble here, so without this guard focusing a
-           projector is undone immediately: an interactive projector (the
-           keybinding recorder) could never hold focus or capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        Effect.Ignore;
-      }),
+          : Effect.Ignore
+      ),
     ];
   };
 
@@ -764,13 +775,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              [
-                Editors.View.config_links(~inject),
-                ...NutMenu.settings_menu(~globals),
-              ],
             ),
             submenu(
               ~tooltip="File",
@@ -797,6 +806,69 @@ module View = {
     );
   };
 
+  /* Unobtrusive identification of the running build (branch@commit), shown
+   * in the top-right corner so it's clear which build you're looking at
+   * when juggling multiple branches. */
+  let build_info_view = {
+    let link = (href, content) =>
+      a(
+        ~attrs=[
+          Attr.create("href", href),
+          Attr.create("target", "_blank"),
+          Attr.create("rel", "noopener noreferrer"),
+          /* anchors are draggable by default, which makes a drag start a
+             link-drag instead of a text selection; disable so the build
+             info can be selected and copied */
+          Attr.create("draggable", "false"),
+        ],
+        [text(content)],
+      );
+    div(
+      ~attrs=[
+        Attr.id("build-info"),
+        Attr.class_("build-info"),
+        /* click-focusable (like #side-bar): keeps #page from blurring on
+           mousedown here, which would re-focus the clipboard shim and
+           destroy the text selection being started */
+        Attr.tabindex(-1),
+      ],
+      /* single span so the label is one inline formatting context —
+         text selection across flex items is unreliable */
+      [
+        span(
+          ~attrs=[
+            Attr.class_("build-info-label"),
+            Attr.create("title", "Hazel build: " ++ BuildMeta.label),
+          ],
+          [
+            link(
+              "https://github.com/hazelgrove/hazel/tree/" ++ BuildInfo.branch,
+              BuildInfo.branch,
+            ),
+            text("@"),
+            link(
+              "https://github.com/hazelgrove/hazel/commit/"
+              ++ BuildInfo.commit_sha,
+              BuildInfo.commit_short,
+            ),
+            text(BuildMeta.suffix),
+          ]
+          /* open PR for this branch, when the gh CLI was available at
+             build time to detect one */
+          @ (
+            switch (BuildInfo.pr_number, BuildInfo.pr_url) {
+            | (Some(n), Some(url)) => [
+                text(" · "),
+                link(url, "#" ++ string_of_int(n)),
+              ]
+            | _ => []
+            }
+          ),
+        ),
+      ],
+    );
+  };
+
   let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
@@ -820,6 +892,7 @@ module View = {
             ),
           ],
         ),
+        build_info_view,
       ],
     );
 
@@ -968,7 +1041,7 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

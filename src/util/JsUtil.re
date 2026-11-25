@@ -33,12 +33,13 @@ let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
         Some(s);
       } else {
         loop(
-          Js.Opt.to_option(s##.nextSibling) |> Option.map(Js.Unsafe.coerce),
+          Js.Opt.to_option(s##.nextSibling)
+          |> Option.map(~f=Js.Unsafe.coerce),
         );
       }
     };
   loop(
-    Js.Opt.to_option(element##.firstChild) |> Option.map(Js.Unsafe.coerce),
+    Js.Opt.to_option(element##.firstChild) |> Option.map(~f=Js.Unsafe.coerce),
   );
 };
 
@@ -83,7 +84,7 @@ let read_file = (file, k) => {
     Dom.handler(_ => {
       let result = reader##.result;
       let option = Js.Opt.to_option(File.CoerceTo.string(result));
-      let data = Option.map(Js.to_string, option);
+      let data = Option.map(~f=Js.to_string, option);
       k(data);
       Js._true;
     });
@@ -100,20 +101,64 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
-let clipboard_shim_id = "clipboard-shim";
+/* Where keyboard focus rests when nothing more specific holds it: incr_dom
+   makes the app root focusable, so page-level key handlers still see keys. */
+let focus_page = () =>
+  switch (get_elem_by_id_opt("page")) {
+  | Some(el) =>
+    Js.Unsafe.coerce(el)##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    )
+  | None => ()
+  };
 
-let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+/* Page text selection vs. presses, in the capture phase (projectors stop
+   pointerdown propagation):
+   - A press in an editable code editor hands selection over to the editor,
+     so drop any page selection (the browser keeps it when the press lands
+     on unselectable content).
+   - A press that selected text (a drag, a double-click) doesn't also click,
+     so selecting a row or section header doesn't jump or toggle.
+   - Code views pad lines with U+200B; keep it out of copied text. */
+let install_text_selection_guards = (): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(){
+        var sig = function(s){
+          return s.rangeCount ? [s.anchorNode, s.anchorOffset, s.focusNode, s.focusOffset] : [];
+        };
+        var at_press = [];
+        var in_field = function(t){ return t.closest('input, textarea, [contenteditable]'); };
+        document.addEventListener('pointerdown', function(e){
+          var t = e.target, s = window.getSelection();
+          if (t instanceof Element && !in_field(t)
+              && t.closest('.code-editor:not(.read-only)') && !s.isCollapsed)
+            s.removeAllRanges();
+          at_press = sig(s);
+        }, true);
+        document.addEventListener('click', function(e){
+          var t = e.target, s = window.getSelection();
+          if (!(t instanceof Element) || in_field(t) || s.isCollapsed
+              || !s.containsNode(t, true)) return;
+          var now = sig(s);
+          if (now.every(function(x, i){ return x === at_press[i]; })) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
+        document.addEventListener('copy', function(e){
+          var text = String(window.getSelection());
+          if (!e.clipboardData || text.indexOf('\u200b') < 0) return;
+          e.clipboardData.setData('text/plain', text.replace(/\u200b/g, ''));
+          e.preventDefault();
+        }, true);
+      })|},
+    ),
+    [||],
+  );
 
-/* Set while an interactive projector owns DOM focus (the keybinding
-   recorder). The page pulls focus back to the clipboard shim on any bubbled
-   focus/blur, and the shim's focusout fires BEFORE the projector's focusin —
-   so a guard that inspects the event is always too late. The projector
-   raises this on pointerdown, before focus moves at all, and lowers it on
-   blur. */
-let projector_holds_focus = ref(false);
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
-   itself must hold DOM focus (not the clipboard shim). preventScroll: don't
-   fight an in-progress jump/scroll. */
+   itself must hold DOM focus. preventScroll: don't fight an in-progress
+   jump/scroll. */
 let focus_active_editor = () =>
   switch (
     Js.Opt.to_option(
@@ -124,7 +169,7 @@ let focus_active_editor = () =>
     Js.Unsafe.coerce(el)##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     )
-  | None => focus_clipboard_shim()
+  | None => focus_page()
   };
 
 /* The id carried by whichever code-editor cell is currently the active
@@ -151,48 +196,31 @@ let focus_active_cell = (): bool =>
   | None => false
   };
 
-let clipboard_shim = {
-  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
-};
-
-let copy = (str: string) => {
-  focus_clipboard_shim();
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
+/* Without the async Clipboard API (insecure contexts), copy through a
+   throwaway textarea and hand focus back. */
+let copy_text = (str: string): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(s){
+        if (typeof navigator.clipboard !== 'undefined') {
+          navigator.clipboard.writeText(s);
+          return;
+        }
+        var prev = document.activeElement;
+        var ta = document.createElement('textarea');
+        ta.value = s;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-100px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus({preventScroll: true});
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        if (prev && prev.focus) prev.focus({preventScroll: true});
+      })|},
+    ),
+    [|Js.Unsafe.inject(Js.string(str))|],
   );
-  Dom_html.document##execCommand(
-    Js.string("insertText"),
-    Js.bool(false),
-    Js.Opt.option(Some(Js.string(str))),
-  );
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
-  );
-};
-
-/** Copy [str] using the hidden textarea shim + [document.execCommand("copy")]. */
-let copy_via_shim = (str: string): unit => {
-  focus_clipboard_shim();
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string(clipboard_shim_id)),
-    clipboard_shim_el => {
-      let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
-      clipboard_shim##.value := Js.string(str);
-      ignore(clipboard_shim##select);
-      ignore(
-        Dom_html.document##execCommand(
-          Js.string("copy"),
-          Js.bool(false),
-          Js.Opt.empty,
-        ),
-      );
-    },
-  );
-};
 
 let show_copy_toast = (): unit => {
   Js.Opt.iter(
@@ -247,18 +275,7 @@ module ClipboardHandler = {
         [|Js.Unsafe.inject(cb)|],
       );
     | Write_text(str) =>
-      /* Older browsers with no Clipboard API fall through to the
-         execCommand shim. */
-      if (has_clipboard_api()) {
-        Js.Unsafe.fun_call(
-          Js.Unsafe.pure_js_expr(
-            "(function(s){navigator.clipboard.writeText(s);})",
-          ),
-          [|Js.Unsafe.inject(Js.string(str))|],
-        );
-      } else {
-        copy(str);
-      };
+      copy_text(str);
       on_response();
     };
 };
@@ -370,7 +387,7 @@ let find_ancestor_with_class =
 };
 
 let adjust_scroll = (container: Js.t(Dom_html.element), delta: float) =>
-  if (delta != 0.) {
+  if (Float.(delta != 0.)) {
     let current = float_of_int(container##.scrollTop);
     let target = current +. delta;
     container##.scrollTop := int_of_float(target);
@@ -386,12 +403,12 @@ let scroll_vertically_into_view =
   let margin_px =
     Js.Optdef.get(container_rect##.height, _ => 0.) *. margin_ratio;
   let top_gap = el_rect##.top -. (container_rect##.top +. margin_px);
-  if (top_gap < 0.) {
+  if (Float.(top_gap < 0.)) {
     adjust_scroll(container, top_gap);
   } else {
     let bottom_gap =
       el_rect##.bottom -. (container_rect##.bottom -. margin_px);
-    if (bottom_gap > 0.) {
+    if (Float.(bottom_gap > 0.)) {
       adjust_scroll(container, bottom_gap);
     };
   };
@@ -412,6 +429,24 @@ let scroll_vertically_into_view_ancestors =
     };
   go(element_to_node(el));
 };
+
+/* Whether any of the caret shows in its scroll container, or in the
+ * viewport if it has none. Read before a re-render, this is what the user
+ * sees now, not what the coming layout will show. */
+let caret_in_view = (): bool =>
+  switch (get_elem_by_id_opt("caret")) {
+  | None => false
+  | Some(caret) =>
+    let rect = caret##getBoundingClientRect;
+    let (top, bottom) =
+      switch (find_scroll_container(caret)) {
+      | Some(container) =>
+        let c = container##getBoundingClientRect;
+        (c##.top, c##.bottom);
+      | None => (0., Float.of_int(Dom_html.window##.innerHeight))
+      };
+    Float.(rect##.bottom > top && rect##.top < bottom);
+  };
 
 let scroll_cursor_into_view_if_needed = () =>
   try({
@@ -455,7 +490,7 @@ module Fragment = {
       | Https({hu_fragment: str, _})
       | File({fu_fragment: str, _}) => str
       };
-    Url.Current.get() |> Option.map(fragment_of_url);
+    Url.Current.get() |> Option.map(~f=fragment_of_url);
   };
 };
 
@@ -516,6 +551,25 @@ let update_main_scroll_width = () =>
     },
   );
 
+/* Scroll #main by dy to cancel a layout shift. scrollTop lands on whole px
+ * and x.5 rounds up, so the remainder carries into the next call; dropping
+ * it left code a pixel low under the focus bar and crept the page across
+ * drawer round trips. */
+let main_scroll_carry = ref(0.);
+let scroll_main_by = (dy: float): unit =>
+  Js.Opt.iter(
+    Dom_html.document##getElementById(Js.string("main")),
+    main => {
+      let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+      let target = st +. dy +. main_scroll_carry^;
+      Js.Unsafe.set(main, Js.string("scrollTop"), target);
+      let landed: float = Js.Unsafe.get(main, Js.string("scrollTop"));
+      /* rounding only; a clamp at either scroll end isn't carried */
+      main_scroll_carry :=
+        Float.(abs(target -. landed) < 1.) ? target -. landed : 0.;
+    },
+  );
+
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
  * scrollTop so visible code doesn't shift. Only compensates when scrolled
@@ -553,8 +607,8 @@ let setup_focus_bar_scroll_compensation = () =>
           last_height := new_height;
           let scroll_top: float =
             Js.Unsafe.get(main, Js.string("scrollTop"));
-          if (delta != 0.0 && scroll_top > 0.0) {
-            Js.Unsafe.set(main, Js.string("scrollTop"), scroll_top +. delta);
+          if (Float.(delta != 0.0) && Float.(scroll_top > 0.0)) {
+            scroll_main_by(delta);
           };
         });
       let observer =
@@ -562,7 +616,20 @@ let setup_focus_bar_scroll_compensation = () =>
           Js.Unsafe.global##._ResizeObserver,
           [|Js.Unsafe.inject(callback)|],
         );
-      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(bar)|]);
+      /* border-box: the bar's border appears before its height starts to
+         animate, and get_height measures the border box */
+      Js.Unsafe.meth_call(
+        observer,
+        "observe",
+        [|
+          Js.Unsafe.inject(bar),
+          Js.Unsafe.inject(
+            Js.Unsafe.obj([|
+              ("box", Js.Unsafe.inject(Js.string("border-box"))),
+            |]),
+          ),
+        |],
+      );
     | _ => ()
     };
   };
@@ -584,7 +651,7 @@ let get_local_storage = (key: string): option(string) =>
     let store =
       Dom_html.window##.localStorage |> Js.Optdef.get(_, () => assert(false));
     store##getItem(Js.string(key))
-    |> (x => Js.Opt.to_option(x) |> Option.map(Js.to_string));
+    |> (x => Js.Opt.to_option(x) |> Option.map(~f=Js.to_string));
   }) {
   | _ => None
   };
@@ -602,7 +669,7 @@ let prompt = (message: string, default: string): option(string) => {
   Js.Opt.to_option(
     Dom_html.window##prompt(Js.string(message), Js.string(default)),
   )
-  |> Option.map(Js.to_string);
+  |> Option.map(~f=Js.to_string);
 };
 
 /* Measure actual font metrics from the #font-specimen element.
@@ -611,8 +678,8 @@ let font_metrics_from_specimen = (): (float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
-    let col_width = max(1.0, rect##.right -. rect##.left);
-    let row_height = max(1.0, rect##.bottom -. rect##.top);
+    let col_width = Float.max(1.0, rect##.right -. rect##.left);
+    let row_height = Float.max(1.0, rect##.bottom -. rect##.top);
     (col_width, row_height);
   | None => (10.0, 10.0)
   };
@@ -626,7 +693,7 @@ let on_dpr_change = (callback: unit => unit): unit => {
       Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
       |> Js.float_of_number
       |> Js.to_float;
-    let query = Printf.sprintf("(resolution: %fdppx)", dpr);
+    let query = sprintf("(resolution: %fdppx)", dpr);
     let mql =
       Js.Unsafe.meth_call(
         Dom_html.window,
@@ -682,8 +749,10 @@ module QueryParams = {
   let get_param = (name: string): option(string) => {
     let q_opt =
       Url.Current.get()
-      |> Option.map(url =>
-           url |> get_arguments |> List.find_opt(((k, _)) => k == name)
+      |> Option.map(~f=url =>
+           url
+           |> get_arguments
+           |> List.find(~f=((k, _)) => String.equal(k, name))
          );
     switch (q_opt) {
     | Some(Some((_, v))) => Some(v)
@@ -693,10 +762,10 @@ module QueryParams = {
 
   let set_param = (name: string, value: string) => {
     Url.Current.get()
-    |> Option.iter(url => {
+    |> Option.iter(~f=url => {
          let args =
            get_arguments(url)
-           |> List.filter(((k, _)) => k != name)
+           |> List.filter(~f=((k, _)) => !String.equal(k, name))
            |> List.cons((name, value));
 
          let new_url = set_arguments(url, args);
@@ -748,25 +817,27 @@ let navigate_probes =
   /* Sort by top, then left */
   let sorted =
     List.sort(
-      ((_, t1, l1), (_, t2, l2)) => {
-        let c = compare(t1, t2);
-        if (c != 0) {
-          c;
-        } else {
-          compare(l1, l2);
-        };
-      },
+      ~compare=
+        ((_, t1, l1), (_, t2, l2)) => {
+          let c = Float.compare(t1, t2);
+          if (c != 0) {
+            c;
+          } else {
+            Float.compare(l1, l2);
+          };
+        },
       items^,
     );
   /* Find current index */
   let current_idx = ref(-1);
   List.iteri(
-    (i, (el, _, _)) => {
-      let id: string = Js.to_string(el##.id);
-      if (id == current_id) {
-        current_idx := i;
-      };
-    },
+    ~f=
+      (i, (el, _, _)) => {
+        let id: string = Js.to_string(el##.id);
+        if (String.equal(id, current_id)) {
+          current_idx := i;
+        };
+      },
     sorted,
   );
   /* Find target, optionally skipping unaligned probes */
@@ -780,7 +851,7 @@ let navigate_probes =
     if (idx < 0 || idx >= n) {
       None;
     } else {
-      let (el, _, _) = List.nth(sorted, idx);
+      let (el, _, _) = List.nth_exn(sorted, idx);
       let dominated =
         skip_unaligned
         && {
@@ -788,7 +859,7 @@ let navigate_probes =
             el##getAttribute(Js.string("data-cursor-aligned"))
             |> Js.Opt.to_option;
           switch (attr) {
-          | Some(s) => Js.to_string(s) != "true"
+          | Some(s) => !String.equal(Js.to_string(s), "true")
           | None => true
           };
         };

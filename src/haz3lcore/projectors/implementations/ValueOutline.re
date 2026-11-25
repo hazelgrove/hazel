@@ -14,9 +14,10 @@
 
 open Util;
 open Language;
+open Poly;
 
-module SMap = Map.Make(String);
-module SSet = Set.Make(String);
+module SMap = Stdlib.Map.Make(String);
+module SSet = Stdlib.Set.Make(String);
 
 type kind =
   | List
@@ -92,7 +93,7 @@ let rec build = (e: Exp.t): node => {
       }
     };
   let group = (kind, es) =>
-    mk(Group(kind, Array.of_list(List.map(item, es))));
+    mk(Group(kind, Array.of_list(List.map(~f=item, es))));
   switch (Exp.term_of(e)) {
   | ListLit([_, ..._] as es) => group(List, es)
   | Tuple([_, ..._] as es) => group(Tuple, es)
@@ -110,7 +111,7 @@ let rec build = (e: Exp.t): node => {
 };
 
 let one_line = (s: string): string =>
-  String.map(c => c == '\n' ? ' ' : c, s);
+  String.map(s, ~f=c => Char.equal(c, '\n') ? ' ' : c);
 
 let leaf_text = (u: ProjectorBase.utility, n: node): string =>
   switch (n.text) {
@@ -163,9 +164,9 @@ let rec flat_text = (u, n: node): string =>
     let (o, c) = delims(kind);
     o
     ++ String.concat(
-         ", ",
+         ~sep=", ",
          Array.to_list(items)
-         |> List.map(it => prefix(it.label) ++ flat_text(u, it.node)),
+         |> List.map(~f=it => prefix(it.label) ++ flat_text(u, it.node)),
        )
     ++ c;
   };
@@ -173,7 +174,7 @@ let rec flat_text = (u, n: node): string =>
 /* ===== Summaries: a node on one line within b columns ===== */
 
 let join_width = (parts: list(string)): int =>
-  List.fold_left((acc, s) => acc + cols(s), 0, parts)
+  List.fold_left(~f=(acc, s) => acc + cols(s), ~init=0, parts)
   + 2
   * max(0, List.length(parts) - 1);
 
@@ -207,7 +208,8 @@ let rec summary = (u, n: node, b: int): string =>
     | Group(kind, items) =>
       let (o, c) = delims(kind);
       let inner = b - cols(o) - cols(c);
-      let all_labeled = Array.for_all((it: item) => it.label != None, items);
+      let all_labeled =
+        Array.for_all(items, ~f=(it: item) => Option.is_some(it.label));
       inner < 1
         ? ellipsis
         : o
@@ -226,10 +228,11 @@ let rec summary = (u, n: node, b: int): string =>
 /* Whole items in order while they fit, one partial item, then …+N. */
 and prefix_body = (u, items: array(item), b: int): string => {
   let n = Array.length(items);
-  let all_labeled = Array.for_all((it: item) => it.label != None, items);
+  let all_labeled =
+    Array.for_all(items, ~f=(it: item) => Option.is_some(it.label));
   let rec go = (i: int, shown: list(string)): string =>
     if (i == n) {
-      String.concat(", ", shown);
+      String.concat(~sep=", ", shown);
     } else {
       let rest = n - i - 1;
       let tail = rest > 0 ? [count_note(rest)] : [];
@@ -239,12 +242,11 @@ and prefix_body = (u, items: array(item), b: int): string => {
       if (fits(u, it.node, room)) {
         go(i + 1, shown @ [pre ++ flat_text(u, it.node)]);
       } else {
-        let partial =
-          room >= 1 ? summary(u, it.node, room) |> Option.some : None;
+        let partial = room >= 1 ? Some(summary(u, it.node, room)) : None;
         /* unlabeled, a partial must say more than "…" or [<…>] */
         switch (partial) {
-        | Some(s) when s != "" && (it.label != None || cols(s) >= 4) =>
-          String.concat(", ", shown @ [pre ++ s] @ tail)
+        | Some(s) when s != "" && (Option.is_some(it.label) || cols(s) >= 4) =>
+          String.concat(~sep=", ", shown @ [pre ++ s] @ tail)
         | _ =>
           let rec trim = (shown: list(string)) =>
             switch (shown) {
@@ -260,7 +262,7 @@ and prefix_body = (u, items: array(item), b: int): string => {
           shown == [] && all_labeled
             ? ellipsis
             : join_width(shown @ [note]) <= b
-                ? String.concat(", ", shown @ [note]) : ellipsis;
+                ? String.concat(~sep=", ", shown @ [note]) : ellipsis;
         };
       };
     };
@@ -270,40 +272,38 @@ and prefix_body = (u, items: array(item), b: int): string => {
 /* Positional items (tuples, constructor arguments): every slot first,
    then whole values where they fit, then partial ones. */
 and slot_body = (u, items: array(item), b: int): string => {
-  let pres = Array.map((it: item) => prefix(it.label), items);
-  let vals = Array.map(_ => ellipsis, items);
-  let whole = Array.map(_ => false, items);
+  let pres = Array.map(items, ~f=(it: item) => prefix(it.label));
+  let vals = Array.map(items, ~f=_ => ellipsis);
+  let whole = Array.map(items, ~f=_ => false);
   let width = () =>
-    join_width(Array.to_list(Array.mapi((i, p) => p ++ vals[i], pres)));
+    join_width(Array.to_list(Array.mapi(pres, ~f=(i, p) => p ++ vals[i])));
   if (width() > b) {
     ellipsis;
   } else {
     Array.iteri(
-      (i, it: item) => {
+      items,
+      ~f=(i, it: item) => {
         let room = b - width() + cols(vals[i]);
         if (fits(u, it.node, room)) {
           vals[i] = flat_text(u, it.node);
           whole[i] = true;
         };
       },
-      items,
     );
-    Array.iteri(
-      (i, it: item) =>
-        if (!whole[i]) {
-          let room = b - width() + cols(vals[i]);
-          if (room > 1) {
-            let s = summary(u, it.node, room);
-            if (cols(s) > 1) {
-              vals[i] = s;
-            };
+    Array.iteri(items, ~f=(i, it: item) =>
+      if (!whole[i]) {
+        let room = b - width() + cols(vals[i]);
+        if (room > 1) {
+          let s = summary(u, it.node, room);
+          if (cols(s) > 1) {
+            vals[i] = s;
           };
-        },
-      items,
+        };
+      }
     );
     String.concat(
-      ", ",
-      Array.to_list(Array.mapi((i, p) => p ++ vals[i], pres)),
+      ~sep=", ",
+      Array.to_list(Array.mapi(pres, ~f=(i, p) => p ++ vals[i])),
     );
   };
 };
@@ -341,7 +341,8 @@ let rec rows = (o: out): int =>
   switch (o) {
   | Row(_, Pretty(_, _, r), _) => max(1, r)
   | Row(_) => 1
-  | Block(b) => List.fold_left((acc, k) => acc + rows(k), 2, b.kids)
+  | Block(b) =>
+    List.fold_left(~f=(acc, k) => acc + rows(k), ~init=2, b.kids)
   | Packed(rs) => List.length(rs)
   };
 
@@ -349,7 +350,7 @@ let child_key = (key: string, i: int): string =>
   key == "" ? string_of_int(i) : key ++ "." ++ string_of_int(i);
 
 let key_depth = (key: string): int =>
-  key == "" ? 0 : List.length(String.split_on_char('.', key));
+  key == "" ? 0 : List.length(String.split(key, ~on='.'));
 
 type cfg = {
   width: int,
@@ -389,7 +390,7 @@ let packable = (u, items: array(item), shown: int, line_w: int): bool =>
         | Leaf => true
         | Group(_) => false
         };
-      if (it.label != None
+      if (Option.is_some(it.label)
           || !leaf
           || flat_width(u, it.node, line_w)
           + 1 > line_w) {
@@ -403,7 +404,7 @@ let pack =
     (u, items, ~shown, ~hidden, ~key, ~next, line_w): list(list(packed)) => {
   /* an item carries its comma; the count, when there is one, is last */
   let toks =
-    List.init(shown, i =>
+    List.init(shown, ~f=i =>
       Item(
         flat_text(u, items[i].node)
         ++ (i < shown - 1 || hidden > 0 ? "," : ""),
@@ -416,13 +417,14 @@ let pack =
     | PackedMore(_, h, _) => cols(count_note(h));
   let (rows, cur, _) =
     List.fold_left(
-      ((rows, cur, col), tok) => {
-        let w = text_w(tok);
-        cur != [] && col + 1 + w > line_w
-          ? ([List.rev(cur), ...rows], [tok], w)
-          : (rows, [tok, ...cur], col + (cur == [] ? 0 : 1) + w);
-      },
-      ([], [], 0),
+      ~f=
+        ((rows, cur, col), tok) => {
+          let w = text_w(tok);
+          cur != [] && col + 1 + w > line_w
+            ? ([List.rev(cur), ...rows], [tok], w)
+            : (rows, [tok, ...cur], col + (cur == [] ? 0 : 1) + w);
+        },
+      ~init=([], [], 0),
       toks,
     );
   List.rev(cur == [] ? rows : [List.rev(cur), ...rows]);
@@ -476,18 +478,26 @@ let rec emit =
           if (kind == List && packable(u, items, shown, line_w)) {
             [Packed(pack(u, items, ~shown, ~hidden, ~key, ~next, line_w))];
           } else {
-            List.init(shown, i =>
-              emit(
-                u,
-                cfg,
-                items[i].node,
-                ~key=child_key(key, i),
-                ~indent=indent + 2,
-                ~label=items[i].label,
-                ~suffix=i == count - 1 ? "" : ",",
-              )
+            let more =
+              hidden > 0 ? [Row(None, More(key, hidden, next), "")] : [];
+            /* left to right: emit records folds in document order */
+            List.rev(
+              List.fold(List.range(0, shown), ~init=[], ~f=(acc, i) =>
+                [
+                  emit(
+                    u,
+                    cfg,
+                    items[i].node,
+                    ~key=child_key(key, i),
+                    ~indent=indent + 2,
+                    ~label=items[i].label,
+                    ~suffix=i == count - 1 ? "" : ",",
+                  ),
+                  ...acc,
+                ]
+              ),
             )
-            @ (hidden > 0 ? [Row(None, More(key, hidden, next), "")] : []);
+            @ more;
           };
         Block({
           key,
@@ -533,7 +543,7 @@ let fit = (u, root: node, ~width: int, ~rows as h: int): base => {
       ~is_open=(k, _) => SSet.mem(k, opened^),
       ~limit=
         (k, _) =>
-          SMap.find_opt(k, limits^) |> Option.value(~default=max_int),
+          SMap.find_opt(k, limits^) |> Option.value(~default=Int.max_value),
       ~step=(_, _) => 0,
     );
   /* a packed row holds at most width / 3 items ("1, "), so a list longer
@@ -569,10 +579,10 @@ let fit = (u, root: node, ~width: int, ~rows as h: int): base => {
   | _ => ()
   };
   let depth = ref(1);
-  while (List.exists(((_, d)) => d >= depth^, folded^)) {
+  while (List.exists(folded^, ~f=((_, d)) => d >= depth^)) {
     let d = depth^;
-    List.filter(((_, d')) => d' == d, folded^)
-    |> List.iter(((k, _)) => {
+    List.filter(folded^, ~f=((_, d')) => d' == d)
+    |> List.iter(~f=((k, _)) => {
          opened := SSet.add(k, opened^);
          let (o, f) = go();
          if (rows(o) <= h) {
@@ -595,7 +605,7 @@ let chunk = (u, n: node, ~line_w: int): int =>
   | Group(kind, items) =>
     let count = Array.length(items);
     if (count <= 14) {
-      max_int;
+      Int.max_value;
     } else if (kind == List && packable(u, items, min(count, 400), line_w)) {
       /* about six packed rows */
       let col = ref(0);
@@ -616,7 +626,7 @@ let chunk = (u, n: node, ~line_w: int): int =>
     } else {
       10;
     };
-  | Leaf => max_int
+  | Leaf => Int.max_value
   };
 
 /* ===== Entry point, with memos keyed on the sample value itself ===== */
@@ -642,7 +652,7 @@ let remember = (memo, k, v) => {
 };
 
 let tree = (exp: Exp.t): node =>
-  switch (List.find_opt(((e, _)) => e === exp, trees^)) {
+  switch (List.find(trees^, ~f=((e, _)) => phys_equal(e, exp))) {
   | Some((_, n)) => n
   | None =>
     remember(
@@ -654,9 +664,8 @@ let tree = (exp: Exp.t): node =>
 
 let base_for = (u, exp, ~width, ~rows): base =>
   switch (
-    List.find_opt(
-      (((e, w, r), _)) => e === exp && w == width && r == rows,
-      fits_memo^,
+    List.find(fits_memo^, ~f=(((e, w, r), _)) =>
+      phys_equal(e, exp) && w == width && r == rows
     )
   ) {
   | Some((_, b)) => b
@@ -678,18 +687,16 @@ let layout =
     )
     : out =>
   switch (
-    List.find_opt(
-      (((e, w, r, f), _)) =>
-        e === exp && w == width && r == rows && f == folds,
-      layouts^,
+    List.find(layouts^, ~f=(((e, w, r, f), _)) =>
+      phys_equal(e, exp) && w == width && r == rows && f == folds
     )
   ) {
   | Some((_, o)) => o
   | None =>
     let root = tree(exp);
     let base = base_for(u, exp, ~width, ~rows);
-    let opened = SMap.of_seq(List.to_seq(folds.opened));
-    let shown = SMap.of_seq(List.to_seq(folds.shown));
+    let opened = SMap.of_seq(Stdlib.List.to_seq(folds.opened));
+    let shown = SMap.of_seq(Stdlib.List.to_seq(folds.shown));
     let line_w = key => width - 2 * (key_depth(key) + 1);
     let is_open = (k, _) =>
       switch (SMap.find_opt(k, opened)) {
@@ -702,14 +709,14 @@ let layout =
       | (None, Some(l)) => l
       | (None, None) =>
         SMap.find_opt(k, opened) == Some(true)
-          ? chunk(u, n, ~line_w=line_w(k)) : max_int
+          ? chunk(u, n, ~line_w=line_w(k)) : Int.max_value
       };
     let step = (k, n) =>
       switch (SMap.find_opt(k, base.limits)) {
       | Some(l) => l
       | None =>
         let c = chunk(u, n, ~line_w=line_w(k));
-        c == max_int ? 10 : c;
+        c == Int.max_value ? 10 : c;
       };
     let (o, _) = run(u, root, ~width, ~is_open, ~limit, ~step);
     remember(layouts, (exp, width, rows, folds), o);

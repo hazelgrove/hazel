@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open Poly;
 
 let ellipsis = "…";
 
@@ -24,15 +25,21 @@ let render_exp = (exp: Exp.t): string => {
   exp |> exp_to_seg |> seg_to_str;
 };
 
-/* Parse source string, abbreviate at given budget, render to string */
-let abbreviate_and_render = (~available: int, src: string): string => {
+let parse = (src: string): Exp.t =>
   switch (Parser.to_term(src, ~root=Exp)) {
-  | Some(term) =>
-    let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
-    render_exp(abbreviated);
+  | Some(term) => term
   | None => failwith("Failed to parse: " ++ src)
   };
+
+/* Abbreviate at given budget, render to string */
+let abbreviate_term_and_render = (~available: int, term: Exp.t): string => {
+  let (abbreviated, _length) = Abbreviate.abbreviate_exp(~available, term);
+  render_exp(abbreviated);
 };
+
+/* Parse source string, abbreviate at given budget, render to string */
+let abbreviate_and_render = (~available: int, src: string): string =>
+  abbreviate_term_and_render(~available, parse(src));
 
 /* Measure rendered string length (display chars, matching ProbeProj.len_seg) */
 let rendered_length = (~available: int, src: string): int => {
@@ -40,32 +47,25 @@ let rendered_length = (~available: int, src: string): int => {
 };
 
 /* Full-length render (no abbreviation) */
-let full_render = (src: string): string => {
-  switch (Parser.to_term(src, ~root=Exp)) {
-  | Some(term) => render_exp(term)
-  | None => failwith("Failed to parse: " ++ src)
-  };
-};
-
-let full_length = (src: string): int => {
-  Util.Unicode.length(full_render(src));
-};
+let full_render = (src: string): string => render_exp(parse(src));
 
 /* Check monotonicity: sweeping budget from 0 to full_len,
    rendered length should be non-decreasing */
 let check_monotonicity = (name: string, src: string): unit => {
-  let max_budget = full_length(src) + 5;
+  /* Parsed once: the sweep varies only the budget */
+  let term = parse(src);
+  let max_budget = Util.Unicode.length(render_exp(term)) + 5;
   let violation = ref(None);
   let rec sweep = (budget: int, prev_len: int): unit =>
     if (budget > max_budget) {
       ();
     } else {
-      let rendered = abbreviate_and_render(~available=budget, src);
+      let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
       if (len < prev_len && violation^ == None) {
         violation :=
           Some(
-            Printf.sprintf(
+            sprintf(
               "%s: monotonicity violated at budget %d: len=%d < prev_len=%d (budget %d had len %d)",
               name,
               budget,
@@ -94,7 +94,7 @@ let run_abbreviation = (~available: int, exp: Exp.t): Exp.t => {
 
 let collect_labels = (elements: list(Exp.t)): list(string) =>
   elements
-  |> List.filter_map((element: Exp.t) =>
+  |> List.filter_map(~f=(element: Exp.t) =>
        switch (element.term) {
        | TupLabel(label_exp, _value_exp) =>
          switch (label_exp.term) {
@@ -111,7 +111,7 @@ let is_flat_ellipses_exp = (exp: Exp.t): bool =>
   | Invalid(str)
   | Atom(String(str))
   | Constructor(str, _)
-  | Var(str) => str == ellipsis
+  | Var(str) => String.equal(str, ellipsis)
   | _ => false
   };
 
@@ -121,7 +121,8 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
   } else {
     switch (exp.term) {
     | Tuple(elements)
-    | ListLit(elements) => List.exists(exp_contains_flat_ellipses, elements)
+    | ListLit(elements) =>
+      List.exists(~f=exp_contains_flat_ellipses, elements)
     | _ => false
     };
   };
@@ -130,10 +131,11 @@ let rec exp_contains_flat_ellipses = (exp: Exp.t): bool =>
 
 let monotonicity_tests =
   List.map(
-    ((name, src)) =>
-      test_case("monotonicity: " ++ name, `Quick, () =>
-        check_monotonicity(name, src)
-      ),
+    ~f=
+      ((name, src)) =>
+        test_case("monotonicity: " ++ name, `Quick, () =>
+          check_monotonicity(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -189,7 +191,7 @@ let structural_tests = [
       switch (abbreviated_12.term) {
       | Tuple(elements) =>
         check(Alcotest.int, "element count at 12", 2, List.length(elements));
-        switch (List.nth(elements, 0)) {
+        switch (List.nth_exn(elements, 0)) {
         | {term: TupLabel(label_exp, _), _} =>
           switch (label_exp.term) {
           | Label(name) =>
@@ -243,8 +245,8 @@ let structural_tests = [
           "label keeps prefix",
           true,
           String.length(label_text) > 0
-          && label_text != ellipsis
-          && label_text.[0] == 'c',
+          && !String.equal(label_text, ellipsis)
+          && Char.equal(label_text.[0], 'c'),
         );
         check(
           Alcotest.bool,
@@ -293,18 +295,20 @@ let budget_tests = [
 /* ===== Hard cap tests: rendered width must never exceed budget ===== */
 
 let check_hard_cap = (name: string, src: string): unit => {
-  let max_budget = full_length(src) + 5;
+  /* Parsed once: the sweep varies only the budget */
+  let term = parse(src);
+  let max_budget = Util.Unicode.length(render_exp(term)) + 5;
   let violation = ref(None);
   let rec sweep = (budget: int): unit =>
     if (budget > max_budget) {
       ();
     } else {
-      let rendered = abbreviate_and_render(~available=budget, src);
+      let rendered = abbreviate_term_and_render(~available=budget, term);
       let len = Util.Unicode.length(rendered);
       if (len > budget && violation^ == None) {
         violation :=
           Some(
-            Printf.sprintf(
+            sprintf(
               "%s: hard cap violated at budget %d: len=%d rendered=%s",
               name,
               budget,
@@ -326,10 +330,11 @@ let check_hard_cap = (name: string, src: string): unit => {
 
 let hard_cap_tests =
   List.map(
-    ((name, src)) =>
-      test_case("hard cap: " ++ name, `Quick, () =>
-        check_hard_cap(name, src)
-      ),
+    ~f=
+      ((name, src)) =>
+        test_case("hard cap: " ++ name, `Quick, () =>
+          check_hard_cap(name, src)
+        ),
     [
       ("int literal", "42"),
       ("bool true", "true"),
@@ -385,7 +390,7 @@ let count_annotation_tests = [
                 Str.search_forward(Str.regexp({|\+[0-9]+|}), rendered, 0);
               true;
             }) {
-            | Not_found => false
+            | Stdlib.Not_found => false
             };
           has_plus;
         },
@@ -512,13 +517,14 @@ let module_abbreviation_tests = [
         let labels: list(string) = collect_labels(elements);
         check(Alcotest.int, "label count", 3, List.length(labels));
         List.iter(
-          (label: string) =>
-            check(
-              Alcotest.bool,
-              "label not empty",
-              true,
-              String.length(label) > 0,
-            ),
+          ~f=
+            (label: string) =>
+              check(
+                Alcotest.bool,
+                "label not empty",
+                true,
+                String.length(label) > 0,
+              ),
           labels,
         );
       | _ => fail("expected tuple after abbreviation")
@@ -556,8 +562,8 @@ let module_abbreviation_tests = [
           "label keeps prefix",
           true,
           String.length(label_text) > 0
-          && label_text != ellipsis
-          && label_text.[0] == 'c',
+          && !String.equal(label_text, ellipsis)
+          && Char.equal(label_text.[0], 'c'),
         );
         check(
           Alcotest.bool,

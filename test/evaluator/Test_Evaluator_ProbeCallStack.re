@@ -1,6 +1,7 @@
 open Alcotest;
 open Language;
 open Test_Evaluator_Prelude;
+open Poly;
 
 /**
  * Tests for probe sample call_stack behavior.
@@ -25,15 +26,15 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(snd);
+  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
 };
 
 /* Show call stack for debugging */
 let show_call_stack = (cs: CallStack.t): string =>
   "["
   ++ String.concat(
-       ", ",
-       List.map((f: CallStack.frame) => Id.str3(f.id), cs),
+       ~sep=", ",
+       List.map(~f=(f: CallStack.frame) => Id.str3(f.id), cs),
      )
   ++ "]";
 
@@ -64,7 +65,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -85,7 +86,7 @@ in ^^probe(f(1)); ^^probe(f(2))|},
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -118,7 +119,7 @@ in ^^probe(celsius(72.)); ^^probe(celsius(100.))|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -140,12 +141,12 @@ in f(5)|});
           bool,
           "Inner probe should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -163,7 +164,7 @@ in f(1); f(2)|});
           bool,
           "Both probes should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         /* They should have DIFFERENT call_stacks (different app_ids) */
         check(
@@ -175,7 +176,7 @@ in f(1); f(2)|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -199,7 +200,7 @@ in ^^probe(f(5))|});
         /* One sample should be from the app probe (empty call_stack),
          * one from inside the function (non-empty call_stack) */
         let (app_sample, inner_sample) =
-          if (List.length(s1.call_stack) == 0) {
+          if (List.is_empty(s1.call_stack)) {
             (s1, s2);
           } else {
             (s2, s1);
@@ -219,7 +220,7 @@ in ^^probe(f(5))|});
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -243,12 +244,12 @@ in m.f(5)|},
           bool,
           "Probe inside module function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -268,12 +269,12 @@ in m.f(3)|},
           bool,
           "Probe inside module keyword function should have non-empty call_stack",
           true,
-          List.length(s.call_stack) > 0,
+          !List.is_empty(s.call_stack),
         )
       | _ =>
         fail(
           "Expected exactly 1 sample, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -293,7 +294,7 @@ in m.f(1); m.f(2)|},
           bool,
           "Both should have non-empty call_stacks",
           true,
-          List.length(s1.call_stack) > 0 && List.length(s2.call_stack) > 0,
+          !List.is_empty(s1.call_stack) && !List.is_empty(s2.call_stack),
         );
         check(
           bool,
@@ -304,7 +305,7 @@ in m.f(1); m.f(2)|},
       | _ =>
         fail(
           "Expected exactly 2 samples, got "
-          ++ string_of_int(List.length(samples)),
+          ++ Stdlib.string_of_int(List.length(samples)),
         )
       };
     },
@@ -316,7 +317,7 @@ in m.f(1); m.f(2)|},
  * binding site is only a parameter). These tests pin down which calls record
  * a navigable fn_def_id. */
 let frame_fn_def_id = (s: Sample.t): option(Id.t) =>
-  Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id);
+  Option.bind(s.frame, ~f=(f: CallStack.frame) => f.fn_def_id);
 
 let single_sample = (label, code): Sample.t => {
   let samples = get_all_samples(code);
@@ -362,17 +363,18 @@ let step_into_frame_tests = [
         let samples =
           EvaluatorState.get_probes(state)
           |> Id.Map.bindings
-          |> List.concat_map(snd);
+          |> List.concat_map(~f=snd);
         let dump =
           List.map(
-            (s: Sample.t) =>
-              switch (frame_fn_def_id(s)) {
-              | None => "noFnDef"
-              | Some(id) => term_kind(info_map, id)
-              },
+            ~f=
+              (s: Sample.t) =>
+                switch (frame_fn_def_id(s)) {
+                | None => "noFnDef"
+                | Some(id) => term_kind(info_map, id)
+                },
             samples,
           )
-          |> String.concat(",");
+          |> String.concat(~sep=",");
         let resolves = (s: Sample.t) =>
           switch (frame_fn_def_id(s)) {
           | None => false
@@ -383,7 +385,7 @@ let step_into_frame_tests = [
             }
           };
         let total = List.length(samples);
-        let ok = List.length(List.filter(resolves, samples));
+        let ok = List.length(List.filter(~f=resolves, samples));
         check(int, label ++ ": resolved [" ++ dump ++ "]", total, ok);
       };
       /* annotated let-bound fn (like crop-plotter's setCell) via deferred */
@@ -542,6 +544,178 @@ go(3)|},
   ),
 ];
 
+/* Every id in a term, in traversal order. */
+let ids_of_term = (e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, t) => {
+      acc := List.rev_append(t.annotation.ids, acc^);
+      continue(t);
+    };
+  let _: Exp.t =
+    Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, e);
+  List.rev(acc^);
+};
+
+/* The term with every id replaced by a fresh Id.mk one, as another process
+ * building it would mint. */
+let with_fresh_ids = (e: Exp.t): Exp.t => {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, t) =>
+      {
+        ...t,
+        annotation: {
+          ...t.annotation,
+          ids: List.map(~f=_ => Id.mk(), t.annotation.ids),
+        },
+      }
+      |> continue;
+  Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, e);
+};
+
+let library_term = (name: string): Exp.t =>
+  switch (Environment.lookup(Builtins.env_init, name)) {
+  | Some(e) => e
+  | None => fail("no builtin " ++ name)
+  };
+
+/* The call stacks of every sample, evaluating with the given library. */
+let stacks_with =
+    (env: Environment.t(Exp.t), (elaborated, targets)): list(list(Id.t)) => {
+  let (_, state) =
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env,
+      elaborated,
+    );
+  EvaluatorState.get_probes(state)
+  |> Id.Map.bindings
+  |> List.concat_map(~f=snd)
+  |> List.map(~f=(s: Sample.t) => CallStack.ids_of_stack(s.call_stack));
+};
+
+/* Calls made inside a library function (map calling its callback, or
+ * itself on the rest of the list) are frames with ids from the library's
+ * own terms. Iterations differ by depth, not by fresh ids. */
+let library_frames_test = (name: string, code: string) =>
+  test_case(
+    "Frames inside " ++ name ++ " are the same in every run, and its own ids",
+    `Quick,
+    () => {
+      let (_term, elaborated, info_map, targets) = parse_with_probes(code);
+      let first = stacks_with(Builtins.env_init, (elaborated, targets));
+      check(int, "three iterations", 3, List.length(first));
+      check(
+        bool,
+        "a second run gives the same frame ids",
+        true,
+        first == stacks_with(Builtins.env_init, (elaborated, targets)),
+      );
+      let library_frames =
+        List.concat(first)
+        |> List.dedup_and_sort(~compare=Id.compare)
+        |> List.filter(~f=id => Statics.Map.lookup(id, info_map) == None);
+      let lib_ids = ids_of_term(library_term(name));
+      check(
+        bool,
+        "some frames are calls inside " ++ name,
+        true,
+        library_frames != [],
+      );
+      check(
+        bool,
+        "every such frame is an id of " ++ name ++ "'s term",
+        true,
+        List.for_all(
+          ~f=id => List.mem(lib_ids, id, ~equal=Id.equal),
+          library_frames,
+        ),
+      );
+    },
+  );
+
+let library_frame_tests = [
+  library_frames_test("map", {|map([1, 2, 3], fun x -> ^^probe(x + 1))|}),
+  library_frames_test(
+    "fold_left",
+    {|fold_left([10, 20, 30], fun (acc, x) -> ^^probe(acc + x), 0)|},
+  ),
+  test_case(
+    "Library ids do not depend on the process that built the library",
+    `Quick,
+    () => {
+      /* Each process builds the library once with its own random ids;
+         rebuilding map's term with fresh ids stands in for another one. */
+      let map = library_term("map");
+      let elsewhere = with_fresh_ids(map);
+      check(
+        bool,
+        "the stand-in has other ids",
+        false,
+        ids_of_term(elsewhere) == ids_of_term(map),
+      );
+      check(
+        bool,
+        "its stable ids are the same",
+        true,
+        ids_of_term(BuiltinsUtil.with_stable_ids("map", elsewhere))
+        == ids_of_term(map),
+      );
+      /* Id.mk mints version 4 UUIDs; stable ids are version 5 */
+      check(
+        bool,
+        "no session ids",
+        true,
+        List.for_all(
+          ~f=id => Char.equal(Id.to_string(id).[14], '5'),
+          ids_of_term(map),
+        ),
+      );
+    },
+  ),
+  test_case(
+    "Frames inside library calls match across evaluator processes",
+    `Quick,
+    () => {
+      /* A restarted evaluator worker builds the whole library again. */
+      let program = {
+        let (_term, elaborated, _info_map, targets) =
+          parse_with_probes(
+            {|map([[1, 2], [3]], fun row -> map(row, fun n -> ^^probe(n)))|},
+          );
+        (elaborated, targets);
+      };
+      let library = (~stable: bool) =>
+        Builtins.builtins
+        |> List.map(~f=b => {
+             let (name, imp) = BuiltinsUtil.imp_of_builtin(b);
+             let imp = with_fresh_ids(imp);
+             (name, stable ? BuiltinsUtil.with_stable_ids(name, imp) : imp);
+           })
+        |> List.fold(~init=Environment.empty, ~f=Environment.extend);
+      let here = stacks_with(Builtins.env_init, program);
+      check(
+        bool,
+        "same frames in the new process",
+        true,
+        here == stacks_with(library(~stable=true), program),
+      );
+      check(
+        bool,
+        "(with per-process ids they would all differ)",
+        false,
+        here == stacks_with(library(~stable=false), program),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
@@ -551,5 +725,6 @@ let tests = (
     module_function_tests,
     step_into_frame_tests,
     span_suppression_tests,
+    library_frame_tests,
   ]),
 );

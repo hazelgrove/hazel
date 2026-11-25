@@ -38,7 +38,11 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && !
+         Haz3lcore.AutoProbe.equal(
+           page.globals.settings.autoprobe_mode,
+           Haz3lcore.AutoProbe.Off,
+         )
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -122,8 +126,13 @@ let apply =
       ),
     );
   };
-  if (updated.scroll_active) {
-    scroll_to_caret := true;
+  /* Runs before the re-render, so caret_in_view sees the layout the user is
+     looking at, not the one this action is about to make. */
+  switch (updated.scroll) {
+  | Updated.Always => scroll_to_caret := true
+  | IfCaretVisible when JsUtil.caret_in_view() => scroll_to_caret := true
+  | IfCaretVisible
+  | Never => ()
   };
   /* When the tutorial slide changes, stash the outgoing slide's scroll
      position and queue a restore of the incoming slide's saved position
@@ -134,11 +143,12 @@ let apply =
     slide_scrolls :=
       [
         (prev, JsUtil.main_scroll_top()),
-        ...List.remove_assoc(prev, slide_scrolls^),
+        ...List.Assoc.remove(slide_scrolls^, ~equal=Int.equal, prev),
       ];
     pending_scroll_restore :=
       Some(
-        List.assoc_opt(next, slide_scrolls^) |> Option.value(~default=0.),
+        List.Assoc.find(slide_scrolls^, ~equal=Int.equal, next)
+        |> Option.value(~default=0.),
       );
     scroll_to_caret := false;
   | _ => ()
@@ -209,7 +219,7 @@ let start = default_model => {
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              JsUtil.set_css_custom_property(
                "--row-height-px",
-               Printf.sprintf("%fpx", rect.height),
+               sprintf("%fpx", rect.height),
              );
              i(
                Page.Update.Globals(
@@ -224,12 +234,18 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* Identify non-dev builds in the page title */
+    if (!BuildMeta.is_clean_dev) {
+      Dom_html.document##.title := Js.string("hazel · " ++ BuildMeta.label);
+    };
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_guards();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
@@ -304,17 +320,40 @@ let start = default_model => {
           ~font_metrics,
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
+        /* Drawers reflow in the cell being worked in, which in multi-cell
+           views (tutorials, exercises) need not be get_editor's fixed one;
+           the key names the cell so switching cells rebaselines. */
+        let page = model.model.current.current;
+        let (shift_key, shift_editor) =
+          switch (
+            Editors.Selection.get_cursor_info(
+              ~inject=_ => Ui_effect.Ignore,
+              ~selection=page.selection,
+              page.editors,
+            ).
+              editor
+          ) {
+          | Some(e) => (
+              Editors.Model.editor_key(page.editors)
+              ++ "/"
+              ++ Editors.Selection.show(page.selection),
+              e,
+            )
+          | None => (Editors.Model.editor_key(page.editors), editor)
+          };
         RefractorShift.update(
-          ~editor_key=
-            Editors.Model.editor_key(model.model.current.current.editors),
+          ~editor_key=shift_key,
           ~font_metrics,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~measured,
-          zipper,
+          ~refractor_rows=shift_editor.syntax.refractor_rows,
+          ~measured=shift_editor.syntax.measured,
+          shift_editor.state.zipper,
         );
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        /* flip open probe sample menus that run out of room (once the
+           staggering above has settled where their samples are) */
+        SampleMenuPlacement.update_all();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
@@ -338,9 +377,7 @@ let start = default_model => {
     )
   ) {
   | exc =>
-    print_endline(
-      "ERROR: Exception during view: " ++ Printexc.to_string(exc),
-    );
+    print_endline("ERROR: Exception during view: " ++ Exn.to_string(exc));
     WebUtil.Node.div(
       ~attrs=[WebUtil.Attr.id("page")],
       [WebUtil.Node.text("An error occurred.")],
@@ -348,9 +385,21 @@ let start = default_model => {
   };
 };
 
+CoverageExport.install();
+
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>
+  /* Start the eval worker now, while the page is idle waiting on
+     IndexedDB, not on first use. First use comes in the middle of a
+     calculation, and a worker created while the main thread is busy does
+     not start running until that task ends, in Chrome as in Firefox
+     (Firefox even loads the worker's script through the main thread). On
+     the Livelit Playground's largest slides, statics held Firefox's main
+     thread for 20+ s, so the worker never acknowledged, the page reported
+     "Evaluation timed out", and the slide never drew. Created here, it is
+     loaded and listening before the first request. */
+  ignore(WorkerClient.get_worker());
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
@@ -372,5 +421,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  })
+  });
 };

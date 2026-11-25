@@ -26,7 +26,7 @@ let reveal_later = (head: Js.t(Dom_html.element), key: string): unit =>
       switch (
         Js.Opt.to_option(
           chip##querySelector(
-            Js.string(Printf.sprintf("[data-fold=\"%s\"]", key)),
+            Js.string(sprintf("[data-fold=\"%s\"]", key)),
           ),
         )
       ) {
@@ -34,10 +34,10 @@ let reveal_later = (head: Js.t(Dom_html.element), key: string): unit =>
         let r = el##getBoundingClientRect;
         let c = wrapper##getBoundingClientRect;
         let below = r##.bottom -. c##.bottom;
-        if (below > 0.) {
+        if (Float.(below > 0.)) {
           Util.JsUtil.adjust_scroll(
             wrapper,
-            min(below, max(0., r##.top -. c##.top)),
+            Float.min(below, Float.max(0., r##.top -. c##.top)),
           );
         };
       | None => ()
@@ -91,8 +91,8 @@ let rec view =
         : Node.t => {
   let recur = view(~on_fold, ~on_show, ~view_seg);
   let label_tok = l =>
-    Option.to_list(Option.map(l => tok(prefix(Some(l))), l));
-  let suffix_tok = s => s == "" ? [] : [tok(s)];
+    Option.to_list(Option.map(l, ~f=l => tok(prefix(Some(l)))));
+  let suffix_tok = s => String.is_empty(s) ? [] : [tok(s)];
   let more = (key, hidden, next) =>
     head(
       ~kind="more",
@@ -106,7 +106,7 @@ let rec view =
     Effect.Many([
       on_fold(key, true),
       Effect.of_sync_fun(
-        () => Option.iter(h => reveal_later(h, key), head),
+        () => Option.iter(head, ~f=h => reveal_later(h, key)),
         (),
       ),
     ]);
@@ -129,7 +129,7 @@ let rec view =
   | Row(label, Pretty(key, seg, _), suffix) =>
     /* an unlabeled root leaf is what today's drawer shows: nothing to fold */
     let fold =
-      label == None
+      Option.is_none(label)
         ? []
         : [
           head(
@@ -162,7 +162,10 @@ let rec view =
             label_tok(b.label) @ [tok(b.opener)],
           ),
         ]),
-        div(~attrs=[Attr.classes(["fold-kids"])], List.map(recur, b.kids)),
+        div(
+          ~attrs=[Attr.classes(["fold-kids"])],
+          List.map(~f=recur, b.kids),
+        ),
         row(
           [
             head(
@@ -179,23 +182,19 @@ let rec view =
   | Packed(rows) =>
     div(
       ~attrs=[Attr.classes(["fold-packed"])],
-      List.map(
-        toks =>
-          row(
-            List.mapi(
-              (i, t) =>
-                (i > 0 ? [tok(" ")] : [])
-                @ [
-                  switch (t) {
-                  | Item(s) => tok(s)
-                  | PackedMore(key, hidden, next) => more(key, hidden, next)
-                  },
-                ],
-              toks,
-            )
-            |> List.concat,
-          ),
-        rows,
+      List.map(rows, ~f=toks =>
+        row(
+          List.mapi(toks, ~f=(i, t) =>
+            (i > 0 ? [tok(" ")] : [])
+            @ [
+              switch (t) {
+              | Item(s) => tok(s)
+              | PackedMore(key, hidden, next) => more(key, hidden, next)
+              },
+            ]
+          )
+          |> List.concat,
+        )
       ),
     )
   };
