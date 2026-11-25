@@ -1772,6 +1772,11 @@ and sig_term: unsorted => TermBase.Sig.term = {
     Sig.hole(kids_of_unsorted(tm));
   };
   fun
+  | tm when all_exp_only(~host=Sort.Sig, tm) =>
+    /* see typ_term: an expression's form stranded among signature items
+       (`{ let x; w let y }` reads the second `let` as an expression's)
+       stays whole inside a hole, keeping its keyword and its marks */
+    ret(MultiHole([Exp(exp(tm))]))
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(_id, tile)], []) =>

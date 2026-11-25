@@ -2988,6 +2988,57 @@ let defensive_print_stable_tests = (
         },
       )
     }),
+    /* An expression's form among a signature's items stays whole, with its
+       keyword, instead of leaving its operands behind as items. */
+    test_case(
+      "An expression's let among signature items keeps its keyword", `Quick, () =>
+      List.iter(
+        [
+          "type T = {\n let _; w\n let\ny;\n type x = Float\n} in 1",
+          "type T = { let ?; w type\nx = ?; let _ } in 1",
+        ],
+        ~f=text => {
+          let keywords = t =>
+            List.length(
+              String.substr_index_all(t, ~may_overlap=false, ~pattern="let "),
+            )
+            + List.length(
+                String.substr_index_all(
+                  t,
+                  ~may_overlap=false,
+                  ~pattern="type ",
+                ),
+              );
+          check(
+            option(int),
+            "keywords in the reprint of " ++ text,
+            Some(keywords(String.tr(text, ~target='\n', ~replacement=' '))),
+            Option.map(reprint(text), ~f=keywords),
+          );
+        },
+      )
+    ),
+    /* A one-tuple without its `_=` (elaboration takes it off a pattern's
+       field, a cast off an expression's) prints with it. */
+    test_case("An elaborated one-tuple reads back", `Quick, () =>
+      List.iter(
+        [
+          "forall (_=w _) -> ?",
+          "let (_=x) = (_=1) in x",
+          "let f : (_=Int) -> (_=Int) = fun (_=x) -> (_=x) in f",
+        ],
+        ~f=text =>
+        List.iter(
+          Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+          check(
+            bool,
+            defensive_print(term),
+            true,
+            print_reads_back(~as_written=Canonicalize.elaborated, term),
+          )
+        )
+      )
+    ),
     /* A signature that is one hole (an operator's, or an expression's form
        stranded there) keeps that hole's ids for the hole: the ids a
        signature takes from its body are its `;`s. */
