@@ -3091,6 +3091,115 @@ let defensive_print_stable_tests = (
         )
       )
     ),
+    /* A cast on a tuple goes to its fields, and from a labeled field to
+       what it holds: no step shows a cast on the field itself, which has
+       no text (`(_=(a=()):(a=T))`). A negated literal is written without
+       a space, as it is read. */
+    test_case(
+      "A cast on a labeled field, a negated literal",
+      `Quick,
+      () => {
+        List.iter(
+          [
+            "():(a=Void)",
+            "x:(a=(^w^))",
+            "- 1129.5",
+            "0 - 5",
+            "- 5 + - x - -3",
+          ],
+          ~f=text =>
+          List.iter(
+            Evaluated.terms(1, Option.value_exn(Typed.read(text))),
+            ~f=term => {
+              check(
+                bool,
+                defensive_print(term),
+                true,
+                print_reads_back(~as_written=Canonicalize.elaborated, term),
+              );
+              check(
+                bool,
+                "no step is a one-tuple of a field under a cast",
+                false,
+                String.is_substring(
+                  defensive_print(term),
+                  ~substring="(_=(a=",
+                ),
+              );
+            },
+          )
+        );
+        check(
+          option(string),
+          "reprint",
+          Some("-5 + - x"),
+          reprint("- 5 + - x"),
+        );
+        /* The negation of a literal that is itself negative keeps its
+           space: `--5` is one unknown operator before a `5`. */
+        let negated = (n: int): Exp.t =>
+          Exp.fresh(
+            UnOp(Int(Minus), Exp.fresh(Atom(Int(Bigint.of_int(n))))),
+          );
+        check(
+          string,
+          "a negative literal negated",
+          "- (-5)",
+          defensive_print(negated(-5)),
+        );
+        let negative = Exp.fresh(Atom(Int(Bigint.of_int(-5))));
+        check(
+          string,
+          "a negative literal applied",
+          "(-5)(x)",
+          defensive_print(
+            Exp.fresh(Ap(Forward, negative, Exp.fresh(Var("x")))),
+          ),
+        );
+        check(
+          string,
+          "a negative literal as an operand",
+          "x + -5",
+          defensive_print(
+            Exp.fresh(BinOp(Int(Plus), Exp.fresh(Var("x")), negative)),
+          ),
+        );
+        check(
+          string,
+          "a literal negated",
+          "-5",
+          defensive_print(negated(5)),
+        );
+        /* in a pattern too, and for a float's negative zero */
+        List.iter(["fun -5 -> 1", "case 1 | -5 => 1 | _ => 2 end"], ~f=text =>
+          List.iter(
+            Evaluated.terms(0, Option.value_exn(Typed.read(text))), ~f=term =>
+            check(
+              bool,
+              defensive_print(term),
+              true,
+              print_reads_back(~as_written=Canonicalize.elaborated, term),
+            )
+          )
+        );
+        check(
+          string,
+          "negative zero negated",
+          "- (-0.0)",
+          defensive_print(
+            Exp.fresh(
+              UnOp(Int(Minus), Exp.fresh(Atom(Float(Float.neg(0.0))))),
+            ),
+          ),
+        );
+        check(
+          bool,
+          "- -5 reads back",
+          true,
+          print_reads_back(~as_written=Canonicalize.elaborated, negated(-5)),
+        );
+      },
+    ),
     /* A signature that is one hole (an operator's, or an expression's form
        stranded there) keeps that hole's ids for the hole: the ids a
        signature takes from its body are its `;`s. */

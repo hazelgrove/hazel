@@ -295,6 +295,12 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Binary operations are handled in Precedence.re
   | BinOp(op, _, _) => Precedence.of_bin_op(op)
 
+  /* A negative literal is written with its minus and read as a negation,
+     so it groups as one: `(-5)(x)`, `(-5):Int`, `- (-5)`. */
+  | Atom(Int(n)) when Bigint.(n < zero) => Precedence.neg
+  | Atom(SInt(n)) when n < 0 => Precedence.neg
+  | Atom(Float(f)) when Float.ieee_negative(f) => Precedence.neg
+
   // Indivisible forms never need parentheses around them
   | Var(_)
   | Invalid(_)
@@ -356,6 +362,11 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
 
 let external_precedence_pat = (dp: Pat.t) =>
   switch (DHPat.term_of(dp)) {
+  /* A negative literal groups as a negation, as in an expression:
+     `fun (-5):(Int) -> 1`. */
+  | Atom(Int(n)) when Bigint.(n < zero) => Precedence.neg
+  | Atom(SInt(n)) when n < 0 => Precedence.neg
+  | Atom(Float(f)) when Float.ieee_negative(f) => Precedence.neg
   // Indivisible forms never need parentheses around them
   | EmptyHole
   | Wild
@@ -3109,10 +3120,28 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     wrap(exp, [mk_form(Not, id, [])] @ e);
-  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | SInt(Minus), operand) =>
     let id = exp |> Exp.rep_id;
-    let+ e = go(e);
-    wrap(exp, [mk_form(UnaryMinus, id, [])] @ e);
+    let+ e = go(operand);
+    /* A negated literal is written as a negative literal prints, `-5`:
+       the reader takes either text as the negation, so a negative result
+       reads back to something that prints the same. Not before a literal
+       that is itself negative, whose `-` would join this one (`--5` is
+       one unknown operator before a `5`). */
+    let is_literal =
+      switch (operand.term) {
+      | Atom(Int(n)) => Bigint.(n >= zero)
+      | Atom(Float(f)) => !Float.ieee_negative(f)
+      | Atom(Nat(_)) => true
+      | Atom(SInt(n)) => n >= 0
+      | _ => false
+      };
+    wrap(
+      exp,
+      is_literal
+        ? list_append([mk_form(UnaryMinus, id, [])], e)
+        : [mk_form(UnaryMinus, id, [])] @ e,
+    );
   | UnOp(Float(Minus), _) =>
     failwith(
       "ExpToSegment: UnOp(Float(Minus)) should have been rewritten by parenthesize",
