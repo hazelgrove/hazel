@@ -44,7 +44,7 @@ let _ = ^^probe_drawer(squares(600)) in
 
 # Constructors and tuples fold too. A folded constructor #
 # keeps its argument slots: Node(…, 40, …). Open a few #
-# levels, then fold the root `Node(` to start over. #
+# levels, then fold the root `Node(`: it reopens as you left it. #
 type Tree =
   + Leaf
   + Node(Tree, Int, Tree) in
