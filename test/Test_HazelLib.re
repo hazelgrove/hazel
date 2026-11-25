@@ -965,28 +965,39 @@ total|};
             ),
             "value",
           );
-        let call_with = () => {
+        /* the pair as one array, f([p, xs]), or spread, f(p, xs): both through the converters (only the old way, the
+           interpreter's, gives back an answer it has not frozen, so a frozen answer says the call went the fast way) */
+        let call_with = (~spread) => {
           let p = as_js({|{"x": 1, "y": 2}|});
           let xs = as_js("[3, 4]");
-          (p, xs, call(f, [p, xs]));
+          (
+            p,
+            xs,
+            spread
+              ? call(f, [p, xs])
+              : call(f, [Js.Unsafe.inject(Js.array([|p, xs|]))]),
+          );
         };
         let _ = HazelLibCore.development(true);
-        let (p, xs, r) = call_with();
+        let (p, xs, r) = call_with(~spread=false);
+        let (_, _, r2) = call_with(~spread=true);
         let _ = HazelLibCore.development(false);
         check(
           list(bool),
-          "frozen: the record given, the list given, the answer, its record, its list",
-          [true, true, true, true, true],
+          "frozen: the record given, the list given, the answer, its record, its list; the answer to a spread call",
+          [true, true, true, true, true, true],
           [
             frozen(p),
             frozen(xs),
             frozen(r),
             frozen(Js.Unsafe.get(r, 0)),
             frozen(Js.Unsafe.get(r, 1)),
+            frozen(r2),
           ],
         );
         check(string, "the answer", {|[{"x":2,"y":1},[0,3,4]]|}, json(r));
-        let (p, xs, r) = call_with();
+        check(string, "the answer, spread", json(r), json(r2));
+        let (p, xs, r) = call_with(~spread=false);
         check(
           list(bool),
           "off: nothing frozen",

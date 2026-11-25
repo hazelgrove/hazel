@@ -1256,8 +1256,12 @@ module Direct = {
         {
           let one = inn(st, [], param, "args[0]");
           let many =
-            switch (Typ.term_of(param)) {
-            | Prod(ts)
+            /* (^ticket(847)) the parameter seen through parentheses and aliases, as the arrow is: a declared
+               (Int, [Int]) -> Int has Parens around its domain, and f(1, xs) went the old way on every call */
+            switch (
+              Option.map(HazelJitValue.shape(ts, 0, param), ~f=Typ.term_of)
+            ) {
+            | Some(Prod(ts))
                 when List.length(ts) > 1 && Option.is_none(labeled(ts)) =>
               "args.length === "
               ++ string_of_int(List.length(ts))
