@@ -309,9 +309,6 @@ and uexp_to_info_map =
   let go_pat =
     upat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive);
-  /* Analyze an expression in label position. Adds info for the label
-     directly (like TupLabel does for its children) and returns
-     the label name if valid. Used by CustomStatics for builtin label args. */
   /* Lifts a value into a one-field labeled tuple: `1` at `(a=Int)` is
      `(a=1)`. The value is analyzed once, against the field's type, at its
      own ids; its entry then records the tuple's type and elaboration, so

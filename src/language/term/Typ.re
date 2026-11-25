@@ -370,7 +370,7 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     switch (TPat.tyvar_of_utpat(tp2)) {
     | Some(name) when List.mem(free_vars(s), name, ~equal=String.equal) =>
       let fresh = fresh_var(name);
-      let tp2': TPat.t = Var(fresh) |> TPat.fresh;
+      let tp2': TPat.t = Var(fresh) |> TPat.temp;
       let body' = subst(Var(fresh) |> temp, tp2, body);
       (tp2', body');
     | _ => (tp2, body)
@@ -982,7 +982,7 @@ let shared_binder =
       free_in(x', free1) || free_in(x', free2) ? fresh() : x';
     };
     let fresh_name = fresh();
-    let fresh_tp = Var(fresh_name) |> TPat.fresh;
+    let fresh_tp = Var(fresh_name) |> TPat.temp;
     (
       fresh_tp,
       rename(fresh_name, tp1, body1),
@@ -1194,11 +1194,34 @@ let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
  * different (`(x=Int)` against an alias for it, a `ProdProjection`, a
  * parenthesized form), reporting a more precise type as not more precise.
  *
+ * A `rec` whose binder its body never uses (`rec x -> ?`, or one whose
+ * binder is no name) is its body: unrolling it gives the body back. `meet`
+ * keeps such a binder, so `?` looked less precise than `rec x -> ?`; both
+ * sides drop them first.
+ *
  * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
  */
 let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
-  let ty1 = normalize(ctx, ty1);
-  let ty2 = normalize(ctx, ty2);
+  let drop_unused_recs = (ty: t): t =>
+    map_term(
+      ~f_typ=
+        (continue, ty) => {
+          let ty = continue(ty);
+          switch (term_of(ty)) {
+          | Rec(tp, body) =>
+            switch (TPat.tyvar_of_utpat(tp)) {
+            | Some(name)
+                when List.mem(free_vars(body), name, ~equal=String.equal) => ty
+            | Some(_)
+            | None => body
+            }
+          | _ => ty
+          };
+        },
+      ty,
+    );
+  let ty1 = drop_unused_recs(normalize(ctx, ty1));
+  let ty2 = drop_unused_recs(normalize(ctx, ty2));
   let met = meet(ctx, ty1, ty2);
   switch (met) {
   | None => false

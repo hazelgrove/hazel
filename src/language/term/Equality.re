@@ -474,14 +474,16 @@ let equality =
       )
         when ignore_unknown_provenance =>
       true
-    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
     | (MultiHole(xs1), MultiHole(xs2)) =>
       List.length(xs1) == List.length(xs2)
       && List.for_all2_exn(~f=any', xs1, xs2)
     | (Parens(x), Parens(y)) => pne(x, y)
-    | (Projector(d1, x), Projector(d2, y)) when d1 == d2 => pne(x, y)
+    | (Projector(d1, x), Projector(d2, y))
+        when Grammar.equal_projector_data(d1, d2) =>
+      pne(x, y)
     | (Asc(p, t1), Asc(q, t2)) => pne(p, q) && typ'(t1, t2)
-    | (Label(l1), Label(l2)) => l1 == l2
+    | (Label(l1), Label(l2)) => String.equal(l1, l2)
     | (Tuple(ps1), Tuple(ps2)) =>
       List.length(ps1) == List.length(ps2)
       && List.for_all2_exn(ps1, ps2, ~f=pne)
@@ -641,11 +643,10 @@ let equality =
     | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
     | (ExplicitNonlabel, _) => None
     | (Ap(p1, p2), Ap(p3, p4)) =>
-      open OptUtil.Syntax;
-      let* alphas1 = pat'(p1, p3);
-      let* alphas2 = pat'(p2, p4);
-      /* Arg binders shadow head binders, so `x(x)` ≈ `x(x')` in the body. */
-      Some(Alphas.combine(alphas2, alphas1));
+      /* The head names a constructor and binds nothing (Pat.bindings), so
+         two heads are equal by name; only the argument's binders may be
+         renamed. */
+      pat_names_equal(alphas_exp, alphas_typ, p1, p3) ? pat'(p2, p4) : None
     | (Ap(_, _), _) => None
     };
   }

@@ -272,6 +272,214 @@ module Rules = {
     );
 };
 
+/* A second property, whose oracle doesn't go through FreeVars: the scoping
+   of the forms it generates is written out by hand below. One name, `a`,
+   is replaced by a marker no generated term contains, `q(7)`, and binders
+   are named `q` too. In the result no marker sits under a binder of `q`,
+   and no `a` is left free. The terms carry no environments (Rules covers
+   those); they do have what Rules' don't: holes, patterns with a head or
+   a label, and a binder's ascription that quotes an expression. */
+module Scoping = {
+  let gen_name = QCheck.Gen.oneofl(["a", "q", "x"]);
+
+  let marker = () => Exp.ap(Forward, Exp.var("q"), Exp.int(7));
+  let is_marker = (e: Language.Exp.t): bool =>
+    switch (e.term) {
+    | Ap(_, {term: Var("q"), _}, {term: Atom(Int(n)), _}) =>
+      Bigint.equal(n, Bigint.of_int(7))
+    | _ => false
+    };
+
+  let rec gen_term = (depth: int): QCheck.Gen.t(Language.Exp.t) => {
+    let leaf =
+      QCheck.Gen.oneof([
+        QCheck.Gen.map(Exp.var, gen_name),
+        QCheck.Gen.return(Exp.int(1)),
+      ]);
+    if (depth <= 0) {
+      leaf;
+    } else {
+      let sub = gen_term(depth - 1);
+      let pat = gen_pat(depth - 1);
+      QCheck.Gen.frequency([
+        (2, leaf),
+        (
+          2,
+          QCheck.Gen.map2(
+            (p, body) => Exp.fn(p, body, None, None),
+            pat,
+            sub,
+          ),
+        ),
+        (
+          1,
+          QCheck.Gen.map2((p, body) => Exp.fix_f(p, body, None), pat, sub),
+        ),
+        (2, QCheck.Gen.map3(Exp.let_, pat, sub, sub)),
+        (
+          1,
+          QCheck.Gen.map3(
+            (scrut, p, body) => Exp.match(scrut, [(p, body)]),
+            sub,
+            pat,
+            sub,
+          ),
+        ),
+        (1, QCheck.Gen.map2((f, a) => Exp.ap(Forward, f, a), sub, sub)),
+        (
+          2,
+          QCheck.Gen.map2(
+            (l, r) => Language.Exp.fresh(MultiHole([Exp(l), Exp(r)])),
+            sub,
+            sub,
+          ),
+        ),
+      ]);
+    };
+  }
+  and gen_pat = (depth: int): QCheck.Gen.t(Language.Pat.t) => {
+    let var = QCheck.Gen.map(Pat.var, gen_name);
+    QCheck.Gen.frequency([
+      (3, var),
+      (
+        2,
+        QCheck.Gen.map2(
+          (p, quoted) => Pat.asc(p, Language.Typ.fresh(ProofOf(quoted))),
+          var,
+          gen_term(depth),
+        ),
+      ),
+      (1, QCheck.Gen.map2(Pat.ap, var, var)),
+      (1, QCheck.Gen.map2(Pat.tup_label, var, var)),
+    ]);
+  };
+
+  /* The names a pattern binds: not an application's head, nor a label. */
+  let rec binders = (p: Language.Pat.t): list(string) =>
+    switch (p.term) {
+    | Var(x) => [x]
+    | Asc(p, _)
+    | Ap(_, p)
+    | TupLabel(_, p) => binders(p)
+    | _ => []
+    };
+
+  /* The expressions a pattern's types quote. They are read outside the
+     pattern: its own names don't bind them. */
+  let rec quoted = (p: Language.Pat.t): list(Language.Exp.t) =>
+    switch (p.term) {
+    | Asc(p, {term: ProofOf(e), _}) => [e, ...quoted(p)]
+    | Asc(p, _)
+    | Ap(_, p)
+    | TupLabel(_, p) => quoted(p)
+    | _ => []
+    };
+
+  /* Every expression in `e` with the names bound around it. */
+  let rec scoped =
+          (bound: list(string), e: Language.Exp.t)
+          : list((list(string), Language.Exp.t)) => {
+    let under = (p: Language.Pat.t, body) =>
+      List.concat_map(quoted(p), ~f=scoped(bound))
+      @ scoped(binders(p) @ bound, body);
+    let inner =
+      switch (e.term) {
+      | Fun(p, body, _, _)
+      | FixF(p, body, _) => under(p, body)
+      | Let(p, def, body) => scoped(bound, def) @ under(p, body)
+      | Match(scrut, rules) =>
+        scoped(bound, scrut)
+        @ List.concat_map(rules, ~f=((p, body)) => under(p, body))
+      | Ap(_, f, a) => scoped(bound, f) @ scoped(bound, a)
+      | MultiHole(pieces) =>
+        List.concat_map(
+          pieces,
+          ~f=
+            fun
+            | Exp(piece) => scoped(bound, piece)
+            | _ => [],
+        )
+      | _ => []
+      };
+    [(bound, e), ...inner];
+  };
+
+  let is_bound = (x: string, bound: list(string)): bool =>
+    List.mem(bound, x, ~equal=String.equal);
+
+  let is_free = (x: string, (bound, e: Language.Exp.t)): bool =>
+    switch (e.term) {
+    | Var(y) => String.equal(x, y) && !is_bound(x, bound)
+    | _ => false
+    };
+
+  /* Whether substituting has a binder to rename: a free `a` under a binder
+     of `q`. */
+  let must_rename = (e: Language.Exp.t): bool =>
+    List.exists(scoped([], e), ~f=((bound, _) as at) =>
+      is_free("a", at) && is_bound("q", bound)
+    );
+
+  let substituted = (e: Language.Exp.t): Language.Exp.t =>
+    Substitution.in_exp(Environment.of_list([("a", marker())]), e);
+
+  let property =
+    QCheck.Test.make(
+      ~name="Substitution captures no name it inserts and leaves none behind",
+      ~count=2000,
+      QCheck.make(~print=QCheck_Util.show_core_exp, gen_term(4)),
+      e => {
+        let result = substituted(e);
+        let nodes = scoped([], result);
+        if (List.exists(nodes, ~f=is_free("a"))) {
+          QCheck.Test.fail_reportf(
+            "a free `a` is left in the result: %s",
+            QCheck_Util.show_core_exp(result),
+          );
+        };
+        if (List.exists(nodes, ~f=((bound, e)) =>
+              is_marker(e) && is_bound("q", bound)
+            )) {
+          QCheck.Test.fail_reportf(
+            "an inserted `q` is bound in the result: %s",
+            QCheck_Util.show_core_exp(result),
+          );
+        };
+        true;
+      },
+    );
+
+  /* The property says something only where a binder has to be renamed.
+     Of this fixed sample of what it generates, enough terms have one. */
+  let sample = 500;
+  let min_renaming = 60;
+  let renames_often =
+    test_case(
+      "Scoping property: enough terms need a rename",
+      `Quick,
+      () => {
+        let terms =
+          QCheck.Gen.generate(
+            ~n=sample,
+            ~rand=Stdlib.Random.State.make([|42|]),
+            gen_term(4),
+          );
+        let renaming = List.count(terms, ~f=must_rename);
+        check(
+          bool,
+          Printf.sprintf(
+            "at least %d of %d terms need a rename (got %d)",
+            min_renaming,
+            sample,
+            renaming,
+          ),
+          true,
+          renaming >= min_renaming,
+        );
+      },
+    );
+};
+
 let tests = (
   "Substitution",
   [
@@ -767,5 +975,7 @@ let tests = (
       },
     ),
     QCheck_alcotest.to_alcotest(Rules.property),
+    QCheck_alcotest.to_alcotest(Scoping.property),
+    Scoping.renames_often,
   ],
 );

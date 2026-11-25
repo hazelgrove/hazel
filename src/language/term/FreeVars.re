@@ -87,6 +87,47 @@ module Memo =
     let hash = Stdlib.Hashtbl.hash;
   });
 
+/* Whether a type may hold an expression: a `proof_of`, a hole's pieces, a
+   signature's items. Only such a type has names a substitution replaces,
+   and most types say no without being walked. */
+let rec may_hold_exp = (t: Typ.t): bool =>
+  switch (Typ.term_of(t)) {
+  | Unknown(Hole(MultiHole(_)))
+  | ProofOf(_)
+  | Sig(_)
+  | DrvQuoteTy(_)
+  | Projector(_) => true
+  | Unknown(_)
+  | Atom(_)
+  | Var(_)
+  | Label(_)
+  | ExplicitNonlabel => false
+  | List(t)
+  | Parens(t) => may_hold_exp(t)
+  | Rec(tp, t)
+  | Poly(tp, t) =>
+    switch (tp.term) {
+    | MultiHole(_) => true
+    | Var(_)
+    | EmptyHole
+    | Invalid(_) => may_hold_exp(t)
+    }
+  | Arrow(t1, t2)
+  | TupLabel(t1, t2)
+  | ProdProjection(t1, t2)
+  | ProdExtension(t1, t2) => may_hold_exp(t1) || may_hold_exp(t2)
+  | Prod(ts) => List.exists(ts, ~f=may_hold_exp)
+  | Sum(variants) =>
+    List.exists(
+      variants,
+      ~f=
+        fun
+        | ConstructorMap.Variant(_, _, None) => false
+        | Variant(_, _, Some(t))
+        | BadEntry(t) => may_hold_exp(t),
+    )
+  };
+
 let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
   switch (Option.bind(memo, ~f=memo => Memo.find_opt(memo, e))) {
   | Some(names) => names
@@ -97,34 +138,54 @@ let rec exp = (~memo: option(Memo.t(t))=?, e: Exp.t): t =>
     let fixed = ref([]);
     let parts = ref([]);
     let add = names => parts := [names, ...parts^];
+    /* The names in a type's expressions. Only a type that may hold one
+       is walked. */
+    let in_typ = (t: Typ.t): t =>
+      if (may_hold_exp(t)) {
+        let found = ref(empty);
+        let _ =
+          Typ.map_term(
+            ~f_exp=
+              (_, e) => {
+                found := union(found^, exp(~memo?, e));
+                e;
+              },
+            t,
+          );
+        found^;
+      } else {
+        empty;
+      };
     /* The names in the types a pattern is ascribed
-       (`h : proof_of n > k end`), which its own binders don't bind. */
-    let ascribed = (p: Pat.t): t => {
-      let found = ref(empty);
-      let _ =
-        Pat.map_term(
-          ~f_exp=
-            (_, e) => {
-              found := union(found^, exp(~memo?, e));
-              e;
-            },
-          p,
-        );
-      found^;
-    };
-    let in_typ = (t: Typ.t): t => {
-      let found = ref(empty);
-      let _ =
-        Typ.map_term(
-          ~f_exp=
-            (_, e) => {
-              found := union(found^, exp(~memo?, e));
-              e;
-            },
-          t,
-        );
-      found^;
-    };
+       (`h : proof_of n > k end`), which its own binders don't bind: the
+       types Substitution.in_pat puts values in, and no others (not an
+       application's head, a field's label or a hole's pieces). */
+    let rec ascribed = (p: Pat.t): t =>
+      switch (Pat.term_of(p)) {
+      | Var(_)
+      | Atom(_)
+      | Wild
+      | Invalid(_)
+      | EmptyHole
+      | MultiHole(_)
+      | Constructor(_)
+      | ExplicitNonlabel
+      | Label(_) => empty
+      | Parens(p)
+      | Projector(_, p)
+      | Ap(_, p)
+      | TupLabel(_, p) => ascribed(p)
+      | Tuple(ps)
+      | ListLit(ps) =>
+        List.fold(ps, ~init=empty, ~f=(names, p) =>
+          switch (ascribed(p)) {
+          | found when phys_equal(found, empty) => names
+          | found => union(names, found)
+          }
+        )
+      | Cons(p1, p2) => union(ascribed(p1), ascribed(p2))
+      | Asc(p, t) => union(ascribed(p), in_typ(t))
+      };
     let under = (p: Pat.t, body: Exp.t) => {
       let names = exp(~memo?, body);
       union(

@@ -357,11 +357,16 @@ let wrap_item =
 /* Whether `pat` is an ascription modlet_pat added to `inner`. It checks the
    item against the signature, but the module's elaboration leaves it out:
    the user didn't write it. */
-let is_signature_ascription = (~inner: Pat.t, pat: Pat.t): bool =>
-  Id.equal(
-    Pat.rep_id(pat),
-    Id.derive(~salt="module-item-signature", Pat.rep_id(inner)),
-  );
+let is_signature_ascription = (~inner: Pat.t, pat: Pat.t): bool => {
+  let id = Pat.rep_id(pat);
+  /* an ascription the user wrote has an id of its own, so only a derived
+     one is worth the hash */
+  Id.is_derived(id)
+  && Id.equal(
+       id,
+       Id.derive(~salt="module-item-signature", Pat.rep_id(inner)),
+     );
+};
 
 /* TODO: lowering goes away when modules-ii (#2493) gives modules real
    values. */
