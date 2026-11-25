@@ -103,14 +103,15 @@ let has_unknown = (t: Typ.t): bool => {
     );
   found^;
 };
-/* the declared type's parameter and result: an ascription on the name, or around the definition */
-let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t)) => {
+/* the declared type's parameter and result: an ascription on the name, or around the definition; and (^ticket(769)) the
+   whole type itself, the very one the interpreter's let casts the function to */
+let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t, Typ.t)) => {
   let rec of_pat = (p: Pat.t) =>
     switch (Pat.term_of(p)) {
     | Parens(p) => of_pat(p)
     | Asc(p, t) =>
       switch (arrow_parts(t)) {
-      | Some(_) as r when !has_unknown(t) => r
+      | Some((a, b)) when !has_unknown(t) => Some((a, b, t))
       | _ => of_pat(p)
       }
     | _ => None
@@ -120,7 +121,7 @@ let declared_result = (p: Pat.t, def: Exp.t): option((Typ.t, Typ.t)) => {
     | Parens(e) => of_exp(e)
     | Asc(e, t) =>
       switch (arrow_parts(t)) {
-      | Some(_) as r when !has_unknown(t) => r
+      | Some((a, b)) when !has_unknown(t) => Some((a, b, t))
       | _ => of_exp(e)
       }
     | _ => None
@@ -136,6 +137,8 @@ type entry = {
   ts: HazelJitValue.types,
   param: Typ.t,
   result: Typ.t,
+  /* (^ticket(769)) the whole declared type, for a fallback's cast of the function */
+  fn_type: Typ.t,
   closure: ref(option(Exp.t)),
   /* (^ticket(769)) what was compiled, for the checked version, made the first time a call's argument holds a hole */
   unit_: Exp.t,
@@ -146,17 +149,11 @@ type entry = {
 
 /* (^ticket(769)) Casts as the interpreter makes them, by its own cast step (Ascriptions), so that a hole, or a stuck
    answer, shows in mixed mode the casts it shows in the interpreter alone (CI 45709997915 and 45710016850: six answers
-   parted in casts only, (? : Int) for ?, (1 : Int) for 1). Applying a function of declared type, the interpreter casts
-   the argument one step (cast_one: a tuple's, a list's or a constructor's parts each wrapped in its own type's cast) and
-   binds that; a cast it steps through as a value it resolves all the way (cast_all, transition_multiple: a number's cast
-   gone, a hole's kept); and the answer is cast to the declared result type the same way. A part already cast is kept. */
-let cast_one = (arg: Exp.t, t: Typ.t): Exp.t =>
-  switch (Exp.term_of(arg)) {
-  | Asc(_) => arg
-  | _ =>
-    let a = Exp.fresh(Asc(arg, t));
-    Option.value(Ascriptions.transition(a), ~default=a);
-  };
+   parted in casts only, (? : Int) for ?, (1 : Int) for 1). The interpreter's let casts a function to its declared type:
+   its pattern and its body each cast (Ascriptions, a Fun at an Arrow), so the argument is bound cast all the way down
+   (PatternMatch, transition_multiple: a number's cast gone, a hole's kept) and the answer is cast to the result type,
+   which, pushed into a stuck answer one step, shows as (1 : Int) in its branches. cast_all is that cast, for a call run
+   compiled; a fallback applies the function so cast itself (fall_back). */
 let cast_all = (e: Exp.t, t: Typ.t): Exp.t =>
   Ascriptions.transition_multiple(Exp.fresh(Asc(e, t)));
 
@@ -171,11 +168,21 @@ let fall_back = (why: string, entry: entry, arg: Exp.t): option(Exp.t) => {
         Stdlib.Hashtbl.find_opt(fallback_reasons, why),
       ),
   );
-  /* the argument cast to the declared parameter type, as the interpreter alone has it at the call (let inc : Int -> Int =
-     ... in inc(?) is (? : Int) + 1; CI 11-17), unless it carries a cast already; (^ticket(769)) part by part, one level */
-  let arg = cast_one(arg, entry.param);
+  /* the interpreter's own closure, cast to the function's whole declared type as the interpreter's let casts it, applied
+     to the argument as it came: so its run is the interpreter alone's, casts and all (let inc : Int -> Int = ... in inc(?)
+     is (? : Int) + 1, CI 11-17; (^ticket(769)) a stuck answer's branches (1 : Int), and a type the very one, ids and all,
+     CI 45714537252) */
   switch (entry.closure^) {
-  | Some(c) => Some(Exp.fresh(Ap(Forward, c, arg)))
+  | Some(c) =>
+    Some(
+      Exp.fresh(
+        Ap(
+          Forward,
+          Ascriptions.transition_multiple(Exp.fresh(Asc(c, entry.fn_type))),
+          arg,
+        ),
+      ),
+    )
   | None => None
   };
 };
@@ -274,7 +281,7 @@ let rewrite = (program: Exp.t): Exp.t => {
   /* a definition of a function with its whole type declared, compiled: the pattern and definition that replace it */
   let accept = (p: Pat.t, def: Exp.t): option((Pat.t, Exp.t)) =>
     switch (name_of(p), declared_result(p, def), is_function(strip(def))) {
-    | (Some(f), Some((param, result)), true) =>
+    | (Some(f), Some((param, result, fn_type)), true) =>
       let unit = Exp.fresh(Let(p, def, Exp.fresh(Var(f)))) |> unit_for;
       switch (
         HazelJit.compile_full(~holes=true, ~env=Builtins.env_init, unit)
@@ -299,6 +306,7 @@ let rewrite = (program: Exp.t): Exp.t => {
             ts: HazelJitValue.types_of(c),
             param,
             result,
+            fn_type,
             closure: ref(None),
             unit_: unit,
             /* (^ticket(769), step 2) a unit with a hole is compiled checked already (HazelJit.compile_full) */
