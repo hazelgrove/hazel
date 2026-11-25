@@ -45,8 +45,21 @@ let core_mark_string =
       )
     };
   switch (m) {
-  | BadLabel(_)
-  | InvalidLabel(_, _) => "Invalid label"
+  | BadLabel(_) => "Invalid label"
+  | InvalidLabel(name, []) =>
+    prn(
+      "Unexpected label %s; no labels were expected",
+      Token.quote_label_when_necessary(name),
+    )
+  | InvalidLabel(name, expected) =>
+    prn(
+      "Unexpected label %s; expecting labels %s",
+      Token.quote_label_when_necessary(name),
+      String.concat(
+        ~sep=", ",
+        List.map(~f=Token.quote_label_when_necessary, expected),
+      ),
+    )
   | DuplicateLabel(_, _) => "Duplicate label"
   | DuplicateVar(_, _) => "Duplicate variable"
   | TupleLabelError({malformed_labels: [], duplicate_labels: [], typ, _}) =>

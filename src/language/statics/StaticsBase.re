@@ -514,6 +514,7 @@ module type ExpressionStatics = {
       ~inferred_label: option(string)=?,
       ~label_sort: bool=?,
       ~dot_labels: list(string)=?,
+      ~mismatch_marked_within: bool=?,
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);

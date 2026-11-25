@@ -7,31 +7,27 @@ let infos = (map: Statics.Map.t): list(Info.exp) =>
   Statics.Map.error_ids(map)
   |> List.filter_map(~f=id => Statics.Map.lookup_exp(id, map));
 
+let messages = (map: Statics.Map.t): list(string) =>
+  infos(map)
+  |> List.map(~f=(info: Info.exp) =>
+       Haz3lcore.ErrorPrint.string_of_marks(InfoExp(info), info.marks)
+     )
+  |> List.sort(~compare=String.compare);
+
+/* The marked nodes' messages are `expected`, in any order. */
+let marked_with = (name, program, expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      list(string),
+      "messages",
+      List.sort(~compare=String.compare, expected),
+      messages(statics(parse_exp(program))),
+    )
+  );
+
 /* Exactly one node is marked, and its message is `message`. */
 let marked_once = (name, program, message) =>
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let map = statics(parse_exp(program));
-      switch (infos(map)) {
-      | [info] =>
-        check(
-          string,
-          "message",
-          message,
-          Haz3lcore.ErrorPrint.string_of_marks(InfoExp(info), info.marks),
-        )
-      | infos =>
-        fail(
-          Printf.sprintf(
-            "expected one marked expression, got %d",
-            List.length(infos),
-          ),
-        )
-      };
-    },
-  );
+  marked_with(name, program, [message]);
 
 /* No node is marked. */
 let unmarked = (name, program) =>
@@ -170,6 +166,9 @@ let programs = [
   "[1, 2] : Int",
   {|[1, "s"] : [Int]|},
   {|[1, "s", 3]|},
+  "let p : (a=Int, b=Int) = (a=1, b=2, c=3) in p",
+  {|let p : (a=Int, b=Int) = (a=1, b="s", c=3) in p|},
+  "let p : (a=Int, b=Int) = (a=1, c=3) in p",
   "let x : String = 4 in x",
   {|if false then 1 else ("" : ?)|},
   "module M = { let x = 1 } in M + 1",
@@ -221,6 +220,27 @@ let tests = (
     unmarked(
       "Against an unknown type, elements need not meet",
       {|let f : ? -> ? = fun x -> x in f([1, "s"])|},
+    ),
+    marked_once(
+      "An unexpected tuple label is marked on its entry only",
+      "let p : (a=Int, b=Int) = (a=1, b=2, c=3) in p",
+      "Unexpected label c; expecting labels a, b",
+    ),
+    marked_with(
+      "The other entries are still checked against their labels' types",
+      {|let p : (a=Int, b=Int) = (a=1, b="s", c=3) in p|},
+      [
+        "Expecting type Int but got inconsistent type String",
+        "Unexpected label c; expecting labels a, b",
+      ],
+    ),
+    marked_with(
+      "A tuple also missing a label is marked for its shape",
+      "let p : (a=Int, b=Int) = (a=1, c=3) in p",
+      [
+        "Expecting a tuple of 2 elements with labels a, b but got 2 elements with labels a, c; missing label b; unexpected label c",
+        "Unexpected label c; expecting labels a, b",
+      ],
     ),
     types_of(
       "A function's syn type keeps its body's error",

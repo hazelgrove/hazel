@@ -494,11 +494,18 @@ let tests = (
                   ~ann=
                     Some(
                       Marks([
-                        TupleLabelError({
-                          malformed_labels: [],
-                          duplicate_labels: [],
-                          invalid_labels: ["z"],
-                          typ:
+                        ExpectationMismatch({
+                          ana:
+                            FTemp.Typ.(
+                              parens(
+                                prod([
+                                  tup_label(label("a"), int()),
+                                  tup_label(label("b"), float()),
+                                  string(),
+                                ]),
+                              )
+                            ),
+                          syn:
                             FTemp.Typ.(
                               prod([
                                 tup_label(label("a"), int()),
@@ -513,23 +520,8 @@ let tests = (
                     int(1),
                     float(1.2),
                     tup_label(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Marks([
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: [],
-                                invalid_labels: ["z"],
-                                typ: tup_label(label("z"), string()),
-                              }),
-                            ])
-                          ),
-                        ),
-                      label(
-                        ~ann=Some(Marks([InvalidLabel("z", ["a", "b"])])),
-                        "z",
-                      ),
+                      ~ann=Some(Marks([InvalidLabel("z", ["a", "b"])])),
+                      label("z"),
                       string("hello"),
                     ),
                   ],
@@ -802,11 +794,17 @@ let tests = (
                   ~ann=
                     Some(
                       Marks([
-                        TupleLabelError({
-                          malformed_labels: [],
-                          duplicate_labels: [],
-                          invalid_labels: ["c"],
-                          typ:
+                        ExpectationMismatch({
+                          ana:
+                            FTemp.Typ.(
+                              parens(
+                                prod([
+                                  int(),
+                                  tup_label(label("a"), string()),
+                                ]),
+                              )
+                            ),
+                          syn:
                             FTemp.Typ.(
                               prod([
                                 tup_label(label("c"), int()),
@@ -817,27 +815,11 @@ let tests = (
                       ]),
                     ),
                   [
-                    {
-                      tup_label(
-                        ~ann=
-                          Some(
-                            Marks([
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: [],
-                                invalid_labels: ["c"],
-                                typ:
-                                  FTemp.Typ.(tup_label(label("c"), int())),
-                              }),
-                            ]),
-                          ),
-                        label(
-                          ~ann=Some(Marks([InvalidLabel("c", ["a"])])),
-                          "c",
-                        ),
-                        int(1),
-                      );
-                    },
+                    tup_label(
+                      ~ann=Some(Marks([InvalidLabel("c", ["a"])])),
+                      label("c"),
+                      int(1),
+                    ),
                     tup_label(label("a"), string("hello")),
                   ],
                 ),

@@ -222,6 +222,9 @@ and uexp_to_info_map =
         ~inferred_label: option(string)=None,
         ~label_sort=false,
         ~dot_labels: list(string)=[],
+        /* The rule has marked, on parts of this node, everything that keeps
+           it from fitting ana: settle on ana without marking it again. */
+        ~mismatch_marked_within=false,
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
@@ -229,6 +232,7 @@ and uexp_to_info_map =
     let marks =
       switch (mismatch) {
       | None => marks
+      | Some(_) when mismatch_marked_within => marks
       | Some(m) when List.is_empty(marks) => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
       };
@@ -987,8 +991,19 @@ and uexp_to_info_map =
       let original_labels =
         List.map(~f=e => Exp.match_tup_label(e) |> Option.map(~f=fst), es);
 
-      let (inferred_es, ana_tys) =
-        MatchedTyp.prod(
+      /* Entries whose label the expected tuple does not have are marked
+         themselves (InvalidLabel). If the tuple fits ana once they are left
+         out, those entries are all that is wrong with its shape: the rest
+         are matched with the expected entries without them, so each is
+         still checked against its own type, and they expect nothing. */
+      let unexpected = (e: Exp.t) =>
+        switch (Exp.match_tup_label(e), expected_labels) {
+        | (Some((name, _)), Some(expected)) =>
+          !List.mem(expected, name, ~equal=String.equal)
+        | _ => false
+        };
+      let match_with_ana = es =>
+        MatchedTyp.prod_strict(
           ctx,
           List.map(~f=e => (None: option(string), e), es),
           ((inferred, e)) => {
@@ -1002,6 +1017,57 @@ and uexp_to_info_map =
             (
               Some(name),
               TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
+            ),
+        );
+      let (inferred_es, ana_tys, fits_without_unexpected) =
+        switch (List.exists(es, ~f=unexpected)) {
+        | false =>
+          let (inferred_es, ana_tys) = match_with_ana(es);
+          (inferred_es, ana_tys, false);
+        | true =>
+          switch (match_with_ana(List.filter(es, ~f=e => !unexpected(e)))) {
+          | (matched, Some(matched_tys)) =>
+            /* Back in the written order, the matched entries in the order
+               they were matched in. */
+            let (inferred_es, ana_tys, _) =
+              List.fold(
+                es,
+                ~init=([], [], List.zip_exn(matched, matched_tys)),
+                ~f=((acc_es, acc_tys, rest), e) =>
+                switch (unexpected(e), rest) {
+                | (true, _) => (
+                    acc_es @ [(None, e)],
+                    acc_tys @ [Unknown(Internal) |> Typ.temp],
+                    rest,
+                  )
+                | (false, [(e', ty), ...rest]) => (
+                    acc_es @ [e'],
+                    acc_tys @ [ty],
+                    rest,
+                  )
+                | (false, []) => (acc_es, acc_tys, rest)
+                }
+              );
+            (inferred_es, Some(ana_tys), true);
+          | (_, None) =>
+            /* Matched as written, but an unexpected entry still expects
+               nothing: it must not settle into another label's place. */
+            let (inferred_es, ana_tys) = match_with_ana(es);
+            let ana_tys =
+              Option.map(ana_tys, ~f=tys =>
+                List.map2_exn(inferred_es, tys, ~f=((_, e), ty) =>
+                  unexpected(e) ? Unknown(Internal) |> Typ.temp : ty
+                )
+              );
+            (inferred_es, ana_tys, false);
+          }
+        };
+      let ana_tys =
+        Option.value(
+          ana_tys,
+          ~default=
+            List.init(List.length(inferred_es), ~f=_ =>
+              Unknown(Internal) |> Typ.temp
             ),
         );
       let es = List.map(~f=snd, inferred_es);
@@ -1018,13 +1084,6 @@ and uexp_to_info_map =
           ~unique_duplicates=unique_duplicate_labels,
           es,
         );
-      let invalid_labels =
-        LabeledTupleStaticsHelpers.compute_invalid_labels(
-          ~match_tup_label=Exp.match_tup_label,
-          ~expected_labels,
-          es,
-        );
-
       let (es', es_elab, m) =
         List.fold2_exn(
           ~f=
@@ -1044,7 +1103,9 @@ and uexp_to_info_map =
                   LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
                 let (value_info, value_elab, m) =
                   go(~ana=val_mode, value, m);
-                let (lab_name, label_invalid, m) =
+                /* An unexpected label is marked on its entry, not on the
+                   label as well. */
+                let (lab_name, label_invalid, entry_marks, m) =
                   switch (label.term) {
                   | Label(name) =>
                     let (label_syn, label_marks, label_invalid) =
@@ -1061,7 +1122,7 @@ and uexp_to_info_map =
                         ~ctx,
                         ~ana=labmode,
                         ~elab_syn_ty=label_syn,
-                        ~marks=label_marks,
+                        ~marks=label_invalid ? [] : label_marks,
                         ~co_ctx=CoCtx.empty,
                         ~label_inference=None,
                         ~inferred_label=None,
@@ -1070,7 +1131,12 @@ and uexp_to_info_map =
                         ~warnings=[],
                         m,
                       );
-                    (Some(name), label_invalid, m);
+                    (
+                      Some(name),
+                      label_invalid,
+                      label_invalid ? label_marks : [],
+                      m,
+                    );
                   | EmptyHole =>
                     let (_, _, m) =
                       add(
@@ -1089,12 +1155,13 @@ and uexp_to_info_map =
                         ~warnings=[],
                         m,
                       );
-                    (None, false, m);
+                    (None, false, [], m);
                   | _ =>
                     let (_, _, m) = go(~ana=labmode, label, m);
                     (
                       None,
                       false,
+                      [],
                       m
                       |> append_mark_exp(_, label, [BadLabel(Exp(label))])
                       |> set_label_sort_exp(_, label, true),
@@ -1132,7 +1199,7 @@ and uexp_to_info_map =
                         value_info.elab_syn_ty,
                       ),
                     ~syn_ty=syn_tl,
-                    ~marks=cms_tl,
+                    ~marks=label_invalid ? entry_marks : cms_tl,
                     ~co_ctx=value_info.co_ctx,
                     ~probe_targets=value_info.probe_targets,
                     ~label_inference=None,
@@ -1180,7 +1247,7 @@ and uexp_to_info_map =
       let (syn_tuple, cms_tuple) =
         LabeledTupleStaticsHelpers.tuple_syn_type(
           ~duplicate_labels,
-          ~invalid_labels,
+          ~invalid_labels=[],
           ~malformed_labels,
           syn_tys,
         );
@@ -1205,6 +1272,7 @@ and uexp_to_info_map =
         ~elab_syn_ty=elab_syn_tuple,
         ~syn_ty=syn_tuple,
         ~marks=cms_tuple,
+        ~mismatch_marked_within=fits_without_unexpected,
         ~co_ctx=CoCtx.union(List.map(~f=Info.exp_co_ctx, es')),
         ~probe_targets=
           SubexpProbeTargets.union_all(
