@@ -51,8 +51,8 @@ let check_has_obligation = (msg, needle: string, pm, proof) => {
 
 let prelude = "let f = fun x -> x + 1 in ";
 
-/* A general-recursive function the totality checker cannot accept: the
-   recursive call's argument is arithmetic, not a strict subterm. */
+/* A general-recursive function the standardness routine can't judge:
+   the recursive call's argument is arithmetic, not a strict subterm. */
 let diverger = "let bad = fun x -> bad(x + 1) in ";
 
 let lem = "theorem lem = forall n: Int -> n == 1 ==> f(2) == 3 proof ? in ";
@@ -145,31 +145,24 @@ let test_axiom_with_unknown_var = () => {
 
 /* --- The gates apply to the supplied expression ------------------------- */
 
-/* Divergence is refused, never an obligation: a supplied expression
-   whose call graph reaches a non-structural fix can't be used to
-   instantiate. */
-let test_axiom_with_divergent_is_refused = () => {
-  let (pm, proof) =
-    run_named(
+/* A supplied expression the standardness routine can't judge, one that
+   calls a non-structural fix, leaves `!!e` to prove. */
+let test_axiom_with_divergent_is_left_to_prove = () => {
+  let (pm, proof, obs) =
+    obligations_named(
       "g",
       prelude
       ++ diverger
       ++ lem
       ++ "theorem g = f(2) == 3 proof from f(2) do rewrite lem with n = bad(1) end end in g",
     );
-  if (!
-        has_mark_kind(
-          pm,
-          proof,
-          fun
-          | ProofMark.PossiblyDivergentInstantiation(_) => true
-          | _ => false,
-        )) {
-    Alcotest.fail(
-      "a divergent supplied instantiation should be refused\n"
-      ++ dump(pm, proof),
-    );
-  };
+  check_mark_free("nothing is refused", pm, proof);
+  Alcotest.check(
+    Alcotest.list(Alcotest.string),
+    "the instantiation's standardness is left to prove",
+    ["!! bad(1)"],
+    standardness_goals(obs),
+  );
 };
 
 /* A domain error is an obligation: instantiating at `6 / d` incurs
@@ -277,28 +270,22 @@ let test_revert_with_unknown_binder = () => {
 };
 
 /* The gates apply here too. */
-let test_revert_with_divergent_is_refused = () => {
-  let (pm, proof) =
-    run_named(
+let test_revert_with_divergent_is_left_to_prove = () => {
+  let (pm, proof, obs) =
+    obligations_named(
       "g",
       prelude
       ++ diverger
       ++ quantified
       ++ "theorem g = f(2) == 3 proof revert p with n = bad(1) => ? in g",
     );
-  if (!
-        has_mark_kind(
-          pm,
-          proof,
-          fun
-          | ProofMark.PossiblyDivergentInstantiation(_) => true
-          | _ => false,
-        )) {
-    Alcotest.fail(
-      "a divergent `revert ... with` instantiation should be refused\n"
-      ++ dump(pm, proof),
-    );
-  };
+  check_mark_free("nothing is refused", pm, proof);
+  Alcotest.check(
+    Alcotest.list(Alcotest.string),
+    "the instantiation's standardness is left to prove",
+    ["!! bad(1)"],
+    standardness_goals(obs),
+  );
 };
 
 /* --- Every binder assigned ----------------------------------------------
@@ -385,9 +372,9 @@ let tests = (
       test_axiom_with_unknown_var,
     ),
     test_case(
-      "gate: divergent instantiation is refused",
+      "gate: a divergent instantiation is left to prove",
       `Quick,
-      test_axiom_with_divergent_is_refused,
+      test_axiom_with_divergent_is_left_to_prove,
     ),
     test_case(
       "gate: domain condition becomes an obligation",
@@ -415,9 +402,9 @@ let tests = (
       test_revert_with_unknown_binder,
     ),
     test_case(
-      "revert+with: divergent instantiation is refused",
+      "revert+with: a divergent instantiation is left to prove",
       `Quick,
-      test_revert_with_divergent_is_refused,
+      test_revert_with_divergent_is_left_to_prove,
     ),
     test_case(
       "a binder only in the conclusion must be assigned",

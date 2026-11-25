@@ -1,0 +1,26 @@
+# STANDARDNESS #
+
+# !!e says e has a value whose parts are standard: a function among #
+# them gives one on every standard argument. A step that uses a term #
+# as a value needs it standard: a rule cited at it, algebra on it, #
+# a split on it, an assume of it. The checker shows that from the #
+# term's shape, its definitions, the facts in scope, or by #
+# evaluation. Here algebra treats the call as an unknown, and #
+# evaluation shows !!int_of_string("3"): its circle is closed. #
+theorem parse_ok = int_of_string("3") + 0 == int_of_string("3") proof
+  from int_of_string("3") + 0 do algebra int_of_string("3") end end;
+  rewrite refl end
+in
+
+# What it can't show stays open: "x" isn't a number, so the circle #
+# marked !! is red, and the theorem reads incomplete, 1 open. #
+theorem parse_open = int_of_string("x") + 0 == int_of_string("x") proof
+  from int_of_string("x") + 0 do algebra int_of_string("x") end end;
+  rewrite refl end
+in
+
+# The builtin rule standard closes a goal !!e the checker can show. #
+theorem length_std = forall xs: [Int] -> !!length(xs) proof
+  rewrite standard end
+in
+¿

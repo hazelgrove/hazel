@@ -675,6 +675,12 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         )
 
       // Unary operations
+      | Standard(e) =>
+        handle_unary(
+          ~cost=2, // "!!"
+          ~make_term=e' => Standard(e'),
+          e,
+        )
       | UnOp(Bool(Not), e) =>
         handle_unary(
           ~cost=2, // "! " (op + space)
@@ -1389,6 +1395,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           };
         }
 
+      | Standard(p, h) => Standard(abbreviate_pat(p), h)
       | Asc(p, t1) =>
         if (available^ < 3) {
           available := available^ - ellipsis_cost;

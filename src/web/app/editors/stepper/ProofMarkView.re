@@ -115,15 +115,6 @@ let message =
         ++ "\" matched, but quantified variables remain undetermined; supply an explicit instantiation.",
       ),
     ]
-  | PossiblyDivergentInstantiation({equality, var}) => [
-      text(
-        "Applying \""
-        ++ equality
-        ++ "\" here instantiates "
-        ++ var
-        ++ " at an expression that may not terminate.",
-      ),
-    ]
   | FloatAlgebrite => [
       text("Algebraic rewrites are refused on float-typed expressions."),
     ]
@@ -155,6 +146,13 @@ let message =
   | MalformedFunext => [
       text("`funext` needs a variable pattern to name the argument."),
     ]
+  | FunextNotFirstOrder({domain}) => [
+      text(
+        "`funext` needs functions whose argument is data of a known type, with no functions in it. Here the argument type is ",
+      ),
+      view_any(~globals, Typ(domain)),
+      text("."),
+    ]
   | BinderCaptures({var}) => [
       text(
         "`" ++ var ++ "` is already used in the goal. Choose another name.",
@@ -170,9 +168,6 @@ let message =
       text(
         "The type of what this splits on is unknown, so its cases can't be checked. Split on a variable with a type, as in `forall xs: [Int] ->`.",
       ),
-    ]
-  | PossiblyDivergentScrutinee => [
-      text("The split scrutinee may not terminate."),
     ]
   | UnknownFactReverted => [text("No fact in scope matches this `revert`.")]
   | UnknownInstantiationVar({equality, var}) => [

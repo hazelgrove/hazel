@@ -640,7 +640,8 @@ let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
     | Parens(_)
     | Projector(_)
     | Ap(_)
-    | Asc(_) => None
+    | Asc(_)
+    | Standard(_) => None
     };
   switch (Pat.strip_wrappers(pat).term) {
   | Var(name) => Some((name, None))
@@ -659,7 +660,8 @@ let sig_let_field = (pat: Pat.t): option((Var.t, option(t))) => {
   | TupLabel(_)
   | Parens(_)
   | Projector(_)
-  | Ap(_) => None
+  | Ap(_)
+  | Standard(_) => None
   };
 };
 

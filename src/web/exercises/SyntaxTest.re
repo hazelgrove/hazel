@@ -30,7 +30,8 @@ let rec find_in_let =
   | (Projector(_, up), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue))
   | (_, Projector(_, ue)) => find_in_let(name, upat, ue, l)
-  | (Asc(up, _), _) => find_in_let(name, up, def, l)
+  | (Asc(up, _), _)
+  | (Standard(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => String.equal(x, name) ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
@@ -81,6 +82,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Projector(_, u1)
   | Asc(u1, _)
   | UnOp(_, u1)
+  | Standard(u1)
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
@@ -169,7 +171,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | TupLabel(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | Asc(up, _) => var_mention_upat(name, up)
+  | Asc(up, _)
+  | Standard(up, _) => var_mention_upat(name, up)
   };
 };
 
@@ -240,6 +243,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | Projector(_, u)
   | UnOp(_, u)
+  | Standard(u)
   | TyAlias(_, _, u)
   | Use(_, u)
   | TupLabel(_, u)
@@ -337,6 +341,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Parens(u)
   | Projector(_, u)
   | UnOp(_, u)
+  | Standard(u)
   | TyAlias(_, _, u)
   | Use(_, u)
   | TupLabel(_, u)
@@ -473,7 +478,8 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | TypAp(u, _)
   | Parens(u)
   | Projector(_, u) => tail_check(name, u)
-  | UnOp(_, u) => !var_mention(name, u)
+  | UnOp(_, u)
+  | Standard(u) => !var_mention(name, u)
   | Ap(_, u1, u2) => var_mention(name, u2) ? false : tail_check(name, u1)
   | DeferredAp(fn, args) =>
     tail_check(name, Ap(Forward, fn, Tuple(args) |> Exp.fresh) |> Exp.fresh)
