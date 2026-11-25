@@ -22,9 +22,10 @@ open Util.OptUtil.Syntax;
    back the very same parts. Then the value already had the type -- plain
    data, well typed, no function to wrap -- and the push gives the value
    itself rather than a copy of it: no new nodes, and the same objects for
-   anything downstream that keeps values by identity. Only a recursive
-   push (transition_multiple) can give a part back unchanged; a stepwise
-   one wraps each part in a new ascription. */
+   anything downstream that keeps values by identity. A recursive push
+   (transition_multiple) gives a part back unchanged; a stepwise one wraps
+   each part in a new ascription, except a labeled field's or a cast's,
+   which it pushes on at once. */
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2_exn(ds, ds', ~f=(d, d') => phys_equal(d, d'));
 
@@ -105,11 +106,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     };
   /* A cast pushed onto a part that is itself a cast composes with it, as a
      cast on a cast does here, so the result doesn't depend on which cast
-     arrives first, and the stepper and the evaluator agree. */
+     arrives first, and the stepper and the evaluator agree. One pushed onto
+     a labeled field goes on to what the field holds: a field under a cast
+     is a form no text writes, and a step that left one would print as a
+     one-tuple of it (`(_=(a=()):(a=T))` for `(a=():T)`). */
   let ascribe = (part: DHExp.t, ty: Typ.t): DHExp.t => {
     let d = Asc(part, ty) |> DHExp.fresh;
     switch (DHExp.term_of(part)) {
-    | Asc(_) => transition(d) |> Option.value(~default=d)
+    | Asc(_)
+    | TupLabel(_) => transition(~recursive, d) |> Option.value(~default=d)
     | _ => d
     };
   };
@@ -160,7 +165,20 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           ),
         ),
       )
-    | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
+    /* A field marked `_=` gives its value to a cast. At a labeled entry
+       that leaves the value under the entry itself (`1 : (a=Int)` for a
+       field of `(_=1, _=2)` met by `(a=Int, b=Int)` at run time), stuck:
+       which label, if any, such a field should take there is undecided.
+       At an entry whose label is no label (a hole, in
+       `(_=x) : (? a = T)`) it is cast as a field is, below, and keeps
+       its `_=`. */
+    | (TupLabel({term: ExplicitNonlabel, _}, inner), _)
+        when
+          switch (Typ.term_of(t_unrolled)) {
+          | TupLabel({term: Label(_), _}, _) => true
+          | TupLabel(_) => false
+          | _ => true
+          } =>
       Some(recur(ascribe(inner, t)))
     /* Different labels: the value doesn't have the type, so the cast
        stays, as for every other mismatch below. Pushing it inside kept the

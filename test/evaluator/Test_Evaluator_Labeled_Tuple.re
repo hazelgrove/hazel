@@ -60,6 +60,20 @@ let tests = (
         parse_and_evaluate_test(expected, program)
       )
     ),
+    /* A cast pushed onto a labeled field goes on to what the field holds,
+       all the way down when evaluating in one go. */
+    test_case("A cast on a lifted field finishes", `Quick, () =>
+      List.iter(
+        [
+          ("(x=())", {|() : (x=?)|}),
+          ("(x=())", {|let p : (x=?) = () in p|}),
+          ("(a=(b=1))", {|(a=(b=1)) : (a=(b=?))|}),
+          ("(a=1, b=(c=2))", {|(a=1, b=(c=2)) : (a=?, b=(c=Int))|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
     /* Labels stack: a tuple expected at a one-field label becomes that
        field, rather than the label being refused for arity. */
     test_case("Wide tuple lifted into a singleton label", `Quick, () =>
