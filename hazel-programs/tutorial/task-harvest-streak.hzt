@@ -10,7 +10,7 @@ show_report version=1 id=d0000031-0031-0031-0031-000000000031
 A ledger rewards streaks of same-quality harvests with a growing bonus. The bug: the streak never breaks. One failing test shows it. Find and fix the bug.
 
 @hint
-The streak logic compares two qualities. Probe both sides of that comparison across a run; one of them is not what the comments claim.
+The streak logic compares two qualities. Probe each side of that comparison in turn across a run; one of them is not what the comments claim.
 
 @reference
 ### Approach (debugging tasks)

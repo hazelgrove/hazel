@@ -211,7 +211,7 @@ let qr_row = (~meta, ~new_flags: list(feature), f: feature): option(Node.t) => {
         ~click_shortcut="/",
         ~badge_cls="qr-when-focused",
         "See env/args",
-        [text("Alt-click sample")],
+        [text("Right-click sample")],
       ),
     )
   | Pin =>
@@ -264,7 +264,7 @@ let qr_row = (~meta, ~new_flags: list(feature), f: feature): option(Node.t) => {
         ~click_shortcut2={js|⇧→|js},
         ~badge_cls="qr-when-focused",
         "Resize sample",
-        [text("Drag sample")],
+        [text("Shift-drag sample")],
       ),
     )
   | ExpandProbe =>
