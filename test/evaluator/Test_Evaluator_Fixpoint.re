@@ -40,6 +40,7 @@ let tests = (
       `Quick,
       () => {
         let bare = ref(0);
+        let ascribed = ref(0);
         let rec go = (n, e: Language.Exp.t) => {
           let _ =
             Language.Exp.map_term(
@@ -47,6 +48,8 @@ let tests = (
                 (continue, e: Language.Exp.t) => {
                   switch (e.term) {
                   | FixF({term: Var(_), _}, _, _) => bare := bare^ + 1
+                  | FixF({term: Asc(_), _}, _, _) =>
+                    ascribed := ascribed^ + 1
                   | _ => ()
                   };
                   continue(e);
@@ -60,6 +63,12 @@ let tests = (
         };
         go(0, elaborate(parse_exp("let f = fun _ -> f in f(1)")));
         check(int, "fixpoints with a bare binder", 0, bare^);
+        check(
+          bool,
+          "fixpoints with an ascribed binder were seen",
+          true,
+          ascribed^ > 0,
+        );
       },
     ),
     /* A recursive call runs under the function's own environment, not the
@@ -136,31 +145,45 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
       "Stepping keeps a recursive function's name",
       `Quick,
       () => {
-        let rec go = (n, e) => {
+        /* how many of the steps show a fixpoint at all */
+        let rec go = (n, seen, e) => {
           check_fix_binders(
             "binders after " ++ string_of_int(n) ++ " steps",
             e,
           );
+          let seen = List.is_empty(fix_binder_names(e)) ? seen : seen + 1;
           switch (n < 100 ? single_step(e) : None) {
-          | Some(e) => go(n + 1, e)
-          | None => ()
+          | Some(e) => go(n + 1, seen, e)
+          | None => seen
           };
         };
-        go(
-          0,
-          elaborate(
-            parse_exp(
-              "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(3)",
+        let seen =
+          go(
+            0,
+            0,
+            elaborate(
+              parse_exp(
+                "let f = fun n -> if n == 0 then 0 else f(n - 1) in f(3)",
+              ),
             ),
-          ),
-        );
+          );
+        check(bool, "some step shows a fixpoint", true, seen > 0);
       },
     ),
-    test_case("A recursive function's value keeps its name", `Quick, () =>
-      check_fix_binders(
-        "binders in the result",
-        evaluate(elaborate(parse_exp("let f = fun x -> f(x) in f"))),
-      )
+    test_case(
+      "A recursive function's value keeps its name",
+      `Quick,
+      () => {
+        let value =
+          evaluate(elaborate(parse_exp("let f = fun x -> f(x) in f")));
+        check_fix_binders("binders in the result", value);
+        check(
+          bool,
+          "the result has a fixpoint",
+          false,
+          List.is_empty(fix_binder_names(value)),
+        );
+      },
     ),
   ],
 );

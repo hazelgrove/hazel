@@ -60,6 +60,54 @@ let tests = (
         parse_and_evaluate_test(expected, program)
       )
     ),
+    /* Only a pattern with no label of its own does: one that names a label
+       meets the `_=` field as it is, and doesn't match it. */
+    test_case("A labeled pattern doesn't bind a field marked _=", `Quick, () =>
+      List.iter(
+        [
+          (
+            "0",
+            {|let t : ? = (_=1, 2) in case t | (a=x, y) => x | _ => 0 end|},
+          ),
+          (
+            "0",
+            {|let t : ? = ((_=1), 2) in case t | ((a=x), y) => x | _ => 0 end|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
+    /* Which label a `_=` field takes at a labeled entry is undecided. Met
+       at run time, each field's value is left under its entry's type,
+       stuck. */
+    test_case(
+      "Known gap: _= fields cast to a labeled tuple type at run time",
+      `Quick,
+      () =>
+      check(
+        /* compared with the `_=` marks kept: the casts are on the bare
+           values, not on `_=` fields */
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Equality.(
+            equality({
+              ...syntactic_settings,
+              ignore_parens: true,
+            })
+          ).
+            exp,
+        ),
+        "let t : ? = (_=1, _=2) in (t : (a=Int, b=Int))",
+        tuple([
+          asc(int(1), Typ.tup_label(Typ.label("a"), Typ.int())),
+          asc(int(2), Typ.tup_label(Typ.label("b"), Typ.int())),
+        ]),
+        parse_and_evaluate(
+          {|let t : ? = (_=1, _=2) in (t : (a=Int, b=Int))|},
+        ),
+      )
+    ),
     /* A cast pushed onto a labeled field goes on to what the field holds,
        all the way down when evaluating in one go. */
     test_case("A cast on a lifted field finishes", `Quick, () =>
@@ -183,6 +231,39 @@ let tests = (
       parse_and_evaluate_test(
         "1",
         {|let f = fun (y : ?) -> case y | (a=x) => x | _ => 0 end in f(1)|},
+      )
+    ),
+    /* A binder's pattern gives the value its type, so it takes a record
+       under another label as its field, as statics does when the value's
+       type is known. A rule's pattern is checked against the scrutinee:
+       there a record under another label is another record, and the
+       rules tell them apart, as they do on a typed scrutinee. */
+    test_case(
+      "A record under another label: a binder takes it, a rule passes it",
+      `Quick,
+      () =>
+      List.iter(
+        [
+          ("(b=1)", {|let (a=x) = (b=1) in x|}),
+          (
+            "(b=1)",
+            {|let f = fun (y : ?) -> let (a=x) = y in x in f((b=1))|},
+          ),
+          (
+            {|"b"|},
+            {|let t : ? = (b=1) in case t | (a=x) => "a" | (b=y) => "b" end|},
+          ),
+          (
+            "0",
+            {|let f = fun (y : ?) -> case y | (a=x) => x | _ => 0 end in f((b=1))|},
+          ),
+          (
+            "2",
+            {|let t : ? = (c=(b=1), d=2) in case t | (c=(a=x), d=y) => 0 | (c=(b=x), d=y) => x + 1 end|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
       )
     ),
     test_case("Ascribing a record of other labels of unknown type", `Quick, () =>

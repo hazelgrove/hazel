@@ -175,30 +175,31 @@ let tests = (
         {|let m = { let y = (let z : Int = ? in z) } in m.y|},
       )
     }),
-    /* `M : S` casts the module to `S`, so its `f` returns an Int or fails
-       its cast; without the cast, the call returned the string. */
+    /* `M : S` casts the module to `S`, as a `let`'s annotation casts its
+       definition: `f` returns an Int or fails its cast, here leaving
+       `"s" : Int`. Without the cast, the call returned the string. */
     test_case(
       "A module binder's signature casts the module",
       `Quick,
       () => {
-        let returns_the_string = src =>
+        let fails_its_cast = src =>
           switch (parse_and_evaluate(src).term) {
-          | Atom(String("s")) => true
+          | Asc({term: Atom(String("s")), _}, {term: Atom(Int), _}) => true
           | _ => false
           };
         check(
           bool,
           "module item",
-          false,
-          returns_the_string(
+          true,
+          fails_its_cast(
             {|let m : ? = { let f = fun x -> "s" } in module N = { module M : { let f : Int -> Int } = m } in N.M.f(1)|},
           ),
         );
         check(
           bool,
           "module ... in",
-          false,
-          returns_the_string(
+          true,
+          fails_its_cast(
             {|let m : ? = { let f = fun x -> "s" } in module M : { let f : Int -> Int } = m in M.f(1)|},
           ),
         );

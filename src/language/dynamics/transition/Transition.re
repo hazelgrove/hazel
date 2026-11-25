@@ -48,6 +48,13 @@ open PatternMatch;
     A value is either a literal, or a function with a closure, or a type function.
     (functions without closures immediately inside them do not count as values).
 
+    A rule that brings bindings into scope (Let, Match, an application, a
+    fixpoint) doesn't write them into the term itself. It hands its body to
+    `under_env(env, delta, body, effects)`: in Environment mode the body is
+    evaluated under `env` on the next step (a `SetEnv` effect), and in
+    Substitution mode (the stepper) `delta` is substituted into it. Both
+    are thunks, since a mode uses only one.
+
 
     ############################
     #   How Transition works   #
@@ -465,14 +472,21 @@ module Transition = (EV: EV_MODE) => {
     /* Environment mode evaluates `expr` under `env` on the next step
        (`SetEnv`). Substitution mode writes `delta` into the term: the part
        of `env` not already substituted there, which is the bindings this
-       step added plus any closure's environment. */
-    let under_env = (env, delta, expr, side_effects) =>
+       step added plus any closure's environment. Each mode uses one of the
+       two, so both are thunks. */
+    let under_env =
+        (
+          env: unit => Environment.t(DHExp.t),
+          delta: unit => Environment.t(DHExp.t),
+          expr,
+          side_effects,
+        ) =>
       switch (mode) {
       | `Environment => (
           expr,
-          [EvaluatorState.SetEnv(env), ...side_effects],
+          [EvaluatorState.SetEnv(env()), ...side_effects],
         )
-      | `Substitution => (expr |> Substitution.in_exp(delta), side_effects)
+      | `Substitution => (expr |> Substitution.in_exp(delta()), side_effects)
       };
 
     // Transition rules
@@ -535,11 +549,10 @@ module Transition = (EV: EV_MODE) => {
       | IndetMatch
       | DoesNotMatch => Indet
       | Matches(new_bindings) =>
-        let env' = Environment.add_bindings(env, new_bindings);
         let (expr, side_effects) =
           under_env(
-            env',
-            Environment.of_bindings(new_bindings),
+            () => Environment.add_bindings(env, new_bindings),
+            () => Environment.of_bindings(new_bindings),
             d2,
             [
               RecordPatMatch({
@@ -565,8 +578,8 @@ module Transition = (EV: EV_MODE) => {
         let proof = generated(ProofObject(e'));
         let (expr, side_effects) =
           under_env(
-            Environment.extend(env, (n, proof)),
-            Environment.of_bindings([(n, proof)]),
+            () => Environment.extend(env, (n, proof)),
+            () => Environment.of_bindings([(n, proof)]),
             d1,
             [
               RecordTheorem(DHExp.rep_id(d), n, env, e'),
@@ -629,31 +642,48 @@ module Transition = (EV: EV_MODE) => {
         switch (Pat.is_var(dp)) {
         | Some(v) => [(v, FixF(dp, d1, fix_env) |> rewrap)]
         | None =>
-          // If the pattern is not a single variable, we need to unpack the results of inner evaulations
+          /* The fixpoint's value has its binder's type already (its body
+             is elaborated at it), so the `let` that takes it apart matches
+             on the pattern without its ascription: with it, every
+             reference to one of the names would cast the whole tuple
+             again (`let (even, odd) = …`). */
+          let rec unascribed = (p: Pat.t): Pat.t =>
+            switch (p.term) {
+            | Asc(p, _)
+            | Parens(p) => unascribed(p)
+            | _ => p
+            };
+          let parts = unascribed(dp);
           List.map(
             ~f=
               (Binding.{name: v, id: _}) =>
-                (v, let_(dp, FixF(dp, d1, fix_env) |> rewrap, var(v))),
+                (v, let_(parts, FixF(dp, d1, fix_env) |> rewrap, var(v))),
             Pat.bindings(dp),
-          )
+          );
+        // If the pattern is not a single variable, we need to unpack the results of inner evaulations
         };
       /* The body runs where the fixpoint was defined, not where it is
          called. */
-      let env'' =
-        Environment.add_bindings(Option.value(fix_env, ~default=env), env');
+      let effects = [
+        EvaluatorState.RecordPatMatch({
+          pat: dp,
+          rhs: d1,
+          samples: [],
+        }),
+      ];
       let (expr, side_effects) =
-        under_env(
-          env'',
-          Option.is_some(fix_env) ? env'' : Environment.of_bindings(env'),
-          d1,
-          [
-            RecordPatMatch({
-              pat: dp,
-              rhs: d1,
-              samples: [],
-            }),
-          ],
-        );
+        switch (fix_env) {
+        | Some(fix_env) =>
+          let scope = () => Environment.add_bindings(fix_env, env');
+          under_env(scope, scope, d1, effects);
+        | None =>
+          under_env(
+            () => Environment.add_bindings(env, env'),
+            () => Environment.of_bindings(env'),
+            d1,
+            effects,
+          )
+        };
       Step({
         expr,
         side_effects,
@@ -725,7 +755,7 @@ module Transition = (EV: EV_MODE) => {
           );
         let (expr, side_effects) =
           switch (closure_env) {
-          | Some(env) => under_env(env, env, substituted, [])
+          | Some(env) => under_env(() => env, () => env, substituted, [])
           | None => (substituted, [])
           };
         Step({
@@ -790,8 +820,8 @@ module Transition = (EV: EV_MODE) => {
               );
             let (expr, side_effects) =
               under_env(
-                env'',
-                env'',
+                () => env'',
+                () => env'',
                 d3,
                 [
                   RecordStackFrame(fn_name, Some(d2'), fn_def_id),
@@ -1176,7 +1206,11 @@ module Transition = (EV: EV_MODE) => {
       let-unbox (ds2, ty2) = (ListLit, d2');
       let ty =
         switch (ty1, ty2) {
-        | (Some(ty1), Some(ty2)) => Typ.meet(Ctx.empty, ty1, ty2)
+        /* Most often the two lists have one type: no need to meet it
+           with itself. */
+        | (Some(ty1), Some(ty2)) =>
+          phys_equal(ty1, ty2) || Typ.fast_equal(ty1, ty2)
+            ? Some(ty1) : Typ.meet(Ctx.empty, ty1, ty2)
         | (Some(ty), None)
         | (None, Some(ty)) => Some(ty)
         | (None, None) => None
@@ -1204,7 +1238,7 @@ module Transition = (EV: EV_MODE) => {
         fun
         | [] => None
         | [(dp, d2), ...rules] => {
-            let matches = matches(targets, dp, d1');
+            let matches = matches(~arm=true, targets, dp, d1');
             switch (matches.matches) {
             | Matches(env') => Some((dp, env', d2, matches.samples))
             | DoesNotMatch => next_rule(rules)
@@ -1216,8 +1250,8 @@ module Transition = (EV: EV_MODE) => {
       | Some((dp, env', d2, samples)) =>
         let (expr, side_effects) =
           under_env(
-            Environment.add_bindings(env, env'),
-            Environment.of_bindings(env'),
+            () => Environment.add_bindings(env, env'),
+            () => Environment.of_bindings(env'),
             d2,
             /* Use the pre-req_final scrutinee `d1` (not `d1'`) so dirty
              * propagation walks its stable source ids, which carry cache

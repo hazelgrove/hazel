@@ -17,6 +17,10 @@ open Util.OptUtil.Syntax;
  the expression being ascribed (`e` from the outer `Asc(e, t)` pattern). We do this
  either by returning `Some(e)` directly, or by using `IdTagged.fast_copy(DHExp.rep_id(e), ...)`
  when constructing a new expression structure.
+
+ The exception is the lift into a one-field record (`1 : (a=Int)` to `(a=1)`),
+ which wraps the expression: the expression keeps its id inside, and the tuple
+ and field around it are new nodes with ids of their own.
  */
 /* Whether pushing an ascription through a list's or tuple's parts gave
    back the very same parts. Then the value already had the type -- plain
@@ -105,16 +109,17 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     } else {
       d;
     };
-  /* A cast pushed onto a part that is itself a cast composes with it, as a
-     cast on a cast does here, so the result doesn't depend on which cast
-     arrives first, and the stepper and the evaluator agree. One pushed onto
-     a labeled field goes on to what the field holds: a field under a cast
-     is a form no text writes, and a step that left one would print as a
-     one-tuple of it (`(_=(a=()):(a=T))` for `(a=():T)`). */
+  /* A cast pushed onto a part that is itself a cast composes with it, one
+     level, as a cast on a cast does here, so the result doesn't depend on
+     which cast arrives first, and the stepper and the evaluator agree. One
+     pushed onto a labeled field goes on to what the field holds, as far as
+     the mode goes: a field under a cast is a form no text writes, and a
+     step that left one would print as a one-tuple of it
+     (`(_=(a=()):(a=T))` for `(a=():T)`). */
   let ascribe = (part: DHExp.t, ty: Typ.t): DHExp.t => {
     let d = Asc(part, ty) |> DHExp.fresh;
     switch (DHExp.term_of(part)) {
-    | Asc(_)
+    | Asc(_) => transition(d) |> Option.value(~default=d)
     | TupLabel(_) => transition(~recursive, d) |> Option.value(~default=d)
     | _ => d
     };
