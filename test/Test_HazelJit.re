@@ -918,6 +918,47 @@ let tests = (
       "a projection of a tuple and of a list together",
       "let r = (a=1, rows=[(a=2), (a=3)]) in (r.a, r.rows.a)",
     ),
+    /* (^ticket(847)) e.k read in place, $R.dot for the rest (HazelJit's Dot) */
+    agreement(
+      "a field read in place: a record in a variable, one made in place, one a function gives",
+      "let p = (x = 3, y = 4) in let mk = fun n -> (x = n, y = n + 1) in (p.x, (x = 5, y = 6).y, mk(7).y, mk(mk(1).y).x)",
+    ),
+    agreement(
+      "a projection through a list a function gives, read once",
+      "let rows = fun n -> [(a = n), (a = n + 1)] in rows(4).a",
+    ),
+    agreement(
+      "a record whose fields are h and t, and one with h alone",
+      "let c = (h = 1, t = 2) in let d = (h = 10, w = 20) in c.h + c.t + d.h + d.w",
+    ),
+    agreement(
+      "a label Object.prototype also has",
+      "let r = (toString = 1, valueOf = 2, constructor = 3) in r.toString + r.valueOf + r.constructor",
+    ),
+    agreement(
+      "a field of a partly labeled tuple, and of the empty list",
+      "let q = (1, b = 2) in let es : [(a = Int)] = [] in (q.b, es.a)",
+    ),
+    test_case(
+      "a field read in place, as compiled: the property itself, $R.dot only past it",
+      `Quick,
+      () => {
+        let js = compiled_src("let p = (x = 3, y = 4) in p.x");
+        check(
+          bool,
+          "reads [\"x\"]",
+          true,
+          contains(js, "[\"x\"] !== undefined"),
+        );
+        let js = compiled_src("let r = (toString = 1) in r.toString");
+        check(
+          bool,
+          "toString by $R.dot alone",
+          false,
+          contains(js, "[\"toString\"]"),
+        );
+      },
+    ),
     agreement("a function", "let f = fun x -> x * 2 in f(21)"),
     agreement(
       "recursion",

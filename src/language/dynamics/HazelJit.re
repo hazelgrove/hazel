@@ -530,6 +530,30 @@ let label_key = (l: string): string =>
   || String.equal(l, "__proto__")
   || String.is_prefix(l, ~prefix="$")
     ? "$" ++ l : l;
+/* (^ticket(847)) the names every plain object has from Object.prototype (__proto__ is kept under another key, above) */
+let object_prototype_names = [
+  "constructor",
+  "hasOwnProperty",
+  "isPrototypeOf",
+  "propertyIsEnumerable",
+  "toLocaleString",
+  "toString",
+  "valueOf",
+  "__defineGetter__",
+  "__defineSetter__",
+  "__lookupGetter__",
+  "__lookupSetter__",
+];
+/* a JS name, as a variable compiles (x$12, or a builtin's name): read twice, it is read the same */
+let is_js_name = (s: string): bool =>
+  String.length(s) > 0
+  && String.for_alli(s, ~f=(i, c) =>
+       Char.is_alpha(c)
+       || Char.equal(c, '_')
+       || Char.equal(c, '$')
+       || i > 0
+       && Char.is_digit(c)
+     );
 let label_of_key = (k: string): string =>
   String.length(k) > 1 && Char.equal(k.[0], '$')
     ? String.sub(k, ~pos=1, ~len=String.length(k) - 1) : k;
@@ -867,10 +891,52 @@ and exp_inner =
       "({" ++ js_string(label_key(name)) ++ ": " ++ go(e') ++ "})"
     | None => unsupported("a tuple label that is not a name")
     }
+  /* (^ticket(847), on trial/847-records-objects; Matthew, 2026-11-24: "A, add direct reads") e.k read in place, a record's
+     own property (or a labeled array's), one load the engine caches by the record's shape, where $R.dot read it by a key it
+     is given, a load no cache can follow across every label a program reads. $R.dot stays for the rest, so the answer is
+     its answer: a list (null, or a cell: both h and t, never undefined), each element's k, as a table's column; and
+     anything that is not an object holding k, the interpreter's (a record whose fields include both h and t goes the slow
+     way, rightly). A label Object.prototype also has (toString, say) is never read in place: a cell or a constructor
+     would find the prototype's. A term that is not a JS name is held in a variable of the function's, to read it once. */
   | Dot(e1, l) =>
     switch (label_of(l)) {
     | Some(name) =>
-      "$R.dot(" ++ go(e1) ++ ", " ++ js_string(label_key(name)) ++ ")"
+      let k = js_string(label_key(name));
+      let t = go(e1);
+      if (List.mem(
+            object_prototype_names,
+            label_key(name),
+            ~equal=String.equal,
+          )) {
+        "$R.dot(" ++ t ++ ", " ++ k ++ ")";
+      } else {
+        let (bind, v) =
+          is_js_name(t)
+            ? ("", t)
+            : {
+              let v = fresh(st, scope, "r");
+              (v ++ " = " ++ t ++ ", ", v);
+            };
+        let r = v ++ "[" ++ k ++ "]";
+        "("
+        ++ bind
+        ++ v
+        ++ " !== null && typeof "
+        ++ v
+        ++ " === \"object\" && "
+        ++ r
+        ++ " !== undefined && ("
+        ++ v
+        ++ ".h === undefined || "
+        ++ v
+        ++ ".t === undefined) ? "
+        ++ r
+        ++ " : $R.dot("
+        ++ v
+        ++ ", "
+        ++ k
+        ++ "))";
+      };
     | None => unsupported("a projection by something other than a label")
     }
   | Constructor(name, t) =>
