@@ -1778,6 +1778,7 @@ and uexp_to_info_map =
         add(
           ~elab_term,
           ~elab_syn_ty=ctor_ty,
+          ~syn_ty=syn_res,
           ~marks=marks_res,
           ~co_ctx=CoCtx.empty,
           m,

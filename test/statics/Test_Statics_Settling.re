@@ -276,6 +276,35 @@ let tests = (
       "let xs : [Int] = A in xs",
       "Constructor is not defined",
     ),
+    test_case(
+      "The type projector reads what is written, not the settled type",
+      `Quick,
+      () => {
+        let map = statics(parse_exp("let x : String = 4 in x"));
+        let four =
+          info_where(
+            map,
+            fun
+            | Atom(Int(_)) => true
+            | _ => false,
+          );
+        check(
+          option(testable_typ),
+          "self type",
+          Some(T.int()),
+          Haz3lcore.TypeProj.self_ty(InfoExp(four)),
+        );
+      },
+    ),
+    types_of(
+      "A constructor's syn type is its own type, not the one it settled on",
+      "type T = A + B in let x : Int = A in x",
+      fun
+      | Constructor(_) => true
+      | _ => false,
+      ~syn=T.var("T"),
+      ~elab_syn=T.int(),
+    ),
     types_of(
       "A function's syn type keeps its body's error",
       "let f : Int -> Bool = fun x -> x + 1 in f",
