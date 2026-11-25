@@ -285,6 +285,90 @@ let nearest_measured_id_inside_fold = () => {
   );
 };
 
+/* A static error in syntax a fold projector hides is listed at the
+   projector, which has a position the editor can go to. */
+let static_error_inside_fold = () => {
+  let (ctx, problems) = from_string_exn({|let a = ^^fold(1 + "s") in a|});
+  let statics =
+    List.filter(
+      ~f=(p: ProblemCollection.problem) => p.category == Static,
+      problems,
+    );
+  check(int, "one static problem", 1, List.length(statics));
+  check(
+    bool,
+    "listed at a term with a position",
+    true,
+    List.for_all(
+      ~f=
+        (p: ProblemCollection.problem) =>
+          Haz3lcore.Measured.find_opt_by_id(p.id, ctx.measured) != None,
+      statics,
+    ),
+  );
+};
+
+/* The parentheses directly around a marked tuple are drawn with its mark. */
+let tuple_mark_drawn_over_parens = () => {
+  let src = "let p : (Int, Int) = (1, 2, 3) in p";
+  let z =
+    switch (Haz3lcore.Parser.to_zipper(~root=Exp, src)) {
+    | Some(z) => z
+    | None => fail("Failed to parse: " ++ src)
+    };
+  let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
+  let statics =
+    Haz3lcore.CachedStatics.init(
+      ~settings=Language.CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=Fn.id,
+      ~root=Exp,
+      editor.state.zipper,
+    );
+  let exp =
+    Haz3lcore.MakeTerm.from_zip_for_sem(editor.state.zipper, ~root=Exp).term;
+  let found = ref(None);
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          switch (Language.Exp.term_of(e)) {
+          | Parens({term: Tuple(_), _} as tuple) when found^ == None =>
+            found :=
+              Some((Language.Exp.rep_id(e), Language.Exp.rep_id(tuple)))
+          | _ => ()
+          };
+          cont(e);
+        },
+      exp,
+    );
+  let (parens_id, tuple_id) =
+    switch (found^) {
+    | Some(ids) => ids
+    | None => fail("no parenthesized tuple")
+    };
+  check(
+    list(string),
+    "marked",
+    [Haz3lcore.Id.to_string(tuple_id)],
+    List.map(~f=Haz3lcore.Id.to_string, statics.error_ids),
+  );
+  let drawn =
+    Haz3lcore.ErrorSites.drawn(
+      ~info_map=statics.info_map,
+      ~measured=editor.syntax.measured,
+      statics.error_ids,
+    );
+  check(
+    bool,
+    "drawn on the tuple and its parentheses",
+    true,
+    List.mem(drawn, tuple_id, ~equal=Haz3lcore.Id.equal)
+    && List.mem(drawn, parens_id, ~equal=Haz3lcore.Id.equal)
+    && List.length(drawn) == 2,
+  );
+};
+
 /* ---------- ProblemCollection.make tests ---------- */
 
 let make_empty_inputs = () => {
@@ -513,6 +597,16 @@ let nearest_measured_id_cases = [
     "nearest_measured_id resolves ids inside a fold projector",
     `Quick,
     nearest_measured_id_inside_fold,
+  ),
+  test_case(
+    "A static error inside a fold is listed at the projector",
+    `Quick,
+    static_error_inside_fold,
+  ),
+  test_case(
+    "A tuple's mark is drawn over its parentheses",
+    `Quick,
+    tuple_mark_drawn_over_parens,
   ),
 ];
 

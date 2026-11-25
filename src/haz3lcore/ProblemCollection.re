@@ -46,17 +46,8 @@ type problem_context = {
   nearest_measured_id: Id.t => option(Id.t),
 };
 
-/* Walk `id` and its ancestors (innermost-first via Statics.Map) and
-   return the first one present in `measured`. The ancestor lookup is
-   only forced if `id` itself is missing from `measured`. */
-let nearest_measured_id =
-    (~info_map: Statics.Map.t, ~measured: Measured.t, id: Id.t): option(Id.t) =>
-  Stdlib.Seq.cons(id, () =>
-    Stdlib.List.to_seq(Statics.Map.ancestors_of(id, info_map), ())
-  )
-  |> Stdlib.Seq.find(anc =>
-       Option.is_some(Measured.find_by_id(anc, measured))
-     );
+/* `id`, or its nearest ancestor present in `measured`. */
+let nearest_measured_id = ErrorSites.located;
 
 let make_problem_context =
     (
@@ -107,8 +98,11 @@ let make_problem_context =
     List.fold_right(
       ~f=
         (id, (syn, stat)) =>
-          switch (Statics.Map.lookup(id, info_map)) {
-          | Some(ci) when Info.is_error(ci) && id_in_this_editor(id) =>
+          /* A problem in syntax a projector folds away is listed at the
+             projector, where the editor can go to it. */
+          switch (Statics.Map.lookup(id, info_map), resolve_nearest(id)) {
+          | (Some(ci), Some(id))
+              when Info.is_error(ci) && id_in_this_editor(id) =>
             if (Info.is_syntax_error(ci)) {
               ([(id, ci), ...syn], stat);
             } else {
@@ -125,8 +119,9 @@ let make_problem_context =
       List.filter_map(
         ~f=
           id =>
-            switch (Statics.Map.lookup(id, info_map)) {
-            | Some(ci) when Info.is_warning(ci) && id_in_this_editor(id) =>
+            switch (Statics.Map.lookup(id, info_map), resolve_nearest(id)) {
+            | (Some(ci), Some(id))
+                when Info.is_warning(ci) && id_in_this_editor(id) =>
               Some((id, ci))
             | _ => None
             },
