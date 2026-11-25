@@ -108,6 +108,24 @@ let residual = (ctx: Ctx.t, query: Typ.t, supplied: Typ.t): Typ.t => {
 let note = (id: Id.t): Id.Set.t =>
   id == Id.invalid ? Id.Set.empty : Id.Set.singleton(id);
 
+let same_former = (a: Typ.t, b: Typ.t): bool =>
+  switch (Typ.term_of(a), Typ.term_of(b)) {
+  | (List(_), List(_))
+  | (Arrow(_), Arrow(_))
+  | (TupLabel(_), TupLabel(_))
+  | (TypParamAp(_), TypParamAp(_))
+  | (ProdProjection(_), ProdProjection(_))
+  | (ProdExtension(_), ProdExtension(_))
+  | (Prod(_), Prod(_))
+  | (TypTuple(_), TypTuple(_))
+  | (Sum(_), Sum(_))
+  | (Rec(_), Rec(_))
+  | (Poly(_), Poly(_))
+  | (TypFun(_), TypFun(_)) => true
+  | (Label(x), Label(y)) => x == y
+  | _ => false
+  };
+
 let rec omit_typ = (ctx: Ctx.t, query: Typ.t, ty: Typ.t): Id.Set.t => {
   let query = strip(query);
   let query =
@@ -134,7 +152,10 @@ let rec omit_typ = (ctx: Ctx.t, query: Typ.t, ty: Typ.t): Id.Set.t => {
   | _ =>
     switch (Typ.children(ty), Typ.children(query)) {
     | (kids, parts)
-        when kids != [] && List.length(kids) == List.length(parts) =>
+        when
+          kids != []
+          && same_former(ty, query)
+          && List.length(kids) == List.length(parts) =>
       List.fold_left2(
         (acc, kid, part) => Id.Set.union(acc, omit_typ(ctx, part, kid)),
         Id.Set.empty,

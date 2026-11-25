@@ -257,6 +257,61 @@ their binder masks positionally (keep a parameter named if either side names
 it), not take one side's binder, or a join of `typfun A, ? -> …` and
 `typfun ?, B -> …` loses a parameter.
 
+### Demands through alias references and module members
+
+`alias-param-through-reference`, `alias-fixed-field-through-reference`,
+`module-member-param`, `module-member-fixed-field`, `alias-instantiated-param`
+(`Test_Statics_Slicing_ExtendedExamples.re`). Real-logic, since aliases and
+modules are outside the formalism.
+
+An alias definition that mentions another alias (`type S(X) = (a = [P(X)], …)`)
+passes the part of its own demand that lies under the reference on to that
+alias. The demand is first rewritten in terms of the referencing alias's
+parameters: where the definition has the parameter `X` and the demand is
+non-gap, the demand becomes `X`, so `P` is asked for `(x = A, y = ?)` rather
+than for the caller's instantiation `D`, which `P` cannot justify. Where the
+definition and the demand have different type formers (an alias application
+against its expansion) the definition is weak-head normalised and the walk
+retried. The same alignment runs when an annotation's instantiation is a type
+variable (`[P(X)]` inside `abs X`, queried at `Int`): the demand at that
+position is read as `X`, so the overlap keeps the binder instead of failing on
+`Int` against `X`.
+
+Arguments of an alias application receive the demand found at their
+parameter's positions in the definition, not a gap, so `S(D)` at query
+`(a = [(x = D, …)], …)` demands the name `D`.
+
+A qualified head `M.T` or `M.T(σ̄)` records its demand under the key `M.T`. At
+the binding `module M = { … }` those entries are stripped of the prefix and
+seed the slice of the module's items, so `type T` inside `M` is sliced by the
+demand exactly as a top-level alias would be, sibling references included
+(resolved in the item's own context). The module name is kept whenever a member
+is demanded. The result separates what a fixed module declares (`label`,
+`y = Float`) from what the program's own annotations chose (`x = D`).
+
+`SliceQuery.omit_typ` now descends into a type only when the query has the same
+former. Before, `[S(D)]` against an expanded record query matched children by
+count alone and could hole the alias name.
+
+### Type application schemas aligned through aliases
+
+`alias-instantiated-param`. At `e@<τ>` the function's schema is matched against
+the query to find each bound variable's demand. When the schema has an alias
+application (`[P(X)]`, `Report(Stats(Peak), R)`) where the query has the
+alias's expansion (a record, list, arrow or sum), the schema is weak-head
+normalised at that position before matching, so the demand on `X` comes from
+`P`'s parameter positions instead of being lost. Without this the instantiation
+`@<Row>` is kept as a name but `Row`'s definition is not demanded.
+
+### case-pattern-component, case-pattern-other-rules-omitted
+
+`Test_Statics_Slicing_ExtendedExamples.re`. Real-logic: the analysis slice of a
+pattern variable bound by a `case` rule. The query at the variable is lifted
+through the rule's pattern to a query on the scrutinee, and the scrutinee is
+sliced by synthesis at that query. The rule's pattern keeps its structure down
+to the focus, its body is omitted, and every other rule is omitted whole, so
+the slice is the scrutinee's annotation at the demanded component only.
+
 ## Nominal types
 
 `Test_Statics_Slicing_NewType.re`. A nominal type is an alias whose body is a

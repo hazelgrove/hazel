@@ -358,6 +358,67 @@ let case_joins = [
   ),
 ];
 
+let alias_src = "type P(A) = (x = A, y = Float) in type S(X) = (a = [P(X)], b = String) in type D = Int in let f = fun (s : [S(D)]) -> 0 in f([?])";
+
+let module_src = "module M = { type P(A) = (x = A, y = Float); type S(X) = (a = [P(X)], b = String); let k = 1 } in type D = Int in let f = fun (s : [M.S(D)]) -> 0 in f([?])";
+
+let instantiated_src = "type P(A) = (x = A, y = Float) in let g = abs X -> fun (s : [P(X)]) -> 0 in g@<Int>([?])";
+
+let alias_member_examples = [
+  analysis_case(
+    ~focus=first_exp_hole,
+    "alias-param-through-reference",
+    alias_src,
+    "(a=[(x=D, y=?)], b=?)",
+    "type P(A) = (x=A, y=?) in type S(X) = (a=[P(X)], b=?) in type D = ? in let f = fun (?:([S(D)])) -> ? in f([?])",
+  ),
+  analysis_case(
+    ~focus=first_exp_hole,
+    "alias-fixed-field-through-reference",
+    alias_src,
+    "(a=[(x=?, y=Float)], b=?)",
+    "type P(?) = (x=?, y=Float) in type S(X) = (a=[P(X)], b=?) in type D = ? in let f = fun (?:([S(D)])) -> ? in f([?])",
+  ),
+  analysis_case(
+    ~focus=first_exp_hole,
+    "module-member-param",
+    module_src,
+    "(a=[(x=D, y=?)], b=?)",
+    "module M = { type P(A) = (x=A, y=?); type S(X) = (a=[P(X)], b=?); ? } in type D = ? in let f = fun (?:([M.S(D)])) -> ? in f([?])",
+  ),
+  analysis_case(
+    ~focus=first_exp_hole,
+    "module-member-fixed-field",
+    module_src,
+    "(a=?, b=String)",
+    "module M = { ?; type S(?) = (a=?, b=String); ? } in type D = ? in let f = fun (?:([M.S(D)])) -> ? in f([?])",
+  ),
+  analysis_case(
+    ~focus=first_exp_hole,
+    "alias-instantiated-param",
+    instantiated_src,
+    "(x=Int, y=?)",
+    "type P(A) = (x=A, y=?) in let g = abs X -> fun (?:([P(X)])) -> ? in g @< Int > ([?])",
+  ),
+];
+
+let case_pattern_examples = [
+  analysis_case(
+    ~focus=e => pat_var(e, "y"),
+    "case-pattern-component",
+    "let f = fun (r : (Int, Bool)) -> case r | (x, y) => 0 end in f",
+    "Bool",
+    "let ? = fun (r:((?, Bool))) -> case r | (x, ?) => ? end in ?",
+  ),
+  analysis_case(
+    ~focus=e => pat_var(e, "y"),
+    "case-pattern-other-rules-omitted",
+    "let f = fun (r : (Int, Bool)) -> case r | (x, y) => 0 | (a, b) => a end in f",
+    "Bool",
+    "let ? = fun (r:((?, Bool))) -> case r | (x, ?) => ?| ? => ? end in ?",
+  ),
+];
+
 let tests = (
   "Statics.Slicing.ExtendedExamples",
   parse_digit_examples
@@ -365,5 +426,7 @@ let tests = (
   @ demo_examples
   @ ctor_alias_examples
   @ if_joins
-  @ case_joins,
+  @ case_joins
+  @ alias_member_examples
+  @ case_pattern_examples,
 );
