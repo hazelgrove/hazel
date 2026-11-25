@@ -2721,6 +2721,24 @@ let defensive_print_stable_tests = (
         check(bool, "read " ++ text, true, Option.is_some(Typed.read(text)))
       )
     ),
+    /* Completing a rule's `=>` turns the gap after its pattern from a
+       juxtaposition into the rule's body: the grout there changes shape, or
+       the rules have no operand between them (Skel.push_output raised). */
+    test_case("Unfinished case rules after an unclosed paren read", `Quick, () =>
+      List.iter(
+        ["case (\n| _\n| end", "case ( => 1\n| _\n| end"],
+        ~f=text => {
+          let term = Typed.read(text);
+          check(bool, "read " ++ text, true, Option.is_some(term));
+          check(
+            bool,
+            "prints " ++ text,
+            true,
+            print_reads_back(Option.value_exn(term)),
+          );
+        },
+      )
+    ),
     /* A hole as a module binder prints its pieces, not a bare `?`. */
     test_case("A hole as a module binder reads back", `Quick, () =>
       List.iter(

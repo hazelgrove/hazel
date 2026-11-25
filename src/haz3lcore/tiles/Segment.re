@@ -959,7 +959,24 @@ module Trim = {
       let (wss, gs) as merged = merge(trim);
       switch (gs) {
       | [] => add_grout(l, merged)
-      | [_, ..._] => merged
+      /* Two shapes that don't fit are alike, and one shape of grout fits
+         between them. Grout left from before a neighbor changed shape (a
+         delimiter completed, a tile remolded: the hole after `| _` once
+         the rule gets its `=>`) takes that shape and keeps its id.
+         Skel.mk reads a segment whose shapes all fit. */
+      | [g, ...rest] =>
+        Grout.fits_shape(g, l)
+          ? merged
+          : (
+            wss,
+            [
+              {
+                ...g,
+                shape: Grout.shape_fitting(l),
+              },
+              ...rest,
+            ],
+          )
       };
     };
 
