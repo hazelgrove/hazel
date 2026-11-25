@@ -50,6 +50,7 @@ let (suite, exit_with_test_status) =
     @ Test_WorkerServer.tests
     @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
+    @ Test_IdMatch.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
