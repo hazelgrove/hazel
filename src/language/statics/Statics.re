@@ -2984,7 +2984,9 @@ and uexp_to_info_map =
   | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}])
       when !tuple_case_owns(uexp, l1) && !is_raw_hole(uexp) =>
     let (e, _, m) = go(~ana=syn, uexp, m);
-    switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+    /* The value's own type, a recursive one unrolled: `rec t -> ?` is as
+       unknown as `?`, and `rec t -> (a=Int)` already has the label. */
+    switch (MatchedTyp.head(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
         when String.equal(l1, l2) =>
       default_case()
@@ -3942,7 +3944,8 @@ and upat_to_info_map =
         when !tuple_case_owns(upat, l1) =>
       let (e, _, m) = go(~ana=syn, ~ctx, upat, m);
 
-      switch (Typ.weak_head_normalize(ctx, e.ty).term) {
+      /* As for an expression: a recursive type is seen through. */
+      switch (MatchedTyp.head(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}])
           when String.equal(l1, l2) =>
         default_case()

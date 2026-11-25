@@ -93,6 +93,22 @@ let tests = (
         parse_and_evaluate_test(expected, program)
       )
     ),
+    /* Whether a value takes a one-field record's label is decided by the
+       head of its own type, with a recursive type unrolled: `rec t -> ?`
+       is unknown, and `rec t -> (x=Int)` already has the label. */
+    test_case(
+      "A recursive type is unrolled to decide a singleton lift", `Quick, () =>
+      List.iter(
+        [
+          ("(x=1)", {|let p : (rec t -> ?) = (x=1) in p|}),
+          ("(x=1)", {|case (x=1) | (p : (rec t -> ?)) => p end|}),
+          ("1", {|let p : (rec t -> ?) = (x=1) in p.x|}),
+          ("1", {|let p : (rec t -> (x=Int)) = (x=1) in p.x|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
     /* Labels stack: a tuple expected at a one-field label becomes that
        field, rather than the label being refused for arity. */
     test_case("Wide tuple lifted into a singleton label", `Quick, () =>
