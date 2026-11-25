@@ -1394,6 +1394,15 @@ let found_shapes = [
     "Labeled type field as singleton prod",
     {|use (a=Int) in 1|},
   ),
+  /* `_` names no module in either parser; `?` is a hole in both. */
+  menhir_maketerm_equivalent_test(
+    "Wildcard module binder",
+    {|module _ = 1 in 2|},
+  ),
+  menhir_maketerm_equivalent_test(
+    "Wildcard and hole module binders as module items",
+    {|{ module _ = 1; module ? = 2 }|},
+  ),
   menhir_maketerm_equivalent_test(
     "Labeled module def",
     {|module ? = (a=(())) in (())|},

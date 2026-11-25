@@ -633,6 +633,8 @@ modItem:
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
     | MODULE; c = CONSTRUCTOR_IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(c), t), e) }
+    | MODULE; WILD; SINGLE_EQUAL; e = modItemExp { ModItemModule(WildPat, e) }
+    | MODULE; QUESTION; SINGLE_EQUAL; e = modItemExp { ModItemModule(EmptyHolePat, e) }
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ { ModItemType(tp, ty) }
     | e = modItemExp { ModItemExp(e) }
 

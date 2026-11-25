@@ -203,6 +203,8 @@ let rec mpat_of_pat = (p: IndicatedG.pat): Language.Grammar.mpat_t(bool) => {
   | Var(name) => IndicatedG.MPat.var(name)
   | Asc(inner, typ) => IndicatedG.MPat.asc(mpat_of_pat(inner), typ)
   | Parens(inner) => mpat_of_pat(inner)
+  /* `_` names no module: the editor reads it there as a token no form has */
+  | Wild => IndicatedG.MPat.invalid("_")
   | _ => IndicatedG.MPat.empty_hole()
   };
 };
@@ -373,7 +375,10 @@ module rec Exp: {
     switch (mp.term) {
     | Var(name) => VarPat(name)
     | Asc(inner, typ) => AscPat(pat_of_mpat(inner), Typ.of_core(typ))
-    | _ => WildPat
+    | Invalid("_") => WildPat
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => EmptyHolePat
     };
   };
 
