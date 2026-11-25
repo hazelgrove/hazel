@@ -74,6 +74,25 @@ let tests = (
         parse_and_evaluate_test(expected, program)
       )
     ),
+    /* A deferred application is a function, so it becomes the field of a
+       one-field record it is cast to, as a `fun` does. */
+    test_case(
+      "A deferred application lifts into a singleton label", `Quick, () =>
+      List.iter(
+        [
+          (
+            "3",
+            {|let add = fun (x, y) -> x + y in let v : ? = add(_, 1) in let r : (a=Int -> Int) = v in r.a(2)|},
+          ),
+          (
+            "3",
+            {|let add = fun (x, y) -> x + y in let r : (a=Int -> Int) = add(_, 1) in r.a(2)|},
+          ),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
     /* Labels stack: a tuple expected at a one-field label becomes that
        field, rather than the label being refused for arity. */
     test_case("Wide tuple lifted into a singleton label", `Quick, () =>

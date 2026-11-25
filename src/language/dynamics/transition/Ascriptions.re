@@ -55,6 +55,8 @@ let rec lifts_into = (l: LabeledTuple.label, d: DHExp.t): bool =>
   | Fun(_)
   | TypFun(_)
   | BuiltinFun(_)
+  /* a function of its deferred arguments, whatever it applies */
+  | DeferredAp(_)
   | ListLit(_)
   | Cons(_) => true
   | Invalid(_)
@@ -79,7 +81,6 @@ let rec lifts_into = (l: LabeledTuple.label, d: DHExp.t): bool =>
   | Use(_)
   | Ap(_)
   | TypAp(_)
-  | DeferredAp(_)
   | If(_)
   | Seq(_)
   | Test(_)
