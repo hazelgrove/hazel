@@ -23,6 +23,62 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
 module Utils = AgentUtils;
 module ToolCallHandler = AgentToolCallHandler;
 
+/* What a tool action does, for the bookkeeping around running it: the diff
+   and before/after snapshots shown in the chat, and whether it is listed in
+   the active subtask's "Tools Used". Every such decision below goes through
+   [[classify]], which lists every constructor, so a new action is a compile
+   error here instead of silently getting no diff or no workbench entry. */
+module ActionKind = {
+  type program_change =
+    /* a path-addressed structural edit: CompositionGo.Local.get_diff
+       picks the span to show */
+    | StructuralEdit(Action.Structural.t)
+    /* changes the program text as a whole (a pathless insert, or a probe,
+       statics or syntax projector placed in it): the diff is the whole
+       program, when its text changed */
+    | WholeProgram
+    /* leaves the program alone */
+    | Untouched;
+
+  type t = {
+    program: program_change,
+    /* listed under the active subtask's "Tools Used"; only the workbench's
+       own tools are left out, as the workbench already shows their effect */
+    in_subtask: bool,
+  };
+
+  let classify = (action: CompositionActions.action): t =>
+    switch (action) {
+    | EditorAction(edit) => {
+        program: StructuralEdit(edit),
+        in_subtask: true,
+      }
+    | InsertAtProgramBoundary(_)
+    | ProbeAction(_)
+    | StaticsAction(_)
+    | SyntaxProjectorAction(_) => {
+        program: WholeProgram,
+        in_subtask: true,
+      }
+    | AgentContextAction(_)
+    | LanguageServerAction(_) => {
+        program: Untouched,
+        in_subtask: true,
+      }
+    | WorkbenchAction(_) => {
+        program: Untouched,
+        in_subtask: false,
+      }
+    };
+
+  let changes_program = (action: CompositionActions.action): bool =>
+    switch (classify(action).program) {
+    | StructuralEdit(_)
+    | WholeProgram => true
+    | Untouched => false
+    };
+};
+
 let add_tool_result_to_active_subtask =
     (
       ~tool_result: AgentToolResult.tool_result,
@@ -30,12 +86,8 @@ let add_tool_result_to_active_subtask =
       ~model: Model.t,
       ~chat_id: Id.t,
     )
-    : Model.t => {
-  switch (action) {
-  // Only add editor and context tools to subtask tool results for now
-  // i.e. don't include workbench tool calls in the workbench view lol
-  | EditorAction(_)
-  | AgentContextAction(_) =>
+    : Model.t =>
+  if (ActionKind.classify(action).in_subtask) {
     let chat_system =
       ChatSystem.Update.update(
         ChatSystem.Update.Action.ChatAction(
@@ -55,9 +107,9 @@ let add_tool_result_to_active_subtask =
       ...model,
       chat_system,
     };
-  | _ => model
+  } else {
+    model;
   };
-};
 
 let mk_diff =
     (
@@ -68,8 +120,8 @@ let mk_diff =
       action: CompositionActions.action,
     )
     : option(AgentToolResult.diff) => {
-  switch (action) {
-  | EditorAction(edit_action) =>
+  switch (ActionKind.classify(action).program) {
+  | StructuralEdit(edit_action) =>
     /* the diff of an Update/Delete resolves its path in both programs'
        node maps, which want statics: the editor already has the old
        program's, the tool path offered the new program's — a fresh pass
@@ -106,9 +158,7 @@ let mk_diff =
       )
     | None => None
     };
-  | SyntaxProjectorAction(_)
-  | ProbeAction(_)
-  | StaticsAction(_) =>
+  | WholeProgram =>
     let old_segment = Select.all(old_editor.state.zipper).selection.content;
     let new_segment = Select.all(new_editor.state.zipper).selection.content;
     let old_s = CompositionView.Public.print_segment(old_segment);
@@ -123,7 +173,7 @@ let mk_diff =
         },
       );
     };
-  | _ => None
+  | Untouched => None
   };
 };
 
@@ -133,19 +183,14 @@ let mk_segment_snapshots =
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
-    : (option(string), option(string)) => {
-  switch (action) {
-  | EditorAction(_)
-  | InsertAtProgramBoundary(_)
-  | ProbeAction(_)
-  | StaticsAction(_)
-  | SyntaxProjectorAction(_) =>
+    : (option(string), option(string)) =>
+  if (ActionKind.changes_program(action)) {
     let text = (ed: Editor.t) =>
       PersistentZipper.to_string(ed.state.zipper) ++ "\n";
     (Some(text(old_editor)), Some(text(new_editor)));
-  | _ => (None, None)
+  } else {
+    (None, None);
   };
-};
 
 /** Run one tool; returns chat message to append (caller batches append + one LLM request). */
 let execute_one_tool_call =
@@ -283,17 +328,17 @@ let execute_one_tool_call =
     | Error(error) =>
       switch (error) {
       | Failure.Info(msg) =>
+        /* the program the failed tool was tried on: the chat's edit
+           timeline starts from its first edit's before_text */
         let before_text =
-          switch (action) {
-          | EditorAction(_) =>
-            Some(
-              PersistentZipper.to_string(
-                cell_editor.editor.editor.state.zipper,
+          ActionKind.changes_program(action)
+            ? Some(
+                PersistentZipper.to_string(
+                  cell_editor.editor.editor.state.zipper,
+                )
+                ++ "\n",
               )
-              ++ "\n",
-            )
-          | _ => None
-          };
+            : None;
         let tool_result: AgentToolResult.tool_result = {
           tool_call,
           success: false,

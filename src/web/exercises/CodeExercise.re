@@ -309,8 +309,16 @@ let is_editable = (pos, ~instructor_mode) => {
    Drives the Problems sidebar and jump-to-tile. */
 let shown_in = (pos, ~instructor_mode) =>
   switch (pos) {
+  /* students see the prelude read-only */
   | Prelude => true
-  | _ => is_editable(pos, ~instructor_mode)
+  /* the rest is shown exactly when it is editable: the hidden cells only
+     to instructors */
+  | CorrectImpl
+  | YourTestsValidation
+  | YourTestsTesting
+  | YourImpl
+  | HiddenBugs(_)
+  | HiddenTests => is_editable(pos, ~instructor_mode)
   };
 
 let update_exercise_title = ({eds, _}: state, new_title: string) => {

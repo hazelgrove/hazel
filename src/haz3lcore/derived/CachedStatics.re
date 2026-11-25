@@ -36,7 +36,13 @@ let should_probe = (info: Info.t): bool =>
   switch (info) {
   | InfoExp(_)
   | InfoPat(_) => true
-  | _ => false
+  | InfoDrv(_)
+  | InfoTyp(_)
+  | InfoTPat(_)
+  | InfoMod(_)
+  | InfoSig(_)
+  | InfoMPat(_)
+  | Secondary(_) => false
   };
 
 /* Collect all expression and pattern IDs from info_map that pass the should_probe predicate. */
