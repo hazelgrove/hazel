@@ -247,11 +247,11 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   /* (^ticket(716)) a negative number as the syntax has it, a minus before it: a model read from the program's text, before
      its run has a value (current = -1, found by the browser check on the Polygons slide) */
   | UnOp(Int(Minus) | Float(Minus), e) =>
-    let v = to_js(e);
-    String.equal(typeof(v), "number")
-      ? number(-. Js.float_of_number(Js.Unsafe.coerce(v)))
-      : String.equal(typeof(v), "bigint")
-          ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|v|])
+    let n = to_js(e);
+    String.equal(typeof(n), "number")
+      ? number(-. Js.float_of_number(Js.Unsafe.coerce(n)))
+      : String.equal(typeof(n), "bigint")
+          ? Js.Unsafe.fun_call(Js.Unsafe.js_expr("(x => -x)"), [|n|])
           /* (^ticket(769)) a minus before a hole: indeterminate, carried whole */
           : opaque_on^
               ? opaque(v)
