@@ -45,6 +45,21 @@ let tests = (
         parse_and_evaluate({|((a=1, a=2) : (a=Int, b=Int))|}),
       )
     ),
+    /* Elaboration takes the `_=` off a pattern's field and leaves it on an
+       expression's; the pattern binds what the field holds. */
+    test_case("A pattern binds the value of a field marked _=", `Quick, () =>
+      List.iter(
+        [
+          ("2", {|let (_=x) = (_=1) in x + 1|}),
+          ("3", {|let (x, y) = (_=1, 2) in x + y|}),
+          ("2", {|case (_=1) | (_=x) => x + 1 end|}),
+          ("3", {|(fun (x, y) -> x + y)(_=1, 2)|}),
+          ("3", {|let (a=x, y) = (a=1, _=2) in x + y|}),
+        ],
+        ~f=((expected, program)) =>
+        parse_and_evaluate_test(expected, program)
+      )
+    ),
     /* Labels stack: a tuple expected at a one-field label becomes that
        field, rather than the label being refused for arity. */
     test_case("Wide tuple lifted into a singleton label", `Quick, () =>

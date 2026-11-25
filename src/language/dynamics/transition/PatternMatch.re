@@ -65,7 +65,15 @@ let match_pattern =
     recur(p, d)
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-    List.map2_exn(ps, ds, ~f=recur)
+    /* Elaboration takes the `_=` off a pattern's field and leaves it on an
+       expression's, so a field marked `_=` is matched as the value it
+       holds: `let (_=x) = (_=1) in x` binds `x` to `1`. */
+    let unmarked = (d: DHExp.t): DHExp.t =>
+      switch (DHExp.term_of(d)) {
+      | TupLabel({term: ExplicitNonlabel, _}, value) => value
+      | _ => d
+      };
+    List.map2_exn(ps, List.map(ds, ~f=unmarked), ~f=recur)
     |> List.fold_left(~f=combine_result, ~init=Matches([]));
   | Parens(p)
   | Projector(_, p) => recur(p, d)
