@@ -477,6 +477,11 @@ type state = {
   direct: Stdlib.Hashtbl.t(string, int),
   /* (^ticket(853)) each constructor without an argument the code builds, by name: the constant made once for it */
   nullary: Stdlib.Hashtbl.t(string, string),
+  /* (^ticket(853)) each record written out whose entries are all variables, by its term's id: its labels and their JS
+     names (a module as dev lowers it, lets ending in a record of its members); and the JS names bound to one, so a
+     member read by its label is the member's own variable */
+  record_lits: Stdlib.Hashtbl.t(string, list((string, string))),
+  records: Stdlib.Hashtbl.t(string, list((string, string))),
 };
 
 /* (^ticket(853)) where a recursive function's call of itself in tail position puts its argument: its one parameter, or,
@@ -569,6 +574,37 @@ let note_direct =
     | None => ()
     }
   | _ => ()
+  };
+
+/* (^ticket(853)) a name bound to a record of variables (p a name; e, through its lets and sequences, ends in such a
+   record, written out in this same JS function), in lex' as the binding compiles it: a read of its member by label is the
+   member's own variable. The variables are declared in this function or around it, so wherever the name is seen, they
+   are; each is assigned once, where it is bound, so it holds what the record holds. */
+let note_record =
+    (st: state, p: Pat.t, e: Exp.t, lex': list((string, string))): unit =>
+  switch (fix_name(p)) {
+  | Some(x) =>
+    let rec tail_of = (e: Exp.t): Exp.t =>
+      switch (Exp.term_of(e)) {
+      | Let(_, _, e2) => tail_of(e2)
+      | Seq(_, b) => tail_of(b)
+      | Parens(e)
+      | Asc(e, _)
+      | TyAlias(_, _, e) => tail_of(e)
+      | _ => e
+      };
+    switch (
+      Stdlib.Hashtbl.find_opt(
+        st.record_lits,
+        Id.to_string(Exp.rep_id(tail_of(e))),
+      ),
+      List.Assoc.find(lex', ~equal=String.equal, x),
+    ) {
+    | (Some(fields), Some(j)) =>
+      Stdlib.Hashtbl.replace(st.records, j, fields)
+    | _ => ()
+    };
+  | None => ()
   };
 
 let note_alias = (st: state, tp: TPat.t, ty: Typ.t): unit =>
@@ -961,6 +997,24 @@ and exp_inner =
     };
     let arr =
       "[" ++ String.concat(~sep=", ", List.map(parts, ~f=snd)) ++ "]";
+    /* (^ticket(853)) a record of variables, remembered by its term (note_record) */
+    switch (
+      List.map(parts, ~f=((l, v)) =>
+        switch (l) {
+        | Some(name) when is_js_name(v) => Some((name, v))
+        | _ => None
+        }
+      )
+      |> Option.all
+    ) {
+    | Some([_, ..._] as fields) =>
+      Stdlib.Hashtbl.replace(
+        st.record_lits,
+        Id.to_string(Exp.rep_id(e)),
+        fields,
+      )
+    | _ => ()
+    };
     /* (^ticket(847), idea A) every entry labeled: an object literal, its keys in order, as a page holds a record */
     List.for_all(parts, ~f=((l, _)) => Option.is_some(l))
     && !List.is_empty(parts)
@@ -1008,37 +1062,47 @@ and exp_inner =
     | Some(name) =>
       let k = js_string(label_key(name));
       let t = go(e1);
-      if (List.mem(
-            object_prototype_names,
-            label_key(name),
-            ~equal=String.equal,
-          )) {
-        "$R.dot(" ++ t ++ ", " ++ k ++ ")";
-      } else {
-        let (bind, v) =
-          is_js_name(t)
-            ? ("", t)
-            : {
-              let v = fresh(st, scope, "r");
-              (v ++ " = " ++ t ++ ", ", v);
-            };
-        let r = v ++ "[" ++ k ++ "]";
-        "("
-        ++ bind
-        ++ v
-        ++ " !== null && typeof "
-        ++ v
-        ++ " === \"object\" && "
-        ++ r
-        ++ " !== undefined && "
-        ++ v
-        ++ ".$t === undefined ? "
-        ++ r
-        ++ " : $R.dot("
-        ++ v
-        ++ ", "
-        ++ k
-        ++ "))";
+      /* (^ticket(853); Matthew, 2026-11-25: "guarded access of modules") a member of a record of variables known here
+         (a module's, note_record): the member's own variable, with no guard and no read */
+      switch (
+        Option.bind(Stdlib.Hashtbl.find_opt(st.records, t), ~f=fields =>
+          List.Assoc.find(fields, ~equal=String.equal, name)
+        )
+      ) {
+      | Some(v) => v
+      | None =>
+        if (List.mem(
+              object_prototype_names,
+              label_key(name),
+              ~equal=String.equal,
+            )) {
+          "$R.dot(" ++ t ++ ", " ++ k ++ ")";
+        } else {
+          let (bind, v) =
+            is_js_name(t)
+              ? ("", t)
+              : {
+                let v = fresh(st, scope, "r");
+                (v ++ " = " ++ t ++ ", ", v);
+              };
+          let r = v ++ "[" ++ k ++ "]";
+          "("
+          ++ bind
+          ++ v
+          ++ " !== null && typeof "
+          ++ v
+          ++ " === \"object\" && "
+          ++ r
+          ++ " !== undefined && "
+          ++ v
+          ++ ".$t === undefined ? "
+          ++ r
+          ++ " : $R.dot("
+          ++ v
+          ++ ", "
+          ++ k
+          ++ "))";
+        }
       };
     | None => unsupported("a projection by something other than a label")
     }
@@ -1247,6 +1311,7 @@ and exp_inner =
       };
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
     note_direct(st, p, e1, lex');
+    note_record(st, p, e1, lex');
     let check =
       List.is_empty(tests)
         ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
@@ -1638,8 +1703,10 @@ and tail =
   | Seq(a, b) => "(" ++ go(a) ++ "); " ++ again(b)
   | Let(p, e1, e2) when ! params_on^ =>
     let tmp = fresh(st, scope, "let");
-    let v1 = go(e1);
+    let v1 = named(st, scope, lex, e1);
     let (tests, binds, lex') = pat(st, scope, lex, p, tmp);
+    note_direct(st, p, e1, lex');
+    note_record(st, p, e1, lex');
     let check =
       List.is_empty(tests)
         ? [] : ["(" ++ conj(tests) ++ ") || $R.nomatch(\"let\")"];
@@ -1864,6 +1931,8 @@ let compile_full = (~env: Environment.t(Exp.t), e: Exp.t): compiled => {
     frames: [],
     direct: Stdlib.Hashtbl.create(16),
     nullary: Stdlib.Hashtbl.create(16),
+    record_lits: Stdlib.Hashtbl.create(16),
+    records: Stdlib.Hashtbl.create(16),
   };
   let scope = {decls: []};
   let v = exp(st, scope, [], e);
