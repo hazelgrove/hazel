@@ -24,6 +24,7 @@ let (suite, exit_with_test_status) =
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
       Test_ListUtil.tests,
+      Test_Id.tests,
       Test_OptUtil.tests,
       Test_Atom.tests,
       Test_Operators.tests,

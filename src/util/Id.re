@@ -68,19 +68,30 @@ type t = Uuidm.t;
  * variant bits. An id is Uuidm's 16-byte string, built here by
  * concatenating one-byte strings: under js_of_ocaml a string is a JS
  * string and `++` is JS `+`, where Uuidm.v4's byte buffer was copied and
- * converted on every call (~10% of evaluating a livelit's view). */
-let mk: unit => t = {
+ * converted on every call (~10% of evaluating a livelit's view).
+ *
+ * Mind the parentheses in the byte expressions: lsr binds tighter than
+ * land and lor (`h lsr 16 land 0x0f` is `(h lsr 16) land 0x0f`, and
+ * refmt drops those parentheses), but land and lor share a precedence and
+ * associate to the left, so without its parentheses
+ * `0x40 lor (h lsr 16 land 0x0f)` would mask the version away, and
+ * likewise the variant in byte 8.
+ *
+ * minter makes an independent id source whose counter starts after
+ * (lo, hi); mk is the one everything uses, and tests use others to reach
+ * the counter's wrap. */
+let minter = (~lo as lo0=0, ~hi as hi0=0, ()): (unit => t) => {
   let byte = Array.init(256, ~f=i => String.make(1, Char.of_int_exn(i)));
   let seed = Random.State.make_self_init();
   let rnd = () => Random.State.int(seed, 256);
   /* byte 8: the variant bits 10, then 6 random bits; bytes 9-15 random */
   let tail = {
-    let b8 = byte[0x80 lor rnd() land 0x3f];
+    let b8 = byte[0x80 lor (rnd() land 0x3f)];
     let rest = String.concat(List.init(7, ~f=_ => byte[rnd()]));
     b8 ++ rest;
   };
-  let lo = ref(0);
-  let hi = ref(0);
+  let lo = ref(lo0);
+  let hi = ref(hi0);
   /* Bytes 1 to 15 are the same for 256 ids in a row, so they are made
    * once for each run of 256 (when the counter's bytes above its lowest
    * change), and each id is one concatenation, not eight. The same ids as
@@ -105,13 +116,14 @@ let mk: unit => t = {
         ++ byte[h land 0xff]
         ++ byte[h lsr 8 land 0xff]
         /* byte 6: the version, 4, then 4 bits of the counter */
-        ++ byte[0x40 lor h lsr 16 land 0x0f]
+        ++ byte[0x40 lor (h lsr 16 land 0x0f)]
         ++ byte[h lsr 20 land 0xff]
         ++ tail;
     };
     Uuidm.unsafe_of_bytes(byte[l land 0xff] ++ suffix^);
   };
 };
+let mk: unit => t = minter();
 let namespace_uuid =
   Uuidm.of_string("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
   |> OptUtil.get(_ => failwith("Invalid namespace UUID"));
